@@ -6,7 +6,7 @@
 | `11bm_gsas.prm` | GSAS instrument parameter file for the above (profile from SRM 660a LaB6 fit) | same | same |
 | `cod_1000236.cif` | NAC structure, Courbion & Ferey (1988) J. Solid State Chem. 76, 426, space group I2₁3, a = 10.257 Å | Crystallography Open Database entry 1000236 | COD (public domain dedication) |
 | `cod_1000055.cif` | LaB6 structure, Pm-3m, a = 4.157597 Å | COD entry 1000055 | COD (public domain dedication) |
-| `nist_srm660c_100a.cif` | NIST SRM 660c LaB6 certification dataset incl. measured profile (5332 pts, Cu Kα + graphite analyzer) — reserved for v0.2 lab-instrument acceptance | NIST Public Data Repository mds2-2315 (data.nist.gov) | NIST open data license (U.S. Government work) |
+| `nist_srm660c_100a.cif` | NIST SRM 660c LaB6 certification dataset incl. measured profile (5332 pts in 24 stitched scan regions, Cu Kα + graphite post-monochromator, NIST DBD, R = 217.5 mm) — v0.2 lab-instrument acceptance (`test_acceptance_srm660c.py`) | NIST Public Data Repository mds2-2315 (data.nist.gov) | NIST open data license (U.S. Government work) |
 
 Reference values used in acceptance tests:
 
@@ -15,5 +15,15 @@ Reference values used in acceptance tests:
   temperature/calibration — the acceptance test therefore checks internal
   consistency (Le Bail vs Rietveld) and agreement with the 11-BM wavelength
   calibration rather than a certificate-grade absolute value.
-- LaB6 SRM 660c certified lattice parameter: a = 4.156826(?) Å (see NIST
-  certificate, tsapps.nist.gov/srmext/certificates/660c.pdf) — used in v0.2.
+- LaB6 SRM 660c certified lattice parameter: a = 4.156826(8) Å **at 22.5 °C**
+  (expanded uncertainty, k = 2; NIST certificate,
+  tsapps.nist.gov/srmext/certificates/660c.pdf).  The `…_100a` data block was
+  measured at 20.85 °C and its CIF records NIST's own recomputed cell for
+  exactly this dataset, **a = 4.156780 Å** — the value the acceptance test
+  compares against (consistent with the certificate via the Sirota et al. 1998
+  thermal expansion used by NIST).  The certificate/CIF wavelength scale is
+  λ(Cu Kα1) = 1.5405929 Å (Hölzer et al. 1997), which is what
+  `Instrument.bragg_brentano(radiation="CuKa")` ships.
+- SRM 660c auxiliary references: CIF-recorded specimen displacement
+  −0.07877 mm (the v0.2 fit recovers −0.0801 mm with zero fixed);
+  Hölzer integrated Kα2/Kα1 intensity ratio ≈ 0.52 (fit: 0.513).

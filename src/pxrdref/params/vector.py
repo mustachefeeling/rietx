@@ -36,6 +36,7 @@ class Entry:
     hi: float
     transform: str
     tied_to: str | None = None  # identity tie (dependent ← source path)
+    locked: bool = False  # structurally fixed: set_vary may never free it
 
 
 # crystal-system cell ties: dependent → source for the identity ties, plus a
@@ -73,6 +74,7 @@ class ParameterTable:
         self.entries.append(Entry(
             path=path, value=p.value, vary=p.vary and not force_fixed and tied_to is None,
             lo=p.min, hi=p.max, transform=p.transform, tied_to=tied_to,
+            locked=force_fixed,
         ))
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
@@ -98,7 +100,7 @@ class ParameterTable:
                     if cp.vary:
                         raise NotImplementedError(
                             f"refining atomic coordinates ({base}.atoms.{j}.{coord}) requires "
-                            "Wyckoff-aware symmetry constraints, planned for v0.2; set vary=False"
+                            "Wyckoff-aware symmetry constraints, planned for v0.3; set vary=False"
                         )
                     self._add(f"{base}.atoms.{j}.{coord}", cp)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
@@ -106,6 +108,17 @@ class ParameterTable:
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._add("instrument.polarization", instrument.source.polarization)
+        for il, line in enumerate(instrument.source.lines):
+            # line 0 defines the intensity scale: its weight is degenerate with
+            # the phase scale factors, so it is always held fixed
+            self._add(f"instrument.source.lines.{il}.weight", line.weight,
+                      force_fixed=(il == 0))
+        geom = instrument.geometry
+        for name in ("sample_displacement", "sample_transparency",
+                     "axial_sl", "axial_hl"):
+            self._add(f"instrument.geometry.{name}", getattr(geom, name),
+                      force_fixed=(geom.kind != "bragg_brentano"
+                                   and name.startswith("sample_")))
         for name in ("u", "v", "w", "x", "y"):
             self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
         bkg = instrument.background
@@ -115,13 +128,18 @@ class ParameterTable:
 
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:
-        """Glob-match entry paths (fnmatch semantics on dot paths); returns hits."""
+        """Glob-match entry paths (fnmatch semantics on dot paths); returns hits.
+
+        Tied and locked entries never match: symmetry-fixed cell angles and
+        the line-0 emission weight cannot be freed even by a broad glob such
+        as ``phases.*.cell.*``.
+        """
         import fnmatch
 
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tied_to is None:
+                if e.tied_to is None and not e.locked:
                     e.vary = vary
                     hits.append(e.path)
         self._free_idx = [i for i, e in enumerate(self.entries) if e.vary and e.tied_to is None]
@@ -189,6 +207,11 @@ class ParameterTable:
                 atom.biso.value = values[f"{base}.atoms.{j}.biso"]
         instrument.zero_shift.value = values["instrument.zero_shift"]
         instrument.source.polarization.value = values["instrument.polarization"]
+        for il, line in enumerate(instrument.source.lines):
+            line.weight.value = values[f"instrument.source.lines.{il}.weight"]
+        for name in ("sample_displacement", "sample_transparency",
+                     "axial_sl", "axial_hl"):
+            getattr(instrument.geometry, name).value = values[f"instrument.geometry.{name}"]
         for name in ("u", "v", "w", "x", "y"):
             getattr(instrument.profile, name).value = values[f"instrument.profile.{name}"]
         bkg = instrument.background

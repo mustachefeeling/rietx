@@ -64,21 +64,29 @@ class Refinement:
         model = None
 
         for stage in plan.stages:
-            # regenerate reflection list/windows with current values (between-stage
-            # refresh; frozen within the stage)
+            freed = table.set_vary(stage.turn_on, True)
+            if mode == "lebail":
+                # never refine structural parameters (or the line-intensity
+                # ratio, which the per-hkl intensities can absorb pairwise)
+                # against empirical intensities
+                for path in list(freed):
+                    if ".atoms." in path or path.endswith(".scale") \
+                            or ".source.lines." in path:
+                        table.set_vary([path], False)
+
+            # regenerate reflection list/windows/FCJ nodes with current values
+            # (between-stage refresh; frozen within the stage); the free-path
+            # set lets the compiler allocate FCJ nodes for axial parameters
+            # that are about to refine from zero
             table.apply_to_models(self.structure, self.instrument)
             new_model = compile_model(self.structure, self.instrument, data, mode=mode,
-                                      two_theta_limits=two_theta_limits)
+                                      two_theta_limits=two_theta_limits,
+                                      free_paths=set(table.free_paths))
             if model is not None and mode == "lebail" and model.mode == "lebail":
                 _carry_lebail(model, new_model)
             model = new_model
 
-            freed = table.set_vary(stage.turn_on, True)
             if mode == "lebail":
-                # never refine structural parameters against empirical intensities
-                for path in list(freed):
-                    if ".atoms." in path or path.endswith(".scale"):
-                        table.set_vary([path], False)
                 values = table.decode(table.x0())
                 model.lebail_update(values, n_cycles=stage.lebail_cycles)
 

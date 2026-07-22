@@ -1,0 +1,129 @@
+"""v0.2 acceptance: NIST SRM 660c LaB6 certification data (CuKα lab data).
+
+Real measured data from the NIST divergent-beam diffractometer (DBD): CuKα
+doublet, graphite post-monochromator, R = 217.5 mm, 20.3-150.9° 2θ in 24
+stitched scan regions (Cline et al., 2020, Powder Diffr. 35, certification
+paper; data block ``…_100a_meas`` of tests/data/nist_srm660c_100a.cif).
+
+Protocol: the DBD is angle-calibrated, so — exactly as in the NIST
+certification analyses — the zero error is *held at 0* and the specimen
+displacement refines instead (their FPA fits refine displacement and
+attenuation, never a zero offset).  LaB6 is effectively opaque to CuKα, so
+transparency is also held at 0.
+
+Reference values (see tests/data/README.md):
+* the CIF's own recomputed cell for this data block, a = 4.156780 Å at
+  20.85 °C (the certificate value 4.156826(8) Å applies at 22.5 °C);
+* the CIF's recorded specimen displacement, −0.07877 mm;
+* Hölzer et al. (1997): integrated CuKα2/Kα1 intensity ratio ≈ 0.52.
+
+Measured v0.2 result (recorded 2026-07-22, also in docs/ROADMAP.md):
+a = 4.156895(7) Å (Δ = +1.15e-4 = +28 ppm), Rwp = 8.7 %, GoF = 1.87,
+displacement −0.0801 mm (1.3 µm from NIST's), Kα2/Kα1 = 0.513.  The ±2e-4
+cell band below is *interim*: the remaining bias is the unmodelled
+equatorial (flat-specimen) divergence, tube tails and monochromator
+passband — fundamental-parameters territory, fenced for v2.  Certificate-
+level ±8e-6 accuracy is explicitly not claimed by this test.
+"""
+
+from pathlib import Path
+
+import pytest
+
+import pxrdref as pr
+
+DATA = Path(__file__).parent / "data"
+A_REFERENCE = 4.156780       # CIF block cell at 20.85 °C
+DISP_REFERENCE = -0.07877    # mm, from the CIF spec block
+
+pytestmark = pytest.mark.slow
+
+
+@pytest.fixture(scope="module")
+def srm_inputs():
+    path = DATA / "nist_srm660c_100a.cif"
+    if not path.exists():
+        pytest.skip("SRM 660c dataset not present")
+    data = pr.read_pdcif(path, block="_meas")
+
+    structure = pr.Structure(phases=[pr.Phase(
+        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
+        atoms=[
+            # Uiso from the CIF cell block: La 0.0045, B 0.0035 Å² (B = 8π²U)
+            pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
+                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
+                    biso=pr.Parameter(value=0.355, min=0.0, max=25.0)),
+            pr.Atom(label="B", species="B", x=pr.Parameter(value=0.198),
+                    y=pr.Parameter(value=0.5), z=pr.Parameter(value=0.5),
+                    biso=pr.Parameter(value=0.276, min=0.0, max=25.0)),
+        ],
+        scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"),
+    )])
+
+    instrument = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument.profile.w.value = 2e-3
+    instrument.profile.x.value = 5e-3
+    instrument.geometry.axial_sl.value = 0.025
+    instrument.geometry.axial_hl.value = 0.025
+    from pxrdref.schemas.instrument import BackgroundChebyshev
+    instrument.background = BackgroundChebyshev.with_terms(6)
+    return data, structure, instrument
+
+
+def _nist_calibrated_plan() -> pr.RefinementPlan:
+    """lab_bragg_brentano minus the zero error (calibrated goniometer)."""
+    return pr.RefinementPlan(stages=[
+        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        pr.Stage("cell", ["phases.*.cell.*"]),
+        pr.Stage("profile_w", ["instrument.profile.w"]),
+        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                             "instrument.profile.x", "instrument.profile.y"]),
+        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+                                 "instrument.geometry.axial_sl",
+                                 "instrument.geometry.axial_hl"]),
+        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+    ])
+
+
+def test_srm660c_lab6_rietveld(srm_inputs):
+    data, structure, instrument = srm_inputs
+    ref = pr.Refinement(structure, instrument)
+    result = ref.fit(data, plan=_nist_calibrated_plan())
+
+    assert result.status == "converged"
+    assert result.statistics.rwp < 0.10
+    assert result.statistics.gof < 2.5
+
+    a = ref.fitted_structure.phases[0].cell.a.value
+    a_err = result.parameter("phases.0.cell.a").stderr
+    assert a_err is not None and a_err < 2e-5
+    # interim accuracy band — see module docstring for the honest breakdown
+    assert abs(a - A_REFERENCE) < 2e-4
+
+    ins = ref.fitted_instrument
+    # zero stayed pinned; displacement lands on NIST's value to ~10 µm
+    assert ins.zero_shift.value == 0.0
+    assert abs(ins.geometry.sample_displacement.value - DISP_REFERENCE) < 0.01
+    # refined Kα2/Kα1 close to the Hölzer integrated ratio
+    assert 0.45 < ins.source.lines[1].weight.value < 0.56
+    # axial ratios in the physically plausible window for the DBD
+    assert 0.005 < ins.geometry.axial_sl.value < 0.1
+    assert 0.005 < ins.geometry.axial_hl.value < 0.1
+
+    # FitReport must digest stitched-region lab data
+    report = pr.build_report(result)
+    assert report.summary
+    assert report.n_regions_total > 10
+
+    # fit plots for visual inspection (tests/output/, gitignored):
+    # full pattern + the two regions where the new physics shows — the FCJ
+    # low-angle tail on 100 and the resolved Kα doublet at high angle
+    from pxrdref.viz.plots import plot_result
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(result, path=str(out / "srm660c_fit.png"))
+    plot_result(result, path=str(out / "srm660c_fit_lowangle.png"),
+                two_theta_range=(20.6, 22.2))
+    plot_result(result, path=str(out / "srm660c_fit_highangle.png"),
+                two_theta_range=(147.5, 150.9))

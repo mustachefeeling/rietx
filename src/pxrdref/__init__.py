@@ -1,6 +1,6 @@
 """pxrd-refine: API-first Rietveld refinement of powder X-ray diffraction data."""
 
-from .io.readers import read_pattern
+from .io.readers import read_pattern, read_pdcif
 from .refine import Refinement, refine
 from .report import FitReport, build_report
 from .schemas import (
@@ -30,5 +30,6 @@ __all__ = [
     "Structure",
     "build_report",
     "read_pattern",
+    "read_pdcif",
     "refine",
 ]

@@ -1,9 +1,11 @@
 """Pattern file readers.
 
-Supported: two/three-column ASCII (``.xy`` / ``.xye``) and the GSAS ESD/STD
-raw powder formats (``.fxye``/``.gsas``, as written by APS 11-BM).  When the
-file carries per-point esds they are stored in ``PatternData.sigma`` — never
-overridden by the Poisson fallback (review finding M5).
+Supported: two/three-column ASCII (``.xy`` / ``.xye``), the GSAS ESD/STD raw
+powder formats (``.fxye``/``.gsas``, as written by APS 11-BM), and powder CIF
+(pdCIF, ``.cif``) as distributed with e.g. the NIST SRM certification data.
+When the file carries per-point esds (or least-squares weights, from which
+σ = 1/√w) they are stored in ``PatternData.sigma`` — never overridden by the
+Poisson fallback (review finding M5).
 """
 
 from __future__ import annotations
@@ -21,7 +23,79 @@ def read_pattern(path: str | Path) -> PatternData:
     suffix = p.suffix.lower()
     if suffix in (".fxye", ".gsas", ".gss", ".gda", ".raw") and _looks_gsas(p):
         return _read_gsas(p)
+    if suffix == ".cif":
+        return read_pdcif(p)
     return _read_xy(p)
+
+
+#: pdCIF tag alternatives, in preference order (IUCr pdCIF dictionary,
+#: Toby 2003, "CIF applications: powder diffraction", J. Appl. Cryst. 36)
+_PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
+             "_pd_meas_2theta_range_inc")
+_PDCIF_Y = ("_pd_proc_intensity_total", "_pd_meas_intensity_total",
+            "_pd_meas_counts_total")
+_PDCIF_SU = ("_pd_proc_intensity_total_su", "_pd_proc_intensity_total_esd",
+             "_pd_meas_intensity_total_su", "_pd_meas_intensity_total_esd")
+
+
+def read_pdcif(path: str | Path, *, block: str | None = None) -> PatternData:
+    """Read a powder pattern from a pdCIF file.
+
+    ``block`` selects a data block by substring match on its name (a pdCIF
+    often carries several — e.g. the NIST SRM certification files hold both a
+    ``…_meas`` and a ``…_calc`` block with identical tags); by default the
+    first block containing a recognised 2θ + intensity loop is used.
+
+    σ handling: an explicit ``…_su``/``…_esd`` column wins; otherwise
+    ``_pd_proc_ls_weight`` is interpreted as the least-squares weight
+    w = 1/σ² (its pdCIF definition), so σ = 1/√w.  With neither present,
+    ``sigma`` is left unset and the Poisson fallback applies downstream.
+    """
+    import gemmi
+
+    p = Path(path)
+    doc = gemmi.cif.read(str(p))
+    chosen = None
+    for b in doc:
+        if block is not None and block not in b.name:
+            continue
+        if _first_loop(b, _PDCIF_TT) is not None and _first_loop(b, _PDCIF_Y) is not None:
+            chosen = b
+            break
+    if chosen is None:
+        what = "pattern block" if block is None else f"pattern block matching {block!r}"
+        raise ValueError(f"no pdCIF {what} found in {p}")
+
+    tt = _first_loop(chosen, _PDCIF_TT)
+    y = _first_loop(chosen, _PDCIF_Y)
+    if len(tt) != len(y):
+        raise ValueError(f"2θ and intensity loops differ in length in {p}")
+
+    sigma = None
+    su = _first_loop(chosen, _PDCIF_SU)
+    if su is not None and len(su) == len(y):
+        sigma = su
+    else:
+        wt = _first_loop(chosen, ("_pd_proc_ls_weight",))
+        if wt is not None and len(wt) == len(y) and np.all(wt > 0):
+            sigma = 1.0 / np.sqrt(wt)
+
+    return PatternData(
+        two_theta=tt.tolist(), intensity=y.tolist(),
+        sigma=None if sigma is None else sigma.tolist(),
+        metadata={"source_file": p.name, "format": "pdcif", "block": chosen.name},
+    )
+
+
+def _first_loop(b, tags: tuple[str, ...]) -> np.ndarray | None:
+    """First present loop column among ``tags``, parsed as float (esds stripped)."""
+    import gemmi
+
+    for tag in tags:
+        col = b.find_loop(tag)
+        if len(col) > 0:
+            return np.array([gemmi.cif.as_number(v) for v in col], dtype=np.float64)
+    return None
 
 
 def _looks_gsas(p: Path) -> bool:

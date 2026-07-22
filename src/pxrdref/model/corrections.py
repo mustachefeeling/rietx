@@ -20,3 +20,34 @@ def lorentz_polarization(two_theta_deg: np.ndarray, polarization: float) -> np.n
     th = 0.5 * tt
     pol = polarization + (1.0 - polarization) * np.cos(tt) ** 2
     return pol / (np.sin(th) ** 2 * np.cos(th))
+
+
+def displacement_shift_deg(theta_deg: np.ndarray, s_mm: float,
+                           radius_mm: float) -> np.ndarray:
+    """Bragg-Brentano sample-displacement peak shift, in degrees 2θ.
+
+        Δ2θ = −(2·s/R)·cosθ   [radians]
+
+    for a flat specimen whose surface sits a distance ``s`` off the goniometer
+    axis (positive toward the source/detector side of the focusing circle),
+    R = goniometer radius.  Wilson (1963), *Mathematical Theory of X-ray
+    Powder Diffractometry*, ch. 4; Klug & Alexander (1974), ch. 5.  The cosθ
+    dependence is what separates it from a constant zero-point error.
+    """
+    th = np.radians(np.asarray(theta_deg, dtype=np.float64))
+    return np.degrees(-2.0 * (s_mm / radius_mm) * np.cos(th))
+
+
+def transparency_shift_deg(two_theta_deg: np.ndarray, t_coef: float) -> np.ndarray:
+    """Bragg-Brentano sample-transparency peak shift, in degrees 2θ.
+
+        Δ2θ = −t·sin2θ   [radians],   t = 1/(2·μ_eff·R)
+
+    finite beam penetration puts the effective diffracting surface below the
+    physical one, pulling peaks to lower angle with a sin2θ signature
+    (thick-sample limit; Klug & Alexander, 1974, ch. 5; Wilson, 1963).
+    ``t_coef`` is the dimensionless coefficient t ≥ 0; for strongly absorbing
+    samples t → 0 and the correction vanishes.
+    """
+    tt = np.radians(np.asarray(two_theta_deg, dtype=np.float64))
+    return np.degrees(-t_coef * np.sin(tt))

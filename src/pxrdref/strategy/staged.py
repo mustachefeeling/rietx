@@ -40,6 +40,26 @@ class RefinementPlan:
         ])
 
     @classmethod
+    def lab_bragg_brentano(cls) -> "RefinementPlan":
+        """Lab flat-plate plan: adds sample displacement (with zero), then the
+        Kα2/Kα1 intensity ratio and FCJ axial-divergence parameters last —
+        the McCusker ordering extended by the v0.2 lab-instrument physics.
+        Sample transparency stays fixed (free it explicitly for low-absorbing
+        samples)."""
+        return cls(stages=[
+            Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+            Stage("zero_disp", ["instrument.zero_shift",
+                                "instrument.geometry.sample_displacement"]),
+            Stage("cell", ["phases.*.cell.*"]),
+            Stage("profile_w", ["instrument.profile.w"]),
+            Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                              "instrument.profile.x", "instrument.profile.y"]),
+            Stage("lines_axial", ["instrument.source.lines.*.weight",
+                                  "instrument.geometry.axial_sl",
+                                  "instrument.geometry.axial_hl"]),
+        ])
+
+    @classmethod
     def profile_only(cls) -> "RefinementPlan":
         """Le Bail-style plan: no structural parameters exist to free."""
         return cls(stages=[
@@ -54,6 +74,7 @@ class RefinementPlan:
 
 PLAN_PRESETS = {
     "mccusker_default": RefinementPlan.mccusker_default,
+    "lab_bragg_brentano": RefinementPlan.lab_bragg_brentano,
     "profile_only": RefinementPlan.profile_only,
 }
 

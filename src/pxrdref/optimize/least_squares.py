@@ -65,7 +65,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 scale = values[path]
                 if scale > 1e-30:
                     # Bragg component of this phase is proportional to its scale
-                    contrib = _phase_component(model, ip, values)
+                    contrib = model.phase_component(ip, values)
                     dy_dscale = contrib / scale
                     e = table.entries[table._paths[path]]
                     idx_free = free.index(path)
@@ -87,20 +87,6 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         return J
 
     return jacobian
-
-
-def _phase_component(model: CompiledModel, ip: int, values: dict[str, float]) -> np.ndarray:
-    from ..model.profiles.pseudovoigt import pseudo_voigt
-
-    cp = model.phases[ip]
-    pos, gamma, eta, intensity = model.phase_peaks(ip, values)
-    y = np.zeros_like(model.tt)
-    for k in range(len(pos)):
-        i0, i1 = cp.win[k]
-        if i1 <= i0 or not np.isfinite(pos[k]):
-            continue
-        y[i0:i1] += intensity[k] * pseudo_voigt(model.tt[i0:i1] - pos[k], gamma[k], eta[k])
-    return y
 
 
 def run_least_squares(model: CompiledModel, table: ParameterTable,

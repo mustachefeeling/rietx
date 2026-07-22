@@ -87,3 +87,9 @@ def test_nac_lebail_then_rietveld(nac_inputs):
     report = pr.build_report(result)
     assert report.n_regions_total > 20
     assert report.summary
+
+    # fit plot for visual inspection (tests/output/, gitignored)
+    from pxrdref.viz.plots import plot_result
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(result, path=str(out / "nac_fit.png"))

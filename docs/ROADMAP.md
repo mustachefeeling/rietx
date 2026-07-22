@@ -14,7 +14,7 @@ measured acceptance result.
 | Milestone | Scope | Status | Acceptance |
 |---|---|---|---|
 | v0.1 | Vertical slice: synchrotron CW, Rietveld + Le Bail | ✅ **shipped** | 11-BM NAC: a = 10.251285(12) Å, Rwp 9.2%, CaF₂ impurity auto-flagged |
-| v0.2 | Lab diffractometer + FitReport attribution + viz | ⬜ next | NIST SRM 660c LaB6 CuKα vs certified cell |
+| v0.2 | Lab diffractometer + FitReport attribution + viz | 🔶 **in progress** — lab physics core shipped 2026-07-22 | SRM 660c LaB6: a = 4.156895(7) Å (+28 ppm vs NIST value for this dataset), Rwp 8.7% |
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ⬜ | SRM 676a / IUCr QPA round-robin fractions |
 | v0.4 | JAX backend: autodiff Jacobians, CUDA, mixed precision | ⬜ | cross-backend Jacobian agreement CI |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
@@ -59,13 +59,32 @@ Acceptance: refine the **NIST SRM 660c LaB6 certification profiles**
 5332 points) and the GSAS-II tutorial lab pattern; refined cell within the
 certificate value ± combined uncertainty.
 
+**Measured acceptance so far** (`tests/test_acceptance_srm660c.py`,
+2026-07-22, NIST-protocol fit: goniometer calibrated ⇒ zero fixed,
+displacement refined): converged in 2.4 s, Rwp = 8.7 %, GoF = 1.87,
+**a = 4.156895(7) Å** vs NIST's own recomputed cell for this dataset
+4.156780 Å at 20.85 °C → **+1.15×10⁻⁴ Å (+28 ppm)**.  Physics
+cross-checks: refined specimen displacement −0.0801 mm vs the CIF's
+−0.07877 mm (1.3 µm); refined Kα2/Kα1 = 0.513 vs Hölzer's integrated 0.52.
+The certificate-level ±8×10⁻⁶ band is **not yet met**: swapping which shift
+terms refine (zero+displacement vs displacement-only) brackets the reference
+symmetrically at [−1.1, +1.2]×10⁻⁴, i.e. the residual is a systematic
+cotθ/sin2θ-signature aberration the model lacks — flat-specimen (equatorial
+divergence) error, tube tails and the graphite-passband spectrum shift, all
+fundamental-parameters territory (v2).  Transparency, when freed, pins at
+its physical ≥0 bound (LaB6 is opaque) — consistent with that reading.
+
 Physics / engine:
-- [ ] Bragg-Brentano geometry: sample displacement (−2s·cosθ/R), transparency
-- [ ] Kα1/Kα2 **per-line Bragg dispersion** (splitting grows with tanθ — never a fixed Δ2θ), refinable intensity ratio; Hölzer multi-Lorentzian emission option
-- [ ] Finger-Cox-Jephcoat axial asymmetry: singularity-removing variable transform, **fixed quadrature nodes per stage** (differentiability), validate against GSAS-II node scheme
+- [x] Bragg-Brentano geometry: sample displacement (−2s·cosθ/R, refinable, mm), transparency (−t·sin2θ, refinable coefficient) — `Geometry` schema + `corrections.py`, active only for `bragg_brentano`
+- [x] Kα1/Kα2 **per-line Bragg dispersion** (splitting grows with tanθ — never a fixed Δ2θ; each line gets its own Bragg angle, widths, Lp), refinable intensity ratio (line-0 weight structurally locked against scale degeneracy); `Instrument.bragg_brentano(radiation="CuKa")` preset on the NIST/Hölzer wavelength scale (Kα1 1.5405929 Å). Hölzer multi-Lorentzian emission option still open
+- [x] Finger-Cox-Jephcoat axial asymmetry: singularity-removing ξ-variable transform, **fixed quadrature nodes per stage** (node counts frozen at compile; sized even when refining axial from 0 via `free_paths`), quadrature **split at the overlap-trapezoid kink** so nodes never sweep across it (keeps ∂y/∂(S/L) C¹ — verified by an O(h²) second-difference scaling test); validated against a dense direct 2φ-space integral of the singular FCJ density to <1 % (GSAS-II runs are a v0.3 consistency-check target)
+- [x] pdCIF reader (`read_pdcif`): `_pd_proc`/`_pd_meas` loops, σ from su columns or `_pd_proc_ls_weight` (σ = 1/√w), multi-block selection
+- [x] `lab_bragg_brentano` staged-plan preset (McCusker order + displacement with zero, Kα2 ratio + axial last)
+- [x] Bugfix found by the new tests: `set_vary` glob could re-free *structurally fixed* entries (symmetry-fixed cell angles matched by `phases.*.cell.*`, line-0 weight) — entries now carry a `locked` flag that globs can never free
 - [ ] Instrument ⊕ sample profile split (Gaussian variances add, Lorentzian FWHMs add) → calibrate-on-LaB6 → freeze → refine-sample workflow; instrument-profile file export/import
 - [ ] Analytic Jacobian columns for cell→2θ and profile widths (removes the dominant FD cost)
 - [ ] Bérar-Lelann esd inflation; full statistics complete
+- [ ] GSAS-II tutorial lab pattern as a second acceptance dataset
 
 Background subsystem (automation-first):
 - [ ] Pattern diagnostics object (peak density, S/B, amorphous-hump score, air-scatter slope, Kβ/W flags) — structured, agent-readable
@@ -176,11 +195,16 @@ differentiable from day one.
 (Also in CLAUDE.md — duplicated here because they are design decisions.)
 
 1. **Frozen-per-stage discreteness.** hkl lists, symmetry-op subsets,
-   FCJ quadrature nodes, and per-reflection window index ranges are computed
-   at stage compile and never change during a least-squares run; regenerate
-   only between stages. Freezing the hkl list alone is *not* enough — window
-   membership depends on refined cell/zero parameters and creates gradient
-   bias exactly on the parameters that matter most.
+   FCJ quadrature nodes, and per-(line, reflection) window index ranges are
+   computed at stage compile and never change during a least-squares run;
+   regenerate only between stages. Freezing the hkl list alone is *not*
+   enough — window membership depends on refined cell/zero parameters and
+   creates gradient bias exactly on the parameters that matter most.
+   FCJ detail learned in v0.2: freezing node *counts* is still not enough if
+   fixed-fraction nodes sweep across the overlap-trapezoid kink at
+   ξ = |S/L − H/L| as the axial parameters refine (O(h) steps in the
+   derivative); the quadrature is therefore *split at the kink* into two
+   Gauss-Legendre segments whose endpoints track the parameters smoothly.
 2. **fp64 correctness boundary.** The residual used for cost/statistics and
    the parameter solve/covariance are always fp64 on host. GPU fp32 is
    restricted to Jacobian columns (relative-accuracy tolerant).
