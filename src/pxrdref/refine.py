@@ -118,7 +118,8 @@ class Refinement:
         stats = compute_statistics(model.y_obs, y_calc, model.sigma,
                                    n_free=len(table.free_paths),
                                    y_background=model.background(values))
-        stderr = (table.stderr_physical(outcome.theta, outcome.stderr_internal)
+        stderr = (table.stderr_physical(outcome.theta, outcome.stderr_internal,
+                                        outcome.correlation)
                   if outcome.stderr_internal is not None else {})
         metrics = NodeMetrics(
             statistics=stats, status=outcome.status, n_iterations=outcome.n_iterations,
@@ -430,7 +431,8 @@ class Refinement:
         self.result_ = _build_result(
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=stage_results, diagnostics=diagnostics,
-            structure=self.structure, stderr_internal=outcome.stderr_internal)
+            structure=self.structure, stderr_internal=outcome.stderr_internal,
+            correlation=outcome.correlation)
         self._stamp(self.result_, tree)
         if stream is not None:
             stream.emit("fit_end", status=self.result_.status,
@@ -479,7 +481,8 @@ class Refinement:
         self.result_ = _build_result(
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=[stage_result], diagnostics=diagnostics,
-            structure=self.structure, stderr_internal=outcome.stderr_internal)
+            structure=self.structure, stderr_internal=outcome.stderr_internal,
+            correlation=outcome.correlation)
         self._stamp(self.result_, tree)
         return self.result_
 
@@ -570,18 +573,18 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
-                  stderr_internal=None) -> RefinementResult:
+                  stderr_internal=None, correlation=None) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
     stats = compute_statistics(model.y_obs, y_calc, model.sigma,
                                n_free=len(table.free_paths), y_background=y_bkg)
 
-    stderr_phys = (table.stderr_physical(theta, stderr_internal)
+    stderr_phys = (table.stderr_physical(theta, stderr_internal, correlation)
                    if stderr_internal is not None else {})
     params = []
     for e in table.entries:
-        if e.vary or e.tied_to is not None:
+        if e.vary or e.tie is not None:
             params.append(RefinedParameter(
                 path=e.path, value=e.value, vary=e.vary,
                 stderr=stderr_phys.get(e.path),

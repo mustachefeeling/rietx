@@ -5,13 +5,16 @@ Compiles a (Structure, Instrument) pair into:
 * an ordered table of every :class:`Parameter` with a stable dot-separated
   path (``phases.0.cell.a``, ``instrument.profile.w``,
   ``instrument.background.c2`` …);
-* identity ties implied by the crystal system (cubic: b = a, c = a; the
-  general affine-constraint machinery arrives with Wyckoff support in v0.2);
+* an affine constraint block **p_phys = C·p_free + d** (sparse C, rebuilt at
+  every stage boundary, constant during a least-squares run — a constant
+  matmul stays exact under the future autodiff backends).  Crystal-system
+  cell ties are the identity-row special case; Wyckoff site constraints
+  (``crystallography.wyckoff``) supply general rows;
 * the mapping between the free internal vector θ (what the optimiser sees)
   and the full physical value dict consumed by the forward model.
 
-The decode path is plain float arithmetic on pre-built index lists — no
-pydantic objects are touched per iteration.
+The decode path is plain float/array arithmetic on a pre-built sparse
+matrix — no pydantic objects are touched per iteration.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import sparse
 
 from ..crystallography.symmetry import get_spacegroup
 from ..schemas.common import Parameter
@@ -37,6 +41,23 @@ def _background_parameters(bkg) -> list[tuple[str, Parameter]]:
     return [(f"c{n}", p) for n, p in enumerate(cheb)]
 
 
+@dataclass(frozen=True)
+class AffineTie:
+    """Declares one physical parameter as an affine function of others.
+
+    value(path) = Σ coeff · value(source path) + const.  Sources may
+    themselves be tied (chains are flattened at rebuild); cycles are an
+    error.  :meth:`identity` gives the b ← a cell-tie special case.
+    """
+
+    terms: tuple[tuple[str, float], ...]
+    const: float = 0.0
+
+    @classmethod
+    def identity(cls, source: str) -> "AffineTie":
+        return cls(terms=((source, 1.0),))
+
+
 @dataclass
 class Entry:
     path: str
@@ -45,7 +66,7 @@ class Entry:
     lo: float
     hi: float
     transform: str
-    tied_to: str | None = None  # identity tie (dependent ← source path)
+    tie: AffineTie | None = None  # affine dependence on other entries
     locked: bool = False  # structurally fixed: set_vary may never free it
 
 
@@ -75,15 +96,14 @@ class ParameterTable:
     def __init__(self, structure: Structure, instrument: Instrument):
         self.entries: list[Entry] = []
         self._collect(structure, instrument)
-        self._free_idx = [i for i, e in enumerate(self.entries) if e.vary and e.tied_to is None]
-        self._paths = {e.path: i for i, e in enumerate(self.entries)}
+        self._rebuild()
 
     # -- collection ----------------------------------------------------
     def _add(self, path: str, p: Parameter, *, force_fixed: bool = False,
-             tied_to: str | None = None) -> None:
+             tie: AffineTie | None = None) -> None:
         self.entries.append(Entry(
-            path=path, value=p.value, vary=p.vary and not force_fixed and tied_to is None,
-            lo=p.min, hi=p.max, transform=p.transform, tied_to=tied_to,
+            path=path, value=p.value, vary=p.vary and not force_fixed and tie is None,
+            lo=p.min, hi=p.max, transform=p.transform, tie=tie,
             locked=force_fixed,
         ))
 
@@ -96,7 +116,8 @@ class ParameterTable:
             for name in ("a", "b", "c", "alpha", "beta", "gamma"):
                 p: Parameter = getattr(phase.cell, name)
                 if name in ties:
-                    self._add(f"{base}.cell.{name}", p, tied_to=f"{base}.cell.{ties[name]}")
+                    self._add(f"{base}.cell.{name}", p,
+                              tie=AffineTie.identity(f"{base}.cell.{ties[name]}"))
                 elif name in fixed_angles:
                     self._add(f"{base}.cell.{name}", p, force_fixed=True)
                 else:
@@ -136,6 +157,102 @@ class ParameterTable:
         for sub, cp in _background_parameters(instrument.background):
             self._add(f"instrument.background.{sub}", cp)
 
+    # -- the affine constraint block -----------------------------------
+    def _flatten(self, tie: AffineTie, _seen: tuple[str, ...] = ()
+                 ) -> tuple[list[tuple[int, float]], float]:
+        """Resolve a tie onto untied entries: chains collapse, cycles raise."""
+        terms: list[tuple[int, float]] = []
+        const = tie.const
+        for path, coeff in tie.terms:
+            if path in _seen:
+                raise ValueError(f"cyclic parameter tie through {path!r}")
+            i = self._paths.get(path)
+            if i is None:
+                raise ValueError(f"tie references unknown parameter {path!r}")
+            src = self.entries[i]
+            if src.tie is None:
+                terms.append((i, coeff))
+            else:
+                sub_terms, sub_const = self._flatten(src.tie, _seen + (path,))
+                terms.extend((j, coeff * c) for j, c in sub_terms)
+                const += coeff * sub_const
+        return terms, const
+
+    def _rebuild(self) -> None:
+        """Recompile p_phys = C·p_free + d from the current entries.
+
+        Free entries get unit rows, held entries put their value in ``d``,
+        tied entries scatter flattened coefficients into ``C`` (free
+        sources) and ``d`` (held sources + constants).  Rebuilds happen
+        only at stage boundaries (``set_vary`` / ``commit`` / ``set_tie``),
+        never inside a least-squares run, so the map is a constant matmul
+        while the optimiser looks at it.
+        """
+        self._paths = {e.path: i for i, e in enumerate(self.entries)}
+        self._free_idx = [i for i, e in enumerate(self.entries) if e.vary and e.tie is None]
+        col = {i: k for k, i in enumerate(self._free_idx)}
+        n, m = len(self.entries), len(self._free_idx)
+        c_rows: list[int] = []
+        c_cols: list[int] = []
+        c_vals: list[float] = []
+        d = np.zeros(n, dtype=np.float64)
+        for i, e in enumerate(self.entries):
+            if e.tie is None:
+                if i in col:
+                    c_rows.append(i)
+                    c_cols.append(col[i])
+                    c_vals.append(1.0)
+                else:
+                    d[i] = e.value
+            else:
+                terms, const = self._flatten(e.tie, (e.path,))
+                d[i] = const
+                for j, coeff in terms:
+                    if j in col:
+                        c_rows.append(i)
+                        c_cols.append(col[j])
+                        c_vals.append(coeff)
+                    else:
+                        d[i] += coeff * self.entries[j].value
+        self._C = sparse.csr_matrix((c_vals, (c_rows, c_cols)), shape=(n, m))
+        self._d = d
+
+    def constraint_block(self) -> tuple[sparse.csr_matrix, np.ndarray]:
+        """The current (C, d) with rows in entry order, columns in θ order."""
+        return self._C, self._d
+
+    # -- table surgery (used by Wyckoff constraint wiring) -------------
+    def add_parameter(self, path: str, value: float, *, vary: bool = False,
+                      lo: float = -np.inf, hi: float = np.inf,
+                      transform: str = "identity") -> None:
+        """Append a synthetic parameter (e.g. a Wyckoff displacement DOF).
+
+        Synthetic paths must not collide with existing entries; pick names
+        outside the model tree, e.g. ``phases.0.atoms.2.dof.0``.
+        """
+        if path in self._paths:
+            raise ValueError(f"parameter {path!r} already exists")
+        self.entries.append(Entry(path=path, value=value, vary=vary,
+                                  lo=lo, hi=hi, transform=transform))
+        self._rebuild()
+
+    def set_tie(self, path: str, tie: AffineTie | None) -> None:
+        """(Re)declare an entry as an affine function of other entries.
+
+        Tying forces ``vary=False`` (the entry leaves θ; its sources carry
+        the freedom).  Locked entries cannot be retied.  ``None`` unties.
+        """
+        i = self._paths.get(path)
+        if i is None:
+            raise ValueError(f"unknown parameter {path!r}")
+        e = self.entries[i]
+        if e.locked:
+            raise ValueError(f"cannot tie structurally locked parameter {path!r}")
+        e.tie = tie
+        if tie is not None:
+            e.vary = False
+        self._rebuild()
+
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:
         """Glob-match entry paths (fnmatch semantics on dot paths); returns hits.
@@ -149,10 +266,10 @@ class ParameterTable:
         hits = []
         for e in self.entries:
             if any(fnmatch.fnmatchcase(e.path, g) for g in path_globs):
-                if e.tied_to is None and not e.locked:
+                if e.tie is None and not e.locked:
                     e.vary = vary
                     hits.append(e.path)
-        self._free_idx = [i for i, e in enumerate(self.entries) if e.vary and e.tied_to is None]
+        self._rebuild()
         return hits
 
     # -- optimiser interface -------------------------------------------
@@ -174,33 +291,43 @@ class ParameterTable:
         return np.asarray(lo), np.asarray(hi)
 
     def decode(self, theta: np.ndarray) -> dict[str, float]:
-        """Internal free vector → full physical value dict (ties applied)."""
-        values = {e.path: e.value for e in self.entries}
-        for t, i in zip(theta, self._free_idx, strict=True):
-            e = self.entries[i]
-            values[e.path] = to_physical(float(t), e.transform)
-        for e in self.entries:
-            if e.tied_to is not None:
-                values[e.path] = values[e.tied_to]
-        return values
+        """Internal free vector → full physical value dict, via C·p_free + d."""
+        p_free = np.array([to_physical(float(t), self.entries[i].transform)
+                           for t, i in zip(theta, self._free_idx, strict=True)],
+                          dtype=np.float64)
+        p = self._C @ p_free + self._d if len(p_free) else self._d
+        return {e.path: float(p[i]) for i, e in enumerate(self.entries)}
 
     def commit(self, theta: np.ndarray) -> None:
         """Write refined values back into the table (used between stages)."""
         values = self.decode(theta)
         for e in self.entries:
             e.value = values[e.path]
+        self._rebuild()  # held-source contributions to d follow the new values
 
-    def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray) -> dict[str, float]:
-        """Map internal esds to physical units via the transform chain rule."""
-        out: dict[str, float] = {}
-        for t, s, i in zip(theta, stderr_internal, self._free_idx, strict=True):
-            e = self.entries[i]
-            out[e.path] = abs(dphys_dinternal(float(t), e.transform)) * float(s)
-        # tied params inherit the source esd (identity ties)
-        for e in self.entries:
-            if e.tied_to is not None and e.tied_to in out:
-                out[e.path] = out[e.tied_to]
-        return out
+    def stderr_physical(self, theta: np.ndarray, stderr_internal: np.ndarray,
+                        correlation: np.ndarray | None = None) -> dict[str, float]:
+        """Physical esds for every free or tied parameter.
+
+        σ²_phys = diag(C · Cov_free · Cᵀ), where Cov_free is the covariance
+        of the *physical* free parameters: the internal esds chain-ruled
+        through the transforms, correlated by ``correlation`` when given
+        (diagonal otherwise — the pre-v0.3 behaviour).  Identity ties
+        thereby report exactly the source esd; general rows get full linear
+        propagation including cross terms.  Held parameters are omitted.
+        """
+        s = np.array([abs(dphys_dinternal(float(t), self.entries[i].transform)) * float(sd)
+                      for t, sd, i in zip(theta, stderr_internal, self._free_idx, strict=True)],
+                     dtype=np.float64)
+        if correlation is None:
+            var = self._C.multiply(self._C) @ (s * s)
+        else:
+            cov = np.asarray(correlation, dtype=np.float64) * np.outer(s, s)
+            var = np.asarray(self._C.multiply(self._C @ cov).sum(axis=1)).ravel()
+        var = np.maximum(np.asarray(var).ravel(), 0.0)
+        touched = np.diff(self._C.indptr) > 0  # rows with any free source
+        return {e.path: float(np.sqrt(var[i]))
+                for i, e in enumerate(self.entries) if touched[i]}
 
     def apply_to_models(self, structure: Structure, instrument: Instrument) -> None:
         """Write current table values back into (copies of) the pydantic models."""
