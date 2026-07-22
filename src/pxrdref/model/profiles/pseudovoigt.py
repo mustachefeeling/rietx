@@ -52,3 +52,26 @@ def pseudo_voigt(x: np.ndarray, gamma: np.ndarray, eta: np.ndarray) -> np.ndarra
     lorentz = (2.0 / (np.pi * g)) / (1.0 + 4.0 * (x / g) ** 2)
     gauss = (2.0 / g) * np.sqrt(np.log(2.0) / np.pi) * np.exp(-_4LN2 * (x / g) ** 2)
     return eta * lorentz + (1.0 - eta) * gauss
+
+
+def pseudo_voigt_derivs(x: np.ndarray, gamma: float, eta: float
+                        ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """(pV, ∂pV/∂x, ∂pV/∂Γ, ∂pV/∂η) — closed forms for the analytic Jacobian.
+
+    Both components are homogeneous, (1/Γ)·f(x/Γ), so with u = x/Γ:
+
+        ∂L/∂x = −L · (8u/Γ)/(1 + 4u²)          ∂L/∂Γ = (L/Γ)·(8u²/(1+4u²) − 1)
+        ∂G/∂x = −G · 8ln2·u/Γ                  ∂G/∂Γ = (G/Γ)·(8ln2·u² − 1)
+        ∂pV/∂η = L − G
+    """
+    u = x / gamma
+    lor = (2.0 / (np.pi * gamma)) / (1.0 + 4.0 * u * u)
+    gau = (2.0 / gamma) * np.sqrt(np.log(2.0) / np.pi) * np.exp(-_4LN2 * u * u)
+    pv = eta * lor + (1.0 - eta) * gau
+    dl_dx = -lor * (8.0 * u / gamma) / (1.0 + 4.0 * u * u)
+    dg_dx = -gau * (2.0 * _4LN2 * u / gamma)
+    d_dx = eta * dl_dx + (1.0 - eta) * dg_dx
+    dl_dgamma = (lor / gamma) * (8.0 * u * u / (1.0 + 4.0 * u * u) - 1.0)
+    dg_dgamma = (gau / gamma) * (2.0 * _4LN2 * u * u - 1.0)
+    d_dgamma = eta * dl_dgamma + (1.0 - eta) * dg_dgamma
+    return pv, d_dx, d_dgamma, lor - gau

@@ -60,6 +60,48 @@ class RefinementPlan:
         ])
 
     @classmethod
+    def lab_calibrate(cls) -> "RefinementPlan":
+        """Calibrate the instrument on a **certified line-profile standard**
+        (NIST SRM 660c LaB6): the certified cell is *held fixed* — that is
+        what pins the dispersion axis and decorrelates the otherwise-sloppy
+        {zero (const), displacement (cosθ), cell (tanθ)} triple — while zero,
+        displacement, the resolution function, the Kα2 ratio and the axial
+        ratios refine.  Export the result with ``save_instrument_profile``;
+        refine unknowns against it with the ``lab_sample_refine`` plan."""
+        return cls(stages=[
+            Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+            Stage("zero_disp", ["instrument.zero_shift",
+                                "instrument.geometry.sample_displacement"]),
+            Stage("profile_w", ["instrument.profile.w"]),
+            Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                              "instrument.profile.x", "instrument.profile.y"]),
+            Stage("lines_axial", ["instrument.source.lines.*.weight",
+                                  "instrument.geometry.axial_sl",
+                                  "instrument.geometry.axial_hl"]),
+            Stage("biso", ["phases.*.atoms.*.biso"]),
+        ])
+
+    @classmethod
+    def lab_sample_refine(cls) -> "RefinementPlan":
+        """Refine a *sample* against a **calibrated, frozen instrument**
+        (the calibrate-on-standard → freeze → refine-sample workflow; see
+        ``pxrdref.io.instrument_profile``).
+
+        Only sample-side parameters move: scale/background, specimen
+        displacement (a property of the mount, not the instrument), cell,
+        the four sample broadening terms (Lorentzian + Gaussian size/strain
+        — the instrument U V W X Y stay at their calibrated values), then
+        Biso.  Never frees zero, axial ratios or emission-line weights."""
+        return cls(stages=[
+            Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+            Stage("disp", ["instrument.geometry.sample_displacement"]),
+            Stage("cell", ["phases.*.cell.*"]),
+            Stage("sample_profile", ["phases.*.lor_size", "phases.*.lor_strain",
+                                     "phases.*.gauss_size", "phases.*.gauss_strain"]),
+            Stage("biso", ["phases.*.atoms.*.biso"]),
+        ])
+
+    @classmethod
     def profile_only(cls) -> "RefinementPlan":
         """Le Bail-style plan: no structural parameters exist to free."""
         return cls(stages=[
@@ -75,6 +117,8 @@ class RefinementPlan:
 PLAN_PRESETS = {
     "mccusker_default": RefinementPlan.mccusker_default,
     "lab_bragg_brentano": RefinementPlan.lab_bragg_brentano,
+    "lab_calibrate": RefinementPlan.lab_calibrate,
+    "lab_sample_refine": RefinementPlan.lab_sample_refine,
     "profile_only": RefinementPlan.profile_only,
 }
 
@@ -83,14 +127,31 @@ PLAN_PRESETS = {
 class GuardReport:
     high_correlations: list[str] = field(default_factory=list)
     at_bounds: list[str] = field(default_factory=list)
+    # structural parameters the background block could largely reproduce —
+    # the background-eats-the-structure failure mode, measured as a multiple
+    # correlation R² rather than a pairwise ρ (see check_guards)
+    background_correlations: list[str] = field(default_factory=list)
 
 
-def check_guards(table, outcome, threshold: float) -> GuardReport:
-    """Correlation and bound guards evaluated after each stage."""
+#: R² beyond which the background block is reported as able to imitate a
+#: structural parameter (see ``optimize.statistics.background_absorption``).
+#: Measured separation: sane backgrounds (Chebyshev-6, the default 8°-knot
+#: penalized spline) sit at 0.01-0.03 even against broad peaks, while a
+#: 1°-knot unpenalized spline reaches 0.46.
+BACKGROUND_ABSORPTION_GUARD = 0.25
+
+
+def check_guards(table, outcome, threshold: float,
+                 background_threshold: float = BACKGROUND_ABSORPTION_GUARD
+                 ) -> GuardReport:
+    """Correlation, bound and background-absorption guards, run per stage."""
     import numpy as np
+
+    from ..optimize.statistics import background_absorption
 
     report = GuardReport()
     free = table.free_paths
+
     if outcome.correlation is not None and len(free) > 1:
         corr = np.asarray(outcome.correlation)
         for i in range(len(free)):
@@ -98,6 +159,13 @@ def check_guards(table, outcome, threshold: float) -> GuardReport:
                 if abs(corr[i, j]) > threshold:
                     report.high_correlations.append(
                         f"{free[i]} ~ {free[j]} (ρ={corr[i, j]:+.3f})")
+
+    if outcome.jac is not None and len(free) > 1:
+        for path, r2 in sorted(background_absorption(outcome.jac, free).items(),
+                               key=lambda kv: -kv[1]):
+            if r2 > background_threshold:
+                report.background_correlations.append(f"{path} (R²={r2:.2f})")
+
     lo, hi = table.bounds()
     for k, path in enumerate(free):
         t = outcome.theta[k]

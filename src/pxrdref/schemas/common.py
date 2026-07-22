@@ -16,6 +16,13 @@ SCHEMA_VERSION = "0.1"
 
 TransformKind = Literal["identity", "softplus", "exp", "logit"]
 
+#: Intensity model.  ``rietveld`` computes |F|² from the structure; ``lebail``
+#: partitions the observed intensity among reflections instead (Pawley, which
+#: puts the same per-hkl intensities *in* the parameter vector, lands in v0.3).
+#: Defined here rather than in ``model.forward`` so the schemas can name it
+#: without importing the forward model (which imports the schemas).
+Mode = Literal["rietveld", "lebail"]
+
 
 class Base(BaseModel):
     """Base for every pxrd-refine schema.

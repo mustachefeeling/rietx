@@ -1,18 +1,23 @@
-"""Angular dependence of profile widths.
+"""Angular dependence of profile widths — instrument ⊕ sample split.
 
-Gaussian variance (Caglioti, Paoletti & Ricci, 1958, Nucl. Instrum. 3, 223):
+Gaussian *variance* (variances add under convolution):
 
-    Γ_G²(θ) = U·tan²θ + V·tanθ + W          [deg² 2θ]
+    Γ_G²(θ) = (U + Us)·tan²θ + V·tanθ + W + P/cos²θ     [deg² 2θ]
 
-Lorentzian FWHM with instrument + sample contributions:
+U, V, W are the instrument resolution function (Caglioti, Paoletti & Ricci,
+1958, Nucl. Instrum. 3, 223); the sample adds a Gaussian microstrain term
+Us·tan²θ and a Gaussian size term P/cos²θ (the GSAS ``P``; Larson & Von
+Dreele, 2004, GSAS manual; Thompson, Cox & Hastings, 1987, J. Appl. Cryst.
+20, 79).
 
-    Γ_L(θ) = (X + Xs)/cosθ + (Y + Ys)·tanθ  [deg 2θ]
+Lorentzian FWHM (Lorentzian convolution adds FWHMs):
 
-The 1/cosθ term carries Scherrer (crystallite size) broadening and the tanθ
-term microstrain broadening; instrument (X, Y) and sample (Xs, Ys) parts add
-because Lorentzian convolution adds FWHMs.  Note the letter conventions differ
-between codes (GSAS: X=size, Y=strain; FullProf swaps them) — this module
-documents the *physics* via argument names.
+    Γ_L(θ) = (X + Xs)/cosθ + (Y + Ys)·tanθ              [deg 2θ]
+
+The 1/cosθ (and 1/cos²θ variance) terms carry Scherrer crystallite-size
+broadening and the tanθ (tan²θ) terms microstrain broadening.  Note the
+letter conventions differ between codes (GSAS: X=size, Y=strain; FullProf
+swaps them) — this module documents the *physics* via argument names.
 """
 
 from __future__ import annotations
@@ -22,10 +27,16 @@ import numpy as np
 _MIN_GAMMA_G2 = 1e-8  # deg²; keeps Γ_G real when U,V,W make the quadratic dip
 
 
-def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float) -> np.ndarray:
-    """Γ_G(θ) from the Caglioti law; input θ (NOT 2θ) in degrees."""
-    t = np.tan(np.radians(theta_deg))
-    g2 = u * t * t + v * t + w
+def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float,
+                  gauss_size: float = 0.0, gauss_strain: float = 0.0) -> np.ndarray:
+    """Γ_G(θ) from the Caglioti law + sample Gaussian size/strain variances;
+    input θ (NOT 2θ) in degrees."""
+    th = np.radians(theta_deg)
+    t = np.tan(th)
+    g2 = (u + gauss_strain) * t * t + v * t + w
+    if gauss_size != 0.0:
+        c = np.cos(th)
+        g2 = g2 + gauss_size / (c * c)
     return np.sqrt(np.maximum(g2, _MIN_GAMMA_G2))
 
 

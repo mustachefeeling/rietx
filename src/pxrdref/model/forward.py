@@ -36,11 +36,15 @@ Differentiability invariants honoured here (see docs/ROADMAP.md):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 import numpy as np
 
-from ..background.models import chebyshev_design_matrix, interpolate_fixed
+from ..background.models import (
+    bspline_design_matrix,
+    chebyshev_design_matrix,
+    interpolate_fixed,
+    second_difference_matrix,
+)
 from ..crystallography.lattice import d_spacings, two_theta_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
@@ -48,7 +52,13 @@ from ..crystallography.structure_factor import (
     structure_factors_squared,
 )
 from ..crystallography.symmetry import ReflectionSet, generate_reflections
-from ..schemas.instrument import BackgroundChebyshev, BackgroundFixedPlusChebyshev, Instrument
+from ..schemas.common import Mode
+from ..schemas.instrument import (
+    BackgroundChebyshev,
+    BackgroundFixedPlusChebyshev,
+    BackgroundPSpline,
+    Instrument,
+)
 from ..schemas.pattern import PatternData
 from ..schemas.structure import Structure
 from .corrections import (
@@ -58,9 +68,7 @@ from .corrections import (
 )
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
-from .profiles.pseudovoigt import pseudo_voigt, tch_gamma_eta
-
-Mode = Literal["rietveld", "lebail"]
+from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
 
 #: windows extend ±(WINDOW_FWHM_MULT · Γ_est + WINDOW_MIN_DEG + FCJ extent)
 WINDOW_FWHM_MULT = 30.0
@@ -100,17 +108,30 @@ class CompiledModel:
     mode: Mode
     phases: list[CompiledPhase]
     fixed_background: np.ndarray | None  # sampled on tt, or None
-    n_cheb: int
-    cheb_design: np.ndarray  # (n_cheb, n_points)
+    # the background is linear in its parameters: y_bkg = Σ values[path]·row
+    # (Chebyshev or B-spline rows + optional 1/x air term — exact Jacobian
+    # columns either way)
+    bkg_paths: tuple[str, ...]
+    bkg_design: np.ndarray  # (len(bkg_paths), n_points)
+    # P-spline smoothness penalty: extra residual rows √λ·D₂·c, already scaled
+    # (columns aligned with bkg_paths); None for penalty-free backgrounds
+    bkg_penalty: np.ndarray | None
     meta: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     def background(self, values: dict[str, float]) -> np.ndarray:
-        coeffs = np.array([values[f"instrument.background.c{n}"] for n in range(self.n_cheb)])
-        y = coeffs @ self.cheb_design
+        coeffs = np.array([values[p] for p in self.bkg_paths])
+        y = coeffs @ self.bkg_design
         if self.fixed_background is not None:
             y = y + self.fixed_background
         return y
+
+    def penalty_residual(self, values: dict[str, float]) -> np.ndarray | None:
+        """√λ·D₂·c rows appended to the residual (P-spline smoothness)."""
+        if self.bkg_penalty is None:
+            return None
+        coeffs = np.array([values[p] for p in self.bkg_paths])
+        return self.bkg_penalty @ coeffs
 
     def _position_shift_deg(self, theta: np.ndarray, tt_bragg: np.ndarray,
                             values: dict[str, float]) -> np.ndarray | float:
@@ -155,7 +176,9 @@ class CompiledModel:
             theta = 0.5 * tt_bragg  # Bragg angle drives widths and Lp
             pos = tt_bragg + self._position_shift_deg(theta, tt_bragg, values)
             gam_g = gaussian_fwhm(theta, values["instrument.profile.u"],
-                                  values["instrument.profile.v"], values["instrument.profile.w"])
+                                  values["instrument.profile.v"], values["instrument.profile.w"],
+                                  values[f"phases.{ip}.gauss_size"],
+                                  values[f"phases.{ip}.gauss_strain"])
             gam_l = lorentzian_fwhm(theta,
                                     values["instrument.profile.x"] + values[f"phases.{ip}.lor_size"],
                                     values["instrument.profile.y"] + values[f"phases.{ip}.lor_strain"])
@@ -206,6 +229,106 @@ class CompiledModel:
 
     def evaluate(self, values: dict[str, float]) -> np.ndarray:
         return self.background(values) + self.bragg_component(values)
+
+    # ------------------------------------------------------------------
+    # analytic Jacobian support
+    # ------------------------------------------------------------------
+    def scalar_chain_supported(self, path: str) -> bool:
+        """Paths whose effect on y flows *only* through the per-peak scalars
+        (position, Γ, η, intensity) — the analytic-column chain rule applies.
+
+        Excluded: background coefficients (their own exact columns), the FCJ
+        axial ratios (they move the quadrature nodes — see
+        ``derivative_bases``), and anything unknown (falls back to FD).
+        """
+        if path.startswith("phases."):
+            return True
+        if path in ("instrument.zero_shift", "instrument.polarization"):
+            return True
+        if path.startswith("instrument.geometry.sample_"):
+            return True
+        if path.startswith("instrument.profile."):
+            return True
+        return path.startswith("instrument.source.lines.")
+
+    def derivative_bases(self, values: dict[str, float]) -> "DerivativeBases":
+        """Per-(phase, line, reflection) analytic profile-derivative bases.
+
+        For each peak on its frozen window this computes Ω and the exact
+        partials ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η (``pseudo_voigt_derivs``), and — for
+        FCJ-smeared peaks — ∂Ω/∂(S/L), ∂Ω/∂(H/L).  A parameter column is then
+
+            ∂y/∂p = Σ_k [ ∂I_k/∂p·Ω_k + I_k·(∂pos_k/∂p·∂Ω/∂pos
+                          + ∂Γ_k/∂p·∂Ω/∂Γ + ∂η_k/∂p·∂Ω/∂η) ]
+
+        where the per-reflection scalar derivatives come from cheap finite
+        differences of :meth:`phase_peaks` (per-reflection work only; the
+        expensive per-point part above is exact).  FCJ node positions/weights
+        depend smoothly on (pos, S/L, H/L); their derivatives are finite-
+        differenced on the node vectors themselves (≤64 numbers per peak).
+
+        ``axial_ok`` is False when either axial ratio sits at ≤ 0 while FCJ
+        nodes exist — the parameterisation is discontinuous there (FCJ's
+        overlap trapezoid has zero height) and the axial columns must fall
+        back to plain FD.
+        """
+        sl = values["instrument.geometry.axial_sl"]
+        hl = values["instrument.geometry.axial_hl"]
+        h_pos, h_ax = 1e-5, 1e-7
+        peaks_all: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]] = []
+        entries: list[list[tuple]] = []
+        axial_ok = True
+        for ip, cp in enumerate(self.phases):
+            peaks = self.phase_peaks(ip, values)
+            peaks_all.append(peaks)
+            rows: list[tuple] = []
+            for il, (pos, gamma, eta, _intensity) in enumerate(peaks):
+                for k in range(len(pos)):
+                    i0, i1 = cp.win[il, k]
+                    if i1 <= i0 or not np.isfinite(pos[k]):
+                        continue
+                    x = self.tt[i0:i1]
+                    n_fcj = int(cp.fcj_n[il, k])
+                    if n_fcj == 0:
+                        pv, d_dx, d_dg, d_de = pseudo_voigt_derivs(
+                            x - pos[k], float(gamma[k]), float(eta[k]))
+                        rows.append((il, k, int(i0), int(i1),
+                                     pv, -d_dx, d_dg, d_de, None, None))
+                        continue
+                    if sl <= 0.0 or hl <= 0.0:
+                        axial_ok = False
+                    phi, om = fcj_offsets_weights(float(pos[k]), sl, hl, n_fcj)
+                    pv, d_dx, d_dg, d_de = pseudo_voigt_derivs(
+                        x[None, :] - phi[:, None], float(gamma[k]), float(eta[k]))
+                    omega = om @ pv
+                    d_gamma = om @ d_dg
+                    d_eta = om @ d_de
+
+                    def node_diff(phi1, om1):
+                        if len(phi1) != len(phi):
+                            return None  # crossed the symmetric fallback
+                        return (phi1 - phi), (om1 - om)
+
+                    d = node_diff(*fcj_offsets_weights(float(pos[k]) + h_pos, sl, hl, n_fcj))
+                    if d is None:
+                        d_pos = -(om @ d_dx)  # pure-translation approximation
+                    else:
+                        dphi, dom = d[0] / h_pos, d[1] / h_pos
+                        d_pos = (dom @ pv) - ((om * dphi) @ d_dx)
+                    d_sl = d_hl = None
+                    if axial_ok:
+                        d = node_diff(*fcj_offsets_weights(float(pos[k]), sl + h_ax, hl, n_fcj))
+                        if d is not None:
+                            dphi, dom = d[0] / h_ax, d[1] / h_ax
+                            d_sl = (dom @ pv) - ((om * dphi) @ d_dx)
+                        d = node_diff(*fcj_offsets_weights(float(pos[k]), sl, hl + h_ax, n_fcj))
+                        if d is not None:
+                            dphi, dom = d[0] / h_ax, d[1] / h_ax
+                            d_hl = (dom @ pv) - ((om * dphi) @ d_dx)
+                    rows.append((il, k, int(i0), int(i1),
+                                 omega, d_pos, d_gamma, d_eta, d_sl, d_hl))
+            entries.append(rows)
+        return DerivativeBases(entries=entries, peaks=peaks_all, axial_ok=axial_ok)
 
     # ------------------------------------------------------------------
     def lebail_update(self, values: dict[str, float], n_cycles: int = 1) -> None:
@@ -263,6 +386,22 @@ class CompiledModel:
                     if den > 0.0:
                         new_int[k] = num / den
                 cp.lebail_intensity = np.maximum(new_int, 1e-10)
+
+
+@dataclass
+class DerivativeBases:
+    """Analytic profile-derivative bases (see ``CompiledModel.derivative_bases``).
+
+    ``entries[ip]`` holds tuples ``(il, k, i0, i1, Ω, ∂Ω/∂pos, ∂Ω/∂Γ, ∂Ω/∂η,
+    ∂Ω/∂sl, ∂Ω/∂hl)`` per visible peak of phase ``ip``; the last two are None
+    for symmetric peaks.  ``peaks[ip]`` caches ``phase_peaks(ip, values)`` at
+    the expansion point.  These bases also feed the FitReport Layer-1 misfit
+    attribution (same expansion, different right-hand side).
+    """
+
+    entries: list[list[tuple]]
+    peaks: list[list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]]
+    axial_ok: bool
 
 
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
@@ -336,7 +475,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             theta = 0.5 * tt_bragg
             pos = tt_bragg + _shift_est(theta, tt_bragg)
             g_est = gaussian_fwhm(theta, instrument.profile.u.value,
-                                  instrument.profile.v.value, instrument.profile.w.value)
+                                  instrument.profile.v.value, instrument.profile.w.value,
+                                  phase.gauss_size.value, phase.gauss_strain.value)
             l_est = lorentzian_fwhm(theta,
                                     instrument.profile.x.value + phase.lor_size.value,
                                     instrument.profile.y.value + phase.lor_strain.value)
@@ -363,15 +503,32 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             cp.lebail_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         phases.append(cp)
 
-    # background compilation
+    # background compilation — always linear: paths + design rows (+ penalty)
     bkg = instrument.background
+    fixed = None
+    penalty = None
     if isinstance(bkg, BackgroundChebyshev):
         n_cheb = len(bkg.coefficients)
-        fixed = None
+        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_cheb))
+        design = chebyshev_design_matrix(tt, n_cheb, tt_min, tt_max)
     elif isinstance(bkg, BackgroundFixedPlusChebyshev):
         n_cheb = len(bkg.chebyshev.coefficients)
+        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_cheb))
+        design = chebyshev_design_matrix(tt, n_cheb, tt_min, tt_max)
         fixed = interpolate_fixed(tt, np.asarray(bkg.fixed_two_theta),
                                   np.asarray(bkg.fixed_intensity))
+    elif isinstance(bkg, BackgroundPSpline):
+        n_coef = len(bkg.coefficients)
+        bkg_paths = tuple(f"instrument.background.c{n}" for n in range(n_coef)) \
+            + ("instrument.background.air",)
+        spline = bspline_design_matrix(tt, np.asarray(bkg.breakpoints))
+        with np.errstate(divide="ignore"):
+            air_row = 1.0 / np.maximum(tt, 1e-3)
+        design = np.vstack([spline, air_row[None, :]])
+        if bkg.lambda_smooth > 0.0 and n_coef > 2:
+            d2 = second_difference_matrix(n_coef)
+            penalty = np.hstack([np.sqrt(bkg.lambda_smooth) * d2,
+                                 np.zeros((d2.shape[0], 1))])  # air term unpenalised
     else:  # pragma: no cover - schema exhausts the union
         raise TypeError(f"unsupported background model {type(bkg).__name__}")
 
@@ -381,6 +538,6 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         line_wavelengths=lams,
         geometry_kind=geom.kind, radius_mm=geom.goniometer_radius_mm,
         mode=mode, phases=phases,
-        fixed_background=fixed, n_cheb=n_cheb,
-        cheb_design=chebyshev_design_matrix(tt, n_cheb, tt_min, tt_max),
+        fixed_background=fixed,
+        bkg_paths=bkg_paths, bkg_design=design, bkg_penalty=penalty,
     )

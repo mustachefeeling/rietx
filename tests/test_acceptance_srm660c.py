@@ -97,7 +97,11 @@ def test_srm660c_lab6_rietveld(srm_inputs):
 
     a = ref.fitted_structure.phases[0].cell.a.value
     a_err = result.parameter("phases.0.cell.a").stderr
-    assert a_err is not None and a_err < 2e-5
+    # esds carry the Bérar-Lelann serial-correlation inflation (~3.5 here —
+    # the raw χ²·(JᵀJ)⁻¹ esd is ~7e-6); the honest number is the larger one
+    assert a_err is not None and a_err < 5e-5
+    assert result.statistics.esd_inflation is not None
+    assert 1.5 < result.statistics.esd_inflation < 6.0
     # interim accuracy band — see module docstring for the honest breakdown
     assert abs(a - A_REFERENCE) < 2e-4
 
@@ -116,10 +120,21 @@ def test_srm660c_lab6_rietveld(srm_inputs):
     assert report.summary
     assert report.n_regions_total > 10
 
+    # Layers 1-2 on real data: the residual systematics here are unmodelled
+    # FPA-territory aberrations, so the honest output is low-confidence,
+    # non-separable trends — never a confident wrong singleton
+    full = ref.report(plan=_nist_calibrated_plan())
+    assert full.layer1_available, full.abstained_reason
+    assert any(a.gates_passed for a in full.attribution)
+    for trend in full.trends:
+        if not trend.separable:
+            for action in full.suggested_actions:
+                assert action.confidence < 0.5
+
     # fit plots for visual inspection (tests/output/, gitignored):
     # full pattern + the two regions where the new physics shows — the FCJ
     # low-angle tail on 100 and the resolved Kα doublet at high angle
-    from pxrdref.viz.plots import plot_result
+    from pxrdref.viz.plots import plot_for_vlm, plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "srm660c_fit.png"))
@@ -127,3 +142,4 @@ def test_srm660c_lab6_rietveld(srm_inputs):
                 two_theta_range=(20.6, 22.2))
     plot_result(result, path=str(out / "srm660c_fit_highangle.png"),
                 two_theta_range=(147.5, 150.9))
+    plot_for_vlm(result, full, path=str(out / "srm660c_vlm.png"))

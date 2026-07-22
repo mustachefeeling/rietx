@@ -22,9 +22,19 @@ import numpy as np
 
 from ..crystallography.symmetry import get_spacegroup
 from ..schemas.common import Parameter
-from ..schemas.instrument import BackgroundChebyshev, Instrument
+from ..schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Instrument
 from ..schemas.structure import Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
+
+
+def _background_parameters(bkg) -> list[tuple[str, Parameter]]:
+    """(sub-path, Parameter) pairs for any background model, in design order."""
+    if isinstance(bkg, BackgroundPSpline):
+        out = [(f"c{n}", p) for n, p in enumerate(bkg.coefficients)]
+        out.append(("air", bkg.air_scatter))
+        return out
+    cheb = bkg.coefficients if isinstance(bkg, BackgroundChebyshev) else bkg.chebyshev.coefficients
+    return [(f"c{n}", p) for n, p in enumerate(cheb)]
 
 
 @dataclass
@@ -94,6 +104,8 @@ class ParameterTable:
             self._add(f"{base}.scale", phase.scale)
             self._add(f"{base}.lor_size", phase.lor_size)
             self._add(f"{base}.lor_strain", phase.lor_strain)
+            self._add(f"{base}.gauss_size", phase.gauss_size)
+            self._add(f"{base}.gauss_strain", phase.gauss_strain)
             for j, atom in enumerate(phase.atoms):
                 for coord in ("x", "y", "z"):
                     cp: Parameter = getattr(atom, coord)
@@ -121,10 +133,8 @@ class ParameterTable:
                                    and name.startswith("sample_")))
         for name in ("u", "v", "w", "x", "y"):
             self._add(f"instrument.profile.{name}", getattr(instrument.profile, name))
-        bkg = instrument.background
-        cheb = bkg.coefficients if isinstance(bkg, BackgroundChebyshev) else bkg.chebyshev.coefficients
-        for n, cp in enumerate(cheb):
-            self._add(f"instrument.background.c{n}", cp)
+        for sub, cp in _background_parameters(instrument.background):
+            self._add(f"instrument.background.{sub}", cp)
 
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:
@@ -202,6 +212,8 @@ class ParameterTable:
             phase.scale.value = values[f"{base}.scale"]
             phase.lor_size.value = values[f"{base}.lor_size"]
             phase.lor_strain.value = values[f"{base}.lor_strain"]
+            phase.gauss_size.value = values[f"{base}.gauss_size"]
+            phase.gauss_strain.value = values[f"{base}.gauss_strain"]
             for j, atom in enumerate(phase.atoms):
                 atom.occ.value = values[f"{base}.atoms.{j}.occ"]
                 atom.biso.value = values[f"{base}.atoms.{j}.biso"]
@@ -214,7 +226,5 @@ class ParameterTable:
             getattr(instrument.geometry, name).value = values[f"instrument.geometry.{name}"]
         for name in ("u", "v", "w", "x", "y"):
             getattr(instrument.profile, name).value = values[f"instrument.profile.{name}"]
-        bkg = instrument.background
-        cheb = bkg.coefficients if isinstance(bkg, BackgroundChebyshev) else bkg.chebyshev.coefficients
-        for n, cp in enumerate(cheb):
-            cp.value = values[f"instrument.background.c{n}"]
+        for sub, cp in _background_parameters(instrument.background):
+            cp.value = values[f"instrument.background.{sub}"]

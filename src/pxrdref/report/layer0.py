@@ -20,37 +20,10 @@ All quantities are 1/σ²-weighted; both Δ and Δ/σ views are reported.
 from __future__ import annotations
 
 import numpy as np
-from pydantic import Field
 from scipy.signal import find_peaks
 
-from .schemas.common import Base
-from .schemas.results import RefinementResult
-
-
-class Region(Base):
-    two_theta_lo: float
-    two_theta_hi: float
-    local_rwp: float
-    chi2_share: float          # fraction of total Σw·Δ² inside this region
-    max_abs_delta_over_sigma: float
-    n_reflections: int
-
-
-class UnmatchedPeak(Base):
-    two_theta: float
-    height_over_sigma: float
-    kind: str  # "unmatched_obs" (no calc tick nearby) | "unmatched_calc"
-
-
-class FitReport(Base):
-    thresholds_version: str = "0.1"
-    rwp: float
-    gof: float
-    cumulative_chi2_breakpoints: list[float] = Field(default_factory=list)
-    regions: list[Region] = Field(default_factory=list)
-    n_regions_total: int = 0
-    unmatched: list[UnmatchedPeak] = Field(default_factory=list)
-    summary: str = ""
+from ..schemas.results import RefinementResult
+from .schemas import FitReport, Region, UnmatchedPeak
 
 
 def _segment_regions(tt: np.ndarray, positions: np.ndarray, gap_deg: float) -> list[tuple[float, float]]:
@@ -70,17 +43,18 @@ def _segment_regions(tt: np.ndarray, positions: np.ndarray, gap_deg: float) -> l
     return regions
 
 
-def build_report(result: RefinementResult, *, top_n: int = 15,
+def build_layer0(result: RefinementResult, *, top_n: int = 15,
                  match_tol_deg: float = 0.08, min_peak_sigma: float = 5.0) -> FitReport:
+    """Layer 0 only.  :func:`pxrdref.build_report` adds Layers 1-2 on top."""
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
     y_calc = np.asarray(result.y_calc)
     if len(tt) == 0:
         raise ValueError("result carries no pattern arrays")
-    # σ reconstructed from the stored weighted stats is unavailable; recompute
-    # the Poisson floor (readers store real σ in the pattern; v0.2 threads it
-    # through the result object).
-    sigma = np.sqrt(np.maximum(y_obs, 1.0))
+    if result.sigma:
+        sigma = np.asarray(result.sigma)
+    else:  # results recorded before v0.2 carried no σ — Poisson fallback
+        sigma = np.sqrt(np.maximum(y_obs, 1.0))
 
     w = 1.0 / sigma**2
     delta = y_obs - y_calc

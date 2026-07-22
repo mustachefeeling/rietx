@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pxrd-refine"
-version = "0.1.0.dev0"
+version = "0.2.0.dev0"
 description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
 readme = "README.md"
 license = "MIT"
@@ -39,6 +39,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/pxrd-refine/pxrd-refine"
+
+[project.scripts]
+pxrdref = "pxrdref.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pxrdref"]

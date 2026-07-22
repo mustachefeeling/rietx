@@ -7,10 +7,11 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
-.venv/bin/python -m pytest                             # full suite ~5 s, incl. real-data acceptance
+.venv/bin/python -m pytest                             # full suite ~21 s, incl. real-data acceptance
 .venv/bin/python -m pytest -m "not slow"               # skip acceptance
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
+.venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 ```
 
 ## Data flow
@@ -23,11 +24,20 @@ Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
   → CompiledModel (model/forward.py): per-stage frozen state — reflection list
     (crystallography/symmetry.py, gemmi), per-atom symmetry-op subsets
     (structure_factor.py), per-(emission line, reflection) point windows,
-    FCJ quadrature node counts (profiles/fcj.py), Chebyshev design matrix
-  → run_least_squares (optimize/least_squares.py): scipy TRF, bounds, mixed
-    analytic/FD Jacobian, esds from χ²·(JᵀJ)⁻¹
+    FCJ quadrature node counts (profiles/fcj.py), background design matrix
+    (+ P-spline penalty rows); derivative_bases() serves both the analytic
+    Jacobian and FitReport Layer 1 from one expansion
+  → run_least_squares (optimize/least_squares.py): scipy TRF, bounds,
+    analytic peak-chain Jacobian (FD fallback), esds from χ²·(JᵀJ)⁻¹ ×
+    Bérar-Lelann inflation
   → staged runner (strategy/staged.py) loops stages, guards, recompiles
-  → RefinementResult (schemas/results.py) → FitReport (report.py) / plot (viz/)
+  → RefinementResult (schemas/results.py) → FitReport (report/, 3 layers)
+    → plot / plot_for_vlm / write_html (viz/)
+  → history DAG (history/, schemas/history.py): every stage auto-commits an
+    immutable restorable node; checkout/run_stage/branch to fork a strategy,
+    merge/cherry_pick to recombine, replay to recompute a node evaluate-only,
+    append-only JSONL to persist; history/events.py streams per-iteration
+    events, viz/live.py + watch.py render them live
 ```
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
@@ -49,12 +59,25 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   dict; the forward model consumes floats/arrays only.
 - **Weights**: use the file's esd column when present (readers), Poisson
   √max(y,1) only as fallback. Never subtract an estimated background —
-  hold it additively (`BackgroundFixedPlusChebyshev`).
+  hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
+  a smoothness penalty (`BackgroundPSpline`).
+- **Background flexibility is a correctness question, not a cosmetic one.**
+  A background able to imitate the peaks biases ADPs up and scales (hence QPA
+  fractions) down while Rwp *improves*. Measure it as the block projection
+  R² of a structural Jacobian column onto the background column span
+  (`optimize.statistics.background_absorption`) — pairwise ρ misses it
+  entirely (~0.2 per coefficient while the block absorbs ~46 %).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters
   for non-cubic orbit/multiplicity counting (see symmetry.py comment).
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).
+- **The FitReport must never return a confident wrong singleton.** Every
+  Layer-1 statement passes four gates (resolvability on the *scale-normalised*
+  Gram, 0.4·FWHM validity radius, local-χ²_red significance, share-based
+  global maturity); collinear angular templates are compared as *nested single
+  fits* and reported non-separable rather than resolved. Confidence weights
+  importance (share of χ²), not just statistical significance.
 - **Licensing**: port code only from permissive sources with ATTRIBUTION.md
   updates. BGMN/Profex/xrayutilities are GPL — concepts only, never code.
   TOPAS/FullProf are closed — papers only.
@@ -67,14 +90,36 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   survive JSON round-trip — tested).
 - Angles in degrees throughout; Caglioti U,V,W in deg²(2θ); Biso in Å²
   (= 8π²·Uiso); wavelengths in Å; k = sinθ/λ.
+- **Instrument ⊕ sample profile split**: Gaussian *variances* add
+  (instrument U,V,W + phase `gauss_size`/`gauss_strain`), Lorentzian *FWHMs*
+  add (instrument X,Y + phase `lor_size`/`lor_strain`). Workflow:
+  `lab_calibrate` on a standard with its **certified cell held fixed** (that
+  is what decorrelates zero/displacement/cell) → `save_instrument_profile` →
+  `load_instrument_profile` (everything `vary=False`) → `lab_sample_refine`.
 - Current limitation: atomic-coordinate refinement raises NotImplementedError
   (needs Wyckoff-aware constraints, v0.3). Occ/Biso refinement is fine.
+- History nodes store **state, not curves** (a node is ~10 kB; embedding
+  y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
+  measured on a model frozen at the values each stage *started* from — so
+  `refine.replay`, which recompiles at the values the stage *ended* on, can
+  differ marginally. That gap is a staleness signal, not a bug. Le Bail
+  extracted intensities live outside θ and are path-dependent, so they are
+  serialized per node (`ReflectionState`); Pawley will reuse that container
+  rather than adding one dot-path per reflection to `free_paths`.
 - Emission-line weights are relative to line 0, which is structurally locked
   at 1 (degenerate with phase scales); `set_vary` globs can never free locked
   entries (also protects symmetry-fixed cell angles).
+- `RefinementResult.ticks` carries **every emission line's** positions, not
+  just the primary — otherwise Layer 0 flags each Kα2 peak as an unindexed
+  impurity (this was a real bug, caught by the misfit-injection suite).
 - Tests: fast unit/property tests always; real-data acceptance marked
-  `@pytest.mark.slow` (`tests/test_acceptance_nac.py`, ~3 s). Reference
-  values and data provenance in `tests/data/README.md`.
+  `@pytest.mark.slow` (`test_acceptance_nac.py`, `_srm660c.py`, `_fap.py`).
+  Reference values and data provenance in `tests/data/README.md`. Every test
+  refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
+  for visual inspection — Rwp hides locally-bad fits.
+- Comparing against another code means **adopting its protocol**, not just
+  its numbers: mirror its refine flags, held parameters and excluded regions,
+  then check the channel count matches before believing any Rwp comparison.
 
 ## Roadmap (abridged — the canonical tracking document is docs/ROADMAP.md)
 
@@ -82,25 +127,31 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 and design record. Keep it current: check off tasks as they ship and record
 measured acceptance results there.**
 
-- **v0.2** (in progress): lab Bragg-Brentano physics core **shipped
-  2026-07-22** — Kα1/Kα2 per-line dispersion (refinable ratio), FCJ axial
-  asymmetry (fixed-node split quadrature), sample displacement/transparency,
-  pdCIF reader, `lab_bragg_brentano` plan; SRM 660c acceptance measured:
-  a = 4.156895(7) Å (+28 ppm), Rwp 8.7%. Still open: instrument⊕sample
-  profile split, background auto-selection (BIC + Durbin-Watson), P-spline
-  co-refined background (smoothness penalty as extra residual rows), analytic
-  cell→2θ and width Jacobian columns, Bérar-Lelann, FitReport Layers 1-2
-  (gated derivative-basis misfit attribution + typed suggested_actions with
-  strategy-engine veto), plotly HTML viewer + live watch + event stream.
-- **v0.3**: QPA (Hill-Howard + Brindley), Pawley mode, aniso ADPs +
-  Wyckoff constraints (spglib), multi-histogram residuals.
+- **v0.2 ✅ shipped 2026-07-22** — lab Bragg-Brentano physics (Kα1/Kα2 per-line
+  dispersion, FCJ axial asymmetry with split fixed-node quadrature, sample
+  displacement/transparency, pdCIF reader, instrument⊕sample profile split +
+  instrument-profile files); analytic peak-chain Jacobian; Bérar-Lelann esds;
+  automation-first background subsystem (diagnostics, BIC/Durbin-Watson
+  selection, penalized P-spline with penalty residual rows, block-projection
+  absorption guard); FitReport Layers 1-2 (gated derivative-basis attribution,
+  typed `suggested_actions` with strategy veto and predict-then-verify) with a
+  synthetic misfit-injection calibration suite; history DAG + merge/cherry-pick
+  + per-iteration event stream; plotly HTML viewer, `pxrdref watch`,
+  `plot_for_vlm`. Acceptance: SRM 660c a = 4.156895(25) Å (+28 ppm), Rwp 8.7%;
+  GSAS-II fluorapatite Rwp 9.73% vs GSAS's 10.05% on identical channels.
+- **v0.3** (next): QPA (Hill-Howard + Brindley), Pawley mode, aniso ADPs +
+  Wyckoff constraints (spglib) — **atomic-coordinate refinement lands here** —
+  multi-histogram residuals, exporters.
 - **v0.4**: JAX backend via a small op shim (chunked jacfwd, CUDA, mixed
   precision). **v0.6**: TOPAS-style bounded LM (Coelho 2005/2018), torch-MPS.
 - v2: FPA (differentiable convolution stack), neutron/TOF, texture, MCP server.
 
-Key test data: `tests/data/11BM_NAC.fxye` (synchrotron, λ=0.4139090 from the
-.prm; NAC + CaF₂ impurity — the acceptance expects a≈10.2513, Rwp<0.12) and
-`tests/data/nist_srm660c_100a.cif` (NIST LaB6 certification data, CuKα
-doublet + graphite analyzer — v0.2 acceptance fits the `…_meas` block with
-zero fixed / displacement refined, expects a≈4.15678±2e-4, Rwp<0.10; see
-tests/data/README.md for the reference-value provenance).
+Key test data (provenance + every reference value in `tests/data/README.md`):
+- `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +
+  CaF₂ impurity; acceptance expects a≈10.2513, Rwp<0.12.
+- `nist_srm660c_100a.cif` — NIST LaB6 certification data, CuKα doublet +
+  graphite analyzer; fits the `…_meas` block with zero fixed / displacement
+  refined; expects a≈4.15678±2e-4, Rwp<0.10. **Absolute** anchor.
+- `FAP.XRA` + `FAP.EXP` — GSAS-II LabData tutorial fluorapatite; the `.EXP` is
+  GSAS's converged fit and supplies both the reference values and the protocol
+  the test mirrors. **Cross-code consistency** check (±300 ppm), not truth.

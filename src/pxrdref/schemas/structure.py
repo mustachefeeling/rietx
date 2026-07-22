@@ -71,12 +71,24 @@ class Phase(Base):
         default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
     )
     # Sample contribution to Lorentzian width (deg 2θ units, see profiles.caglioti):
-    # size term varies as 1/cosθ (Scherrer), strain term as tanθ.
+    # size term varies as 1/cosθ (Scherrer), strain term as tanθ.  Lorentzian
+    # FWHMs add under convolution, so these stack on the instrument X, Y.
     lor_size: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
     )
     lor_strain: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg", transform="softplus")
+    )
+    # Sample contribution to Gaussian *variance* (deg² 2θ; variances add under
+    # convolution): size term varies as 1/cos²θ (GSAS's P), strain term as
+    # tan²θ (stacks on the instrument Caglioti U).  Together with lor_size /
+    # lor_strain this is the instrument ⊕ sample profile split: calibrate
+    # U V W X Y on a standard, freeze them, then refine only these four.
+    gauss_size: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2", transform="softplus")
+    )
+    gauss_strain: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2", transform="softplus")
     )
 
     @model_validator(mode="after")

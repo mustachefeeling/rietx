@@ -33,9 +33,13 @@ def main() -> None:
     limits = (2.0, 24.0)
 
     # --- Le Bail first: cell + profile without the structure
-    ref_lb = pr.Refinement(structure, instrument)
-    lebail = ref_lb.fit(data, mode="lebail", two_theta_limits=limits)
-    a_lb = ref_lb.fitted_structure.phases[0].cell.a.value
+    # One Refinement carries the whole session; every stage auto-commits a
+    # node, so `ref.history` ends up holding both refinements and the model
+    # edit between them.  Pass history="nac.jsonl" to persist it.
+    ref = pr.Refinement(structure, instrument)
+    lebail = ref.fit(data, mode="lebail", two_theta_limits=limits)
+    ref.history.tag(lebail.node_id, "lebail")
+    a_lb = ref.fitted_structure.phases[0].cell.a.value
     print(f"\nLe Bail:  status={lebail.status}  Rwp={lebail.statistics.rwp:.4f}  "
           f"GoF={lebail.statistics.gof:.2f}  a={a_lb:.6f} A")
 
@@ -43,8 +47,7 @@ def main() -> None:
     # The Le Bail FitReport flags unmatched observed peaks at 7.5, 12.3, 14.4
     # and 21.3 deg — exactly the fluorite 111/220/311/422 positions at this
     # wavelength: the classic CaF2 impurity in NAC synthesis.  Add it.
-    structure2 = ref_lb.fitted_structure.model_copy(deep=True)
-    instrument2 = ref_lb.fitted_instrument.model_copy(deep=True)
+    structure2 = ref.fitted_structure.model_copy(deep=True)
     structure2.phases[0].scale.value = 1e-6
     structure2.phases.append(pr.Phase(
         name="CaF2",
@@ -60,7 +63,9 @@ def main() -> None:
         ],
         scale=pr.Parameter(value=1e-7, min=0.0, transform="softplus"),
     ))
-    ref = pr.Refinement(structure2, instrument2)
+    # the impurity is a refinement move like any other — record it in the DAG
+    ref.edit(structure=structure2, label="add CaF2 impurity phase")
+
     plan = pr.RefinementPlan.mccusker_default()
     plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
     result = ref.fit(data, plan=plan, two_theta_limits=limits)
@@ -79,6 +84,11 @@ def main() -> None:
         print(f"  region {r.two_theta_lo:6.2f}-{r.two_theta_hi:6.2f} deg  "
               f"localRwp={r.local_rwp:.3f}  chi2share={r.chi2_share:.1%}  "
               f"max|d/sig|={r.max_abs_delta_over_sigma:.1f}")
+
+    print("\nRefinement history (every stage is a restorable checkpoint):")
+    print(ref.history.summary())
+    print(f"\nbest node by Rwp: {ref.history.best('rwp').id}")
+    print("to revisit the Le Bail state:  ref.checkout('lebail')")
 
     try:
         result.plot(path=str(Path(__file__).parent / "nac_fit.png"),

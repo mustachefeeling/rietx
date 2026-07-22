@@ -21,9 +21,22 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   minimizer design ideas (bound-constrained solves, adaptive Marquardt). Algorithms
   reimplemented from the papers; TOPAS itself is proprietary and was not consulted as code.
 - Eilers, P. H. C. (2003). *Anal. Chem.* 75, 3631 — Whittaker smoother.
+- Eilers & Marx (1996). *Stat. Sci.* 11, 89–121 — P-spline penalized regression
+  (the co-refined background's second-difference penalty rows).
 - Baek et al. (2015). *Analyst* 140, 250 — arPLS baseline estimation.
 - Ryan et al. (1988). *Nucl. Instrum. Meth.* B34, 396 — SNIP background clipping.
 - David, W. I. F. (2004). *J. Res. NIST* 109 — cumulative-χ² diagnostics.
+- Hill & Flack (1987). *J. Appl. Cryst.* 20, 356–361 — Durbin-Watson statistic in Rietveld refinement.
+- Andreev, Y. G. (1994). *J. Appl. Cryst.* 27, 288–297 — noted as the refinement of the
+  Bérar-Lelann estimator's white-noise bias (paywalled; concept referenced, formula not reproduced).
+- Hamilton, W. C. (1965). *Acta Cryst.* 18, 502–510 — R-factor ratio significance test.
+- Schwarz, G. (1978). *Ann. Stat.* 6, 461–464 — Bayesian information criterion.
+- Wilson, A. J. C. (1963). *Mathematical Theory of X-ray Powder Diffractometry*;
+  Klug & Alexander (1974), ch. 5 — Bragg-Brentano displacement/transparency aberrations.
+- Hölzer et al. (1997). *Phys. Rev. A* 56, 4554–4568 — Cu Kα/Kβ emission wavelengths and intensity ratios.
+- Bearden, J. A. (1967). *Rev. Mod. Phys.* 39, 78–124 — W Lα1 wavelength (contamination check).
+- Belsley, Kuh & Welsch (1980). *Regression Diagnostics*, Wiley — scaled-Gram
+  condition number as a collinearity diagnostic (FitReport Layer-1 gate).
 
 ## Open-source software studied or used
 
@@ -38,6 +51,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | EasyDiffraction | BSD-3 | Architecture reference (schema-driven design). No code ported. |
 | pybaselines (derb12) | BSD-3 | **Algorithm reference** for arPLS/SNIP implementations (reimplemented from the papers with the pybaselines documentation as a guide); optional dependency for extended baseline algorithms. |
 | gemmi | MPL-2.0 | **Dependency** — CIF parsing, space-group operations, hkl utilities. |
+| matplotlib | PSF-based (matplotlib license) | **Optional dependency** (`[viz]`) — static fit plots and the VLM montage. |
+| plotly | MIT | **Optional dependency** (`[viz]`) — self-contained interactive HTML viewer (plotly.js embedded in generated files). |
 | BGMN / Profex | GPL | Studied (papers/docs only). **No code ported.** |
 | xrayutilities | GPL-2.0 | Studied (papers/docs only). **No code ported.** |
 

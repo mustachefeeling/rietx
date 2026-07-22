@@ -19,12 +19,17 @@ from ..schemas.pattern import PatternData
 
 
 def read_pattern(path: str | Path) -> PatternData:
+    """Read any supported pattern file, dispatching on *content* first.
+
+    GSAS raw files are recognised by their ``BANK`` record rather than by
+    suffix — the format is written with a zoo of extensions (``.fxye``,
+    ``.gsas``, ``.gda``, ``.xra``, ``.raw``, …) and the record is unambiguous.
+    """
     p = Path(path)
-    suffix = p.suffix.lower()
-    if suffix in (".fxye", ".gsas", ".gss", ".gda", ".raw") and _looks_gsas(p):
-        return _read_gsas(p)
-    if suffix == ".cif":
+    if p.suffix.lower() == ".cif":
         return read_pdcif(p)
+    if _looks_gsas(p):
+        return _read_gsas(p)
     return _read_xy(p)
 
 

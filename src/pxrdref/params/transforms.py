@@ -12,6 +12,14 @@ import numpy as np
 _SOFTPLUS_MIN = 1e-12
 
 
+def _sigmoid(u: float) -> float:
+    """1/(1+e^−u), evaluated in the branch that cannot overflow."""
+    if u >= 0.0:
+        return float(1.0 / (1.0 + np.exp(-u)))
+    e = np.exp(u)
+    return float(e / (1.0 + e))
+
+
 def to_physical(u: float, kind: str) -> float:
     if kind == "identity":
         return u
@@ -20,7 +28,7 @@ def to_physical(u: float, kind: str) -> float:
     if kind == "exp":
         return float(np.exp(u))
     if kind == "logit":
-        return float(1.0 / (1.0 + np.exp(-u)))
+        return _sigmoid(u)
     raise ValueError(f"unknown transform {kind!r}")
 
 
@@ -44,11 +52,11 @@ def dphys_dinternal(u: float, kind: str) -> float:
     if kind == "identity":
         return 1.0
     if kind == "softplus":
-        return float(1.0 / (1.0 + np.exp(-u)))
+        return _sigmoid(u)
     if kind == "exp":
         return float(np.exp(u))
     if kind == "logit":
-        s = 1.0 / (1.0 + np.exp(-u))
+        s = _sigmoid(u)
         return float(s * (1.0 - s))
     raise ValueError(f"unknown transform {kind!r}")
 

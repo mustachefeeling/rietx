@@ -11,6 +11,12 @@ both numerator-model and denominator-observed, the variant Toby recommends
 when the background carries much of the raw intensity.  The Durbin-Watson
 statistic d = Σ(Δᵢ−Δᵢ₋₁)²/ΣΔᵢ² on weighted residuals (Hill & Flack, 1987,
 J. Appl. Cryst. 20, 356) flags serial correlation (d ≈ 2 ⇒ uncorrelated).
+
+When residuals *are* serially correlated the χ²·(JᵀJ)⁻¹ esds are too small:
+neighbouring points do not carry independent information.  Bérar & Lelann
+(1991, J. Appl. Cryst. 24, 1) sum consecutive same-sign weighted residuals
+coherently, χ²' = Σ_runs (Σ_{i∈run} δᵢ)² ≥ χ², and multiply every esd by
+√(χ²'/χ²) — the inflation factor reported here and applied to the esds.
 """
 
 from __future__ import annotations
@@ -18,6 +24,81 @@ from __future__ import annotations
 import numpy as np
 
 from ..schemas.results import Statistics
+
+
+def berar_lelann_factor(delta: np.ndarray) -> float:
+    """Esd inflation factor for serial correlation.
+
+    Bérar & Lelann (1991), J. Appl. Cryst. 24, 1: runs of consecutive
+    weighted residuals δᵢ = √wᵢ·Δᵢ sharing a sign are summed coherently,
+
+        χ²' = Σ_runs (Σ_{i∈run} δᵢ)²
+
+    and esds are multiplied by √(χ²'/χ²).  Same-sign cross terms are
+    positive, so the factor is always ≥ 1.
+
+    Caveat (documented, not hidden): the estimator is *conservative*.  Even
+    iid Gaussian residuals form chance runs (geometric length distribution,
+    mean 2), giving E[χ²']/χ² = 1 + 4/π, i.e. an expected factor ≈ 1.51 for
+    perfectly white residuals — verified against simulation in the tests.
+    Treat the factor as an upper bound on the serial-correlation esd damage;
+    Andreev (1994, J. Appl. Cryst. 27, 288) develops a figure of merit that
+    removes this bias.  The raw published factor is what FullProf applies,
+    and it is reported in ``Statistics.esd_inflation`` so it can be divided
+    back out.
+    """
+    d = np.asarray(delta, dtype=np.float64)
+    if len(d) < 2:
+        return 1.0
+    chi2 = float(d @ d)
+    if chi2 <= 0.0:
+        return 1.0
+    sign = np.sign(d)
+    change = np.nonzero(sign[1:] != sign[:-1])[0] + 1
+    starts = np.concatenate([[0], change])
+    ends = np.concatenate([change, [len(d)]])
+    cs = np.concatenate([[0.0], np.cumsum(d)])
+    run_sums = cs[ends] - cs[starts]
+    return max(float(np.sqrt((run_sums @ run_sums) / chi2)), 1.0)
+
+
+def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, float]:
+    """How much of each structural parameter the background could reproduce.
+
+    For parameter i with Jacobian column jᵢ and the background columns
+    spanning B, the multiple correlation
+
+        R²ᵢ = 1 − ‖jᵢ − P_B jᵢ‖² / ‖jᵢ‖²          (P_B = orthogonal projector)
+
+    is the fraction of jᵢ's effect the background can imitate.  R² → 1 means
+    the two are degenerate: the background absorbs Bragg intensity, biasing
+    ADPs up and scales (hence QPA fractions) down *while Rwp improves* — the
+    documented failure mode of over-flexible backgrounds.
+
+    Pairwise ρ is the wrong statistic for this: with ~100 spline coefficients
+    each individual |ρ| stays small (~0.2) while the block collectively
+    absorbs ~50 % of the parameter (measured).  The projection sees the block.
+
+    ``jac`` must be the **full** Jacobian including any P-spline penalty rows
+    — those rows are what makes a stiff background unable to imitate a peak,
+    and dropping them overstates the risk by ~5× (measured: R² 0.46 → 0.08 at
+    λ = 10⁴).
+    """
+    bg = [k for k, p in enumerate(free_paths) if p.startswith("instrument.background.")]
+    targets = [(k, p) for k, p in enumerate(free_paths)
+               if p.endswith((".biso", ".scale", ".occ"))]
+    if not bg or not targets:
+        return {}
+    q, _ = np.linalg.qr(np.asarray(jac)[:, bg])
+    out: dict[str, float] = {}
+    for k, path in targets:
+        j = np.asarray(jac)[:, k]
+        denom = float(j @ j)
+        if denom <= 0.0:
+            continue
+        resid = j - q @ (q.T @ j)
+        out[path] = float(np.clip(1.0 - float(resid @ resid) / denom, 0.0, 1.0))
+    return out
 
 
 def compute_statistics(y_obs: np.ndarray, y_calc: np.ndarray, sigma: np.ndarray,
@@ -48,5 +129,6 @@ def compute_statistics(y_obs: np.ndarray, y_calc: np.ndarray, sigma: np.ndarray,
     return Statistics(
         rwp=rwp, rp=rp, rexp=rexp, chi2=chi2, gof=rwp / rexp,
         rwp_background_subtracted=rwp_bs, durbin_watson=dw,
+        esd_inflation=berar_lelann_factor(delta) if n > 2 else None,
         n_points=n, n_free_parameters=n_free,
     )

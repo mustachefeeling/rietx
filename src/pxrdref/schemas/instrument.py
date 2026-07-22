@@ -176,6 +176,61 @@ class BackgroundChebyshev(Base):
         return cls(coefficients=[Parameter(value=0.0, vary=vary) for _ in range(n)])
 
 
+class BackgroundPSpline(Base):
+    """Penalized cubic P-spline background, co-refined with the structure.
+
+    The background is linear in its B-spline coefficients (exact Jacobian
+    columns), and a second-difference smoothness penalty on the coefficients
+    rides in the least squares as extra residual rows
+
+        r_pen = √λ · (D₂ c)          (Eilers & Marx, 1996, Stat. Sci. 11, 89)
+
+    which keeps the co-refined curve smooth, propagates esds, and — the
+    reason it exists — makes it *physically unable* to absorb broad Bragg
+    intensity (the documented nanocrystalline/QPA failure mode of
+    subtract-then-refine backgrounds).  ``breakpoints`` are the spline knots
+    in 2θ (uniform spacing from :meth:`for_range`; the clamped cubic basis
+    has ``len(breakpoints) + 2`` coefficients).
+
+    ``air_scatter`` scales an additive 1/(2θ) term for the low-angle
+    air-scatter rise; leave it fixed at 0 unless the pattern diagnostics
+    flag it (``pxrdref.background.diagnose``).
+    """
+
+    kind: Literal["pspline"] = "pspline"
+    breakpoints: list[float]
+    coefficients: list[Parameter]
+    lambda_smooth: float = Field(default=1.0, ge=0.0)
+    air_scatter: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=0.0, transform="softplus")
+    )
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "BackgroundPSpline":
+        if len(self.breakpoints) < 2:
+            raise ValueError("pspline needs at least 2 breakpoints")
+        if any(nxt <= prev for prev, nxt in zip(self.breakpoints, self.breakpoints[1:])):
+            raise ValueError("breakpoints must be strictly increasing")
+        if len(self.coefficients) != len(self.breakpoints) + 2:
+            raise ValueError(
+                f"clamped cubic basis over {len(self.breakpoints)} breakpoints has "
+                f"{len(self.breakpoints) + 2} functions; got "
+                f"{len(self.coefficients)} coefficients")
+        return self
+
+    @classmethod
+    def for_range(cls, lo: float, hi: float, *, knot_step_deg: float = 5.0,
+                  lambda_smooth: float = 1.0, vary: bool = True) -> "BackgroundPSpline":
+        """Uniform knots covering [lo, hi] at ~``knot_step_deg`` spacing."""
+        n = max(int(round((hi - lo) / knot_step_deg)) + 1, 2)
+        breaks = [lo + (hi - lo) * i / (n - 1) for i in range(n)]
+        return cls(
+            breakpoints=breaks,
+            coefficients=[Parameter(value=0.0, vary=vary) for _ in range(n + 2)],
+            lambda_smooth=lambda_smooth,
+        )
+
+
 class BackgroundFixedPlusChebyshev(Base):
     """A fixed estimated curve (never subtracted; held additively) plus a
     small refinable Chebyshev correction on top.
@@ -196,7 +251,7 @@ class BackgroundFixedPlusChebyshev(Base):
         return self
 
 
-Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev
+Background = BackgroundChebyshev | BackgroundFixedPlusChebyshev | BackgroundPSpline
 
 
 class Instrument(Base):

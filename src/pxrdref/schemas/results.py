@@ -24,6 +24,14 @@ class Statistics(Base):
     ``rwp_background_subtracted`` re-evaluates Rwp with the background removed
     from both y_obs and y_calc, which Toby recommends as the more meaningful
     number when the background is a large fraction of the signal.
+
+    ``esd_inflation`` is the Bérar-Lelann serial-correlation factor
+    (Bérar & Lelann, 1991, J. Appl. Cryst. 24, 1) — reported parameter esds
+    have already been multiplied by it.  The estimator is conservative: even
+    perfectly white residuals land at ≈1.51 (chance same-sign runs — see
+    ``optimize.statistics.berar_lelann_factor``); lab data with unmodelled
+    profile detail typically lands at 2-4.  Divide it out for raw
+    χ²·(JᵀJ)⁻¹ esds.
     """
 
     rwp: float
@@ -33,6 +41,7 @@ class Statistics(Base):
     gof: float
     rwp_background_subtracted: float | None = None
     durbin_watson: float | None = None
+    esd_inflation: float | None = None
     n_points: int
     n_free_parameters: int
 
@@ -65,12 +74,20 @@ class RefinementResult(Base):
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     provenance: Provenance
 
+    # Where this result sits in the refinement history DAG (None when the
+    # refinement was run with history disabled).
+    node_id: str | None = None
+    tree_id: str | None = None
+
     # Arrays for plotting/export (kept as lists for JSON round-trip; use
     # the exporters for column files).
     two_theta: list[float] = Field(default_factory=list)
     y_obs: list[float] = Field(default_factory=list)
     y_calc: list[float] = Field(default_factory=list)
     y_background: list[float] = Field(default_factory=list)
+    # per-point σ actually used in the fit (file esds when present, Poisson
+    # fallback otherwise) — the FitReport weights with these, never re-derives
+    sigma: list[float] = Field(default_factory=list)
     # per-phase reflection tick positions (deg 2θ)
     ticks: dict[str, list[float]] = Field(default_factory=dict)
 
