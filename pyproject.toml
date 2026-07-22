@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pxrd-refine"
+version = "0.1.0.dev0"
+description = "API-first, differentiable Rietveld refinement of powder X-ray diffraction data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "pxrd-refine developers" }]
+keywords = ["rietveld", "powder-diffraction", "xrd", "crystallography", "refinement"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pydantic>=2.6",
+    "gemmi>=0.6.5",
+]
+
+[project.optional-dependencies]
+viz = ["matplotlib>=3.8", "plotly>=5.20"]
+baselines = ["pybaselines>=1.1"]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "hypothesis>=6",
+    "matplotlib>=3.8",
+    "plotly>=5.20",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/pxrd-refine/pxrd-refine"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pxrdref"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["slow: long-running acceptance tests on real data"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "NPY"]
+ignore = ["E501"]
