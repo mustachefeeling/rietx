@@ -47,6 +47,9 @@ Working today (constant-wavelength X-ray, Debye-Scherrer/capillary geometry):
 | Atomic-coordinate refinement (Wyckoff constraints), QPA, Pawley | v0.2-0.3 |
 | JAX backend (autodiff Jacobians, GPU), FitReport misfit attribution | v0.4 / v0.2 |
 
+The full milestone checklists, acceptance criteria, and design rationale
+live in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ### Validation
 
 The acceptance suite refines real APS 11-BM synchrotron data of the NAC

@@ -70,7 +70,11 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   `@pytest.mark.slow` (`tests/test_acceptance_nac.py`, ~3 s). Reference
   values and data provenance in `tests/data/README.md`.
 
-## Roadmap (abridged; full plan was reviewed adversarially)
+## Roadmap (abridged — the canonical tracking document is docs/ROADMAP.md)
+
+**docs/ROADMAP.md holds the full milestone checklists, acceptance criteria,
+and design record. Keep it current: check off tasks as they ship and record
+measured acceptance results there.**
 
 - **v0.2**: lab Bragg-Brentano — Kα1/Kα2 per-line dispersion (refinable
   ratio), Finger-Cox-Jephcoat axial asymmetry (fixed-node quadrature),
