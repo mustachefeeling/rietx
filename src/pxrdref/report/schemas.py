@@ -1,7 +1,7 @@
 """FitReport schemas — the agent-facing contract, versioned by
 ``FitReport.thresholds_version``.
 
-Three gated layers (docs/ROADMAP.md, "Outputs & fit assessment"):
+Three gated layers (docs/DESIGN.md, "Outputs & fit assessment"):
 
 * **Layer 0** — model-free, always trustworthy (:mod:`.layer0`);
 * **Layer 1** — gated linear misfit attribution (:mod:`.layer1`), present only

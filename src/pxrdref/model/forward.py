@@ -23,7 +23,7 @@ of images that still integrates to exactly 1.
 Peak positions:  2θ_lk = 2θ_Bragg(d_k, λ_l) + zero
                        [+ displacement/transparency shifts, Bragg-Brentano]
 
-Differentiability invariants honoured here (see docs/ROADMAP.md):
+Differentiability invariants honoured here (see docs/DESIGN.md):
 * the reflection list is frozen in the compiled model (regenerate between
   stages);
 * each (line, reflection) pair is evaluated only inside a *frozen*

@@ -121,30 +121,31 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
 
-## Roadmap (abridged — the canonical tracking document is docs/ROADMAP.md)
+## Roadmap & how to work on it
 
-**docs/ROADMAP.md holds the full milestone checklists, acceptance criteria,
-and design record. Keep it current: check off tasks as they ship and record
-measured acceptance results there.**
+Planning docs are split so a session loads only what it needs — do not read
+them all:
 
-- **v0.2 ✅ shipped 2026-07-22** — lab Bragg-Brentano physics (Kα1/Kα2 per-line
-  dispersion, FCJ axial asymmetry with split fixed-node quadrature, sample
-  displacement/transparency, pdCIF reader, instrument⊕sample profile split +
-  instrument-profile files); analytic peak-chain Jacobian; Bérar-Lelann esds;
-  automation-first background subsystem (diagnostics, BIC/Durbin-Watson
-  selection, penalized P-spline with penalty residual rows, block-projection
-  absorption guard); FitReport Layers 1-2 (gated derivative-basis attribution,
-  typed `suggested_actions` with strategy veto and predict-then-verify) with a
-  synthetic misfit-injection calibration suite; history DAG + merge/cherry-pick
-  + per-iteration event stream; plotly HTML viewer, `pxrdref watch`,
-  `plot_for_vlm`. Acceptance: SRM 660c a = 4.156895(25) Å (+28 ppm), Rwp 8.7%;
-  GSAS-II fluorapatite Rwp 9.73% vs GSAS's 10.05% on identical channels.
-- **v0.3** (next): QPA (Hill-Howard + Brindley), Pawley mode, aniso ADPs +
-  Wyckoff constraints (spglib) — **atomic-coordinate refinement lands here** —
-  multi-histogram residuals, exporters.
-- **v0.4**: JAX backend via a small op shim (chunked jacfwd, CUDA, mixed
-  precision). **v0.6**: TOPAS-style bounded LM (Coelho 2005/2018), torch-MPS.
-- v2: FPA (differentiable convolution stack), neutron/TOF, texture, MCP server.
+- `docs/ROADMAP.md` — thin index: milestone table, work-package (WP) index,
+  "Current focus", and the session protocol.
+- `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-
+  sized checklist, acceptance command, handover log).
+- `docs/DESIGN.md` — design record; read only the section a WP links.
+- `docs/milestones/vX.Y.md` — shipped records with measured acceptance blocks.
+
+**Protocol**: to work on the roadmap, read the active WP file (named under
+"Current focus" in ROADMAP.md) and nothing else. Commit per checklist item,
+prefixed `WP-NNNN:`. Before ending any session that touched a WP — or when
+interruption threatens — append a dated handover-log entry (done / in flight /
+next / gotchas) and sync its Status glyph into ROADMAP.md's index. When a
+milestone ships, record measured acceptance in `docs/milestones/` and flip
+the ROADMAP.md row.
+
+Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
+Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
+history DAG, live viz). Next: **v0.3** (QPA, Pawley, aniso ADPs + coordinate
+refinement, multi-histogram, exporters). v2 fence: FPA, neutron/TOF, texture,
+MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

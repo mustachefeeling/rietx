@@ -5,7 +5,7 @@ Cu Kα doublet on a conventional laboratory Bragg-Brentano diffractometer,
 which anchors to a NIST *certificate* — this one is a **cross-code
 consistency check** against GSAS's own converged refinement of the same data,
 with tolerances that respect legitimate inter-code convention differences
-(docs/ROADMAP.md, "Testing & validation policy").
+(docs/DESIGN.md, "Testing & validation policy").
 
 The protocol is read off GSAS's converged ``FAP.EXP``, so both codes refine
 the same parameter set:
@@ -24,7 +24,7 @@ the same parameter set:
   count of 5750 exactly, so the agreement indices below are computed over the
   same channels.
 
-**Measured result** (2026-07-22, recorded in docs/ROADMAP.md):
+**Measured result** (2026-07-22, recorded in docs/milestones/v0.2.md):
 Rwp = 9.73 % against GSAS's 10.05 % and Rp = 7.76 % against its 7.66 %, on an
 identical 5750 channels — the two codes agree on fit quality to ~1 % relative.
 Refined sample broadening lands on GSAS's too: Lorentzian size 0.0323° vs its

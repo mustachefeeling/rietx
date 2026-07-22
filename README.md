@@ -54,8 +54,10 @@ Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 | JAX backend (autodiff Jacobians, GPU) | v0.4 |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
-The full milestone checklists, acceptance criteria, and design rationale
-live in [docs/ROADMAP.md](docs/ROADMAP.md).
+Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes
+per-task work packages ([docs/wp/](docs/wp/)), the design rationale
+([docs/DESIGN.md](docs/DESIGN.md)), and the measured acceptance records of
+shipped milestones ([docs/milestones/](docs/milestones/)).
 
 ### Validation
 
@@ -72,7 +74,7 @@ The SRM 660c fit does **not** reach the certificate's ±8×10⁻⁶ Å band, and
 not claim to: the residual is a characterised cotθ/sin2θ aberration
 (flat-specimen divergence, tube tails, monochromator passband) that belongs to
 the fundamental-parameters work fenced for v2. That gap is documented rather
-than tuned away — see [docs/ROADMAP.md](docs/ROADMAP.md).
+than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,

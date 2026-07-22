@@ -17,7 +17,7 @@ Reference values (see tests/data/README.md):
 * the CIF's recorded specimen displacement, −0.07877 mm;
 * Hölzer et al. (1997): integrated CuKα2/Kα1 intensity ratio ≈ 0.52.
 
-Measured v0.2 result (recorded 2026-07-22, also in docs/ROADMAP.md):
+Measured v0.2 result (recorded 2026-07-22, also in docs/milestones/v0.2.md):
 a = 4.156895(7) Å (Δ = +1.15e-4 = +28 ppm), Rwp = 8.7 %, GoF = 1.87,
 displacement −0.0801 mm (1.3 µm from NIST's), Kα2/Kα1 = 0.513.  The ±2e-4
 cell band below is *interim*: the remaining bias is the unmodelled

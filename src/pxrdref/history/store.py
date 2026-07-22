@@ -3,7 +3,7 @@
 One JSON object per line: a header, then nodes in creation order, then
 annotations.  History is never rewritten, only appended to — the same property
 that makes git's reflog a recovery tool, and what lets ``pxrdref watch`` tail a
-running refinement (docs/ROADMAP.md, v0.2 "Viz / events").
+running refinement (docs/milestones/v0.2.md, "History / events").
 
 Concurrency: a node record is several kB, far above the size the OS will append
 atomically, so **one writer per file**.  Parallel search should give each

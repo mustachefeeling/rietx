@@ -4,7 +4,7 @@
 trustworthy).  Pass the compiled model — most easily via
 ``Refinement.report()`` — to add Layer 1 (gated linear misfit attribution)
 and Layer 2 (typed suggested actions).  See :mod:`.schemas` for the contract
-and the pinned thresholds, and docs/ROADMAP.md for the design rationale.
+and the pinned thresholds, and docs/DESIGN.md for the design rationale.
 """
 
 from __future__ import annotations

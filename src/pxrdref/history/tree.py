@@ -1,7 +1,7 @@
 """The refinement history DAG: immutable nodes, mutable named refs.
 
 Hand-rolled parent pointers rather than a graph library — the dependency
-budget is locked at numpy/scipy/pydantic/gemmi (docs/ROADMAP.md), and the
+budget is locked at numpy/scipy/pydantic/gemmi (docs/DESIGN.md), and the
 operations needed here (lineage, children, leaves, best) are a few lines each
 over a dict.
 """
