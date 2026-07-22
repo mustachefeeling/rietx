@@ -27,8 +27,10 @@ a work session loads only what it needs:
 
 ## Current focus
 
-**v0.3** — start at [WP-0301](wp/0301-wyckoff-constraints.md) (it unblocks
-0302/0303) or any ⬜ WP with no unmet dependency.
+**v0.3** — WP-0301 is done, unblocking [WP-0302](wp/0302-atomic-coordinates.md)
+(atomic coordinates, the natural next step) and
+[WP-0303](wp/0303-anisotropic-adps.md); any other ⬜ WP with no unmet
+dependency is also fair game.
 
 ## Milestones
 
@@ -49,7 +51,7 @@ a work session loads only what it needs:
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0301](wp/0301-wyckoff-constraints.md) | Wyckoff/site-symmetry constraints (affine p = C·θ + d) | ⬜ | — |
+| [0301](wp/0301-wyckoff-constraints.md) | Wyckoff/site-symmetry constraints (affine p = C·θ + d) | ✅ 2026-07-22 | — |
 | [0302](wp/0302-atomic-coordinates.md) | Atomic-coordinate refinement | ⬜ | 0301 |
 | [0303](wp/0303-anisotropic-adps.md) | Anisotropic ADPs | ⬜ | 0301 |
 | [0304](wp/0304-qpa-hill-howard.md) | QPA: Hill-Howard ZMV mass fractions | ⬜ | — |

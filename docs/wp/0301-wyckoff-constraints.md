@@ -1,6 +1,6 @@
 # WP-0301 — Wyckoff / site-symmetry constraint derivation (affine constraints)
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: ✅ done (2026-07-22)
 Depends on: —
 
 ## Goal
@@ -53,24 +53,24 @@ position, which gemmi does not expose directly.
 
 ## Tasks
 
-- [ ] Add spglib dependency; thin wrapper `crystallography/wyckoff.py` that
+- [x] Add spglib dependency; thin wrapper `crystallography/wyckoff.py` that
       takes (space group, site fractional coords) → Wyckoff letter,
       site-symmetry group, and the allowed free-parameter basis for that site
-- [ ] Coordinate constraint rows: for each site, the projector onto
+- [x] Coordinate constraint rows: for each site, the projector onto
       site-symmetry-invariant displacements (e.g. `x,x,0` sites give one free
       parameter with C rows [1,1,0]); free parameters get synthetic dot-paths
       that do not collide with `phases.i.atoms.j.{x,y,z}`
-- [ ] ADP constraint rows: the Laue-class-allowed U_ij pattern per site
+- [x] ADP constraint rows: the Laue-class-allowed U_ij pattern per site
       (needed by WP-0303; derive here so both consumers share one code path)
-- [ ] Replace `Entry.tied_to` with a general constraint block on
+- [x] Replace `Entry.tied_to` with a general constraint block on
       `ParameterTable`: sparse `C` (n_phys × n_free) + `d`, built at compile;
       identity ties become the special case (keep the `_CELL_TIES` behaviour
       bit-identical — the acceptance suites depend on it)
-- [ ] Rework `decode` / `commit` / `apply_to_models` onto `C·θ + d`
-- [ ] Correct esd propagation: σ_phys from diag(C · Cov · Cᵀ) in
+- [x] Rework `decode` / `commit` / `apply_to_models` onto `C·θ + d`
+- [x] Correct esd propagation: σ_phys from diag(C · Cov · Cᵀ) in
       `stderr_physical`; tied cell edges must still report the source esd
       (that is what the affine form gives for identity rows — assert it)
-- [ ] Unit tests: constraint bases cross-checked against **cctbx** published
+- [x] Unit tests: constraint bases cross-checked against **cctbx** published
       site-symmetry tables for a spread of Wyckoff sites (special positions in
       cubic/tetragonal/trigonal/monoclinic groups); regression test that
       cubic/tetragonal/hexagonal cell ties and the `locked` protections are
@@ -97,3 +97,26 @@ behind it — the acceptance numbers must not move).
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-22** — **done**; all checklist items landed as three `WP-0301:`
+  commits, full suite (205, incl. slow acceptance) + ruff green, no
+  acceptance number moved (SRM 660c plot re-inspected: Rwp 8.66 %, GoF 1.87).
+  - `crystallography/wyckoff.py`: `site_constraints(sg, xyz)` → Wyckoff
+    letter + oriented site-symmetry symbol (spglib on a probe cell whose
+    lattice is a group-averaged generic metric — no per-setting case table —
+    pinned by a dummy general-position orbit) + coordinate/ADP bases derived
+    from gemmi stabilizer rotations by exact `Fraction` RREF. ADP order is
+    **(U11, U22, U33, U12, U13, U23)**; bases are smallest-integer,
+    deterministic (tests compare exact arrays).
+  - `ParameterTable` now compiles sparse `C`/`d` in `_rebuild()` at every
+    stage boundary; `AffineTie(terms, const)` declares dependence, chains
+    flatten, cycles raise. New hooks for WP-0302/0303: `add_parameter`
+    (synthetic DOF paths, e.g. `phases.0.atoms.2.dof.0`) and `set_tie`.
+    `stderr_physical` takes the free-param correlation matrix (threaded from
+    `LSQOutcome.correlation` in `refine.py`) → σ² = diag(C·Cov·Cᵀ).
+  - Gotchas for 0302/0303: coordinate anchoring goes through `AffineTie.const`
+    (x = x₀ + B·θ, DOFs start at 0); the probe cell falls back to a second
+    generic point if the user's site coincides with the first; the
+    atomic-coordinate `NotImplementedError` in `_collect` is still in place —
+    WP-0302 removes it and wires `site_constraints` into table construction.
+  - spglib emits an internal `DeprecationWarning` (its own OLD_ERROR_HANDLING
+    migration) — harmless, not our API usage.
