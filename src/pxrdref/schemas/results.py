@@ -54,6 +54,18 @@ class PhaseQuantity(Base):
     (``z = 1``, ``molar_mass = cell_mass`` when the composition does not reduce
     to integers under refined occupancies).  ``weight_fraction`` never depends
     on that split.
+
+    The microabsorption fields are filled only when the Brindley correction
+    ran (every phase carried a ``particle_radius_um``).  ``weight_fraction``
+    always stays the *uncorrected* Hill-Howard number — the correction is
+    reported alongside, never silently substituted.  ``weight_fraction_stderr``
+    belongs to the uncorrected fraction; the corrected one inherits the
+    systematic uncertainty of the user-supplied radii, which dominates and is
+    not statistical.  ``mu_r`` is the phase's µ·R (dimensionless, R = particle
+    radius): Brindley's spherical-particle treatment is derived for the
+    fine/medium powder regime µ·D ≤ 0.1 (D = 2R), i.e. µ·R ≤ 0.05 — beyond
+    that the number travels with the answer so the fence diagnostic can point
+    at it.
     """
 
     name: str                                       # matches Phase.name / ticks key
@@ -65,6 +77,28 @@ class PhaseQuantity(Base):
     cell_mass: float                                # Z·M, g/mol per unit cell
     cell_volume: float                              # V, Å³
     zmv: float                                       # cell_mass · V
+
+    # -- Brindley microabsorption (WP-0305); None unless the correction ran --
+    weight_fraction_corrected: float | None = None  # W/τ, renormalised
+    brindley_tau: float | None = None               # τ((µ_p − µ̄)·R_p)
+    mu_cm: float | None = None                      # µ_p at the primary λ, 1/cm
+    mu_r: float | None = None                       # µ_p·R_p (fence: ≤ 0.05)
+    particle_radius_um: float | None = None         # R_p as supplied, µm
+
+
+class MicroabsorptionCorrection(Base):
+    """Mixture-level record of the Brindley correction (Brindley, 1945).
+
+    ``mu_mean_cm`` is the volume-weighted mean attenuation of the *solid*
+    crystalline mixture at the correction's fixed point (porosity is not
+    modelled; the solid average is the conservative choice).  ``wavelength``
+    is the primary emission line the attenuation was evaluated at — µ ∝ λ³
+    makes the Kα₂ difference sub-percent in µ and smaller still in τ.
+    """
+
+    method: Literal["brindley_sphere"] = "brindley_sphere"
+    wavelength: float                               # Å, primary emission line
+    mu_mean_cm: float                               # µ̄ of the solid mixture, 1/cm
 
 
 class QuantitativePhaseAnalysis(Base):
@@ -84,6 +118,13 @@ class QuantitativePhaseAnalysis(Base):
     phases: list[PhaseQuantity]
     method: Literal["zmv"] = "zmv"
     crystalline_only: bool = True
+
+    # Brindley microabsorption: the mixture-level record when the correction
+    # ran, or the reason it was skipped when radii were supplied but the
+    # correction could not run (partial radii, µ unavailable at this λ, …).
+    # Both None ⇔ no phase asked for a correction.
+    microabsorption: MicroabsorptionCorrection | None = None
+    microabsorption_skipped: str | None = None
 
 
 class IterationRecord(Base):

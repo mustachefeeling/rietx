@@ -31,9 +31,14 @@ from dataclasses import dataclass, field
 import gemmi
 import numpy as np
 
+from ..crystallography.attenuation import linear_attenuation
 from ..crystallography.lattice import cell_volume
 from ..crystallography.symmetry import expand_positions, get_spacegroup
-from ..schemas.results import PhaseQuantity, QuantitativePhaseAnalysis
+from ..schemas.results import (
+    MicroabsorptionCorrection,
+    PhaseQuantity,
+    QuantitativePhaseAnalysis,
+)
 from ..schemas.structure import Structure
 
 _ELEMENT_RE = re.compile(r"^([A-Za-z]+)")
@@ -263,7 +268,8 @@ def brindley_correction(w_measured, densities, mus, radii_um, *,
 
 
 def compute_qpa(structure: Structure, values: dict[str, float],
-                scale_cov=None, multiplicities=None) -> QuantitativePhaseAnalysis:
+                scale_cov=None, multiplicities=None,
+                wavelength: float | None = None) -> QuantitativePhaseAnalysis:
     """Assemble the per-phase QPA rows from a decoded parameter dict.
 
     ``values`` is the physical value dict from ``ParameterTable.decode`` (refined
@@ -273,6 +279,13 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     site multiplicities frozen on the compiled model, so QPA counts the same
     orbits the forward model did rather than re-deriving them from refined
     coordinates that may have drifted near a special position.
+
+    ``wavelength`` (Å, primary emission line) enables the Brindley
+    microabsorption correction for phases carrying ``particle_radius_um``.
+    The correction needs *every* phase's radius (τ compares each phase to the
+    mixture average µ̄, which a phase of unknown size would corrupt); partial
+    input or an unavailable µ records ``microabsorption_skipped`` instead of
+    guessing, and the uncorrected fractions are always reported either way.
     """
     zmvs, scales = [], []
     for ip, phase in enumerate(structure.phases):
@@ -300,4 +313,49 @@ def compute_qpa(structure: Structure, values: dict[str, float],
         )
         for ip, phase in enumerate(structure.phases)
     ]
-    return QuantitativePhaseAnalysis(phases=rows)
+    qpa = QuantitativePhaseAnalysis(phases=rows)
+    _apply_microabsorption(qpa, structure, zmvs, w, wavelength)
+    return qpa
+
+
+def _apply_microabsorption(qpa: QuantitativePhaseAnalysis, structure: Structure,
+                           zmvs: list[ZMV], w, wavelength: float | None) -> None:
+    """Attach the Brindley correction to assembled QPA rows, in place.
+
+    Fills the per-phase τ / µ / µR / corrected-fraction fields and the
+    mixture-level :class:`MicroabsorptionCorrection`, or records the reason in
+    ``microabsorption_skipped`` — silence is reserved for "nobody asked"
+    (no phase has a radius).
+    """
+    radii = [phase.particle_radius_um for phase in structure.phases]
+    if all(r is None for r in radii):
+        return
+    missing = [structure.phases[ip].name for ip, r in enumerate(radii) if r is None]
+    if missing:
+        qpa.microabsorption_skipped = (
+            "Brindley correction skipped: no particle_radius_um on phase(s) "
+            f"{', '.join(missing)} — τ compares each phase to the mixture "
+            "average, so every phase needs a radius")
+        return
+    if wavelength is None:
+        qpa.microabsorption_skipped = (
+            "Brindley correction skipped: no wavelength available to evaluate "
+            "attenuation coefficients")
+        return
+    try:
+        mus = [linear_attenuation(z.element_counts, z.cell_volume, wavelength)
+               for z in zmvs]
+    except (KeyError, ValueError) as exc:
+        qpa.microabsorption_skipped = (
+            f"Brindley correction skipped: attenuation unavailable — {exc}")
+        return
+    w_corr, taus, mu_bar = brindley_correction(
+        w, [z.density for z in zmvs], mus, radii)
+    for ip, row in enumerate(qpa.phases):
+        row.weight_fraction_corrected = float(w_corr[ip])
+        row.brindley_tau = float(taus[ip])
+        row.mu_cm = float(mus[ip])
+        row.mu_r = float(mus[ip] * radii[ip] * 1e-4)   # µm → cm
+        row.particle_radius_um = float(radii[ip])
+    qpa.microabsorption = MicroabsorptionCorrection(
+        wavelength=float(wavelength), mu_mean_cm=float(mu_bar))

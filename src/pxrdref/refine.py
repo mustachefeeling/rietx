@@ -670,9 +670,13 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                      if stderr_internal is not None else None)
         # Site multiplicities frozen on the compiled model (never re-derived
         # from refined coordinates, which could have drifted near a special
-        # position and collapsed an orbit).
+        # position and collapsed an orbit).  The primary emission line feeds
+        # the Brindley microabsorption attenuation (µ ∝ λ³ makes the Kα₂
+        # offset sub-percent in µ, far smaller in τ).
         multiplicities = [[len(op[0]) for op in cp.sites.ops] for cp in model.phases]
-        qpa = compute_qpa(structure, values, scale_cov, multiplicities)
+        wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
+        qpa = compute_qpa(structure, values, scale_cov, multiplicities,
+                          wavelength=wavelength)
 
     return RefinementResult(
         status=status, mode=mode,

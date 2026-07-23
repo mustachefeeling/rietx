@@ -163,19 +163,88 @@ def test_physical_covariance_block_diagonal_matches_stderr():
 
 
 def _qpa_fixture() -> QuantitativePhaseAnalysis:
+    from pxrdref.schemas.results import MicroabsorptionCorrection
+
     return QuantitativePhaseAnalysis(phases=[
         PhaseQuantity(name="LaB6", weight_fraction=0.6, weight_fraction_stderr=0.01,
                       scale=2.0, z=1, molar_mass=203.77, cell_mass=203.77,
-                      cell_volume=71.82, zmv=14634.9),
+                      cell_volume=71.82, zmv=14634.9,
+                      weight_fraction_corrected=0.62, brindley_tau=0.97,
+                      mu_cm=1136.0, mu_r=0.045, particle_radius_um=0.4),
         PhaseQuantity(name="CaF2", weight_fraction=0.4, weight_fraction_stderr=None,
                       scale=1.0, z=4, molar_mass=78.07, cell_mass=312.30,
-                      cell_volume=163.05, zmv=50920.0),
-    ])
+                      cell_volume=163.05, zmv=50920.0,
+                      weight_fraction_corrected=0.38, brindley_tau=1.02,
+                      mu_cm=304.0, mu_r=0.012, particle_radius_um=0.4),
+    ], microabsorption=MicroabsorptionCorrection(wavelength=1.5406,
+                                                 mu_mean_cm=700.0))
 
 
 def test_qpa_json_round_trip():
     qpa = _qpa_fixture()
     assert QuantitativePhaseAnalysis.model_validate_json(qpa.model_dump_json()) == qpa
+
+
+# -- compute_qpa microabsorption wiring -----------------------------------
+
+def _two_phase_decoded(radii):
+    from pxrdref.optimize.qpa import compute_qpa
+
+    structure = make_lab6()
+    structure.phases.append(_caf2_phase())
+    for phase, r in zip(structure.phases, radii, strict=True):
+        phase.particle_radius_um = r
+    table = ParameterTable(structure, Instrument.debye_scherrer(wavelength=1.5406))
+    return structure, table.decode(table.x0()), compute_qpa
+
+
+def test_compute_qpa_brindley_applied():
+    structure, values, compute_qpa = _two_phase_decoded([0.4, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    base = compute_qpa(structure, values, wavelength=None)
+    assert qpa.microabsorption is not None and qpa.microabsorption_skipped is None
+    rows = {r.name: r for r in qpa.phases}
+    la, ca = rows["LaB6"], rows["CaF2"]
+    # uncorrected numbers are untouched by the correction...
+    assert [r.weight_fraction for r in qpa.phases] == \
+           [r.weight_fraction for r in base.phases]
+    # ...and the corrected ones move the absorbing phase (LaB6, µ≈1136/cm) up
+    assert la.brindley_tau < 1.0 < ca.brindley_tau
+    assert la.weight_fraction_corrected > la.weight_fraction
+    assert ca.weight_fraction_corrected < ca.weight_fraction
+    assert math.isclose(sum(r.weight_fraction_corrected for r in qpa.phases), 1.0,
+                        abs_tol=1e-12)
+    assert 1080.0 < la.mu_cm < 1180.0 and 290.0 < ca.mu_cm < 315.0
+    assert math.isclose(la.mu_r, la.mu_cm * 0.4e-4, rel_tol=1e-12)
+    assert ca.mu_cm < qpa.microabsorption.mu_mean_cm < la.mu_cm
+
+
+def test_compute_qpa_brindley_skipped_partial_radii():
+    structure, values, compute_qpa = _two_phase_decoded([0.4, None])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    assert qpa.microabsorption is None
+    assert "CaF2" in qpa.microabsorption_skipped
+    assert all(r.weight_fraction_corrected is None for r in qpa.phases)
+
+
+def test_compute_qpa_brindley_skipped_no_wavelength():
+    structure, values, compute_qpa = _two_phase_decoded([0.4, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=None)
+    assert qpa.microabsorption is None
+    assert "wavelength" in qpa.microabsorption_skipped
+
+
+def test_compute_qpa_brindley_skipped_mu_unavailable():
+    structure, values, compute_qpa = _two_phase_decoded([0.4, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=13.0)  # outside 2-120 keV
+    assert qpa.microabsorption is None
+    assert "attenuation unavailable" in qpa.microabsorption_skipped
+
+
+def test_compute_qpa_no_radii_stays_silent():
+    structure, values, compute_qpa = _two_phase_decoded([None, None])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    assert qpa.microabsorption is None and qpa.microabsorption_skipped is None
 
 
 def test_result_with_qpa_round_trip():
