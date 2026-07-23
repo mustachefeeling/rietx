@@ -75,29 +75,30 @@ def test_commit_then_decode_round_trip():
 
 
 def test_multi_term_tie_wyckoff_style():
-    """An x,x,0-style site: two coordinates riding one synthetic DOF."""
+    """An x,x,0-style pattern: two parameters riding one synthetic DOF."""
     table = make_table()
     x0 = 0.1993
-    table.add_parameter("phases.0.atoms.1.dof.0", 0.0, vary=True)
-    table.set_tie("phases.0.atoms.1.x",
-                  AffineTie(terms=(("phases.0.atoms.1.dof.0", 1.0),), const=x0))
-    table.set_tie("phases.0.atoms.1.y",
-                  AffineTie(terms=(("phases.0.atoms.1.dof.0", 1.0),), const=0.5))
-    assert "phases.0.atoms.1.dof.0" in table.free_paths
+    table.add_parameter("synthetic.dof.0", 0.0, vary=True)
+    table.add_parameter("synthetic.px", x0)
+    table.add_parameter("synthetic.py", 0.5)
+    table.set_tie("synthetic.px",
+                  AffineTie(terms=(("synthetic.dof.0", 1.0),), const=x0))
+    table.set_tie("synthetic.py",
+                  AffineTie(terms=(("synthetic.dof.0", 1.0),), const=0.5))
+    assert "synthetic.dof.0" in table.free_paths
     theta = table.x0()
-    k = table.free_paths.index("phases.0.atoms.1.dof.0")
+    k = table.free_paths.index("synthetic.dof.0")
     theta[k] = 0.004
     values = table.decode(theta)
-    assert values["phases.0.atoms.1.x"] == pytest.approx(x0 + 0.004, abs=1e-15)
-    assert values["phases.0.atoms.1.y"] == pytest.approx(0.5 + 0.004, abs=1e-15)
-    assert values["phases.0.atoms.1.z"] == 0.5  # untouched
+    assert values["synthetic.px"] == pytest.approx(x0 + 0.004, abs=1e-15)
+    assert values["synthetic.py"] == pytest.approx(0.5 + 0.004, abs=1e-15)
 
-    # esd: both tied coordinates inherit the DOF esd (|coeff| = 1)
+    # esd: both tied parameters inherit the DOF esd (|coeff| = 1)
     s = np.zeros(len(theta))
     s[k] = 7e-4
     out = table.stderr_physical(theta, s)
-    assert out["phases.0.atoms.1.x"] == pytest.approx(7e-4, rel=1e-12)
-    assert out["phases.0.atoms.1.y"] == pytest.approx(7e-4, rel=1e-12)
+    assert out["synthetic.px"] == pytest.approx(7e-4, rel=1e-12)
+    assert out["synthetic.py"] == pytest.approx(7e-4, rel=1e-12)
 
 
 def test_covariance_propagation_with_cross_terms():

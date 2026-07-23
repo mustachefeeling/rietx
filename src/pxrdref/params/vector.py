@@ -25,6 +25,7 @@ import numpy as np
 from scipy import sparse
 
 from ..crystallography.symmetry import get_spacegroup
+from ..crystallography.wyckoff import coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Instrument
 from ..schemas.structure import Structure
@@ -109,7 +110,8 @@ class ParameterTable:
 
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
-            system = get_spacegroup(phase.space_group).crystal_system_str()
+            sg = get_spacegroup(phase.space_group)
+            system = sg.crystal_system_str()
             ties = _CELL_TIES.get(system, {})
             fixed_angles = _FIXED_ANGLES.get(system, ())
             base = f"phases.{ip}"
@@ -128,18 +130,47 @@ class ParameterTable:
             self._add(f"{base}.gauss_size", phase.gauss_size)
             self._add(f"{base}.gauss_strain", phase.gauss_strain)
             for j, atom in enumerate(phase.atoms):
-                for coord in ("x", "y", "z"):
-                    cp: Parameter = getattr(atom, coord)
-                    if cp.vary:
-                        raise NotImplementedError(
-                            f"refining atomic coordinates ({base}.atoms.{j}.{coord}) requires "
-                            "Wyckoff-aware symmetry constraints, planned for v0.3; set vary=False"
-                        )
-                    self._add(f"{base}.atoms.{j}.{coord}", cp)
+                self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
                 self._add(f"{base}.atoms.{j}.biso", atom.biso)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
+        self._collect_instrument(instrument)
+
+    def _collect_atom_coords(self, base: str, sg, atom) -> None:
+        """Coordinates enter θ through site-symmetry displacement DOFs.
+
+        Each site contributes ``…dof.k`` parameters — one per site-symmetry-
+        allowed direction (``crystallography.wyckoff``) — and x, y, z become
+        affine rows x = x₀ + Σₖ Bₖ·θₖ anchored at the compile-time position.
+        Fully fixed special positions contribute none (their coordinates are
+        locked); ``vary=True`` on any coordinate of such a site is an error.
+        A vary request on a constrained-but-free site frees *all* of the
+        site's DOFs — per-axis intent does not map onto rows such as [1,1,0].
+        DOFs are unbounded displacements; bounds declared on x/y/z do not
+        constrain them.
+        """
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        basis = coordinate_basis(stabilizer_rotations(sg, xyz))
+        want_vary = any(getattr(atom, c).vary for c in ("x", "y", "z"))
+        if len(basis) == 0 and want_vary:
+            raise ValueError(
+                f"{base} sits on a fully fixed special position; its site "
+                "symmetry allows no positional freedom — set vary=False")
+        dof_paths = [f"{base}.dof.{k}" for k in range(len(basis))]
+        for c_idx, c in enumerate(("x", "y", "z")):
+            p: Parameter = getattr(atom, c)
+            terms = tuple((dof_paths[k], float(basis[k][c_idx]))
+                          for k in range(len(basis)) if basis[k][c_idx] != 0)
+            if terms:
+                self._add(f"{base}.{c}", p, tie=AffineTie(terms=terms, const=p.value))
+            else:
+                self._add(f"{base}.{c}", p, force_fixed=True)
+        for path in dof_paths:
+            self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
+                                      lo=-np.inf, hi=np.inf, transform="identity"))
+
+    def _collect_instrument(self, instrument: Instrument) -> None:
         self._add("instrument.polarization", instrument.source.polarization)
         for il, line in enumerate(instrument.source.lines):
             # line 0 defines the intensity scale: its weight is degenerate with
@@ -342,6 +373,11 @@ class ParameterTable:
             phase.gauss_size.value = values[f"{base}.gauss_size"]
             phase.gauss_strain.value = values[f"{base}.gauss_strain"]
             for j, atom in enumerate(phase.atoms):
+                # coordinates too — without this, refined positions vanish at
+                # the next stage's recompile (models feed compile_phase_sites)
+                atom.x.value = values[f"{base}.atoms.{j}.x"]
+                atom.y.value = values[f"{base}.atoms.{j}.y"]
+                atom.z.value = values[f"{base}.atoms.{j}.z"]
                 atom.occ.value = values[f"{base}.atoms.{j}.occ"]
                 atom.biso.value = values[f"{base}.atoms.{j}.biso"]
         instrument.zero_shift.value = values["instrument.zero_shift"]
