@@ -6,6 +6,7 @@ from .io.readers import read_pattern, read_pdcif
 from .refine import Refinement, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
 from .schemas import (
+    AnisoU,
     Atom,
     Cell,
     Instrument,
@@ -19,6 +20,7 @@ from .schemas.history import HistoryNode, NodeAction, RefinementState
 from .strategy.staged import RefinementPlan, Stage
 
 __all__ = [
+    "AnisoU",
     "Atom",
     "Cell",
     "FitReport",

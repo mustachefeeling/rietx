@@ -11,9 +11,10 @@ from .instrument import (
 )
 from .pattern import PatternData
 from .results import RefinedParameter, RefinementResult, StageResult, Statistics
-from .structure import Atom, Cell, Phase, Structure
+from .structure import AnisoU, Atom, Cell, Phase, Structure
 
 __all__ = [
+    "AnisoU",
     "Atom",
     "Background",
     "BackgroundChebyshev",

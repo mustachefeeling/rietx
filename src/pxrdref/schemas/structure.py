@@ -4,7 +4,8 @@ Conventions
 -----------
 * Fractional coordinates; occupancies are site fractions in [0, 1].
 * Atomic displacement: isotropic ``Biso`` in Å² with ``Biso = 8π² Uiso``
-  (International Tables C; anisotropic ``Uij`` arrives in v0.3).
+  (International Tables C) by default, or an optional anisotropic ``AnisoU``
+  block per atom carrying the CIF U^ij tensor (Å²).
 * The structure-factor sum runs over the symmetry orbit of each listed atom
   (asymmetric-unit atoms only should be listed), with reflection multiplicity
   applied to |F|² — the standard Rietveld formulation (Rietveld, 1969,
@@ -48,8 +49,63 @@ class Cell(Base):
                 self.alpha.value, self.beta.value, self.gamma.value)
 
 
+class AnisoU(Base):
+    """Anisotropic displacement tensor in the CIF U^ij convention (Å²).
+
+    The Debye-Waller factor is T(h) = exp(−2π² Σ_ij U^ij h_i h_j a*_i a*_j)
+    — the ``_atom_site_aniso_U_ij`` definition, so these are exactly the
+    numbers a CIF carries.  Conversions to U*, U_cart and U_eq, and the
+    positive-definiteness test, live in ``crystallography.adp``.
+
+    Components refine through site-symmetry-allowed *patterns*, not one by
+    one: :class:`~pxrdref.params.vector.ParameterTable` ties each component to
+    ``phases.i.atoms.j.adp.k`` DOFs derived from
+    ``crystallography.wyckoff.adp_basis``.  Setting ``vary=True`` on any
+    component frees all of the site's allowed patterns; ``min``/``max`` on a
+    component are inert (the DOFs are unbounded — positive-definiteness is
+    enforced by a diagnostic, not by box bounds, because the physical
+    constraint couples all six components).
+    """
+
+    u11: Parameter
+    u22: Parameter
+    u33: Parameter
+    u12: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="A^2"))
+    u13: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="A^2"))
+    u23: Parameter = Field(default_factory=lambda: Parameter(value=0.0, unit="A^2"))
+
+    def values(self) -> tuple[float, float, float, float, float, float]:
+        """(U11, U22, U33, U12, U13, U23) — the order used everywhere."""
+        return (self.u11.value, self.u22.value, self.u33.value,
+                self.u12.value, self.u13.value, self.u23.value)
+
+    @classmethod
+    def from_values(cls, u6, *, vary: bool = False) -> "AnisoU":
+        return cls(**{n: Parameter(value=float(v), vary=vary, unit="A^2")
+                      for n, v in zip(("u11", "u22", "u33", "u12", "u13", "u23"),
+                                      u6, strict=True)})
+
+    @classmethod
+    def isotropic(cls, uiso: float, cell: "Cell", *, vary: bool = False) -> "AnisoU":
+        """The tensor equivalent to an isotropic Uiso in *this* cell.
+
+        Not Uiso·δ_ij except when the reciprocal axes are orthogonal — see
+        ``crystallography.adp.isotropic_u6``.
+        """
+        from ..crystallography.adp import isotropic_u6
+
+        return cls.from_values(isotropic_u6(uiso, cell.lengths_angles()), vary=vary)
+
+
 class Atom(Base):
-    """One site in the asymmetric unit."""
+    """One site in the asymmetric unit.
+
+    Displacement is isotropic (``biso``) unless ``aniso`` is set, which is an
+    opt-in *per atom*: a structure may mix isotropic and anisotropic sites.
+    When ``aniso`` is present it alone drives the Debye-Waller factor and
+    ``biso`` becomes an inert record of the starting estimate — refining it
+    would be a silently dead parameter, so that is rejected.
+    """
 
     label: str
     species: str  # scattering species, e.g. "La", "B", "Fe3+"
@@ -58,6 +114,16 @@ class Atom(Base):
     z: Parameter
     occ: Parameter = Field(default_factory=lambda: Parameter(value=1.0, min=0.0, max=1.5))
     biso: Parameter = Field(default_factory=lambda: Parameter(value=0.5, min=0.0, max=25.0, unit="A^2"))
+    aniso: AnisoU | None = None
+
+    @model_validator(mode="after")
+    def _one_displacement_model(self) -> "Atom":
+        if self.aniso is not None and self.biso.vary:
+            raise ValueError(
+                f"atom {self.label!r} has an anisotropic block, so biso does "
+                "not enter the model; set biso.vary=False and vary the aniso "
+                "components instead")
+        return self
 
 
 class Phase(Base):
