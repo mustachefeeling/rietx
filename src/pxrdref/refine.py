@@ -316,11 +316,13 @@ class Refinement:
         if mode == "lebail":
             # never refine structural parameters (or the line-intensity
             # ratio, which the per-hkl intensities can absorb pairwise)
-            # against empirical intensities
+            # against empirical intensities; drop them from the reported
+            # freed list too — it must describe the set actually left free
             for path in list(freed):
                 if ".atoms." in path or path.endswith(".scale") \
                         or ".source.lines." in path:
                     table.set_vary([path], False)
+                    freed.remove(path)
 
         # regenerate reflection list/windows/FCJ nodes with current values
         # (between-stage refresh; frozen within the stage); the free-path

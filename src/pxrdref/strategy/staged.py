@@ -40,6 +40,27 @@ class RefinementPlan:
         ])
 
     @classmethod
+    def mccusker_structural(cls) -> "RefinementPlan":
+        """The McCusker order continued into the structural parameters:
+        atomic coordinates once the profile is stable, then displacement
+        parameters.  Coordinates refine as site-symmetry DOFs
+        (``phases.*.atoms.*.dof.*`` — WP-0301 constraint block; a special
+        position contributes only its allowed directions, a fully fixed one
+        contributes none, so the glob is always safe).  Kept separate from
+        :meth:`mccusker_default` so profile-only workflows never free
+        structural parameters by accident."""
+        return cls(stages=[
+            Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+            Stage("zero", ["instrument.zero_shift"]),
+            Stage("cell", ["phases.*.cell.*"]),
+            Stage("profile_w", ["instrument.profile.w"]),
+            Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                              "instrument.profile.x", "instrument.profile.y"]),
+            Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
+            Stage("biso", ["phases.*.atoms.*.biso"]),
+        ])
+
+    @classmethod
     def lab_bragg_brentano(cls) -> "RefinementPlan":
         """Lab flat-plate plan: adds sample displacement (with zero), then the
         Kα2/Kα1 intensity ratio and FCJ axial-divergence parameters last —
@@ -116,6 +137,7 @@ class RefinementPlan:
 
 PLAN_PRESETS = {
     "mccusker_default": RefinementPlan.mccusker_default,
+    "mccusker_structural": RefinementPlan.mccusker_structural,
     "lab_bragg_brentano": RefinementPlan.lab_bragg_brentano,
     "lab_calibrate": RefinementPlan.lab_calibrate,
     "lab_sample_refine": RefinementPlan.lab_sample_refine,
