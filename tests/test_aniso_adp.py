@@ -417,6 +417,17 @@ def test_background_absorption_of_adp_dofs_is_reported_and_low():
 # -- CIF round trip ----------------------------------------------------
 
 
+def test_public_from_cif_forwards_aniso():
+    """The opt-in must be reachable through the front door, not just the
+    internal reader — this is the entry point every example and acceptance
+    test loads structures through."""
+    with_tensors = Structure.from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
+    assert all(a.aniso is not None for a in with_tensors.phases[0].atoms)
+    # and the default still collapses to U_eq, unchanged
+    default = Structure.from_cif(str(DATA / "cod_1000236.cif"))
+    assert all(a.aniso is None for a in default.phases[0].atoms)
+
+
 def test_cif_round_trip_preserves_aniso_tensors(tmp_path):
     """Read NAC's published U^ij, write, read back: same numbers, same sites."""
     original = structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
