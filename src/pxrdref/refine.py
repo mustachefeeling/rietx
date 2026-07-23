@@ -558,6 +558,19 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
             message=f"{path} refined to its bound",
             suggestion="widen the bound or fix the parameter",
         ))
+    for msg in guard.nonpositive_adps:
+        path = msg.split(" ")[0]
+        out.append(Diagnostic(
+            level="warning", code="ADP_NOT_POSITIVE_DEFINITE", where=[path],
+            message=f"the anisotropic displacement tensor of {msg} is not "
+                    "positive definite — it is not an ellipsoid, and its "
+                    "Debye-Waller factor grows without bound at high Q",
+            suggestion="the data probably do not support this many "
+                       "displacement parameters: revert the site to an "
+                       "isotropic biso, check the occupancy and species "
+                       "assignment, or extend the fit range; do not report "
+                       "the tensor as measured",
+        ))
     for msg in guard.background_correlations:
         path = msg.split(" ")[0]
         out.append(Diagnostic(

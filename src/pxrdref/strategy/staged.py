@@ -11,7 +11,19 @@ invariant — they stay frozen *within* a stage).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+
+#: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
+#: site for the positive-definiteness guard.
+_ADP_COMPONENT = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.u(11|22|33|12|13|23)$")
+_U_ORDER = {"11": 0, "22": 1, "33": 2, "12": 3, "13": 4, "23": 5}
+
+#: The displacement-parameter stage frees whichever representation each site
+#: actually uses.  Both globs are always safe: an isotropic site has no
+#: ``adp.k`` entries, and an anisotropic one has its ``biso`` locked, so
+#: neither can free a parameter that does not reach the model.
+_DISPLACEMENT_GLOBS = ["phases.*.atoms.*.biso", "phases.*.atoms.*.adp.*"]
 
 
 @dataclass
@@ -46,7 +58,9 @@ class RefinementPlan:
         parameters.  Coordinates refine as site-symmetry DOFs
         (``phases.*.atoms.*.dof.*`` — WP-0301 constraint block; a special
         position contributes only its allowed directions, a fully fixed one
-        contributes none, so the glob is always safe).  Kept separate from
+        contributes none, so the glob is always safe).  The displacement
+        stage frees ``biso`` on isotropic sites and the ``adp.*`` patterns on
+        anisotropic ones, whichever each site declares.  Kept separate from
         :meth:`mccusker_default` so profile-only workflows never free
         structural parameters by accident."""
         return cls(stages=[
@@ -57,7 +71,7 @@ class RefinementPlan:
             Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                               "instrument.profile.x", "instrument.profile.y"]),
             Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
-            Stage("biso", ["phases.*.atoms.*.biso"]),
+            Stage("biso", list(_DISPLACEMENT_GLOBS)),
         ])
 
     @classmethod
@@ -99,7 +113,7 @@ class RefinementPlan:
             Stage("lines_axial", ["instrument.source.lines.*.weight",
                                   "instrument.geometry.axial_sl",
                                   "instrument.geometry.axial_hl"]),
-            Stage("biso", ["phases.*.atoms.*.biso"]),
+            Stage("biso", list(_DISPLACEMENT_GLOBS)),
         ])
 
     @classmethod
@@ -119,7 +133,7 @@ class RefinementPlan:
             Stage("cell", ["phases.*.cell.*"]),
             Stage("sample_profile", ["phases.*.lor_size", "phases.*.lor_strain",
                                      "phases.*.gauss_size", "phases.*.gauss_strain"]),
-            Stage("biso", ["phases.*.atoms.*.biso"]),
+            Stage("biso", list(_DISPLACEMENT_GLOBS)),
         ])
 
     @classmethod
@@ -153,6 +167,8 @@ class GuardReport:
     # the background-eats-the-structure failure mode, measured as a multiple
     # correlation R² rather than a pairwise ρ (see check_guards)
     background_correlations: list[str] = field(default_factory=list)
+    # anisotropic displacement tensors that are no longer ellipsoids
+    nonpositive_adps: list[str] = field(default_factory=list)
 
 
 #: R² beyond which the background block is reported as able to imitate a
@@ -163,15 +179,45 @@ class GuardReport:
 BACKGROUND_ABSORPTION_GUARD = 0.25
 
 
+def check_adp_positive_definite(table) -> list[str]:
+    """Anisotropic sites whose U tensor is not positive definite.
+
+    An unconstrained U can leave the physical cone, and the resulting
+    Debye-Waller factor *grows* without bound along the offending direction
+    as |h| increases — the fit does not merely become wrong, it diverges at
+    high Q.  The test runs on the stored CIF U^ij matrix rather than on
+    U_cart: the two are related by a congruence, so by Sylvester's law of
+    inertia the eigenvalue *signs* are the same and no cell is needed here
+    (magnitudes would need one — see ``crystallography.adp``).
+    """
+    import numpy as np
+
+    from ..crystallography.adp import min_eigenvalue
+
+    values = {e.path: e.value for e in table.entries}
+    sites: dict[str, list[float]] = {}
+    for e in table.entries:
+        m = _ADP_COMPONENT.match(e.path)
+        if m:
+            sites.setdefault(m.group(1), [np.nan] * 6)
+            sites[m.group(1)][_U_ORDER[m.group(2)]] = values[e.path]
+    out = []
+    for base, u6 in sorted(sites.items()):
+        if not np.isnan(u6).any() and min_eigenvalue(u6) <= 0.0:
+            out.append(f"{base} (min eigenvalue {min_eigenvalue(u6):+.2e} Å²)")
+    return out
+
+
 def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD
                  ) -> GuardReport:
-    """Correlation, bound and background-absorption guards, run per stage."""
+    """Correlation, bound, background-absorption and ADP-shape guards."""
     import numpy as np
 
     from ..optimize.statistics import background_absorption
 
     report = GuardReport()
+    report.nonpositive_adps = check_adp_positive_definite(table)
     free = table.free_paths
 
     if outcome.correlation is not None and len(free) > 1:

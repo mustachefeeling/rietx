@@ -31,8 +31,10 @@ from pxrdref.crystallography.structure_factor import (
 )
 from pxrdref.crystallography.symmetry import get_spacegroup
 from pxrdref.params.vector import ParameterTable
+from pxrdref.refine import _guard_diagnostics
 from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from pxrdref.strategy.staged import GuardReport, check_adp_positive_definite
 from tests.test_coordinates import make_rutile
 
 DATA = Path(__file__).parent / "data"
@@ -301,6 +303,55 @@ def test_adp_write_back_survives_stage_boundary():
     # a fresh table re-projects the committed tensor without complaint
     assert ParameterTable(structure, ins).decode(
         ParameterTable(structure, ins).x0())["phases.0.atoms.0.u22"] == pytest.approx(0.008)
+
+
+# -- positive-definiteness guard ---------------------------------------
+
+
+def test_guard_flags_a_non_ellipsoidal_tensor():
+    """A U12 large enough to tip the tensor out of the physical cone.
+
+    Rutile's site symmetry allows U12, so this is reachable by refinement —
+    which is the point: the guard has to catch a *refined* tensor, not just a
+    typo in the input.
+    """
+    structure = make_aniso_rutile()
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    table = ParameterTable(structure, ins)
+    assert check_adp_positive_definite(table) == []
+
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.0.adp.*"], True)
+    theta = table.x0()
+    theta[2] = 0.02  # U12 ≫ U11 = U22 = 0.006 ⇒ negative eigenvalue
+    table.commit(theta)
+
+    flagged = check_adp_positive_definite(table)
+    assert len(flagged) == 1 and flagged[0].startswith("phases.0.atoms.0")
+    assert "min eigenvalue -" in flagged[0]
+
+
+def test_guard_diagnostic_is_structured_and_actionable():
+    structure = make_aniso_rutile()
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.0.adp.*"], True)
+    theta = table.x0()
+    theta[2] = 0.02
+    table.commit(theta)
+
+    guard = GuardReport(nonpositive_adps=check_adp_positive_definite(table))
+    diag = _guard_diagnostics(guard)
+    assert [d.code for d in diag] == ["ADP_NOT_POSITIVE_DEFINITE"]
+    assert diag[0].level == "warning"
+    assert diag[0].where == ["phases.0.atoms.0"]
+    assert diag[0].suggestion
+
+
+def test_isotropic_structures_produce_no_adp_guard_work():
+    table = ParameterTable(make_rutile(), Instrument.debye_scherrer(wavelength=1.5406))
+    assert check_adp_positive_definite(table) == []
 
 
 def test_positive_definiteness_sign_is_representation_independent():
