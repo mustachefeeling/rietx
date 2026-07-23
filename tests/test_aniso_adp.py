@@ -21,7 +21,7 @@ import gemmi
 import numpy as np
 import pytest
 
-from pxrdref import Instrument
+from pxrdref import Instrument, PatternData, Refinement
 from pxrdref.crystallography import adp
 from pxrdref.crystallography.cif import structure_from_cif
 from pxrdref.crystallography.lattice import d_spacings
@@ -30,11 +30,19 @@ from pxrdref.crystallography.structure_factor import (
     structure_factors_squared,
 )
 from pxrdref.crystallography.symmetry import get_spacegroup
+from pxrdref.model.forward import compile_model
+from pxrdref.optimize.least_squares import run_least_squares
+from pxrdref.optimize.statistics import background_absorption
 from pxrdref.params.vector import ParameterTable
 from pxrdref.refine import _guard_diagnostics
 from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from pxrdref.strategy.staged import GuardReport, check_adp_positive_definite
+from pxrdref.strategy.staged import (
+    BACKGROUND_ABSORPTION_GUARD,
+    GuardReport,
+    check_adp_positive_definite,
+)
+from pxrdref.viz.plots import plot_result
 from tests.test_coordinates import make_rutile
 
 DATA = Path(__file__).parent / "data"
@@ -303,6 +311,107 @@ def test_adp_write_back_survives_stage_boundary():
     # a fresh table re-projects the committed tensor without complaint
     assert ParameterTable(structure, ins).decode(
         ParameterTable(structure, ins).x0())["phases.0.atoms.0.u22"] == pytest.approx(0.008)
+
+
+# -- end-to-end refinement ---------------------------------------------
+
+
+#: the truth used to synthesize the pattern: Ti nearly isotropic, O markedly
+#: prolate in the (110) plane — the physically real anisotropy in rutile
+TRUE_TI = (0.0055, 0.0055, 0.0048, 0.0006, 0.0, 0.0)
+TRUE_O = (0.0092, 0.0092, 0.0068, -0.0038, 0.0, 0.0)
+
+
+def synthesize_aniso_rutile(*, noise_seed: int = 7) -> PatternData:
+    structure = make_aniso_rutile(TRUE_TI, TRUE_O)
+    structure.phases[0].scale.value = 8.0e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 8e-3
+    tt = np.arange(15.0, 120.0, 0.02)  # out to high Q, where ADPs live
+    pattern = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, pattern, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0())) + 30.0
+    rng = np.random.default_rng(noise_seed)
+    return PatternData(two_theta=model.tt.tolist(),
+                       intensity=rng.poisson(np.maximum(y, 1.0)).astype(float).tolist())
+
+
+def test_round_trip_recovers_an_anisotropic_perturbation():
+    """Start isotropic, refine anisotropically, land on the truth within esds.
+
+    The starting tensors are deliberately isotropic-equivalent, so every bit
+    of the recovered anisotropy has to come from the data.
+    """
+    pattern = synthesize_aniso_rutile()
+    structure = make_aniso_rutile(u_ti=(0.005,) * 3 + (0.0,) * 3,
+                                  u_o=(0.008,) * 3 + (0.0,) * 3)
+    structure.phases[0].scale.value = 6.0e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 1.2e-2
+
+    ref = Refinement(structure, ins, history=False)
+    result = ref.fit(pattern, plan="mccusker_structural")
+    assert result.status == "converged"
+    assert result.statistics.gof < 1.3  # Poisson noise floor: GoF, not Rwp
+
+    o = ref.fitted_structure.phases[0].atoms[1]
+    reported = {p.path: p for p in result.parameters}
+    for name, truth in zip(adp.U_NAMES, TRUE_O, strict=True):
+        path = f"phases.0.atoms.1.{name}"
+        if path not in reported:
+            # U13 and U23 are symmetry-locked at zero on rutile's 4f site:
+            # they never entered θ, so there is nothing to report or check
+            assert truth == 0.0 and getattr(o.aniso, name).value == 0.0, name
+            continue
+        p = reported[path]
+        assert p.stderr is not None and p.stderr > 0, name
+        assert getattr(o.aniso, name).value == pytest.approx(
+            truth, abs=max(4 * p.stderr, 3e-4)), name
+    # the anisotropy is *resolved*, not merely fitted: U33 separates from
+    # U11 by several esds — and these esds already carry the Bérar-Lelann
+    # inflation, which sits near 1.5 even for white residuals, so 3σ on this
+    # scale is a conservative statement of the separation (measured ≈ 3.4σ)
+    u11 = result.parameter("phases.0.atoms.1.u11")
+    u33 = result.parameter("phases.0.atoms.1.u33")
+    assert abs(u11.value - u33.value) > 3 * max(u11.stderr, u33.stderr)
+    # and the tensors stayed physical throughout
+    assert not [d for d in result.diagnostics
+                if d.code == "ADP_NOT_POSITIVE_DEFINITE"]
+
+    OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(OUT / "aniso_rutile_fit.png"))
+
+
+def test_background_absorption_of_adp_dofs_is_reported_and_low():
+    """The over-flexible-background failure mode, measured on ADP DOFs.
+
+    A refined ADP is exactly what a background able to imitate peaks biases,
+    and an anisotropic site has more freedom to be biased than an isotropic
+    one — so the acceptance number for this WP is the block projection R²,
+    not just Rwp.
+    """
+    pattern = synthesize_aniso_rutile()
+    structure = make_aniso_rutile(u_ti=(0.005,) * 3 + (0.0,) * 3,
+                                  u_o=(0.008,) * 3 + (0.0,) * 3)
+    structure.phases[0].scale.value = 6.0e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 1.2e-2
+
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.*.adp.*", "instrument.background.*",
+                    "phases.0.scale"], True)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    outcome = run_least_squares(model, table, max_iter=40)
+
+    r2 = background_absorption(outcome.jac, table.free_paths)
+    adp_r2 = {p: v for p, v in r2.items() if ".adp." in p}
+    assert adp_r2, "ADP DOFs must be screened, not skipped"
+    worst = max(adp_r2.values())
+    assert worst < BACKGROUND_ABSORPTION_GUARD, \
+        f"background absorbs {worst:.2f} of an ADP DOF: {adp_r2}"
 
 
 # -- CIF round trip ----------------------------------------------------
