@@ -18,7 +18,7 @@ from .results import (
     StageResult,
     Statistics,
 )
-from .structure import AnisoU, Atom, Cell, Phase, Structure
+from .structure import AnisoU, Atom, Cell, Phase, PreferredOrientation, Structure
 
 __all__ = [
     "AnisoU",
@@ -35,6 +35,7 @@ __all__ = [
     "PatternData",
     "Phase",
     "PhaseQuantity",
+    "PreferredOrientation",
     "ProfileTCHZ",
     "Provenance",
     "QuantitativePhaseAnalysis",

@@ -97,6 +97,35 @@ class AnisoU(Base):
         return cls.from_values(isotropic_u6(uiso, cell.lengths_angles()), vary=vary)
 
 
+class PreferredOrientation(Base):
+    """Single-axis March-Dollase preferred-orientation correction (Dollase 1986).
+
+    Multiplies each reflection's intensity by the March factor averaged over
+    the reflection's symmetry orbit; ``axis`` is the crystallographic direction
+    of preferred alignment given as **integer hkl indices** (a reciprocal-
+    lattice / plane-normal direction, the convention GSAS-II and FullProf use),
+    and ``r`` is the refinable March coefficient.  The physics and the
+    r < 1 / r > 1 → platy / needle mapping (which flips between reflection and
+    transmission geometry) live in :mod:`pxrdref.model.preferred_orientation`.
+
+    ``r`` is softplus-bounded strictly positive (a hard zero bound stalls TRF)
+    and **defaults to 1.0, vary=False** — r ≡ 1 is exactly the no-correction
+    case, so a phase carrying this block but not refining it is bit-identical
+    to one without it.
+    """
+
+    axis: tuple[int, int, int]
+    r: Parameter = Field(
+        default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
+    )
+
+    @model_validator(mode="after")
+    def _axis_nonzero(self) -> "PreferredOrientation":
+        if all(h == 0 for h in self.axis):
+            raise ValueError("preferred-orientation axis (0,0,0) has no direction")
+        return self
+
+
 class Atom(Base):
     """One site in the asymmetric unit.
 
@@ -146,6 +175,12 @@ class Phase(Base):
     extinction: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, vary=False, min=0.0, transform="softplus")
     )
+    # Optional single-axis March-Dollase preferred-orientation correction
+    # (model/preferred_orientation.py).  None ⇒ no correction; a block with the
+    # default r = 1 is also exactly the identity, so it is opt-in and never
+    # perturbs a phase that does not free r.  The axis is fixed integer hkl; only
+    # r enters the least-squares fit.
+    preferred_orientation: PreferredOrientation | None = None
     # Sample contribution to Lorentzian width (deg 2θ units, see profiles.caglioti):
     # size term varies as 1/cosθ (Scherrer), strain term as tanθ.  Lorentzian
     # FWHMs add under convolution, so these stack on the instrument X, Y.

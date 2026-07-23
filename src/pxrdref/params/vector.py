@@ -127,6 +127,9 @@ class ParameterTable:
                     self._add(f"{base}.cell.{name}", p)
             self._add(f"{base}.scale", phase.scale)
             self._add(f"{base}.extinction", phase.extinction)
+            if phase.preferred_orientation is not None:
+                self._add(f"{base}.preferred_orientation.r",
+                          phase.preferred_orientation.r)
             self._add(f"{base}.lor_size", phase.lor_size)
             self._add(f"{base}.lor_strain", phase.lor_strain)
             self._add(f"{base}.gauss_size", phase.gauss_size)
@@ -497,6 +500,8 @@ class ParameterTable:
                 put(getattr(phase.cell, name), f"{base}.cell.{name}")
             put(phase.scale, f"{base}.scale")
             put(phase.extinction, f"{base}.extinction")
+            if phase.preferred_orientation is not None:
+                put(phase.preferred_orientation.r, f"{base}.preferred_orientation.r")
             put(phase.lor_size, f"{base}.lor_size")
             put(phase.lor_strain, f"{base}.lor_strain")
             put(phase.gauss_size, f"{base}.gauss_size")

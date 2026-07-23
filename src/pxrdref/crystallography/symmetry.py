@@ -96,6 +96,27 @@ class ReflectionSet:
         return two_theta_deg(d, wavelength)
 
 
+def reflection_orbits(sg_symbol: str, hkl_reps: np.ndarray) -> list[np.ndarray]:
+    """Distinct symmetry+Friedel equivalents of each representative reflection.
+
+    Returns one ``(m_k, 3)`` integer array per row of ``hkl_reps``, listing the
+    Laue-group orbit (Friedel mates included) — the same set ``generate_reflections``
+    counts to get the multiplicity, so ``len(orbit) == multiplicity``.  The
+    reciprocal-space action is the **transposed** rotation (see the comment in
+    ``generate_reflections``); this is the frozen discrete object the
+    March-Dollase correction averages over, computed once per stage.
+    """
+    rots = rotation_matrices(get_spacegroup(sg_symbol))
+    rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
+    orbits: list[np.ndarray] = []
+    for h in np.asarray(hkl_reps, dtype=np.int64):
+        images = np.einsum("mij,j->mi", rot_int, h)
+        images = np.vstack([images, -images])  # Friedel mates
+        uniq = sorted({tuple(map(int, im)) for im in images})
+        orbits.append(np.array(uniq, dtype=np.int64))
+    return orbits
+
+
 def generate_reflections(sg_symbol: str,
                          cell: tuple[float, float, float, float, float, float],
                          wavelength: float,
