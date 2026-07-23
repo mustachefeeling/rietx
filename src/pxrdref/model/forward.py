@@ -46,7 +46,7 @@ from ..background.models import (
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
-from ..crystallography.lattice import d_spacings, two_theta_deg
+from ..crystallography.lattice import cell_volume, d_spacings, two_theta_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
     compile_phase_sites,
@@ -69,6 +69,7 @@ from .corrections import (
     lorentz_polarization,
     transparency_shift_deg,
 )
+from .extinction import sabine_extinction, sabine_extinction_and_dx
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
 from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
@@ -212,6 +213,12 @@ class CompiledModel:
             f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
                                            *self._site_values(ip, values, cell))
             base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2
+            # secondary extinction (model/extinction.py): a per-(line,
+            # reflection) intensity multiplier folded in below.  ext=0 leaves
+            # the intensity bit-identical, so it is skipped entirely then; V
+            # moves with the cell, hence recomputed here rather than cached.
+            ext = values[f"phases.{ip}.extinction"]
+            vol = cell_volume(*cell) if ext != 0.0 else 0.0
 
         out = []
         for il, lam in enumerate(self.line_wavelengths):
@@ -232,6 +239,8 @@ class CompiledModel:
                 intensity = base * w_line
             else:
                 intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
+                if ext != 0.0:
+                    intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
             out.append((pos, gamma, eta, intensity))
         return out
 
@@ -319,12 +328,26 @@ class CompiledModel:
         df2 = kernel(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j, uaniso, astar
                      ) @ np.asarray(coeffs, dtype=np.float64)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
+        # extinction couples |F|² into the intensity twice (as the prefactor
+        # and through x ∝ |F|²), so a coordinate/ADP move chains through the
+        # factor G = E + x·dE/dx (see model/extinction.py).  Only these
+        # pure-analytic columns need it explicitly; the scale/occ/biso/cell/
+        # extinction columns pick it up from the FD-of-phase_peaks chain.
+        ext = values[f"phases.{ip}.extinction"]
+        if ext != 0.0:
+            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                           xyz, occ, biso, uaniso, astar)
+            vol = cell_volume(*cell)
         out = []
         for il, lam in enumerate(self.line_wavelengths):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = two_theta_deg(d, lam)
-            out.append(d_base * w_line
-                       * lorentz_polarization(tt_bragg, values["instrument.polarization"]))
+            col = d_base * w_line * lorentz_polarization(
+                tt_bragg, values["instrument.polarization"])
+            if ext != 0.0:
+                E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
+                col = col * (E + x * dEdx)
+            out.append(col)
         return out
 
     def scalar_chain_supported(self, path: str) -> bool:
