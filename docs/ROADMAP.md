@@ -27,10 +27,11 @@ a work session loads only what it needs:
 
 ## Current focus
 
-**v0.3** — WP-0301 and WP-0302 are done. Next:
-[WP-0303](wp/0303-anisotropic-adps.md) (aniso ADPs — reuses the 0302
-dof-glob pattern) or any other ⬜ WP with no unmet dependency
-(0304, 0306, 0307, 0308).
+**v0.3** — WP-0301, WP-0302 and WP-0303 are done (the site-constraint
+machinery now covers coordinates *and* anisotropic ADPs). Next: any ⬜ WP with
+no unmet dependency — [0304](wp/0304-qpa-hill-howard.md) (QPA, which unblocks
+0305/0309/0310 and is the widest fan-out), [0306](wp/0306-pawley-mode.md),
+[0307](wp/0307-march-dollase.md), [0308](wp/0308-multi-histogram.md).
 
 ## Milestones
 
@@ -53,13 +54,13 @@ dof-glob pattern) or any other ⬜ WP with no unmet dependency
 |---|---|---|---|
 | [0301](wp/0301-wyckoff-constraints.md) | Wyckoff/site-symmetry constraints (affine p = C·θ + d) | ✅ 2026-07-22 | — |
 | [0302](wp/0302-atomic-coordinates.md) | Atomic-coordinate refinement | ✅ 2026-07-23 | 0301 |
-| [0303](wp/0303-anisotropic-adps.md) | Anisotropic ADPs | ⬜ | 0301 |
+| [0303](wp/0303-anisotropic-adps.md) | Anisotropic ADPs | ✅ 2026-07-23 | 0301 |
 | [0304](wp/0304-qpa-hill-howard.md) | QPA: Hill-Howard ZMV mass fractions | ⬜ | — |
 | [0305](wp/0305-brindley-microabsorption.md) | Brindley microabsorption | ⬜ | 0304 |
 | [0306](wp/0306-pawley-mode.md) | Pawley mode | ⬜ | — |
 | [0307](wp/0307-march-dollase.md) | March-Dollase preferred orientation | ⬜ | — |
 | [0308](wp/0308-multi-histogram.md) | Multi-histogram stacked residuals | ⬜ | — |
-| [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds, QPA table | ⬜ | 0304 |
+| [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds (structure side landed in 0303), QPA table | ⬜ | 0304 |
 | [0310](wp/0310-acceptance-srm676a-qpa.md) | Acceptance: SRM 676a + IUCr QPA round robin | ⬜ | 0304, 0305 |
 
 ### v0.4 — differentiable backend (stubs; expand before starting)

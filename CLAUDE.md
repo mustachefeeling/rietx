@@ -101,7 +101,23 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   `crystallography/wyckoff.py`) and affine-ties x/y/z to them; free them with
   the `phases.*.atoms.*.dof.*` glob (the `mccusker_structural` plan does).
   Fully fixed special positions get locked coords — `vary=True` there raises.
-  Aniso ADPs land in WP-0303.
+- **Anisotropic ADPs are opt-in per atom** (`Atom.aniso`, CIF U^ij in Å²) and
+  refine the same way: `phases.i.atoms.j.adp.k` patterns from
+  `wyckoff.adp_basis`, freed by the `phases.*.atoms.*.adp.*` glob that every
+  displacement stage carries alongside `…biso`. Unlike coordinate DOFs they
+  are **absolute** (U = Σₖ θₖ·Bₖ), which enforces the site symmetry exactly;
+  a tensor outside the allowed subspace raises rather than being symmetrised.
+  Three representations, all named in `crystallography/adp.py` — the stored
+  CIF **U^ij**, the fractional-space **U\*** = U^ij·a\*ᵢa\*ⱼ that the structure
+  factor uses (U\* is what transforms as R·U·Rᵀ, making `Rᵀh` on the parent
+  *identically* the image's tensor), and **U_cart** where eigenvalues and
+  U_eq are physical. The isotropic limit is U^ij = Uiso·G\*ᵢⱼ/(a\*ᵢa\*ⱼ), **not**
+  Uiso·δᵢⱼ except for orthogonal reciprocal axes. Non-positive-definite
+  tensors raise an `ADP_NOT_POSITIVE_DEFINITE` diagnostic (the Debye-Waller
+  factor diverges at high Q, so this is not cosmetic); positive-definiteness
+  is not enforced by bounds, since the constraint couples all six components.
+  `structure_from_cif(..., aniso=True)` is opt-in — several test CIFs carry
+  aniso loops, and reading a file must not silently change what a plan frees.
 - History nodes store **state, not curves** (a node is ~10 kB; embedding
   y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
   measured on a model frozen at the values each stage *started* from — so
@@ -147,8 +163,9 @@ the ROADMAP.md row.
 
 Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
 Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
-history DAG, live viz). Next: **v0.3** (QPA, Pawley, aniso ADPs + coordinate
-refinement, multi-histogram, exporters). v2 fence: FPA, neutron/TOF, texture,
+history DAG, live viz). In progress: **v0.3** — coordinate refinement and
+anisotropic ADPs have landed (WP-0301/0302/0303); QPA, Pawley,
+multi-histogram and exporters remain. v2 fence: FPA, neutron/TOF, texture,
 MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):

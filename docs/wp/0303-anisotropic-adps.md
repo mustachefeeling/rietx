@@ -1,6 +1,6 @@
 # WP-0303 — Anisotropic ADPs
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: ✅ complete (2026-07-23)
 Depends on: WP-0301
 
 ## Goal
@@ -55,23 +55,23 @@ biased, so the acceptance run must report the absorption number, not assume it.
 
 ## Tasks
 
-- [ ] Optional aniso ADP block in the atom schema (isotropic stays default);
+- [x] Optional aniso ADP block in the atom schema (isotropic stays default);
       JSON round-trip test incl. the `extra="forbid"` / ±inf conventions
-- [ ] Anisotropic Debye-Waller in the structure factor over the frozen op
+- [x] Anisotropic Debye-Waller in the structure factor over the frozen op
       subsets, with the R·U·Rᵀ / Rᵀh conventions documented in the docstring
-- [ ] Isotropic-limit equivalence test: U_ij = Uiso·δ_ij reproduces the Biso
-      path to machine precision
-- [ ] Site-symmetry U_ij constraints wired from WP-0301
-- [ ] Positive-definiteness diagnostic (non-positive eigenvalue → structured
+- [x] Isotropic-limit equivalence test: U_ij = Uiso·δ_ij reproduces the Biso
+      path to machine precision — *with a correction, see below*
+- [x] Site-symmetry U_ij constraints wired from WP-0301
+- [x] Positive-definiteness diagnostic (non-positive eigenvalue → structured
       `Diagnostic`, guard in the staged runner)
-- [ ] Analytic or chained ∂|F|²/∂U_ij columns + FD agreement test
-- [ ] CIF export of aniso ADPs with esds (round-trip through gemmi)
-- [ ] Refinement test on a structure with known aniso ADPs; record the
+- [x] Analytic ∂|F|²/∂U_ij columns + FD agreement test
+- [x] CIF export of aniso ADPs with esds (round-trip through gemmi)
+- [x] Refinement test on a structure with known aniso ADPs; record the
       background-absorption R² alongside the fit
 
 ## Acceptance
 
-Isotropic limit is bit-equivalent to the Biso path; a synthetic aniso
+Isotropic limit matches the Biso path to 1e-12 relative; a synthetic aniso
 perturbation is recovered within esds under site constraints; CIF round-trips;
 background absorption stays below the 0.25 guard on the acceptance run.
 
@@ -79,6 +79,12 @@ background absorption stays below the 0.25 guard on the acceptance run.
 .venv/bin/python -m pytest tests/test_aniso_adp.py -q
 .venv/bin/python -m pytest
 ```
+
+**Measured (2026-07-23)**: 243 passed, 22.6 s (whole suite, acceptance
+included).  Rutile round trip from isotropic-equivalent starting tensors:
+U11 = 0.00960(63) vs 0.0092 truth, U33 = 0.00640(93) vs 0.0068, GoF 1.03,
+anisotropy resolved at 3.4σ.  Worst background-absorption R² over the ADP
+DOFs **0.007** (guard 0.25); no ADP left the positive-definite cone.
 
 ## References
 
@@ -89,3 +95,62 @@ background absorption stays below the 0.25 guard on the acceptance run.
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-23** — **complete**, seven commits, all checklist items landed;
+  243 tests pass including the three real-data acceptance runs, which are
+  numerically untouched (the isotropic branch of the structure factor is
+  byte-for-byte the old expression).
+
+  **Two corrections to this WP's own text**, both worth keeping in mind:
+
+  1. *The isotropic limit is not U_ij = Uiso·δ_ij.* It is
+     U^ij = Uiso·G*_ij/(a*_i a*_j) — the two coincide only when the
+     reciprocal axes are orthogonal (cubic/tetragonal/orthorhombic). For a
+     hexagonal cell the equivalent tensor has U12 = Uiso/2. Written as
+     `adp.isotropic_u6`; the equivalence test runs on an orthorhombic *and* a
+     hexagonal cell for exactly this reason.
+  2. *The isotropic-limit test is not "the cheapest guard against a transpose
+     error"* — in a group whose operators are all diagonal it cannot catch
+     one at all, because Uiso·G* is invariant under both R·(·)·Rᵀ and
+     Rᵀ·(·)·R. The genuine guard is
+     `test_orbit_sum_matches_explicit_P1_expansion`: expand a P6₃/m orbit
+     into P1, give each image its own R·U*·Rᵀ, and compare. Both tests were
+     mutation-checked against a deliberately transposed einsum. (The
+     hexagonal isotropic case does catch it, but only because the metric is
+     non-orthogonal *and* the rotations are non-symmetric — do not rely on
+     that in a monoclinic setting.)
+
+  **Design decisions worth knowing:**
+  - ADP DOFs are **absolute** (U = Σₖ θₖ·Bₖ), unlike WP-0302's coordinate
+    DOFs which are displacements from an anchor. The pattern basis spans the
+    whole allowed subspace, so this enforces the site symmetry exactly rather
+    than preserving whatever asymmetry the input carried. θ₀ comes from a
+    least-squares projection; a tensor outside the subspace is a hard error
+    naming the nearest allowed one, not a silent symmetrisation.
+  - Working in U* (= U^ij a*_i a*_j) rather than U^ij inside the structure
+    factor makes "R·U·Rᵀ on the image" and "Rᵀh on the parent" the *same*
+    computation. In U^ij they agree only because the a* diagonal happens to
+    commute with the group's rotations — true in every real setting, but a
+    contingency this code does not need to depend on.
+  - `structure_from_cif(..., aniso=True)` is **opt-in**, on the same logic as
+    the schema field: reading a file must not silently change which
+    parameters a plan frees. Note COD 1000236 (the NAC acceptance structure)
+    *does* carry aniso ADPs, so a default-on import would have flipped that
+    acceptance run to anisotropic without anyone asking.
+  - The positive-definiteness test runs on the stored U^ij matrix, not
+    U_cart. They are related by a congruence, so Sylvester's law gives the
+    same eigenvalue *signs* and no cell is needed in the guard — but the
+    magnitudes are only physical in U_cart (`adp.principal_values`).
+  - Symmetry-locked components (U13/U23 on rutile's 4f) never enter θ and so
+    are absent from `result.parameters`, exactly like locked coordinates.
+    Consumers must not assume all six are reported.
+
+  **Not done / next:**
+  - `AnisoU.isotropic(uiso, cell)` exists as a constructor but nothing calls
+    it automatically — there is no "promote this site from biso to aniso"
+    verb yet. Worth adding when a strategy wants to escalate a site
+    mid-refinement (natural fit for WP-0308's Layer-2 suggested actions).
+  - The FitReport does not yet mention ADP anisotropy or the
+    `ADP_NOT_POSITIVE_DEFINITE` diagnostic in Layer 2; it surfaces through
+    `RefinementResult.diagnostics` only.
+  - `background_absorption` screens ADP DOFs but the FitReport's own
+    thresholds text still says "Biso"; cosmetic, not wrong.
