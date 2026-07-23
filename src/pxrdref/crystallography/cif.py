@@ -8,7 +8,7 @@ import re
 import gemmi
 
 from ..schemas.common import Parameter
-from ..schemas.structure import Atom, Cell, Phase, Structure
+from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 
 
 def _strip_su(value: str) -> float:
@@ -16,12 +16,21 @@ def _strip_su(value: str) -> float:
     return float(re.sub(r"\(\d+\)", "", value))
 
 
-def structure_from_cif(path: str, *, phase_name: str | None = None) -> Structure:
+def structure_from_cif(path: str, *, phase_name: str | None = None,
+                       aniso: bool = False) -> Structure:
     """Read the first data block of a CIF into a single-phase :class:`Structure`.
 
     Uses gemmi's small-molecule reader, which resolves the space group from
     the recorded H-M (or Hall) symbol and carries fractional coordinates,
     occupancies, and isotropic/equivalent displacement parameters.
+
+    ``aniso=True`` keeps ``_atom_site_aniso_U_ij`` as an
+    :class:`~pxrdref.schemas.structure.AnisoU` block on each site that has
+    one, instead of collapsing it to U_eq.  It is opt-in for the same reason
+    the schema field is: reading a file must not silently change which
+    parameters a refinement plan will free.  Sites without an aniso loop keep
+    their isotropic value either way, so a mixed file yields a mixed
+    structure.
     """
     small = gemmi.read_small_structure(path)
     if not small.sites:
@@ -43,8 +52,12 @@ def structure_from_cif(path: str, *, phase_name: str | None = None) -> Structure
     cell = small.cell
     atoms: list[Atom] = []
     for site in small.sites:
+        has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
         if not u_iso:
+            # U_eq from the trace is an approximation (the exact form weights
+            # by the metric — adp.u_equivalent); it only feeds the isotropic
+            # fallback, where the tensor is being discarded anyway
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
             u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
         b_iso = u_iso * 8.0 * math.pi ** 2
@@ -57,6 +70,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None) -> Structure
             z=Parameter(value=site.fract.z),
             occ=Parameter(value=site.occ if site.occ else 1.0, min=0.0, max=1.5),
             biso=Parameter(value=b_iso, min=0.0, max=25.0, unit="A^2"),
+            aniso=(AnisoU.from_values([site.aniso.u11, site.aniso.u22, site.aniso.u33,
+                                       site.aniso.u12, site.aniso.u13, site.aniso.u23])
+                   if aniso and has_aniso else None),
         ))
 
     phase = Phase(

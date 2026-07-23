@@ -21,15 +21,19 @@ import gemmi
 import numpy as np
 import pytest
 
+from pxrdref import Instrument
 from pxrdref.crystallography import adp
+from pxrdref.crystallography.cif import structure_from_cif
 from pxrdref.crystallography.lattice import d_spacings
 from pxrdref.crystallography.structure_factor import (
     compile_phase_sites,
     structure_factors_squared,
 )
 from pxrdref.crystallography.symmetry import get_spacegroup
+from pxrdref.params.vector import ParameterTable
 from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase
+from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from tests.test_coordinates import make_rutile
 
 DATA = Path(__file__).parent / "data"
 OUT = Path(__file__).parent / "output"
@@ -206,6 +210,97 @@ def test_anisotropy_actually_changes_the_pattern():
     phase.atoms[0].aniso = AnisoU.from_values(u6)
     base = _f2(_iso_phase(cell6, "P 6/m m m", 0.0143), cell6)
     assert not np.allclose(_f2(phase, cell6), base, rtol=1e-6)
+
+
+# -- constraint wiring -------------------------------------------------
+
+
+def make_aniso_rutile(u_ti=(0.006, 0.006, 0.005, 0.001, 0.0, 0.0),
+                      u_o=(0.009, 0.009, 0.007, -0.003, 0.0, 0.0),
+                      *, vary: bool = False) -> Structure:
+    structure = make_rutile()
+    structure.phases[0].atoms[0].aniso = AnisoU.from_values(u_ti, vary=vary)
+    structure.phases[0].atoms[1].aniso = AnisoU.from_values(u_o, vary=vary)
+    return structure
+
+
+def test_adp_dofs_wired_from_site_symmetry():
+    """Rutile: both sites are m.mm/m.2m — U11 = U22, U33 free, U12 free,
+    U13 = U23 = 0.  Three DOFs, six components, two of them locked at zero."""
+    table = ParameterTable(make_aniso_rutile(),
+                           Instrument.debye_scherrer(wavelength=1.5406))
+    paths = {e.path: e for e in table.entries}
+    assert [f"phases.0.atoms.0.adp.{k}" in paths for k in range(4)] == [True] * 3 + [False]
+    # U11 and U22 ride the same DOF; U13/U23 are symmetry-zero, hence locked
+    assert paths["phases.0.atoms.0.u11"].tie.terms == (("phases.0.atoms.0.adp.0", 1.0),)
+    assert paths["phases.0.atoms.0.u22"].tie.terms == (("phases.0.atoms.0.adp.0", 1.0),)
+    assert paths["phases.0.atoms.0.u13"].locked
+    assert paths["phases.0.atoms.0.u23"].locked
+    # biso exists for write-back but can never be freed alongside aniso
+    assert paths["phases.0.atoms.0.biso"].locked
+    assert not table.set_vary(["phases.0.atoms.*.biso"], True)
+    freed = table.set_vary(["phases.0.atoms.*.adp.*"], True)
+    assert len(freed) == 6  # three patterns on each of the two sites
+
+    values = table.decode(table.x0())
+    assert values["phases.0.atoms.0.u11"] == pytest.approx(0.006)
+    assert values["phases.0.atoms.0.u22"] == pytest.approx(0.006)
+    assert values["phases.0.atoms.0.u12"] == pytest.approx(0.001)
+    assert values["phases.0.atoms.0.u13"] == 0.0
+
+
+def test_vary_flag_on_any_component_seeds_the_site_dofs():
+    table = ParameterTable(make_aniso_rutile(vary=True),
+                           Instrument.debye_scherrer(wavelength=1.5406))
+    assert "phases.0.atoms.0.adp.0" in table.free_paths
+    assert "phases.0.atoms.0.u11" not in table.free_paths  # tied, not free
+
+
+def test_tensor_incompatible_with_site_symmetry_is_rejected():
+    """U11 ≠ U22 on rutile's 4-fold site is not a tolerance question."""
+    with pytest.raises(ValueError, match="not compatible with the site symmetry"):
+        ParameterTable(make_aniso_rutile(u_ti=(0.006, 0.009, 0.005, 0.0, 0.0, 0.0)),
+                       Instrument.debye_scherrer(wavelength=1.5406))
+
+
+def test_published_nac_tensors_satisfy_the_derived_constraints():
+    """The COD 1000236 U^ij pass through the wiring untouched.
+
+    Al, Na and F3 sit on I2₁3's .3. axis, where the basis forces
+    U11 = U22 = U33 and U12 = U13 = U23 — which is exactly what Courbion &
+    Ferey (1988) published, so any error in ``adp_basis`` or in the tie
+    plumbing shows up as a rejected tensor or a changed value.
+    """
+    structure = structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
+    table = ParameterTable(structure, Instrument.debye_scherrer(wavelength=0.4139))
+    values = table.decode(table.x0())
+    for j, atom in enumerate(structure.phases[0].atoms):
+        for name, u in zip(adp.U_NAMES, atom.aniso.values(), strict=True):
+            assert values[f"phases.0.atoms.{j}.{name}"] == pytest.approx(u, abs=1e-12)
+    # Al1 (.3.): two patterns, not six free components
+    al = next(j for j, a in enumerate(structure.phases[0].atoms) if a.label == "Al1")
+    assert f"phases.0.atoms.{al}.adp.2" not in {e.path for e in table.entries}
+
+
+def test_adp_write_back_survives_stage_boundary():
+    structure = make_aniso_rutile()
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.0.adp.*"], True)
+
+    theta = table.x0()
+    theta[0] += 0.002  # the U11 = U22 pattern
+    table.commit(theta)
+    table.apply_to_models(structure, ins)
+
+    ti = structure.phases[0].atoms[0]
+    assert ti.aniso.u11.value == pytest.approx(0.008)
+    assert ti.aniso.u22.value == pytest.approx(0.008)  # tie held through commit
+    assert ti.aniso.u33.value == pytest.approx(0.005)
+    # a fresh table re-projects the committed tensor without complaint
+    assert ParameterTable(structure, ins).decode(
+        ParameterTable(structure, ins).x0())["phases.0.atoms.0.u22"] == pytest.approx(0.008)
 
 
 def test_positive_definiteness_sign_is_representation_independent():

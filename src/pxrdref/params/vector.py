@@ -24,8 +24,9 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
+from ..crystallography.adp import U_NAMES
 from ..crystallography.symmetry import get_spacegroup
-from ..crystallography.wyckoff import coordinate_basis, stabilizer_rotations
+from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Instrument
 from ..schemas.structure import Structure
@@ -132,7 +133,7 @@ class ParameterTable:
             for j, atom in enumerate(phase.atoms):
                 self._collect_atom_coords(f"{base}.atoms.{j}", sg, atom)
                 self._add(f"{base}.atoms.{j}.occ", atom.occ)
-                self._add(f"{base}.atoms.{j}.biso", atom.biso)
+                self._collect_atom_adps(f"{base}.atoms.{j}", sg, atom)
 
         self._add("instrument.zero_shift", instrument.zero_shift)
         self._collect_instrument(instrument)
@@ -169,6 +170,56 @@ class ParameterTable:
         for path in dof_paths:
             self.entries.append(Entry(path=path, value=0.0, vary=want_vary,
                                       lo=-np.inf, hi=np.inf, transform="identity"))
+
+    def _collect_atom_adps(self, base: str, sg, atom) -> None:
+        """Displacement parameters: ``biso``, or aniso U^ij through DOFs.
+
+        An anisotropic site contributes ``…adp.k`` parameters — one per
+        site-symmetry-allowed U^ij *pattern* (``crystallography.wyckoff``) —
+        and the six components become affine rows U = Σₖ Bₖ·θₖ.  Unlike the
+        coordinate DOFs these are **absolute**, not displacements from an
+        anchor: the pattern basis spans the whole allowed subspace, so writing
+        U that way enforces the site symmetry exactly rather than only
+        preserving whatever asymmetry the starting values carried.  θ₀ is
+        therefore the least-squares projection of the input tensor onto the
+        basis, and an input that does not lie in it is an error, not something
+        to silently symmetrise.
+
+        Components the site symmetry forces to zero (empty rows) are locked;
+        the DOFs are unbounded, so ``min``/``max`` on a component do not
+        constrain them — positive-definiteness is a guard, not a box.
+        ``biso`` is still collected (locked when aniso is present) so its
+        path exists for globs and write-back either way.
+        """
+        if atom.aniso is None:
+            self._add(f"{base}.biso", atom.biso)
+            return
+        xyz = np.array([atom.x.value, atom.y.value, atom.z.value])
+        basis = adp_basis(stabilizer_rotations(sg, xyz))  # (n_free, 6)
+        u0 = np.array(atom.aniso.values(), dtype=np.float64)
+        coef, *_ = np.linalg.lstsq(basis.T.astype(np.float64), u0, rcond=None)
+        residual = basis.T @ coef - u0
+        scale = max(float(np.abs(u0).max()), 1e-6)
+        if float(np.abs(residual).max()) > 1e-6 * scale:
+            raise ValueError(
+                f"{base}: the anisotropic tensor {u0.tolist()} is not "
+                f"compatible with the site symmetry, which allows only "
+                f"{basis.tolist()} in (U11, U22, U33, U12, U13, U23); the "
+                f"nearest allowed tensor is {(basis.T @ coef).tolist()}")
+        dof_paths = [f"{base}.adp.{k}" for k in range(len(basis))]
+        want_vary = any(getattr(atom.aniso, n).vary for n in U_NAMES)
+        for v, name in enumerate(U_NAMES):
+            p: Parameter = getattr(atom.aniso, name)
+            terms = tuple((dof_paths[k], float(basis[k][v]))
+                          for k in range(len(basis)) if basis[k][v] != 0)
+            if terms:
+                self._add(f"{base}.{name}", p, tie=AffineTie(terms=terms))
+            else:
+                self._add(f"{base}.{name}", p, force_fixed=True)
+        for k, path in enumerate(dof_paths):
+            self.entries.append(Entry(path=path, value=float(coef[k]), vary=want_vary,
+                                      lo=-np.inf, hi=np.inf, transform="identity"))
+        self._add(f"{base}.biso", atom.biso, force_fixed=True)
 
     def _collect_instrument(self, instrument: Instrument) -> None:
         self._add("instrument.polarization", instrument.source.polarization)
@@ -360,34 +411,48 @@ class ParameterTable:
         return {e.path: float(np.sqrt(var[i]))
                 for i, e in enumerate(self.entries) if touched[i]}
 
-    def apply_to_models(self, structure: Structure, instrument: Instrument) -> None:
-        """Write current table values back into (copies of) the pydantic models."""
+    def apply_to_models(self, structure: Structure, instrument: Instrument,
+                        stderr: dict[str, float] | None = None) -> None:
+        """Write current table values back into (copies of) the pydantic models.
+
+        With ``stderr`` (a path → esd map, e.g. from
+        :meth:`stderr_physical`) every parameter touched here also gets its
+        ``stderr`` set — to ``None`` where the map has no entry, so a stale
+        esd from an earlier stage can never survive.  That is what lets the
+        CIF exporter write standard uncertainties.
+        """
         values = {e.path: e.value for e in self.entries}
+
+        def put(p: Parameter, path: str) -> None:
+            p.value = values[path]
+            if stderr is not None:
+                p.stderr = stderr.get(path)
+
         for ip, phase in enumerate(structure.phases):
             base = f"phases.{ip}"
             for name in ("a", "b", "c", "alpha", "beta", "gamma"):
-                getattr(phase.cell, name).value = values[f"{base}.cell.{name}"]
-            phase.scale.value = values[f"{base}.scale"]
-            phase.lor_size.value = values[f"{base}.lor_size"]
-            phase.lor_strain.value = values[f"{base}.lor_strain"]
-            phase.gauss_size.value = values[f"{base}.gauss_size"]
-            phase.gauss_strain.value = values[f"{base}.gauss_strain"]
+                put(getattr(phase.cell, name), f"{base}.cell.{name}")
+            put(phase.scale, f"{base}.scale")
+            put(phase.lor_size, f"{base}.lor_size")
+            put(phase.lor_strain, f"{base}.lor_strain")
+            put(phase.gauss_size, f"{base}.gauss_size")
+            put(phase.gauss_strain, f"{base}.gauss_strain")
             for j, atom in enumerate(phase.atoms):
                 # coordinates too — without this, refined positions vanish at
                 # the next stage's recompile (models feed compile_phase_sites)
-                atom.x.value = values[f"{base}.atoms.{j}.x"]
-                atom.y.value = values[f"{base}.atoms.{j}.y"]
-                atom.z.value = values[f"{base}.atoms.{j}.z"]
-                atom.occ.value = values[f"{base}.atoms.{j}.occ"]
-                atom.biso.value = values[f"{base}.atoms.{j}.biso"]
-        instrument.zero_shift.value = values["instrument.zero_shift"]
-        instrument.source.polarization.value = values["instrument.polarization"]
+                for name in ("x", "y", "z", "occ", "biso"):
+                    put(getattr(atom, name), f"{base}.atoms.{j}.{name}")
+                if atom.aniso is not None:
+                    for name in U_NAMES:
+                        put(getattr(atom.aniso, name), f"{base}.atoms.{j}.{name}")
+        put(instrument.zero_shift, "instrument.zero_shift")
+        put(instrument.source.polarization, "instrument.polarization")
         for il, line in enumerate(instrument.source.lines):
-            line.weight.value = values[f"instrument.source.lines.{il}.weight"]
+            put(line.weight, f"instrument.source.lines.{il}.weight")
         for name in ("sample_displacement", "sample_transparency",
                      "axial_sl", "axial_hl"):
-            getattr(instrument.geometry, name).value = values[f"instrument.geometry.{name}"]
+            put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")
         for name in ("u", "v", "w", "x", "y"):
-            getattr(instrument.profile, name).value = values[f"instrument.profile.{name}"]
+            put(getattr(instrument.profile, name), f"instrument.profile.{name}")
         for sub, cp in _background_parameters(instrument.background):
-            cp.value = values[f"instrument.background.{sub}"]
+            put(cp, f"instrument.background.{sub}")
