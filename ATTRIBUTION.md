@@ -43,6 +43,22 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 - Mendenhall et al. (2022). *J. Appl. Cryst.* 55, 1362–1367 — NIST fundamental-parameters → pseudo-Voigt term mapping (the lighter-weight FPA route in the DESIGN note; concept only, not implemented).
 - Belsley, Kuh & Welsch (1980). *Regression Diagnostics*, Wiley — scaled-Gram
   condition number as a collinearity diagnostic (FitReport Layer-1 gate).
+- Brindley, G. W. (1945). *Phil. Mag.* 36, 347–369 — particle-absorption
+  (microabsorption) correction of QPA weight fractions, incl. the
+  fine/medium/coarse powder classification (µD < 0.01 / 0.01–0.1 / > 0.1).
+- Taylor, J. C. & Matulis, C. E. (1991). *J. Appl. Cryst.* 24, 14–17 —
+  practical application and limits of the Brindley correction in Rietveld QPA.
+- McMaster, W. H., Del Grande, N. K., Mallett, J. H. & Hubbell, J. H. (1969).
+  *Compilation of X-ray Cross Sections*, UCRL-50174 Sec. II Rev. 1 — the
+  photon-atom cross sections behind per-phase linear attenuation coefficients.
+- Hubbell, J. H. & Seltzer, S. M. (1995). *NISTIR 5632* — NIST mass
+  attenuation coefficients; used as independent test anchors for µ/ρ.
+- Rodríguez-Carvajal, J. — *Quantitative Phase Analysis with the Rietveld
+  Method* (ILL/FullProf school notes) — the iterative Brindley scheme and the
+  quadratic representation 1 − 1.450x + 1.426x² of Brindley's τ table
+  (validation anchor only; no code).
+- Lutterotti, L. — *QPA methods developments* course notes (MAUD) — the
+  exponential fit to Brindley's τ table (validation anchor only; no code).
 
 ## Open-source software studied or used
 
@@ -70,5 +86,11 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 - `src/pxrdref/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).
+- `src/pxrdref/data/mu_McMaster.dat` — photon-atom cross sections from the
+  McMaster et al. (1969) compilation (UCRL-50174, a U.S. Government report),
+  extracted from the ESRF DABAX file `CrossSec_McMaster.dat` (itself generated
+  with P. Bandyopadhyay's mucal). Modified for bundling: energy-trimmed to
+  2–120 keV and reduced to the PhotonEnergy/Photoelectric/Total columns (the
+  file header documents the same). Cite McMaster et al. (1969).
 - Test patterns under `tests/data/` — see `tests/data/README.md` for per-file
   provenance (NIST / APS 11-BM public data are works of the U.S. Government).

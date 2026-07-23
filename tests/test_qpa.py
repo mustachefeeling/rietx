@@ -25,7 +25,13 @@ from pxrdref.crystallography.attenuation import (
     total_cross_section,
 )
 from pxrdref.model.forward import compile_model
-from pxrdref.optimize.qpa import atomic_weight, phase_zmv, weight_fractions
+from pxrdref.optimize.qpa import (
+    atomic_weight,
+    brindley_correction,
+    brindley_tau,
+    phase_zmv,
+    weight_fractions,
+)
 from pxrdref.params.vector import ParameterTable
 from pxrdref.schemas.common import Provenance
 from pxrdref.schemas.instrument import BackgroundChebyshev
@@ -234,6 +240,66 @@ def test_zmv_element_counts_and_density():
     assert zmv.element_counts == {"Ca": 4.0, "F": 8.0}
     # CaF2 X-ray density ~3.18 g/cm3
     assert math.isclose(zmv.density, 3.18, rel_tol=0.01)
+
+
+# -- Brindley particle-absorption factors ---------------------------------
+
+def test_brindley_tau_reproduces_published_values():
+    """tau must match both published representations of Brindley's table.
+
+    Anchors: the quadratic 1 - 1.450x + 1.426x^2 (FullProf QPA formulation,
+    Rodriguez-Carvajal's ILL notes; valid |x| <= 0.1) and the exponential fit
+    -0.00229 + 2.054*exp(-(x + 0.50356)/0.69525) (MAUD, Lutterotti's QPA
+    course notes).  The two published fits themselves differ by ~1 %, which
+    sets the reproduction tolerance.
+    """
+    for x in np.linspace(-0.1, 0.1, 21):
+        quad = 1.0 - 1.450 * x + 1.426 * x * x
+        assert math.isclose(brindley_tau(x), quad, rel_tol=0.015)
+    for x in np.linspace(-0.1, 0.5, 25):
+        expfit = -0.00229 + 2.054 * math.exp(-(x + 0.50356) / 0.69525)
+        assert math.isclose(brindley_tau(x), expfit, rel_tol=0.02)
+
+
+def test_brindley_tau_limits():
+    assert brindley_tau(0.0) == 1.0
+    # continuous across the series/closed-form switch at |2x| = 0.05: the
+    # difference over 2e-9 in x is slope-dominated (~3e-9), no visible jump
+    assert abs(brindley_tau(0.025 + 1e-9) - brindley_tau(0.025 - 1e-9)) < 1e-8
+    xs = np.linspace(-0.3, 1.5, 200)
+    taus = np.array([brindley_tau(x) for x in xs])
+    assert np.all(np.diff(taus) < 0)          # monotone decreasing
+    assert np.all(taus > 0)                   # never a sign flip
+    assert brindley_tau(-0.05) > 1.0          # less absorbing than matrix
+
+
+def test_brindley_correction_direction_and_conservation():
+    # Two phases, equal measured fractions; phase 0 strongly more absorbing.
+    # The correction must *raise* the absorbing phase (its intensity was
+    # suppressed) and lower the other, sum staying 1.
+    w, taus, mu_bar = brindley_correction(
+        [0.5, 0.5], densities=[4.7, 3.2], mus=[1100.0, 300.0],
+        radii_um=[0.4, 0.4])
+    assert math.isclose(w.sum(), 1.0, abs_tol=1e-12)
+    assert w[0] > 0.5 > w[1]
+    assert taus[0] < 1.0 < taus[1]
+    assert 300.0 < mu_bar < 1100.0
+    # zero contrast -> no correction, whatever the radius
+    w2, taus2, _ = brindley_correction([0.3, 0.7], [3.0, 3.0],
+                                       [500.0, 500.0], [5.0, 5.0])
+    assert np.allclose(w2, [0.3, 0.7])
+    assert np.allclose(taus2, 1.0)
+
+
+def test_phase_particle_radius_field():
+    phase = _caf2_phase()
+    assert phase.particle_radius_um is None    # default: no correction
+    phase.particle_radius_um = 0.75
+    from pxrdref import Structure
+    s = Structure(phases=[phase])
+    assert Structure.model_validate_json(s.model_dump_json()) == s
+    with pytest.raises(Exception):
+        phase.particle_radius_um = -1.0
 
 
 # -- two-phase synthetic acceptance --------------------------------------

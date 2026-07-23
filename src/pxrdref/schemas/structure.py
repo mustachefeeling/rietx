@@ -166,6 +166,15 @@ class Phase(Base):
     gauss_strain: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, unit="deg^2", transform="softplus")
     )
+    # Physical particle radius in micrometres, used only by the Brindley
+    # microabsorption correction of QPA weight fractions (Brindley 1945).
+    # There is no way to obtain it from the pattern: profile broadening
+    # measures the *coherent domain* size, which is smaller than (and
+    # unrelated to) the particle Brindley's absorption path runs through —
+    # conflating the two is a classic error.  Supply it from a micrograph or
+    # a particle-size analysis; leave None (the default) for no correction.
+    # Not a Parameter on purpose: it must never enter the least-squares fit.
+    particle_radius_um: float | None = Field(default=None, gt=0.0)
 
     @model_validator(mode="after")
     def _nonempty(self) -> "Phase":

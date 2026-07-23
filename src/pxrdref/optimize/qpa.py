@@ -192,6 +192,76 @@ def weight_fractions(k, scales, scale_cov=None):
     return w, sigma_corr, sigma_indep
 
 
+def brindley_tau(x: float) -> float:
+    """Brindley particle-absorption factor for a spherical particle.
+
+    Brindley (1945), Phil. Mag. 36, 347: a particle of phase ``p`` embedded in
+    a powder of mean linear attenuation mu_bar diffracts with its intensity
+    scaled by tau_p = (1/V) integral exp(-(mu_p - mu_bar) * path) dV.  Here the
+    integral is evaluated in the parallel-path approximation (incident and
+    diffracted beams traverse the same chord), which for a sphere of radius R
+    has the closed form
+
+        tau(x) = 3 [2 - e^(-u) (u^2 + 2u + 2)] / u^3,   u = 2x,
+        x = (mu_p - mu_bar) * R   (dimensionless, signed)
+
+    with the Taylor series 1 - 3u/4 + 3u^2/10 - u^3/12 + u^4/56 used near
+    u = 0 where the closed form cancels catastrophically.  Brindley's own
+    tabulation averages over reflection geometry instead; inside the validity
+    domain |x| <= 0.1 the two agree to <1 % — the tests pin this against two
+    independently published representations of his table (the quadratic
+    1 - 1.450 x + 1.426 x^2 used by FullProf, Rodriguez-Carvajal's QPA notes,
+    and the exponential fit used by MAUD, Lutterotti's QPA course notes),
+    which themselves scatter by ~1 %.  Unlike either fit this form is exact
+    at tau(0) = 1 (zero contrast, no correction) and stays positive and
+    monotone when a user pushes past the fence, instead of going polynomial-
+    wild.  tau > 1 for a phase less absorbing than the matrix (x < 0).
+    """
+    u = 2.0 * x
+    if abs(u) < 0.05:
+        return 1.0 + u * (-0.75 + u * (0.3 + u * (-1.0 / 12.0 + u / 56.0)))
+    return 3.0 * (2.0 - math.exp(-u) * (u * u + 2.0 * u + 2.0)) / u ** 3
+
+
+def brindley_correction(w_measured, densities, mus, radii_um, *,
+                        tol: float = 1e-12, max_iter: int = 100):
+    """Brindley-corrected weight fractions for spherical particles.
+
+    The measured (Hill-Howard) fraction of phase ``p`` overweights it by its
+    particle-absorption factor tau_p, so the true fractions are the fixed
+    point of
+
+        W'_p = (W_p / tau_p) / sum_q (W_q / tau_q),
+        tau_p = brindley_tau((mu_p - mu_bar) * R_p),
+        mu_bar = sum_q v_q * mu_q,   v_q = (W'_q / rho_q) / sum (W'_q / rho_q)
+
+    iterated from tau = 1 (Brindley 1945; iteration scheme as in the FullProf
+    QPA formulation, Rodriguez-Carvajal).  mu_bar is the volume-weighted mean
+    over the *solid* crystalline mixture — powder porosity, which dilutes the
+    matrix attenuation, is not modelled; with porosity the true correction is
+    slightly larger, so the solid-average choice is the conservative one.
+
+    ``mus`` in 1/cm, ``radii_um`` in micrometres.  Returns
+    ``(w_corrected, taus, mu_bar)``.
+    """
+    w0 = np.asarray(w_measured, dtype=np.float64)
+    rho = np.asarray(densities, dtype=np.float64)
+    mu = np.asarray(mus, dtype=np.float64)
+    r_cm = np.asarray(radii_um, dtype=np.float64) * 1e-4
+    w = w0.copy()
+    mu_bar = 0.0
+    for _ in range(max_iter):
+        v = (w / rho) / np.sum(w / rho)
+        mu_bar = float(np.dot(v, mu))
+        taus = np.array([brindley_tau(x) for x in (mu - mu_bar) * r_cm])
+        w_new = (w0 / taus) / np.sum(w0 / taus)
+        if np.max(np.abs(w_new - w)) < tol:
+            w = w_new
+            break
+        w = w_new
+    return w, taus, mu_bar
+
+
 def compute_qpa(structure: Structure, values: dict[str, float],
                 scale_cov=None, multiplicities=None) -> QuantitativePhaseAnalysis:
     """Assemble the per-phase QPA rows from a decoded parameter dict.
