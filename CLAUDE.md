@@ -96,8 +96,12 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
   `lab_calibrate` on a standard with its **certified cell held fixed** (that
   is what decorrelates zero/displacement/cell) → `save_instrument_profile` →
   `load_instrument_profile` (everything `vary=False`) → `lab_sample_refine`.
-- Current limitation: atomic-coordinate refinement raises NotImplementedError
-  (needs Wyckoff-aware constraints, v0.3). Occ/Biso refinement is fine.
+- Atomic coordinates refine as site-symmetry DOFs: `ParameterTable` wires
+  `phases.i.atoms.j.dof.k` (one per allowed direction from
+  `crystallography/wyckoff.py`) and affine-ties x/y/z to them; free them with
+  the `phases.*.atoms.*.dof.*` glob (the `mccusker_structural` plan does).
+  Fully fixed special positions get locked coords — `vary=True` there raises.
+  Aniso ADPs land in WP-0303.
 - History nodes store **state, not curves** (a node is ~10 kB; embedding
   y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
   measured on a model frozen at the values each stage *started* from — so

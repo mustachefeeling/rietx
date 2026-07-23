@@ -27,10 +27,10 @@ a work session loads only what it needs:
 
 ## Current focus
 
-**v0.3** — WP-0301 is done, unblocking [WP-0302](wp/0302-atomic-coordinates.md)
-(atomic coordinates, the natural next step) and
-[WP-0303](wp/0303-anisotropic-adps.md); any other ⬜ WP with no unmet
-dependency is also fair game.
+**v0.3** — WP-0301 and WP-0302 are done. Next:
+[WP-0303](wp/0303-anisotropic-adps.md) (aniso ADPs — reuses the 0302
+dof-glob pattern) or any other ⬜ WP with no unmet dependency
+(0304, 0306, 0307, 0308).
 
 ## Milestones
 
@@ -52,7 +52,7 @@ dependency is also fair game.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [0301](wp/0301-wyckoff-constraints.md) | Wyckoff/site-symmetry constraints (affine p = C·θ + d) | ✅ 2026-07-22 | — |
-| [0302](wp/0302-atomic-coordinates.md) | Atomic-coordinate refinement | ⬜ | 0301 |
+| [0302](wp/0302-atomic-coordinates.md) | Atomic-coordinate refinement | ✅ 2026-07-23 | 0301 |
 | [0303](wp/0303-anisotropic-adps.md) | Anisotropic ADPs | ⬜ | 0301 |
 | [0304](wp/0304-qpa-hill-howard.md) | QPA: Hill-Howard ZMV mass fractions | ⬜ | — |
 | [0305](wp/0305-brindley-microabsorption.md) | Brindley microabsorption | ⬜ | 0304 |

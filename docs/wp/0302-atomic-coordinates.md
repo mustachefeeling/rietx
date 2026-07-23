@@ -1,6 +1,6 @@
 # WP-0302 — Atomic-coordinate refinement
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: ✅ done (2026-07-23)
 Depends on: WP-0301
 
 ## Goal
@@ -52,17 +52,17 @@ rather than inventing a new plan.
 
 ## Tasks
 
-- [ ] Remove the `NotImplementedError`; route coordinates through the WP-0301
+- [x] Remove the `NotImplementedError`; route coordinates through the WP-0301
       constraint block (free count = site-symmetry-allowed dimensions)
-- [ ] Add coordinate write-back to `apply_to_models` + a stage-boundary test
+- [x] Add coordinate write-back to `apply_to_models` + a stage-boundary test
       that a refined coordinate survives into the next stage's compile
-- [ ] Analytic ∂|F|²/∂(coordinate) columns over the frozen op subsets in
+- [x] Analytic ∂|F|²/∂(coordinate) columns over the frozen op subsets in
       `structure_factor.py`, chained into the Jacobian assembly
-- [ ] Jacobian agreement test vs FD for coordinates (match the existing
+- [x] Jacobian agreement test vs FD for coordinates (match the existing
       tolerance style: <5×10⁻³ relative, cosine >0.99999), including a special
       position where the constraint reduces the free count
-- [ ] Staged-plan support: a coordinates stage in the McCusker order
-- [ ] Synthetic round-trip: perturb a known structure's coordinates, refine
+- [x] Staged-plan support: a coordinates stage in the McCusker order
+- [x] Synthetic round-trip: perturb a known structure's coordinates, refine
       them back within esd; plus obs/calc/diff PNGs to `tests/output/`
 
 ## Acceptance
@@ -85,3 +85,25 @@ agreement holds at stage boundaries; no shipped acceptance number moves.
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-23** — **done**; three `WP-0302:` commits, full suite (217, incl.
+  slow acceptance) + ruff green, shipped acceptance numbers unchanged.
+  - Coordinates refine as synthetic DOFs `phases.i.atoms.j.dof.k` (one per
+    site-symmetry direction), x/y/z affine-tied with const = compile-time
+    anchor; anchors re-base whenever a fresh `ParameterTable` is built (θ=0
+    ↔ current committed coords — exact, not a state loss). Freeing goes
+    through the **dof glob** (`phases.*.atoms.*.dof.*`); x/y/z globs match
+    nothing (tied/locked). `vary=True` on a coordinate of a fully fixed site
+    raises; on a constrained site it frees *all* the site's DOFs.
+  - New plan preset `mccusker_structural` (= mccusker_default + coordinates
+    + biso stages). Existing presets untouched on purpose — adding stages to
+    them would move shipped acceptance numbers.
+  - Analytic column: `structure_factor.d_f2_d_xyz` (Rᵀ h action, frozen
+    `sites.ops`) → `CompiledModel.coordinate_intensity_grad` → dedicated
+    branch in `least_squares._make_jacobian` that reads the displacement
+    direction off the DOF's column of the affine C. Lebail: guard re-fixes
+    structural params AND now drops them from `StageResult.freed`.
+  - Gotchas for WP-0303: reuse the dof-glob pattern for Uij (adp_basis is
+    already in wyckoff.py); `coordinate_intensity_grad` shows the chain
+    shape to copy for ∂|F|²/∂Uij; test tolerance style lives in
+    `tests/test_jacobian.py::_check_columns`. Rwp assertions on weak
+    synthetic patterns are bounded by Rexp — assert GoF instead.
