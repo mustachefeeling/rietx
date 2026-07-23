@@ -1,6 +1,6 @@
 # WP-0310 — v0.3 acceptance: SRM 676a corundum + IUCr QPA round robin
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: 🔶 in progress
 Depends on: WP-0304, WP-0305
 
 ## Goal
@@ -52,7 +52,7 @@ this repo plots.
 
 ## Tasks
 
-- [ ] Acquire SRM 676a corundum + IUCr round-robin sample data; record
+- [x] Acquire SRM 676a corundum + IUCr round-robin sample data; record
       provenance, licence and every reference value in `tests/data/README.md`
 - [ ] `tests/test_acceptance_srm676a.py`: corundum QPA against the certified
       values, tolerance from the certificate's stated uncertainty
@@ -87,3 +87,25 @@ convention) rather than absorbed into a widened band.
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-23** — **data acquired** (first checklist item done). *Done:* SRM
+  676a certificate mined for certified values (a = 4.759355(80) Å, c =
+  12.99231(15) Å at 22.5 °C, phase purity 99.02(1.11) %); 16 IUCr CPD
+  round-robin ASCII patterns pulled into `tests/data/qarr/` (sample 1a–1h,
+  sample 2, sample 4, + the six pure component phases); provenance, instrument,
+  weighed compositions, participant-spread yardstick and a licence note added to
+  `tests/data/README.md`. *Gotchas:* (1) the live iucr.org is behind a
+  Cloudflare JS challenge — all QARR files were retrieved through the Internet
+  Archive (`web.archive.org/web/2020id_/…/QARR/col/<name>.prn`); a
+  fetch-on-demand script would need the same route. (2) `.prn` = plain 2-column
+  ASCII (2θ°, counts), 5–150° at 0.02°, 7251 pts, Cu Kα doublet (graphite
+  diffracted-beam mono; `.cpi` header λ = 1.54056 Å) — **the package has no
+  reader for this format yet**, so the acceptance tests will need one (or a
+  convert-to-fxye step). (3) NIST publishes **no raw 676a pattern**; the
+  certified cell is an absolute anchor only — the "corundum QPA" test must lean
+  on a lab corundum pattern (`qarr/corundum.prn`, provenance *not* documented as
+  SRM 676a) and set a lab-realistic cell tolerance, not the 8-ppm certificate
+  bound. (4) Sample 3 (amorphous) deliberately excluded per non-goals. (5)
+  Licence: round-robin data was freely released for re-analysis but carries no
+  explicit open licence — flagged in the README; confirm vendoring is OK before
+  publishing. *Next:* write a `.prn`/`.cpi` reader, then the two acceptance
+  tests (`test_acceptance_srm676a.py`, `test_acceptance_qpa_roundrobin.py`).

@@ -34,8 +34,9 @@ its µR fence; Pawley whole-pattern mode; March-Dollase preferred orientation
 with an analytic ∂P/∂r column and a Layer-1 axis diagnostic on
 `FitReport.texture`). Next: any ⬜ WP with no unmet dependency —
 [0308](wp/0308-multi-histogram.md), [0309](wp/0309-exporters.md), and the v0.3
-acceptance [0310](wp/0310-acceptance-srm676a-qpa.md) (needs SRM 676a +
-round-robin data, not yet in the repo).
+acceptance [0310](wp/0310-acceptance-srm676a-qpa.md) (🔶 in progress — SRM 676a
+certified values + the IUCr round-robin patterns are now in `tests/data/qarr/`;
+still needs a `.prn`/`.cpi` reader and the two acceptance tests).
 
 ## Milestones
 
@@ -65,7 +66,7 @@ round-robin data, not yet in the repo).
 | [0307](wp/0307-march-dollase.md) | March-Dollase preferred orientation | ✅ 2026-07-23 | — |
 | [0308](wp/0308-multi-histogram.md) | Multi-histogram stacked residuals | ⬜ | — |
 | [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds (structure side landed in 0303), QPA table | ⬜ | 0304 |
-| [0310](wp/0310-acceptance-srm676a-qpa.md) | Acceptance: SRM 676a + IUCr QPA round robin | ⬜ | 0304, 0305 |
+| [0310](wp/0310-acceptance-srm676a-qpa.md) | Acceptance: SRM 676a + IUCr QPA round robin | 🔶 | 0304, 0305 |
 
 ### v0.4 — differentiable backend (stubs; expand before starting)
 
