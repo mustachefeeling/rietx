@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import gemmi
 import numpy as np
@@ -88,6 +88,14 @@ class ZMV:
     zmv: float            # cell_mass · V
     z: int                # formula units per cell (>= 1)
     molar_mass: float     # M = cell_mass / z, g/mol per formula unit
+    # occupancy-weighted atom counts per cell, keyed by element symbol —
+    # feeds crystallography.attenuation.linear_attenuation for microabsorption
+    element_counts: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def density(self) -> float:
+        """X-ray density rho = cell_mass / (N_A · V), g/cm³."""
+        return self.cell_mass / (0.602214076 * self.cell_volume)
 
 
 def _formula_units(element_counts: dict[str, float], *, tol: float = 0.02) -> int:
@@ -144,7 +152,7 @@ def phase_zmv(space_group: str, cell: tuple[float, float, float, float, float, f
     z_units = _formula_units(element_counts)
     molar_mass = cell_mass / z_units if z_units else cell_mass
     return ZMV(cell_mass=cell_mass, cell_volume=volume, zmv=cell_mass * volume,
-               z=z_units, molar_mass=molar_mass)
+               z=z_units, molar_mass=molar_mass, element_counts=element_counts)
 
 
 def weight_fractions(k, scales, scale_cov=None):

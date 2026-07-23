@@ -19,6 +19,11 @@ from pxrdref import (
     Phase,
     Refinement,
 )
+from pxrdref.crystallography.attenuation import (
+    linear_attenuation,
+    mass_attenuation,
+    total_cross_section,
+)
 from pxrdref.model.forward import compile_model
 from pxrdref.optimize.qpa import atomic_weight, phase_zmv, weight_fractions
 from pxrdref.params.vector import ParameterTable
@@ -174,6 +179,61 @@ def test_result_with_qpa_round_trip():
         status="converged", mode="rietveld", parameters=[], statistics=stats,
         provenance=Provenance(package_version="test"), qpa=_qpa_fixture())
     assert RefinementResult.model_validate_json(result.model_dump_json()) == result
+
+
+# -- attenuation coefficients (microabsorption input) --------------------
+
+# Published anchors: NIST mass attenuation coefficients of Hubbell & Seltzer
+# (1995), NISTIR 5632, at exactly 8.000 keV (tables at
+# physics.nist.gov/PhysRefData/XrayMassCoef/ElemTab/zNN.html).  The bundled
+# McMaster (1969) tabulation tracks them to ~2.5 % for Z >= 9; light elements
+# are worse (B -7 %, O -3.6 % — a known weakness of the McMaster photoelectric
+# fits at low Z) but contribute little to any phase's mu.
+_NIST_8KEV = {"F": 16.02, "Al": 50.33, "Si": 64.68, "Ca": 172.6,
+              "Ni": 49.52, "La": 352.9}
+_LAM_8KEV = 12398.4198 / 8000.0
+
+
+def test_mass_attenuation_matches_nist():
+    for el, ref in _NIST_8KEV.items():
+        assert math.isclose(mass_attenuation(el, _LAM_8KEV), ref, rel_tol=0.04)
+    assert math.isclose(mass_attenuation("B", _LAM_8KEV), 2.346, rel_tol=0.08)
+    assert math.isclose(mass_attenuation("O", _LAM_8KEV), 11.63, rel_tol=0.05)
+
+
+def test_linear_attenuation_common_phases():
+    # Cross-check the composition -> mu plumbing against values hand-computed
+    # from the NIST elemental mu/rho above: mass-fraction mixing gives
+    # mu(LaB6) ≈ 1116-1137 1/cm and mu(CaF2) ≈ 300-307 1/cm at Cu Ka1.
+    lam = 1.5405929
+    mu_lab6 = linear_attenuation({"La": 1.0, "B": 6.0}, 4.1566 ** 3, lam)
+    mu_caf2 = linear_attenuation({"Ca": 4.0, "F": 8.0}, 5.4631 ** 3, lam)
+    assert 1080.0 < mu_lab6 < 1180.0
+    assert 290.0 < mu_caf2 < 315.0
+
+
+def test_attenuation_edge_interval_raises():
+    # Ni K edge at 8.3328 keV sits inside a ~2 % tabulation interval; asking
+    # for mu there must refuse rather than smear the edge, while Cu Ka (well
+    # below the edge) stays fine.
+    with pytest.raises(ValueError, match="absorption edge of Ni"):
+        total_cross_section("Ni", 12398.4198 / 8300.0)
+    assert mass_attenuation("Ni", 1.5405929) > 0
+
+
+def test_attenuation_missing_element_and_band():
+    with pytest.raises(KeyError, match="McMaster"):
+        total_cross_section("Po", 1.5406)
+    with pytest.raises(ValueError, match="outside the tabulated"):
+        total_cross_section("Si", 13.0)
+
+
+def test_zmv_element_counts_and_density():
+    phase = _caf2_phase()
+    zmv = phase_zmv(phase.space_group, phase.cell.lengths_angles(), _atoms(phase))
+    assert zmv.element_counts == {"Ca": 4.0, "F": 8.0}
+    # CaF2 X-ray density ~3.18 g/cm3
+    assert math.isclose(zmv.density, 3.18, rel_tol=0.01)
 
 
 # -- two-phase synthetic acceptance --------------------------------------
