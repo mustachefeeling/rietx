@@ -45,10 +45,12 @@ from ..background.models import (
     interpolate_fixed,
     second_difference_matrix,
 )
+from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
 from ..crystallography.lattice import d_spacings, two_theta_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
     compile_phase_sites,
+    d_f2_d_uaniso,
     d_f2_d_xyz,
     structure_factors_squared,
 )
@@ -147,6 +149,28 @@ class CompiledModel:
                 shift = shift + transparency_shift_deg(tt_bragg, t)
         return shift
 
+    def _site_values(self, ip: int, values: dict[str, float], cell: tuple
+                     ) -> tuple[np.ndarray, np.ndarray, np.ndarray,
+                                np.ndarray | None, np.ndarray | None]:
+        """(xyz, occ, biso, U^ij, a*) for the structure-factor call.
+
+        The anisotropic pair is ``None`` unless the phase has at least one
+        anisotropic site, so the common isotropic path does no extra work.
+        Rows of isotropic atoms are zero-filled and never read (``sites.aniso``
+        selects); a* moves with the cell, so it is recomputed per call.
+        """
+        sites = self.phases[ip].sites
+        n = sites.n_asym
+        xyz = np.array([[values[f"phases.{ip}.atoms.{j}.{c}"] for c in ("x", "y", "z")]
+                        for j in range(n)])
+        occ = np.array([values[f"phases.{ip}.atoms.{j}.occ"] for j in range(n)])
+        biso = np.array([values[f"phases.{ip}.atoms.{j}.biso"] for j in range(n)])
+        if not sites.any_aniso:
+            return xyz, occ, biso, None, None
+        uaniso = np.array([[values.get(f"phases.{ip}.atoms.{j}.{u}", 0.0) for u in U_NAMES]
+                           for j in range(n)])
+        return xyz, occ, biso, uaniso, reciprocal_axis_lengths(*cell)
+
     def phase_peaks(self, ip: int, values: dict[str, float]
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """Per-line (positions, widths, mixing, intensities) for phase ip.
@@ -162,12 +186,9 @@ class CompiledModel:
         if self.mode == "lebail":
             base = cp.lebail_intensity
         else:
-            xyz = np.array([[values[f"phases.{ip}.atoms.{j}.{c}"] for c in ("x", "y", "z")]
-                            for j in range(cp.sites.n_asym)])
-            occ = np.array([values[f"phases.{ip}.atoms.{j}.occ"] for j in range(cp.sites.n_asym)])
-            biso = np.array([values[f"phases.{ip}.atoms.{j}.biso"] for j in range(cp.sites.n_asym)])
             # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent
-            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites, xyz, occ, biso)
+            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                           *self._site_values(ip, values, cell))
             base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2
 
         out = []
@@ -248,19 +269,32 @@ class CompiledModel:
         scalar is the whole chain.  Le Bail intensities are extracted, not
         computed, so there is nothing to differentiate: returns ``None``.
         """
+        return self._structural_intensity_grad(ip, j, coeffs, values, d_f2_d_xyz)
+
+    def adp_intensity_grad(self, ip: int, j: int, coeffs: np.ndarray,
+                           values: dict[str, float]) -> list[np.ndarray] | None:
+        """Per-line ∂intensity/∂u for an anisotropic-ADP DOF of atom j.
+
+        The exact analogue of :meth:`coordinate_intensity_grad` with
+        ``coeffs`` the site-symmetry U^ij *pattern* (the DOF's column of the
+        constraint block restricted to the atom's six U rows) — see
+        ``structure_factor.d_f2_d_uaniso``.  ADPs, like coordinates, move only
+        the intensity scalar, not the peak positions or widths.
+        """
+        return self._structural_intensity_grad(ip, j, coeffs, values, d_f2_d_uaniso)
+
+    def _structural_intensity_grad(self, ip: int, j: int, coeffs: np.ndarray,
+                                   values: dict[str, float], kernel
+                                   ) -> list[np.ndarray] | None:
         if self.mode != "rietveld":
             return None
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"]
                      for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         d = d_spacings(cp.reflections.hkl, *cell)
-        n = cp.sites.n_asym
-        xyz = np.array([[values[f"phases.{ip}.atoms.{jj}.{c}"] for c in ("x", "y", "z")]
-                        for jj in range(n)])
-        occ = np.array([values[f"phases.{ip}.atoms.{jj}.occ"] for jj in range(n)])
-        biso = np.array([values[f"phases.{ip}.atoms.{jj}.biso"] for jj in range(n)])
-        df2 = d_f2_d_xyz(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j
-                         ) @ np.asarray(coeffs, dtype=np.float64)
+        xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
+        df2 = kernel(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j, uaniso, astar
+                     ) @ np.asarray(coeffs, dtype=np.float64)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
         out = []
         for il, lam in enumerate(self.line_wavelengths):
