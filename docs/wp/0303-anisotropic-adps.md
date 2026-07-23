@@ -154,3 +154,12 @@ DOFs **0.007** (guard 0.25); no ADP left the positive-definite cone.
     `RefinementResult.diagnostics` only.
   - `background_absorption` screens ADP DOFs but the FitReport's own
     thresholds text still says "Biso"; cosmetic, not wrong.
+
+- **2026-07-23 (review pass)** — post-completion once-over found one gap:
+  the public `Structure.from_cif` did not forward `aniso` (only the internal
+  reader had it; the WP tests imported that directly, so nothing pinned the
+  front door). Fixed + pinned by `test_public_from_cif_forwards_aniso`.
+  Also probed beyond the suite, all clean: mixed iso/aniso sites in one phase
+  (Jacobian vs FD ~6e-6), Le Bail frees no adp DOFs, tied-cell esds reach the
+  exported CIF (`b` carries `a`'s su), history checkout round-trips aniso
+  tensors bit-exact and restores free adp paths.
