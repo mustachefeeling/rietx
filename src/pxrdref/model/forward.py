@@ -46,7 +46,12 @@ from ..background.models import (
     second_difference_matrix,
 )
 from ..crystallography.adp import U_NAMES, reciprocal_axis_lengths
-from ..crystallography.lattice import cell_volume, d_spacings, two_theta_deg
+from ..crystallography.lattice import (
+    cell_volume,
+    d_spacings,
+    reciprocal_metric_tensor,
+    two_theta_deg,
+)
 from ..crystallography.structure_factor import (
     PhaseSites,
     compile_phase_sites,
@@ -54,7 +59,11 @@ from ..crystallography.structure_factor import (
     d_f2_d_xyz,
     structure_factors_squared,
 )
-from ..crystallography.symmetry import ReflectionSet, generate_reflections
+from ..crystallography.symmetry import (
+    ReflectionSet,
+    generate_reflections,
+    reflection_orbits,
+)
 from ..schemas.common import Mode
 from ..schemas.instrument import (
     BackgroundChebyshev,
@@ -70,6 +79,11 @@ from .corrections import (
     transparency_shift_deg,
 )
 from .extinction import sabine_extinction, sabine_extinction_and_dx
+from .preferred_orientation import (
+    march_dollase_and_dr,
+    march_dollase_factors,
+    orbit_layout,
+)
 from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
 from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
@@ -111,6 +125,15 @@ class CompiledPhase:
     # grouping (None outside pawley mode)
     tt_primary: np.ndarray | None = None  # (N,)
     fwhm_primary: np.ndarray | None = None  # (N,)
+    # March-Dollase preferred orientation: the frozen symmetry orbit of every
+    # reflection (flattened; see preferred_orientation.orbit_layout) plus the
+    # fixed integer axis.  None unless the phase carries a PO block in Rietveld
+    # mode.  The angles the correction needs move with the cell at evaluation;
+    # only these integer members are frozen for the stage.
+    po_axis: np.ndarray | None = None       # (3,) int
+    po_members: np.ndarray | None = None    # (M_total, 3) int
+    po_seg: np.ndarray | None = None        # (M_total,) int → reflection index
+    po_counts: np.ndarray | None = None     # (N,) int orbit sizes
 
 
 @dataclass
@@ -192,6 +215,22 @@ class CompiledModel:
                            for j in range(n)])
         return xyz, occ, biso, uaniso, reciprocal_axis_lengths(*cell)
 
+    def _po_factors(self, ip: int, values: dict[str, float], cell: tuple
+                    ) -> np.ndarray | None:
+        """March-Dollase P_hkl (N,) for phase ip, or None when off.
+
+        The frozen orbits live on the compiled phase; the angles are taken with
+        the reciprocal metric of the *current* cell, so P follows the cell (and
+        r) smoothly through a least-squares run.
+        """
+        cp = self.phases[ip]
+        if cp.po_axis is None:
+            return None
+        gstar = reciprocal_metric_tensor(*cell)
+        r = values[f"phases.{ip}.preferred_orientation.r"]
+        return march_dollase_factors(cp.po_members, cp.po_seg, cp.po_counts,
+                                     cp.po_axis, gstar, r)
+
     def phase_peaks(self, ip: int, values: dict[str, float]
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """Per-line (positions, widths, mixing, intensities) for phase ip.
@@ -213,6 +252,14 @@ class CompiledModel:
             f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
                                            *self._site_values(ip, values, cell))
             base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2
+            # March-Dollase preferred orientation: a line-independent per-hkl
+            # intensity multiplier folded into ``base`` (P ≡ 1 when off, so this
+            # leaves the intensity bit-identical then).  It rides ahead of the
+            # extinction multiply — both commute — and the extinction variable x
+            # still uses the raw |F|², not this product.
+            P = self._po_factors(ip, values, cell)
+            if P is not None:
+                base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
             # reflection) intensity multiplier folded in below.  ext=0 leaves
             # the intensity bit-identical, so it is skipped entirely then; V
@@ -328,6 +375,13 @@ class CompiledModel:
         df2 = kernel(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j, uaniso, astar
                      ) @ np.asarray(coeffs, dtype=np.float64)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
+        # March-Dollase P multiplies the intensity and does not depend on the
+        # coordinates/ADPs, so a structural move chains through it unchanged —
+        # the analytic column must carry the same P the forward model folded in
+        # (P ≡ None when off).  The r column itself comes from po_intensity_grad.
+        P = self._po_factors(ip, values, cell)
+        if P is not None:
+            d_base = d_base * P
         # extinction couples |F|² into the intensity twice (as the prefactor
         # and through x ∝ |F|²), so a coordinate/ADP move chains through the
         # factor G = E + x·dE/dx (see model/extinction.py).  Only these
@@ -347,6 +401,46 @@ class CompiledModel:
             if ext != 0.0:
                 E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
                 col = col * (E + x * dEdx)
+            out.append(col)
+        return out
+
+    def po_intensity_grad(self, ip: int, values: dict[str, float]
+                          ) -> list[np.ndarray] | None:
+        """Per-line ∂intensity/∂r for the March coefficient of phase ip.
+
+        r enters the intensity only through the multiplier P_hkl(r) (Dollase
+        1986), so ∂I/∂r = (∂P/∂r)·(intensity with P divided out) = (∂P/∂r)·base
+        ·w·Lp·E — the same chain :meth:`phase_peaks` builds, with P replaced by
+        ∂P/∂r.  ∂P/∂r is line-independent (the angles depend only on the cell),
+        so it is computed once and reused across the emission lines.  Returns
+        ``None`` when the phase has no PO block or outside Rietveld mode.
+        """
+        if self.mode != "rietveld":
+            return None
+        cp = self.phases[ip]
+        if cp.po_axis is None:
+            return None
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        d = d_spacings(cp.reflections.hkl, *cell)
+        xyz, occ, biso, uaniso, astar = self._site_values(ip, values, cell)
+        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                       xyz, occ, biso, uaniso, astar)
+        gstar = reciprocal_metric_tensor(*cell)
+        r = values[f"phases.{ip}.preferred_orientation.r"]
+        _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
+                                      cp.po_axis, gstar, r)
+        d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
+        ext = values[f"phases.{ip}.extinction"]
+        vol = cell_volume(*cell) if ext != 0.0 else 0.0
+        out = []
+        for il, lam in enumerate(self.line_wavelengths):
+            w_line = values[f"instrument.source.lines.{il}.weight"]
+            tt_bragg = two_theta_deg(d, lam)
+            col = d_base * w_line * lorentz_polarization(
+                tt_bragg, values["instrument.polarization"])
+            if ext != 0.0:
+                col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
             out.append(col)
         return out
 
@@ -710,6 +804,14 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":
             cp.tt_primary, cp.fwhm_primary = tt_primary, fwhm_primary
+        # March-Dollase preferred orientation acts on *calculated* structure-
+        # factor intensities, so it is a Rietveld-mode correction only — Le Bail
+        # and Pawley intensities are empirical and would absorb it.  Freeze the
+        # symmetry orbit of each reflection here; the angles follow the cell.
+        if mode == "rietveld" and phase.preferred_orientation is not None and n:
+            orbits = reflection_orbits(phase.space_group, refl.hkl)
+            cp.po_axis = np.array(phase.preferred_orientation.axis, dtype=np.int64)
+            cp.po_members, cp.po_seg, cp.po_counts = orbit_layout(orbits)
         phases.append(cp)
 
     # background compilation — always linear: paths + design rows (+ penalty)

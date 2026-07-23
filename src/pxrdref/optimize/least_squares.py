@@ -38,6 +38,9 @@ from ..params.vector import ParameterTable
 #: ADPs (``adp``, tied to the six U^ij).  Both get analytic columns that chain
 #: the structure-factor derivative through the site's constraint directions.
 _STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
+#: March-Dollase coefficient — an analytic intensity-multiplier column
+#: (``po_intensity_grad``), not the peak-chain FD path.
+_PO_PATH = re.compile(r"^phases\.(\d+)\.preferred_orientation\.r$")
 
 
 @dataclass
@@ -150,6 +153,26 @@ def _structural_column(model: CompiledModel, table: ParameterTable,
     return dy
 
 
+def _po_column(model: CompiledModel, bases: DerivativeBases,
+               values: dict[str, float], ip: int) -> np.ndarray:
+    """∂y/∂r for the March coefficient: only the intensity scalar moves.
+
+    ``po_intensity_grad`` supplies the analytic per-(line, reflection)
+    ∂intensity/∂r (P is a pure multiplier, so positions and widths are
+    untouched); it is applied to the same frozen profile bases the forward
+    model uses.  The softplus chain factor ∂r/∂θ is applied by the caller.
+    """
+    dy = np.zeros_like(model.tt)
+    dint = model.po_intensity_grad(ip, values)
+    if dint is None:
+        return dy
+    for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
+        v = dint[il][k]
+        if v != 0.0:
+            dy[i0:i1] += v * omega
+    return dy
+
+
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
                   which: int, dpdu: float) -> np.ndarray:
     """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases."""
@@ -249,6 +272,9 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _structural_column(
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
+            elif (po := _PO_PATH.match(path)) and model.mode == "rietveld":
+                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
+                    model, get_bases(), values, int(po.group(1)))
             elif model.scalar_chain_supported(path):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta_t, values, c, path)

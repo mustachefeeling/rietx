@@ -79,6 +79,13 @@ class RefinementPlan:
                               "instrument.profile.x", "instrument.profile.y"]),
             Stage("coordinates", ["phases.*.atoms.*.dof.*"]),
             Stage("biso", list(_DISPLACEMENT_GLOBS)),
+            # March-Dollase preferred orientation (WP-0307) turns on *after* the
+            # displacement stage: r, occupancies and ADPs all rescale intensity
+            # in Q-dependent ways, so letting the structure settle first leaves
+            # PO with its own axis-angle signature to fit.  The glob matches only
+            # phases that declared a PO block; r ≡ 1 is the identity, so a start
+            # from 1.0 perturbs nothing until the data pull it off.
+            Stage("preferred_orientation", ["phases.*.preferred_orientation.r"]),
             # secondary extinction (WP-0506) comes *after* the displacement
             # stage on purpose: ext, Biso and the ADPs all attenuate high-Q
             # intensity, so letting the structure/ADPs settle first leaves
