@@ -478,3 +478,85 @@ def test_two_phase_synthetic_qpa():
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     result.plot(path=str(out / "qpa_two_phase.png"))
+
+
+def test_two_phase_synthetic_brindley_correction():
+    """Microabsorption injected at generation must be undone by the correction.
+
+    The pattern is synthesized with each phase's intensity multiplied by its
+    true Brindley factor (that *is* the microabsorption effect at the
+    intensity level), so the refined scales absorb tau and the uncorrected
+    Hill-Howard fractions are biased away from truth in a known direction:
+    LaB6 (µ≈1136/cm at Cu Kα) suppressed, CaF2 (µ≈304/cm) inflated.  The
+    corrected fractions must land back on the truth.  Radii differ per phase
+    (0.4 / 1.5 µm) and keep both µR inside the 0.05 fence.
+    """
+    from pxrdref import Stage
+    from pxrdref.crystallography.attenuation import linear_attenuation
+    from pxrdref.optimize.qpa import BRINDLEY_MU_R_FENCE
+
+    radii = {"LaB6": 0.4, "CaF2": 1.5}
+    truth, ins = _two_phase_truth(la_scale=6e-4, caf2_scale=4e-4)
+    w_true = _true_weight_fractions(truth)
+
+    # true tau at the true composition (volume-weighted solid mu_bar)
+    zmvs = [phase_zmv(p.space_group, p.cell.lengths_angles(), _atoms(p))
+            for p in truth.phases]
+    mus = np.array([linear_attenuation(z.element_counts, z.cell_volume, _WAVELENGTH)
+                    for z in zmvs])
+    rho = np.array([z.density for z in zmvs])
+    r_cm = np.array([radii[p.name] for p in truth.phases]) * 1e-4
+    v = (w_true / rho) / np.sum(w_true / rho)
+    mu_bar_true = float(np.dot(v, mus))
+    tau_true = np.array([brindley_tau(x) for x in (mus - mu_bar_true) * r_cm])
+    assert tau_true[0] < 1.0 < tau_true[1]
+    assert np.all(mus * r_cm < BRINDLEY_MU_R_FENCE)
+
+    # synthesize with tau folded into the scales — the refinement sees a
+    # pattern whose LaB6 intensity is genuinely suppressed by absorption
+    for phase, tau in zip(truth.phases, tau_true, strict=True):
+        phase.scale.value *= tau
+    tt = np.arange(15.0, 90.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, blank, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    y = np.random.default_rng(7).poisson(np.maximum(y, 1.0)).astype(float)
+    data = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    start, start_ins = _two_phase_truth(la_scale=1e-3, caf2_scale=1e-3)
+    for phase in start.phases:
+        phase.particle_radius_um = radii[phase.name]
+    ref = Refinement(start, start_ins)
+    result = ref.fit(data, plan="mccusker_default")
+    assert result.status == "converged"
+
+    qpa = result.qpa
+    assert qpa.microabsorption is not None and qpa.microabsorption_skipped is None
+    assert not any(d.code == "BRINDLEY_OUTSIDE_REGIME" for d in result.diagnostics)
+    rows = {r.name: r for r in qpa.phases}
+    for ip, name in enumerate(("LaB6", "CaF2")):
+        row = rows[name]
+        err_uncorr = abs(row.weight_fraction - w_true[ip])
+        err_corr = abs(row.weight_fraction_corrected - w_true[ip])
+        # the injected bias is ~1.7 % absolute, well above the Poisson noise
+        # (~0.3 %); the correction must remove most of it, in the right
+        # direction, for both phases
+        assert err_uncorr > 0.010
+        assert err_corr < 0.5 * err_uncorr
+        assert err_corr < 0.010
+        assert math.isclose(row.brindley_tau, tau_true[ip], rel_tol=5e-3)
+    assert math.isclose(qpa.microabsorption.mu_mean_cm, mu_bar_true, rel_tol=0.02)
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    result.plot(path=str(out / "qpa_brindley.png"))
+
+    # push LaB6 past the fence and refit one stage: the engine itself must
+    # surface the regime warning on the rebuilt result
+    for phase in ref.structure.phases:
+        phase.particle_radius_um = 5.0
+    result2 = ref.run_stage(data, Stage("scale", ["phases.*.scale"], max_iter=5))
+    fence = [d for d in result2.diagnostics if d.code == "BRINDLEY_OUTSIDE_REGIME"]
+    assert fence and "LaB6" in fence[0].where
+    assert {r.name: r for r in result2.qpa.phases}["LaB6"].mu_r > BRINDLEY_MU_R_FENCE
