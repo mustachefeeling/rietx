@@ -91,6 +91,46 @@ def test_general_position_dof_columns_match_fd():
     ])
 
 
+def test_constrained_adp_dof_columns_match_fd():
+    """Rutile: three ADP patterns per site, one of them the U11 = U22 tie.
+
+    Freeing coordinate and ADP DOFs together also checks that the two
+    analytic families do not cross-index each other's constraint rows.
+    """
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    _check_columns(make_aniso_rutile(), [
+        "phases.0.atoms.0.adp.0", "phases.0.atoms.0.adp.1",
+        "phases.0.atoms.0.adp.2", "phases.0.atoms.1.adp.0",
+        "phases.0.atoms.1.dof.0", "phases.0.scale",
+    ])
+
+
+def test_general_position_adp_columns_match_fd():
+    """All six components free on a P2₁/c general site, monoclinic cell —
+    nothing here is protected by an orthogonal metric or a symmetric R."""
+    from pxrdref.schemas.structure import AnisoU
+
+    toy = make_p21c_toy()
+    toy.phases[0].atoms[1].aniso = AnisoU.from_values(
+        [0.012, 0.017, 0.009, 0.0018, -0.0031, 0.0007])
+    _check_columns(toy, [f"phases.0.atoms.1.adp.{k}" for k in range(6)]
+                   + ["phases.0.atoms.1.dof.0", "phases.0.cell.beta"])
+
+
+def test_adp_dof_absent_in_lebail_jacobian():
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure, ins, pattern = _state(make_aniso_rutile())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.0.atoms.0.adp.0"], True)
+    model = compile_model(structure, ins, pattern, mode="lebail",
+                          free_paths=set(table.free_paths))
+    J = _make_jacobian(model, table)(table.x0())
+    assert np.allclose(J[:, 0], 0.0)
+
+
 def test_free_count_reflects_site_symmetry():
     rutile = make_rutile()
     _, ins, _ = _state(rutile)

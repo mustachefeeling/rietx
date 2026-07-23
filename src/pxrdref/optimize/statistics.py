@@ -73,7 +73,9 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     is the fraction of jᵢ's effect the background can imitate.  R² → 1 means
     the two are degenerate: the background absorbs Bragg intensity, biasing
     ADPs up and scales (hence QPA fractions) down *while Rwp improves* — the
-    documented failure mode of over-flexible backgrounds.
+    documented failure mode of over-flexible backgrounds.  Anisotropic ADP
+    DOFs (``…adp.k``) are screened alongside Biso: more displacement freedom
+    means more of it available to soak up a background error.
 
     Pairwise ρ is the wrong statistic for this: with ~100 spline coefficients
     each individual |ρ| stays small (~0.2) while the block collectively
@@ -86,7 +88,7 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     """
     bg = [k for k, p in enumerate(free_paths) if p.startswith("instrument.background.")]
     targets = [(k, p) for k, p in enumerate(free_paths)
-               if p.endswith((".biso", ".scale", ".occ"))]
+               if p.endswith((".biso", ".scale", ".occ")) or ".adp." in p]
     if not bg or not targets:
         return {}
     q, _ = np.linalg.qr(np.asarray(jac)[:, bg])

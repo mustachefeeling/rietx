@@ -14,6 +14,9 @@ full-model finite differences:
   per-point part uses the analytic profile derivatives
   (``CompiledModel.derivative_bases``); the per-reflection scalar derivatives
   are finite-differenced through ``phase_peaks`` (cheap — no per-point work);
+* **site-DOF columns** — Wyckoff coordinate and anisotropic-ADP DOFs, whose
+  ∂|F|²/∂p is analytic over the frozen op subsets and chains through the
+  site's constraint directions;
 * **axial columns** — S/L, H/L through the analytic node-weighted bases;
 * **plain forward differences** — anything else (fallback only).
 """
@@ -26,13 +29,15 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import least_squares
 
+from ..crystallography.adp import U_NAMES
 from ..model.forward import CompiledModel, DerivativeBases
 from ..params.transforms import dphys_dinternal
 from ..params.vector import ParameterTable
 
-#: Wyckoff coordinate DOFs (params.vector wires x,y,z to these): their
-#: analytic column chains ∂|F|²/∂xyz through the constraint direction
-_DOF_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.dof\.\d+$")
+#: Wyckoff site DOFs — coordinates (``dof``, tied to x, y, z) and anisotropic
+#: ADPs (``adp``, tied to the six U^ij).  Both get analytic columns that chain
+#: the structure-factor derivative through the site's constraint directions.
+_STRUCTURAL_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.(dof|adp)\.\d+$")
 
 
 @dataclass
@@ -102,19 +107,21 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     return dy
 
 
-def _coordinate_column(model: CompiledModel, table: ParameterTable,
+def _structural_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, values: dict[str, float],
-                       c: int, ip: int, j: int) -> np.ndarray:
-    """∂y/∂θ_c for a coordinate DOF: only the intensity scalar moves.
+                       c: int, ip: int, j: int, rows: tuple[str, ...],
+                       grad) -> np.ndarray:
+    """∂y/∂θ_c for a coordinate or ADP DOF: only the intensity scalar moves.
 
-    The displacement direction ∂xyz/∂θ_c is read off the affine constraint
-    block (the DOF's column of C restricted to the atom's x, y, z rows), so
-    the analytic column follows whatever site-symmetry basis WP-0301 wired.
+    The constraint direction ∂p/∂θ_c is read off the affine constraint block
+    (the DOF's column of C restricted to the atom's ``rows``), so the analytic
+    column follows whatever site-symmetry basis WP-0301 wired — displacement
+    directions for x, y, z; U^ij patterns for the six ADP components.
     """
     C, _ = table.constraint_block()
-    coeffs = np.array([C[table._paths[f"phases.{ip}.atoms.{j}.{cc}"], c]
-                       for cc in ("x", "y", "z")], dtype=np.float64)
-    dint = model.coordinate_intensity_grad(ip, j, coeffs, values)
+    coeffs = np.array([C[table._paths[f"phases.{ip}.atoms.{j}.{name}"], c]
+                       for name in rows], dtype=np.float64)
+    dint = grad(ip, j, coeffs, values)
     dy = np.zeros_like(model.tt)
     for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
         v = dint[il][k]
@@ -182,10 +189,12 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                         model, b, axial_paths[path], dpdu_of(c, theta))
                 else:
                     fd_cols.append(c)
-            elif (dof := _DOF_PATH.match(path)) and model.mode == "rietveld":
-                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta) * _coordinate_column(
+            elif (dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld":
+                rows, grad = (("x", "y", "z"), model.coordinate_intensity_grad) \
+                    if dof.group(3) == "dof" else (U_NAMES, model.adp_intensity_grad)
+                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta) * _structural_column(
                     model, table, get_bases(), values, c,
-                    int(dof.group(1)), int(dof.group(2)))
+                    int(dof.group(1)), int(dof.group(2)), rows, grad)
             elif model.scalar_chain_supported(path):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta, values, c, path)
