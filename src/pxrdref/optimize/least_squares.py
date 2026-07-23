@@ -20,6 +20,7 @@ full-model finite differences:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -28,6 +29,10 @@ from scipy.optimize import least_squares
 from ..model.forward import CompiledModel, DerivativeBases
 from ..params.transforms import dphys_dinternal
 from ..params.vector import ParameterTable
+
+#: Wyckoff coordinate DOFs (params.vector wires x,y,z to these): their
+#: analytic column chains ∂|F|²/∂xyz through the constraint direction
+_DOF_PATH = re.compile(r"^phases\.(\d+)\.atoms\.(\d+)\.dof\.\d+$")
 
 
 @dataclass
@@ -97,6 +102,27 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     return dy
 
 
+def _coordinate_column(model: CompiledModel, table: ParameterTable,
+                       bases: DerivativeBases, values: dict[str, float],
+                       c: int, ip: int, j: int) -> np.ndarray:
+    """∂y/∂θ_c for a coordinate DOF: only the intensity scalar moves.
+
+    The displacement direction ∂xyz/∂θ_c is read off the affine constraint
+    block (the DOF's column of C restricted to the atom's x, y, z rows), so
+    the analytic column follows whatever site-symmetry basis WP-0301 wired.
+    """
+    C, _ = table.constraint_block()
+    coeffs = np.array([C[table._paths[f"phases.{ip}.atoms.{j}.{cc}"], c]
+                       for cc in ("x", "y", "z")], dtype=np.float64)
+    dint = model.coordinate_intensity_grad(ip, j, coeffs, values)
+    dy = np.zeros_like(model.tt)
+    for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
+        v = dint[il][k]
+        if v != 0.0:
+            dy[i0:i1] += v * omega
+    return dy
+
+
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
                   which: int, dpdu: float) -> np.ndarray:
     """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases."""
@@ -156,6 +182,10 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                         model, b, axial_paths[path], dpdu_of(c, theta))
                 else:
                     fd_cols.append(c)
+            elif (dof := _DOF_PATH.match(path)) and model.mode == "rietveld":
+                J[:n_data, c] = -sqrt_w * dpdu_of(c, theta) * _coordinate_column(
+                    model, table, get_bases(), values, c,
+                    int(dof.group(1)), int(dof.group(2)))
             elif model.scalar_chain_supported(path):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
                     model, table, get_bases(), theta, values, c, path)

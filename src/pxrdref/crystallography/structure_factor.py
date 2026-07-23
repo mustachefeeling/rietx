@@ -108,3 +108,41 @@ def structure_factors_squared(
         dw = np.exp(-biso[j] * k * k)  # exp(−B (sinθ/λ)²)
         F += occ[j] * f0(sites.species[j], k) * dw * geometric
     return (F * F.conj()).real
+
+
+def d_f2_d_xyz(
+    hkl: np.ndarray,
+    d: np.ndarray,
+    sites: PhaseSites,
+    xyz: np.ndarray,
+    occ: np.ndarray,
+    biso: np.ndarray,
+    j: int,
+) -> np.ndarray:
+    """Analytic ∂|F|²/∂x_j over the frozen op subsets, shape (N, 3).
+
+    With F = Σ_j' A_j'·G_j' (A_j the real occ·f₀·Debye-Waller prefactor) and
+    G_j = Σ_m exp(2πi h·(R_m x_j + t_m)),
+
+        ∂F/∂x_jc = A_j · 2πi Σ_m (R_mᵀ h)_c · exp(2πi h·(R_m x_j + t_m))
+
+    — the reciprocal-space action is the **transposed** rotation (see
+    ``symmetry.py``) — and ∂|F|²/∂x_jc = 2·Re(F̄ · ∂F/∂x_jc) (structure-
+    factor derivatives per Rietveld, 1969, J. Appl. Cryst. 2, 65).  The op
+    subsets are the same frozen ``sites.ops`` the forward model uses, so the
+    gradient is exact for the model as compiled.
+    """
+    k = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
+    h = np.asarray(hkl, dtype=np.float64)
+    F = np.zeros(len(h), dtype=np.complex128)
+    dF = np.zeros((len(h), 3), dtype=np.complex128)
+    for jj in range(sites.n_asym):
+        rot, tran = sites.ops[jj]
+        positions = rot @ xyz[jj] + tran  # (m, 3)
+        phase = np.exp(2.0j * np.pi * (positions @ h.T))  # (m, N)
+        amp = occ[jj] * f0(sites.species[jj], k) * np.exp(-biso[jj] * k * k)  # (N,)
+        F += amp * phase.sum(axis=0)
+        if jj == j:
+            rth = np.einsum("nk,mkc->mnc", h, rot)  # (R_mᵀ h)_c, shape (m, N, 3)
+            dF = amp[:, None] * (2.0j * np.pi) * (phase[:, :, None] * rth).sum(axis=0)
+    return 2.0 * (np.conj(F)[:, None] * dF).real

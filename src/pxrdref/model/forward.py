@@ -49,6 +49,7 @@ from ..crystallography.lattice import d_spacings, two_theta_deg
 from ..crystallography.structure_factor import (
     PhaseSites,
     compile_phase_sites,
+    d_f2_d_xyz,
     structure_factors_squared,
 )
 from ..crystallography.symmetry import ReflectionSet, generate_reflections
@@ -233,6 +234,42 @@ class CompiledModel:
     # ------------------------------------------------------------------
     # analytic Jacobian support
     # ------------------------------------------------------------------
+    def coordinate_intensity_grad(self, ip: int, j: int, coeffs: np.ndarray,
+                                  values: dict[str, float]
+                                  ) -> list[np.ndarray] | None:
+        """Per-line ∂intensity/∂u for a coordinate DOF u of atom j, phase ip.
+
+        ``coeffs`` is the displacement direction ∂xyz/∂u — the DOF's column
+        of the affine constraint block restricted to this atom's x, y, z
+        rows.  Chains the analytic ∂|F|²/∂xyz (frozen op subsets,
+        ``structure_factor.d_f2_d_xyz``) through the same scale ·
+        multiplicity · line-weight · Lp factors as :meth:`phase_peaks`;
+        positions and widths do not depend on coordinates, so the intensity
+        scalar is the whole chain.  Le Bail intensities are extracted, not
+        computed, so there is nothing to differentiate: returns ``None``.
+        """
+        if self.mode != "rietveld":
+            return None
+        cp = self.phases[ip]
+        cell = tuple(values[f"phases.{ip}.cell.{k}"]
+                     for k in ("a", "b", "c", "alpha", "beta", "gamma"))
+        d = d_spacings(cp.reflections.hkl, *cell)
+        n = cp.sites.n_asym
+        xyz = np.array([[values[f"phases.{ip}.atoms.{jj}.{c}"] for c in ("x", "y", "z")]
+                        for jj in range(n)])
+        occ = np.array([values[f"phases.{ip}.atoms.{jj}.occ"] for jj in range(n)])
+        biso = np.array([values[f"phases.{ip}.atoms.{jj}.biso"] for jj in range(n)])
+        df2 = d_f2_d_xyz(cp.reflections.hkl, d, cp.sites, xyz, occ, biso, j
+                         ) @ np.asarray(coeffs, dtype=np.float64)
+        d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * df2
+        out = []
+        for il, lam in enumerate(self.line_wavelengths):
+            w_line = values[f"instrument.source.lines.{il}.weight"]
+            tt_bragg = two_theta_deg(d, lam)
+            out.append(d_base * w_line
+                       * lorentz_polarization(tt_bragg, values["instrument.polarization"]))
+        return out
+
     def scalar_chain_supported(self, path: str) -> bool:
         """Paths whose effect on y flows *only* through the per-peak scalars
         (position, Γ, η, intensity) — the analytic-column chain rule applies.
