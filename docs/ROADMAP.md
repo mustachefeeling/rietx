@@ -27,12 +27,13 @@ a work session loads only what it needs:
 
 ## Current focus
 
-**v0.3** — WP-0301, WP-0302, WP-0303, WP-0304 and WP-0306 are done
-(site-constraint machinery covers coordinates *and* aniso ADPs; QPA weight
-fractions land off `RefinementResult.qpa`; Pawley whole-pattern mode). Next: any
-⬜ WP with no unmet dependency — [0305](wp/0305-brindley-microabsorption.md) and
-[0309](wp/0309-exporters.md) are now unblocked by 0304, alongside
-[0307](wp/0307-march-dollase.md), [0308](wp/0308-multi-histogram.md).
+**v0.3** — WP-0301 through WP-0306 are done (site-constraint machinery covers
+coordinates *and* aniso ADPs; QPA weight fractions land off
+`RefinementResult.qpa`, now with the Brindley microabsorption correction and
+its µR fence; Pawley whole-pattern mode). Next: any ⬜ WP with no unmet
+dependency — [0310](wp/0310-acceptance-srm676a-qpa.md) (the v0.3 acceptance) is
+now unblocked by 0305, alongside [0307](wp/0307-march-dollase.md),
+[0308](wp/0308-multi-histogram.md), [0309](wp/0309-exporters.md).
 
 ## Milestones
 
@@ -57,7 +58,7 @@ fractions land off `RefinementResult.qpa`; Pawley whole-pattern mode). Next: any
 | [0302](wp/0302-atomic-coordinates.md) | Atomic-coordinate refinement | ✅ 2026-07-23 | 0301 |
 | [0303](wp/0303-anisotropic-adps.md) | Anisotropic ADPs | ✅ 2026-07-23 | 0301 |
 | [0304](wp/0304-qpa-hill-howard.md) | QPA: Hill-Howard ZMV mass fractions | ✅ 2026-07-23 | — |
-| [0305](wp/0305-brindley-microabsorption.md) | Brindley microabsorption | ⬜ | 0304 |
+| [0305](wp/0305-brindley-microabsorption.md) | Brindley microabsorption | ✅ 2026-07-23 | 0304 |
 | [0306](wp/0306-pawley-mode.md) | Pawley mode | ✅ 2026-07-23 | — |
 | [0307](wp/0307-march-dollase.md) | March-Dollase preferred orientation | ⬜ | — |
 | [0308](wp/0308-multi-histogram.md) | Multi-histogram stacked residuals | ⬜ | — |

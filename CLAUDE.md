@@ -167,10 +167,12 @@ the ROADMAP.md row.
 Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
 Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
 history DAG, live viz). In progress: **v0.3** — coordinate refinement,
-anisotropic ADPs, QPA weight fractions and Pawley whole-pattern mode have
-landed (WP-0301/0302/0303/0304/0306; `RefinementResult.qpa` = Hill-Howard ZMV
-with correlated σ); Brindley, March-Dollase, multi-histogram and exporters
-remain. v2 fence: FPA, neutron/TOF, texture, MCP server.
+anisotropic ADPs, QPA weight fractions, Brindley microabsorption and Pawley
+whole-pattern mode have landed (WP-0301…0306; `RefinementResult.qpa` =
+Hill-Howard ZMV with correlated σ, plus corrected fractions + µR fence when
+every phase carries `particle_radius_um`); March-Dollase, multi-histogram,
+exporters and the SRM 676a acceptance remain. v2 fence: FPA, neutron/TOF,
+texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

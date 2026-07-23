@@ -1,6 +1,6 @@
 # WP-0305 — Brindley microabsorption correction
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: ✅ done 2026-07-23
 Depends on: WP-0304
 
 ## Goal
@@ -47,15 +47,15 @@ never silently replace the uncorrected numbers.
 
 ## Tasks
 
-- [ ] Per-phase µ from refined composition + cell volume at the instrument
+- [x] Per-phase µ from refined composition + cell volume at the instrument
       wavelength; unit test against published µ values for common phases
-- [ ] Brindley τ_p factors; per-phase particle radius as an input field on the
+- [x] Brindley τ_p factors; per-phase particle radius as an input field on the
       phase (or the QPA call), defaulting to "not supplied ⇒ no correction"
-- [ ] Corrected + uncorrected fractions both present in the QPA result, with
+- [x] Corrected + uncorrected fractions both present in the QPA result, with
       per-phase µR recorded
-- [ ] µR fence diagnostic (outside the fine-particle regime → structured
+- [x] µR fence diagnostic (outside the fine-particle regime → structured
       diagnostic, surfaced by the strategy engine)
-- [ ] Test on a synthetic mixture with a deliberately high-µ phase: the
+- [x] Test on a synthetic mixture with a deliberately high-µ phase: the
       correction moves the fractions in the physically correct direction and
       the fence fires when µR is pushed past the limit
 
@@ -78,3 +78,32 @@ the µR fence fires exactly when it should.
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-23** — **done**; five commits (`9f2f18f`…). Decisions & measured
+  facts a follow-up should know:
+  - **µ source**: bundled `data/mu_McMaster.dat`, an energy-trimmed
+    (2–120 keV) 3-column extract of DABAX `CrossSec_McMaster.dat`
+    (McMaster 1969; ATTRIBUTION.md updated). xraydb was *not* pulled in —
+    it drags sqlalchemy; revisit the coordination when WP-0504 actually
+    needs f′/f″. `crystallography/attenuation.py` interpolates log-log and
+    **refuses** a wavelength whose grid interval contains an absorption
+    edge (photoelectric column rising with E), rather than smearing it.
+    Measured vs NIST Hubbell-Seltzer at 8 keV: ≤2.5 % for Z ≥ 9; B −7 %,
+    O −3.6 % (known McMaster low-Z weakness; tolerances in the test say so).
+  - **τ**: exact parallel-path sphere integral (closed form + series near 0),
+    NOT either published fit. Inside |x| ≤ 0.1 it matches the FullProf
+    quadratic (1 − 1.450x + 1.426x²) and the MAUD exponential fit to ≲1 %,
+    which is also how much those two disagree with each other; unlike them
+    it is exact at τ(0)=1 and stays monotone/positive past the fence.
+  - **Fence**: Brindley's medium-powder limit is µ·D ≤ 0.1 with D the
+    *diameter* (ILL/FullProf QPA notes) ⇒ `BRINDLEY_MU_R_FENCE = 0.05` in
+    µ·R. The WP text's "µR ≲ 0.01–0.1" conflated the two conventions.
+  - Correction needs **every** phase's `particle_radius_um` (µ̄ is a mixture
+    average); partial input → `microabsorption_skipped` +
+    MICROABSORPTION_SKIPPED warning, never a guess. µ̄ is the void-free
+    solid average (porosity not modelled — documented as conservative).
+  - Synthetic acceptance: τ injected into generating scales; uncorrected
+    fractions biased ~1.7 % absolute, corrected land within 1 % of truth,
+    recovered τ within 0.5 % of injected; fence fires end-to-end through
+    `run_stage` on the rebuilt result. Suite 299 passed, ruff clean.
+  - Gotcha for exporters (WP-0309): `weight_fraction` stays uncorrected by
+    design; a QPA table should print both columns and the τ/µR provenance.
