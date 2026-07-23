@@ -167,12 +167,16 @@ the ROADMAP.md row.
 Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
 Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
 history DAG, live viz). In progress: **v0.3** — coordinate refinement,
-anisotropic ADPs, QPA weight fractions, Brindley microabsorption and Pawley
-whole-pattern mode have landed (WP-0301…0306; `RefinementResult.qpa` =
-Hill-Howard ZMV with correlated σ, plus corrected fractions + µR fence when
-every phase carries `particle_radius_um`); March-Dollase, multi-histogram,
-exporters and the SRM 676a acceptance remain. v2 fence: FPA, neutron/TOF,
-texture, MCP server.
+anisotropic ADPs, QPA weight fractions, Brindley microabsorption, Pawley
+whole-pattern mode and March-Dollase preferred orientation have landed
+(WP-0301…0307; `RefinementResult.qpa` = Hill-Howard ZMV with correlated σ, plus
+corrected fractions + µR fence when every phase carries `particle_radius_um`;
+`Phase.preferred_orientation` is an optional single-axis March-Dollase block —
+integer hkl axis + softplus `r`, identity at r=1, analytic ∂P/∂r column, and a
+Layer-1 axis diagnostic on `FitReport.texture` that fits the full nonlinear
+P(r) — the linear template is degenerate in high-symmetry crystals);
+multi-histogram, exporters and the SRM 676a acceptance remain. v2 fence: FPA,
+neutron/TOF, spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +
