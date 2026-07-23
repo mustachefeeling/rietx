@@ -435,6 +435,7 @@ class Refinement:
             stage_results=stage_results, diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation)
+        _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
             stream.emit("fit_end", status=self.result_.status,
@@ -485,6 +486,7 @@ class Refinement:
             stage_results=[stage_result], diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation)
+        _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
 
@@ -583,6 +585,18 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "looks good",
         ))
     return out
+
+
+def _apply_esds(table: ParameterTable, result: RefinementResult,
+                structure: Structure, instrument: Instrument) -> None:
+    """Carry the fitted esds into the models, so exporters can quote them.
+
+    Parameters the fit did not estimate get ``stderr = None`` rather than a
+    stale value from an earlier stage — that is why the whole map is rewritten
+    instead of only the entries that have one.
+    """
+    table.apply_to_models(structure, instrument, stderr={
+        p.path: p.stderr for p in result.parameters if p.stderr is not None})
 
 
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,

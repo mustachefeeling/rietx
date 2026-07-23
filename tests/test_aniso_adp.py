@@ -305,6 +305,60 @@ def test_adp_write_back_survives_stage_boundary():
         ParameterTable(structure, ins).x0())["phases.0.atoms.0.u22"] == pytest.approx(0.008)
 
 
+# -- CIF round trip ----------------------------------------------------
+
+
+def test_cif_round_trip_preserves_aniso_tensors(tmp_path):
+    """Read NAC's published U^ij, write, read back: same numbers, same sites."""
+    original = structure_from_cif(str(DATA / "cod_1000236.cif"), aniso=True)
+    out = tmp_path / "nac_out.cif"
+    original.to_cif(str(out))
+    back = structure_from_cif(str(out), aniso=True)
+
+    assert [a.label for a in back.phases[0].atoms] == \
+           [a.label for a in original.phases[0].atoms]
+    for a, b in zip(original.phases[0].atoms, back.phases[0].atoms, strict=True):
+        assert b.aniso is not None, a.label
+        assert b.aniso.values() == pytest.approx(a.aniso.values(), abs=1e-5)
+    assert back.phases[0].cell.a.value == pytest.approx(
+        original.phases[0].cell.a.value, abs=1e-6)
+
+
+def test_cif_export_writes_standard_uncertainties(tmp_path):
+    structure = make_aniso_rutile()
+    ti = structure.phases[0].atoms[0]
+    ti.aniso.u11.stderr = 0.00012
+    ti.aniso.u12.stderr = 0.0000031  # finer than the default column width
+    structure.phases[0].cell.a.stderr = 0.00025
+
+    out = tmp_path / "su.cif"
+    structure.to_cif(str(out))
+    text = out.read_text()
+    assert "0.006000(120)" in text or "0.00600(12)" in text
+    assert "0.0010000(31)" in text
+    assert "4.59370(25)" in text
+    # a parameter with no esd stays a plain number — never an implied one
+    assert "0.005000\n" in text or " 0.00500 " in text or "0.00500" in text
+
+    back = structure_from_cif(str(out), aniso=True)
+    assert back.phases[0].atoms[0].aniso.u11.value == pytest.approx(0.006, abs=1e-9)
+    assert back.phases[0].cell.a.value == pytest.approx(4.5937, abs=1e-9)
+
+
+def test_cif_export_reports_b_equivalent_for_aniso_sites(tmp_path):
+    """The isotropic column of an aniso site must be B_eq, not a stale biso."""
+    structure = make_aniso_rutile()
+    structure.phases[0].atoms[0].biso.value = 12.34  # stale starting estimate
+    out = tmp_path / "beq.cif"
+    structure.to_cif(str(out))
+
+    cell6 = structure.phases[0].cell.lengths_angles()
+    expected = 8.0 * math.pi ** 2 * adp.u_equivalent(
+        structure.phases[0].atoms[0].aniso.values(), cell6)
+    assert f"{expected:.4f}" in out.read_text()
+    assert "12.34" not in out.read_text()
+
+
 # -- positive-definiteness guard ---------------------------------------
 
 
