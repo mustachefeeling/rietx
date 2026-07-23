@@ -49,6 +49,16 @@ MIN_COEF_SIGNIFICANCE = 3.0
 #: data.
 SEPARABILITY_MIN_SS_RATIO = 2.0
 
+#: March-Dollase texture diagnostic (:mod:`.texture`).  ``TEXTURE_MIN_R2`` is the
+#: fraction of the intensity misfit a single-axis March model must explain before
+#: texture is *detected*; ``TEXTURE_MIN_STRENGTH`` the departure of the fitted r
+#: from 1 (r ≈ 1 is no texture however good the "fit"); ``TEXTURE_MIN_REFLECTIONS``
+#: the number of intensity-bearing reflections below which the pattern is not
+#: enough to point at an axis.
+TEXTURE_MIN_R2 = 0.5
+TEXTURE_MIN_STRENGTH = 0.03
+TEXTURE_MIN_REFLECTIONS = 4
+
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
 MATURITY_MAX_RWP = 0.35
@@ -176,6 +186,29 @@ class TrendAnalysis(Base):
     misfit_share: float = 0.0
 
 
+class TextureAnalysis(Base):
+    """Single-axis March-Dollase preferred-orientation diagnostic, per phase.
+
+    ``detected`` is the field to branch on: when True, ``best_axis`` is the
+    crystallographic direction (integer hkl) whose March-Dollase model best
+    reproduces the per-reflection intensity misfit and ``march_coefficient`` the
+    fitted r (< 1 or > 1 → platy or needle, the sense depending on geometry —
+    see :mod:`pxrdref.model.preferred_orientation`).  ``r2`` is the fraction of
+    the intensity misfit that model explains.  ``runner_up_axis`` is the best
+    *non-equivalent* alternative — when its ``runner_up_r2`` is close to ``r2``
+    the axis is not cleanly resolved (distinct habits happen to fit similarly).
+    """
+
+    phase_index: int
+    best_axis: tuple[int, int, int] | None = None
+    march_coefficient: float = 1.0
+    r2: float = 0.0
+    n_reflections_used: int = 0
+    detected: bool = False
+    runner_up_axis: tuple[int, int, int] | None = None
+    runner_up_r2: float = 0.0
+
+
 # ----------------------------------------------------------------------
 # Layer 2
 # ----------------------------------------------------------------------
@@ -252,6 +285,10 @@ class FitReport(Base):
     # -- Layer 1
     attribution: list[RegionAttribution] = Field(default_factory=list)
     trends: list[TrendAnalysis] = Field(default_factory=list)
+    #: per-phase March-Dollase texture diagnostic; populated whenever the
+    #: compiled model is supplied, independent of the maturity gate (texture is
+    #: a common *cause* of an immature fit, so it must still be reported)
+    texture: list[TextureAnalysis] = Field(default_factory=list)
     layer1_available: bool = False
     #: set when the global maturity gate refused Layer 1 (the report abstains)
     abstained_reason: str | None = None

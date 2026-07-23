@@ -28,11 +28,13 @@ from .schemas import (
     Region,
     RegionAttribution,
     SuggestedAction,
+    TextureAnalysis,
     TrendAnalysis,
     TrendTemplate,
     UnmatchedPeak,
     VerificationOutcome,
 )
+from .texture import analyse_texture
 
 __all__ = [
     "THRESHOLDS_VERSION",
@@ -41,10 +43,12 @@ __all__ = [
     "Region",
     "RegionAttribution",
     "SuggestedAction",
+    "TextureAnalysis",
     "TrendAnalysis",
     "TrendTemplate",
     "UnmatchedPeak",
     "VerificationOutcome",
+    "analyse_texture",
     "analyse_trends",
     "apply_strategy_veto",
     "attribute_regions",
@@ -86,6 +90,10 @@ def build_report(result: RefinementResult, *, model=None, values=None,
 
     attributions = attribute_regions(model, values, report.regions)
     report.attribution = attributions
+    # March-Dollase texture is computed before the maturity gate: uncorrected
+    # texture is a common *cause* of an immature fit, so the diagnostic must
+    # still speak when the rest of Layer 1 abstains.
+    report.texture = analyse_texture(model, values)
 
     reason = maturity_gate(result.statistics.rwp, attributions)
     if reason is not None:
