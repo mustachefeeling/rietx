@@ -14,7 +14,7 @@ from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .model.forward import CompiledModel, Mode, compile_model
 from .optimize.least_squares import run_least_squares
-from .optimize.qpa import compute_qpa
+from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import compute_statistics
 from .params.vector import ParameterTable
 from .schemas.common import Diagnostic, Provenance
@@ -677,6 +677,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         qpa = compute_qpa(structure, values, scale_cov, multiplicities,
                           wavelength=wavelength)
+        diagnostics = diagnostics + microabsorption_diagnostics(qpa)
 
     return RefinementResult(
         status=status, mode=mode,

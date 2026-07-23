@@ -247,6 +247,41 @@ def test_compute_qpa_no_radii_stays_silent():
     assert qpa.microabsorption is None and qpa.microabsorption_skipped is None
 
 
+# -- µR fence diagnostics --------------------------------------------------
+
+def test_mu_r_fence_fires_exactly_when_it_should():
+    from pxrdref.optimize.qpa import BRINDLEY_MU_R_FENCE, microabsorption_diagnostics
+
+    # In regime: LaB6 µ≈1136/cm, R=0.4 µm → µR≈0.045 < 0.05 — no diagnostic.
+    structure, values, compute_qpa = _two_phase_decoded([0.4, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    assert max(r.mu_r for r in qpa.phases) < BRINDLEY_MU_R_FENCE
+    assert microabsorption_diagnostics(qpa) == []
+
+    # Push LaB6 past the fence (R=1 µm → µR≈0.11); CaF2 stays inside.
+    structure, values, compute_qpa = _two_phase_decoded([1.0, 0.4])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    diags = microabsorption_diagnostics(qpa)
+    assert len(diags) == 1
+    d = diags[0]
+    assert d.code == "BRINDLEY_OUTSIDE_REGIME" and d.level == "warning"
+    assert d.where == ["LaB6"] and "µR" in d.message
+    # the correction is still reported (never silently dropped)…
+    assert all(r.weight_fraction_corrected is not None for r in qpa.phases)
+    # …with the offending µR travelling on the result object
+    assert {r.name: r.mu_r for r in qpa.phases}["LaB6"] > BRINDLEY_MU_R_FENCE
+
+
+def test_skipped_correction_surfaces_as_diagnostic():
+    from pxrdref.optimize.qpa import microabsorption_diagnostics
+
+    structure, values, compute_qpa = _two_phase_decoded([0.4, None])
+    qpa = compute_qpa(structure, values, wavelength=1.5406)
+    diags = microabsorption_diagnostics(qpa)
+    assert len(diags) == 1 and diags[0].code == "MICROABSORPTION_SKIPPED"
+    assert "CaF2" in diags[0].message
+
+
 def test_result_with_qpa_round_trip():
     stats = Statistics(rwp=0.05, rp=0.04, rexp=0.03, chi2=2.0, gof=1.4,
                        n_points=1000, n_free_parameters=8)

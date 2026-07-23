@@ -34,6 +34,7 @@ import numpy as np
 from ..crystallography.attenuation import linear_attenuation
 from ..crystallography.lattice import cell_volume
 from ..crystallography.symmetry import expand_positions, get_spacegroup
+from ..schemas.common import Diagnostic
 from ..schemas.results import (
     MicroabsorptionCorrection,
     PhaseQuantity,
@@ -265,6 +266,58 @@ def brindley_correction(w_measured, densities, mus, radii_um, *,
             break
         w = w_new
     return w, taus, mu_bar
+
+
+#: Applicability fence for the Brindley correction, in µ·R (R = particle
+#: radius).  Brindley (1945) derives the treatment for his fine/medium powder
+#: regimes, bounded by µ·D ≤ 0.1 with D = 2R the particle *diameter* (the
+#: classification restated in Rodríguez-Carvajal's FullProf QPA notes), i.e.
+#: µ·R ≤ 0.05.  Past it a particle no longer diffracts from its bulk and τ is
+#: applied outside its derivation.
+BRINDLEY_MU_R_FENCE = 0.05
+
+
+def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnostic]:
+    """Structured diagnostics for the Brindley correction's applicability.
+
+    Two things are worth saying loudly (Taylor & Matulis 1991, J. Appl.
+    Cryst. 24, 14, on how routinely this correction is over-trusted): a phase
+    whose µ·R exceeds :data:`BRINDLEY_MU_R_FENCE` is outside the fine/medium
+    powder regime the correction is derived for — beyond it the "corrected"
+    fractions can be *worse* than the uncorrected ones while looking more
+    authoritative — and a correction the user asked for (radii supplied) that
+    could not run must not stay quiet.
+    """
+    out: list[Diagnostic] = []
+    if qpa.microabsorption_skipped is not None:
+        out.append(Diagnostic(
+            level="warning", code="MICROABSORPTION_SKIPPED",
+            where=[r.name for r in qpa.phases],
+            message=qpa.microabsorption_skipped,
+            suggestion="supply particle_radius_um on every phase (from a "
+                       "micrograph or particle-size analysis, not from "
+                       "profile broadening) and use a wavelength inside the "
+                       "attenuation tables",
+        ))
+        return out
+    offenders = [r for r in qpa.phases
+                 if r.mu_r is not None and r.mu_r > BRINDLEY_MU_R_FENCE]
+    if offenders:
+        listing = ", ".join(f"{r.name} (µR = {r.mu_r:.3f})" for r in offenders)
+        out.append(Diagnostic(
+            level="warning", code="BRINDLEY_OUTSIDE_REGIME",
+            where=[r.name for r in offenders],
+            message=(f"µ·R exceeds Brindley's medium-powder limit of "
+                     f"{BRINDLEY_MU_R_FENCE} (= µ·D of 0.1) for {listing}; the "
+                     "particle-absorption correction is being applied outside "
+                     "the regime it is derived for, and the corrected "
+                     "fractions may be further from the truth than the "
+                     "uncorrected ones"),
+            suggestion="grind the sample finer, use a shorter wavelength "
+                       "(µ ∝ λ³), or quote the uncorrected fractions with "
+                       "microabsorption named as an unquantified systematic",
+        ))
+    return out
 
 
 def compute_qpa(structure: Structure, values: dict[str, float],
