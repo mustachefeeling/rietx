@@ -57,8 +57,16 @@ class Refinement:
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  backend: str = "numpy",
                  history: bool | str | Path | RefinementTree = True):
-        if backend != "numpy":
-            raise NotImplementedError("v0.1 ships the numpy backend only")
+        if backend == "jax":
+            # fail fast (with the install hint) instead of at the first stage;
+            # resolve_backend caches the instance, so this costs one import
+            from .backend import resolve_backend
+
+            resolve_backend("jax")
+        elif backend != "numpy":
+            raise NotImplementedError(
+                f"unknown backend {backend!r}; v0.4 ships numpy and jax")
+        self._backend = backend
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
         self.result_: RefinementResult | None = None
@@ -163,7 +171,8 @@ class Refinement:
     def branch(self, node_id: str | None = None) -> "Refinement":
         """A second working tree over the same history, for a rival strategy."""
         tree = self._require_history()
-        ref = Refinement(self.structure, self.instrument, history=tree)
+        ref = Refinement(self.structure, self.instrument,
+                         backend=self._backend, history=tree)
         ref._mode = self._mode
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
@@ -370,7 +379,8 @@ class Refinement:
                         freed=freed, n_free=len(table.free_paths),
                         n_points=len(model.tt))
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
-                                    events=events, stage=stage.name)
+                                    events=events, stage=stage.name,
+                                    backend=self._backend)
         table.commit(outcome.theta)
 
         if mode == "lebail":
@@ -900,11 +910,12 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
 def refine(data: PatternData, structure: Structure, instrument: Instrument,
            *, mode: Mode = "rietveld", plan: RefinementPlan | str = "mccusker_default",
            two_theta_limits: tuple[float, float] | None = None,
+           backend: str = "numpy",
            history: bool | str | Path | RefinementTree = False) -> RefinementResult:
     """One-shot functional API: ``refine(data, structure, instrument)``.
 
     History defaults to *off* here: this call discards the ``Refinement``, so
     an in-memory tree would be unreachable.  Pass a path to keep one.
     """
-    ref = Refinement(structure, instrument, history=history)
+    ref = Refinement(structure, instrument, backend=backend, history=history)
     return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits)

@@ -71,8 +71,14 @@ class MultiHistogramRefinement:
 
     def __init__(self, structure: Structure, instruments: list[Instrument], *,
                  sharing: SharingMap | None = None, backend: str = "numpy"):
-        if backend != "numpy":
-            raise NotImplementedError("v0.3 ships the numpy backend only")
+        if backend == "jax":
+            from .backend import resolve_backend
+
+            resolve_backend("jax")  # fail fast with the install hint
+        elif backend != "numpy":
+            raise NotImplementedError(
+                f"unknown backend {backend!r}; v0.4 ships numpy and jax")
+        self._backend = backend
         instruments = list(instruments)
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
@@ -137,7 +143,8 @@ class MultiHistogramRefinement:
                     self.mtable.structures, self.mtable.instruments, data, limits,
                     self.mtable.tables, strict=True)]
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
-                                              max_iter=stage.max_iter)
+                                              max_iter=stage.max_iter,
+                                              backend=self._backend)
             self.mtable.commit(outcome.theta)
             self.mtable.apply_to_models()
             stage_results.append(StageResult(

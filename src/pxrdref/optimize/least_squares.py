@@ -331,12 +331,29 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     return jacobian
 
 
+def _jacobian_for(model, table, backend: str):
+    """The Jacobian callable for ``backend`` (lazy import keeps numpy pure).
+
+    The jax callable produces the same fp64 host array in the same row/column
+    layout as :func:`_make_jacobian`; the residual used for cost/statistics
+    and the TRF solve stay numpy either way (WP-0402).
+    """
+    if backend == "jax":
+        from ..backend.jax_backend import make_jax_jacobian
+
+        return make_jax_jacobian(model, table)
+    if backend != "numpy":
+        raise ValueError(f"unknown backend {backend!r}; available: numpy, jax")
+    return _make_jacobian(model, table)
+
+
 def run_least_squares(model: CompiledModel, table: ParameterTable,
                       *, max_iter: int = 100, ftol: float = 1e-9,
                       compute_uncertainties: bool = True,
-                      events=None, stage: str = "") -> LSQOutcome:
+                      events=None, stage: str = "",
+                      backend: str = "numpy") -> LSQOutcome:
     residual = _make_residual(model, table)
-    jacobian = _make_jacobian(model, table)
+    jacobian = _jacobian_for(model, table, backend)
 
     if events is not None:
         # scipy TRF has no per-iteration callback, so the residual closure is
@@ -395,7 +412,8 @@ def run_multi_least_squares(models: list[CompiledModel],
                             mtable: "MultiParameterTable", *,
                             weights: list[float] | None = None,
                             max_iter: int = 100, ftol: float = 1e-9,
-                            compute_uncertainties: bool = True) -> LSQOutcome:
+                            compute_uncertainties: bool = True,
+                            backend: str = "numpy") -> LSQOutcome:
     """Joint TRF solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
@@ -420,7 +438,8 @@ def run_multi_least_squares(models: list[CompiledModel],
     sqrt_w = [float(np.sqrt(w)) for w in weights]
 
     residuals = [_make_residual(m, t) for m, t in zip(models, mtable.tables, strict=True)]
-    jacobians = [_make_jacobian(m, t) for m, t in zip(models, mtable.tables, strict=True)]
+    jacobians = [_jacobian_for(m, t, backend)
+                 for m, t in zip(models, mtable.tables, strict=True)]
     n_data = [len(m.tt) for m in models]
     n_pen = [0 if m.bkg_penalty is None else m.bkg_penalty.shape[0] for m in models]
     data_off = np.concatenate([[0], np.cumsum(n_data)])
