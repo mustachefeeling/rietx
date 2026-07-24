@@ -39,8 +39,9 @@ DISP_REFERENCE = -0.07877    # mm, from the CIF spec block
 pytestmark = pytest.mark.slow
 
 
-@pytest.fixture(scope="module")
-def srm_inputs():
+def build_srm_inputs():
+    """(data, structure, instrument) for the NIST protocol — plain function so
+    other suites (test_backend_jax.py) can rebuild the identical state."""
     path = DATA / "nist_srm660c_100a.cif"
     if not path.exists():
         pytest.skip("SRM 660c dataset not present")
@@ -68,6 +69,11 @@ def srm_inputs():
     from pxrdref.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
     return data, structure, instrument
+
+
+@pytest.fixture(scope="module")
+def srm_inputs():
+    return build_srm_inputs()
 
 
 def _nist_calibrated_plan() -> pr.RefinementPlan:
