@@ -31,6 +31,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from ..backend import get_backend
+from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
 from ..crystallography.adp import U_NAMES
 from ..model.forward import CompiledModel, DerivativeBases
 from ..params.transforms import dphys_dinternal
@@ -337,14 +338,29 @@ def _jacobian_for(model, table, backend: str):
     The jax callable produces the same fp64 host array in the same row/column
     layout as :func:`_make_jacobian`; the residual used for cost/statistics
     and the TRF solve stay numpy either way (WP-0402).
+
+    This is also the assembly's exit point, so it is where the WP-0403
+    mixed-precision policy is applied: whichever backend built the columns,
+    they cross ``linalg64``'s host boundary here — cast to fp64, then reduced
+    per column if (and only if) a policy asked for it.  With the default fp64
+    policy the wrapper is a plain ``np.asarray``, so the numpy path is
+    unchanged.
     """
     if backend == "jax":
         from ..backend.jax_backend import make_jax_jacobian
 
-        return make_jax_jacobian(model, table)
-    if backend != "numpy":
+        inner = make_jax_jacobian(model, table)
+    elif backend == "numpy":
+        inner = _make_jacobian(model, table)
+    else:
         raise ValueError(f"unknown backend {backend!r}; available: numpy, jax")
-    return _make_jacobian(model, table)
+
+    def jacobian(theta: np.ndarray) -> np.ndarray:
+        # policy read per call, not per closure build: a `with precision_policy`
+        # block around a refine must take effect on an already-built solver
+        return get_precision_policy().cast_columns(inner(theta))
+
+    return jacobian
 
 
 def run_least_squares(model: CompiledModel, table: ParameterTable,
@@ -381,6 +397,9 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
 
     r0 = residual(x0)
+    # invariant 2: whatever built the columns, the residual is fp64 on host —
+    # checked once per solve, not per iteration
+    require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
     if len(x0) == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None)
@@ -476,6 +495,7 @@ def run_multi_least_squares(models: list[CompiledModel],
     lo, hi = mtable.bounds()
     x0 = np.clip(x0, lo + 1e-12, hi - 1e-12) if len(x0) else x0
     r0 = residual(x0)
+    require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
     if n_cols == 0:
         return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None)
@@ -509,10 +529,18 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     them — (J_dᵀJ_d + λD₂ᵀD₂)⁻¹ is the regularised covariance — but χ² and
     the serial-correlation factor are evaluated on the *data* rows only
     (run-of-sign statistics on penalty rows would be meaningless).
+
+    The solve is fp64 unconditionally (architecture invariant 2): cond(JᵀJ) =
+    cond(J)², so forming and inverting the normal matrix is the step reduced
+    precision can never take.  ``to_host_fp64`` is that boundary — a Jacobian
+    whose columns were computed at fp32 is upcast here before JᵀJ, while the
+    residual is *required* to have been fp64 all along.
     """
     from .statistics import berar_lelann_factor
 
     data = fun if n_data is None else fun[:n_data]
+    require_fp64(data, "residual entering the covariance solve")
+    jac = to_host_fp64(jac)
     JTJ = jac.T @ jac
     chi2_red = float(data @ data) / max(len(data) - n_free, 1)
     cov = np.linalg.pinv(JTJ) * chi2_red
