@@ -135,3 +135,21 @@ convention) rather than absorbed into a widened band.
   "acceptance measured", not ✅ — WP-0308/0309 are in-scope and open; flip to
   ✅ when they land. (6) Full suite now ~2 min (was ~21 s); `-m "not slow"`
   stays fast.
+- **2026-07-24 (post-ship)** — *676a fit-quality review vs Cline et al.
+  (2015) J. Res. NIST 120, 173.* The visible corundum misfit (S-shaped
+  low-angle residuals, underfit peak tops, flat high-angle residual) is the
+  paper's documented analytical-PSF ceiling — its GoF band for non-FPA fits
+  of this instrument class is 1.5–1.9 (FPA reaches 1.08, our v2 fence);
+  ours is 1.61, and Rexp ≈ 8.9 % makes Rwp = 14.4 % mostly counting
+  statistics. Also tried the one aberration the paper flags that the
+  protocol holds at 0 — specimen transparency (its Fig. 10 puts a
+  676a-like compact at ~50 cm⁻¹, impact peaking 70–90°). Freeing
+  `instrument.geometry.sample_transparency` in `zero_disp` is a wash:
+  Rwp 14.37 → 14.33 %, GoF 1.606 → 1.601, every band Rwp (24–60/60–100/
+  100–150°) moves < 0.07 points, c/a stays +30 ppm. The sin2θ shift merely
+  re-apportions the uniform d-scale across the correlated {zero,
+  displacement, t} triple (zero −0.075° → −0.012°, displacement
+  +0.008 → +0.088 mm, t = 2.4×10⁻⁴ ⇒ µ_eff ≈ 120 cm⁻¹, solid-alumina-like
+  rather than compact-like), pulling absolute axes to −202/−171 ppm with no
+  new physics — the paper's own caveat that lab shift terms "may refine to
+  nonphysical values". **Kept at 0**; question settled, no protocol change.
