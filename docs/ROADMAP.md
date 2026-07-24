@@ -43,11 +43,20 @@ guards) are in.  The jax backend [0402](wp/0402-jax-backend.md) **landed
 2026-07-24**: `backend="jax"` dispatches a scoped-x64, jit-compiled chunked
 jacfwd Jacobian (numpy residual/solve untouched); jacfwd matches
 analytic/FD on every family and SRM 660c end-to-end matches the numpy `a`
-within 1e-6 Å.  Next: [0403](wp/0403-cuda-mixed-precision.md)
-(mixed-precision policy) + [0404](wp/0404-cross-backend-jacobian-ci.md)
-(agreement CI — note 0402's handover: the FCJ S/L == H/L subgradient kink
-needs the same loose bar there) → [0408](wp/0408-torch-mps-backend.md)
-(torch-MPS, pulled forward from v0.6; starts only once 0402+0404 are green).
+within 1e-6 Å.  The mixed-precision policy
+[0403](wp/0403-cuda-mixed-precision.md) **landed 2026-07-24** (388 tests
+green): `backend/linalg64.py` is now the single fp64 host boundary —
+`MixedPrecisionPolicy` makes an fp32 residual or solve *unspellable*, and
+`cast_columns` hooks in at `_jacobian_for`, the exit point every backend
+shares.  SRM 660c under simulated fp32 columns moves `a` by 2.6e-11 Å and Rwp
+by 1.1e-13; read that margin as proof of *plumbing*, not of device numerics
+(the CPU round-trip captures fp32 representation loss only).  Next:
+[0404](wp/0404-cross-backend-jacobian-ci.md) (agreement CI — import the bars
+from `linalg64` rather than restating them, and note 0402's handover: the FCJ
+S/L == H/L subgradient kink needs the same loose bar there) →
+[0408](wp/0408-torch-mps-backend.md) (torch-MPS, pulled forward from v0.6;
+starts only once 0402+0404 are green, and supplies the first real-hardware
+measurement of 0403's policy).
 
 Two WPs are independent of the backend chain and can be picked up at any
 time: [0407](wp/0407-esd-reconciliation.md) (small — the reported
@@ -93,7 +102,7 @@ inflated diagonal; the same bug leaves the high-correlation guard dead) and
 |---|---|---|---|
 | [0401](wp/0401-backend-op-shim.md) | Backend op shim (~41 ops, `window_add`) + residual purity refactors | ✅ 2026-07-24 | — |
 | [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ✅ 2026-07-24 | 0401 |
-| [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ⬜ | 0402 |
+| [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ✅ 2026-07-24 | 0402 |
 | [0404](wp/0404-cross-backend-jacobian-ci.md) | Cross-backend Jacobian CI | ⬜ | 0402 |
 | [0405](wp/0405-faddeeva-voigt.md) | True Voigt via shared Faddeeva w(z) | ⬜ | 0401 |
 | [0406](wp/0406-restraint-penalty-rows.md) | Restraint penalty rows | ⬜ | — |
