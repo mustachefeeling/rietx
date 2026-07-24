@@ -427,28 +427,14 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       jac_table, stderr, corr, n_aux=n_aux)
 
 
-def run_multi_least_squares(models: list[CompiledModel],
-                            mtable: "MultiParameterTable", *,
-                            weights: list[float] | None = None,
-                            max_iter: int = 100, ftol: float = 1e-9,
-                            compute_uncertainties: bool = True,
-                            backend: str = "numpy") -> LSQOutcome:
-    """Joint TRF solve of several histograms stacked into one residual (WP-0308).
+def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
+                    *, weights: list[float] | None = None,
+                    backend: str = "numpy"):
+    """(residual, jacobian, n_data_total) for the stacked multi-histogram solve.
 
-    Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
-    windows, FCJ node counts) and its own :class:`ParameterTable`; the combined
-    free vector θ threads through them via ``mtable``'s column map, so a *shared*
-    structural column (cell, coordinates, ADPs …) receives Jacobian
-    contributions from *every* histogram — that is what refines the shared
-    quantity better than any single pattern could.
-
-    Row layout is [all histograms' data rows] then [all histograms' background-
-    penalty rows], so :func:`covariance_estimates` (which treats the first
-    ``n_data`` rows as data for χ² and the Bérar-Lelann factor) is reused
-    verbatim.  A per-histogram scalar weight ``w_h`` scales both that
-    histogram's data and its penalty rows by ``√w_h`` — keeping the smoothness
-    prior's strength relative to the data fixed; default unit weights leave the
-    residual identical to N independent solves sharing the structure.
+    Split out of :func:`run_multi_least_squares` so the stacked layout is
+    reachable without running a solve — WP-0404's cross-backend matrix compares
+    this Jacobian across backends exactly as the solver would build it.
     """
     n_hist = len(models)
     weights = [1.0] * n_hist if weights is None else list(weights)
@@ -490,6 +476,36 @@ def run_multi_least_squares(models: list[CompiledModel],
                 po = int(pen_off[h])
                 J[po:po + n_pen[h], cm] = sqrt_w[h] * Jh[n_data[h]:]
         return J
+
+    return residual, jacobian, n_data_total
+
+
+def run_multi_least_squares(models: list[CompiledModel],
+                            mtable: "MultiParameterTable", *,
+                            weights: list[float] | None = None,
+                            max_iter: int = 100, ftol: float = 1e-9,
+                            compute_uncertainties: bool = True,
+                            backend: str = "numpy") -> LSQOutcome:
+    """Joint TRF solve of several histograms stacked into one residual (WP-0308).
+
+    Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
+    windows, FCJ node counts) and its own :class:`ParameterTable`; the combined
+    free vector θ threads through them via ``mtable``'s column map, so a *shared*
+    structural column (cell, coordinates, ADPs …) receives Jacobian
+    contributions from *every* histogram — that is what refines the shared
+    quantity better than any single pattern could.
+
+    Row layout is [all histograms' data rows] then [all histograms' background-
+    penalty rows], so :func:`covariance_estimates` (which treats the first
+    ``n_data`` rows as data for χ² and the Bérar-Lelann factor) is reused
+    verbatim.  A per-histogram scalar weight ``w_h`` scales both that
+    histogram's data and its penalty rows by ``√w_h`` — keeping the smoothness
+    prior's strength relative to the data fixed; default unit weights leave the
+    residual identical to N independent solves sharing the structure.
+    """
+    residual, jacobian, n_data_total = _multi_closures(
+        models, mtable, weights=weights, backend=backend)
+    n_cols = len(mtable.free_paths)
 
     x0 = mtable.x0()
     lo, hi = mtable.bounds()
