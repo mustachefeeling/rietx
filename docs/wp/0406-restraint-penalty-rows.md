@@ -31,6 +31,45 @@ Bérar-Lelann, with an analytic row-Jacobian and a restraint-summary report.
 - **Natural consumer:** WP-0302 atomic coordinates — bond-length restraints
   become useful the moment coordinates refine.
 
+### Inherited
+
+From **WP-0301 / WP-0302** (Wyckoff constraints, coordinates — landed):
+restraints were fenced out of both ("Restraints (WP-0406, penalty rows)";
+"Restraints / soft bond-length penalties (WP-0406 supplies the penalty rows)"),
+so this WP owns them outright. Critically, **restrain the DOF paths, not
+`x`/`y`/`z`.** Coordinates refine as site-symmetry DOFs
+(`phases.i.atoms.j.dof.k`), with x/y/z *affine-tied* to them through the
+constant block `p = C·θ + d`. The x/y/z paths are tied, match no `set_vary`
+glob, and are not columns of θ — a restraint written against them has nothing
+to differentiate. The bond-length row-Jacobian must chain through the same
+constraint directions the analytic structural columns use
+(`table.constraint_block()`, as in `_structural_column`).
+
+From **WP-0306** (Pawley, landed): the `n_free` convention you are inheriting
+credits nothing for restraints — "`n_free` for Rexp/GoF counts the whole
+intensity block (`_pawley_n`); the restraint makes that slightly conservative
+(standard Pawley convention)". This WP's promise that restraints are excluded
+from Rwp/DW/Bérar-Lelann is about *residual rows*, which is a separate axis
+from parameter counting. Decide explicitly whether restrained coordinates
+follow Pawley's precedent (count fully) or claim fractional DOF, and say which
+— silently differing from the shipped convention is the trap.
+
+From **WP-0401** (op shim, landed):
+
+- **`pawley_restraint_residual(vec)` changed signature** — it now takes the
+  intensity vector rather than reading a mutated buffer, part of the residual
+  purity refactor. New penalty rows must follow the same functional threading:
+  values in, no hidden reads of mutable state, so the residual stays traceable.
+- **Bit-identity goldens now lock the existing penalty rows.** Five states in
+  `tests/data/backend_goldens/` include a toy Le Bail *with P-spline penalty
+  rows* and a toy Pawley *with overlap-restraint rows*. Adding rows must either
+  leave those byte-identical or follow the re-baseline rule in
+  `tests/data/README.md` (regenerate via `python -m tests.test_backend_shim`,
+  only from a green tree).
+- **No general index-array scatter is available** to assemble rows —
+  `window_add` on frozen contiguous windows plus `concatenate` is the whole
+  vocabulary, deliberately.
+
 ### Design (decided)
 
 - **Schema** (pydantic v2, `extra="forbid"`; opt-in, empty default so a

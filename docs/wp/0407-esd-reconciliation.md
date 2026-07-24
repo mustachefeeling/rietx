@@ -55,6 +55,49 @@ Two consequences follow:
    trips. Masked because the only guard tests assert it does *not* fire
    (`tests/test_extinction.py`, `tests/test_preferred_orientation.py`).
 
+### Inherited
+
+The Context above traces the BL placement bug on the *single-histogram
+Rietveld* path. Three landed WPs added esd routes it does not mention.
+
+From **WP-0306** (Pawley, landed): **there is a second esd path.**
+`run_least_squares` computes the covariance over the *augmented* vector
+[table θ | per-hkl intensities], then splits it — table esds to
+`LSQOutcome.stderr_internal`, intensity esds to `model.pawley.stderr`
+([`optimize/least_squares.py`](../../src/pxrdref/optimize/least_squares.py),
+the `n_aux` tail). That tail never passes through `stderr_physical`, so it does
+**not** get the `1/BL²`-cancellation described above — it is raw for a
+different reason. Whatever this WP decides, decide it for both paths and say
+so. Also note 0306's handover gotcha (4) asserts "esds carry the Bérar-Lelann
+inflation like everywhere else in the package", which this WP's own verified
+Context proves false; that line becomes true only once this lands. 0306's
+Pawley overlap test asserts esds inflate to ~112 % on an overlapped pair —
+re-measure it.
+
+From **WP-0308** (multi-histogram, landed): `run_multi_least_squares` passes
+`n_data=n_data_total` over the row layout [all histograms' data rows][all
+histograms' penalty rows], so `berar_lelann_factor` runs on the **concatenated**
+residual — a run-of-signs serial-correlation statistic evaluated across the
+joins between patterns, where consecutive points are not neighbours in 2θ.
+Verified at `least_squares.py` in `run_multi_least_squares`. Whether that is
+acceptable, or BL should be computed per histogram and combined, is this WP's
+call; it is currently unexamined rather than decided.
+
+From **WP-0304** (QPA, landed): QPA σ(W) tracks the reported-esd conditioning
+**by construction**, pinned by
+`tests/test_qpa.py::test_physical_covariance_block_diagonal_matches_stderr`
+(the block diagonal of `physical_covariance` equals the reported per-parameter
+esds squared). Checked 2026-07-24: that test feeds *synthetic* `corr` and
+`stderr_internal`, so it does not exercise `covariance_estimates` and will keep
+passing — but it is the reason σ(W) moves with this fix rather than
+independently of it, which the "Ripples" section below already anticipates.
+
+From **WP-0401** (op shim, landed): `covariance_estimates` and all of
+`optimize/statistics.py` are declared permanently host-numpy, never routed
+through the backend shim. So this fix is plain numpy post-processing — it does
+not need to be traceable, differentiable or backend-portable, and must not
+acquire `xp.*` calls.
+
 ### Decision — reconcile by INFLATING (fix the placement)
 
 ```python

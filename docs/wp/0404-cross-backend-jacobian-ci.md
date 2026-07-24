@@ -69,6 +69,36 @@ restated here or it is lost.
 - **Budget jit compile, not flops.** jax's per-stage jit compile is ~1-4 s and
   dominates toy-sized runs; parametrizing the matrix finely over jax configs
   costs compile time, not compute.
+- **The Goal above overpromises: multi-histogram Le Bail and Pawley cells do
+  not exist.** WP-0308 shipped multi-histogram as Rietveld-only, with an
+  explicit `NotImplementedError` in `multi.py` — "Le Bail / Pawley intensities
+  are per-pattern extractions, not shared, so a joint fit of them is just
+  independent single-pattern fits". So the matrix is (Rietveld × {single,
+  multi}) + ({Le Bail, Pawley} × single). Shrink the Goal sentence rather than
+  growing scope this WP does not own.
+- **Pawley is not the same comparison as Rietveld** (from 0306). Its Jacobian
+  differentiates the *augmented* residual — extra overlap-restraint rows below
+  the data and background-penalty rows — over θ = [table θ | per-hkl
+  intensities], and `LSQOutcome` hides that tail behind `n_aux` while returning
+  table-only columns. Compare the full augmented array from `_jacobian_for`,
+  not the outcome's `jac`. The intensity columns are exact analytic
+  (`−√w·Σ_lines w_line·Ω`), never FD, so they should agree to round-off — a
+  loose bar there is hiding something.
+- **Reuse the five-state golden corpus, don't build new states** (from 0401).
+  `tests/data/backend_goldens/` already pins SRM 660c, NAC, toy Le Bail (with
+  P-spline penalty rows), toy Pawley (pseudo-cubic cell so overlap-restraint
+  rows exist) and a toy with aniso + PO + extinction + displacement/
+  transparency all *nonzero*. They are environment-pinned; re-baseline only
+  via the documented rule in `tests/data/README.md`.
+- **Extinction is off by default, and that hides a real Jacobian trap** (from
+  WP-0506). The analytic `dof`/`adp` columns carry a factor `G = E + x·dE/dx`
+  (`model/forward.py`), and if it is wrong the columns disagree with FD **only
+  when `ext ≠ 0`**. Every default-state comparison would pass. The `toy_rich`
+  golden state has extinction nonzero — use it, or the matrix is blind here.
+- **FCJ columns routed to FD are out of scope by decision** (from 0401): when
+  `axial_ok=False` the axial columns fall back to FD, and autodiff correctness
+  *at* that discontinuity was explicitly declared out of scope. Exclude or
+  specially tolerate those cells rather than treating a mismatch as drift.
 
 ### Design (decided)
 

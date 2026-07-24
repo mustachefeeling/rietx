@@ -37,6 +37,63 @@ fp32-column policy.
   Voigt option work here, and is the reason it is implemented on the op set
   rather than per-backend.
 
+### Inherited
+
+From **WP-0401** (op shim, landed 2026-07-24) — the contract `TorchBackend`
+must satisfy, so these are not open design choices:
+
+- **The three sites to flip.** `backend: str = "numpy"` is already threaded
+  through `refine.py` (~line 58), `multi.py` (~line 73) and
+  `schemas/common.py` (~line 109), each raising for unknown backends. That is
+  the whole integration surface.
+- **`window_add` is functional**, returning a new array — callers thread
+  `y = xp.window_add(...)`. torch may implement it with `index_add`, but must
+  not expose in-place semantics, and must **not** widen the API to a general
+  index-array scatter even though torch supports one: data-dependent indices
+  are what frozen-per-stage discreteness forbids. `segment_sum` is likewise
+  `index_add` (numpy uses `bincount`, jax `jax.ops.segment_sum`).
+- **Bind once, not per op.** Hot-loop code does `xp = get_backend()` once per
+  compiled-model call, so the backend cannot depend on per-call device/dtype
+  inspection — device and dtype come from WP-0403's policy object.
+- **Gotcha (1), which binds every non-numpy backend, not just jax:**
+  compile-time code (`fcj_extent_deg`, node sizing) shares `_xi_max`, which is
+  xp-routed. Set the non-numpy backend only *around the solve*, or
+  `np.asarray` at the compile boundary, so frozen state stays host numpy. For
+  MPS this is sharper than it was for jax: leaking device tensors into
+  `compile_model` would put non-fp64 arrays into frozen state.
+- **Gotcha (2):** the FCJ fallback `ok` predicate and one-hot fallback weights
+  assume `n_nodes` (hence shapes) frozen — true by construction, but a
+  shape-dynamic torch implementation would break it silently.
+- **The analytic-column path is not traceable and never will be.**
+  `derivative_bases` keeps a python `isfinite` skip on purpose: it is host-side
+  Jacobian support, and mask-converting it would let NaN structural/PO gradient
+  columns reach `window_add`. Residual-path masking lives in
+  `_reflection_profile` and `phase_peaks` instead.
+
+From **WP-0402** (jax backend, landed 2026-07-24): `_jacobian_for` in
+`optimize/least_squares.py` is the single dispatch point — add the torch branch
+there and the mixed-precision policy, multi-histogram wiring and Pawley/Le Bail
+row layout all come for free. 0402 deliberately shipped no multi-histogram jax
+test for that reason (the wiring is shared); the same argument applies here.
+
+From **WP-0403** (mixed-precision policy, landed 2026-07-24):
+
+- The policy object is `MixedPrecisionPolicy` in `backend/linalg64.py`; scope
+  it with `with precision_policy(FP32_JACOBIAN)`. `jacobian_dtype` is its only
+  field — `residual_dtype`/`solve_dtype` are read-only properties pinned to
+  fp64, so there is deliberately no way to configure an fp32 residual or solve.
+- `cast_columns` is already applied at `_jacobian_for`'s exit, so **torch
+  inherits the policy with no new wiring** — do not add a second hook.
+- **This WP supplies the first real evidence about the policy.** The CPU gate
+  round-trips fp64→fp32→fp64, which captures fp32 *representation* loss only,
+  not error accumulated inside a device fp32 forward pass. Measured CPU
+  agreement is ~2.6e-8 rel-L2 against a 2e-2 bar; MPS computing the whole
+  peak-chain in fp32 is expected to be far worse, and that is the number worth
+  reporting. If the bars fail on MPS, that is a finding, not a bar to loosen
+  without saying why.
+- `column_agreement(J_ref, J_test)` in `linalg64.py` gives (worst rel-L2, worst
+  cosine) with dead columns already skipped — reuse it.
+
 ### Design (decided)
 
 - **Autodiff strategy: torch accelerates the *forward*; `torch.func.jacfwd`

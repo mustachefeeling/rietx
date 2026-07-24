@@ -19,6 +19,35 @@ tests.
   is exactly the drift WP-0404 exists to catch. One implementation
   everywhere.
 
+### Inherited
+
+From **WP-0401** (op shim, landed 2026-07-24):
+
+- **No `scipy.special`, by decision.** The hot path has none, and the shim
+  deliberately ships no special-function layer: "the WP-0405 Faddeeva is built
+  *on* this op set, so leave room but implement nothing for it here." So `w(z)`
+  is a composition of existing ops, or an explicitly justified new op — and
+  every op added is a per-backend maintenance liability (numpy, jax, torch).
+- **The op inventory, verified 2026-07-24 rather than quoted.** 0401's own
+  handover says "37 named ops"; the shipped vocabulary is **32** entries in
+  `_OP_NAMES` plus `window_add` / `segment_sum` (34 total), plus `pi` and
+  `linalg` (`.inv`/`.det`). Read `src/pxrdref/backend/api.py::_OP_NAMES` for
+  the live list — do not trust either number in prose.
+- **Complex is first-class but minimal:** `exp` (complex-capable), `conj`,
+  `real`, `imag`. There is no complex `erfc` and no complex division op, which
+  constrains which `w(z)` algorithm is expressible. complex128 on host/CPU;
+  complex64 only under WP-0403's fp32 policy.
+- **No general index-array scatter, ever** — `window_add(y, i0, i1, vals)` on
+  frozen contiguous windows is the only scatter, because data-dependent
+  indices are what frozen-per-stage discreteness exists to forbid. A
+  region-split `w(z)` (the usual Humlíček/Weideman approach picks an algorithm
+  per |z| region) must therefore be expressed as `where`-masks over the full
+  array, not as gathers into per-region index sets.
+
+From **WP-0403** (mixed-precision policy, landed 2026-07-24): if `w(z)` is
+ever evaluated below fp64, that is a *Jacobian-column* concern only — the
+policy lives in `backend/linalg64.py` and the residual stays fp64 regardless.
+
 ### Design (decided)
 
 - **Algorithm: Weideman (1994) rational approximation, N = 32 terms**
