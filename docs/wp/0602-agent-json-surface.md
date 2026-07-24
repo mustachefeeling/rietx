@@ -15,6 +15,37 @@ Depends on: —
   hardening (errors as structured, actionable JSON), not new schema work.
 - The MCP server wrapping `refine_json` stays fenced in v2.
 
+## Inherited
+
+Four result-surface shapes landed in v0.3 that a single-call JSON API will trip
+over. All are real, none are bugs.
+
+From **WP-0303** (anisotropic ADPs): **not all six U^ij components appear in
+`result.parameters`.** Symmetry-locked components (U13/U23 on rutile's 4f, say)
+never enter θ at all, so a consumer that assumes six entries per anisotropic
+atom will `KeyError` on exactly the high-symmetry sites. Report what is there;
+do not synthesise zeros.
+
+From **WP-0308** (multi-histogram): `refine_multi` runs **without** the
+`RefinementTree` DAG — no history, no per-stage nodes — because a multi-pattern
+fingerprint was left as a future seam. So a uniform `refine_json(dict) → dict`
+either excludes multi-histogram or returns a fit with no history where the
+single-pattern call has one. That asymmetry needs a deliberate answer in the
+schema, not an accident. The `RefinementResult` itself still fully serializes.
+
+From **WP-0307** (March-Dollase): `FitReport.texture` reports a diagnosed
+preferred-orientation axis, but **no Layer-2 `ActionKind` was ever added for
+it** — the vocabulary is versioned, so 0307 deferred it and no WP has claimed
+it since. An agent surface consuming Layer-2 actions is the closest natural
+owner; either claim it here or it stays orphaned.
+
+From **WP-0506** (secondary extinction): **never expose the raw `ext`
+coefficient with a fixed bound or plausibility check.** Its scale is
+wavelength/cell-dependent (x ∝ (λ/V)²): ~0 for CuKα/LaB6 but ~300 for
+0.414 Å/NAC. Judge extinction by its *effect* (x, or the minimum E across
+reflections), never by the coefficient — a hard-coded range would be wrong for
+half the instruments.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before writing code

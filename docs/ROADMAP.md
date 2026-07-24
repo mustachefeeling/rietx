@@ -34,6 +34,11 @@ a work session loads only what it needs:
    `milestones/vX.Y.md`, flip the milestone row here, and check the roadmap
    claims in README.md.
 
+*Step 3b was added 2026-07-24 and applied retroactively the same day: the
+handover logs of all 14 then-landed WPs were swept for forward-references and
+the results written into 16 downstream WPs' `### Inherited` sections. That
+backlog is cleared — new sessions only need to keep up with their own.*
+
 ## Current focus
 
 **v0.3 shipped 2026-07-24** — all ten WPs (0301–0310) landed and the full suite

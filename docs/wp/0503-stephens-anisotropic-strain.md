@@ -18,6 +18,33 @@ Depends on: —
 - Width conventions documented by physics (size↔1/cosθ, strain↔tanθ), per the
   CLAUDE.md invariant.
 
+## Inherited
+
+From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — **the one that will
+cost a debugging session.** Softplus-transformed sample-broadening terms
+starting at exactly 0 have a dead gradient and *never move*: they refine
+silently to their start value rather than erroring. The fix is
+`Stage(..., seed=…)`, following the extinction-stage precedent
+(`pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3)`). Every S_HKL
+naturally starts at 0, so this WP hits it on every parameter it introduces.
+
+From **WP-0303** (anisotropic ADPs, landed 2026-07-23): the ADP tensor
+machinery is *not* reusable here, and 0303 fenced this out from its side —
+"anisotropic *strain broadening* (Stephens) — that is peak width, not ADPs".
+The U^ij site-symmetry basis (`crystallography/wyckoff.adp_basis`) is built for
+a rank-2 tensor on a Wyckoff site; Stephens S_HKL are rank-4 invariants per
+*Laue class*. Same "symmetry-allowed subspace" idea, different group action —
+expect to write it, not import it. Worth copying from 0303 instead: the
+convention of making the parameters **absolute** (U = Σₖ θₖ·Bₖ) so site
+symmetry is enforced exactly, and raising on an out-of-subspace tensor rather
+than silently symmetrising it.
+
+From **WP-0401** (op shim, landed 2026-07-24): `model/profiles/*.py`
+(`pseudovoigt`, `fcj`, `caglioti`) are xp-routed — new width code calls `xp.*`,
+bound once per compiled-model call. Also note the frozen-per-stage invariant
+bites here: anything hkl-dependent that changes *shapes* (node counts, window
+extents) must be computed at stage compile, never inside the solve.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before writing code
