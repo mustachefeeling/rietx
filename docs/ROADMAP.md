@@ -35,11 +35,13 @@ recorded in [milestones/v0.3.md](milestones/v0.3.md).
 stubs on 2026-07-24 and are ready to start; no further planning is needed
 before code.
 
-Start at the backend op shim [0401](wp/0401-backend-op-shim.md) — it gates
-everything autodiff, because it also lands the residual *purity* refactors
-(functional intensity threading, unconditional off-value evaluation,
-`where`-masked guards) that any traceable backend needs. Then
-[0402](wp/0402-jax-backend.md) (jax jacfwd) → [0403](wp/0403-cuda-mixed-precision.md)
+The backend op shim [0401](wp/0401-backend-op-shim.md) **landed 2026-07-24**
+(363 tests green, bit-identity goldens in `tests/test_backend_shim.py`): the
+hot path speaks `xp.*` and the residual purity refactors (functional
+intensity threading, unconditional off-value evaluation, `where`-masked
+guards) are in.  Next:
+[0402](wp/0402-jax-backend.md) (jax jacfwd — read 0401's final handover entry
+first: compile-vs-solve backend scoping gotcha) → [0403](wp/0403-cuda-mixed-precision.md)
 (mixed-precision policy) + [0404](wp/0404-cross-backend-jacobian-ci.md)
 (agreement CI) → [0408](wp/0408-torch-mps-backend.md) (torch-MPS, pulled
 forward from v0.6; starts only once 0402+0404 are green).
@@ -86,7 +88,7 @@ inflated diagonal; the same bug leaves the high-correlation guard dead) and
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0401](wp/0401-backend-op-shim.md) | Backend op shim (~41 ops, `window_add`) + residual purity refactors | ⬜ | — |
+| [0401](wp/0401-backend-op-shim.md) | Backend op shim (~41 ops, `window_add`) + residual purity refactors | ✅ 2026-07-24 | — |
 | [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ⬜ | 0401 |
 | [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ⬜ | 0402 |
 | [0404](wp/0404-cross-backend-jacobian-ci.md) | Cross-backend Jacobian CI | ⬜ | 0402 |

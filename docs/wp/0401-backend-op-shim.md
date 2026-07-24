@@ -1,6 +1,6 @@
 # WP-0401 — Backend op shim (+ residual purity refactors)
 
-Milestone: v0.4 · Status: ⬜ not started
+Milestone: v0.4 · Status: ✅ done 2026-07-24
 Depends on: —
 
 ## Goal
@@ -113,20 +113,20 @@ computed number on the numpy path.
 
 ## Tasks
 
-- [ ] `backend/api.py`: `Backend` protocol + `NumpyBackend` (attributes =
+- [x] `backend/api.py`: `Backend` protocol + `NumpyBackend` (attributes =
       numpy funcs), `set_backend`/`get_backend`, the ~41-op vocabulary;
       `window_add` + `segment_sum` numpy impls
-- [ ] Route `crystallography/{structure_factor,lattice,scattering}.py`
+- [x] Route `crystallography/{structure_factor,lattice,scattering}.py`
       through `xp` (einsum/exp/conj/real/inv/det)
-- [ ] Route `model/profiles/{pseudovoigt,fcj,caglioti}.py` and
+- [x] Route `model/profiles/{pseudovoigt,fcj,caglioti}.py` and
       `model/{corrections,extinction,preferred_orientation}.py` through `xp`
       (`segment_sum` replaces `bincount`)
-- [ ] Route `model/forward.py` accumulation through `window_add`
+- [x] Route `model/forward.py` accumulation through `window_add`
       (functional threading of `y`)
-- [ ] Purity refactor (a): thread Pawley/Le Bail intensities functionally
-- [ ] Purity refactors (b)+(c)+(d): unconditional off-value evaluation,
+- [x] Purity refactor (a): thread Pawley/Le Bail intensities functionally
+- [x] Purity refactors (b)+(c)+(d): unconditional off-value evaluation,
       `where`-masks (numbers unchanged — assert bit-identity in tests)
-- [ ] Tests: `tests/test_backend_shim.py` — numpy backend bit-identical
+- [x] Tests: `tests/test_backend_shim.py` — numpy backend bit-identical
       (`np.array_equal`) to pre-refactor golden `evaluate`/Jacobian arrays on
       the SRM 660c and NAC states; full suite green unchanged + obs/calc/diff
       PNGs to `tests/output/`
@@ -156,3 +156,42 @@ test:
   architecture decided (namespace object, `window_add`/`segment_sum`
   primitives, ~41-op list enumerated from a code survey), purity refactors
   (a)–(d) folded in as numpy-identical commits.
+- **2026-07-24 (later)** — **done.** All tasks landed as seven commits
+  (`9e769ff…3db6d25`). Acceptance measured: full suite **363 passed** with
+  zero numeric change (bit-identity goldens all pass), `ruff` clean,
+  obs/calc/diff PNGs visually checked (SRM 660c Rwp 8.66 %, NAC Rwp 9.31 % —
+  unchanged).
+  - **Goldens beyond the WP ask**: five states, not two — SRM 660c, NAC, plus
+    toy Le Bail (+P-spline penalty rows), toy Pawley (pseudo-cubic cell so
+    overlap-restraint rows exist), and a toy with aniso+PO+extinction+
+    displacement/transparency all *nonzero* (gates the on-values). Captured
+    pre-refactor at `c9fc8c0`; environment-pinned npz under
+    `tests/data/backend_goldens/` (provenance + re-baseline rule in
+    `tests/data/README.md`; regenerate via
+    `python -m tests.test_backend_shim` only from a green tree).
+  - **Extra modules routed**: `adp.reciprocal_axis_lengths` +
+    `adp.ustar_from_ucif` (both on the θ chain via `_site_values`/aniso DW),
+    and the caglioti `gauss_size` branch folded into (b) — all θ-value
+    branches in the residual path are gone, not just the listed ones.
+  - **One deliberate deviation from (c)**: `derivative_bases` (forward.py)
+    keeps its `isfinite` python skip.  It is host-side Jacobian support,
+    never traced (an autodiff backend differentiates the residual, not the
+    analytic-column machinery), and mask-converting it would let NaN
+    structural/PO intensity-gradient columns (Lp of a NaN position) reach
+    `window_add`.  The residual-path masking lives in `_reflection_profile`
+    (where-mask at a safe position) + `phase_peaks` (zeroes the matching
+    intensity — NaN·0 protection).
+  - **API changes**: `pawley_restraint_residual(vec)` now takes the intensity
+    vector; new `CompiledModel.split_pawley_intensities`;
+    `set_pawley_intensities` is the single post-solve commit;
+    `evaluate`/`phase_peaks`/`derivative_bases` grew optional intensity args
+    (buffers = storage at rest for plots/exporters/replay/history);
+    `cell_volume` returns a 0-d fp64 scalar (np.float64 subclasses float, so
+    QPA/pydantic are unaffected).
+  - **Gotchas for WP-0402**: (1) compile-time code (`fcj_extent_deg`,
+    node sizing) shares `_xi_max`, which is xp-routed — set the non-numpy
+    backend only *around the solve*, or `np.asarray` at the compile boundary,
+    so frozen state stays host numpy.  (2) The FCJ fallback `ok` predicate
+    and the one-hot fallback weights assume `n_nodes` (hence shapes) frozen —
+    true by construction.  (3) `isfinite` was added to the op vocabulary
+    (needed by (c)); the shim ended at 37 named ops + `linalg.inv/det` + `pi`.
