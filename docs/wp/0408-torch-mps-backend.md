@@ -94,6 +94,36 @@ From **WP-0403** (mixed-precision policy, landed 2026-07-24):
 - `column_agreement(J_ref, J_test)` in `linalg64.py` gives (worst rel-L2, worst
   cosine) with dead columns already skipped — reuse it.
 
+From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24) — **the torch
+row of the matrix is already written and self-skipping**, so most of the
+"prove the op set is correct" work above is done for you:
+
+- `tests/test_cross_backend.py` has a `"torch"` method row (and a
+  `"torch+fp32"`-shaped seam via `_fp32_over`) that calls
+  `pytest.importorskip("torch")` and then `_jacobian_for(model, table,
+  "torch")`, skipping on the `ValueError: unknown backend`. **Adding the torch
+  branch to `_jacobian_for` plus a `torch` extra in `pyproject.toml` activates
+  it across every config at once** — the 18 analytic families, Le Bail with
+  P-spline penalty rows, Pawley (aux block + restraint rows), the aniso/PO/
+  extinction state, real srm660c/nac data, and the stacked multi-histogram
+  layout. Add a `_fp32_over("torch")` entry to `METHODS` at the same time.
+  Do not write a parallel torch-only agreement test; extend that matrix.
+- **Expect the srm660c axial columns to disagree at the few-1e-3 level** and
+  that is not your bug: the state starts at S/L == H/L, the FCJ quadrature-split
+  kink, where right-sided, subgradient and central estimates legitimately
+  differ. The matrix already applies WP-0402's loose bar (2e-2 / 0.9995) to
+  exactly those two columns, and only when the state sits on the kink.
+- **The FD reference in that file is central, not forward.** Forward
+  differences sit 6.2e-3 from the analytic column on srm660c cell `a` — past
+  the 5e-3 fp64 bar for pure truncation reasons. If you add a torch FD variant,
+  make it central too.
+- `_multi_closures(models, mtable, *, weights, backend)` now exists in
+  `optimize/least_squares.py` (split out of `run_multi_least_squares`): it
+  returns the stacked `(residual, jacobian, n_data_total)` without running a
+  solve. That is how the multi-histogram row gets a torch Jacobian.
+- The benchmark above stays out of this file: WP-0404's acceptance is
+  correctness only, and its tests deliberately assert no wall-clock.
+
 ### Design (decided)
 
 - **Autodiff strategy: torch accelerates the *forward*; `torch.func.jacfwd`

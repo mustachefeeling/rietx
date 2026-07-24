@@ -48,6 +48,23 @@ From **WP-0403** (mixed-precision policy, landed 2026-07-24): if `w(z)` is
 ever evaluated below fp64, that is a *Jacobian-column* concern only — the
 policy lives in `backend/linalg64.py` and the residual stays fp64 regardless.
 
+From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24) — the drift
+guard this file's Context invokes now exists, and **it only sees what the
+state builders contain**:
+
+- `tests/test_cross_backend.py` runs (analytic | central FD | jax | torch |
+  fp32-policy) × configs, where the configs are `tests/test_backend_shim.py`'s
+  `STATES` plus the 18 `ANALYTIC_FAMILIES` lab state. A true-Voigt instrument
+  is a *new derivative path*: add one state with `profile.shape="voigt"` to
+  `STATES` (regenerating its golden per `tests/data/README.md`) and it joins
+  every method row at once. Ship the profile without doing that and the matrix
+  is silently blind to it — the same trap WP-0506 hit, where the extinction
+  factor `G = E + x·dE/dx` was only exercised because `toy_rich` has
+  extinction nonzero.
+- The bars there are per-column rel-L2 < 5e-3 and cosine > 0.99999 for fp64
+  methods. The analytic ∂V/∂(σ,γ) columns this WP writes are what gets
+  measured against central FD and jacfwd.
+
 ### Design (decided)
 
 - **Algorithm: Weideman (1994) rational approximation, N = 32 terms**

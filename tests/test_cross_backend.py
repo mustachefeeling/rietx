@@ -55,11 +55,11 @@ Two documented exceptions, neither of them drift:
 Why central differences
 -----------------------
 Forward differences carry O(h) truncation error, and on real data with sharp
-peaks that is not small: measured against the analytic column on ``srm660c``,
-forward FD sits 6.2e-3 away on ``phases.0.cell.a`` and ``nac`` 4.7e-3 — at or
+peaks that is not small: measured against the analytic column, forward FD sits
+6.2e-3 away on ``srm660c``'s ``phases.0.cell.a`` and 4.7e-3 on ``nac``'s — at or
 past the 5e-3 bar, for reasons that have nothing to do with any backend.  The
-same columns with central differences (O(h²)) land at 1.2e-3 and 2.2e-5.  A bar
-loose enough to accommodate forward FD would be too loose to catch drift, so
+same two columns with central differences (O(h²)) land at 4.3e-5 and 2.2e-5.  A
+bar loose enough to accommodate forward FD would be too loose to catch drift, so
 the FD *reference* here is central; the forward-difference variant remains
 under test where it belongs, as the v0.2 harness
 (``test_v02_core.test_analytic_jacobian_matches_fd``).

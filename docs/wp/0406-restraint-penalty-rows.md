@@ -70,6 +70,24 @@ From **WP-0401** (op shim, landed):
   `window_add` on frozen contiguous windows plus `concatenate` is the whole
   vocabulary, deliberately.
 
+From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24) — two things
+that check the "one new wrinkle" above (a *nonlinear* penalty row-Jacobian,
+which the P-spline and Pawley precedents did not have):
+
+- `tests/test_cross_backend.py` compares the **full augmented** Jacobian —
+  data rows *and* every penalty/restraint row below them — against central
+  differences of the same augmented residual, per column at rel-L2 < 5e-3 and
+  cosine > 0.99999. So a hand-written analytic restraint row-Jacobian is
+  checked for free, but only on a state that actually carries restraints: add
+  one to `tests/test_backend_shim.py::STATES` (the configs come from there) or
+  the matrix never sees the new rows.
+- Its stage-boundary test asserts the residual **row count is unchanged across
+  a recompile** and that the Jacobian's shared columns move < 1e-4 (Frobenius)
+  when the frozen state regenerates. Build the restraint row block
+  deterministically from the frozen state, the way `build_pawley_restraint`
+  does, or a boundary will change the row count mid-plan and that test will
+  say so.
+
 ### Design (decided)
 
 - **Schema** (pydantic v2, `extra="forbid"`; opt-in, empty default so a

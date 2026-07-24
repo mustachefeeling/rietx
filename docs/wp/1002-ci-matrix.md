@@ -23,6 +23,28 @@ the scope above has a known obstacle:
   ~20 s. That split is what makes a per-push job viable and a nightly job
   necessary — 23 tests are currently `slow`.
 
+From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24):
+
+- **The `[jax]`/`[torch]` optional jobs have their target file.**
+  `tests/test_cross_backend.py` is the (method × config) Jacobian-agreement
+  matrix; every backend row self-skips when its package is absent, so the *same
+  command* is green on a numpy-only job and covers more on an extras job. There
+  is no separate "with extras" invocation to configure — install the extra and
+  the rows activate. A numpy-only job still runs the central-FD and
+  fp32-column-policy rows (the WP-0403 policy is not a backend and needs no
+  install), so the file is never a no-op.
+- **Both runtime figures above are stale**, measured 2026-07-24 on an M-series
+  laptop: the full suite is **~13 min** (not ~2 min) and `-m "not slow"` is
+  **~85 s** (not ~20 s). WP-0404's matrix accounts for ~42 s / ~22 s of those;
+  the rest accumulated across v0.3's real-data acceptance and the v0.4 jax
+  tests. CLAUDE.md has been corrected. The per-push/nightly split the scope
+  above assumes still holds, but size it from a fresh measurement — the numbers
+  have drifted by 6× once already.
+- **jit compile, not flops, is what the jax rows cost.** The matrix caches one
+  built Jacobian callable per (config, backend) so the fp32 row reuses the
+  compiled one — halved that file's runtime. A CI job that shards these tests
+  across workers loses the cache and pays every compile again.
+
 From **WP-0401** (op shim, landed 2026-07-24): `tests/test_backend_shim.py`
 asserts **bit-identity** against environment-pinned npz goldens in
 `tests/data/backend_goldens/`. A multi-OS × multi-Python matrix is exactly the
