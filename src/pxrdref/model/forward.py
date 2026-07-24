@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from ..backend import get_backend
 from ..background.models import (
     bspline_design_matrix,
     chebyshev_design_matrix,
@@ -167,7 +168,8 @@ class CompiledModel:
 
     # ------------------------------------------------------------------
     def background(self, values: dict[str, float]) -> np.ndarray:
-        coeffs = np.array([values[p] for p in self.bkg_paths])
+        # stacked, not np.array-ed: the coefficients come from θ (traced)
+        coeffs = get_backend().stack([values[p] for p in self.bkg_paths])
         y = coeffs @ self.bkg_design
         if self.fixed_background is not None:
             y = y + self.fixed_background
@@ -177,7 +179,7 @@ class CompiledModel:
         """√λ·D₂·c rows appended to the residual (P-spline smoothness)."""
         if self.bkg_penalty is None:
             return None
-        coeffs = np.array([values[p] for p in self.bkg_paths])
+        coeffs = get_backend().stack([values[p] for p in self.bkg_paths])
         return self.bkg_penalty @ coeffs
 
     def _position_shift_deg(self, theta: np.ndarray, tt_bragg: np.ndarray,
@@ -203,16 +205,17 @@ class CompiledModel:
         Rows of isotropic atoms are zero-filled and never read (``sites.aniso``
         selects); a* moves with the cell, so it is recomputed per call.
         """
+        xp = get_backend()
         sites = self.phases[ip].sites
         n = sites.n_asym
-        xyz = np.array([[values[f"phases.{ip}.atoms.{j}.{c}"] for c in ("x", "y", "z")]
-                        for j in range(n)])
-        occ = np.array([values[f"phases.{ip}.atoms.{j}.occ"] for j in range(n)])
-        biso = np.array([values[f"phases.{ip}.atoms.{j}.biso"] for j in range(n)])
+        xyz = xp.stack([xp.stack([values[f"phases.{ip}.atoms.{j}.{c}"]
+                                  for c in ("x", "y", "z")]) for j in range(n)])
+        occ = xp.stack([values[f"phases.{ip}.atoms.{j}.occ"] for j in range(n)])
+        biso = xp.stack([values[f"phases.{ip}.atoms.{j}.biso"] for j in range(n)])
         if not sites.any_aniso:
             return xyz, occ, biso, None, None
-        uaniso = np.array([[values.get(f"phases.{ip}.atoms.{j}.{u}", 0.0) for u in U_NAMES]
-                           for j in range(n)])
+        uaniso = xp.stack([xp.stack([values.get(f"phases.{ip}.atoms.{j}.{u}", 0.0)
+                                     for u in U_NAMES]) for j in range(n)])
         return xyz, occ, biso, uaniso, reciprocal_axis_lengths(*cell)
 
     def _po_factors(self, ip: int, values: dict[str, float], cell: tuple
@@ -309,7 +312,8 @@ class CompiledModel:
 
     def phase_component(self, ip: int, values: dict[str, float]) -> np.ndarray:
         """Bragg contribution of one phase (used by the analytic scale Jacobian)."""
-        y = np.zeros_like(self.tt)
+        xp = get_backend()
+        y = xp.zeros_like(self.tt)
         cp = self.phases[ip]
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
@@ -318,14 +322,14 @@ class CompiledModel:
                 prof = self._reflection_profile(cp, il, k, pos[k], gamma[k], eta[k], sl, hl)
                 if prof is None:
                     continue
-                i0, i1 = cp.win[il, k]
-                y[i0:i1] += intensity[k] * prof
+                i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                y = xp.window_add(y, i0, i1, intensity[k] * prof)
         return y
 
     def bragg_component(self, values: dict[str, float]) -> np.ndarray:
-        y = np.zeros_like(self.tt)
+        y = get_backend().zeros_like(self.tt)
         for ip in range(len(self.phases)):
-            y += self.phase_component(ip, values)
+            y = y + self.phase_component(ip, values)
         return y
 
     def evaluate(self, values: dict[str, float]) -> np.ndarray:
@@ -558,25 +562,26 @@ class CompiledModel:
         """
         if self.mode not in ("lebail", "pawley"):
             raise RuntimeError("lebail_update on a Rietveld-mode model")
+        xp = get_backend()
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         for _ in range(n_cycles):
             bkg = self.background(values)
-            net = np.maximum(self.y_obs - bkg, 0.0)
+            net = xp.maximum(self.y_obs - bkg, 0.0)
             for ip, cp in enumerate(self.phases):
                 peaks = self.phase_peaks(ip, values)
                 n = len(cp.reflections)
                 n_lines = len(self.line_wavelengths)
                 profs: list[list[np.ndarray | None]] = []
-                y_bragg = np.zeros_like(self.tt)
+                y_bragg = xp.zeros_like(self.tt)
                 for il, (pos, gamma, eta, intensity) in enumerate(peaks):
                     row: list[np.ndarray | None] = []
                     for k in range(n):
                         om = self._reflection_profile(cp, il, k, pos[k], gamma[k], eta[k], sl, hl)
                         row.append(om)
                         if om is not None:
-                            i0, i1 = cp.win[il, k]
-                            y_bragg[i0:i1] += intensity[k] * om
+                            i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
+                            y_bragg = xp.window_add(y_bragg, i0, i1, intensity[k] * om)
                     profs.append(row)
                 new_int = np.asarray(cp.hkl_intensity, dtype=np.float64).copy()
                 for k in range(n):

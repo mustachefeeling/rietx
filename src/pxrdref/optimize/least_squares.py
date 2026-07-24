@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.optimize import least_squares
 
+from ..backend import get_backend
 from ..crystallography.adp import U_NAMES
 from ..model.forward import CompiledModel, DerivativeBases
 from ..params.transforms import dphys_dinternal
@@ -71,6 +72,7 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
     """
     sqrt_w = 1.0 / model.sigma
     n_table = len(table.free_paths)
+    xp = get_backend()
 
     def residual(theta: np.ndarray) -> np.ndarray:
         if model.pawley is not None:
@@ -86,7 +88,7 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
         rpen = model.pawley_restraint_residual()
         if rpen is not None:
             parts.append(rpen)
-        return parts[0] if len(parts) == 1 else np.concatenate(parts)
+        return parts[0] if len(parts) == 1 else xp.concatenate(parts)
 
     return residual
 
@@ -108,7 +110,8 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     else:
         affected = range(len(model.phases))
 
-    dy = np.zeros_like(model.tt)
+    xp = get_backend()
+    dy = xp.zeros_like(model.tt)
     for ip in affected:
         peaks_p = model.phase_peaks(ip, values_p)
         peaks_0 = bases.peaks[ip]
@@ -121,16 +124,16 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
             d_p = (pos1[k] - pos0[k]) / h
             d_g = (gam1[k] - gam0[k]) / h
             d_e = (eta1[k] - eta0[k]) / h
-            col = dy[i0:i1]
+            # one window_add per term keeps the pre-shim accumulation order
             if d_i != 0.0:
-                col += d_i * omega
+                dy = xp.window_add(dy, i0, i1, d_i * omega)
             if int0[k] != 0.0:
                 if d_p != 0.0:
-                    col += (int0[k] * d_p) * d_pos
+                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_p) * d_pos)
                 if d_g != 0.0:
-                    col += (int0[k] * d_g) * d_gamma
+                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_g) * d_gamma)
                 if d_e != 0.0:
-                    col += (int0[k] * d_e) * d_eta
+                    dy = xp.window_add(dy, i0, i1, (int0[k] * d_e) * d_eta)
     return dy
 
 
@@ -145,15 +148,16 @@ def _structural_column(model: CompiledModel, table: ParameterTable,
     column follows whatever site-symmetry basis WP-0301 wired — displacement
     directions for x, y, z; U^ij patterns for the six ADP components.
     """
+    xp = get_backend()
     C, _ = table.constraint_block()
     coeffs = np.array([C[table._paths[f"phases.{ip}.atoms.{j}.{name}"], c]
                        for name in rows], dtype=np.float64)
     dint = grad(ip, j, coeffs, values)
-    dy = np.zeros_like(model.tt)
+    dy = xp.zeros_like(model.tt)
     for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
         v = dint[il][k]
         if v != 0.0:
-            dy[i0:i1] += v * omega
+            dy = xp.window_add(dy, i0, i1, v * omega)
     return dy
 
 
@@ -166,21 +170,23 @@ def _po_column(model: CompiledModel, bases: DerivativeBases,
     untouched); it is applied to the same frozen profile bases the forward
     model uses.  The softplus chain factor ∂r/∂θ is applied by the caller.
     """
-    dy = np.zeros_like(model.tt)
+    xp = get_backend()
+    dy = xp.zeros_like(model.tt)
     dint = model.po_intensity_grad(ip, values)
     if dint is None:
         return dy
     for (il, k, i0, i1, omega, *_rest) in bases.entries[ip]:
         v = dint[il][k]
         if v != 0.0:
-            dy[i0:i1] += v * omega
+            dy = xp.window_add(dy, i0, i1, v * omega)
     return dy
 
 
 def _axial_column(model: CompiledModel, bases: DerivativeBases,
                   which: int, dpdu: float) -> np.ndarray:
     """∂y/∂θ_c for S/L (which=8) or H/L (which=9) from the node-FD bases."""
-    dy = np.zeros_like(model.tt)
+    xp = get_backend()
+    dy = xp.zeros_like(model.tt)
     for ip, rows in enumerate(bases.entries):
         for row in rows:
             il, k, i0, i1 = row[0], row[1], row[2], row[3]
@@ -189,7 +195,7 @@ def _axial_column(model: CompiledModel, bases: DerivativeBases,
                 continue
             intensity = bases.peaks[ip][il][3][k]
             if intensity != 0.0:
-                dy[i0:i1] += (intensity * dpdu) * d_ax
+                dy = xp.window_add(dy, i0, i1, (intensity * dpdu) * d_ax)
     return dy
 
 
