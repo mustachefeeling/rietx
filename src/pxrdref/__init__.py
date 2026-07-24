@@ -1,6 +1,14 @@
 """pxrd-refine: API-first Rietveld refinement of powder X-ray diffraction data."""
 
+from .crystallography.cif import format_su
 from .history import RefinementTree
+from .io.exporters import (
+    ReflectionRow,
+    reflection_table,
+    write_qpa_table,
+    write_refinement_cif,
+    write_reflection_table,
+)
 from .io.instrument_profile import load_instrument_profile, save_instrument_profile
 from .io.readers import read_pattern, read_pdcif
 from .multi import MultiHistogramRefinement, refine_multi
@@ -38,17 +46,23 @@ __all__ = [
     "RefinementResult",
     "RefinementState",
     "RefinementTree",
+    "ReflectionRow",
     "RegionAttribution",
     "SharingMap",
     "Stage",
     "Structure",
     "SuggestedAction",
     "build_report",
+    "format_su",
     "load_instrument_profile",
     "read_pattern",
     "read_pdcif",
+    "reflection_table",
     "refine",
     "refine_multi",
     "replay",
     "save_instrument_profile",
+    "write_qpa_table",
+    "write_reflection_table",
+    "write_refinement_cif",
 ]

@@ -6,8 +6,12 @@ import warnings
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .io.exporters import ReflectionRow
 
 from .history.events import as_event_stream
 from .history.store import fingerprint
@@ -558,6 +562,46 @@ class Refinement:
         return build_report(self.result_, model=self._model,
                             values=table.decode(table.x0()), plan=plan,
                             free_paths=list(self._free_paths), **kw)
+
+    # ------------------------------------------------------------------
+    # exporters (WP-0309): reflection table, refinement CIF, QPA table
+    # ------------------------------------------------------------------
+    def reflection_table(self) -> list["ReflectionRow"]:
+        """Every (emission line, reflection) of the last fit as typed rows.
+
+        See :func:`pxrdref.io.exporters.reflection_table`.  In Le Bail/Pawley
+        mode the intensities are the extracted/refined ones held on the model.
+        """
+        from .io.exporters import reflection_table
+
+        if self._model is None or self.result_ is None:
+            raise RuntimeError("call fit() first")
+        table = ParameterTable(self.structure, self.instrument)
+        values = table.decode(table.x0())
+        return reflection_table(self._model, values, self.structure)
+
+    def write_reflection_table(self, path, **kw) -> None:
+        """Write the reflection table to CSV/TSV (delimiter from the suffix)."""
+        from .io.exporters import write_reflection_table
+
+        write_reflection_table(self.reflection_table(), path, **kw)
+
+    def write_cif(self, path) -> None:
+        """Write a refinement CIF: structure with esds, R-factors, wavelength,
+        profile/background description, and the observed/calculated pattern."""
+        from .io.exporters import write_refinement_cif
+
+        if self.result_ is None:
+            raise RuntimeError("call fit() first")
+        write_refinement_cif(self.result_, self.structure, self.instrument, path)
+
+    def write_qpa_table(self, path, **kw) -> None:
+        """Write the QPA weight-fraction table (crystalline-only caveat included)."""
+        from .io.exporters import write_qpa_table
+
+        if self.result_ is None or self.result_.qpa is None:
+            raise RuntimeError("no QPA on this result (Rietveld fits only)")
+        write_qpa_table(self.result_.qpa, path, **kw)
 
     @property
     def fitted_structure(self) -> Structure:
