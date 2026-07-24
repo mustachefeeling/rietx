@@ -77,8 +77,14 @@ from pxrdref.backend.linalg64 import (
     precision_policy,
 )
 from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import _jacobian_for, _make_residual
+from pxrdref.optimize.least_squares import (
+    _jacobian_for,
+    _make_jacobian,
+    _make_residual,
+    run_least_squares,
+)
 from pxrdref.params.vector import ParameterTable
+from pxrdref.strategy.staged import Stage
 from tests.test_backend_shim import STATES
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
 
@@ -170,12 +176,26 @@ def _kink_paths(model, table) -> frozenset[str]:
 # ----------------------------------------------------------------------
 # methods
 # ----------------------------------------------------------------------
-def _analytic_jacobian(model, table):
+#: one built Jacobian callable per (config, backend): jax pays a 1-4 s jit
+#: compile per state, and the fp32 row is the *same* callable under a policy
+#: read per call — so it must not trigger a second compile.  Keyed by config
+#: name, whose state ``_STATE_CACHE`` keeps alive for the session.
+_JACOBIAN_CACHE: dict[tuple[str, str], object] = {}
+
+
+def _for_backend(config: str, model, table, name: str):
+    key = (config, name)
+    if key not in _JACOBIAN_CACHE:
+        _JACOBIAN_CACHE[key] = _jacobian_for(model, table, name)
+    return _JACOBIAN_CACHE[key]
+
+
+def _analytic_jacobian(config, model, table):
     """The reference: the mixed analytic/FD assembly on the numpy backend."""
-    return _jacobian_for(model, table, "numpy")
+    return _for_backend(config, model, table, "numpy")
 
 
-def _central_fd_jacobian(model, table):
+def _central_fd_jacobian(config, model, table):
     """Central differences of the (augmented) numpy residual — the reference
     independent of both the analytic chain and autodiff."""
     residual = _make_residual(model, table)
@@ -197,10 +217,10 @@ def _backend_jacobian(name: str):
     """A row for an optional backend: skipped when it is not installed, and
     (for torch) while ``_jacobian_for`` does not know it yet — WP-0408."""
 
-    def build(model, table):
+    def build(config, model, table):
         pytest.importorskip(name)
         try:
-            return _jacobian_for(model, table, name)
+            return _for_backend(config, model, table, name)
         except ValueError as exc:  # "unknown backend" — not wired yet
             pytest.skip(f"{exc} (torch lands with WP-0408)")
 
@@ -212,8 +232,8 @@ def _fp32_over(name: str):
     own, so it composes with every row above and needs no optional install."""
     inner = _backend_jacobian(name) if name != "numpy" else _analytic_jacobian
 
-    def build(model, table):
-        jac = inner(model, table)
+    def build(config, model, table):
+        jac = inner(config, model, table)
 
         def jacobian(theta: np.ndarray) -> np.ndarray:
             with precision_policy(FP32_JACOBIAN):
@@ -265,8 +285,8 @@ def test_jacobian_matches_analytic(method, config):
     build, rel_max, cos_min = METHODS[method]
     theta = _theta(model, table)
 
-    J_ref = _analytic_jacobian(model, table)(theta)
-    J_test = build(model, table)(theta)   # may skip (optional backend)
+    J_ref = _analytic_jacobian(config, model, table)(theta)
+    J_test = build(config, model, table)(theta)   # may skip (optional backend)
     _assert_columns(J_ref, J_test, _labels(model, table),
                     rel_max=rel_max, cos_min=cos_min,
                     kink=_kink_paths(model, table),
@@ -290,6 +310,179 @@ def test_axial_columns_are_not_silently_fd_routed(config):
         "rather than comparing autodiff at the FCJ discontinuity")
 
 
+# ----------------------------------------------------------------------
+# stage boundaries: the frozen state, regenerated
+# ----------------------------------------------------------------------
+#: recompile gap at a stage boundary — whole-matrix Frobenius and worst single
+#: column, both relative.  Measured (see the module docstring for the method):
+#: srm660c after the displacement stage moved the specimen 0.08 mm, 5.9e-6 /
+#: 6.9e-5; the toy Le Bail and Pawley cells 1.9e-7 / 7.6e-7.  The bars sit ~15×
+#: above the worst of those — loose enough for a converged stage's parameter
+#: move, far tighter than a discreteness bug (a dropped reflection or an
+#: off-by-one window changes a column by 1e-2 and up).
+BOUNDARY_FROBENIUS_MAX = 1e-4
+BOUNDARY_COLUMN_MAX = 1e-3
+
+
+def _frozen_signature(model) -> list[tuple]:
+    """What a stage freezes: the hkl list, the per-(line, reflection) window
+    index ranges, the FCJ quadrature node counts and the March-Dollase orbit
+    members.  Nothing in here may move during a least-squares run."""
+    return [(cp.reflections.hkl.copy(), cp.win.copy(), cp.fcj_n.copy(),
+             None if cp.po_members is None else cp.po_members.copy())
+            for cp in model.phases]
+
+
+def _same_signature(a: list[tuple], b: list[tuple]) -> bool:
+    if len(a) != len(b):
+        return False
+    return all(all((x is None and y is None) or
+                   (x is not None and y is not None and np.array_equal(x, y))
+                   for x, y in zip(pa, pb, strict=True))
+               for pa, pb in zip(a, b, strict=True))
+
+
+def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld"):
+    """Run a staged plan, reporting what each recompile did to the Jacobian.
+
+    Mirrors ``Refinement._run_stage`` (free the stage's globs, drop structural
+    parameters in the whole-pattern modes, recompile with the new free set,
+    carry Le Bail/Pawley intensities) and adds one measurement at each stage
+    boundary: the previous stage's *frozen* model and the freshly compiled one,
+    both differentiated at the same parameter values with the same table, over
+    the columns the two stages share.
+
+    The measurement is taken **before** ``lebail_update``: re-partitioning the
+    extracted intensities is a deliberately path-dependent step that changes the
+    model itself (measured 8.2e-2 on the toy Le Bail cell boundary, 3.2e-1 for
+    Pawley), so including it would swamp the quantity under test — the
+    regeneration of the frozen discreteness.
+    """
+    from pxrdref.refine import _carry_lebail
+
+    table = ParameterTable(structure, instrument)
+    table.set_vary(["*"], False)
+    model = None
+    prev_free: list[str] = []
+    records = []
+
+    for stage in stages:
+        table.set_vary(stage.turn_on, True)
+        if mode in ("lebail", "pawley"):
+            for path in list(table.free_paths):
+                if ".atoms." in path or path.endswith(".scale") \
+                        or ".source.lines." in path:
+                    table.set_vary([path], False)
+        table.apply_to_models(structure, instrument)
+        fresh = compile_model(structure, instrument, data, mode=mode,
+                              free_paths=set(table.free_paths))
+        carried = False
+        if model is not None and mode in ("lebail", "pawley"):
+            _carry_lebail(model, fresh)
+            carried = True
+        if mode == "pawley":
+            fresh.build_pawley_restraint()
+
+        if model is not None:
+            J_before = _make_jacobian(model, table)(_theta(model, table))
+            J_after = _make_jacobian(fresh, table)(_theta(fresh, table))
+            idx = [table.free_paths.index(p) for p in prev_free]
+            assert J_before.shape[0] == J_after.shape[0], (
+                f"{stage.name}: row count changed across the recompile "
+                f"({J_before.shape[0]} → {J_after.shape[0]})")
+            B, A = J_before[:, idx], J_after[:, idx]
+            per_column = [float(np.linalg.norm(A[:, k] - B[:, k])
+                                / np.linalg.norm(A[:, k]))
+                          for k in range(len(idx))]
+            records.append({
+                "stage": stage.name,
+                "frobenius": float(np.linalg.norm(A - B) / np.linalg.norm(A)),
+                "worst_column": max(per_column),
+                "worst_path": prev_free[int(np.argmax(per_column))],
+                # did the recompile actually produce a different frozen state?
+                # if not, "continuity" would be a comparison of identical models
+                "frozen_state_moved": not _same_signature(
+                    _frozen_signature(model), _frozen_signature(fresh)),
+            })
+
+        model = fresh
+        if mode == "lebail":
+            model.lebail_update(table.decode(table.x0()),
+                                n_cycles=stage.lebail_cycles)
+        elif mode == "pawley" and not carried:
+            model.lebail_update(table.decode(table.x0()),
+                                n_cycles=stage.lebail_cycles)
+            model.build_pawley_restraint()
+
+        before = _frozen_signature(model)
+        outcome = run_least_squares(model, table, max_iter=stage.max_iter)
+        assert _same_signature(before, _frozen_signature(model)), (
+            f"{stage.name}: the frozen state moved *during* the least-squares "
+            "run — the differentiability invariant is broken")
+        table.commit(outcome.theta)
+        if mode == "lebail":
+            model.lebail_update(table.decode(outcome.theta),
+                                n_cycles=stage.lebail_cycles)
+        prev_free = list(table.free_paths)
+        table.apply_to_models(structure, instrument)
+
+    return records
+
+
+def _assert_boundaries(records, *, what: str):
+    for rec in records:
+        assert rec["frobenius"] < BOUNDARY_FROBENIUS_MAX, (
+            f"{what} → {rec['stage']}: recompile moved the Jacobian by "
+            f"{rec['frobenius']:.3e} (Frobenius, relative)")
+        assert rec["worst_column"] < BOUNDARY_COLUMN_MAX, (
+            f"{what} → {rec['stage']}: {rec['worst_path']} moved "
+            f"{rec['worst_column']:.3e} across the recompile")
+
+
+def test_stage_boundary_continuity_rietveld():
+    """The headline case: three stages of the NIST SRM 660c protocol on real
+    lab data.  Freeing scale + background cannot move the frozen state at all,
+    so that recompile must be bit-identical; the displacement stage moves the
+    specimen 0.08 mm, which does shift windows — and the Jacobian follows
+    continuously rather than jumping."""
+    from tests.test_acceptance_srm660c import build_srm_inputs
+
+    data, structure, instrument = build_srm_inputs()
+    records = _stage_boundaries(data, structure, instrument, [
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("disp", ["instrument.geometry.sample_displacement"]),
+        Stage("cell", ["phases.*.cell.*"]),
+    ])
+    assert len(records) == 2
+    # scale and background enter neither the reflection list nor the windows:
+    # the recompile is the same pure function of the same values
+    assert records[0]["frobenius"] == 0.0
+    assert not records[0]["frozen_state_moved"]
+    # …and the boundary that *did* regenerate the discreteness is the one the
+    # bars are about (without this the assertion below would be vacuous)
+    assert records[1]["frozen_state_moved"]
+    _assert_boundaries(records, what="srm660c/rietveld")
+
+
+@pytest.mark.parametrize("mode", ["lebail", "pawley"])
+def test_stage_boundary_continuity_whole_pattern(mode):
+    """Le Bail and Pawley: same claim, with the extracted intensities carried
+    across the boundary so what is measured is the frozen-state regeneration
+    and not the re-extraction (see :func:`_stage_boundaries`)."""
+    from tests.test_backend_shim import _toy_base
+
+    structure, instrument, pattern = _toy_base(c_near_a=(mode == "pawley"))
+    records = _stage_boundaries(pattern, structure, instrument, [
+        Stage("bkg", ["instrument.background.*"]),
+        Stage("zero", ["instrument.zero_shift"]),
+        Stage("cell", ["phases.*.cell.*"]),
+    ], mode=mode)
+    assert len(records) == 2
+    assert records[0]["frobenius"] == 0.0
+    assert records[1]["frozen_state_moved"]
+    _assert_boundaries(records, what=f"toy/{mode}")
+
+
 def test_pawley_intensity_columns_are_exact_across_backends():
     """The Pawley aux block is exactly linear in the intensities (−√w·Σ_l w_l·Ω)
     and never finite-differenced, so every fp64 method must agree to round-off
@@ -298,12 +491,12 @@ def test_pawley_intensity_columns_are_exact_across_backends():
     assert model.pawley is not None
     theta = _theta(model, table)
     n_table = len(table.free_paths)
-    aux_ref = _analytic_jacobian(model, table)(theta)[:, n_table:]
+    aux_ref = _analytic_jacobian("toy_pawley", model, table)(theta)[:, n_table:]
     assert np.linalg.norm(aux_ref) > 0
 
     for method in ("fd", "jax"):
         build, _rel, _cos = METHODS[method]
-        aux = build(model, table)(theta)[:, n_table:]
+        aux = build("toy_pawley", model, table)(theta)[:, n_table:]
         err = np.linalg.norm(aux - aux_ref) / np.linalg.norm(aux_ref)
         # central FD of a linear function is exact to round-off scaled by 1/h
         assert err < (1e-6 if method == "fd" else 1e-9), f"{method}: {err:.3e}"

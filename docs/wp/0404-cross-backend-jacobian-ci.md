@@ -137,11 +137,11 @@ WP-0402/0408); esd-value assertions (WP-0407 owns the esd path).
 
 ## Tasks
 
-- [ ] `tests/test_cross_backend.py`: parametrized (method × config) matrix;
+- [x] `tests/test_cross_backend.py`: parametrized (method × config) matrix;
       analytic-vs-FD and fp32-column always-on (the fp32 policy needs no
       extra); jax/torch rows `importorskip`-gated; fp64 tolerance constants
       declared here, fp32 bars imported from `backend.linalg64`
-- [ ] Stage-boundary continuity cases (3-stage SRM 660c; Rietveld + Le Bail
+- [x] Stage-boundary continuity cases (3-stage SRM 660c; Rietveld + Le Bail
       + Pawley)
 - [ ] Multi-histogram stacked-Jacobian agreement (via
       `run_multi_least_squares` layout)
