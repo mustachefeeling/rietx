@@ -280,6 +280,63 @@ def _capture(name: str) -> dict[str, np.ndarray] | None:
 
 
 # ----------------------------------------------------------------------
+# shim primitives
+# ----------------------------------------------------------------------
+def test_numpy_backend_attributes_are_numpy_functions():
+    """Zero-overhead claim: the numpy backend's ops ARE the numpy callables
+    (plain-function attributes must not have bound as methods)."""
+    from pxrdref.backend import NumpyBackend, get_backend
+
+    xp = get_backend()
+    assert isinstance(xp, NumpyBackend)
+    assert xp.exp is np.exp
+    assert xp.clip is np.clip
+    assert xp.einsum is np.einsum
+    assert xp.linalg is np.linalg
+    assert xp.pi == np.pi
+
+
+def test_window_add_functional_contract():
+    from pxrdref.backend import get_backend
+
+    xp = get_backend()
+    y = np.zeros(6)
+    out = xp.window_add(y, 2, 5, np.array([1.0, 2.0, 3.0]))
+    # callers thread the return value; the numpy impl mutates in place
+    assert out is y
+    assert np.array_equal(out, [0.0, 0.0, 1.0, 2.0, 3.0, 0.0])
+    out = xp.window_add(out, 0, 0, np.zeros(0))  # empty frozen window is legal
+    assert np.array_equal(out, [0.0, 0.0, 1.0, 2.0, 3.0, 0.0])
+
+
+def test_segment_sum_matches_bincount():
+    from pxrdref.backend import get_backend
+
+    xp = get_backend()
+    vals = np.array([1.0, 2.0, 4.0, 8.0, 16.0])
+    seg = np.array([0, 2, 2, 0, 3])
+    got = xp.segment_sum(vals, seg, 5)
+    assert np.array_equal(got, np.bincount(seg, weights=vals, minlength=5))
+    assert got.shape == (5,)  # n buckets even when the tail is empty
+
+
+def test_set_backend_roundtrip():
+    from pxrdref.backend import NumpyBackend, get_backend, set_backend
+
+    original = get_backend()
+
+    class _Marker(NumpyBackend):
+        name = "marker"
+
+    try:
+        set_backend(_Marker())
+        assert get_backend().name == "marker"
+    finally:
+        set_backend(original)
+    assert get_backend() is original
+
+
+# ----------------------------------------------------------------------
 # the gate
 # ----------------------------------------------------------------------
 @pytest.mark.parametrize("name", [
