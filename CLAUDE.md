@@ -7,6 +7,7 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
+uv pip install -e ".[dev,jax]"                         # + optional jax backend
 .venv/bin/python -m pytest                             # full suite ~2 min, incl. real-data acceptance
 .venv/bin/python -m pytest -m "not slow"               # skip acceptance (~20 s)
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)

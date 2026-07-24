@@ -159,7 +159,70 @@ class NumpyBackend:
         return np.bincount(seg_ids, weights=vals, minlength=n)
 
 
-_BACKEND: Backend = NumpyBackend()
+#: the shared op vocabulary, bound per backend (kept as one tuple so the two
+#: autodiff backends cannot silently drift from the Protocol above)
+_OP_NAMES = (
+    "exp", "sqrt", "log", "sin", "cos", "tan", "arcsin", "arccos",
+    "radians", "degrees", "abs", "sign", "power", "clip",
+    "maximum", "minimum", "where", "isfinite",
+    "einsum", "matmul", "sum", "cumsum", "diff",
+    "asarray", "zeros", "zeros_like", "full_like", "concatenate", "stack",
+    "conj", "real", "imag",
+)
+
+
+class JaxBackend:
+    """jax.numpy-backed namespace (WP-0402) — CPU fp64 via *scoped* x64.
+
+    ``import jax`` happens in ``__init__``, never at module import, so a
+    numpy-only process is unaffected (resolve via ``set_backend("jax")`` /
+    ``resolve_backend``).  fp64 comes from the ``enable_x64`` scope wrapped
+    around the jacfwd/jit call sites in ``backend/jax_backend.py`` — this
+    class never touches jax's global x64 flag.
+    """
+
+    name = "jax"
+
+    def __init__(self) -> None:
+        import jax
+        import jax.numpy as jnp
+
+        self._jax = jax
+        self.pi = jnp.pi
+        self.linalg = jnp.linalg
+        for op in _OP_NAMES:
+            setattr(self, op, getattr(jnp, op))
+
+    def window_add(self, y: Any, i0: int, i1: int, vals: Any) -> Any:
+        # functional scatter on the static window; (i0, i1) are frozen python
+        # ints, so this is a legal static slice under tracing
+        return y.at[i0:i1].add(vals)
+
+    def segment_sum(self, vals: Any, seg_ids: Any, n: int) -> Any:
+        return self._jax.ops.segment_sum(vals, seg_ids, num_segments=n)
+
+
+_NUMPY_BACKEND = NumpyBackend()
+_JAX_BACKEND: Backend | None = None
+_BACKEND: Backend = _NUMPY_BACKEND
+
+
+def resolve_backend(name: str) -> Backend:
+    """A (cached) backend instance by name; ``"jax"`` imports jax lazily here."""
+    global _JAX_BACKEND
+    if name == "numpy":
+        return _NUMPY_BACKEND
+    if name == "jax":
+        if _JAX_BACKEND is None:
+            try:
+                _JAX_BACKEND = JaxBackend()
+            except ImportError as exc:
+                raise ImportError(
+                    'backend "jax" needs the optional jax dependency: '
+                    'install with  uv pip install -e ".[dev,jax]"  '
+                    "(or  pip install pxrd-refine[jax])") from exc
+        return _JAX_BACKEND
+    raise ValueError(f"unknown backend {name!r}; available: numpy, jax")
 
 
 def get_backend() -> Backend:
@@ -167,9 +230,10 @@ def get_backend() -> Backend:
     return _BACKEND
 
 
-def set_backend(backend: Backend) -> None:
+def set_backend(backend: Backend | str) -> None:
     """Install a backend namespace globally (one backend at a time — see
-    docs/DESIGN.md).  The staged runner flips this per refinement; user code
+    docs/DESIGN.md).  Accepts a name (``"numpy"``/``"jax"``, resolved lazily)
+    or an instance.  The solver flips this per Jacobian call; user code
     should not need to call it directly."""
     global _BACKEND
-    _BACKEND = backend
+    _BACKEND = resolve_backend(backend) if isinstance(backend, str) else backend
