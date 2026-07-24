@@ -153,6 +153,28 @@ print(outcome.accepted, outcome.reason)      # tried on a branch; rolled back if
 `report.abstained_reason` is set when the fit is too immature to attribute
 misfit to specific parameters — the report says so instead of guessing.
 
+### Exporting results
+
+Three exports, in the forms other people and other codes actually consume:
+
+```python
+ref.write_reflection_table("refl.csv")   # hkl, d, 2θ, |F|², I, multiplicity —
+                                         # one row per (emission line, reflection)
+ref.write_cif("refinement.cif")          # structure with esds + R-factors,
+                                         # wavelength, profile/background, pattern
+ref.write_qpa_table("qpa.csv")           # Hill-Howard weight fractions, with the
+                                         # "crystalline content only" caveat inline
+
+# or as plain functions / typed objects
+rows = ref.reflection_table()            # list[ReflectionRow], both Kα lines present
+pr.write_refinement_cif(result, ref.fitted_structure, ref.fitted_instrument, "r.cif")
+```
+
+The refinement CIF round-trips through the package's own readers —
+`pr.read_pdcif("refinement.cif")` recovers the pattern and
+`pr.Structure.from_cif("refinement.cif")` the structure — and refined values
+carry their standard uncertainty in `4.59370(25)` notation (`pr.format_su`).
+
 ### Live monitoring
 
 ```python

@@ -1,6 +1,6 @@
 # WP-0309 — Exporters: reflection table, CIF with esds, QPA table
 
-Milestone: v0.3 · Status: ⬜ not started
+Milestone: v0.3 · Status: ✅ 2026-07-24
 Depends on: WP-0304
 
 ## Goal
@@ -48,15 +48,15 @@ just the API docstring.
 
 ## Tasks
 
-- [ ] Reflection table exporter (hkl, d, 2θ, |F|², I, multiplicity, phase,
+- [x] Reflection table exporter (hkl, d, 2θ, |F|², I, multiplicity, phase,
       emission line) to CSV/TSV + a typed in-memory object
-- [ ] esd string formatter `value(esd)` with a unit test over edge cases
-- [ ] CIF refinement export: refined parameters with esds, R-factors,
+- [x] esd string formatter `value(esd)` with a unit test over edge cases
+- [x] CIF refinement export: refined parameters with esds, R-factors,
       wavelength, profile + background description, using pdCIF tags
       compatible with `read_pdcif`
-- [ ] Export→re-read round-trip test (our own reader consumes our own CIF)
-- [ ] QPA table export carrying the modelled-crystalline-content caveat
-- [ ] Doc snippet in README showing the three exports
+- [x] Export→re-read round-trip test (our own reader consumes our own CIF)
+- [x] QPA table export carrying the modelled-crystalline-content caveat
+- [x] Doc snippet in README showing the three exports
 
 ## Acceptance
 
@@ -77,3 +77,37 @@ accounts for every emission line.
 ## Handover log
 
 - **2026-07-22** — created from the ROADMAP split; not started.
+- **2026-07-24** — **complete.** All six tasks landed; `tests/test_exporters.py`
+  (20 tests) green, ruff clean, full fast + slow suites unaffected.
+  - **esd formatter**: `crystallography/cif.py::format_su(value, esd, *,
+    decimals=6)` is the single canonical writer — `cif.py::_fmt(Parameter, …)`
+    now delegates to it. Fixes the decade-boundary trap the old `_fmt` had
+    (esd 0.0999 → `1.23(10)`, never the spurious three-figure `(100)`), and
+    handles esd ≥ 1 / esd ≥ 10 (value loses decimals, su keeps magnitude:
+    `12340(250)`). Reference table locked in `test_format_su_reference_table`.
+  - **exporters** live in `io/exporters.py` (io → crystallography/model is the
+    clean import direction; neither imports io). Public: `reflection_table`,
+    `write_reflection_table`, `ReflectionRow`, `write_refinement_cif`,
+    `refinement_cif_doc`, `qpa_table_csv`, `write_qpa_table`, plus `format_su` —
+    all re-exported from the package root. `Refinement` gained
+    `reflection_table()`, `write_reflection_table()`, `write_cif()`,
+    `write_qpa_table()`.
+  - **reflection table** reuses `model.phase_peaks(ip, values)` (positions +
+    integrated intensity, both already per-emission-line) and calls
+    `structure_factors_squared` via `model._site_values` for |F|²; one row per
+    (line, reflection), Kα2 rows included (asserted). |F|² is `None` in Le
+    Bail/Pawley (intensity is extracted/refined, not from the structure).
+  - **refinement CIF** writes one block per phase (`write_structure_block`,
+    extracted from `structure_to_cif` so the su/ADP conventions are shared) and
+    appends refinement scalars + the obs/calc pattern loop to block 0. Pattern
+    loop tags (`_pd_proc_2theta_corrected`, `_pd_proc_intensity_total`,
+    `_pd_proc_intensity_total_su`, `_pd_calc_intensity_total`,
+    `_pd_proc_intensity_bkg_calc`) are exactly what `read_pdcif` reads → the
+    round-trip test re-reads both pattern (`read_pdcif`) and structure
+    (`Structure.from_cif`) from the one file. Gotcha for multi-phase: the
+    single-block round-trip is validated for single-phase only (the WP's
+    acceptance case); multi-phase writes per-phase blocks + pattern on block 0
+    but `Structure.from_cif` returns one phase, so a full multi-phase structure
+    re-read is out of scope (was never a v0.3 commitment).
+  - **QPA table** carries the crystalline-only scope + microabsorption status
+    as leading `#` comment lines, not just the docstring.

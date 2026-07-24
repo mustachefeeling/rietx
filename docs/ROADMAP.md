@@ -66,7 +66,7 @@ the last open WP; the milestone row flips to ✅ when it lands.
 | [0306](wp/0306-pawley-mode.md) | Pawley mode | ✅ 2026-07-23 | — |
 | [0307](wp/0307-march-dollase.md) | March-Dollase preferred orientation | ✅ 2026-07-23 | — |
 | [0308](wp/0308-multi-histogram.md) | Multi-histogram stacked residuals | ✅ 2026-07-24 | — |
-| [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds (structure side landed in 0303), QPA table | ⬜ | 0304 |
+| [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds (structure side landed in 0303), QPA table | ✅ 2026-07-24 | 0304 |
 | [0310](wp/0310-acceptance-srm676a-qpa.md) | Acceptance: SRM 676a + IUCr QPA round robin | ✅ 2026-07-24 | 0304, 0305 |
 
 ### v0.4 — differentiable backend (stubs; expand before starting)
