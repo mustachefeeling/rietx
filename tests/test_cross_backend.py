@@ -81,6 +81,7 @@ from pxrdref.optimize.least_squares import (
     _jacobian_for,
     _make_jacobian,
     _make_residual,
+    _multi_closures,
     run_least_squares,
 )
 from pxrdref.params.vector import ParameterTable
@@ -308,6 +309,110 @@ def test_axial_columns_are_not_silently_fd_routed(config):
     assert bases.axial_ok, (
         f"{config}: axial columns fell back to FD — exclude them explicitly "
         "rather than comparing autodiff at the FCJ discontinuity")
+
+
+# ----------------------------------------------------------------------
+# multi-histogram: the stacked layout
+# ----------------------------------------------------------------------
+#: the free set for the joint state — one shared structural column (the cubic
+#: cell) plus per-histogram scale, background, zero and width
+MULTI_GLOBS = ["phases.*.scale", "instrument.background.*", "phases.*.cell.*",
+               "instrument.zero_shift", "instrument.profile.w"]
+
+_MULTI_CACHE: dict[str, tuple] = {}
+
+
+def _multi_state():
+    """Two LaB6 patterns of one crystal at two wavelengths (the WP-0308 state),
+    compiled per histogram and wired through a ``MultiParameterTable``."""
+    if "state" not in _MULTI_CACHE:
+        from pxrdref.params.multi import MultiParameterTable
+        from tests.test_multi_histogram import perturbed_inputs, synthesize
+
+        data = [synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
+                           bkg=[40.0, -6.0, 1.5], seed=1),
+                synthesize(0.71070, 6.0, 46.0, scale=9e-4, zero=-0.010,
+                           bkg=[70.0, 5.0, -2.0], seed=2)]
+        structure, instruments = perturbed_inputs()
+        mtable = MultiParameterTable(structure, instruments)
+        mtable.set_vary(["*"], False)
+        assert mtable.set_vary(MULTI_GLOBS, True)
+        mtable.apply_to_models()
+        models = [compile_model(s, ins, d, mode="rietveld",
+                                free_paths=set(t.free_paths))
+                  for s, ins, d, t in zip(mtable.structures, mtable.instruments,
+                                          data, mtable.tables, strict=True)]
+        _MULTI_CACHE["state"] = (models, mtable)
+    return _MULTI_CACHE["state"]
+
+
+def _multi_jacobian(backend: str):
+    key = f"jac:{backend}"
+    if key not in _MULTI_CACHE:
+        models, mtable = _multi_state()
+        _MULTI_CACHE[key] = _multi_closures(models, mtable, backend=backend)[1]
+    return _MULTI_CACHE[key]
+
+
+@pytest.mark.parametrize("method", list(METHODS))
+def test_multi_histogram_stacked_jacobian_matches_analytic(method):
+    """The same matrix over the stacked ``run_multi_least_squares`` layout.
+
+    Rietveld only, and that is not an omission: WP-0308 shipped multi-histogram
+    without Le Bail/Pawley because per-pattern intensity extractions are not a
+    shared quantity, and ``multi.py`` raises ``NotImplementedError`` for them.
+    """
+    models, mtable = _multi_state()
+    theta = mtable.x0()
+    J_ref = _multi_jacobian("numpy")(theta)
+    _build, rel_max, cos_min = METHODS[method]
+
+    if method == "fd":
+        residual = _multi_closures(models, mtable)[0]
+        cols = []
+        for c in range(len(theta)):
+            h = FD_STEP * max(1.0, abs(theta[c]))
+            tp, tm = theta.copy(), theta.copy()
+            tp[c] += h
+            tm[c] -= h
+            cols.append((residual(tp) - residual(tm)) / (2.0 * h))
+        J_test = np.column_stack(cols)
+    else:
+        backend = method.split("+")[0]
+        if backend != "numpy":
+            pytest.importorskip(backend)
+        try:
+            jac = _multi_jacobian(backend)
+        except ValueError as exc:  # torch: not wired yet
+            pytest.skip(f"{exc} (torch lands with WP-0408)")
+        if method.endswith("+fp32"):
+            with precision_policy(FP32_JACOBIAN):
+                J_test = jac(theta)
+        else:
+            J_test = jac(theta)
+
+    _assert_columns(J_ref, J_test, list(mtable.free_paths),
+                    rel_max=rel_max, cos_min=cos_min,
+                    what=f"multi/{method} ")
+
+
+def test_multi_histogram_stacked_layout():
+    """The layout the agreement above is measured on: one shared column fed by
+    *every* histogram's rows, per-histogram columns confined to their own."""
+    models, mtable = _multi_state()
+    J = _multi_jacobian("numpy")(mtable.x0())
+    n_data = [len(m.tt) for m in models]
+    blocks = [slice(0, n_data[0]), slice(n_data[0], n_data[0] + n_data[1])]
+
+    paths = list(mtable.free_paths)
+    shared = paths.index("phases.0.cell.a")
+    assert all(np.linalg.norm(J[b, shared]) > 0 for b in blocks), (
+        "the shared cell column must receive contributions from every "
+        "histogram — that is what refines it better than one pattern can")
+
+    own = paths.index("hist.1.phases.0.scale")
+    assert np.linalg.norm(J[blocks[0], own]) == 0.0
+    assert np.linalg.norm(J[blocks[1], own]) > 0.0
 
 
 # ----------------------------------------------------------------------

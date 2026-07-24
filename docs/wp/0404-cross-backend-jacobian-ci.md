@@ -143,7 +143,7 @@ WP-0402/0408); esd-value assertions (WP-0407 owns the esd path).
       declared here, fp32 bars imported from `backend.linalg64`
 - [x] Stage-boundary continuity cases (3-stage SRM 660c; Rietveld + Le Bail
       + Pawley)
-- [ ] Multi-histogram stacked-Jacobian agreement (via
+- [x] Multi-histogram stacked-Jacobian agreement (via
       `run_multi_least_squares` layout)
 - [ ] Document the extras invocation (`uv pip install -e ".[dev,jax,torch]"`)
       in this file and CLAUDE.md once the extras exist
