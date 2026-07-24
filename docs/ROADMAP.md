@@ -29,19 +29,28 @@ a work session loads only what it needs:
 
 **v0.3 shipped 2026-07-24** — all ten WPs (0301–0310) landed and the full suite
 is green (354 tests; 18 `slow` real-data acceptance). Measured acceptance
-recorded in [milestones/v0.3.md](milestones/v0.3.md). WP-0309 (the last open
-one) added the reflection-table / refinement-CIF / QPA-table exporters and a
-canonical `format_su`; the refinement CIF round-trips through the package's own
-`read_pdcif` / `Structure.from_cif`.
+recorded in [milestones/v0.3.md](milestones/v0.3.md).
 
-**Next: v0.4** — the differentiable (JAX) backend. Start from the backend op
-shim [0401](wp/0401-backend-op-shim.md); those WPs are stubs and need expanding
-before work begins. One v0.3-era follow-up is still open and worth a small WP:
-the reported *per-parameter* esds are the raw χ²·(JᵀJ)⁻¹ values, not the
-Bérar-Lelann-inflated ones the `Statistics` docstring describes (the inflation
-is applied only in the correlated `stderr_physical` / QPA σ(W) path). The
-acceptance tolerances never lean on σ, so this is a docs-vs-behaviour
-reconciliation, not a correctness gate.
+**Now: v0.4 — differentiable backends.** All eight WPs were expanded from
+stubs on 2026-07-24 and are ready to start; no further planning is needed
+before code.
+
+Start at the backend op shim [0401](wp/0401-backend-op-shim.md) — it gates
+everything autodiff, because it also lands the residual *purity* refactors
+(functional intensity threading, unconditional off-value evaluation,
+`where`-masked guards) that any traceable backend needs. Then
+[0402](wp/0402-jax-backend.md) (jax jacfwd) → [0403](wp/0403-cuda-mixed-precision.md)
+(mixed-precision policy) + [0404](wp/0404-cross-backend-jacobian-ci.md)
+(agreement CI) → [0408](wp/0408-torch-mps-backend.md) (torch-MPS, pulled
+forward from v0.6; starts only once 0402+0404 are green).
+
+Two WPs are independent of the backend chain and can be picked up at any
+time: [0407](wp/0407-esd-reconciliation.md) (small — the reported
+per-parameter esds do not actually carry the Bérar-Lelann inflation the
+docstrings claim, because the correlation matrix is normalised by the
+inflated diagonal; the same bug leaves the high-correlation guard dead) and
+[0406](wp/0406-restraint-penalty-rows.md) (bond/angle restraints).
+[0405](wp/0405-faddeeva-voigt.md) (true Voigt) needs only 0401.
 
 ## Milestones
 
@@ -50,7 +59,7 @@ reconciliation, not a correctness gate.
 | v0.1 | Vertical slice: synchrotron CW, Rietveld + Le Bail | ✅ **shipped** ([record](milestones/v0.1.md)) | 11-BM NAC: a = 10.251285(12) Å, Rwp 9.2%, CaF₂ impurity auto-flagged |
 | v0.2 | Lab diffractometer + FitReport attribution + viz | ✅ **shipped 2026-07-22** ([record](milestones/v0.2.md)) | SRM 660c LaB6: a = 4.156895(25) Å (+28 ppm vs NIST value for this dataset, Bérar-Lelann-inflated esd), Rwp 8.7%; GSAS-II FAP tutorial: Rwp 9.73% vs GSAS's 10.05% on identical channels, cell +116 ppm (uniform d-scale convention offset) |
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
-| v0.4 | JAX backend: autodiff Jacobians, CUDA, mixed precision | ⬜ | cross-backend Jacobian agreement CI |
+| v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ⬜ | cross-backend Jacobian agreement CI (analytic/FD/jacfwd/torch, incl. stage boundaries, Pawley/Le Bail, multi-histogram) + jit and MPS wall-clock vs numpy on 11-BM NAC (reported, not gated) + existing acceptance unchanged on the numpy path |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
 | v0.6 | TOPAS-style bounded LM, agent surface, torch-MPS | ⬜ | solver benchmark vs scipy TRF |
 | v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
@@ -73,16 +82,18 @@ reconciliation, not a correctness gate.
 | [0309](wp/0309-exporters.md) | Exporters: reflection table, CIF+esds (structure side landed in 0303), QPA table | ✅ 2026-07-24 | 0304 |
 | [0310](wp/0310-acceptance-srm676a-qpa.md) | Acceptance: SRM 676a + IUCr QPA round robin | ✅ 2026-07-24 | 0304, 0305 |
 
-### v0.4 — differentiable backend (stubs; expand before starting)
+### v0.4 — differentiable backends (expanded 2026-07-24; ready to start)
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0401](wp/0401-backend-op-shim.md) | Backend op shim (~40 ops, scatter_add) | ⬜ | — |
+| [0401](wp/0401-backend-op-shim.md) | Backend op shim (~41 ops, `window_add`) + residual purity refactors | ⬜ | — |
 | [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ⬜ | 0401 |
-| [0403](wp/0403-cuda-mixed-precision.md) | CUDA + mixed-precision policy | ⬜ | 0402 |
+| [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ⬜ | 0402 |
 | [0404](wp/0404-cross-backend-jacobian-ci.md) | Cross-backend Jacobian CI | ⬜ | 0402 |
 | [0405](wp/0405-faddeeva-voigt.md) | True Voigt via shared Faddeeva w(z) | ⬜ | 0401 |
 | [0406](wp/0406-restraint-penalty-rows.md) | Restraint penalty rows | ⬜ | — |
+| [0407](wp/0407-esd-reconciliation.md) | esd reconciliation (Bérar-Lelann placement) | ⬜ | — |
+| [0408](wp/0408-torch-mps-backend.md) | torch backend (MPS fp32 forward) — moved from v0.6 | ⬜ | 0401, 0402, 0404 |
 
 ### v0.5 — corrections & microstructure (stubs)
 
@@ -102,8 +113,10 @@ reconciliation, not a correctness gate.
 |---|---|---|---|
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ⬜ | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ⬜ | — |
-| [0603](wp/0603-torch-mps-backend.md) | torch backend (MPS fp32 forward) | ⬜ | 0401 |
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
+
+(0603 — the torch/MPS backend — moved to v0.4 as
+[0408](wp/0408-torch-mps-backend.md) on 2026-07-24.)
 
 ### v1.0 — hardening & release (stubs)
 

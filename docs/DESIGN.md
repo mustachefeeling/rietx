@@ -30,6 +30,15 @@ differentiable from day one.
   Hard constraint discovered in research: **no Apple GPU supports fp64 in any
   framework** (MPS/MLX fp32-only; jax-metal abandoned), and JᵀJ squares the
   condition number ⇒ GPUs compute fp32 Jacobian columns only, fp64 host solve.
+  - *Amendment (2026-07-24).* `[torch]` is pulled into **v0.4** as WP-0408.
+    Because jax-metal is abandoned, Apple-GPU acceleration can only come
+    through torch, and torch-MPS is also what validates the fp32-Jacobian-
+    column policy (WP-0403) on real hardware instead of CPU simulation — the
+    maintainer has no CUDA machine. The "one autodiff backend at a time"
+    discipline is preserved by **sequencing rather than by milestone**: torch
+    starts only once the jax path (WP-0402) and the cross-backend agreement
+    CI (WP-0404) are green, so the second backend lands against an existing
+    agreement harness. v0.6 keeps the solver and agent-surface work.
 - **Scope**: constant-wavelength X-ray powder first; `Source`/`Geometry`/
   profile/`IntensityModel` are the frozen extension seams for neutron/TOF/FPA.
 - **License**: MIT. Port only from permissive sources (CrysPy MIT, cctbx

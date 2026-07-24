@@ -55,7 +55,7 @@ Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 | Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
 | Multi-histogram joint refinement (shared structure, per-histogram Rwp) | ✅ |
 | Exporters: reflection table, refinement CIF (values + esds), QPA table | ✅ |
-| JAX backend (autodiff Jacobians, GPU) | v0.4 |
+| Differentiable backends: JAX autodiff Jacobians, torch/MPS; true Voigt; restraints | v0.4 |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes
