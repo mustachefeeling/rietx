@@ -165,6 +165,13 @@ next / gotchas) and sync its Status glyph into ROADMAP.md's index. When a
 milestone ships, record measured acceptance in `docs/milestones/` and flip
 the ROADMAP.md row.
 
+Because sessions never read other WP files, **a handover log only reaches your
+own successor on the same WP**. Anything you learned that changes work in a
+not-yet-started WP — a constant now exported for reuse, a design bullet there
+that has gone stale, a deferral into it, a gotcha that would mislead it — goes
+in *that* WP's `### Inherited` section, naming yours as the source
+(ROADMAP.md step 3b; slot defined in `docs/wp/TEMPLATE.md`).
+
 Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
 Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
 history DAG, live viz). In progress: **v0.3** — coordinate refinement,

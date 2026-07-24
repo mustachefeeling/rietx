@@ -21,6 +21,15 @@ a work session loads only what it needs:
 3. **End** — or whenever interruption is a risk: append a dated entry to the
    WP's handover log (done / in flight / next / gotchas), update its Status
    line, and mirror the glyph in the WP index row below.
+3b. **Push forward-references downstream.** If this session learned anything
+   that changes work in a *not-yet-started* WP — a constant now exported for
+   reuse, a design bullet there that has gone stale, a deferral into it, a
+   gotcha that would mislead it — edit **that WP's `### Inherited` section**
+   (see `wp/TEMPLATE.md`) and name this WP as the source. Step 1 forbids
+   reading other WP files, so **a handover log is not a channel to anyone but
+   your own successor on the same WP**: a "next WP should…" note left only in
+   your own log, or only in "Current focus" below, will never be read. Current
+   focus is a rolling narrative and gets rewritten when the next WP lands.
 4. **Milestone ships**: record the measured acceptance block in
    `milestones/vX.Y.md`, flip the milestone row here, and check the roadmap
    claims in README.md.
