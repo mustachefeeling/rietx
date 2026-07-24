@@ -187,15 +187,18 @@ class CompiledModel:
 
     def _position_shift_deg(self, theta: np.ndarray, tt_bragg: np.ndarray,
                             values: dict[str, float]) -> np.ndarray | float:
-        """Detector-space peak shifts beyond the Bragg angle (zero + geometry)."""
+        """Detector-space peak shifts beyond the Bragg angle (zero + geometry).
+
+        Evaluated unconditionally: s = 0 and t = 0 contribute an exact ±0
+        shift (purity refactor (b) — no branching on θ-decoded values; the
+        geometry check is compile-time structural and may stay).
+        """
         shift = values["instrument.zero_shift"]
         if self.geometry_kind == "bragg_brentano":
             s = values["instrument.geometry.sample_displacement"]
-            if s != 0.0:
-                shift = shift + displacement_shift_deg(theta, s, self.radius_mm)
+            shift = shift + displacement_shift_deg(theta, s, self.radius_mm)
             t = values["instrument.geometry.sample_transparency"]
-            if t != 0.0:
-                shift = shift + transparency_shift_deg(tt_bragg, t)
+            shift = shift + transparency_shift_deg(tt_bragg, t)
         return shift
 
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
@@ -252,6 +255,7 @@ class CompiledModel:
         the phase's at-rest buffer, for callers outside the hot loop (plots,
         exporters, replay).
         """
+        xp = get_backend()
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         d = d_spacings(cp.reflections.hkl, *cell)
@@ -274,11 +278,13 @@ class CompiledModel:
             if P is not None:
                 base = base * P
             # secondary extinction (model/extinction.py): a per-(line,
-            # reflection) intensity multiplier folded in below.  ext=0 leaves
-            # the intensity bit-identical, so it is skipped entirely then; V
-            # moves with the cell, hence recomputed here rather than cached.
+            # reflection) intensity multiplier folded in below, evaluated
+            # unconditionally — ext=0 makes E exactly 1 (Sabine's blend is
+            # sin²θ·1 + cos²θ·1, which is exactly 1.0 in fp), so the off
+            # state stays bit-identical without branching on θ (purity (b)).
+            # V moves with the cell, hence recomputed here rather than cached.
             ext = values[f"phases.{ip}.extinction"]
-            vol = cell_volume(*cell) if ext != 0.0 else 0.0
+            vol = cell_volume(*cell)
 
         out = []
         for il, lam in enumerate(self.line_wavelengths):
@@ -299,26 +305,41 @@ class CompiledModel:
                 intensity = base * w_line
             else:
                 intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
-                if ext != 0.0:
-                    intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+                intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+            # a reflection pushed off the sphere (λ/2d > 1 → NaN position)
+            # carries exactly zero intensity: Lp of a NaN angle is NaN, and the
+            # masked profile (purity (c)) would otherwise multiply NaN·0
+            intensity = xp.where(xp.isfinite(pos), intensity, 0.0)
             out.append((pos, gamma, eta, intensity))
         return out
 
     def _reflection_profile(self, cp: CompiledPhase, il: int, k: int,
                             pos_k: float, gamma_k: float, eta_k: float,
                             sl: float, hl: float) -> np.ndarray | None:
-        """Unit-area profile of one (line, reflection) on its frozen window."""
+        """Unit-area profile of one (line, reflection) on its frozen window.
+
+        Returns ``None`` only for the frozen empty window (``i1 <= i0``, a
+        compile-time structural branch).  A non-finite *position* is
+        θ-dependent, so it is a where-mask instead (purity (c)): the profile
+        is evaluated at a safe position and zeroed element-wise —
+        ``phase_peaks`` zeroes the matching intensity, so a dead reflection
+        contributes exactly 0 without a python branch.
+        """
         i0, i1 = cp.win[il, k]
-        if i1 <= i0 or not np.isfinite(pos_k):
+        if i1 <= i0:
             return None
+        xp = get_backend()
+        finite = xp.isfinite(pos_k)
+        pos_safe = xp.where(finite, pos_k, 0.0)
         x = self.tt[i0:i1]
         n_fcj = int(cp.fcj_n[il, k])
-        if n_fcj == 0:
-            return pseudo_voigt(x - pos_k, gamma_k, eta_k)
+        if n_fcj == 0:  # frozen node count — structural
+            return xp.where(finite, pseudo_voigt(x - pos_safe, gamma_k, eta_k), 0.0)
         # FCJ images computed at the apparent position: the ≤0.1° detector
         # shifts change the aberration geometry negligibly (≪ node spacing)
-        phi, omega = fcj_offsets_weights(pos_k, sl, hl, n_fcj)
-        return omega @ pseudo_voigt(x[None, :] - phi[:, None], gamma_k, eta_k)
+        phi, omega = fcj_offsets_weights(pos_safe, sl, hl, n_fcj)
+        prof = omega @ pseudo_voigt(x[None, :] - phi[:, None], gamma_k, eta_k)
+        return xp.where(finite, prof, 0.0)
 
     def phase_component(self, ip: int, values: dict[str, float],
                         hkl_intensity: np.ndarray | None = None) -> np.ndarray:
@@ -406,23 +427,23 @@ class CompiledModel:
             d_base = d_base * P
         # extinction couples |F|² into the intensity twice (as the prefactor
         # and through x ∝ |F|²), so a coordinate/ADP move chains through the
-        # factor G = E + x·dE/dx (see model/extinction.py).  Only these
-        # pure-analytic columns need it explicitly; the scale/occ/biso/cell/
-        # extinction columns pick it up from the FD-of-phase_peaks chain.
+        # factor G = E + x·dE/dx (see model/extinction.py), applied
+        # unconditionally — at ext=0, x=0 makes G exactly 1 (purity (b)).
+        # Only these pure-analytic columns need it explicitly; the scale/occ/
+        # biso/cell/extinction columns pick it up from the FD-of-phase_peaks
+        # chain.
         ext = values[f"phases.{ip}.extinction"]
-        if ext != 0.0:
-            f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
-                                           xyz, occ, biso, uaniso, astar)
-            vol = cell_volume(*cell)
+        f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
+                                       xyz, occ, biso, uaniso, astar)
+        vol = cell_volume(*cell)
         out = []
         for il, lam in enumerate(self.line_wavelengths):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            if ext != 0.0:
-                E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
-                col = col * (E + x * dEdx)
+            E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
+            col = col * (E + x * dEdx)
             out.append(col)
         return out
 
@@ -453,16 +474,16 @@ class CompiledModel:
         _P, dP = march_dollase_and_dr(cp.po_members, cp.po_seg, cp.po_counts,
                                       cp.po_axis, gstar, r)
         d_base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2 * dP
+        # unconditional, like phase_peaks: E ≡ 1 exactly at ext=0 (purity (b))
         ext = values[f"phases.{ip}.extinction"]
-        vol = cell_volume(*cell) if ext != 0.0 else 0.0
+        vol = cell_volume(*cell)
         out = []
         for il, lam in enumerate(self.line_wavelengths):
             w_line = values[f"instrument.source.lines.{il}.weight"]
             tt_bragg = two_theta_deg(d, lam)
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
-            if ext != 0.0:
-                col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+            col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
             out.append(col)
         return out
 

@@ -110,8 +110,15 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     """Apparent-angle images 2φ_q (deg) and normalised weights ω_q (Σω = 1).
 
     The composite peak is  Σ_q ω_q · Ω(2θ_i − 2φ_q)  with the same unit-area
-    profile Ω used for symmetric peaks.  Falls back to the single symmetric
-    image when the aberration vanishes.
+    profile Ω used for symmetric peaks.  When the aberration vanishes (either
+    aperture ratio ≤ 0, or ξ_max = 0) the result falls back to the single
+    symmetric image, expressed branchlessly (purity (d)) as a ``where``-select
+    of the *same shape*: every image at 2θ with a one-hot weight vector, whose
+    dot with the profile rows reproduces the single-image path bit-for-bit.
+    The parameterisation discontinuity at S/L, H/L → 0 is genuine (the overlap
+    trapezoid has zero height); ``axial_ok=False`` already routes those
+    Jacobian columns to FD, so autodiff correctness *at* the fallback boundary
+    is out of scope.
 
     Composite quadrature: W(ξ) has a kink at ξ = |s − h|, so the integral is
     split there into two Gauss-Legendre segments (W exactly constant on the
@@ -121,13 +128,14 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     C¹ everywhere except the inherent FCJ kink at s = h itself.
     """
     xp = get_backend()
+    tau, glw = _gauss_legendre_01(max(n_nodes // 2, 4))  # frozen host nodes
+    fallback_w = np.zeros(2 * len(tau))
+    fallback_w[0] = 1.0
     tt = xp.radians(two_theta_deg)
-    xi_max = float(_xi_max(np.array(tt), sl, hl))
-    if xi_max <= 0.0 or sl <= 0.0 or hl <= 0.0:
-        return np.array([two_theta_deg]), np.array([1.0])
+    xi_max = _xi_max(tt, sl, hl)
+    ok = (xi_max > 0.0) & (sl > 0.0) & (hl > 0.0)
 
-    xi_kink = min(abs(sl - hl), xi_max)
-    tau, glw = _gauss_legendre_01(max(n_nodes // 2, 4))
+    xi_kink = xp.minimum(xp.abs(sl - hl), xi_max)
     # segment A: [0, ξ_kink], W ≡ 2·min(s,h); segment B: [ξ_kink, ξ_max]
     xi = xp.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)])
     seg_len = xp.concatenate([xp.full_like(glw, xi_kink),
@@ -136,9 +144,9 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
 
     cphi = xp.clip(xp.cos(tt) * xp.sqrt(1.0 + xi * xi), -1.0, 1.0)
     phi = xp.degrees(xp.arccos(cphi))
-    w_overlap = xp.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+    w_overlap = xp.clip(sl + hl - xi, 0.0, 2.0 * xp.minimum(sl, hl))
     omega = glw2 * seg_len * w_overlap
     total = omega.sum()
-    if total <= 0.0:
-        return np.array([two_theta_deg]), np.array([1.0])
-    return phi, omega / total
+    ok = ok & (total > 0.0)
+    return (xp.where(ok, phi, two_theta_deg),
+            xp.where(ok, omega / xp.where(ok, total, 1.0), fallback_w))

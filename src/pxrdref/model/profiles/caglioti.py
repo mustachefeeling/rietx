@@ -37,9 +37,10 @@ def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float,
     th = xp.radians(theta_deg)
     t = xp.tan(th)
     g2 = (u + gauss_strain) * t * t + v * t + w
-    if gauss_size != 0.0:
-        c = xp.cos(th)
-        g2 = g2 + gauss_size / (c * c)
+    # unconditional (purity (b)): gauss_size = 0 adds an exact ±0, and the
+    # variance floor below absorbs any −0.0 sign flip
+    c = xp.cos(th)
+    g2 = g2 + gauss_size / (c * c)
     return xp.sqrt(xp.maximum(g2, _MIN_GAMMA_G2))
 
 
