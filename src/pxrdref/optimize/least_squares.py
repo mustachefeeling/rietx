@@ -63,31 +63,47 @@ class LSQOutcome:
     n_aux: int = 0
 
 
+def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
+    """Le Bail intensities frozen for one solve (taken at closure build).
+
+    They are constant during a least-squares run — ``lebail_update`` only runs
+    between solves — so snapshotting here is what lets the residual never read
+    the mutable per-phase buffers (the purity contract).
+    """
+    if model.mode != "lebail":
+        return None
+    return [np.asarray(cp.hkl_intensity, dtype=np.float64) for cp in model.phases]
+
+
 def _make_residual(model: CompiledModel, table: ParameterTable):
     """Weighted residual, optionally augmented with a Pawley intensity block.
 
     In Pawley mode θ = [table θ | per-hkl intensities]; the intensity tail is
-    written into the model's per-phase buffers before evaluation, and the
+    split into per-phase slices and passed *through* the evaluation (never
+    written to the buffers — those are committed once, post-solve), and the
     overlap-restraint rows are appended after the background penalty rows.
     """
     sqrt_w = 1.0 / model.sigma
     n_table = len(table.free_paths)
     xp = get_backend()
+    fixed_intens = _lebail_snapshot(model)
 
     def residual(theta: np.ndarray) -> np.ndarray:
         if model.pawley is not None:
-            model.set_pawley_intensities(theta[n_table:])
+            intens = model.split_pawley_intensities(theta[n_table:])
             values = table.decode(theta[:n_table])
         else:
+            intens = fixed_intens
             values = table.decode(theta)
-        r = sqrt_w * (model.y_obs - model.evaluate(values))
+        r = sqrt_w * (model.y_obs - model.evaluate(values, intens))
         parts = [r]
         pen = model.penalty_residual(values)
         if pen is not None:
             parts.append(pen)
-        rpen = model.pawley_restraint_residual()
-        if rpen is not None:
-            parts.append(rpen)
+        if model.pawley is not None:
+            rpen = model.pawley_restraint_residual(theta[n_table:])
+            if rpen is not None:
+                parts.append(rpen)
         return parts[0] if len(parts) == 1 else xp.concatenate(parts)
 
     return residual
@@ -95,11 +111,14 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
 
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
-                       values: dict[str, float], c: int, path: str) -> np.ndarray:
+                       values: dict[str, float], c: int, path: str,
+                       intensities: list[np.ndarray] | None = None) -> np.ndarray:
     """∂y/∂θ_c via the analytic bases + per-reflection scalar FD.
 
     Only the phases the path touches are re-derived (``phases.2.…`` leaves
     the others' scalars untouched; instrument paths touch all).
+    ``intensities`` carries the lebail/pawley per-hkl vectors — the perturbed
+    ``phase_peaks`` must see the same intensities as the expansion point.
     """
     h = 1e-6 * max(1.0, abs(theta[c]))
     tp = theta.copy()
@@ -113,7 +132,8 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     xp = get_backend()
     dy = xp.zeros_like(model.tt)
     for ip in affected:
-        peaks_p = model.phase_peaks(ip, values_p)
+        peaks_p = model.phase_peaks(
+            ip, values_p, None if intensities is None else intensities[ip])
         peaks_0 = bases.peaks[ip]
         for (il, k, i0, i1, omega, d_pos, d_gamma, d_eta, _dsl, _dhl) in bases.entries[ip]:
             pos0, gam0, eta0, int0 = peaks_0[il]
@@ -242,11 +262,14 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         e = table.entries[table._paths[free[c]]]
         return dphys_dinternal(float(theta[c]), e.transform)
 
+    fixed_intens = _lebail_snapshot(model)
+
     def jacobian(theta: np.ndarray) -> np.ndarray:
         if model.pawley is not None:
-            model.set_pawley_intensities(theta[n_table:])
+            intens = model.split_pawley_intensities(theta[n_table:])
             theta_t = theta[:n_table]
         else:
+            intens = fixed_intens
             theta_t = theta
         values = table.decode(theta_t)
         J = np.zeros((n_rows, len(theta)), dtype=np.float64)
@@ -256,7 +279,7 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         def get_bases() -> DerivativeBases:
             nonlocal bases
             if bases is None:
-                bases = model.derivative_bases(values)
+                bases = model.derivative_bases(values, intens)
             return bases
 
         for c, path in enumerate(free):
@@ -287,17 +310,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                     model, get_bases(), values, int(po.group(1)))
             elif model.scalar_chain_supported(path):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
-                    model, table, get_bases(), theta_t, values, c, path)
+                    model, table, get_bases(), theta_t, values, c, path, intens)
             else:
                 fd_cols.append(c)
 
         if fd_cols:
-            r0 = sqrt_w * (model.y_obs - model.evaluate(values))
+            r0 = sqrt_w * (model.y_obs - model.evaluate(values, intens))
             for c in fd_cols:
                 h = 1e-6 * max(1.0, abs(theta_t[c]))
                 tp = theta_t.copy()
                 tp[c] += h
-                rp = sqrt_w * (model.y_obs - model.evaluate(table.decode(tp)))
+                rp = sqrt_w * (model.y_obs - model.evaluate(table.decode(tp), intens))
                 J[:n_data, c] = (rp - r0) / h
 
         if model.pawley is not None:

@@ -118,9 +118,12 @@ class CompiledPhase:
     win: np.ndarray  # (n_lines, N, 2) int
     # frozen FCJ quadrature node counts, 0 → symmetric peak
     fcj_n: np.ndarray  # (n_lines, N) int
-    # per-hkl integrated intensity buffer, set in lebail *and* pawley mode: in
-    # Le Bail it is refreshed by observed-intensity partitioning, in Pawley it
-    # is the current value of the refined intensity block (a live view of θ).
+    # per-hkl integrated intensity buffer, set in lebail *and* pawley mode:
+    # storage AT REST (between stages, for history/plots/exporters).  The hot
+    # loop never reads it — the residual/Jacobian closures pass the intensity
+    # vector explicitly through phase_peaks/evaluate, so nothing mutates
+    # mid-solve (the WP-0401 purity contract; what makes Pawley/Le Bail
+    # traceable by an autodiff backend).
     hkl_intensity: np.ndarray | None = None  # (N,)
     # primary-line 2θ and estimated FWHM at compile, kept for Pawley overlap
     # grouping (None outside pawley mode)
@@ -234,22 +237,29 @@ class CompiledModel:
         return march_dollase_factors(cp.po_members, cp.po_seg, cp.po_counts,
                                      cp.po_axis, gstar, r)
 
-    def phase_peaks(self, ip: int, values: dict[str, float]
+    def phase_peaks(self, ip: int, values: dict[str, float],
+                    hkl_intensity: np.ndarray | None = None
                     ) -> list[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
         """Per-line (positions, widths, mixing, intensities) for phase ip.
 
         Returns one (pos, gamma, eta, intensity) tuple per emission line;
         arrays run over the frozen reflection list.  ``intensity`` already
         carries the line weight (and Lp per line in Rietveld mode).
+
+        In lebail/pawley mode ``hkl_intensity`` supplies the per-hkl
+        intensities explicitly — the residual/Jacobian closures always pass it
+        (purity: never read mutable state mid-solve).  ``None`` falls back to
+        the phase's at-rest buffer, for callers outside the hot loop (plots,
+        exporters, replay).
         """
         cp = self.phases[ip]
         cell = tuple(values[f"phases.{ip}.cell.{k}"] for k in ("a", "b", "c", "alpha", "beta", "gamma"))
         d = d_spacings(cp.reflections.hkl, *cell)
 
         if self.mode in ("lebail", "pawley"):
-            # per-hkl intensities read straight from the buffer: extracted by
-            # partitioning (Le Bail) or refined as θ (Pawley) — identical here
-            base = cp.hkl_intensity
+            # extracted by partitioning (Le Bail) or refined as θ (Pawley) —
+            # identical from here on
+            base = cp.hkl_intensity if hkl_intensity is None else hkl_intensity
         else:
             # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent
             f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
@@ -310,14 +320,16 @@ class CompiledModel:
         phi, omega = fcj_offsets_weights(pos_k, sl, hl, n_fcj)
         return omega @ pseudo_voigt(x[None, :] - phi[:, None], gamma_k, eta_k)
 
-    def phase_component(self, ip: int, values: dict[str, float]) -> np.ndarray:
+    def phase_component(self, ip: int, values: dict[str, float],
+                        hkl_intensity: np.ndarray | None = None) -> np.ndarray:
         """Bragg contribution of one phase (used by the analytic scale Jacobian)."""
         xp = get_backend()
         y = xp.zeros_like(self.tt)
         cp = self.phases[ip]
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
-        for il, (pos, gamma, eta, intensity) in enumerate(self.phase_peaks(ip, values)):
+        peaks = self.phase_peaks(ip, values, hkl_intensity)
+        for il, (pos, gamma, eta, intensity) in enumerate(peaks):
             for k in range(len(pos)):
                 prof = self._reflection_profile(cp, il, k, pos[k], gamma[k], eta[k], sl, hl)
                 if prof is None:
@@ -326,14 +338,20 @@ class CompiledModel:
                 y = xp.window_add(y, i0, i1, intensity[k] * prof)
         return y
 
-    def bragg_component(self, values: dict[str, float]) -> np.ndarray:
+    def bragg_component(self, values: dict[str, float],
+                        intensities: list[np.ndarray] | None = None) -> np.ndarray:
         y = get_backend().zeros_like(self.tt)
         for ip in range(len(self.phases)):
-            y = y + self.phase_component(ip, values)
+            y = y + self.phase_component(
+                ip, values, None if intensities is None else intensities[ip])
         return y
 
-    def evaluate(self, values: dict[str, float]) -> np.ndarray:
-        return self.background(values) + self.bragg_component(values)
+    def evaluate(self, values: dict[str, float],
+                 intensities: list[np.ndarray] | None = None) -> np.ndarray:
+        """y_calc on the fit grid.  ``intensities`` (one per-hkl vector per
+        phase) is required semantics for the hot loop in lebail/pawley mode;
+        at-rest callers omit it and read the buffers."""
+        return self.background(values) + self.bragg_component(values, intensities)
 
     # ------------------------------------------------------------------
     # analytic Jacobian support
@@ -466,7 +484,9 @@ class CompiledModel:
             return True
         return path.startswith("instrument.source.lines.")
 
-    def derivative_bases(self, values: dict[str, float]) -> "DerivativeBases":
+    def derivative_bases(self, values: dict[str, float],
+                         intensities: list[np.ndarray] | None = None
+                         ) -> "DerivativeBases":
         """Per-(phase, line, reflection) analytic profile-derivative bases.
 
         For each peak on its frozen window this computes Ω and the exact
@@ -494,7 +514,8 @@ class CompiledModel:
         entries: list[list[tuple]] = []
         axial_ok = True
         for ip, cp in enumerate(self.phases):
-            peaks = self.phase_peaks(ip, values)
+            peaks = self.phase_peaks(
+                ip, values, None if intensities is None else intensities[ip])
             peaks_all.append(peaks)
             rows: list[tuple] = []
             for il, (pos, gamma, eta, _intensity) in enumerate(peaks):
@@ -559,17 +580,22 @@ class CompiledModel:
         *is* the Le Bail step; in Pawley mode it is used only once, to seed the
         intensity block before the first least-squares run (never between runs,
         which would overwrite the refined values).
+
+        Runs *between* least-squares solves, so it may commit to the at-rest
+        buffers — but it threads the intensity vectors functionally through its
+        own cycles and writes each phase's buffer exactly once at the end.
         """
         if self.mode not in ("lebail", "pawley"):
             raise RuntimeError("lebail_update on a Rietveld-mode model")
         xp = get_backend()
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
+        intens = [np.asarray(cp.hkl_intensity, dtype=np.float64) for cp in self.phases]
         for _ in range(n_cycles):
             bkg = self.background(values)
             net = xp.maximum(self.y_obs - bkg, 0.0)
             for ip, cp in enumerate(self.phases):
-                peaks = self.phase_peaks(ip, values)
+                peaks = self.phase_peaks(ip, values, intens[ip])
                 n = len(cp.reflections)
                 n_lines = len(self.line_wavelengths)
                 profs: list[list[np.ndarray | None]] = []
@@ -583,7 +609,7 @@ class CompiledModel:
                             i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
                             y_bragg = xp.window_add(y_bragg, i0, i1, intensity[k] * om)
                     profs.append(row)
-                new_int = np.asarray(cp.hkl_intensity, dtype=np.float64).copy()
+                new_int = intens[ip].copy()
                 for k in range(n):
                     num = 0.0
                     den = 0.0
@@ -604,7 +630,9 @@ class CompiledModel:
                         den += w_line * float(om.sum())
                     if den > 0.0:
                         new_int[k] = num / den
-                cp.hkl_intensity = np.maximum(new_int, 1e-10)
+                intens[ip] = np.maximum(new_int, 1e-10)
+        for cp, vec in zip(self.phases, intens, strict=True):
+            cp.hkl_intensity = vec
 
     # ------------------------------------------------------------------
     # Pawley intensity block (per-hkl intensities as free parameters)
@@ -625,16 +653,29 @@ class CompiledModel:
         n = self.pawley.n if self.pawley is not None else 0
         return np.zeros(n), np.full(n, np.inf)
 
+    def split_pawley_intensities(self, vec: np.ndarray) -> list[np.ndarray]:
+        """Per-phase slices of a flat intensity vector (views, no buffer I/O).
+
+        The hot-loop counterpart of the buffers: the residual/Jacobian
+        closures split the θ tail with this and pass the slices through
+        ``evaluate``/``derivative_bases``, never touching ``hkl_intensity``.
+        """
+        return [vec[a:b] for (a, b) in self.pawley.phase_slices]
+
     def set_pawley_intensities(self, vec: np.ndarray) -> None:
-        """Write a flat intensity vector back into the per-phase buffers."""
+        """Commit a flat intensity vector to the at-rest per-phase buffers.
+
+        Called once per solve, after TRF returns — never from inside the
+        residual (purity contract).
+        """
         for cp, (a, b) in zip(self.phases, self.pawley.phase_slices, strict=True):
             cp.hkl_intensity = np.array(vec[a:b], dtype=np.float64)
 
-    def pawley_restraint_residual(self) -> np.ndarray | None:
+    def pawley_restraint_residual(self, vec: np.ndarray) -> np.ndarray | None:
         """√λ·R·I overlap-restraint rows appended to the residual (or None)."""
         if self.pawley is None or self.pawley.restraint is None:
             return None
-        return self.pawley.restraint @ self.pawley_x0()
+        return self.pawley.restraint @ vec
 
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.
