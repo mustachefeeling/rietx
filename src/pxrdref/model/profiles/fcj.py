@@ -49,6 +49,8 @@ from functools import lru_cache
 
 import numpy as np
 
+from ...backend import get_backend
+
 #: below this ratio of asymmetric extent to peak FWHM the aberration is
 #: invisible and the peak is treated as symmetric (no quadrature nodes)
 SKIP_EXTENT_FWHM_RATIO = 0.02
@@ -67,10 +69,12 @@ def _gauss_legendre_01(n: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _xi_max(two_theta_rad: np.ndarray, sl: float, hl: float) -> np.ndarray:
+    # shared by the runtime quadrature and the compile-time sizing below
+    xp = get_backend()
     with np.errstate(divide="ignore"):
-        cap = np.abs(np.tan(two_theta_rad))
-    cap = np.where(np.isfinite(cap), cap, np.inf)
-    return np.minimum(sl + hl, cap)
+        cap = xp.abs(xp.tan(two_theta_rad))
+    cap = xp.where(xp.isfinite(cap), cap, np.inf)
+    return xp.minimum(sl + hl, cap)
 
 
 def fcj_extent_deg(two_theta_deg: np.ndarray, sl: float, hl: float) -> np.ndarray:
@@ -116,7 +120,8 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     O(h) steps into the parameter derivatives; splitting keeps the response
     C¹ everywhere except the inherent FCJ kink at s = h itself.
     """
-    tt = np.radians(two_theta_deg)
+    xp = get_backend()
+    tt = xp.radians(two_theta_deg)
     xi_max = float(_xi_max(np.array(tt), sl, hl))
     if xi_max <= 0.0 or sl <= 0.0 or hl <= 0.0:
         return np.array([two_theta_deg]), np.array([1.0])
@@ -124,14 +129,14 @@ def fcj_offsets_weights(two_theta_deg: float, sl: float, hl: float,
     xi_kink = min(abs(sl - hl), xi_max)
     tau, glw = _gauss_legendre_01(max(n_nodes // 2, 4))
     # segment A: [0, ξ_kink], W ≡ 2·min(s,h); segment B: [ξ_kink, ξ_max]
-    xi = np.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)])
-    seg_len = np.concatenate([np.full_like(glw, xi_kink),
-                              np.full_like(glw, xi_max - xi_kink)])
-    glw2 = np.concatenate([glw, glw])
+    xi = xp.concatenate([tau * xi_kink, xi_kink + tau * (xi_max - xi_kink)])
+    seg_len = xp.concatenate([xp.full_like(glw, xi_kink),
+                              xp.full_like(glw, xi_max - xi_kink)])
+    glw2 = xp.concatenate([glw, glw])
 
-    cphi = np.clip(np.cos(tt) * np.sqrt(1.0 + xi * xi), -1.0, 1.0)
-    phi = np.degrees(np.arccos(cphi))
-    w_overlap = np.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
+    cphi = xp.clip(xp.cos(tt) * xp.sqrt(1.0 + xi * xi), -1.0, 1.0)
+    phi = xp.degrees(xp.arccos(cphi))
+    w_overlap = xp.clip(sl + hl - xi, 0.0, 2.0 * min(sl, hl))
     omega = glw2 * seg_len * w_overlap
     total = omega.sum()
     if total <= 0.0:

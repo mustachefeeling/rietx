@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..backend import get_backend
+
 
 def lorentz_polarization(two_theta_deg: np.ndarray, polarization: float) -> np.ndarray:
     """Combined Lorentz-polarisation factor for CW powder diffraction.
@@ -16,10 +18,11 @@ def lorentz_polarization(two_theta_deg: np.ndarray, polarization: float) -> np.n
     see :class:`pxrdref.schemas.instrument.Source` (K = 0.5 unpolarised lab
     beam; K ≈ 0.99 synchrotron vertical-plane diffraction).
     """
-    tt = np.radians(np.asarray(two_theta_deg, dtype=np.float64))
+    xp = get_backend()
+    tt = xp.radians(xp.asarray(two_theta_deg, dtype=np.float64))
     th = 0.5 * tt
-    pol = polarization + (1.0 - polarization) * np.cos(tt) ** 2
-    return pol / (np.sin(th) ** 2 * np.cos(th))
+    pol = polarization + (1.0 - polarization) * xp.cos(tt) ** 2
+    return pol / (xp.sin(th) ** 2 * xp.cos(th))
 
 
 def displacement_shift_deg(theta_deg: np.ndarray, s_mm: float,
@@ -34,8 +37,9 @@ def displacement_shift_deg(theta_deg: np.ndarray, s_mm: float,
     Powder Diffractometry*, ch. 4; Klug & Alexander (1974), ch. 5.  The cosθ
     dependence is what separates it from a constant zero-point error.
     """
-    th = np.radians(np.asarray(theta_deg, dtype=np.float64))
-    return np.degrees(-2.0 * (s_mm / radius_mm) * np.cos(th))
+    xp = get_backend()
+    th = xp.radians(xp.asarray(theta_deg, dtype=np.float64))
+    return xp.degrees(-2.0 * (s_mm / radius_mm) * xp.cos(th))
 
 
 def transparency_shift_deg(two_theta_deg: np.ndarray, t_coef: float) -> np.ndarray:
@@ -49,5 +53,6 @@ def transparency_shift_deg(two_theta_deg: np.ndarray, t_coef: float) -> np.ndarr
     ``t_coef`` is the dimensionless coefficient t ≥ 0; for strongly absorbing
     samples t → 0 and the correction vanishes.
     """
-    tt = np.radians(np.asarray(two_theta_deg, dtype=np.float64))
-    return np.degrees(-t_coef * np.sin(tt))
+    xp = get_backend()
+    tt = xp.radians(xp.asarray(two_theta_deg, dtype=np.float64))
+    return xp.degrees(-t_coef * xp.sin(tt))

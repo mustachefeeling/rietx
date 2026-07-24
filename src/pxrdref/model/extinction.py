@@ -62,6 +62,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..backend import get_backend
+
 #: Sabine Laue-series coefficients c₁…c₆ (E_L = 1 + Σ cᵢ xⁱ on 0 < x ≤ 1),
 #: the exact values GSAS-II ``GetPwdrExt`` uses.
 _LAUE_COEF = np.array(
@@ -82,9 +84,10 @@ def _extinction_x(f2: np.ndarray, wavelength: float, volume: float,
     x is per reflection (|F|², 2θ arrays) and per emission line (λ enters as
     (λ/V)²), which is why the caller evaluates this inside the line loop.
     """
-    f2 = np.asarray(f2, dtype=np.float64)
-    theta = np.radians(0.5 * np.asarray(two_theta_deg, dtype=np.float64))
-    sth2 = np.sin(theta) ** 2
+    xp = get_backend()
+    f2 = xp.asarray(f2, dtype=np.float64)
+    theta = xp.radians(0.5 * xp.asarray(two_theta_deg, dtype=np.float64))
+    sth2 = xp.sin(theta) ** 2
     cos2th = 1.0 - 2.0 * sth2  # cos 2θ = 1 − 2 sin²θ
     xpol = _XPOL * (1.0 + cos2th ** 2) / 2.0
     x = ext * f2 * (wavelength / volume) ** 2 * xpol
@@ -101,18 +104,19 @@ def _laue_and_deriv(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     continuous there, the derivative has a step of c₁ that is harmless because
     the chain factor multiplies it by x → 0).
     """
-    x = np.asarray(x, dtype=np.float64)
-    series = np.ones_like(x)
-    dseries = np.zeros_like(x)
+    xp = get_backend()
+    x = xp.asarray(x, dtype=np.float64)
+    series = xp.full_like(x, 1.0)
+    dseries = xp.zeros_like(x)
     for i in range(6):
         series = series + _LAUE_COEF[i] * x ** (i + 1)
         dseries = dseries + (i + 1) * _LAUE_COEF[i] * x ** i
-    xsafe = np.where(x > 0.0, x, 1.0)
-    inv_sqrt = 1.0 / np.sqrt(xsafe)
+    xsafe = xp.where(x > 0.0, x, 1.0)
+    inv_sqrt = 1.0 / xp.sqrt(xsafe)
     asym = _PI2 * (1.0 - 0.125 / xsafe) * inv_sqrt
     dasym = _PI2 * inv_sqrt * (-0.5 / xsafe + 0.1875 / xsafe ** 2)
-    el = np.where(x <= 0.0, 1.0, np.where(x <= 1.0, series, asym))
-    dl = np.where(x <= 0.0, 0.0, np.where(x <= 1.0, dseries, dasym))
+    el = xp.where(x <= 0.0, 1.0, xp.where(x <= 1.0, series, asym))
+    dl = xp.where(x <= 0.0, 0.0, xp.where(x <= 1.0, dseries, dasym))
     return el, dl
 
 
@@ -123,8 +127,9 @@ def sabine_extinction(f2: np.ndarray, wavelength: float, volume: float,
     Forward-only path used inside ``CompiledModel.phase_peaks``; the intensity
     is multiplied by this.  ``ext = 0`` returns exactly 1.
     """
+    xp = get_backend()
     x, sth2, cth2 = _extinction_x(f2, wavelength, volume, two_theta_deg, ext)
-    eb = np.where(x > -1.0, 1.0 / np.sqrt(np.where(x > -1.0, 1.0 + x, 1.0)), 1.0)
+    eb = xp.where(x > -1.0, 1.0 / xp.sqrt(xp.where(x > -1.0, 1.0 + x, 1.0)), 1.0)
     el, _ = _laue_and_deriv(x)
     return eb * sth2 + el * cth2
 
@@ -143,9 +148,10 @@ def sabine_extinction_and_dx(f2: np.ndarray, wavelength: float, volume: float,
     through the finite-difference-of-``phase_peaks`` chain, which already sees
     the folded-in E.
     """
+    xp = get_backend()
     x, sth2, cth2 = _extinction_x(f2, wavelength, volume, two_theta_deg, ext)
-    onepx = np.where(x > -1.0, 1.0 + x, 1.0)
-    eb = np.where(x > -1.0, 1.0 / np.sqrt(onepx), 1.0)
-    deb = np.where(x > -1.0, -0.5 / (onepx * np.sqrt(onepx)), 0.0)
+    onepx = xp.where(x > -1.0, 1.0 + x, 1.0)
+    eb = xp.where(x > -1.0, 1.0 / xp.sqrt(onepx), 1.0)
+    deb = xp.where(x > -1.0, -0.5 / (onepx * xp.sqrt(onepx)), 0.0)
     el, dl = _laue_and_deriv(x)
     return eb * sth2 + el * cth2, deb * sth2 + dl * cth2, x

@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ...backend import get_backend
+
 _MIN_GAMMA_G2 = 1e-8  # deg²; keeps Γ_G real when U,V,W make the quadratic dip
 
 
@@ -31,16 +33,18 @@ def gaussian_fwhm(theta_deg: np.ndarray, u: float, v: float, w: float,
                   gauss_size: float = 0.0, gauss_strain: float = 0.0) -> np.ndarray:
     """Γ_G(θ) from the Caglioti law + sample Gaussian size/strain variances;
     input θ (NOT 2θ) in degrees."""
-    th = np.radians(theta_deg)
-    t = np.tan(th)
+    xp = get_backend()
+    th = xp.radians(theta_deg)
+    t = xp.tan(th)
     g2 = (u + gauss_strain) * t * t + v * t + w
     if gauss_size != 0.0:
-        c = np.cos(th)
+        c = xp.cos(th)
         g2 = g2 + gauss_size / (c * c)
-    return np.sqrt(np.maximum(g2, _MIN_GAMMA_G2))
+    return xp.sqrt(xp.maximum(g2, _MIN_GAMMA_G2))
 
 
 def lorentzian_fwhm(theta_deg: np.ndarray, x_size: float, y_strain: float) -> np.ndarray:
     """Γ_L(θ) = x_size/cosθ + y_strain·tanθ; input θ in degrees."""
-    th = np.radians(theta_deg)
-    return x_size / np.cos(th) + y_strain * np.tan(th)
+    xp = get_backend()
+    th = xp.radians(theta_deg)
+    return x_size / xp.cos(th) + y_strain * xp.tan(th)

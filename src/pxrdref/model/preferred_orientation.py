@@ -60,6 +60,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..backend import get_backend
+
 
 def cos2_alpha(members: np.ndarray, axis: np.ndarray, gstar: np.ndarray
                ) -> np.ndarray:
@@ -70,19 +72,21 @@ def cos2_alpha(members: np.ndarray, axis: np.ndarray, gstar: np.ndarray
     normalised — cos²α is scale-invariant in it.  Guards a zero denominator
     (only 000, which never appears in a reflection list) to cos²α = 1.
     """
-    h = np.asarray(members, dtype=np.float64)
-    a = np.asarray(axis, dtype=np.float64)
+    xp = get_backend()
+    h = xp.asarray(members, dtype=np.float64)
+    a = xp.asarray(axis, dtype=np.float64)
     ga = gstar @ a
     haa = h @ ga                                   # h · G* · a          (N,)
-    hh = np.einsum("mi,ij,mj->m", h, gstar, h)     # h · G* · h          (N,)
-    aa = float(a @ ga)                             # a · G* · a          scalar
+    hh = xp.einsum("mi,ij,mj->m", h, gstar, h)     # h · G* · h          (N,)
+    aa = a @ ga                                    # a · G* · a          0-d scalar
     denom = hh * aa
-    return np.where(denom > 0.0, haa * haa / np.where(denom > 0.0, denom, 1.0), 1.0)
+    return xp.where(denom > 0.0, haa * haa / xp.where(denom > 0.0, denom, 1.0), 1.0)
 
 
 def march_term(cos2: np.ndarray, r: float) -> np.ndarray:
     """Per-equivalent March factor (r²·cos²α + sin²α/r)^(−3/2)."""
-    c = np.asarray(cos2, dtype=np.float64)
+    xp = get_backend()
+    c = xp.asarray(cos2, dtype=np.float64)
     bracket = r * r * c + (1.0 - c) / r
     return bracket ** (-1.5)
 
@@ -99,7 +103,8 @@ def march_term_and_dr(cos2: np.ndarray, r: float) -> tuple[np.ndarray, np.ndarra
     intensity response to switching PO on is ∂term/∂r|₁ = −3/2·(3cos²α − 1) —
     the signature the Layer-1 axis diagnostic regresses against.
     """
-    c = np.asarray(cos2, dtype=np.float64)
+    xp = get_backend()
+    c = xp.asarray(cos2, dtype=np.float64)
     s = 1.0 - c
     A = r * r * c + s / r
     dA = 2.0 * r * c - s / (r * r)
@@ -114,7 +119,7 @@ def _segment_mean(values: np.ndarray, seg: np.ndarray, counts: np.ndarray
     ``seg`` maps each stacked equivalent to its reflection index; ``counts`` is
     the per-reflection orbit size (the multiplicity).
     """
-    total = np.bincount(seg, weights=values, minlength=len(counts))
+    total = get_backend().segment_sum(values, seg, len(counts))
     return total / counts
 
 

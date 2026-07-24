@@ -24,20 +24,26 @@ from __future__ import annotations
 
 import numpy as np
 
+from ...backend import get_backend
+
 _TCH_GAMMA = (2.69269, 2.42843, 4.47163, 0.07842)
 _TCH_ETA = (1.36603, -0.47719, 0.11116)
 _4LN2 = 4.0 * np.log(2.0)
+#: √(ln2/π) — kept as the bare root so the (2/Γ)·√(ln2/π) grouping (and hence
+#: its rounding) is unchanged from the pre-shim expression
+_SQRT_LN2_PI = np.sqrt(np.log(2.0) / np.pi)
 
 
 def tch_gamma_eta(gamma_g: np.ndarray, gamma_l: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Combined FWHM Γ and mixing η from component FWHMs (TCH 1987)."""
-    gg = np.asarray(gamma_g, dtype=np.float64)
-    gl = np.asarray(gamma_l, dtype=np.float64)
+    xp = get_backend()
+    gg = xp.asarray(gamma_g, dtype=np.float64)
+    gl = xp.asarray(gamma_l, dtype=np.float64)
     c1, c2, c3, c4 = _TCH_GAMMA
     gamma5 = (gg**5 + c1 * gg**4 * gl + c2 * gg**3 * gl**2
               + c3 * gg**2 * gl**3 + c4 * gg * gl**4 + gl**5)
     gamma = gamma5 ** 0.2
-    q = np.where(gamma > 0.0, gl / np.where(gamma > 0.0, gamma, 1.0), 0.0)
+    q = xp.where(gamma > 0.0, gl / xp.where(gamma > 0.0, gamma, 1.0), 0.0)
     e1, e2, e3 = _TCH_ETA
     eta = e1 * q + e2 * q**2 + e3 * q**3
     return gamma, eta
@@ -48,9 +54,10 @@ def pseudo_voigt(x: np.ndarray, gamma: np.ndarray, eta: np.ndarray) -> np.ndarra
 
     Broadcasts: x may be (..., N) with gamma/eta scalars or matching shapes.
     """
-    g = np.asarray(gamma, dtype=np.float64)
-    lorentz = (2.0 / (np.pi * g)) / (1.0 + 4.0 * (x / g) ** 2)
-    gauss = (2.0 / g) * np.sqrt(np.log(2.0) / np.pi) * np.exp(-_4LN2 * (x / g) ** 2)
+    xp = get_backend()
+    g = xp.asarray(gamma, dtype=np.float64)
+    lorentz = (2.0 / (xp.pi * g)) / (1.0 + 4.0 * (x / g) ** 2)
+    gauss = (2.0 / g) * _SQRT_LN2_PI * xp.exp(-_4LN2 * (x / g) ** 2)
     return eta * lorentz + (1.0 - eta) * gauss
 
 
@@ -64,9 +71,10 @@ def pseudo_voigt_derivs(x: np.ndarray, gamma: float, eta: float
         ∂G/∂x = −G · 8ln2·u/Γ                  ∂G/∂Γ = (G/Γ)·(8ln2·u² − 1)
         ∂pV/∂η = L − G
     """
+    xp = get_backend()
     u = x / gamma
-    lor = (2.0 / (np.pi * gamma)) / (1.0 + 4.0 * u * u)
-    gau = (2.0 / gamma) * np.sqrt(np.log(2.0) / np.pi) * np.exp(-_4LN2 * u * u)
+    lor = (2.0 / (xp.pi * gamma)) / (1.0 + 4.0 * u * u)
+    gau = (2.0 / gamma) * _SQRT_LN2_PI * xp.exp(-_4LN2 * u * u)
     pv = eta * lor + (1.0 - eta) * gau
     dl_dx = -lor * (8.0 * u / gamma) / (1.0 + 4.0 * u * u)
     dg_dx = -gau * (2.0 * _4LN2 * u / gamma)
