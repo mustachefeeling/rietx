@@ -27,17 +27,21 @@ a work session loads only what it needs:
 
 ## Current focus
 
-**v0.3** — WP-0301 through WP-0308 and the acceptance WP-0310 are done
-(site-constraint machinery covers coordinates *and* aniso ADPs; QPA weight
-fractions land off `RefinementResult.qpa`, now with the Brindley
-microabsorption correction and its µR fence; Pawley whole-pattern mode;
-March-Dollase preferred orientation with an analytic ∂P/∂r column and a
-Layer-1 axis diagnostic on `FitReport.texture`; multi-histogram joint
-refinement — `MultiHistogramRefinement` / `refine_multi`, shared structure + N
-instruments over a stacked residual with per-histogram Rwp on
-`RefinementResult.histograms`; the v0.3 acceptance is measured and recorded in
-[milestones/v0.3.md](milestones/v0.3.md)). Next: [0309](wp/0309-exporters.md) —
-the last open WP; the milestone row flips to ✅ when it lands.
+**v0.3 shipped 2026-07-24** — all ten WPs (0301–0310) landed and the full suite
+is green (354 tests; 18 `slow` real-data acceptance). Measured acceptance
+recorded in [milestones/v0.3.md](milestones/v0.3.md). WP-0309 (the last open
+one) added the reflection-table / refinement-CIF / QPA-table exporters and a
+canonical `format_su`; the refinement CIF round-trips through the package's own
+`read_pdcif` / `Structure.from_cif`.
+
+**Next: v0.4** — the differentiable (JAX) backend. Start from the backend op
+shim [0401](wp/0401-backend-op-shim.md); those WPs are stubs and need expanding
+before work begins. One v0.3-era follow-up is still open and worth a small WP:
+the reported *per-parameter* esds are the raw χ²·(JᵀJ)⁻¹ values, not the
+Bérar-Lelann-inflated ones the `Statistics` docstring describes (the inflation
+is applied only in the correlated `stderr_physical` / QPA σ(W) path). The
+acceptance tolerances never lean on σ, so this is a docs-vs-behaviour
+reconciliation, not a correctness gate.
 
 ## Milestones
 
@@ -45,7 +49,7 @@ the last open WP; the milestone row flips to ✅ when it lands.
 |---|---|---|---|
 | v0.1 | Vertical slice: synchrotron CW, Rietveld + Le Bail | ✅ **shipped** ([record](milestones/v0.1.md)) | 11-BM NAC: a = 10.251285(12) Å, Rwp 9.2%, CaF₂ impurity auto-flagged |
 | v0.2 | Lab diffractometer + FitReport attribution + viz | ✅ **shipped 2026-07-22** ([record](milestones/v0.2.md)) | SRM 660c LaB6: a = 4.156895(25) Å (+28 ppm vs NIST value for this dataset, Bérar-Lelann-inflated esd), Rwp 8.7%; GSAS-II FAP tutorial: Rwp 9.73% vs GSAS's 10.05% on identical channels, cell +116 ppm (uniform d-scale convention offset) |
-| v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | 🔶 acceptance measured 2026-07-24 ([record](milestones/v0.3.md)); WP-0309 remains | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
+| v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
 | v0.4 | JAX backend: autodiff Jacobians, CUDA, mixed precision | ⬜ | cross-backend Jacobian agreement CI |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
 | v0.6 | TOPAS-style bounded LM, agent surface, torch-MPS | ⬜ | solver benchmark vs scipy TRF |

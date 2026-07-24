@@ -32,7 +32,7 @@ state:
   without reading a plot image. Every layer is built to **abstain rather than
   guess**: collinear causes are reported as unresolved, not resolved wrongly.
 
-## Status: v0.2 (pre-alpha)
+## Status: v0.3 (pre-alpha)
 
 Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 **laboratory Bragg-Brentano** geometry:
@@ -50,7 +50,11 @@ Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 | `.xy` / `.xye` / GSAS raw / pdCIF readers; instrument-profile files | ✅ |
 | Branchable history DAG: checkout, branch, **merge, cherry-pick**, replay | ✅ |
 | matplotlib plots, **VLM montage**, plotly HTML viewer, `pxrdref watch` live view | ✅ |
-| Atomic-coordinate refinement (Wyckoff constraints), QPA, Pawley, aniso ADPs | v0.3 |
+| Atomic-coordinate refinement (Wyckoff/site-symmetry constraints), anisotropic ADPs | ✅ |
+| QPA weight fractions (Hill-Howard ZMV), Brindley microabsorption + µR fence | ✅ |
+| Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
+| Multi-histogram joint refinement (shared structure, per-histogram Rwp) | ✅ |
+| Exporters: reflection table, refinement CIF (values + esds), QPA table | ✅ |
 | JAX backend (autodiff Jacobians, GPU) | v0.4 |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
@@ -61,7 +65,7 @@ shipped milestones ([docs/milestones/](docs/milestones/)).
 
 ### Validation
 
-Three real-data acceptance tests, each with its tolerance chosen to match what
+Five real-data acceptance suites, each with its tolerance chosen to match what
 the reference actually is:
 
 | Dataset | Result | Reference |
@@ -69,6 +73,8 @@ the reference actually is:
 | APS 11-BM **NAC** (synchrotron) | a = 10.251285(12) Å, Rwp 9.2 % | CaF₂ impurity auto-flagged by the FitReport from unmatched fluorite 111/220/311/422 peaks |
 | NIST **SRM 660c** LaB₆ (lab CuKα) | a = 4.156895(25) Å, Rwp 8.7 % | +28 ppm vs NIST's recomputed cell for this dataset — an **absolute** anchor |
 | GSAS-II **fluorapatite** tutorial | Rwp 9.73 %, Rp 7.76 % | GSAS's own 10.05 % / 7.66 % on identical channels; cell +116 ppm — a **cross-code consistency** check |
+| SRM 676a **corundum** (lab CuKα) | c/a = 2.729928 (+30 ppm) | the axial ratio where uniform d-scale systematics cancel — a **certificate-grade** anchor; absolute axes carry a ~−300 ppm lab d-scale offset |
+| IUCr **CPD QPA round robin** (samples 1a–h, 2, 4) | worst 5.1 wt % (sample 1); traces ≤ 1.3 wt % | tolerance referenced to the published **participant spread**; sample 4 is the designed Brindley-defeating case (µR fence fires, no accuracy band claimed) |
 
 The SRM 660c fit does **not** reach the certificate's ±8×10⁻⁶ Å band, and does
 not claim to: the residual is a characterised cotθ/sin2θ aberration
@@ -79,8 +85,8 @@ than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
-made collinear. Run `pytest` (~21 s, includes all of the above),
-`python examples/nac_11bm.py` (synchrotron walkthrough) or
+made collinear. Run `pytest` (~2 min, includes all of the above; `pytest -m
+"not slow"` is ~20 s), `python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
 all three FitReport layers → plots + interactive HTML).
 
@@ -225,8 +231,8 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest              # 123 tests incl. three real-data acceptance suites (~21 s)
-pytest -m "not slow"    # unit/property tests only
+pytest              # 354 tests incl. five real-data acceptance suites (~2 min)
+pytest -m "not slow"    # 336 unit/property tests only (~20 s)
 ruff check src tests examples
 ```
 
