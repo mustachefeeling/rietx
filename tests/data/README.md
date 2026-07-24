@@ -143,3 +143,17 @@ as a standard QPA benchmark for the exact purpose for which they were released.
 The **papers** above are © IUCr (all rights reserved) — cited, never
 redistributed. If the IUCr/CSIRO prefer these files not be vendored, they can be
 dropped in favour of a fetch-on-demand script against the Internet Archive.
+
+## backend_goldens/ — WP-0401 bit-identity baseline
+
+`backend_goldens/*.npz` hold `evaluate`/residual/Jacobian arrays for the five
+states defined in `tests/test_backend_shim.py`, captured from the tree **before**
+the WP-0401 backend-shim refactors (at commit `c9fc8c0`, numpy 2.x / macOS
+arm64 Accelerate).  `test_backend_shim.py` asserts the current tree reproduces
+them **bit-for-bit** (`np.array_equal`) — the acceptance gate for "nothing here
+may change a single computed number on the numpy path".
+
+These are *environment-pinned* bit patterns, not physical reference values: a
+different BLAS/numpy build may legitimately differ in final bits.  Re-baseline
+only from a tree that passes the full suite, via
+`.venv/bin/python -m tests.test_backend_shim`, and say so in the commit message.
