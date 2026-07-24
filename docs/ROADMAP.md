@@ -39,12 +39,15 @@ The backend op shim [0401](wp/0401-backend-op-shim.md) **landed 2026-07-24**
 (363 tests green, bit-identity goldens in `tests/test_backend_shim.py`): the
 hot path speaks `xp.*` and the residual purity refactors (functional
 intensity threading, unconditional off-value evaluation, `where`-masked
-guards) are in.  Next:
-[0402](wp/0402-jax-backend.md) (jax jacfwd — read 0401's final handover entry
-first: compile-vs-solve backend scoping gotcha) → [0403](wp/0403-cuda-mixed-precision.md)
+guards) are in.  The jax backend [0402](wp/0402-jax-backend.md) **landed
+2026-07-24**: `backend="jax"` dispatches a scoped-x64, jit-compiled chunked
+jacfwd Jacobian (numpy residual/solve untouched); jacfwd matches
+analytic/FD on every family and SRM 660c end-to-end matches the numpy `a`
+within 1e-6 Å.  Next: [0403](wp/0403-cuda-mixed-precision.md)
 (mixed-precision policy) + [0404](wp/0404-cross-backend-jacobian-ci.md)
-(agreement CI) → [0408](wp/0408-torch-mps-backend.md) (torch-MPS, pulled
-forward from v0.6; starts only once 0402+0404 are green).
+(agreement CI — note 0402's handover: the FCJ S/L == H/L subgradient kink
+needs the same loose bar there) → [0408](wp/0408-torch-mps-backend.md)
+(torch-MPS, pulled forward from v0.6; starts only once 0402+0404 are green).
 
 Two WPs are independent of the backend chain and can be picked up at any
 time: [0407](wp/0407-esd-reconciliation.md) (small — the reported
@@ -89,7 +92,7 @@ inflated diagonal; the same bug leaves the high-correlation guard dead) and
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [0401](wp/0401-backend-op-shim.md) | Backend op shim (~41 ops, `window_add`) + residual purity refactors | ✅ 2026-07-24 | — |
-| [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ⬜ | 0401 |
+| [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ✅ 2026-07-24 | 0401 |
 | [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ⬜ | 0402 |
 | [0404](wp/0404-cross-backend-jacobian-ci.md) | Cross-backend Jacobian CI | ⬜ | 0402 |
 | [0405](wp/0405-faddeeva-voigt.md) | True Voigt via shared Faddeeva w(z) | ⬜ | 0401 |
