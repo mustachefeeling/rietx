@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 import gemmi
 import numpy as np
 
+from ..backend import get_backend
 from ..schemas.structure import Phase
 from .adp import VOIGT, ustar_from_ucif
 from .scattering import f0, normalize_species
@@ -113,14 +114,16 @@ def transposed_rotation_indices(hkl: np.ndarray, rot: np.ndarray) -> np.ndarray:
     comment in ``symmetry.py``); getting this wrong is invisible in cubic
     settings and wrong everywhere else.
     """
-    return np.einsum("nk,mkc->mnc", np.asarray(hkl, dtype=np.float64), rot)
+    xp = get_backend()
+    return xp.einsum("nk,mkc->mnc", xp.asarray(hkl, dtype=np.float64), rot)
 
 
 def _aniso_dw(hkl: np.ndarray, rot: np.ndarray, u6, astar: np.ndarray) -> np.ndarray:
     """exp(−2π² qᵀU*q) per (op, reflection), shape (m, N)."""
+    xp = get_backend()
     q = transposed_rotation_indices(hkl, rot)
     ustar = ustar_from_ucif(u6, astar)
-    return np.exp(-2.0 * np.pi ** 2 * np.einsum("mnc,cd,mnd->mn", q, ustar, q))
+    return xp.exp(-2.0 * xp.pi ** 2 * xp.einsum("mnc,cd,mnd->mn", q, ustar, q))
 
 
 def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
@@ -132,13 +135,14 @@ def _orbit_terms(hkl, k, sites, xyz, occ, biso, uaniso, astar, j):
     forward model and the two derivative routines is what keeps their
     expansions of F literally the same expression.
     """
+    xp = get_backend()
     rot, tran = sites.ops[j]
     positions = rot @ xyz[j] + tran  # (m, 3)
-    phase = np.exp(2.0j * np.pi * (positions @ hkl.T))  # (m, N)
+    phase = xp.exp(2.0j * xp.pi * (positions @ hkl.T))  # (m, N)
     if sites.aniso[j]:
         return (occ[j] * f0(sites.species[j], k), phase,
                 _aniso_dw(hkl, rot, uaniso[j], astar))
-    dw = np.exp(-biso[j] * k * k)  # exp(−B (sinθ/λ)²)
+    dw = xp.exp(-biso[j] * k * k)  # exp(−B (sinθ/λ)²)
     return occ[j] * f0(sites.species[j], k) * dw, phase, None
 
 
@@ -171,14 +175,15 @@ def structure_factors_squared(
         current cell (they move with the cell, hence a per-call argument
         rather than something frozen into ``sites``).
     """
-    k = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))  # sinθ/λ = 1/(2d)
-    h = np.asarray(hkl, dtype=np.float64)
+    xp = get_backend()
+    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))  # sinθ/λ = 1/(2d)
+    h = xp.asarray(hkl, dtype=np.float64)
 
-    F = np.zeros(len(h), dtype=np.complex128)
+    F = xp.zeros(len(h), dtype=np.complex128)
     for j in range(sites.n_asym):
         amp, phase, dw = _orbit_terms(h, k, sites, xyz, occ, biso, uaniso, astar, j)
-        F += amp * _orbit_sum(phase, dw)
-    return (F * F.conj()).real
+        F = F + amp * _orbit_sum(phase, dw)
+    return xp.real(F * xp.conj(F))
 
 
 def d_f2_d_xyz(
@@ -208,18 +213,19 @@ def d_f2_d_xyz(
     are the same frozen ``sites.ops`` the forward model uses, so the gradient
     is exact for the model as compiled.
     """
-    k = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
-    h = np.asarray(hkl, dtype=np.float64)
-    F = np.zeros(len(h), dtype=np.complex128)
-    dF = np.zeros((len(h), 3), dtype=np.complex128)
+    xp = get_backend()
+    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))
+    h = xp.asarray(hkl, dtype=np.float64)
+    F = xp.zeros(len(h), dtype=np.complex128)
+    dF = xp.zeros((len(h), 3), dtype=np.complex128)
     for jj in range(sites.n_asym):
         amp, phase, dw = _orbit_terms(h, k, sites, xyz, occ, biso, uaniso, astar, jj)
-        F += amp * _orbit_sum(phase, dw)
+        F = F + amp * _orbit_sum(phase, dw)
         if jj == j:
             rth = transposed_rotation_indices(h, sites.ops[jj][0])  # (m, N, 3)
             weighted = phase if dw is None else phase * dw
-            dF = amp[:, None] * (2.0j * np.pi) * (weighted[:, :, None] * rth).sum(axis=0)
-    return 2.0 * (np.conj(F)[:, None] * dF).real
+            dF = amp[:, None] * (2.0j * xp.pi) * (weighted[:, :, None] * rth).sum(axis=0)
+    return 2.0 * xp.real(xp.conj(F)[:, None] * dF)
 
 
 def d_f2_d_uaniso(
@@ -249,21 +255,26 @@ def d_f2_d_uaniso(
     ∂|F|²/∂U = 2·Re(F̄·∂F/∂U).  Columns are in the same order as
     ``crystallography.adp.U_NAMES``, which is what the Wyckoff ADP constraint
     rows are written in.
+
+    Like :func:`d_f2_d_xyz` this is Jacobian *support* — host-side analytic
+    columns, never traced by an autodiff backend (which differentiates the
+    residual itself) — so the in-place per-component buffer writes are fine.
     """
-    k = 1.0 / (2.0 * np.asarray(d, dtype=np.float64))
-    h = np.asarray(hkl, dtype=np.float64)
-    s = np.asarray(astar, dtype=np.float64)
-    F = np.zeros(len(h), dtype=np.complex128)
+    xp = get_backend()
+    k = 1.0 / (2.0 * xp.asarray(d, dtype=np.float64))
+    h = xp.asarray(hkl, dtype=np.float64)
+    s = xp.asarray(astar, dtype=np.float64)
+    F = xp.zeros(len(h), dtype=np.complex128)
     dF = np.zeros((len(h), 6), dtype=np.complex128)
     for jj in range(sites.n_asym):
         amp, phase, dw = _orbit_terms(h, k, sites, xyz, occ, biso, uaniso, astar, jj)
-        F += amp * _orbit_sum(phase, dw)
+        F = F + amp * _orbit_sum(phase, dw)
         if jj == j:
             if dw is None:
                 raise ValueError(f"atom {j} is isotropic: no U^ij to differentiate")
             q = transposed_rotation_indices(h, sites.ops[jj][0])  # (m, N, 3)
             for v, (c, e) in enumerate(VOIGT):
                 fold = 1.0 if c == e else 2.0
-                de = (-2.0 * np.pi ** 2 * fold * s[c] * s[e]) * q[:, :, c] * q[:, :, e]
+                de = (-2.0 * xp.pi ** 2 * fold * s[c] * s[e]) * q[:, :, c] * q[:, :, e]
                 dF[:, v] = amp * (phase * dw * de).sum(axis=0)
-    return 2.0 * (np.conj(F)[:, None] * dF).real
+    return 2.0 * xp.real(xp.conj(F)[:, None] * dF)

@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..backend import get_backend
 from .lattice import direct_metric_tensor, reciprocal_metric_tensor
 
 #: Field/parameter names in storage order.
@@ -64,14 +65,25 @@ def voigt_from_tensor(u33) -> np.ndarray:
 def reciprocal_axis_lengths(a: float, b: float, c: float,
                             alpha: float, beta: float, gamma: float) -> np.ndarray:
     """(a*, b*, c*) in Å⁻¹ — the diagonal of the reciprocal metric, rooted."""
+    xp = get_backend()
     gstar = reciprocal_metric_tensor(a, b, c, alpha, beta, gamma)
-    return np.sqrt(np.diag(gstar))
+    return xp.sqrt(gstar.diagonal())
 
 
 def ustar_from_ucif(u6, astar) -> np.ndarray:
-    """U*_ij = U^ij·a*_i·a*_j — the (3,3) tensor the structure factor wants."""
-    s = np.asarray(astar, dtype=np.float64)
-    return tensor_from_voigt(u6) * np.outer(s, s)
+    """U*_ij = U^ij·a*_i·a*_j — the (3,3) tensor the structure factor wants.
+
+    On the θ-dependent path (u6 refines), so the symmetric tensor is stacked
+    from its components rather than written into a buffer, and the a*⊗a* outer
+    product is a broadcast multiply.
+    """
+    xp = get_backend()
+    s = xp.asarray(astar, dtype=np.float64)
+    u = xp.asarray(u6, dtype=np.float64)
+    tensor = xp.stack([xp.stack([u[0], u[3], u[4]]),
+                       xp.stack([u[3], u[1], u[5]]),
+                       xp.stack([u[4], u[5], u[2]])])
+    return tensor * (s[:, None] * s[None, :])
 
 
 def cartesian_basis(a: float, b: float, c: float,

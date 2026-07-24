@@ -18,6 +18,8 @@ from importlib import resources
 
 import numpy as np
 
+from ..backend import get_backend
+
 _DATA_PACKAGE = "pxrdref.data"
 _DATA_FILE = "f0_WaasKirf.dat"
 
@@ -70,9 +72,11 @@ def f0(species: str, k: np.ndarray) -> np.ndarray:
 
     Waasmaier & Kirfel (1995) Eq. (1): f0(k) = Σ a_i exp(−b_i k²) + c.
     """
+    xp = get_backend()
     coeffs = _load_table()[normalize_species(species)]
     a = coeffs[0:5]
     c = coeffs[5]
     b = coeffs[6:11]
-    k2 = np.asarray(k, dtype=np.float64) ** 2
-    return np.einsum("i,in->n", a, np.exp(-np.outer(b, k2))) + c
+    k2 = xp.asarray(k, dtype=np.float64) ** 2
+    # b ⊗ k² as a broadcast product (np.outer cannot take a traced operand)
+    return xp.einsum("i,in->n", a, xp.exp(-(b[:, None] * k2[None, :]))) + c
