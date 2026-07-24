@@ -22,21 +22,72 @@ and without the optional backends installed.
   step `1e-6·max(1,|θ|)`. `tests/test_jacobian.py::_check_columns` is the
   coordinate/ADP-DOF variant with the same tolerances.
 
+### Inherited from upstream WPs (added 2026-07-24, after 0402 and 0403 landed)
+
+This section exists because the session protocol forbids reading other WP
+files — anything 0402/0403 learned that changes work *here* has to be
+restated here or it is lost.
+
+- **Import the fp32 bars, do not restate them.** WP-0403 exports
+  `COLUMN_REL_L2_MAX = 2e-2` and `COLUMN_COSINE_MIN = 0.999` from
+  `pxrdref.backend.linalg64`, together with
+  `column_agreement(J_ref, J_test) -> (worst rel-L2, worst cosine)`, which
+  already skips transform-floor-dead columns. Re-declaring those numbers in
+  `tests/test_cross_backend.py` would be the exact drift this WP exists to
+  catch. (The fp64 bars 5e-3 / 0.99999 have no home yet — declare those here.)
+- **Driving the fp32-column row.** It is not a backend; it is a policy over
+  whichever backend built the columns:
+  `with precision_policy(FP32_JACOBIAN): J32 = _jacobian_for(model, table, be)(theta)`.
+  So it composes with the numpy *and* jax rows rather than being a row of its
+  own, and it needs no `importorskip` — it runs on a numpy-only checkout.
+- **Do not tighten the fp32 bars to the measured CPU numbers.** The CPU
+  simulation round-trips fp64→fp32→fp64, which reproduces fp32
+  *representation* loss only, not error accumulated inside a device fp32
+  forward pass. Measured agreement is ~2.6e-8 rel-L2 against the 2e-2 bar;
+  that six-order margin is an artifact of the simulation, and the bars are
+  sized for the real hardware WP-0408 brings. Tightening them would make the
+  torch-MPS row fail for the wrong reason.
+- **The FCJ S/L == H/L kink needs a loose bar (from 0402).** At axial
+  S/L = H/L the quadrature split point ξ_kink = |S/L − H/L| sits at its own
+  non-differentiable zero, so analytic node-FD (right-sided), jax
+  (sign(0) = 0 subgradient) and central FD legitimately differ by ~3e-3.
+  Not a bug. The `srm660c` shim state *starts* at exactly that point, so its
+  two axial columns carry a documented 2e-2 loose bar in
+  `test_backend_jax.py::_column_agreement`; reuse that convention here.
+  States built for FD comparison (`_lab_state`, `toy_rich`) use unequal
+  ratios on purpose.
+- **The multi-histogram jax row was deferred *to this WP* (from 0402).** 0402
+  deliberately shipped no jax test for `MultiHistogramRefinement` — the wiring
+  is shared via `_jacobian_for`, so a dedicated test there would have doubled
+  jit-compile cost for no new code path. This WP's stacked-layout task is its
+  intended home.
+- **Reusable state builders.** `tests/test_acceptance_srm660c.py` exposes
+  `build_srm_inputs()` (extracted by 0402 for exactly this reason), and
+  `tests/test_backend_shim.py` exposes `STATES` — `srm660c`, `nac`,
+  `toy_lebail`, `toy_pawley`, `toy_rich`, each returning
+  `(model, table, extras)` at a compiled expansion point.
+- **Budget jit compile, not flops.** jax's per-stage jit compile is ~1-4 s and
+  dominates toy-sized runs; parametrizing the matrix finely over jax configs
+  costs compile time, not compute.
+
 ### Design (decided)
 
 - **The matrix.** Methods × configs, parametrized in one
   `tests/test_cross_backend.py`:
   - Methods: analytic, FD, jax-jacfwd fp64 (WP-0402), torch-jacfwd fp64-CPU
-    (row added when WP-0408 lands), fp32-column policy (WP-0403).
+    (row added when WP-0408 lands), fp32-column policy (WP-0403 — a policy
+    layered over the numpy/jax rows, not a backend of its own; see Context).
   - Configs: the 18 `ANALYTIC_FAMILIES`; Pawley exact linear intensity
     columns; Le Bail (fixed extracted intensities); single- and
     multi-histogram (stacked layout from `run_multi_least_squares`);
     stage-boundary regeneration cases.
 - **Tolerances, centralized as module constants:** fp64 methods <5e-3
-  rel-L2 / cosine >0.99999 (v0.2 style); fp32 columns <2e-2 / cosine >0.999
-  (fp32 carries ~7 significant digits; a column near a cancellation loses
-  2–3 more — a wrong *direction* is still caught by the cosine, and the
-  stricter parameter-level gate lives in WP-0403's acceptance).
+  rel-L2 / cosine >0.99999 (v0.2 style) — declare these here; fp32 columns
+  <2e-2 / cosine >0.999 — **import** these from `backend.linalg64` as
+  `COLUMN_REL_L2_MAX` / `COLUMN_COSINE_MIN` (WP-0403 owns them; see Context).
+  The fp32 rationale: fp32 carries ~7 significant digits and a column near a
+  cancellation loses 2–3 more — a wrong *direction* is still caught by the
+  cosine, and the stricter parameter-level gate lives in WP-0403's acceptance.
 - **Stage-boundary is the headline case** (frozen-state regeneration between
   stages is where discreteness bugs surface): run a 3-stage SRM 660c plan;
   at each recompile assert Jacobian continuity `‖J_after − J_before‖/‖J‖ <
@@ -57,8 +108,9 @@ WP-0402/0408); esd-value assertions (WP-0407 owns the esd path).
 ## Tasks
 
 - [ ] `tests/test_cross_backend.py`: parametrized (method × config) matrix;
-      analytic-vs-FD always-on; jax/torch/fp32 rows `importorskip`-gated;
-      tolerance constants centralized
+      analytic-vs-FD and fp32-column always-on (the fp32 policy needs no
+      extra); jax/torch rows `importorskip`-gated; fp64 tolerance constants
+      declared here, fp32 bars imported from `backend.linalg64`
 - [ ] Stage-boundary continuity cases (3-stage SRM 660c; Rietveld + Le Bail
       + Pawley)
 - [ ] Multi-histogram stacked-Jacobian agreement (via
@@ -90,3 +142,12 @@ tolerance style is the measured v0.2 harness.
   centralized tolerances (fp64 5e-3/0.99999, fp32 2e-2/0.999),
   stage-boundary continuity test and the extras-gated execution model
   decided; torch row lands with WP-0408.
+- **2026-07-24 (from the 0403 session, not yet started here)** — added the
+  "Inherited from upstream WPs" Context block. 0402 and 0403 both landed
+  facts that change the work here (the fp32 bars now exist as importable
+  constants; the fp32 row is a policy, not a backend; the FCJ kink needs a
+  loose bar; the multi-histogram jax test was deferred *to* this WP), and the
+  session protocol forbids reading their files — so they are restated above.
+  The Design tolerance bullet previously said to declare the fp32 bars
+  locally; that would have duplicated `linalg64`'s exports, which is the very
+  drift this WP exists to catch. Corrected.
