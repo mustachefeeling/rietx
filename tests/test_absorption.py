@@ -24,12 +24,16 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from pxrdref.crystallography.attenuation import linear_attenuation, packed_mu_r
 from pxrdref.model.absorption import (
     cylinder_absorption,
     cylinder_absorption_and_dmur,
     equivalent_delta_biso,
     mu_r_identifiable_fraction,
 )
+from pxrdref.optimize.qpa import estimate_capillary_mu_r
+from pxrdref.params.vector import ParameterTable
+from pxrdref.refine import estimate_mu_r
 from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.instrument import Geometry, Instrument
 
@@ -287,3 +291,105 @@ def test_equivalent_delta_biso_matches_a_direct_debye_waller_fit():
                                                                rel=1e-10)
         assert equivalent_delta_biso(mu, lam) == pytest.approx(expect, abs=5e-4)
     assert equivalent_delta_biso(0.0, lam) == 0.0
+
+
+# -- the µR estimator --------------------------------------------------
+
+
+def _lab6():
+    from tests.test_schemas import make_lab6
+    return make_lab6()
+
+
+#: the cell make_lab6 uses, needed for the by-hand mu cross-check
+_LAB6_A = 4.1566
+
+
+def test_packed_mu_r_scales_linearly_with_radius_and_packing():
+    base = packed_mu_r([100.0], [1.0], radius_mm=0.5, packing_fraction=0.6)
+    assert packed_mu_r([100.0], [1.0], 1.0, 0.6) == pytest.approx(2 * base)
+    assert packed_mu_r([100.0], [1.0], 0.5, 0.3) == pytest.approx(0.5 * base)
+    # mu = 100/cm, R = 0.05 cm, f = 0.6  ->  muR = 3.0
+    assert base == pytest.approx(3.0)
+
+
+def test_packed_mu_r_weights_phases_by_volume_fraction():
+    mixed = packed_mu_r([100.0, 300.0], [0.25, 0.75], 0.5, 1.0)
+    assert mixed == pytest.approx(packed_mu_r([250.0], [1.0], 0.5, 1.0))
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    ({"radius_mm": 0.0}, "radius must be positive"),
+    ({"packing_fraction": 0.0}, "packing fraction"),
+    ({"packing_fraction": 1.5}, "packing fraction"),
+])
+def test_packed_mu_r_rejects_unphysical_inputs(kwargs, match):
+    args = {"radius_mm": 0.5, "packing_fraction": 0.6, **kwargs}
+    with pytest.raises(ValueError, match=match):
+        packed_mu_r([100.0], [1.0], **args)
+
+
+def test_estimate_mu_r_reproduces_the_underlying_linear_attenuation():
+    """µR is exactly f_pack · µ · R, and that is asserted against µ directly."""
+    ins = Instrument.debye_scherrer(wavelength=1.5406, capillary_radius_mm=0.5,
+                                    packing_fraction=0.6)
+    mu_r = estimate_mu_r(_lab6(), ins)
+    mu_cm = linear_attenuation({"La": 1.0, "B": 6.0}, _LAB6_A ** 3, 1.5406)
+    assert mu_r == pytest.approx(0.6 * mu_cm * 0.05)   # 0.5 mm = 0.05 cm
+
+
+def test_estimate_mu_r_spans_the_regimes_a_real_capillary_experiment_does():
+    """The estimator's job is to tell a user which regime they are in.
+
+    LaB6 is the worked case because it is the standard everyone owns and it is
+    brutally absorbing at Cu Kα.  µ falls roughly as λ³ away from edges, so the
+    same specimen moves from far outside the Rouse fit to comfortably inside it
+    on the two axes an experimenter actually controls:
+
+        Cu Kα, R = 0.5 mm  →  µR ≈ 34    unusable; the beam barely gets through
+        Cu Kα, R = 0.1 mm  →  µR ≈ 6.8   still outside the model
+        0.414 Å, R = 0.5 mm →  µR ≈ 1.0   at the edge of validity
+        0.414 Å, R = 0.1 mm →  µR ≈ 0.20  fine, and the correction is small
+
+    That last row is why the 11-BM acceptance pattern needs no absorption term,
+    and the first is why an estimate is worth reporting even when the model
+    then declines to use it.
+    """
+    lab6 = _lab6()
+
+    def mu_r(lam, r):
+        return estimate_mu_r(lab6, Instrument.debye_scherrer(
+            wavelength=lam, capillary_radius_mm=r))
+
+    assert mu_r(1.5406, 0.5) == pytest.approx(34.1, rel=0.02)
+    assert mu_r(1.5406, 0.1) == pytest.approx(6.82, rel=0.02)
+    assert mu_r(0.4139090, 0.5) == pytest.approx(1.01, rel=0.02)
+    assert mu_r(0.4139090, 0.1) == pytest.approx(0.20, rel=0.02)
+    # the wavelength lever is the strong one
+    assert mu_r(0.4139090, 0.5) < mu_r(1.5406, 0.5) / 20.0
+
+
+def test_estimate_mu_r_is_none_without_a_capillary_radius():
+    assert estimate_mu_r(_lab6(), Instrument.debye_scherrer(wavelength=1.5406)) is None
+
+
+def test_estimate_mu_r_is_none_for_bragg_brentano():
+    assert estimate_mu_r(_lab6(), Instrument.bragg_brentano()) is None
+
+
+def test_estimator_degrades_to_a_reason_rather_than_raising():
+    """Edge straddling and missing elements are specimen facts, not bugs.
+
+    The attenuation tables refuse to interpolate across an absorption edge;
+    that must surface as a reason a caller can report, exactly as the Brindley
+    path does, not as an exception out of the middle of a refinement.
+    """
+    lab6 = _lab6()
+    table = ParameterTable(lab6, Instrument.debye_scherrer(wavelength=1.5406))
+    values = table.decode(table.x0())
+    # 1.5 A is fine; 0.05 A is far outside the 2-120 keV tabulation
+    mu_r, reason = estimate_capillary_mu_r(lab6, values, 0.05, 0.5, 0.6)
+    assert mu_r is None and reason is not None
+    assert "attenuation unavailable" in reason
+    mu_r, reason = estimate_capillary_mu_r(lab6, values, 1.5406, 0.5, 0.6)
+    assert mu_r is not None and reason is None

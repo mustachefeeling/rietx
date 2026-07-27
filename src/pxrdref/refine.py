@@ -20,7 +20,11 @@ from .history.tree import RefinementTree
 from .model.forward import CompiledModel, Mode, compile_model
 from .model.restraints import summarise_restraints
 from .optimize.least_squares import run_least_squares
-from .optimize.qpa import compute_qpa, microabsorption_diagnostics
+from .optimize.qpa import (
+    compute_qpa,
+    estimate_capillary_mu_r,
+    microabsorption_diagnostics,
+)
 from .optimize.statistics import compute_statistics
 from .params.vector import ParameterTable
 from .schemas.common import Diagnostic, Provenance
@@ -952,6 +956,33 @@ def replay(tree: RefinementTree, node_id: str, data: PatternData) -> RefinementR
     result.node_id = node.id
     result.tree_id = tree.header.tree_id
     return result
+
+
+def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
+    """Starting µR for a packed capillary, from composition and geometry.
+
+    Combines each phase's linear attenuation coefficient (McMaster tables, via
+    :mod:`pxrdref.crystallography.attenuation`) into a volume-fraction-weighted
+    bulk µ, scales it by ``Geometry.packing_fraction`` — voids do not absorb —
+    and multiplies by ``Geometry.capillary_radius_mm``.
+
+    Returns ``None`` rather than raising when µ is unavailable (a wavelength
+    whose tabulation interval straddles an absorption edge, an element outside
+    the compilation, an energy outside 2-120 keV) or when the geometry carries
+    no capillary radius.  Use it to *populate* ``Geometry.mu_r``; a refinement
+    will do the same thing itself at compile time if ``mu_r`` is left ``None``.
+
+    µR is not refinable, deliberately — see :mod:`pxrdref.model.absorption`.
+    """
+    geom = instrument.geometry
+    if geom.kind != "debye_scherrer" or geom.capillary_radius_mm is None:
+        return None
+    table = ParameterTable(structure, instrument)
+    mu_r, _ = estimate_capillary_mu_r(
+        structure, table.decode(table.x0()),
+        instrument.source.primary_wavelength,
+        geom.capillary_radius_mm, geom.packing_fraction)
+    return mu_r
 
 
 def refine(data: PatternData, structure: Structure, instrument: Instrument,
