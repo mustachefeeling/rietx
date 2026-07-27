@@ -59,10 +59,13 @@ Poisson likelihoods, exact Hessians, the model as a torch layer) is recorded in
 [DESIGN.md](DESIGN.md#what-the-differentiable-core-unlocks-deferred-not-planned)
 — deferred, not planned.
 
-**Now: v0.5 — corrections & microstructure.**
-[0501](wp/0501-absorption-corrections.md) (capillary absorption) **landed
-2026-07-27**; the other v0.5 rows are still stubs — expand one before writing
-code.
+**Now: v0.5 — corrections & microstructure.** Two rows landed 2026-07-27 in
+parallel and were merged: [0501](wp/0501-absorption-corrections.md) (capillary
+absorption) and [0503](wp/0503-stephens-anisotropic-strain.md) (Stephens
+anisotropic strain, taken out of order — its own note is below). They are
+orthogonal in the peak chain, 0501 acting on intensity and 0503 on widths, which
+is why the merge was clean. The remaining v0.5 rows are still stubs — expand one
+before writing code.
 
 0501 narrowed its own scope on evidence. Cylindrical only: flat-plate reflection
 off a thick specimen is *exactly* angle-independent (ITC Table 6.3.3.1(1a),
@@ -202,6 +205,26 @@ were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 
 </details>
 
+**Out of order: Stephens anisotropic strain
+[0503](wp/0503-stephens-anisotropic-strain.md) landed 2026-07-27** (v0.5,
+pulled forward on request; 525 tests green). `Phase.microstrain` is an optional
+block of the fifteen S_HKL invariants, with the Laue-allowed subspace *derived*
+from the gemmi operators by exact rational algebra rather than tabulated (the
+DOF counts reproduce Stephens' Table 1 for all eleven Laue classes, checked
+twice — against the published table and against the character count of the
+degree-4 symmetric power). It brings the first genuinely hkl-dependent peak
+width, a `report/strain.py` Layer-1 diagnostic that recovers an injected 3.46×
+directional contrast as 3.45×, and a `toy_stephens` backend golden that jacfwd
+traces. The acceptance is a *characterisation*, not a win: on round-robin
+brucite the three added patterns improve Rwp 18.55 → 17.90 % with ΔBIC +488 and
+still leave the physical cone, so `STEPHENS_STRAIN_NOT_POSITIVE` fires and the
+coefficients are not quotable. Two findings were pushed downstream: the cone is
+a *linear* inequality a constrained solver could enforce
+([0601](wp/0601-bounded-lm-solver.md) `### Inherited`), and Hamilton's R-ratio
+test is useless at 7251 channels — it blesses an inert 0.13 % χ² improvement —
+so ΔBIC is the statistic to quote ([1001](wp/1001-validation-matrix.md)
+`### Inherited`).
+
 ## Milestones
 
 | Milestone | Scope | Status | Acceptance |
@@ -251,7 +274,7 @@ were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 |---|---|---|---|
 | [0501](wp/0501-absorption-corrections.md) | Capillary (cylindrical) absorption | ✅ 2026-07-27 | — |
 | [0502](wp/0502-surface-roughness.md) | Surface roughness | ⬜ | — |
-| [0503](wp/0503-stephens-anisotropic-strain.md) | Stephens anisotropic strain | ⬜ | — |
+| [0503](wp/0503-stephens-anisotropic-strain.md) | Stephens anisotropic strain | ✅ 2026-07-27 | — |
 | [0504](wp/0504-anomalous-scattering-xraydb.md) | Anomalous f′,f″ via xraydb | ⬜ | — |
 | [0505](wp/0505-sequential-refinement.md) | SequentialRefinement warm start | ⬜ | — |
 | [0506](wp/0506-secondary-extinction.md) | Secondary extinction (Sabine) | ✅ 2026-07-23 | — |

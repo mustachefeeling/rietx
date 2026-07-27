@@ -59,6 +59,14 @@ the same degenerate pocket, and 0501 built the tools to measure it:
   improve" test would assert something the physics cannot deliver.
 - `RefinementResult.absorption` (`schemas/results.AbsorptionCorrection`) is the
   precedent for reporting a correction whose effect no fit statistic shows.
+- **A parameter's *name* silently selects its derivative path.**
+  `params/vector.py` decides whether a geometry parameter is force-fixed by
+  testing whether the name starts with `sample_`, and
+  `CompiledModel.scalar_chain_supported` uses the same prefix to decide between
+  an analytic peak-chain column and whole-model finite differences. 0501 left
+  both alone (its µR is not refinable, so neither applied) — but roughness *is*
+  a Bragg-Brentano geometry term, so it is the next WP likely to trip over
+  them. Choose the name deliberately.
 
 ## Tasks
 
