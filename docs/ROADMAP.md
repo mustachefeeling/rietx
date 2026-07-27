@@ -59,9 +59,25 @@ Poisson likelihoods, exact Hessians, the model as a torch layer) is recorded in
 [DESIGN.md](DESIGN.md#what-the-differentiable-core-unlocks-deferred-not-planned)
 — deferred, not planned.
 
-**Next: v0.5 — corrections & microstructure.** No WP is active; the v0.5 table
-below is the menu, and every stub there is still a stub — expand one before
-writing code. Two live forward notes survive v0.4:
+**Now: v0.5 — corrections & microstructure.**
+[0501](wp/0501-absorption-corrections.md) (capillary absorption) is **active**;
+the other v0.5 rows are still stubs — expand one before writing code.
+
+0501 was expanded 2026-07-27 and its scope narrowed on evidence. Cylindrical only
+(flat-plate is *exactly* angle-independent for a thick specimen — ITC Table
+6.3.3.1(1a) — hence identical to the phase scale; the transmission cases go to a
+new WP-0508). It implements Rouse et al. (1970) A26 682 eq. (2) rather than the
+Lobanov fit GSAS-II uses, because Rouse's coefficients could be **verified against
+the paper's own table** (0.0015, against its claimed 0.0035) while Lobanov's trace
+only to an unobtainable conference abstract. The headline finding is that
+cylindrical absorption factors *exactly* into scale × exp(c·sin²θ), so it is
+degenerate with the phase scale and Biso below the resolution of the best
+published tabulation: **µR is computed and held fixed, never refined**, and the
+deliverable is an unbiased Biso (the bias is 0.088 Å² at µR = 1, λ = 1.54 Å) — not
+a better Rwp. That is the WP-0310 transparency lesson applied before the fact
+rather than after.
+
+Two live forward notes survive v0.4:
 
 - **[0605](wp/0605-batched-peak-loop.md) is a v0.6 row that behaves like a v0.5
   one.** Its ≈2.4× lands on the **default numpy path** and needs no optional
@@ -208,7 +224,7 @@ were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0501](wp/0501-absorption-corrections.md) | Capillary + flat-plate absorption | ⬜ | — |
+| [0501](wp/0501-absorption-corrections.md) | Capillary (cylindrical) absorption | 🔶 | — |
 | [0502](wp/0502-surface-roughness.md) | Surface roughness | ⬜ | — |
 | [0503](wp/0503-stephens-anisotropic-strain.md) | Stephens anisotropic strain | ⬜ | — |
 | [0504](wp/0504-anomalous-scattering-xraydb.md) | Anomalous f′,f″ via xraydb | ⬜ | — |
