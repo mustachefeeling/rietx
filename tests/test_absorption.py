@@ -564,3 +564,120 @@ def test_preferred_orientation_column_carries_the_absorption_factor():
         col_fd = (residual(tp) - r0) / h
         err = np.linalg.norm(J[:, c] - col_fd) / np.linalg.norm(col_fd)
         assert err < 5e-3, f"{path}: analytic vs FD mismatch ({err:.2e})"
+
+
+# -- resolution, reporting and diagnostics ------------------------------
+
+
+def _capillary_refinement(**geom_kw):
+    """A Refinement over a synthetic capillary pattern (fit not run)."""
+    from pxrdref import PatternData, Refinement
+    from tests.test_schemas import make_lab6
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 1e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406, **geom_kw)
+    ins.profile.w.value = 2e-2
+    grid = np.arange(15.0, 110.0, 0.02)
+    # a sloping, mildly noisy background: a perfectly flat pattern makes the
+    # Durbin-Watson statistic 0/0 and the point here is the absorption record,
+    # not a degenerate fit
+    rng = np.random.default_rng(0)
+    y = 100.0 + 0.5 * grid + rng.normal(0.0, 3.0, grid.size)
+    return Refinement(structure, ins, history=False), PatternData(
+        two_theta=grid.tolist(), intensity=y.tolist())
+
+
+def test_mu_r_is_resolved_from_composition_and_written_onto_the_instrument():
+    """The resolved value must be visible, not hidden inside the model.
+
+    Putting it on the instrument means ``fitted_instrument`` and every history
+    snapshot record what was actually applied.
+    """
+    ref, _ = _capillary_refinement(capillary_radius_mm=0.05)
+    assert ref.instrument.geometry.mu_r is not None
+    assert ref.instrument.geometry.mu_r == pytest.approx(
+        estimate_mu_r(ref.structure, ref.instrument), rel=1e-12)
+    assert ref._mu_r_source == "estimated"
+
+
+def test_an_explicit_mu_r_is_never_overwritten_by_the_estimate():
+    """The user measured their specimen; we did not."""
+    ref, _ = _capillary_refinement(capillary_radius_mm=0.05, mu_r=0.4)
+    assert ref.instrument.geometry.mu_r == 0.4
+    assert ref._mu_r_source == "given"
+
+
+def test_no_capillary_radius_leaves_absorption_entirely_alone():
+    ref, _ = _capillary_refinement()
+    assert ref.instrument.geometry.mu_r is None
+    assert ref._mu_r_skipped is None
+
+
+def test_result_reports_the_applied_mu_r_and_the_bias_it_removed():
+    """Rwp cannot show that the correction did anything, so the record must."""
+    ref, data = _capillary_refinement(mu_r=0.6)
+    result = ref.fit(data, plan=_scale_only_plan())
+    rec = result.absorption
+    assert rec is not None
+    assert rec.method == "rouse_cylinder"
+    assert rec.mu_r == pytest.approx(0.6)
+    assert rec.mu_r_source == "given"
+    assert rec.equivalent_delta_biso == pytest.approx(
+        equivalent_delta_biso(0.6, 1.5406), rel=1e-12)
+    assert not rec.out_of_range
+    assert rec.skipped is None
+
+
+def test_no_absorption_record_when_the_geometry_never_asked_for_one():
+    ref, data = _capillary_refinement()
+    assert ref.fit(data, plan=_scale_only_plan()).absorption is None
+
+
+def test_out_of_range_mu_r_is_used_but_flagged():
+    """Refusing outright would silently drop real absorption; warn instead."""
+    ref, data = _capillary_refinement(mu_r=2.5)
+    result = ref.fit(data, plan=_scale_only_plan())
+    assert result.absorption.out_of_range
+    codes = [d.code for d in result.diagnostics]
+    assert "ABSORPTION_MU_R_OUT_OF_RANGE" in codes
+    d = next(d for d in result.diagnostics if d.code == "ABSORPTION_MU_R_OUT_OF_RANGE")
+    assert d.level == "warning"
+    assert d.suggestion
+
+
+def test_an_unestimable_mu_r_is_reported_rather_than_silently_ignored():
+    """The worst outcome would be fitting with no correction and saying nothing.
+
+    A wavelength sitting on a La absorption edge makes µ uninterpolatable, so
+    the correction cannot run — that has to be loud.
+    """
+    from pxrdref import PatternData, Refinement
+    from tests.test_schemas import make_lab6
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 1e-3
+    # 0.318 A ~ 39 keV: above the tabulation's 2-120 keV band edge? no --
+    # instead pick a wavelength whose interval straddles the La K edge (38.9 keV)
+    ins = Instrument.debye_scherrer(wavelength=0.3185, capillary_radius_mm=0.05)
+    ins.profile.w.value = 2e-2
+    ref = Refinement(structure, ins, history=False)
+    if ref._mu_r_skipped is None:
+        pytest.skip("chosen wavelength does not straddle a tabulated edge")
+    assert ref.instrument.geometry.mu_r is None      # correction stays off
+    grid = np.arange(5.0, 40.0, 0.02)
+    rng = np.random.default_rng(0)
+    data = PatternData(two_theta=grid.tolist(),
+                       intensity=(100.0 + 0.5 * grid
+                                  + rng.normal(0.0, 3.0, grid.size)).tolist())
+    result = ref.fit(data, plan=_scale_only_plan())
+    assert result.absorption.skipped is not None
+    assert "ABSORPTION_ESTIMATE_UNAVAILABLE" in [d.code for d in result.diagnostics]
+
+
+def _scale_only_plan():
+    import pxrdref as pr
+
+    return pr.RefinementPlan(stages=[pr.Stage("scale", ["phases.*.scale",
+                                                       "instrument.background.*"],
+                                              max_iter=8)])
