@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest                             # full suite ~7 min, incl. real-data acceptance
-.venv/bin/python -m pytest -m "not slow"               # skip acceptance (~75 s)
+.venv/bin/python -m pytest                             # full suite ~9 min, incl. real-data acceptance
+.venv/bin/python -m pytest -m "not slow"               # skip acceptance (~90 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -192,13 +192,17 @@ measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
 (+30 ppm) plus the IUCr QPA round robin with participant-spread-referenced
 tolerances).
 
-In progress: **v0.4 — differentiable backends.** The op shim, the jax backend,
-the mixed-precision policy, the cross-backend agreement CI and the torch backend
-have landed (WP-0401…0404, 0408): `backend=` takes `"numpy"`, `"jax"`,
-`"torch"` (CPU fp64) or `"torch-mps"` (Apple GPU, necessarily fp32), every one
-held to per-column agreement with the analytic Jacobian in
-`tests/test_cross_backend.py`. Remaining: 0405 (true Voigt), 0406 (restraints),
-0407 (esd/Bérar-Lelann placement). v2 fence: FPA, neutron/TOF,
+**v0.4 — differentiable backends** is feature-complete (all eight WPs landed;
+the milestone record is still to be written). `backend=` takes `"numpy"`,
+`"jax"`, `"torch"` (CPU fp64) or `"torch-mps"` (Apple GPU, necessarily fp32),
+every one held to per-column agreement with the analytic Jacobian in
+`tests/test_cross_backend.py` — whose configs must grow whenever a *new
+derivative path* does, or no backend row covers it. Also landed: true Voigt
+(`Instrument.profile.shape="voigt"`, one shared Weideman Faddeeva `w(z)`, TCHZ
+still the default), soft bond/angle/value restraints (extra residual rows below
+the data, Rietveld and single-histogram only), and the Bérar-Lelann esd fix
+(reported esds now carry the inflation; the correlation matrix is a true Pearson
+matrix and the 0.98 guard is live). v2 fence: FPA, neutron/TOF,
 spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):

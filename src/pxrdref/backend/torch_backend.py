@@ -92,10 +92,13 @@ def make_traced_residual(model, table, xp):
     """The weighted residual as a pure traceable function of the combined θ.
 
     Mirrors ``optimize.least_squares._make_residual`` row for row — [data |
-    background-penalty | Pawley-restraint] — with the Le Bail intensity snapshot
-    and every weight/design constant closed over.  Any drift between the two is
-    caught by ``tests/test_backend_torch.py``'s residual test and, column-wise,
-    by WP-0404's matrix.
+    background-penalty | Pawley-restraint | soft-restraint] — with the Le Bail
+    intensity snapshot and every weight/design constant closed over.  The
+    soft-restraint rows (bond/angle/value, WP-0406) are one differentiable
+    function of the decoded coordinates and cell, so ``jvp`` differentiates them
+    automatically.  Any drift between the two is caught by
+    ``tests/test_backend_torch.py``'s residual test and, column-wise, by
+    WP-0404's matrix.
     """
     decode = make_traced_decode(table, xp)
     n_table = len(table.free_paths)
@@ -122,6 +125,9 @@ def make_traced_residual(model, table, xp):
             rpen = model.pawley_restraint_residual(theta[n_table:])
             if rpen is not None:
                 parts.append(rpen)
+        rr = model.restraint_residual(values)
+        if rr is not None:
+            parts.append(rr)
         return parts[0] if len(parts) == 1 else xp.concatenate(parts)
 
     return residual

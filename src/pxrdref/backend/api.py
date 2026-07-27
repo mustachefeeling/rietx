@@ -260,38 +260,50 @@ def scalar_tensor_class():
     unaffected — it is 0-d duals specifically.
 
     Every scalar in this model is 0-d and meets python literals constantly
-    (``0.5 * tt``, ``s/R``, ``2.0 * min(s, h)``), so :class:`TorchBackend`
-    guarantees instead that **every 0-d value it hands out is of this type**,
-    which lifts the literal to a 0-d tensor on the operand's own device and dtype
-    — a spelling torch handles correctly.  ``make_traced_decode`` does the same
-    for the decoded parameters, which are produced by indexing rather than by an
-    op.
+    (``0.5 * tt``, ``s/R``, ``2.0 * min(s, h)``, ``1j * gamma`` in the Voigt
+    argument), so :class:`TorchBackend` guarantees instead that **every value it
+    hands out on MPS is of this type**, which lifts the literal to a tensor on
+    the operand's own device — promoting to complex when the literal is complex
+    and the operand is not, since a real dtype cannot hold ``1j``.
 
-    The wrapper is deliberately **shed at the first array-valued result**: the bug
-    exists only for 0-d values, and letting the subclass ride along on the
-    (N,)-shaped intensities would put a ``__torch_function__`` hop in front of
-    every kernel in the hot loop.
+    The wrapper rides on **arrays too**, and that is deliberate even though the
+    bug is 0-d-only.  0-d values are not only produced by ops: they also fall out
+    of *indexing* an array (``gamma[k]``, one reflection's width) and of array
+    methods (``.sum()``), neither of which the backend's op wrappers see.  Shedding
+    at the first array result left exactly those two holes — one of which reached
+    the true-Voigt profile and only surfaced when WP-0405 and WP-0408 were
+    integrated.  Propagating costs a ``__torch_function__`` hop per op on MPS,
+    which is real but bounded: this device is a correctness instrument, already
+    dispatch-bound and 30-100× off numpy for reasons this does not change
+    (``examples/bench_torch_mps.py``).  The CPU fp64 instance — the agreement row
+    — never constructs the class at all.
     """
     import torch
 
     def _lift(other, ref):
         if isinstance(other, bool) or not isinstance(other, int | float | complex):
             return other
-        return torch.as_tensor(other, dtype=ref.dtype, device=ref.device)
+        dtype = ref.dtype
+        if isinstance(other, complex) and not ref.is_complex():
+            # a complex literal against a real operand — ``1j * gamma`` in the
+            # Voigt argument (WP-0405).  Lifting it at the operand's own real
+            # dtype would refuse to hold it; promote to the complex type of the
+            # same width, which is what torch's own promotion would have done.
+            dtype = (torch.complex64 if ref.dtype == torch.float32
+                     else torch.complex128)
+        return torch.as_tensor(other, dtype=dtype, device=ref.device)
 
     class ScalarTensor(torch.Tensor):
         __doc__ = scalar_tensor_class.__doc__
 
         @classmethod
         def __torch_function__(cls, func, types, args=(), kwargs=None):
-            # run the op as if this were a plain Tensor, then re-wrap only while
-            # the value is still 0-d — the protection has to survive ``xp.minimum``
-            # and friends, whose results meet python literals too
+            # run the op as if this were a plain Tensor, then re-wrap: the
+            # protection has to survive ``xp.minimum`` and friends *and* the
+            # indexing/reduction that turns an array back into a 0-d scalar
             with torch._C.DisableTorchFunctionSubclass():
                 out = func(*args, **(kwargs or {}))
-            if isinstance(out, torch.Tensor):
-                return out.as_subclass(cls if out.dim() == 0 else torch.Tensor)
-            return out
+            return out.as_subclass(cls) if isinstance(out, torch.Tensor) else out
 
     for _name in ("mul", "rmul", "truediv", "rtruediv", "add", "radd",
                   "sub", "rsub", "pow", "rpow"):
@@ -440,13 +452,13 @@ class TorchBackend:
         return lambda a, b: fn(self._t(a), self._t(b))
 
     def scalarize(self, x: Any) -> Any:
-        """A 0-d result made safe to combine with a python literal (MPS only).
+        """A result made safe to combine with a python literal (MPS only).
 
-        The identity everywhere else, including on every array-shaped value —
-        see :func:`scalar_tensor_class` for what this is working around.
+        The identity on every other backend — see :func:`scalar_tensor_class`
+        for what this is working around, and why it is not restricted to the
+        0-d values that are the ones actually at risk.
         """
-        if self._scalar is not None and isinstance(x, self._torch.Tensor) \
-                and x.dim() == 0:
+        if self._scalar is not None and isinstance(x, self._torch.Tensor):
             return x.as_subclass(self._scalar)
         return x
 

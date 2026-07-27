@@ -1,6 +1,6 @@
 # WP-0405 — True Voigt via a shared Faddeeva w(z)
 
-Milestone: v0.4 · Status: ⬜ not started
+Milestone: v0.4 · Status: ✅ 2026-07-24
 Depends on: WP-0401
 
 ## Goal
@@ -122,13 +122,13 @@ is the point); FPA-style physical profiles (v2 fence).
 
 ## Tasks
 
-- [ ] `model/profiles/faddeeva.py`: Weideman N=32 `w(z)` on the 0401 op set;
+- [x] `model/profiles/faddeeva.py`: Weideman N=32 `w(z)` on the 0401 op set;
       paper citation in the docstring; ATTRIBUTION.md entry
-- [ ] `model/profiles/voigt.py`: unit-area true Voigt + analytic derivs;
+- [x] `model/profiles/voigt.py`: unit-area true Voigt + analytic derivs;
       reuse Caglioti/sample FWHM inputs
-- [ ] `Instrument.profile.shape` enum (default `tchz_pv`), threaded through
+- [x] `Instrument.profile.shape` enum (default `tchz_pv`), threaded through
       `phase_peaks`/`_reflection_profile`/`derivative_bases`
-- [ ] Tests: `tests/test_voigt.py` — unit area <1e-6 on the frozen window;
+- [x] Tests: `tests/test_voigt.py` — unit area <1e-6 on the frozen window;
       γ_L→0 Gaussian and σ→0 Lorentzian limits <1e-8; cross-backend w(z)
       agreement <1e-12 (fp64); analytic ∂V/∂(σ,γ) vs FD <5e-3; the FCJ
       smoothness test holds under the Voigt shape + obs/calc/diff PNGs to
@@ -140,8 +140,14 @@ is the point); FPA-style physical profiles (v2 fence).
 .venv/bin/python -m pytest tests/test_voigt.py tests/test_profiles_background.py -q
 ```
 
-Measured: Voigt unit-area within 1e-6; Gaussian/Lorentzian limits within
-1e-8; w(z) cross-backend within 1e-12; analytic derivs vs FD <5e-3.
+Measured (2026-07-24): 26 passed. Weideman N=32 vs `scipy.special.wofz`
+≤1e-12 over the upper half-plane; Voigt unit-area |A−1| < 1e-6 (worst 6.4e-7,
+mixed σ=γ=0.2); γ_L→0 Gaussian and σ→0 Lorentzian limits each < 1e-8;
+numpy↔jax w(z) 1.6e-16; numpy↔jax full Voigt residual ≤1e-9; analytic
+∂V/∂(σ,γ) vs central FD ≤ few-1e-8; the whole-model peak-chain analytic
+Jacobian vs FD under `shape="voigt"` worst 1.3e-3 (< 5e-3) across all 18
+column families incl. FCJ; FCJ second-difference smoothness holds under Voigt;
+SRM-660c-style lab LaB6 end-to-end (slow) Rwp 0.031, a within 5e-4 Å.
 
 ## References
 
@@ -154,7 +160,64 @@ Measured: Voigt unit-area within 1e-6; Gaussian/Lorentzian limits within
 
 ## Handover log
 
+- **2026-07-27** — **torch verification, done by WP-0408 during integration**
+  (this WP and the torch backend were built in parallel on separate branches).
+  The open question left in the `### Inherited` note below — "verify `1j *
+  tensor`, complex `/` and `real`/`imag` on your device before claiming the
+  shape works" — is now answered:
+
+  - **CPU fp64 torch: works unchanged.** `faddeeva_w` needed no edit. The
+    coefficient-table hazard WP-0408 predicted does not bite, because
+    `_WEIDEMAN_A[0]` indexes out a numpy *scalar* (which torch accepts on the
+    left of an operator) rather than slicing an array — the Horner form is what
+    saved it.
+  - **MPS fp32: one bug, in WP-0408's code, not here.** `voigt.py`'s
+    `1j * gamma` on a 0-d width tripped that backend's scalar guard, which lifted
+    the complex literal at the operand's real dtype. Fixed there; `voigt.py` and
+    `faddeeva.py` are untouched. Routing `shape="voigt"` to CPU — the fallback
+    this WP's note suggested — was **not** needed: complex64 `exp`/`mul`/`sum`/
+    `real`/`imag` all work on Metal.
+  - **The matrix now covers the shape.** This WP's own `### Inherited` warned
+    that shipping without a `shape="voigt"` state leaves
+    `tests/test_cross_backend.py` blind to the new derivative path; that is what
+    happened. A `families_voigt` config now runs the 18 analytic families under
+    the Voigt shape across analytic / central FD / jax / torch and both fp32
+    policies — all inside the fp64 bars, worst column 3.1e-5 rel-L2 (torch vs
+    analytic). It is built locally in that file rather than added to
+    `test_backend_shim.STATES`, so it needs no bit-identity golden.
 - **2026-07-22** — created as a stub from the ROADMAP split.
 - **2026-07-24** — expanded from stub (v0.4 planning session): Weideman N=32
   chosen for branchlessness; per-instrument `profile.shape` enum; files,
   property tests and tolerances decided.
+- **2026-07-24** — **implemented and signed off.** Done: `faddeeva.py`
+  (Weideman N=32, coeffs computed once at import in plain numpy; hot path is
+  Horner + two complex divisions, all Python operators so it dispatches on the
+  array's backend with *no* `get_backend()` call and *no* new op in
+  `backend/api.py`); `voigt.py` (`voigt`, `voigt_derivs`, `fwhm_to_voigt_params`);
+  `Instrument.profile.shape` Literal threaded to `CompiledModel.shape` and
+  dispatched via `_peak_widths`/`_profile`/`_profile_derivs` in `forward.py`;
+  `tests/test_voigt.py`; ATTRIBUTION (Weideman + Armstrong). Acceptance +
+  `ruff` + full fast suite green.
+  Design notes for a successor / downstream WPs:
+  * **The `phase_peaks` tuple is now shape-polymorphic.** Its 2nd/3rd slots are
+    (Γ, η) for TCHZ but (σ, γ_HWHM) for Voigt — `_peak_widths` picks. Every
+    consumer (peak-chain Jacobian in `least_squares._peak_chain_column`,
+    `lebail_update`, `phase_component`) treats them as opaque width slots and is
+    already shape-agnostic; the FD-of-`phase_peaks` chain in the analytic
+    Jacobian *just works* because the profile-deriv slots match the width slots.
+  * **KNOWN GAP (not in scope, does not affect the default):** `report/layer1.py`
+    still reads `bases.peaks[...][1]` as an FWHM (`fwhm_sum += weight*gamma[k]`,
+    line ~90) for its 0.4·FWHM validity radius. Under Voigt that slot is σ,
+    ≈FWHM/2.355 — i.e. the radius is *tighter*, which is conservative (errs
+    toward "non-separable", never toward a confident-wrong singleton), so it is
+    safe but slightly suboptimal. If a future WP wants exact L1 attribution
+    under Voigt, expose an FWHM from the width slots per shape rather than
+    reading slot 1 directly.
+  * σ is bounded away from 0 by the Caglioti Γ_G² floor (`_MIN_GAMMA_G2=1e-8`),
+    and the Voigt argument always has Im z = γ/(σ√2) ≥ 0, so only the Weideman
+    upper-half-plane branch is ever needed (the reflection formula is unused —
+    real branchlessness, not a hidden mask).
+  * Compile-time window/FCJ-node sizing still uses TCHZ Γ as the width proxy
+    under both shapes (it tracks the Voigt FWHM to ~1 %, dwarfed by the 30·FWHM
+    window). No separate Voigt sizing path needed.
+  Next on this WP: none — shipped.

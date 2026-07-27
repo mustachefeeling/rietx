@@ -117,26 +117,52 @@ FD_STEP = 1e-6
 # ----------------------------------------------------------------------
 # configs: (model, table) at a compiled expansion point
 # ----------------------------------------------------------------------
-def _state_families():
-    """The 18 analytic column families on the v0.2 lab Bragg-Brentano state."""
+def _families_state(*, shape: str = "tchz_pv"):
+    """The 18 analytic column families on the v0.2 lab Bragg-Brentano state.
+
+    ``shape="voigt"`` swaps in WP-0405's true Gaussian⊗Lorentzian peak, which is
+    a *different derivative path* for the same parameters: the width columns then
+    come from ``voigt_derivs``' ∂V/∂(σ,γ) via the Faddeeva w(z) rather than from
+    the TCHZ polynomial forms.  Built here rather than added to
+    ``test_backend_shim.STATES`` on purpose — that registry is guarded by
+    bit-identity goldens which are WP-0401's artefact, while this file only needs
+    a compiled expansion point.
+    """
     structure, ins, pattern = _lab_state()
+    ins.profile.shape = shape
     table = ParameterTable(structure, ins)
     table.set_vary(["*"], False)
     for path in ANALYTIC_FAMILIES:
         assert table.set_vary([path], True), path
     model = compile_model(structure, ins, pattern, mode="rietveld",
                           free_paths=set(table.free_paths))
+    assert model.shape == shape
     return model, table, {}
 
 
-CONFIGS = {"families": _state_families, **STATES}
+def _state_families():
+    return _families_state()
 
-#: the fast configs run everywhere; the two real-data ones are `slow`
+
+def _state_families_voigt():
+    return _families_state(shape="voigt")
+
+
+CONFIGS = {"families": _state_families,
+           "families_voigt": _state_families_voigt, **STATES}
+
+#: the fast configs run everywhere; the two real-data ones are `slow`.
+#: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
+#: residual rows) are here because a *new derivative path* that no matrix row
+#: evaluates is a path no backend agreement covers — both landed in parallel with
+#: WP-0408 and were wired in when the branches were reconciled.
 CONFIG_PARAMS = [
     "families",
+    "families_voigt",
     "toy_lebail",
     "toy_pawley",
     "toy_rich",
+    "toy_restraints",
     pytest.param("srm660c", marks=pytest.mark.slow),
     pytest.param("nac", marks=pytest.mark.slow),
 ]

@@ -123,6 +123,27 @@ row of the matrix is already written and self-skipping**, so most of the
   solve. That is how the multi-histogram row gets a torch Jacobian.
 - The benchmark above stays out of this file: WP-0404's acceptance is
   correctness only, and its tests deliberately assert no wall-clock.
+From **WP-0405** (true Voigt, landed 2026-07-24) — only relevant when a torch
+run uses `Instrument.profile.shape="voigt"` (TCHZ is the default and is
+complex-free):
+
+- **The Voigt path needs working complex tensors, not just `exp`/`conj`.**
+  `model/profiles/faddeeva.py` builds `z` with `1j * z`, divides complex arrays
+  with the bare `/` operator, and takes `.real`/`.imag` — deliberately *not*
+  through named ops in `backend/api.py`, so it dispatches on the tensor type
+  alone. torch supports all of these, but verify `1j * tensor`, complex `/` and
+  `torch.real`/`imag` on your device before claiming the shape works. There is
+  **no new op to implement** for it — if TCHZ passes the op-set contract, add a
+  single agreement point for `faddeeva_w` on a complex sample and one Voigt
+  forward eval, no more.
+- **Complex is fp-policy-coupled on MPS.** w(z) is fp64/complex128 on CPU;
+  under WP-0403's fp32 column policy it is complex64. If MPS lacks a needed
+  complex op, the honest move is to route `shape="voigt"` to the CPU-fp64 torch
+  path (like the analytic column path already is) rather than silently degrade —
+  the Voigt argument always has Im z ≥ 0, so no branch is needed, only dtype.
+- **Sizing is shape-free.** `compile_model` sizes windows/FCJ nodes with the
+  TCHZ Γ proxy under both shapes, so no Voigt-specific compile-time path (and
+  hence no device-tensor-in-frozen-state risk beyond Gotcha (1) above).
 
 ### Design (decided)
 
@@ -237,6 +258,51 @@ deliberately; recorded in DESIGN.md's locked decisions and pushed to WP-0601's
 - `torch.func` (`jacfwd`, `vmap`) documentation.
 
 ## Handover log
+
+- **2026-07-27 (later)** — **integrated with WP-0405/0406/0407**, which landed on
+  `origin/main` in parallel while this WP was built on a branch that predated
+  them. The merge was mostly clean; the engineering was not, and all of it was
+  torch-side:
+
+  - **0406's restraint rows had to be added to the torch traced residual.** 0406
+    updated `_make_residual` and the jax twin; the torch twin did not exist yet
+    on their branch. This is the three-places hazard this WP had already written
+    into 0406's `### Inherited` — the note was written *after* 0406 shipped, so
+    nobody could have read it. The row layout is now
+    `[data | background-penalty | Pawley-restraint | soft-restraint]` in all
+    three.
+  - **The matrix was blind to both new derivative paths.** WP-0404's brief for
+    0405 said explicitly: add a `shape="voigt"` state or the matrix never sees
+    the Voigt columns. It shipped without one, and `toy_restraints` was added to
+    `STATES` but never to `CONFIG_PARAMS`. Both are now configs
+    (`families_voigt` is built locally rather than added to `STATES`, so it needs
+    no bit-identity golden), which is +12 matrix cells. **All 12 passed
+    first time** on analytic/FD/jax/torch and both fp32 policies — the paths were
+    correct, just uncovered.
+  - **The true Voigt did fail on MPS, and the cause was this WP's own guard.**
+    `voigt.py` computes `1j * gamma` where `gamma` is one reflection's 0-d width.
+    `ScalarTensor._lift` lifted the literal at the *operand's* dtype, and a real
+    dtype cannot hold `1j`, so `__rmul__` returned `NotImplemented` and python
+    reported "unsupported operand type(s) for \*: 'complex' and 'Tensor'". It now
+    promotes to the complex type of matching width.
+  - **…and that exposed the real hole: the guard was shed at arrays.** 0-d values
+    do not only come from ops — they also come from *indexing* an array
+    (`gamma[k]`) and from array methods (`.sum()`), neither of which the backend's
+    op wrappers see. The wrapper now rides on every value on MPS. It costs a
+    `__torch_function__` hop per op on a device that is already dispatch-bound
+    and 30-100× off numpy, which is the right trade for a correctness instrument;
+    the CPU fp64 instance still never constructs the class.
+  - **`aten::dot` did not bite** despite four 1-D·1-D products in the restraint
+    geometry (`dx @ (g @ dx)` and friends) — `toy_restraints` declares value
+    restraints only, so the bond/angle path is not exercised on MPS. Left alone
+    rather than pre-emptively rewritten: the `matmul` expansion is there if a
+    bond/angle state ever reaches the device, and an untested workaround is worse
+    than a documented gap.
+
+  Measured after integration: **505 tests, 501 passed / 4 skipped, 8 min 34 s**;
+  MPS-vs-torch-fp64 column agreement 4.0e-4 (`families_voigt`, the worst of the
+  six fast configs) against the 2e-2 bar. The acceptance block above still holds
+  as measured; only the test counts moved.
 
 - **2026-07-27** — **shipped.** Five commits; measured acceptance above. Done:
   `[torch]` extra, `TorchBackend` under two names, `torch.func.jvp` Jacobian,

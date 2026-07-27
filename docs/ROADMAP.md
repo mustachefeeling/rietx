@@ -75,34 +75,55 @@ and the frozen state proved bit-identical across each solve.  Every backend row
 self-skips without its package, so the same command is green on a numpy-only
 checkout.
 
-The torch backend [0408](wp/0408-torch-mps-backend.md) **landed 2026-07-27**
-(461 tests, 458 passed / 3 documented skips, 38 `slow`), and it split cleanly
-into a win and a finding.
-*Win:* `backend="torch"` is an independent fp64 row of the agreement matrix on
-every config, and `backend="torch-mps"` gives the **first real-hardware
-confirmation of WP-0403's fp32-column policy** — an SRM 676a refinement with
-the whole peak chain and every column computed in fp32 on the Apple GPU lands
-3.5e-8 Å from the numpy fp64 cell, because the trust region re-measures each
-step against an fp64 cost.  *Finding:* **MPS is 30-100× slower than numpy**
+Three backend-independent WPs landed 2026-07-24.  Restraint penalty rows
+[0406](wp/0406-restraint-penalty-rows.md): bond/angle/value soft restraints as
+√w·(computed−target)/σ rows below the data (in JᵀJ, out of Rwp/DW/Bérar-Lelann),
+with the analytic nonlinear row-Jacobian chained through the affine constraint
+block, a `RestraintReport` + `RESTRAINT_TENSION` diagnostic, and a 6th backend
+golden (`toy_restraints`); Rietveld- and single-histogram-only (multi-histogram
+deferred — see WP-0308 `### Inherited`).  True Voigt
+[0405](wp/0405-faddeeva-voigt.md): `Instrument.profile.shape="voigt"` selects an
+opt-in Gaussian⊗Lorentzian peak built on one backend-agnostic Weideman-N=32
+Faddeeva `w(z)` (no per-backend `wofz`); TCHZ stays the default, the U,V,W,X,Y
+widths and FCJ are shared, and numpy↔jax agree to 1e-16 on `w(z)`.  esd
+reconciliation [0407](wp/0407-esd-reconciliation.md): the Bérar-Lelann placement
+bug is fixed — reported physical esds now genuinely carry the inflation the
+docstrings claim (SRM 660c `a`-esd 2.49e-5 = raw 7.4e-6 × BL 3.38), the returned
+correlation matrix is a true Pearson matrix (unit diagonal), and the 0.98
+high-correlation guard is live again (it fires on collinear zero-shift ~
+sample-displacement); it un-masked two unit tests that had ridden the bug
+(extinction↔scale is a genuine ρ≈0.97 degeneracy, not separable; aniso U11/U33
+separate at ≈2.2σ against honest esds) — reconciled to the true physics, not
+silenced.
+
+The torch backend [0408](wp/0408-torch-mps-backend.md) **landed 2026-07-27**,
+and it split into a win and a finding.  *Win:* `backend="torch"` is an
+independent fp64 row of the agreement matrix on every config, and
+`backend="torch-mps"` gives the **first real-hardware confirmation of WP-0403's
+fp32-column policy** — an SRM 676a refinement with the whole peak chain and every
+column computed in fp32 on the Apple GPU lands 3.5e-8 Å from the numpy fp64
+cell, because the trust region re-measures each step against an fp64 cost.
+*Finding:* **MPS is 30-100× slower than numpy**
 (`examples/bench_torch_mps.py`), and not for a precision or backend-quality
 reason — the residual walks ~130 frozen windows of 200-900 points one at a time
 in python, which is kernel-dispatch-bound.  Apple-GPU *acceleration* therefore
 waits on a **batched peak loop**, a `model/forward.py` change for every backend
 that the frozen window layout already permits; it is fenced out of 0408 and
-noted in [0601](wp/0601-bounded-lm-solver.md)'s Inherited and DESIGN.md.  Three
-torch-vs-jax surprises are worth knowing before touching the hot path again and
-are in 0408's handover log; the two that bind *all* future work are now in
-CLAUDE.md's Conventions (no frozen numpy constant on the left of an operator
-against a traced value; a new op must land on every backend).
+noted in [0601](wp/0601-bounded-lm-solver.md)'s Inherited and DESIGN.md.  The two
+hot-path rules that bind *all* future work are in CLAUDE.md's Conventions (no
+frozen numpy constant on the left of an operator against a traced value; a new op
+must land on every backend); the torch-specific traps are in 0408's handover log.
 
-Remaining for v0.4, all independent of each other:
-[0407](wp/0407-esd-reconciliation.md) (small — the reported per-parameter esds
-do not actually carry the Bérar-Lelann inflation the docstrings claim, because
-the correlation matrix is normalised by the inflated diagonal; the same bug
-leaves the high-correlation guard dead),
-[0406](wp/0406-restraint-penalty-rows.md) (bond/angle restraints — note the
-residual row layout now lives in three places, see its Inherited) and
-[0405](wp/0405-faddeeva-voigt.md) (true Voigt, needs only 0401).
+0405/0406/0407 and 0408 were developed in parallel and **integrated 2026-07-27**:
+the torch traced residual grew the soft-restraint rows (0406's row layout is
+written out in three places — numpy, jax, torch), the agreement matrix gained the
+`toy_restraints` and true-Voigt configs so the new derivative paths are covered
+on every backend row, and four 1-D·1-D dot products in the restraint geometry
+were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
+
+**All eight v0.4 WPs are ✅.**  What remains before the milestone row flips is
+protocol step 4, not code: a measured-acceptance record in
+`milestones/v0.4.md` and a pass over README.md's roadmap claims.
 
 ## Milestones
 
@@ -142,9 +163,9 @@ residual row layout now lives in three places, see its Inherited) and
 | [0402](wp/0402-jax-backend.md) | JAX backend: chunked jacfwd | ✅ 2026-07-24 | 0401 |
 | [0403](wp/0403-cuda-mixed-precision.md) | Mixed-precision policy (CUDA-deferred, CPU-testable) | ✅ 2026-07-24 | 0402 |
 | [0404](wp/0404-cross-backend-jacobian-ci.md) | Cross-backend Jacobian CI | ✅ 2026-07-24 | 0402 |
-| [0405](wp/0405-faddeeva-voigt.md) | True Voigt via shared Faddeeva w(z) | ⬜ | 0401 |
-| [0406](wp/0406-restraint-penalty-rows.md) | Restraint penalty rows | ⬜ | — |
-| [0407](wp/0407-esd-reconciliation.md) | esd reconciliation (Bérar-Lelann placement) | ⬜ | — |
+| [0405](wp/0405-faddeeva-voigt.md) | True Voigt via shared Faddeeva w(z) | ✅ 2026-07-24 | 0401 |
+| [0406](wp/0406-restraint-penalty-rows.md) | Restraint penalty rows | ✅ 2026-07-24 | — |
+| [0407](wp/0407-esd-reconciliation.md) | esd reconciliation (Bérar-Lelann placement) | ✅ 2026-07-24 | — |
 | [0408](wp/0408-torch-mps-backend.md) | torch backend (MPS fp32 forward) — moved from v0.6 | ✅ 2026-07-27 | 0401, 0402, 0404 |
 
 ### v0.5 — corrections & microstructure (stubs)

@@ -63,11 +63,11 @@ is no longer hypothetical, and it splits into two jobs, not one:
   per-push rather than nightly, cache it deliberately; it will dominate job
   setup otherwise.
 - **Both runtime figures above moved again, and one moved *down***: measured
-  2026-07-27 with all extras installed, the full suite is **7 min 19 s** (461
-  tests, 38 `slow`) and `-m "not slow"` is **~72 s** (423 tests) — faster than
-  the ~13 min recorded three days earlier *despite* adding the whole torch
-  matrix. Machine state moves these as much as the test count does. Re-measure;
-  do not trust any number in this file.
+  2026-07-27 with all extras installed and v0.4 complete, the full suite is
+  **8 min 34 s** (505 tests, 38 `slow`) and `-m "not slow"` is **~90 s** —
+  faster than the ~13 min recorded three days earlier *despite* adding the torch
+  matrix, the true-Voigt tests and the restraint suite. Machine state moves these
+  as much as the test count does. Re-measure; do not trust any number here.
 
 From **WP-0401** (op shim, landed 2026-07-24): `tests/test_backend_shim.py`
 asserts **bit-identity** against environment-pinned npz goldens in
