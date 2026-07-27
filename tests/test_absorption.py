@@ -24,6 +24,12 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from pxrdref.model.absorption import (
+    cylinder_absorption,
+    cylinder_absorption_and_dmur,
+    equivalent_delta_biso,
+    mu_r_identifiable_fraction,
+)
 from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.instrument import Geometry, Instrument
 
@@ -168,3 +174,116 @@ def test_debye_scherrer_preset_passes_capillary_fields_through():
     assert ins.geometry.capillary_radius_mm == 0.25
     assert ins.geometry.packing_fraction == 0.5
     assert ins.geometry.mu_r == 0.8
+
+
+# -- the correction vs its two ground truths ---------------------------
+
+
+def test_cylinder_absorption_matches_the_published_rouse_table():
+    mu, s, a = _load_rouse()
+    # cylinder_absorption takes 2theta; the fixture is indexed by sin^2(theta)
+    got = np.array([cylinder_absorption(np.array([2.0 * t]), m)[0]
+                    for m, t in zip(mu, _theta_of_s(s))])
+    assert np.abs(got - a).max() < 3.5e-3
+    assert (s > 0.5).any(), "fixture must span sin^2(theta), or b1/b2 go unchecked"
+
+
+def test_cylinder_absorption_matches_exact_physics_across_mu_r_and_theta():
+    """The gate that a constant-θ slice cannot provide.
+
+    Spans sin²θ from 0 to 1 as well as µR, because the b₂ coefficient is
+    invisible at fixed θ — that is exactly how a digit transposition survived
+    a check against the published table.  The bound is the paper's own claimed
+    fit accuracy, 0.0035, and the implementation meets it with nothing to spare,
+    which is itself the evidence that the coefficients are the right ones.
+    """
+    mus = np.arange(0.05, 1.0001, 0.05)
+    s = np.linspace(0.0, 1.0, 11)
+    tt = 2.0 * _theta_of_s(s)
+    err = np.array([np.abs(cylinder_absorption(tt, m)
+                           - np.array([_itc_exact_A(m, t) for t in _theta_of_s(s)]))
+                    for m in mus])
+    assert err.max() < 3.5e-3
+    # the test would be vacuous if a wrong b2 also passed
+    worst_s = np.abs(cylinder_absorption(tt, 1.0)
+                     - np.array([_itc_exact_A(1.0, t) for t in _theta_of_s(s)]))
+    assert worst_s.max() > 1e-4, "tolerance is far looser than the true agreement"
+
+
+def test_a_wrong_b2_would_fail_the_exact_check():
+    """Guards the guard: pin that the sin²θ span is what gives the test power.
+
+    With b₂ mis-transcribed as −0.0375 the error against exact physics is
+    ~0.08, more than 20× the bound — but only once sin²θ is varied.
+    """
+    s = np.linspace(0.0, 1.0, 11)
+    th = _theta_of_s(s)
+    exact = np.array([_itc_exact_A(1.0, t) for t in th])
+    bad = np.exp(-(1.7133 - 0.0368 * s) * 1.0 - (-0.0927 - 0.0375 * s) * 1.0)
+    assert np.abs(bad - exact).max() > 0.05
+    at_zero_theta = abs(bad[0] - exact[0])
+    assert at_zero_theta < 3.5e-3, "the bad coefficients agree at sin^2(theta)=0"
+
+
+def test_absorption_is_exactly_the_identity_when_mu_r_is_zero():
+    """Bit-for-bit, not merely close — this protects the backend goldens."""
+    tt = np.linspace(5.0, 150.0, 64)
+    assert np.array_equal(cylinder_absorption(tt, 0.0), np.ones_like(tt))
+
+
+def test_derivative_matches_central_finite_difference():
+    tt = np.linspace(5.0, 150.0, 17)
+    for mu in (0.05, 0.3, 0.7, 1.0):
+        h = 1e-6
+        fd = (cylinder_absorption(tt, mu + h) - cylinder_absorption(tt, mu - h)) / (2 * h)
+        _, dan = cylinder_absorption_and_dmur(tt, mu)
+        assert dan == pytest.approx(fd, rel=1e-6)
+
+
+def test_direction_and_range_conventions():
+    """A ≤ 1, falls with µR, and *rises* with 2θ.
+
+    The last one is the convention guard: the mean path through a cylinder is
+    longest in forward scattering, so transmission improves toward backscatter.
+    Swap sin²θ for cos²θ, or return A* instead of A, and this inverts while the
+    µR = 0 identity test stays green.
+    """
+    tt = np.linspace(5.0, 175.0, 64)
+    for mu in (0.1, 0.5, 1.0):
+        a = cylinder_absorption(tt, mu)
+        assert np.all(a > 0.0) and np.all(a <= 1.0)
+        assert np.all(np.diff(a) > 0.0), "A must increase with 2theta"
+    for tt_one in (10.0, 90.0, 170.0):
+        seq = [cylinder_absorption(np.array([tt_one]), m)[0]
+               for m in np.linspace(0.0, 1.0, 21)]
+        assert np.all(np.diff(seq) < 0.0), "A must decrease with muR"
+
+
+def test_mu_r_carries_no_information_a_free_scale_and_biso_lack():
+    """The standing proof behind ``Geometry.mu_r`` not being a ``Parameter``.
+
+    ∂lnA/∂µR lies exactly in span{1, sin²θ} — the subspace a free phase scale
+    and a free Biso already span — so a µR column would be an exactly singular
+    direction in the normal equations.  If this ever stops holding, the design
+    decision has to be revisited deliberately rather than by accident.
+    """
+    tt = np.linspace(5.0, 150.0, 128)
+    for mu in (0.1, 0.5, 1.0):
+        assert mu_r_identifiable_fraction(tt, mu) < 1e-12
+
+
+def test_equivalent_delta_biso_matches_a_direct_debye_waller_fit():
+    """ΔB is the whole physical content, so it is checked against the model.
+
+    Fits exp(−2ΔB·sin²θ/λ²) to 1/A and requires the closed form to agree.
+    """
+    lam = 1.5406
+    tt = np.linspace(5.0, 150.0, 200)
+    s = np.sin(np.radians(tt / 2.0)) ** 2
+    for mu, expect in ((0.5, 0.1331), (1.0, 0.4887)):
+        a = cylinder_absorption(tt, mu)
+        slope = np.polyfit(s, np.log(a), 1)[0]          # ln A = const + c*s
+        assert equivalent_delta_biso(mu, lam) == pytest.approx(slope * lam ** 2 / 2,
+                                                               rel=1e-10)
+        assert equivalent_delta_biso(mu, lam) == pytest.approx(expect, abs=5e-4)
+    assert equivalent_delta_biso(0.0, lam) == 0.0
