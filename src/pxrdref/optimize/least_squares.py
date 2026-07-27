@@ -31,6 +31,7 @@ import numpy as np
 from scipy.optimize import least_squares
 
 from ..backend import get_backend
+from ..backend.api import TORCH_DEVICES
 from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
 from ..crystallography.adp import U_NAMES
 from ..model.forward import CompiledModel, DerivativeBases
@@ -335,9 +336,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
 def _jacobian_for(model, table, backend: str):
     """The Jacobian callable for ``backend`` (lazy import keeps numpy pure).
 
-    The jax callable produces the same fp64 host array in the same row/column
-    layout as :func:`_make_jacobian`; the residual used for cost/statistics
-    and the TRF solve stay numpy either way (WP-0402).
+    Every autodiff callable produces the same fp64 host array in the same
+    row/column layout as :func:`_make_jacobian`; the residual used for
+    cost/statistics and the TRF solve stay numpy whichever backend built the
+    columns (WP-0402 for jax, WP-0408 for torch — ``"torch"`` is fp64 on CPU,
+    ``"torch-mps"`` fp32 on the Apple GPU, since no Apple GPU has fp64).
 
     This is also the assembly's exit point, so it is where the WP-0403
     mixed-precision policy is applied: whichever backend built the columns,
@@ -350,10 +353,15 @@ def _jacobian_for(model, table, backend: str):
         from ..backend.jax_backend import make_jax_jacobian
 
         inner = make_jax_jacobian(model, table)
+    elif backend in TORCH_DEVICES:
+        from ..backend.torch_backend import make_torch_jacobian
+
+        inner = make_torch_jacobian(model, table, device=TORCH_DEVICES[backend])
     elif backend == "numpy":
         inner = _make_jacobian(model, table)
     else:
-        raise ValueError(f"unknown backend {backend!r}; available: numpy, jax")
+        raise ValueError(f"unknown backend {backend!r}; "
+                         f"available: numpy, jax, {', '.join(TORCH_DEVICES)}")
 
     def jacobian(theta: np.ndarray) -> np.ndarray:
         # policy read per call, not per closure build: a `with precision_policy`

@@ -1,12 +1,16 @@
-"""WP-0408 torch backend: op contract and process isolation.
+"""WP-0408 torch backend: op contract, isolation, fp64-CPU Jacobian, MPS fp32.
 
 Everything here needs torch (``pytest.importorskip``) except the claim the
 subprocess test proves: a numpy-only *process* never imports torch.
 
 The cross-backend *agreement matrix* deliberately does not live here — it lives
-in ``tests/test_cross_backend.py``, whose ``"torch"`` row this WP activates.
-What is here is what that matrix cannot express: the op-level contract, process
-isolation, and the device-specific claims.
+in ``tests/test_cross_backend.py``, whose ``"torch"`` and ``"torch+fp32"`` rows
+this WP activates across all six configs at once (the 18 analytic families, Le
+Bail with P-spline penalty rows, Pawley with its aux block and restraint rows,
+the aniso/PO/extinction state, real srm660c/nac data, and the stacked
+multi-histogram layout).  What is here is what that matrix cannot express: the
+op-level contract, process isolation, and the two device-specific claims (fp32
+columns crossing the fp64 host boundary, and an end-to-end MPS refine).
 """
 
 from __future__ import annotations
@@ -20,8 +24,11 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from pxrdref.backend import resolve_backend  # noqa: E402
+import pxrdref as pr  # noqa: E402
+from pxrdref.backend import get_backend, resolve_backend, set_backend  # noqa: E402
 from pxrdref.backend.api import _OP_NAMES, NumpyBackend  # noqa: E402
+
+OUT = Path(__file__).parent / "output"
 
 _MPS = torch.backends.mps.is_available()
 requires_mps = pytest.mark.skipif(not _MPS, reason="no Apple GPU / MPS build")
@@ -168,3 +175,163 @@ assert "torch" not in sys.modules, "numpy-only path imported torch"
                           cwd=Path(__file__).parent.parent,
                           capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_global_backend_never_leaks():
+    """The Jacobian call flips the global backend to torch and must restore it —
+    otherwise a later numpy residual evaluation would silently run on tensors."""
+    from pxrdref.backend.torch_backend import make_torch_jacobian
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES["toy_lebail"]()
+    make_torch_jacobian(model, table)(table.x0())
+    assert isinstance(get_backend(), NumpyBackend)
+
+
+def test_frozen_state_stays_host_numpy():
+    """WP-0401 gotcha (1), sharpened for a device backend: leaking tensors into
+    the compiled model would put non-fp64 arrays into frozen state."""
+    from pxrdref.backend.torch_backend import make_torch_jacobian
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES["toy_rich"]()
+    make_torch_jacobian(model, table)(table.x0())
+    for cp in model.phases:
+        for name, arr in (("win", cp.win), ("fcj_n", cp.fcj_n),
+                          ("hkl", cp.reflections.hkl)):
+            assert isinstance(arr, np.ndarray), f"{name} left host numpy"
+    assert isinstance(model.tt, np.ndarray) and model.tt.dtype == np.float64
+
+
+# ----------------------------------------------------------------------
+# fp64 CPU: the traced residual and the jacfwd Jacobian
+# ----------------------------------------------------------------------
+def _combined_theta(model, table) -> np.ndarray:
+    theta = table.x0()
+    if model.pawley is not None:
+        theta = np.concatenate([theta, model.pawley_x0()])
+    return theta
+
+
+@pytest.mark.parametrize("name", ["toy_lebail", "toy_pawley", "toy_rich"])
+def test_traced_residual_matches_numpy_residual(name):
+    """The torch residual is the numpy residual, row for row — the premise the
+    column agreement rests on.  A row-layout drift here would show up in the
+    matrix as a shape error or a wholesale column mismatch; this localises it."""
+    from pxrdref.backend.torch_backend import make_traced_residual
+    from pxrdref.optimize.least_squares import _make_residual
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES[name]()
+    theta = _combined_theta(model, table)
+    r_np = _make_residual(model, table)(theta)
+
+    xp = resolve_backend("torch")
+    set_backend(xp)
+    try:
+        r_torch = np.asarray(make_traced_residual(model, table, xp)(
+            torch.as_tensor(theta, dtype=torch.float64)))
+    finally:
+        set_backend("numpy")
+    assert r_torch.shape == r_np.shape
+    np.testing.assert_allclose(r_torch, r_np, rtol=1e-9,
+                               atol=1e-11 * float(np.abs(r_np).max()))
+
+
+def test_chunk_size_invariance():
+    """Padding/trimming of the trailing one-hot seed block must not move a value."""
+    from pxrdref.backend.torch_backend import make_torch_jacobian
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES["toy_lebail"]()
+    theta = _combined_theta(model, table)
+    J32 = make_torch_jacobian(model, table)(theta)
+    J5 = make_torch_jacobian(model, table, chunk_size=5)(theta)
+    np.testing.assert_allclose(J5, J32, rtol=1e-12, atol=1e-12)
+
+
+def test_jacobian_is_fp64_on_cpu():
+    """CPU torch is an *independent fp64 row* of the agreement matrix, not a
+    reduced-precision one — so its columns must arrive at full width."""
+    from pxrdref.backend.torch_backend import make_torch_jacobian
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES["toy_rich"]()
+    J = make_torch_jacobian(model, table)(_combined_theta(model, table))
+    assert J.dtype == np.float64
+    assert np.isfinite(J).all()
+
+
+# ----------------------------------------------------------------------
+# MPS fp32: the first real-hardware evidence about the WP-0403 policy
+# ----------------------------------------------------------------------
+@requires_mps
+def test_mps_columns_are_fp32_on_device_and_fp64_on_host():
+    """The WP-0403 boundary, measured on hardware rather than simulated.
+
+    The device genuinely computes the whole peak chain in fp32 (no Apple GPU has
+    fp64), and ``linalg64.to_host_fp64`` is the single place that widens it back
+    — so what reaches JᵀJ is an fp64 array holding fp32-accurate columns.
+    """
+    from pxrdref.backend.linalg64 import (
+        COLUMN_COSINE_MIN,
+        COLUMN_REL_L2_MAX,
+        column_agreement,
+    )
+    from pxrdref.backend.torch_backend import make_torch_jacobian
+    from tests.test_backend_shim import STATES
+
+    model, table, _ = STATES["toy_rich"]()
+    theta = _combined_theta(model, table)
+    J_ref = make_torch_jacobian(model, table)(theta)
+    J_mps = make_torch_jacobian(model, table, device="mps")(theta)
+    assert J_mps.dtype == np.float64, "columns must cross the host boundary as fp64"
+
+    rel, cos = column_agreement(J_ref, J_mps)
+    assert rel < COLUMN_REL_L2_MAX, f"worst column rel-L2 {rel:.3e}"
+    assert cos > COLUMN_COSINE_MIN, f"worst column cosine {cos:.8f}"
+
+
+@requires_mps
+@pytest.mark.slow
+def test_mps_refine_matches_numpy_cell():
+    """End-to-end on real data: an MPS fp32-column refinement of SRM 676a
+    corundum lands on the same cell as the numpy path.
+
+    The bar (3e-5 Å) is WP-0403's fp32-column band, and the point of the test is
+    that a *step* computed from reduced columns is re-measured against an fp64
+    cost by the trust region, so it converges to the same answer.
+    """
+    from tests.test_acceptance_qpa_roundrobin import (
+        DATA,
+        corundum_phase,
+        qarr_instrument,
+        qpa_plan,
+        seed_scales,
+    )
+
+    if not DATA.exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    data = pr.read_pattern(DATA / "corundum.prn")
+    cells = {}
+    for backend in ("numpy", "torch-mps"):
+        structure = pr.Structure(phases=[corundum_phase()])
+        ins = qarr_instrument()
+        seed_scales(structure, ins, data)
+        ref = pr.Refinement(structure, ins, backend=backend, history=False)
+        res = ref.fit(data, plan=qpa_plan())
+        assert res.status == "converged", backend
+        cell = ref.fitted_structure.phases[0].cell
+        cells[backend] = (cell.a.value, cell.c.value, res)
+
+    a_np, c_np, res_np = cells["numpy"]
+    a_mps, c_mps, res_mps = cells["torch-mps"]
+    assert abs(a_mps - a_np) <= 3e-5, f"Δa = {a_mps - a_np:.2e} Å"
+    assert abs(c_mps - c_np) <= 3e-5, f"Δc = {c_mps - c_np:.2e} Å"
+    assert abs(res_mps.statistics.rwp - res_np.statistics.rwp) < 1e-3
+
+    from pxrdref.viz.plots import plot_result
+    OUT.mkdir(exist_ok=True)
+    plot_result(res_mps, path=str(OUT / "srm676a_torch_mps_fit.png"))
+    plot_result(res_mps, path=str(OUT / "srm676a_torch_mps_fit_lowangle.png"),
+                two_theta_range=(24.0, 30.0))

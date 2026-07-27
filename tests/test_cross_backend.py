@@ -14,11 +14,16 @@ under the default fp64 policy):
 * ``fd`` — central differences of the numpy residual, the reference that is
   independent of *both* the analytic chain and autodiff;
 * ``jax`` — chunked jacfwd (WP-0402), ``importorskip``-gated;
-* ``torch`` — fp64 CPU jacfwd; the row is wired and skips itself until
-  WP-0408 teaches ``_jacobian_for`` the backend;
-* ``numpy+fp32`` / ``jax+fp32`` — the WP-0403 mixed-precision *policy*, which
-  is not a backend but a layer over whichever one built the columns, so it
-  composes with both and needs no optional dependency.
+* ``torch`` — fp64 CPU ``torch.func.jvp`` (WP-0408), ``importorskip``-gated;
+* ``numpy+fp32`` / ``jax+fp32`` / ``torch+fp32`` — the WP-0403 mixed-precision
+  *policy*, which is not a backend but a layer over whichever one built the
+  columns, so it composes with all three and needs no optional dependency.
+
+The Apple-GPU backend (``torch-mps``) is deliberately **not** a row here: its
+fp32 is the device's, not a policy's, so it is compared against the *torch fp64*
+Jacobian under WP-0403's reduced-precision bars in
+``tests/test_backend_torch.py`` rather than against the analytic one under the
+fp64 bars used below.
 
 **Configs**: the 18 ``ANALYTIC_FAMILIES`` on the v0.2 lab state, plus the five
 WP-0401 golden states — ``toy_lebail`` (Le Bail snapshot + P-spline penalty
@@ -215,15 +220,12 @@ def _central_fd_jacobian(config, model, table):
 
 
 def _backend_jacobian(name: str):
-    """A row for an optional backend: skipped when it is not installed, and
-    (for torch) while ``_jacobian_for`` does not know it yet — WP-0408."""
+    """A row for an optional backend: skipped when it is not installed, so the
+    same command is green on a numpy-only checkout."""
 
     def build(config, model, table):
         pytest.importorskip(name)
-        try:
-            return _for_backend(config, model, table, name)
-        except ValueError as exc:  # "unknown backend" — not wired yet
-            pytest.skip(f"{exc} (torch lands with WP-0408)")
+        return _for_backend(config, model, table, name)
 
     return build
 
@@ -252,6 +254,7 @@ METHODS = {
     "torch": (_backend_jacobian("torch"), REL_L2_MAX, COSINE_MIN),
     "numpy+fp32": (_fp32_over("numpy"), COLUMN_REL_L2_MAX, COLUMN_COSINE_MIN),
     "jax+fp32": (_fp32_over("jax"), COLUMN_REL_L2_MAX, COLUMN_COSINE_MIN),
+    "torch+fp32": (_fp32_over("torch"), COLUMN_REL_L2_MAX, COLUMN_COSINE_MIN),
 }
 
 
@@ -381,10 +384,7 @@ def test_multi_histogram_stacked_jacobian_matches_analytic(method):
         backend = method.split("+")[0]
         if backend != "numpy":
             pytest.importorskip(backend)
-        try:
-            jac = _multi_jacobian(backend)
-        except ValueError as exc:  # torch: not wired yet
-            pytest.skip(f"{exc} (torch lands with WP-0408)")
+        jac = _multi_jacobian(backend)
         if method.endswith("+fp32"):
             with precision_policy(FP32_JACOBIAN):
                 J_test = jac(theta)
@@ -599,7 +599,7 @@ def test_pawley_intensity_columns_are_exact_across_backends():
     aux_ref = _analytic_jacobian("toy_pawley", model, table)(theta)[:, n_table:]
     assert np.linalg.norm(aux_ref) > 0
 
-    for method in ("fd", "jax"):
+    for method in ("fd", "jax", "torch"):
         build, _rel, _cos = METHODS[method]
         aux = build("toy_pawley", model, table)(theta)[:, n_table:]
         err = np.linalg.norm(aux - aux_ref) / np.linalg.norm(aux_ref)
