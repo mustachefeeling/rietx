@@ -8,7 +8,8 @@ Depends on: —
 A Debye-Scherrer capillary specimen carries its cylindrical absorption factor
 A(µR, θ) in the Rietveld intensity chain, with µR **computed** from composition,
 packing fraction and capillary radius — never refined. The deliverable is
-**unbiased ADPs**: omitting the correction biases Biso low by ≈0.09 Å² at µR = 1.
+**unbiased ADPs**: omitting the correction biases Biso low by 0.49 Å² at µR = 1
+(Cu Kα) — a systematic comparable to Biso itself, which no fit statistic reveals.
 
 ## Context
 
@@ -179,27 +180,27 @@ WP needs only `exp`, `sin`, `radians`, `asarray`, so it adds none.
 ## Tasks
 
 - [x] Expand this stub into a full WP before writing code
-- [ ] Rouse Table 1 ground-truth fixture → `tests/data/absorption_cylinder_rouse.dat`
+- [x] Rouse Table 1 ground-truth fixture → `tests/data/absorption_cylinder_rouse.dat`
       + provenance row in `tests/data/README.md` (lands *before* the physics)
-- [ ] `Geometry.capillary_radius_mm`, `packing_fraction`, `mu_r` — all plain
+- [x] `Geometry.capillary_radius_mm`, `packing_fraction`, `mu_r` — all plain
       floats, never `Parameter`; validator; `Instrument.debye_scherrer` passthrough
-- [ ] `model/absorption.py`: `cylinder_absorption`,
+- [x] `model/absorption.py`: `cylinder_absorption`,
       `cylinder_absorption_and_dmur`, `equivalent_delta_biso`, `CYLINDER_MU_R_MAX`
       + the evidence-ladder tests (Rouse fixture, ITC quadrature, 16/(3π) limit,
       µR = 0 identity, dA/dµR vs FD, direction/convention guard, **degeneracy
       pinned as a test**)
-- [ ] µR estimator: `packed_mu_r` (attenuation.py), `estimate_capillary_mu_r`
+- [x] µR estimator: `packed_mu_r` (attenuation.py), `estimate_capillary_mu_r`
       (qpa.py, catch-and-degrade), `estimate_mu_r` (refine.py, re-exported)
-- [ ] Wire A into `phase_peaks` **and both** `_structural_intensity_grad` and
+- [x] Wire A into `phase_peaks` **and both** `_structural_intensity_grad` and
       `po_intensity_grad`; hidden-Jacobian guard test with its discriminating
       pre-assert
-- [ ] `ABSORPTION_MU_R_OUT_OF_RANGE` / `ABSORPTION_ESTIMATE_UNAVAILABLE`
+- [x] `ABSORPTION_MU_R_OUT_OF_RANGE` / `ABSORPTION_ESTIMATE_UNAVAILABLE`
       diagnostics; report the applied µR and equivalent ΔB
-- [ ] `toy_capillary` cross-backend state (new state, never edit `toy_rich`);
+- [x] `toy_capillary` cross-backend state (new state, never edit `toy_rich`);
       capture the golden **last**, from a green tree
-- [ ] ADP-bias test: µR = 1.0 injected, Biso biased low by 0.088 Å² without the
+- [x] ADP-bias test: µR = 1.0 injected, Biso biased low by 0.489 Å² without the
       correction and unbiased with it; PNGs to `tests/output/`
-- [ ] Docs: DESIGN.md subsection, ATTRIBUTION.md rows, WP-0508 stub,
+- [x] Docs: DESIGN.md subsection, ATTRIBUTION.md rows, WP-0508 stub,
       `### Inherited` notes into WP-0502/0503, handover log, ROADMAP sync
 
 ## Acceptance
