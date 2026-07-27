@@ -15,6 +15,16 @@
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
 | `qarr/corundum.prn`, `qarr/fluorite.prn`, `qarr/zincite.prn`, `qarr/brucite.prn`, `qarr/magnetit.prn`, `qarr/zircon.prn` | Pure single-phase patterns of the round-robin component phases, same instrument/conditions — component references for the mixtures and the SRM 676a corundum comparison | same | same |
 
+| `absorption_cylinder_rouse.dat` | Cylinder **transmission** factor A (not A\* = 1/A) vs µR and sin²θ, 4 dp — 80 values: the full sin²θ = 0 column (µR 0.00–0.50 step 0.01) plus four complete µR = 0.50 / 1.00 rows. Ground truth for the WP-0501 capillary absorption correction (`test_absorption.py`) | Rouse, Cooper, York & Chakera (1970), *Acta Cryst.* **A26**, 682-691, Table 1(a)/(b) | Published table, transcribed with attribution; no code involved |
+
+Note — the Rouse fixture carries only the blocks that could be read
+unambiguously from the available scan (each cell holds five *consecutive* µR
+rows and the printed labels are offset by three; see the file header). Every
+value in it was checked against a quadrature of ITC Vol. C eq. (6.3.3.4) before
+being committed — max difference 1.7e-4, within the table's own four-decimal
+resolution. The damaged remainder of the grid is deliberately absent rather than
+guessed.
+
 Note — the amorphous-bearing **Sample 3** (corundum/fluorite/zincite/glass) is
 deliberately **not** in the repo: amorphous / internal-standard quantification
 is a v2 fence and an explicit WP-0310 non-goal.
