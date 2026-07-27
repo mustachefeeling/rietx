@@ -103,16 +103,22 @@ independent fp64 row of the agreement matrix on every config, and
 fp32-column policy** — an SRM 676a refinement with the whole peak chain and every
 column computed in fp32 on the Apple GPU lands 3.5e-8 Å from the numpy fp64
 cell, because the trust region re-measures each step against an fp64 cost.
-*Finding:* **MPS is 30-100× slower than numpy**
+*Finding:* **MPS is 60-125× slower than numpy**
 (`examples/bench_torch_mps.py`), and not for a precision or backend-quality
 reason — the residual walks ~130 frozen windows of 200-900 points one at a time
-in python, which is kernel-dispatch-bound.  Apple-GPU *acceleration* therefore
-waits on a **batched peak loop**, a `model/forward.py` change for every backend
-that the frozen window layout already permits; it is fenced out of 0408 and
-noted in [0601](wp/0601-bounded-lm-solver.md)'s Inherited and DESIGN.md.  The two
-hot-path rules that bind *all* future work are in CLAUDE.md's Conventions (no
-frozen numpy constant on the left of an operator against a traced value; a new op
-must land on every backend); the torch-specific traps are in 0408's handover log.
+in python, and MPS per-op cost is flat at 110-165 µs from 64 to 65 536 elements,
+i.e. pure launch latency.  The obvious remedy was then measured rather than
+assumed: batching the peak loop collapses MPS from 10.6 ms to 0.41 ms at fixed
+work — *and numpy from 1.36 to 0.56 ms, which puts them level*.  So the batched
+loop is a **numpy-path win** (≈2.4×, every user, no optional dependency), scoped
+as a measure-then-decide spike in [0605](wp/0605-batched-peak-loop.md); Apple-GPU
+*acceleration* needs a fundamentally bigger problem (~10⁶-element kernels — the
+v2-fenced `vmap`-batched in-situ series), not a better backend.  `torch.compile`
+does not help either (2.5× slower on CPU; per-window recompile failure on MPS).
+The two hot-path rules that bind *all* future work are in CLAUDE.md's Conventions
+(no frozen numpy constant on the left of an operator against a traced value; a
+new op must land on every backend); the torch-specific traps are in 0408's
+handover log.
 
 0405/0406/0407 and 0408 were developed in parallel and **integrated 2026-07-27**:
 the torch traced residual grew the soft-restraint rows (0406's row layout is
@@ -134,7 +140,7 @@ protocol step 4, not code: a measured-acceptance record in
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ⬜ | cross-backend Jacobian agreement CI (analytic/FD/jacfwd/torch, incl. stage boundaries, Pawley/Le Bail, multi-histogram) + jit and MPS wall-clock vs numpy on 11-BM NAC (reported, not gated) + existing acceptance unchanged on the numpy path |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
-| v0.6 | TOPAS-style bounded LM, agent surface, torch-MPS | ⬜ | solver benchmark vs scipy TRF |
+| v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop | ⬜ | solver benchmark vs scipy TRF (a **CPU** comparison — device acceleration was measured not to exist at this problem size, see 0408) |
 | v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
@@ -180,16 +186,22 @@ protocol step 4, not code: a measured-acceptance record in
 | [0506](wp/0506-secondary-extinction.md) | Secondary extinction (Sabine) | ✅ 2026-07-23 | — |
 | [0507](wp/0507-anode-wavelengths.md) | Additional anode wavelengths (Co/Cr/Fe/Mo/Ag) | ⬜ | — |
 
-### v0.6 — solver & agents (stubs)
+### v0.6 — solver, performance & agents (stubs)
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ⬜ | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ⬜ | — |
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
+| [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ⬜ | — |
 
 (0603 — the torch/MPS backend — moved to v0.4 as
-[0408](wp/0408-torch-mps-backend.md) on 2026-07-24.)
+[0408](wp/0408-torch-mps-backend.md) on 2026-07-24; the number is left unused so
+the history stays readable.)
+
+0605 could be pulled forward the way 0408 was: its ≈2.4× lands on the **default
+numpy path** and needs no optional dependency, so nothing about it belongs to
+v0.6 except that it was found there.
 
 ### v1.0 — hardening & release (stubs)
 
@@ -210,3 +222,11 @@ QPA; `vmap`-batched in-situ series; GUI/notebook widgets.
 No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites
 scope creep.
+
+One note against the day that fence is revisited: **`vmap`-batched in-situ
+series is where a GPU would finally pay**, and WP-0408 measured why. A device
+only beats numpy at ~10⁶ elements per kernel; a single pattern never gets there
+(hence 0408's finding that MPS is 60-125× *slower*), but a thousand patterns
+sharing one structure does. So the in-situ item on that list is not just a
+feature — it is the only accelerator story in this package that the hardware
+supports.
