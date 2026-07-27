@@ -39,7 +39,7 @@ state:
   without reading a plot image. Every layer is built to **abstain rather than
   guess**: collinear causes are reported as unresolved, not resolved wrongly.
 
-## Status: v0.3 (pre-alpha)
+## Status: v0.4 (pre-alpha)
 
 Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 **laboratory Bragg-Brentano** geometry:
@@ -62,7 +62,9 @@ Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 | Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
 | Multi-histogram joint refinement (shared structure, per-histogram Rwp) | ✅ |
 | Exporters: reflection table, refinement CIF (values + esds), QPA table | ✅ |
-| Differentiable backends: JAX autodiff Jacobians, torch/MPS; true Voigt; restraints | v0.4 |
+| Differentiable backends (`backend="jax"` / `"torch"` / `"torch-mps"`), held to per-column Jacobian agreement | ✅ |
+| True Voigt peak shape (shared Faddeeva `w(z)`; TCHZ still the default) | ✅ |
+| Soft bond / angle / value restraints (Rietveld, single-histogram) | ✅ |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes
@@ -83,6 +85,19 @@ the reference actually is:
 | SRM 676a **corundum** (lab CuKα) | c/a = 2.729928 (+30 ppm) | the axial ratio where uniform d-scale systematics cancel — a **certificate-grade** anchor; absolute axes carry a ~−300 ppm lab d-scale offset |
 | IUCr **CPD QPA round robin** (samples 1a–h, 2, 4) | worst 5.1 wt % (sample 1); traces ≤ 1.3 wt % | tolerance referenced to the published **participant spread**; sample 4 is the designed Brindley-defeating case (µR fence fires, no accuracy band claimed) |
 
+Plus one validation suite that has no reference dataset because its subject is
+the code itself: **cross-backend Jacobian agreement**. Every way the package can
+produce a Jacobian — the analytic peak-chain assembly, central differences, JAX
+`jacfwd`, torch, and each of those under the fp32-column policy — is compared
+column by column on the same compiled state, across eight configurations
+(Rietveld, Le Bail, Pawley, anisotropic ADPs / preferred orientation /
+extinction, true Voigt, restraints, and two real patterns), the stacked
+multi-histogram layout, and across stage-boundary recompiles. An
+**all-fp32 Apple-GPU refinement of SRM 676a lands 3.5×10⁻⁸ Å from the numpy
+fp64 cell**, because the residual and the solve are fp64 on host whatever the
+columns are computed in — see
+[docs/milestones/v0.4.md](docs/milestones/v0.4.md).
+
 The SRM 660c fit does **not** reach the certificate's ±8×10⁻⁶ Å band, and does
 not claim to: the residual is a characterised cotθ/sin2θ aberration
 (flat-specimen divergence, tube tails, monochromator passband) that belongs to
@@ -92,8 +107,8 @@ than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
-made collinear. Run `pytest` (~2 min, includes all of the above; `pytest -m
-"not slow"` is ~20 s), `python examples/nac_11bm.py` (synchrotron walkthrough) or
+made collinear. Run `pytest` (~8 min, includes all of the above; `pytest -m
+"not slow"` is ~100 s), `python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
 all three FitReport layers → plots + interactive HTML).
 
@@ -238,12 +253,15 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest              # 354 tests incl. five real-data acceptance suites (~2 min)
-pytest -m "not slow"    # 336 unit/property tests only (~20 s)
+pytest              # 505 tests incl. five real-data acceptance suites (~8 min)
+pytest -m "not slow"    # 466 unit/property tests only (~100 s)
 ruff check src tests examples
 ```
 
-Extras: `[viz]` (matplotlib, plotly), `[baselines]` (pybaselines algorithm zoo).
+Extras: `[viz]` (matplotlib, plotly), `[baselines]` (pybaselines algorithm zoo),
+`[jax]` and `[torch]` (the optional autodiff backends — every backend row in the
+agreement suite self-skips when its package is absent, so a numpy-only checkout
+is fully green).
 
 ## Architecture (one paragraph)
 

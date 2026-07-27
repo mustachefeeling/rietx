@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest                             # full suite ~9 min, incl. real-data acceptance
-.venv/bin/python -m pytest -m "not slow"               # skip acceptance (~90 s)
+.venv/bin/python -m pytest                             # full suite ~8 min (505 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -m "not slow"               # skip acceptance (466 tests, ~100 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -190,10 +190,10 @@ ADPs, QPA weight fractions, Brindley microabsorption, Pawley whole-pattern mode,
 March-Dollase preferred orientation, multi-histogram, exporters — WP-0301…0310,
 measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
 (+30 ppm) plus the IUCr QPA round robin with participant-spread-referenced
-tolerances).
+tolerances), **v0.4** (2026-07-27: differentiable backends — WP-0401…0408,
+measured acceptance in `docs/milestones/v0.4.md`).
 
-**v0.4 — differentiable backends** is feature-complete (all eight WPs landed;
-the milestone record is still to be written). `backend=` takes `"numpy"`,
+**v0.4 — differentiable backends.** `backend=` takes `"numpy"`,
 `"jax"`, `"torch"` (CPU fp64) or `"torch-mps"` (Apple GPU, necessarily fp32),
 every one held to per-column agreement with the analytic Jacobian in
 `tests/test_cross_backend.py` — whose configs must grow whenever a *new
@@ -202,8 +202,11 @@ derivative path* does, or no backend row covers it. Also landed: true Voigt
 still the default), soft bond/angle/value restraints (extra residual rows below
 the data, Rietveld and single-histogram only), and the Bérar-Lelann esd fix
 (reported esds now carry the inflation; the correlation matrix is a true Pearson
-matrix and the 0.98 guard is live). v2 fence: FPA, neutron/TOF,
-spherical-harmonics texture, MCP server.
+matrix and the 0.98 guard is live). Apple-GPU execution is *slower* than numpy
+(46-182×, launch-latency-bound) — `torch-mps` buys precision validation, not
+speed; the measured break-even (≈65 k elements per kernel) and ceiling (≈2.5×)
+are in the v0.4 record. v2 fence:
+FPA, neutron/TOF, spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +
