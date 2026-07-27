@@ -239,6 +239,60 @@ tailing the structured event stream — every line paired with its equivalent
 API call, so the log doubles as a reproducible session script. Zero viz deps
 in the base install; the FitReport itself is pure numpy.
 
+## Absorption: a correction that cannot improve the fit
+
+Cylindrical (capillary) absorption, WP-0501, is worth recording as a design
+case because it inverts the usual test for whether a correction is working.
+
+**Convention first, by physics not letters.** The forward model multiplies by
+the **transmission** coefficient A ≤ 1 (ITC Vol. C eq. 6.3.3.1). Most
+tabulations print the **absorption correction** A\* = 1/A ≥ 1 (eq. 6.3.3.2)
+instead. Both equal 1 at µR = 0, so an identity test cannot tell them apart —
+only the *direction* of the θ-dependence can (A increases with 2θ, because the
+mean path through a cylinder shortens toward backscatter).
+
+**The correction is an exact reparameterisation.** Rouse et al. (1970) fit the
+cylinder integral over 0 ≤ µR ≤ 1 with
+
+    A(µR, θ) = exp{−(a₁ + b₁sin²θ)µR − (a₂ + b₂sin²θ)µR²} = K(µR)·exp(c(µR)·sin²θ)
+
+which factors *exactly* into a constant times a Debye-Waller shape. So applying
+it to a model with a free phase scale and free displacement parameters cannot
+change the residual at all — Rwp is provably identical. Its entire physical
+content is that a Biso refined without it comes back low by ΔB = c·λ²/2, which
+is 0.13 Å² at µR = 0.5 and **0.49 Å² at µR = 1.0** for Cu Kα: comparable to Biso
+itself, and 19σ against the esd the value is quoted with.
+
+Three consequences, each of which shaped an interface:
+
+- **µR is computed and held fixed, never refined.** It is not a
+  strongly-correlated parameter; it is an *exactly singular direction* in the
+  normal equations alongside the scale and Biso. `Geometry.mu_r` is therefore a
+  plain float, not a `Parameter` — the type is the guard, and a test asserts it.
+  The same argument fixes `packing_fraction`, which is exactly degenerate with
+  µR in turn.
+- **The result carries the bias, because no fit statistic can.**
+  `RefinementResult.absorption` reports the applied µR and the equivalent ΔB. A
+  user who only looked at Rwp would conclude the correction did nothing.
+- **The acceptance test asserts equality of Rwp, not an improvement.** Written
+  the obvious way — "the corrected fit should be better" — it would assert
+  something the physics cannot deliver, and would fail for the right reason.
+
+**Flat plate is fenced** for the mirror-image reason: reflection off a thick
+specimen has A = 1/2µ (ITC Table 6.3.3.1(1a)) with no θ at all, so it is not
+merely degenerate with the phase scale, it *is* the phase scale. Only the
+finite-thickness and transmission cases carry a signature; they need a sample
+thickness the schema does not have, and go to WP-0508.
+
+**Validation lesson.** The coefficient b₂ is printed as "−0·0375" in the
+available scan of Rouse when it is −0·3750. That error is invisible against a
+constant-θ slice of the paper's own table — which constrains only a₁ and a₂ —
+and is 0.08 wrong at µR = 1. It was caught by a quadrature of the exact ITC
+integral, which shares no constant with any published fit. The general rule:
+**a fit of two arguments must be validated across both**, and the strongest
+anchor is the integral a fit approximates, not another code's transcription of
+the same fit.
+
 ## Testing & validation policy
 
 - Unit tests against published values (form factors, multiplicities,

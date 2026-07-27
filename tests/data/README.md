@@ -14,7 +14,6 @@
 | `qarr/cpd-2.prn` | **Sample 2** = sample-1 phases + brucite Mg(OH)₂ (strongly platy → preferred-orientation test) | same | same |
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
 | `qarr/corundum.prn`, `qarr/fluorite.prn`, `qarr/zincite.prn`, `qarr/brucite.prn`, `qarr/magnetit.prn`, `qarr/zircon.prn` | Pure single-phase patterns of the round-robin component phases, same instrument/conditions — component references for the mixtures and the SRM 676a corundum comparison | same | same |
-
 | `absorption_cylinder_rouse.dat` | Cylinder **transmission** factor A (not A\* = 1/A) vs µR and sin²θ, 4 dp — 80 values: the full sin²θ = 0 column (µR 0.00–0.50 step 0.01) plus four complete µR = 0.50 / 1.00 rows. Ground truth for the WP-0501 capillary absorption correction (`test_absorption.py`) | Rouse, Cooper, York & Chakera (1970), *Acta Cryst.* **A26**, 682-691, Table 1(a)/(b) | Published table, transcribed with attribution; no code involved |
 
 Note — the Rouse fixture carries only the blocks that could be read
@@ -162,11 +161,19 @@ states defined in `tests/test_backend_shim.py`.  The first five (`srm660c`,
 **before** the WP-0401 backend-shim refactors (at commit `c9fc8c0`, numpy 2.x /
 macOS arm64 Accelerate).  `toy_restraints` was added by WP-0406 (soft-restraint
 penalty rows) from the green post-WP-0406 tree — a *new* baseline, so the
-existing five were not re-captured.  `test_backend_shim.py` asserts the current
+existing five were not re-captured.  `toy_capillary` was added the same way by
+WP-0501 (cylindrical absorption) from the green post-WP-0501 tree; the other
+six were again left untouched.  `test_backend_shim.py` asserts the current
 tree reproduces each **bit-for-bit** (`np.array_equal`) — the acceptance gate
 for "nothing here may change a single computed number on the numpy path".
 
 These are *environment-pinned* bit patterns, not physical reference values: a
 different BLAS/numpy build may legitimately differ in final bits.  Re-baseline
 only from a tree that passes the full suite, via
-`.venv/bin/python -m tests.test_backend_shim`, and say so in the commit message.
+
+    .venv/bin/python -m tests.test_backend_shim STATE [STATE ...]
+
+naming **only** the states that genuinely changed, and say so in the commit
+message.  The state names are required rather than optional on purpose: capturing
+every state at once quietly rebases baselines that were meant to be fixed points,
+which is the one failure mode these files cannot detect themselves.

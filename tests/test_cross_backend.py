@@ -156,6 +156,9 @@ CONFIGS = {"families": _state_families,
 #: residual rows) are here because a *new derivative path* that no matrix row
 #: evaluates is a path no backend agreement covers — both landed in parallel with
 #: WP-0408 and were wired in when the branches were reconciled.
+#: ``toy_capillary`` (WP-0501) adds no column of its own — µR is not refinable —
+#: but it is the only state where the cell/coordinate/ADP/scale columns chain
+#: through a θ-dependent intensity factor that is neither Lp nor extinction.
 CONFIG_PARAMS = [
     "families",
     "families_voigt",
@@ -163,6 +166,7 @@ CONFIG_PARAMS = [
     "toy_pawley",
     "toy_rich",
     "toy_restraints",
+    "toy_capillary",
     pytest.param("srm660c", marks=pytest.mark.slow),
     pytest.param("nac", marks=pytest.mark.slow),
 ]

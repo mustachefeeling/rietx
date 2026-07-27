@@ -39,6 +39,16 @@ convention of making the parameters **absolute** (U = Σₖ θₖ·Bₖ) so site
 symmetry is enforced exactly, and raising on an out-of-subspace tensor rather
 than silently symmetrising it.
 
+From **WP-0501** (capillary absorption, landed 2026-07-27): two naming traps
+for any *new geometry-gated* parameter, which S_HKL is not but a future
+sample-shape term would be. `params/vector.py:239` decides whether a geometry
+parameter is force-fixed by testing whether its name starts with `sample_`, and
+`CompiledModel.scalar_chain_supported` decides whether it gets an analytic
+peak-chain column or falls back to whole-model finite differences by testing the
+same prefix. Both were left alone by 0501 (its µR is not a refinable parameter,
+so neither applied), but they mean **a parameter's name silently selects its
+derivative path** — worth knowing before choosing one.
+
 From **WP-0401** (op shim, landed 2026-07-24): `model/profiles/*.py`
 (`pseudovoigt`, `fcj`, `caglioti`) are xp-routed — new width code calls `xp.*`,
 bound once per compiled-model call. Also note the frozen-per-stage invariant
