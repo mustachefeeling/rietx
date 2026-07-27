@@ -263,6 +263,66 @@ def test_jacobian_is_fp64_on_cpu():
 
 
 # ----------------------------------------------------------------------
+# the user-facing wiring
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("backend", ["torch", "torch-mps"])
+def test_backend_kwarg_refines_and_is_recorded(backend):
+    """``backend=`` on ``Refinement`` reaches the solver, converges to the same
+    answer as numpy, and lands in the result's provenance — a refinement whose
+    columns were computed in fp32 has to *say* so to be reproducible."""
+    from pxrdref.strategy.staged import RefinementPlan, Stage
+    from tests.test_backend_shim import _toy_base
+
+    if backend == "torch-mps" and not _MPS:
+        pytest.skip("no Apple GPU / MPS build")
+    structure, ins, pattern = _toy_base()
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("cell", ["phases.*.cell.*"]),
+    ])
+    out = {}
+    for name in ("numpy", backend):
+        ref = pr.Refinement(structure, ins, backend=name, history=False)
+        res = ref.fit(pattern, plan=plan)
+        assert res.status == "converged", name
+        out[name] = (ref.fitted_structure.phases[0].cell.a.value, res)
+
+    a_np, res_np = out["numpy"]
+    a_torch, res_torch = out[backend]
+    assert abs(a_torch - a_np) < 1e-7, f"Δa = {a_torch - a_np:.2e} Å"
+    assert res_torch.provenance.backend == backend
+    assert res_torch.provenance.dtype == (
+        "float64/jacobian:float32" if backend == "torch-mps" else "float64")
+    assert res_np.provenance.backend == "numpy"
+
+
+def test_multi_histogram_backend_kwarg():
+    """The same kwarg on the multi-histogram entry point (the stacked Jacobian's
+    column agreement is WP-0404's matrix; this is the plumbing)."""
+    from pxrdref.multi import MultiHistogramRefinement
+    from tests.test_multi_histogram import perturbed_inputs, synthesize
+
+    data = [synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
+                       bkg=[40.0, -6.0, 1.5], seed=1),
+            synthesize(0.71070, 6.0, 46.0, scale=9e-4, zero=-0.010,
+                       bkg=[70.0, 5.0, -2.0], seed=2)]
+    structure, instruments = perturbed_inputs()
+    ref = MultiHistogramRefinement(structure, instruments, backend="torch")
+    res = ref.fit(data, plan="mccusker_default")
+    assert res.status == "converged"
+    assert res.provenance.backend == "torch"
+    assert len(res.histograms) == 2
+
+
+def test_unknown_backend_still_rejected():
+    from tests.test_backend_shim import _toy_base
+
+    structure, ins, _ = _toy_base()
+    with pytest.raises(NotImplementedError, match="unknown backend"):
+        pr.Refinement(structure, ins, backend="cupy", history=False)
+
+
+# ----------------------------------------------------------------------
 # MPS fp32: the first real-hardware evidence about the WP-0403 policy
 # ----------------------------------------------------------------------
 @requires_mps

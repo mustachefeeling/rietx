@@ -13,6 +13,7 @@ import numpy as np
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
 
+from .backend.api import backend_dtype_note
 from .history.events import as_event_stream
 from .history.store import fingerprint
 from .history.tree import RefinementTree
@@ -57,15 +58,15 @@ class Refinement:
     def __init__(self, structure: Structure, instrument: Instrument, *,
                  backend: str = "numpy",
                  history: bool | str | Path | RefinementTree = True):
-        if backend == "jax":
+        if backend != "numpy":
             # fail fast (with the install hint) instead of at the first stage;
             # resolve_backend caches the instance, so this costs one import
             from .backend import resolve_backend
 
-            resolve_backend("jax")
-        elif backend != "numpy":
-            raise NotImplementedError(
-                f"unknown backend {backend!r}; v0.4 ships numpy and jax")
+            try:
+                resolve_backend(backend)
+            except ValueError as exc:
+                raise NotImplementedError(str(exc)) from exc
         self._backend = backend
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
@@ -470,7 +471,7 @@ class Refinement:
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=stage_results, diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
-            correlation=outcome.correlation)
+            correlation=outcome.correlation, backend=self._backend)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
@@ -523,7 +524,7 @@ class Refinement:
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=[stage_result], diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
-            correlation=outcome.correlation)
+            correlation=outcome.correlation, backend=self._backend)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
@@ -680,7 +681,8 @@ def _apply_esds(table: ParameterTable, result: RefinementResult,
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
-                  stderr_internal=None, correlation=None) -> RefinementResult:
+                  stderr_internal=None, correlation=None,
+                  backend: str = "numpy") -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
@@ -737,7 +739,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         status=status, mode=mode,
         parameters=params, statistics=stats,
         stages=stage_results, diagnostics=diagnostics,
-        provenance=Provenance(package_version=_VERSION, created_utc=_utcnow()),
+        provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
+                              backend=backend, dtype=backend_dtype_note(backend)),
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),

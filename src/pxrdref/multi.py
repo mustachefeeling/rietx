@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .backend.api import backend_dtype_note
 from .model.forward import compile_model
 from .optimize.least_squares import run_multi_least_squares
 from .optimize.qpa import compute_qpa, microabsorption_diagnostics
@@ -71,13 +72,13 @@ class MultiHistogramRefinement:
 
     def __init__(self, structure: Structure, instruments: list[Instrument], *,
                  sharing: SharingMap | None = None, backend: str = "numpy"):
-        if backend == "jax":
+        if backend != "numpy":
             from .backend import resolve_backend
 
-            resolve_backend("jax")  # fail fast with the install hint
-        elif backend != "numpy":
-            raise NotImplementedError(
-                f"unknown backend {backend!r}; v0.4 ships numpy and jax")
+            try:
+                resolve_backend(backend)  # fail fast with the install hint
+            except ValueError as exc:
+                raise NotImplementedError(str(exc)) from exc
         self._backend = backend
         instruments = list(instruments)
         if len(instruments) < 1:
@@ -242,6 +243,7 @@ class MultiHistogramRefinement:
                        else ", ".join(f"hist{h}={w:g}" for h, w in enumerate(weights)))
         provenance = Provenance(
             package_version=_VERSION, created_utc=_utcnow(),
+            backend=self._backend, dtype=backend_dtype_note(self._backend),
             notes={"n_histograms": str(n), "histogram_weights": weight_note})
 
         return RefinementResult(
