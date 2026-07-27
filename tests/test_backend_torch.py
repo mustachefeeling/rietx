@@ -58,6 +58,7 @@ def test_ops_accept_numpy_arguments_and_match_numpy():
     a = np.array([0.25, 1.5, 4.0])
     b = np.array([2.0, 0.5, -1.0])
     m = np.array([[4.0, 1.0], [1.0, 3.0]])
+    m3 = np.array([[4.0, 1.0, -0.5], [1.0, 3.0, 0.25], [-0.5, 0.25, 2.0]])
     cases = {
         "exp": (xp.exp(a), npb.exp(a)),
         "sqrt": (xp.sqrt(a), npb.sqrt(a)),
@@ -80,6 +81,11 @@ def test_ops_accept_numpy_arguments_and_match_numpy():
         "full_like": (xp.full_like(a, 2.5), npb.full_like(a, 2.5)),
         "inv": (xp.linalg.inv(m), npb.linalg.inv(m)),
         "det": (xp.linalg.det(m), npb.linalg.det(m)),
+        # the 3×3 branch is the one that actually runs (metric tensors) and it is
+        # a hand-written cofactor expansion, not torch.linalg.det — see
+        # backend.api._TorchLinalg
+        "det3": (xp.linalg.det(m3), npb.linalg.det(m3)),
+        "inv3": (xp.linalg.inv(m3), npb.linalg.inv(m3)),
     }
     for name, (got, want) in cases.items():
         np.testing.assert_allclose(np.asarray(got), want, rtol=1e-12, atol=1e-14,

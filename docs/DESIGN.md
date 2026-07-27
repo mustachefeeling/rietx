@@ -26,7 +26,7 @@ differentiable from day one.
 ## Locked decisions
 
 - **Backend**: numpy/scipy fp64 core (~50 MB default install); forward model
-  kept differentiable; optional `[jax]` (v0.4) then `[torch]` (v0.6) extras.
+  kept differentiable; optional `[jax]` and `[torch]` (both v0.4) extras.
   Hard constraint discovered in research: **no Apple GPU supports fp64 in any
   framework** (MPS/MLX fp32-only; jax-metal abandoned), and JᵀJ squares the
   condition number ⇒ GPUs compute fp32 Jacobian columns only, fp64 host solve.
@@ -39,6 +39,23 @@ differentiable from day one.
     starts only once the jax path (WP-0402) and the cross-backend agreement
     CI (WP-0404) are green, so the second backend lands against an existing
     agreement harness. v0.6 keeps the solver and agent-surface work.
+  - *Measured (2026-07-27, WP-0408 landed).* Both halves of that amendment
+    came in, and only one of them came in the way it was expected to. The
+    **fp32-column policy is confirmed on real hardware**: an MPS refinement of
+    SRM 676a corundum, with the whole peak chain and every Jacobian column
+    computed in fp32 on the GPU, lands 3.5×10⁻⁸ Å from the numpy fp64 cell and
+    5×10⁻¹¹ in Rwp — the trust region re-measures each step against an fp64
+    cost, so reduced columns perturb the path and not the answer, exactly as
+    `backend/linalg64.py` argues. **Apple-GPU acceleration did not
+    materialise**: MPS runs 30-100× *slower* than numpy
+    (`examples/bench_torch_mps.py`). The cause is the loop shape, not the
+    device — the residual evaluates ~130 frozen windows of 200-900 points one
+    at a time in python, which is tens of microseconds of kernel dispatch
+    against a microsecond of arithmetic per window. The fix is a **batched
+    peak loop** (one padded reflection × window tensor per phase, which the
+    frozen window layout already permits) and it belongs to the forward model
+    for every backend, not to a backend. Until then torch's value here is
+    being an independent third opinion in the agreement matrix.
 - **Scope**: constant-wavelength X-ray powder first; `Source`/`Geometry`/
   profile/`IntensityModel` are the frozen extension seams for neutron/TOF/FPA.
 - **License**: MIT. Port only from permissive sources (CrysPy MIT, cctbx

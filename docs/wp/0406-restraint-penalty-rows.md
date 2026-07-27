@@ -88,7 +88,36 @@ which the P-spline and Pawley precedents did not have):
   does, or a boundary will change the row count mid-plan and that test will
   say so.
 
-### Design (decided)
+From **WP-0408** (torch backend, landed 2026-07-27) — **the residual's row
+layout is now written out in three places, not two.** Adding a penalty-row block
+means editing all of:
+
+1. `optimize/least_squares.py::_make_residual` (+ `_make_jacobian`'s row
+   accounting: `n_rows = n_data + n_bkg_pen + n_res`),
+2. `backend/jax_backend.py::make_traced_residual`,
+3. `backend/torch_backend.py::make_traced_residual`.
+
+The two traced twins mirror `_make_residual` row for row and each ends with
+`concatenate(parts)` over the same `[data | background-penalty |
+Pawley-restraint]` list — miss one and the matrix reports a shape mismatch
+rather than a wrong number, which is the good failure, but only if a config
+carrying the new rows is in `STATES` (see the WP-0404 note above). Consider
+whether the three copies should become one shared assembly while you are in
+there; 0408 kept them separate because the backend-specific pieces (traced
+decode, `concatenate`) differ, and the matrix catches drift.
+
+Two hot-path rules that now bind any row-assembly code (both stated in
+`backend/api.py`'s module docstring and CLAUDE.md's Conventions):
+
+- **A frozen numpy constant must not meet a traced value through a bare python
+  operator.** `R @ vec` was exactly this and is now
+  `get_backend().matmul(self.pawley.restraint, vec)`; the P-spline rows likewise.
+  Write new restraint rows the same way — `xp.matmul` for a design-matrix
+  product, `xp.asarray` to lift a coefficient array — both no-ops on numpy.
+- **A restraint target that is a python float** (a nominal bond length, say)
+  multiplied against a 0-d decoded value breaks on Apple MPS under forward-AD.
+  `TorchBackend.scalarize` handles values the backend produced; a float you
+  introduce yourself is safest lifted with `xp.asarray`.
 
 - **Schema** (pydantic v2, `extra="forbid"`; opt-in, empty default so a
   phase that declares none is untouched — the extinction/PO pattern):

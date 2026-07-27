@@ -10,10 +10,17 @@ state:
 - **Typed, JSON-round-trippable schemas** (pydantic v2) for structures,
   instruments, patterns, plans, and results. Every schema exports JSON Schema
   for LLM tool-calling; unknown fields fail loudly with actionable errors.
-- **numpy + scipy float64 core** (~50 MB install). Optional autodiff/GPU
-  backends (JAX first) are on the roadmap; the forward model is written to
-  stay differentiable (frozen reflection lists and evaluation windows per
-  refinement stage, smooth reparameterisations, no clamps in the graph).
+- **numpy + scipy float64 core** (~50 MB install), with optional autodiff
+  backends behind the `[jax]` and `[torch]` extras: `backend="jax"` /
+  `"torch"` / `"torch-mps"` swap in an exact forward-mode Jacobian, and every
+  one is held to per-column agreement with the analytic assembly in CI. The
+  forward model is written to stay differentiable (frozen reflection lists and
+  evaluation windows per refinement stage, smooth reparameterisations, no clamps
+  in the graph). GPU columns run fp32 — the residual and the solve are always
+  fp64 on host, because JᵀJ squares the condition number. Reported honestly:
+  Apple-GPU execution is currently *slower* than numpy (the peak loop is
+  dispatch-bound, not arithmetic-bound), so `torch-mps` today buys precision
+  validation rather than speed.
 - **Documented mathematics**: every implemented equation cites its literature
   reference in the docstring (Rietveld 1969; Caglioti 1958; Thompson-Cox-
   Hastings 1987; Waasmaier-Kirfel 1995; Toby 2006; Le Bail 1988; …).

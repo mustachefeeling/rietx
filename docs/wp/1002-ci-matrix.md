@@ -45,6 +45,30 @@ From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24):
   compiled one — halved that file's runtime. A CI job that shards these tests
   across workers loses the cache and pays every compile again.
 
+From **WP-0408** (torch backend, landed 2026-07-27) — the `[torch]` extra above
+is no longer hypothetical, and it splits into two jobs, not one:
+
+- **`[torch]` activates the `torch` and `torch+fp32` rows** of
+  `tests/test_cross_backend.py` plus all of `tests/test_backend_torch.py`, by the
+  same self-skip mechanism as jax — install the extra, the rows appear. No
+  separate invocation.
+- **But the Apple-GPU tests cannot run on a hosted runner.** Every
+  `torch-mps` assertion is gated on `torch.backends.mps.is_available()`, which is
+  False on GitHub's macOS runners (virtualised, no Metal device). So the MPS
+  claims — the only *real-hardware* evidence for WP-0403's fp32-column policy —
+  are **maintainer-machine-only**, exactly like `examples/validate_cuda_mixed_
+  precision.py` is CUDA-box-only. Either accept that as a documented gap or plan
+  a self-hosted runner; do not read a green macOS job as "MPS verified".
+- **torch is a ~500 MB wheel** (jax is ~100 MB). If the extras job is
+  per-push rather than nightly, cache it deliberately; it will dominate job
+  setup otherwise.
+- **Both runtime figures above moved again, and one moved *down***: measured
+  2026-07-27 with all extras installed, the full suite is **7 min 19 s** (461
+  tests, 38 `slow`) and `-m "not slow"` is **~72 s** (423 tests) — faster than
+  the ~13 min recorded three days earlier *despite* adding the whole torch
+  matrix. Machine state moves these as much as the test count does. Re-measure;
+  do not trust any number in this file.
+
 From **WP-0401** (op shim, landed 2026-07-24): `tests/test_backend_shim.py`
 asserts **bit-identity** against environment-pinned npz goldens in
 `tests/data/backend_goldens/`. A multi-OS × multi-Python matrix is exactly the

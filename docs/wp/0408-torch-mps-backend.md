@@ -1,6 +1,6 @@
 # WP-0408 — torch backend (MPS fp32 forward)
 
-Milestone: v0.4 · Status: ⬜ not started
+Milestone: v0.4 · Status: ✅ shipped 2026-07-27
 Depends on: WP-0401, WP-0402, WP-0404 (also consumes WP-0403's policy and
 WP-0405's `w(z)`)
 
@@ -152,33 +152,81 @@ deferred CUDA script); the TOPAS-style bounded LM solver (WP-0601).
 
 ## Tasks
 
-- [ ] `[torch]` extra; `TorchBackend` on the 0401 op set (`window_add`/
+- [x] `[torch]` extra; `TorchBackend` on the 0401 op set (`window_add`/
       `segment_sum` via `index_add`; complex128 CPU / complex64 MPS); device
       and dtype selected by the WP-0403 policy
-- [ ] `torch.func.jacfwd`/`vmap` fp64-CPU Jacobian; add the torch row to the
+- [x] `torch.func.jacfwd`/`vmap` fp64-CPU Jacobian; add the torch row to the
       WP-0404 matrix
-- [ ] MPS fp32 forward + fp32 Jacobian columns crossing the `linalg64.py`
+- [x] MPS fp32 forward + fp32 Jacobian columns crossing the `linalg64.py`
       fp64 host boundary
-- [ ] Wire `backend="torch"` through `refine.py`/`multi.py`; add the
+- [x] Wire `backend="torch"` through `refine.py`/`multi.py`; add the
       `uv pip install -e ".[dev,jax,torch]"` line to CLAUDE.md commands
-- [ ] `examples/bench_torch_mps.py`: MPS vs numpy wall-clock on 11-BM NAC and
+- [x] `examples/bench_torch_mps.py`: MPS vs numpy wall-clock on 11-BM NAC and
       SRM 676a (reported)
-- [ ] Tests (`pytest.importorskip("torch")`): torch-fp64-CPU Jacobian
+- [x] Tests (`pytest.importorskip("torch")`): torch-fp64-CPU Jacobian
       agreement <5e-3 / cosine >0.99999; torch-MPS-fp32 SRM 676a refine
       matches the numpy `a` within 3e-5 Å; the numpy path is unaffected +
       obs/calc/diff PNGs to `tests/output/`
+
+Deviation from the plan above, in one place only: the device is selected by a
+second **backend name** (`"torch-mps"`), not by the WP-0403 policy object.
+`MixedPrecisionPolicy` has one field, `jacobian_dtype`, and no device — and MPS
+fp32 is not a policy choice but a hardware fact, so folding it into the policy
+would have made "torch-mps at fp64" spellable. Two names keep it unspellable,
+which is the same discipline the policy applies to the residual.
 
 ## Acceptance
 
 ```sh
 .venv/bin/python -m pytest tests/test_backend_torch.py -q   # skips without torch
+.venv/bin/python -m pytest tests/test_cross_backend.py -q   # the torch/torch+fp32 rows
 .venv/bin/python examples/bench_torch_mps.py                # reports MPS vs numpy, not gated
 ```
 
-Measured: the torch fp64-CPU Jacobian agrees with the analytic and jax
-Jacobians to <5e-3 rel-L2 / cosine >0.99999; a torch-MPS fp32 refine of SRM
-676a matches the numpy `a` within 3e-5 Å (the WP-0403 fp32-column band); the
-MPS-vs-numpy speedup on 11-BM NAC is recorded in the milestone record.
+**Measured (2026-07-27, Apple-silicon Mac, torch 2.13.0; 461 tests collected,
+458 passed / 3 skipped, 38 `slow`, 7 min 19 s).**
+
+*Correctness — the deliverable that held.* The torch fp64-CPU Jacobian clears
+the WP-0404 fp64 bars (5e-3 rel-L2 / cosine 0.99999) on every config in the
+matrix: the 18 analytic families, Le Bail with P-spline penalty rows, Pawley
+with the aux block and restraint rows, aniso/PO/extinction, real srm660c and
+nac data, and the stacked multi-histogram layout — with only the documented
+S/L == H/L kink exception, unchanged. Worst column against the analytic
+assembly: **2.7e-5 rel-L2** (`families`), cosine 1.0 to eight places. The Pawley
+aux block agrees to <1e-9, as an exactly linear block must. `torch+fp32` clears
+WP-0403's reduced bars on the same set.
+
+*The fp32-column policy, on real hardware at last — and WP-0403's bar sizing
+vindicated.* Columns computed entirely on the Apple GPU sit **4.0e-4 rel-L2 /
+cosine 0.99999992** from the torch fp64 columns (worst over the four fast
+configs; bars 2e-2 / 0.999). Compare WP-0403's CPU simulation of the same
+policy, which round-trips fp64→fp32→fp64 and measured **2.6e-8**: real device
+fp32 is *four orders of magnitude* worse, exactly as `backend/linalg64.py`
+predicted in prose ("it does not reproduce error accumulated inside a device's
+fp32 forward pass; that is strictly larger"), and still 50× inside a bar that
+was deliberately "sized for the real device case". The prose can now cite a
+number.
+
+End to end, an MPS refinement of SRM 676a corundum lands **Δa = −3.5e-8 Å,
+Δc = −4.6e-8 Å, ΔRwp = +5e-11** against numpy (bar: 3e-5 Å), with
+c/a = 2.7299281 — the v0.3 record's value. For scale, torch *fp64* on CPU sits
+further out (Δa = +3.0e-6 Å), so the spread across backends is dominated by
+convergence-path differences, not by column precision. That is WP-0403's
+argument, measured: the trust region re-measures every step against an fp64
+cost, so reduced columns move the path and not the answer.
+
+*Speed — a finding, not a speedup.* **MPS is 30-100× slower than numpy.**
+Forward evaluation, best of 3: 11-BM NAC 2.0 ms (numpy) / 6.3 ms (torch CPU) /
+199 ms (MPS); SRM 676a corundum with the axial aperture opened 6.2 / 14.2 /
+480 ms. The cause is the loop shape, not the device: the residual walks ~130
+frozen windows of 200-900 points one at a time in python, so each window is a
+handful of kernel launches — tens of microseconds of dispatch against a
+microsecond of arithmetic. No fp32 arithmetic recovers a 50× dispatch deficit.
+The fix is a **batched peak loop** (one padded reflection × window tensor per
+phase, which the frozen window layout already permits), and it is a change to
+the forward model for every backend rather than to this one. Left undone
+deliberately; recorded in DESIGN.md's locked decisions and pushed to WP-0601's
+`### Inherited`.
 
 ## References
 
@@ -190,6 +238,58 @@ MPS-vs-numpy speedup on 11-BM NAC is recorded in the milestone record.
 
 ## Handover log
 
+- **2026-07-27** — **shipped.** Five commits; measured acceptance above. Done:
+  `[torch]` extra, `TorchBackend` under two names, `torch.func.jvp` Jacobian,
+  the WP-0404 `torch`/`torch+fp32` rows, `backend=` wiring through
+  `refine.py`/`multi.py` (+ `Provenance.backend`/`dtype`, which had said
+  "numpy/float64" since v0.1 regardless), `examples/bench_torch_mps.py`, and
+  `tests/test_backend_torch.py`. Nothing in flight.
+
+  **Gotchas, in the order they cost time** — every one is a torch-vs-numpy/jax
+  difference the op shim did not anticipate, and all are now handled in
+  `backend/api.py` or documented there:
+
+  1. **torch ops take tensors only** (`torch.exp(ndarray)` raises), so every op
+     coerces. Cheap; not the problem.
+  2. **`ndarray ⊗ tensor` through a python operator.** `*`, `-`, `+` raise
+     outright; `/` happens to work, which makes it look arbitrary. Worse,
+     `tensor ⊗ ndarray` *silently* routes through numpy's deprecated
+     `__array_wrap__` — fine on a plain tensor, hard failure under a functorch
+     transform ("Cannot access data pointer of Tensor that doesn't have
+     storage"). So the rule is stronger than "traced value on the left": a
+     frozen numpy constant must not meet a traced value through a bare operator
+     at all. Nine hot-path sites were lifted with `xp.matmul`/`xp.asarray`
+     (both no-ops on numpy); the rule is in `backend/api.py`'s module docstring
+     and now also in CLAUDE.md's Conventions, because it binds every future
+     hot-path WP and an Inherited note in six of them would not.
+  3. **`conj_physical` has no vmap batching rule** — torch silently falls back
+     to a per-sample python loop over the whole structure factor (15× on
+     `toy_rich`). `torch.conj(...).resolve_conj()` is the spelling that batches.
+  4. **MPS: 1-D·1-D `matmul`** lowers to `aten::dot`, which asserts internally
+     under a batching rule for every seed-block size except 3 (so a
+     `chunk_size == matrix dim` probe hides it). Expanded in `matmul`.
+  5. **MPS: `linalg.det`** decomposes into `solve_triangular`, whose batching
+     rule broadcasts the vmap batch against the matrix dimension. `linalg.inv`
+     on the same device is fine. `_TorchLinalg.det` is the 3×3 cofactor
+     expansion — the only matrices this vocabulary sees are metric tensors.
+  6. **MPS: a 0-d dual tensor cannot be combined with a python float** under
+     `torch.func.jvp` — `x[0] * 2.0` raises `TypeError` even though
+     `torch.result_type` reports fp32; the dispatch tries to materialise an fp64
+     MPS tensor. Every decoded parameter is 0-d and meets literals constantly
+     (`0.5 * tt`, `s/R`, `2.0 * min(s, h)`), so patching call sites would have
+     scattered a device workaround through the physics code and re-broken on the
+     next obvious line. Instead `scalar_tensor_class()` is a 0-d `Tensor`
+     subclass that lifts python scalars, and the MPS instance guarantees every
+     0-d value it produces is of that type (`TorchBackend.scalarize`, applied to
+     all of `_OP_NAMES`, plus the decode, which produces 0-d by indexing rather
+     than by an op). It is **shed at the first array-valued result**, so no
+     `__torch_function__` hop lands in front of the hot loop. The CPU instance
+     carries none of this — `self._scalar is None` there.
+
+  **Next**, for whoever picks up v0.4: 0405/0406/0407 remain. Nothing in this WP
+  blocks them; the forward-references they need are in their `### Inherited`
+  sections. The one thing left undone *here* is the batched peak loop — see
+  WP-0601's `### Inherited` and DESIGN.md's dated measurement.
 - **2026-07-22** — created as a stub (WP-0603, v0.6) from the ROADMAP split.
 - **2026-07-24** — **moved to WP-0408 / v0.4** and expanded (v0.4 planning
   session). Rationale: the maintainer wants local GPU acceleration, which

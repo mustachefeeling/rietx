@@ -42,6 +42,33 @@ the TRF path did. `require_fp64` guards it at
 `covariance_estimates`; do the same at the new solver's normal-equation
 assembly, and note `backend/linalg64.py` is where that boundary lives.
 
+From **WP-0408** (torch backend, landed 2026-07-27) — two findings, one of which
+is a *measurement this WP should not have to repeat*, and one of which is work
+that landed in this WP's neighbourhood without an owner.
+
+- **Reduced-precision columns converge to the same answer *because the trust
+  region re-measures each step against an fp64 cost*.** Measured on real Apple
+  GPU hardware: an SRM 676a refinement with the whole peak chain and every
+  Jacobian column in fp32 lands 3.5×10⁻⁸ Å from the numpy fp64 cell. That
+  property is a property of the *driver*, not of the columns — a bounded LM that
+  accepts a step on a predicted decrease computed from the same reduced
+  quantities would forfeit it. Keep the cost evaluation fp64 and independent of
+  the column precision, and the WP-0403 policy keeps holding; the
+  `require_fp64` guard on the normal equations (see the WP-0403 note above) is
+  necessary but not sufficient for this.
+- **The forward model's peak loop is unbatched, and that is now the measured
+  ceiling on any GPU work.** `examples/bench_torch_mps.py` reports MPS running
+  **30-100× slower** than numpy — not a precision or backend-quality problem but
+  the loop shape: the residual walks ~130 frozen windows of 200-900 points one
+  at a time in python, so each window is a few kernel launches, tens of
+  microseconds of dispatch against a microsecond of arithmetic. The fix is a
+  **batched peak loop** — one padded (n_reflections × max_window) tensor per
+  phase, which the frozen-per-stage window layout already makes legal — and it
+  is a change to `model/forward.py` for every backend, so 0408 deliberately left
+  it. It is not this WP's scope either, but a "solver benchmark vs scipy TRF"
+  that hopes to show device acceleration will be measuring the wrong bottleneck
+  until someone does it. Either claim it explicitly or fence it.
+
 From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — a motivating data
 point. Softplus transforms exist because hard lower bounds stall TRF, and they
 carry a real cost: a softplus parameter starting at exactly 0 has a dead

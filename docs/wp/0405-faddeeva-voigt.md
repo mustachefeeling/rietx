@@ -48,6 +48,33 @@ From **WP-0403** (mixed-precision policy, landed 2026-07-24): if `w(z)` is
 ever evaluated below fp64, that is a *Jacobian-column* concern only — the
 policy lives in `backend/linalg64.py` and the residual stays fp64 regardless.
 
+From **WP-0408** (torch backend, landed 2026-07-27) — **"per-backend
+maintenance liability" now means three backends, and torch is the awkward one.**
+
+- The op-set claim above is unchanged, but the cost of a new op went up:
+  `TorchBackend` in `backend/api.py` builds its vocabulary from `_TORCH_UNARY` /
+  `_TORCH_BINARY` plus explicit methods, and
+  `tests/test_backend_torch.py::test_every_shim_op_is_implemented` fails if an
+  op lands in `_OP_NAMES` without a torch implementation. Good — but write the
+  torch side in the same commit.
+- **A rational or polynomial `w(z)` approximation will hit the numpy-constant
+  rule.** Its coefficient tables are exactly the frozen numpy arrays that must
+  not sit on the left of a product against a traced value — `ndarray * tensor`
+  raises on torch, and `tensor * ndarray` silently detours through numpy's
+  deprecated `__array_wrap__` and then *fails* under a functorch transform. Lift
+  the tables with `xp.asarray(c, dtype=np.float64)` once, at the top of the
+  function, exactly as `crystallography/scattering.py::f0` now does with the
+  Waasmaier-Kirfel coefficients. The rule is stated in `backend/api.py`'s module
+  docstring and in CLAUDE.md's Conventions.
+- **Horner evaluation is the safe shape** for the same reason a region-split is
+  not: `where`-masked full-array arithmetic is what all three backends batch.
+- **If the `w(z)` region test is a scalar comparison, watch the 0-d case on
+  MPS.** A 0-d dual tensor cannot be combined with a python float under
+  `torch.func.jvp` on Apple hardware; `TorchBackend.scalarize` covers every 0-d
+  value the backend *produces*, but a 0-d value you build by indexing a plain
+  array (`tab[k]`) is not covered — route it through an `xp.*` op or
+  `xp.scalarize`.
+
 From **WP-0404** (cross-backend Jacobian CI, landed 2026-07-24) — the drift
 guard this file's Context invokes now exists, and **it only sees what the
 state builders contain**:

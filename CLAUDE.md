@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest                             # full suite ~13 min, incl. real-data acceptance
-.venv/bin/python -m pytest -m "not slow"               # skip acceptance (~85 s)
+.venv/bin/python -m pytest                             # full suite ~7 min, incl. real-data acceptance
+.venv/bin/python -m pytest -m "not slow"               # skip acceptance (~75 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -57,9 +57,12 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   between stages. This keeps the residual smooth for FD/autodiff Jacobians.
   (FCJ node *positions* follow the parameters smoothly, with the quadrature
   split at the overlap-trapezoid kink — see profiles/fcj.py.)
-- **fp64 everywhere** in the core; future GPU backends may compute Jacobian
+- **fp64 everywhere** in the core; a GPU backend may compute Jacobian
   *columns* in fp32 but the residual used for cost/statistics and the solve
-  stay fp64 on host.
+  stay fp64 on host — `backend/linalg64.py` is that boundary, and it holds on
+  real hardware: an Apple-MPS refinement whose every column was computed in
+  fp32 lands 3.5e-8 Å from the numpy fp64 cell, because the trust region
+  re-measures each step against an fp64 cost.
 - **No pydantic in the hot loop**: `ParameterTable.decode()` returns a plain
   dict; the forward model consumes floats/arrays only.
 - **Weights**: use the file's esd column when present (readers), Poisson
@@ -95,6 +98,13 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   survive JSON round-trip — tested).
 - Angles in degrees throughout; Caglioti U,V,W in deg²(2θ); Biso in Å²
   (= 8π²·Uiso); wavelengths in Å; k = sinθ/λ.
+- **Hot-path code must not put a frozen numpy constant on the left of a python
+  operator against a θ-derived value** — `ndarray * tensor` raises on the torch
+  backend (and `tensor * ndarray` routes through numpy's deprecated
+  `__array_wrap__`, then fails under a functorch transform). Route it through
+  `xp.matmul` or lift it with `xp.asarray(c, dtype=np.float64)`; both are no-ops
+  on numpy. Same rule for a *new op*: add it to `_OP_NAMES` and implement it on
+  every backend — `tests/test_backend_torch.py` fails if you don't.
 - **Instrument ⊕ sample profile split**: Gaussian *variances* add
   (instrument U,V,W + phase `gauss_size`/`gauss_strain`), Lorentzian *FWHMs*
   add (instrument X,Y + phase `lor_size`/`lor_strain`). Workflow:
@@ -175,20 +185,21 @@ in *that* WP's `### Inherited` section, naming yours as the source
 
 Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
 Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
-history DAG, live viz). In progress: **v0.3** — coordinate refinement,
-anisotropic ADPs, QPA weight fractions, Brindley microabsorption, Pawley
-whole-pattern mode and March-Dollase preferred orientation have landed
-(WP-0301…0307; `RefinementResult.qpa` = Hill-Howard ZMV with correlated σ, plus
-corrected fractions + µR fence when every phase carries `particle_radius_um`;
-`Phase.preferred_orientation` is an optional single-axis March-Dollase block —
-integer hkl axis + softplus `r`, identity at r=1, analytic ∂P/∂r column, and a
-Layer-1 axis diagnostic on `FitReport.texture` that fits the full nonlinear
-P(r) — the linear template is degenerate in high-symmetry crystals);
-the v0.3 acceptance (WP-0310) is measured and recorded in
-`docs/milestones/v0.3.md` — SRM 676a cell anchor via c/a (+30 ppm) plus the
-IUCr QPA round robin with participant-spread-referenced tolerances; only
-multi-histogram (0308) and exporters (0309) remain before the milestone row
-flips. v2 fence: FPA, neutron/TOF, spherical-harmonics texture, MCP server.
+history DAG, live viz), **v0.3** (2026-07-24: coordinate refinement, anisotropic
+ADPs, QPA weight fractions, Brindley microabsorption, Pawley whole-pattern mode,
+March-Dollase preferred orientation, multi-histogram, exporters — WP-0301…0310,
+measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
+(+30 ppm) plus the IUCr QPA round robin with participant-spread-referenced
+tolerances).
+
+In progress: **v0.4 — differentiable backends.** The op shim, the jax backend,
+the mixed-precision policy, the cross-backend agreement CI and the torch backend
+have landed (WP-0401…0404, 0408): `backend=` takes `"numpy"`, `"jax"`,
+`"torch"` (CPU fp64) or `"torch-mps"` (Apple GPU, necessarily fp32), every one
+held to per-column agreement with the analytic Jacobian in
+`tests/test_cross_backend.py`. Remaining: 0405 (true Voigt), 0406 (restraints),
+0407 (esd/Bérar-Lelann placement). v2 fence: FPA, neutron/TOF,
+spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

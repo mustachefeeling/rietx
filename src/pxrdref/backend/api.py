@@ -339,15 +339,20 @@ class TorchBackend:
     numpy-only process is unaffected (resolve via ``set_backend("torch")`` /
     ``resolve_backend``).
 
-    Two things differ from numpy and jax, and both are settled here rather than
-    in the hot path:
+    Three things differ from numpy and jax, and all three are settled here rather
+    than in the hot path:
 
     * **torch ops take tensors only** — ``torch.exp(ndarray)`` raises — so every
       op coerces its array arguments.  The coercion is one ``as_tensor`` over an
       already-contiguous buffer, negligible against the kernel it feeds.  The
-      complementary half of the problem (a numpy constant on the left of a bare
-      python operator) is not solvable here and is handled at the call sites;
-      see the module docstring.
+      complementary half of the problem (a numpy constant meeting a traced value
+      through a bare python operator) is *not* solvable here and is handled at
+      the call sites; see the module docstring.
+    * **A few ops need their numpy semantics restored or a torch quirk routed
+      around**: ``imag`` of a real array, ``full_like`` with a traced fill,
+      ``conj``'s lazy view, a 1-D·1-D ``matmul``, a 3×3 determinant, and — on
+      MPS under forward-AD — 0-d scalars meeting python literals
+      (:func:`scalar_tensor_class`).  Each carries its own note below.
     * **No Apple GPU supports fp64 in any framework**
       (docs/DESIGN.md, locked decisions), so an ``mps`` instance is
       fp32/complex64 throughout and a ``cpu`` instance fp64/complex128.  A
