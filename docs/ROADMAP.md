@@ -41,13 +41,29 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
-**v0.3 shipped 2026-07-24** — all ten WPs (0301–0310) landed and the full suite
-is green (354 tests; 18 `slow` real-data acceptance). Measured acceptance
-recorded in [milestones/v0.3.md](milestones/v0.3.md).
+**v0.4 shipped 2026-07-27** — all eight WPs (0401–0408) landed; measured
+acceptance in [milestones/v0.4.md](milestones/v0.4.md). The headline is
+deliberately two-sided: every backend computes the same Jacobian (and an
+all-fp32 Apple-GPU refinement lands 3.5e-8 Å from numpy fp64, confirming the
+fp64-host-boundary invariant on real hardware), while device *acceleration* was
+measured not to exist at this problem size.
 
-**Now: v0.4 — differentiable backends.** All eight WPs were expanded from
-stubs on 2026-07-24 and are ready to start; no further planning is needed
-before code.
+**Next: v0.5 — corrections & microstructure.** No WP is active; the v0.5 table
+below is the menu, and every stub there is still a stub — expand one before
+writing code. Two live forward notes survive v0.4:
+
+- **[0605](wp/0605-batched-peak-loop.md) is a v0.6 row that behaves like a v0.5
+  one.** Its ≈2.4× lands on the **default numpy path** and needs no optional
+  dependency; it was found in 0408 rather than belonging where it sits. Pulling
+  it forward the way 0408 was pulled forward is the obvious move if anyone wants
+  a broad win before more physics.
+- **Device acceleration is a scale story, not a backend story** (see the v2+
+  note at the bottom): break-even ≈50-65 k elements per kernel, ceiling ≈2.5-3×,
+  and one pattern is below break-even even after batching. Do not re-open it as
+  a backend question.
+
+<details>
+<summary>How v0.4 got here — the per-WP narrative (superseded by the record)</summary>
 
 The backend op shim [0401](wp/0401-backend-op-shim.md) **landed 2026-07-24**
 (363 tests green, bit-identity goldens in `tests/test_backend_shim.py`): the
@@ -103,7 +119,8 @@ independent fp64 row of the agreement matrix on every config, and
 fp32-column policy** — an SRM 676a refinement with the whole peak chain and every
 column computed in fp32 on the Apple GPU lands 3.5e-8 Å from the numpy fp64
 cell, because the trust region re-measures each step against an fp64 cost.
-*Finding:* **MPS is 60-125× slower than numpy**
+*Finding:* **MPS is 60-125× slower than numpy** (re-measured for the milestone
+record at 46-182×, depending on pattern and quantity)
 (`examples/bench_torch_mps.py`), and not for a precision or backend-quality
 reason — the residual walks ~130 frozen windows of 200-900 points one at a time
 in python, and MPS per-op cost is flat at 110-165 µs from 64 to 65 536 elements,
@@ -131,9 +148,7 @@ written out in three places — numpy, jax, torch), the agreement matrix gained 
 on every backend row, and four 1-D·1-D dot products in the restraint geometry
 were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 
-**All eight v0.4 WPs are ✅.**  What remains before the milestone row flips is
-protocol step 4, not code: a measured-acceptance record in
-`milestones/v0.4.md` and a pass over README.md's roadmap claims.
+</details>
 
 ## Milestones
 
@@ -142,7 +157,7 @@ protocol step 4, not code: a measured-acceptance record in
 | v0.1 | Vertical slice: synchrotron CW, Rietveld + Le Bail | ✅ **shipped** ([record](milestones/v0.1.md)) | 11-BM NAC: a = 10.251285(12) Å, Rwp 9.2%, CaF₂ impurity auto-flagged |
 | v0.2 | Lab diffractometer + FitReport attribution + viz | ✅ **shipped 2026-07-22** ([record](milestones/v0.2.md)) | SRM 660c LaB6: a = 4.156895(25) Å (+28 ppm vs NIST value for this dataset, Bérar-Lelann-inflated esd), Rwp 8.7%; GSAS-II FAP tutorial: Rwp 9.73% vs GSAS's 10.05% on identical channels, cell +116 ppm (uniform d-scale convention offset) |
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
-| v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ⬜ | cross-backend Jacobian agreement CI (analytic/FD/jacfwd/torch, incl. stage boundaries, Pawley/Le Bail, multi-histogram) + jit and MPS wall-clock vs numpy on 11-BM NAC (reported, not gated) + existing acceptance unchanged on the numpy path |
+| v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop | ⬜ | solver benchmark vs scipy TRF (a **CPU** comparison — device acceleration was measured not to exist at this problem size, see 0408) |
 | v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
