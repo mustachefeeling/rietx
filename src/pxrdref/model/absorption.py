@@ -147,6 +147,14 @@ def mu_r_identifiable_fraction(two_theta_deg: np.ndarray, mu_r: float) -> float:
     construction.  That is the point: the number is not a diagnostic threshold
     but a standing proof, exercised by the test suite, that µR carries no
     independent information in this model and must not be refined.
+
+    It is public rather than test-local because the question generalises.  Any
+    intensity correction with a smooth, monotone θ-dependence — surface
+    roughness is the next one due (WP-0502) — risks being a reparameterised
+    scale and Biso rather than new physics, and this is the measurement that
+    settles it before a parameter is made refinable.  Pass the fit's own 2θ
+    range: how much of a correction is identifiable depends on how much of it
+    the pattern actually spans.
     """
     xp = get_backend()
     s = np.asarray(_sin2_theta(xp, two_theta_deg), dtype=np.float64)

@@ -60,22 +60,39 @@ Poisson likelihoods, exact Hessians, the model as a torch layer) is recorded in
 — deferred, not planned.
 
 **Now: v0.5 — corrections & microstructure.**
-[0501](wp/0501-absorption-corrections.md) (capillary absorption) is **active**;
-the other v0.5 rows are still stubs — expand one before writing code.
+[0501](wp/0501-absorption-corrections.md) (capillary absorption) **landed
+2026-07-27**; the other v0.5 rows are still stubs — expand one before writing
+code.
 
-0501 was expanded 2026-07-27 and its scope narrowed on evidence. Cylindrical only
-(flat-plate is *exactly* angle-independent for a thick specimen — ITC Table
-6.3.3.1(1a) — hence identical to the phase scale; the transmission cases go to a
-new WP-0508). It implements Rouse et al. (1970) A26 682 eq. (2) rather than the
-Lobanov fit GSAS-II uses, because Rouse's coefficients could be **verified against
-the paper's own table** (0.0015, against its claimed 0.0035) while Lobanov's trace
-only to an unobtainable conference abstract. The headline finding is that
-cylindrical absorption factors *exactly* into scale × exp(c·sin²θ), so it is
-degenerate with the phase scale and Biso below the resolution of the best
-published tabulation: **µR is computed and held fixed, never refined**, and the
-deliverable is an unbiased Biso (the bias is 0.088 Å² at µR = 1, λ = 1.54 Å) — not
-a better Rwp. That is the WP-0310 transparency lesson applied before the fact
-rather than after.
+0501 narrowed its own scope on evidence. Cylindrical only: flat-plate reflection
+off a thick specimen is *exactly* angle-independent (ITC Table 6.3.3.1(1a),
+A = 1/2µ) and hence not degenerate with the phase scale but **identical** to it,
+so the transmission cases and a real-data capillary acceptance both went to a new
+[0508](wp/0508-flat-plate-absorption.md). It implements Rouse et al. (1970) A26
+682 eq. (2) rather than the Lobanov fit GSAS-II and TOPAS use, because Lobanov's
+coefficients trace only to a conference abstract nobody can obtain.
+
+Two findings worth carrying forward:
+
+- **The correction cannot improve the fit, and that is the point.** Rouse's
+  expression factors *exactly* into a constant × exp(c·sin²θ) — a Debye-Waller
+  shape — so applying it is an exact reparameterisation of the phase scale and
+  the displacement parameters. Rwp is provably unchanged (measured: identical to
+  1e-5 percentage points). Its entire content is that a Biso refined without it
+  comes back low by **0.489 Å² at µR = 1** (Cu Kα), recovered to four decimals at
+  18.8σ. So µR is computed and held fixed, never refined — it is an *exactly
+  singular* direction, not a correlated one — and `RefinementResult.absorption`
+  reports the bias, because no fit statistic can. That is the WP-0310
+  transparency lesson applied before the fact rather than after.
+- **Validate a two-argument fit across both arguments.** The available scan of
+  Rouse prints b₂ as "−0·0375" when it is −0·3750. That error passes a check
+  against the paper's *own* four-decimal table at 0.0015, because the slice used
+  (sin²θ = 0) constrains only a₁ and a₂ — and it is 0.0821 wrong at µR = 1. What
+  caught it was a quadrature of the exact ITC eq. (6.3.3.4) integral, which
+  shares no constant with any published fit. The general form of the lesson is
+  in [DESIGN.md](DESIGN.md#absorption-a-correction-that-cannot-improve-the-fit):
+  the strongest anchor is the integral a fit approximates, not another code's
+  transcription of the same fit.
 
 Two live forward notes survive v0.4:
 
@@ -185,7 +202,7 @@ were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 | v0.2 | Lab diffractometer + FitReport attribution + viz | ✅ **shipped 2026-07-22** ([record](milestones/v0.2.md)) | SRM 660c LaB6: a = 4.156895(25) Å (+28 ppm vs NIST value for this dataset, Bérar-Lelann-inflated esd), Rwp 8.7%; GSAS-II FAP tutorial: Rwp 9.73% vs GSAS's 10.05% on identical channels, cell +116 ppm (uniform d-scale convention offset) |
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
-| v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary/absorption vs GSAS-II consistency |
+| v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ⬜ | capillary absorption validated at **algorithm level**: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), plus the Biso bias it removes measured on synthetic data (0.489 Å² at µR = 1, recovered to 4 dp at 18.8σ). A *dataset*-level capillary acceptance is WP-0508 — `tests/data` has no capillary pattern, and the reworded criterion says so rather than implying evidence that does not exist |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop | ⬜ | solver benchmark vs scipy TRF (a **CPU** comparison — device acceleration was measured not to exist at this problem size, see 0408) |
 | v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
@@ -224,13 +241,14 @@ were routed through `xp.matmul` (MPS cannot batch `aten::dot`).
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0501](wp/0501-absorption-corrections.md) | Capillary (cylindrical) absorption | 🔶 | — |
+| [0501](wp/0501-absorption-corrections.md) | Capillary (cylindrical) absorption | ✅ 2026-07-27 | — |
 | [0502](wp/0502-surface-roughness.md) | Surface roughness | ⬜ | — |
 | [0503](wp/0503-stephens-anisotropic-strain.md) | Stephens anisotropic strain | ⬜ | — |
 | [0504](wp/0504-anomalous-scattering-xraydb.md) | Anomalous f′,f″ via xraydb | ⬜ | — |
 | [0505](wp/0505-sequential-refinement.md) | SequentialRefinement warm start | ⬜ | — |
 | [0506](wp/0506-secondary-extinction.md) | Secondary extinction (Sabine) | ✅ 2026-07-23 | — |
 | [0507](wp/0507-anode-wavelengths.md) | Additional anode wavelengths (Co/Cr/Fe/Mo/Ag) | ⬜ | — |
+| [0508](wp/0508-flat-plate-absorption.md) | Flat-plate absorption + real-data capillary acceptance | ⬜ | 0501 |
 
 ### v0.6 — solver, performance & agents (stubs)
 

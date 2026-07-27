@@ -67,6 +67,7 @@ Working today — constant-wavelength X-ray, both **capillary/synchrotron** and
 | Differentiable backends (`backend="jax"` / `"torch"` / `"torch-mps"`), held to per-column Jacobian agreement | ✅ |
 | True Voigt peak shape (shared Faddeeva `w(z)`; TCHZ still the default) | ✅ |
 | Soft bond / angle / value restraints (Rietveld, single-histogram) | ✅ |
+| Capillary (cylindrical) absorption, µR computed from composition — unbiases Biso, cannot change Rwp | ✅ |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes

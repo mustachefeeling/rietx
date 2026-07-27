@@ -1,6 +1,6 @@
 # WP-0501 — Capillary (cylindrical) absorption
 
-Milestone: v0.5 · Status: 🔶 in progress
+Milestone: v0.5 · Status: ✅ shipped 2026-07-27
 Depends on: —
 
 ## Goal
@@ -247,6 +247,42 @@ Criteria:
 
 ## Handover log
 
+- **2026-07-27 (c)** — **shipped.** All ten checklist items landed across nine
+  commits.
+
+  *Measured acceptance.* `cylinder_absorption` matches an ITC (6.3.3.4)
+  quadrature to 0.0035 across 0 ≤ µR ≤ 1 × 0 ≤ sin²θ ≤ 1 — exactly the bound
+  Rouse claim — and the published Table 1 fixture to the same. The quadrature is
+  itself anchored by reproducing the exact mean chord 16/(3π) = 1.69765 to 5 dp.
+  End to end, a LaB6 pattern synthesized at µR = 1.0 with Biso = 0.600 Å²
+  refines to **0.6031 ± 0.0260 Å² with the correction and 0.1144 ± 0.0260 Å²
+  without** — a 0.4887 Å² bias against a 0.4887 Å² closed-form prediction, 18.8σ,
+  with **Rwp identical to 1e-5 percentage points** in the two runs. Every backend
+  agrees per-column on the new `toy_capillary` state inside the standing
+  5e-3 / 0.99999 bars, and the real-data acceptance suite (NAC, SRM 660c, FAP,
+  SRM 676a, QPA round robin) is unmoved — none of them sets a capillary radius,
+  so µR stays 0 and the correction is the exact identity.
+
+  *Two things a successor should not have to rediscover.* First, the b₂ digit
+  transposition and why the published table could not catch it (see above) —
+  this is the single most expensive thing in the WP and it is written up in three
+  places on purpose. Second, `python -m tests.test_backend_shim` used to
+  re-capture **every** golden; it now requires explicit state names, because
+  silently rebasing a baseline meant to be a fixed point is the one failure mode
+  those files cannot detect themselves.
+
+  *Deliberately not done, with reasons in [WP-0508](0508-flat-plate-absorption.md):*
+  flat-plate transmission (needs a sample thickness the schema lacks) and a
+  real-data capillary acceptance (`tests/data` has no capillary pattern — every
+  real pattern is flat-plate Bragg-Brentano, and 11-BM is fitted with the
+  geometry-agnostic preset). The v0.5 milestone row was reworded to say
+  *algorithm-level* rather than imply dataset-level evidence that does not exist.
+
+  *One judgement call worth flagging for review:* µR > 1 is used-but-warned
+  rather than refused. Refusing would silently drop real absorption from a
+  strongly-absorbing specimen, which seemed the worse failure; but it does mean
+  the model extrapolates a fit outside its stated range if a user ignores the
+  diagnostic.
 - **2026-07-27 (b)** — physics re-verified against exact quadrature; **b₂ corrected
   to −0.3750** (the scan's "−0·0375" is a digit transposition) and every derived
   number with it: ΔB is 0.133 Å² at µR = 0.5 and **0.489 Å² at µR = 1.0**, not the
