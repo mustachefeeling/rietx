@@ -30,12 +30,16 @@ WP-0408 measured what restructuring would buy, at fixed total work, by comparing
 | 1 × 115 200 | 115 200 | **0.56 ms** | 0.43 | 0.41 |
 
 **≈2.4× on the numpy path** — the default every user runs, no optional
-dependency. That is this WP's entire justification. It is *not* GPU enablement:
-the batched GPU and the batched CPU land in the same place, because 10⁵ elements
-is still launch-bound (see [../DESIGN.md](../DESIGN.md#locked-decisions), dated
-2026-07-27). Device acceleration needs ~10⁶-element kernels — a `vmap`-batched
-in-situ series, which is v2-fenced — so **do not adopt this WP hoping for a GPU
-win, and do not let it grow into that.**
+dependency. That is this WP's entire justification. It is *not* GPU enablement,
+and the same script pins why: sweeping one kernel across sizes puts **break-even
+at ≈50-65 k elements and the ceiling at ≈2.5-3×** (the peak chain is ~17 flops
+per element, i.e. memory-bound, so a device's arithmetic throughput never
+participates). One batched kernel per pattern is 121 k elements for 11-BM NAC,
+38 k for lab corundum, 17 k for SRM 660c — so a single lab pattern is *below
+break-even even after batching*, and reaching the plateau needs ≈10 (synchrotron)
+to ≈60 (lab) patterns processed together, i.e. the v2-fenced in-situ series. See
+[../DESIGN.md](../DESIGN.md#locked-decisions), dated 2026-07-27. **Do not adopt
+this WP hoping for a GPU win, and do not let it grow into that.**
 
 Why it is a spike and not a rewrite: `model/forward.py`'s loop is the most
 invariant-dense code in the package (frozen-per-stage discreteness, the

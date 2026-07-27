@@ -57,19 +57,26 @@ differentiable from day one.
     over-claimed on first writing and is corrected here. Batching the peak loop
     into one padded reflection × window tensor **does** collapse the dispatch
     cost — at fixed total work, 128×900 → 1×115 200 takes MPS from 10.6 ms to
-    0.41 ms — **but it takes numpy from 1.36 ms to 0.56 ms, and the two then land
-    in the same place.** 10⁵ elements is still launch-bound, so batching removes
-    the penalty without producing a GPU win at single-pattern scale. Two
-    consequences, both load-bearing:
+    ~0.4 ms — **but it takes numpy from 1.36 ms to ~0.55 ms.** Sweeping one
+    kernel across sizes locates the two numbers that settle every "should this
+    run on the GPU" question here:
+    - **break-even ≈ 50-65 k elements per kernel** (65 k → 0.99×, 131 k → 1.47×);
+    - **the ceiling is ≈2.5-3×**, not an order of magnitude. The peak chain is
+      ~17 flops per element, i.e. memory-bound, so a GPU's arithmetic throughput
+      never participates (~10 G-element/s device vs ~3 G-element/s host, and
+      about half of even that gap is fp32 moving half the bytes of fp64).
+    Two consequences, both load-bearing:
     - **The batched peak loop is a numpy-path optimisation** (≈2.4×, no optional
       dependency, every user) that happens to also be a GPU precondition. It is
       scoped as a measure-then-decide spike in WP-0605, justified on that basis
       and not on device acceleration.
-    - **The GPU case is a bigger problem, not a better backend**: kernels of
-      ~10⁶ elements, i.e. a `vmap`-batched in-situ/parametric series or a large
-      multi-phase low-symmetry structure. Single-pattern Rietveld is too small
-      for the hardware, permanently. The in-situ series sits in the v2 fence
-      below, and is the honest place to revisit device acceleration.
+    - **The GPU case is a bigger problem, not a better backend** — and is worth
+      ≈2.5-3× when it arrives. One batched kernel per pattern is 121 k elements
+      (11-BM NAC), 38 k (lab corundum), 17 k (SRM 660c), so the plateau needs
+      **≈10 synchrotron or ≈60 lab patterns processed together**: a `vmap`-batched
+      in-situ/parametric series, which sits in the v2 fence below and is the
+      honest place to revisit device acceleration. A single lab pattern is below
+      break-even even after batching.
     `torch.compile` is not a way around this either: on CPU it is 2.5× *slower*
     than eager (13.5 vs 5.4 ms) after a 38 s compile, and on MPS it fails —
     dynamo specialises on each window's literal `(i0, i1)` bounds and hits its

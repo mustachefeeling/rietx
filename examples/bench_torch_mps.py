@@ -33,10 +33,10 @@ algorithm on the CPU".  A per-column comparison against an analytic assembly
 flatters no autodiff backend, and reading these numbers as "torch is slower
 than numpy" would miss that the analytic chain is what is fast, not numpy.
 
-The two microbenchmarks
------------------------
+The microbenchmarks
+-------------------
 The pattern timings above say the GPU is slow; they do not say *why*, and the
-prose that used to stand here guessed.  So this script also measures the two
+prose that used to stand here guessed.  So this script also measures the three
 things the explanation rests on, and every number quoted in DESIGN.md and
 WP-0408 is readable off its output:
 
@@ -47,6 +47,13 @@ WP-0408 is readable off its output:
   window of K·W points, same arithmetic either way.  The ratio is exactly what
   restructuring the peak loop would buy, per backend, with no model changes and
   no guessing.
+* **the crossover** — one kernel of N elements, GPU against numpy, swept across
+  the size where the device stops losing and starts winning.  This is the number
+  to quote when someone asks "is a GPU worth it here": **break-even ≈ 50-65 k
+  elements per kernel, and the ceiling is only ≈2.5-3×**, because ~17 flops per
+  element is memory-bound work in which a GPU's arithmetic throughput never
+  participates (measured ~10 G-element/s device vs ~3 G-element/s host, and
+  roughly half of even that gap is fp32 moving half the bytes of numpy's fp64).
 
 Measured (2026-07-27, Apple-silicon Mac, torch 2.13, best of 3)
 ---------------------------------------------------------------
@@ -59,18 +66,22 @@ is **flat at 110-165 µs from 64 to 65 536 elements** (numpy: 0.3 µs at 64), i.
 pure launch latency; it overtakes numpy only at ~10⁶ elements per kernel
 (255 µs vs 1588 µs, a 6× win — the one row where the device behaves like a GPU).
 
-**But batching would not make the GPU win at this scale, and that is the part
-the first draft of this file got wrong.**  At fixed total work, 128×900 →
-1×115 200 takes MPS from 10.6 ms to 0.41 ms (26×) — and numpy from 1.36 ms to
-0.56 ms.  The batched GPU and the batched CPU land in the same place, because
-10⁵ elements is still launch-bound.  So:
+**But batching does not turn this into a GPU win, and that is the part the first
+draft of this file got wrong.**  At fixed total work, 128×900 → 1×115 200 takes
+MPS from 10.6 ms to ~0.4 ms (26×) — and numpy from 1.36 ms to ~0.55 ms.  A single
+batched pattern sits right at the crossover (65 k elements → 0.99×; 131 k →
+1.47×), so the device would buy a small factor at best, against an fp32
+constraint and an optional dependency.  So:
 
 * **the batched peak loop is worth doing for the *numpy* path** (1.36 → 0.56 ms,
   2.4×, no optional dependency, every user), not as GPU enablement — scoped in
   WP-0605;
-* **the GPU case needs a bigger problem**, ~10⁶ elements per kernel: a
-  ``vmap``-batched in-situ/parametric series, or a large multi-phase
-  low-symmetry structure.  Single-pattern Rietveld is simply too small.
+* **the GPU case needs a bigger problem** — and is worth ≈2.5-3× when it
+  arrives, not an order of magnitude.  One batched kernel per pattern is 121 k
+  elements for 11-BM NAC, 38 k for lab corundum, 17 k for SRM 660c, so reaching
+  the plateau means processing **≈10 (synchrotron) to ≈60 (lab) patterns
+  together**: a ``vmap``-batched in-situ/parametric series, which is v2-fenced.
+  A single lab pattern is below break-even even after batching.
 
 ``torch.compile`` does not rescue it either: on CPU the compiled residual is
 **2.5× slower** than eager (13.5 vs 5.4 ms) after a 38 s one-off compile, and on
@@ -278,6 +289,11 @@ _OP_WIDTHS = (64, 1024, 8192, 65536, 1048576)
 #: actual shape on 11-BM NAC; the last is that same work as one kernel.
 _LOOP_SHAPES = ((128, 900), (128, 90), (16, 900), (1, 115200))
 
+#: widths for the crossover sweep — one kernel each, spanning the size where the
+#: GPU stops losing and starts winning.  This is the number a reader actually
+#: wants: "how big does an array have to be before the device is worth it".
+_CROSSOVER_WIDTHS = (16384, 65536, 131072, 524288, 1048576, 4194304)
+
 #: elementwise ops per window in the synthetic loop — roughly a pseudo-Voigt
 #: (the real one is ~20 including the profile normalisation and the mask)
 _OPS_PER_WINDOW = 17
@@ -342,7 +358,8 @@ def _timed_loop(kind: str, n_windows: int, width: int) -> float:
 
 
 def microbenchmarks(backends: list[str]) -> None:
-    """Why the pattern timings look the way they do — dispatch, not arithmetic."""
+    """Why the pattern timings look the way they do — dispatch, not arithmetic —
+    and how big an array has to be before a device is worth using at all."""
     kinds = [b for b in backends if b in ("numpy", "torch", "torch-mps")]
 
     print("\nper-op cost — one exp(), microseconds per call")
@@ -361,6 +378,19 @@ def microbenchmarks(backends: list[str]) -> None:
     for n_windows, width in _LOOP_SHAPES:
         row = "".join(f"{_timed_loop(k, n_windows, width) * 1e3:12.2f}" for k in kinds)
         print(f"  {n_windows:>8}{width:>8}{n_windows * width:>10}{row}")
+
+    if "torch-mps" not in kinds:
+        return
+    print("\ncrossover — one kernel of N elements, GPU vs numpy (ms, and speedup)")
+    print("  break-even is where the speedup passes 1.0; the plateau above it is")
+    print("  the ceiling, because ~17 flops/element is memory-bound work and a")
+    print("  GPU's arithmetic throughput never comes into it")
+    print("  " + f"{'elements':>10}{'numpy':>10}{'torch-mps':>11}{'speedup':>10}")
+    for width in _CROSSOVER_WIDTHS:
+        t_np = _timed_loop("numpy", 1, width)
+        t_mps = _timed_loop("torch-mps", 1, width)
+        print(f"  {width:>10}{t_np * 1e3:10.3f}{t_mps * 1e3:11.3f}"
+              f"{t_np / t_mps:9.2f}×")
 
 
 def _forward_on(name: str, model, table, theta) -> float:

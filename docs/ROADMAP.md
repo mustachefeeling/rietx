@@ -108,13 +108,17 @@ cell, because the trust region re-measures each step against an fp64 cost.
 reason — the residual walks ~130 frozen windows of 200-900 points one at a time
 in python, and MPS per-op cost is flat at 110-165 µs from 64 to 65 536 elements,
 i.e. pure launch latency.  The obvious remedy was then measured rather than
-assumed: batching the peak loop collapses MPS from 10.6 ms to 0.41 ms at fixed
-work — *and numpy from 1.36 to 0.56 ms, which puts them level*.  So the batched
-loop is a **numpy-path win** (≈2.4×, every user, no optional dependency), scoped
-as a measure-then-decide spike in [0605](wp/0605-batched-peak-loop.md); Apple-GPU
-*acceleration* needs a fundamentally bigger problem (~10⁶-element kernels — the
-v2-fenced `vmap`-batched in-situ series), not a better backend.  `torch.compile`
-does not help either (2.5× slower on CPU; per-window recompile failure on MPS).
+assumed: batching the peak loop collapses MPS from 10.6 ms to ~0.4 ms at fixed
+work — *and numpy from 1.36 to ~0.55 ms*.  A size sweep pins the two numbers that
+settle it: **break-even ≈ 50-65 k elements per kernel, ceiling ≈2.5-3×** (the
+peak chain is memory-bound, so GPU arithmetic throughput never participates).  So
+the batched loop is a **numpy-path win** (≈2.4×, every user, no optional
+dependency), scoped as a measure-then-decide spike in
+[0605](wp/0605-batched-peak-loop.md); Apple-GPU *acceleration* needs ≈10
+synchrotron or ≈60 lab patterns batched together to reach that ≈3× — the
+v2-fenced in-situ series — and a single lab pattern is below break-even even
+after batching.  `torch.compile` does not help either (2.5× slower on CPU;
+per-window recompile failure on MPS).
 The two hot-path rules that bind *all* future work are in CLAUDE.md's Conventions
 (no frozen numpy constant on the left of an operator against a traced value; a
 new op must land on every backend); the torch-specific traps are in 0408's
@@ -223,10 +227,11 @@ No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites
 scope creep.
 
-One note against the day that fence is revisited: **`vmap`-batched in-situ
-series is where a GPU would finally pay**, and WP-0408 measured why. A device
-only beats numpy at ~10⁶ elements per kernel; a single pattern never gets there
-(hence 0408's finding that MPS is 60-125× *slower*), but a thousand patterns
-sharing one structure does. So the in-situ item on that list is not just a
-feature — it is the only accelerator story in this package that the hardware
-supports.
+One note against the day that fence is revisited: **`vmap`-batched in-situ series
+is the only accelerator story this package's hardware supports**, and WP-0408
+measured its size. A device breaks even at ≈50-65 k elements per kernel and tops
+out at **≈2.5-3×** — the work is memory-bound, so that ceiling is not a tuning
+problem. One batched pattern is 17-121 k elements, so the plateau needs ≈10
+(synchrotron) to ≈60 (lab) patterns processed together. Worth having for a
+series; worth nobody's time for a single pattern, which is below break-even even
+after batching.

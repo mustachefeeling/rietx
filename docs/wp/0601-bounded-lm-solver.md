@@ -64,14 +64,15 @@ that landed in this WP's neighbourhood without an owner.
   elements, i.e. pure launch latency. The obvious remedy, a **batched peak loop**
   (one padded n_reflections × max_window tensor per phase, which the
   frozen-per-stage layout already makes legal), was measured rather than assumed:
-  it collapses MPS from 10.6 ms to 0.41 ms at fixed work — **and numpy from
-  1.36 ms to 0.56 ms, which puts them level.** So batching is a *numpy-path*
-  optimisation (≈2.4×), now scoped as a spike in WP-0605; it does not turn the
-  GPU into a win at single-pattern scale, because 10⁵ elements is still
-  launch-bound. A "solver benchmark vs scipy TRF" should therefore be written as
-  a **CPU** comparison, and any device column in it reported as the diagnostic it
-  is rather than a target to optimise toward. The genuine GPU case is ~10⁶-element
-  kernels — a `vmap`-batched in-situ series, which is v2-fenced.
+  it collapses MPS from 10.6 ms to ~0.4 ms at fixed work — **and numpy from
+  1.36 ms to ~0.55 ms.** A size sweep pins it: **break-even ≈ 50-65 k elements
+  per kernel, ceiling ≈2.5-3×** (memory-bound work, so GPU arithmetic throughput
+  never participates). So batching is a *numpy-path* optimisation (≈2.4×), now
+  scoped as a spike in WP-0605. A "solver benchmark vs scipy TRF" should
+  therefore be written as a **CPU** comparison, and any device column reported as
+  the diagnostic it is rather than a target to optimise toward — one batched
+  pattern is 17-121 k elements, so a device needs ≈10-60 patterns together before
+  it even reaches its ≈3× plateau.
 
 From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — a motivating data
 point. Softplus transforms exist because hard lower bounds stall TRF, and they

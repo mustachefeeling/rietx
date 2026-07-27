@@ -123,6 +123,7 @@ row of the matrix is already written and self-skipping**, so most of the
   solve. That is how the multi-histogram row gets a torch Jacobian.
 - The benchmark above stays out of this file: WP-0404's acceptance is
   correctness only, and its tests deliberately assert no wall-clock.
+
 From **WP-0405** (true Voigt, landed 2026-07-24) — only relevant when a torch
 run uses `Instrument.profile.shape="voigt"` (TCHZ is the default and is
 complex-free):
@@ -248,13 +249,16 @@ kernel (255 µs vs numpy's 1588 µs).
 
 *…and the fix is not the one this WP first proposed.* The original text here
 said a batched peak loop "would give a device something to bite on". Measured at
-fixed total work, 128×900 → 1×115 200 takes MPS from 10.6 ms to 0.41 ms (26×) —
-**and numpy from 1.36 ms to 0.56 ms, which puts them level.** 10⁵ elements is
-still launch-bound, so batching removes the penalty without delivering GPU
-acceleration at single-pattern scale. The batched loop is therefore worth doing
-as a **numpy-path optimisation** (≈2.4×, no optional dependency), scoped as a
-spike in WP-0605; device acceleration needs a fundamentally bigger problem
-(~10⁶-element kernels — a `vmap`-batched in-situ series), which is v2-fenced.
+fixed total work, 128×900 → 1×115 200 takes MPS from 10.6 ms to ~0.4 ms (26×) —
+**and numpy from 1.36 ms to ~0.55 ms.** A size sweep gives the two numbers that
+settle it: **break-even ≈ 50-65 k elements per kernel** (65 k → 0.99×, 131 k →
+1.47×) and a **ceiling of ≈2.5-3×**, because ~17 flops per element is
+memory-bound work in which GPU arithmetic throughput never participates. So the
+batched loop is worth doing as a **numpy-path optimisation** (≈2.4×, no optional
+dependency), scoped as a spike in WP-0605; device acceleration needs ≈10
+synchrotron or ≈60 lab patterns batched together (one pattern is 17-121 k
+elements) — the v2-fenced in-situ series — and returns ≈3×, not an order of
+magnitude.
 `torch.compile` is no escape either: 2.5× slower than eager on CPU after a 38 s
 compile, and on MPS dynamo hits its recompile limit specialising on each window's
 literal `(i0, i1)` bounds. Corrected in DESIGN.md's locked decisions and in
