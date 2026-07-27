@@ -14,9 +14,11 @@ state:
   backends behind the `[jax]` and `[torch]` extras: `backend="jax"` /
   `"torch"` / `"torch-mps"` swap in an exact forward-mode Jacobian, and every
   one is held to per-column agreement with the analytic assembly in CI. The
-  forward model is written to stay differentiable (frozen reflection lists and
-  evaluation windows per refinement stage, smooth reparameterisations, no clamps
-  in the graph). GPU columns run fp32 — the residual and the solve are always
+  numpy path is the default and the fast one; `[torch]` is **experimental**,
+  never installed by default, and earns its place as an independent check on
+  the analytic Jacobian rather than as a speedup. The forward model is written
+  to stay differentiable (frozen reflection lists and evaluation windows per
+  refinement stage, smooth reparameterisations, no clamps in the graph). GPU columns run fp32 — the residual and the solve are always
   fp64 on host, because JᵀJ squares the condition number. Reported honestly:
   Apple-GPU execution is currently *slower* than numpy (the peak loop is
   dispatch-bound, not arithmetic-bound), so `torch-mps` today buys precision
@@ -108,7 +110,7 @@ The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
 made collinear. Run `pytest` (~8 min, includes all of the above; `pytest -m
-"not slow"` is ~100 s), `python examples/nac_11bm.py` (synchrotron walkthrough) or
+"not slow"` is ~2 min), `python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
 all three FitReport layers → plots + interactive HTML).
 
@@ -253,15 +255,17 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest              # 505 tests incl. five real-data acceptance suites (~8 min)
-pytest -m "not slow"    # 466 unit/property tests only (~100 s)
+pytest              # 551 tests incl. five real-data acceptance suites (~8 min)
+pytest -m "not slow"    # 512 unit/property tests only (~115 s)
 ruff check src tests examples
 ```
 
 Extras: `[viz]` (matplotlib, plotly), `[baselines]` (pybaselines algorithm zoo),
-`[jax]` and `[torch]` (the optional autodiff backends — every backend row in the
-agreement suite self-skips when its package is absent, so a numpy-only checkout
-is fully green).
+`[jax]` (autodiff Jacobians) and `[torch]` (**experimental** — an independent
+check on the analytic Jacobian and a route to differentiable-layer use, not a
+faster path; never installed by default). Every backend row in the agreement
+and conformance suites self-skips when its package is absent, so a numpy-only
+checkout is fully green.
 
 ## Architecture (one paragraph)
 

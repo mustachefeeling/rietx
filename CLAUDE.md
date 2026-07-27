@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest                             # full suite ~8 min (505 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -m "not slow"               # skip acceptance (466 tests, ~100 s)
+.venv/bin/python -m pytest                             # full suite ~8 min (551 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -m "not slow"               # skip acceptance (512 tests, ~2 min)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -104,7 +104,24 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   `__array_wrap__`, then fails under a functorch transform). Route it through
   `xp.matmul` or lift it with `xp.asarray(c, dtype=np.float64)`; both are no-ops
   on numpy. Same rule for a *new op*: add it to `_OP_NAMES` and implement it on
-  every backend — `tests/test_backend_torch.py` fails if you don't.
+  every backend — `tests/test_backend_conformance.py` fails, for every
+  registered backend at once, if you don't.
+- **Two things are written once and consumed everywhere; never restate either.**
+  The residual **row layout** `[data | background-penalty | Pawley-restraint |
+  soft-restraint]` lives in `model/rows.py` (`BLOCK_ORDER`, `layout()`,
+  `assemble()`) — the numpy residual, the numpy Jacobian's row offsets and every
+  traced residual build from it, so a new block is one edit. The **traced twin**
+  of `decode`/residual lives in `backend/traced.py`, parameterised by `xp` — jax
+  and torch share it, and a new backend inherits it. Adding a backend means
+  adding a name to `backend.api.BACKEND_NAMES` and a row to
+  `test_cross_backend.METHODS`; the conformance suite's meta-test fails if you
+  do the first without the second.
+- **Traced code runs inside `backend.traced.active(xp)`** — it makes `xp` the
+  globally-bound backend *and* opens the backend's `full_precision()` scope.
+  jax's fp64 is scoped, so a constant (or a θ vector) materialised outside it
+  is silently float32: this cost the Pawley aux columns four orders of accuracy
+  once, and is why constants are lifted inside the traced call, not at closure
+  build.
 - **Instrument ⊕ sample profile split**: Gaussian *variances* add
   (instrument U,V,W + phase `gauss_size`/`gauss_strain`), Lorentzian *FWHMs*
   add (instrument X,Y + phase `lor_size`/`lor_strain`). Workflow:
@@ -193,11 +210,15 @@ measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
 tolerances), **v0.4** (2026-07-27: differentiable backends — WP-0401…0408,
 measured acceptance in `docs/milestones/v0.4.md`).
 
-**v0.4 — differentiable backends.** `backend=` takes `"numpy"`,
-`"jax"`, `"torch"` (CPU fp64) or `"torch-mps"` (Apple GPU, necessarily fp32),
-every one held to per-column agreement with the analytic Jacobian in
-`tests/test_cross_backend.py` — whose configs must grow whenever a *new
-derivative path* does, or no backend row covers it. Also landed: true Voigt
+**v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
+the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU
+fp64) / `"torch-mps"` (Apple GPU, necessarily fp32) — never installed by
+default, kept as an independent opinion in the agreement matrix and as the
+route to using the forward model as a differentiable layer (DESIGN.md, "What
+the differentiable core unlocks"). Every backend is held to per-column
+agreement with the analytic Jacobian in `tests/test_cross_backend.py` — whose
+configs must grow whenever a *new derivative path* does, or no backend row
+covers it. Also landed: true Voigt
 (`Instrument.profile.shape="voigt"`, one shared Weideman Faddeeva `w(z)`, TCHZ
 still the default), soft bond/angle/value restraints (extra residual rows below
 the data, Rietveld and single-histogram only), and the Bérar-Lelann esd fix

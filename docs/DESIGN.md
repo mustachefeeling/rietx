@@ -84,6 +84,16 @@ differentiable from day one.
     defeats compilation for the same reason it defeats the device. Until a
     batched loop exists, torch's value here is being an independent third
     opinion in the agreement matrix.
+  - *Decided (2026-07-27, v0.4 sign-off).* Given the above, **`[torch]` is an
+    experimental extra** (`backend.api.EXPERIMENTAL_BACKENDS`), never installed
+    by default and never the recommendation for running a refinement. It is
+    kept for two reasons that have nothing to do with speed: it is an
+    independent opinion on the analytic Jacobian, and it is the only backend
+    for which using the forward model as a differentiable *layer* is idiomatic
+    — see "What the differentiable core unlocks" below. jax stays the vehicle
+    for gradient-heavy CPU work: on the FCJ-heavy corundum state its Jacobian
+    runs at 0.48× numpy against torch's 0.08×, a 6× gap on identical
+    mathematics.
 - **Scope**: constant-wavelength X-ray powder first; `Source`/`Geometry`/
   profile/`IntensityModel` are the frozen extension seams for neutron/TOF/FPA.
 - **License**: MIT. Port only from permissive sources (CrysPy MIT, cctbx
@@ -265,10 +275,78 @@ systematic rather than a shrug.
 Ill-conditioning → staged strategy, guards, reparameterization, cond
 reporting. Background eating peaks → penalized spline + correlation
 guardrails. fp32 contamination → fp64 host residual/solve + agreement gate.
-Backend drift → small op vocabulary + mandatory cross-backend tests.
+Backend drift → small op vocabulary + mandatory cross-backend tests, and
+(2026-07-27) **one implementation instead of agreeing copies**: the row layout
+in `model/rows.py`, the traced residual in `backend/traced.py`, and a
+conformance suite driven by the backend registry rather than a hand-written
+list, so a new backend inherits every rule and cannot ship without its
+agreement rows.
 **Scope (the biggest risk)** → strict per-milestone acceptance tests, one
 backend at a time, a real v2 fence, and the validation suite doubling as the
 recruiting hook for co-maintainers. Licensing → GPL never ported; provenance
 documented in ATTRIBUTION.md. Performance → analytic columns (v0.2), jax jit
 (v0.4); honest documentation that the numpy-FD path is the slow-but-correct
 reference.
+
+## What the differentiable core unlocks (deferred, not planned)
+
+Recorded 2026-07-27, when v0.4 shipped, because the question "what is a
+differentiable backend actually *for*, given it is slower?" deserves a written
+answer rather than being re-derived each time. Nothing here is scheduled; each
+item would need its own work package, and several sit behind the v2 fence.
+
+**Start from the measurement that reframes it.** On a fully-freed lab state —
+28 free parameters across every family — **0 fall back to finite differences**:
+the analytic chain covers everything shipped. So for someone *running a
+refinement today* the backends offer no accuracy or capability the numpy path
+lacks, and cost 10-30× in Jacobian time (v0.4 record). Their present value is
+to the maintainer: they are how the analytic Jacobian is validated, which is
+why torch keeps a place after the GPU story collapsed. Everything below is
+about what the *property* of being differentiable makes possible, not about
+what the backends do now.
+
+- **Gradients for physics nobody has hand-differentiated yet.** That "0 of 28"
+  is a maintenance obligation, not a permanent state: every new parameter
+  family (v0.5's absorption, surface roughness, Stephens strain, anomalous
+  f′f″) either gets a hand-derived analytic column or drops to *forward*
+  finite differences — measured at 6.2e-3 relative error on SRM 660c's cell `a`
+  against 4.3e-5 for central differences, an error that lands in that
+  parameter's esd. With autodiff, new physics is exact on day one and the
+  analytic column becomes a later optimisation, validated against the autodiff
+  one by the agreement matrix that already exists. That inverts the workflow
+  from derive-then-ship to ship-then-optimise.
+- **Honest uncertainties — the strongest candidate.** Today's esds are
+  χ²·(JᵀJ)⁻¹ with a Bérar-Lelann inflation: Gaussian, symmetric, and purely
+  local curvature at the minimum. A differentiable forward model supports
+  gradient-based MCMC (NUTS via numpyro on jax, Pyro on torch) and therefore an
+  actual posterior — asymmetric, correlation-aware, able to say a parameter is
+  multimodal. For a package whose stated rule is *never return a confident
+  wrong singleton*, that is the closest philosophical fit on this list, and it
+  needs no GPU: jax on CPU is the vehicle.
+- **Objectives other than weighted least squares.** The analytic chain is
+  hardwired to r = √w·(y_obs − y_calc). Autodiff differentiates whatever is
+  written: a true Poisson log-likelihood instead of the √max(y,1) Gaussian
+  approximation the readers fall back on (which biases at low counts), Huber
+  losses for detector spikes, explicit priors.
+- **Exact second derivatives.** Gauss-Newton discards the second-order term; an
+  exact Hessian gives true Newton steps and profile-likelihood intervals rather
+  than quadratic ones — directly relevant to WP-0601's bounded LM.
+- **torch specifically: the model as a layer.** Dropping the forward model into
+  a torch training loop — learning a background or texture prior across many
+  datasets, fitting instrument constants jointly with a neural component — is a
+  real workflow, and torch is the only backend for which it is idiomatic. This
+  is the argument that keeps `[torch]` alive as an **experimental** extra; it is
+  not a performance argument.
+
+**The costs, so the trade stays visible:** an optional ~500 MB dependency,
+Jacobians ~10× slower than the analytic assembly, one more traced residual to
+keep honest (now structural — `model/rows.py` owns the row layout and
+`backend/traced.py` the traced twin, so a new backend inherits both), and the
+torch-MPS trap collection in WP-0408's handover.
+
+**And the two autodiff backends are not interchangeable.** jax's jit collapses
+the dispatch overhead that dominates this problem: on the FCJ-heavy corundum
+state its Jacobian runs at 0.48× numpy against torch's 0.08× — a **6× gap
+between the two on identical mathematics** (measured, v0.4 record). For
+gradient-heavy CPU work jax is the vehicle; torch's distinct argument is
+ecosystem interop, not speed.

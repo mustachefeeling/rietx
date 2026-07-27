@@ -48,6 +48,17 @@ all-fp32 Apple-GPU refinement lands 3.5e-8 Å from numpy fp64, confirming the
 fp64-host-boundary invariant on real hardware), while device *acceleration* was
 measured not to exist at this problem size.
 
+Signed off with the duplication closed rather than documented: the residual row
+layout now lives once in `model/rows.py`, the traced residual once in
+`backend/traced.py`, and `tests/test_backend_conformance.py` is driven by the
+backend **registry**, so a new backend inherits every rule and cannot ship
+without its agreement rows. `[torch]` is marked **experimental** — an
+independent opinion in the matrix and a route to differentiable-layer use, not
+a faster path. What being differentiable could buy later (posterior sampling,
+Poisson likelihoods, exact Hessians, the model as a torch layer) is recorded in
+[DESIGN.md](DESIGN.md#what-the-differentiable-core-unlocks-deferred-not-planned)
+— deferred, not planned.
+
 **Next: v0.5 — corrections & microstructure.** No WP is active; the v0.5 table
 below is the menu, and every stub there is still a stub — expand one before
 writing code. Two live forward notes survive v0.4:
