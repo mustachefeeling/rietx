@@ -34,6 +34,7 @@ from ..backend import get_backend
 from ..backend.api import TORCH_DEVICES
 from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
 from ..crystallography.adp import U_NAMES
+from ..model import rows as row_layout
 from ..model.forward import CompiledModel, DerivativeBases
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
@@ -85,32 +86,29 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
     split into per-phase slices and passed *through* the evaluation (never
     written to the buffers — those are committed once, post-solve), and the
     overlap-restraint rows are appended after the background penalty rows.
+
+    The row *layout* is not written here: ``model.rows`` owns it, and the
+    traced residuals every autodiff backend uses call the same assembler, so
+    the numpy reference and the traced twins cannot disagree about block order.
     """
     sqrt_w = 1.0 / model.sigma
     n_table = len(table.free_paths)
     xp = get_backend()
     fixed_intens = _lebail_snapshot(model)
+    empty_aux = np.zeros(0, dtype=np.float64)
 
     def residual(theta: np.ndarray) -> np.ndarray:
         if model.pawley is not None:
-            intens = model.split_pawley_intensities(theta[n_table:])
+            aux = theta[n_table:]
+            intens = model.split_pawley_intensities(aux)
             values = table.decode(theta[:n_table])
         else:
+            aux = empty_aux
             intens = fixed_intens
             values = table.decode(theta)
-        r = sqrt_w * (model.y_obs - model.evaluate(values, intens))
-        parts = [r]
-        pen = model.penalty_residual(values)
-        if pen is not None:
-            parts.append(pen)
-        if model.pawley is not None:
-            rpen = model.pawley_restraint_residual(theta[n_table:])
-            if rpen is not None:
-                parts.append(rpen)
-        rr = model.restraint_residual(values)
-        if rr is not None:
-            parts.append(rr)
-        return parts[0] if len(parts) == 1 else xp.concatenate(parts)
+        return row_layout.assemble(model, row_layout.ResidualInputs(
+            values=values, intens=intens, theta_aux=aux,
+            sqrt_w=sqrt_w, y_obs=model.y_obs, xp=xp))
 
     return residual
 
@@ -259,12 +257,11 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
     sqrt_w = 1.0 / model.sigma
     free = table.free_paths
     n_table = len(free)
-    n_data = len(model.tt)
-    n_bkg_pen = 0 if model.bkg_penalty is None else model.bkg_penalty.shape[0]
-    n_res = (0 if model.pawley is None or model.pawley.restraint is None
-             else model.pawley.restraint.shape[0])
-    n_restraint = 0 if model.restraints is None else model.restraints.n_rows
-    n_rows = n_data + n_bkg_pen + n_res + n_restraint
+    # row extents from the one layout authority — the Jacobian writes into the
+    # same blocks the residual stacks, so it must not re-derive them
+    data_blk, pen_blk, pawley_blk, restr_blk = row_layout.layout(model)
+    n_data, n_bkg_pen, n_restraint = data_blk.n, pen_blk.n, restr_blk.n
+    n_rows = row_layout.n_rows(model)
 
     bkg_cols = {path: n for n, path in enumerate(model.bkg_paths)}
     axial_paths = {"instrument.geometry.axial_sl": 8, "instrument.geometry.axial_hl": 9}
@@ -336,14 +333,15 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
 
         if model.pawley is not None:
             _pawley_intensity_columns(model, get_bases(), values, sqrt_w, J,
-                                      n_table, n_data + n_bkg_pen)
+                                      n_table, pawley_blk.start)
 
         if model.restraints is not None and n_table:
             # One unconditional matrix block below the data/penalty/Pawley rows:
             # ∂row/∂θ_c = (R_phys @ C)[i,c]·dφ/du[c], since decode gives
-            # p = C·to_physical(θ) + d.  Rietveld-only (n_res is then 0), and the
+            # p = C·to_physical(θ) + d.  Rietveld-only (the Pawley block is then
+            # empty, so restr_blk starts right after the penalty rows), and the
             # rows touch table θ only — no Pawley-intensity columns.
-            restr0 = n_data + n_bkg_pen + n_res
+            restr0 = restr_blk.start
             r_phys = restraint_partials(model.restraints, values, table)
             cmat = table.constraint_block()[0].toarray()  # C small: dense is fine
             dpdu = np.array([dpdu_of(c, theta_t) for c in range(n_table)],
