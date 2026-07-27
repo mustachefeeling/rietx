@@ -30,6 +30,7 @@ dependencies = [
 viz = ["matplotlib>=3.8", "plotly>=5.20"]
 baselines = ["pybaselines>=1.1"]
 jax = ["jax>=0.4.30"]
+torch = ["torch>=2.2"]
 dev = [
     "pytest>=8",
     "pytest-cov",

@@ -172,18 +172,21 @@ class CompiledModel:
     # ------------------------------------------------------------------
     def background(self, values: dict[str, float]) -> np.ndarray:
         # stacked, not np.array-ed: the coefficients come from θ (traced)
-        coeffs = get_backend().stack([values[p] for p in self.bkg_paths])
-        y = coeffs @ self.bkg_design
+        xp = get_backend()
+        coeffs = xp.stack([values[p] for p in self.bkg_paths])
+        y = xp.matmul(coeffs, self.bkg_design)
         if self.fixed_background is not None:
-            y = y + self.fixed_background
+            y = y + xp.asarray(self.fixed_background, dtype=np.float64)
         return y
 
     def penalty_residual(self, values: dict[str, float]) -> np.ndarray | None:
         """√λ·D₂·c rows appended to the residual (P-spline smoothness)."""
         if self.bkg_penalty is None:
             return None
-        coeffs = get_backend().stack([values[p] for p in self.bkg_paths])
-        return self.bkg_penalty @ coeffs
+        xp = get_backend()
+        coeffs = xp.stack([values[p] for p in self.bkg_paths])
+        # xp.matmul: the frozen penalty rows are the *left* operand (backend/api.py)
+        return xp.matmul(self.bkg_penalty, coeffs)
 
     def _position_shift_deg(self, theta: np.ndarray, tt_bragg: np.ndarray,
                             values: dict[str, float]) -> np.ndarray | float:
@@ -268,7 +271,10 @@ class CompiledModel:
             # |F|² samples the form factors at sinθ/λ = 1/2d — line-independent
             f2 = structure_factors_squared(cp.reflections.hkl, d, cp.sites,
                                            *self._site_values(ip, values, cell))
-            base = values[f"phases.{ip}.scale"] * cp.reflections.multiplicity * f2
+            # multiplicity lifted onto the backend: a frozen numpy factor in a
+            # product with traced values (backend/api.py)
+            mult = xp.asarray(cp.reflections.multiplicity, dtype=np.float64)
+            base = values[f"phases.{ip}.scale"] * mult * f2
             # March-Dollase preferred orientation: a line-independent per-hkl
             # intensity multiplier folded into ``base`` (P ≡ 1 when off, so this
             # leaves the intensity bit-identical then).  It rides ahead of the
@@ -315,7 +321,8 @@ class CompiledModel:
 
     def _reflection_profile(self, cp: CompiledPhase, il: int, k: int,
                             pos_k: float, gamma_k: float, eta_k: float,
-                            sl: float, hl: float) -> np.ndarray | None:
+                            sl: float, hl: float,
+                            grid: np.ndarray | None = None) -> np.ndarray | None:
         """Unit-area profile of one (line, reflection) on its frozen window.
 
         Returns ``None`` only for the frozen empty window (``i1 <= i0``, a
@@ -324,6 +331,13 @@ class CompiledModel:
         is evaluated at a safe position and zeroed element-wise —
         ``phase_peaks`` zeroes the matching intensity, so a dead reflection
         contributes exactly 0 without a python branch.
+
+        ``grid`` is the fit grid already lifted onto the active backend, hoisted
+        by the caller: it is subtracted *from the left* of the θ-derived peak
+        position, which torch requires be a tensor (backend/api.py), and lifting
+        it once per forward call rather than once per reflection is the
+        difference between one host→device copy and thousands.  ``None`` keeps
+        the numpy buffer, which is what ``asarray`` would hand back anyway.
         """
         i0, i1 = cp.win[il, k]
         if i1 <= i0:
@@ -331,7 +345,7 @@ class CompiledModel:
         xp = get_backend()
         finite = xp.isfinite(pos_k)
         pos_safe = xp.where(finite, pos_k, 0.0)
-        x = self.tt[i0:i1]
+        x = (self.tt if grid is None else grid)[i0:i1]
         n_fcj = int(cp.fcj_n[il, k])
         if n_fcj == 0:  # frozen node count — structural
             return xp.where(finite, pseudo_voigt(x - pos_safe, gamma_k, eta_k), 0.0)
@@ -346,13 +360,15 @@ class CompiledModel:
         """Bragg contribution of one phase (used by the analytic scale Jacobian)."""
         xp = get_backend()
         y = xp.zeros_like(self.tt)
+        grid = xp.asarray(self.tt, dtype=np.float64)  # lifted once, see below
         cp = self.phases[ip]
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
         peaks = self.phase_peaks(ip, values, hkl_intensity)
         for il, (pos, gamma, eta, intensity) in enumerate(peaks):
             for k in range(len(pos)):
-                prof = self._reflection_profile(cp, il, k, pos[k], gamma[k], eta[k], sl, hl)
+                prof = self._reflection_profile(cp, il, k, pos[k], gamma[k],
+                                                eta[k], sl, hl, grid)
                 if prof is None:
                     continue
                 i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
@@ -696,7 +712,8 @@ class CompiledModel:
         """√λ·R·I overlap-restraint rows appended to the residual (or None)."""
         if self.pawley is None or self.pawley.restraint is None:
             return None
-        return self.pawley.restraint @ vec
+        # xp.matmul: R is a frozen numpy constant on the left (backend/api.py)
+        return get_backend().matmul(self.pawley.restraint, vec)
 
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.
