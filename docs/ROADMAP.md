@@ -94,6 +94,14 @@ Two findings worth carrying forward:
   the strongest anchor is the integral a fit approximates, not another code's
   transcription of the same fit.
 
+**0501 left three things open for review**, listed with what would settle each in
+[its "Open for review" section](wp/0501-absorption-corrections.md#open-for-review):
+the b₂ coefficient contradicts the printed source (a clean copy of the paper
+settles it); µR > 1 is used-but-warned rather than refused, which is a judgement
+call and not an obvious one, since LaB6 at Cu Kα in a 0.5 mm capillary is µR ≈ 34;
+and the milestone criterion above was weakened on purpose because no capillary
+dataset exists in the repo. None blocks further work.
+
 Two live forward notes survive v0.4:
 
 - **[0605](wp/0605-batched-peak-loop.md) is a v0.6 row that behaves like a v0.5

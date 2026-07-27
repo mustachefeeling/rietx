@@ -230,6 +230,44 @@ Criteria:
    them sets a capillary radius, so µR stays 0 and the correction is exactly the
    identity. If any moves, it is firing where it should not.
 
+## Open for review
+
+Three things this WP decided that a second opinion should confirm. None blocks
+anything; all three are cheap to check and expensive to get wrong silently.
+
+1. **The b₂ coefficient contradicts the printed source.** The scan says
+   "−0·0375"; this WP implements **−0·3750**. The evidence is circumstantial but
+   strong and mutually consistent: −0.3750 hits Rouse's own claimed 0.0035 bound
+   against a quadrature of ITC eq. (6.3.3.4) while −0.0375 is off by 0.0821, and
+   the paper's own Table 1 entry at µR = 1, sin²θ = 1 (0.2951) matches the
+   quadrature (0.29509) rather than the printed formula (0.21303). **What would
+   settle it:** one look at a clean copy of Acta Cryst. A26, 682 eq. (2). If the
+   paper really prints −0.0375, then the paper has an erratum and the table is
+   right — but that is worth knowing rather than assuming.
+   *Detectors already in place:* `test_a_wrong_b2_would_fail_the_exact_check`
+   and `test_cylinder_absorption_matches_exact_physics_across_mu_r_and_theta`.
+
+2. **µR > 1 is used-but-warned rather than refused.** Outside Rouse's stated
+   range the expression is an extrapolation, not a fit. This WP chose to apply
+   it anyway with `ABSORPTION_MU_R_OUT_OF_RANGE`, on the grounds that silently
+   dropping real absorption from a strongly-absorbing specimen is the worse
+   failure. The opposite call — refuse, and make the user supply an explicit µR
+   or change the experiment — is defensible. Note the regime matters: LaB6 in a
+   0.5 mm capillary at Cu Kα is µR ≈ 34, so "outside the range" is not an exotic
+   corner, it is ordinary lab practice.
+   *What would settle it:* a view on whether a wrong-but-flagged correction or
+   no correction is more useful to the intended user.
+
+3. **The v0.5 milestone criterion was weakened deliberately.** It read
+   "capillary/absorption vs GSAS-II consistency" and now reads *algorithm-level*,
+   because `tests/data` contains no capillary pattern and this WP could not
+   honestly claim dataset-level evidence. The dataset-level check is
+   [WP-0508](0508-flat-plate-absorption.md), which needs a capillary pattern with
+   a **stated bore diameter and specimen** — the one input that could not be
+   sourced from inside the repo. *What would settle it:* an 11-BM mail-in
+   dataset (capillary size is usually in the deposited metadata) or any
+   published capillary pattern quoting µR.
+
 ## References
 
 - Rouse, K. D., Cooper, M. J., York, E. J. & Chakera, A. (1970). *Absorption
