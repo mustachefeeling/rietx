@@ -74,6 +74,7 @@ from ..schemas.instrument import (
 )
 from ..schemas.pattern import PatternData
 from ..schemas.structure import Structure
+from .absorption import cylinder_absorption
 from .corrections import (
     displacement_shift_deg,
     lorentz_polarization,
@@ -159,6 +160,14 @@ class CompiledModel:
     line_wavelengths: tuple[float, ...]
     geometry_kind: str
     radius_mm: float | None
+    # dimensionless µ·R of a packed capillary, resolved once at compile from
+    # Geometry.mu_r or the composition estimate.  A *frozen scalar*, never a θ
+    # entry: the Rouse transmission factor is exactly a constant times
+    # exp(c·sin²θ), so a refinable µR would be an exactly singular direction
+    # alongside the phase scale and Biso (model/absorption.py).  0.0 means the
+    # correction is the exact identity.  A itself is not frozen — it follows
+    # 2θ_Bragg, which moves with the cell.
+    mu_r: float
     mode: Mode
     phases: list[CompiledPhase]
     fixed_background: np.ndarray | None  # sampled on tt, or None
@@ -219,6 +228,25 @@ class CompiledModel:
             t = values["instrument.geometry.sample_transparency"]
             shift = shift + transparency_shift_deg(tt_bragg, t)
         return shift
+
+    def _absorption(self, tt_bragg: np.ndarray) -> np.ndarray | float:
+        """Cylindrical absorption transmission A(µR, θ), or exactly 1.0.
+
+        **Every hand-written analytic intensity column must apply this too.**
+        A is a plain multiplier on the same product ``phase_peaks`` builds, and
+        unlike extinction it does not depend on |F|², r or any refined
+        parameter — so a coordinate/ADP/PO move chains through it unchanged and
+        the column is simply scaled.  Omit it in one of those builders and that
+        column is silently wrong by A (a factor of ~5 at µR = 1) while the
+        finite-difference columns stay right, which converges happily to the
+        wrong structure.  ``test_absorption.py`` guards this.
+
+        Returns the scalar ``1.0`` when off so the multiply is a no-op the
+        backends do not even trace.
+        """
+        if self.geometry_kind != "debye_scherrer" or not self.mu_r:
+            return 1.0
+        return cylinder_absorption(tt_bragg, self.mu_r)
 
     def _site_values(self, ip: int, values: dict[str, float], cell: tuple
                      ) -> tuple[np.ndarray, np.ndarray, np.ndarray,
@@ -357,6 +385,14 @@ class CompiledModel:
             else:
                 intensity = base * w_line * lorentz_polarization(tt_bragg, values["instrument.polarization"])
                 intensity = intensity * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+                # cylindrical (capillary) absorption, model/absorption.py.  The
+                # geometry test is a compile-time structural branch, permitted
+                # by the same rule as _position_shift_deg; µR is frozen, so no
+                # θ-derived value is branched on.  µR=0 gives A ≡ 1.0
+                # bit-for-bit, so leaving it out of the branch would be
+                # harmless — it is kept for the same reason PO is skipped when
+                # absent, to keep non-capillary work off the code path.
+                intensity = intensity * self._absorption(tt_bragg)
             # a reflection pushed off the sphere (λ/2d > 1 → NaN position)
             # carries exactly zero intensity: Lp of a NaN angle is NaN, and the
             # masked profile (purity (c)) would otherwise multiply NaN·0
@@ -505,6 +541,7 @@ class CompiledModel:
                 tt_bragg, values["instrument.polarization"])
             E, dEdx, x = sabine_extinction_and_dx(f2, lam, vol, tt_bragg, ext)
             col = col * (E + x * dEdx)
+            col = col * self._absorption(tt_bragg)
             out.append(col)
         return out
 
@@ -545,6 +582,7 @@ class CompiledModel:
             col = d_base * w_line * lorentz_polarization(
                 tt_bragg, values["instrument.polarization"])
             col = col * sabine_extinction(f2, lam, vol, tt_bragg, ext)
+            col = col * self._absorption(tt_bragg)
             out.append(col)
         return out
 
@@ -1003,6 +1041,9 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         wavelength=instrument.source.primary_wavelength,
         line_wavelengths=lams,
         geometry_kind=geom.kind, radius_mm=geom.goniometer_radius_mm,
+        # frozen for the stage; None (nothing asked for) and 0.0 (asked for
+        # and negligible) both mean the correction is the exact identity
+        mu_r=float(geom.mu_r or 0.0),
         mode=mode, phases=phases,
         fixed_background=fixed,
         bkg_paths=bkg_paths, bkg_design=design, bkg_penalty=penalty,

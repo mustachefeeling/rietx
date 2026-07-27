@@ -393,3 +393,174 @@ def test_estimator_degrades_to_a_reason_rather_than_raising():
     assert "attenuation unavailable" in reason
     mu_r, reason = estimate_capillary_mu_r(lab6, values, 1.5406, 0.5, 0.6)
     assert mu_r is not None and reason is None
+
+
+# -- the forward model, and the hidden-Jacobian hazard ------------------
+
+
+def _capillary_model(mu_r: float, *, kind: str = "debye_scherrer"):
+    """A compiled aniso-rutile model with every analytic-column path live."""
+    from pxrdref import PatternData
+    from pxrdref.model.forward import compile_model
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    # lift extinction off the softplus floor so its column is alive; 2.0 keeps
+    # every reflection below the x = 1 Laue-branch step (test_extinction.py)
+    structure.phases[0].extinction.value = 2.0
+    if kind == "debye_scherrer":
+        ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=mu_r)
+    else:
+        ins = Instrument.bragg_brentano()
+        # bypass the schema guard on purpose: the point of the test is that the
+        # forward model ignores muR outside debye_scherrer even if one is set
+        object.__setattr__(ins.geometry, "mu_r", mu_r)
+    ins.profile.w.value = 1e-2
+    grid = np.arange(10.0, 90.0, 0.02)
+    pattern = PatternData(two_theta=grid.tolist(),
+                          intensity=np.zeros_like(grid).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    free = ["phases.0.atoms.1.dof.0", "phases.0.atoms.0.adp.0",
+            "phases.0.atoms.0.adp.1", "phases.0.atoms.1.adp.0",
+            "phases.0.scale", "phases.0.cell.a", "phases.0.cell.c",
+            "phases.0.extinction"]
+    for p in free:
+        assert table.set_vary([p], True), p
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    return model, table
+
+
+def test_absorption_is_frozen_on_the_compiled_model():
+    model, _ = _capillary_model(0.8)
+    assert model.mu_r == 0.8
+    assert _capillary_model(0.0)[0].mu_r == 0.0
+
+
+def test_forward_model_leaves_intensities_untouched_at_mu_r_zero():
+    """Bit-for-bit, which is what protects the backend goldens.
+
+    Two ways of saying "no capillary absorption" — an explicit µR of 0 and a
+    ``Geometry`` that never mentioned it — must produce identical intensities,
+    and the multiply must be the literal scalar 1.0 rather than an array of
+    ones (which would be bit-identical too, but would cost a traced op on every
+    backend for every reflection).
+    """
+    from pxrdref import PatternData
+    from pxrdref.model.forward import compile_model
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    zero, table = _capillary_model(0.0)
+    assert zero._absorption(np.array([30.0, 90.0])) == 1.0
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    structure.phases[0].extinction.value = 2.0
+    unset = Instrument.debye_scherrer(wavelength=1.5406)     # mu_r stays None
+    unset.profile.w.value = 1e-2
+    grid = np.arange(10.0, 90.0, 0.02)
+    pattern = PatternData(two_theta=grid.tolist(),
+                          intensity=np.zeros_like(grid).tolist())
+    never = compile_model(structure, unset, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    values = table.decode(table.x0())
+    assert never.mu_r == 0.0
+    assert np.array_equal(zero.evaluate(values), never.evaluate(values))
+
+
+def test_forward_model_attenuates_low_angle_more_than_high():
+    """The physical signature: intensity depressed at low 2θ, not uniformly."""
+    on, table = _capillary_model(1.0)
+    off, _ = _capillary_model(0.0)
+    values = table.decode(table.x0())
+    tt, _, _, i_on = on.phase_peaks(0, values)[0]
+    _, _, _, i_off = off.phase_peaks(0, values)[0]
+    ratio = np.asarray(i_on) / np.asarray(i_off)
+    order = np.argsort(np.asarray(tt))
+    assert np.all(ratio < 1.0)
+    assert np.all(np.diff(ratio[order]) > 0), "attenuation must ease toward backscatter"
+
+
+def test_bragg_brentano_ignores_mu_r_entirely():
+    """Cylindrical absorption is a capillary correction; flat plate is fenced.
+
+    A thick flat specimen's absorption factor is exactly angle-independent
+    (ITC Table 6.3.3.1(1a), A = 1/2µ) and therefore indistinguishable from the
+    phase scale, so applying a *cylinder* factor there would be wrong physics,
+    not a conservative approximation.
+    """
+    model, table = _capillary_model(1.0, kind="bragg_brentano")
+    assert model.mu_r == 1.0            # it was carried through compile
+    assert model._absorption(np.array([30.0, 90.0])) == 1.0   # and not applied
+
+
+def test_every_analytic_column_carries_the_absorption_factor():
+    """The hidden-Jacobian guard — the reason the wiring is one commit.
+
+    A multiplies the same product ``_structural_intensity_grad`` and
+    ``po_intensity_grad`` rebuild by hand.  Omit it in either and those columns
+    are wrong by A while the finite-difference columns stay right: the fit
+    still converges, to the wrong structure.  µR = 1 is chosen so A ranges over
+    roughly 0.20-0.29 across the pattern, i.e. |A − 1| ≫ the 5e-3 tolerance —
+    the pre-assert below is what stops this test passing vacuously.
+    """
+    from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
+
+    model, table = _capillary_model(1.0)
+    theta = table.x0()
+
+    a = cylinder_absorption(model.tt, model.mu_r)
+    assert (1.0 - a).max() > 0.5, "absorption too weak — test would not discriminate"
+
+    J = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    for c, path in enumerate(table.free_paths):
+        h = 1e-6 * max(1.0, abs(theta[c]))
+        tp = theta.copy()
+        tp[c] += h
+        col_fd = (residual(tp) - r0) / h
+        scale = np.linalg.norm(col_fd)
+        assert scale > 0, f"{path}: dead FD column"
+        err = np.linalg.norm(J[:, c] - col_fd) / scale
+        assert err < 5e-3, f"{path}: analytic vs FD mismatch ({err:.2e})"
+
+
+def test_preferred_orientation_column_carries_the_absorption_factor():
+    """Same guard for ``po_intensity_grad``, which has its own analytic column."""
+    from pxrdref import PatternData
+    from pxrdref.model.forward import compile_model
+    from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
+    from pxrdref.schemas.structure import PreferredOrientation
+    from tests.test_aniso_adp import make_aniso_rutile
+
+    structure = make_aniso_rutile()
+    structure.phases[0].scale.value = 1e-3
+    structure.phases[0].preferred_orientation = PreferredOrientation(axis=(0, 0, 1))
+    structure.phases[0].preferred_orientation.r.value = 0.75
+    ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=1.0)
+    ins.profile.w.value = 1e-2
+    grid = np.arange(10.0, 90.0, 0.02)
+    pattern = PatternData(two_theta=grid.tolist(),
+                          intensity=np.zeros_like(grid).tolist())
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    for p in ("phases.0.preferred_orientation.r", "phases.0.scale"):
+        assert table.set_vary([p], True), p
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    theta = table.x0()
+    assert (1.0 - cylinder_absorption(model.tt, model.mu_r)).max() > 0.5
+
+    J = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    for c, path in enumerate(table.free_paths):
+        h = 1e-6 * max(1.0, abs(theta[c]))
+        tp = theta.copy()
+        tp[c] += h
+        col_fd = (residual(tp) - r0) / h
+        err = np.linalg.norm(J[:, c] - col_fd) / np.linalg.norm(col_fd)
+        assert err < 5e-3, f"{path}: analytic vs FD mismatch ({err:.2e})"
