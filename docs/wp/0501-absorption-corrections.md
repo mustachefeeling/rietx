@@ -20,16 +20,21 @@ transmission factor for equatorial reflections from a cylinder as
 ```
 A(µR, θ) = exp{ −(a₁ + b₁·sin²θ)·µR − (a₂ + b₂·sin²θ)·µR² }
 
-cylinder:  a₁ = 1.7133   b₁ = −0.0368   a₂ = −0.0927   b₂ = −0.0375
+cylinder:  a₁ = 1.7133   b₁ = −0.0368   a₂ = −0.0927   b₂ = −0.3750
            max error 0.0035 over 0 ≤ µR ≤ 1     (sphere, for reference and NOT
            implemented: 1.5108, −0.0315, −0.0951, −0.2898, max error 0.0024)
 ```
 
-These coefficients were verified during planning against the paper's own
-four-decimal Table 1: **max error 0.0015** (the paper claims ≤0.0035), and the
-table's µR→0 slope is 1.6943 against the exact mean chord of a circle
-16/(3π) = 1.6977. Do not re-derive this; do not substitute another
-parameterisation without re-running that check.
+**b₂ = −0.3750 and this cost a debugging pass — read before touching it.** The
+available scan of the paper prints b₂ as "−0·0375", a digit transposition. The
+error is invisible against the sin²θ = 0 column of Table 1 (which constrains only
+a₁ and a₂, and passes at 0.0015 either way) and nearly invisible at low µR, but it
+is 0.0821 against exact physics at µR = 1. What settles it is that with
+b₂ = −0.3750 the max error against a quadrature of ITC eq. (6.3.3.4) is **exactly
+0.0035 — the bound the paper itself claims** — and the table's own µR = 1,
+sin²θ = 1 entry (0.2951) matches the quadrature (0.29509) rather than the
+mis-transcribed formula (0.21303). Never validate this expression against a
+constant-θ slice alone; the tests must span sin²θ.
 
 **The consequence that shapes everything.** That expression factors *exactly*:
 
@@ -37,29 +42,41 @@ parameterisation without re-running that check.
 A = K(µR) · exp( +c(µR)·sin²θ ),    c(µR) = −(b₁·µR + b₂·µR²) > 0
 ```
 
-a constant times a Debye-Waller-shaped term. Projecting `ln A` onto
-{1, sin²θ} leaves a residual that is **identically zero to machine precision**,
-and the paper certifies that form reproduces the true physics to 0.0035 over the
-whole range a real capillary occupies. So cylindrical absorption is not
-*approximately* degenerate with the phase scale and Biso — it is degenerate to
-below the resolution of the best published tabulation.
+a constant times a Debye-Waller-shaped term — and this is exact *by construction
+of the fit*, not approximate. So applying A to a model whose phase scale and Biso
+are free is an **exact reparameterisation**: the residual, and therefore Rwp, is
+unchanged to machine precision, and the entire physical content of the correction
+is a known shift in the reported values.
+
+The *true* physics is not exactly separable — eq. (2) only fits it to 0.0035.
+Measured against the ITC quadrature, the part of A that a free {scale, Biso} pair
+cannot absorb is
+
+```
+µR      0.1     0.2     0.3     0.5     0.7     1.0
+resid   0.03%   0.12%   0.22%   0.34%   0.20%   1.56%    of intensity
+```
+
+so even at the top of Rouse's range the non-degenerate signal is ~1.5 %, and
+below µR ≈ 0.5 it is under a third of a percent. Eq. (2) models none of it.
 
 Therefore:
 
-- **µR is computed and fixed, never a refinable `Parameter`.** A free µR is a
-  near-singular Jacobian column that always improves Rwp and never means
-  anything. This is the WP-0310 transparency trap in a sharper form.
+- **µR is computed and fixed, never a refinable `Parameter`.** Within this model
+  a free µR is *exactly* a linear combination of the scale and Biso columns — a
+  singular Jacobian direction, not merely a correlated one. This is the WP-0310
+  transparency trap in a sharper form.
 - **The deliverable is unbiased ADPs, not a better fit.** Omitting A forces the
   fit to reproduce a calc that rises with sin²θ, which it can only do by reducing
   the Debye-Waller damping. Neglecting capillary absorption therefore biases Biso
   **low** by
 
   ```
-  ΔB = c(µR)·λ²/2   →   0.033 Å² at µR = 0.5,   0.088 Å² at µR = 1.0   (λ = 1.5406 Å)
+  ΔB = c(µR)·λ²/2   →   0.133 Å² at µR = 0.5,   0.489 Å² at µR = 1.0   (λ = 1.5406 Å)
   ```
 
-  Against synthetic Biso esds of 0.01–0.02 Å² that is a 4–9σ systematic. **Do not
-  assert that Rwp improves** — it is the wrong yardstick here.
+  Against typical Biso of 0.3–1 Å² that is a 15–100 % systematic. **Do not assert
+  that Rwp improves** — it provably cannot, and it is the wrong yardstick here.
 
 ### Convention, stated by physics not letters
 
@@ -75,20 +92,20 @@ tests (A decreasing in µR, *increasing* with 2θ) are what catch it.
 
 | Rung | Source | Status |
 |---|---|---|
-| Implementation | Rouse et al. (1970) A26 682 eq. (2), cylinder | **Verified** against the paper's own Table 1 to 0.0015 |
-| Ground truth | Rouse Table 1(a)/(b): A vs µR (0.00–1.00 step 0.01) × sin²θ, 4 dp | **Usable with care** — see the transcription trap below |
-| Independent physics | ITC Vol. C eq. (6.3.3.4), the exact cylinder integral | Clean; a quadrature check is citable to ITC rather than home-rolled |
+| Implementation | Rouse et al. (1970) A26 682 eq. (2), cylinder | **Verified** against an ITC (6.3.3.4) quadrature to 0.0035 — the paper's own claimed bound — *after* correcting the printed b₂ (above) |
+| Ground truth | Rouse Table 1(a)/(b): A vs µR (0.00–1.00 step 0.01) × sin²θ, 4 dp | **Usable with care** — see the transcription trap below. The blocks carried into `tests/data/` were each validated against the quadrature to ≤1.7e-4 |
+| Independent physics | ITC Vol. C eq. (6.3.3.4), the exact cylinder integral | Clean, and **the load-bearing check** — it is what caught the b₂ transposition, which the published table alone did not. Its µR→0 slope reproduces the exact mean chord 16/(3π) = 1.69765 to 5 dp |
 | Fence rationale | ITC Table 6.3.3.1(1a): thick flat plate A = 1/2µ | Clean |
 | Cross-code only | Lobanov & Alte da Veiga, as used by GSAS-II `Absorb`/TOPAS `abs_lobanov` | Coefficients trace to a **conference abstract** (6th EPDIC, P12-16) that cannot be obtained; usable only as a *tolerance* comparison, never as a golden |
 | Do not use | ITC Table 6.3.3.2 (cylinder A\*), Table 6.3.3.5 (Tibballs K_m) | The available scan of 6.3.3.2 is scrambled beyond recovery (the block that follows it is a mean-path-length table, not A\* — its µR = 0 row reads 1.5000); 6.3.3.5 is only referenced, not reproduced. Rouse supersedes both for µR ≤ 1 — do not spend a session re-extracting them |
 
 **Transcription trap, and it is not obvious.** In the available scan of Rouse
 Table 1 each cell holds **five consecutive µR rows**, and the printed µR labels
-are offset from the values they sit beside. Read the sin²θ = 0 column as one
-continuous run and it recovers exactly 51 entries = µR 0.00…0.50 — that count is
-the check that the reading is aligned. A naive read attributes each label to the
-first value in its cell and shifts every µR by up to 4 steps; the symptom is that
-eq. (2) then misses the table by 0.055 instead of 0.0015.
+are offset by exactly 3 from the values they sit beside (label "0.20" sits at
+index 17). Read the sin²θ = 0 column as one continuous run and it recovers exactly
+51 entries = µR 0.00…0.50 — that count is the check that the reading is aligned.
+A naive read attributes each label to the first value in its cell and shifts every
+µR by up to 4 steps.
 
 ### Existing machinery to reuse, not rebuild
 
@@ -198,11 +215,14 @@ WP needs only `exp`, `sin`, `radians`, `asarray`, so it adds none.
 
 Criteria:
 
-1. `cylinder_absorption` matches the Rouse fixture to ≤0.0035 (measured 0.0015)
-   and an ITC (6.3.3.4) quadrature independently.
+1. `cylinder_absorption` matches an ITC (6.3.3.4) quadrature to ≤0.0035 across
+   0 ≤ µR ≤ 1 **and** 0 ≤ sin²θ ≤ 1 (a constant-θ slice does not constrain b₁, b₂
+   — that is how the b₂ transposition survived), and matches the published Rouse
+   fixture to ≤0.0035.
 2. Injecting µR = 1.0 and refining **without** the correction returns Biso low by
-   0.088 ± esd Å²; refining **with** it returns Biso unbiased. Rwp is not asserted
-   to improve.
+   ΔB = 0.489 Å²; refining **with** it returns Biso unbiased. Because eq. (2) is an
+   exact reparameterisation of {scale, Biso}, Rwp must agree between the two runs
+   to ~1e-9 — assert that equality rather than an improvement.
 3. Every backend agrees per-column on `toy_capillary` inside the standing
    5e-3 rel-L2 / 0.99999 cosine bars.
 4. The slow suite reports **identical** NAC / SRM 660c / FAP numbers — none of
@@ -226,11 +246,21 @@ Criteria:
 
 ## Handover log
 
+- **2026-07-27 (b)** — physics re-verified against exact quadrature; **b₂ corrected
+  to −0.3750** (the scan's "−0·0375" is a digit transposition) and every derived
+  number with it: ΔB is 0.133 Å² at µR = 0.5 and **0.489 Å² at µR = 1.0**, not the
+  0.033/0.088 first recorded here. The lesson worth carrying: the published table
+  validated the wrong coefficients because the slice used (sin²θ = 0) constrains
+  only a₁ and a₂. The ITC (6.3.3.4) quadrature is what caught it, and it is
+  therefore the primary gate, not the secondary one. Also measured with it: the
+  part of A that a free {scale, Biso} cannot absorb is 0.03 % of intensity at
+  µR = 0.1 rising to 1.56 % at µR = 1 — strong degeneracy, but not the
+  "identically zero" claimed below, which was an artefact of eq. (2) being
+  separable *by construction* rather than a statement about the physics.
 - **2026-07-27** — expanded from a stub into a full WP and started.
-  *Done:* the physics is settled and verified (Rouse eq. (2) checked against the
-  paper's own table to 0.0015; µR→0 slope 1.6943 vs 16/(3π) = 1.6977), and the
-  degeneracy is proved rather than assumed — `ln A` has *identically zero*
-  residual after projecting out {1, sin²θ}, so ΔB = c·λ²/2 = 0.088 Å² at µR = 1
+  *Done:* the physics is settled, and the degeneracy is measured rather than
+  assumed — within eq. (2), `ln A` is exactly {1, sin²θ}, so applying the
+  correction is an exact reparameterisation of the scale and Biso and ΔB = c·λ²/2
   is the entire physical content of the correction.
   *Decisions, taken with the user and not to be re-opened:* cylindrical only
   (flat-plate → WP-0508); Rouse rather than Lobanov, because Lobanov's
