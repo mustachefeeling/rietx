@@ -98,10 +98,10 @@ class MultiHistogramRefinement:
         # reporting exists to prevent.  µR is per *instrument* (each histogram
         # may be a different wavelength, hence a different µ) but the structure
         # is shared, which is what makes one loop correct.
-        self._mu_r_skipped: list[str | None] = [
-            _resolve_capillary_mu_r(structure, ins)[1]
-            for ins in self.mtable.instruments
-        ]
+        resolved = [_resolve_capillary_mu_r(structure, ins)
+                    for ins in self.mtable.instruments]
+        self._mu_r_source: list[str] = [src for src, _ in resolved]
+        self._mu_r_skipped: list[str | None] = [why for _, why in resolved]
         self.result_: RefinementResult | None = None
         self._models = None
 
@@ -239,7 +239,8 @@ class MultiHistogramRefinement:
             # cylindrical absorption, per histogram — each may sit at its own
             # wavelength, hence its own µR.  Only the failure modes are surfaced
             # here; the applied value lives on ``fitted_instruments[h]``.
-            absorption = _absorption_record(model, "estimated", self._mu_r_skipped[h])
+            absorption = _absorption_record(model, self._mu_r_source[h],
+                                            self._mu_r_skipped[h])
             if absorption is not None:
                 diags.extend(_absorption_diagnostics(absorption))
 
