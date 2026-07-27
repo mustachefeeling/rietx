@@ -681,3 +681,100 @@ def _scale_only_plan():
     return pr.RefinementPlan(stages=[pr.Stage("scale", ["phases.*.scale",
                                                        "instrument.background.*"],
                                               max_iter=8)])
+
+
+# -- the deliverable: an unbiased Biso ---------------------------------
+
+
+def _synthesize_absorbing_lab6(mu_r_true: float, biso_true: float,
+                               *, noise_seed: int = 5):
+    """A LaB6 capillary pattern carrying a known µR and Biso + Poisson noise."""
+    from pxrdref import PatternData
+    from pxrdref.model.forward import compile_model
+    from tests.test_schemas import make_lab6
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 5e-3
+    for atom in structure.phases[0].atoms:
+        atom.biso.value = biso_true
+    ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=mu_r_true)
+    ins.profile.w.value = 8e-3
+    tt = np.arange(15.0, 120.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, ins, blank, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0())) + 40.0
+    rng = np.random.default_rng(noise_seed)
+    return PatternData(two_theta=model.tt.tolist(),
+                       intensity=rng.poisson(np.maximum(y, 1.0)).astype(float).tolist())
+
+
+def _biso_plan():
+    import pxrdref as pr
+
+    return pr.RefinementPlan(stages=[
+        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        pr.Stage("cell", ["phases.*.cell.*"]),
+        pr.Stage("profile_w", ["instrument.profile.w"]),
+        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+    ])
+
+
+def test_neglecting_capillary_absorption_biases_biso_low_by_the_predicted_amount():
+    """The whole point of WP-0501, as a measurement.
+
+    A pattern carrying µR = 1.0 is refined twice: once with the correction and
+    once without.  Because the Rouse factor is *exactly* a constant times
+    exp(c·sin²θ), the two fits are reparameterisations of one another — so
+
+      * Rwp must agree to well within noise (asserting an *improvement* would
+        be asserting something the physics cannot deliver), and
+      * the uncorrected Biso must come back low by ΔB = c·λ²/2 = 0.489 Å².
+
+    That systematic is 5-50× a typical refined Biso esd and comparable to Biso
+    itself, which is why this is a correctness question rather than a cosmetic
+    one.
+    """
+    import pxrdref as pr
+    from pxrdref.viz.plots import plot_result
+    from tests.test_schemas import make_lab6
+
+    mu_r_true, biso_true = 1.0, 0.60
+    pattern = _synthesize_absorbing_lab6(mu_r_true, biso_true)
+    delta_b = equivalent_delta_biso(mu_r_true, 1.5406)
+    assert delta_b == pytest.approx(0.489, abs=1e-3)
+
+    def run(mu_r):
+        structure = make_lab6()
+        structure.phases[0].scale.value = 5e-3
+        for atom in structure.phases[0].atoms:
+            atom.biso.value = 0.3          # start away from truth either way
+        ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=mu_r)
+        ins.profile.w.value = 8e-3
+        ref = pr.Refinement(structure, ins, history=False)
+        return ref, ref.fit(pattern, plan=_biso_plan())
+
+    ref_on, with_it = run(mu_r_true)
+    ref_off, without = run(None)
+    assert with_it.status == "converged" and without.status == "converged"
+
+    b_on = with_it.parameter("phases.0.atoms.0.biso")
+    b_off = without.parameter("phases.0.atoms.0.biso")
+    assert b_on.stderr and b_on.stderr > 0
+
+    # corrected: unbiased
+    assert b_on.value == pytest.approx(biso_true, abs=max(4 * b_on.stderr, 0.02))
+    # uncorrected: low by exactly the predicted reparameterisation
+    assert b_off.value == pytest.approx(biso_true - delta_b, abs=0.05)
+    # and the bias is large compared with the esd it would be quoted against
+    assert (b_on.value - b_off.value) > 10 * b_on.stderr
+
+    # Rwp cannot tell the two apart -- that is why the record reports delta_B
+    assert without.statistics.rwp == pytest.approx(with_it.statistics.rwp, rel=5e-3)
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(with_it, path=str(out / "absorb_capillary_fit.png"))
+    plot_result(with_it, path=str(out / "absorb_capillary_lowangle.png"),
+                two_theta_range=(15.0, 45.0))
+    plot_result(without, path=str(out / "absorb_capillary_uncorrected.png"))
