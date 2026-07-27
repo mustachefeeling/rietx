@@ -273,10 +273,12 @@ def scalar_tensor_class():
     at the first array result left exactly those two holes — one of which reached
     the true-Voigt profile and only surfaced when WP-0405 and WP-0408 were
     integrated.  Propagating costs a ``__torch_function__`` hop per op on MPS,
-    which is real but bounded: this device is a correctness instrument, already
-    dispatch-bound and 30-100× off numpy for reasons this does not change
-    (``examples/bench_torch_mps.py``).  The CPU fp64 instance — the agreement row
-    — never constructs the class at all.
+    **measured at 1.8×** on the 11-BM NAC forward (199 → 359 ms).  Kept: this
+    device is a correctness instrument, already dispatch-bound and ~100× off
+    numpy for reasons a python hop does not change
+    (``examples/bench_torch_mps.py``), and the alternative was a silently wrong
+    Voigt profile.  The CPU fp64 instance — the agreement row — never constructs
+    the class at all.
     """
     import torch
 

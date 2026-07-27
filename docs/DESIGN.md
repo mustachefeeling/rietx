@@ -47,15 +47,36 @@ differentiable from day one.
     5×10⁻¹¹ in Rwp — the trust region re-measures each step against an fp64
     cost, so reduced columns perturb the path and not the answer, exactly as
     `backend/linalg64.py` argues. **Apple-GPU acceleration did not
-    materialise**: MPS runs 30-100× *slower* than numpy
+    materialise**: MPS runs 60-125× *slower* than numpy
     (`examples/bench_torch_mps.py`). The cause is the loop shape, not the
     device — the residual evaluates ~130 frozen windows of 200-900 points one
-    at a time in python, which is tens of microseconds of kernel dispatch
-    against a microsecond of arithmetic per window. The fix is a **batched
-    peak loop** (one padded reflection × window tensor per phase, which the
-    frozen window layout already permits) and it belongs to the forward model
-    for every backend, not to a backend. Until then torch's value here is
-    being an independent third opinion in the agreement matrix.
+    at a time in python, and MPS per-op cost is *flat* at 110-165 µs from 64 to
+    65 536 elements, i.e. pure launch latency. It behaves like a GPU only at
+    ~10⁶ elements per kernel (255 µs vs numpy's 1588 µs).
+  - *Measured again (2026-07-27, after the above).* The obvious remedy was
+    over-claimed on first writing and is corrected here. Batching the peak loop
+    into one padded reflection × window tensor **does** collapse the dispatch
+    cost — at fixed total work, 128×900 → 1×115 200 takes MPS from 10.6 ms to
+    0.41 ms — **but it takes numpy from 1.36 ms to 0.56 ms, and the two then land
+    in the same place.** 10⁵ elements is still launch-bound, so batching removes
+    the penalty without producing a GPU win at single-pattern scale. Two
+    consequences, both load-bearing:
+    - **The batched peak loop is a numpy-path optimisation** (≈2.4×, no optional
+      dependency, every user) that happens to also be a GPU precondition. It is
+      scoped as a measure-then-decide spike in WP-0605, justified on that basis
+      and not on device acceleration.
+    - **The GPU case is a bigger problem, not a better backend**: kernels of
+      ~10⁶ elements, i.e. a `vmap`-batched in-situ/parametric series or a large
+      multi-phase low-symmetry structure. Single-pattern Rietveld is too small
+      for the hardware, permanently. The in-situ series sits in the v2 fence
+      below, and is the honest place to revisit device acceleration.
+    `torch.compile` is not a way around this either: on CPU it is 2.5× *slower*
+    than eager (13.5 vs 5.4 ms) after a 38 s compile, and on MPS it fails —
+    dynamo specialises on each window's literal `(i0, i1)` bounds and hits its
+    recompile limit trying to build one graph per reflection. The loop shape
+    defeats compilation for the same reason it defeats the device. Until a
+    batched loop exists, torch's value here is being an independent third
+    opinion in the agreement matrix.
 - **Scope**: constant-wavelength X-ray powder first; `Source`/`Geometry`/
   profile/`IntensityModel` are the frozen extension seams for neutron/TOF/FPA.
 - **License**: MIT. Port only from permissive sources (CrysPy MIT, cctbx

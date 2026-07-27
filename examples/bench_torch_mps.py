@@ -33,26 +33,56 @@ algorithm on the CPU".  A per-column comparison against an analytic assembly
 flatters no autodiff backend, and reading these numbers as "torch is slower
 than numpy" would miss that the analytic chain is what is fast, not numpy.
 
+The two microbenchmarks
+-----------------------
+The pattern timings above say the GPU is slow; they do not say *why*, and the
+prose that used to stand here guessed.  So this script also measures the two
+things the explanation rests on, and every number quoted in DESIGN.md and
+WP-0408 is readable off its output:
+
+* **per-op cost vs array width** — one ``exp()`` per backend across five decades
+  of size.  If a backend's cost is flat in the width, that backend is paying
+  launch latency, not arithmetic, and the fix cannot be "fewer flops".
+* **looped vs batched at fixed total work** — K windows of W points against one
+  window of K·W points, same arithmetic either way.  The ratio is exactly what
+  restructuring the peak loop would buy, per backend, with no model changes and
+  no guessing.
+
 Measured (2026-07-27, Apple-silicon Mac, torch 2.13, best of 3)
 ---------------------------------------------------------------
-**MPS is 30-100× slower than numpy here, and the reason is the loop shape, not
-the device.**  On 11-BM NAC the forward runs 2.0 ms (numpy) / 6.3 ms (torch CPU)
-/ 199 ms (MPS); on corundum-with-FCJ 6.2 / 14.2 / 480 ms.  The printed hot-loop
+**MPS is 60-125× slower than numpy here, and the reason is the loop shape, not
+the device.**  On 11-BM NAC the forward runs 1.9 ms (numpy) / 5.7 ms (torch CPU)
+/ 359 ms (MPS); on corundum-with-FCJ 5.5 / 13.7 / 689 ms.  The printed hot-loop
 line is the diagnosis: ~130 windows of 200-900 points each, evaluated one at a
-time in python.  Every window is a handful of MPS kernel launches over a few
-hundred elements — tens of microseconds of dispatch against a microsecond of
-arithmetic — so the GPU spends its time being asked, not answering.  fp32
-arithmetic cannot recover a 50× dispatch deficit; only batching the peak loop
-(one padded (n_reflections × window) tensor per phase, which the frozen window
-layout already makes possible) would give a device something to bite on.  That is
-a change to the forward model for every backend, not to this backend, and it is
-not in WP-0408's scope.
+time in python, so a forward is a few thousand kernel launches.  MPS per-op cost
+is **flat at 110-165 µs from 64 to 65 536 elements** (numpy: 0.3 µs at 64), i.e.
+pure launch latency; it overtakes numpy only at ~10⁶ elements per kernel
+(255 µs vs 1588 µs, a 6× win — the one row where the device behaves like a GPU).
+
+**But batching would not make the GPU win at this scale, and that is the part
+the first draft of this file got wrong.**  At fixed total work, 128×900 →
+1×115 200 takes MPS from 10.6 ms to 0.41 ms (26×) — and numpy from 1.36 ms to
+0.56 ms.  The batched GPU and the batched CPU land in the same place, because
+10⁵ elements is still launch-bound.  So:
+
+* **the batched peak loop is worth doing for the *numpy* path** (1.36 → 0.56 ms,
+  2.4×, no optional dependency, every user), not as GPU enablement — scoped in
+  WP-0605;
+* **the GPU case needs a bigger problem**, ~10⁶ elements per kernel: a
+  ``vmap``-batched in-situ/parametric series, or a large multi-phase
+  low-symmetry structure.  Single-pattern Rietveld is simply too small.
+
+``torch.compile`` does not rescue it either: on CPU the compiled residual is
+**2.5× slower** than eager (13.5 vs 5.4 ms) after a 38 s one-off compile, and on
+MPS it fails — dynamo hits its recompile limit because ``i0, i1 = cp.win[il, k]``
+and ``arange(i0, i1)`` specialise on each window's literal bounds, so it tries to
+build one graph per reflection.  The loop shape defeats compilation for the same
+reason it defeats the GPU.
 
 So the WP-0408 deliverable that survives is the *correctness* one: torch fp64 on
 CPU is an independent third opinion in WP-0404's agreement matrix, and MPS gives
 the first real-hardware confirmation that WP-0403's fp32-column policy converges
 to the same answer (SRM 676a cell within 3e-5 Å — ``tests/test_backend_torch.py``).
-Speed on Apple hardware waits on a batched peak loop.
 
 Usage::
 
@@ -209,8 +239,8 @@ def bench(label: str, state, backends: list[str]) -> None:
     # the number that explains the result: one `window_add` (and a whole profile
     # evaluation) per non-empty (line, reflection) window, each over a slice this
     # wide.  A few thousand kernel launches of a few hundred elements is a shape
-    # in which per-launch overhead, not arithmetic, is the cost — which is why the
-    # GPU loses and why fixing it means batching the peak loop, not a faster op.
+    # in which per-launch overhead, not arithmetic, is the cost — quantified by
+    # the two microbenchmarks below.
     widths = np.concatenate([(cp.win[..., 1] - cp.win[..., 0]).ravel()
                              for cp in model.phases])
     widths = widths[widths > 0]
@@ -235,6 +265,102 @@ def bench(label: str, state, backends: list[str]) -> None:
         print(f"  {name:10s}  {t_fwd * 1e3:9.2f}ms  {base_forward / t_fwd:8.2f}×  "
               f"{t_jac * 1e3:9.2f}ms  {base_jac / t_jac:8.2f}×  "
               f"{t_jac / n_free * 1e3:9.2f}ms")
+
+
+# ----------------------------------------------------------------------
+# the two microbenchmarks the explanation rests on
+# ----------------------------------------------------------------------
+#: array widths for the per-op sweep — five decades, spanning "smaller than any
+#: peak window" to "larger than a whole pattern"
+_OP_WIDTHS = (64, 1024, 8192, 65536, 1048576)
+
+#: (windows, width) shapes at ~fixed total work.  The first is the peak loop's
+#: actual shape on 11-BM NAC; the last is that same work as one kernel.
+_LOOP_SHAPES = ((128, 900), (128, 90), (16, 900), (1, 115200))
+
+#: elementwise ops per window in the synthetic loop — roughly a pseudo-Voigt
+#: (the real one is ~20 including the profile normalisation and the mask)
+_OPS_PER_WINDOW = 17
+
+
+def _timed_op(kind: str, width: int) -> float:
+    """One ``exp()`` on ``width`` elements, on backend ``kind``."""
+    if kind == "numpy":
+        a = np.ones(width)
+        return best_of(lambda: np.exp(a), repeats=20)
+    import torch
+
+    dev = "cpu" if kind == "torch" else "mps"
+    t = torch.ones(width, dtype=torch.float64 if dev == "cpu" else torch.float32,
+                   device=dev)
+    if dev == "cpu":
+        return best_of(lambda: torch.exp(t), repeats=20)
+
+    def run():
+        torch.exp(t)
+        torch.mps.synchronize()   # else we would time the enqueue, not the work
+
+    return best_of(run, repeats=20)
+
+
+def _timed_loop(kind: str, n_windows: int, width: int) -> float:
+    """``n_windows`` × (a pseudo-Voigt-ish chain + a scatter-add), the peak loop's
+    shape, with the total element count held by the caller."""
+    if kind == "numpy":
+        y, x = np.zeros(n_windows * width), np.ones(width)
+
+        def run():
+            out = y.copy()
+            for k in range(n_windows):
+                u = x * 1.7 + 0.3
+                for _ in range(6):
+                    u = u * 1.0001 + 0.5
+                out[k * width:(k + 1) * width] += np.exp(-u * u) / (1.0 + u * u)
+            return out
+    else:
+        import torch
+
+        dev = "cpu" if kind == "torch" else "mps"
+        dt = torch.float64 if dev == "cpu" else torch.float32
+        y = torch.zeros(n_windows * width, dtype=dt, device=dev)
+        x = torch.ones(width, dtype=dt, device=dev)
+
+        def run():
+            out = y.clone()
+            for k in range(n_windows):
+                u = x * 1.7 + 0.3
+                for _ in range(6):
+                    u = u * 1.0001 + 0.5
+                v = torch.exp(-u * u) / (1.0 + u * u)
+                idx = torch.arange(k * width, (k + 1) * width, device=dev)
+                out = out.index_add(0, idx, v)
+            if dev == "mps":
+                torch.mps.synchronize()
+            return out
+
+    return best_of(run)
+
+
+def microbenchmarks(backends: list[str]) -> None:
+    """Why the pattern timings look the way they do — dispatch, not arithmetic."""
+    kinds = [b for b in backends if b in ("numpy", "torch", "torch-mps")]
+
+    print("\nper-op cost — one exp(), microseconds per call")
+    print("  a backend whose cost is FLAT in the width is paying launch latency,")
+    print("  not arithmetic, and no amount of fp32 will fix that")
+    print("  " + f"{'elements':>10}" + "".join(f"{k:>12}" for k in kinds))
+    for width in _OP_WIDTHS:
+        row = "".join(f"{_timed_op(k, width) * 1e6:12.1f}" for k in kinds)
+        print(f"  {width:>10}{row}")
+
+    print("\nlooped vs batched — same arithmetic, different number of kernels (ms)")
+    print(f"  ~{_OPS_PER_WINDOW} ops per window; the last row is the first row's")
+    print("  work as ONE kernel, i.e. what batching the peak loop would buy")
+    print("  " + f"{'windows':>8}{'width':>8}{'elements':>10}"
+          + "".join(f"{k:>12}" for k in kinds))
+    for n_windows, width in _LOOP_SHAPES:
+        row = "".join(f"{_timed_loop(k, n_windows, width) * 1e3:12.2f}" for k in kinds)
+        print(f"  {n_windows:>8}{width:>8}{n_windows * width:>10}{row}")
 
 
 def _forward_on(name: str, model, table, theta) -> float:
@@ -279,8 +405,10 @@ def main() -> None:
               f"{torch.backends.mps.is_available()}")
     bench("11-BM NAC (synchrotron, 1 line)", nac_state(), backends)
     bench("SRM 676a corundum (Cu Kα doublet + FCJ)", corundum_state(), backends)
+    microbenchmarks(backends)
     print("\nReported, not gated — see the module docstring on why the numpy "
-          "Jacobian column is not the same algorithm.")
+          "Jacobian column is not the same algorithm, and why the batched row "
+          "above is a numpy win rather than a GPU one.")
 
 
 if __name__ == "__main__":

@@ -236,18 +236,29 @@ convergence-path differences, not by column precision. That is WP-0403's
 argument, measured: the trust region re-measures every step against an fp64
 cost, so reduced columns move the path and not the answer.
 
-*Speed — a finding, not a speedup.* **MPS is 30-100× slower than numpy.**
-Forward evaluation, best of 3: 11-BM NAC 2.0 ms (numpy) / 6.3 ms (torch CPU) /
-199 ms (MPS); SRM 676a corundum with the axial aperture opened 6.2 / 14.2 /
-480 ms. The cause is the loop shape, not the device: the residual walks ~130
+*Speed — a finding, not a speedup.* **MPS is 60-125× slower than numpy.**
+Forward evaluation, best of 3: 11-BM NAC 1.9 ms (numpy) / 5.7 ms (torch CPU) /
+359 ms (MPS); SRM 676a corundum with the axial aperture opened 5.5 / 13.7 /
+689 ms. The cause is the loop shape, not the device: the residual walks ~130
 frozen windows of 200-900 points one at a time in python, so each window is a
-handful of kernel launches — tens of microseconds of dispatch against a
-microsecond of arithmetic. No fp32 arithmetic recovers a 50× dispatch deficit.
-The fix is a **batched peak loop** (one padded reflection × window tensor per
-phase, which the frozen window layout already permits), and it is a change to
-the forward model for every backend rather than to this one. Left undone
-deliberately; recorded in DESIGN.md's locked decisions and pushed to WP-0601's
-`### Inherited`.
+handful of kernel launches. `examples/bench_torch_mps.py` measures that directly
+— **MPS per-op cost is flat at 110-165 µs from 64 to 65 536 elements**, pure
+launch latency, and the device behaves like a GPU only at ~10⁶ elements per
+kernel (255 µs vs numpy's 1588 µs).
+
+*…and the fix is not the one this WP first proposed.* The original text here
+said a batched peak loop "would give a device something to bite on". Measured at
+fixed total work, 128×900 → 1×115 200 takes MPS from 10.6 ms to 0.41 ms (26×) —
+**and numpy from 1.36 ms to 0.56 ms, which puts them level.** 10⁵ elements is
+still launch-bound, so batching removes the penalty without delivering GPU
+acceleration at single-pattern scale. The batched loop is therefore worth doing
+as a **numpy-path optimisation** (≈2.4×, no optional dependency), scoped as a
+spike in WP-0605; device acceleration needs a fundamentally bigger problem
+(~10⁶-element kernels — a `vmap`-batched in-situ series), which is v2-fenced.
+`torch.compile` is no escape either: 2.5× slower than eager on CPU after a 38 s
+compile, and on MPS dynamo hits its recompile limit specialising on each window's
+literal `(i0, i1)` bounds. Corrected in DESIGN.md's locked decisions and in
+WP-0601's `### Inherited`.
 
 ## References
 
@@ -288,10 +299,13 @@ deliberately; recorded in DESIGN.md's locked decisions and pushed to WP-0601's
   - **…and that exposed the real hole: the guard was shed at arrays.** 0-d values
     do not only come from ops — they also come from *indexing* an array
     (`gamma[k]`) and from array methods (`.sum()`), neither of which the backend's
-    op wrappers see. The wrapper now rides on every value on MPS. It costs a
-    `__torch_function__` hop per op on a device that is already dispatch-bound
-    and 30-100× off numpy, which is the right trade for a correctness instrument;
-    the CPU fp64 instance still never constructs the class.
+    op wrappers see. The wrapper now rides on every value on MPS. **That cost was
+    called "bounded" on reasoning and has since been measured: 1.8×**, taking the
+    NAC forward from 199 ms to 359 ms (torch-CPU unchanged at ~5.7 ms, which is
+    what identifies the MPS-only wrapper as the cause). Kept anyway — a
+    dispatch-bound correctness instrument can afford a python hop per op, and the
+    alternative was a silently wrong Voigt profile — but it is a real regression
+    and it is now written down as one rather than waved past.
   - **`aten::dot` did not bite** despite four 1-D·1-D products in the restraint
     geometry (`dx @ (g @ dx)` and friends) — `toy_restraints` declares value
     restraints only, so the bond/angle path is not exercised on MPS. Left alone

@@ -56,18 +56,22 @@ that landed in this WP's neighbourhood without an owner.
   the column precision, and the WP-0403 policy keeps holding; the
   `require_fp64` guard on the normal equations (see the WP-0403 note above) is
   necessary but not sufficient for this.
-- **The forward model's peak loop is unbatched, and that is now the measured
-  ceiling on any GPU work.** `examples/bench_torch_mps.py` reports MPS running
-  **30-100× slower** than numpy — not a precision or backend-quality problem but
-  the loop shape: the residual walks ~130 frozen windows of 200-900 points one
-  at a time in python, so each window is a few kernel launches, tens of
-  microseconds of dispatch against a microsecond of arithmetic. The fix is a
-  **batched peak loop** — one padded (n_reflections × max_window) tensor per
-  phase, which the frozen-per-stage window layout already makes legal — and it
-  is a change to `model/forward.py` for every backend, so 0408 deliberately left
-  it. It is not this WP's scope either, but a "solver benchmark vs scipy TRF"
-  that hopes to show device acceleration will be measuring the wrong bottleneck
-  until someone does it. Either claim it explicitly or fence it.
+- **Do not expect device acceleration from the solver benchmark, at any
+  bottleneck.** `examples/bench_torch_mps.py` reports MPS running **60-125×
+  slower** than numpy — not a precision or backend-quality problem but the loop
+  shape: the residual walks ~130 frozen windows of 200-900 points one at a time
+  in python, and MPS per-op cost is flat at 110-165 µs from 64 to 65 536
+  elements, i.e. pure launch latency. The obvious remedy, a **batched peak loop**
+  (one padded n_reflections × max_window tensor per phase, which the
+  frozen-per-stage layout already makes legal), was measured rather than assumed:
+  it collapses MPS from 10.6 ms to 0.41 ms at fixed work — **and numpy from
+  1.36 ms to 0.56 ms, which puts them level.** So batching is a *numpy-path*
+  optimisation (≈2.4×), now scoped as a spike in WP-0605; it does not turn the
+  GPU into a win at single-pattern scale, because 10⁵ elements is still
+  launch-bound. A "solver benchmark vs scipy TRF" should therefore be written as
+  a **CPU** comparison, and any device column in it reported as the diagnostic it
+  is rather than a target to optimise toward. The genuine GPU case is ~10⁶-element
+  kernels — a `vmap`-batched in-situ series, which is v2-fenced.
 
 From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — a motivating data
 point. Softplus transforms exist because hard lower bounds stall TRF, and they

@@ -140,8 +140,15 @@ def make_torch_jacobian(model, table, *, chunk_size: int = DEFAULT_CHUNK,
     Chunks over the *parameter* axis: ``torch.func.vmap`` over blocks of
     ``chunk_size`` one-hot tangent seeds through ``torch.func.jvp``, the trailing
     block zero-padded to keep one shape (and hence one set of traced kernels).
-    No ``torch.compile``: the peak loop is a few thousand tiny ops whose graph
-    capture costs more than it saves, and correctness is this path's job.
+
+    **No ``torch.compile``, and this is measured rather than assumed** (the first
+    version of this docstring asserted it): on CPU the compiled residual runs
+    13.5 ms against 5.4 ms eager — 2.5× *slower* — after a 38 s one-off compile,
+    and on MPS it fails outright, dynamo hitting its recompile limit because
+    ``i0, i1 = cp.win[il, k]`` and the ``arange(i0, i1)`` in ``window_add``
+    specialise on each window's literal bounds, so it attempts one graph per
+    reflection.  The per-reflection python loop defeats graph capture for the
+    same reason it defeats the GPU; see ``examples/bench_torch_mps.py``.
 
     ``device="mps"`` runs the forward and the columns in fp32 on the Apple GPU;
     the returned array is fp64 on host either way.
