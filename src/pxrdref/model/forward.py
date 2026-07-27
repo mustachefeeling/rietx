@@ -89,6 +89,11 @@ from .profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from .profiles.fcj import fcj_extent_deg, fcj_node_count, fcj_offsets_weights
 from .profiles.pseudovoigt import pseudo_voigt, pseudo_voigt_derivs, tch_gamma_eta
 from .profiles.voigt import fwhm_to_voigt_params, voigt, voigt_derivs
+from .restraints import (
+    CompiledRestraints,
+    resolve_phase_restraints,
+    restraint_residual,
+)
 
 #: windows extend ±(WINDOW_FWHM_MULT · Γ_est + WINDOW_MIN_DEG + FCJ extent)
 WINDOW_FWHM_MULT = 30.0
@@ -173,6 +178,11 @@ class CompiledModel:
     # Pawley intensity block (per-hkl intensities as free parameters, appended
     # to θ outside the ParameterTable); None outside pawley mode.
     pawley: "PawleyBlock | None" = None
+    # Soft-restraint rows (bond/angle/value), frozen per stage; None when no
+    # phase declares any (Rietveld-only — see compile_model).  They sit below
+    # the data/penalty/Pawley rows in the residual, in the covariance but out
+    # of Rwp/DW/Bérar-Lelann (WP-0406).
+    restraints: "CompiledRestraints | None" = None
     meta: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------
@@ -733,6 +743,18 @@ class CompiledModel:
             return None
         return self.pawley.restraint @ vec
 
+    def restraint_residual(self, values: dict) -> np.ndarray | None:
+        """√w·(computed − target)/σ soft-restraint rows appended below the data
+        (and background-penalty / Pawley) rows, or None when off (WP-0406).
+
+        Traceable in ``xp``: the bond/angle geometry is one differentiable
+        function of the decoded coordinates and cell, so jacfwd differentiates
+        these rows automatically alongside the data rows.
+        """
+        if self.restraints is None:
+            return None
+        return restraint_residual(self.restraints, values)
+
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.
 
@@ -860,7 +882,8 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         return shift
 
     phases: list[CompiledPhase] = []
-    for phase in structure.phases:
+    restraint_items: list = []
+    for ip, phase in enumerate(structure.phases):
         cell = phase.cell.lengths_angles()
         refl = generate_reflections(phase.space_group, cell, lam_gen,
                                     two_theta_max=hi_eff, two_theta_min=gen_min)
@@ -918,6 +941,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             orbits = reflection_orbits(phase.space_group, refl.hkl)
             cp.po_axis = np.array(phase.preferred_orientation.axis, dtype=np.int64)
             cp.po_members, cp.po_seg, cp.po_counts = orbit_layout(orbits)
+        # Soft restraints are a structural correction (bond/angle geometry, or a
+        # value target), so they are Rietveld-only — Le Bail/Pawley extract
+        # intensities and never compute the coordinates a bond would need.  The
+        # PBC image is frozen for the stage here, at the compile-time cell/coords.
+        if mode == "rietveld" and phase.restraints:
+            restraint_items.extend(resolve_phase_restraints(phase, ip, sites, cell))
         phases.append(cp)
 
     # background compilation — always linear: paths + design rows (+ penalty)
@@ -950,6 +979,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         raise TypeError(f"unsupported background model {type(bkg).__name__}")
 
     pawley = _build_pawley_block(phases) if mode == "pawley" else None
+    restraints = CompiledRestraints(restraint_items) if restraint_items else None
 
     return CompiledModel(
         tt=tt, y_obs=y_obs, sigma=sigma, tt_min=tt_min, tt_max=tt_max,
@@ -960,7 +990,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
         fixed_background=fixed,
         bkg_paths=bkg_paths, bkg_design=design, bkg_penalty=penalty,
         shape=instrument.profile.shape,
-        pawley=pawley,
+        pawley=pawley, restraints=restraints,
     )
 
 
