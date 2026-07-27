@@ -57,9 +57,11 @@ frozen integer map ``seg_ids`` (the March-Dollase orbit average).  numpy:
 from __future__ import annotations
 
 import functools
+from contextlib import nullcontext
 from typing import Any, Protocol
 
 import numpy as np
+from scipy.special import expit
 
 
 class Backend(Protocol):
@@ -88,6 +90,11 @@ class Backend(Protocol):
     minimum: Any
     where: Any
     isfinite: Any
+    # parameter transforms, in their overflow-safe forms — the traced decode
+    # (backend/traced.py) is written once against these, so every backend
+    # reproduces ``params.transforms.to_physical`` rather than approximating it
+    logaddexp: Any
+    sigmoid: Any
     # reductions / linear algebra
     einsum: Any
     matmul: Any
@@ -112,6 +119,28 @@ class Backend(Protocol):
 
     def segment_sum(self, vals: Any, seg_ids: Any, n: int) -> Any:
         """Sum ``vals`` into ``n`` buckets keyed by the frozen ``seg_ids``."""
+        ...
+
+    def scalarize(self, x: Any) -> Any:
+        """``x`` made safe to combine with a python literal.
+
+        The identity everywhere except torch-MPS, where 0-d results need the
+        subclass guard (:func:`scalar_tensor_class`).  Backend-agnostic code
+        that pulls a 0-d value out by *indexing* — which no op has seen — calls
+        this rather than special-casing the device.
+        """
+        ...
+
+    def full_precision(self) -> Any:
+        """Context manager every trace/evaluate site must run inside.
+
+        A no-op on numpy and torch, whose dtypes are properties of the arrays
+        themselves — but **not** optional on jax, whose fp64 is a *scoped* flag:
+        outside ``jax.enable_x64`` every constant materialises as float32 and
+        the whole computation quietly halves its precision.  Exposing it as a
+        backend method is what keeps that knowledge with the backend instead of
+        in each caller (which is how it was missed once already).
+        """
         ...
 
 
@@ -141,6 +170,9 @@ class NumpyBackend:
     where = staticmethod(np.where)
     isfinite = staticmethod(np.isfinite)
 
+    logaddexp = staticmethod(np.logaddexp)
+    sigmoid = staticmethod(expit)   # scipy's, i.e. the branch-free safe form
+
     einsum = staticmethod(np.einsum)
     matmul = staticmethod(np.matmul)
     sum = staticmethod(np.sum)
@@ -169,13 +201,23 @@ class NumpyBackend:
     def segment_sum(vals: np.ndarray, seg_ids: np.ndarray, n: int) -> np.ndarray:
         return np.bincount(seg_ids, weights=vals, minlength=n)
 
+    @staticmethod
+    def scalarize(x: Any) -> Any:
+        """The identity — no numpy value needs the MPS 0-d guard."""
+        return x
+
+    @staticmethod
+    def full_precision():
+        """No-op: numpy arrays carry their own dtype."""
+        return nullcontext()
+
 
 #: the shared op vocabulary, bound per backend (kept as one tuple so the two
 #: autodiff backends cannot silently drift from the Protocol above)
 _OP_NAMES = (
     "exp", "sqrt", "log", "sin", "cos", "tan", "arcsin", "arccos",
     "radians", "degrees", "abs", "sign", "power", "clip",
-    "maximum", "minimum", "where", "isfinite",
+    "maximum", "minimum", "where", "isfinite", "logaddexp", "sigmoid",
     "einsum", "matmul", "sum", "cumsum", "diff",
     "asarray", "zeros", "zeros_like", "full_like", "concatenate", "stack",
     "conj", "real", "imag",
@@ -201,8 +243,28 @@ class JaxBackend:
         self._jax = jax
         self.pi = jnp.pi
         self.linalg = jnp.linalg
+        # every op is jnp's by name, except the few jax puts elsewhere
+        aliases = {"sigmoid": jax.nn.sigmoid}
         for op in _OP_NAMES:
-            setattr(self, op, getattr(jnp, op))
+            setattr(self, op, aliases.get(op) or getattr(jnp, op))
+
+    @staticmethod
+    def scalarize(x: Any) -> Any:
+        """The identity — jax has no 0-d scalar guard to apply."""
+        return x
+
+    def full_precision(self):
+        """``jax.enable_x64`` — **not** optional (see the Protocol's docstring).
+
+        Top-level since jax 0.11, ``jax.experimental`` before it; this class
+        never touches the global flag, only the scope.
+        """
+        try:
+            return self._jax.enable_x64()
+        except AttributeError:  # pragma: no cover - depends on installed jax
+            from jax.experimental import enable_x64
+
+            return enable_x64()
 
     def window_add(self, y: Any, i0: int, i1: int, vals: Any) -> Any:
         # functional scatter on the static window; (i0, i1) are frozen python
@@ -341,9 +403,13 @@ _TORCH_UNARY = {
     "tan": "tan", "arcsin": "arcsin", "arccos": "arccos",
     "radians": "deg2rad", "degrees": "rad2deg",
     "abs": "abs", "sign": "sign", "isfinite": "isfinite", "real": "real",
+    # torch.sigmoid is the overflow-safe form, matching scipy's expit and
+    # jax.nn.sigmoid — not a hand-rolled 1/(1+exp(-x))
+    "sigmoid": "sigmoid",
 }
 #: …and the two-argument ones (torch rejects a bare python scalar for ``other``)
-_TORCH_BINARY = {"power": "pow", "maximum": "maximum", "minimum": "minimum"}
+_TORCH_BINARY = {"power": "pow", "maximum": "maximum", "minimum": "minimum",
+                 "logaddexp": "logaddexp"}
 
 
 class TorchBackend:
@@ -543,6 +609,12 @@ class TorchBackend:
                                     device=v.device)
         return self._torch.zeros(n, dtype=v.dtype, device=v.device).index_add(0, seg, v)
 
+    @staticmethod
+    def full_precision():
+        """No-op: this instance's dtype was fixed at construction (fp64 on CPU,
+        fp32 on MPS, which no scope can change — no Apple GPU has fp64)."""
+        return nullcontext()
+
 
 _NUMPY_BACKEND = NumpyBackend()
 _JAX_BACKEND: Backend | None = None
@@ -554,7 +626,24 @@ _BACKEND: Backend = _NUMPY_BACKEND
 #: spellable — the same discipline MixedPrecisionPolicy applies to the residual.
 TORCH_DEVICES = {"torch": "cpu", "torch-mps": "mps"}
 
-_BACKEND_NAMES = ("numpy", "jax", *TORCH_DEVICES)
+#: Every backend name ``resolve_backend`` accepts.  This tuple is the registry
+#: the conformance suite iterates (``tests/test_backend_conformance.py``), so a
+#: backend added here without its test rows fails the suite rather than
+#: shipping unvalidated — see that file's meta-test.
+BACKEND_NAMES = ("numpy", "jax", *TORCH_DEVICES)
+
+#: name → the optional distribution it needs (absent ⇒ always available), used
+#: by tests to ``importorskip`` generically instead of naming packages one by one
+BACKEND_REQUIRES = {"jax": "jax", **{n: "torch" for n in TORCH_DEVICES}}
+
+#: Backends kept for *validation and future work*, not for production
+#: refinements: torch is an order of magnitude slower than the analytic numpy
+#: path and MPS is two, so its value is being an independent opinion in the
+#: agreement matrix and a route to the ecosystem (see DESIGN.md, "What the
+#: differentiable core unlocks").  Never installed by default.
+EXPERIMENTAL_BACKENDS = frozenset(TORCH_DEVICES)
+
+_BACKEND_NAMES = BACKEND_NAMES   # internal alias, kept for existing call sites
 
 
 def resolve_backend(name: str) -> Backend:
@@ -578,9 +667,11 @@ def resolve_backend(name: str) -> Backend:
                 _TORCH_BACKENDS[name] = TorchBackend(TORCH_DEVICES[name])
             except ImportError as exc:
                 raise ImportError(
-                    f'backend {name!r} needs the optional torch dependency: '
-                    'install with  uv pip install -e ".[dev,torch]"  '
-                    "(or  pip install pxrd-refine[torch])") from exc
+                    f'backend {name!r} is experimental and needs the optional '
+                    'torch dependency: install with  uv pip install -e '
+                    '".[dev,torch]"  (or  pip install pxrd-refine[torch]).  It '
+                    "is not installed by default and is not the faster path — "
+                    "see docs/milestones/v0.4.md") from exc
         return _TORCH_BACKENDS[name]
     raise ValueError(f"unknown backend {name!r}; "
                      f"available: {', '.join(_BACKEND_NAMES)}")

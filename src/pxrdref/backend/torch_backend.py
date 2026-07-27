@@ -43,94 +43,18 @@ from __future__ import annotations
 import numpy as np
 
 from .api import get_backend, resolve_backend, set_backend
+from .traced import make_traced_decode as _make_traced_decode
+from .traced import make_traced_residual as _make_traced_residual
 
 #: parameter-axis chunk for the vmapped one-hot tangent seeds (the jax backend's
 #: DEFAULT_CHUNK, same reasoning: peak memory ≈ chunk × n_rows × 8 B per block)
 DEFAULT_CHUNK = 32
 
 
-def make_traced_decode(table, xp):
-    """Traceable twin of :meth:`ParameterTable.decode` (θ → value dict).
-
-    The numpy ``decode`` runs ``to_physical(float(t))`` per element — the
-    ``float()`` coercions make it untraceable.  This builds the same map from
-    frozen constants: elementwise transform application (grouped by kind into
-    static masks) followed by the dense constant matmul p = C·θ_phys + d.
-    Values come back as 0-d tensors keyed by dot-path, exactly the dict shape
-    the forward model consumes.
-    """
-    torch = xp._torch
-    C, d = table.constraint_block()
-    C_dense = xp.asarray(np.asarray(C.toarray(), dtype=np.float64))
-    d = xp.asarray(np.asarray(d, dtype=np.float64))
-    paths = [e.path for e in table.entries]
-    transforms = [table.entries[i].transform for i in table._free_idx]
-    masks = {kind: np.array([t == kind for t in transforms])
-             for kind in set(transforms) if kind != "identity"}
-    # logaddexp(0, u), not torch.nn.functional.softplus: the latter switches to a
-    # linear branch above threshold=20, which would not match params.transforms
-    apply = {"softplus": lambda u: torch.logaddexp(torch.zeros_like(u), u),
-             "exp": torch.exp,
-             "logit": torch.sigmoid}
-
-    def decode(theta):
-        p = theta
-        for kind, mask in masks.items():
-            # static mask; both branches are smooth everywhere, so the
-            # discarded branch cannot poison the selected tangent
-            p = xp.where(mask, apply[kind](theta), p)
-        full = C_dense @ p + d
-        # scalarize: these 0-d values come from indexing, not from an op, so the
-        # backend's own guard has not seen them (identity off MPS —
-        # backend.api.scalar_tensor_class)
-        return {path: xp.scalarize(full[i]) for i, path in enumerate(paths)}
-
-    return decode
-
-
-def make_traced_residual(model, table, xp):
-    """The weighted residual as a pure traceable function of the combined θ.
-
-    Mirrors ``optimize.least_squares._make_residual`` row for row — [data |
-    background-penalty | Pawley-restraint | soft-restraint] — with the Le Bail
-    intensity snapshot and every weight/design constant closed over.  The
-    soft-restraint rows (bond/angle/value, WP-0406) are one differentiable
-    function of the decoded coordinates and cell, so ``jvp`` differentiates them
-    automatically.  Any drift between the two is caught by
-    ``tests/test_backend_torch.py``'s residual test and, column-wise, by
-    WP-0404's matrix.
-    """
-    decode = make_traced_decode(table, xp)
-    n_table = len(table.free_paths)
-    sqrt_w = xp.asarray(np.asarray(1.0 / model.sigma, dtype=np.float64))
-    y_obs = xp.asarray(np.asarray(model.y_obs, dtype=np.float64))
-    # Le Bail extraction runs *between* solves; the snapshot is a constant of
-    # the trace exactly as it is a constant of the numpy closure
-    fixed_intens = ([xp.asarray(np.asarray(cp.hkl_intensity, dtype=np.float64))
-                     for cp in model.phases] if model.mode == "lebail" else None)
-
-    def residual(theta):
-        if model.pawley is not None:
-            intens = model.split_pawley_intensities(theta[n_table:])
-            values = decode(theta[:n_table])
-        else:
-            intens = fixed_intens
-            values = decode(theta)
-        r = sqrt_w * (y_obs - model.evaluate(values, intens))
-        parts = [r]
-        pen = model.penalty_residual(values)
-        if pen is not None:
-            parts.append(pen)
-        if model.pawley is not None:
-            rpen = model.pawley_restraint_residual(theta[n_table:])
-            if rpen is not None:
-                parts.append(rpen)
-        rr = model.restraint_residual(values)
-        if rr is not None:
-            parts.append(rr)
-        return parts[0] if len(parts) == 1 else xp.concatenate(parts)
-
-    return residual
+#: the traced twins are shared with jax — see ``backend/traced.py`` for why the
+#: bodies do not live here, and ``model/rows.py`` for the row layout they build
+make_traced_decode = _make_traced_decode
+make_traced_residual = _make_traced_residual
 
 
 def make_torch_jacobian(model, table, *, chunk_size: int = DEFAULT_CHUNK,
