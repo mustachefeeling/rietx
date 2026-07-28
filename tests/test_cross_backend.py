@@ -159,16 +159,25 @@ CONFIGS = {"families": _state_families,
 #: ``toy_capillary`` (WP-0501) adds no column of its own — µR is not refinable —
 #: but it is the only state where the cell/coordinate/ADP/scale columns chain
 #: through a θ-dependent intensity factor that is neither Lp nor extinction.
+#: Each config is its own xdist group.  ``_STATE_CACHE`` and ``_JACOBIAN_CACHE``
+#: are per-process, so under ``-n auto`` they rebuild once per worker: pinning a
+#: config to one worker means its state and its six method Jacobians are built
+#: once (jax pays a 1-4 s jit compile per state), while the nine configs still
+#: spread across nine workers.  No matrix row is cut.
+def _config(name: str, *marks):
+    return pytest.param(name, marks=[*marks, pytest.mark.xdist_group(f"xb-{name}")])
+
+
 CONFIG_PARAMS = [
-    "families",
-    "families_voigt",
-    "toy_lebail",
-    "toy_pawley",
-    "toy_rich",
-    "toy_restraints",
-    "toy_capillary",
-    pytest.param("srm660c", marks=pytest.mark.slow),
-    pytest.param("nac", marks=pytest.mark.slow),
+    _config("families"),
+    _config("families_voigt"),
+    _config("toy_lebail"),
+    _config("toy_pawley"),
+    _config("toy_rich"),
+    _config("toy_restraints"),
+    _config("toy_capillary"),
+    _config("srm660c", pytest.mark.slow),
+    _config("nac", pytest.mark.slow),
 ]
 
 _STATE_CACHE: dict[str, tuple | None] = {}

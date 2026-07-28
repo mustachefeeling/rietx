@@ -8,14 +8,22 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest                             # full suite ~24 min (953 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -m "not slow"               # skip acceptance (873 tests, ~3.3 min)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8 min (995 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (913 tests, ~1-1.5 min)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
+
+`-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
+serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional
+either — it is what honours the `xdist_group` marks that keep a shared fixture
+on one worker (see the Tests bullet below); plain `--dist load` ignores them
+and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
+7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
+group rather than by total work — fast suite 60-80 s over three runs.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -257,6 +265,16 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   Reference values and data provenance in `tests/data/README.md`. Every test
   refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
   for visual inspection — Rwp hides locally-bad fits.
+- **A refinement that two suites both need is computed once, in
+  `tests/conftest.py`** (`sample1_results`, `srm660c_baseline`), and **every
+  consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
+  second worker rebuilds the whole fixture and the sharing costs more than it
+  saved. Same rule one scope down: a module fixture several tests share pins
+  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`, …). The
+  failure is silent, so the check is a `--durations` scan for the same setup
+  appearing twice. Because runtime is set by the longest *group*, not by total
+  work, splitting a group is the only way to go faster — and un-sharing a
+  fixture to do it just moves the cost.
 - Comparing against another code means **adopting its protocol**, not just
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
