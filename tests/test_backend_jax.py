@@ -285,23 +285,30 @@ def test_chunk_size_invariance():
 # end-to-end: SRM 660c under backend="jax"
 # ----------------------------------------------------------------------
 @pytest.mark.slow
-def test_srm660c_end_to_end_jax_matches_numpy():
+@pytest.mark.xdist_group("srm660c")
+def test_srm660c_end_to_end_jax_matches_numpy(srm660c_baseline):
     """Full staged NIST-protocol refinement with the jax Jacobian: same
-    convergence, cell within 1e-6 Å of the numpy backend's."""
+    convergence, cell within 1e-6 Å of the numpy backend's.
+
+    The numpy side is the shared ``srm660c_baseline`` — the identical
+    ``build_srm_inputs()`` + ``_nist_calibrated_plan()`` refinement this test
+    used to run for itself (with ``history=False``, which changes no value).
+    """
     from tests.test_acceptance_srm660c import (
         A_REFERENCE,
         _nist_calibrated_plan,
         build_srm_inputs,
     )
 
-    data, structure, instrument = build_srm_inputs()
+    data, ref_np, res_np = srm660c_baseline
+    assert res_np.status == "converged", "numpy"
+    results = {"numpy": (ref_np, res_np)}
 
-    results = {}
-    for backend in ("numpy", "jax"):
-        ref = pr.Refinement(structure, instrument, backend=backend, history=False)
-        res = ref.fit(data, plan=_nist_calibrated_plan())
-        assert res.status == "converged", backend
-        results[backend] = (ref, res)
+    _data, structure, instrument = build_srm_inputs()
+    ref = pr.Refinement(structure, instrument, backend="jax", history=False)
+    res = ref.fit(data, plan=_nist_calibrated_plan())
+    assert res.status == "converged", "jax"
+    results["jax"] = (ref, res)
 
     a_np = results["numpy"][0].fitted_structure.phases[0].cell.a.value
     a_jax = results["jax"][0].fitted_structure.phases[0].cell.a.value

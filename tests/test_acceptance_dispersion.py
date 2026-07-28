@@ -107,6 +107,7 @@ def sample1_anomalous():
     return out
 
 
+@pytest.mark.xdist_group("qpa-dispersion")
 @pytest.mark.parametrize("sample", SAMPLE1)
 def test_sample1_fractions_beat_the_dispersion_free_fit(sample1_anomalous, sample):
     """Every mixture stays converged and inside a tolerance the v0.3 fit could
@@ -125,6 +126,7 @@ def test_sample1_fractions_beat_the_dispersion_free_fit(sample1_anomalous, sampl
             f"{sample} {name}: {got[name]:.2f} vs weighed {w_true:.2f}"
 
 
+@pytest.mark.xdist_group("qpa-dispersion")
 def test_the_microabsorption_shape_was_mostly_dispersion(sample1_anomalous):
     """The v0.3 signed bias collapses — which re-derives its explanation.
 
@@ -183,6 +185,7 @@ def zincite_pair():
     return out
 
 
+@pytest.mark.xdist_group("zincite-pair")
 def test_zincite_cell_does_not_move(zincite_pair):
     """Dispersion is an intensity correction; it must not touch positions.
 
@@ -196,6 +199,7 @@ def test_zincite_cell_does_not_move(zincite_pair):
     assert on.cell.c.value == pytest.approx(off.cell.c.value, abs=1e-5)
 
 
+@pytest.mark.xdist_group("zincite-pair")
 def test_zincite_oxygen_adp_becomes_physical(zincite_pair):
     """The result Rwp barely shows, and the reason this WP is a correctness one.
 
@@ -217,27 +221,38 @@ def test_zincite_oxygen_adp_becomes_physical(zincite_pair):
 # SRM 660c LaB6 — the absolute anchor, and the quiet case
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="module")
-def srm660c_pair():
+def srm660c_pair(srm660c_baseline):
+    """(off, on) for the NIST protocol.
+
+    The dispersion-*off* half is the shared ``srm660c_baseline`` — this fixture
+    used to build it from the same ``build_srm_inputs()`` and the same
+    ``_nist_calibrated_plan()``, i.e. byte-identical construction — so only the
+    ON fit runs here.  Both PNGs are still written: re-plotting a result that
+    already exists costs nothing.
+    """
     from tests.test_acceptance_srm660c import (
         _nist_calibrated_plan,
         build_srm_inputs,
     )
 
-    out = []
-    for anomalous in (False, True):
-        data, structure, instrument = build_srm_inputs()
-        if anomalous:
-            instrument.source.dispersion = Dispersion()
-        ref = pr.Refinement(structure, instrument)
-        result = ref.fit(data, plan=_nist_calibrated_plan())
-        OUT.mkdir(exist_ok=True)
-        result.plot(path=str(OUT / f"disp_srm660c_{'on' if anomalous else 'off'}.png"))
-        import matplotlib.pyplot as plt
-        plt.close("all")
-        out.append((ref, result))
+    data, ref_off, result_off = srm660c_baseline
+    out = [(ref_off, result_off)]
+
+    _data, structure, instrument = build_srm_inputs()
+    instrument.source.dispersion = Dispersion()
+    ref = pr.Refinement(structure, instrument)
+    result = ref.fit(data, plan=_nist_calibrated_plan())
+    out.append((ref, result))
+
+    OUT.mkdir(exist_ok=True)
+    for (_r, res), tag in zip(out, ("off", "on"), strict=True):
+        res.plot(path=str(OUT / f"disp_srm660c_{tag}.png"))
+    import matplotlib.pyplot as plt
+    plt.close("all")
     return out
 
 
+@pytest.mark.xdist_group("srm660c")
 def test_srm660c_lattice_parameter_is_untouched(srm660c_pair):
     """The **absolute** cell anchor must not move: a = 4.156895 Å either way,
     to well inside its 25e-6 Å esd."""
@@ -248,6 +263,7 @@ def test_srm660c_lattice_parameter_is_untouched(srm660c_pair):
     assert res_on.statistics.rwp <= res_off.statistics.rwp + 1e-4
 
 
+@pytest.mark.xdist_group("srm660c")
 def test_srm660c_displacement_parameters_absorb_the_change(srm660c_pair):
     """LaB₆ is the quiet case by *net* Bragg power (−1.0 %, because f′ and f″
     partly cancel for La) and still redistributes between the two sites, since
@@ -261,6 +277,7 @@ def test_srm660c_displacement_parameters_absorb_the_change(srm660c_pair):
     assert all(0.1 < a.biso.value < 1.0 for a in on)
 
 
+@pytest.mark.xdist_group("srm660c")
 def test_the_neglect_diagnostic_clears_when_the_block_is_on(srm660c_pair):
     """End-to-end: the warning fires without the block and not with it."""
     (_, res_off), (_, res_on) = srm660c_pair

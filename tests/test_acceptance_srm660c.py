@@ -37,7 +37,10 @@ DATA = Path(__file__).parent / "data"
 A_REFERENCE = 4.156780       # CIF block cell at 20.85 °C
 DISP_REFERENCE = -0.07877    # mm, from the CIF spec block
 
-pytestmark = pytest.mark.slow
+#: the fitted result is ``srm660c_baseline`` in tests/conftest.py, shared with
+#: test_acceptance_dispersion and test_backend_jax; every consumer carries this
+#: group or a second worker refits it
+pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("srm660c")]
 
 
 def build_srm_inputs():
@@ -72,11 +75,6 @@ def build_srm_inputs():
     return data, structure, instrument
 
 
-@pytest.fixture(scope="module")
-def srm_inputs():
-    return build_srm_inputs()
-
-
 def _nist_calibrated_plan() -> pr.RefinementPlan:
     """lab_bragg_brentano minus the zero error (calibrated goniometer)."""
     return pr.RefinementPlan(stages=[
@@ -93,10 +91,8 @@ def _nist_calibrated_plan() -> pr.RefinementPlan:
     ])
 
 
-def test_srm660c_lab6_rietveld(srm_inputs):
-    data, structure, instrument = srm_inputs
-    ref = pr.Refinement(structure, instrument)
-    result = ref.fit(data, plan=_nist_calibrated_plan())
+def test_srm660c_lab6_rietveld(srm660c_baseline):
+    _data, ref, result = srm660c_baseline
 
     assert result.status == "converged"
     assert result.statistics.rwp < 0.10
@@ -153,18 +149,24 @@ def test_srm660c_lab6_rietveld(srm_inputs):
     plot_for_vlm(result, full, path=str(out / "srm660c_vlm.png"))
 
 
-def test_srm660c_extinction_does_no_harm(srm_inputs):
+def test_srm660c_extinction_does_no_harm(srm660c_baseline):
     """WP-0506 does-no-harm: freeing secondary extinction on a fine-powder
     standard must refine it small and must not degrade the fit or bias the
     cell.  SRM 660c is a NIST line-profile standard — genuine extinction is
     negligible — so this is the guard against extinction absorbing unrelated
-    residual (the unmodelled FPA-territory aberrations here)."""
-    data, structure, instrument = srm_inputs
-    plan = _nist_calibrated_plan()
-    plan.stages.append(pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3))
+    residual (the unmodelled FPA-territory aberrations here).
 
-    ref = pr.Refinement(structure, instrument)
-    result = ref.fit(data, plan=plan)
+    The stage is warm-extended onto the shared baseline instead of re-running
+    the whole plan with it appended.  Same computation — ``run_stage`` restores
+    the cumulative free set at the converged values before freeing the stage's
+    globs — and verified as such on this dataset before landing: Rwp
+    0.08661400134185289, a 4.15689532165777, ext 2.0752594286350413e-10 either
+    way, to the last digit."""
+    data, ref_base, _baseline = srm660c_baseline
+
+    ref = ref_base.branch()
+    result = ref.run_stage(
+        data, pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3))
 
     assert result.status == "converged"
     # the fit is not degraded (adding a parameter can only help Rwp, but the

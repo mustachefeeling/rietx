@@ -77,3 +77,32 @@ def sample1_results():
                                   fluorite_phase()], plan=qpa_plan())
         out[sample] = result
     return out
+
+
+@pytest.fixture(scope="session")
+def srm660c_baseline():
+    """``(data, ref, result)`` for the NIST SRM 660c protocol, fitted once.
+
+    Three suites were running this identical refinement — the acceptance
+    itself, the dispersion-off half of ``test_acceptance_dispersion``'s
+    ``srm660c_pair``, and the numpy reference of the jax end-to-end test.  All
+    three built it from ``build_srm_inputs()`` + ``_nist_calibrated_plan()``,
+    the second and third with ``history=False``, which records nothing and
+    changes no value.
+
+    ``ref`` is live: it still holds the compiled model, so ``ref.report()``
+    works and ``ref.branch().run_stage(...)`` can warm-extend the plan with a
+    further stage.  Do not ``fit()`` it again — branch first.
+
+    **Consumers must carry** ``@pytest.mark.xdist_group("srm660c")``.
+    """
+    import pxrdref as pr
+    from tests.test_acceptance_srm660c import (
+        _nist_calibrated_plan,
+        build_srm_inputs,
+    )
+
+    data, structure, instrument = build_srm_inputs()
+    ref = pr.Refinement(structure, instrument)
+    result = ref.fit(data, plan=_nist_calibrated_plan())
+    return data, ref, result
