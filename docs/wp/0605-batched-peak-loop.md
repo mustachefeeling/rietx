@@ -1,6 +1,7 @@
 # WP-0605 — Batched peak loop (spike, then decide)
 
-Milestone: v0.6 · Status: ⬜ not started
+Milestone: v0.6 · Status: ✅ complete 2026-07-28 (task 0 in production;
+batched rewrite: **no-go**, measured grounds in the answers + handover below)
 Depends on: — (informed by WP-0401, WP-0404, WP-0408)
 
 ## Goal
@@ -157,7 +158,7 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
 
 ## Tasks
 
-- [ ] **Task 0 — measure the cheap alternative first: a stage-scoped FCJ node
+- [x] **Task 0 — measure the cheap alternative first: a stage-scoped FCJ node
       cache.** Decide at *stage compile* whether any free path in this stage can
       move a peak (cell, zero, `sample_displacement`, `axial_sl`, `axial_hl`, and
       any wavelength); if none can, compute the (line, reflection) node sets once
@@ -171,20 +172,30 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
       accumulation. Expected ceiling ≈1.3× whole-fit; the point is that it is
       ~1 % of the risk of Phase 2. If this lands most of the win, the honest
       go/no-go for the batched rewrite changes.
-- [ ] **Prototype** the batched layout for one phase, symmetric peaks only
+      *Done 2026-07-28, with the mechanism reshaped by its own measurement: the
+      dirty flag as specified is ≈1.0× because the shipped plans free
+      cumulatively — see answer 4. Shipped instead as an input-equality memo +
+      an `axial_derivs` skip; 1.23× (660c) / 1.04× (corundum), bit-identical,
+      **graduated to production**.*
+- [x] **Prototype** the batched layout for one phase, symmetric peaks only
       (`fcj_n == 0`), against the 11-BM NAC state, in a scratch module or a test
       — **the shipped path is not modified in this WP**. Measure forward time on
       numpy/torch/MPS, peak memory, and elementwise agreement with the current
       loop.
-- [ ] **Extend the prototype to the FCJ case** on the corundum state (padded
+      *Done — `examples/bench_batched_peak_loop.py`: 1.55-1.6× on numpy and
+      **exactly bit-equal**; torch-CPU 1.92×; MPS 0.55×.*
+- [x] **Extend the prototype to the FCJ case** on the corundum state (padded
       `(N, max_nodes, W)` with zero weights on the pad) and measure whether the
       3-4× padding waste eats the win; if it does, measure the two mitigations —
       chunking over reflections (precedent: `DEFAULT_CHUNK` in
       `backend/jax_backend.py` / `backend/torch_backend.py`) and bucketing
       reflections by node count.
-- [ ] **Answer the four design questions** (below), in writing, in this file.
-- [ ] **Record the go/no-go** in the handover log with the measured numbers, and
+      *Done — it does eat it, and then some: pad is a **0.58× regression**,
+      chunking 0.63×, bucketing by node count recovers only 1.15×.*
+- [x] **Answer the four design questions** (below), in writing, in this file.
+- [x] **Record the go/no-go** in the handover log with the measured numbers, and
       either open the Phase-2 WP or close this one with the reason.
+      *Closed: no-go, no Phase-2 WP opened.*
 
 ### The four design questions
 
@@ -223,6 +234,66 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
    Phase 2**, because that — not the headline 2.4×-at-fixed-work figure — is what
    Phase 2 actually buys once task 0 has landed.
 
+### Answers (2026-07-28, measured)
+
+Sources: `examples/bench_batched_peak_loop.py`, the task-0 commit, and the
+post-task-0 cProfile of the SRM 660c protocol.
+
+1. **`window_add` survives, and the op set does not have to grow.** The batched
+   scatter is already in the vocabulary: `segment_sum` (WP-0401) *is* the padded
+   scatter — numpy `bincount(weights=…)`, jax `segment_sum`, torch `index_add` —
+   and the prototype's numpy path is exactly a `bincount` over compile-frozen
+   flat indices. The padded gather is plain integer-array indexing on frozen
+   (R, W) index planes, which every backend's `__getitem__` supports natively.
+   So the three-backend-liability argument against batching dissolves; nothing
+   in `backend/api.py` would need to change, and `window_add` keeps serving the
+   loop. (Frozen-per-stage intent is preserved either way: the flattened index
+   plane is computed at stage compile and is never data-dependent.)
+
+2. **Yes — `derivative_bases` has to move too, and it is most of the surface.**
+   Measured on the bench states, the bases cost ~2× the forward (NAC: 3.43 vs
+   1.92 ms; corundum: 7.28 vs 3.11 ms), and in the whole-fit profile the
+   `derivative_bases` subtree is ~40 % against ~20 % for residual evaluation —
+   so batching only the forward touches under a third of the addressable cost.
+   Batching the bases changes the ragged `entries` contract read by
+   `_peak_chain_column` / `_structural_column` / `_axial_column` /
+   `_po_column` / `_pawley_intensity_columns` *and* by `report/layer1.py` /
+   `report/texture.py` — seven consumers, not the three the question guessed.
+   That contract change, not the kernel arithmetic, is Phase 2's real work. (Task 0's
+   `axial_derivs` flag already bent that contract compatibly: ∂Ω/∂sl, ∂Ω/∂hl
+   are now optional, and every consumer already None-checked them.)
+
+3. **Split verdict, now measured rather than argued.** Symmetric-row batching is
+   **exactly bit-identical**: on NAC, every numpy layout (pad / bucket / chunked)
+   returns `np.array_equal(y, y_loop) == True`, because the `bincount` scatter
+   accumulates each output point in the loop's own (line, reflection) order and
+   the elementwise expressions are unchanged — the six goldens would survive
+   with no re-baseline. FCJ rows are **not** bit-identical (max rel 2e-16): the
+   node-weighted mix is a batched `matmul` where the loop runs one dgemv per
+   reflection, and BLAS does not reduce the two identically. A Phase 2 that
+   included FCJ would therefore owe the `tests/data/README.md` re-baseline
+   ritual; one that stopped at symmetric rows would not. This asymmetry is the
+   strongest single argument for the narrow scope — and half of why the broad
+   scope is refused.
+
+4. **The measured sizes invert the WP's estimates, and that decides the
+   go/no-go.** The stage-scoped dirty flag *as specified* is ≈1.0× on the
+   shipped protocols — the staged plans free parameters **cumulatively**
+   (strategy/staged.py), so after `disp` every stage carries a position mover
+   and the flag never clears; the 91-97 % standalone-stage fractions above do
+   not transfer to the chained fit. What does transfer is within-iteration
+   redundancy (residual and Jacobian at the same θ; FD steps of non-position
+   parameters), which the shipped **input-equality memo** captures wherever it
+   occurs — plus the discovery that two of the three per-iterate node-FD
+   variants (∂Ω/∂sl, ∂Ω/∂hl) were computed and discarded in every stage that
+   does not free an axial parameter. Together: **1.23× (660c) / 1.04×
+   (corundum) whole-fit, bit-identical, zero realized risk, in production.**
+   Batching's remaining add on top of that: the forward batches at 1.55-1.6×
+   only where symmetric, 0.58-1.15× where FCJ, and the bases must move too
+   (answer 2) to reach the larger half — composite ≈1.1× on lab/FCJ data,
+   ≈1.2-1.25× on synchrotron/symmetric, i.e. **at or below the ≈1.2× bar this
+   question set**, while carrying every risk answers 1-3 name. Not worth it.
+
 ## Acceptance
 
 ```sh
@@ -247,6 +318,55 @@ and golden-preserving — but that is a decision to record, not to assume.)
 - `tests/data/README.md` — the golden re-baseline rule, if question 3 needs it.
 
 ## Handover log
+
+- **2026-07-28 (close)** — all five tasks done in one session; the WP closes
+  **no-go on the batched rewrite**, with task 0 graduated to production. The
+  numbers behind both halves of that sentence (best of 3, Apple-silicon Mac):
+
+  *Task 0, measured in three steps so the mechanisms can be told apart.* The
+  dirty flag as specified: 1.02× on the SRM 660c protocol, 1.00× on corundum —
+  refuted by the discovery that the staged plans free **cumulatively**, so
+  after `disp` no stage is ever position-static again. Reshaped into an
+  input-equality memo (each (line, reflection, variant) slot reuses its nodes
+  iff the exact (2θ, S/L, H/L) recur — no hashing, no staleness assumption,
+  numpy-gated so traces neither deposit tracers nor constant-fold): 1.06× /
+  1.04×. Plus the `axial_derivs` skip (the ∂Ω/∂sl, ∂Ω/∂hl node-FD bases feed
+  only the axial Jacobian columns, so `_make_jacobian` now requests them only
+  when an axial parameter is free): **1.737 → 1.411 s (1.23×) on SRM 660c,
+  33 420 → 16 560 FCJ calls; corundum 1.04×** (its FCJ exists only from
+  `lines_axial` on, where axial *is* free and the variants are needed). Both
+  protocols reproduce Rwp and every reported parameter to the last bit;
+  goldens, FCJ unit tests, fast suite (873) and the slow SRM 660c acceptance
+  all green. Corundum's 1.04× is the honest denominator for "what caching
+  buys on lab data whose FCJ stages refine axial parameters".
+
+  *The batched prototype* (`examples/bench_batched_peak_loop.py`, shipped path
+  untouched): symmetric (NAC) 1.55-1.6× on numpy and **exactly bit-equal**
+  under all three layouts; FCJ (corundum) **pad 0.58× — a regression** —
+  chunked 0.63×, bucket-by-node-count 1.15×, agreement 2e-16 but not
+  bit-equal. torch-CPU 1.92× / 0.99×; MPS 0.55× both states (below WP-0408's
+  break-even, as predicted). Pad plane 8.5 MB on corundum today, 614 MB on the
+  extrapolated large problem, bounded to 39 MB by chunk=256 — memory is
+  solvable, it is the *time* that isn't: the ~2.5× node-axis padding waste
+  (counts 8-29 padded to 28 images) eats the kernel-count win exactly as the
+  WP-0408 table feared.
+
+  *The go/no-go, in one paragraph.* Phase 2 was to be justified by what
+  batching adds **on top of** task 0 (design question 4). Measured: ≈1.1× on
+  lab/FCJ data, ≈1.2-1.25× on synchrotron/symmetric — and only if
+  `derivative_bases` (2× the forward, five ragged-contract consumers) is
+  batched along with the forward, with a golden re-baseline owed the moment
+  FCJ rows are included (answer 3). Against that stands what this session
+  landed for ~80 lines: 1.23× on the FCJ-heaviest protocol, bit-identical,
+  no contract changes. **No-go; no Phase-2 WP opened.** What would reopen it,
+  should the day come: (a) the v2-fenced `vmap`-batched in-situ series, where
+  many patterns share one kernel and the symmetric ≈1.6×/bit-identical result
+  here is the starting point, or (b) any future state where forward
+  evaluations dominate the fit — neither of which a single-pattern refinement
+  reaches. The cheapest win on the page is now elsewhere anyway:
+  `generate_reflections` re-derives a bit-identical reflection list in six of
+  seven stage compiles (12 % of the fit, visible in the post-task-0 profile),
+  which is compile-side and outside this WP.
 
 - **2026-07-28** — profiled the real SRM 660c fit during v0.6 solver scoping and
   added the measurements above, a task 0 and a fourth design question. Two things

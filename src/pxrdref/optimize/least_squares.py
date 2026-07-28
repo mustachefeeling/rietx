@@ -283,11 +283,17 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
         J = np.zeros((n_rows, len(theta)), dtype=np.float64)
         fd_cols = []
         bases: DerivativeBases | None = None
+        # the aperture node-FD bases feed only the axial columns, so ask for
+        # them only in a stage that will build those columns — two FCJ node
+        # generations per (line, reflection) per iteration otherwise wasted
+        # (WP-0605 task 0; the FitReport callers keep the full default)
+        need_axial = any(p in axial_paths for p in free)
 
         def get_bases() -> DerivativeBases:
             nonlocal bases
             if bases is None:
-                bases = model.derivative_bases(values, intens)
+                bases = model.derivative_bases(values, intens,
+                                               axial_derivs=need_axial)
             return bases
 
         for c, path in enumerate(free):

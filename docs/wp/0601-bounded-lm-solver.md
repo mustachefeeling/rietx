@@ -20,8 +20,26 @@ Depends on: —
 
 ## Inherited
 
-From **WP-0508** (flat-plate absorption, landed 2026-07-28) — a second
-candidate for a constrained solver, and a warning about it.
+From **WP-0605** (batched peak loop, closed 2026-07-28 as a measured no-go) —
+three things a solver benchmark must know.
+
+- **Every pre-0605 wall-clock number is stale.** Task 0 graduated to
+  production: an FCJ node memo on exact input equality plus an `axial_derivs`
+  skip in `derivative_bases`, worth 1.23× on the SRM 660c protocol
+  (1.737 → 1.411 s) at bit-identical results. Re-baseline "scipy TRF" against
+  current main before quoting any solver comparison, or the new solver gets
+  credit for this WP's speedup.
+- **The memo rewards a solver that re-visits θ.** FCJ nodes are reused whenever
+  the exact (2θ, S/L, H/L) recur, so an LM that evaluates the residual and then
+  the Jacobian at the same accepted point pays the node generation once —
+  the same property TRF now enjoys. A solver that jitters θ between the two
+  (e.g. evaluating J at a slightly different point "for free") silently
+  forfeits it.
+- **A custom Jacobian assembly should pass
+  `derivative_bases(values, intens, axial_derivs=…)` the way `_make_jacobian`
+  does** — request the aperture bases only when an axial parameter is free;
+  they are two extra FCJ node generations per (line, reflection) per iterate
+  otherwise. The FitReport callers keep the full default.
 
 - **A better-conditioned solver would re-open whether `Geometry.mu_t` can be
   refined.** WP-0501 fixed capillary µR because its derivative lies

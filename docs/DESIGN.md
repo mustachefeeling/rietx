@@ -84,6 +84,16 @@ differentiable from day one.
     defeats compilation for the same reason it defeats the device. Until a
     batched loop exists, torch's value here is being an independent third
     opinion in the agreement matrix.
+  - *Resolved (2026-07-28, WP-0605).* The spike ran and the answer is **no-go
+    on the batched rewrite**: the ≈2.4× above was fixed-work at NAC's shape,
+    and on the real states the FCJ node-padded plane is a **0.58× regression**
+    (node counts 8-29 padded to the max — ~2.5× wasted elements), bucketing by
+    node count recovers only 1.15×, and `derivative_bases` (2× the forward)
+    would have to batch too. What survives, measured: symmetric-row batching is
+    1.55-1.6× *and exactly bit-equal* (`examples/bench_batched_peak_loop.py`) —
+    banked as the starting point for the v2 `vmap` series — and the production
+    win came from removing redundant FCJ node generation instead (input-equality
+    memo + axial-variant skip, 1.23× on SRM 660c, bit-identical).
   - *Decided (2026-07-27, v0.4 sign-off).* Given the above, **`[torch]` is an
     experimental extra** (`backend.api.EXPERIMENTAL_BACKENDS`), never installed
     by default and never the recommendation for running a refinement. It is

@@ -66,12 +66,27 @@ and flat-plate µt is *not* the exactly-singular direction µR is — it keeps
 3–47 % of its signature — so it is held fixed on stated grounds rather than on
 an identity, with the number reported so a caller can disagree.
 
-**Next: v0.6 — solver, performance & agents.** Nothing blocks it. The obvious
-first row is **[0605](wp/0605-batched-peak-loop.md)**, which behaves like a v0.5
-row: its ≈2.4× lands on the **default numpy path** and needs no optional
-dependency; it was found in 0408 rather than belonging where it sits. Then
-[0601](wp/0601-bounded-lm-solver.md) (a bounded LM, which 0503 wants for the
-Stephens positivity cone and 0508 would let revisit whether µt is refinable),
+**Now: v0.6 — solver, performance & agents.**
+[0605](wp/0605-batched-peak-loop.md) closed 2026-07-28, first row of the
+milestone, and its deliverable was the *decision*: **no-go on the batched
+peak-loop rewrite**, with the cheap alternative graduated to production
+instead. The measured story inverts the WP's founding figure — the 2.4× was a
+fixed-work microbenchmark, and on the real fits the FCJ padded plane is a
+0.58× regression (node-axis padding waste ~2.5×), while the symmetric-row
+batch is 1.6× *and exactly bit-equal* (evidence banked for the v2 `vmap`
+series). What shipped: an FCJ node memo on exact input equality plus an
+`axial_derivs` skip in `derivative_bases` — 1.23× on the SRM 660c protocol,
+bit-identical to the last parameter bit, after the WP's own dirty-flag design
+measured ≈1.0× because the staged plans free cumulatively and no late stage is
+ever position-static. Two profile facts worth remembering: `derivative_bases`
+costs ~2× the forward (so forward-only optimisations touch a minority), and
+`generate_reflections` re-derives a bit-identical list in six of seven stage
+compiles — 12 % of the fit, the cheapest win now on the page, compile-side.
+
+Remaining rows, in the obvious order: [0601](wp/0601-bounded-lm-solver.md) (a
+bounded LM, which 0503 wants for the Stephens positivity cone and 0508 would
+let revisit whether µt is refinable — mind its Amdahl bound: solver work can
+buy ≈1.25× at most, solver-survey §0.1),
 [0602](wp/0602-agent-json-surface.md) (the agent JSON surface, now with a
 consumer-facing protocol document to be faithful to) and
 [0604](wp/0604-theory-manual.md).
@@ -565,15 +580,19 @@ the linear algebra's.
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ⬜ | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ⬜ | — |
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
-| [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ⬜ | — |
+| [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |
 
 (0603 — the torch/MPS backend — moved to v0.4 as
 [0408](wp/0408-torch-mps-backend.md) on 2026-07-24; the number is left unused so
 the history stays readable.)
 
-0605 could be pulled forward the way 0408 was: its ≈2.4× lands on the **default
-numpy path** and needs no optional dependency, so nothing about it belongs to
-v0.6 except that it was found there.
+0605 closed 2026-07-28 with a measured **no-go on the batched rewrite** and its
+task-0 cache graduated to production (1.23× on the SRM 660c protocol,
+bit-identical): the 2.4×-at-fixed-work figure was a microbenchmark fact, not a
+fit fact — the FCJ padded plane is a 0.58× *regression*, and the win that
+survives (symmetric rows, exactly bit-equal) is the starting point for the
+v2-fenced `vmap` series, not for a single-pattern rewrite. Grounds and the
+reopening conditions are in the WP's answers/handover.
 
 ### v1.0 — hardening & release (stubs)
 
