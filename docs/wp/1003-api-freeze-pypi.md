@@ -9,6 +9,16 @@ Depends on: WP-1001, WP-1002
 
 ## Inherited
 
+From **WP-0602** (agent JSON surface, landed 2026-07-29): **`pxrdref.agent` is
+deliberate public API to freeze** — `refine_json`, `request_schema`,
+`response_schema`, `tool_definition`, the request/response envelope models and
+`ERROR_CODES`.  Two contracts inside it are load-bearing for external
+consumers: the three error codes are a **closed set** (agents branch on them),
+and the success envelope sets exactly one of `result`/`series`.  The
+backend/solver/plan schema descriptions are generated from the live registries
+at import — the freeze should pin the *mechanism* (the meta-test in
+`tests/test_agent_surface.py`), not the name lists.
+
 From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — **a release blocker,
 flagged deliberately for this WP.** The 16 vendored IUCr CPD QPA round-robin
 patterns in `tests/data/qarr/` were freely released for re-analysis but carry

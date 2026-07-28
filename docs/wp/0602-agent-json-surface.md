@@ -1,6 +1,6 @@
 # WP-0602 — Agent JSON surface hardened
 
-Milestone: v0.6 · Status: 🔶 in progress (expanded 2026-07-29)
+Milestone: v0.6 · Status: ✅ shipped 2026-07-29
 Depends on: —
 
 ## Goal
@@ -219,8 +219,8 @@ meaning changed, and two new fields exist for the surface to decide about.
 - [x] `tests/test_agent_surface.py`: round-trips (all three tasks on the
       synthetic LaB6), validation errors with dot-paths, registry-schema
       containment, envelope invariants
-- [ ] Docs: AGENT_PROTOCOL §7 row for `CONSTRAINT_ACTIVE` + a JSON-surface
-      section; CLAUDE.md data-flow line
+- [x] Docs: AGENT_PROTOCOL §7 row for `CONSTRAINT_ACTIVE` + §9c JSON-surface
+      section; CLAUDE.md data-flow line + test counts (939 fast / 1021 total)
 
 ## Acceptance
 
@@ -236,6 +236,28 @@ Plus, by hand once: `refine_json` on an intentionally broken request returns
 
 ## Handover log
 
+- **2026-07-29 (later, same session)** — **shipped.** Done: all six checklist
+  rows, five commits (`5e88a64` WP expansion, `d24a1c8` solver provenance,
+  `3a01927` texture ActionKind + THRESHOLDS_VERSION 0.3 stamped into
+  Provenance, `699d925` agent.py + 21 tests, `d08e69a` docs). Fast suite green
+  at 939 tests (`-n auto --dist loadgroup -m "not slow"`, exit 0), ruff clean.
+  Forward-references written into 0604 / 1001 / 1003 `### Inherited`.
+  Gotchas for anyone touching this surface:
+  - `pxrdref.refine` the *module* is shadowed by `pxrdref.refine` the
+    *function* on the package object — patch/import via
+    `sys.modules["pxrdref.refine"]`, not attribute access (bit the
+    BACKEND_UNAVAILABLE test twice).
+  - The request union is discriminated on `task`; pydantic prefixes every
+    validation loc with the branch tag, and `_validation_failure` strips it.
+    If a fourth task is added, extend `_TASK_TAGS` or the dot-paths grow a
+    prefix again.
+  - `_dispatch` resolves plans through `sequential._resolve_plan` so the plan
+    the Layer-2 veto sees is the mode-mapped plan that actually ran
+    (mccusker_default → profile_only under lebail) — do not "simplify" it to
+    `PLAN_PRESETS[name]()`.
+  - `CONSTRAINT_ACTIVE` is emitted only for the answer-producing stage
+    (final stage of `fit()`, the stage of `run_stage()`); per-stage counts
+    live on `StageResult.n_constraint_truncations`.
 - **2026-07-29** — expanded from stub; decisions recorded above (envelope,
   three error codes, task union answering the 0308/0505 asymmetries,
   live-registry validation, `Provenance.solver` + `CONSTRAINT_ACTIVE`,

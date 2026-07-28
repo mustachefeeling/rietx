@@ -108,10 +108,26 @@ where every other column agrees to 1e-5, and two drivers escaping it in two
 unprincipled directions. That is a parameterisation problem nobody owns;
 it is written up in [0604](wp/0604-theory-manual.md)'s Inherited section.
 
-Remaining rows: [0602](wp/0602-agent-json-surface.md) (the agent JSON surface,
-now with a consumer-facing protocol document to be faithful to, a corrected
-`STEPHENS_STRAIN_NOT_POSITIVE` row, and two new `LSQOutcome` fields that do not
-yet reach `RefinementResult`) and [0604](wp/0604-theory-manual.md).
+[0602](wp/0602-agent-json-surface.md) closed 2026-07-29, the third row: the
+agent JSON surface is one module — `agent.refine_json(dict) → dict` behind a
+strict three-task union (refine / refine_multi / refine_sequential), a
+three-code error envelope (`INVALID_REQUEST` with per-field dot-paths,
+`BACKEND_UNAVAILABLE`, `REFINEMENT_FAILED`) sharing `Diagnostic`'s grammar, and
+`tool_definition()` whose schema quotes backends/solvers/plans from the live
+registries, with a meta-test that fails when a registry member is missing —
+the WP-0408 "fourth name arrived two days after the third" lesson made
+executable. The 0308/0505 asymmetries are answered by shape rather than
+accident: a joint fit returns null history ids by declaration, a series comes
+back in a separate `series` arm with per-entry ids. The WP also closed its
+inherited debts: `Provenance.solver` and `StageResult.n_constraint_truncations`
+now reach every result, a new `CONSTRAINT_ACTIVE` info diagnostic marks an
+answer that pressed the Stephens cone (the only signal a constraint was
+*active* rather than merely declared), and the WP-0307 texture orphan is
+claimed — `refine_preferred_orientation` joined the Layer-2 vocabulary
+(THRESHOLDS_VERSION 0.3), emitted even when Layer 1 abstains because
+uncorrected texture is a common *cause* of immaturity.
+
+Remaining row: [0604](wp/0604-theory-manual.md).
 
 <details>
 <summary>How v0.5 got here — the per-WP narrative (superseded by the record)</summary>
@@ -600,7 +616,7 @@ the linear algebra's.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ✅ 2026-07-28 | — |
-| [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ⬜ | — |
+| [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ✅ 2026-07-29 | — |
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
 | [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |
 

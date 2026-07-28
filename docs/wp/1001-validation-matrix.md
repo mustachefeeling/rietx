@@ -22,6 +22,19 @@ Depends on: —
 
 ## Inherited
 
+From **WP-0602** (agent JSON surface, landed 2026-07-29) — two serialization
+facts that bite golden-file comparisons:
+
+- **`Provenance` gained `solver`** (default `"trf"`) and now stamps the *live*
+  `report_thresholds_version` (0.1 → 0.3 as serialized; the schema default
+  was stale for two versions).  Any matrix that diffs serialized results
+  against stored goldens must regenerate or mask these fields — and if the
+  matrix ever compares `trf` vs `lm` rows, the provenance now distinguishes
+  them without a side channel.
+- **`StageResult` gained `n_constraint_truncations`** and results can carry a
+  `CONSTRAINT_ACTIVE` info diagnostic under `solver="lm"`; diagnostic-set
+  equality checks need the new code in their vocabulary.
+
 From **WP-0508** (flat-plate absorption, landed 2026-07-28) — a new suite, a
 new *kind* of tolerance, and a dataset with a documented circularity.
 

@@ -17,6 +17,24 @@ Depends on: —
 
 ## Inherited
 
+From **WP-0602** (agent JSON surface, landed 2026-07-29) — three facts for
+any chapter that touches the agent-facing surface:
+
+- **`pxrdref.agent` exists** (`refine_json`, `tool_definition`,
+  `request_schema`/`response_schema`); its module docstring is the contract
+  prose (envelope, the three closed error codes, the two deliberate history
+  asymmetries) — lift it rather than re-describing.
+- **The Layer-2 vocabulary gained `refine_preferred_orientation`**
+  (THRESHOLDS_VERSION 0.2 → 0.3): the WP-0307 texture orphan is claimed, so a
+  manual section on the FitReport should not repeat the "no action consumes
+  the texture diagnostic" caveat that older notes carry.
+- **`Provenance.solver` and `CONSTRAINT_ACTIVE` exist**: which driver ran is
+  on every result, and a bounded-LM answer that pressed the Stephens cone
+  says so (`StageResult.n_constraint_truncations` per stage; the diagnostic
+  fires only for the answer-producing stage). A solver chapter should present
+  the cone as the reason `lm` exists — the tie in speed was expected
+  (WP-0601's Amdahl bound), the constraint vocabulary is the deliverable.
+
 From **WP-0508** (flat-plate absorption, landed 2026-07-28) — a section that
 is already written, and a worked example of the house rule.
 
