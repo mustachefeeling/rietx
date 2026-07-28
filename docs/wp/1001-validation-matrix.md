@@ -162,6 +162,30 @@ Three consequences for the policy:
   0.83, measured 0.69). The matrix should have a name for that tier — it is
   much stronger evidence than a tolerance being met.
 
+From **WP-0601** (bounded LM solver, landed 2026-07-28) — a benchmark
+methodology this WP can adopt wholesale, and one result that is a validation
+question rather than a solver one.
+
+- **`examples/bench_solver.py` is the shape a driver/config comparison should
+  take**, and each of its three rules exists because breaking it produces a
+  misleading number: both arms timed in the *same process against current main*
+  (every pre-WP-0605 wall-clock figure in this repo is stale by 1.23×); the
+  stopping rule fixed *before* anything is compared (Coelho 2018 §2.4.2: a
+  loose criterion favours the more erratic updater); and the quality column
+  reported as ΔBIC, never Hamilton and never Δ Rwp. Measured result, for the
+  record: the two drivers tie (0.74-1.04×, identical minimum on two of three
+  protocols, ΔBIC −13 on the third).
+- **Start-dependence is the missing axis of the validation matrix, and it
+  changes a conclusion.** Sweeping `Stage.strain_seed` over 400/800/1600/3000
+  on round-robin brucite leaves the Stephens coefficients spanning ~100 %
+  relative spread under *both* drivers, and moves the unconstrained fit in and
+  out of the physical cone (15, 12, 0, 0 reflections violating). A single-start
+  acceptance number would have called that specimen either fine or broken
+  depending on which seed the suite happened to pin. Any tolerance policy this
+  WP writes should say how many starts a quoted parameter has to survive —
+  `docs/solver-survey.md` §E6 set exactly that kill criterion in advance, and
+  it fired.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

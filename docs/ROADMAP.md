@@ -83,13 +83,35 @@ costs ~2× the forward (so forward-only optimisations touch a minority), and
 `generate_reflections` re-derives a bit-identical list in six of seven stage
 compiles — 12 % of the fit, the cheapest win now on the page, compile-side.
 
-Remaining rows, in the obvious order: [0601](wp/0601-bounded-lm-solver.md) (a
-bounded LM, which 0503 wants for the Stephens positivity cone and 0508 would
-let revisit whether µt is refinable — mind its Amdahl bound: solver work can
-buy ≈1.25× at most, solver-survey §0.1),
-[0602](wp/0602-agent-json-surface.md) (the agent JSON surface, now with a
-consumer-facing protocol document to be faithful to) and
-[0604](wp/0604-theory-manual.md).
+[0601](wp/0601-bounded-lm-solver.md) closed 2026-07-28, the second row of the
+milestone, and it landed the way the Amdahl bound said it would: the bounded LM
+is **0.74-1.04× against scipy TRF**, reaching an identical minimum on two of
+three protocols and ΔBIC −13 on the third. That tie is the *expected* result,
+not a disappointment — solver work can buy ≈1.25× at most here, and Coelho's
+own λ_new gains with a full A matrix are R_ν 0.96-1.19. What the driver earns
+its place with is **constraint vocabulary scipy does not have**: the Stephens
+positivity cone σ²(M) = T·θ ≥ 0 is a linear inequality on *functionals* of θ,
+and enforcing it takes round-robin brucite from 12 of 43 reflections outside
+the cone to 0 of 43 — at a **higher** Rwp, the v0.5 method result once more.
+
+Two things came out of it that outlast the WP. First, **three claims this repo
+recorded as measured were wrong and are corrected in place**: the cone guard
+tested σ² ≤ 0 and so reported the inert all-zero block as unphysical, which in
+turn manufactured the "it fires on isotropic and anisotropic specimens alike"
+reading (corundum never leaves the cone at all); and Coelho 2005's printed
+damping factor is a no-op only until parameter removal shrinks N_k, after which
+it actively degrades the step. Second, chasing an LM stall found that **the FCJ
+profile has a genuine corner at S/L = H/L and the default instrument starts
+both apertures equal** — identical Jacobian columns, ρ = +1.000 already
+reported by the correlation guard, ~2 % error in the analytic axial columns
+where every other column agrees to 1e-5, and two drivers escaping it in two
+unprincipled directions. That is a parameterisation problem nobody owns;
+it is written up in [0604](wp/0604-theory-manual.md)'s Inherited section.
+
+Remaining rows: [0602](wp/0602-agent-json-surface.md) (the agent JSON surface,
+now with a consumer-facing protocol document to be faithful to, a corrected
+`STEPHENS_STRAIN_NOT_POSITIVE` row, and two new `LSQOutcome` fields that do not
+yet reach `RefinementResult`) and [0604](wp/0604-theory-manual.md).
 
 <details>
 <summary>How v0.5 got here — the per-WP narrative (superseded by the record)</summary>
@@ -577,7 +599,7 @@ the linear algebra's.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ⬜ | — |
+| [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ✅ 2026-07-28 | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ⬜ | — |
 | [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
 | [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |

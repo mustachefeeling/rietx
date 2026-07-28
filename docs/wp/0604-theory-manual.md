@@ -69,6 +69,38 @@ and get a wrong width law that still refines. The same applies to the
 size↔1/cosθ, strain↔tanθ letter conventions already in `profiles/caglioti.py`
 (GSAS and FullProf swap X/Y).
 
+From **WP-0601** (bounded LM solver, landed 2026-07-28) — three things worth a
+paragraph each, all measured on real data rather than argued.
+
+- **The FCJ profile has a genuine corner at S/L = H/L, and the default
+  instrument starts both apertures equal.** `fcj_offsets_weights` builds its
+  quadrature around `|S/L − H/L|` and `min(S/L, H/L)`, both non-differentiable
+  where the two are equal, and the docstring already says the split "keeps the
+  response C¹ everywhere except the inherent FCJ kink at s = h itself".
+  Measured consequence on SRM 660c: the analytic S/L and H/L Jacobian columns
+  agree with a residual-vector finite difference to only ~2 % (every other
+  column is ≤ 1e-5), because the analytic derivative is one-sided while the
+  central difference straddles the corner. Their columns are then *identical*,
+  so a Gauss-Newton step moves the pair along the diagonal forever — the
+  correlation guard reports ρ = +1.000, and the bounded LM converges with
+  `axial_sl == axial_hl` bit-identically while TRF escapes onto an asymmetric
+  solution by way of its own internal scaling. Neither escape is principled.
+  This belongs in the manual as a worked example of "the parameterisation, not
+  the solver, is what stalls".
+- **Two Coelho papers disagree with themselves in print**, and both cases are
+  resolved in `optimize/bccg.py` and `optimize/lm.py` with the reasoning and
+  the measurement. Coelho (2005) eq. (1) prints `Max[(k+1)/N_k, 1]` while its
+  text describes a reduction (`Min`); measured, neither reading helps and the
+  shipped factor is 1. Coelho (2018) eq. (9) defines `ΔS_t = Δpᵀb`, which is
+  positive for a descent step while ΔS < 0 and would report `r_u < 0` always;
+  the self-consistent reading is `ΔS_t = −Δθᵀb`, pinned by the identity
+  `r_u ≡ 1` on an exactly linear model. Good material for a manual section on
+  reading a method paper against its own numbers.
+- **Why the normal equations are the fp64 floor** is now demonstrated twice
+  over: cond(JᵀJ) = cond(J)² is the reason `backend/linalg64.py` exists, and
+  the bounded LM forms JᵀJ explicitly rather than implicitly as TRF does, so it
+  is the more direct illustration for the manual's precision chapter.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before writing code

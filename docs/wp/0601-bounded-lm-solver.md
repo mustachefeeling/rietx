@@ -1,6 +1,6 @@
 # WP-0601 — TOPAS-style bounded LM solver
 
-Milestone: v0.6 · Status: 🔶 in progress
+Milestone: v0.6 · Status: ✅ shipped 2026-07-28
 Depends on: —
 
 ## Goal
@@ -107,15 +107,21 @@ Two more consequences for the benchmark:
    matrix". So this WP adds a *fraction-to-the-boundary step truncation* on
    arbitrary linear-inequality rows (the box is the special case T = ±I),
    which keeps every iterate strictly feasible; it is an extension we own, not
-   a port, and it is documented as such.
+   a port, and it is documented as such. **Shipped with an active-set
+   projection alongside it** — truncation alone converges onto the face and
+   then stalls, because scaling the whole step to τ ≈ 0 also kills the part
+   running along the surface.
 
-   Why it matters: measured on two real round-robin patterns
-   (`tests/test_acceptance_stephens.py`), the unconstrained refinement leaves
-   the cone on **both** — the anisotropic specimen (brucite, 12 of 43
-   reflections) and the isotropic control (corundum) — so
-   `STEPHENS_STRAIN_NOT_POSITIVE` is the normal outcome and the coefficients
-   are never quotable. Turning that guard back into an exception is this WP's
-   headline accuracy result, and the thing Δ Rwp will not show.
+   Why it matters, *as re-measured by this WP* — the premise below was
+   half wrong and is corrected here rather than left to mislead. Unconstrained
+   brucite leaves the cone on 12 of 43 reflections at the acceptance suite's
+   starting seed (and 15 of 43 at a lower one), but on **neither** of the two
+   higher seeds tried; the isotropic control **never** leaves it at any stage.
+   The earlier "fires on both specimens" reading came from the guard's own test
+   being `σ² ≤ 0`, which reported the inert all-zero block as unphysical. With
+   the cone enforced the count is 0 of 43 from every start — and the
+   coefficients still span ~100 % across those starts, so this makes the answer
+   *admissible*, not *measured*. That distinction is the deliverable.
 
    (The ADP positive-definiteness cone is *semidefinite*, not linear — one
    mechanism does not serve both. Out of scope.)
@@ -256,7 +262,10 @@ remove a recurring class of silent no-op refinements.
 
 From **WP-0503** (Stephens anisotropic strain, landed 2026-07-27) — **the
 first constraint in this package that is an inequality, not a box, and a
-measured reason to want one.** The Stephens strain variance must satisfy
+measured reason to want one.**  *(Read the block below with the correction in
+"The two constraint cases" above: its claim that the unconstrained fit leaves
+the cone on the isotropic control too does not survive re-measurement — the
+guard's `σ² ≤ 0` test was firing on the all-zero block.)* The Stephens strain variance must satisfy
 σ²(M) = T·θ ≥ 0 on every fitted reflection, where T is a constant
 (reflection × pattern) matrix frozen at stage compile and θ the strain DOFs.
 That is a *linear* inequality in the free parameters — precisely the shape a
@@ -382,23 +391,39 @@ supplied by the user, set recorded in DESIGN.md's FPA fence note):
   rows carry fixed user weights; changing that is a restraint-design question,
   not a solver one.
 - **Device/GPU acceleration.** CPU comparison only (WP-0408 note above).
+- **Retiring the softplus transforms** (the WP-0310 motivating note). The
+  bounded box now exists, so the experiment is *possible*, but it changes the
+  meaning of every shipped `Stage(seed=…)` and every acceptance number, and it
+  is a parameterisation change rather than a solver one. Left for whoever owns
+  the parameter table, with the mechanism in place.
 
 ## Tasks
 
 - [x] Expand this stub into a full WP before writing code
-- [ ] `optimize/bccg.py` — BCCG linear solver (diagonal pre-conditioner, in-loop
-      box clamping + removal, small-contribution removal, k_max rule), with the
-      `Min` reading of eq. (1) recorded; unit tests vs `np.linalg.solve`
-- [ ] `optimize/lm.py` — bounded LM driver: fp64 normal equations, λ_new
+- [x] `optimize/bccg.py` — BCCG linear solver (diagonal pre-conditioner, in-loop
+      box clamping + removal, small-contribution removal, k_max rule); the
+      eq. (1) reading *measured* rather than chosen, and shipped as neither
+      printed alternative; unit tests vs `np.linalg.solve`
+- [x] `optimize/lm.py` — bounded LM driver: fp64 normal equations, λ_new
       schedule, BCCG inner solve, fresh fp64 cost per trial step; `solver=`
       seam through `run_least_squares` → `Refinement`/`refine`
-- [ ] Multi-histogram entry point (`run_multi_least_squares(solver=…)`)
-- [ ] Linear-inequality rows (fraction-to-the-boundary truncation) + wire the
+- [x] Multi-histogram entry point (`run_multi_least_squares(solver=…)`), with a
+      test that fails if a future swap reaches only the single-histogram driver
+- [x] Linear-inequality rows (fraction-to-the-boundary truncation **plus
+      active-set projection** — truncation alone stalls on the face) + wire the
       Stephens cone; measure the guard on the two round-robin patterns
-- [ ] `examples/bench_solver.py` — re-baselined TRF vs LM, fixed stopping rule,
-      ΔBIC, on the acceptance protocols
-- [ ] Tests (unit/property; acceptance if this WP carries it) + obs/calc/diff PNGs to `tests/output/`
-- [ ] DESIGN.md minimizer-strategy amendment + handover log + ROADMAP sync
+- [x] `examples/bench_solver.py` — re-baselined TRF vs LM, fixed stopping rule,
+      ΔBIC, on three acceptance protocols
+- [x] Tests (unit/property; acceptance if this WP carries it) + obs/calc/diff PNGs to `tests/output/`
+- [x] DESIGN.md minimizer-strategy amendment + handover log + ROADMAP sync
+- [ ] *Not done, deliberately:* a `pxrdref compare` row. The registry's
+      standards are the acceptance protocols and **none of them carries a
+      Stephens block**, so a `solver="lm"` variant would show a near-identical
+      fit on every one of them — true, and not the thing worth showing. The
+      row worth adding is a brucite/Stephens standard, which is a compare-
+      registry question rather than a solver one. CLAUDE.md's "add a row
+      whenever a new correction lands" rule is about corrections; this is a
+      driver.
 
 ## Acceptance
 
@@ -433,6 +458,80 @@ Criteria:
 - Levenberg, K. (1944). *Q. Appl. Math.* **2**, 164-168.
 
 ## Handover log
+
+- **2026-07-28 (shipped)** — all tasks landed; five commits, `-m "not slow"`
+  green at 909 passed / 4 skipped, ruff clean, `test_acceptance_stephens.py`
+  green including two new cone tests.
+
+  **What it is.** `optimize/bccg.py` (Coelho 2005) + `optimize/lm.py` (Coelho
+  2018b) behind `solver="trf"|"lm"` on both entry points, `Refinement`,
+  `MultiHistogramRefinement` and `refine()`. TRF stays the default and the
+  reference; every shipped acceptance number is untouched.
+
+  **What it bought — the honest version.** *Not speed*: 0.74-1.04× across three
+  protocols (`examples/bench_solver.py`), identical minimum on two, ΔBIC −13 on
+  the third. Exactly the predicted tie — the Amdahl ceiling here is ≈1.25× and
+  Coelho's own full-A gains are R_ν 0.96-1.19. *Constraint vocabulary*: the
+  Stephens cone σ²(M) = T·θ ≥ 0 is enforced directly, taking brucite from 12 of
+  43 reflections outside the cone to 0 of 43 — at a **higher** Rwp (18.42 vs
+  17.90 %), which is the v0.5 method result again.
+
+  **Three claims in this repo turned out to be wrong, and all three are now
+  corrected in place** (CLAUDE.md, AGENT_PROTOCOL.md, solver-survey §E6,
+  `test_acceptance_stephens.py`):
+  1. `check_stephens_positive` tested `σ² ≤ 0`, so the *all-zero* block — the
+     documented exact no-broadening identity — reported itself as unphysical in
+     every stage before the patterns are freed. Zero is on the cone. Now
+     one-sided with a relative tolerance (`STEPHENS_CONE_TOL`), because a
+     constrained optimum lands on the face and reaches it by a different
+     association order than the guard does.
+  2. Consequently "it fires on isotropic and anisotropic specimens alike" was
+     an artefact of (1). Corundum never leaves the cone at any stage (min σ²
+     +4.8e3 against max 1.97e6); unconstrained brucite leaves it only from the
+     low seeds.
+  3. Coelho 2005's eq. (1) damping factor: the digest in this file said the
+     printed `Max` form is "a no-op". It is a no-op only while k+1 ≤ N_k;
+     once the removal schemes shrink N_k it *amplifies* α, and measured, that
+     costs 1.000 → 0.62 of the available decrease (and diverges outright with
+     the k_max rule lifted). Neither printed reading is shipped: the factor is
+     1, which is what `Max` is everywhere it is safe.
+
+  **The result that is worth more than the WP itself.** Chasing an LM stall on
+  SRM 660c found that **the FCJ profile has a genuine corner at S/L = H/L, and
+  `Instrument.bragg_brentano` starts both apertures equal.** At that point the
+  two Jacobian columns are *identical* (the correlation guard already reports
+  ρ = +1.000), the analytic axial columns disagree with a residual-vector FD by
+  ~2 % where every other column agrees to ≤ 1e-5, and a Gauss-Newton step can
+  only move the pair along the diagonal — the LM converges with
+  `axial_sl == axial_hl` bit-identically, while TRF escapes onto an asymmetric
+  solution by way of its own internal scaling. Neither escape is principled.
+  The LM's answer at that stall is *closer* to the NIST certificate
+  (displacement −0.07874 vs −0.07877, against TRF's −0.08010) at 0.25 % higher
+  χ². Pushed to WP-0604 as theory-manual material; nobody owns the
+  parameterisation fix.
+
+  **Gotchas for anyone touching the driver.**
+  - A BCCG step at λ = 0 on a near-singular normal matrix can come back as an
+    *ascent* direction (‖Δ‖ ≈ 2e10 promising +1.7e5), and a long step can
+    become one after the box clips it. Both are what λ is for; treating either
+    as "no descent available" ended two brucite stages after a single residual
+    evaluation.
+  - A stall must not be allowed to ramp λ freely: without the predicted-decrease
+    floor it reached 3.6e27 while every trial underflowed the cost difference,
+    costing ~25 % of the protocol's iterations.
+  - `strain_cone_inequalities` builds rows against the *stage start*, because
+    feasibility is maintained rather than restored; an infeasible start is
+    skipped deliberately, and the guard then reports the result as before.
+  - The multi-histogram path takes `solver=` but **not** the cone: its rows are
+    per-model and would have to be scattered through the joint column map.
+    Deferred rather than half-done, and stated in the docstring.
+
+  **Next, if anyone reopens this.** (a) The cone for multi-histogram. (b) The
+  softplus-retirement experiment, now mechanically possible and listed as a
+  non-goal with the reason. (c) `LSQOutcome.solver` and
+  `n_constraint_truncations` do not reach `RefinementResult` — pushed to
+  WP-0602, since a fit sitting on a constraint face that does not say so is the
+  confident-singleton failure mode.
 
 - **2026-07-28** — stub expanded into a full WP (task 0). Both Coelho papers
   read in full, not just the digests. Two decisions recorded that the stub left

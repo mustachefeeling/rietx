@@ -99,6 +99,34 @@ wavelength/cell-dependent (x ∝ (λ/V)²): ~0 for CuKα/LaB6 but ~300 for
 reflections), never by the coefficient — a hard-coded range would be wrong for
 half the instruments.
 
+From **WP-0601** (bounded LM solver, landed 2026-07-28) — one diagnostic's
+meaning changed, and two new fields exist for the surface to decide about.
+
+- **`STEPHENS_STRAIN_NOT_POSITIVE` no longer means what the protocol table said
+  it meant, and the row in `docs/AGENT_PROTOCOL.md` has been rewritten.** Two
+  changes: (a) the guard's test was `σ² ≤ 0`, which reported the *all-zero*
+  Stephens block — documented as the exact no-broadening identity — as
+  unphysical in every stage before the one that frees the patterns; it is now
+  one-sided with a relative tolerance, because zero is *on* the cone and a
+  constrained optimum lands there by construction. (b) The claim it "fires on
+  isotropic and anisotropic specimens alike" was an artefact of (a) and is
+  withdrawn: corundum never leaves the cone at any stage, and unconstrained
+  brucite leaves it only from the low starting seeds. An agent can now act on a
+  firing — re-run with `solver="lm"`, which enforces the cone — but the honest
+  follow-up is a start-stability check, since the coefficients still span
+  ~100 % across seeds under both drivers.
+- **`LSQOutcome` gained `solver` and `n_constraint_truncations`**, and neither
+  currently reaches `RefinementResult`. Which driver ran is provenance
+  (`Provenance` already carries `backend`/`dtype`, so it is the obvious home),
+  and the truncation count is the only signal that a constraint was *active*
+  rather than merely declared. Decide deliberately rather than by omission: a
+  refinement whose answer sits on a constraint face and does not say so is
+  exactly the confident-singleton failure the FitReport rules exist to prevent.
+- **`solver=` is now a constructor argument on `Refinement`,
+  `MultiHistogramRefinement` and `refine()`**, validated against
+  `optimize.least_squares.SOLVERS`. Any JSON surface that reconstructs a
+  refinement from a request object has a second axis to carry beside `backend=`.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before writing code
