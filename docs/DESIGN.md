@@ -229,6 +229,32 @@ Esds from χ²_red·(JᵀJ)⁻¹ with pinv guarding singular normal matrices;
 Bérar-Lelann inflation in v0.2. Guards: correlation threshold, bound hits,
 divergence — surfaced as structured diagnostics.
 
+*Measured (2026-07-28, WP-0601 — `optimize/lm.py` + `optimize/bccg.py`,
+selected with `solver="lm"`).* The bounded LM is **not** a speed play and did
+not turn out to be one: 0.74-1.04× against TRF across the SRM 660c, 11-BM NAC
+and round-robin corundum protocols, reaching an identical minimum on two of the
+three and ΔBIC −13 on the third. That is what the arithmetic predicted — the
+normal-equation solve is a minority of the runtime here (`derivative_bases`
+costs ~2× the forward evaluation), so the Amdahl ceiling on solver work is
+≈1.25×, and Coelho's own λ_new gains with a *full* A matrix are R_ν 0.96-1.19
+(the 1.19-2.07 figures are all BFGS-approximated A, which this package has no
+reason to use). **Its reason to exist is constraint vocabulary**: bounds
+enforced inside the linear solve, and linear inequalities on *functionals* of θ
+— the shape of the Stephens positivity cone σ²(M) = T·θ ≥ 0, unreachable for
+`scipy.optimize.least_squares`, whose only vocabulary is a box. On round-robin
+brucite that takes the fit from 12 of 43 reflections outside the cone to 0 of
+43, at a *higher* Rwp. It does not make those coefficients measured — they stay
+start-dependent across seeds — but an inadmissible answer stops being one of
+the outcomes.
+
+Two properties of the driver are load-bearing rather than incidental, and any
+future driver must keep both. The cost is always a **fresh fp64 residual
+evaluation**, never an extrapolation from the same reduced-precision quantities
+that built the columns — that is what lets a backend compute Jacobian columns
+in fp32 and still land on the fp64 answer (WP-0403/0408). And θ is never
+jittered between the residual and the Jacobian, so the FCJ node memo's
+exact-input-equality hit survives (WP-0605).
+
 ## Background subsystem (automation-first)
 
 Two-stage default: (1) diagnostics on the raw pattern → structured object an
