@@ -115,6 +115,11 @@ class Provenance(Base):
     schema_version: str = SCHEMA_VERSION
     backend: str = "numpy"
     dtype: str = "float64"
+    #: which least-squares driver produced the values — "trf" (scipy, the
+    #: reference) or "lm" (the bounded LM with constraint vocabulary, WP-0601).
+    #: Provenance because the drivers differ in what they can enforce (the
+    #: Stephens cone), not merely in how fast they converge.
+    solver: str = "trf"
     report_thresholds_version: str = "0.1"
     created_utc: str | None = None
     notes: dict[str, str] = Field(default_factory=dict)

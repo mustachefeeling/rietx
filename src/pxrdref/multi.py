@@ -29,6 +29,7 @@ from .refine import (
     _VERSION,
     _absorption_diagnostics,
     _absorption_record,
+    _constraint_diagnostics,
     _guard_diagnostics,
     _resolve_specimen_absorption,
     _utcnow,
@@ -178,7 +179,8 @@ class MultiHistogramRefinement:
                 name=stage.name, status=outcome.status,
                 n_iterations=outcome.n_iterations,
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
-                freed=freed))
+                freed=freed,
+                n_constraint_truncations=outcome.n_constraint_truncations))
 
         assert models is not None and outcome is not None
         self._models = models
@@ -271,6 +273,9 @@ class MultiHistogramRefinement:
 
         parameters = self._parameters(thetas, stderr, corr)
         diagnostics = self._top_diagnostics(outcome, correlation_guard, top_bg)
+        if stage_results:
+            diagnostics = diagnostics + _constraint_diagnostics(
+                stage_results[-1].name, outcome)
 
         weight_note = ("unit (each point's esd governs)"
                        if all(w == 1.0 for w in weights)
@@ -278,6 +283,7 @@ class MultiHistogramRefinement:
         provenance = Provenance(
             package_version=_VERSION, created_utc=_utcnow(),
             backend=self._backend, dtype=backend_dtype_note(self._backend),
+            solver=self._solver,
             notes={"n_histograms": str(n), "histogram_weights": weight_note})
 
         return RefinementResult(
@@ -355,9 +361,11 @@ def refine_multi(data: list[PatternData], structure: Structure,
                  plan: RefinementPlan | str = "mccusker_default",
                  sharing: SharingMap | None = None,
                  two_theta_limits=None,
-                 weights: list[float] | None = None) -> RefinementResult:
+                 weights: list[float] | None = None,
+                 backend: str = "numpy", solver: str = "trf") -> RefinementResult:
     """One-shot joint refinement of ``structure`` against several ``data``/
     ``instruments`` pairs.  Functional wrapper over
     :class:`MultiHistogramRefinement`."""
-    ref = MultiHistogramRefinement(structure, instruments, sharing=sharing)
+    ref = MultiHistogramRefinement(structure, instruments, sharing=sharing,
+                                   backend=backend, solver=solver)
     return ref.fit(data, plan=plan, two_theta_limits=two_theta_limits, weights=weights)

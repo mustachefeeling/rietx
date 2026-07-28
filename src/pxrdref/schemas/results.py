@@ -241,6 +241,13 @@ class StageResult(Base):
     cost_initial: float
     cost_final: float
     freed: list[str] = Field(default_factory=list)
+    #: steps the bounded-LM driver shortened against a linear-inequality
+    #: constraint (the Stephens strain cone) during this stage.  Always 0 under
+    #: TRF, which has no such vocabulary.  Nonzero in the *final* stage means
+    #: the answer sits on or near a constraint face and additionally raises a
+    #: ``CONSTRAINT_ACTIVE`` diagnostic — the only signal that a declared
+    #: constraint was active rather than merely present (WP-0601).
+    n_constraint_truncations: int = 0
 
 
 class HistogramResult(Base):

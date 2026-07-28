@@ -48,6 +48,7 @@ import numpy as np
 
 from .backend.api import backend_dtype_note
 from .history.tree import RefinementTree
+from .optimize.least_squares import SOLVERS
 from .params.vector import ParameterTable
 from .refine import _VERSION, Refinement, _extract_reflections, _utcnow
 from .schemas.common import Diagnostic, Mode, Provenance
@@ -239,7 +240,7 @@ class SequentialRefinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy",
+                 backend: str = "numpy", solver: str = "trf",
                  carry: Sequence[str] = ("*",),
                  history: bool | str | Path = False):
         if backend != "numpy":
@@ -249,7 +250,11 @@ class SequentialRefinement:
                 resolve_backend(backend)  # fail fast with the install hint
             except ValueError as exc:
                 raise NotImplementedError(str(exc)) from exc
+        if solver not in SOLVERS:
+            raise ValueError(f"unknown solver {solver!r}; "
+                             f"available: {', '.join(SOLVERS)}")
         self._backend = backend
+        self._solver = solver
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
         self.carry = list(carry)
@@ -344,7 +349,7 @@ class SequentialRefinement:
             mode=mode, entries=entries, x_label=x_label,
             direction=direction,  # type: ignore[arg-type]
             provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
-                                  backend=self._backend,
+                                  backend=self._backend, solver=self._solver,
                                   dtype=backend_dtype_note(self._backend)))
         diagnostics += _discontinuity_diagnostics(series)
 
@@ -442,6 +447,7 @@ class SequentialRefinement:
         if prepare is not None:
             prepare(index, data, structure, instrument)
         ref = Refinement(structure, instrument, backend=self._backend,
+                         solver=self._solver,
                          history=self._history_spec(label + history_suffix))
         if previous_hkl and mode in ("lebail", "pawley"):
             # Le Bail/Pawley per-hkl intensities are path-dependent state that
@@ -636,15 +642,15 @@ def _path_dependence_diagnostics(forward: SeriesResult,
 def refine_sequential(patterns: Sequence[PatternData], structure: Structure,
                       instrument: Instrument, *,
                       carry: Sequence[str] = ("*",),
-                      backend: str = "numpy",
+                      backend: str = "numpy", solver: str = "trf",
                       history: bool | str | Path = False,
                       **kw) -> SeriesResult:
     """One-shot functional API for a warm-started series.
 
     ``refine_sequential(patterns, structure, instrument, x=temperatures)``.
-    Keyword arguments beyond ``carry``/``backend``/``history`` go to
+    Keyword arguments beyond ``carry``/``backend``/``solver``/``history`` go to
     :meth:`SequentialRefinement.fit`.
     """
     series = SequentialRefinement(structure, instrument, carry=carry,
-                                  backend=backend, history=history)
+                                  backend=backend, solver=solver, history=history)
     return series.fit(patterns, **kw)

@@ -481,6 +481,7 @@ class Refinement:
                 name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
                 cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
                 freed=freed,
+                n_constraint_truncations=outcome.n_constraint_truncations,
             ))
             if stream is not None and hasattr(stream, "write_snapshot"):
                 # live monitoring (viz.live.LiveSession): rewrite the HTML view
@@ -500,12 +501,14 @@ class Refinement:
 
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+        diagnostics.extend(_constraint_diagnostics(plan.stages[-1].name, outcome))
 
         self.result_ = _build_result(
             model, table, outcome.theta, mode=mode, status=outcome.status,
             stage_results=stage_results, diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation, backend=self._backend,
+            solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
@@ -540,6 +543,7 @@ class Refinement:
         diagnostics = _guard_diagnostics(guard)
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
+        diagnostics.extend(_constraint_diagnostics(stage.name, outcome))
 
         self._model = model
         table.apply_to_models(self.structure, self.instrument)
@@ -548,7 +552,8 @@ class Refinement:
         stage_result = StageResult(
             name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
             cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
-            freed=freed)
+            freed=freed,
+            n_constraint_truncations=outcome.n_constraint_truncations)
         if tree is not None:
             self._record(tree, NodeAction(
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),
@@ -560,6 +565,7 @@ class Refinement:
             stage_results=[stage_result], diagnostics=diagnostics,
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation, backend=self._backend,
+            solver=self._solver,
             mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
@@ -734,6 +740,34 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                         "out nor freeing it blind is safe)"),
         ))
     return out
+
+
+def _constraint_diagnostics(stage_name: str, outcome) -> list[Diagnostic]:
+    """`CONSTRAINT_ACTIVE` when the answer-producing stage pressed a constraint.
+
+    Only the stage whose θ becomes the result is examined: earlier stages'
+    counts are on their :class:`StageResult` rows, but a truncation there
+    shaped an intermediate state, not the reported values.  ``info`` rather
+    than ``warning`` — landing on the cone face is what the constrained driver
+    is *for* (the admissible optimum), but an agent must know the constraint
+    was active rather than merely declared, because an active face means the
+    coefficients are admissible, not measured (WP-0601: they still span
+    ~100 % across starting seeds under both drivers).
+    """
+    n = getattr(outcome, "n_constraint_truncations", 0)
+    if not n:
+        return []
+    return [Diagnostic(
+        level="info", code="CONSTRAINT_ACTIVE",
+        message=(f"the bounded-LM driver shortened {n} step(s) against a linear "
+                 f"inequality constraint (the Stephens strain positivity cone) "
+                 f"in stage {stage_name!r} — the optimum sits on or near a "
+                 "constraint face"),
+        suggestion="the constrained coefficients are admissible, not measured: "
+                   "vary the starting seed and quote them only if they survive "
+                   "(the STEPHENS_STRAIN_NOT_POSITIVE protocol row applies even "
+                   "though that guard is silent under solver='lm')",
+    )]
 
 
 def _apply_esds(table: ParameterTable, result: RefinementResult,
@@ -920,7 +954,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
                   stderr_internal=None, correlation=None,
-                  backend: str = "numpy",
+                  backend: str = "numpy", solver: str = "trf",
                   mu_r_source: str = "given",
                   mu_r_skipped: str | None = None) -> RefinementResult:
     values = table.decode(theta)
@@ -1000,7 +1034,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         parameters=params, statistics=stats,
         stages=stage_results, diagnostics=diagnostics,
         provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
-                              backend=backend, dtype=backend_dtype_note(backend)),
+                              backend=backend, dtype=backend_dtype_note(backend),
+                              solver=solver),
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
