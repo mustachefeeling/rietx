@@ -34,6 +34,7 @@ from ..backend import get_backend
 from ..backend.api import TORCH_DEVICES
 from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
 from ..crystallography.adp import U_NAMES
+from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
 from ..model.forward import CompiledModel, DerivativeBases
 from ..model.restraints import restraint_partials
@@ -42,6 +43,16 @@ from ..params.vector import ParameterTable
 
 if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
+    from . import lm as lm_mod
+
+#: Available minimisers.  ``"trf"`` is scipy's Trust Region Reflective — the
+#: default, the reference, and the driver every shipped acceptance number was
+#: measured with.  ``"lm"`` is the bounded Levenberg-Marquardt of
+#: :mod:`.lm` (WP-0601), whose reason to exist is constraint vocabulary rather
+#: than speed: bounds enforced inside the linear solve, and linear inequalities
+#: on *functionals* of θ (the Stephens strain positivity cone) that a box
+#: cannot express.
+SOLVERS = ("trf", "lm")
 
 #: Wyckoff site DOFs — coordinates (``dof``, tied to x, y, z) and anisotropic
 #: ADPs (``adp``, tied to the six U^ij).  Both get analytic columns that chain
@@ -65,6 +76,12 @@ class LSQOutcome:
     #: length of the appended Pawley intensity block (its esds land on
     #: ``model.pawley.stderr``, its values in the per-phase buffers)
     n_aux: int = 0
+    #: which driver produced this — "trf" (scipy, the reference) or "lm"
+    solver: str = "trf"
+    #: steps the bounded-LM driver shortened to stay inside a linear-inequality
+    #: constraint (the Stephens strain cone).  0 under TRF, which has no such
+    #: vocabulary — see ``optimize/lm.py``.
+    n_constraint_truncations: int = 0
 
 
 def _lebail_snapshot(model: CompiledModel) -> list[np.ndarray] | None:
@@ -396,17 +413,95 @@ def _jacobian_for(model, table, backend: str):
     return jacobian
 
 
+def strain_cone_inequalities(model: CompiledModel, table: ParameterTable,
+                             x0: np.ndarray) -> list["lm_mod.LinearInequality"]:
+    """Stephens positivity rows σ²(M) = T·θ + c ≥ 0, one block per phase.
+
+    σ²(M) is ``strain_monomials @ S`` and S is an *affine* function of the free
+    vector (``decode`` gives p = C·to_physical(θ) + d), so on the strain rows —
+    whose DOFs carry the identity transform, by construction, since the cone
+    couples all fifteen coefficients and cannot be a box — the whole thing is
+    linear in θ.  That is what makes it expressible to the bounded-LM driver
+    and inexpressible to TRF.
+
+    Two cases are skipped rather than enforced, both deliberately:
+
+    * **no strain DOF free in this stage** — T is then identically zero, so the
+      rows are a constant that the solver could never satisfy if it were
+      already negative, and would silently freeze the step at τ = 0;
+    * **an infeasible starting point** — feasibility is *maintained*, not
+      restored, by a fraction-to-the-boundary rule.  The staged plans start
+      from the isotropic limit S = ε²·[M²], which is strictly inside the cone,
+      so this is the pathological case and not the normal one; when it does
+      happen the existing ``STEPHENS_STRAIN_NOT_POSITIVE`` guard still fires on
+      the result, which is the honest outcome.
+    """
+    from . import lm as lm_mod
+
+    free = table.free_paths
+    if not free:
+        return []
+    C, d = table.constraint_block()
+    C = C.toarray()
+    out: list[lm_mod.LinearInequality] = []
+    for ip, cp in enumerate(model.phases):
+        if cp.strain_monomials is None:
+            continue
+        try:
+            rows = [table._paths[f"phases.{ip}.microstrain.{n}"] for n in S_NAMES]
+        except KeyError:                      # phase carries no microstrain block
+            continue
+        mono = np.asarray(cp.strain_monomials, dtype=np.float64)
+        T = mono @ C[rows, :]
+        c = mono @ d[rows]
+        if not np.any(T):                     # nothing free in this direction
+            continue
+        block = lm_mod.LinearInequality(T=T, c=c, label=f"phases.{ip}.microstrain")
+        if block.violated(x0).any():
+            continue
+        out.append(block)
+    return out
+
+
+def _lm_outcome(residual, jacobian, x0, lo, hi, *, max_iter, ftol,
+                inequalities, events, stage: str):
+    """Run the bounded-LM driver, adapted to the scipy result shape.
+
+    The two drivers are kept interchangeable at exactly this point: everything
+    downstream (covariance, guards, history) reads ``x``/``fun``/``jac``/
+    ``cost``/``nfev``/``status``, and :class:`~.lm.LMOutcome` carries those with
+    scipy's meanings.
+    """
+    from . import lm as lm_mod
+
+    counter = {"n": 0}
+
+    def callback(theta: np.ndarray, cost: float) -> None:
+        counter["n"] += 1
+        events.emit("eval", stage=stage, n_eval=counter["n"], cost=cost)
+
+    return lm_mod.minimize(residual, jacobian, x0, lo=lo, hi=hi,
+                           max_iter=max_iter, ftol=ftol,
+                           inequalities=inequalities,
+                           callback=None if events is None else callback)
+
+
 def run_least_squares(model: CompiledModel, table: ParameterTable,
                       *, max_iter: int = 100, ftol: float = 1e-9,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
-                      backend: str = "numpy") -> LSQOutcome:
+                      backend: str = "numpy",
+                      solver: str = "trf") -> LSQOutcome:
+    if solver not in SOLVERS:
+        raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)
 
-    if events is not None:
+    if events is not None and solver == "trf":
         # scipy TRF has no per-iteration callback, so the residual closure is
-        # the hook; the emitted dict is plain floats (no pydantic here)
+        # the hook; the emitted dict is plain floats (no pydantic here).  The
+        # LM driver has a real callback and uses it, so it does not wrap the
+        # residual — which also keeps its event stream to *accepted* points.
         inner = residual
         counter = {"n": 0}
 
@@ -435,10 +530,21 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
     if len(x0) == 0:
-        return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None)
+        return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
+                          solver=solver)
 
-    res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                        ftol=ftol, xtol=1e-12, gtol=1e-12, max_nfev=max_iter * max(len(x0), 1))
+    n_truncated = 0
+    if solver == "lm":
+        # the strain cone is built against the *starting* point, because
+        # feasibility is maintained rather than restored (see the builder)
+        cone = strain_cone_inequalities(model, table, x0[:n_table])
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+                          ftol=ftol, inequalities=cone, events=events, stage=stage)
+        n_truncated = res.n_truncated
+    else:
+        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                            ftol=ftol, xtol=1e-12, gtol=1e-12,
+                            max_nfev=max_iter * max(len(x0), 1))
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     # esds from the *full* augmented covariance (table ↔ intensity correlation
@@ -457,7 +563,8 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
         model.set_pawley_intensities(res.x[n_table:])
     jac_table = np.asarray(res.jac)[:, :n_table] if res.jac is not None else None
     return LSQOutcome(res.x[:n_table], cost0, float(res.cost), int(res.nfev), status,
-                      jac_table, stderr, corr, n_aux=n_aux)
+                      jac_table, stderr, corr, n_aux=n_aux, solver=solver,
+                      n_constraint_truncations=n_truncated)
 
 
 def _multi_closures(models: list[CompiledModel], mtable: "MultiParameterTable",
@@ -525,8 +632,9 @@ def run_multi_least_squares(models: list[CompiledModel],
                             weights: list[float] | None = None,
                             max_iter: int = 100, ftol: float = 1e-9,
                             compute_uncertainties: bool = True,
-                            backend: str = "numpy") -> LSQOutcome:
-    """Joint TRF solve of several histograms stacked into one residual (WP-0308).
+                            backend: str = "numpy",
+                            solver: str = "trf") -> LSQOutcome:
+    """Joint solve of several histograms stacked into one residual (WP-0308).
 
     Each histogram keeps its own compiled model (⇒ its own frozen hkl list,
     windows, FCJ node counts) and its own :class:`ParameterTable`; the combined
@@ -551,7 +659,17 @@ def run_multi_least_squares(models: list[CompiledModel],
     histogram's data and its penalty rows by ``√w_h`` — keeping the smoothness
     prior's strength relative to the data fixed; default unit weights leave the
     residual identical to N independent solves sharing the structure.
+
+    ``solver`` selects the driver exactly as in :func:`run_least_squares` —
+    this is the *second* entry point WP-0308 warned about, and a solver swap
+    that reached only the single-histogram one would leave joint refinements
+    silently on scipy.  The Stephens cone is not built here: its rows are
+    per-model and the stacked column map would have to scatter each phase's T
+    into the joint vector.  Deferred rather than half-done — a joint refinement
+    with `solver="lm"` gets the bounded driver, not the cone.
     """
+    if solver not in SOLVERS:
+        raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
     residual, jacobian, n_data_total = _multi_closures(
         models, mtable, weights=weights, backend=backend)
     n_cols = len(mtable.free_paths)
@@ -563,11 +681,16 @@ def run_multi_least_squares(models: list[CompiledModel],
     require_fp64(r0, "least-squares residual")
     cost0 = 0.5 * float(r0 @ r0)
     if n_cols == 0:
-        return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None)
+        return LSQOutcome(x0, cost0, cost0, 0, "converged", None, None, None,
+                          solver=solver)
 
-    res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
-                        ftol=ftol, xtol=1e-12, gtol=1e-12,
-                        max_nfev=max_iter * max(len(x0), 1))
+    if solver == "lm":
+        res = _lm_outcome(residual, jacobian, x0, lo, hi, max_iter=max_iter,
+                          ftol=ftol, inequalities=[], events=None, stage="")
+    else:
+        res = least_squares(residual, x0, jac=jacobian, bounds=(lo, hi), method="trf",
+                            ftol=ftol, xtol=1e-12, gtol=1e-12,
+                            max_nfev=max_iter * max(len(x0), 1))
     status = "converged" if res.status > 0 else ("max_iter" if res.status == 0 else "diverged")
 
     stderr = corr = None
@@ -576,7 +699,7 @@ def run_multi_least_squares(models: list[CompiledModel],
                                             n_data=n_data_total)
     jac_data = np.asarray(res.jac)[:n_data_total] if res.jac is not None else None
     return LSQOutcome(res.x, cost0, float(res.cost), int(res.nfev), status,
-                      jac_data, stderr, corr)
+                      jac_data, stderr, corr, solver=solver)
 
 
 def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,

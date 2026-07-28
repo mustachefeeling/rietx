@@ -21,7 +21,7 @@ import numpy as np
 
 from .backend.api import backend_dtype_note
 from .model.forward import compile_model
-from .optimize.least_squares import run_multi_least_squares
+from .optimize.least_squares import SOLVERS, run_multi_least_squares
 from .optimize.qpa import compute_qpa, microabsorption_diagnostics
 from .optimize.statistics import background_absorption, compute_statistics
 from .params.multi import MultiParameterTable, SharingMap
@@ -78,7 +78,8 @@ class MultiHistogramRefinement:
     """
 
     def __init__(self, structure: Structure, instruments: list[Instrument], *,
-                 sharing: SharingMap | None = None, backend: str = "numpy"):
+                 sharing: SharingMap | None = None, backend: str = "numpy",
+                 solver: str = "trf"):
         if backend != "numpy":
             from .backend import resolve_backend
 
@@ -86,7 +87,11 @@ class MultiHistogramRefinement:
                 resolve_backend(backend)  # fail fast with the install hint
             except ValueError as exc:
                 raise NotImplementedError(str(exc)) from exc
+        if solver not in SOLVERS:
+            raise ValueError(f"unknown solver {solver!r}; "
+                             f"available: {', '.join(SOLVERS)}")
         self._backend = backend
+        self._solver = solver
         instruments = list(instruments)
         if len(instruments) < 1:
             raise ValueError("multi-histogram needs at least one instrument")
@@ -165,7 +170,8 @@ class MultiHistogramRefinement:
                     self.mtable.tables, strict=True)]
             outcome = run_multi_least_squares(models, self.mtable, weights=weights,
                                               max_iter=stage.max_iter,
-                                              backend=self._backend)
+                                              backend=self._backend,
+                                              solver=self._solver)
             self.mtable.commit(outcome.theta)
             self.mtable.apply_to_models()
             stage_results.append(StageResult(

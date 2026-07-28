@@ -26,7 +26,7 @@ from .model.absorption import (
 )
 from .model.forward import CompiledModel, Mode, compile_model
 from .model.restraints import summarise_restraints
-from .optimize.least_squares import run_least_squares
+from .optimize.least_squares import SOLVERS, run_least_squares
 from .optimize.qpa import (
     compute_qpa,
     estimate_capillary_mu_r,
@@ -74,7 +74,7 @@ class Refinement:
     """
 
     def __init__(self, structure: Structure, instrument: Instrument, *,
-                 backend: str = "numpy",
+                 backend: str = "numpy", solver: str = "trf",
                  history: bool | str | Path | RefinementTree = True):
         if backend != "numpy":
             # fail fast (with the install hint) instead of at the first stage;
@@ -85,7 +85,11 @@ class Refinement:
                 resolve_backend(backend)
             except ValueError as exc:
                 raise NotImplementedError(str(exc)) from exc
+        if solver not in SOLVERS:
+            raise ValueError(f"unknown solver {solver!r}; "
+                             f"available: {', '.join(SOLVERS)}")
         self._backend = backend
+        self._solver = solver
         self.structure = structure.model_copy(deep=True)
         self.instrument = instrument.model_copy(deep=True)
         # Resolve a capillary µR from composition once, here, rather than per
@@ -198,7 +202,7 @@ class Refinement:
         """A second working tree over the same history, for a rival strategy."""
         tree = self._require_history()
         ref = Refinement(self.structure, self.instrument,
-                         backend=self._backend, history=tree)
+                         backend=self._backend, solver=self._solver, history=tree)
         ref._mode = self._mode
         ref._two_theta_limits = self._two_theta_limits
         ref._free_paths = list(self._free_paths)
@@ -235,11 +239,11 @@ class Refinement:
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
-                  backend: str = "numpy") -> "Refinement":
+                  backend: str = "numpy", solver: str = "trf") -> "Refinement":
         """Open a refinement positioned at an existing checkpoint."""
         node = tree[node_id]
         ref = cls(node.state.structure, node.state.instrument,
-                  backend=backend, history=tree)
+                  backend=backend, solver=solver, history=tree)
         return ref.checkout(node_id)
 
     def merge(self, other: str, *, prefer: str = "theirs",
@@ -410,7 +414,7 @@ class Refinement:
                         n_points=len(model.tt))
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
-                                    backend=self._backend)
+                                    backend=self._backend, solver=self._solver)
         table.commit(outcome.theta)
 
         if mode == "lebail":
@@ -1391,12 +1395,13 @@ def estimate_mu_r(structure: Structure, instrument: Instrument) -> float | None:
 def refine(data: PatternData, structure: Structure, instrument: Instrument,
            *, mode: Mode = "rietveld", plan: RefinementPlan | str = "mccusker_default",
            two_theta_limits: tuple[float, float] | None = None,
-           backend: str = "numpy",
+           backend: str = "numpy", solver: str = "trf",
            history: bool | str | Path | RefinementTree = False) -> RefinementResult:
     """One-shot functional API: ``refine(data, structure, instrument)``.
 
     History defaults to *off* here: this call discards the ``Refinement``, so
     an in-memory tree would be unreachable.  Pass a path to keep one.
     """
-    ref = Refinement(structure, instrument, backend=backend, history=history)
+    ref = Refinement(structure, instrument, backend=backend, solver=solver,
+                     history=history)
     return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits)
