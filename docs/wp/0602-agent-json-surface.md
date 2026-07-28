@@ -1,7 +1,17 @@
 # WP-0602 — Agent JSON surface hardened
 
-Milestone: v0.6 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v0.6 · Status: 🔶 in progress (expanded 2026-07-29)
 Depends on: —
+
+## Goal
+
+`pxrdref.agent.refine_json(dict) → dict`: one call that takes a fully-typed
+JSON request (single-pattern, multi-histogram, or sequential series), runs the
+refinement, and returns either a serialized result + FitReport or a
+structured, actionable error — never a raw traceback.  Beside it,
+`request_schema()` / `response_schema()` / `tool_definition()` export the
+JSON Schemas an LLM tool-calling loop needs, with the backend/solver/plan
+vocabularies drawn from the live registries rather than restated literals.
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
@@ -14,6 +24,73 @@ Depends on: —
   ±inf-safe serialization) — this WP is the single-call composition and its
   hardening (errors as structured, actionable JSON), not new schema work.
 - The MCP server wrapping `refine_json` stays fenced in v2.
+
+## Decisions (made 2026-07-29, expanding the stub)
+
+- **One module, `src/pxrdref/agent.py`** — request/response envelope models and
+  the dispatch live together; the surface is one file to read.  Consumers use
+  `pxrdref.agent.refine_json`; no new top-level re-exports.
+- **Envelope**: success is `{"ok": true, "result": …, "series": …, "report": …}`
+  (exactly one of `result`/`series` set — a JSON consumer branches on which,
+  answering the 0505 two-result-types asymmetry structurally); failure is
+  `{"ok": false, "error": {code, message, where, suggestion, details}}` — the
+  same shape vocabulary as `Diagnostic`, so an agent has one grammar for "the
+  fit warns" and "the call failed".  `refine_json` never raises on data-shaped
+  problems.
+- **Three error codes, closed**: `INVALID_REQUEST` (any validation failure,
+  with per-field `details[]` carrying dot-paths; unknown plan/backend/solver
+  names land here via validators that quote the live registry),
+  `BACKEND_UNAVAILABLE` (a *valid* backend name whose package is not
+  installed — the install hint is the `suggestion`), `REFINEMENT_FAILED`
+  (an exception mid-fit, message preserved).
+- **Task union answers the Inherited asymmetries deliberately**:
+  `task="refine"` (all three modes; optional `history_path` — node/tree ids
+  are null without it, matching `refine()`'s history-off default),
+  `task="refine_multi"` (node/tree ids **always null** and the schema field
+  description says so — the 0308 seam, documented rather than accidental),
+  `task="refine_sequential"` (returns `series`; history ids are per-entry,
+  never per-run).  Multi responses carry no FitReport — reports are
+  per-histogram (`result.for_histogram(h)` + `build_report`), and the surface
+  says so instead of picking a histogram silently.
+- **Plans**: a preset name (validated against `PLAN_PRESETS`, mode-mapping
+  handled by `fit()` as in python) or an explicit `{stages: [...],
+  correlation_guard}` spec mirroring `Stage` — the AGENT_PROTOCOL allows
+  hand-rolled stage lists only with a stated reason; the schema description
+  carries that warning.
+- **Validation through live registries**: backend names via
+  `backend.api.BACKEND_NAMES`, solvers via `optimize.least_squares.SOLVERS`,
+  plans via `PLAN_PRESETS` — schema `description` strings are built at import
+  time from the same tuples, and a test asserts every registry member appears
+  in the exported schema so a new backend/solver cannot ship without the
+  schema knowing it.
+- **`Provenance.solver`** carries which driver produced the result (the 0601
+  decision); `StageResult.n_constraint_truncations` carries the per-stage
+  count, and a final stage with a nonzero count emits a new **`CONSTRAINT_ACTIVE`**
+  `info` diagnostic — the only signal that a constraint was *active* rather
+  than merely declared.  Its agent semantics follow the AGENT_PROTOCOL §6
+  Stephens row: admissible, not measured; vary the start before quoting.
+  `SequentialRefinement`/`refine_sequential` gain `solver=` passthrough, and
+  `refine_multi` gains `backend=`/`solver=` (both constructors already had
+  them; the functional wrapper dropped them).
+- **The orphaned texture ActionKind is claimed**: `refine_preferred_orientation`
+  joins the Layer-2 vocabulary (THRESHOLDS_VERSION 0.2 → 0.3, a minor bump),
+  emitted from `FitReport.texture` entries with `detected=True` in both the
+  mature and the abstained branch (texture is a common *cause* of immaturity —
+  same reasoning that computes it pre-gate).  `parameter_paths` names
+  `phases.{i}.preferred_orientation.r` whether or not the block is declared:
+  the strategy veto handles the declared-and-planned case, and
+  `predict_then_verify` degrades gracefully (frees nothing → no improvement →
+  rolled back) on the undeclared one, with the axis and r in the rationale so
+  the agent knows what block to declare.
+
+## Non-goals
+
+- No MCP server, no HTTP, no file paths / CIF text in the request (the v2 MCP
+  wrapper is the place for I/O conveniences; this surface takes typed objects).
+- No new refinement capability: `refine_json` composes `refine`,
+  `refine_multi`, `refine_sequential` exactly as the python API exposes them.
+- No `SharingMap` beyond the two glob lists it already is.
+- No FitReport for multi-histogram responses (see Decisions).
 
 ## Inherited
 
@@ -129,8 +206,38 @@ meaning changed, and two new fields exist for the surface to decide about.
 
 ## Tasks
 
-- [ ] Expand this stub into a full WP before writing code
+- [x] Expand this stub into a full WP before writing code
+- [ ] Solver provenance: `Provenance.solver`, `StageResult.n_constraint_truncations`,
+      `CONSTRAINT_ACTIVE` diagnostic, `solver=` on `SequentialRefinement` /
+      `refine_sequential`, `backend=`/`solver=` on `refine_multi` + tests
+- [ ] Layer-2: `refine_preferred_orientation` ActionKind, `texture_actions`,
+      emission in both build_report branches, THRESHOLDS_VERSION bump + tests
+- [ ] `agent.py`: request/response models (task union, StageSpec/PlanSpec,
+      SharingSpec), `refine_json` dispatch with the three-code error envelope
+- [ ] `agent.py`: `request_schema` / `response_schema` / `tool_definition`,
+      live-registry descriptions
+- [ ] `tests/test_agent_surface.py`: round-trips (all three tasks on the
+      synthetic LaB6), validation errors with dot-paths, registry-schema
+      containment, envelope invariants
+- [ ] Docs: AGENT_PROTOCOL §7 row for `CONSTRAINT_ACTIVE` + a JSON-surface
+      section; CLAUDE.md data-flow line
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_agent_surface.py tests/test_fitreport_layers.py tests/test_sequential.py tests/test_multi_histogram.py tests/test_lm_solver.py -q
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # full fast suite
+.venv/bin/python -m ruff check src tests examples
+```
+
+Plus, by hand once: `refine_json` on an intentionally broken request returns
+`ok:false` with a dot-path into the offending field, and
+`tool_definition()["input_schema"]` names every live backend, solver and plan.
 
 ## Handover log
 
+- **2026-07-29** — expanded from stub; decisions recorded above (envelope,
+  three error codes, task union answering the 0308/0505 asymmetries,
+  live-registry validation, `Provenance.solver` + `CONSTRAINT_ACTIVE`,
+  texture ActionKind claimed).
 - **2026-07-22** — created as a stub from the ROADMAP split.
