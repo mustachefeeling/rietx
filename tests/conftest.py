@@ -15,7 +15,15 @@ Three things live here, in the order they have to happen:
    *only* if pyplot was imported, so the ~700 tests that never plot do not pay
    an import.
 
-This file is also where results shared between acceptance modules will live.
+Shared expensive results (``sample1_results``, ``srm660c_baseline``) are
+session-scoped: they exist because several acceptance modules were re-deriving
+the *identical* fit.  A consumer must carry the matching
+``@pytest.mark.xdist_group`` or a second xdist worker silently recomputes the
+whole fixture — see each fixture's docstring for the group name.
+
+The builders those fixtures call stay in their own modules on purpose:
+``tests/test_compare_ui.py`` asserts the comparison UI's standards against
+their locations field by field, so moving or renaming one breaks that check.
 """
 
 import os
@@ -36,3 +44,36 @@ def _close_figures():
         import matplotlib.pyplot as plt
 
         plt.close("all")
+
+
+@pytest.fixture(scope="session")
+def sample1_results():
+    """The eight IUCr round-robin sample-1 mixtures (cpd-1a..h), fitted once
+    under the v0.3 QPA protocol.
+
+    ``test_acceptance_sequential``'s unchained baseline was an exact
+    re-derivation of this — same phases, instrument, ``seed_scales`` and
+    ``qpa_plan()`` — so the two suites share one set of fits.  History
+    recording and the per-sample plots come from the QPA suite's ``_fit``;
+    history is record-only and changes no value.
+
+    **Consumers must carry** ``@pytest.mark.xdist_group("qpa-sample1")``, or a
+    second worker recomputes all eight refinements.
+    """
+    from tests.test_acceptance_qpa_roundrobin import (
+        SAMPLE1,
+        _fit,
+        _require_data,
+        corundum_phase,
+        fluorite_phase,
+        qpa_plan,
+        zincite_phase,
+    )
+
+    _require_data()
+    out = {}
+    for sample in SAMPLE1:
+        _, result = _fit(sample, [corundum_phase(), zincite_phase(),
+                                  fluorite_phase()], plan=qpa_plan())
+        out[sample] = result
+    return out

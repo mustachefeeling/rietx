@@ -270,19 +270,14 @@ def test_read_prn_two_column_ascii():
 
 # -- sample 1: eight corundum/zincite/fluorite mixtures --------------------
 
-@pytest.fixture(scope="module")
-def sample1_results():
-    """Fit all eight sample-1 mixtures once, under the identical protocol."""
-    _require_data()
-    out = {}
-    for sample in SAMPLE1:
-        _, result = _fit(sample, [corundum_phase(), zincite_phase(),
-                                  fluorite_phase()], plan=qpa_plan())
-        out[sample] = result
-    return out
+#: ``sample1_results`` — all eight mixtures fitted once, under the identical
+#: protocol — lives in ``tests/conftest.py`` at session scope, because
+#: ``test_acceptance_sequential``'s unchained baseline was an exact
+#: re-derivation of it.  Consumers carry the matching ``xdist_group``.
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("qpa-sample1")
 @pytest.mark.parametrize("sample", SAMPLE1)
 def test_sample1_fractions_within_participant_spread(sample1_results, sample):
     result = sample1_results[sample]
@@ -305,6 +300,7 @@ def test_sample1_fractions_within_participant_spread(sample1_results, sample):
 
 
 @pytest.mark.slow
+@pytest.mark.xdist_group("qpa-sample1")
 def test_sample1_bias_has_the_dispersion_shape(sample1_results):
     """The residual inaccuracy is a *characterised systematic*, not noise:
     zincite comes back low and corundum high across the whole suite, and

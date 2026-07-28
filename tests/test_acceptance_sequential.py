@@ -61,6 +61,12 @@ from tests.test_acceptance_qpa_roundrobin import (
     zincite_phase,
 )
 
+#: every test here consumes ``chained``/``chained_all``/``independent``, and
+#: ``independent`` is the session-scoped ``sample1_results`` shared with the QPA
+#: acceptance — so the whole module pins to one xdist worker (without the group
+#: mark a second worker would silently refit all eight mixtures)
+pytestmark = pytest.mark.xdist_group("qpa-sample1")
+
 #: everything except the phase scales: the instrument is one goniometer, the
 #: cells and broadening belong to three phases that are the same material in
 #: every mixture, and only the scales encode the composition that changes
@@ -96,18 +102,18 @@ def _seed_hook(index, data, structure, instrument):
 
 
 @pytest.fixture(scope="module")
-def independent():
-    """Each mixture fitted from the initial model — the unchained baseline."""
-    _require_data()
-    out = []
-    for sample in SAMPLE1:
-        data = pr.read_pattern(DATA / f"{sample}.prn")
-        structure = pr.Structure(phases=_phases())
-        ins = qarr_instrument()
-        seed_scales(structure, ins, data)
-        ref = pr.Refinement(structure, ins, history=False)
-        out.append(ref.fit(data, plan=qpa_plan()))
-    return out
+def independent(sample1_results):
+    """Each mixture fitted from the initial model — the unchained baseline.
+
+    These are the *same* eight fits the v0.3 QPA acceptance runs: same phases,
+    same instrument, same ``seed_scales``, same ``qpa_plan()``.  They are
+    therefore shared, from ``tests/conftest.py``, rather than re-derived here
+    (which cost eight full refinements per run).  Two deliberate semantics
+    deltas, neither of which touches a value: the shared fits record history
+    and write the QPA suite's per-sample plots, where this fixture used to pass
+    ``history=False`` and plot nothing.
+    """
+    return [sample1_results[s] for s in SAMPLE1]
 
 
 @pytest.fixture(scope="module")
