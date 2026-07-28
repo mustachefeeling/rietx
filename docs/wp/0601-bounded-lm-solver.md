@@ -134,6 +134,91 @@ improvement (an inert 3-parameter addition) just as it blesses a real 6.9 % one.
 finds a better minimum", say by how much in ΔBIC, not by whether Hamilton
 passes.
 
+From the **2026-07-28 literature intake** (FPA fence work, not a WP; papers
+supplied by the user, set recorded in DESIGN.md's FPA fence note):
+
+- **Coelho 2018, JAC 51, 210 (TOPAS architecture) is on hand and read.** What
+  it gives this WP: the objective is assembled as χ² = χ²₀ + χ²_P + χ²_R,
+  with *penalties* expanded to second-order Taylor with the off-diagonal A_P
+  terms dropped and *restraints* to first order with off-diagonals kept —
+  measured trade-off stated in the paper: restraints converge in fewer
+  iterations, penalties faster in wall-clock (§3.3). K_P/K_R auto-weighting
+  (eqs. 16–17) balances penalty-vs-data information per parameter from the
+  diagonal A terms; compare that against the fixed user weights our restraint
+  rows carry before inventing a new knob. The A matrix goes sparse for
+  Pawley-shaped problems, and each ∂Y_c/∂p column is allocated, accumulated
+  into A₀ and Y₀, then freed — peak memory is one column, not J (§3.1–3.2) —
+  directly relevant to forming JᵀJ explicitly under the WP-0403 fp64
+  invariant. It also confirms the bounded CG of Coelho 2005 as TOPAS's
+  *default* solve, with BFGS as the cheap-A fallback.
+- **Both papers the scope cites are now on hand and read** (supplied
+  2026-07-28; full texts live on this machine as MinerU markdown conversions,
+  `mdfind -name "bound constrained conjugate"` and `mdfind -name "Optimum
+  Levenberg"`). Digests follow — enough to design from; consult the texts for
+  the pseudo-code.
+
+- **Coelho 2005, JAC 38, 455 (BCCG).** Standard CG on the normal equations
+  (Polak-form pseudo-code, their Table 1), diagonally pre-conditioned to
+  A_ii = 1, plus four modifications: (1) box bounds enforced *inside* the CG
+  loop — a violating parameter is clamped to its bound and removed from the
+  loop (not from the least-squares process), reinstated at the next outer
+  iteration; (2) early-iteration step damping α = [(k+1)/N_k, capped at
+  1]·s_k/(p·q) — their eq. (1) as printed reads Max[(k+1)/N_k, 1], which is a
+  no-op, while the text says it *reduces* α, so read Min (the
+  transcription-vs-intent check the papers habit warns about); (3) a
+  parameter whose residual contribution satisfies 200·r_i²·N_k < s_0 for six
+  consecutive iterations is dropped from the loop — this is what makes
+  block-diagonal/sparse systems cheap (measured: Pawley solve 3.30 s → 1.31 s
+  at identical Rwp); (4) terminate at k_max = (k at last removal) + N_k, or
+  when s_k < 10⁻⁴·s_0 three iterations running. Measured behaviour: ~10 CG
+  iterations regardless of N, dense or sparse, ill-conditioned or not; a
+  dense N = 1325 normal-equation *solve* drops 484 s → 2.86 s but the whole
+  refinement only 2441 → 1785 s — the solve is not the bottleneck once
+  computing J dominates, which is this package's regime at typical N. The
+  in-loop bounds are not cosmetic: clamping *after* the solve reproduces LU
+  exactly (their Pawley converges at Rwp 4.351 in 84 iterations), in-loop
+  clamping reaches 3.901 in 16; on tightly-bounded rigid bodies it shifts the
+  whole converged-Rwp distribution lower at 4.3× less total time. Sanity
+  anchor for tests: with bounds inactive and the removal scheme off, BCCG
+  must reproduce the unconstrained solution.
+
+- **BCCG does boxes only — a correction to the WP-0503 note above, now that
+  the paper is read.** Published BCCG constrains *refined parameters* to
+  min/max bounds; its own Discussion (§4) states that a constraint which is
+  a function of several parameters cannot be handled in the loop — "a
+  restraint which modifies the A matrix is necessary" (their example: an
+  interatomic distance through six coordinates; ours: the Stephens cone rows
+  T·θ ≥ 0, which are linear *functionals* of θ, not parameters). Bounds may
+  move between outer iterations (their Pawley run re-bounded each intensity
+  at half its current value) but are constants inside the loop. So enforcing
+  the strain cone in the solver means an *extension* of BCCG (e.g. active-set
+  on cone rows) — novel work, not a port — or reparameterising, or keeping
+  the cone as a restraint. Decide this explicitly when expanding the stub;
+  the softplus-retirement case (WP-0310 note above) needs only the published
+  box mechanism.
+
+- **Coelho 2018, JAC 51, 428 (λ_new).** The signal is r_u = ΔS_t/ΔS, the
+  first-order-predicted vs actual decrease, with ΔS_t = Δpᵀb — one extra dot
+  product per step. Update rule (their eq. 9; λ dimensionless because the
+  system is pre-conditioned to A_ii = 1, initially 0; m_u = r_u clipped to
+  [0.4, 10]): failed step → λ ← 10·max(λ, 0.1); good step at-or-under the
+  quadratic prediction (m_u ≤ 1) → λ ← m_u·λ/2; good step that *overshoots*
+  (m_u > 1) → λ ← m_u(λ + ½) − ½ — damping although S dropped is the whole
+  novelty (plus a rarely-fired λ/10 branch when the last ten steps were
+  predominantly overshoots, Q_u > 5). This is the LM-flavoured analogue of
+  the trust-region gain ratio the reference scipy TRF already adapts on, so
+  expect parity on well-behaved full-J problems: their measured gains with a
+  full A matrix are R_ν 0.96–1.19 across the crystallographic set, rising to
+  1.19–2.07 only when A is BFGS-approximated, and largest on
+  far-from-quadratic objectives (|x−a|^n at n ≤ 0.5, penalties,
+  discontinuities). Since this WP computes the full analytic J, quote the
+  modest end as the expected payoff — the WP's real value lives in the
+  bounds/cone cases above, not the λ schedule. One benchmark trap they flag
+  themselves: loose termination criteria can favour the more erratic
+  updater, and their largest runs were compared at a fixed iteration count
+  (N_u = 20) instead — fix the 0601 benchmark's stopping rule (and report
+  ΔBIC per the WP-0503 note) before running anything.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before writing code
