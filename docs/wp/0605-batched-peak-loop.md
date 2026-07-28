@@ -8,7 +8,7 @@ Depends on: — (informed by WP-0401, WP-0404, WP-0408)
 Decide, **with measurements rather than reasoning**, whether the per-(emission
 line, reflection) python loop in `model/forward.py` should become a padded
 batched evaluation — and only then write it. The deliverable of this WP is a
-recorded go/no-go plus answers to the three design questions below. The rewrite
+recorded go/no-go plus answers to the four design questions below. The rewrite
 itself is explicitly Phase 2 and out of scope here.
 
 ## Context
@@ -46,6 +46,66 @@ invariant-dense code in the package (frozen-per-stage discreteness, the
 accumulation order that six bit-identity goldens pin, the analytic Jacobian's
 shared expansion). A 2.4× wall-clock win does not license rewriting that on
 faith.
+
+### Measured 2026-07-28 — the hotspot is FCJ, and half of it is redundant
+
+Profiled during v0.6 scoping (see [../solver-survey.md](../solver-survey.md) §0.1
+for the surrounding context and the Amdahl argument). Real SRM 660c acceptance
+fit, full NIST protocol, total ≈1.9 s. Two findings **retarget this WP**.
+
+**(a) The cost is one function, and it is not the profile evaluation.**
+
+| function | calls | tottime | cumtime |
+|---|---|---|---|
+| `profiles/fcj.py::fcj_offsets_weights` | 33 840 | 0.510 s | **0.919 s (48 % of the fit)** |
+| `profiles/pseudovoigt.py::pseudo_voigt_derivs` | 6 480 | 0.221 s | 0.221 s |
+| `crystallography/symmetry.py::generate_reflections` | 7 | 0.187 s | 0.216 s |
+| `profiles/fcj.py::_xi_max` | 34 274 | 0.114 s | 0.155 s |
+| `model/forward.py::derivative_bases` | 108 | 0.146 s | 1.104 s |
+
+`derivative_bases`' own `tottime` is small — the cost is entirely in what it
+calls, and **FCJ node generation alone is ~half the total runtime**. At 27 µs per
+call on arrays of 8-64 nodes this is per-call dispatch, not arithmetic: the
+signature takes a **scalar** `two_theta_deg`, so each of ~140 (line, reflection)
+pairs pays ~15 separate numpy dispatches. The `_clip` (68 557) and `full_like`
+(69 386) counts are the same fact seen from inside. This confirms design question
+2's suspicion and sharpens it: **the batched prototype should be aimed at the FCJ
+node axis first**, which is also (per WP-0408's table above) exactly the axis
+where padding waste is worst — so the two hardest facts about this WP are about
+the same tensor axis.
+
+Also visible: the finite-difference fallback is **not** a cost here (132
+`evaluate` calls against 117 residual calls, so ~15 FD-driven evaluations). And
+`generate_reflections` costs 11 % of runtime in *stage compile*, which is outside
+this WP but is the cheapest win on the page — in a 7-stage plan the cell moves in
+one stage, so six compiles regenerate a bit-identical list.
+
+**(b) 53 % of FCJ calls recompute a result that was already computed.** Counting
+distinct `(2θ, S/L, H/L, n_nodes)` argument tuples, per stage (each stage run
+standalone, so absolute counts do not sum to the chained protocol — the
+*fractions* are the finding):
+
+| stage | FCJ calls | unique | redundant |
+|---|---|---|---|
+| `scale_bkg` | 2 040 | 192 | **90.6 %** |
+| `disp` | 5 280 | 3 264 | 38.2 % |
+| `cell` | 7 980 | 4 992 | 37.4 % |
+| `profile_w` | 4 680 | 192 | **95.9 %** |
+| `profile` | 6 180 | 192 | **96.9 %** |
+| `lines_axial` | 26 880 | 17 088 | 36.4 % |
+| `biso` | 2 580 | 192 | **92.6 %** |
+| **total** | **55 620** | **26 112** | **53.1 %** |
+
+The pattern is exactly what the physics predicts. FCJ nodes depend only on peak
+position and the two aperture ratios, so **in any stage that frees none of cell,
+zero, `sample_displacement`, `axial_sl` or `axial_hl`, they are constant for the
+entire stage** — the 192 unique tuples are simply the complete (line, reflection)
+set. The residual 36-38 % in position-moving stages is trust-region trial points
+being re-evaluated at repeated θ.
+
+That opens a **second, cheaper route to the same win that this WP was not
+scoped to consider**, and it deserves measuring before the batched rewrite is
+costed — see task 0 and design question 4 below.
 
 ### Inherited
 
@@ -97,6 +157,20 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
 
 ## Tasks
 
+- [ ] **Task 0 — measure the cheap alternative first: a stage-scoped FCJ node
+      cache.** Decide at *stage compile* whether any free path in this stage can
+      move a peak (cell, zero, `sample_displacement`, `axial_sl`, `axial_hl`, and
+      any wavelength); if none can, compute the (line, reflection) node sets once
+      per stage and reuse them for every residual and Jacobian call. This is a
+      **dirty flag, not a hash cache** — no hashing in the hot loop, and it is the
+      frozen-per-stage discreteness invariant extended from node *counts* to node
+      *positions*, so it argues from the same principle the existing code already
+      relies on. Measure: whole-fit wall clock on SRM 660c and corundum, and
+      bit-identity against the six `tests/data/backend_goldens/` goldens — which
+      it should achieve **trivially**, since reusing a value is not reordering an
+      accumulation. Expected ceiling ≈1.3× whole-fit; the point is that it is
+      ~1 % of the risk of Phase 2. If this lands most of the win, the honest
+      go/no-go for the batched rewrite changes.
 - [ ] **Prototype** the batched layout for one phase, symmetric peaks only
       (`fcj_n == 0`), against the 11-BM NAC state, in a scratch module or a test
       — **the shipped path is not modified in this WP**. Measure forward time on
@@ -108,11 +182,11 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
       chunking over reflections (precedent: `DEFAULT_CHUNK` in
       `backend/jax_backend.py` / `backend/torch_backend.py`) and bucketing
       reflections by node count.
-- [ ] **Answer the three design questions** (below), in writing, in this file.
+- [ ] **Answer the four design questions** (below), in writing, in this file.
 - [ ] **Record the go/no-go** in the handover log with the measured numbers, and
       either open the Phase-2 WP or close this one with the reason.
 
-### The three design questions
+### The four design questions
 
 1. **Does `window_add` survive, or does the op set have to grow?** The batched
    form needs a padded-window scatter rather than the contiguous-window one.
@@ -136,6 +210,18 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
    fused reduction is not) or whether it needs a re-baseline per
    `tests/data/README.md`. The second is a far larger claim and should not be
    discovered halfway through Phase 2.
+4. **Is the stage-scoped FCJ cache (task 0) a cheaper substitute, or a
+   complement?** The two optimisations attack the same 48 % from opposite ends:
+   caching removes *calls*, batching makes the surviving calls *cheaper*. They
+   compose — whole-fit ceilings are ≈1.3× (cache), ≈1.4× (batch), ≈1.6× (both),
+   against the 1.25× Amdahl ceiling on anything solver work could ever contribute
+   ([../solver-survey.md](../solver-survey.md) §0.1) — but they are wildly
+   asymmetric in risk. Caching changes no accumulation order, adds no backend op,
+   and needs no golden re-baseline; batching touches the most invariant-dense
+   loop in the package and raises all three questions above. **The go/no-go must
+   state whether the ≈1.2× that batching adds *on top of* caching justifies
+   Phase 2**, because that — not the headline 2.4×-at-fixed-work figure — is what
+   Phase 2 actually buys once task 0 has landed.
 
 ## Acceptance
 
@@ -145,9 +231,12 @@ analytic Jacobian's *consumers* in `optimize/least_squares.py`.
 
 A go/no-go recorded in the handover log naming: the measured numpy speedup on
 NAC *and* corundum (the FCJ case is the one at risk), the memory ceiling and the
-chosen mitigation, and a written answer to each of the three questions. **No
+chosen mitigation, the **task-0 cache result measured separately** so the two
+wins can be told apart, and a written answer to each of the four questions. **No
 production code changes in this WP** — if the prototype lands anywhere it is in
-a test or a scratch example.
+a test or a scratch example. (Task 0 is the one candidate that could reasonably
+graduate to production inside this WP rather than Phase 2, since it is additive
+and golden-preserving — but that is a decision to record, not to assume.)
 
 ## References
 
@@ -159,6 +248,17 @@ a test or a scratch example.
 
 ## Handover log
 
+- **2026-07-28** — profiled the real SRM 660c fit during v0.6 solver scoping and
+  added the measurements above, a task 0 and a fourth design question. Two things
+  changed for this WP. First, the target narrowed: the cost is not the peak loop
+  in general but **`fcj_offsets_weights` specifically, at 48 % of the whole fit**,
+  which is the same tensor axis WP-0408 measured as the worst for padding — so
+  the prototype should start there rather than with symmetric peaks, or at least
+  not stop before reaching it. Second, and more importantly, **53 % of those calls
+  are redundant** (91-97 % in stages that free nothing which can move a peak), so
+  a stage-scoped cache may capture much of the win at a small fraction of the
+  risk. That does not retire the batching question; it changes what batching has
+  to justify. Still not started; no code touched.
 - **2026-07-27** — created from WP-0408's follow-up measurements. Scoped
   deliberately as a spike: the ≈2.4× numpy win is real and worth having, but the
   code it touches is the most invariant-dense in the package, and the original
