@@ -1,22 +1,152 @@
 # WP-0601 — TOPAS-style bounded LM solver
 
-Milestone: v0.6 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v0.6 · Status: 🔶 in progress
 Depends on: —
 
-## Scope (carried verbatim from the pre-split roadmap)
+## Goal
 
-- TOPAS-style bounded LM: Gauss-Newton normal equations + adaptive Marquardt
-  λ (Coelho 2018, JAC 51:428) + bound-constrained CG inner solve (Coelho
-  2005, JAC 38:455) + line search — independent implementation from the
-  papers, same driver interface as the scipy path
+A second least-squares driver — Gauss-Newton normal equations, adaptive
+Marquardt λ (Coelho 2018b), bound-constrained conjugate-gradient inner solve
+(Coelho 2005) — selectable as `solver="lm"` at both entry points
+(`run_least_squares`, `run_multi_least_squares`) behind the *same* interface
+scipy TRF uses, so every caller, backend and statistic is unchanged. Its
+deliverable is not speed (the Amdahl bound below caps that at ≈1.25×): it is
+**constraint vocabulary scipy does not have** — an in-loop box, and a linear
+*inequality* on functionals of θ, which is the shape the Stephens strain cone
+needs before any S_HKL can be quoted.
 
-## Context pointers
+## Context
 
-- [../DESIGN.md](../DESIGN.md#minimizer-strategy) — same driver interface as
-  `optimize/least_squares.py`; the scipy TRF path remains the reference.
-- Licensing fence: TOPAS is closed — **papers only**, independent
-  implementation ([../DESIGN.md](../DESIGN.md#locked-decisions)).
-- Milestone acceptance: solver benchmark vs scipy TRF.
+### Where it plugs in
+
+`optimize/least_squares.py` builds two closures — `_make_residual` and
+`_jacobian_for` (which dispatches numpy/jax/torch) — and hands them to
+`scipy.optimize.least_squares(method="trf")`. Both drivers must therefore:
+
+- consume the *same* `residual(θ) → r` and `jacobian(θ) → J` callables, with
+  θ the **internal** (softplus/logit-transformed) free vector and the row
+  layout owned by `model/rows.py`;
+- return an `LSQOutcome`, whose `jac`/`fun` at the solution feed
+  `covariance_estimates` — so the driver must hand back J and r *evaluated at
+  the returned θ*, not at whatever point the last trial step visited;
+- honour `lo, hi = table.bounds()` (internal space; ±inf where a transform
+  already enforces positivity);
+- work with the appended Pawley aux block (θ = [table θ | intensities]) and
+  with the stacked multi-histogram layout.
+
+`run_multi_least_squares` is a **second driver**, not a wrapper — it imports
+the private closures and runs its own TRF call over the stacked rows. A
+`solver=` that only reaches `run_least_squares` leaves multi-histogram silently
+on scipy (WP-0308 note below).
+
+### Sign and scaling conventions (get these wrong and λ is meaningless)
+
+Our residual is r = √w·(y_obs − y_calc) and J = ∂r/∂θ, so **S = rᵀr = χ²** and
+`LSQOutcome.cost_*` is scipy's ½·rᵀr. The Gauss-Newton system is
+
+    A = JᵀJ,   b = −Jᵀr,   A Δθ = b
+
+which is exactly Coelho's eq. (6) (his b_i = Σ w(Y_o−Y_c)·∂Y_c/∂p_i = −Jᵀr,
+his A = ½∇²S, b = −½∇S). λ is added to the diagonal *after* the diagonal
+pre-conditioner A_ii = 1, which is what makes it dimensionless and lets the
+published constants (0.1, 0.4, 10) transfer.
+
+**ΔS_t carries a sign the paper drops.** Coelho 2018b defines r_u = ΔS_t/ΔS
+with ΔS_t = Δpᵀb (his eq. 9 definition list, eq. 10). Taken literally with his
+own b that is *positive* for a descent step while ΔS < 0, giving r_u < 0 for
+every good step — which contradicts both his Table 1 (r_u ≈ 1.003 on a
+near-quadratic step) and his §1.2 claim that S_t(p+Δp) = S(p+Δp) when S is
+quadratic. The self-consistent reading is
+
+    ΔS_t = −Δθᵀb,   r_u = ΔS_t / ΔS,   ΔS = S(θ+Δθ) − S(θ)
+
+for which an exactly linear model gives **r_u ≡ 1** (check: S(θ+Δ) = S −
+2Δᵀb + ΔᵀAΔ, and at the exact GN step Δ = A⁻¹b this is S − Δᵀb, so
+ΔS = −Δᵀb = ΔS_t). That identity is the calibration test — it must hold to
+fp64 round-off on a linear-in-θ fit, and it is the only way to know the
+schedule is being fed the quantity the constants were tuned for. This is the
+same transcription-vs-intent trap the 2005 paper sets with its eq. (1)
+`Max[(k+1)/N_k, 1]` (a no-op as printed; the text says it *reduces* α, so read
+`Min`).
+
+### Amdahl bound — what this WP can and cannot buy
+
+Solver work is a **minority of the runtime**. Measured on this package
+(WP-0605): `derivative_bases` costs ~2× the forward evaluation, and the normal
+-equation solve at our N (tens of parameters, up to ~10³ with Pawley) is far
+below either. Coelho's own numbers say the same at much larger N: a dense
+N = 1325 *solve* drops 484 s → 2.86 s under BCCG while the whole refinement
+only drops 2441 s → 1785 s. So a solver that halved every solve would buy
+≈1.25× overall — quote that ceiling before quoting a benchmark.
+
+Two more consequences for the benchmark:
+
+- **Every pre-0605 wall-clock number is stale** (see Inherited); re-baseline
+  TRF on current main in the same script, same machine, same run.
+- **Fix the stopping rule first.** Coelho 2018b §2.4.2 flags that a loose
+  termination criterion favours the more erratic updater, and compares his
+  largest runs at a *fixed iteration count* instead. Report ΔBIC, not
+  Hamilton's F test (WP-0503: at 7251 channels Hamilton blesses a 0.13 %
+  χ² improvement as readily as a real 6.9 % one; ΔBIC separated them
+  +488 vs −17).
+
+### The two constraint cases
+
+1. **Boxes, in-loop.** Published BCCG clamps a bound-violating parameter
+   *inside* the CG loop and removes it from that loop (not from the
+   least-squares process); it is reinstated at the next outer iteration. This
+   is not cosmetic: on Coelho's Pawley case, clamping *after* the solve
+   reproduces LU exactly (Rwp 4.351 in 84 iterations) while in-loop clamping
+   reaches 3.901 in 16.
+2. **A linear inequality on functionals of θ — the Stephens cone.** σ²(M) =
+   T·θ ≥ 0 per fitted reflection, T constant per stage (`strain_monomials` @
+   the microstrain rows of the constraint block; the DOFs are identity
+   transform, so the cone is linear in the *internal* vector too). **Published
+   BCCG cannot do this** — its own Discussion §4 says a constraint that is a
+   function of several parameters needs "a restraint which modifies the A
+   matrix". So this WP adds a *fraction-to-the-boundary step truncation* on
+   arbitrary linear-inequality rows (the box is the special case T = ±I),
+   which keeps every iterate strictly feasible; it is an extension we own, not
+   a port, and it is documented as such.
+
+   Why it matters: measured on two real round-robin patterns
+   (`tests/test_acceptance_stephens.py`), the unconstrained refinement leaves
+   the cone on **both** — the anisotropic specimen (brucite, 12 of 43
+   reflections) and the isotropic control (corundum) — so
+   `STEPHENS_STRAIN_NOT_POSITIVE` is the normal outcome and the coefficients
+   are never quotable. Turning that guard back into an exception is this WP's
+   headline accuracy result, and the thing Δ Rwp will not show.
+
+   (The ADP positive-definiteness cone is *semidefinite*, not linear — one
+   mechanism does not serve both. Out of scope.)
+
+### Invariants this WP is closest to breaking
+
+- **fp64 normal equations.** cond(JᵀJ) = cond(J)², and this driver forms JᵀJ
+  *explicitly*, so it inherits WP-0403's policy more directly than TRF did.
+  Guard with `require_fp64` / `to_host_fp64` at the assembly, exactly as
+  `covariance_estimates` does; `backend/linalg64.py` is that boundary.
+- **The fp64 cost is what makes reduced-precision columns safe.** Measured
+  (WP-0408): an all-fp32-column MPS refinement lands 3.5e-8 Å from numpy fp64
+  *because the trust region re-measures each step against an fp64 cost*. That
+  is a property of the driver. An LM that accepted a step on a predicted
+  decrease computed from the same reduced quantities would forfeit it — so
+  **S(θ+Δθ) is always a fresh fp64 residual evaluation**, never an
+  extrapolation.
+- **The solver is outside the backend shim** (WP-0401): host numpy, no `xp`
+  routing. It accepts whatever the backend materialised at the boundary.
+- **Do not jitter θ between residual and Jacobian.** The FCJ node memo
+  (WP-0605) keys on exact input equality, so evaluating r and J at the *same*
+  accepted point pays node generation once — TRF gets this today; an LM that
+  evaluated J at a nearby point would silently forfeit ~20 % of the fit.
+
+### Licensing fence
+
+TOPAS is closed source — **papers only**, independent implementation
+([../DESIGN.md](../DESIGN.md#locked-decisions)). Both Coelho papers are on
+hand (MinerU markdown conversions on this machine, `mdfind -name "bound
+constrained conjugate"` / `mdfind -name "Optimum Levenberg"`); no TOPAS code
+was consulted and none may be.
 
 ## Inherited
 
@@ -237,10 +367,80 @@ supplied by the user, set recorded in DESIGN.md's FPA fence note):
   (N_u = 20) instead — fix the 0601 benchmark's stopping rule (and report
   ΔBIC per the WP-0503 note) before running anything.
 
+## Non-goals
+
+- **Replacing TRF as the default.** `solver="trf"` stays the default and the
+  reference; every shipped acceptance number must remain reproducible.
+- **Sparse A / one-column-at-a-time accumulation** (Coelho 2018a §3.1-3.2).
+  We already form J densely for TRF; peak memory is not the constraint at our
+  N. Revisit only if a Pawley problem with 10³ intensities becomes routine.
+- **BFGS-approximated A.** λ_new's large gains (R_ν up to 2.07) are on
+  BFGS-approximated matrices; we have the full analytic J, so approximating it
+  would be trading the WP's own asset for the paper's headline number.
+- **The ADP positive-definiteness cone** — semidefinite, not linear.
+- **K_P/K_R penalty auto-weighting** (Coelho 2018a eqs. 16-17). Our restraint
+  rows carry fixed user weights; changing that is a restraint-design question,
+  not a solver one.
+- **Device/GPU acceleration.** CPU comparison only (WP-0408 note above).
+
 ## Tasks
 
-- [ ] Expand this stub into a full WP before writing code
+- [x] Expand this stub into a full WP before writing code
+- [ ] `optimize/bccg.py` — BCCG linear solver (diagonal pre-conditioner, in-loop
+      box clamping + removal, small-contribution removal, k_max rule), with the
+      `Min` reading of eq. (1) recorded; unit tests vs `np.linalg.solve`
+- [ ] `optimize/lm.py` — bounded LM driver: fp64 normal equations, λ_new
+      schedule, BCCG inner solve, fresh fp64 cost per trial step; `solver=`
+      seam through `run_least_squares` → `Refinement`/`refine`
+- [ ] Multi-histogram entry point (`run_multi_least_squares(solver=…)`)
+- [ ] Linear-inequality rows (fraction-to-the-boundary truncation) + wire the
+      Stephens cone; measure the guard on the two round-robin patterns
+- [ ] `examples/bench_solver.py` — re-baselined TRF vs LM, fixed stopping rule,
+      ΔBIC, on the acceptance protocols
+- [ ] Tests (unit/property; acceptance if this WP carries it) + obs/calc/diff PNGs to `tests/output/`
+- [ ] DESIGN.md minimizer-strategy amendment + handover log + ROADMAP sync
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_bccg.py tests/test_lm_solver.py -q
+.venv/bin/python -m pytest -m "not slow" -q
+.venv/bin/python examples/bench_solver.py
+.venv/bin/python -m ruff check src tests examples
+```
+
+Criteria:
+
+1. BCCG with inactive bounds and the removal scheme off reproduces
+   `np.linalg.solve` on SPD systems (Coelho's own sanity anchor).
+2. r_u ≡ 1 to fp64 round-off on a linear-in-θ model (the ΔS_t sign calibration).
+3. `solver="lm"` lands the same physical answer as TRF on the standards, within
+   the esds that fit reports — not bit-identical (different path), but the same
+   minimum, quoted with ΔBIC.
+4. With the cone wired, a Stephens refinement that fires
+   `STEPHENS_STRAIN_NOT_POSITIVE` under TRF does not fire it under
+   `solver="lm"` — the headline, and invisible in Δ Rwp.
+
+## References
+
+- Coelho, A. A. (2005). *J. Appl. Cryst.* **38**, 455-461 — bound-constrained
+  conjugate gradient (BCCG).
+- Coelho, A. A. (2018). *J. Appl. Cryst.* **51**, 428-435 — optimum
+  Levenberg-Marquardt constant (λ_new).
+- Coelho, A. A. (2018). *J. Appl. Cryst.* **51**, 210-218 — TOPAS architecture
+  (objective assembly, A-matrix handling).
+- Marquardt, D. W. (1963). *J. Soc. Ind. Appl. Math.* **11**, 431-441.
+- Levenberg, K. (1944). *Q. Appl. Math.* **2**, 164-168.
 
 ## Handover log
 
+- **2026-07-28** — stub expanded into a full WP (task 0). Both Coelho papers
+  read in full, not just the digests. Two decisions recorded that the stub left
+  open: (a) **the Stephens cone is in scope**, as a fraction-to-the-boundary
+  truncation on linear-inequality rows — an extension we own, since published
+  BCCG explicitly cannot constrain functionals of several parameters (its §4);
+  (b) **ΔS_t = −Δθᵀb**, not the paper's printed `Δpᵀb`, derived from the
+  quadratic-case identity r_u ≡ 1 and cross-checked against the paper's own
+  Table 1 and its "almost all r_u < 1" distribution — the printed form gives
+  r_u < 0 for every descent step. Next: `optimize/bccg.py`.
 - **2026-07-22** — created as a stub from the ROADMAP split.
