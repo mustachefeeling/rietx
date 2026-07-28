@@ -17,7 +17,9 @@ DATA = Path(__file__).parent / "data"
 WAVELENGTH = 0.4139090
 LIMITS = (2.0, 24.0)
 
-pytestmark = pytest.mark.slow
+#: both tests below run off one Le Bail pass and one Rietveld fit, so the whole
+#: module belongs on the worker that built them
+pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("nac")]
 
 
 @pytest.fixture(scope="module")
@@ -49,14 +51,20 @@ def _caf2_phase() -> pr.Phase:
     )
 
 
-def test_nac_lebail_then_rietveld(nac_inputs):
+@pytest.fixture(scope="module")
+def nac_lebail(nac_inputs):
+    """The single-phase Le Bail pass — the Rietveld model's starting point."""
     data, structure, instrument = nac_inputs
-
     ref_lb = pr.Refinement(structure, instrument)
-    lebail = ref_lb.fit(data, mode="lebail", two_theta_limits=LIMITS)
-    assert lebail.status == "converged"
-    assert lebail.statistics.rwp < 0.20
-    a_lb = ref_lb.fitted_structure.phases[0].cell.a.value
+    return ref_lb, ref_lb.fit(data, mode="lebail", two_theta_limits=LIMITS)
+
+
+@pytest.fixture(scope="module")
+def nac_rietveld(nac_inputs, nac_lebail):
+    """The two-phase Rietveld fit built on it: the Le Bail cell and instrument,
+    the phase scale reset, the CaF₂ impurity appended."""
+    data, _structure, _instrument = nac_inputs
+    ref_lb, _lebail = nac_lebail
 
     structure2 = ref_lb.fitted_structure.model_copy(deep=True)
     instrument2 = ref_lb.fitted_instrument.model_copy(deep=True)
@@ -66,8 +74,16 @@ def test_nac_lebail_then_rietveld(nac_inputs):
     plan = pr.RefinementPlan.mccusker_default()
     plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
     ref = pr.Refinement(structure2, instrument2)
-    result = ref.fit(data, plan=plan, two_theta_limits=LIMITS)
+    return ref, ref.fit(data, plan=plan, two_theta_limits=LIMITS)
 
+
+def test_nac_lebail_then_rietveld(nac_lebail, nac_rietveld):
+    ref_lb, lebail = nac_lebail
+    assert lebail.status == "converged"
+    assert lebail.statistics.rwp < 0.20
+    a_lb = ref_lb.fitted_structure.phases[0].cell.a.value
+
+    ref, result = nac_rietveld
     assert result.status == "converged"
     assert result.statistics.rwp < 0.12
     assert result.statistics.gof < 5.0
@@ -127,7 +143,8 @@ def _min_extinction_factor(structure, instrument, data, ip: int) -> float:
     return float(np.nanmin(E))
 
 
-def test_nac_extinction_on_the_main_phase_is_bounded_and_unbiasing(nac_inputs):
+def test_nac_extinction_on_the_main_phase_is_bounded_and_unbiasing(
+        nac_inputs, nac_rietveld):
     """WP-0506 does-no-harm on synchrotron data, done *right* — extinction
     freed only on the well-determined main phase.
 
@@ -140,23 +157,21 @@ def test_nac_extinction_on_the_main_phase_is_bounded_and_unbiasing(nac_inputs):
     impurity instead lets it run away (measured min E ≈ 0.31, a spurious 69%
     attenuation on a phase contributing ~1% of the pattern) — the
     over-flexible-correction hazard — which is why extinction is off by
-    default and opt-in *per phase*, and why the guards stay live."""
-    data, structure, instrument = nac_inputs
+    default and opt-in *per phase*, and why the guards stay live.
 
-    ref_lb = pr.Refinement(structure, instrument)
-    ref_lb.fit(data, mode="lebail", two_theta_limits=LIMITS)
-    structure2 = ref_lb.fitted_structure.model_copy(deep=True)
-    instrument2 = ref_lb.fitted_instrument.model_copy(deep=True)
-    structure2.phases[0].scale.value = 1e-6
-    structure2.phases.append(_caf2_phase())
+    The extinction stage is *warm-extended* onto the shared Rietveld fit rather
+    than re-run from the Le Bail pass: ``run_stage`` restores the cumulative
+    free set at the converged values and then frees the new stage's globs, which
+    is exactly what an appended stage of the same plan does from the same state.
+    Verified on this dataset before landing — Rwp, a, ext and min E all agree to
+    the last digit of their float64 repr with the from-scratch protocol."""
+    data, _structure, _instrument = nac_inputs
+    ref_base, _rietveld = nac_rietveld
 
-    plan = pr.RefinementPlan.mccusker_default()
-    plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
     # only the main phase — the recommended usage; not the CaF2 impurity
-    plan.stages.append(pr.Stage("extinction", ["phases.0.extinction"], seed=1e-3))
-
-    ref = pr.Refinement(structure2, instrument2)
-    result = ref.fit(data, plan=plan, two_theta_limits=LIMITS)
+    ref = ref_base.branch()
+    result = ref.run_stage(
+        data, pr.Stage("extinction", ["phases.0.extinction"], seed=1e-3))
 
     assert result.status == "converged"
     assert result.statistics.rwp < 0.12
