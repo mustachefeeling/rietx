@@ -41,7 +41,16 @@ jax = ["jax>=0.4.30"]
 # the route to using the forward model as a differentiable layer; nobody
 # running refinements needs it installed.
 torch = ["torch>=2.2"]
+docs = [
+    "sphinx>=7.4",
+    "myst-parser>=3",
+    "sphinxcontrib-bibtex>=2.6",
+    "furo>=2024.1",
+]
 dev = [
+    # the docs extra rides along so tests/test_manual.py actually builds the
+    # theory manual in the standard suite instead of importorskip-ing out
+    "pxrd-refine[docs]",
     "pytest>=8",
     "pytest-cov",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the

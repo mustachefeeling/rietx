@@ -22,4 +22,7 @@ tests/output/
 # backend suites are compile-bound, and the cache is keyed by a content hash
 # of the computation, so it is safe to share between runs and xdist workers.
 tests/.jax_cache/
+# sphinx output for the theory manual (docs/manual/); note the !docs/**/*.html
+# un-ignore above would otherwise commit every built page.
+docs/manual/_build/
 .DS_Store
