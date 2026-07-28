@@ -288,9 +288,13 @@ Every point above landed, and two of them changed the design:
       protocol fidelity (GSAS's `.EXP` `HST 1ABSCOR … N` proves it held the
       correction off — mirror that); qarr as the measurement, µ-contrast
       `fluorite`/`cpd-1a` (low µ) vs `magnetit` (µ ≈ 1165)
-- [x] If and only if the qarr measurement supports it: re-derive
-      `test_sample1_bias_has_the_microabsorption_shape`, documenting the
-      measured evidence in the test docstring and `tests/data/README.md`
+- [x] If and only if the qarr measurement supports it: re-derive the sample-1
+      bias-shape test, documenting the measured evidence in the test docstring
+      and `tests/data/README.md`. It did not — roughness is unconstrained by
+      these patterns — so the test was left alone. (WP-0504 subsequently *did*
+      re-derive it and renamed it
+      `test_sample1_bias_has_the_dispersion_shape`; this WP's negative result
+      is what makes that attribution unambiguous.)
 - [x] Pitschke `kind`: `R = 1 − c·(τ/sinθ)(1 − τ/sinθ)`, same test battery,
       plus `ROUGHNESS_OUTSIDE_REGIME` and a property test that the turnover and
       the R > 1 region are *fenced, not silently fitted*

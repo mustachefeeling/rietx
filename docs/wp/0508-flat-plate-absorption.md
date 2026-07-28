@@ -152,6 +152,30 @@ apply here directly:
   *placement*, not this), but it undermines the correlation guard exactly where
   this WP will be working. Worth its own fix first.
 
+From **WP-0504** (anomalous f′/f″, landed 2026-07-27) — it touched
+`crystallography/attenuation.py`, which this WP reuses for µt:
+
+- **µ stays on McMaster; do not re-source it from f″.** 0504 bundled a
+  Cromer-Liberman f′/f″ table, and the optical theorem
+  (σ_photo = 2·r_e·λ·f″, `dispersion.photoabsorption_barn`) makes it look like
+  µ could come from there instead. It cannot: f″ is **photoabsorption only**,
+  while beam removal needs the total cross section, and the Rayleigh + Compton
+  gap is largest for **light** elements (photoabsorption ~Z⁴, Rayleigh ~Z²) —
+  exactly where WP-0305 flagged McMaster as weakest. Re-sourcing would trade
+  one small error for another.
+- **New helper:** `attenuation.photoelectric_cross_section` exposes the
+  photoelectric column separately (0504 split the shared interpolator out as
+  `attenuation._interpolate`). The edge-refusal behaviour WP-0305 described is
+  unchanged and now lives there — so a wavelength on an absorption edge still
+  raises for `total_cross_section` exactly as before.
+- **The two tabulations cross-check each other** to 0.04–5.4 % over Z = 8→57 at
+  Cu Kα (`test_dispersion.py::test_f_double_prime_reproduces_the_mcmaster_photoabsorption`).
+  If a flat-plate absorption result ever disagrees with another code by more
+  than that, the µ table is not the explanation.
+- **A dispersion block does not change µ, and µ does not change f′/f″.** They
+  are independent inputs that happen to share a physical origin; nothing in
+  `Source.dispersion` feeds `Geometry`, and nothing should.
+
 ## Non-goals
 
 - Thick-specimen Bragg-Brentano reflection (exactly degenerate — see above).

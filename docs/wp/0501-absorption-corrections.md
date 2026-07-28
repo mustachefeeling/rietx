@@ -177,6 +177,12 @@ WP needs only `exp`, `sin`, `radians`, `asarray`, so it adds none.
   *algorithm-level* consistency.
 - Microabsorption (WP-0305, already landed) and surface roughness (WP-0502).
 
+## Landed after this WP shipped
+
+Not `### Inherited` — that section is a channel to work that has not started,
+and this WP is done. These are audit notes for anyone reading 0501 later; each
+one's *forward*-reference went to a still-open WP, named below.
+
 From **WP-0502** (surface roughness, landed 2026-07-27) — landed in parallel
 with this WP and in the geometry it fenced out, so its forward-references were
 written into **[WP-0508](0508-flat-plate-absorption.md)** rather than here: this
@@ -187,6 +193,27 @@ multiplicative correction is trivially ~0.96 "scale-like", so only the partial
 R² carries signal); a correction must be judged at reflection positions, not on
 the fitted grid; and a pre-existing `|ρ| > 1` in the reported correlation matrix
 shows up wherever conditioning is poor.
+
+From **WP-0504** (anomalous f′/f″, landed 2026-07-27) — three things, one of
+which is a trap. Its forward-reference went to
+**[WP-0508](0508-flat-plate-absorption.md)**, which is the not-yet-started WP
+that will reuse `attenuation.py` next.
+
+* **µ stays on McMaster; do not switch it to f″.** 0504 bundled a
+  Cromer-Liberman f′/f″ table and the optical theorem (σ_photo = 2·r_e·λ·f″,
+  `dispersion.photoabsorption_barn`) makes it *look* like µ could be re-sourced
+  from it. It cannot: f″ gives **photoabsorption only**, while beam removal
+  needs the total, and the Rayleigh + Compton gap is largest for **light**
+  elements (photoabsorption ~Z⁴, Rayleigh ~Z²) — exactly where 0305 flagged
+  McMaster as weakest. The decision, and the measured numbers, are in 0504.
+* **New helper, use it:** `attenuation.photoelectric_cross_section` now exposes
+  the photoelectric column separately (0504 split it out of the shared
+  interpolator). The edge-refusal behaviour 0305 described is unchanged and now
+  lives in `attenuation._interpolate`.
+* **The two tables cross-check each other** to 0.04–5.4 % over Z = 8→57 at Cu
+  Kα (`test_dispersion.py::test_f_double_prime_reproduces_the_mcmaster_photoabsorption`).
+  If an absorption correction ever disagrees with an independent code by more
+  than that, the tabulation is not the explanation.
 
 ## Tasks
 

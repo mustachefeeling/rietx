@@ -172,6 +172,26 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   than bounds — and measured on real data it fires on isotropic and anisotropic
   specimens alike, so read it as "these coefficients are not quotable", never as
   evidence *of* anisotropy.
+- **Anomalous scattering is opt-in per source** (`Source.dispersion`, f = f₀ +
+  f′ + i·f″ from bundled Cromer-Liberman `data/f1f2_CromerLiberman.dat`), and
+  the load-bearing part is *not* that f goes complex — F always was. It is that
+  `generate_reflections` merges ±h into one Laue orbit and evaluates a single
+  representative, which is exact only while f is real: with f″ ≠ 0 in a
+  non-centrosymmetric group |F(h)|² ≠ |F(−h)|², and both land in the *same*
+  powder peak. So `structure_factors_squared` returns the **Friedel average**,
+  in the exact closed form ⟨|F|²⟩ = |A|² + |B|² with A carrying f₀+f′ and B
+  carrying f″ over the *same* orbit sums — no second orbit pass, no
+  centro/non-centro case split, and B ≡ 0 recovers |F|² bit-identically (which
+  constrains the fp *association order* in `_orbit_terms`, not just the
+  algebra). f′/f″ are frozen at stage compile onto `PhaseSites.f_anom`: they
+  depend only on species and λ, and `EmissionLine.wavelength` is a plain float,
+  so they can never be a function of θ. One |F|² is shared across emission
+  lines, *guarded* rather than smeared — `dispersion.resolve` raises when a line
+  differs from the primary by more than 1 % of Z (an edge between them). Near an
+  edge the table is wrong in principle, not merely coarse, so that is refused
+  too and `Dispersion.overrides` takes measured pairs. Default **off** so every
+  shipped acceptance number stays valid; `DISPERSION_NEGLECTED` makes "off"
+  loud. Ions resolve to the element (core-level effect), unlike ionic f₀.
 - History nodes store **state, not curves** (a node is ~10 kB; embedding
   y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
   measured on a model frozen at the values each stage *started* from — so

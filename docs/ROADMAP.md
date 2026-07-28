@@ -59,14 +59,19 @@ Poisson likelihoods, exact Hessians, the model as a torch layer) is recorded in
 [DESIGN.md](DESIGN.md#what-the-differentiable-core-unlocks-deferred-not-planned)
 — deferred, not planned.
 
-**Now: v0.5 — corrections & microstructure.** Three rows landed 2026-07-27 in
+**Now: v0.5 — corrections & microstructure.** Four rows landed 2026-07-27 in
 parallel and were merged: [0501](wp/0501-absorption-corrections.md) (capillary
-absorption), [0502](wp/0502-surface-roughness.md) (surface roughness) and
-[0503](wp/0503-stephens-anisotropic-strain.md) (Stephens anisotropic strain,
-taken out of order — its own note is below). They are orthogonal in the peak
+absorption), [0502](wp/0502-surface-roughness.md) (surface roughness),
+[0503](wp/0503-stephens-anisotropic-strain.md) (Stephens anisotropic strain) and
+[0504](wp/0504-anomalous-scattering-xraydb.md) (anomalous f′/f″) — the last two
+taken out of order; each has its own note below. They are orthogonal in the peak
 chain — 0501 and 0502 act on intensity in geometries that exclude each other
-(capillary vs flat-plate), 0503 on widths — which is why the merges were clean.
-The remaining v0.5 rows are still stubs — expand one before writing code.
+(capillary vs flat-plate), 0504 on |F|², 0503 on widths — which is why the
+merges were clean. **[0505](wp/0505-sequential-refinement.md) (sequential warm
+start) and [0507](wp/0507-anode-wavelengths.md) (anode wavelengths) are what
+remain** before the v0.5 row can flip, plus [0508](wp/0508-flat-plate-absorption.md),
+which 0501 split out and which needs a capillary dataset the repo does not have.
+All three are stubs — expand one before writing code.
 
 **0502 (surface roughness)** is the flat-plate counterpart to 0501, and lands
 the same shape: an opt-in `Geometry.surface_roughness` block with two published
@@ -99,8 +104,11 @@ Three findings worth carrying forward:
   two of three qarr phases collapse to the identity and raise
   `ROUGHNESS_UNCONSTRAINED`, the third slides along the roughness↔Biso
   degenerate direction for 0.0001 in Rwp with ρ(a,b) = +1.000. Roughness is
-  therefore **not** a competing explanation for the sample-1 QPA bias, and
-  `test_sample1_bias_has_the_microabsorption_shape` was left as it was.
+  therefore **not** a competing explanation for the sample-1 QPA bias, and 0502
+  left that shape test alone. WP-0504 later found what *is* the explanation
+  (neglected anomalous scattering) and renamed it
+  `test_sample1_bias_has_the_dispersion_shape` — 0502's negative result is what
+  makes that attribution clean instead of one of two candidates.
 
 0501 narrowed its own scope on evidence. Cylindrical only: flat-plate reflection
 off a thick specimen is *exactly* angle-independent (ITC Table 6.3.3.1(1a),
@@ -260,6 +268,31 @@ test is useless at 7251 channels — it blesses an inert 0.13 % χ² improvement
 so ΔBIC is the statistic to quote ([1001](wp/1001-validation-matrix.md)
 `### Inherited`).
 
+**Out of order: anomalous scattering
+[0504](wp/0504-anomalous-scattering-xraydb.md) landed 2026-07-27** (v0.5, same
+session as 0503; and it supplies the explanation 0502 went looking for and
+correctly declined to claim). `Source.dispersion` is an opt-in block applying f′ + i·f″ from
+a bundled Cromer-Liberman table (`data/f1f2_CromerLiberman.dat`, DABAX/MIT,
+Kissel-Pratt-corrected — **not** xraydb, which needs sqlalchemy, and **not**
+Chantler, whose DABAX file carries an ESRF-only restriction over a live NIST SRD
+copyright). The load-bearing piece is not that f goes complex — F was already
+complex — but that a powder measures the **Friedel average**: `generate_reflections`
+merges ±h into one orbit and evaluates one representative, which is exact only
+while f is real. The closed form ⟨|F|²⟩ = |A|² + |B|² (A carrying f₀+f′, B
+carrying f″, over the *same* orbit sums) is exact, needs no second orbit pass and
+no centro/non-centro split, and reduces bit-identically when the block is absent.
+The acceptance **re-derives a v0.3 conclusion**: refitting the eight IUCr
+round-robin sample-1 mixtures under the identical protocol takes the QPA error
+from RMS 2.26 → **0.69 wt %** and worst |ΔW| 5.13 → **1.39**, so the signed bias
+v0.3 attributed to microabsorption is mostly neglected dispersion (the giveaway
+was fluorite coming back *high*, which microabsorption could not explain). Its
+sharpest single result is elsewhere: on pure ZnO, Rwp barely moves but B(O) goes
+from 0.022 to 0.429 Å² — a displacement parameter that had been spent absorbing
+Zn's missing f′. The default stays **off** so every shipped acceptance number
+remains valid; flipping it is a re-measurement of the validation matrix
+([1001](wp/1001-validation-matrix.md) `### Inherited`), and per-anode dispersion
+checks are written into [0507](wp/0507-anode-wavelengths.md).
+
 **Out of order, landed 2026-07-27: v0.5 surface roughness
 [0502](wp/0502-surface-roughness.md)** — backend-independent, so it neither
 blocks nor depends on the 0404 → 0408 chain. `Geometry.surface_roughness` is an
@@ -284,7 +317,10 @@ of three qarr phases drive the correction back to the identity and raise
 `ROUGHNESS_UNCONSTRAINED`; the third slides along the roughness↔Biso degenerate
 direction for 0.0001 in Rwp, with ρ(a,b) = +1.000 and esds 350× the values. So
 roughness is **not** a competing explanation for the sample-1 QPA bias, and
-`test_sample1_bias_has_the_microabsorption_shape` is left as it was.
+0502 left that shape test alone. **0504 then found what is** — neglected
+anomalous scattering — and renamed it
+`test_sample1_bias_has_the_dispersion_shape`; 0502's negative result is what
+makes that attribution clean rather than one of two candidates.
 
 Three things this WP exports downstream (all written into WP-0501's
 `### Inherited`): `optimize.statistics.block_projection_r2` with its
@@ -345,7 +381,7 @@ matrix under poor conditioning, which undermines the correlation guard that both
 | [0501](wp/0501-absorption-corrections.md) | Capillary (cylindrical) absorption | ✅ 2026-07-27 | — |
 | [0502](wp/0502-surface-roughness.md) | Surface roughness (Suortti + Pitschke) | ✅ 2026-07-27 | — |
 | [0503](wp/0503-stephens-anisotropic-strain.md) | Stephens anisotropic strain | ✅ 2026-07-27 | — |
-| [0504](wp/0504-anomalous-scattering-xraydb.md) | Anomalous f′,f″ via xraydb | ⬜ | — |
+| [0504](wp/0504-anomalous-scattering-xraydb.md) | Anomalous f′,f″ (bundled Cromer-Liberman, not xraydb) | ✅ 2026-07-27 | — |
 | [0505](wp/0505-sequential-refinement.md) | SequentialRefinement warm start | ⬜ | — |
 | [0506](wp/0506-secondary-extinction.md) | Secondary extinction (Sabine) | ✅ 2026-07-23 | — |
 | [0507](wp/0507-anode-wavelengths.md) | Additional anode wavelengths (Co/Cr/Fe/Mo/Ag) | ⬜ | — |
