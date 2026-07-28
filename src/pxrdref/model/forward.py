@@ -113,6 +113,49 @@ WINDOW_MIN_DEG = 0.3
 #: zero-node profile
 AXIAL_SIZING_FLOOR = 0.02
 
+def _cached_fcj_nodes(cp: "CompiledPhase", il: int, k: int, variant: int,
+                      two_theta_deg, sl, hl, n_nodes: int):
+    """``fcj_offsets_weights`` memoised per (line, reflection, call variant) on
+    exact input equality (WP-0605 task 0).
+
+    Each slot remembers the last ``(2θ, S/L, H/L)`` it was evaluated at and the
+    nodes that came back; it is reused iff all three compare bit-equal, else
+    recomputed and replaced.  Equal inputs give bit-equal outputs (the function
+    is deterministic), so a hit can never be stale and a reused value is not a
+    reordered accumulation — the six backend goldens stay bit-identical by
+    construction.  This is *not* a hash of θ: three float compares against the
+    node generation they guard (~15 numpy dispatches, ~27 µs measured).
+
+    Why input equality rather than the stage-scoped dirty flag first proposed:
+    the shipped plans free parameters *cumulatively* (strategy/staged.py), so
+    once a position mover is freed every later stage carries it and a
+    per-stage flag almost never clears (measured: 5 % of calls on the SRM 660c
+    protocol, none on corundum).  The redundancy is really *within-iteration*
+    — the residual and the Jacobian evaluate at the same θ, and FD
+    perturbations of non-position parameters leave the nodes untouched — which
+    input equality captures wherever it occurs, static stage or not.
+
+    ``variant`` separates the four evaluation points ``derivative_bases``
+    needs (0 = base, shared with the forward evaluation; 1 = pos+h;
+    2 = sl+h; 3 = hl+h) so they occupy distinct slots.  The numpy-name gate
+    keeps traced (jax/torch) evaluations honest: they run this same code under
+    ``backend.traced.active`` with tracer arguments, and a tracer deposited
+    here would leak into later numpy calls (while a cached numpy array would
+    silently constant-fold the node positions out of a trace).
+    """
+    cache = cp.fcj_cache
+    if cache is None or get_backend().name != "numpy":
+        return fcj_offsets_weights(two_theta_deg, sl, hl, n_nodes)
+    tt, s, h = float(two_theta_deg), float(sl), float(hl)
+    key = (il, k, variant)
+    hit = cache.get(key)
+    if hit is not None and hit[0] == tt and hit[1] == s and hit[2] == h:
+        return hit[3], hit[4]
+    phi, omega = fcj_offsets_weights(two_theta_deg, sl, hl, n_nodes)
+    cache[key] = (tt, s, h, phi, omega)
+    return phi, omega
+
+
 #: two reflections are treated as "strongly overlapped" for Pawley conditioning
 #: when their primary-line centres sit within this fraction of their mean FWHM
 PAWLEY_OVERLAP_FWHM_FRAC = 0.5
@@ -158,6 +201,12 @@ class CompiledPhase:
     # block.  σ²(M) = monomials @ S is the only hkl-dependent piece; the
     # d-spacings that turn it into a width move with the cell at evaluation.
     strain_monomials: np.ndarray | None = None
+    # FCJ node memo (WP-0605 task 0): {(il, k, variant) → (2θ, S/L, H/L,
+    # 2φ_q, ω_q)}, each slot reused iff the three inputs compare bit-equal —
+    # see ``_cached_fcj_nodes`` for why this is input equality rather than a
+    # stage-scoped dirty flag, and why a hit can never be stale.  None (no FCJ
+    # nodes this stage) keeps the hot loop exactly as before; numpy path only.
+    fcj_cache: dict[tuple[int, int, int], tuple] | None = None
 
 
 @dataclass
@@ -535,7 +584,7 @@ class CompiledModel:
             return xp.where(finite, self._profile(x - pos_safe, gamma_k, eta_k), 0.0)
         # FCJ images computed at the apparent position: the ≤0.1° detector
         # shifts change the aberration geometry negligibly (≪ node spacing)
-        phi, omega = fcj_offsets_weights(pos_safe, sl, hl, n_fcj)
+        phi, omega = _cached_fcj_nodes(cp, il, k, 0, pos_safe, sl, hl, n_fcj)
         prof = omega @ self._profile(x[None, :] - phi[:, None], gamma_k, eta_k)
         return xp.where(finite, prof, 0.0)
 
@@ -724,8 +773,8 @@ class CompiledModel:
         return path.startswith("instrument.source.lines.")
 
     def derivative_bases(self, values: dict[str, float],
-                         intensities: list[np.ndarray] | None = None
-                         ) -> "DerivativeBases":
+                         intensities: list[np.ndarray] | None = None,
+                         axial_derivs: bool = True) -> "DerivativeBases":
         """Per-(phase, line, reflection) analytic profile-derivative bases.
 
         For each peak on its frozen window this computes Ω and the exact
@@ -745,6 +794,15 @@ class CompiledModel:
         nodes exist — the parameterisation is discontinuous there (FCJ's
         overlap trapezoid has zero height) and the axial columns must fall
         back to plain FD.
+
+        ``axial_derivs=False`` skips the two aperture node-FD evaluations and
+        leaves every ∂Ω/∂sl, ∂Ω/∂hl entry ``None`` (WP-0605 task 0): they
+        exist only to build the axial S/L, H/L Jacobian columns, so a caller
+        that will not build them — ``_make_jacobian`` in any stage where
+        neither axial parameter is free — should not pay two FCJ node
+        generations per (line, reflection) per iteration for them.  The
+        default keeps the full contract for the FitReport consumers
+        (report/layer1.py reads ∂Ω/∂sl unconditionally).
         """
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
@@ -772,7 +830,8 @@ class CompiledModel:
                         continue
                     if sl <= 0.0 or hl <= 0.0:
                         axial_ok = False
-                    phi, om = fcj_offsets_weights(float(pos[k]), sl, hl, n_fcj)
+                    phi, om = _cached_fcj_nodes(cp, il, k, 0,
+                                                float(pos[k]), sl, hl, n_fcj)
                     pv, d_dx, d_dg, d_de = self._profile_derivs(
                         x[None, :] - phi[:, None], float(gamma[k]), float(eta[k]))
                     omega = om @ pv
@@ -784,19 +843,22 @@ class CompiledModel:
                             return None  # crossed the symmetric fallback
                         return (phi1 - phi), (om1 - om)
 
-                    d = node_diff(*fcj_offsets_weights(float(pos[k]) + h_pos, sl, hl, n_fcj))
+                    d = node_diff(*_cached_fcj_nodes(
+                        cp, il, k, 1, float(pos[k]) + h_pos, sl, hl, n_fcj))
                     if d is None:
                         d_pos = -(om @ d_dx)  # pure-translation approximation
                     else:
                         dphi, dom = d[0] / h_pos, d[1] / h_pos
                         d_pos = (dom @ pv) - ((om * dphi) @ d_dx)
                     d_sl = d_hl = None
-                    if axial_ok:
-                        d = node_diff(*fcj_offsets_weights(float(pos[k]), sl + h_ax, hl, n_fcj))
+                    if axial_ok and axial_derivs:
+                        d = node_diff(*_cached_fcj_nodes(
+                            cp, il, k, 2, float(pos[k]), sl + h_ax, hl, n_fcj))
                         if d is not None:
                             dphi, dom = d[0] / h_ax, d[1] / h_ax
                             d_sl = (dom @ pv) - ((om * dphi) @ d_dx)
-                        d = node_diff(*fcj_offsets_weights(float(pos[k]), sl, hl + h_ax, n_fcj))
+                        d = node_diff(*_cached_fcj_nodes(
+                            cp, il, k, 3, float(pos[k]), sl, hl + h_ax, n_fcj))
                         if d is not None:
                             dphi, dom = d[0] / h_ax, d[1] / h_ax
                             d_hl = (dom @ pv) - ((om * dphi) @ d_dx)
@@ -1127,6 +1189,11 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
 
         cp = CompiledPhase(reflections=refl, sites=sites, win=win, fcj_n=fcj_n,
                            strain_monomials=strain_monomials)
+        # WP-0605 task 0: the FCJ node memo needs no free-path analysis —
+        # correctness rests on input equality alone — so it is allocated
+        # whenever any peak has quadrature nodes at all.
+        if fcj_on and fcj_n.any():
+            cp.fcj_cache = {}
         if mode in ("lebail", "pawley"):
             cp.hkl_intensity = np.full(n, max(float(np.median(y_obs)), 1.0))
         if mode == "pawley":
