@@ -173,9 +173,13 @@ states defined in `tests/test_backend_shim.py`.  The first five (`srm660c`,
 macOS arm64 Accelerate).  `toy_restraints` was added by WP-0406 (soft-restraint
 penalty rows) from the green post-WP-0406 tree — a *new* baseline, so the
 existing five were not re-captured.  `toy_stephens` (WP-0503, hkl-dependent
-anisotropic-strain widths) and `toy_capillary` (WP-0501, cylindrical absorption)
-were added the same way, each from its own green tree and each capturing only
-the new state — the earlier goldens were left untouched both times.
+anisotropic-strain widths), `toy_capillary` (WP-0501, cylindrical absorption)
+and `toy_roughness` (WP-0502, Bragg-Brentano Suortti surface roughness: an `exp`
+of a reciprocal `sin`, folded into `phase_peaks` and both analytic column
+builders) were added the same way, each from its own green tree and each
+capturing only the new state — the earlier goldens were left untouched every
+time.  `toy_capillary` and `toy_roughness` are deliberately a pair: one locks
+the capillary intensity factor, the other the flat-plate one.
 `test_backend_shim.py` asserts the current
 tree reproduces each **bit-for-bit** (`np.array_equal`) — the acceptance gate
 for "nothing here may change a single computed number on the numpy path".

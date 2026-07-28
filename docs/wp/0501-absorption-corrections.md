@@ -177,6 +177,17 @@ WP needs only `exp`, `sin`, `radians`, `asarray`, so it adds none.
   *algorithm-level* consistency.
 - Microabsorption (WP-0305, already landed) and surface roughness (WP-0502).
 
+From **WP-0502** (surface roughness, landed 2026-07-27) — landed in parallel
+with this WP and in the geometry it fenced out, so its forward-references were
+written into **[WP-0508](0508-flat-plate-absorption.md)** rather than here: this
+WP had already shipped by the time 0502 signed off, and `### Inherited` on a
+shipped WP reaches nobody. The short version, for anyone auditing 0501 itself:
+`optimize/statistics.block_projection_r2` gained a **nuisance** argument (any
+multiplicative correction is trivially ~0.96 "scale-like", so only the partial
+R² carries signal); a correction must be judged at reflection positions, not on
+the fitted grid; and a pre-existing `|ρ| > 1` in the reported correlation matrix
+shows up wherever conditioning is poor.
+
 ## Tasks
 
 - [x] Expand this stub into a full WP before writing code
