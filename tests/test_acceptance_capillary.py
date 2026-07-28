@@ -65,7 +65,9 @@ PACKING_FRACTION = 0.5
 #: reference only — see the module docstring on why it cannot be an anchor.
 A_CERTIFICATE = 4.1569162
 
-pytestmark = pytest.mark.slow
+#: every test here consumes a module fixture, so the module pins to the worker
+#: that built them
+pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("capillary")]
 
 
 def _structure() -> pr.Structure:
@@ -209,7 +211,7 @@ def test_fit_quality_and_the_circular_cell(corrected):
     assert report.n_regions_total > 10
 
 
-def test_the_absorption_shift_is_independent_of_dispersion():
+def test_the_absorption_shift_is_independent_of_dispersion(plain):
     """Absorption and anomalous dispersion bias the same parameters, separately.
 
     Dispersion moves B(La) by −0.044 Å² here — 2.6× the absorption effect and
@@ -217,6 +219,9 @@ def test_the_absorption_shift_is_independent_of_dispersion():
     dispersion-free model could not tell an exact reparameterisation from one
     that happened to fit this particular model.  Re-measuring the identity on
     top of a *different* model is what makes "exact" mean exact.
+
+    The dispersion-free reference is the ``plain`` fixture: this test used to
+    call ``_fit(capillary=False)`` again, which is that fixture's body verbatim.
     """
     ref_a, _res_a = _fit(capillary=False, dispersion=True)
     ref_b, res_b = _fit(capillary=True, dispersion=True)
@@ -226,7 +231,7 @@ def test_the_absorption_shift_is_independent_of_dispersion():
 
     # and dispersion itself is doing something substantial and opposite on La,
     # which is what makes the check above non-trivial
-    ref_nodisp, _ = _fit(capillary=False)
+    ref_nodisp, _ = plain
     b_la_disp, b_la_plain = _bisos(ref_a)[0], _bisos(ref_nodisp)[0]
     assert b_la_disp - b_la_plain < -2.0 * predicted, (
         f"dispersion moved B(La) by {b_la_disp - b_la_plain:.4f}, expected ≈ −0.044")
