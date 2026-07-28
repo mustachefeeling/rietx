@@ -18,4 +18,8 @@ htmlcov/
 # committed, so ignore the directory rather than the extensions that happen
 # to land in it.
 tests/output/
+# jax's persistent compile cache (tests/conftest.py points JAX at it): the
+# backend suites are compile-bound, and the cache is keyed by a content hash
+# of the computation, so it is safe to share between runs and xdist workers.
+tests/.jax_cache/
 .DS_Store
