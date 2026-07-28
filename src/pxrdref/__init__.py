@@ -1,5 +1,6 @@
 """pxrd-refine: API-first Rietveld refinement of powder X-ray diffraction data."""
 
+from . import agent
 from .crystallography.cif import format_su
 from .history import RefinementTree
 from .io.exporters import (
@@ -34,6 +35,7 @@ from .strategy.staged import RefinementPlan, Stage
 __all__ = [
     "AnisoU",
     "Atom",
+    "agent",
     "Cell",
     "FitReport",
     "HistoryNode",
