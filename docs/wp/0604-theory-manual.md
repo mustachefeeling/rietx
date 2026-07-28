@@ -1,21 +1,104 @@
 # WP-0604 — Sphinx + MyST theory manual
 
-Milestone: v0.6 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v0.6 · Status: 🔶 in progress
 Depends on: —
 
-## Scope (carried verbatim from the pre-split roadmap)
+## Goal
 
-- Sphinx + MyST theory manual: numbered equations cross-referenced from
-  docstrings (sphinxcontrib-bibtex)
+A buildable Sphinx + MyST theory manual under `docs/manual/` that organises the
+physics already derived in the code's docstrings into numbered, cross-referenced
+equations with a sphinxcontrib-bibtex bibliography — and that structurally
+*cannot* drift from the code: every threshold it quotes is injected from the
+live package at build time, every equation names the source symbol whose
+docstring it transcribes, and guard tests fail the suite when either link
+breaks.
 
-## Context pointers
+## Context
 
-- The raw material already exists by invariant: every physics function cites
-  author/year/journal in its docstring. The manual organises those citations
-  into numbered equations; it must not become a second, divergent source of
-  the formulas.
+The raw material already exists by invariant: every physics function cites
+author/year/journal in its docstring, and the heavyweight derivations
+(absorption 145 lines, Stephens 54, dispersion 54, structure-factor Friedel
+average 47, FCJ 43, LM sign-error correction 57, linalg64 precision policy 45,
+March-Dollase 56, extinction 58 …) are already manual-quality prose *in the
+modules*. The manual's job is organisation, typeset equations, and the
+convention warnings — not re-derivation. The design rule, from the Brindley
+incident below: **the manual transcribes from code and docstrings, never from
+WP prose, and where it would restate a derivation it points at the docstring
+instead.**
 
-## Inherited
+Design decisions (made at expansion, 2026-07-29):
+
+- **Location**: `docs/manual/` (MyST `.md` sources + `conf.py` +
+  `references.bib`), building to `docs/manual/_build` (gitignored). Planning
+  docs in `docs/` are untouched.
+- **Dependencies**: a new `[docs]` extra — `sphinx`, `myst-parser`,
+  `sphinxcontrib-bibtex`, `furo` — included into `[dev]` by self-reference so
+  the guard tests actually run in the standard suite rather than skipping.
+- **Numbered equations**: MyST `{math}` directives with `:label:`; referenced
+  with `{eq}` roles. Numbering is per-chapter and automatic.
+- **Cross-reference direction is manual → docstring.** Each displayed equation
+  carries a `*Source:* ``pxrdref.module.symbol``` line naming the docstring it
+  was transcribed from. The reverse direction (editing 40 modules' docstrings
+  to name manual equation numbers) was rejected: it couples every physics
+  module to the manual's numbering and would go stale on every reorganisation.
+  A guard test imports every named symbol, so a rename breaks the build's
+  tests, not the reader's trust.
+- **Thresholds and fenced constants are never typed into the manual.**
+  `conf.py` imports the live package and exposes them as MyST substitutions
+  (`{{ BRINDLEY_MU_R_FENCE }}`, `{{ CYLINDER_MU_R_MAX }}`, …); an undefined
+  substitution is a warning and the build runs `-W`. This is the executable
+  form of the Brindley lesson.
+- **No autodoc.** The docstrings use unicode math and prose conventions that
+  reST rendering would mangle under `-W`; the manual points at symbols, and
+  the reader opens the module. An API reference is a different document with
+  different failure modes (WP-1003's problem, not this one).
+- **Build must be `-W` clean** (warnings are errors), and `sphinx-build` runs
+  in the fast test suite via subprocess (build is seconds for ~12 pages;
+  `pytest.importorskip("sphinx")` keeps environments without the extra green).
+
+Chapter plan (bibliography keys from the docstring citations; the inventory
+that produced this plan is reproducible by grepping `src/` for years/journals):
+
+0. Front matter — how to read this manual; code-is-authoritative rule.
+1. The forward model — Rietveld sum, Le Bail fixed point, Pawley block;
+   residual row layout (`model/forward.py`, `model/rows.py`).
+2. Peak positions — G\*, Bragg's law, zero/displacement/transparency
+   (`crystallography/lattice.py`, `model/corrections.py`).
+3. Peak profiles — Caglioti split with the variance-vs-FWHM addition rules,
+   TCH pseudo-Voigt, true Voigt via Weideman Faddeeva, FCJ axial divergence
+   incl. the ξ substitution and the S/L = H/L corner
+   (`model/profiles/*.py`).
+4. Intensities — Waasmaier-Kirfel f₀, Cromer-Liberman f′/f″ with the Kissel-
+   Pratt correction, Debye-Waller in the three ADP representations, the exact
+   Friedel-average ⟨|F|²⟩ = |A|² + |B|², multiplicity by Laue-orbit counting
+   (`crystallography/{scattering,dispersion,adp,structure_factor,symmetry}.py`).
+5. Intensity corrections — Lp, capillary and flat-plate absorption (with the
+   A vs A\* = 1/A convention paragraph and the two different "off" states),
+   surface roughness (Suortti, Pitschke), secondary extinction (Sabine),
+   March-Dollase with the geometry-dependent sense of r, Brindley
+   microabsorption and Hill-Howard QPA
+   (`model/{corrections,absorption,extinction,preferred_orientation}.py`,
+   `optimize/qpa.py`).
+6. Microstructure — size/strain θ-laws documented by physics not letters;
+   Stephens anisotropic strain with all three labelling conventions stated
+   (FWHM not σ; 10⁻¹² Å⁻⁴ units; literal monomials)
+   (`model/profiles/caglioti.py`, `crystallography/stephens.py`).
+7. Background — additive models, P-spline penalty rows, arPLS/SNIP estimators,
+   masked-BIC + Durbin-Watson selection (`background/*.py`).
+8. Estimation — weighted objective, weights policy, agreement indices,
+   Bérar-Lelann inflation, solvers (TRF / bounded LM / BCCG) with the Stephens
+   cone as the reason `lm` exists, and the fp64 floor (cond(JᵀJ) = cond(J)²)
+   (`optimize/*.py`, `backend/linalg64.py`).
+9. Parameterisation & constraints — transforms, crystal-system ties, Wyckoff
+   coordinate/ADP bases as exact rational nullspaces, restraint rows
+   (`params/*.py`, `crystallography/wyckoff.py`, `model/restraints.py`).
+10. Reading a paper against its own numbers — the method chapter: Rouse b₂
+    (validate against the integral, not a transcription), the two Coelho
+    in-print inconsistencies, the FCJ corner as "the parameterisation, not the
+    solver, stalls", and µR vs µt (exact vs approximate degeneracy; not one of
+    the v0.5 corrections is well judged by Δ Rwp).
+
+### Inherited
 
 From **WP-0602** (agent JSON surface, landed 2026-07-29) — three facts for
 any chapter that touches the agent-facing surface:
@@ -119,10 +202,54 @@ paragraph each, all measured on real data rather than argued.
   the bounded LM forms JᵀJ explicitly rather than implicitly as TRF does, so it
   is the more direct illustration for the manual's precision chapter.
 
+## Non-goals
+
+- **No API reference / autodoc** — pointing at symbols is deliberate (above);
+  a rendered API reference belongs with the WP-1003 freeze, if anywhere.
+- **No hosting / CI / readthedocs** — WP-1002 owns CI; this WP delivers a
+  local `-W`-clean build plus the guard tests.
+- **No docstring rewrites to cite manual equation numbers** — rejected
+  direction, see design decisions.
+- **No new physics prose in docstrings** — gaps found while transcribing are
+  noted in the handover log, not silently patched in either place.
+- **No v2-fence chapters** (FPA, TOF/neutron, spherical-harmonics texture) —
+  named as out of scope in the front matter, not drafted.
+
 ## Tasks
 
-- [ ] Expand this stub into a full WP before writing code
+- [x] Expand this stub into a full WP before writing code
+- [ ] Docs infra: `[docs]` extra (self-referenced into `[dev]`),
+      `docs/manual/` skeleton, `conf.py` importing live constants as MyST
+      substitutions, `_build/` gitignored, empty manual builds `-W`-clean
+- [ ] `references.bib`: every literature reference cited in `src/` docstrings,
+      keyed `author-year` (deduplicated; ITC volumes as `@book`s)
+- [ ] Chapters 1–3: forward model, peak positions, peak profiles
+- [ ] Chapters 4–6: intensities, intensity corrections, microstructure
+- [ ] Chapters 7–9: background, estimation, parameterisation & constraints
+- [ ] Chapter 10 + front matter: method case studies; how-to-read rules
+- [ ] Guard tests (`tests/test_manual.py`): `-W` build via subprocess; every
+      bib entry cited somewhere; every `*Source:*` symbol imports; ruff clean
+
+## Acceptance
+
+```sh
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
+.venv/bin/python -m pytest tests/test_manual.py -q
+.venv/bin/python -m ruff check src tests examples
+```
+
+Plus the two structural claims the tests encode: no bibliography entry is
+uncited, and every equation's `*Source:*` symbol resolves by import.
+
+## References
+
+The bibliography *is* the deliverable — see `docs/manual/references.bib`.
+Tooling: Sphinx, MyST-Parser, sphinxcontrib-bibtex, furo (all BSD-licensed).
 
 ## Handover log
 
+- **2026-07-29** — expanded the stub into a full WP: chapter plan derived from
+  a sweep of every citation-bearing docstring in `src/`; anti-divergence
+  design fixed (substitutions for constants, manual→docstring source lines,
+  guard tests, no autodoc). Starting infra next.
 - **2026-07-22** — created as a stub from the ROADMAP split.

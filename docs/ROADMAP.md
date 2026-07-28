@@ -617,7 +617,7 @@ the linear algebra's.
 |---|---|---|---|
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ✅ 2026-07-28 | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ✅ 2026-07-29 | — |
-| [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ⬜ | — |
+| [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | 🔶 | — |
 | [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |
 
 (0603 — the torch/MPS backend — moved to v0.4 as
