@@ -193,12 +193,36 @@ def _with_block(phase: pr.Phase) -> pr.Phase:
     return phase
 
 
+#: Three fits, each of which this module used to run twice.  ``brucite_aniso_trf``
+#: is the one worth naming: the default driver *is* TRF, so the anisotropic
+#: brucite fit and the "unconstrained control" for the LM test below were the
+#: same computation under two names (they differed only in ``history=``, which
+#: records and changes nothing).  The LM fit stays unshared — it is the one
+#: genuinely different run in the file.
+@pytest.fixture(scope="module")
+def brucite_iso():
+    return _fit("brucite", brucite_phase(textured=True),
+                _plan(texture=True, stephens=False), "brucite_iso")
+
+
+@pytest.fixture(scope="module")
+def brucite_aniso_trf():
+    return _fit("brucite", _with_block(brucite_phase(textured=True)),
+                _plan(texture=True, stephens=True), "brucite_aniso")
+
+
+@pytest.fixture(scope="module")
+def corundum_plain():
+    return _fit("corundum", corundum_phase(),
+                _plan(texture=False, stephens=False), "corundum")
+
+
 @pytest.mark.slow
-def test_brucite_improvement_is_justified_but_leaves_the_physical_cone():
-    iso_ref, iso = _fit("brucite", brucite_phase(textured=True),
-                        _plan(texture=True, stephens=False), "brucite_iso")
-    ani_ref, ani = _fit("brucite", _with_block(brucite_phase(textured=True)),
-                        _plan(texture=True, stephens=True), "brucite_aniso")
+@pytest.mark.xdist_group("stephens-brucite")
+def test_brucite_improvement_is_justified_but_leaves_the_physical_cone(
+        brucite_iso, brucite_aniso_trf):
+    iso_ref, iso = brucite_iso
+    ani_ref, ani = brucite_aniso_trf
 
     # the March-Dollase habit is the one WP-0310 measured on the same material
     assert iso_ref.fitted_structure.phases[0].preferred_orientation.r.value \
@@ -231,11 +255,11 @@ def test_brucite_improvement_is_justified_but_leaves_the_physical_cone():
 
 
 @pytest.mark.slow
-def test_corundum_is_reported_isotropic():
+@pytest.mark.xdist_group("stephens-corundum")
+def test_corundum_is_reported_isotropic(corundum_plain):
     """The control: a well-crystallised specimen on the same instrument and
     protocol must come back isotropic, or the brucite result means nothing."""
-    ref, result = _fit("corundum", corundum_phase(),
-                       _plan(texture=False, stephens=False), "corundum")
+    ref, result = corundum_plain
     assert result.statistics.rwp == pytest.approx(0.144, abs=0.01)
     strain = ref.report().strain[0]
     assert not strain.detected
@@ -246,7 +270,9 @@ def test_corundum_is_reported_isotropic():
 
 
 @pytest.mark.slow
-def test_corundum_block_is_inert_and_bic_says_so_where_hamilton_does_not():
+@pytest.mark.xdist_group("stephens-corundum")
+def test_corundum_block_is_inert_and_bic_says_so_where_hamilton_does_not(
+        corundum_plain):
     """Freeing the Stephens patterns on an isotropic specimen must be inert —
     and the *statistic* that says so is ΔBIC, not Hamilton.
 
@@ -258,8 +284,7 @@ def test_corundum_block_is_inert_and_bic_says_so_where_hamilton_does_not():
     its ln(N) penalty grows with the channel count while Hamilton's does not.
     Read that as a statement about the tests, not about corundum.
     """
-    plain_ref, plain = _fit("corundum", corundum_phase(),
-                            _plan(texture=False, stephens=False), "corundum")
+    plain_ref, plain = corundum_plain
     block_ref, block = _fit("corundum", _with_block(corundum_phase()),
                             _plan(texture=False, stephens=True), "corundum_aniso")
 
@@ -343,11 +368,14 @@ def test_constrained_solver_keeps_brucite_inside_the_cone():
 
 
 @pytest.mark.slow
-def test_unconstrained_solver_leaves_the_cone_on_the_same_data():
-    """The control for the test above: same data, same plan, default driver."""
-    ref, result = _fit_with_solver("brucite", _with_block(brucite_phase(textured=True)),
-                                   _plan(texture=True, stephens=True),
-                                   "brucite_cone_trf", solver="trf")
+@pytest.mark.xdist_group("stephens-brucite")
+def test_unconstrained_solver_leaves_the_cone_on_the_same_data(brucite_aniso_trf):
+    """The control for the test above: same data, same plan, default driver.
+
+    That default driver *is* TRF, so this is literally the anisotropic brucite
+    fit of the first test in this module, and it is shared rather than re-run.
+    """
+    ref, result = brucite_aniso_trf
     sigma2 = _sigma2_of(ref)
     assert (sigma2 < 0.0).sum() >= 10
     assert [d for d in result.diagnostics
