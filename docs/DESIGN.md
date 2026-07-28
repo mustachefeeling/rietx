@@ -121,6 +121,50 @@ differentiable from day one.
     (calibrate on a standard → freeze → refine the sample). So the fence
     costs us a physically-parameterised profile, not the instrument/sample
     separation itself. **Note only — do not un-fence.**
+  - *FPA fence, literature on hand (2026-07-28 intake).* The papers-only route
+    is now supplied and read: Cheary & Coelho 1992 (founding paper); Cheary &
+    Coelho 1998 I, JAC 31, 851 (full axial model — incident-beam divergence
+    β ≠ 0 puts the asymmetry minimum at 2θ ≈ 120°, which an FCJ-shaped β = 0
+    model cannot express); Cheary, Coelho & Cline 2004, J. Res. NIST 109, 1
+    (review: the five-Lorentzian CuKα table, tube tails, monochromator
+    "learned spectrum", and a documented axial↔absorption profile correlation
+    at 2θ = 50–100° — a canonical nested-fit case for the report's
+    non-separability gate); Hölzer et al. 1997, Phys. Rev. A 56, 4554 (Kα/Kβ
+    Lorentzian decompositions, on the wavelength scale this package already
+    ships — the CuKα doublet in `schemas/instrument.py` and the Kβ ghost in
+    `background/diagnostics.py` both match Hölzer Table IV byte-for-byte);
+    Mendenhall, Mullen & Cline 2015, J. Res. NIST 120, 223 (FPAPC, the
+    public-domain reference implementation — NIST↔TOPAS agree to 2 fm on
+    SRM 660c/640e — since bundled into GSAS-II); Coelho 2018, JAC 51, 210
+    (TOPAS architecture; its solver content routed to WP-0601 `## Inherited`).
+    One correction to the note above: the "FPA→pseudo-Voigt term mapping
+    (Mendenhall et al. 2022)" is properly **Denney, Mattei, Mendenhall, Cline,
+    Khalifah & Toby (2022), JAC 55**, and its mechanism sharpens the cheap
+    first step: generate synthetic FPA peaks from the *instrument geometry*
+    (NIST code), fit the existing profile terms to them, and emit the same
+    artifact `save_instrument_profile` already writes — a "calibrate from
+    geometry" complement to `lab_calibrate`, whose FPA-vs-fitted difference
+    curve doubles as the measured ceiling on what TCHZ can express for a
+    given configuration. Two pieces are extractable without opening the
+    fence: (a) **emission fine structure** — Hölzer's two Lorentzians per
+    CuKα component plus the 2004 satellite row (the CuKa5 model); acceptance
+    is that the summed profile's peak reproduces the shipped `_KA_DOUBLETS`
+    wavelengths, and what it buys is physical attribution of the spectral
+    width currently absorbed into fitted Lorentzian X at high angle.
+    (b) **specimen-transparency profile aberration** (1992 eq. 14; 2004
+    §4.4): breadth δ = sin2θ/(2µR), significant only for µ ≲ 100 cm⁻¹, and
+    its finite-thickness form consumes exactly the µt/thickness the v0.5
+    absorption seam already declares — per the v0.5 method result this
+    ships as a diagnostic (predicted δ vs FWHM) first, not a correction.
+    For any eventual convolution stack the numerical discipline is already
+    written down: 1992 Fig. 1 shows histogram convolution biasing fitted 2θ
+    with the internal step; Mendenhall's F₀ helper (singularities integrated
+    exactly, area *and centroid* exact on the discrete grid) is the FPA
+    analogue of frozen-per-stage discreteness; and even the reference codes
+    carry a documented, unexplained position bias where asymmetry is worst
+    (2015 Fig. 7b). Every derivative in this literature is a forward
+    difference — a differentiable FPA is unclaimed territory, and the v0.4
+    backends are the prerequisite. **Still fenced.**
 
 ## Architecture invariants
 
