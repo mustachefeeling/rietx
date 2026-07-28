@@ -51,6 +51,7 @@ from .history.tree import RefinementTree
 from .optimize.least_squares import SOLVERS
 from .params.vector import ParameterTable
 from .refine import _VERSION, Refinement, _extract_reflections, _utcnow
+from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Mode, Provenance
 from .schemas.history import ReflectionState
 from .schemas.instrument import Instrument
@@ -350,7 +351,8 @@ class SequentialRefinement:
             direction=direction,  # type: ignore[arg-type]
             provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
                                   backend=self._backend, solver=self._solver,
-                                  dtype=backend_dtype_note(self._backend)))
+                                  dtype=backend_dtype_note(self._backend),
+                                  report_thresholds_version=THRESHOLDS_VERSION))
         diagnostics += _discontinuity_diagnostics(series)
 
         if direction == "both":

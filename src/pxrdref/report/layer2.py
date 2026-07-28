@@ -194,6 +194,56 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
         two_theta_range=(worst.two_theta, worst.two_theta))]
 
 
+#: a runner-up axis explaining at least this fraction of the best axis's R²
+#: means the axis is not cleanly resolved — the action is still worth taking
+#: (the *presence* of texture is established) but its confidence is capped and
+#: both axes are named, per the never-a-confident-wrong-singleton rule
+TEXTURE_AXIS_AMBIGUITY = 0.8
+
+
+def texture_actions(texture) -> list[SuggestedAction]:
+    """Actions from the March-Dollase texture diagnostic (the WP-0307 orphan,
+    claimed by WP-0602).
+
+    Emitted from :attr:`FitReport.texture` entries with ``detected=True`` —
+    in the abstained branch too, because uncorrected texture is a common
+    *cause* of an immature fit (the same reasoning that computes the analysis
+    before the maturity gate).  ``parameter_paths`` names the phase's March
+    coefficient whether or not a ``preferred_orientation`` block is declared:
+    the strategy veto marks the declared-and-planned case, and on an
+    undeclared phase ``predict_then_verify`` frees nothing and rolls back —
+    the rationale carries the axis and r so the agent knows what block to
+    declare first.  No ``expected_delta_chi2``: the estimate comes from the
+    gated region attribution, and this analysis is per-reflection, not
+    per-region.
+    """
+    out: list[SuggestedAction] = []
+    for t in texture or []:
+        if not t.detected or t.best_axis is None:
+            continue
+        axis = tuple(int(v) for v in t.best_axis)
+        ambiguous = (t.runner_up_axis is not None
+                     and t.runner_up_r2 >= TEXTURE_AXIS_AMBIGUITY * t.r2)
+        confidence = min(0.85, float(t.r2))
+        rationale = (f"per-reflection intensity corrections of phase "
+                     f"{t.phase_index} follow a March-Dollase model along "
+                     f"{axis} (r={t.march_coefficient:.3f}, R²={t.r2:.2f}, "
+                     f"{t.n_reflections_used} reflections)")
+        if ambiguous:
+            confidence = min(confidence, 0.4)
+            runner = tuple(int(v) for v in t.runner_up_axis)
+            rationale += (f"; the axis is not cleanly resolved — {runner} "
+                          f"fits R²={t.runner_up_r2:.2f}, so refine r but do "
+                          "not report the axis as measured")
+        rationale += ("; if the phase declares no preferred_orientation block, "
+                      "add one with this axis before freeing r")
+        out.append(SuggestedAction(
+            kind="refine_preferred_orientation",
+            confidence=round(confidence, 3), rationale=rationale,
+            parameter_paths=[f"phases.{t.phase_index}.preferred_orientation.r"]))
+    return out
+
+
 def suggest_actions(attributions: list[RegionAttribution],
                     trends: list[TrendAnalysis],
                     unmatched: list[UnmatchedPeak],

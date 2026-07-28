@@ -23,7 +23,8 @@ from pydantic import Field
 from ..schemas.common import Base
 from ..schemas.results import RestraintReport
 
-THRESHOLDS_VERSION = "0.2"
+# 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
+THRESHOLDS_VERSION = "0.3"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -282,6 +283,7 @@ ActionKind = Literal[
     "refine_sample_strain_broadening",
     "refine_axial_asymmetry",
     "refine_biso",
+    "refine_preferred_orientation",
     "refine_scale",
     "add_impurity_phase",
     "increase_background_flexibility",

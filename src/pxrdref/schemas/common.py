@@ -120,6 +120,10 @@ class Provenance(Base):
     #: Provenance because the drivers differ in what they can enforce (the
     #: Stephens cone), not merely in how fast they converge.
     solver: str = "trf"
+    #: version of the FitReport gates/vocabulary contract; the engines stamp
+    #: the live ``report.schemas.THRESHOLDS_VERSION`` here (the default exists
+    #: only for hand-built records and cannot be the constant itself — that
+    #: would import the report package into the base schemas)
     report_thresholds_version: str = "0.1"
     created_utc: str | None = None
     notes: dict[str, str] = Field(default_factory=dict)

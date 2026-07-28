@@ -34,6 +34,7 @@ from .refine import (
     _resolve_specimen_absorption,
     _utcnow,
 )
+from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
@@ -283,7 +284,7 @@ class MultiHistogramRefinement:
         provenance = Provenance(
             package_version=_VERSION, created_utc=_utcnow(),
             backend=self._backend, dtype=backend_dtype_note(self._backend),
-            solver=self._solver,
+            solver=self._solver, report_thresholds_version=THRESHOLDS_VERSION,
             notes={"n_histograms": str(n), "histogram_weights": weight_note})
 
         return RefinementResult(

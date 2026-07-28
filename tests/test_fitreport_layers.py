@@ -436,6 +436,55 @@ def test_veto_helper_is_pure_annotation():
 
 
 # ----------------------------------------------------------------------
+# texture → typed action (the WP-0307 orphan, claimed by WP-0602)
+# ----------------------------------------------------------------------
+def _texture(detected=True, r2=0.82, runner_r2=0.1, **kw):
+    from pxrdref.report import TextureAnalysis
+
+    base = dict(phase_index=0, best_axis=(0, 0, 1) if detected else None,
+                march_coefficient=0.71, r2=r2, n_reflections_used=17,
+                detected=detected, runner_up_axis=(1, 1, 0),
+                runner_up_r2=runner_r2)
+    base.update(kw)
+    return TextureAnalysis(**base)
+
+
+def test_texture_action_emitted_only_when_detected():
+    from pxrdref.report import texture_actions
+
+    assert texture_actions([]) == []
+    assert texture_actions([_texture(detected=False)]) == []
+
+    (action,) = texture_actions([_texture()])
+    assert action.kind == "refine_preferred_orientation"
+    assert action.parameter_paths == ["phases.0.preferred_orientation.r"]
+    assert action.confidence == pytest.approx(0.82, abs=1e-6)
+    assert "(0, 0, 1)" in action.rationale and "r=0.710" in action.rationale
+    # the linear-model Δχ² covers gated regions, not this per-reflection score
+    assert action.expected_delta_chi2 is None
+
+
+def test_texture_action_ambiguous_axis_caps_confidence():
+    from pxrdref.report import texture_actions
+
+    (action,) = texture_actions([_texture(runner_r2=0.75)])
+    assert action.confidence <= 0.4
+    assert "not cleanly resolved" in action.rationale
+    assert "(1, 1, 0)" in action.rationale        # runner-up named, per §6
+
+
+def test_texture_action_is_vetoed_by_a_plan_that_frees_r():
+    from pxrdref.report import texture_actions
+
+    actions = texture_actions([_texture()])
+    out = apply_strategy_veto(actions, pr.RefinementPlan.mccusker_structural())
+    assert not out[0].active                       # plan already frees r
+    out = apply_strategy_veto(texture_actions([_texture()]),
+                              pr.RefinementPlan.mccusker_default())
+    assert out[0].active                           # profile-only plan does not
+
+
+# ----------------------------------------------------------------------
 # statistical justification for new parameters
 # ----------------------------------------------------------------------
 def test_hamilton_test_and_bic_agree_on_a_real_improvement():

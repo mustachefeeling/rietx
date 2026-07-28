@@ -35,6 +35,7 @@ from .optimize.qpa import (
 )
 from .optimize.statistics import compute_statistics
 from .params.vector import ParameterTable
+from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import Instrument
@@ -1035,7 +1036,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         stages=stage_results, diagnostics=diagnostics,
         provenance=Provenance(package_version=_VERSION, created_utc=_utcnow(),
                               backend=backend, dtype=backend_dtype_note(backend),
-                              solver=solver),
+                              solver=solver,
+                              report_thresholds_version=THRESHOLDS_VERSION),
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),

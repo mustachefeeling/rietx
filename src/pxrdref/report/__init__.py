@@ -20,6 +20,7 @@ from .layer2 import (
     layer0_actions,
     predict_then_verify,
     suggest_actions,
+    texture_actions,
 )
 from .schemas import (
     THRESHOLDS_VERSION,
@@ -65,6 +66,7 @@ __all__ = [
     "maturity_gate",
     "predict_then_verify",
     "suggest_actions",
+    "texture_actions",
 ]
 
 
@@ -112,7 +114,8 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # is unindexed regardless of maturity — and is a common reason for it)
         # still stand, and the veto still applies to them.
         report.abstained_reason = reason
-        actions = layer0_actions(report.unmatched, attributions)
+        actions = (layer0_actions(report.unmatched, attributions)
+                   + texture_actions(report.texture))
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
         report.suggested_actions = actions
@@ -126,8 +129,12 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     predicted = estimate_delta_chi2(result, attributions)
     for action in actions:
         action.expected_delta_chi2 = predicted
+    # texture actions join after the Δχ² stamp: their evidence is
+    # per-reflection, not the gated region attribution the estimate covers
+    actions += texture_actions(report.texture)
     if plan is not None or free_paths is not None:
         actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
+    actions.sort(key=lambda a: -a.confidence)
     report.suggested_actions = actions
 
     n_active = sum(1 for a in actions if a.active)

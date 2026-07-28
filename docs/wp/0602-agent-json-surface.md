@@ -207,7 +207,7 @@ meaning changed, and two new fields exist for the surface to decide about.
 ## Tasks
 
 - [x] Expand this stub into a full WP before writing code
-- [ ] Solver provenance: `Provenance.solver`, `StageResult.n_constraint_truncations`,
+- [x] Solver provenance: `Provenance.solver`, `StageResult.n_constraint_truncations`,
       `CONSTRAINT_ACTIVE` diagnostic, `solver=` on `SequentialRefinement` /
       `refine_sequential`, `backend=`/`solver=` on `refine_multi` + tests
 - [ ] Layer-2: `refine_preferred_orientation` ActionKind, `texture_actions`,
