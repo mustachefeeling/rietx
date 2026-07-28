@@ -41,12 +41,22 @@ state:
   without reading a plot image. Every layer is built to **abstain rather than
   guess**: collinear causes are reported as unresolved, not resolved wrongly.
 
-## Status: v0.4 shipped, v0.5 in progress (pre-alpha)
+## Status: v0.5 shipped, v0.6 in progress (pre-alpha)
 
-v0.4 is recorded with measured acceptance in
-[docs/milestones/v0.4.md](docs/milestones/v0.4.md); the v0.5 rows marked below
-have landed but the milestone has not closed (see
-[docs/ROADMAP.md](docs/ROADMAP.md) for what remains). Working today —
+v0.5 (corrections & microstructure) is recorded with measured acceptance in
+[docs/milestones/v0.5.md](docs/milestones/v0.5.md), and its method result
+outlasts any single row: **not one of the eight corrections is well judged by
+ΔRwp** — two provably cannot move it, one moves it the *wrong* way when it is
+right, and the two largest accuracy wins are invisible in it — so each ships
+with a record field or diagnostic that states what it changed, never an Rwp
+comparison as evidence. v0.6 (solver, performance & agents) is under way; two
+rows have landed: a bounded Levenberg-Marquardt driver (`solver="lm"` on both
+entry points) that benchmarks 0.74–1.04× against scipy TRF — the expected tie —
+and earns its place with constraint vocabulary scipy lacks (linear inequalities,
+used to *enforce* the Stephens positivity cone), and a measured **no-go** on the
+batched peak-loop rewrite, whose cheap alternative (an FCJ node memo) shipped
+instead at 1.23× on the SRM 660c protocol, bit-identical. See
+[docs/ROADMAP.md](docs/ROADMAP.md). Working today —
 constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 **laboratory Bragg-Brentano** and **flat-plate transmission**:
 
@@ -56,8 +66,9 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | CIF import/export (gemmi), space-group symmetry, absences, multiplicities | ✅ |
 | TCHZ pseudo-Voigt, Caglioti widths, instrument ⊕ sample profile split, Lp | ✅ |
 | Kα1/Kα2 doublet (per-line dispersion), FCJ axial asymmetry, Bragg-Brentano displacement/transparency | ✅ |
+| Six Kα anodes (Cu/Cr/Fe/Co/Mo/Ag + Kα1-only variants) on one NIST SRD 128 scale, per-anode contamination flags | ✅ |
 | Chebyshev / arPLS / SNIP / **penalized P-spline** backgrounds + auto-selection | ✅ |
-| Bounded TRF least squares, **analytic Jacobian**, esds with Bérar-Lelann inflation | ✅ |
+| Bounded least squares — scipy TRF (default) or **bounded LM** (`solver="lm"`, carries linear-inequality constraints), **analytic Jacobian**, esds with Bérar-Lelann inflation | ✅ |
 | Staged plans (`mccusker_default`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, …) | ✅ |
 | **FitReport Layers 0-2**: diagnostics → gated misfit attribution → typed actions | ✅ |
 | `.xy` / `.xye` / GSAS raw / pdCIF readers; instrument-profile files | ✅ |
@@ -66,7 +77,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Atomic-coordinate refinement (Wyckoff/site-symmetry constraints), anisotropic ADPs | ✅ |
 | QPA weight fractions (Hill-Howard ZMV), Brindley microabsorption + µR fence | ✅ |
 | Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
-| Stephens anisotropic strain (hkl-dependent widths; Laue-allowed S_HKL derived, not tabulated) | ✅ |
+| Stephens anisotropic strain (hkl-dependent widths; Laue-allowed S_HKL derived, not tabulated; positivity cone guarded under TRF, **enforced** under `solver="lm"`) | ✅ |
 | Anomalous scattering f′, f″ (Cromer-Liberman; Friedel-averaged \|F\|², opt-in per source) | ✅ |
 | Multi-histogram joint refinement (shared structure, per-histogram Rwp) | ✅ |
 | **Sequential series** (in-situ/parametric): warm-started chain, parameter trajectories, forward-vs-backward path-dependence check | ✅ |
@@ -106,7 +117,7 @@ the reference actually is:
 | IUCr **CPD QPA round robin** (samples 1a–h, 2, 4) | worst 5.1 wt % (sample 1); traces ≤ 1.3 wt % | tolerance referenced to the published **participant spread**; sample 4 is the designed Brindley-defeating case (µR fence fires, no accuracy band claimed) |
 | IUCr round robin **with f′, f″ applied** | worst 1.4 wt %, RMS 0.69 (was 5.1 / 2.26) | a **pre-registered prediction**: the parameter-free bias from neglecting anomalous scattering was written down before the refits, and re-derives the v0.3 shape v0.3 had attributed to microabsorption. Pure ZnO: Rwp barely moves, B(O) 0.02 → 0.43 Å² |
 | APS 11-BM **SRM 660a** LaB₆ (capillary, 0.81 mm bore) | Rwp and cell invariant to 3e-8 / 8e-12 Å; every Biso +0.0166542 Å² | the capillary absorption correction's claim, on real data: it is an *exact reparameterisation* of {scale, Biso}, so the predicted ΔB is the only observable. λ is beamline-calibrated on this standard, so the cell here is a consistency check and **not** an anchor |
-| CPD **brucite** / **corundum** (anisotropic strain) | brucite Rwp 18.55 → 17.90 %, ΔBIC +488 — *and rejected* | a **characterisation**: the improvement passes both statistical tests yet drives the strain variance negative on 12 of 43 reflections, so the cone guard fires and no S_HKL are quotable. Corundum is the isotropic control (ΔBIC −17, diagnostic 1.60×, not detected) |
+| CPD **brucite** / **corundum** (anisotropic strain) | brucite Rwp 18.55 → 17.90 %, ΔBIC +488 — *and rejected under TRF* | a **characterisation**: the improvement passes both statistical tests yet drives the strain variance negative on 12 of 43 reflections, so the cone guard fires and no S_HKL are quotable. Under `solver="lm"` the cone is carried as a linear inequality and brucite comes back inside it (0 of 43) — at a *higher* Rwp, the v0.5 method result again. Corundum is the isotropic control (ΔBIC −17, diagnostic 1.60×, never leaves the cone) |
 
 Plus one validation suite that has no reference dataset because its subject is
 the code itself: **cross-backend Jacobian agreement**. Every way the package can
@@ -130,8 +141,8 @@ than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
-made collinear. Run `pytest` (~14 min, includes all of the above; `pytest -m
-"not slow"` is ~2.5 min), `python examples/nac_11bm.py` (synchrotron walkthrough) or
+made collinear. Run `pytest` (~24 min, includes all of the above; `pytest -m
+"not slow"` is ~3.3 min), `python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
 all three FitReport layers → plots + interactive HTML).
 
@@ -305,8 +316,8 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest              # 953 tests incl. eight real-data acceptance suites (~24 min)
-pytest -m "not slow"    # 873 unit/property tests only (~3.3 min)
+pytest              # 995 tests incl. eight real-data acceptance suites (~24 min)
+pytest -m "not slow"    # 913 unit/property tests only (~3.3 min)
 ruff check src tests examples
 ```
 
@@ -325,10 +336,13 @@ ties applied as identity constraints; softplus/logit transforms keep widths,
 scales, and occupancies physical). `model/forward.py` freezes the reflection
 list, symmetry-operation orbits, and per-reflection evaluation windows for
 the stage, then evaluates y_calc = background + Σ intensity·profile.
-`optimize/least_squares.py` drives scipy's bounded TRF with an analytic
-Jacobian — exact per-point profile derivatives chained through cheap
-per-reflection scalars, with finite differences only as a fallback — and
-derives esds from the covariance matrix with Bérar-Lelann inflation.
+`optimize/least_squares.py` drives scipy's bounded TRF — or, with
+`solver="lm"`, the bounded Levenberg-Marquardt driver in `optimize/lm.py`,
+whose step solve also carries linear-inequality constraints such as the
+Stephens positivity cone — with an analytic Jacobian: exact per-point profile
+derivatives chained through cheap per-reflection scalars, finite differences
+only as a fallback. esds come from the covariance matrix with Bérar-Lelann
+inflation.
 `strategy/staged.py` walks the turn-on plan, regenerating frozen state
 between stages and running the guards. `report/` turns the result into
 machine-readable diagnostics in three gated layers, reusing the same
