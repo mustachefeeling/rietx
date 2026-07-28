@@ -314,14 +314,35 @@ def check_adp_positive_definite(table) -> list[str]:
     return out
 
 
+#: relative tolerance below which a σ²(M) counts as *on* the cone rather than
+#: outside it (WP-0601).  The boundary is part of the physical set — σ² = 0 is
+#: a direction with no strain broadening, not an impossible variance — and two
+#: legitimate states land exactly there: the all-zero block (documented as the
+#: exact no-broadening identity) and the optimum of an inequality-constrained
+#: solve, which the bounded-LM driver drives onto the face by construction.
+#: The tolerance is relative to the largest σ² in the same phase, because the
+#: constrained solve and this guard reach σ² by different association orders
+#: and disagree in the last bits.
+STEPHENS_CONE_TOL = 1e-9
+
+
 def check_stephens_positive(table, model) -> list[str]:
-    """Phases whose Stephens σ²(M) is non-positive on some fitted reflection.
+    """Phases whose Stephens σ²(M) is **negative** on some fitted reflection.
 
     σ² is a variance, so a negative value is not a large anisotropy but an
     unphysical set of coefficients — the width law's √ has nothing to take and
     the model quietly reports zero broadening for that direction.  The
     constraint is a *cone* coupling all fifteen coefficients (like ADP positive
-    definiteness), which is why it cannot be a box bound and has to be a guard.
+    definiteness), which is why it cannot be a box bound and has to be a guard
+    under the default TRF driver.  ``solver="lm"`` can carry it as a linear
+    inequality instead (``optimize/lm.py``), and then this guard falls silent
+    because there is nothing left to report — which is the point.
+
+    Zero is *inside* the physical set, and the test is one-sided for that
+    reason: an all-zero block is the exact no-broadening identity, and a
+    constrained optimum sits on the face by construction.  Before WP-0601 the
+    test read ``σ² ≤ 0``, so an inert all-zero block reported itself as
+    unphysical in every stage before the one that frees it.
 
     Tested on the frozen reflection list rather than over all integer hkl: the
     cone condition off the measured directions is unobservable, and flagging it
@@ -342,7 +363,8 @@ def check_stephens_positive(table, model) -> list[str]:
         base = f"phases.{ip}.microstrain"
         s = np.array([values.get(f"{base}.{n}", 0.0) for n in S_NAMES])
         sigma2 = np.asarray(sigma2_m(cp.strain_monomials, s))
-        bad = sigma2 <= 0.0
+        scale = max(float(np.max(np.abs(sigma2))), 1.0)
+        bad = sigma2 < -STEPHENS_CONE_TOL * scale
         if bad.any():
             k = int(np.argmin(sigma2))
             hkl = tuple(int(v) for v in cp.reflections.hkl[k])

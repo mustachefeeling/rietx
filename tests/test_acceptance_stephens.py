@@ -29,15 +29,49 @@ sample 4 — assert the *characterisation*, including the fence firing, not an
 accuracy band the data cannot support.  Anyone tempted to quote brucite S_HKL
 from this package should meet this test first.
 
-The corundum control shows the guard is not brucite-specific: an unconstrained
-least squares leaves the cone whenever the anisotropic directions are poorly
-determined, which on a nearly-isotropic specimen is *always*.  So
-``STEPHENS_STRAIN_NOT_POSITIVE`` reads as "do not quote these coefficients" —
-correct in both cases — and never as evidence *of* anisotropy.  Keeping a
-refinement inside the cone needs an inequality-constrained solve, which this
-package does not have (the constraint is linear in the DOFs: σ²(M) = T·θ ≥ 0
-on the frozen reflection list, so a bounded/constrained minimiser could carry
-it directly).
+**Two corrections landed 2026-07-28 (WP-0601); the paragraph above is the
+v0.5 record and the brucite half of it still stands.**
+
+*The corundum control does not leave the cone.*  This file used to say it did,
+and read that as "an unconstrained least squares leaves the cone whenever the
+anisotropic directions are poorly determined, which on a nearly-isotropic
+specimen is always".  That was the guard's own test misfiring, not a
+measurement: it read σ² ≤ 0, and the all-zero block these runs start from gives
+σ² ≡ 0 on *every* reflection, so the guard fired in each stage before the one
+that frees the patterns.  Zero is on the cone, not outside it; with the
+one-sided test corundum's σ²(M) is strictly positive at every stage (minimum
++4.8e3 against a maximum 1.97e6).  So the guard *does* discriminate: it fires
+on brucite and stays silent on corundum.  It still is not evidence *of*
+anisotropy — brucite's firing means "these coefficients are not quotable", not
+"this specimen is anisotropic" — but the earlier, stronger claim that it fires
+on everything was wrong.
+
+*The cone can now be enforced, and doing so does not make the coefficients
+quotable.*  ``solver="lm"`` (WP-0601) carries σ²(M) = T·θ ≥ 0 as a linear
+inequality on the frozen reflection list.  A four-seed sweep of
+``Stage.strain_seed`` on brucite says exactly what it buys and what it does
+not:
+
+======  ===================  ==================  ===================  ==============
+seed    LM Rwp               LM σ² < 0           TRF Rwp              TRF σ² < 0
+======  ===================  ==================  ===================  ==============
+400     0.18619              0 of 43             0.17807              15 of 43
+800     0.18417              0 of 43             0.17899              12 of 43
+1600    0.18068              0 of 43             0.17820              0 of 43
+3000    0.17819              0 of 43             0.17819              0 of 43
+======  ===================  ==================  ===================  ==============
+
+So: the constraint holds from **every** start, which is what it promised, and
+the unconstrained driver leaves the cone from the low seeds only.  But the
+objective has several local minima, and the coefficients that come back span
+~100 % relative spread across these four starts under *both* drivers — the two
+runs that reach Rwp 0.1782 agree with each other to 1.3 %, and the rest do not
+agree with anything.  ``docs/solver-survey.md`` §E6 set the kill criterion for
+exactly this case, and it is met: **enforcing the cone stops the fit being
+inadmissible; it does not make brucite's S_HKL measured.**  What it does buy is
+that a bad start now degrades into a worse Rwp instead of a confident
+unphysical answer — which is the "never a confident wrong singleton" rule
+applied to the solver.
 
 Corundum is the control the brucite result needs to be readable: on the same
 instrument and protocol the Layer-1 diagnostic reports ``detected=False`` with
@@ -120,6 +154,36 @@ def _fit(name: str, phase: pr.Phase, plan: pr.RefinementPlan, tag: str):
 
     plt.close("all")
     return ref, result
+
+
+def _fit_with_solver(name: str, phase: pr.Phase, plan: pr.RefinementPlan,
+                     tag: str, *, solver: str):
+    """:func:`_fit` with the driver selectable (WP-0601)."""
+    if not DATA.exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    data = pr.read_pattern(DATA / f"{name}.prn")
+    structure = pr.Structure(phases=[phase])
+    ins = qarr_instrument()
+    seed_scales(structure, ins, data)
+    ref = pr.Refinement(structure, ins, solver=solver, history=False)
+    result = ref.fit(data, plan=plan)
+    OUT.mkdir(exist_ok=True)
+    result.plot(path=str(OUT / f"stephens_{tag}.png"))
+    result.plot(path=str(OUT / f"stephens_{tag}_lowangle.png"),
+                two_theta_range=(15.0, 60.0))
+    import matplotlib.pyplot as plt
+
+    plt.close("all")
+    return ref, result
+
+
+def _sigma2_of(ref) -> np.ndarray:
+    """σ²(M) on the last stage's frozen reflection list."""
+    from pxrdref.crystallography.stephens import S_NAMES, sigma2_m
+
+    block = ref.fitted_structure.phases[0].microstrain
+    s = np.array([getattr(block, n).value for n in S_NAMES])
+    return np.asarray(sigma2_m(ref._model.phases[0].strain_monomials, s))
 
 
 def _with_block(phase: pr.Phase) -> pr.Phase:
@@ -215,14 +279,76 @@ def test_corundum_block_is_inert_and_bic_says_so_where_hamilton_does_not():
     assert delta_bic(plain.statistics.chi2, block.statistics.chi2,
                      plain.statistics.n_points, n_added) < 0.0
 
-    # The cone guard fires here too — and that is the point of asserting it.
-    # An unconstrained least squares walks out of the cone whenever the
-    # anisotropic directions are poorly determined, which on a nearly-isotropic
-    # specimen is *always*.  So the guard means "do not quote these
-    # coefficients", which is right in both cases; it is not evidence of
-    # anisotropy, and nothing in this package should read it as such.
-    assert [d for d in block.diagnostics
-            if d.code == "STEPHENS_STRAIN_NOT_POSITIVE"]
+    # **Corrected 2026-07-28 (WP-0601).**  This used to assert that the cone
+    # guard fires on corundum too, and read that as "an unconstrained least
+    # squares walks out of the cone whenever the anisotropic directions are
+    # poorly determined, which on a nearly-isotropic specimen is *always*".
+    # That was an artefact of the guard's own test, not a measurement: it read
+    # σ² ≤ 0, and the all-zero block every one of these runs starts from gives
+    # σ² ≡ 0 on every reflection, so the guard fired in each stage *before* the
+    # one that frees the patterns.  Re-measured with the corrected one-sided
+    # test (zero is on the cone, not outside it), corundum's σ²(M) is strictly
+    # positive at every stage — minimum +4.8e3 against a maximum 1.97e6 — so
+    # the isotropic control never leaves the cone at all.
+    assert not [d for d in block.diagnostics
+                if d.code == "STEPHENS_STRAIN_NOT_POSITIVE"]
     assert np.isfinite(block.statistics.rwp)
     # …while the diagnostic, which is not fitting free parameters, stays quiet
     assert not block_ref.report().strain[0].detected
+
+
+@pytest.mark.slow
+def test_constrained_solver_keeps_brucite_inside_the_cone():
+    """WP-0601's headline, and it is invisible in Rwp — deliberately so.
+
+    ``solver="lm"`` carries σ²(M) = T·θ ≥ 0 as a linear inequality on the
+    frozen reflection list, which is a thing no box bound and therefore no
+    ``scipy.optimize.least_squares`` call can express.  The comparison that
+    matters is not Δ Rwp but *how many reflections the answer is unphysical
+    on* — and at this seed the constrained fit is the worse of the two by Rwp:
+
+    ==================  ======  ===================
+    brucite, seed 800   Rwp     reflections σ² < 0
+    ==================  ======  ===================
+    TRF, unconstrained  17.90   12 of 43
+    LM, cone enforced   18.42   0 of 43
+    ==================  ======  ===================
+
+    A fit that is inadmissible on 12 of its 43 reflections is not a better fit
+    for having a lower Rwp; it is a fit whose S_HKL cannot be quoted.  Same
+    shape as the v0.5 method result — a correction that is right can move Rwp
+    the wrong way — which is why every assertion below is about the cone and
+    the guard rather than the residual.
+
+    Do not read this as "the constrained solver measures brucite's strain":
+    the module docstring's seed sweep shows the coefficients still span ~100 %
+    across starting seeds under both drivers.  What is bought here is that the
+    answer cannot come back unphysical, not that it comes back determined.
+    """
+    ref, result = _fit_with_solver("brucite", _with_block(brucite_phase(textured=True)),
+                                   _plan(texture=True, stephens=True),
+                                   "brucite_cone_lm", solver="lm")
+
+    sigma2 = _sigma2_of(ref)
+    assert (sigma2 > 0.0).all(), f"{int((sigma2 <= 0).sum())} reflections left the cone"
+    assert not [d for d in result.diagnostics
+                if d.code == "STEPHENS_STRAIN_NOT_POSITIVE"]
+    assert result.status == "converged"
+    # the constrained optimum sits *on* the face: some reflection is driven to
+    # (numerically) zero strain, which is what "the data wanted negative here"
+    # looks like once the physics is enforced
+    assert sigma2.min() < 1e-4 * sigma2.max()
+    # …and it costs Rwp, which is the point of not judging this by Rwp
+    assert 0.17 < result.statistics.rwp < 0.20
+
+
+@pytest.mark.slow
+def test_unconstrained_solver_leaves_the_cone_on_the_same_data():
+    """The control for the test above: same data, same plan, default driver."""
+    ref, result = _fit_with_solver("brucite", _with_block(brucite_phase(textured=True)),
+                                   _plan(texture=True, stephens=True),
+                                   "brucite_cone_trf", solver="trf")
+    sigma2 = _sigma2_of(ref)
+    assert (sigma2 < 0.0).sum() >= 10
+    assert [d for d in result.diagnostics
+            if d.code == "STEPHENS_STRAIN_NOT_POSITIVE"]

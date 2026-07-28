@@ -96,6 +96,9 @@ _PREDICTED_FLOOR = 1e-12
 #: stay strictly feasible and can still move tangentially next iteration.
 #: A step truncated to *exactly* the boundary would stall there.
 _FEASIBLE_FRACTION = 0.995
+#: relative slack below which a linear-inequality row counts as *active* and is
+#: treated as an equality for the step (see ``LinearInequality.project_step``).
+_ACTIVE_TOL = 1e-9
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,43 @@ class LinearInequality:
 
     def violated(self, theta: np.ndarray) -> np.ndarray:
         return (self.T @ theta + self.c) < 0.0
+
+    def slack(self, theta: np.ndarray) -> np.ndarray:
+        return self.T @ theta + self.c
+
+    def project_step(self, theta: np.ndarray, step: np.ndarray) -> np.ndarray:
+        """Remove the components of ``step`` that press into *active* rows.
+
+        Truncation alone is not enough, and this is the failure it fixes: once
+        an iterate reaches the constraint surface, a step with any inward
+        component gets scaled by τ ≈ 0 — which also kills the part of the step
+        running *along* the surface, so the solve stalls on the boundary and
+        reports failure at the first outer iteration.  Measured on brucite,
+        whose strain refinement drives straight onto the cone: without this the
+        constrained fit terminates as "diverged" at Rwp 0.191 against the
+        unconstrained 0.179.
+
+        So rows already at the surface *and* being closed further are treated
+        as equalities for this step: the step is projected onto their null
+        space (least squares, since the active rows are generally dependent —
+        the Stephens cone has 43 rows over 4 free DOFs).  What survives is
+        motion tangent to the active surface, which is what a constrained
+        optimiser is supposed to keep.  Rows not yet active are handled by
+        :meth:`max_feasible_fraction` afterwards.
+        """
+        g0 = self.slack(theta)
+        scale = max(float(np.max(np.abs(g0))), 1.0)
+        active = g0 <= _ACTIVE_TOL * scale
+        if not np.any(active):
+            return step
+        rows = self.T[active]
+        inward = (rows @ step) < 0.0
+        if not np.any(inward):
+            return step
+        Tb = rows[inward]
+        # minimum-norm correction: step ← step − Tbᵀ (Tb Tbᵀ)⁺ Tb step
+        lam, *_ = np.linalg.lstsq(Tb @ Tb.T, Tb @ step, rcond=None)
+        return step - Tb.T @ lam
 
     def max_feasible_fraction(self, theta: np.ndarray, step: np.ndarray) -> float:
         """Largest τ ∈ (0, 1] with ``T·(θ + τ·step) + c ≥ 0``, times 0.995.
@@ -242,16 +282,29 @@ def minimize(residual: Callable[[np.ndarray], np.ndarray],
             step = _solve_step(A, b, lam, x, lo, hi)
             if not np.any(step):
                 break
+            for iq in ineqs:
+                step = iq.project_step(x, step)
             tau = min((iq.max_feasible_fraction(x, step) for iq in ineqs), default=1.0)
             if tau < 1.0:
                 step = tau * step
                 n_truncated += 1
+            floor = -_PREDICTED_FLOOR * max(abs(s), 1.0)
             x_try = _clip_to_bounds(x + step, lo, hi)
             step = x_try - x            # the *taken* step, after every clamp
-            if -float(step @ b) > -_PREDICTED_FLOOR * max(abs(s), 1.0):
-                # the step promises less than fp64 can measure on this cost:
-                # trying it would only sample rounding noise, and every further
-                # λ increase promises less still
+            promise = -float(step @ b)
+            if promise >= 0.0:
+                # Not a descent direction *for the model* — which is a
+                # statement about the model, not the objective.  At λ = 0 on a
+                # near-singular A the truncated CG can return an ascent step
+                # (measured on brucite: ‖Δ‖ ≈ 2e10 promising +1.7e5), and
+                # clipping a long step against the box can do the same.  Both
+                # are what λ exists for: damp and retry.
+                lam = _next_lambda(lam, None, 0.0)
+                continue
+            if promise > floor:
+                # a genuine descent direction, but promising less than fp64 can
+                # measure against S: trying it would sample rounding noise, and
+                # every further λ increase promises less still
                 exhausted = True
                 break
             r_try = residual(x_try)

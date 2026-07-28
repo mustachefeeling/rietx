@@ -206,10 +206,17 @@ flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
   (exactly in the subspace, whatever the symmetry) is both the seed and the only
   legal start: at S ≡ 0 the √ has unbounded slope, so `Stage.strain_seed`, not
   `Stage.seed`, which reaches softplus entries only. σ²(M) ≥ 0 is a *cone*
-  coupling all fifteen, hence a guard (`STEPHENS_STRAIN_NOT_POSITIVE`) rather
-  than bounds — and measured on real data it fires on isotropic and anisotropic
-  specimens alike, so read it as "these coefficients are not quotable", never as
-  evidence *of* anisotropy.
+  coupling all fifteen, so it cannot be a box bound: under the default TRF
+  driver it is a guard (`STEPHENS_STRAIN_NOT_POSITIVE`), and under
+  `solver="lm"` (WP-0601) it is carried as a linear inequality and the guard
+  falls silent because there is nothing left to report. Read a firing as "these
+  coefficients are not quotable", never as evidence *of* anisotropy. **Zero is
+  on the cone, not outside it** — the guard's test is one-sided, and the ≤ 0
+  form it had before v0.6 reported the inert all-zero block as unphysical,
+  which is what produced the since-withdrawn claim that it "fires on isotropic
+  and anisotropic specimens alike". Re-measured: brucite leaves the cone on 12
+  of 43 reflections unconstrained and 0 of 43 under `solver="lm"`; corundum
+  never leaves it at all.
 - **Anomalous scattering is opt-in per source** (`Source.dispersion`, f = f₀ +
   f′ + i·f″ from bundled Cromer-Liberman `data/f1f2_CromerLiberman.dat`), and
   the load-bearing part is *not* that f goes complex — F always was. It is that

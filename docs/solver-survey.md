@@ -828,10 +828,25 @@ solve; start with Kaufman's approximate derivative.
 Solve the GN step as a QP subject to T·θ ≥ 0 (active-set or ADMM).
 
 - **Ceiling**: binary and specific — turn `STEPHENS_STRAIN_NOT_POSITIVE` from
-  "fires on isotropic and anisotropic specimens alike, so the coefficients are
-  never quotable" into an exception, making refined S_HKL reportable for the
-  first time. There is no percentage to quote; the feature either becomes usable
-  or does not.
+  the normal outcome of an anisotropic refinement into an exception, making
+  refined S_HKL reportable for the first time. There is no percentage to quote;
+  the feature either becomes usable or does not.
+- **Landed 2026-07-28 (WP-0601)**, as fraction-to-the-boundary truncation plus
+  active-set projection on the cone rows rather than a full QP. Measured on
+  brucite at the acceptance suite's seed: 0 of 43 reflections outside the cone
+  against 12 of 43 unconstrained, Rwp 18.42 % against 17.90 % — the constrained
+  fit is the worse one by Rwp and the only admissible one. It holds from every
+  start tried. **The kill criterion below then fires**: a four-seed sweep of
+  `Stage.strain_seed` (400/800/1600/3000) leaves the coefficients spanning
+  ~100 % relative spread under *both* drivers, so the data do not determine
+  brucite's S_HKL and the guard was right that they are not quotable. The two
+  runs that reach Rwp 0.1782 agree to 1.3 %; the rest agree with nothing. What
+  the constraint buys is therefore narrower than this entry assumed and worth
+  stating exactly: a bad start now degrades into a worse Rwp instead of a
+  confident unphysical answer. Two premises were also corrected — the isotropic
+  control never left the cone (the guard's ≤ 0 test was firing on the all-zero
+  block), and the unconstrained driver leaves the cone only from the low seeds,
+  not always.
 - **Verification**: on the two real round-robin patterns already in
   `test_acceptance_stephens.py` — cone satisfied at convergence on every
   reflection, and coefficients stable (within esd) across perturbed starts. The
