@@ -212,11 +212,11 @@ meaning changed, and two new fields exist for the surface to decide about.
       `refine_sequential`, `backend=`/`solver=` on `refine_multi` + tests
 - [x] Layer-2: `refine_preferred_orientation` ActionKind, `texture_actions`,
       emission in both build_report branches, THRESHOLDS_VERSION bump + tests
-- [ ] `agent.py`: request/response models (task union, StageSpec/PlanSpec,
+- [x] `agent.py`: request/response models (task union, StageSpec/PlanSpec,
       SharingSpec), `refine_json` dispatch with the three-code error envelope
-- [ ] `agent.py`: `request_schema` / `response_schema` / `tool_definition`,
+- [x] `agent.py`: `request_schema` / `response_schema` / `tool_definition`,
       live-registry descriptions
-- [ ] `tests/test_agent_surface.py`: round-trips (all three tasks on the
+- [x] `tests/test_agent_surface.py`: round-trips (all three tasks on the
       synthetic LaB6), validation errors with dot-paths, registry-schema
       containment, envelope invariants
 - [ ] Docs: AGENT_PROTOCOL §7 row for `CONSTRAINT_ACTIVE` + a JSON-surface

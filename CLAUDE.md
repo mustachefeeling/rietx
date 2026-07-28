@@ -77,7 +77,13 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as
 an off-table θ block — `model.forward.PawleyBlock`, appended in
 `run_least_squares`; overlapped groups get equal-split restraints and come back
-flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split).
+flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
+tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602):
+one call covering refine/refine_multi/refine_sequential behind a strict task
+union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
+traceback), and `agent.tool_definition()` exporting the JSON Schema with the
+backend/solver/plan names quoted from the live registries — a meta-test fails
+if a registry member is missing from the schema.
 
 ## Invariants (do not break)
 

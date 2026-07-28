@@ -205,7 +205,7 @@ propagate it, do not paper over it.
 | `region.gates_passed is False` | This region's coefficients failed resolvability / validity-radius / significance | Read `region.gate_failures`; the coefficients are present for transparency only and must **not** be read as causes |
 | A trend is reported non-separable | Two angular templates (e.g. size vs strain) are collinear over this range | Do not pick one. Extend the range or report both |
 | `PAWLEY_OVERLAP_UNRESOLVED` | A group's summed intensity is determined; the split is not | Treat the group sum as the datum |
-| `STEPHENS_STRAIN_NOT_POSITIVE` | σ²(M) went negative on some reflection — outside the physical cone | The S_HKL are **not quotable**, and this is never evidence *of* anisotropy. Re-run with `solver="lm"`, which enforces the cone directly (measured on brucite: 12 of 43 reflections outside it under the default driver, 0 of 43 under `lm`, at a *higher* Rwp). That makes the answer admissible, not measured — vary the start and quote the coefficients only if they survive it |
+| `STEPHENS_STRAIN_NOT_POSITIVE` | σ²(M) went negative on some reflection — outside the physical cone | The S_HKL are **not quotable**, and this is never evidence *of* anisotropy. Re-run with `solver="lm"`, which enforces the cone directly (measured on brucite: 12 of 43 reflections outside it under the default driver, 0 of 43 under `lm`, at a *higher* Rwp). That makes the answer admissible, not measured — vary the start and quote the coefficients only if they survive it (the `lm` result carries `CONSTRAINT_ACTIVE` when the cone actually bound) |
 | `ADP_NOT_POSITIVE_DEFINITE` | The tensor is not an ellipsoid; its Debye-Waller factor diverges at high Q | Revert the site to isotropic `biso` |
 | `ROUGHNESS_UNCONSTRAINED` | The refined correction depresses no modelled reflection by >1 % | Drop the block. The value it refined to is arbitrary |
 | `SEQUENTIAL_PATH_DEPENDENT` | A parameter's trajectory differs between the forward and backward chains by more than their esds allow | That trajectory is an artefact of the refinement order, not a measurement. Hold the parameter, restrain it, or quote the forward/backward spread as its uncertainty |
@@ -247,6 +247,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `SEQUENTIAL_RESEED` | Read this point of a series as evidence that the trajectory is continuous — its starting values did not come from its neighbour |
 | `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure |
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
+| `CONSTRAINT_ACTIVE` | (info, `solver="lm"` only) Read the constrained coefficients as free-fit measurements. The driver truncated steps against a linear-inequality constraint (the Stephens cone) in the answer-producing stage, so the optimum sits on or near a constraint face: admissible, not measured. Vary the start before quoting — and note this is the *only* signal a declared constraint was active rather than merely present |
 
 ```python
 codes = {d.code for d in result.diagnostics}
@@ -495,6 +496,29 @@ there than excluding the scales.
 
 ---
 
+## 9c. One JSON call from a tool loop
+
+`pxrdref.agent.refine_json(dict) → dict` wraps the three entry points for a
+tool-calling agent, and `pxrdref.agent.tool_definition()` returns a
+ready-to-register tool whose schema quotes the backend/solver/plan
+vocabularies from the live registries.  Three tasks: `"refine"` (one pattern →
+`result` + the FitReport), `"refine_multi"` (one joint residual — its
+`node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG),
+`"refine_sequential"` (a warm-started series → `series` of per-pattern
+summaries; history ids live per entry, never per run).
+
+The envelope never raises: `{"ok": true, "result"|"series": …, "report": …}`
+on success, else `{"ok": false, "error": {code, message, suggestion,
+details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
+`details[]` — the schemas are strict, unknown keys are errors),
+`BACKEND_UNAVAILABLE` (a real backend whose optional dependency is missing;
+the install hint is the suggestion), or `REFINEMENT_FAILED` (the engine's own
+message, preserved).  Everything else in this document applies unchanged: the
+`result` inside the envelope is the same `RefinementResult`, and §7's
+diagnostics are still the first thing to read.
+
+---
+
 ## 10. A worked default
 
 If you have a lab pattern, a CIF and no other information, this is the sequence
@@ -548,8 +572,8 @@ falling, and do not continue merely because it is still falling.
 **What to report.** The refined values with their (inflated) esds, the
 diagnostics you could not resolve named as systematics, the protocol you
 actually ran (plan, held parameters, excluded ranges, channel count), and the
-package version from `result.provenance`. A number without its protocol is not
-a measurement.
+package version, backend and solver from `result.provenance`. A number without
+its protocol is not a measurement.
 
 ---
 
