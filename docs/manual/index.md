@@ -7,6 +7,17 @@ between Rietveld codes.
 ```{toctree}
 :maxdepth: 2
 :numbered:
+
+forward-model
+peak-positions
+profiles
+intensities
+corrections
+microstructure
+background
+estimation
+parameterisation
+method
 ```
 
 ## Bibliography
