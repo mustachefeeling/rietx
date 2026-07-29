@@ -258,6 +258,21 @@ measurement this WP turned on: **8 failed, 976 passed** on every Linux Python,
 with all eight failures the bit-identity gate and nothing else in the suite
 disagreeing at all.
 
+`weekly.yml`, dispatched twice (30433370388 then 30434029964 with the gate
+deselected):
+
+| job | conclusion | wall clock | what it showed |
+|---|---|---|---|
+| macOS | success | 5:27 | 1036 passed / 66 skipped; goldens 7 of 8 bit-identical, `toy_rich` off by exactly 1 ulp, reproducibly across both runs |
+| torch (experimental) | success | 16:52 | the agreement matrix with numpy + jax + torch all installed, MPS rows self-skipping as designed |
+
+**Two things a bump can break, learned here.** `astral-sh/setup-uv`'s latest
+*release* is v9.0.0 but its highest floating **major** ref is `v7`; assuming
+the two agree failed every job in three seconds. And the four actions were on
+Node-20 majors that GitHub now force-runs on Node 24 — worth bumping before a
+release, but bump against `git/matching-refs/tags/v`, not against
+`releases/latest`.
+
 ## References
 
 - GitHub Actions billing multipliers (macOS 10× on private repos) —
