@@ -263,8 +263,9 @@ deselected):
 
 | job | conclusion | wall clock | what it showed |
 |---|---|---|---|
-| macOS | success | 5:27 | 1036 passed / 66 skipped; goldens 7 of 8 bit-identical, `toy_rich` off by exactly 1 ulp, reproducibly across both runs |
-| torch (experimental) | success | 16:52 | the agreement matrix with numpy + jax + torch all installed, MPS rows self-skipping as designed |
+| macOS (1st run, gate required) | failure | 5:27 | 1036 passed / 66 skipped and one golden state off — the measurement that produced the redesign |
+| macOS (2nd run, gate reported) | success | 4:12 | goldens 7 of 8 bit-identical, `toy_rich` off by exactly 1 ulp, *identically* in both runs — deterministic, not flaky |
+| torch (experimental) | success | 15:59 | the agreement matrix with numpy + jax + torch all installed, MPS rows self-skipping as designed |
 
 **Two things a bump can break, learned here.** `astral-sh/setup-uv`'s latest
 *release* is v9.0.0 but its highest floating **major** ref is `v7`; assuming
