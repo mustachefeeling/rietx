@@ -9,6 +9,42 @@ Depends on: WP-1001, WP-1002
 
 ## Inherited
 
+From **WP-1002** (CI matrix, landed 2026-07-29) — **going public is not just a
+licence decision: three separate limitations here are consequences of the repo
+being a private free-plan repo, and they all lift at once.**
+
+- **CI cannot gate anything today.** `repos/…/branches/main/protection`
+  returns 403 *"Upgrade to GitHub Pro or make this repository public"*, so the
+  per-push matrix **reports** — nothing stops a red push landing on `main`.
+  Making the repo public is therefore also the moment to require the `fast`
+  jobs as status checks; do both in one change or the freeze rests on a badge.
+- **macOS is nightly-only for cost, not for coverage.** Hosted macOS runners
+  bill at a **10× minute multiplier** on private repos. Publishing stops the
+  meter, so promote macOS into the per-push matrix in the same change. Same
+  for the `[torch]` job if the ~500 MB wheel is worth it per push.
+- **The supported-Python claim is now measured, and `pyproject` under-states
+  it.** 3.11, 3.12, 3.13 *and* 3.14 all install `[dev]` and pass the fast
+  suite; `requires-python = ">=3.11"` is right, but `classifiers` names only
+  `Programming Language :: Python :: 3` — add the per-version rows for PyPI's
+  filters, and decide whether 3.14 is claimed or left allow-fail in CI.
+- **The QARR licence blocker below now has a concrete mechanism.** Nothing is
+  fetched today: all 18 MB of `tests/data/` is vendored, which is why
+  `nightly.yml` has no network step. If 1003 un-vendors the round-robin
+  patterns, the fetch route is the Internet Archive (`web.archive.org/web/
+  2020id_/…/QARR/col/<name>.prn`), the nightly grows a network dependency it
+  currently does not have, and nine acceptance suites become
+  network-conditional. Excluding `tests/` from the sdist is the cheaper answer
+  if the goal is only "do not redistribute in the wheel" — CI checks out the
+  repo and is unaffected either way.
+- **`tests/data/backend_goldens/*.npz` are pinned to `darwin/arm64` and skip
+  elsewhere** (`GOLDEN_PLATFORM` in `tests/test_backend_shim.py`), measured:
+  Linux x86-64 diverges by 1 ulp to 1.7e-13 relative, a libm/summation-order
+  difference, on *every* state. Two consequences for a release: a user or
+  contributor on Linux sees 8 skips, not 8 failures, which is the intended
+  first experience — and the 7.3 MB of npz is pure CI weight in an sdist, so
+  the "do the tests ship?" question is now a size question as well as a
+  licence one.
+
 From **WP-1001** (validation matrix, landed 2026-07-29) — **one deliberate
 behaviour change to put in the release notes, and two smaller freeze items.**
 
