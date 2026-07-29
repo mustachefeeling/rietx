@@ -32,6 +32,10 @@ dependencies = [
 
 [project.optional-dependencies]
 viz = ["matplotlib>=3.8", "plotly>=5.20"]
+# the GUI server (WP-1008+) serves plotly.js out of this package; the built
+# frontend assets are committed under src/pxrdref/gui/static, so installing
+# the extra never needs node
+gui = ["plotly>=5.20"]
 baselines = ["pybaselines>=1.1"]
 jax = ["jax>=0.4.30"]
 # EXPERIMENTAL, and deliberately not part of [dev]: torch is a ~500 MB

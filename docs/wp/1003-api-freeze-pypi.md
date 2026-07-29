@@ -1,13 +1,44 @@
 # WP-1003 — API freeze + PyPI release
 
 Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
-Depends on: WP-1001, WP-1002
+Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
+the milestone's last row, so the freeze covers a surface the GUI exercised)
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
 ## Inherited
+
+From the **v1.0 GUI expansion** (un-fencing commit, 2026-07-29) — new surface
+the freeze must cover, and four decisions parked here deliberately:
+
+- **New freeze surface**: `schemas/params.py` (`ParameterRow`),
+  `schemas/plan.py` (the unified `StageSpec`/`PlanSpec` — the unification
+  retires the `schemas/history.py` and `agent.py` twins; decide whether the
+  re-export aliases are frozen API or a deprecation), `schemas/project.py`
+  (`DataRef`/`ProjectDoc`), `capabilities()`, the new `Refinement` verbs
+  (`parameters()`, `set_vary`, the set-value verb — WP-1004 settles its
+  name against `NodeAction.api_call`'s rendering), and
+  `CancelToken`/`RefinementCancelled` (WP-1006).
+- **The HTTP routes and the `.pxt` text format are declared *provisional* at
+  v1.0** — schemas frozen, wire/text surfaces not. State this in the release
+  notes (WP-1017's `gui-power.md` states it user-facing; this WP states it
+  normatively).
+- **`RefinementResult.history` is a dead field** — declared at
+  `schemas/results.py:291` (`list[IterationRecord]`), never populated by any
+  writer (verified 2026-07-29; `IterationRecord` has no other consumer).
+  Delete or fill; **recommend delete** — the GUI reads the event stream, and
+  per-iteration curves in every result would violate the state-not-curves
+  rule the history nodes follow.
+- **`[gui]` extra + committed-static wheel audit**: `src/pxrdref/gui/static/`
+  ships in the wheel (hatchling packages `src/pxrdref` wholesale) — audit
+  wheel *and* sdist contents for the static assets, `help.json`, and
+  `build-info.json`, and decide whether the `gui/` TS workspace is excluded
+  from the sdist the same way the tests question above is decided.
+- **Going public zeroes the `gui.yml` CI line** (~3 billed min per
+  gui-touching push today) — a fourth entry for WP-1002's "public is the
+  same change as three other things" finding below.
 
 From **WP-1002** (CI matrix, landed 2026-07-29) — **going public is not just a
 licence decision: three separate limitations here are consequences of the repo

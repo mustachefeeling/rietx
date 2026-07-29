@@ -375,9 +375,12 @@ must import, and every bib entry must be cited. Consequence: renaming a
 physics symbol or retuning a fenced constant means touching the manual in the
 same change.
 
-**In flight: v1.0 — hardening, API freeze, PyPI.** `pyproject.version` tracks
-the milestone *in flight* (1.0.0.dev0), not the last one shipped, because that
-string is stamped into every `RefinementResult.provenance` and history node.
+**In flight: v1.0 — hardening, human GUI, API freeze, PyPI.**
+`pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the
+last one shipped, because that string is stamped into every
+`RefinementResult.provenance` and history node. The GUI (WP-1004…1017,
+expanded into v1.0 on 2026-07-29) lands *before* the freeze (WP-1003) so the
+freeze covers an exercised surface; stack decision in DESIGN.md §Outputs.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
 the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU

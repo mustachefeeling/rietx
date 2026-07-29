@@ -64,15 +64,39 @@ injected from the live package at build time, every equation carries a
 `tests/test_manual.py` fails the suite on an uncited bib entry, a
 non-importing source symbol, or any `-W` build warning.
 
-**Now: v1.0 — hardening, API freeze, PyPI.** Three rows.
-[1001](wp/1001-validation-matrix.md) (validation matrix) and
-[1002](wp/1002-ci-matrix.md) (CI matrix) both **landed 2026-07-29** — see
-below. [1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI) is not started
-and now depends on both; its `### Inherited` section has been curated by every
-shipped WP, and 1002 has just added the discovery that **"make the repo
+**Now: v1.0 — hardening, human GUI, API freeze, PyPI.** The milestone was
+**expanded 2026-07-29** rather than a v0.7 inserted (`pyproject.version =
+"1.0.0.dev0"` is stamped into every result's provenance and history node, so
+an insert would send provenance ordering backwards; precedent: 0603→0408).
+The "GUI/notebook widgets" v2+ line is half un-fenced — the **human GUI**
+moves into v1.0 as fourteen WPs
+([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md));
+notebook widgets stay fenced. Grounds recorded in
+[DESIGN.md](DESIGN.md#locked-decisions): API-first paid off, but the package
+is currently unusable by the audience it is for, and the GUI **forces the
+missing API into existence** — parameters-as-data, `set_vary`/`set_value`
+verbs (their NodeKinds reserved since v0.2, still unused), a project
+container, cancellation, exactly one `StageSpec` — so it lands *before*
+[1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI), which becomes the
+milestone's last row and freezes a surface that has actually been exercised.
+Sequencing: backend API (1004–1007) → server (1008–1009) → frontend
+(1010–1017); the stack decision (local web app, stdlib `http.server`,
+Svelte 5 + TypeScript with **committed** build assets shipping in the wheel,
+plotly served from the installed package, `[gui]` extra = plotly only) is in
+DESIGN.md §Outputs' 2026-07-29 amendment. Verifying the plan against the tree
+turned up two measured facts, both recorded in 1004: `NodeAction.api_call`
+renders `ref.set_values(...)` (plural) for the singular kind `"set_value"`,
+and the history `StageSpec` silently drops `Stage.strain_seed` on round-trip —
+the spec twins are not merely duplicated, one of them loses data.
+
+Landed so far: [1001](wp/1001-validation-matrix.md) (validation matrix) and
+[1002](wp/1002-ci-matrix.md) (CI matrix), both **2026-07-29** — see below.
+[1003](wp/1003-api-freeze-pypi.md) is not started and now depends on
+everything else in the milestone; its `### Inherited` section has been curated
+by every shipped WP, and 1002 added the discovery that **"make the repo
 public" is the same change as three other things** — it is what makes CI
 enforceable, what makes macOS affordable, and what settles the vendored-QARR
-question.
+question (the GUI adds a fourth: it zeroes the `gui.yml` CI line).
 
 **[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29**, every workflow
 verified by a real run rather than by review: the fast suite is green on Python
@@ -737,7 +761,7 @@ the linear algebra's.
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
-| v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
+| v1.0 | Hardening, human GUI, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `pxrdref gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation) |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -804,13 +828,31 @@ survives (symmetric rows, exactly bit-equal) is the starting point for the
 v2-fenced `vmap` series, not for a single-pattern rewrite. Grounds and the
 reopening conditions are in the WP's answers/handover.
 
-### v1.0 — hardening & release (stubs)
+### v1.0 — hardening, human GUI & release (GUI WPs added 2026-07-29)
+
+Order: backend API first (1004–1007, each independently useful without the
+GUI), then server (1008–1009), then frontend (1010–1017); the freeze (1003)
+is the milestone's last row so it covers a surface the GUI has exercised.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
 | [1002](wp/1002-ci-matrix.md) | CI matrix | ✅ 2026-07-29 | — |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002 |
+| [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ⬜ | — |
+| [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ⬜ | 1004 |
+| [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ⬜ | — |
+| [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ⬜ | 1004 |
+| [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ⬜ | 1004–1007 |
+| [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
+| [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
+| [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
+| [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |
+| [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |
+| [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |
+| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
+| [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
+| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1017 |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
@@ -818,7 +860,9 @@ Fundamental Parameters Approach as a differentiable convolution stack
 (Cheary-Coelho 1992); neutron CW; TOF (new Source/Profile implementations
 behind the frozen seams); spherical-harmonics texture (Von Dreele 1997);
 rigid bodies; MCP server wrapping `refine_json`; internal-standard/amorphous
-QPA; `vmap`-batched in-situ series; GUI/notebook widgets.
+QPA; `vmap`-batched in-situ series; notebook widgets. *(The human GUI was
+un-fenced from this list into v1.0 on 2026-07-29 — WP-1004…1017; grounds in
+[DESIGN.md](DESIGN.md#locked-decisions).)*
 
 No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites

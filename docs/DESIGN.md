@@ -114,6 +114,22 @@ differentiable from day one.
 - **Scope discipline** (review finding: this is multi-person-year work):
   one autodiff backend at a time; MCP/FPA/neutron/TOF fenced in v2; every
   milestone has a concrete measured acceptance test.
+  - *GUI fence revised (2026-07-29).* "GUI/notebook widgets" was a v2+ line
+    item, deliberately: this file's founding argument is that every existing
+    Rietveld code is GUI-first with automation bolted on, and inverting that
+    was the point. The inversion has paid off — and it also means the package
+    is unusable by the audience it is for, with ~27 concrete API gaps behind
+    any UI (no parameters-as-data, no `set_vary`/`set_value` on `Refinement`
+    despite history reserving those NodeKinds since v0.2, no project
+    container, no cancellation, `StageSpec`/`PlanSpec` existing twice in
+    incompatible shapes). The **human GUI half is pulled into v1.0**
+    (WP-1004…1017), before the API freeze (WP-1003), precisely so the GUI
+    forces that API into existence and the freeze covers a surface a real
+    consumer has exercised rather than one designed on paper. Notebook
+    widgets stay fenced. This is a revision of the fence's *timing* on
+    API-first grounds, not a retreat from API-first: the GUI is a view over
+    the public API (every action echoes its API call), never a second
+    implementation.
   - *FPA fence, clarified (2026-07-23 cross-code review).* The single biggest
     scientific gap versus an empirical-Caglioti package is the
     **fundamental-parameters (FPA) peak shape** (Cheary & Coelho 1992): a
@@ -318,6 +334,24 @@ self-contained HTML default; live monitoring by rewriting HTML/JSON per stage
 tailing the structured event stream — every line paired with its equivalent
 API call, so the log doubles as a reproducible session script. Zero viz deps
 in the base install; the FitReport itself is pure numpy.
+
+*Amendment (2026-07-29, v1.0 GUI — stack decision).* The full human GUI is
+un-fenced into v1.0 (WP-1004…1017; grounds under Locked decisions → scope
+discipline). Stack: a **local web app** — `pip install pxrd-refine[gui]`,
+`pxrdref gui` opens the browser. Server stays stdlib `http.server`
+(the `compare_app.py`/`watch.py` precedent twice over: zero new deps, offline
+and air-gap safe, and a single-user localhost app with ~25 routes gains
+nothing from FastAPI/uvicorn); SSE on `ThreadingHTTPServer`; every verb a
+plain method on a `GuiSession` with `server.py` as transport only, so a Tauri
+shell can wrap it later. Frontend is real TypeScript (Svelte 5 + Vite — the
+fine-grained-reactivity fit for a table of hundreds of independently-updating
+parameter cells), but **built assets are committed and ship in the wheel** —
+users never need node; `[gui]` = plotly only, served from the installed
+package as compare already does. "Never Qt/wx in base" stands. The power-user
+surface is a Profex-lineage synced text pane (`.pxt`, single server-side
+parser, explicit apply). The `pxrdref watch` design above is unchanged — GUI
+run events are teed to the same `live/` stream, so watch and the GUI are two
+views of one stream.
 
 ## Absorption: a correction that cannot improve the fit
 
