@@ -462,10 +462,13 @@ is not a comparison.
 
 **Where the suite runs, and what that can and cannot prove** (WP-1002). Every
 push runs ruff plus the fast suite on Python 3.11-3.13 (3.14 allow-fail) on
-Linux; a nightly job runs everything, `slow` acceptance included, on Linux and
-macOS, plus the `[torch]` agreement rows. The split is a cost decision — macOS
-bills at a 10× minute multiplier on a private repo, and it is the platform
-development already happens on — not a claim that macOS matters less.
+Linux; a nightly job runs everything, `slow` acceptance included, on Linux; a
+weekly one runs macOS and the `[torch]` agreement rows. The tiering is a
+billing constraint, not a claim about which platform matters: macOS bills at a
+10× minute multiplier on a private repo, so a nightly macOS full-suite job
+would cost about six times the whole monthly quota by itself. What macOS does
+carry weekly is the coverage nothing else can — it is where the bit-identity
+goldens were captured.
 
 Two limits are stated rather than implied by a green badge. The Apple-GPU
 (`torch-mps`) assertions **cannot** run on a hosted runner, which has no Metal
