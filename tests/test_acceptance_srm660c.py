@@ -72,6 +72,14 @@ def build_srm_inputs():
     instrument.geometry.axial_hl.value = 0.025
     from pxrdref.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
+    # Dispersion DECLINED explicitly (WP-1001 made it the package default).
+    # This is the absolute anchor and the frozen dispersion-OFF baseline that
+    # test_acceptance_dispersion.py measures its ON arm against, so the
+    # setting has to be stated here rather than inherited — the whole value of
+    # that comparison is that exactly one thing differs between the two arms.
+    # Measured either way, the cell does not move (4.156895 Å); what moves is
+    # Rwp (8.661 → 8.640 %) and B(La)/B(B) (~12 % / ~22 %).
+    instrument.source.dispersion = None
     return data, structure, instrument
 
 

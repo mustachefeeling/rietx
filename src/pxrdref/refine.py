@@ -1171,9 +1171,12 @@ def _dispersion_diagnostics(structure: Structure,
                             instrument: Instrument) -> list[Diagnostic]:
     """Flag anomalous corrections the model is *not* applying.
 
-    ``Source.dispersion`` is opt-in, which keeps a file read from silently
-    changing everyone's numbers — but "off" must never be a quiet wrong
-    answer.  The size reported is the change in |f|² at k = 0,
+    ``Source.dispersion`` has been **on by default since v1.0**, so this fires
+    only for a caller who set it to ``None`` — declining is now the act that
+    needs saying out loud, and the two legitimate reasons for it (reproducing
+    a pre-v1.0 number, or a wavelength inside an absorption-edge interval
+    where the table is wrong in principle) both leave a fit whose intensities
+    are knowingly mis-scaled.  The size reported is the change in |f|² at k = 0,
     ((Z + f′)² + f″²)/Z², which is the fraction by which every reflection of
     that species' contribution is mis-scaled.  A refinement is never blocked
     by a lookup failure here: an untabulated element or an on-edge wavelength
@@ -1212,10 +1215,13 @@ def _dispersion_diagnostics(structure: Structure,
         code="DISPERSION_NEGLECTED",
         message=(f"anomalous scattering is off, but at lambda = {lam:.5f} A it "
                  f"changes the scattering power of {named}"),
-        suggestion="set instrument.source.dispersion = Dispersion() — the "
-                   "correction is a fixed constant, not a refined parameter, "
-                   "and unequal effects across phases bias QPA weight "
-                   "fractions directly",
+        suggestion="this model sets instrument.source.dispersion = None, "
+                   "declining a correction that is on by default; restore it "
+                   "with Dispersion() — it is a fixed constant, not a refined "
+                   "parameter, and unequal effects across phases bias QPA "
+                   "weight fractions directly. If it was declined because the "
+                   "wavelength sits in an absorption-edge interval, supply the "
+                   "measured pair through Dispersion.overrides instead",
     )]
 
 

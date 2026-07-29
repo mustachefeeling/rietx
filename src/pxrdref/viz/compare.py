@@ -134,6 +134,12 @@ def qarr_instrument() -> Instrument:
     doublet, diffracted-beam graphite monochromator (2θ_m = 26.6°)."""
     ins = Instrument.bragg_brentano(radiation="CuKa", goniometer_radius_mm=173.0,
                                     monochromator_two_theta=26.6)
+    # dispersion DECLINED, not inherited: these standards mirror the
+    # acceptance suites' protocols (tests/test_compare_ui.py pins that
+    # field by field), and those pin the pre-v1.0 dispersion-off
+    # baseline so the *comparison* is against a fixed reference.  The
+    # `dispersion` variant below is what turns it on.
+    ins.source.dispersion = None
     ins.background = BackgroundChebyshev.with_terms(6)
     return ins
 
@@ -247,6 +253,7 @@ def _build_srm660c(data_dir: Path) -> StandardInputs:
         scale=_p(1e-4, min=0.0, transform="softplus"),
     )])
     ins = Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins.source.dispersion = None   # declined, not inherited (see _qarr_instrument)
     ins.profile.w.value = 2e-3
     ins.profile.x.value = 5e-3
     ins.geometry.axial_sl.value = 0.025
@@ -309,6 +316,7 @@ def _build_nac(data_dir: Path) -> StandardInputs:
         scale=_p(1e-7, min=0.0, transform="softplus"),
     ))
     ins = Instrument.debye_scherrer(wavelength=0.4139090)
+    ins.source.dispersion = None   # declined, not inherited (see _qarr_instrument)
     ins.profile.w.value = 2e-5
     ins.profile.x.value = 2e-3
     ins.background = BackgroundChebyshev.with_terms(6)
@@ -339,6 +347,7 @@ def _build_lab6_capillary(data_dir: Path) -> StandardInputs:
     for atom in structure.phases[0].atoms:
         atom.biso = _p(0.3, min=0.0, max=5.0)
     ins = Instrument.debye_scherrer(wavelength=0.4131280)
+    ins.source.dispersion = None   # declined, not inherited (see _qarr_instrument)
     ins.profile.w.value = 2e-5
     ins.profile.x.value = 2e-3
     ins.background = BackgroundChebyshev.with_terms(8)

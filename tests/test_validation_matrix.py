@@ -25,6 +25,7 @@ from tests.validation_matrix import (
     CLAIM_TIERS,
     CLAIMS,
     DATASETS,
+    DISPERSION_DEFAULT_ON,
     GAPS,
     START_DEPENDENCE_RULE,
     TIERS,
@@ -177,6 +178,52 @@ def test_named_diagnostic_codes_exist(claim) -> None:
         assert f'"{bare}"' in sources, (
             f"{claim.test} names diagnostic {bare!r}, which no module in "
             "src/pxrdref emits")
+
+
+def test_every_acceptance_suite_declares_its_dispersion_setting() -> None:
+    """A suite that pins numbers must not inherit a physics default.
+
+    WP-1001 made ``Source.dispersion`` the package default and measured what
+    that costs a tree whose suites rode the old one: 21 tests moved at once,
+    including nine bit-identity goldens, and the failures did not distinguish
+    "this protocol deliberately excludes dispersion" from "nobody thought
+    about it".  Declaring the setting is what makes that distinction
+    reviewable — and it is the same rule as adopting another code's protocol,
+    which means adopting what it did *not* model as much as what it did.
+
+    A suite may declare it directly or inherit from a builder it imports; both
+    show up as the token appearing in the module that owns the protocol, which
+    is what this checks.
+    """
+    undeclared = []
+    for path in sorted(TESTS.glob("test_acceptance_*.py")):
+        text = path.read_text(encoding="utf-8")
+        if "dispersion" not in text:
+            undeclared.append(path.name)
+    assert not undeclared, (
+        f"acceptance suites that never name `dispersion`: {undeclared}.  Set "
+        "`instrument.source.dispersion` explicitly (to None to decline it, or "
+        "to Dispersion() to apply it) and say in a comment why — riding the "
+        "package default means these numbers silently re-baseline the next "
+        "time the default moves.")
+
+
+def test_the_recorded_dispersion_decision_matches_the_live_schema() -> None:
+    """The matrix records a decision; this is what keeps it a *fact*.
+
+    Flipping ``Source.dispersion`` back without revisiting the grounds
+    written in validation_matrix.DISPERSION_DEFAULT_ON fails here — the
+    decision and the code cannot drift apart silently, which is the same
+    contract the generated doc has.
+    """
+    from pxrdref.schemas.instrument import EmissionLine, Source
+
+    live = Source(lines=[EmissionLine(wavelength=1.5406)]).dispersion is not None
+    assert live == DISPERSION_DEFAULT_ON, (
+        f"Source.dispersion defaults to {'on' if live else 'off'} but the "
+        f"validation matrix records {'on' if DISPERSION_DEFAULT_ON else 'off'}."
+        "  If the default is being changed, update DISPERSION_DEFAULT_ON *and* "
+        "the grounds above it — the measured trade is recorded there.")
 
 
 def test_tier_rules_are_written() -> None:

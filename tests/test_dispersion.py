@@ -727,6 +727,10 @@ def test_the_neglected_dispersion_message_is_anode_dependent():
     levels = {}
     for name in ("CoKa", "MoKa"):
         ins = pr.Instrument.bragg_brentano(radiation=name)
+        # dispersion is the default since WP-1001, so the neglect diagnostic
+        # now addresses someone who *declined* it — which is the only way to
+        # neglect it, and the reason the message still has a job
+        ins.source.dispersion = None
         diags = _dispersion_diagnostics(hematite, ins)
         assert len(diags) == 1 and diags[0].code == "DISPERSION_NEGLECTED"
         assert f"{_KA_DOUBLETS[name][0]:.5f}" in diags[0].message

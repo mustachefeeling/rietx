@@ -40,6 +40,14 @@ Measured results are recorded in the module docstring of the WP handover log
 and in ``docs/milestones/`` when v0.5 ships; the assertions here are the
 participant-spread tolerances of the independent acceptance, unchanged — a
 chained fit has to be as accurate as an unchained one or it is not usable.
+
+
+Dispersion is **declined**, inherited from ``qarr_instrument`` in
+``test_acceptance_qpa_roundrobin`` — this suite imports that protocol
+wholesale so that what differs between the two is only the chaining, and that
+includes inheriting its (explicit) dispersion-off setting.  Since WP-1001 made
+the block a package default, "off" here is a declaration in the shared
+builder, never an inherited default.
 """
 
 import numpy as np

@@ -34,6 +34,14 @@ Rwp = 14.4 %, GoF = 1.61; a = 4.757866 Å (−313 ppm), c = 12.988632 Å
 while **c/a = 2.729928 lands +30 ppm** from the certificate's 2.729846.
 Refined Kα2/Kα1 = 0.43 (the graphite passband clips the 0.5 emission ratio),
 Biso(Al) = 0.23, Biso(O) = 0.22 Å² — both physical.
+
+
+Dispersion is **declined**, inherited from ``qarr_instrument`` in
+``test_acceptance_qpa_roundrobin``.  WP-1001 measured what the (now default)
+block does to this suite's certificate-grade assertion and it is safe either
+way — c/a moves +29.8 → +30.2 ppm against a 100 ppm bar — but Rwp rises
+14.374 → 14.531 % and Biso(Al) 0.232 → 0.314 Å², so the recorded numbers below
+are dispersion-off ones and say so.
 """
 
 from pathlib import Path

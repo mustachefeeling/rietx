@@ -178,6 +178,14 @@ def qarr_instrument() -> pr.Instrument:
                                        goniometer_radius_mm=173.0,
                                        monochromator_two_theta=26.6)
     ins.background = BackgroundChebyshev.with_terms(6)
+    # Dispersion is DECLINED explicitly, not inherited.  It became the package
+    # default in v1.0 (WP-1001); this suite and everything that imports its
+    # instrument — sequential, srm676a, stephens — exist to stay comparable to
+    # the v0.3 record, which was measured without it.  Stating it here rather
+    # than riding the default is the point: a suite whose numbers move when a
+    # default moves is not pinning a protocol.  The dispersion-ON arm of this
+    # same protocol is test_acceptance_dispersion.py.
+    ins.source.dispersion = None
     return ins
 
 

@@ -103,7 +103,12 @@ def fap_inputs():
         lines=[EmissionLine(wavelength=1.5405),
                EmissionLine(wavelength=1.5443,
                             weight=pr.Parameter(value=0.5, min=0.0, max=1.0))],
-        polarization=pr.Parameter(value=0.5, min=0.0, max=1.0))
+        polarization=pr.Parameter(value=0.5, min=0.0, max=1.0),
+        # Dispersion DECLINED (WP-1001 made it the package default): this is
+        # the cross-code row, and GSAS's converged FAP.EXP did not apply f′/f″
+        # either.  Adopting another code's protocol means adopting what it did
+        # NOT model as much as what it did — the v0.2 lesson.
+        dispersion=None)
     instrument.profile.u.value = 2e-4     # GSAS GU, held
     instrument.profile.v.value = -2e-4    # GSAS GV, held
     instrument.profile.w.value = 5e-4     # GSAS GW, held

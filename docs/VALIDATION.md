@@ -473,6 +473,47 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 **Diagnostics:** `STEPHENS_STRAIN_NOT_POSITIVE`
 
+## The one default this matrix decided
+
+`Source.dispersion` shipped opt-in through v0.6 so that landing it did not
+invalidate the record. WP-1001 was chartered to decide whether it should be the
+default, and measured the question rather than inheriting the recommendation.
+
+**For it.** Dispersion is the only correction in the package that needs *no
+information the caller does not already have*. Capillary absorption wants muR,
+roughness a surface, Stephens a strain model, March-Dollase a habit — dispersion
+wants the species and the wavelength, both already in the model. Neglecting it
+costs RMS 2.26 -> 0.69 wt % on round-robin QPA.
+
+**The anchors survive.** SRM 660c's cell does not move (4.156895 A either way).
+SRM 676a's certificate-grade c/a moves +29.8 -> +30.2 ppm against a 100 ppm bar —
+measured for this WP, since WP-0504 never checked it. And Rwp on corundum gets
+*worse*, 14.374 -> 14.531 %, while the physics gets better: the rule at the top of
+this document, now at the level of a package default.
+
+**Against it, measured.** A wavelength inside an absorption-edge interval
+**raises** rather than degrading — 12 of 1176 (element x shipped anode)
+combinations including Eu and Ho at Cu Ka, and 0.0-1.2 % of arbitrary synchrotron
+wavelengths depending on the specimen. Raising is kept deliberately: a selective
+fallback would leave some species corrected and others not, manufacturing exactly
+the unequal cross-phase bias the correction exists to remove, which is *worse*
+than uniformly declining. `dispersion = None` is the one-line escape and the
+diagnostic names it.
+
+**Decided: flipped.** Absorbing it moved 21 tests, and the shape of that cost is
+the lasting lesson — nine were bit-identity goldens with no opinion about
+dispersion at all; they simply inherited it. Every test that pins a number now
+declares this setting explicitly, and every golden is bit-identical again, which
+is the evidence the flip touched physics and not plumbing. Two knock-on effects
+are recorded rather than tuned away:
+
+- Light-atom ADPs come back **less precise even as they come back less biased**:
+  rutile U11/U33 separate at 1.9 sigma with the block on against 2.2 sigma without,
+  because f" raises the heavy atom's share of every reflection.
+- The calibrate -> freeze -> refine size/strain split degrades from 27 % low to
+  39 % low — a bar that was already marginal on a degenerate direction
+  (lor_size, gauss_strain and the frozen instrument X are one correlated triple).
+
 ## Known gaps
 
 A matrix that lists only what passed is marketing. These are the holes a reader

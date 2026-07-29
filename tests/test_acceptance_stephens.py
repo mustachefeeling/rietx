@@ -84,6 +84,13 @@ channels its threshold sits below anything physically meaningful.  ΔBIC
 separates the two by two orders of magnitude (+488 vs −17), because its ln(N)
 penalty grows with the channel count.  Quote ΔBIC when deciding whether a
 Stephens block earns its parameters on a lab pattern.
+
+
+Dispersion is **declined**, inherited from ``qarr_instrument`` in
+``test_acceptance_qpa_roundrobin``: every number here is a differential
+statement about a strain block on round-robin patterns, and it stays
+comparable to the v0.3/v0.5 records that were measured without the (now
+default) dispersion block.
 """
 
 from pathlib import Path

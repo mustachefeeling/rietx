@@ -43,12 +43,28 @@ class EmissionLine(Base):
 class Dispersion(Base):
     """Anomalous scattering corrections f′, f″ at the source wavelengths.
 
-    Opt-in, and absent by default: switching it on changes every computed
-    intensity (by −16 % for ZnO at Cu Kα, +7 % for CaF₂), so it is a modelling
-    decision the caller makes rather than one a file read makes for them.  It
-    is *not* a refinement — f′ and f″ are fixed constants of (element,
-    wavelength), looked up once at stage compile from
+    **On by default since v1.0** (it was opt-in through v0.5-v0.6, so every
+    number in ``docs/milestones/`` up to and including v0.6 was measured with
+    it off).  It is *not* a refinement — f′ and f″ are fixed constants of
+    (element, wavelength), looked up once at stage compile from
     ``crystallography.dispersion``.
+
+    What makes it a default rather than an opt-in is that it is the only
+    correction here needing **no information the caller does not already
+    have**: capillary absorption wants µR, roughness wants a specimen surface,
+    Stephens wants a strain model, March-Dollase wants a habit — dispersion
+    wants the species and the wavelength, both of which are already in the
+    model.  Neglecting it is not a neutral simplification: it mis-scales every
+    reflection of a species by ((Z + f′)² + f″²)/Z² − 1, which is −16 % for
+    ZnO at Cu Kα and +7 % for CaF₂, and unequal effects across phases bias QPA
+    weight fractions directly (measured: RMS error 2.26 → 0.69 wt % on the
+    IUCr round robin).
+
+    Set ``source.dispersion = None`` to decline it and reproduce the ≤ v0.6
+    behaviour exactly — that is also the escape hatch when the table cannot
+    answer, since a wavelength inside an absorption-edge interval raises
+    rather than interpolating across the edge (WP-1001 census: 12 of 1176
+    element × shipped-anode combinations, including Eu and Ho at Cu Kα).
 
     ``overrides`` supplies measured pairs for elements where a table cannot be
     right: within a few tens of eV of an absorption edge the true f″ is the
@@ -94,9 +110,10 @@ class Source(Base):
     polarization: Parameter = Field(
         default_factory=lambda: Parameter(value=0.5, min=0.0, max=1.0)
     )
-    #: opt-in anomalous scattering; None ⇒ f = f₀, bit-identical to the
-    #: non-anomalous model (see :class:`Dispersion`)
-    dispersion: Dispersion | None = None
+    #: anomalous scattering, **on by default since v1.0**; None ⇒ f = f₀,
+    #: bit-identical to the non-anomalous model and to every number recorded
+    #: in ``docs/milestones/`` through v0.6 (see :class:`Dispersion`)
+    dispersion: Dispersion | None = Field(default_factory=Dispersion)
 
     @model_validator(mode="after")
     def _nonempty(self) -> "Source":

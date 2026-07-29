@@ -93,8 +93,11 @@ def _instrument(*, capillary: bool, dispersion: bool = False) -> pr.Instrument:
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     instrument.background = BackgroundChebyshev.with_terms(8)
-    if dispersion:
-        instrument.source.dispersion = Dispersion()
+    # Stated in both directions (WP-1001 made dispersion the package default):
+    # the absorption identity is measured on a dispersion-OFF pair and then
+    # re-measured on a dispersion-ON pair, and the claim is that it holds
+    # either way.  Riding the default would silently collapse the two arms.
+    instrument.source.dispersion = Dispersion() if dispersion else None
     return instrument
 
 

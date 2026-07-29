@@ -33,6 +33,12 @@ def nac_inputs():
     instrument.profile.x.value = 2e-3
     from pxrdref.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
+    # Dispersion DECLINED explicitly (WP-1001 made it the package default) so
+    # the v0.1 milestone numbers keep meaning what they said.  It is nearly
+    # inert here anyway — at 0.4139 Å (30 keV) every species in Na2Ca3Al2F14
+    # and CaF2 is far above its K edge — but "nearly inert" is a measurement,
+    # not a licence to leave the setting implicit.
+    instrument.source.dispersion = None
     return data, structure, instrument
 
 

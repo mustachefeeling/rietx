@@ -273,11 +273,11 @@ question rather than a solver one.
 - [x] **`docs/VALIDATION.md` generated from the registry**, with the committed
       file asserted byte-identical to the regeneration — the manual's
       executable-doc design applied to the matrix.
-- [ ] **Decide the `Source.dispersion` default on measurement.** Census what
+- [x] **Decide the `Source.dispersion` default on measurement.** Census what
       default-on would raise on (untabulated Z, on-edge wavelengths, the
       Kα1/Kα2 line guard) before touching the default; record the decision and
       its grounds either way.
-- [ ] **Start-dependence policy**, with the rule stated in the matrix and
+- [x] **Start-dependence policy**, with the rule stated in the matrix and
       applied to the one place it is known to bite (Stephens coefficients).
 - [ ] **Reconcile README §Validation** with the generated matrix (it says
       "eight suites"; there are nine).

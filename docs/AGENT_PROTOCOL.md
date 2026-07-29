@@ -312,11 +312,22 @@ Stephens block has Λ ∝ √Σ with *unbounded* slope at Σ = 0, so it needs
 `Stage.strain_seed` to start on the isotropic ray instead. These are opposite
 pathologies with opposite fixes; the plans already carry both.
 
-**8.7 Off-by-default is a decision, not an oversight.** Anomalous dispersion,
-anisotropic ADPs, Stephens strain, surface roughness and preferred orientation
-are all opt-in per source/atom/phase. Turning one on changes every number
-downstream, including published acceptance values. If you enable one, re-measure
-— do not carry a comparison across the change.
+**8.7 A default is a decision, in either direction.** Anisotropic ADPs,
+Stephens strain, surface roughness and preferred orientation are opt-in per
+atom/phase, because each needs a number about *this* specimen that the file
+does not carry. Anomalous dispersion is the exception and is **on by default
+since v1.0**: it needs only the species and the wavelength, both already in the
+model, so declining it is the choice that has to be justified. Turning any of
+them on or off changes every number downstream, including published acceptance
+values — if you change one, re-measure; do not carry a comparison across the
+change. Note the two knock-on effects WP-1001 measured when dispersion went to
+the default: on a specimen sitting inside an absorption-edge interval the
+lookup **raises** rather than degrading (that is deliberate — a selective
+fallback would leave some species corrected and others not, manufacturing
+exactly the unequal cross-phase bias the correction exists to remove; decline
+the block or supply `overrides`), and light-atom ADPs come back *less precise*
+even as they come back *less biased* (rutile U11/U33 separate at 1.9σ with the
+block on against 2.2σ without, because f″ raises the heavy atom's share).
 
 **8.8 Never transfer a literature constant without a numerical check across
 *all* its arguments.** A published cylinder-absorption coefficient printed as

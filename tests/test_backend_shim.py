@@ -95,6 +95,7 @@ def _state_srm660c():
         scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"),
     )])
     instrument = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 2e-3
     instrument.profile.x.value = 5e-3
     instrument.geometry.axial_sl.value = 0.025
@@ -143,6 +144,7 @@ def _state_nac():
     structure.phases[0].scale.value = 1e-6
     structure.phases.append(_caf2_phase())
     instrument = Instrument.debye_scherrer(wavelength=0.4139090)
+    instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     instrument.background = BackgroundChebyshev.with_terms(6)
@@ -176,6 +178,14 @@ def _toy_base(*, c_near_a: bool = False) -> tuple[pr.Structure, Instrument, Patt
         structure.phases[0].cell.c.value = 4.5910
     instrument = Instrument.debye_scherrer(wavelength=1.5406)
     instrument.profile.w.value = 8e-3
+    # Dispersion DECLINED (WP-1001 made it the package default).  These
+    # goldens exist to prove the *op shim* changes no number, so they must not
+    # move when the physics defaults do; ``toy_anomalous`` is the dedicated
+    # golden covering the dispersion derivative path, and it turns the block
+    # on explicitly.  Declining here keeps every committed npz bit-identical
+    # across the default flip, which is itself the evidence that the flip
+    # touched physics and not plumbing.
+    instrument.source.dispersion = None
     grid = np.arange(15.0, 80.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())
@@ -233,6 +243,7 @@ def _state_toy_rich():
     phase.preferred_orientation = PreferredOrientation(axis=(0, 0, 1))
     phase.preferred_orientation.r.value = 0.85
     instrument = Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 8e-3
     instrument.profile.x.value = 5e-3
     instrument.zero_shift.value = 0.01
@@ -324,6 +335,7 @@ def _state_toy_capillary():
     phase = structure.phases[0]
     phase.scale.value = 8.0e-3
     instrument = Instrument.debye_scherrer(wavelength=1.5406, mu_r=0.8)
+    instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 8e-3
     instrument.profile.x.value = 5e-3
     instrument.zero_shift.value = 0.01
@@ -450,6 +462,7 @@ def _state_toy_roughness():
     structure.phases[0].scale.value = 8.0e-3
     structure.phases[0].atoms[1].x.vary = True
     instrument = Instrument.bragg_brentano()
+    instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 8e-3
     instrument.background = BackgroundChebyshev.with_terms(4)
     instrument.geometry.surface_roughness = RoughnessSuortti(

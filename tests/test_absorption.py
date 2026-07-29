@@ -660,6 +660,12 @@ def test_an_unestimable_mu_r_is_reported_rather_than_silently_ignored():
     # 0.318 A ~ 39 keV: above the tabulation's 2-120 keV band edge? no --
     # instead pick a wavelength whose interval straddles the La K edge (38.9 keV)
     ins = Instrument.debye_scherrer(wavelength=0.3185, capillary_radius_mm=0.05)
+    # Sitting on an edge stops TWO subsystems, not one: since WP-1001 made
+    # dispersion the default, this wavelength would also refuse the f′/f″
+    # lookup — and that refusal raises rather than degrading, so it would mask
+    # the absorption skip this test is about.  Declining it keeps the test on
+    # its own subject; the double failure mode is recorded in docs/VALIDATION.md.
+    ins.source.dispersion = None
     ins.profile.w.value = 2e-2
     ref = Refinement(structure, ins, history=False)
     if ref._mu_r_skipped is None:
