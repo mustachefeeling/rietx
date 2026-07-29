@@ -335,12 +335,28 @@ disagreeing at all.
   now refuses to write a golden off the pinned platform — a half-and-half
   baseline set could never be green anywhere.
 
-  **Next.** Dispatch `nightly.yml` and `weekly.yml` once each to verify them —
-  the Linux `slow` acceptance has never run off the maintainer's machine, and
-  the weekly macOS job is the first test of whether the goldens hold on a
-  *hosted* arm64 runner (a different Accelerate build from the capture
-  machine). If they do not, that is a finding, not a bug: it would narrow the
-  pin from "darwin/arm64" to "one machine", which the release notes would need
-  to say.
+  **The pin narrowed once more, and it was the last measurement of the WP.**
+  Dispatching `weekly.yml` answered the question the platform tuple only
+  assumed. A **hosted** macOS/arm64 runner — same numpy 2.5.1, same scipy
+  1.18.0, same Accelerate as the capture machine — reproduced 7 of 8 states and
+  missed `toy_rich:y_calc` by 1.4210854715202004e-14, which is **exactly one
+  ulp** at a value in [64,128), on a single element. Local runs at 1/2/4/8 BLAS
+  threads are bit-stable, so it is not reduction ordering; what is left is the
+  system math library the machine image ships, and nothing visible from Python
+  distinguishes one image from another.
+
+  So `("darwin", "arm64")` is the right predicate for *worth attempting* — 7/8
+  at one ulp, against 8/8 at up to ~1100 ulp on Linux — but it is not a promise
+  of a match, and **no CI environment asserts these bits at all**. The weekly
+  macOS job therefore deselects the gate from the suite and runs it as its own
+  step, failing only if the goldens *skip* (a broken pin would mean nothing
+  anywhere checks them) and warning on a numeric mismatch so drift in the count
+  or the size stays visible. The gate is maintainer-machine evidence, exactly
+  the shape of the Apple-GPU gap, and is recorded as one.
+
+  **Next.** Nothing blocking. Two things a successor would want to know: the
+  per-push jax job's cost after the `actions/cache` step lands its first hit
+  (the number in the table below is a cold run), and whether promoting macOS to
+  nightly is worth it once WP-1003 makes the repo public and the meter stops.
 
 - **2026-07-22** — created as a stub from the ROADMAP split.

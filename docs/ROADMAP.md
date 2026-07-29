@@ -103,6 +103,18 @@ enough to absorb a real one, and the gate's entire content is "no refactor
 changed a single computed number". The general rule is in
 [DESIGN.md](DESIGN.md#testing--validation-policy).
 
+Then the weekly run narrowed it once more, and this is the part worth carrying:
+a **hosted** macOS/arm64 runner reporting the *same* numpy, scipy and
+Accelerate as the capture machine reproduced 7 of 8 states and missed one by
+**exactly one ulp** — with local runs bit-stable at 1/2/4/8 BLAS threads, so
+not reduction ordering. The pin is to a *machine image*, which nothing visible
+from Python can fingerprint. So `("darwin", "arm64")` is the right predicate
+for *worth attempting* (7/8 at one ulp against 8/8 at ~1100) but not a promise,
+and **no CI environment asserts these bits at all**: the weekly job reports the
+comparison and fails only if the goldens *skip*. The gate is maintainer-machine
+evidence, exactly the shape of the Apple-GPU gap — and is now recorded as one
+rather than implied away by a green badge.
+
 Two smaller results outlast the WP. **CI reports; it does not gate** —
 branch protection returns 403 on a private free-plan repo, so nothing stops a
 red push landing on `main`, and that is registered as a validation gap rather
