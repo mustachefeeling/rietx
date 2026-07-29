@@ -205,12 +205,17 @@ tolerance elsewhere — the re-baseline rule is in `tests/data/README.md`
 - [x] Expand this stub into a full WP before starting
 - [x] Measure the supported Python range locally (3.11 / 3.13 / 3.14 venvs,
       fresh resolutions) so the matrix is written against evidence
-- [ ] `.github/workflows/ci.yml` — per-push lint + fast-suite matrix
-- [ ] `.github/workflows/nightly.yml` — full suite × {Linux, macOS} + a torch job
-- [ ] Land the golden-pinning decision on what the first cross-platform run
+- [x] `.github/workflows/ci.yml` — per-push lint + fast-suite matrix
+- [x] `.github/workflows/nightly.yml` — Linux full suite, and
+      `weekly.yml` for macOS + torch (the split is forced by the minutes
+      arithmetic; see the handover log)
+- [x] Land the golden-pinning decision on what the first cross-platform run
       actually shows
-- [ ] README: CI badge and a short "what is gated where" note
-- [ ] Handover log + ROADMAP sync + forward notes into WP-1003 `### Inherited`
+- [x] README + DESIGN: what CI runs, and the three limits a green badge does
+      not cover
+- [x] Forward notes into WP-1003 `### Inherited`
+- [ ] Verify `nightly.yml` and `weekly.yml` by dispatching each once
+- [ ] Handover log + ROADMAP sync
 
 ## Acceptance
 

@@ -65,10 +65,15 @@ jobs:
         run: |
           out=$(.venv/bin/python -m pytest tests/test_backend_shim.py -k bit_identical -m "not slow" -rs)
           echo "$out"
-          if echo "$out" | grep -q "skipped"; then
-            echo "::error::the goldens skipped on darwin/arm64 — nothing is checking them"
+          if echo "$out" | grep -qE "skipped|no tests ran"; then
+            echo "::error::the goldens skipped (or vanished) on darwin/arm64 — nothing is checking them"
             exit 1
           fi
+          # and they must be the eight toy states, not some subset a -k typo left
+          echo "$out" | grep -qE "^8 passed" || {
+            echo "::error::expected exactly 8 golden states to run; see the summary above"
+            exit 1
+          }
       - name: Upload obs/calc/diff plots
         if: always()
         uses: actions/upload-artifact@v4
