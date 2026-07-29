@@ -1,13 +1,16 @@
 name: nightly
 
-# Everything the per-push gate (ci.yml) deliberately leaves out:
+# The half of the suite the per-push gate (ci.yml) leaves out: the `slow`
+# real-data acceptance suites — 11-BM NAC, SRM 660c, fluorapatite, the IUCr QPA
+# round robin, the capillary, dispersion, sequential and Stephens suites — 81
+# tests that dominate wall clock and are the whole reason for the `slow` marker.
 #
-# * the `slow` real-data acceptance suites (11-BM NAC, SRM 660c, fluorapatite,
-#   the IUCr QPA round robin, the capillary and Stephens suites) — 81 tests
-#   that dominate wall clock;
-# * macOS, which bills at a 10x minute multiplier on a private repo and so is
-#   not worth a per-commit job while the maintainer develops on it;
-# * the ~500 MB `[torch]` wheel, which would dominate per-push job setup.
+# Linux only, once a day.  macOS and `[torch]` live in weekly.yml, and the
+# reason is arithmetic rather than taste: this repo is private on a free plan,
+# so Actions minutes are metered at 2000/month and **macOS bills at 10x**.  One
+# nightly macOS full-suite job would be ~400 charged minutes a night — 6x the
+# entire monthly quota by itself.  Publishing the repo for the v1.0 release
+# stops the meter, and that is the moment to fold weekly.yml back into this one.
 #
 # No data is fetched.  Every pattern the acceptance suites need is vendored in
 # tests/data/ (18 MB, provenance in tests/data/README.md) — the pre-split
@@ -27,70 +30,9 @@ env:
 
 jobs:
   full:
-    name: full ${{ matrix.os }} py${{ matrix.python }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python: "3.13"
-          # macOS/arm64 is where tests/data/backend_goldens/*.npz were captured
-          # (Accelerate BLAS), so this is the job that can hold them to
-          # bit-identity if the Linux ones turn out not to be able to.
-          - os: macos-latest
-            python: "3.13"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
-      - run: uv venv --python ${{ matrix.python }}
-      - run: uv pip install -e ".[dev,jax]"
-      - name: Record the environment
-        run: |
-          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
-          .venv/bin/python -c "import numpy; numpy.show_config()"
-      - name: Full suite (including the slow real-data acceptance)
-        run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
-      - name: Bit-identity goldens must actually run on their capture platform
-        # tests/test_backend_shim.py pins them to darwin/arm64 and *skips*
-        # elsewhere, and a skip reads exactly like a pass in a summary line.
-        # This is the one job where they are asserted, so it says so out loud:
-        # if they skip here, the pinning is broken and nothing checks them.
-        if: matrix.os == 'macos-latest'
-        run: |
-          out=$(.venv/bin/python -m pytest tests/test_backend_shim.py -k bit_identical -rs)
-          echo "$out"
-          if echo "$out" | grep -q "skipped"; then
-            echo "::error::the goldens skipped on darwin/arm64 — nothing is checking them"
-            exit 1
-          fi
-      - name: Upload obs/calc/diff plots
-        # every test refinement writes them (CLAUDE.md's Tests convention);
-        # Rwp hides locally-bad fits, so on a nightly failure these are the
-        # first thing to look at
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-output-${{ matrix.os }}-py${{ matrix.python }}
-          path: tests/output/
-          if-no-files-found: warn
-          retention-days: 7
-
-  torch:
-    # EXPERIMENTAL backend, ~500 MB wheel: an independent opinion in the
-    # Jacobian-agreement matrix, not a supported runtime.  CPU fp64 only —
-    # torch.backends.mps.is_available() is False on hosted macOS runners
-    # (virtualised, no Metal device), so every `torch-mps` assertion self-skips
-    # here and the Apple-GPU evidence for the WP-0403 fp32-column policy stays
-    # maintainer-machine-only.  Do not read this job green as "MPS verified".
-    name: torch (experimental)
+    name: full suite (Linux, incl. slow acceptance)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -98,14 +40,24 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
-      - run: uv pip install -e ".[dev,jax,torch]"
-      - name: Backend agreement matrix with every backend installed
+      - run: uv pip install -e ".[dev,jax]"
+      - name: Record the environment
         run: |
-          .venv/bin/python -m pytest \
-            tests/test_cross_backend.py \
-            tests/test_backend_conformance.py \
-            tests/test_backend_torch.py \
-            tests/test_backend_jax.py \
-            tests/test_backend_shim.py
-      - name: Assert the MPS rows really did skip rather than silently vanish
-        run: .venv/bin/python -c "import torch; assert not torch.backends.mps.is_available(), 'hosted runner grew a Metal device — promote the MPS assertions out of maintainer-only status'"
+          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          .venv/bin/python -c "import numpy; numpy.show_config()"
+      - name: Full suite (including the slow real-data acceptance)
+        # the bit-identity goldens skip here — they are pinned to darwin/arm64
+        # (tests/test_backend_shim.py, GOLDEN_PLATFORM) and weekly.yml is where
+        # they are asserted
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
+      - name: Upload obs/calc/diff plots
+        # every test refinement writes them (CLAUDE.md's Tests convention);
+        # Rwp hides locally-bad fits, so on a nightly failure these are the
+        # first thing to look at
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-linux
+          path: tests/output/
+          if-no-files-found: warn
+          retention-days: 7

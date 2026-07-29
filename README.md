@@ -354,17 +354,23 @@ faster path; never installed by default). Every backend row in the agreement
 and conformance suites self-skips when its package is absent, so a numpy-only
 checkout is fully green.
 
-**What CI gates.** Every push runs ruff plus the fast suite on Python
-3.11/3.12/3.13 (3.14 allow-fail) on Linux
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); a nightly job runs
-the *whole* suite — the `slow` real-data acceptance included — on Linux and
-macOS, plus the `[torch]` agreement rows
-([`.github/workflows/nightly.yml`](.github/workflows/nightly.yml)). Two gaps
-are documented rather than papered over: the Apple-GPU (`torch-mps`)
-assertions cannot run on a hosted runner, which has no Metal device, so that
-evidence is maintainer-machine-only; and the `tests/data/backend_goldens/*.npz`
-bit-identity baselines are environment-pinned, so they are asserted only where
-they were captured.
+**What CI runs.** Every push: ruff plus the fast suite on Python 3.11/3.12/3.13
+(3.14 allow-fail), Linux ([`ci.yml`](.github/workflows/ci.yml)). Nightly: the
+*whole* suite, `slow` real-data acceptance included, on Linux
+([`nightly.yml`](.github/workflows/nightly.yml)). Weekly: macOS — the platform
+the bit-identity goldens are pinned to — and the `[torch]` agreement rows
+([`weekly.yml`](.github/workflows/weekly.yml)). The weekly/nightly split is a
+billing constraint on a private repo (macOS bills at 10×), not a statement
+about which platform matters.
+
+Three limits are stated rather than papered over by a green badge: the
+Apple-GPU (`torch-mps`) assertions cannot run on a hosted runner, which has no
+Metal device, so that evidence is maintainer-machine-only; the
+`tests/data/backend_goldens/*.npz` bit-identity baselines are environment-
+pinned and so are asserted only on the platform they were captured on (they
+*skip*, with the measured divergence in the skip reason, everywhere else); and
+branch protection needs a paid plan or a public repo, so CI currently reports
+rather than gates.
 
 ## Architecture (one paragraph)
 
