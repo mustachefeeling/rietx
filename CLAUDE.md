@@ -291,8 +291,11 @@ if a registry member is missing from the schema.
   measured, Linux x86-64 diverges by 1 ulp to 1.7e-13 relative — a libm and
   summation-order difference — so the gate is asserted where it was captured
   rather than loosened to a tolerance it could never distinguish from a real
-  change. And **`tests/.jax_cache` is why the jax rows feel free locally**:
-  they are jit-compile bound, and on a cold cache they dominate a CI job.
+  change. And **`tests/.jax_cache` is why the jax rows feel free locally** —
+  deleting it takes the two jax files from ~12 s to 107 s — but caching it in
+  CI was measured and does *not* help (8:18 warm against 8:12 cold): jax's
+  persistent cache holds only XLA compilations above a time threshold, while
+  per-process tracing and lowering are paid every run.
 - **A refinement that two suites both need is computed once, in
   `tests/conftest.py`** (`sample1_results`, `srm660c_baseline`), and **every
   consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a

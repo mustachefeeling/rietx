@@ -333,13 +333,19 @@ release, but bump against `git/matching-refs/tags/v`, not against
   they are jit-*compile* bound against a cold cache — WP-0404 said so and
   xdist multiplies it, since every worker compiles independently. Confirmed
   locally by deleting `tests/.jax_cache` (106 MB, 55 entries): the two
-  jax-heavy files alone go from ~12 s warm to 107 s cold on a 10-core M4. So
-  every job that runs the suite now restores that directory through
-  `actions/cache`; jax keys it by a content hash of the computation, which is
-  what makes the restore-key fallback safe — a stale entry is a miss, never a
-  wrong answer. **This is the one number to re-check first**: if the cache
-  works, the per-push matrix costs ~17 Linux minutes; if it does not, it costs
-  ~25 and jax belongs in the nightly instead.
+  jax-heavy files alone go from ~12 s warm to 107 s cold on a 10-core M4.
+
+  **The obvious fix was tried and does not work, which is the more useful
+  result.** An `actions/cache` of `tests/.jax_cache` restored cleanly on its
+  primary key (14 MB) and the job came back at **8:18 against 8:12 with a cold
+  cache** — no gain, twice measured. jax's persistent cache holds only XLA
+  compilations above a time threshold; per-process *tracing and lowering* are
+  paid every run and nothing can cache them across processes. The cache steps
+  were removed rather than left in as decoration. What would actually move this
+  number is running the jax rows in one process (they already share a built-
+  Jacobian cache within one, which is why the torch job deliberately skips
+  `-n auto`), or moving jax to the nightly and leaving the per-push gate
+  numpy-only — both worth measuring, neither guessed at here.
 
   **Gotchas worth keeping.** (1) `addopts = "-q"` plus a command-line `-q`
   makes `-qq`, which silently suppresses pytest's `N passed` summary — the one

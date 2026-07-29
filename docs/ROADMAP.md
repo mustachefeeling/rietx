@@ -118,11 +118,16 @@ rather than implied away by a green badge.
 Two smaller results outlast the WP. **CI reports; it does not gate** —
 branch protection returns 403 on a private free-plan repo, so nothing stops a
 red push landing on `main`, and that is registered as a validation gap rather
-than left implied by a green badge. And **the jax rows are jit-compile bound,
-not heavy**: the `[dev,jax]` job cost 11:12 against ~3:05 for the numpy-only
-ones, which deleting `tests/.jax_cache` locally reproduces (12 s warm → 107 s
-cold for the two jax files). Every job that runs the suite now restores that
-directory through `actions/cache`.
+than left implied by a green badge. And **the jax rows are compile-bound in a
+way a cache cannot fix**: the `[dev,jax]` job costs ~8 min against ~3 for the
+numpy-only ones, and deleting `tests/.jax_cache` locally reproduces the shape
+(12 s warm → 107 s cold for the two jax files) — but an `actions/cache` of that
+directory restored cleanly on its primary key and changed nothing, 8:18 warm
+against 8:12 cold. jax's persistent cache holds only XLA compilations above a
+time threshold; per-process tracing and lowering are paid every run. The cache
+steps came back out rather than staying in as decoration, and the two
+alternatives (run the jax rows in one process, or make jax nightly-only) are
+left to be measured rather than guessed.
 
 **[1001](wp/1001-validation-matrix.md) (validation matrix) landed 2026-07-29**
 (1195 passed / 5 skipped in 7:37). [VALIDATION.md](VALIDATION.md) is now the
