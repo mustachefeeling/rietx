@@ -349,6 +349,11 @@ release, but bump against `git/matching-refs/tags/v`, not against
   list deliberately excludes `docs/manual/**` and `docs/VALIDATION.md`, the two
   docs the suite actually reads.
 
+  Confirmed on the first run of the new shape (30441280593): lint 18 s and the
+  fast suite 3:15 — **5 billed minutes, as designed**. This very handover entry
+  is the `paths-ignore` test: it touches only `docs/wp/`, so if the lever works
+  the push that carries it creates no CI run at all.
+
   The lesson worth keeping is not the numbers, it is that **a CI matrix is a
   recurring-cost decision and this one was taken on coverage grounds alone**.
   The failure mode is quiet: GitHub's default $0 spending limit means an
