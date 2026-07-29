@@ -14,10 +14,12 @@ From **WP-1001** (validation matrix, landed 2026-07-29) — **fresh runtime
 numbers, and one new fast-suite file that the per-push job gets for free.**
 
 - **Re-measured 2026-07-29 on a 10-core M4**, with all extras installed:
-  full suite **1195 passed / 5 skipped in 7 min 37 s**, `-m "not slow"`
-  **1116 passed / 4 skipped in ~45 s**, both at `-n auto --dist loadgroup`.
-  Every earlier figure in this section is superseded. The per-push /
-  nightly split the scope assumes still holds comfortably.
+  full suite **1197 passed / 5 skipped**, `-m "not slow"` **1116 passed /
+  4 skipped**, both at `-n auto --dist loadgroup`. Every earlier figure in
+  this section is superseded — and quote wall clock as a *range*, because the
+  same green tree measured **7:37 and 5:44 minutes apart** on the same
+  machine (fast suite 45-54 s). Size the per-push / nightly split from the
+  slow end; the split the scope assumes still holds comfortably.
 - **`tests/test_validation_matrix.py` belongs in the per-push job**, not the
   nightly one. It is pure AST parsing and file comparison — no refinement, no
   data — so it costs ~1 s while failing on exactly the drift a CI matrix is

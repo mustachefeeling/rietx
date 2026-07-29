@@ -308,9 +308,11 @@ the full suite passes.
 
 ## Handover log
 
-- **2026-07-29 (ship)** — all six tasks landed; full suite **1195 passed /
-  5 skipped in 7:37**, fast **1116 / 4 in 45 s**, ruff clean, manual `-W`
-  clean.
+- **2026-07-29 (ship)** — all six tasks landed; full suite **1197 passed /
+  5 skipped**, fast **1116 / 4**, ruff clean, manual `-W` clean.  Wall clock
+  is worth quoting only as a range: the same green tree measured 7:37 and
+  5:44 on the same 10-core M4 minutes apart, so machine state moves it more
+  than this WP did (fast suite 45-54 s).
 
   *Done.* (1) `tests/validation_matrix.py` registers all 33 acceptance tests
   against a closed eight-name vocabulary, with each row's referent, frozen
