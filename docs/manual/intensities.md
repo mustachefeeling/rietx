@@ -41,7 +41,12 @@ reaches −1.3 e at uranium. Absorption edges are never interpolated across
 Fe K edge), and within {{ NEAR_EDGE_EV }} eV of an edge the request is
 refused outright: there the true $f''$ is the XANES of the *compound*,
 which no atomic table knows. Measured overrides can be supplied instead.
-Dispersion is off by default; `DISPERSION_NEGLECTED` makes "off" loud.
+Dispersion is applied by default (it was opt-in through v0.6, so every number
+recorded in `docs/milestones/` up to and including that milestone was measured
+without it). Setting `source.dispersion = None` declines it and reproduces
+those numbers bit-identically; `DISPERSION_NEGLECTED` then says so, because
+having declined a correction that needs nothing but the species and the
+wavelength is a modelling statement rather than a silence.
 
 ## The structure factor
 

@@ -81,7 +81,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | QPA weight fractions (Hill-Howard ZMV), Brindley microabsorption + µR fence | ✅ |
 | Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
 | Stephens anisotropic strain (hkl-dependent widths; Laue-allowed S_HKL derived, not tabulated; positivity cone guarded under TRF, **enforced** under `solver="lm"`) | ✅ |
-| Anomalous scattering f′, f″ (Cromer-Liberman; Friedel-averaged \|F\|², opt-in per source) | ✅ |
+| Anomalous scattering f′, f″ (Cromer-Liberman; Friedel-averaged \|F\|², **on by default** since v1.0) | ✅ |
 | Multi-histogram joint refinement (shared structure, per-histogram Rwp) | ✅ |
 | **Sequential series** (in-situ/parametric): warm-started chain, parameter trajectories, forward-vs-backward path-dependence check | ✅ |
 | Exporters: reflection table, refinement CIF (values + esds), QPA table | ✅ |
@@ -113,8 +113,16 @@ cannot improve Rwp can still be the one you need).
 
 ### Validation
 
-Eight real-data acceptance suites, each with its tolerance chosen to match what
-the reference actually is:
+**Nine** real-data acceptance suites, each with its tolerance chosen to match
+what the reference actually is. The table below is the summary;
+[docs/VALIDATION.md](docs/VALIDATION.md) is the full matrix — every assertion
+in the tree, sorted by what its bar is *referenced to* (a certified value with
+its stated uncertainty, another code's converged result, a published
+participant spread, our own other result, floating-point arithmetic, a
+pre-registered prediction, or nothing at all because the row characterises a
+known failure). It is generated from `tests/validation_matrix.py` and a fast
+test fails if the two drift apart, so it cannot go stale the way this table
+once did.
 
 | Dataset | Result | Reference |
 |---|---|---|
@@ -123,6 +131,7 @@ the reference actually is:
 | GSAS-II **fluorapatite** tutorial | Rwp 9.73 %, Rp 7.76 % | GSAS's own 10.05 % / 7.66 % on identical channels; cell +116 ppm — a **cross-code consistency** check |
 | SRM 676a **corundum** (lab CuKα) | c/a = 2.729928 (+30 ppm) | the axial ratio where uniform d-scale systematics cancel — a **certificate-grade** anchor; absolute axes carry a ~−300 ppm lab d-scale offset |
 | IUCr **CPD QPA round robin** (samples 1a–h, 2, 4) | worst 5.1 wt % (sample 1); traces ≤ 1.3 wt % | tolerance referenced to the published **participant spread**; sample 4 is the designed Brindley-defeating case (µR fence fires, no accuracy band claimed) |
+| IUCr round robin **warm-started as a chain** | 904 iterations vs 2863 unchained, at identical mean Rwp 0.1278 and identical QPA | an **own-result** comparison: the protocol is imported wholesale from the row above, so the only thing that differs is the chaining. Chaining buys ≈3× in iterations and nothing in accuracy — and the `carry`-glob hypothesis (that chaining a phase scale across a 1 → 94 wt % swing would hurt) is refuted at 838 |
 | IUCr round robin **with f′, f″ applied** | worst 1.4 wt %, RMS 0.69 (was 5.1 / 2.26) | a **pre-registered prediction**: the parameter-free bias from neglecting anomalous scattering was written down before the refits, and re-derives the v0.3 shape v0.3 had attributed to microabsorption. Pure ZnO: Rwp barely moves, B(O) 0.02 → 0.43 Å² |
 | APS 11-BM **SRM 660a** LaB₆ (capillary, 0.81 mm bore) | Rwp and cell invariant to 3e-8 / 8e-12 Å; every Biso +0.0166542 Å² | the capillary absorption correction's claim, on real data: it is an *exact reparameterisation* of {scale, Biso}, so the predicted ΔB is the only observable. λ is beamline-calibrated on this standard, so the cell here is a consistency check and **not** an anchor |
 | CPD **brucite** / **corundum** (anisotropic strain) | brucite Rwp 18.55 → 17.90 %, ΔBIC +488 — *and rejected under TRF* | a **characterisation**: the improvement passes both statistical tests yet drives the strain variance negative on 12 of 43 reflections, so the cone guard fires and no S_HKL are quotable. Under `solver="lm"` the cone is carried as a linear inequality and brucite comes back inside it (0 of 43) — at a *higher* Rwp, the v0.5 method result again. Corundum is the isotropic control (ΔBIC −17, diagnostic 1.60×, never leaves the cone) |
