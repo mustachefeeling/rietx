@@ -424,6 +424,32 @@ the same fit.
 - Real-data acceptance per milestone, committed in `tests/` and marked
   `slow`; provenance for every dataset in `tests/data/README.md`.
 
+**The policy above is enumerated, per assertion, in
+[VALIDATION.md](VALIDATION.md)** (WP-1001) — every acceptance bar in the tree
+sorted by what it is *referenced to*, under a closed eight-name vocabulary.
+Two things about that document are load-bearing. It is **generated** from
+`tests/validation_matrix.py` and a fast test fails when the two drift, so it
+cannot go stale the way the hand-maintained README table did (it claimed eight
+suites while nine were committed). And the vocabulary needed **seven**
+referents where this section's prose implies three: alongside `certificate`,
+`cross_code` and `spread` sit `identity` (referenced to floating-point
+arithmetic, not to any physical quantity), `own_result`, and two that are
+kinds of *evidence* rather than kinds of tolerance — `characterisation` (a row
+asserting a model is inadmissible, or that a disagreement has a particular
+shape) and `prediction` (a parameter-free claim written down before the
+measurement). The last two exist because of the v0.5 method result: judged by
+agreement indices alone, that milestone's eight corrections would score as
+having delivered nothing.
+
+**A test that pins a number declares its physics explicitly rather than
+inheriting a default.** WP-1001 measured the cost of the alternative when
+`Source.dispersion` became the package default: 21 tests moved at once, and
+nine of them were bit-identity goldens with no opinion about dispersion —
+they simply inherited it. The failures could not distinguish "this protocol
+deliberately excludes the correction" from "nobody thought about it". This is
+the protocol-adoption lesson one level up: a suite whose numbers move when a
+default moves is not pinning a protocol.
+
 **Learned in v0.2 — comparing against another code means adopting its
 protocol, not just its numbers.** The fluorapatite acceptance was built by
 reading GSAS's converged `FAP.EXP` refine flags and mirroring exactly what it

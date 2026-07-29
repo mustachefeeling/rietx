@@ -10,6 +10,29 @@ Depends on: —
 
 ## Inherited
 
+From **WP-1001** (validation matrix, landed 2026-07-29) — **fresh runtime
+numbers, and one new fast-suite file that the per-push job gets for free.**
+
+- **Re-measured 2026-07-29 on a 10-core M4**, with all extras installed:
+  full suite **1195 passed / 5 skipped in 7 min 37 s**, `-m "not slow"`
+  **1116 passed / 4 skipped in ~45 s**, both at `-n auto --dist loadgroup`.
+  Every earlier figure in this section is superseded. The per-push /
+  nightly split the scope assumes still holds comfortably.
+- **`tests/test_validation_matrix.py` belongs in the per-push job**, not the
+  nightly one. It is pure AST parsing and file comparison — no refinement, no
+  data — so it costs ~1 s while failing on exactly the drift a CI matrix is
+  supposed to catch: an acceptance test added without a matrix row, a row
+  whose test was deleted, a generated `docs/VALIDATION.md` that was not
+  regenerated, or an acceptance suite that silently inherits a physics
+  default instead of declaring it.
+- **The golden-pinning question in the WP-0401 note below is unchanged, and
+  now has evidence.** WP-1001 flipped the `Source.dispersion` default, which
+  moved 21 tests, and all nine `tests/data/backend_goldens/*.npz` came back
+  **bit-identical** once the toy builders declared the setting — so the
+  goldens really do isolate the shim from physics. That makes them a clean
+  candidate for pinning to one canonical job; what would break them is still
+  a BLAS/libm change, not a package change.
+
 From **WP-0604** (theory manual, landed 2026-07-29) — the docs build is
 already inside the test suite, so CI gets it for free *if* the install is
 right:

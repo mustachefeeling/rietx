@@ -1,6 +1,6 @@
 # WP-1001 — Validation matrix + tolerance policy
 
-Milestone: v1.0 · Status: 🔶 in progress
+Milestone: v1.0 · Status: ✅ shipped 2026-07-29
 Depends on: —
 
 ## Goal
@@ -307,6 +307,74 @@ the full suite passes.
   (`FAP.EXP`); provenance for all of it in `tests/data/README.md`.
 
 ## Handover log
+
+- **2026-07-29 (ship)** — all six tasks landed; full suite **1195 passed /
+  5 skipped in 7:37**, fast **1116 / 4 in 45 s**, ruff clean, manual `-W`
+  clean.
+
+  *Done.* (1) `tests/validation_matrix.py` registers all 33 acceptance tests
+  against a closed eight-name vocabulary, with each row's referent, frozen
+  measured margin, dataset, start count and asserted diagnostics. (2)
+  `tests/test_validation_matrix.py` holds it in **bijection** with the tree by
+  AST collection (~1 s, fast suite) and adds four guards worth more than the
+  bookkeeping: a `consistency` dataset may never carry a `certificate` row
+  (the 11-BM circularity fence, executable), every acceptance suite must
+  *name* its dispersion setting, the recorded default must match the live
+  schema, and the generated doc must match its regeneration. (3)
+  `docs/VALIDATION.md` is that regeneration. (4) The dispersion default is
+  flipped, on measurement. (5) The start-dependence rule is written and
+  applied. (6) README/DESIGN/AGENT_PROTOCOL/CLAUDE.md/manual reconciled.
+
+  *Three findings worth carrying.*
+
+  **The scope's three tiers were wrong, and the two extra ones matter most.**
+  "exact / tight-scientific / statistical" does not survive contact with the
+  suites: seven referents are in use, and the two the scope had no room for —
+  `characterisation` (a row asserting a model is *inadmissible*, or that a
+  disagreement has a particular shape) and `prediction` (a parameter-free
+  claim written down *before* the measurement) — carry the strongest evidence
+  in the repo. Judged by agreement indices alone, v0.5's eight corrections
+  would score as having delivered nothing. `ceiling` is named explicitly as a
+  **non**-tier so `rwp < 0.20` can never be read as validation.
+
+  **The dispersion flip's real cost was not the re-baseline — it was that
+  nothing declared its physics.** WP-0504 predicted "re-measure the matrix".
+  What actually happened: 21 tests moved, and **nine were bit-identity
+  goldens with no opinion about dispersion at all** — they simply inherited
+  it. The failure list could not distinguish "this protocol deliberately
+  excludes the correction" from "nobody thought about it". Making every
+  pinning test declare the setting fixed all nine *without regenerating a
+  single golden* — every `.npz` is bit-identical, which is itself the
+  evidence that the flip touched physics and not plumbing. That is the
+  protocol-adoption lesson one level up, and it is now in DESIGN.md and
+  guarded for the acceptance suites.
+
+  **Two knock-ons of the flip are recorded rather than tuned away.** Light-atom
+  ADPs come back *less precise* even as they come back *less biased* — rutile
+  U11/U33 separate at **1.9σ** with the block on against 2.2σ without, because
+  f″ ≈ 1.8 e on Ti against 0.03 on O raises the heavy atom's share of every
+  reflection. And the calibrate→freeze→refine size/strain split degrades from
+  27 % low to 39 % low; measuring it both ways showed the bar had *always*
+  been marginal on a degenerate direction (lor_size, gauss_strain and the
+  frozen instrument X are one correlated triple), so it is now set from the
+  measured spread rather than from what one configuration reached.
+
+  *Measured for the flip, since WP-0504 never checked it:* SRM 676a's
+  certificate-grade c/a moves **+29.8 → +30.2 ppm** against a 100 ppm bar, so
+  the sharpest anchor in the repo is safe — while **Rwp gets worse**, 14.374 →
+  14.531 %. The v0.5 method result, now at the level of a package default.
+
+  *Not done, deliberately (all are `GAPS` rows in the registry, so they are
+  recorded rather than forgotten):* no non-Cu dataset — a Co Kα pattern from
+  an Fe-bearing specimen is still the cheapest new tier and would exercise
+  dispersion, absorption and the per-anode Kβ check at once; no low-angle
+  pattern, so surface roughness keeps only a negative result; the SRM 660c
+  certificate band and GoF → 1 remain FPA territory.
+
+  *Gotcha for whoever touches the acceptance suites next:* `qarr_instrument()`
+  in `test_acceptance_qpa_roundrobin.py` declines dispersion, and
+  `sequential`, `srm676a` and `stephens` all inherit that by importing it.
+  Their docstrings say so. Changing that one line re-baselines four suites.
 
 - **2026-07-29** — expanded from stub into a full WP: goal, the seven-tier
   finding (the scope's three do not survive contact with the suites), tasks,

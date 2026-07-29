@@ -64,13 +64,65 @@ injected from the live package at build time, every equation carries a
 `tests/test_manual.py` fails the suite on an uncited bib entry, a
 non-importing source symbol, or any `-W` build warning.
 
-**Now: v1.0 — hardening, API freeze, PyPI.** Three rows, none started:
-[1001](wp/1001-validation-matrix.md) (validation matrix),
+**Now: v1.0 — hardening, API freeze, PyPI.** Three rows.
+[1001](wp/1001-validation-matrix.md) **landed 2026-07-29** — see below.
 [1002](wp/1002-ci-matrix.md) (CI matrix) and
 [1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI; depends on the other
-two). All three carry `### Inherited` sections curated by the shipped WPs —
-1003's now includes the release blocker on the vendored QARR patterns and the
-manual's stake in any rename.
+two) are not started; both carry `### Inherited` sections curated by the
+shipped WPs, and 1001 has just added to each — fresh runtime measurements and
+a per-push job candidate into 1002, and into 1003 the one breaking behaviour
+change v1.0 carries, alongside the older release blocker on the vendored QARR
+patterns and the manual's stake in any rename.
+
+**[1001](wp/1001-validation-matrix.md) (validation matrix) landed 2026-07-29**
+(1195 passed / 5 skipped in 7:37). [VALIDATION.md](VALIDATION.md) is now the
+per-assertion record of what this package has been shown to do: all 33
+acceptance tests registered against a **closed eight-name vocabulary** of what
+a bar can be referenced to, generated from `tests/validation_matrix.py`, and
+held in bijection with the tree by an AST-collecting guard that costs ~1 s in
+the fast suite. The WP's founding scope asked for three tolerance tiers; seven
+referents are actually in use, and **the two the scope had no room for carry
+the strongest evidence in the repo** — `characterisation` (a row asserting a
+model is *inadmissible*, or that a disagreement has a particular shape) and
+`prediction` (a parameter-free claim written down before the measurement).
+Judged by agreement indices alone, v0.5's eight corrections would score as
+having delivered nothing, so `ceiling` (`rwp < 0.20`, `gof < 2.0`) is named
+explicitly as a **non**-tier. Three guards encode judgements rather than
+bookkeeping: a dataset marked `consistency` may never carry a `certificate`
+row (the 11-BM wavelength circularity, made executable), every acceptance
+suite must *name* its dispersion setting, and the recorded default must match
+the live schema.
+
+Its second half was the one default v1.0 would freeze in the wrong position.
+**`Source.dispersion` is now ON by default**, decided on measurement rather
+than on WP-0504's recommendation: it is the only correction in the package
+needing *no information the caller does not already have* (µR, a habit, a
+strain model, a surface — dispersion wants species and λ, both already in the
+model), it takes round-robin QPA from RMS 2.26 to 0.69 wt %, and the anchors
+survive — SRM 660c's cell does not move at all and SRM 676a's
+certificate-grade c/a goes +29.8 → +30.2 ppm against a 100 ppm bar (measured
+here; 0504 never checked it) **while Rwp gets *worse*, 14.374 → 14.531 %**.
+Against it, and kept: a wavelength inside an absorption-edge interval now
+*raises*, because a selective fallback would leave some species corrected and
+others not — manufacturing exactly the unequal cross-phase bias the correction
+exists to remove.
+
+The lasting result is not the flip but what absorbing it exposed. **21 tests
+moved, and nine were bit-identity goldens with no opinion about dispersion at
+all — they simply inherited it**, and the failure list could not distinguish
+"this protocol deliberately excludes the correction" from "nobody thought
+about it". Making every pinning test *declare* its physics fixed all nine
+**without regenerating a single golden**, which is itself the evidence the
+flip touched physics and not plumbing. That rule — a test that pins a number
+declares its physics rather than inheriting a default — is the v0.2
+protocol-adoption lesson one level up, and it is now in
+[DESIGN.md](DESIGN.md#testing--validation-policy) and guarded. Two knock-ons
+are recorded rather than tuned away: light-atom ADPs come back *less precise*
+even as they come back *less biased* (rutile U11/U33 separate at 1.9σ with the
+block on against 2.2σ without, because f″ raises the heavy atom's share), and
+the calibrate→freeze→refine size/strain recovery degrades from 27 % low to
+39 % — measuring it both ways showed that bar had always been marginal on a
+degenerate direction.
 
 <details>
 <summary>How v0.6 got here — the per-WP narrative (superseded by the record)</summary>
@@ -668,7 +720,7 @@ reopening conditions are in the WP's answers/handover.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ⬜ | — |
+| [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
 | [1002](wp/1002-ci-matrix.md) | CI matrix | ⬜ | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002 |
 
