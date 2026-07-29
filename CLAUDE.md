@@ -282,6 +282,17 @@ if a registry member is missing from the schema.
   Reference values and data provenance in `tests/data/README.md`. Every test
   refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
   for visual inspection — Rwp hides locally-bad fits.
+- **CI runs the same commands** (`.github/`): per push, ruff + the fast suite on
+  Python 3.11-3.13 (3.14 allow-fail) on Linux; nightly, the full suite on Linux;
+  weekly, macOS and the `[torch]` agreement rows — macOS bills at 10× on a
+  private repo, which is the only reason it is not nightly. Two consequences
+  for local work. **The bit-identity goldens are pinned to `darwin/arm64`**
+  (`GOLDEN_PLATFORM` in `tests/test_backend_shim.py`) and *skip* elsewhere:
+  measured, Linux x86-64 diverges by 1 ulp to 1.7e-13 relative — a libm and
+  summation-order difference — so the gate is asserted where it was captured
+  rather than loosened to a tolerance it could never distinguish from a real
+  change. And **`tests/.jax_cache` is why the jax rows feel free locally**:
+  they are jit-compile bound, and on a cold cache they dominate a CI job.
 - **A refinement that two suites both need is computed once, in
   `tests/conftest.py`** (`sample1_results`, `srm660c_baseline`), and **every
   consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
