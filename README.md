@@ -1,5 +1,7 @@
 # pxrd-refine
 
+[![CI](https://github.com/yue-here/pxrd-refine/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/pxrd-refine/actions/workflows/ci.yml)
+
 **API-first Rietveld refinement of powder X-ray diffraction data, designed for
 automated and agentic workflows.**
 
@@ -158,8 +160,9 @@ than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
-made collinear. Run `pytest` (~24 min, includes all of the above; `pytest -m
-"not slow"` is ~3.3 min), `python examples/nac_11bm.py` (synchrotron walkthrough) or
+made collinear. Run `pytest -n auto --dist loadgroup` (1197 tests, ~6-8 min,
+includes all of the above; `-m "not slow"` is 1116 tests in ~45-55 s),
+`python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
 all three FitReport layers → plots + interactive HTML).
 
@@ -333,10 +336,16 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest              # 995 tests incl. eight real-data acceptance suites (~24 min)
-pytest -m "not slow"    # 913 unit/property tests only (~3.3 min)
+pytest -n auto --dist loadgroup    # 1197 tests incl. nine real-data acceptance suites (~6-8 min)
+pytest -n auto --dist loadgroup -m "not slow"    # 1116 unit/property tests only (~45-55 s)
 ruff check src tests examples
 ```
+
+`--dist loadgroup` is not optional: it is what keeps a shared expensive fixture
+on one worker (`xdist_group` marks). Plain `--dist load` still passes, but
+silently refits. Wall clock is quoted as a range on purpose — the same green
+tree measured 7:37 and 5:44 minutes apart on one machine, so compare runs, not
+records.
 
 Extras: `[viz]` (matplotlib, plotly), `[baselines]` (pybaselines algorithm zoo),
 `[jax]` (autodiff Jacobians) and `[torch]` (**experimental** — an independent
@@ -344,6 +353,18 @@ check on the analytic Jacobian and a route to differentiable-layer use, not a
 faster path; never installed by default). Every backend row in the agreement
 and conformance suites self-skips when its package is absent, so a numpy-only
 checkout is fully green.
+
+**What CI gates.** Every push runs ruff plus the fast suite on Python
+3.11/3.12/3.13 (3.14 allow-fail) on Linux
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); a nightly job runs
+the *whole* suite — the `slow` real-data acceptance included — on Linux and
+macOS, plus the `[torch]` agreement rows
+([`.github/workflows/nightly.yml`](.github/workflows/nightly.yml)). Two gaps
+are documented rather than papered over: the Apple-GPU (`torch-mps`)
+assertions cannot run on a hosted runner, which has no Metal device, so that
+evidence is maintainer-machine-only; and the `tests/data/backend_goldens/*.npz`
+bit-identity baselines are environment-pinned, so they are asserted only where
+they were captured.
 
 ## Architecture (one paragraph)
 
