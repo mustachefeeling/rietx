@@ -261,16 +261,16 @@ question rather than a solver one.
 
 ## Tasks
 
-- [ ] **Tier vocabulary + registry.** `tests/validation_matrix.py`: the seven
+- [x] **Tier vocabulary + registry.** `tests/validation_matrix.py`: the seven
       tiers plus `ceiling`, each with a written rule, and one row per
       acceptance test naming its tier(s), reference, dataset and what it
       claims. Frozen measured margins where a row has them.
-- [ ] **Anti-drift guards** (`tests/test_validation_matrix.py`, **fast** suite):
+- [x] **Anti-drift guards** (`tests/test_validation_matrix.py`, **fast** suite):
       every `test_acceptance_*.py` test function has a row and every row names
       a live test (AST-collected, so it cannot pass by import side effect);
       every row's tier is in the closed vocabulary; every non-`ceiling` row
       names a reference; the dataset names resolve against `tests/data`.
-- [ ] **`docs/VALIDATION.md` generated from the registry**, with the committed
+- [x] **`docs/VALIDATION.md` generated from the registry**, with the committed
       file asserted byte-identical to the regeneration — the manual's
       executable-doc design applied to the matrix.
 - [ ] **Decide the `Source.dispersion` default on measurement.** Census what
