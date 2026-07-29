@@ -279,14 +279,31 @@ land within 1 ulp, while `y_calc` — which accumulates ~130 windows of
 transcendental evaluations — drifts three orders of magnitude further.  That is
 the signature of a different libm and a different summation order, not of
 different code, and even the worst of it is ten orders of magnitude below the
-tightest physical bar in the tree.  So `tests/test_backend_shim.py` pins the
-gate to `GOLDEN_PLATFORM = ("darwin", "arm64")` and skips elsewhere with that
-reason attached, the capture entry point refuses to write a state off that
-platform (a half-and-half baseline set could never be green anywhere), and the
-nightly macOS CI job fails if the goldens *skip* there.  Relaxing
-`np.array_equal` to a tolerance was the alternative and was rejected: it would
-delete the only check in the tree that says no refactor changed a single
-computed number.
+tightest physical bar in the tree.
+
+**And the pin is to a machine image, not to a platform tuple.**  The same WP
+then ran the suite on a *hosted* macOS/arm64 runner reporting the same numpy
+2.5.1, the same scipy 1.18.0 and the same Accelerate BLAS as the capture
+machine — and 7 of the 8 states were bit-identical while `toy_rich:y_calc`
+differed by 1.4210854715202004e-14, which is **exactly one ulp** at a value in
+[64,128), on a single element.  Local runs at 1, 2, 4 and 8 BLAS threads are
+bit-stable, so it is not reduction ordering; the residual variable is the
+system math library that ships with the macOS image, and nothing visible from
+Python distinguishes it.  Two consequences: `("darwin", "arm64")` is the right
+predicate for *worth attempting* (7/8 and one ulp, against 8/8 and ~1100 ulp on
+Linux) but not a promise of a match, and **no CI environment asserts these
+bits** — the weekly macOS job reports the comparison and only *fails* if the
+goldens skip.  That makes the gate maintainer-machine evidence, the same shape
+as the Apple-GPU (MPS) gap, and it is recorded in `docs/VALIDATION.md` rather
+than papered over.
+
+So `tests/test_backend_shim.py` pins the gate to
+`GOLDEN_PLATFORM = ("darwin", "arm64")` and skips elsewhere with that reason
+attached, and the capture entry point refuses to write a state off that
+platform (a half-and-half baseline set could never be green anywhere).
+Relaxing `np.array_equal` to a tolerance was the alternative and was rejected:
+it would delete the only check in the tree that says no refactor changed a
+single computed number.
 
 Re-baseline only from a tree that passes the full suite, via
 

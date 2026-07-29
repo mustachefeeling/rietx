@@ -363,14 +363,17 @@ the bit-identity goldens are pinned to — and the `[torch]` agreement rows
 billing constraint on a private repo (macOS bills at 10×), not a statement
 about which platform matters.
 
-Three limits are stated rather than papered over by a green badge: the
+Three limits are stated rather than papered over by a green badge. The
 Apple-GPU (`torch-mps`) assertions cannot run on a hosted runner, which has no
-Metal device, so that evidence is maintainer-machine-only; the
-`tests/data/backend_goldens/*.npz` bit-identity baselines are environment-
-pinned and so are asserted only on the platform they were captured on (they
-*skip*, with the measured divergence in the skip reason, everywhere else); and
-branch protection needs a paid plan or a public repo, so CI currently reports
-rather than gates.
+Metal device, so that evidence is maintainer-machine-only. The
+`tests/data/backend_goldens/*.npz` bit-identity baselines turn out to be pinned
+to a *machine image*, not a platform — a hosted arm64 Mac with identical numpy,
+scipy and Accelerate reproduces 7 of 8 states and misses one by exactly one
+ulp, while Linux misses all eight by up to ~1100 — so CI reports that
+comparison and no CI job asserts it; the gate stays exact rather than being
+loosened to a tolerance that could not tell a libm difference from a real one.
+And branch protection needs a paid plan or a public repo, so CI currently
+reports rather than gates.
 
 ## Architecture (one paragraph)
 

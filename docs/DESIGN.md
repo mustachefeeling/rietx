@@ -489,10 +489,21 @@ different libm and summation order rather than different code. Relaxing
 `np.array_equal` to a tolerance would have made the gate green everywhere and
 meaningless everywhere: its entire content is "no refactor changed a single
 computed number", and any tolerance wide enough to absorb a libm difference is
-wide enough to absorb a real one. So it asserts on `darwin/arm64`, skips
-elsewhere *with the measurement in the skip reason*, and CI fails if it skips
-where it is supposed to run — because in a summary line a skip and a pass look
-identical.
+wide enough to absorb a real one. So it asserts on `darwin/arm64` and skips
+elsewhere *with the measurement in the skip reason*.
+
+Then the same matrix found the sharper version of that fact. A **hosted**
+macOS/arm64 runner — same numpy 2.5.1, same scipy 1.18.0, same Accelerate as
+the capture machine — reproduced 7 of 8 states and missed `toy_rich` by
+*exactly one ulp* on a single element, while local runs at 1/2/4/8 BLAS threads
+are bit-stable. So it is not reduction ordering; the residual variable is the
+system math library the machine image ships, and nothing visible from Python
+distinguishes one image from another. The pin is therefore to a *machine*, and
+**no CI environment asserts these bits at all**: the weekly macOS job reports
+the comparison and fails only if the goldens *skip*, because a skip and a pass
+look identical in a summary line. That makes the gate maintainer-machine
+evidence — the same shape as the Apple-GPU gap, and recorded the same way in
+[VALIDATION.md](VALIDATION.md) rather than implied to be stronger than it is.
 
 **And a disagreement's *shape* is evidence.** The residual +116/+113 ppm cell
 offset is the same relative amount on both axes — a uniform d-scale

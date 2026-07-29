@@ -234,6 +234,28 @@ Locally, the same commands the workflows run:
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
 ```
 
+### Measured, 2026-07-29
+
+Local tree at the end of the WP: **1117 passed / 4 skipped in 50.8 s**
+(`-m "not slow"`, 10-core M4) — one test more than WP-1001's 1116, the new
+`test_every_committed_golden_is_gated`.
+
+`ci.yml`, run 30432573764, hosted 4-vCPU Linux, cold caches — **green on all
+four Pythons**:
+
+| job | conclusion | wall clock |
+|---|---|---|
+| lint | success | 0:12 |
+| fast py3.11 | success | 3:03 |
+| fast py3.12 | success | 3:10 |
+| fast py3.13 `[dev,jax]` | success | 11:12 |
+| fast py3.14 (allow-fail) | success | 3:15 |
+
+The run before it (30432077485, same tree without the golden pin) is the
+measurement this WP turned on: **8 failed, 976 passed** on every Linux Python,
+with all eight failures the bit-identity gate and nothing else in the suite
+disagreeing at all.
+
 ## References
 
 - GitHub Actions billing multipliers (macOS 10× on private repos) —

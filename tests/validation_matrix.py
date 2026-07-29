@@ -729,9 +729,13 @@ GAPS: tuple[tuple[str, str], ...] = (
      "(1.7e-13 relative) on y_calc, which accumulates ~130 windows of "
      "transcendentals.  That gradient with chain length identifies a libm and "
      "summation-order difference, not a code difference, and even the worst "
-     "of it is ten orders below the tightest physical bar here.  So one CI "
-     "job asserts the gate and the rest skip it; a tolerance wide enough to "
-     "absorb a libm difference would absorb a real one too."),
+     "of it is ten orders below the tightest physical bar here.  A hosted "
+     "macOS/arm64 runner then reproduced 7 of 8 states at identical "
+     "numpy/scipy/Accelerate and missed toy_rich by exactly one ulp, so the "
+     "pin is really to a machine image and **no CI environment asserts these "
+     "bits at all** — maintainer-machine evidence, the same shape as the MPS "
+     "gap.  A tolerance wide enough to absorb a libm difference would absorb "
+     "a real one too, so the gate stays exact and CI reports it instead."),
     ("CI reports; it does not gate.",
      "Branch protection needs a paid plan or a public repository, so nothing "
      "stops a red push landing on main today.  Every number in this document "
