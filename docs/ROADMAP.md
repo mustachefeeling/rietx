@@ -65,14 +65,52 @@ injected from the live package at build time, every equation carries a
 non-importing source symbol, or any `-W` build warning.
 
 **Now: v1.0 — hardening, API freeze, PyPI.** Three rows.
-[1001](wp/1001-validation-matrix.md) **landed 2026-07-29** — see below.
-[1002](wp/1002-ci-matrix.md) (CI matrix) and
-[1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI; depends on the other
-two) are not started; both carry `### Inherited` sections curated by the
-shipped WPs, and 1001 has just added to each — fresh runtime measurements and
-a per-push job candidate into 1002, and into 1003 the one breaking behaviour
-change v1.0 carries, alongside the older release blocker on the vendored QARR
-patterns and the manual's stake in any rename.
+[1001](wp/1001-validation-matrix.md) (validation matrix) and
+[1002](wp/1002-ci-matrix.md) (CI matrix) both **landed 2026-07-29** — see
+below. [1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI) is not started
+and now depends on both; its `### Inherited` section has been curated by every
+shipped WP, and 1002 has just added the discovery that **"make the repo
+public" is the same change as three other things** — it is what makes CI
+enforceable, what makes macOS affordable, and what settles the vendored-QARR
+question.
+
+**[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29.** Three
+workflows: per push, ruff plus the fast suite on Python 3.11-3.13 with 3.14
+allow-fail (Linux, green on all four); nightly, the whole suite including the
+81 `slow` real-data acceptance tests; weekly, macOS and the `[torch]`
+agreement rows. The nightly/weekly split is not taste — the first design ran
+the full suite on macOS nightly, which at a **10× billing multiplier** is ~400
+charged minutes a night against a 2000/month private-repo quota, six times the
+whole budget for one job. It was caught by arithmetic before it ran once, and
+the fix was to give macOS only the coverage no other platform provides.
+
+The WP's real deliverable is that **the bit-identity goldens' pinning stopped
+being a caveat and became a measurement.** `tests/data/README.md` had warned
+since WP-0401 that "a different BLAS/numpy build may legitimately differ"; the
+matrix showed that sentence is half wrong. A *numpy* change does not move them
+— 2.4.6 and 2.5.1, Pythons 3.11 through 3.14, all reproduce every state
+bit-for-bit. A *platform* change does, on every state at once, and **nothing
+else in the suite fails on Linux at all** (976 passed, 8 failed, all of them
+the golden gate). What decided the design is the *shape* of the divergence:
+1 ulp on quantities that are a single arithmetic chain (`theta`,
+`lebail_intensity`, `pawley_x0`) and up to ~1100 ulp — 1.7e-13 relative — on
+`y_calc`, which accumulates ~130 windows of transcendental evaluations. A
+divergence that grows *with chain length* is a different libm and summation
+order, not different code. So the gate is pinned to `darwin/arm64` and skips
+elsewhere with that measurement in the skip reason, rather than being relaxed
+to a tolerance: any tolerance wide enough to absorb a libm difference is wide
+enough to absorb a real one, and the gate's entire content is "no refactor
+changed a single computed number". The general rule is in
+[DESIGN.md](DESIGN.md#testing--validation-policy).
+
+Two smaller results outlast the WP. **CI reports; it does not gate** —
+branch protection returns 403 on a private free-plan repo, so nothing stops a
+red push landing on `main`, and that is registered as a validation gap rather
+than left implied by a green badge. And **the jax rows are jit-compile bound,
+not heavy**: the `[dev,jax]` job cost 11:12 against ~3:05 for the numpy-only
+ones, which deleting `tests/.jax_cache` locally reproduces (12 s warm → 107 s
+cold for the two jax files). Every job that runs the suite now restores that
+directory through `actions/cache`.
 
 **[1001](wp/1001-validation-matrix.md) (validation matrix) landed 2026-07-29**
 (1195 passed / 5 skipped in 7:37). [VALIDATION.md](VALIDATION.md) is now the
@@ -721,7 +759,7 @@ reopening conditions are in the WP's answers/handover.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
-| [1002](wp/1002-ci-matrix.md) | CI matrix | ⬜ | — |
+| [1002](wp/1002-ci-matrix.md) | CI matrix | ✅ 2026-07-29 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002 |
 
 ## v2+ (seams pre-built, implementations fenced out)
