@@ -41,21 +41,24 @@ state:
   without reading a plot image. Every layer is built to **abstain rather than
   guess**: collinear causes are reported as unresolved, not resolved wrongly.
 
-## Status: v0.5 shipped, v0.6 in progress (pre-alpha)
+## Status: v0.6 shipped, v1.0 next (pre-alpha)
 
-v0.5 (corrections & microstructure) is recorded with measured acceptance in
-[docs/milestones/v0.5.md](docs/milestones/v0.5.md), and its method result
-outlasts any single row: **not one of the eight corrections is well judged by
-ΔRwp** — two provably cannot move it, one moves it the *wrong* way when it is
-right, and the two largest accuracy wins are invisible in it — so each ships
-with a record field or diagnostic that states what it changed, never an Rwp
-comparison as evidence. v0.6 (solver, performance & agents) is under way; two
-rows have landed: a bounded Levenberg-Marquardt driver (`solver="lm"` on both
-entry points) that benchmarks 0.74–1.04× against scipy TRF — the expected tie —
-and earns its place with constraint vocabulary scipy lacks (linear inequalities,
-used to *enforce* the Stephens positivity cone), and a measured **no-go** on the
-batched peak-loop rewrite, whose cheap alternative (an FCJ node memo) shipped
-instead at 1.23× on the SRM 660c protocol, bit-identical. See
+v0.6 (solver, performance & agents) is recorded with measured acceptance in
+[docs/milestones/v0.6.md](docs/milestones/v0.6.md): a bounded
+Levenberg-Marquardt driver (`solver="lm"` on both entry points) that
+benchmarks 0.74–1.04× against scipy TRF — the expected tie — and earns its
+place with constraint vocabulary scipy lacks (linear inequalities, used to
+*enforce* the Stephens positivity cone); a measured **no-go** on the batched
+peak-loop rewrite, whose cheap alternative (an FCJ node memo) shipped instead
+at 1.23×, bit-identical; a JSON tool surface (`pxrdref.agent.refine_json`)
+whose schema is generated from the live registries; and a Sphinx + MyST
+**theory manual** ([docs/manual/](docs/manual/)) whose numbered equations are
+transcribed from the physics docstrings and guarded against drift by the test
+suite — fenced constants are injected from the live package at build time,
+and every equation names the source symbol it transcribes. v0.5's method
+result still heads the docs: **not one of the eight corrections is well
+judged by ΔRwp** ([docs/milestones/v0.5.md](docs/milestones/v0.5.md)). Next:
+v1.0 — validation matrix, CI, API freeze, PyPI. See
 [docs/ROADMAP.md](docs/ROADMAP.md). Working today —
 constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 **laboratory Bragg-Brentano** and **flat-plate transmission**:
@@ -89,12 +92,17 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Flat-plate absorption (ITC 6.3.3.1 finite-thickness reflection + symmetric transmission), µt computed from composition | ✅ |
 | Surface roughness (Suortti 1972 / Pitschke 1993), Bragg-Brentano, with identifiability fences | ✅ |
 | Secondary extinction (Sabine polycrystalline blend) | ✅ |
+| JSON tool surface for agents (`pxrdref.agent.refine_json`, schema from live registries) | ✅ |
+| Theory manual (Sphinx + MyST, `docs/manual/`): numbered equations transcribed from the physics docstrings, constants injected from the live package, drift guarded by tests | ✅ |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes
 per-task work packages ([docs/wp/](docs/wp/)), the design rationale
 ([docs/DESIGN.md](docs/DESIGN.md)), and the measured acceptance records of
-shipped milestones ([docs/milestones/](docs/milestones/)).
+shipped milestones ([docs/milestones/](docs/milestones/)). The theory manual
+([docs/manual/](docs/manual/)) builds with
+`python -m sphinx -W -b html docs/manual docs/manual/_build/html` after
+`pip install -e ".[docs]"`.
 
 **Driving this from an agent?** Read
 [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md) first — the turn-on order, the

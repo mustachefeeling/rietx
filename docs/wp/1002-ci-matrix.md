@@ -10,6 +10,19 @@ Depends on: —
 
 ## Inherited
 
+From **WP-0604** (theory manual, landed 2026-07-29) — the docs build is
+already inside the test suite, so CI gets it for free *if* the install is
+right:
+
+- **`[docs]` rides inside `[dev]` by self-reference** (`pxrd-refine[docs]` in
+  the dev extra), so any job that installs `.[dev]` gets sphinx/myst/bibtex
+  and `tests/test_manual.py` runs its five guards, including a subprocess
+  `sphinx -W` build (≈4 s). A job that installs a leaner set will
+  `importorskip("sphinx")` and silently skip the whole file — if a docs-less
+  job is ever added, assert the skip is intentional.
+- No separate docs job is needed unless the manual is *published*; building
+  it is already gated per-push through the suite.
+
 From **WP-0310** (v0.3 acceptance, landed 2026-07-24) — the "fetched data" in
 the scope above has a known obstacle:
 

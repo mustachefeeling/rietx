@@ -46,6 +46,35 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
+measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
+milestone's headline is that three of its four deliverables are *decisions
+and vocabulary*, not speed: a measured **no-go** on the batched peak-loop
+rewrite (its cheap alternative shipped at 1.23×, bit-identical), a bounded LM
+that ties scipy TRF as the Amdahl bound predicted but adds **constraint
+vocabulary** (the Stephens cone as a linear inequality — brucite 12/43
+reflections outside the cone → 0/43, at *higher* Rwp), and an agent JSON
+surface whose schema is generated from the live registries. The fourth,
+[0604](wp/0604-theory-manual.md), closed the milestone with the Sphinx + MyST
+theory manual under `docs/manual/`: ten chapters, ~50 numbered equations
+transcribed from the physics docstrings, a 62-entry verified bibliography,
+and an anti-divergence design that is *executable* — fenced constants are
+injected from the live package at build time, every equation carries a
+`*Source:*` line naming the docstring it transcribes, and
+`tests/test_manual.py` fails the suite on an uncited bib entry, a
+non-importing source symbol, or any `-W` build warning.
+
+**Now: v1.0 — hardening, API freeze, PyPI.** Three rows, none started:
+[1001](wp/1001-validation-matrix.md) (validation matrix),
+[1002](wp/1002-ci-matrix.md) (CI matrix) and
+[1003](wp/1003-api-freeze-pypi.md) (API freeze + PyPI; depends on the other
+two). All three carry `### Inherited` sections curated by the shipped WPs —
+1003's now includes the release blocker on the vendored QARR patterns and the
+manual's stake in any rename.
+
+<details>
+<summary>How v0.6 got here — the per-WP narrative (superseded by the record)</summary>
+
 **v0.5 shipped 2026-07-28** — all eight WPs (0501–0508) landed; measured
 acceptance in [milestones/v0.5.md](milestones/v0.5.md). The headline is the
 milestone's own method result rather than any single correction: **not one of
@@ -66,7 +95,7 @@ and flat-plate µt is *not* the exactly-singular direction µR is — it keeps
 3–47 % of its signature — so it is held fixed on stated grounds rather than on
 an identity, with the number reported so a caller can disagree.
 
-**Now: v0.6 — solver, performance & agents.**
+**v0.6 — solver, performance & agents.**
 [0605](wp/0605-batched-peak-loop.md) closed 2026-07-28, first row of the
 milestone, and its deliverable was the *decision*: **no-go on the batched
 peak-loop rewrite**, with the cheap alternative graduated to production
@@ -127,7 +156,10 @@ claimed — `refine_preferred_orientation` joined the Layer-2 vocabulary
 (THRESHOLDS_VERSION 0.3), emitted even when Layer 1 abstains because
 uncorrected texture is a common *cause* of immaturity.
 
-Remaining row: [0604](wp/0604-theory-manual.md).
+[0604](wp/0604-theory-manual.md) closed 2026-07-29, the last row — the theory
+manual, whose per-WP story is the milestone summary above.
+
+</details>
 
 <details>
 <summary>How v0.5 got here — the per-WP narrative (superseded by the record)</summary>
@@ -564,7 +596,7 @@ the linear algebra's.
 | v0.3 | Multi-phase QPA, Pawley, aniso ADPs, multi-histogram | ✅ **shipped 2026-07-24** ([record](milestones/v0.3.md)) | SRM 676a corundum: c/a +30 ppm vs certificate (absolute axes −313/−283 ppm, uniform d-scale); IUCr round robin: sample-1 worst 5.1 wt% (traces ≤1.3), sample 2 worst 2.9 wt% with brucite March-Dollase r=0.67, sample 4 characterised as the designed Brindley failure (µR fence fires) |
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
-| v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop | ⬜ | solver benchmark vs scipy TRF (a **CPU** comparison — device acceleration was measured not to exist at this problem size, see 0408) |
+| v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
 | v1.0 | Hardening, API freeze, PyPI | ⬜ | full validation matrix green |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
@@ -617,7 +649,7 @@ the linear algebra's.
 |---|---|---|---|
 | [0601](wp/0601-bounded-lm-solver.md) | TOPAS-style bounded LM | ✅ 2026-07-28 | — |
 | [0602](wp/0602-agent-json-surface.md) | Agent JSON surface hardened | ✅ 2026-07-29 | — |
-| [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | 🔶 | — |
+| [0604](wp/0604-theory-manual.md) | Sphinx + MyST theory manual | ✅ 2026-07-29 | — |
 | [0605](wp/0605-batched-peak-loop.md) | Batched peak loop (spike, then decide) | ✅ 2026-07-28 | — |
 
 (0603 — the torch/MPS backend — moved to v0.4 as

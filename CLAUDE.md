@@ -8,11 +8,12 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8 min (1021 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (939 tests, ~1-1.5 min)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8 min (1026 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (944 tests, ~1-1.5 min)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -333,8 +334,21 @@ the two largest accuracy wins are invisible in it. So a new correction ships
 with a record field or a diagnostic that states what it changed, never with an
 Rwp comparison as its evidence.
 
-**In flight: v0.6 — solver, performance & agents.** `pyproject.version` tracks
-the milestone *in flight* (0.6.0.dev0), not the last one shipped, because that
+**v0.6 — solver, performance & agents** (2026-07-29: batched-peak-loop no-go
+with the FCJ node memo shipped instead 0605, bounded LM with the Stephens cone
+as a linear inequality 0601, agent JSON surface 0602, Sphinx + MyST theory
+manual 0604; measured acceptance in `docs/milestones/v0.6.md`). The **theory
+manual** lives in `docs/manual/` and is guarded against drifting from the code
+by `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
+constants are MyST substitutions injected from the live package in
+`docs/manual/conf.py` (a new fenced constant needs a line there *and* a use in
+a chapter), every displayed equation carries a `*Source:*` line whose symbol
+must import, and every bib entry must be cited. Consequence: renaming a
+physics symbol or retuning a fenced constant means touching the manual in the
+same change.
+
+**In flight: v1.0 — hardening, API freeze, PyPI.** `pyproject.version` tracks
+the milestone *in flight* (1.0.0.dev0), not the last one shipped, because that
 string is stamped into every `RefinementResult.provenance` and history node.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and

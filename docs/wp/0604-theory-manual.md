@@ -1,6 +1,6 @@
 # WP-0604 — Sphinx + MyST theory manual
 
-Milestone: v0.6 · Status: 🔶 in progress
+Milestone: v0.6 · Status: ✅ shipped 2026-07-29
 Depends on: —
 
 ## Goal
@@ -218,16 +218,16 @@ paragraph each, all measured on real data rather than argued.
 ## Tasks
 
 - [x] Expand this stub into a full WP before writing code
-- [ ] Docs infra: `[docs]` extra (self-referenced into `[dev]`),
+- [x] Docs infra: `[docs]` extra (self-referenced into `[dev]`),
       `docs/manual/` skeleton, `conf.py` importing live constants as MyST
       substitutions, `_build/` gitignored, empty manual builds `-W`-clean
-- [ ] `references.bib`: every literature reference cited in `src/` docstrings,
+- [x] `references.bib`: every literature reference cited in `src/` docstrings,
       keyed `author-year` (deduplicated; ITC volumes as `@book`s)
-- [ ] Chapters 1–3: forward model, peak positions, peak profiles
-- [ ] Chapters 4–6: intensities, intensity corrections, microstructure
-- [ ] Chapters 7–9: background, estimation, parameterisation & constraints
-- [ ] Chapter 10 + front matter: method case studies; how-to-read rules
-- [ ] Guard tests (`tests/test_manual.py`): `-W` build via subprocess; every
+- [x] Chapters 1–3: forward model, peak positions, peak profiles
+- [x] Chapters 4–6: intensities, intensity corrections, microstructure
+- [x] Chapters 7–9: background, estimation, parameterisation & constraints
+- [x] Chapter 10 + front matter: method case studies; how-to-read rules
+- [x] Guard tests (`tests/test_manual.py`): `-W` build via subprocess; every
       bib entry cited somewhere; every `*Source:*` symbol imports; ruff clean
 
 ## Acceptance
@@ -248,6 +248,29 @@ Tooling: Sphinx, MyST-Parser, sphinxcontrib-bibtex, furo (all BSD-licensed).
 
 ## Handover log
 
+- **2026-07-29 (ship)** — all eight tasks landed in eight commits; WP shipped
+  and it closes v0.6 (milestone record `../milestones/v0.6.md`). Done: ten
+  chapters + front matter under `docs/manual/` (MyST, numbered equations,
+  ~50 labelled), `references.bib` with 62 verified entries, `conf.py`
+  injecting ten live constants as substitutions, five guard tests in
+  `tests/test_manual.py` (build `-W` via subprocess ≈4 s in the fast suite,
+  bib coverage both directions, every `*Source:*` symbol imports, labelled
+  pages carry source lines). Fast suite 940 passed / 4 skipped in 57 s.
+  Gotchas for whoever extends the manual:
+  - **Two docstring citations are deliberately absent from the bib** because
+    their full records couldn't be verified against the papers and titles
+    are never fabricated (house rule + memory "ask for papers"): Andreev
+    (1994), J. Appl. Cryst. 27, 288 (serial-correlation esds,
+    `optimize/statistics.py`) and Deslattes & Kessler (1985, Plenum,
+    `schemas/instrument.py`). Ask the user for the PDFs and add them.
+  - `test_every_bib_entry_is_cited` means **adding a bib entry without citing
+    it fails the suite** — add the citation first.
+  - The `{{ constant }}` substitutions come from `docs/manual/conf.py`
+    imports; a new fenced constant needs a line there *and* use in a chapter
+    (unused substitutions don't warn; undefined ones fail `-W`).
+  - Exporter/pdCIF papers (Hall 1991, Toby 2003) and the compare-UI structure
+    provenance papers were left out on scope grounds (theory manual, not
+    formats), not by oversight.
 - **2026-07-29** — expanded the stub into a full WP: chapter plan derived from
   a sweep of every citation-bearing docstring in `src/`; anti-divergence
   design fixed (substitutions for constants, manual→docstring source lines,

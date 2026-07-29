@@ -9,6 +9,21 @@ Depends on: WP-1001, WP-1002
 
 ## Inherited
 
+From **WP-0604** (theory manual, landed 2026-07-29) — two facts for the
+freeze:
+
+- **`tests/test_manual.py::test_every_source_symbol_imports` is a live list
+  of symbols the manual quotes** (every `*Source:*` line in
+  `docs/manual/*.md`). A rename during the freeze fails that test — treat it
+  as the manual's stake in the API discussion, not as an obstacle; if a
+  symbol is deliberately renamed/hidden, the manual page is the other half
+  of the edit.
+- **An autodoc API reference was deliberately not built** (0604 design
+  decision: the docstrings' unicode-math prose would mangle under reST
+  rendering with `-W`). If a rendered API reference is wanted for release,
+  it is a new document with its own failure modes — budget it here, don't
+  bolt it onto `docs/manual/`.
+
 From **WP-0602** (agent JSON surface, landed 2026-07-29): **`pxrdref.agent` is
 deliberate public API to freeze** — `refine_json`, `request_schema`,
 `response_schema`, `tool_definition`, the request/response envelope models and
