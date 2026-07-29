@@ -1,16 +1,18 @@
 # WP-1002 — CI matrix
 
-Milestone: v1.0 · Status: 🔶 in progress
+Milestone: v1.0 · Status: ✅ shipped 2026-07-29
 Depends on: —
 
 ## Goal
 
-Every push to `main` (and every PR) is gated by a lint + fast-suite matrix
-across the supported Python range on Linux, and a nightly job runs the whole
-suite — including the `slow` real-data acceptance — on Linux *and* macOS with
-the optional backends installed. A green tree therefore means "green somewhere
-other than the maintainer's laptop", which is what v1.0 needs before it can
-freeze an API or publish a wheel.
+Every push to `main` (and every PR) runs a lint + fast-suite matrix across the
+supported Python range on Linux; a nightly job runs the whole suite, `slow`
+real-data acceptance included, on Linux; a weekly one covers macOS and the
+optional backends. A green tree therefore means "green somewhere other than the
+maintainer's laptop", which is what v1.0 needs before it can freeze an API or
+publish a wheel — with the two things that phrase *cannot* mean written down
+rather than implied: no hosted runner has a Metal device, and none reproduces
+the bit-identity goldens' capture machine.
 
 ## Context
 
