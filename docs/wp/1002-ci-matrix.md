@@ -1,14 +1,83 @@
 # WP-1002 — CI matrix
 
-Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v1.0 · Status: 🔶 in progress
 Depends on: —
 
-## Scope (carried verbatim from the pre-split roadmap)
+## Goal
 
-- CI: linux + macOS, Py 3.11-3.13 (+3.14 allow-fail); `[jax]`/`[torch]`
-  optional jobs; nightly heavy validation with fetched data
+Every push to `main` (and every PR) is gated by a lint + fast-suite matrix
+across the supported Python range on Linux, and a nightly job runs the whole
+suite — including the `slow` real-data acceptance — on Linux *and* macOS with
+the optional backends installed. A green tree therefore means "green somewhere
+other than the maintainer's laptop", which is what v1.0 needs before it can
+freeze an API or publish a wheel.
 
-## Inherited
+## Context
+
+The suite is already CI-shaped; almost all the work is deciding *what runs
+where*, and paying for the answers with measurements rather than assumptions.
+
+**What the workflows must run.** From CLAUDE.md's Commands block:
+
+```sh
+.venv/bin/python -m pytest -n auto --dist loadgroup              # full, incl. slow acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" # fast gate
+.venv/bin/python -m ruff check src tests examples                 # must be clean
+```
+
+`--dist loadgroup` is **not optional**: it is what honours the `xdist_group`
+marks that keep a shared expensive fixture on one worker. Plain `--dist load`
+silently refits and the suite takes far longer while still passing, so a
+workflow that drops it degrades quietly rather than failing.
+
+Do **not** add `-q` on the command line: `pyproject.toml`'s
+`addopts = "-q"` already supplies one, and a second makes `-qq`, which
+suppresses pytest's final `N passed` summary line entirely — in a CI log that
+is the one line anyone reads. (Found the hard way while measuring for this WP.)
+
+**Files to touch.** `.github/workflows/` (new), `pyproject.toml` (a marker, if
+the golden decision below needs one), `README.md` (badge + what is gated
+where). No `src/` change should be needed; if the matrix forces one, that is a
+portability bug and belongs in its own commit.
+
+**Costs that shape the design.** macOS runners bill at a **10× minute
+multiplier** on a private repo, and the maintainer develops on macOS/arm64, so
+a per-push macOS job is simultaneously the most expensive job in the matrix and
+the one re-testing the best-covered platform. Linux per push, macOS nightly and
+on `workflow_dispatch`. `[torch]` is a ~500 MB wheel (jax ~100 MB) — nightly
+only. When the repo goes public for the release, Actions minutes stop being
+metered and macOS can be promoted; that is a WP-1003 note, not a blocker here.
+
+**No data is fetched.** The pre-split scope says "nightly heavy validation with
+fetched data", which predates the tree: all 18 MB of it is vendored under
+`tests/data/` with provenance in `tests/data/README.md`. The fetch route only
+matters if WP-1003 un-vendors the QARR patterns over their licence, and then it
+is the Internet Archive, never iucr.org (Cloudflare JS challenge).
+
+**The one genuinely open question is the bit-identity goldens.**
+`tests/test_backend_shim.py::test_numpy_path_bit_identical_to_golden` compares
+nine `tests/data/backend_goldens/*.npz` with `np.array_equal` — no tolerance.
+`tests/data/README.md` states outright that these are *environment-pinned* bit
+patterns captured on macOS/arm64 Accelerate, and that "a different BLAS/numpy
+build may legitimately differ in final bits". A multi-OS matrix is exactly the
+thing that tests that claim. Measured for this WP before any workflow existed
+(same macOS/arm64 machine, three fresh interpreters, `-m "not slow"`):
+
+| Python | numpy / scipy | fast suite |
+|---|---|---|
+| 3.11.15 | 2.4.6 / 1.17.1 | green |
+| 3.12.12 | 2.5.1 / 1.18.0 | green (the development venv) |
+| 3.13.11 | 2.5.1 / 1.18.0 | green |
+| 3.14.4 | 2.5.1 / 1.18.0 | green — `[dev]` installs cleanly, no allow-fail needed yet |
+
+So a **numpy minor version change does not move the goldens** — 2.4.6 and 2.5.1
+agree bit-for-bit on the same platform. That isolates the remaining variable to
+the BLAS/libm/arch axis, which only a Linux x86-64 job can answer. Get that
+answer from a real run, then encode the decision (pin the goldens to one
+canonical job via a marker, or relax them) rather than guessing which way it
+goes.
+
+### Inherited
 
 From **WP-1001** (validation matrix, landed 2026-07-29) — **fresh runtime
 numbers, and one new fast-suite file that the per-push job gets for free.**
@@ -115,9 +184,57 @@ front whether those goldens are pinned to one canonical job or relaxed to a
 tolerance elsewhere — the re-baseline rule is in `tests/data/README.md`
 (regenerate via `python -m tests.test_backend_shim`, only from a green tree).
 
+## Non-goals
+
+- **Coverage gates.** `pytest-cov` is installed; a coverage *threshold* is a
+  policy decision nobody has taken, and a number chosen to be passable teaches
+  nothing.
+- **Publishing.** Building/uploading an sdist+wheel, trusted publishing, tag
+  automation — all WP-1003.
+- **A self-hosted macOS runner for the MPS assertions.** Documented gap
+  (WP-0408 above); a self-hosted runner is a security and maintenance surface
+  that a private research repo should take on deliberately, not incidentally.
+- **Publishing the theory manual** (GitHub Pages). It is *built* under `-W` in
+  the suite already; hosting it is WP-1003's call.
+- **Making the goldens portable.** If they break off macOS/arm64, the answer is
+  to pin where they run — not to loosen `np.array_equal`, which would destroy
+  the only guard that says "no refactor changed a single computed number".
+
 ## Tasks
 
-- [ ] Expand this stub into a full WP before starting
+- [x] Expand this stub into a full WP before starting
+- [x] Measure the supported Python range locally (3.11 / 3.13 / 3.14 venvs,
+      fresh resolutions) so the matrix is written against evidence
+- [ ] `.github/workflows/ci.yml` — per-push lint + fast-suite matrix
+- [ ] `.github/workflows/nightly.yml` — full suite × {Linux, macOS} + a torch job
+- [ ] Land the golden-pinning decision on what the first cross-platform run
+      actually shows
+- [ ] README: CI badge and a short "what is gated where" note
+- [ ] Handover log + ROADMAP sync + forward notes into WP-1003 `### Inherited`
+
+## Acceptance
+
+The matrix is green on a real run, not just locally:
+
+```sh
+gh run list --workflow=ci.yml --limit 5
+gh run watch <run-id>            # every `fast` job green; 3.14 recorded either way
+gh workflow run nightly.yml && gh run watch <run-id>   # full suite, both OSes
+```
+
+Locally, the same commands the workflows run:
+
+```sh
+.venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
+```
+
+## References
+
+- GitHub Actions billing multipliers (macOS 10× on private repos) —
+  docs.github.com/billing/managing-billing-for-github-actions
+- `tests/data/README.md` § "backend_goldens/ — WP-0401 bit-identity baseline"
+  for the re-baseline rule and the environment-pinning caveat.
 
 ## Handover log
 
