@@ -2,12 +2,10 @@
 %
 % Every entry here is cited somewhere in the manual — tests/test_manual.py
 % enforces it — and every physics docstring's citation that the manual
-% transcribes an equation from appears here.  Two docstring citations are
-% deliberately absent because their full bibliographic records could not be
-% verified against the papers (house rule: never fabricate a title):
-% Andreev (1994), J. Appl. Cryst. 27, 288 (serial-correlation esds, cited in
-% optimize/statistics.py) and Deslattes & Kessler (1985), in Atomic
-% Inner-Shell Physics, Plenum (cited in schemas/instrument.py).
+% transcribes an equation from appears here.  Two entries (andreev1994,
+% deslattes1985) were initially held out because their records could not be
+% verified (house rule: never fabricate a title) and were added 2026-07-29
+% once the papers themselves were supplied.
 
 % ---------------------------------------------------------------- foundations
 
@@ -133,6 +131,18 @@
   title  = {X-ray Transition Energies Database, Standard Reference Database 128},
   year   = {2005},
   note   = {\url{https://physics.nist.gov/PhysRefData/XrayTrans/}},
+}
+
+@incollection{deslattes1985,
+  author    = {Deslattes, R. D. and Kessler, E. G.},
+  title     = {Experimental evaluation of inner-vacancy level energies for comparison with theory},
+  editor    = {Crasemann, B.},
+  booktitle = {Atomic Inner-Shell Physics},
+  chapter   = {5},
+  pages     = {181},
+  publisher = {Plenum Press},
+  address   = {New York},
+  year      = {1985},
 }
 
 @book{wilson1963,
@@ -557,6 +567,15 @@
   volume  = {109},
   pages   = {107--123},
   year    = {2004},
+}
+
+@article{andreev1994,
+  author  = {Andreev, Yu. G.},
+  title   = {The use of the serial-correlations concept in the figure-of-merit function for powder diffraction profile fitting},
+  journal = {Journal of Applied Crystallography},
+  volume  = {27},
+  pages   = {288},
+  year    = {1994},
 }
 
 @article{schwarzenbach1989,

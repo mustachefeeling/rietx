@@ -86,7 +86,9 @@ the instrument profile, and load it frozen for sample work.
 Kα₁/Kα₂ wavelengths are **peak** positions of the measured line shapes, not
 centroids, quoted on one consistent scale: the NIST X-ray Transition
 Energies Database {cite}`srd128,deslattes2003`, whose 3d-metal values derive
-from the Hölzer et al. measurements {cite}`holzer1997`. One column of one
+from the Hölzer et al. measurements {cite}`holzer1997` and whose Mo/Ag
+values from Deslattes & Kessler {cite}`deslattes1985` — one *column* is the
+claim, not one paper. One column of one
 evaluation for all anodes is the load-bearing choice — mixing wavelength
 scales between anodes (or against an older table) is the classic ~100 ppm
 cell-parameter error. Bearden's compilation {cite}`bearden1967` is a

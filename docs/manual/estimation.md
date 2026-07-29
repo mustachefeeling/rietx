@@ -69,7 +69,10 @@ where the second factor is the Bérar-Lelann serial-correlation inflation
 coherently, $\chi'^2 = \sum_{\mathrm{runs}} (\sum_{i\in\mathrm{run}}
 \delta_i)^2 \ge \chi^2$, because serially correlated neighbours do not
 carry independent information. The estimator is conservative — even white
-residuals land at an expected factor ≈1.51 — and reported esds *carry* the
+residuals land at an expected factor ≈1.51, so treat it as an upper bound
+on the serial-correlation esd damage; Andreev's serial-correlations figure
+of merit {cite}`andreev1994` removes that bias by carrying the correlation
+into the minimised quantity itself — and reported esds *carry* the
 inflation. The correlation matrix does **not**: it is the true Pearson
 matrix, so a genuinely degenerate pair reports $|\rho| \approx 1$ and the
 0.98 high-correlation guard means what it says. Values are quoted with

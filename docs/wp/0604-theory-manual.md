@@ -248,6 +248,16 @@ Tooling: Sphinx, MyST-Parser, sphinxcontrib-bibtex, furo (all BSD-licensed).
 
 ## Handover log
 
+- **2026-07-29 (post-ship)** — the two held-out bibliography entries are
+  closed: the user supplied both papers, so `andreev1994` (J. Appl. Cryst.
+  27, 288 — title verified from the paper itself) and `deslattes1985`
+  (ch. 5 of *Atomic Inner-Shell Physics*, Plenum 1985, p. 181) are now in
+  `references.bib` and cited where their docstrings live (the Bérar-Lelann
+  upper-bound paragraph in `estimation.md`; the Mo/Ag wavelength provenance
+  in `peak-positions.md`). Only the *first* pages are recorded — the copies
+  supplied don't show the end pages, and the house rule applies to page
+  ranges too. The bibliography now covers every physics docstring citation
+  in scope.
 - **2026-07-29 (ship)** — all eight tasks landed in eight commits; WP shipped
   and it closes v0.6 (milestone record `../milestones/v0.6.md`). Done: ten
   chapters + front matter under `docs/manual/` (MyST, numbered equations,
