@@ -70,6 +70,22 @@ jobs:
         run: uv venv --python ${{ matrix.python }}
       - name: Install
         run: uv pip install -e ".[${{ matrix.extras || 'dev' }}]"
+      - name: Restore the JAX compile cache
+        # The jax rows are jit-*compile* bound, not flops bound (WP-0404), and
+        # xdist gives every worker its own cold cache — measured, that made the
+        # [dev,jax] job ~5x the numpy-only ones on a hosted runner while adding
+        # ~12 s locally, where tests/.jax_cache persists between runs.
+        # tests/conftest.py points JAX_COMPILATION_CACHE_DIR here; the cache is
+        # keyed by a content hash of the computation, so a stale entry is a
+        # miss, never a wrong answer — which is why the restore-key fallback is
+        # safe and worth having.
+        if: contains(matrix.extras, 'jax')
+        uses: actions/cache@v4
+        with:
+          path: tests/.jax_cache
+          key: jax-cache-${{ runner.os }}-py${{ matrix.python }}-${{ hashFiles('src/**/*.py') }}
+          restore-keys: |
+            jax-cache-${{ runner.os }}-py${{ matrix.python }}-
       - name: Record the environment
         # the backend goldens are environment-pinned bit patterns
         # (tests/data/README.md), so the resolved numpy/scipy/BLAS is evidence,

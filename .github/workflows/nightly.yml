@@ -41,6 +41,16 @@ jobs:
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev,jax]"
+      - name: Restore the JAX compile cache
+        # the jax rows are jit-compile bound and xdist gives each worker a cold
+        # cache (WP-0404); ~106 MB, keyed by a content hash of the computation
+        # so a stale entry is a miss rather than a wrong answer
+        uses: actions/cache@v4
+        with:
+          path: tests/.jax_cache
+          key: jax-cache-nightly-${{ runner.os }}-${{ hashFiles('src/**/*.py') }}
+          restore-keys: |
+            jax-cache-nightly-${{ runner.os }}-
       - name: Record the environment
         run: |
           .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
