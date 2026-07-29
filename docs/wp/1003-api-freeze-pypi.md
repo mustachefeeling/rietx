@@ -27,6 +27,20 @@ being a private free-plan repo, and they all lift at once.**
   suite; `requires-python = ">=3.11"` is right, but `classifiers` names only
   `Programming Language :: Python :: 3` — add the per-version rows for PyPI's
   filters, and decide whether 3.14 is claimed or left allow-fail in CI.
+- **Windows passes but is not a supported platform, and the difference is a
+  decision this WP has to take.** Probed 2026-07-29: `982 passed / 115
+  skipped / 0 failed` on `windows-latest` + Python 3.13 — but only after
+  fixing a real bug (`write_qpa_table` wrote `\r\r\n` rows, i.e. corrupt CSV,
+  because `csv.writer` output went through text mode) and naming
+  `encoding="utf-8"` at every text-I/O site, since the default is cp1252
+  there. `tests/test_portability.py` guards both by AST. **No scheduled job
+  runs Windows**, so a claim would be a point measurement dressed as support.
+  Either add a Windows job (a fast-suite run is ~3 min at a 2× multiplier —
+  ~180 charged minutes/month nightly, free once the repo is public) and then
+  claim `Operating System :: Microsoft :: Windows`, or claim
+  `POSIX`/`MacOS` only and say Windows is untested. Do not claim it on the
+  strength of the one green run — that is precisely the drift this milestone
+  exists to stop.
 - **The QARR licence blocker below now has a concrete mechanism.** Nothing is
   fetched today: all 18 MB of `tests/data/` is vendored, which is why
   `nightly.yml` has no network step. If 1003 un-vendors the round-robin

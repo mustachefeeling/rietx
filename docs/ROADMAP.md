@@ -117,6 +117,23 @@ comparison and fails only if the goldens *skip*. The gate is maintainer-machine
 evidence, exactly the shape of the Apple-GPU gap — and is now recorded as one
 rather than implied away by a green badge.
 
+**A Windows probe was run after the scope was met, and it found a real bug.**
+Not in the WP's scope (Linux + macOS) but cheap to answer by running it: the
+fast suite went **7 failed → 982 passed / 115 skipped / 0 failed** on
+`windows-latest`. Six of the seven failures were `'charmap' codec` decode
+errors in `tests/` — the suite was less portable than the code it tests — but
+the seventh was ours and user-facing: `write_qpa_table` handed `csv.writer`
+output, which already ends `\r\n`, to `write_text`, so text mode translated
+each `\n` again and **every row of an exported QPA table ended `\r\r\n`**.
+Invisible on POSIX, which is why four milestones of acceptance runs never saw
+it; its sibling `write_reflection_table` had the `newline=""` idiom right all
+along. Every text read and write in the tree now names `encoding="utf-8"`
+(the default is cp1252 on Windows, UTF-8 here), guarded by AST rather than
+grep in `tests/test_portability.py` — a line search misses the multi-line call
+that survived the first sweep. **Nothing runs Windows on a schedule**, so it is
+a measurement, not a supported platform; the claim-or-don't decision is in
+[1003](wp/1003-api-freeze-pypi.md).
+
 Two smaller results outlast the WP. **CI reports; it does not gate** —
 branch protection returns 403 on a private free-plan repo, so nothing stops a
 red push landing on `main`, and that is registered as a validation gap rather

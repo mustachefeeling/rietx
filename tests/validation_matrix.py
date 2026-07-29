@@ -736,6 +736,17 @@ GAPS: tuple[tuple[str, str], ...] = (
      "bits at all** — maintainer-machine evidence, the same shape as the MPS "
      "gap.  A tolerance wide enough to absorb a libm difference would absorb "
      "a real one too, so the gate stays exact and CI reports it instead."),
+    ("Windows passes, once, and nothing keeps it that way.",
+     "Probed on a throwaway branch 2026-07-29: the fast suite is 982 passed / "
+     "115 skipped / 0 failed on windows-latest with Python 3.13.  Getting "
+     "there fixed one real bug — write_qpa_table handed csv.writer output, "
+     "which already ends \\r\\n, to write_text, so text mode translated each "
+     "\\n again and every row ended \\r\\r\\n, i.e. corrupt CSV for Windows "
+     "users and invisible on POSIX — plus every text read/write in the tree "
+     "now names encoding=utf-8, since the default is cp1252 there and UTF-8 "
+     "here.  tests/test_portability.py guards both by AST.  But **no "
+     "scheduled job runs Windows**, so this is a point measurement, not a "
+     "supported platform, and pyproject claims no OS classifier."),
     ("CI reports; it does not gate.",
      "Branch protection needs a paid plan or a public repository, so nothing "
      "stops a red push landing on main today.  Every number in this document "

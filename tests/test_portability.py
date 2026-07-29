@@ -88,6 +88,17 @@ def _text_io_calls(tree: ast.AST, source: str) -> list[tuple[ast.Call, str]]:
     return found
 
 
+def _calls_a_csv_writer(tree: ast.AST) -> bool:
+    """True when the module actually constructs a csv writer."""
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"writer", "DictWriter"}
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "csv"):
+            return True
+    return False
+
+
 def test_every_text_io_call_names_its_encoding():
     """No implicit locale encoding anywhere in the tree.
 
@@ -115,9 +126,13 @@ def test_csv_writers_open_with_newline_suppressed():
     offenders = []
     for path in _python_files():
         source = path.read_text(encoding="utf-8")
-        if "csv.writer" not in source:
+        if "csv" not in source:
             continue
         tree = ast.parse(source)
+        # a *call*, not a mention: this file and validation_matrix.py both
+        # discuss csv.writer in prose, and a substring test flags them
+        if not _calls_a_csv_writer(tree):
+            continue
         for call, _ in _text_io_calls(tree, source):
             writes = isinstance(call.func, ast.Attribute) and call.func.attr in {
                 "open", "write_text"}

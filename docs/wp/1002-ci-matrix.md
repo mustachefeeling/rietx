@@ -280,6 +280,33 @@ longest entries are *fixture setup*, not tests: `stephens-brucite` 861 s,
 Runtime is set by the longest `xdist_group`, exactly as CLAUDE.md says, and on
 4 cores those groups no longer hide behind each other.
 
+**Windows, probed on a throwaway branch after the WP's own scope was met**
+(the scope said Linux + macOS). Two runs on `windows-latest`, Python 3.13,
+`[dev]`:
+
+| run | result | what it showed |
+|---|---|---|
+| before fixes | **7 failed, 970 passed, 115 skipped** | six `'charmap' codec` decode errors, all in `tests/`; one real library bug |
+| after fixes | **982 passed, 115 skipped, 0 failed** in 2:59 | clean |
+
+The runner confirms the premise the failures rest on: `preferred encoding:
+cp1252`, `stdout encoding: cp1252`, filesystem encoding utf-8. The one library
+bug was `write_qpa_table` handing `csv.writer` output (which already ends
+`\r\n`) to `write_text`, so text mode translated each `\n` again and every row
+ended `\r\r\n` — **corrupt CSV for any Windows user**, invisible on POSIX,
+and its sibling `write_reflection_table` had the `newline=""` idiom right all
+along. Everything else was the suite being less portable than the code it
+tests: the library's write paths were already correct, including `write_html`,
+which is plotly's own UTF-8 writer. `fcntl` was already guarded, every path
+already went through `pathlib`, and every dependency had a Windows wheel.
+
+`tests/test_portability.py` now guards both rules by AST, not grep — the
+multi-line `write_text(json.dumps({...}), encoding="utf-8")` in `viz/live.py`
+is invisible to a line search, which is how one site survived the first sweep —
+and each guard is checked against source that violates it so it cannot pass
+vacuously. **Nothing runs Windows on a schedule**, so this is a point
+measurement, not a standing claim; see the ROADMAP note and WP-1003.
+
 **Two things a bump can break, learned here.** `astral-sh/setup-uv`'s latest
 *release* is v9.0.0 but its highest floating **major** ref is `v7`; assuming
 the two agree failed every job in three seconds. And the four actions were on
