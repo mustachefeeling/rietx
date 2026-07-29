@@ -719,6 +719,24 @@ GAPS: tuple[tuple[str, str], ...] = (
      "write_refinement_cif's round trip is checked single-phase only; a "
      "multi-phase re-read was never a v0.3 commitment.  Whatever the frozen "
      "API says about CIF round-tripping has to narrow to that."),
+    ("The bit-identity goldens hold on one platform, by measurement.",
+     "tests/test_backend_shim.py's array_equal gate — the check that says no "
+     "refactor changed a single computed number — is pinned to darwin/arm64 "
+     "(GOLDEN_PLATFORM) and skips elsewhere.  WP-1002's CI matrix measured "
+     "why: a numpy change does not move the goldens (2.4.6 and 2.5.1 agree "
+     "bit for bit) but Linux x86-64 diverges on every state, by 1 ulp on "
+     "quantities that are a single arithmetic chain and up to ~1100 ulp "
+     "(1.7e-13 relative) on y_calc, which accumulates ~130 windows of "
+     "transcendentals.  That gradient with chain length identifies a libm and "
+     "summation-order difference, not a code difference, and even the worst "
+     "of it is ten orders below the tightest physical bar here.  So one CI "
+     "job asserts the gate and the rest skip it; a tolerance wide enough to "
+     "absorb a libm difference would absorb a real one too."),
+    ("CI reports; it does not gate.",
+     "Branch protection needs a paid plan or a public repository, so nothing "
+     "stops a red push landing on main today.  Every number in this document "
+     "was produced by a green tree, but the enforcement that would keep it "
+     "that way arrives with the v1.0 release (WP-1003)."),
 )
 
 
