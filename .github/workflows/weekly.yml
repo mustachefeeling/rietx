@@ -6,12 +6,13 @@ name: weekly
 #
 # What each job is *for* — neither is a duplicate of the nightly Linux run:
 #
-# * `macos` is the only place the bit-identity goldens are asserted.  They are
-#   pinned to darwin/arm64 (tests/test_backend_shim.py, GOLDEN_PLATFORM) after
-#   WP-1002 measured Linux x86-64 diverging by up to 1.7e-13 relative — a libm
-#   and summation-order difference, not a code difference.  It runs the *fast*
-#   suite, not the full one: at 10x, the slow acceptance would cost ~400
-#   charged minutes, and it is already covered nightly on Linux.
+# * `macos` is the closest any runner gets to the bit-identity goldens' capture
+#   machine, and close is all it gets: measured, it reproduces 7 of 8 states and
+#   misses one by exactly one ulp, where Linux misses all 8 by up to ~1100.  So
+#   this job *reports* the comparison and fails only if the goldens skip — see
+#   that step's comment.  It runs the *fast* suite, not the full one: at 10x,
+#   the slow acceptance would cost ~400 charged minutes, and it is already
+#   covered nightly on Linux.
 # * `torch` is an independent opinion in the Jacobian-agreement matrix
 #   (WP-0408), not a supported runtime.
 #
@@ -40,8 +41,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
@@ -50,7 +51,7 @@ jobs:
       - name: Restore the JAX compile cache
         # see nightly.yml; at a 10x billing multiplier this job is the one
         # where a cold jit cache costs the most
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tests/.jax_cache
           key: jax-cache-weekly-${{ runner.os }}-${{ hashFiles('src/**/*.py') }}
@@ -102,7 +103,7 @@ jobs:
           exit 0
       - name: Upload obs/calc/diff plots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-output-macos
           path: tests/output/
@@ -121,14 +122,20 @@ jobs:
     timeout-minutes: 60
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
       - run: uv venv --python 3.13
       - run: uv pip install -e ".[dev,jax,torch]"
       - name: Every backend installed at once
+        # Deliberately *not* `-n auto`: tests/test_cross_backend.py caches one
+        # built Jacobian callable per (config, backend) so the fp32 rows reuse
+        # the compiled one, which halved that file's runtime (WP-0404).  xdist
+        # would give each worker its own cold cache and pay every compile
+        # again.  If this step ever needs to be faster, measure both — do not
+        # assume parallel wins.
         run: |
           .venv/bin/python -m pytest \
             tests/test_cross_backend.py \

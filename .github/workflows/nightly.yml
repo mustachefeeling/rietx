@@ -34,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
@@ -45,7 +45,7 @@ jobs:
         # the jax rows are jit-compile bound and xdist gives each worker a cold
         # cache (WP-0404); ~106 MB, keyed by a content hash of the computation
         # so a stale entry is a miss rather than a wrong answer
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tests/.jax_cache
           key: jax-cache-nightly-${{ runner.os }}-${{ hashFiles('src/**/*.py') }}
@@ -58,14 +58,15 @@ jobs:
       - name: Full suite (including the slow real-data acceptance)
         # the bit-identity goldens skip here — they are pinned to darwin/arm64
         # (tests/test_backend_shim.py, GOLDEN_PLATFORM) and weekly.yml is where
-        # they are asserted
+        # the comparison is reported — no CI runner reproduces their capture
+        # machine, so no job asserts them
         run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
       - name: Upload obs/calc/diff plots
         # every test refinement writes them (CLAUDE.md's Tests convention);
         # Rwp hides locally-bad fits, so on a nightly failure these are the
         # first thing to look at
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-output-linux
           path: tests/output/

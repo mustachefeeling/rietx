@@ -33,8 +33,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
@@ -61,8 +61,8 @@ jobs:
           - python: "3.14"
             experimental: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
@@ -80,7 +80,7 @@ jobs:
         # miss, never a wrong answer — which is why the restore-key fallback is
         # safe and worth having.
         if: contains(matrix.extras, 'jax')
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tests/.jax_cache
           key: jax-cache-${{ runner.os }}-py${{ matrix.python }}-${{ hashFiles('src/**/*.py') }}
