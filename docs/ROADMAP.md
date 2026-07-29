@@ -74,11 +74,13 @@ public" is the same change as three other things** — it is what makes CI
 enforceable, what makes macOS affordable, and what settles the vendored-QARR
 question.
 
-**[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29.** Three
-workflows: per push, ruff plus the fast suite on Python 3.11-3.13 with 3.14
-allow-fail (Linux, green on all four); nightly, the whole suite including the
-81 `slow` real-data acceptance tests; weekly, macOS and the `[torch]`
-agreement rows. The nightly/weekly split is not taste — the first design ran
+**[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29**, all three
+workflows verified by a real run rather than by review: per push, ruff plus the
+fast suite on Python 3.11-3.13 with 3.14 allow-fail (Linux, green on all four);
+nightly, the whole suite including the `slow` real-data acceptance —
+**1103 passed / 81 skipped in 43:56**, the first time those suites have run
+anywhere but the maintainer's machine, and they passed unchanged; weekly, macOS
+and the `[torch]` agreement rows, both green. The nightly/weekly split is not taste — the first design ran
 the full suite on macOS nightly, which at a **10× billing multiplier** is ~400
 charged minutes a night against a 2000/month private-repo quota, six times the
 whole budget for one job. It was caught by arithmetic before it ran once, and

@@ -267,6 +267,19 @@ deselected):
 | macOS (2nd run, gate reported) | success | 4:12 | goldens 7 of 8 bit-identical, `toy_rich` off by exactly 1 ulp, *identically* in both runs — deterministic, not flaky |
 | torch (experimental) | success | 15:59 | the agreement matrix with numpy + jax + torch all installed, MPS rows self-skipping as designed |
 
+`nightly.yml`, dispatched once (30433363168): **success — 1103 passed / 81
+skipped in 43:56** (job 44:21). Every real-data acceptance suite in the repo
+passes on Linux x86-64, which is the first time any of them has run off the
+maintainer's machine. The 81 skips are the 8 platform-pinned goldens plus the
+torch rows this job does not install.
+
+Worth knowing before sizing anything: the run is **~5.6× the local full
+suite**, and `--durations` says why — it is not spread thinly. The four
+longest entries are *fixture setup*, not tests: `stephens-brucite` 861 s,
+`qpa-sample1` 603 s, `qpa-dispersion` 482 s, plus a 693 s jax end-to-end call.
+Runtime is set by the longest `xdist_group`, exactly as CLAUDE.md says, and on
+4 cores those groups no longer hide behind each other.
+
 **Two things a bump can break, learned here.** `astral-sh/setup-uv`'s latest
 *release* is v9.0.0 but its highest floating **major** ref is `v7`; assuming
 the two agree failed every job in three seconds. And the four actions were on
@@ -378,9 +391,20 @@ release, but bump against `git/matching-refs/tags/v`, not against
   or the size stays visible. The gate is maintainer-machine evidence, exactly
   the shape of the Apple-GPU gap, and is recorded as one.
 
-  **Next.** Nothing blocking. Two things a successor would want to know: the
-  per-push jax job's cost after the `actions/cache` step lands its first hit
-  (the number in the table below is a cold run), and whether promoting macOS to
-  nightly is worth it once WP-1003 makes the repo public and the meter stops.
+  **All three workflows are verified by a real run, not just by review** —
+  per-push matrix green on four Pythons, weekly green on macOS and torch, and
+  the nightly **green on the full suite including every real-data acceptance
+  test: 1103 passed / 81 skipped in 43:56**. That is the first time the
+  acceptance suites have run anywhere but the maintainer's machine, and they
+  passed unchanged, which is the substantive claim this WP was for.
+
+  **Next.** Nothing blocking. Three things a successor would want: the nightly
+  is ~5.6× the local full suite and its `--durations` shows the cost is four
+  *fixture setups* (`stephens-brucite` 861 s, `qpa-sample1` 603 s,
+  `qpa-dispersion` 482 s) rather than a broad slowdown — so splitting a group
+  is still the only lever, exactly as CLAUDE.md says; the jax rows want either
+  a single-process run or a move to nightly (measure, do not guess — the
+  obvious cache fix was tried and did nothing); and promoting macOS to nightly
+  becomes free the moment WP-1003 makes the repo public.
 
 - **2026-07-22** — created as a stub from the ROADMAP split.
