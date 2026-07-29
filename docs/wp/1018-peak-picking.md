@@ -88,6 +88,21 @@ sub-channel position, no width, no σ. `report/layer0.py` peak-finds the
 
 Nothing upstream — this is the first indexing WP.
 
+From **WP-1028** (measured on third-party lab data, 2026-07-29): **rank
+candidate peaks by prominence and measure only the strongest.** A width
+estimator that takes the median FWHM over *all* detections above a prominence
+floor reads **0.071°** on a noisy 0.01°-step pattern whose real lines are
+**0.389°** — smoothing ripples survive the floor as weak maxima and drag the
+median down by a factor of five. Taking the median of the twelve most prominent
+detections instead recovers 0.389°. This matters here twice over: it is the
+same statistic a `PeakList` reports, and a width read five times too small is
+what makes downstream frozen evaluation windows an order of magnitude too
+narrow (WP-1028 (c), (h)).
+
+Also from **WP-1028**: `ProfileTCHZ`'s `W = 1e-3 deg²` default is a
+*synchrotron* line (FWHM ≈ 0.03°). Any peak-picking default that inherits it
+will be wrong on lab data by an order of magnitude.
+
 ## Non-goals
 
 - No indexing, no cell, no Q-space (WP-1020) and no data-quality gate or

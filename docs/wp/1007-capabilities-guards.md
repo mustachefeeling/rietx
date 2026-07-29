@@ -51,6 +51,20 @@ meta-test that fails when a registered member is missing from the exported
 schema, and WP-1024 extends it to engines. A hardcoded list would pass that
 test while lying.
 
+From **WP-1028** (2026-07-29): that WP adds guards this one will have to carry
+codes for — `MODEL_FAR_FROM_DATA` (a stage returning `status="converged"` at
+Rwp = 7 225 %), a `max_iter` stage outcome surfaced as a finding, an hkl-range
+refusal, and a non-positive-ΣS·ZMV QPA finding that currently *raises* from
+inside `_build_result`. This WP's "no new guards" fence still holds — but design
+`GuardFinding`'s code field as an open vocabulary rather than a `Literal` closed
+over today's six list names, or 1028 will have to reopen it.
+
+Also from **WP-1028**: `PreferredOrientation` is missing from
+`pxrdref/__init__.py` — the same top-level export gap this WP records for
+`auto_background` and `diagnose`. It is user-constructed (you cannot enable
+texture without it) and every comparable schema is re-exported, so fold it into
+the same commit.
+
 ## Non-goals
 
 - No HTTP (`/api/capabilities` is WP-1008's one-line wrapper over this).

@@ -34,6 +34,7 @@ Preconditions, all of which must hold before `fit()` is meaningful:
 | The wavelength is right | from the beamline `.prm`, the file header, or `Instrument.bragg_brentano(radiation=...)` — `"CrKa"`, `"FeKa"`, `"CoKa"`, `"CuKa"`, `"MoKa"`, `"AgKa"`, or any of them suffixed `1` for a Kα1-only monochromated beam | Every cell you report is wrong by the same scale factor and *nothing in the fit will tell you*. Do not hand-enter a wavelength from a textbook to "match" one of these: the table is one scale end to end (§8.11) and mixing scales is a ~100 ppm cell error |
 | The geometry is right | `Instrument.debye_scherrer` vs `.bragg_brentano` | The aberration model is wrong; displacement/transparency/roughness/absorption are geometry-gated and silently absent |
 | The intensities are un-manipulated counts, with esds if available | `read_pattern` reads the file's esd column when present | Weights are wrong ⇒ every esd and every χ² is wrong |
+| The starting peak **width** is within a factor of ~2 | measure it: median FWHM of the dozen most prominent peaks, then `W ≈ (FWHM/2)²`, `X ≈ FWHM` | `ProfileTCHZ`'s `W = 1e-3 deg²` default is a *synchrotron* line (FWHM ≈ 0.03°). On lab data with 0.15-0.40° peaks the frozen evaluation windows are an order of magnitude narrower than the lines, and nothing recovers from that — see §2 and §6 |
 
 **Never subtract a background before refining.** Subtraction invalidates the
 counting-statistics weights and can make intensities negative. Hold an
@@ -85,6 +86,31 @@ intensities from the data instead of computing them, so it converges the cell,
 zero and profile without any structural assumption. Do that first, then switch
 to Rietveld with the converged cell/profile. It is the single most reliable way
 to avoid a structural minimum that is really a profile error.
+
+Two things about Le Bail that the API does not tell you, both measured on
+third-party lab data (2026-07-29):
+
+- **Iterate the whole plan to a fixed point; one `fit()` is not enough.** The
+  extracted per-hkl intensities are frozen inside each least-squares run (the
+  frozen-per-stage invariant), so intensities and profile converge only by
+  *alternating*. On PbSO4 pass 1 stops at Rwp 20.756 % with an unphysical
+  Caglioti **V = +0.0615**; passes 2-4 reach 10.247 % with the curve sane. Re-run
+  the plan until Rwp stops moving — and **keep the best pass, not the last**: the
+  alternation is not a descent on one objective, so a later pass can come back
+  worse (seen on Tb2BaCoO5, 17.3 % → 18.7 %).
+- **Do not use it above one phase.** `lebail_update` partitions
+  `max(y_obs − y_bkg, 0)` per phase with nothing to arbitrate two phases claiming
+  the same channel, so they inflate one another. Measured Rwp by phase count:
+  1 phase converges (7.5-24.8 %), **2 phases 742-9 281 %, 3 phases 2.6e5 %**. It
+  survives seeding both the widths and the background, so it is the partition and
+  not the starting point. For a multi-phase pattern go straight to Rietveld,
+  where atoms tie the intensities and the freedom does not exist.
+
+Also: `auto_background` chooses the *order* but starts every coefficient at
+**0.0**, and the first `lebail_update` runs before the background has ever been
+fitted. On a pattern whose background is several times its strongest peak the
+whole pedestal is handed to the Bragg reflections on cycle one. Seed the
+constant term (a low percentile of `y_obs`) before a Le Bail run.
 
 ---
 
@@ -258,7 +284,7 @@ if "BACKGROUND_ABSORPTION" in codes:
 
 ---
 
-## 8. Twelve things that will surprise you, all measured
+## 8. Fourteen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -412,6 +438,33 @@ Four consequences for an agent:
   a thick back-packed mount — declaring µt = 0.5 takes Rwp 0.1793 → 0.1830 and
   drives one Biso onto its bound. That is the correction correctly refusing to
   fit a specimen that is not there.
+
+**8.13 A stage that takes minutes is telling you it is degenerate.** The solver
+is given `max_nfev = max_iter × n_par`, and `Stage.max_iter` is 100 — so at 46
+free parameters a single stage may spend **4 600** residual-plus-Jacobian
+evaluations before giving up, and it reports `status="converged"` for the pass
+either way. Measured on three weighed NaCl/Li₂CO₃ mixtures — identical models,
+identical parameter counts, same-sized patterns — wall clock ran **39 s, 858 s
+and 2 838 s**, a 73× spread with no corresponding difference in the answer. The
+stages that stall are the degenerate groups of §3, so the signal is available
+*before* you run them: per-phase size/strain freed against a still-free
+instrument U,V,W,X,Y (they model one width curve; the package's own
+`lab_sample_refine` only frees them against a **frozen** calibrated instrument),
+or preferred orientation whose coefficient has reached a bound. **Corollary:
+treat elapsed time as a diagnostic. If a stage runs long, do not wait for it —
+look at what you freed.**
+
+**8.14 A bound that exists is not a bound that holds.**
+`PreferredOrientation.r` is declared `min=0.0` with a softplus transform, the
+idiom that is supposed to keep a parameter strictly positive. The softplus
+pre-image runs to −∞, so `r` reaches **exactly 0**, and the March-Dollase factor
+then evaluates `(1 − c)/r` and returns inf/NaN. Nothing raises: the residual
+becomes garbage and the trust region grinds through its whole budget on it (a
+3-second stage that had not returned after ten minutes). Bounding `r` to
+0.15–6 fixed the stall *and* the fit, Rwp 30.8 % → 13.2 %. **Corollary: for any
+parameter whose model divides by it, set a real floor rather than trusting the
+transform — and read `RuntimeWarning: divide by zero` as a fit-stopping error,
+not noise.**
 
 ---
 

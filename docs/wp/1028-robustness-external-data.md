@@ -1,0 +1,195 @@
+# WP-1028 — Robustness on data and CIFs we did not author
+
+Milestone: v1.0 · Status: ⬜ not started
+Depends on: — (1007 soft: it restructures guard *reporting*, this adds guards)
+
+<!--
+Every item here was hit by driving the package end-to-end over nine unfamiliar
+refinement targets from a third-party paper (branch `wpem-benchmark`, not
+merged; see "Provenance" at the bottom). Nothing in this WP was found by
+reading the code.
+-->
+
+## Goal
+
+`pxrdref` survives a stranger's CIF and a stranger's pattern: it either
+refines, or it fails with a diagnostic that names the cause. No crash on a
+2.35 PiB allocation, no `status="converged"` at Rwp = 7 225 %, no silent
+fifteen-minute stall, no `KeyError` on a species string that half the world's
+CIFs use.
+
+## Context
+
+Measured on lab Cu Kα and synchrotron data from
+<https://github.com/Bin-Cao/PyWPEM/tree/main/CASES> plus eleven structures
+pulled from COD. Reproductions are in the branch's `studies/wpem_bench/`; the
+branch is *not* merged, so restate anything needed rather than linking code.
+
+### (a) Two species syntaxes reject valid CIFs — a v1.0 regression in reach
+
+`crystallography/dispersion.py::normalize_element` accepts
+`^([A-Za-z]{1,2})(\d*[+-])?$`. Two forms in the wild fail it:
+
+| form | example | where |
+|---|---|---|
+| site label in the type-symbol column | `O1`, `O2`, `Cl1` | 6 of 11 COD entries used; AMCSD-derived ones especially |
+| charge written **sign-first** | `O-2`, `Ni+3`, `Li+1` | ICSD exports; `CASES/Insitu XRD/LiNiO2.cif` |
+
+`Structure.from_cif` passes the value through and `compile_model` then raises
+`KeyError: cannot read an element symbol from species 'O1'`. **These files
+loaded fine while `Source.dispersion` defaulted to `None`** — WP-1001 turning
+anomalous scattering on by default made a previously-unreachable lookup
+mandatory, so this is a reach regression, not a code one. Two aggravations:
+the failure lands at the first `fit()` rather than at `from_cif`, and the
+message names a species rather than a file or a site.
+
+Fix direction: normalise at CIF read (`crystallography/cif.py`), recording
+what changed as a `Diagnostic` so the substitution is visible rather than
+silent, and keep `normalize_element` strict for hand-built structures. Note
+ions must still resolve to the element for f′/f″ (core-level effect) while
+`scattering.normalize_species` keeps the ion for f₀ — that asymmetry is
+deliberate (CLAUDE.md) and must survive.
+
+### (b) `generate_reflections` has no range guard — 2.35 PiB
+
+`crystallography/symmetry.py:154` builds `np.meshgrid(rng_h, rng_k, rng_l)`.
+With a collapsed cell the ranges reach 63747 × 63747 × 81527 and numpy raises
+`_ArrayMemoryError: Unable to allocate 2.35 PiB`. Crash-class: the process
+dies. Bound the hkl count (or d_min-implied range) and raise a diagnostic
+naming the cell that produced it, before allocating.
+
+### (c) No divergence guard — `status="converged"` at Rwp = 7 225 %
+
+A starting cell 3 % off puts every reflection outside its frozen evaluation
+window. The refinement does not error: it returns `status="converged"` with
+`zero_shift` and all five profile terms pinned to bounds, at Rwp = 7 225 %
+(Le Bail on Ti-15Nb from the source paper's own starting cells) and
+2.6 × 10⁵ % for a three-phase Le Bail. AGENT_PROTOCOL §1 states the ≈1 %
+precondition and `report/layer2.py` has emitted `reindex_or_recheck_cell`
+since v0.2 — but at that Rwp nobody builds a report, and a batch caller sees
+"converged". Add a `MODEL_FAR_FROM_DATA` diagnostic (Rwp above an
+obviously-broken threshold after a stage) naming window coverage as the likely
+cause.
+
+### (d) A stage that cannot converge burns 15 minutes and reports success
+
+`optimize/least_squares.py` passes `max_nfev = max_iter × n_par` to TRF with
+`Stage.max_iter = 100`, so at 46 free parameters one stage may spend **4 600**
+residual-plus-Jacobian evaluations. Measured on three NaCl/Li₂CO₃ mixtures —
+identical models, identical parameter counts, same-sized patterns — wall clock
+ran **39 s, 858 s and 2 838 s**, a 73× spread with no corresponding difference
+in the answer. The stages that stall are the degenerate groups
+AGENT_PROTOCOL §3 already enumerates, so they are predictable *before* the
+solve. Surface `outcome.status == "max_iter"` as a diagnostic rather than
+folding it into the stage result, and consider a lower default cap.
+
+### (e) March-Dollase feeds inf/NaN to the solver when `r` underflows
+
+`PreferredOrientation.r` is `min=0.0, transform="softplus"`, meant to keep it
+strictly positive. It does not: the softplus pre-image runs to −∞, `r` reaches
+exactly 0, and `model/preferred_orientation.py:92-93` evaluates `(1 − c)/r`,
+emitting `RuntimeWarning: divide by zero` and returning inf/NaN. Nothing
+raises — the residual becomes garbage and TRF grinds its whole budget. On the
+90 wt % NaCl mixture that turned a 3-second stage into one that had not
+returned after **ten minutes**. Bounding `r` to 0.15–6 fixed the stall *and*
+the fit (Rwp 30.8 % → 13.2 %). r = 1 is the identity and a March coefficient
+outside that range describes a texture no powder mount produces, so a default
+floor costs nothing.
+
+### (f) `compute_qpa` raises where it should diagnose
+
+`optimize/qpa.py:189` raises `ValueError: phase scales give a non-positive
+scaled total (Σ S·ZMV = 0.0)` from inside `_build_result`. In a
+`refine_sequential` run one pattern whose scale hit zero destroyed **all 157
+refinements** — and for a single-phase model the answer is 100 % by
+definition, so the computation should not have been on the critical path at
+all. Skip QPA below two phases; degrade to a diagnostic otherwise.
+
+### (g) Le Bail is unstable on multiphase patterns
+
+`CompiledModel.lebail_update` partitions `max(y_obs − y_bkg, 0)` **per phase**
+with no mechanism to arbitrate two phases claiming the same channel, so they
+inflate one another without bound. The failure tracks phase count exactly:
+
+| phases | case | Le Bail Rwp |
+|---|---|---|
+| 1 | PbSO₄ | 7.48 % (converges) |
+| 1 | Tb₂BaCoO₅ | 17.3–24.8 % (converges) |
+| 2 | NaCl/Li₂CO₃ | 742–3 334 % |
+| 2 | (Mn,Ru)₂O₃ + RuO₂ | 1 769–9 281 % |
+| 3 | Ti-15Nb | 2.6 × 10⁵ % |
+
+It survives seeding both the profile widths and the background, so it is the
+partition and not the starting point. Either damp the per-phase update, refuse
+`mode="lebail"` above one phase with a clear error, or document the fence.
+Rietveld ties intensities to atoms and has no such freedom.
+
+### (h) Two caller-protocol requirements nothing states
+
+- **A Le Bail refinement needs an outer fixed-point loop.** One
+  `fit(mode="lebail")` walks the staged plan once, but extracted intensities
+  are frozen inside each least-squares run (the frozen-per-stage invariant), so
+  intensities and profile converge only by alternating. PbSO₄ pass 1 stops at
+  Rwp 20.756 % with an unphysical **V = +0.0615**; passes 2–4 reach 10.247 %
+  with the Caglioti curve sane. The loop is **not monotone** — a later pass can
+  be worse — so whatever iterates must keep the best node.
+- **`ProfileTCHZ`'s `W = 1e-3` default is a synchrotron line** (FWHM ≈ 0.03°).
+  On lab data with 0.15–0.40° peaks the frozen windows are an order of
+  magnitude narrower than the lines. `auto_background` compounds it: it picks
+  the order but starts every coefficient at **0.0**, and `lebail_update` runs
+  before the background is ever fitted, so on a pattern whose background is 5×
+  its strongest peak the whole pedestal goes to the Bragg reflections on cycle
+  one.
+
+## Non-goals
+
+- No new *physics*. Every item is a guard, a bound, a default or a message.
+- Not `GuardReport` → `GuardFinding` restructuring (WP-1007), though the codes
+  added here should land in that vocabulary once it exists.
+- Not the QPA texture bias (see the Inherited note in WP-1004/1007 chain and
+  the spherical-harmonics v2 fence) — that is accuracy, not robustness.
+
+## Tasks
+
+- [ ] Normalise CIF species at read with a recording `Diagnostic`; cover `O1`
+      and `O-2` forms; keep `normalize_element` strict elsewhere
+- [ ] hkl-range guard in `generate_reflections` + diagnostic naming the cell
+- [ ] `MODEL_FAR_FROM_DATA` diagnostic; surface `max_iter` stage outcomes
+- [ ] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
+      parameters for the same reachable-zero bug)
+- [ ] `compute_qpa`: skip below two phases, diagnose instead of raising
+- [ ] Le Bail multiphase: damp, refuse, or fence — decide and record
+- [ ] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
+      precondition (may land first, independently — it is documentation)
+- [ ] Tests: one regression per item, from the reproductions in the branch
+
+## Acceptance
+
+Every item has a test that fails before the fix. Plus:
+
+```sh
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" -q
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- Cao et al., *AI-Driven Structure Refinement of X-ray Diffraction*,
+  arXiv:2602.16372 — the datasets these were found on.
+- Crystallography Open Database — the eleven structures; ids recorded in the
+  branch's `studies/wpem_bench/fetch_cifs.py`.
+
+## Provenance
+
+Found on branch **`wpem-benchmark`** (pushed, deliberately not merged), which
+benchmarks this package against WPEM on that paper's data. The branch carries
+the reproductions, a published report, and the benchmark's own findings; only
+the library defects are promoted here. Nothing in the branch is a dependency —
+this WP is self-contained.
+
+## Handover log
+
+- **2026-07-29** — created from the `wpem-benchmark` benchmark run. Nine
+  refinement targets attempted, eight refined, one ((Mn,Ru)₂O₃) killed by (b).
+  Items (a)–(h) are all measured, not inferred; every number above came from a
+  run, and the branch has the logs.

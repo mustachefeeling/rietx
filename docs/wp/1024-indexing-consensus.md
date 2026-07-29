@@ -109,6 +109,16 @@ counts a re-scorer as an independent opinion.
 From **WP-1020**: `reduce.py`'s χ² cell-equality is the dedup primitive;
 `ambiguity.py` supplies partners; the FoM panel supplies the Borda ranking.
 
+From **WP-1028** (measured 2026-07-29): **the Le Bail validation step is only
+sound for one phase at a time.** `CompiledModel.lebail_update` partitions
+`max(y_obs − y_bkg, 0)` per phase with nothing to arbitrate two phases claiming
+the same channel, so they inflate one another without bound — measured Rwp by
+phase count: 1 phase converges (7.5–24.8 %), 2 phases 742–9 281 %, 3 phases
+2.6 × 10⁵ %. It survives seeding both the widths and the background, so it is
+the partition, not the starting point. Validate a candidate cell against a
+single-phase Le Bail; do not use it to score a multi-phase hypothesis until
+WP-1028 decides whether to damp, refuse or fence.
+
 ## Non-goals
 
 - No space-group determination (WP-1025) — validation uses the absence-free

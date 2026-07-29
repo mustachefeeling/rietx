@@ -913,6 +913,24 @@ other), then consensus (1024), space groups (1025), acceptance (1026), GUI
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
 
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ⬜ | — (1007 soft) |
+
+**1028 came from outside.** Every item in it was hit by driving the package
+end-to-end over nine unfamiliar refinement targets from a third-party paper
+(branch `wpem-benchmark`, pushed and deliberately **not** merged), and none of
+it was found by reading the code: a species-string syntax that rejects 6 of 11
+COD entries, a 2.35 PiB allocation in `generate_reflections`, `status =
+"converged"` at Rwp = 7 225 %, a stage that burns 4 600 solver evaluations and
+still reports success, March-Dollase returning inf/NaN when `r` underflows past
+a bound meant to prevent exactly that, and `compute_qpa` raising where it should
+diagnose. The first is a **reach regression from WP-1001**: those CIFs loaded
+fine until anomalous dispersion became the default and made a
+previously-unreachable lookup mandatory. Robustness against strangers' files is
+not a feature the existing suites can test, because they only ever read files we
+chose.
+
 Three decisions worth keeping visible, because each is a place the obvious
 implementation is wrong:
 
