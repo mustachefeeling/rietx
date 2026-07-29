@@ -1,44 +1,39 @@
 name: weekly
 
-# The two expensive kinds of coverage, run once a week instead of once a night
-# because this repo is private on a free plan: Actions minutes are metered at
-# 2000/month, macOS bills at a **10x multiplier**, and torch is a ~500 MB wheel.
+# Everything the 5-minute per-push gate leaves out, once a week instead of
+# once a night.  This replaced a **nightly** full-suite job that billed 45
+# minutes a night — 1350 a month, two thirds of a free-tier private repo's
+# entire 2000-minute allowance, before a single push.  Weekly costs 237.
 #
-# What each job is *for* — neither is a duplicate of the nightly Linux run:
+# Measured 2026-07-29 (billed = rounded up per job, Linux 1x):
 #
-# * `macos` is the closest any runner gets to the bit-identity goldens' capture
-#   machine, and close is all it gets: measured, it reproduces 7 of 8 states and
-#   misses one by exactly one ulp, where Linux misses all 8 by up to ~1100.  So
-#   this job *reports* the comparison and fails only if the goldens skip — see
-#   that step's comment.  It runs the *fast* suite, not the full one: at 10x,
-#   the slow acceptance would cost ~400 charged minutes, and it is already
-#   covered nightly on Linux.
-# * `torch` is an independent opinion in the Jacobian-agreement matrix
-#   (WP-0408), not a supported runtime.
+#   full suite incl. slow acceptance   44:21  -> 45 min
+#   fast py3.11 / py3.12 / py3.14      ~2-4 min each -> 4 + 2 + 4
+#                                                      = 55 billed min/run
 #
-# `workflow_dispatch` takes a `full_macos` input for the times the whole
-# acceptance suite really is wanted on macOS — a release check, or after a
-# change to the peak chain.  Publishing the repo for v1.0 removes the meter
-# entirely, and then both jobs belong in nightly.yml.
+# The full-suite job installs `[dev,jax]`, so it *is* the jax coverage — a
+# separate jax job would re-pay the ~10 billed minutes those rows cost.  They
+# are jit-compile bound, and an actions/cache of tests/.jax_cache was measured
+# not to help (8:18 warm against 8:12 cold), so there is no cache step.
+#
+# macOS and torch live in monthly.yml — macOS bills at a **10x** multiplier.
+#
+# Going public makes standard runners free, at which point all three cadences
+# can collapse back into one nightly; see docs/wp/1003-api-freeze-pypi.md.
 
 on:
   schedule:
     # 06:00 UTC on Sundays
     - cron: "0 6 * * 0"
   workflow_dispatch:
-    inputs:
-      full_macos:
-        description: "Run the full suite (incl. slow acceptance) on macOS — ~10x billing"
-        type: boolean
-        default: false
 
 env:
   MPLBACKEND: Agg
 
 jobs:
-  macos:
-    name: macOS (goldens' capture platform)
-    runs-on: macos-latest
+  full:
+    name: full suite (Linux, incl. slow acceptance)
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
@@ -50,89 +45,45 @@ jobs:
       - run: uv pip install -e ".[dev,jax]"
       - name: Record the environment
         run: |
-          .venv/bin/python -c "import sys, platform, numpy, scipy; print(sys.version, sys.platform, platform.machine()); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
           .venv/bin/python -c "import numpy; numpy.show_config()"
-      - name: Suite
-        # the bit-identity gate is deselected and run as its own step below.
-        # Measured 2026-07-29: this runner does *not* reproduce the capture
-        # machine's bits, even at identical numpy/scipy/Accelerate — see that
-        # step's comment.  Requiring them here would redden the tree weekly for
-        # a one-ulp difference in a system math library.
-        run: |
-          DESELECT="--deselect tests/test_backend_shim.py::test_numpy_path_bit_identical_to_golden"
-          if [ "${{ inputs.full_macos }}" = "true" ]; then
-            .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25 $DESELECT
-          else
-            .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" $DESELECT
-          fi
-      - name: Bit-identity goldens — informational, and a check they did not skip
-        # What this step can and cannot claim, measured on the first run:
-        # 7 of 8 toy states are bit-identical here, and `toy_rich:y_calc`
-        # differs by 1.4210854715202004e-14 — *exactly* one ulp at a value in
-        # [64,128), on a single element.  The runner reports the same numpy
-        # 2.5.1, scipy 1.18.0 and Accelerate as the capture machine, and local
-        # runs at 1/2/4/8 BLAS threads are bit-stable, so the discriminator is
-        # the system math library (macOS image version) and nothing Python can
-        # fingerprint.  Compare Linux x86-64: all 8 states, up to ~1100 ulp.
-        #
-        # So no CI image asserts these bits — that is a documented gap, the
-        # same shape as the Apple-GPU one.  What this step *does* enforce is
-        # that they did not silently skip, because a skip and a pass look
-        # identical in a summary line; a numeric mismatch is reported as a
-        # warning so drift (say 5 states, or a large delta) stays visible.
-        run: |
-          set +e
-          out=$(.venv/bin/python -m pytest tests/test_backend_shim.py -k bit_identical -m "not slow" -rs)
-          echo "$out"
-          if echo "$out" | grep -qE "skipped|no tests ran"; then
-            echo "::error::the goldens skipped on darwin/arm64 — the platform pin is broken, and nothing anywhere is checking them"
-            exit 1
-          fi
-          if echo "$out" | grep -qE "^[0-9]+ failed"; then
-            echo "::warning::goldens differ on this runner — expected at ~1 ulp; investigate only if the count or size grew (see tests/data/README.md)"
-          fi
-          exit 0
+      - name: Full suite
+        # the bit-identity goldens skip here — pinned to darwin/arm64
+        # (tests/test_backend_shim.py, GOLDEN_PLATFORM); monthly.yml reports
+        # the comparison, and no CI runner reproduces their capture machine
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
       - name: Upload obs/calc/diff plots
+        # every test refinement writes them (CLAUDE.md's Tests convention);
+        # Rwp hides locally-bad fits, so on a failure these are the first
+        # thing to look at
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-output-macos
+          name: test-output-linux
           path: tests/output/
           if-no-files-found: warn
           retention-days: 7
 
-  torch:
-    # EXPERIMENTAL backend: an independent opinion in the Jacobian-agreement
-    # matrix, not a supported runtime.  CPU fp64 only —
-    # torch.backends.mps.is_available() is False on hosted macOS runners
-    # (virtualised, no Metal device), so every `torch-mps` assertion self-skips
-    # in CI and the Apple-GPU evidence for the WP-0403 fp32-column policy stays
-    # maintainer-machine-only.  Do not read this job green as "MPS verified".
-    name: torch agreement matrix (experimental)
+  pythons:
+    # The rest of the supported range.  10 billed minutes for all three, and
+    # the only thing that would catch a 3.11-incompatible construct before a
+    # release, since the per-push gate runs 3.13 alone.
+    name: fast py${{ matrix.python }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    continue-on-error: true
+    timeout-minutes: 20
+    # 3.14 is ahead of the support window; a missing wheel there must not
+    # redden a green tree
+    continue-on-error: ${{ matrix.python == '3.14' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
-      - run: uv venv --python 3.13
-      - run: uv pip install -e ".[dev,jax,torch]"
-      - name: Every backend installed at once
-        # Deliberately *not* `-n auto`: tests/test_cross_backend.py caches one
-        # built Jacobian callable per (config, backend) so the fp32 rows reuse
-        # the compiled one, which halved that file's runtime (WP-0404).  xdist
-        # would give each worker its own cold cache and pay every compile
-        # again.  If this step ever needs to be faster, measure both — do not
-        # assume parallel wins.
-        run: |
-          .venv/bin/python -m pytest \
-            tests/test_cross_backend.py \
-            tests/test_backend_conformance.py \
-            tests/test_backend_torch.py \
-            tests/test_backend_jax.py \
-            tests/test_backend_shim.py
-      - name: Assert the MPS rows really did skip rather than silently vanish
-        run: .venv/bin/python -c "import torch; assert not torch.backends.mps.is_available(), 'hosted runner grew a Metal device — promote the MPS assertions out of maintainer-only status'"
+      - run: uv venv --python ${{ matrix.python }}
+      - run: uv pip install -e ".[dev]"
+      - run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"

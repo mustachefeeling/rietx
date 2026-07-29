@@ -5,14 +5,20 @@ Depends on: —
 
 ## Goal
 
-Every push to `main` (and every PR) runs a lint + fast-suite matrix across the
-supported Python range on Linux; a nightly job runs the whole suite, `slow`
-real-data acceptance included, on Linux; a weekly one covers macOS and the
-optional backends. A green tree therefore means "green somewhere other than the
+Every push to `main` (and every PR) runs lint plus the fast suite on Linux; a
+weekly job runs the whole suite, `slow` real-data acceptance included, plus the
+rest of the supported Python range; a monthly one covers macOS and the optional
+backends. A green tree therefore means "green somewhere other than the
 maintainer's laptop", which is what v1.0 needs before it can freeze an API or
 publish a wheel — with the two things that phrase *cannot* mean written down
 rather than implied: no hosted runner has a Metal device, and none reproduces
 the bit-identity goldens' capture machine.
+
+**The cadences are set by a budget, and that is part of the design.** This repo
+is private on the free plan: 2000 Actions minutes a month, billed per job
+rounded up, default spending limit $0 — so over-budget means a month with no
+CI, not a surprise bill. Per push 5 billed minutes, weekly 55, monthly 66.
+Every job here is priced in the workflow that runs it.
 
 ## Context
 
@@ -225,8 +231,9 @@ The matrix is green on a real run, not just locally:
 
 ```sh
 gh run list --workflow=ci.yml --limit 5
-gh run watch <run-id>            # every `fast` job green; 3.14 recorded either way
-gh workflow run nightly.yml && gh run watch <run-id>   # full suite, both OSes
+gh run watch <run-id>                  # lint + the fast suite, per push
+gh workflow run weekly.yml             # full suite incl. slow + 3.11/3.12/3.14
+gh workflow run monthly.yml            # macOS (goldens) + torch
 ```
 
 Locally, the same commands the workflows run:
@@ -322,6 +329,34 @@ release, but bump against `git/matching-refs/tags/v`, not against
   for the re-baseline rule and the environment-pinning caveat.
 
 ## Handover log
+
+- **2026-07-29 (later)** — **re-sized to a free-tier budget, on the user's
+  statement that there is none.** The shipped configuration did not fit and
+  nobody had priced it: measured, it billed **21 minutes per push** (lint 1 +
+  py3.11 4 + py3.12 2 + py3.14 4 + `[dev,jax]` 10) and **1350 a month** for the
+  nightly full suite, plus 284 for the weekly — about 1634 of a private repo's
+  2000 free minutes gone before a single push, leaving room for roughly
+  seventeen. Eight pushes landed on the day it shipped.
+
+  Three cadences now, each priced in its own file: **per push** lint + the fast
+  suite on 3.13 alone (5), **weekly** the full suite plus 3.11/3.12/3.14 (55),
+  **monthly** macOS + torch (66). Scheduled spend drops 1634 → 303/month. Two
+  levers did most of it. Dropping the `[dev,jax]` job from the per-push gate
+  removes 10 of the 21 minutes for one extra opinion that the weekly full suite
+  already carries, since it installs `[dev,jax]` itself. And `paths-ignore`
+  makes a docs-only push cost **nothing** — which matters here specifically,
+  because a roadmap session is mostly ROADMAP/WP/DESIGN commits; the ignore
+  list deliberately excludes `docs/manual/**` and `docs/VALIDATION.md`, the two
+  docs the suite actually reads.
+
+  The lesson worth keeping is not the numbers, it is that **a CI matrix is a
+  recurring-cost decision and this one was taken on coverage grounds alone**.
+  The failure mode is quiet: GitHub's default $0 spending limit means an
+  over-budget matrix does not bill, it simply stops running, so the first
+  symptom is a month with no CI. Price a job before adding it —
+  `gh run view <id> --json jobs` gives the durations, and billing rounds each
+  job *up* to the whole minute, which makes a 23-second lint job cost the same
+  as a 60-second one.
 
 - **2026-07-29** — **built, pushed and measured.** Three workflows are live
   (`ci.yml` per push, `nightly.yml` Linux full suite, `weekly.yml` macOS +

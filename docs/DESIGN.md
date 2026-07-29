@@ -460,15 +460,23 @@ refined, >130° excluded). Guessing a plausible protocol instead gave Rwp
 cross-code number computed over different channels with a different free set
 is not a comparison.
 
-**Where the suite runs, and what that can and cannot prove** (WP-1002). Every
-push runs ruff plus the fast suite on Python 3.11-3.13 (3.14 allow-fail) on
-Linux; a nightly job runs everything, `slow` acceptance included, on Linux; a
-weekly one runs macOS and the `[torch]` agreement rows. The tiering is a
-billing constraint, not a claim about which platform matters: macOS bills at a
-10× minute multiplier on a private repo, so a nightly macOS full-suite job
-would cost about six times the whole monthly quota by itself. What macOS does
-carry weekly is the coverage nothing else can — it is where the bit-identity
-goldens were captured.
+**Where the suite runs, and what that can and cannot prove** (WP-1002). Three
+cadences, each sized by what it bills rather than by what would be nice: per
+push, ruff plus the fast suite on 3.13 (Linux, skipped for docs-only pushes);
+weekly, the whole suite including `slow` acceptance plus the rest of the
+supported Python range; monthly, macOS and the `[torch]` agreement rows.
+
+**The budget is a design input, not an afterthought.** A private repo on the
+free plan gets 2000 Actions minutes a month, billed per job rounded up to the
+whole minute, with a default $0 spending limit — so an over-budget matrix does
+not produce a bill, it produces a month with no CI at all. The first version
+of this one billed **21 minutes per push** (four Pythons plus a jax job) and
+**1350 a month** for a nightly full suite, which together left room for about
+seventeen pushes. Re-sized: 5 per push, 237 a month weekly, 66 monthly. The
+tiering says nothing about which platform matters — macOS carries the coverage
+nothing else can, since it is where the bit-identity goldens were captured, and
+it is monthly only because it bills at 10×. Publishing the repo makes standard
+runners free and the constraint disappears.
 
 Two limits are stated rather than implied by a green badge. The Apple-GPU
 (`torch-mps`) assertions **cannot** run on a hosted runner, which has no Metal

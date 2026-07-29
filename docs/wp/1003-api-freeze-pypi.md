@@ -18,10 +18,18 @@ being a private free-plan repo, and they all lift at once.**
   per-push matrix **reports** — nothing stops a red push landing on `main`.
   Making the repo public is therefore also the moment to require the `fast`
   jobs as status checks; do both in one change or the freeze rests on a badge.
-- **macOS is nightly-only for cost, not for coverage.** Hosted macOS runners
-  bill at a **10× minute multiplier** on private repos. Publishing stops the
-  meter, so promote macOS into the per-push matrix in the same change. Same
-  for the `[torch]` job if the ~500 MB wheel is worth it per push.
+- **The whole CI cadence is shaped by a budget that publishing removes.**
+  There is no CI budget: this repo is private on the free plan (2000
+  minutes/month, billed per job rounded up, default spending limit $0 — so
+  over-budget means a month with *no* CI rather than a bill). That is why the
+  per-push gate runs one Python instead of four, why the full suite is weekly
+  rather than nightly, and why macOS + `[torch]` are monthly — macOS bills at a
+  **10× multiplier**, so 5 wall-clock minutes there costs 50. Current spend:
+  5 per push, 237/month weekly, 66/month monthly. **Publishing makes standard
+  runners free**, at which point the three workflows can collapse into one
+  nightly and the per-push matrix can carry the full Python range again. Do
+  that in the same change as going public, or the coverage stays artificially
+  thin for no reason.
 - **The supported-Python claim is now measured, and `pyproject` under-states
   it.** 3.11, 3.12, 3.13 *and* 3.14 all install `[dev]` and pass the fast
   suite; `requires-python = ">=3.11"` is right, but `classifiers` names only
@@ -35,17 +43,18 @@ being a private free-plan repo, and they all lift at once.**
   `encoding="utf-8"` at every text-I/O site, since the default is cp1252
   there. `tests/test_portability.py` guards both by AST. **No scheduled job
   runs Windows**, so a claim would be a point measurement dressed as support.
-  Either add a Windows job (a fast-suite run is ~3 min at a 2× multiplier —
-  ~180 charged minutes/month nightly, free once the repo is public) and then
+  Either add a Windows job — a fast-suite run is ~3 min at a **2×** multiplier,
+  so 6 billed minutes: 6/month folded into `monthly.yml`, 26/month if weekly,
+  and free once the repo is public — and then
   claim `Operating System :: Microsoft :: Windows`, or claim
   `POSIX`/`MacOS` only and say Windows is untested. Do not claim it on the
   strength of the one green run — that is precisely the drift this milestone
   exists to stop.
 - **The QARR licence blocker below now has a concrete mechanism.** Nothing is
   fetched today: all 18 MB of `tests/data/` is vendored, which is why
-  `nightly.yml` has no network step. If 1003 un-vendors the round-robin
+  `weekly.yml` has no network step. If 1003 un-vendors the round-robin
   patterns, the fetch route is the Internet Archive (`web.archive.org/web/
-  2020id_/…/QARR/col/<name>.prn`), the nightly grows a network dependency it
+  2020id_/…/QARR/col/<name>.prn`), the weekly grows a network dependency it
   currently does not have, and nine acceptance suites become
   network-conditional. Excluding `tests/` from the sdist is the cheaper answer
   if the goal is only "do not redistribute in the wheel" — CI checks out the

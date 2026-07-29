@@ -354,14 +354,17 @@ faster path; never installed by default). Every backend row in the agreement
 and conformance suites self-skips when its package is absent, so a numpy-only
 checkout is fully green.
 
-**What CI runs.** Every push: ruff plus the fast suite on Python 3.11/3.12/3.13
-(3.14 allow-fail), Linux ([`ci.yml`](.github/workflows/ci.yml)). Nightly: the
-*whole* suite, `slow` real-data acceptance included, on Linux
-([`nightly.yml`](.github/workflows/nightly.yml)). Weekly: macOS — the platform
-the bit-identity goldens are pinned to — and the `[torch]` agreement rows
-([`weekly.yml`](.github/workflows/weekly.yml)). The weekly/nightly split is a
-billing constraint on a private repo (macOS bills at 10×), not a statement
-about which platform matters.
+**What CI runs**, on three cadences sized by what each costs rather than by
+what would be nice. Every push: ruff plus the fast suite on Python 3.13, Linux,
+skipping pushes that touch only inert docs
+([`ci.yml`](.github/workflows/ci.yml)) — 5 billed minutes. Weekly: the *whole*
+suite, `slow` real-data acceptance included, plus the rest of the supported
+Python range ([`weekly.yml`](.github/workflows/weekly.yml)) — 55. Monthly:
+macOS, the platform the bit-identity goldens are pinned to, and the `[torch]`
+agreement rows ([`monthly.yml`](.github/workflows/monthly.yml)) — 66, because
+macOS bills at a **10×** multiplier. The cadences are a free-tier budget
+constraint on a private repo, not a statement about which platform matters;
+publishing the repo makes standard runners free and collapses all three.
 
 Three limits are stated rather than papered over by a green badge. The
 Apple-GPU (`torch-mps`) assertions cannot run on a hosted runner, which has no

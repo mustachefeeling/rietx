@@ -282,11 +282,15 @@ if a registry member is missing from the schema.
   Reference values and data provenance in `tests/data/README.md`. Every test
   refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
   for visual inspection — Rwp hides locally-bad fits.
-- **CI runs the same commands** (`.github/`): per push, ruff + the fast suite on
-  Python 3.11-3.13 (3.14 allow-fail) on Linux; nightly, the full suite on Linux;
-  weekly, macOS and the `[torch]` agreement rows — macOS bills at 10× on a
-  private repo, which is the only reason it is not nightly. Two consequences
-  for local work. **The bit-identity goldens are pinned to `darwin/arm64`**
+- **CI runs the same commands** (`.github/`), on cadences set by a **free-tier
+  budget** — 2000 Actions minutes/month on a private repo, billed per job
+  rounded up, so an over-budget config buys a month with no CI rather than a
+  bill. Per push: ruff + the fast suite on 3.13, Linux, skipped entirely for
+  docs-only pushes (5 billed min). Weekly: the full suite plus 3.11/3.12/3.14
+  (55). Monthly: macOS and `[torch]` (66 — macOS bills at **10×**).
+  **Before adding a job, price it**: the first version of this matrix cost 21
+  minutes per push and 1350 a month, which did not fit. Two consequences for
+  local work. **The bit-identity goldens are pinned to `darwin/arm64`**
   (`GOLDEN_PLATFORM` in `tests/test_backend_shim.py`) and *skip* elsewhere:
   measured, Linux x86-64 diverges by 1 ulp to 1.7e-13 relative — a libm and
   summation-order difference — so the gate is asserted where it was captured

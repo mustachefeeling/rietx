@@ -74,13 +74,27 @@ public" is the same change as three other things** — it is what makes CI
 enforceable, what makes macOS affordable, and what settles the vendored-QARR
 question.
 
-**[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29**, all three
-workflows verified by a real run rather than by review: per push, ruff plus the
-fast suite on Python 3.11-3.13 with 3.14 allow-fail (Linux, green on all four);
-nightly, the whole suite including the `slow` real-data acceptance —
+**[1002](wp/1002-ci-matrix.md) (CI matrix) landed 2026-07-29**, every workflow
+verified by a real run rather than by review: the fast suite is green on Python
+3.11-3.14 on Linux; the full suite including the `slow` real-data acceptance is
 **1103 passed / 81 skipped in 43:56**, the first time those suites have run
-anywhere but the maintainer's machine, and they passed unchanged; weekly, macOS
-and the `[torch]` agreement rows, both green. The nightly/weekly split is not taste — the first design ran
+anywhere but the maintainer's machine, and they passed unchanged; macOS and the
+`[torch]` agreement rows are green too.
+
+**Then it was re-sized, because nobody had priced it.** The shipped matrix
+billed **21 minutes per push** and **1350 a month** for a nightly full suite —
+about 1634 of a free-tier private repo's 2000 minutes gone before anyone
+pushed, against eight pushes on the day it shipped. There is no CI budget, and
+GitHub's default $0 spending limit means an over-budget matrix does not bill,
+it just stops running: the first symptom would have been a month with no CI.
+Now three cadences, each priced in its own workflow file — **per push** lint +
+the fast suite on 3.13 (5 billed minutes, and *nothing* for a docs-only push,
+since `paths-ignore` covers the ROADMAP/WP/DESIGN churn a roadmap session is
+mostly made of); **weekly** the full suite plus 3.11/3.12/3.14 (55); **monthly**
+macOS + torch (66, because macOS bills at 10×). Scheduled spend 1634 → 303.
+The lesson is the one this milestone keeps re-learning in a new costume: a CI
+matrix is a recurring-cost decision, and this one had been taken on coverage
+grounds alone. The nightly/weekly split is not taste — the first design ran
 the full suite on macOS nightly, which at a **10× billing multiplier** is ~400
 charged minutes a night against a 2000/month private-repo quota, six times the
 whole budget for one job. It was caught by arithmetic before it ran once, and
