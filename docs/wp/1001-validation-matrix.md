@@ -1,26 +1,71 @@
 # WP-1001 — Validation matrix + tolerance policy
 
-Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v1.0 · Status: 🔶 in progress
 Depends on: —
 
-## Scope (carried verbatim from the pre-split roadmap)
+## Goal
 
-- Validation matrix green: NIST certificates as **absolute anchors** (with
-  stated uncertainties); GSAS-II as a *consistency* check with tolerances
-  that respect legitimate inter-code convention differences (not 1e-4 Å
-  ground truth)
-- Three-tier tolerance policy documented per test (exact / tight-scientific /
-  statistical)
+Every acceptance assertion in the repo is registered in one machine-readable
+**validation matrix** that names what its tolerance is referenced to, the
+matrix cannot silently drift from the suites (a new acceptance test without a
+row fails the fast suite), `docs/VALIDATION.md` is generated from it, and the
+one default the v1.0 API freeze would lock in the wrong position —
+`Source.dispersion` — is decided on measurement rather than on inertia.
 
-## Context pointers
+## Context
 
-- [../DESIGN.md](../DESIGN.md#testing--validation-policy) — the policy this
-  formalises, including both v0.2 lessons (protocol adoption; disagreement
-  shape as evidence).
-- Existing anchors: SRM 660c (absolute), FAP (cross-code), NAC (synchrotron)
-  — see `tests/data/README.md` and `docs/milestones/`.
+Nine real-data acceptance suites exist (`tests/test_acceptance_*.py`:
+`capillary`, `dispersion`, `fap`, `nac`, `qpa_roundrobin`, `sequential`,
+`srm660c`, `srm676a`, `stephens`) plus the reference-free
+`tests/test_cross_backend.py`. Their tolerances were each chosen well and
+argued for in a docstring, but the *set* of them has never been looked at as
+one object, and nothing stops the next suite from inventing an eighth kind of
+reference or quietly loosening a bar.
 
-## Inherited
+The policy prose lives in
+[../DESIGN.md](../DESIGN.md#testing--validation-policy) (NIST certificates as
+absolute anchors; GSAS-II as convention-aware consistency; "a disagreement's
+*shape* is evidence"). `README.md` §Validation has a hand-maintained table
+that already says "eight" when there are nine suites — which is exactly the
+drift this WP exists to make impossible.
+
+**The anti-drift design to copy is WP-0604's.** The theory manual is guarded by
+`tests/test_manual.py`: fenced constants injected from the live package, every
+equation's `*Source:*` symbol must import, every bib entry must be cited. The
+same shape applies here — the matrix is data, the doc is generated, and the
+guards run in the **fast** suite so the cost is paid per-push and not nightly.
+
+### The scope's three tiers do not survive contact with the suites
+
+The pre-split roadmap asked for "exact / tight-scientific / statistical".
+Surveying every numeric assertion in the nine suites finds **seven** distinct
+things a bar can be referenced to, and two of them are not tolerance tiers at
+all — they are kinds of evidence, and they are the strongest evidence the repo
+has:
+
+| Tier | Referenced to | Example |
+|---|---|---|
+| `identity` | floating-point arithmetic | capillary `abs(Δa) < 1e-9` Å between two of our own fits; FAP `b == a rel=1e-12`; QPA closure `abs=1e-6` |
+| `certificate` | a certified value **with** its stated uncertainty | SRM 676a c/a within 1e-4 (cert k=2 is ~21 ppm); SRM 660c `abs(Δa) < 2e-4` Å, explicitly *interim* |
+| `cross_code` | another code's converged result, its protocol adopted | FAP Rwp `rel=0.10` vs GSAS 0.1005 on a matching 5750 channels |
+| `spread` | a published inter-laboratory spread, never σ | QPA `MAJOR_TOL = 6.0` / `TRACE_TOL = 2.0` wt % |
+| `own_result` | this package's other result under a fixed protocol | sequential chained vs independent, `abs=1.0` wt %; NAC Rietveld vs Le Bail `< 5e-4` Å |
+| `characterisation` | nothing — asserts the *shape* of a known systematic, or that a model is **inadmissible** | QPA sample 4; Stephens cone (12/43 → 0/43); SRM 676a's `abs(da - dc) < 1.5e-4` uniformity |
+| `prediction` | a parameter-free prediction written down **before** the measurement | capillary ΔB = c(µR)·λ²/2 (predicted 0.0166542, measured 0.0166542); the dispersion suite against the frozen `V03_ERRORS` |
+
+And one thing that is **not** a tier and must be labelled so it is never read
+as one: the `ceiling` — `rwp < 0.20`, `gof < 2.0`, `status == "converged"`.
+These are regression bars. They carry no accuracy claim, they are loose by
+construction, and a matrix that counted them as validation would score the
+whole v0.5 milestone as delivering nothing (see the next paragraph).
+
+**The v0.5 method result is the reason the last two tiers must exist.** Not one
+of that milestone's eight corrections is well judged by Δ Rwp: two provably
+cannot move it, one moves it the *wrong way* when it is right, and the two
+largest accuracy wins are invisible in it. A validation matrix whose columns
+were agreement indices would be blind to the best work in the repo.
+
+### Inherited
 
 From **WP-0602** (agent JSON surface, landed 2026-07-29) — two serialization
 facts that bite golden-file comparisons:
@@ -199,10 +244,71 @@ question rather than a solver one.
   `docs/solver-survey.md` §E6 set exactly that kill criterion in advance, and
   it fired.
 
+## Non-goals
+
+- **No new dataset.** The non-Cu (Co Kα on an Fe-bearing specimen) gap WP-0507
+  identified is real and is the cheapest *next* tier, but acquiring and
+  provenancing a dataset is its own work. This WP records the gap in the
+  matrix as an explicit hole rather than filling it.
+- **No CI wiring** — that is [1002](1002-ci-matrix.md). This WP must leave the
+  guards runnable by the plain fast-suite command, which is what 1002 will
+  schedule.
+- **No API decisions** beyond the one default this WP is chartered to decide
+  (`Source.dispersion`). Signature freezes are [1003](1003-api-freeze-pypi.md).
+- **Not FPA.** The SRM 660c ±8e-6 certificate band and GoF → 1 are both
+  FPA-territory and fenced to v2; the policy states them as characterised
+  ceilings, not as targets.
+
 ## Tasks
 
-- [ ] Expand this stub into a full WP before starting
+- [ ] **Tier vocabulary + registry.** `tests/validation_matrix.py`: the seven
+      tiers plus `ceiling`, each with a written rule, and one row per
+      acceptance test naming its tier(s), reference, dataset and what it
+      claims. Frozen measured margins where a row has them.
+- [ ] **Anti-drift guards** (`tests/test_validation_matrix.py`, **fast** suite):
+      every `test_acceptance_*.py` test function has a row and every row names
+      a live test (AST-collected, so it cannot pass by import side effect);
+      every row's tier is in the closed vocabulary; every non-`ceiling` row
+      names a reference; the dataset names resolve against `tests/data`.
+- [ ] **`docs/VALIDATION.md` generated from the registry**, with the committed
+      file asserted byte-identical to the regeneration — the manual's
+      executable-doc design applied to the matrix.
+- [ ] **Decide the `Source.dispersion` default on measurement.** Census what
+      default-on would raise on (untabulated Z, on-edge wavelengths, the
+      Kα1/Kα2 line guard) before touching the default; record the decision and
+      its grounds either way.
+- [ ] **Start-dependence policy**, with the rule stated in the matrix and
+      applied to the one place it is known to bite (Stephens coefficients).
+- [ ] **Reconcile README §Validation** with the generated matrix (it says
+      "eight suites"; there are nine).
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_validation_matrix.py -q     # the guards
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" # fast suite
+.venv/bin/python -m pytest -n auto --dist loadgroup               # full, incl. acceptance
+.venv/bin/python -m ruff check src tests examples
+```
+
+The matrix is "green" when every acceptance test in the tree is registered
+with a tier, `docs/VALIDATION.md` matches its regeneration byte-for-byte, and
+the full suite passes.
+
+## References
+
+- Madsen et al. (2001) *J. Appl. Cryst.* **34**, 409 — IUCr CPD QPA round
+  robin; the participant spread the `spread` tier is referenced to.
+- Cline et al. (2015) *J. Res. NIST* **120**, 173 — the 1.5–1.9 GoF floor for
+  analytical-PSF lab fits.
+- Hamilton (1965) *Acta Cryst.* **18**, 502 — the R-ratio test the policy
+  declines to use as arbiter, and why.
+- NIST SRM 660c / 660a / 676a certificates; GSAS-II fluorapatite tutorial
+  (`FAP.EXP`); provenance for all of it in `tests/data/README.md`.
 
 ## Handover log
 
+- **2026-07-29** — expanded from stub into a full WP: goal, the seven-tier
+  finding (the scope's three do not survive contact with the suites), tasks,
+  acceptance. Starting on the registry.
 - **2026-07-22** — created as a stub from the ROADMAP split.
