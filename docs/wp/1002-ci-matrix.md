@@ -243,4 +243,82 @@ Locally, the same commands the workflows run:
 
 ## Handover log
 
+- **2026-07-29** — **built, pushed and measured.** Three workflows are live
+  (`ci.yml` per push, `nightly.yml` Linux full suite, `weekly.yml` macOS +
+  torch), the per-push matrix is green on Linux for 3.11/3.12/3.13/3.14, and
+  the two questions the WP existed to answer both got measurements instead of
+  opinions.
+
+  **Done.** Stub expanded against local evidence (three fresh interpreters
+  before a line of YAML). Workflows written, pushed, iterated to green. The
+  golden-pinning decision landed with its measurement. README, CLAUDE.md,
+  DESIGN.md ("Testing & validation policy") and two new `GAPS` rows in
+  `tests/validation_matrix.py` all say what CI does and does not cover.
+  Forward notes into WP-1003's `### Inherited`.
+
+  **The goldens question is settled, and the answer split.** A *numpy* change
+  does not move them: 3.11/2.4.6 and 3.12-3.14/2.5.1 all reproduce every state
+  bit-for-bit on macOS/arm64. A *platform* change does — on Linux x86-64 all
+  eight toy states diverge, identically on all three Pythons, and **nothing
+  else in the suite fails there at all** (976 passed, 8 failed, every failure
+  the golden gate). The *size* is what decided the design: 1 ulp on quantities
+  that are a single arithmetic chain (`theta`, `lebail_intensity`,
+  `pawley_x0`), up to ~1100 ulp (1.7e-13 relative) on `y_calc`, which
+  accumulates ~130 windows of transcendental evaluations. A divergence that
+  grows *with chain length* is a libm and summation-order difference, not a
+  code difference. So `GOLDEN_PLATFORM = ("darwin", "arm64")`, skipping
+  elsewhere with the measurement in the skip reason — a Linux contributor
+  reads an explanation, not eight mystery failures. Loosening `array_equal` to
+  a tolerance was the alternative and is the one thing that must not happen:
+  any tolerance wide enough to absorb a libm difference absorbs a real one.
+
+  **A design that was unaffordable, caught by arithmetic before it ran.** The
+  first `nightly.yml` ran the full suite on Linux *and* macOS. At a 10×
+  billing multiplier on a private repo that is ~400 charged minutes **per
+  night** against a 2000/month quota — 6× the entire monthly budget for one
+  job. Hence the nightly/weekly split, sized by what each platform uniquely
+  covers rather than by importance: Linux carries the `slow` acceptance
+  nightly; macOS carries the fast suite plus the goldens assertion weekly,
+  because being the goldens' capture platform is the thing only it can do.
+
+  **CI cannot gate anything yet.** `branches/main/protection` returns 403 —
+  branch protection needs GitHub Pro or a public repo. So the matrix *reports*;
+  nothing stops a red push landing on `main`. That is registered as a
+  validation gap and pushed into WP-1003, because "make the repo public" turns
+  out to be the same change as "make CI enforceable" and "make macOS
+  affordable".
+
+  **Measured job cost, hosted 4-vCPU Linux runner** (first green matrix,
+  cold caches): lint 12 s; fast suite 3:03 / 3:10 / 3:15 on 3.11 / 3.12 /
+  3.14; **11:12 on 3.13 with `[dev,jax]`.** The jax rows are not 3× the work,
+  they are jit-*compile* bound against a cold cache — WP-0404 said so and
+  xdist multiplies it, since every worker compiles independently. Confirmed
+  locally by deleting `tests/.jax_cache` (106 MB, 55 entries): the two
+  jax-heavy files alone go from ~12 s warm to 107 s cold on a 10-core M4. So
+  every job that runs the suite now restores that directory through
+  `actions/cache`; jax keys it by a content hash of the computation, which is
+  what makes the restore-key fallback safe — a stale entry is a miss, never a
+  wrong answer. **This is the one number to re-check first**: if the cache
+  works, the per-push matrix costs ~17 Linux minutes; if it does not, it costs
+  ~25 and jax belongs in the nightly instead.
+
+  **Gotchas worth keeping.** (1) `addopts = "-q"` plus a command-line `-q`
+  makes `-qq`, which silently suppresses pytest's `N passed` summary — the one
+  line a CI log is read for. (2) `--dist loadgroup` degrades rather than fails
+  when dropped: the shared fixtures refit on every worker and the suite just
+  gets slower. (3) A skip and a pass look identical in a summary line, which
+  is why the weekly macOS job greps for `skipped`/`no tests ran` *and* asserts
+  exactly 8 goldens ran, and why a new always-running test asserts
+  `backend_goldens/` and `STATES` are the same set. (4) The capture entry point
+  now refuses to write a golden off the pinned platform — a half-and-half
+  baseline set could never be green anywhere.
+
+  **Next.** Dispatch `nightly.yml` and `weekly.yml` once each to verify them —
+  the Linux `slow` acceptance has never run off the maintainer's machine, and
+  the weekly macOS job is the first test of whether the goldens hold on a
+  *hosted* arm64 runner (a different Accelerate build from the capture
+  machine). If they do not, that is a finding, not a bug: it would narrow the
+  pin from "darwin/arm64" to "one machine", which the release notes would need
+  to say.
+
 - **2026-07-22** — created as a stub from the ROADMAP split.
