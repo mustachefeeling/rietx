@@ -925,11 +925,15 @@ COD entries, a 2.35 PiB allocation in `generate_reflections`, `status =
 "converged"` at Rwp = 7 225 %, a stage that burns 4 600 solver evaluations and
 still reports success, March-Dollase returning inf/NaN when `r` underflows past
 a bound meant to prevent exactly that, and `compute_qpa` raising where it should
-diagnose. The first is a **reach regression from WP-1001**: those CIFs loaded
-fine until anomalous dispersion became the default and made a
-previously-unreachable lookup mandatory. Robustness against strangers' files is
-not a feature the existing suites can test, because they only ever read files we
-chose.
+diagnose. The first was filed as a **reach regression from WP-1001** and, as
+measured on 2026-07-30, is not one: `scattering.normalize_species` carries the
+same regex, has been on the compile path since v0.1, and rejects the same two
+forms — so those CIFs never loaded. Making dispersion the default moved the
+raise up one line and changed its wording; the fix has to satisfy both lookups
+(WP-1028 §(a)). Robustness against strangers' files is not a feature the
+existing suites can test, because they only ever read files we chose — and the
+benchmark that found these measured every *failure* but reasoned one *cause*,
+which is its own lesson about reading a diff for an attribution.
 
 Three decisions worth keeping visible, because each is a place the obvious
 implementation is wrong:

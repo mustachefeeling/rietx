@@ -25,10 +25,13 @@ Measured on lab Cu Kα and synchrotron data from
 pulled from COD. Reproductions are in the branch's `studies/wpem_bench/`; the
 branch is *not* merged, so restate anything needed rather than linking code.
 
-### (a) Two species syntaxes reject valid CIFs — a v1.0 regression in reach
+### (a) Two species syntaxes reject valid CIFs — at two lookups, not one
 
-`crystallography/dispersion.py::normalize_element` accepts
-`^([A-Za-z]{1,2})(\d*[+-])?$`. Two forms in the wild fail it:
+**Two** functions read `Atom.species` and both carry the *same* regex
+`^([A-Za-z]{1,2})(\d*[+-])?$`: `crystallography/dispersion.py::normalize_element`
+(f′/f″) and `crystallography/scattering.py::normalize_species` (f₀, which
+differs only in trying a tabulated ion before falling back to the element).
+Two forms in the wild fail both:
 
 | form | example | where |
 |---|---|---|
@@ -36,16 +39,36 @@ branch is *not* merged, so restate anything needed rather than linking code.
 | charge written **sign-first** | `O-2`, `Ni+3`, `Li+1` | ICSD exports; `CASES/Insitu XRD/LiNiO2.cif` |
 
 `Structure.from_cif` passes the value through and `compile_model` then raises
-`KeyError: cannot read an element symbol from species 'O1'`. **These files
-loaded fine while `Source.dispersion` defaulted to `None`** — WP-1001 turning
-anomalous scattering on by default made a previously-unreachable lookup
-mandatory, so this is a reach regression, not a code one. Two aggravations:
-the failure lands at the first `fit()` rather than at `from_cif`, and the
-message names a species rather than a file or a site.
+`KeyError: cannot read an element symbol from species 'O1'`. Only the
+*sign-first* and *site-label* forms fail; the trailing-sign `Cl1-` reads fine.
 
-Fix direction: normalise at CIF read (`crystallography/cif.py`), recording
-what changed as a `Diagnostic` so the substitution is visible rather than
-silent, and keep `normalize_element` strict for hand-built structures. Note
+**Withdrawn 2026-07-30: this is not a reach regression from WP-1001.** The
+original entry claimed these files loaded fine while `Source.dispersion`
+defaulted to `None`. They did not. `compile_phase_sites`
+(`structure_factor.py:149`) has called `normalize_species` unconditionally
+since v0.1, and `compile_model` calls `resolve_dispersion` one line *above* it
+(`forward.py:1134`) — so making dispersion the default moved the raise up a
+line and changed the message, arguably for the worse, since "no
+Waasmaier-Kirfel coefficients" at least names a table. Measured by compiling a
+two-atom NaCl model with the second species relabelled:
+
+```text
+dispersion=off species='Cl1':  KeyError: no Waasmaier-Kirfel coefficients for species 'Cl1'
+dispersion=off species='Cl-1': KeyError: no Waasmaier-Kirfel coefficients for species 'Cl-1'
+dispersion=ON  species='Cl1':  KeyError: cannot read an element symbol from species 'Cl1'
+dispersion=ON  species='Cl-1': KeyError: cannot read an element symbol from species 'Cl-1'
+```
+
+Three consequences for the fix: `dispersion=None` is **not** a workaround to
+offer anyone, there is no ≤ v0.6 behaviour to reproduce bit-identically here,
+and a normalisation reaching only `normalize_element` fixes nothing. Two
+aggravations stand: the failure lands at the first `fit()` rather than at
+`from_cif`, and the message names a species rather than a file or a site.
+
+Fix direction unchanged, and now load-bearing for *both* consumers: normalise
+at CIF read (`crystallography/cif.py`), recording what changed as a
+`Diagnostic` so the substitution is visible rather than silent, and keep
+`normalize_element` strict for hand-built structures. Note
 ions must still resolve to the element for f′/f″ (core-level effect) while
 `scattering.normalize_species` keeps the ion for f₀ — that asymmetry is
 deliberate (CLAUDE.md) and must survive.
@@ -152,7 +175,9 @@ Rietveld ties intensities to atoms and has no such freedom.
 ## Tasks
 
 - [ ] Normalise CIF species at read with a recording `Diagnostic`; cover `O1`
-      and `O-2` forms; keep `normalize_element` strict elsewhere
+      and `O-2` forms; keep `normalize_element` strict elsewhere. Assert the
+      fix with `dispersion` both on *and* `None`, since both lookups reject
+      these forms (§(a))
 - [ ] hkl-range guard in `generate_reflections` + diagnostic naming the cell
 - [ ] `MODEL_FAR_FROM_DATA` diagnostic; surface `max_iter` stage outcomes
 - [ ] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
@@ -189,6 +214,12 @@ this WP is self-contained.
 
 ## Handover log
 
+- **2026-07-30** — §(a)'s *attribution* withdrawn (still ⬜; no code touched).
+  The defect is real and unchanged; blaming WP-1001 was not. Gotcha for
+  whoever implements it: `Atom.species` has two consumers with the same regex,
+  and only one of them is new. Lesson worth generalising — the benchmark
+  measured the *failure* but reasoned the *cause*, and reasoning stopped at
+  the first raise it saw. Next: nothing new; the task list stands.
 - **2026-07-29** — created from the `wpem-benchmark` benchmark run. Nine
   refinement targets attempted, eight refined, one ((Mn,Ru)₂O₃) killed by (b).
   Items (a)–(h) are all measured, not inferred; every number above came from a
