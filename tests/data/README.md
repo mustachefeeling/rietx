@@ -255,8 +255,40 @@ tree reproduces each **bit-for-bit** (`np.array_equal`) — the acceptance gate
 for "nothing here may change a single computed number on the numpy path".
 
 These are *environment-pinned* bit patterns, not physical reference values: a
-different BLAS/numpy build may legitimately differ in final bits.  Re-baseline
-only from a tree that passes the full suite, via
+different BLAS/numpy build may legitimately differ in final bits.  **WP-1002
+measured which half of that sentence is true.**  The *numpy* half is not:
+Python 3.11 with numpy 2.4.6 / scipy 1.17.1 and Pythons 3.12/3.13/3.14 with
+2.5.1 / 1.18.0 all reproduce every golden bit-for-bit on macOS/arm64.  The
+*platform* half is, and comprehensively — on Linux x86-64 (GitHub-hosted
+runner, OpenBLAS) all eight toy states diverge on all three Pythons, with the
+same values every time:
+
+| state | key | max \|Δ\| | relative | ulps |
+|---|---|---|---|---|
+| `toy_lebail` | `lebail_intensity` | 2.3e-13 | 2.0e-16 | 1.0 |
+| `toy_pawley` | `pawley_x0` | 1.7e-13 | 1.5e-16 | 0.8 |
+| `toy_stephens` | `theta` | 1.8e-12 | 1.7e-16 | 1.0 |
+| `toy_capillary` | `y_calc` | 1.9e-11 | 8.4e-15 | 41 |
+| `toy_restraints` | `y_calc` | 7.5e-11 | 8.8e-15 | 41 |
+| `toy_roughness` | `y_calc` | 1.2e-10 | 2.0e-14 | 128 |
+| `toy_rich` | `y_calc` | 2.7e-10 | 4.6e-14 | 295 |
+| `toy_anomalous` | `y_calc` | 1.0e-09 | 1.7e-13 | 1124 |
+
+The gradient is the finding: quantities that are a single arithmetic chain
+land within 1 ulp, while `y_calc` — which accumulates ~130 windows of
+transcendental evaluations — drifts three orders of magnitude further.  That is
+the signature of a different libm and a different summation order, not of
+different code, and even the worst of it is ten orders of magnitude below the
+tightest physical bar in the tree.  So `tests/test_backend_shim.py` pins the
+gate to `GOLDEN_PLATFORM = ("darwin", "arm64")` and skips elsewhere with that
+reason attached, the capture entry point refuses to write a state off that
+platform (a half-and-half baseline set could never be green anywhere), and the
+nightly macOS CI job fails if the goldens *skip* there.  Relaxing
+`np.array_equal` to a tolerance was the alternative and was rejected: it would
+delete the only check in the tree that says no refactor changed a single
+computed number.
+
+Re-baseline only from a tree that passes the full suite, via
 
     .venv/bin/python -m tests.test_backend_shim STATE [STATE ...]
 

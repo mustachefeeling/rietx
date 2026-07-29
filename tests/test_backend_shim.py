@@ -42,10 +42,27 @@ tree that passes the full suite**, never from a mid-refactor tree:
 
 naming only the states that genuinely changed — re-capturing an untouched state
 rebases a baseline that was meant to be a fixed point.
+
+**Which environments they hold on** stopped being a hypothesis in WP-1002, when
+the CI matrix measured it (see ``GOLDEN_PLATFORM`` below).  A *Python* or
+*numpy* change does not move them — 3.11/2.4.6, 3.12/2.5.1, 3.13/2.5.1 and
+3.14/2.5.1 all reproduce them bit-for-bit on macOS/arm64.  A *platform* change
+does: on Linux x86-64 all eight toy states diverge, by 1 ulp on the quantities
+that are a single arithmetic chain (``theta``, ``lebail_intensity``,
+``pawley_x0``) and by up to ~1100 ulp (1.7e-13 relative) on ``y_calc``, which
+accumulates ~130 windows of transcendental evaluations.  That gradient *with
+chain length* is the signature of a different libm and a different summation
+order, not of different code — and 1.7e-13 relative sits ten orders of
+magnitude below the tightest physical bar in the tree.  So the gate is asserted
+where it was captured and skipped, loudly, everywhere else: relaxing
+``array_equal`` to a tolerance instead would delete the only check that says no
+refactor changed a single computed number.
 """
 
 from __future__ import annotations
 
+import platform
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -581,6 +598,19 @@ def test_set_backend_roundtrip():
 # ----------------------------------------------------------------------
 # the gate
 # ----------------------------------------------------------------------
+#: The platform every committed golden was captured on.  It is a *property of
+#: the files*, not a preference: they are bit patterns, and WP-1002 measured
+#: that they do not survive a libm/BLAS change (module docstring).  Keeping the
+#: whole baseline set on one platform is what makes "only re-capture the states
+#: that changed" a coherent rule — a set captured half here and half elsewhere
+#: could never be green anywhere.
+GOLDEN_PLATFORM = ("darwin", "arm64")
+
+
+def _platform_now() -> tuple[str, str]:
+    return (sys.platform, platform.machine())
+
+
 @pytest.mark.parametrize("name", [
     pytest.param("srm660c", marks=pytest.mark.slow),
     pytest.param("nac", marks=pytest.mark.slow),
@@ -594,6 +624,14 @@ def test_set_backend_roundtrip():
     "toy_anomalous",
 ])
 def test_numpy_path_bit_identical_to_golden(name):
+    here = _platform_now()
+    if here != GOLDEN_PLATFORM:
+        pytest.skip(
+            f"bit-identity goldens are pinned to {'/'.join(GOLDEN_PLATFORM)}, running on "
+            f"{'/'.join(here)} — measured divergence there is 1 to ~1100 ulp (≤1.7e-13 "
+            "relative), i.e. a different libm and summation order, not different code. "
+            "See the module docstring and tests/data/README.md."
+        )
     path = GOLDEN_DIR / f"{name}.npz"
     if not path.exists():
         pytest.skip(f"golden {path.name} not present")
@@ -611,13 +649,35 @@ def test_numpy_path_bit_identical_to_golden(name):
                 f"(max |Δ| = {np.max(np.abs(a - b)) if a.dtype.kind == 'f' else '?'})")
 
 
+def test_every_committed_golden_is_gated():
+    """A golden file no parameter names is a file nothing checks.
+
+    The gate above skips on two conditions — wrong platform, missing file —
+    and a skip is indistinguishable from a pass in a summary line.  This test
+    runs everywhere and is what stops a golden from being quietly deleted or
+    added without a case: it compares the directory against ``STATES``, which
+    is also what the capture entry point writes from.
+    """
+    on_disk = {p.stem for p in GOLDEN_DIR.glob("*.npz")}
+    assert on_disk == set(STATES), (
+        f"backend_goldens/ and STATES disagree: only on disk {sorted(on_disk - set(STATES))}, "
+        f"only in STATES {sorted(set(STATES) - on_disk)}")
+
+
 if __name__ == "__main__":
     # Capture goldens.  Named states only by default is deliberate: these files
     # are environment-pinned bit patterns, and re-capturing a state that did not
     # change silently rebases a baseline that was meant to be a fixed point.
     # Pass state names to add or refresh exactly those; pass nothing to see the
     # list rather than to overwrite all of them.
-    import sys
+    if _platform_now() != GOLDEN_PLATFORM:
+        raise SystemExit(
+            f"refusing to capture on {'/'.join(_platform_now())}: the committed baseline set is "
+            f"pinned to {'/'.join(GOLDEN_PLATFORM)}.  Capturing one state here would produce a "
+            "set no platform can be green on, since these files differ between libm/BLAS builds "
+            "(see the module docstring).  Re-capture the whole set, and move GOLDEN_PLATFORM, "
+            "only as a deliberate change of capture platform."
+        )
 
     wanted = sys.argv[1:]
     if not wanted:

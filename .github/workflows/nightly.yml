@@ -55,6 +55,19 @@ jobs:
           .venv/bin/python -c "import numpy; numpy.show_config()"
       - name: Full suite (including the slow real-data acceptance)
         run: .venv/bin/python -m pytest -n auto --dist loadgroup --durations=25
+      - name: Bit-identity goldens must actually run on their capture platform
+        # tests/test_backend_shim.py pins them to darwin/arm64 and *skips*
+        # elsewhere, and a skip reads exactly like a pass in a summary line.
+        # This is the one job where they are asserted, so it says so out loud:
+        # if they skip here, the pinning is broken and nothing checks them.
+        if: matrix.os == 'macos-latest'
+        run: |
+          out=$(.venv/bin/python -m pytest tests/test_backend_shim.py -k bit_identical -rs)
+          echo "$out"
+          if echo "$out" | grep -q "skipped"; then
+            echo "::error::the goldens skipped on darwin/arm64 — nothing is checking them"
+            exit 1
+          fi
       - name: Upload obs/calc/diff plots
         # every test refinement writes them (CLAUDE.md's Tests convention);
         # Rwp hides locally-bad fits, so on a nightly failure these are the
