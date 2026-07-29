@@ -175,6 +175,38 @@ whole new `backend/` surface — `Backend`, `get_backend`, `set_backend`,
 `to_host_fp64` in `backend/linalg64.py`. Most of these are internals that
 happen to be importable; decide which are API.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29) — a second block of
+new freeze surface, and one API-shape decision that must survive the freeze
+intact:
+
+- **New freeze surface**: five entry points that are peers of `refine()` —
+  `pick_peaks`, `index_pattern`, `determine_extinction_symbol`,
+  `structure_from_candidate`, `validate_by_lebail`; the whole of
+  `schemas/indexing.py` (`ObservedPeak`, `PeakFlag`, `PeakList`,
+  `DataQualityReport`, `FigureOfMerit`, `AmbiguityPartner`, `CellCandidate`,
+  `LeBailValidation`, `IndexingResult`, `ExtinctionCandidate`,
+  `ExtinctionScreen`, plus `INDEXING_THRESHOLDS_VERSION` and its pinned
+  constants); the `PEAK_*` / `INDEX_*` / `EXTINCTION_*` diagnostic codes; the
+  `agent.py` `index` task; and `pxrdref index` in the CLI.
+- **`IndexingResult` must keep having no unconditional singleton accessor.**
+  There is deliberately no `.cell`, `.best` or `.solution`; `candidates` is
+  always a list and `best_or_none()` is gated. This is the same species of
+  guard as `Geometry.mu_r` being a plain `float` — the *type* is what forbids
+  the mistake. A freeze is exactly the moment someone adds a convenience
+  property "since everyone writes `candidates[0]` anyway"; the answer is no,
+  and the reason is that the module exists to be able to say "the data cannot
+  distinguish these". WP-1026 ships an API-shape test asserting this; keep it.
+- **`report/schemas.py`'s `ActionKind` does not change** — indexing gives the
+  already-declared `reindex_or_recheck_cell` something to call, nothing more —
+  so `THRESHOLDS_VERSION` should **not** bump for it. Check this before
+  bumping anything reflexively at freeze time.
+- **`crystallography.lattice.inv_d_squared`** is new (WP-1018, extracted from
+  `d_spacings`) — decide whether it is API or an internal that happens to be
+  importable, alongside the other `crystallography/` calls.
+- **This WP's `Depends on` becomes `1001, 1002, 1004-1027`**, and the freeze is
+  still the milestone's last row: the point of landing indexing before it is
+  that the frozen surface has been exercised.
+
 From **WP-0309** (exporters, landed 2026-07-24): `write_refinement_cif`'s
 round-trip is validated for **single-phase only** — a full multi-phase
 structure re-read was never a v0.3 commitment. Whatever guarantee the frozen

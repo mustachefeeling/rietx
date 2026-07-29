@@ -43,6 +43,14 @@ estimator from the top level — the three "the GUI must not guess" gaps.
 From **WP-1004**: `PLAN_INFO` is the source for the plans arm of
 `capabilities()` — do not restate titles here.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): `capabilities()`
+gains an **indexing engines** arm, and it must be quoted from the **live
+registry** in `indexing/`, never from a hardcoded list. Same rule and same
+reason as the backend/solver/plan arms: `agent.tool_definition()` already has a
+meta-test that fails when a registered member is missing from the exported
+schema, and WP-1024 extends it to engines. A hardcoded list would pass that
+test while lying.
+
 ## Non-goals
 
 - No HTTP (`/api/capabilities` is WP-1008's one-line wrapper over this).

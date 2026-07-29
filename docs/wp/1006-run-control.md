@@ -45,6 +45,15 @@ From the **v1.0 GUI plan** (2026-07-29): the GUI server (WP-1008) holds the
 `RefinementCancelled` are freeze candidates — recorded in WP-1003's
 `### Inherited`.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): **indexing is a
+long-running job that is not a refinement.** `index_pattern` (WP-1024) can run
+for minutes and the GUI drives it through this state machine, so do not assume
+a run has stages, an Rwp, or a history node — an indexing run has none of the
+three. Add an `"index"` run kind alongside the refinement one, and keep
+progress reporting generic enough that "engine 2 of 3, orthorhombic" is
+expressible. The `CancelToken` itself needs no change; the cooperative
+check-between-evaluations pattern transfers directly to a search loop.
+
 ## Non-goals
 
 - No mid-stage checkpointing or resume — cancel abandons the stage, full

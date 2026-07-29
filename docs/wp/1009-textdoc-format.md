@@ -64,6 +64,23 @@ CodeMirror.
 From **WP-1004**: locked/tied refusal messages come from the verbs — quote
 them, don't restate them, so the two surfaces cannot disagree.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): **reserve a
+`peaks` block in `FORMAT_VERSION` now**, so WP-1027 fills it in without a
+format bump. Two properties settle its design. Peaks are **not refinable
+parameters**, so they carry **no `@` marker** — that absence is the visual
+distinction from every other block. And only two of its columns are editable
+on apply: `2theta` (which becomes a `move_peak` + group refit) and `flags`
+(a `set_peak_flags`); esd, fwhm and intensity are *derived* and are
+regenerated on the next render, so an edit to them must be rejected rather
+than silently discarded. Sketch:
+
+```
+peaks 20                              # pick_peaks(min_sigma=5.0, shape=tchz)
+  #      2theta      esd     fwhm         I    flags
+   0     8.4712   0.0009   0.0812     10420
+   1    10.7743   0.0011   0.0834      3310   impurity
+```
+
 ## Non-goals
 
 - No editor, no CodeMirror, no sync engine (WP-1013).

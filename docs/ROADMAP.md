@@ -89,6 +89,38 @@ renders `ref.set_values(...)` (plural) for the singular kind `"set_value"`,
 and the history `StageSpec` silently drops `Stage.strain_seed` on round-trip —
 the spec twins are not merely duplicated, one of them loses data.
 
+**Indexing joined v1.0 on 2026-07-29** as WP-1018…1027, on the same argument
+and ahead of the same freeze. The package could refine a structure against a
+pattern but could not find the unit cell, so it could not touch an unknown
+phase at all — and `index()` is a top-level entry point, a peer of `refine()`,
+which the freeze ought to cover after it has been exercised rather than before.
+The design is in those ten WP files; the three things that shaped it are in the
+indexing sub-table below. Its prior art is real and measured: branch
+`guillemot-example-refinements`, pinned as the tag `guillemot-study`
+(97ba88d), carries a working two-parameter
+autoindexer, a phase screen, and an **audit harness that measured its own
+scaffolding** — including the finding that a coverage score cannot tell a
+multiphase pattern from a single-phase one of lower symmetry than the engine
+reaches, which retracted a claim in that study's own report. That retraction is
+this project having already met, on its own data, the failure the confidence
+gate exists to prevent.
+
+**That study stays out of `main`, and nothing needs it to come in.** It is an
+external-data exercise on another project's examples — not part of the package,
+not run by CI, not a WP — so it is pinned by the annotated tag
+**`guillemot-study`** and read in place:
+
+```sh
+git show --stat guillemot-study                          # what is in it
+git show guillemot-study:studies/guillemot/index_hl2.py  # any file
+```
+
+Every measured number the indexing design rests on is restated inside the WP
+files, so the study is corroboration rather than a dependency; the one artifact
+that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
+extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
+that deleting or renaming the branch cannot silently strand ten WPs' citations.
+
 Landed so far: [1001](wp/1001-validation-matrix.md) (validation matrix) and
 [1002](wp/1002-ci-matrix.md) (CI matrix), both **2026-07-29** — see below.
 [1003](wp/1003-api-freeze-pypi.md) is not started and now depends on
@@ -761,7 +793,7 @@ the linear algebra's.
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
-| v1.0 | Hardening, human GUI, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `pxrdref gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation) |
+| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `pxrdref gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing scores ≥ +9 on the published bethanechol benchmark** (the best combination of the four classic programs in Bergmann et al. 2004) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -852,7 +884,65 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1017 |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027 |
+
+### v1.0 — indexing (added 2026-07-29)
+
+Unit-cell determination from a pattern, and the peak picking it needs. Added
+into v1.0 on the same argument that un-fenced the GUI: `index()` is a
+top-level entry point, a peer of `refine()`, and the freeze (1003) should
+cover a surface that has been exercised. It also closes a seam the package
+declared long ago — `report/layer2.py` has emitted the
+`reindex_or_recheck_cell` action since v0.2 with nothing behind it.
+
+Order: peaks and quality first (1018–1019, useful on their own), then the
+shared core (1020), then the three engines (1021–1023, independent of each
+other), then consensus (1024), space groups (1025), acceptance (1026), GUI
+(1027).
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ⬜ | — |
+| [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ⬜ | 1018 |
+| [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
+| [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |
+| [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ⬜ | 1020 |
+| [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | ⬜ | 1020 |
+| [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ⬜ | 1021–1023 |
+| [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ⬜ | 1024 |
+| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
+| [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
+
+Three decisions worth keeping visible, because each is a place the obvious
+implementation is wrong:
+
+- **Three engines, and the confidence is their agreement.** Both source papers
+  conclude that no single indexing program wins and that running several is
+  what raises the success rate — which is the device this package already uses
+  for correctness elsewhere (`direction="both"` flagging
+  `SEQUENTIAL_PATH_DEPENDENT`, the per-column cross-backend Jacobian matrix).
+  The engines share only the Q form and the tolerance model.
+- **Coverage is scored in both directions, and that is measured, not
+  aesthetic.** On the guiLLeMot MnSb_34 screen, ranking on share-of-observed-
+  intensity alone puts a 390-line phase first with 9 % of its own lines
+  present, above the truth at 56.5 %. A cell that indexes everything and
+  predicts a forest is the classic false positive and one number cannot see it.
+- **A restricted search is never a verdict about the sample.** Measured on the
+  same branch: a two-parameter engine scores 47–60 % on single-phase
+  orthorhombic/monoclinic patterns and 82–100 % on genuinely
+  tetragonal/hexagonal ones, so a real mixture at 69 % sits in the overlap —
+  and a "at least two phases" claim built on that ambiguity was **withdrawn**.
+  Hence `systems_searched` on the result, and `INDEX_SYSTEMS_NOT_COVERED`.
+
+Prior art lives at the annotated tag **`guillemot-study`** (commit 97ba88d, also
+on branch `guillemot-example-refinements`): `studies/guillemot/index_hl2.py` is
+engine B in miniature, `audit_tools.py` measured the findings above, and
+`out/HL2-1_peaks.txt` is 74 peaks from a genuinely unidentified pattern — the
+acceptance fixture whose correct answer is "we do not know".
+
+**It is not merged into `main` and does not need to be** — `git show
+guillemot-study:studies/guillemot/<file>` reads any of it without a checkout.
+The tag is what guarantees that stays true if the branch is ever pruned.
 
 ## v2+ (seams pre-built, implementations fenced out)
 
@@ -863,6 +953,17 @@ rigid bodies; MCP server wrapping `refine_json`; internal-standard/amorphous
 QPA; `vmap`-batched in-situ series; notebook widgets. *(The human GUI was
 un-fenced from this list into v1.0 on 2026-07-29 — WP-1004…1017; grounds in
 [DESIGN.md](DESIGN.md#locked-decisions).)*
+
+Fenced **by** the v1.0 indexing WPs (1018…1027, 2026-07-29), i.e. deliberately
+left undone by work that could plausibly have grown to include them:
+multi-phase indexing (index the residual after subtracting a solved phase);
+search-match phase identification, whose prior art is the 36-cell screen at
+`guillemot-study:studies/guillemot/match_hl2.py`;
+the full Bayesian extinction-symbol posterior (Markvardsen et al. 2001 — the
+ΔBIC/Hamilton nested comparison is the v1.0 form); a fourth engine in the
+Conograph topograph lineage (Oishi-Tomiyasu's reversed/symmetric M_N *is* in
+scope, as a figure of merit); derivative-lattice ambiguity above index 4; and
+structure solution from an indexed cell.
 
 No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites

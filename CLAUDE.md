@@ -375,12 +375,25 @@ must import, and every bib entry must be cited. Consequence: renaming a
 physics symbol or retuning a fenced constant means touching the manual in the
 same change.
 
-**In flight: v1.0 — hardening, human GUI, API freeze, PyPI.**
+**In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the
 last one shipped, because that string is stamped into every
 `RefinementResult.provenance` and history node. The GUI (WP-1004…1017,
 expanded into v1.0 on 2026-07-29) lands *before* the freeze (WP-1003) so the
 freeze covers an exercised surface; stack decision in DESIGN.md §Outputs.
+**Indexing** (WP-1018…1027, added the same day) lands before the freeze for the
+same reason — `index()` is a peer of `refine()`, and until it exists the
+package cannot touch a phase whose cell is unknown. Its governing rule is the
+FitReport's one rank up: an indexer must never hand back one cell confidently,
+so `IndexingResult` has **no** `.cell`/`.best` attribute, only a gated
+`best_or_none()`; geometrical ambiguity (Mighell & Santoro 1975) is reported
+with the reflections that would break the tie rather than silently resolved;
+coverage is scored in *both* directions because ranking on
+share-of-observed-intensity alone demonstrably puts a 390-line wrong phase
+above the truth; and a restricted search reports `systems_searched` rather than
+concluding anything about the sample. Three engines (dichotomy, index
+heuristic, whole-profile Monte Carlo) supply the confidence by agreeing, the
+same device as `direction="both"` and the cross-backend matrix.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
 the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU

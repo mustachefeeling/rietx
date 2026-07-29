@@ -44,6 +44,16 @@ provisional status of the HTTP routes and `.pxt` format is stated
 user-facing (schemas frozen at v1.0, wire/text surfaces provisional) —
 WP-1003 states it in the release notes; this chapter is the other half.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): add an
+**indexing walkthrough** as an onboarding path — it is the natural entry point
+for a user with a pattern and no CIF, which is the audience least served today.
+`docs/manual/indexing.md` already exists from WP-1020 for the theory; this
+chapter covers the panel (WP-1027). The one thing the walkthrough must teach
+rather than gloss is that **a candidate list with no high-confidence entry is a
+result, not a failure** — the whole module is built so that "the data cannot
+distinguish these" is sayable, and a user who reads that as a bug will go
+looking for a setting to force an answer.
+
 ## Non-goals
 
 - No screencasts/video, no hosted docs decisions (that is WP-1003's

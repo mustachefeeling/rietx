@@ -62,6 +62,15 @@ GUI-agnostic — no HTTP, no session object, no serialization beyond the
 schemas. The freeze implications (ParameterRow, the plan-schema unification
 and its aliases) are already recorded in WP-1003's `### Inherited`.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): a Le Bail-only
+phase must carry a **dummy atom** — `Phase._nonempty` raises on an empty atom
+list, while `Refinement._run_stage` force-fixes every `.atoms.` path, `.scale`
+and `.source.lines.` in lebail/pawley mode (`refine.py:369-380`), so that atom
+contributes nothing to the fit. Indexing (WP-1024) constructs such phases
+routinely. **The parameter surface must not present that atom as an editable
+site** — a user shown `phases.0.atoms.0.biso` on a Le Bail phase will
+reasonably try to refine something that is structurally fixed.
+
 ## Non-goals
 
 - No HTTP surface (WP-1008), no text format (WP-1009), no widgets.

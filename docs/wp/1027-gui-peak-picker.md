@@ -1,0 +1,152 @@
+# WP-1027 — GUI peak picker and indexing panel
+
+Milestone: v1.0 · Status: ⬜ not started
+Depends on: 1010, 1011, 1018-1024 (1009 touched)
+
+## Goal
+
+A human can see every fitted peak against the data, correct the ones the fitter
+got wrong, run indexing, and read the candidate table — including what the data
+cannot distinguish — without leaving the browser.
+
+## Goal, restated
+
+Peak picking is the one step in this workflow where a human eye genuinely beats
+the algorithm: a shoulder the fitter missed is obvious on screen and invisible
+in a number. This panel exists for that, not for convenience.
+
+## Context
+
+- **Stack is already decided** (DESIGN.md §Outputs, 2026-07-29 amendment):
+  local web app, stdlib `http.server`, SSE on `ThreadingHTTPServer`, Svelte 5 +
+  TypeScript with **committed** build assets shipping in the wheel, plotly from
+  the installed package, `[gui]` extra = plotly only. Every verb is a plain
+  method on `GuiSession`; `server.py` is transport only, so a Tauri shell can
+  wrap it later.
+- **Session verbs** (all plain methods):
+
+  ```python
+  pick_peaks(**opts) -> PeakList
+  add_peak(two_theta) -> PeakList        # seed + refit that group
+  remove_peak(i) -> PeakList
+  move_peak(i, two_theta) -> PeakList    # drag → reseed + refit the group
+  set_peak_flags(i, *, use_for_indexing=None, flags=None) -> PeakList
+  refit_group(g, *, n_components=None) -> PeakList
+  index(**opts) -> str                   # run id — long-running
+  index_result() -> IndexingResult
+  adopt_candidate(i, *, space_group=None) -> str   # history node id
+  ```
+
+  Every verb echoes its equivalent API call into the console pane
+  (`session.move_peak(7, 23.451)`), so the session log stays a reproducible
+  script — the GUI's standing rule from DESIGN.md §Outputs.
+- **The peak-list verbs are cheap and synchronous; `index()` is not.** It goes
+  through WP-1006's run state machine — cancel token, SSE progress, the
+  409-while-running rule. That means the run kind must not be refinement-only;
+  an `### Inherited` note was left in WP-1006 for exactly this.
+- **Peak lists are a project artifact, not a history node.** They live in
+  WP-1005's `.pxrd/` container as `peaks.json`, keyed by `data_fingerprint`, so
+  a peak list can never be displayed against the wrong pattern — the same
+  device `TreeHeader.data_fingerprint` uses for history trees. By contrast
+  `adopt_candidate` **is** a model edit and goes through
+  `Refinement.edit(structure=…, label="adopted indexed cell …")`, which already
+  records an `edit_model` node: **no new NodeKind**.
+- **The plot shows the fitted group profile over the data**, not just a tick
+  mark, plus a per-group residual strip. That is the whole point: it is what
+  lets a human see the `PEAK_UNRESOLVED_SHOULDER` case the fitter reported but
+  could not resolve. Peak markers carry `2θ ± σ` error bars; excluded peaks are
+  drawn hollow; flags drive colour.
+- **Interactions**: click empty space → `add_peak`; drag a marker →
+  `move_peak`; shift-click → cycle `impurity_candidate` / `excluded_by_user`;
+  right-click a group → "fit N components". Peak-list diagnostics render as an
+  inline strip, not a modal — they are information, not an interruption.
+- **The candidate view is deliberately a table**, one row per candidate, one
+  column per FoM panel member, `found_by` as engine chips, ambiguity partners
+  as an expandable sub-row. A table cannot express a confident singleton, which
+  is the same property WP-1024 gives the API. **"Adopt" is per-row and disabled
+  with a tooltip when `confidence != "high"`** — the UI must not be the place
+  the gate leaks.
+- **`.pxt` gains a `peaks` block** (format reserved by WP-1009). Peaks are not
+  refinable parameters, so they carry **no `@` marker** — that is the visual
+  distinction from every other block:
+
+  ```
+  peaks 20                              # pick_peaks(min_sigma=5.0, shape=tchz)
+    #      2theta      esd     fwhm         I    flags
+     0     8.4712   0.0009   0.0812     10420
+     1    10.7743   0.0011   0.0834      3310   impurity
+     2    12.0316   0.0026   0.0901       220   kbeta_ghost excluded
+  ```
+
+  On apply, **only the `2theta` and `flags` columns are editable** — a 2θ edit
+  is a `move_peak` (refit the group), a flags edit is `set_peak_flags`; every
+  other column is derived and regenerated on the next render. Same
+  all-or-nothing delta semantics and 1-based line numbers as the rest of the
+  format, and the existing hypothesis `render → parse → render` fixed-point
+  test extends to cover it.
+
+### Inherited
+
+From **WP-1008**: routes `GET/POST /api/peaks`,
+`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
+`GET /api/index/result`, `POST /api/index/adopt` were reserved (404 until this
+WP), and `/api/index` was wired to the run state machine.
+
+From **WP-1009**: the `peaks` block is reserved in `FORMAT_VERSION`, so this WP
+fills it in without a format bump.
+
+From **WP-1024**: `best_or_none()` is the only singleton accessor and
+`IndexingResult.candidates` is always a list — the frontend must not synthesise
+a "the answer is" view from `candidates[0]`.
+
+From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
+`"edited"`; surface it, because a hand-placed peak and a fitted one carry
+different weight and the user should see which is which.
+
+## Non-goals
+
+- No new indexing capability — this WP is a surface over WP-1018-1025.
+- No structure solution view.
+- No new dependency: plotly is already the `[gui]` extra, and the panel adds
+  nothing.
+
+## Tasks
+
+- [ ] `GuiSession` verbs above, each with its console-pane API echo.
+- [ ] Fill in the WP-1008 routes; `/api/index` on the run state machine with
+      SSE progress and cancel.
+- [ ] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
+      `adopt_candidate` through `Refinement.edit`.
+- [ ] Frontend: peak layer (markers, σ error bars, fitted group profile,
+      residual strip), the four interactions, the diagnostics strip.
+- [ ] Frontend: candidate table with the FoM columns, engine chips, ambiguity
+      sub-rows, and the gated Adopt button.
+- [ ] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
+      the fixed-point property test.
+- [ ] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
+      a peak list keyed to one pattern is refused against another; `.pxt`
+      fixed point; **Adopt is disabled for a `medium` candidate** (the gate
+      does not leak into the UI).
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_gui_peaks.py -q
+.venv/bin/python -m pytest tests/test_textdoc.py -q
+.venv/bin/python -m ruff check src tests examples
+```
+
+Criterion: a peak can be added, dragged, flagged and refitted through the live
+server with the console echo matching the API call that would reproduce it; the
+`.pxt` round trip is a fixed point; and no UI path adopts a candidate that
+`best_or_none()` would not return.
+
+## References
+
+- DESIGN.md §Outputs, 2026-07-29 amendment — the stack decision.
+- `viz/compare.py` + `compare_app.py`, `watch.py` — the stdlib-`http.server`
+  precedent this follows.
+
+## Handover log
+
+- **2026-07-29** — created from the indexing plan.

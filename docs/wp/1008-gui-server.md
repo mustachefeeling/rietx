@@ -66,6 +66,15 @@ From the **v1.0 GUI plan** (2026-07-29): the HTTP routes are declared
 **provisional** at v1.0 — schemas frozen, wire surface not (recorded in
 WP-1003's `### Inherited`). Don't burn effort on wire-level backcompat here.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): **reserve these
+routes now** (404 until WP-1027 fills them) so the shape is settled before the
+frontend scaffold lands — `GET/POST /api/peaks`,
+`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
+`GET /api/index/result`, `POST /api/index/adopt`. The peak verbs are cheap and
+synchronous; **`/api/index` is long-running and goes through WP-1006's run
+state machine** (cancel, SSE progress, 409-while-running), so wire it to the
+same machinery as a refinement run even though it is not one.
+
 ## Non-goals
 
 - No frontend (WP-1010) — this WP is testable entirely over HTTP with the

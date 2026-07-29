@@ -49,6 +49,15 @@ Jacobian columns, ρ = +1.000 — measured in WP-0601). The instrument form
 should not *default* new instruments into S/L == H/L silently; keep the
 shipped defaults but surface the correlation guard when it fires.
 
+From the **indexing plan** (WP-1018…1027, added 2026-07-29): **adopting an
+indexed cell is a structure edit**, so it reuses this WP's editor and
+`Refinement.edit(structure=…)` rather than inventing a path.
+`indexing.structure_from_candidate` (WP-1024) produces a phase carrying a
+**dummy atom** — required because `Phase._nonempty` raises on an empty atom
+list, and inert because `_run_stage` force-fixes `.atoms.` in lebail mode. The
+structure editor should make that atom's status legible (it is a placeholder,
+not a site), which is the same note left in WP-1004 for the parameter surface.
+
 ## Non-goals
 
 - **Space-group editing — hard fence.** Re-import a CIF instead.
