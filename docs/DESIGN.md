@@ -460,6 +460,37 @@ refined, >130° excluded). Guessing a plausible protocol instead gave Rwp
 cross-code number computed over different channels with a different free set
 is not a comparison.
 
+**Where the suite runs, and what that can and cannot prove** (WP-1002). Every
+push runs ruff plus the fast suite on Python 3.11-3.13 (3.14 allow-fail) on
+Linux; a nightly job runs everything, `slow` acceptance included, on Linux and
+macOS, plus the `[torch]` agreement rows. The split is a cost decision — macOS
+bills at a 10× minute multiplier on a private repo, and it is the platform
+development already happens on — not a claim that macOS matters less.
+
+Two limits are stated rather than implied by a green badge. The Apple-GPU
+(`torch-mps`) assertions **cannot** run on a hosted runner, which has no Metal
+device, so the only real-hardware evidence for the fp32-column policy is
+maintainer-machine-only. And CI **reports rather than gates**: branch
+protection needs a paid plan or a public repo, so nothing today stops a red
+push landing on `main`.
+
+**A bit-identity gate is pinned to its capture environment, never loosened to
+a tolerance.** The multi-platform matrix immediately measured what the goldens
+are really pinned to, and it is not what the caveat in `tests/data/README.md`
+guessed: a *numpy* change does not move them (2.4.6 and 2.5.1 agree
+bit-for-bit), while Linux x86-64 diverges on every state — by 1 ulp on
+quantities that are a single arithmetic chain and by ~1100 ulp (1.7e-13
+relative) on `y_calc`, which accumulates ~130 windows of transcendental
+evaluations. The gradient *with chain length* is what identifies the cause as a
+different libm and summation order rather than different code. Relaxing
+`np.array_equal` to a tolerance would have made the gate green everywhere and
+meaningless everywhere: its entire content is "no refactor changed a single
+computed number", and any tolerance wide enough to absorb a libm difference is
+wide enough to absorb a real one. So it asserts on `darwin/arm64`, skips
+elsewhere *with the measurement in the skip reason*, and CI fails if it skips
+where it is supposed to run — because in a summary line a skip and a pass look
+identical.
+
 **And a disagreement's *shape* is evidence.** The residual +116/+113 ppm cell
 offset is the same relative amount on both axes — a uniform d-scale
 (peak-position convention) difference, not a structural one. The test asserts
