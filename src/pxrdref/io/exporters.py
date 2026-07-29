@@ -146,7 +146,7 @@ def write_reflection_table(rows: list[ReflectionRow], path: str | Path, *,
     p = Path(path)
     if delimiter is None:
         delimiter = "\t" if p.suffix.lower() in (".tsv", ".tab") else ","
-    with p.open("w", newline="") as fh:
+    with p.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh, delimiter=delimiter)
         w.writerow(REFLECTION_COLUMNS)
         for r in rows:
@@ -228,7 +228,14 @@ def write_qpa_table(qpa: QuantitativePhaseAnalysis, path: str | Path, *,
     p = Path(path)
     if delimiter is None:
         delimiter = "\t" if p.suffix.lower() in (".tsv", ".tab") else ","
-    p.write_text(qpa_table_csv(qpa, delimiter=delimiter))
+    # newline="" is not optional and not cosmetic: qpa_table_csv builds its rows
+    # with csv.writer, which emits \r\n per the CSV spec, so writing that string
+    # through text mode translates each \n again and every line ends \r\r\n —
+    # a file with a blank line between every row.  Invisible on POSIX, corrupt
+    # on Windows, and measured there (WP-1002).  write_reflection_table above
+    # already opens this way; this one did not.
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        fh.write(qpa_table_csv(qpa, delimiter=delimiter))
 
 
 # ======================================================================

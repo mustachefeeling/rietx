@@ -380,7 +380,7 @@ def test_series_result_json_round_trip(thermal_series):
 def test_write_csv(thermal_series, tmp_path):
     out = tmp_path / "series.csv"
     thermal_series.write_csv(out, paths=["phases.0.cell.a"])
-    lines = out.read_text().strip().splitlines()
+    lines = out.read_text(encoding="utf-8").strip().splitlines()
     assert lines[0].split(",") == ["index", "label", "T (K)", "status", "rwp",
                                    "gof", "phases.0.cell.a",
                                    "phases.0.cell.a_esd"]
@@ -446,7 +446,7 @@ def test_the_backward_pass_writes_its_own_logs(thermal_patterns, tmp_path):
         assert forward.exists()
         assert (tmp_path / "h" / f"{name}.backward.jsonl").exists()
         # exactly one header record, so the log is unambiguously reloadable
-        headers = [line for line in forward.read_text().splitlines()
+        headers = [line for line in forward.read_text(encoding="utf-8").splitlines()
                    if '"record":"header"' in line.replace(" ", "")]
         assert len(headers) == 1
         assert pr.RefinementTree.load(forward).header.tree_id

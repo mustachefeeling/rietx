@@ -104,13 +104,13 @@ def _first_loop(b, tags: tuple[str, ...]) -> np.ndarray | None:
 
 
 def _looks_gsas(p: Path) -> bool:
-    head = p.read_text(errors="ignore")[:4000]
+    head = p.read_text(encoding="utf-8", errors="ignore")[:4000]
     return bool(re.search(r"^BANK\s+\d+", head, re.M))
 
 
 def _read_xy(p: Path) -> PatternData:
     rows = []
-    for line in p.read_text().splitlines():
+    for line in p.read_text(encoding="utf-8").splitlines():
         s = line.strip()
         if not s or s.startswith(("#", "!", "'", "/")):
             continue
@@ -133,7 +133,7 @@ def _read_xy(p: Path) -> PatternData:
 def _read_gsas(p: Path) -> PatternData:
     """GSAS raw powder data, CONST or ESD/FXYE variants (Larson & Von Dreele,
     2004, GSAS manual §'Powder data file formats')."""
-    lines = p.read_text(errors="ignore").splitlines()
+    lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
     bank = None
     bank_re = re.compile(
         r"^BANK\s+(\d+)\s+(\d+)\s+(\d+)\s+(\w+)\s+([\d.Ee+-]+)\s+([\d.Ee+-]+)"

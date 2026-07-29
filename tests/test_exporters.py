@@ -142,7 +142,7 @@ def test_write_reflection_table_csv_round_trips(tmp_path):
     out = tmp_path / "refl.csv"
     write_reflection_table(rows, out)
 
-    text = out.read_text().splitlines()
+    text = out.read_text(encoding="utf-8").splitlines()
     header = text[0].split(",")
     assert header[:6] == ["phase", "line", "wavelength", "h", "k", "l"]
     assert len(text) - 1 == len(rows)                # one data row per reflection row
@@ -150,7 +150,7 @@ def test_write_reflection_table_csv_round_trips(tmp_path):
     # a .tsv suffix switches the delimiter
     out_tsv = tmp_path / "refl.tsv"
     write_reflection_table(rows, out_tsv)
-    assert "\t" in out_tsv.read_text().splitlines()[0]
+    assert "\t" in out_tsv.read_text(encoding="utf-8").splitlines()[0]
 
 
 # ----------------------------------------------------------------------
@@ -182,7 +182,7 @@ def test_qpa_table_carries_crystalline_only_caveat(tmp_path):
     qpa = _two_phase_qpa()
     out = tmp_path / "qpa.csv"
     write_qpa_table(qpa, out)
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
 
     # the scope caveat is in the file itself, not just the API docstring
     assert "CRYSTALLINE" in text
@@ -259,7 +259,7 @@ def test_refinement_cif_round_trips_through_readers(fitted_lab6, tmp_path):
     ref, result, data = fitted_lab6
     out = tmp_path / "refinement.cif"
     ref.write_cif(out)
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
 
     # 1. the structure re-reads through the small-molecule reader with the
     #    refined cell intact
@@ -293,7 +293,7 @@ def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     ref, result, data = fitted_lab6
     out = tmp_path / "r.cif"
     ref.write_cif(out)
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert "_pd_calc_intensity_total" in text
     assert "_pd_proc_intensity_bkg_calc" in text
 

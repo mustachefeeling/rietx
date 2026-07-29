@@ -467,7 +467,7 @@ def test_cif_export_writes_standard_uncertainties(tmp_path):
 
     out = tmp_path / "su.cif"
     structure.to_cif(str(out))
-    text = out.read_text()
+    text = out.read_text(encoding="utf-8")
     assert "0.006000(120)" in text or "0.00600(12)" in text
     assert "0.0010000(31)" in text
     assert "4.59370(25)" in text
@@ -489,8 +489,8 @@ def test_cif_export_reports_b_equivalent_for_aniso_sites(tmp_path):
     cell6 = structure.phases[0].cell.lengths_angles()
     expected = 8.0 * math.pi ** 2 * adp.u_equivalent(
         structure.phases[0].atoms[0].aniso.values(), cell6)
-    assert f"{expected:.4f}" in out.read_text()
-    assert "12.34" not in out.read_text()
+    assert f"{expected:.4f}" in out.read_text(encoding="utf-8")
+    assert "12.34" not in out.read_text(encoding="utf-8")
 
 
 # -- positive-definiteness guard ---------------------------------------

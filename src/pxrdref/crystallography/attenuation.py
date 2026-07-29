@@ -50,7 +50,7 @@ _MCMASTER_GAPS = frozenset({"Po", "At", "Fr", "Ra", "Ac", "Pa", "Np"})
 @lru_cache(maxsize=1)
 def _load_table() -> dict[str, np.ndarray]:
     """Parse the DABAX extract into {element: (n, 3) [E_eV, photo, total]}."""
-    text = (resources.files(_DATA_PACKAGE) / _DATA_FILE).read_text()
+    text = (resources.files(_DATA_PACKAGE) / _DATA_FILE).read_text(encoding="utf-8")
     table: dict[str, np.ndarray] = {}
     element: str | None = None
     rows: list[list[float]] = []

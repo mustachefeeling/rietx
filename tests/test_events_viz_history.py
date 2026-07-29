@@ -59,7 +59,7 @@ def test_event_stream_hot_loop_is_plain_json(tmp_path):
     stream = EventStream(path=tmp_path / "e.jsonl")
     stream.emit("eval", stage="s", n_eval=1, cost=1.5)
     stream.close()
-    line = (tmp_path / "e.jsonl").read_text().strip()
+    line = (tmp_path / "e.jsonl").read_text(encoding="utf-8").strip()
     parsed = json.loads(line)
     assert parsed["record"] == "event"
     assert parsed["data"] == {"stage": "s", "n_eval": 1, "cost": 1.5}
@@ -76,7 +76,7 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
     out = tmp_path / "fit.html"
     from pxrdref.viz import write_html
     write_html(result, str(out))
-    html = out.read_text()
+    html = out.read_text(encoding="utf-8")
     assert "plotly" in html.lower()
     assert "scattergl" in html.lower()
     # self-contained: no external <script src=…> tag (the embedded plotly
@@ -110,7 +110,7 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
 
     assert (live / "fit.html").exists()
     assert (live / "events.jsonl").exists()
-    status = json.loads((live / "status.json").read_text())
+    status = json.loads((live / "status.json").read_text(encoding="utf-8"))
     assert status["stage"] == "profile"          # last stage of the plan
     assert status["rwp"] < 0.2
 
@@ -139,7 +139,7 @@ def test_cli_help_and_html(tmp_path, synthetic_pattern):
     ref = pr.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
     src = tmp_path / "result.json"
-    src.write_text(result.model_dump_json())
+    src.write_text(result.model_dump_json(), encoding="utf-8")
     out = tmp_path / "out.html"
     assert main(["html", str(src), str(out)]) == 0
     assert out.exists() and out.stat().st_size > 1_000_000

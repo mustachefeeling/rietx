@@ -30,7 +30,7 @@ BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
 def _cited_keys() -> set[str]:
     keys: set[str] = set()
     for page in CHAPTERS:
-        for role in CITE_ROLE.findall(page.read_text()):
+        for role in CITE_ROLE.findall(page.read_text(encoding="utf-8")):
             keys.update(k.strip() for k in role.split(","))
     return keys
 
@@ -49,7 +49,7 @@ def test_manual_builds_warning_free(tmp_path):
 def test_every_bib_entry_is_cited():
     """references.bib carries no dead weight: an uncited entry is either a
     chapter that lost its citation or an entry that should be pruned."""
-    bib_keys = set(BIB_KEY.findall((MANUAL_DIR / "references.bib").read_text()))
+    bib_keys = set(BIB_KEY.findall((MANUAL_DIR / "references.bib").read_text(encoding="utf-8")))
     assert bib_keys, "no bibliography entries parsed — regex or file moved?"
     uncited = bib_keys - _cited_keys()
     assert not uncited, f"bibliography entries never cited: {sorted(uncited)}"
@@ -57,7 +57,7 @@ def test_every_bib_entry_is_cited():
 
 def test_every_citation_has_a_bib_entry():
     """The -W build also catches this, but a direct diff names the key."""
-    bib_keys = set(BIB_KEY.findall((MANUAL_DIR / "references.bib").read_text()))
+    bib_keys = set(BIB_KEY.findall((MANUAL_DIR / "references.bib").read_text(encoding="utf-8")))
     missing = _cited_keys() - bib_keys
     assert not missing, f"citations with no bibliography entry: {sorted(missing)}"
 
@@ -67,7 +67,7 @@ def test_every_source_symbol_imports():
     rename breaks this test rather than the reader's trust."""
     symbols: set[str] = set()
     for page in CHAPTERS:
-        symbols.update(SOURCE_LINE.findall(page.read_text()))
+        symbols.update(SOURCE_LINE.findall(page.read_text(encoding="utf-8")))
     assert symbols, "no *Source:* lines found — pattern or chapters moved?"
     for dotted in sorted(symbols):
         parts = dotted.split(".")
@@ -89,7 +89,7 @@ def test_source_lines_cover_every_labelled_equation():
     at least one *Source:* line — an equation with no named source is a
     transcription with no audit trail."""
     for page in CHAPTERS:
-        text = page.read_text()
+        text = page.read_text(encoding="utf-8")
         n_labels = len(re.findall(r"^:label:", text, re.MULTILINE))
         n_sources = len(SOURCE_LINE.findall(text))
         if n_labels:

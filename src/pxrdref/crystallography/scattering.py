@@ -34,7 +34,7 @@ _DATA_FILE = "f0_WaasKirf.dat"
 @lru_cache(maxsize=1)
 def _load_table() -> dict[str, np.ndarray]:
     """Parse the DABAX file into {species: [a1..a5, c, b1..b5]}."""
-    text = (resources.files(_DATA_PACKAGE) / _DATA_FILE).read_text()
+    text = (resources.files(_DATA_PACKAGE) / _DATA_FILE).read_text(encoding="utf-8")
     table: dict[str, np.ndarray] = {}
     species: str | None = None
     expecting = False

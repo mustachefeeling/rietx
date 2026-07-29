@@ -57,7 +57,7 @@ def save_instrument_profile(instrument: Instrument, path: str | Path) -> None:
         "created_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "instrument": ins.model_dump(mode="json", exclude={"background"}),
     }
-    Path(path).write_text(json.dumps(doc, indent=1))
+    Path(path).write_text(json.dumps(doc, indent=1), encoding="utf-8")
 
 
 def load_instrument_profile(path: str | Path) -> Instrument:
@@ -70,7 +70,7 @@ def load_instrument_profile(path: str | Path) -> Instrument:
     and specimen absorption are absent (declare them per specimen if the fit
     needs them).
     """
-    doc = json.loads(Path(path).read_text())
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
     if doc.get(FORMAT_KEY) != FORMAT_VERSION:
         raise ValueError(
             f"{path}: not a pxrdref instrument-profile file "

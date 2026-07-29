@@ -24,7 +24,7 @@ class LiveSession(EventStream):
         self.dir = Path(directory)
         self.dir.mkdir(parents=True, exist_ok=True)
         # truncate any previous run's log so the console pane starts clean
-        (self.dir / "events.jsonl").write_text("")
+        (self.dir / "events.jsonl").write_text("", encoding="utf-8")
         super().__init__(path=self.dir / "events.jsonl")
 
     def write_snapshot(self, model, table, outcome, stage_name: str) -> None:
@@ -63,4 +63,4 @@ class LiveSession(EventStream):
         (self.dir / "status.json").write_text(json.dumps({
             "stage": stage_name, "rwp": stats.rwp, "gof": stats.gof,
             "chi2": stats.chi2, "n_free": stats.n_free_parameters,
-        }, indent=1))
+        }, indent=1), encoding="utf-8")
