@@ -1,0 +1,642 @@
+% Bibliography for the pxrd-refine theory manual (WP-0604).
+%
+% Every entry here is cited somewhere in the manual — tests/test_manual.py
+% enforces it — and every physics docstring's citation that the manual
+% transcribes an equation from appears here.  Two docstring citations are
+% deliberately absent because their full bibliographic records could not be
+% verified against the papers (house rule: never fabricate a title):
+% Andreev (1994), J. Appl. Cryst. 27, 288 (serial-correlation esds, cited in
+% optimize/statistics.py) and Deslattes & Kessler (1985), in Atomic
+% Inner-Shell Physics, Plenum (cited in schemas/instrument.py).
+
+% ---------------------------------------------------------------- foundations
+
+@article{rietveld1969,
+  author  = {Rietveld, H. M.},
+  title   = {A profile refinement method for nuclear and magnetic structures},
+  journal = {Journal of Applied Crystallography},
+  volume  = {2},
+  pages   = {65--71},
+  year    = {1969},
+}
+
+@article{lebail1988,
+  author  = {Le Bail, A. and Duroy, H. and Fourquet, J. L.},
+  title   = {Ab-initio structure determination of {LiSbWO$_6$} by X-ray powder diffraction},
+  journal = {Materials Research Bulletin},
+  volume  = {23},
+  pages   = {447--452},
+  year    = {1988},
+}
+
+@article{pawley1981,
+  author  = {Pawley, G. S.},
+  title   = {Unit-cell refinement from powder diffraction scans},
+  journal = {Journal of Applied Crystallography},
+  volume  = {14},
+  pages   = {357--361},
+  year    = {1981},
+}
+
+@article{vondreele1997,
+  author  = {Von Dreele, R. B.},
+  title   = {Quantitative texture analysis by {Rietveld} refinement},
+  journal = {Journal of Applied Crystallography},
+  volume  = {30},
+  pages   = {517--525},
+  year    = {1997},
+}
+
+@article{mccusker1999,
+  author  = {McCusker, L. B. and Von Dreele, R. B. and Cox, D. E. and Lou{\"e}r, D. and Scardi, P.},
+  title   = {{Rietveld} refinement guidelines},
+  journal = {Journal of Applied Crystallography},
+  volume  = {32},
+  pages   = {36--50},
+  year    = {1999},
+}
+
+@article{stinton2007,
+  author  = {Stinton, G. W. and Evans, J. S. O.},
+  title   = {Parametric {Rietveld} refinement},
+  journal = {Journal of Applied Crystallography},
+  volume  = {40},
+  pages   = {87--95},
+  year    = {2007},
+}
+
+@techreport{larson2004,
+  author      = {Larson, A. C. and Von Dreele, R. B.},
+  title       = {General Structure Analysis System ({GSAS})},
+  institution = {Los Alamos National Laboratory},
+  number      = {LAUR 86-748},
+  year        = {2004},
+}
+
+% -------------------------------------------------------- international tables
+
+@book{itc-a,
+  editor    = {Hahn, Th.},
+  title     = {International Tables for Crystallography, Volume {A}: Space-Group Symmetry},
+  publisher = {Kluwer Academic Publishers},
+  address   = {Dordrecht},
+  year      = {2002},
+}
+
+@book{itc-b,
+  editor    = {Shmueli, U.},
+  title     = {International Tables for Crystallography, Volume {B}: Reciprocal Space},
+  publisher = {Kluwer Academic Publishers},
+  address   = {Dordrecht},
+  year      = {2001},
+}
+
+@book{itc-c,
+  editor    = {Prince, E.},
+  title     = {International Tables for Crystallography, Volume {C}: Mathematical, Physical and Chemical Tables},
+  publisher = {Kluwer Academic Publishers},
+  address   = {Dordrecht},
+  year      = {2004},
+}
+
+% -------------------------------------------------------------- peak positions
+
+@article{bearden1967,
+  author  = {Bearden, J. A.},
+  title   = {X-ray wavelengths},
+  journal = {Reviews of Modern Physics},
+  volume  = {39},
+  pages   = {78--124},
+  year    = {1967},
+}
+
+@article{deslattes2003,
+  author  = {Deslattes, R. D. and Kessler, E. G. and Indelicato, P. and de Billy, L. and Lindroth, E. and Anton, J.},
+  title   = {X-ray transition energies: new approach to a comprehensive evaluation},
+  journal = {Reviews of Modern Physics},
+  volume  = {75},
+  pages   = {35--99},
+  year    = {2003},
+}
+
+@article{holzer1997,
+  author  = {H{\"o}lzer, G. and Fritsch, M. and Deutsch, M. and H{\"a}rtwig, J. and F{\"o}rster, E.},
+  title   = {{K}$\alpha_{1,2}$ and {K}$\beta_{1,3}$ x-ray emission lines of the {3d} transition metals},
+  journal = {Physical Review A},
+  volume  = {56},
+  pages   = {4554--4568},
+  year    = {1997},
+}
+
+@misc{srd128,
+  author = {{NIST}},
+  title  = {X-ray Transition Energies Database, Standard Reference Database 128},
+  year   = {2005},
+  note   = {\url{https://physics.nist.gov/PhysRefData/XrayTrans/}},
+}
+
+@book{wilson1963,
+  author    = {Wilson, A. J. C.},
+  title     = {Mathematical Theory of X-ray Powder Diffractometry},
+  publisher = {Philips Technical Library},
+  address   = {Eindhoven},
+  year      = {1963},
+}
+
+@book{klug1974,
+  author    = {Klug, H. P. and Alexander, L. E.},
+  title     = {X-ray Diffraction Procedures for Polycrystalline and Amorphous Materials},
+  edition   = {2nd},
+  publisher = {Wiley},
+  address   = {New York},
+  year      = {1974},
+}
+
+% --------------------------------------------------------------- peak profiles
+
+@article{caglioti1958,
+  author  = {Caglioti, G. and Paoletti, A. and Ricci, F. P.},
+  title   = {Choice of collimators for a crystal spectrometer for neutron diffraction},
+  journal = {Nuclear Instruments},
+  volume  = {3},
+  pages   = {223--228},
+  year    = {1958},
+}
+
+@article{thompson1987,
+  author  = {Thompson, P. and Cox, D. E. and Hastings, J. B.},
+  title   = {{Rietveld} refinement of {Debye--Scherrer} synchrotron X-ray data from {Al$_2$O$_3$}},
+  journal = {Journal of Applied Crystallography},
+  volume  = {20},
+  pages   = {79--83},
+  year    = {1987},
+}
+
+@article{finger1994,
+  author  = {Finger, L. W. and Cox, D. E. and Jephcoat, A. P.},
+  title   = {A correction for powder diffraction peak asymmetry due to axial divergence},
+  journal = {Journal of Applied Crystallography},
+  volume  = {27},
+  pages   = {892--900},
+  year    = {1994},
+}
+
+@article{armstrong1967,
+  author  = {Armstrong, B. H.},
+  title   = {Spectrum line profiles: the {Voigt} function},
+  journal = {Journal of Quantitative Spectroscopy and Radiative Transfer},
+  volume  = {7},
+  pages   = {61--88},
+  year    = {1967},
+}
+
+@article{weideman1994,
+  author  = {Weideman, J. A. C.},
+  title   = {Computation of the complex error function},
+  journal = {SIAM Journal on Numerical Analysis},
+  volume  = {31},
+  pages   = {1497--1518},
+  year    = {1994},
+}
+
+@article{humlicek1982,
+  author  = {Huml{\'i}{\v c}ek, J.},
+  title   = {Optimized computation of the {Voigt} and complex probability functions},
+  journal = {Journal of Quantitative Spectroscopy and Radiative Transfer},
+  volume  = {27},
+  pages   = {437--444},
+  year    = {1982},
+}
+
+@article{zaghloul2011,
+  author  = {Zaghloul, M. R. and Ali, A. N.},
+  title   = {Algorithm 916: computing the {Faddeyeva} and {Voigt} functions},
+  journal = {ACM Transactions on Mathematical Software},
+  volume  = {38},
+  number  = {2},
+  pages   = {15},
+  year    = {2011},
+}
+
+@book{abramowitz1964,
+  editor    = {Abramowitz, M. and Stegun, I. A.},
+  title     = {Handbook of Mathematical Functions},
+  publisher = {National Bureau of Standards},
+  series    = {Applied Mathematics Series 55},
+  address   = {Washington},
+  year      = {1964},
+}
+
+% ----------------------------------------------------------------- intensities
+
+@article{waasmaier1995,
+  author  = {Waasmaier, D. and Kirfel, A.},
+  title   = {New analytical scattering-factor functions for free atoms and ions},
+  journal = {Acta Crystallographica Section A},
+  volume  = {51},
+  pages   = {416--431},
+  year    = {1995},
+}
+
+@article{cromer1970,
+  author  = {Cromer, D. T. and Liberman, D.},
+  title   = {Relativistic calculation of anomalous scattering factors for X rays},
+  journal = {Journal of Chemical Physics},
+  volume  = {53},
+  pages   = {1891--1898},
+  year    = {1970},
+}
+
+@article{cromer1981,
+  author  = {Cromer, D. T. and Liberman, D.},
+  title   = {Anomalous dispersion calculations near to and on the long-wavelength side of an absorption edge},
+  journal = {Acta Crystallographica Section A},
+  volume  = {37},
+  pages   = {267--268},
+  year    = {1981},
+}
+
+@article{kissel1990,
+  author  = {Kissel, L. and Pratt, R. H.},
+  title   = {Corrections to tabulated anomalous-scattering factors},
+  journal = {Acta Crystallographica Section A},
+  volume  = {46},
+  pages   = {170--175},
+  year    = {1990},
+}
+
+@article{trueblood1996,
+  author  = {Trueblood, K. N. and B{\"u}rgi, H.-B. and Burzlaff, H. and Dunitz, J. D. and Gramaccioli, C. M. and Schulz, H. H. and Shmueli, U. and Abrahams, S. C.},
+  title   = {Atomic displacement parameter nomenclature},
+  journal = {Acta Crystallographica Section A},
+  volume  = {52},
+  pages   = {770--781},
+  year    = {1996},
+}
+
+@article{fischer1988,
+  author  = {Fischer, R. X. and Tillmanns, E.},
+  title   = {The equivalent isotropic displacement factor},
+  journal = {Acta Crystallographica Section C},
+  volume  = {44},
+  pages   = {775--776},
+  year    = {1988},
+}
+
+@article{peterse1966,
+  author  = {Peterse, W. J. A. M. and Palm, J. H.},
+  title   = {The anisotropic temperature factor of atoms in special positions},
+  journal = {Acta Crystallographica},
+  volume  = {20},
+  pages   = {147--150},
+  year    = {1966},
+}
+
+@article{grossekunstleve2002,
+  author  = {Grosse-Kunstleve, R. W. and Adams, P. D.},
+  title   = {On the handling of atomic anisotropic displacement parameters},
+  journal = {Journal of Applied Crystallography},
+  volume  = {35},
+  pages   = {477--480},
+  year    = {2002},
+}
+
+@article{togo2024,
+  author  = {Togo, A. and Shinohara, K. and Tanaka, I.},
+  title   = {Spglib: a software library for crystal symmetry search},
+  journal = {Science and Technology of Advanced Materials: Methods},
+  volume  = {4},
+  pages   = {2384822},
+  year    = {2024},
+}
+
+% ------------------------------------------------------- intensity corrections
+
+@article{azaroff1955,
+  author  = {Azaroff, L. V.},
+  title   = {Polarization correction for crystal-monochromatized X-radiation},
+  journal = {Acta Crystallographica},
+  volume  = {8},
+  pages   = {701--704},
+  year    = {1955},
+}
+
+@article{rouse1970,
+  author  = {Rouse, K. D. and Cooper, M. J. and York, E. J. and Chakera, A.},
+  title   = {Absorption corrections for neutron diffraction},
+  journal = {Acta Crystallographica Section A},
+  volume  = {26},
+  pages   = {682--691},
+  year    = {1970},
+}
+
+@article{suortti1972,
+  author  = {Suortti, P.},
+  title   = {Effects of porosity and surface roughness on the X-ray intensity reflected from a powder specimen},
+  journal = {Journal of Applied Crystallography},
+  volume  = {5},
+  pages   = {325--331},
+  year    = {1972},
+}
+
+@article{pitschke1993,
+  author  = {Pitschke, W. and Hermann, H. and Mattern, N.},
+  title   = {The influence of surface roughness on diffracted X-ray intensities in {Bragg--Brentano} geometry and its effect on the structure determination by means of {Rietveld} analysis},
+  journal = {Powder Diffraction},
+  volume  = {8},
+  pages   = {74--83},
+  year    = {1993},
+}
+
+@article{sabine1985,
+  author  = {Sabine, T. M.},
+  title   = {Extinction in polycrystalline materials},
+  journal = {Australian Journal of Physics},
+  volume  = {38},
+  pages   = {507--518},
+  year    = {1985},
+}
+
+@article{sabine1988,
+  author  = {Sabine, T. M.},
+  title   = {A reconciliation of extinction theories},
+  journal = {Acta Crystallographica Section A},
+  volume  = {44},
+  pages   = {368--373},
+  year    = {1988},
+}
+
+@article{sabine1988b,
+  author  = {Sabine, T. M. and Von Dreele, R. B. and J{\o}rgensen, J.-E.},
+  title   = {Extinction in time-of-flight neutron powder diffractometry},
+  journal = {Acta Crystallographica Section A},
+  volume  = {44},
+  pages   = {374--379},
+  year    = {1988},
+}
+
+@article{march1932,
+  author  = {March, A.},
+  title   = {Mathematische {Theorie} der {Regelung} nach der {Korngestalt} bei affiner {Deformation}},
+  journal = {Zeitschrift f{\"u}r Kristallographie},
+  volume  = {81},
+  pages   = {285--297},
+  year    = {1932},
+}
+
+@article{dollase1986,
+  author  = {Dollase, W. A.},
+  title   = {Correction of intensities for preferred orientation in powder diffractometry: application of the {March} model},
+  journal = {Journal of Applied Crystallography},
+  volume  = {19},
+  pages   = {267--272},
+  year    = {1986},
+}
+
+@article{brindley1945,
+  author  = {Brindley, G. W.},
+  title   = {The effect of grain or particle size on X-ray reflections from mixed powders and alloys},
+  journal = {Philosophical Magazine},
+  volume  = {36},
+  pages   = {347--369},
+  year    = {1945},
+}
+
+@article{hill1987,
+  author  = {Hill, R. J. and Howard, C. J.},
+  title   = {Quantitative phase analysis from neutron powder diffraction data using the {Rietveld} method},
+  journal = {Journal of Applied Crystallography},
+  volume  = {20},
+  pages   = {467--474},
+  year    = {1987},
+}
+
+@article{bish1988,
+  author  = {Bish, D. L. and Howard, S. A.},
+  title   = {Quantitative phase analysis using the {Rietveld} method},
+  journal = {Journal of Applied Crystallography},
+  volume  = {21},
+  pages   = {86--91},
+  year    = {1988},
+}
+
+@article{taylor1991,
+  author  = {Taylor, J. C. and Matulis, C. E.},
+  title   = {Absorption contrast effects in the quantitative {XRD} analysis of powders by full multiphase profile refinement},
+  journal = {Journal of Applied Crystallography},
+  volume  = {24},
+  pages   = {14--17},
+  year    = {1991},
+}
+
+@techreport{mcmaster1969,
+  author      = {McMaster, W. H. and Del Grande, N. Kerr and Mallett, J. H. and Hubbell, J. H.},
+  title       = {Compilation of X-ray cross sections},
+  institution = {Lawrence Radiation Laboratory},
+  number      = {UCRL-50174 Sec. II Rev. 1},
+  year        = {1969},
+}
+
+@techreport{hubbell1995,
+  author      = {Hubbell, J. H. and Seltzer, S. M.},
+  title       = {Tables of X-ray mass attenuation coefficients and mass energy-absorption coefficients},
+  institution = {National Institute of Standards and Technology},
+  number      = {NISTIR 5632},
+  year        = {1995},
+}
+
+% -------------------------------------------------------------- microstructure
+
+@article{stephens1999,
+  author  = {Stephens, P. W.},
+  title   = {Phenomenological model of anisotropic peak broadening in powder diffraction},
+  journal = {Journal of Applied Crystallography},
+  volume  = {32},
+  pages   = {281--289},
+  year    = {1999},
+}
+
+% ------------------------------------------------------------------ background
+
+@article{eilers1996,
+  author  = {Eilers, P. H. C. and Marx, B. D.},
+  title   = {Flexible smoothing with {B}-splines and penalties},
+  journal = {Statistical Science},
+  volume  = {11},
+  pages   = {89--121},
+  year    = {1996},
+}
+
+@article{eilers2003,
+  author  = {Eilers, P. H. C.},
+  title   = {A perfect smoother},
+  journal = {Analytical Chemistry},
+  volume  = {75},
+  pages   = {3631--3636},
+  year    = {2003},
+}
+
+@article{baek2015,
+  author  = {Baek, S.-J. and Park, A. and Ahn, Y.-J. and Choo, J.},
+  title   = {Baseline correction using asymmetrically reweighted penalized least squares smoothing},
+  journal = {Analyst},
+  volume  = {140},
+  pages   = {250--257},
+  year    = {2015},
+}
+
+@article{ryan1988,
+  author  = {Ryan, C. G. and Clayton, E. and Griffin, W. L. and Sie, S. H. and Cousens, D. R.},
+  title   = {{SNIP}, a statistics-sensitive background treatment for the quantitative analysis of {PIXE} spectra in geoscience applications},
+  journal = {Nuclear Instruments and Methods in Physics Research Section B},
+  volume  = {34},
+  pages   = {396--402},
+  year    = {1988},
+}
+
+% ------------------------------------------------------------------ estimation
+
+@article{berar1991,
+  author  = {B{\'e}rar, J.-F. and Lelann, P.},
+  title   = {E.s.d.'s and estimated probable error obtained in {Rietveld} refinements with local correlations},
+  journal = {Journal of Applied Crystallography},
+  volume  = {24},
+  pages   = {1--5},
+  year    = {1991},
+}
+
+@article{toby2006,
+  author  = {Toby, B. H.},
+  title   = {R factors in {Rietveld} analysis: how good is good enough?},
+  journal = {Powder Diffraction},
+  volume  = {21},
+  pages   = {67--70},
+  year    = {2006},
+}
+
+@article{hillflack1987,
+  author  = {Hill, R. J. and Flack, H. D.},
+  title   = {The use of the {Durbin--Watson} $d$ statistic in {Rietveld} analysis},
+  journal = {Journal of Applied Crystallography},
+  volume  = {20},
+  pages   = {356--361},
+  year    = {1987},
+}
+
+@article{durbin1950,
+  author  = {Durbin, J. and Watson, G. S.},
+  title   = {Testing for serial correlation in least squares regression. {I}},
+  journal = {Biometrika},
+  volume  = {37},
+  pages   = {409--428},
+  year    = {1950},
+}
+
+@article{schwarz1978,
+  author  = {Schwarz, G.},
+  title   = {Estimating the dimension of a model},
+  journal = {Annals of Statistics},
+  volume  = {6},
+  pages   = {461--464},
+  year    = {1978},
+}
+
+@article{hamilton1965,
+  author  = {Hamilton, W. C.},
+  title   = {Significance tests on the crystallographic {R} factor},
+  journal = {Acta Crystallographica},
+  volume  = {18},
+  pages   = {502--510},
+  year    = {1965},
+}
+
+@article{david2004,
+  author  = {David, W. I. F.},
+  title   = {Powder diffraction: least-squares and beyond},
+  journal = {Journal of Research of the National Institute of Standards and Technology},
+  volume  = {109},
+  pages   = {107--123},
+  year    = {2004},
+}
+
+@article{schwarzenbach1989,
+  author  = {Schwarzenbach, D. and Abrahams, S. C. and Flack, H. D. and Gonschorek, W. and Hahn, Th. and Huml, K. and Marsh, R. E. and Prince, E. and Robertson, B. E. and Rollett, J. S. and Wilson, A. J. C.},
+  title   = {Statistical descriptors in crystallography},
+  journal = {Acta Crystallographica Section A},
+  volume  = {45},
+  pages   = {63--75},
+  year    = {1989},
+}
+
+@article{coelho2005,
+  author  = {Coelho, A. A.},
+  title   = {A bound constrained conjugate gradient solution method as applied to crystallographic refinement problems},
+  journal = {Journal of Applied Crystallography},
+  volume  = {38},
+  pages   = {455--461},
+  year    = {2005},
+}
+
+@article{coelho2018,
+  author  = {Coelho, A. A.},
+  title   = {Optimum {Levenberg--Marquardt} constant determination for nonlinear least-squares},
+  journal = {Journal of Applied Crystallography},
+  volume  = {51},
+  pages   = {428--435},
+  year    = {2018},
+}
+
+@article{hestenes1952,
+  author  = {Hestenes, M. R. and Stiefel, E.},
+  title   = {Methods of conjugate gradients for solving linear systems},
+  journal = {Journal of Research of the National Bureau of Standards},
+  volume  = {49},
+  pages   = {409--436},
+  year    = {1952},
+}
+
+@book{polak1971,
+  author    = {Polak, E.},
+  title     = {Computational Methods in Optimization: A Unified Approach},
+  publisher = {Academic Press},
+  address   = {New York},
+  year      = {1971},
+}
+
+@book{higham2002,
+  author    = {Higham, N. J.},
+  title     = {Accuracy and Stability of Numerical Algorithms},
+  edition   = {2nd},
+  publisher = {SIAM},
+  address   = {Philadelphia},
+  year      = {2002},
+}
+
+@book{nocedal2006,
+  author    = {Nocedal, J. and Wright, S. J.},
+  title     = {Numerical Optimization},
+  edition   = {2nd},
+  publisher = {Springer},
+  address   = {New York},
+  year      = {2006},
+}
+
+% ------------------------------------------------------------------ restraints
+
+@article{waser1963,
+  author  = {Waser, J.},
+  title   = {Least-squares refinement with subsidiary conditions},
+  journal = {Acta Crystallographica},
+  volume  = {16},
+  pages   = {1091--1094},
+  year    = {1963},
+}
+
+@article{watkin1994,
+  author  = {Watkin, D.},
+  title   = {The control of difficult refinements},
+  journal = {Acta Crystallographica Section A},
+  volume  = {50},
+  pages   = {411--437},
+  year    = {1994},
+}
