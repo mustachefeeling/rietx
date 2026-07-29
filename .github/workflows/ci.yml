@@ -1,0 +1,81 @@
+name: CI
+
+# Per-push gate: lint + the fast suite (`-m "not slow"`, ~1116 tests) across
+# the supported Python range.  The real-data acceptance suites are `slow` and
+# live in nightly.yml — that split is the load-bearing runtime knob, and it is
+# why this workflow finishes in minutes rather than tens of minutes.
+#
+# Linux only on purpose.  macOS runners bill at a 10x minute multiplier on
+# private repos, and the maintainer's own machine *is* macOS/arm64, so a
+# per-push macOS job would be the most expensive job in the matrix while
+# re-testing the platform every commit is already developed on.  macOS is
+# covered nightly (and on demand via workflow_dispatch there).  When the repo
+# goes public for the v1.0 release, Actions minutes stop being metered and
+# macOS can be promoted into this matrix.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # tests/conftest.py sets this too; setting it here as well means a bare
+  # `pytest tests/x.py` in a debugging step cannot pick an interactive backend
+  MPLBACKEND: Agg
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - run: uv venv --python 3.12
+      - run: uv pip install -e ".[dev]"
+      - run: .venv/bin/python -m ruff check src tests examples
+
+  fast:
+    name: fast py${{ matrix.python }}${{ matrix.extras && format(' [{0}]', matrix.extras) || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # 3.14 is allow-fail: it is ahead of the support window, and a missing
+    # wheel there must not redden a green tree.
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+        include:
+          # the canonical job: newest supported Python, jax installed, so the
+          # jax rows of tests/test_cross_backend.py stop self-skipping
+          - python: "3.13"
+            extras: "dev,jax"
+          - python: "3.14"
+            experimental: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
+      - name: Create venv
+        run: uv venv --python ${{ matrix.python }}
+      - name: Install
+        run: uv pip install -e ".[${{ matrix.extras || 'dev' }}]"
+      - name: Record the environment
+        # the backend goldens are environment-pinned bit patterns
+        # (tests/data/README.md), so the resolved numpy/scipy/BLAS is evidence,
+        # not decoration, whenever tests/test_backend_shim.py has an opinion
+        run: |
+          .venv/bin/python -c "import sys, numpy, scipy; print(sys.version); print('numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          .venv/bin/python -c "import numpy; numpy.show_config()"
+      - name: Fast suite
+        run: .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"
