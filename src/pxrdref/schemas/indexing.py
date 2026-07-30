@@ -823,3 +823,142 @@ class IndexingResult(Base):
         if len(high) != 1:
             return None
         return None if high[0].ambiguity else high[0]
+
+
+class ExtinctionCandidate(Base):
+    """One **extinction class**: the space groups that share an absence set.
+
+    The observable is the extinction symbol, never the space group.  Groups in
+    one class differ only by symmetry elements a powder pattern cannot see —
+    centrosymmetric/non-centrosymmetric pairs, enantiomorphs, the mirror that
+    turns ``P 63`` into ``P 63/m`` — so they produce **identical** patterns by
+    construction, not for want of counting time.  That is why
+    :attr:`space_groups` is a list and why
+    ``EXTINCTION_GROUPS_NOT_SEPARABLE`` fires whenever it holds more than one:
+    the cleanest instance in the package of "never a confident wrong singleton",
+    since here the singleton is not merely unsupported but *unmeasurable*.
+
+    Two counts carry the evidence and they answer different questions.
+    :attr:`n_absent` is how many lines of the absence-free lattice this class
+    forbids; :attr:`n_testable` is how many of those the data could actually
+    check — the rest either fall outside the fitted range or coincide with a line
+    the class still allows, and an absence hiding under a neighbour is not an
+    observation.  :attr:`n_present` is the refutation: a forbidden position that
+    carries intensity.
+    """
+
+    #: IT-style extinction symbol, **derived** from the class members rather than
+    #: transcribed (see :func:`pxrdref.indexing.extinction.extinction_symbol`).
+    #: A label, not a key: two classes can in principle carry the same string,
+    #: and :attr:`representative` is what identifies the class.
+    symbol: str
+    #: the H-M symbol whose reflections were generated for this class
+    representative: str
+    #: **every** space group in the class, in IT number order.  A list because
+    #: the data cannot choose between them — see the class docstring.
+    space_groups: list[str] = Field(default_factory=list)
+    #: derived reflection conditions ("0kl: k = 2n"), for a human to check
+    conditions: list[str] = Field(default_factory=list)
+    #: False when the derivation left some absences unnamed; the absence set
+    #: itself is authoritative either way (measured: 1 of 550 gemmi settings)
+    conditions_complete: bool = True
+    #: distinct lines (not orbits) this class predicts in the fitted range
+    n_lines: int = 0
+    #: lattice lines this class forbids
+    n_absent: int = 0
+    #: of those, the ones the data can test — inside the range and separable from
+    #: every line the class still allows.  This is ``n_added`` in the nested
+    #: comparison: a forbidden line coinciding with an allowed one never was an
+    #: independently determined intensity, so removing it costs no parameter.
+    n_testable: int = 0
+    #: testable forbidden positions carrying net intensity above the fitted
+    #: background — each one refutes the class
+    n_present: int = 0
+    #: the refuting reflections, so the refutation can be checked in the pattern
+    forbidden_hkl: list[tuple[int, int, int]] = Field(default_factory=list)
+    forbidden_two_theta: list[float] = Field(default_factory=list)
+    #: whole-pattern Le Bail fit of this class; ``rwp`` is ``inf`` when the class
+    #: was refuted before it was fitted (:attr:`screened`)
+    rwp: float = float("inf")
+    gof: float = float("inf")
+    chi2: float = float("inf")
+    #: BIC(this class) − BIC(the absence-free lattice), from
+    #: ``report.layer2.delta_bic``: **negative favours this class**.  Differences
+    #: between two classes' values are themselves a ΔBIC, because both are taken
+    #: against the same reference.
+    delta_bic: float = 0.0
+    #: Hamilton's (1965) R-factor ratio test in the same direction: True when
+    #: restoring the forbidden reflections is *justified*, i.e. the class's
+    #: absences are contradicted by the fit
+    absences_rejected: bool = False
+    #: was the Le Bail screen actually run for this class?  False when direct
+    #: absence evidence already refuted it (no fit can rescue a forbidden
+    #: position that carries intensity) or when ``max_classes`` truncated
+    screened: bool = False
+    refuted: bool = False
+    refuted_reason: str | None = None
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class ExtinctionScreen(Base):
+    """What :func:`pxrdref.determine_extinction_symbol` returns.
+
+    Same shape rule as :class:`IndexingResult` one rank down: no ``.symbol`` and
+    no ``.space_group`` on the screen itself, only a ranked :attr:`candidates`
+    list and :meth:`best_or_none`.  And even ``best_or_none()`` returns a *class*
+    — which lists its space groups — so the API cannot express "the space group
+    is P2₁/c" where the powder can only say "the extinction symbol is P 1 21/c 1".
+
+    The ranking is by :attr:`ExtinctionCandidate.delta_bic` with refuted classes
+    last, and ties broken toward **fewer** absences: an absence you cannot see is
+    not an absence you may claim.
+    """
+
+    candidates: list[ExtinctionCandidate] = Field(default_factory=list)
+    #: the absence-free lattice group every class is compared against
+    lattice_group: str = ""
+    cell: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    system: str = ""
+    centring: str = "P"
+    wavelength: float = 0.0
+    #: fitted 2θ range the classes were enumerated and judged over.  It is part
+    #: of the answer: two classes differing only outside it are one class here.
+    two_theta_range: tuple[float, float] = (0.0, 0.0)
+    #: classes enumerated / classes whose Le Bail fit was run
+    n_classes: int = 0
+    n_screened: int = 0
+    #: the absence-free class's own screen fit — the reference model
+    reference_rwp: float = float("inf")
+    reference_chi2: float = float("inf")
+    reference_lines: int = 0
+    n_points: int = 0
+    #: Rwp of the shared profile fit that produced the frozen instrument every
+    #: class is then fitted with
+    profile_rwp: float = float("inf")
+    status: str = "converged"
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def best_or_none(self) -> ExtinctionCandidate | None:
+        """The one extinction class, or None.
+
+        Returns a class only when it was fitted, is not refuted, rests on at
+        least one absence the data could **test** (or is the absence-free class
+        itself, whose claim is that there is nothing to see), and is separated
+        from the next surviving class by a decisive ΔBIC margin.  Every other
+        situation returns None with the reason in :attr:`diagnostics`.
+
+        A returned class still lists every space group it contains.  There is no
+        accessor anywhere in this module that yields one space group.
+        """
+        from ..indexing.extinction import DECISIVE_DELTA_BIC
+
+        alive = [c for c in self.candidates if not c.refuted and c.screened]
+        if not alive:
+            return None
+        top = alive[0]
+        if top.n_absent and not top.n_testable:
+            return None
+        if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
+            return None
+        return top
