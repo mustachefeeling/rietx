@@ -96,6 +96,22 @@ ambiguities, validates the survivors by Le Bail fit, and gates confidence on
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **`structure_from_candidate`'s
+dummy atom must carry a species with a form factor.** `GuiSession._as_structure`
+now refuses a structure whose atom species is absent from the Waasmaier-Kirfel
+table (`crystallography.scattering.normalize_species`), naming the atom — a
+GUI-boundary judgement, because such a structure validates fine and fails at
+*stage compile* instead. So a placeholder species like `"Xx"` or `"?"` would make
+an adopted cell unloadable through the GUI while working from Python; pick a real
+element (the dummy exists only because `Phase._nonempty` refuses an empty atom
+list, and `_run_stage` force-fixes `.atoms.` in lebail mode, so its identity is
+inert either way). Related, already noted in WP-1004: the parameter surface should
+make that atom's *placeholder* status legible.
+
+Adopting a cell also has a route now: `PATCH /api/structure` takes a whole
+validated model and records one `edit_model` node, and the structure editor
+(WP-1014) is what a user will see the adopted phase in.
+
 From **WP-1006** (landed 2026-07-30): the `"index"` **run kind that WP's
 Inherited asked for was deliberately not added** — `EventKind` is a closed
 Literal and a kind nothing emits is an untested guess about a search loop that

@@ -8,15 +8,15 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~5-12 min (1329 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1250 collected, ~20-65 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1350 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1271 collected, ~20-65 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (139: jsdom mount, fnmatch parity, panel + text-sync logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (184: jsdom mount, fnmatch parity, panel/text-sync/model-edit logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -34,15 +34,16 @@ a busier one (2026-07-30), and 12:40 later the same day on a machine
 simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1218 passed / 116 skipped (1332 collected, 6:22)
-and the fast suite 1148 passed / 107 skipped (1253 of 1332 collected). Installing
+`[dev]`** venv, the full suite is 1234 passed / 116 skipped (1350 collected, 10:27)
+and the fast suite 1164 passed / 107 skipped (1271 of 1350 collected). Installing
 `[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
 means nothing without the venv it was measured in. (WP-1012 added twelve tests and
 **both** counts moved by exactly twelve; WP-1013 added three and both moved by
-three with the skips unchanged. That is the bookkeeping check worth doing: the same
-two figures a day earlier disagreed by one, and a session that cannot say which of
-its numbers moved cannot tell a new skip from a new pass. The frontend's own suite
-is counted separately and moved 85 → 139.)
+three; WP-1014 added sixteen and both moved by sixteen — every time with the skips
+unchanged. That is the bookkeeping check worth doing: the same two figures a day
+earlier disagreed by one, and a session that cannot say which of its numbers moved
+cannot tell a new skip from a new pass. The frontend's own suite is counted
+separately and moved 85 → 139 → 184.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -286,6 +287,34 @@ asserts the split, because a stray static import would inline the library and no
 byte count would say so. The editor's document and its diagnostics are `$effect`s
 over the sync state, never pushed — pushing let a head move wipe a squiggle while
 the problem list still named the line.
+
+**Import and model editing** (WP-1014, `src/pxrdref/gui/imports.py`,
+`gui/src/panels/Model.svelte`, `gui/src/lib/{model,wizard}.ts`) is how data gets
+*in* from a browser and how the model is edited once it is. Its founding rule is a
+split: **if the parameter table has the path, the parameter table owns it** — a
+cell edge, an occupancy, a Biso, a profile term, a coordinate DOF go through
+`PATCH /api/params`, where the tie/lock/mode/bound rules already live, while a
+species, a label, an atom added or removed, a geometry, a wavelength or a
+background family go as a whole validated model, because each changes what the
+table *contains*. Coordinates are therefore never typed as x/y/z (they are affine
+ties onto `…dof.k`); the editor offers the DOFs, so a site-symmetry violation is
+unrepresentable rather than refused, and a fully fixed special position gets no
+coordinate control at all — `GET /api/structure`'s **`sites` arm** is what says
+which is which, deliberately without the Wyckoff letter (spglib per atom on a
+route that refetches on every head move). Uploads are **two-phase** — a file is
+staged and read before anything is created, and only an opaque token crosses back,
+never a path — and they are the one route family whose body is not JSON (raw
+bytes; filename and reader options in the query string, `UPLOAD_ROUTES`). Two
+previews are judgements rather than descriptions: a pattern names the *reader*
+that claimed it in the reader's own words, and a CIF's `aniso_available` is
+**measured** by reading it a second time with `aniso=True`. `POST
+/api/structure/aniso` exists because both directions are physics
+(`AnisoU.isotropic` on, U_eq → Biso off). Three browser-only traps are recorded in
+code: `structuredClone` **throws on a Svelte 5 `$state` proxy** (use
+`lib/model.ts:clone`), a verb's refusal and a panel's load error **must not share
+one field** (the reload after a failed apply wiped it), and `axialWarning` stays
+silent on the S/L = H/L pair that is 0-and-held, because that is the shipped
+default and a warning on every fresh lab instrument is a warning nobody reads.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

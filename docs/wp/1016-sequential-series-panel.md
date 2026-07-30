@@ -42,6 +42,21 @@ warning and per-pattern drill-down into each pattern's own history tree.
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload
+machinery is how N patterns get in.** `POST /api/upload/pattern` stages one file
+and answers with the reader that claimed it, the point count, the 2θ range,
+whether the file carries σ, and a decimated preview curve; the token it returns is
+what `project_new` takes. A series panel wanting to load a directory of ramp
+patterns should loop that verb rather than inventing a second ingest path — and
+note the two-phase property it buys, which matters more for 40 files than for one:
+*a file that does not parse is a message, not a half-built project*.
+
+Two specifics. `preview_pattern` reports `has_sigma` per file, and a series whose
+files disagree about that is a weighting inconsistency worth surfacing before the
+chain runs (CLAUDE.md, Weights). And an upload's **token is session-scoped** —
+`UploadStore` is emptied by `GuiSession.close`, so a panel must commit its uploads
+within the session that staged them, not persist tokens anywhere.
+
 From **WP-1013** (landed 2026-07-30): **the tab strip is still five wide, and a
 `Series` tab would be the sixth.** WP-1012 warned that six labelled tabs stop
 fitting a `clamp(340px, 38%, 560px)` sidebar and handed the question to 1013,

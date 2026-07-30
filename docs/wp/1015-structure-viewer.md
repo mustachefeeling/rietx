@@ -42,6 +42,26 @@ from code that already exists, and plotly (already on the page) renders it.
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): `GET /api/structure`
+now carries a **`sites` arm** beside the model — per atom, `dof_paths`,
+`dof_directions`, `adp_paths`, `adp_patterns`, `site_symmetry_order` and a
+`special` flag — derived through the same `stabilizer_rotations` →
+`coordinate_basis`/`adp_basis` calls `ParameterTable` uses. A viewer that wants to
+draw thermal ellipsoids or mark special positions should read that rather than
+re-deriving it, and should note what it deliberately does **not** contain: the
+Wyckoff *letter*, because `wyckoff.site_constraints` runs spglib per atom and this
+route refetches on every head move (including one a `set_vary` made). If the
+viewer wants letters, that is an argument for putting them on `/api/structure3d`,
+which is computed on demand — not for adding them here.
+
+Two more facts. The **model editor is a full-window mode**, not a tab
+(`panels/Model.svelte`, toggled from the header beside Text), so a 3D view has a
+natural home *inside* it — a third column beside the atom table — without needing
+a sixth tab. And **an atom's ADP block is toggled by `POST /api/structure/aniso`**,
+which seeds `AnisoU.isotropic` server-side; a viewer offering "show ellipsoids"
+on an isotropic atom should call that verb rather than inventing a tensor, for the
+reason recorded above this section (U^ij = Uiso·G*ᵢⱼ/(a*ᵢa*ⱼ), not Uiso·δᵢⱼ).
+
 From the **v1.0 GUI plan** (2026-07-29): escalation path if a full
 ball-and-stick/polyhedra viewer is later wanted — 3Dmol.js (BSD-3,
 permissive, clears the licensing invariant, needs an ATTRIBUTION.md entry)

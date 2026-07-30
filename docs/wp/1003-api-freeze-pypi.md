@@ -10,6 +10,29 @@ the milestone's last row, so the freeze covers a surface the GUI exercised)
 
 ## Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30) — **one question,
+and some new public surface.**
+
+The question: **should `Atom.species` validate?** A `Structure` carrying a species
+no form-factor table knows (`"D"`, `"Xx"`, a CIF's `"Wat"`) validates fine today
+and fails at *stage compile*, a long way from where it was typed.
+`GuiSession._as_structure` now refuses it at the GUI boundary, naming the atom —
+which means the GUI is stricter than the API it fronts. That asymmetry is
+defensible (an earlier, better message on the path a human takes) and it is
+exactly the kind of thing a freeze should make a decision about rather than
+inherit: either the schema validates and the two agree, or the difference is
+documented as deliberate.
+
+The surface, all new here and all inside `pxrdref.gui`: the module
+`pxrdref.gui.imports` (`UploadStore`, `MAX_UPLOAD_BYTES`, `UPLOAD_KINDS`,
+`INSTRUMENT_PRESETS`, the `preview_*` functions), `UPLOAD_ROUTES` in `server.py`,
+`GuiSession.upload`, `GuiSession.structure_aniso`, and two additive route
+changes — `GET /api/structure` gained a `sites` arm, and `POST
+/api/structure/aniso` is new. The upload routes are also **the only ones in the
+wire surface whose body is not JSON** (raw bytes; filename and reader options in
+the query string), which any statement of the HTTP contract has to say out loud.
+
+
 From **WP-1013** (landed 2026-07-30) — **the wheel redistributes third-party
 JavaScript, and until now nothing said so.** The committed dist ships inside the
 wheel by design, so `assets/app.js` carries Svelte's runtime (true since WP-1010,

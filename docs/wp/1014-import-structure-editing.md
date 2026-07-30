@@ -1,6 +1,6 @@
 # WP-1014 — Import & in-GUI structure/instrument editing
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: WP-1008, WP-1010
 
 ## Goal
@@ -132,16 +132,16 @@ From **WP-1008** (GUI server, landed 2026-07-30):
 
 ## Tasks
 
-- [ ] Upload endpoints: bytes → sniff → validated preview → commit-to-
+- [x] Upload endpoints: bytes → sniff → validated preview → commit-to-
       project step (two-phase, so a bad file never half-lands).
-- [ ] Import wizard: pattern → structure → instrument flow; anode picker
+- [x] Import wizard: pattern → structure → instrument flow; anode picker
       from capabilities; aniso opt-in checkbox wired to
       `structure_from_cif(aniso=)`.
-- [ ] Structure editor: atom table (add/remove/species/occupancy/Biso),
+- [x] Structure editor: atom table (add/remove/species/occupancy/Biso),
       coordinate editing via DOFs, locked positions read-only, aniso ADP
       editing via `adp_basis` patterns.
-- [ ] Instrument forms + PATCH wiring; each edit a history node.
-- [ ] `tests/test_gui_server.py`: upload-sniffing rows for `.xye`, FXYE,
+- [x] Instrument forms + PATCH wiring; each edit a history node.
+- [x] `tests/test_gui_server.py`: upload-sniffing rows for `.xye`, FXYE,
       pdCIF and an aniso-loop CIF asserting the opt-in (aniso absent unless
       checked).
 
@@ -162,3 +162,73 @@ npm --prefix gui test
 
 - **2026-07-29** — created from the v1.0 GUI plan. Reader dispatch and the
   `aniso=` keyword verified against the tree the same day.
+
+- **2026-07-30 — landed; all five tasks done.** Three commits: the upload
+  endpoints, their tests, the frontend.
+
+  **Done.** `POST /api/upload/{pattern,cif,instrument}` are live
+  (`gui/imports.py`, `UPLOAD_ROUTES` in `server.py`, `GuiSession.upload`); the
+  import wizard *is* the empty state; the structure and instrument editors are a
+  full-window **mode** beside the text pane; `POST /api/structure/aniso` is a new
+  verb; `GET /api/structure` gained a `sites` arm. Python 1148 → 1164 fast-suite
+  passes (skips unchanged at 107, so all sixteen are new tests, not converted
+  skips); vitest 139 → 184. `app.js` 114.2 → 151.6 kB (40.4 → 51.3 kB gzip);
+  boot-to-wizard-interactive **145 ms** measured in Chrome for Testing.
+
+  **The founding decision, and it is the one to keep**: *if the parameter table
+  has the path, the parameter table owns it.* Cell edges, occupancies, Bisos,
+  profile terms and coordinate DOFs go through `PATCH /api/params`; species,
+  labels, atoms added/removed, geometry, wavelengths and the background family go
+  as a whole validated model. That is what stops this editor from becoming a
+  second parameter table with its own copy of the tie/lock/bound rules — and it is
+  why a cubic `b` refuses in `set_values`' own words rather than being written
+  past its tie. Measured in the browser, one cell edit produced exactly one
+  `PATCH /api/params` and no model patch; one species edit exactly one
+  `PATCH /api/structure` and no `set_values`.
+
+  **Four things worth carrying beyond this WP.**
+
+  1. **A token crosses back, not a path.** Returning the staging path to the
+     browser and taking it back would make every commit verb a path-traversal
+     surface. Reader errors are scrubbed of the staging path too
+     (`imports.scrub`), because gemmi quotes the path it was handed.
+  2. **`aniso_available` is measured, not assumed** — the CIF is read a second
+     time with `aniso=True` and the answer is whether any site came back with a
+     tensor. `cod_1000236.cif` yes, `cod_1000055.cif` no. A checkbox offered on
+     every CIF would be inert on most of them.
+  3. **The species check moved to the boundary.** A `Structure` carrying `"D"`
+     or `"Xx"` validates fine and fails at *stage compile*; `_as_structure` now
+     refuses it naming the atom. A GUI-level judgement, not a schema change — the
+     Python API still accepts it.
+  4. **The FCJ note fires on the corner, not on the default.** WP-0601's
+     S/L = H/L hazard is real, but both apertures default to **0**, where the
+     correction is off; warning on every fresh lab instrument would be a warning
+     nobody reads. `axialWarning` is silent for 0/0-and-held and speaks as soon
+     as either is freed.
+
+  **Two defects a real browser found and jsdom could not — the third session
+  running of the same pattern.** (a) `structuredClone` **throws on a Svelte 5
+  `$state` proxy** (`#<Object> could not be cloned`), so *Add atom* silently did
+  nothing in Chrome while passing under vitest, which hands the same functions
+  plain objects. `lib/model.ts:clone` is a JSON round trip now — exact here
+  because every model in this panel arrived as JSON — and the vitest case added
+  for it does fail with `DataCloneError` if you put `structuredClone` back.
+  (b) `apply` reloads after a failure (a partial apply leaves the server
+  half-ahead) and `load` cleared **the same variable** the refusal had just been
+  written to, so an `UNKNOWN_SPECIES` 400 flashed and vanished. Split into
+  `error` and `loadError` — WP-1013's wiped-squiggle bug in a new costume, and
+  the general rule is worth stating: *two different facts must not share one
+  field*.
+
+  **Not built, deliberately.** No space-group editing (the WP's own hard fence);
+  no drag-and-drop (a file input covers it and `DragEvent` is a jsdom gap);
+  no Wyckoff *letter* in the `sites` arm — it needs `wyckoff.site_constraints`,
+  which runs spglib per atom, on a route that refetches on every head move
+  including one a `set_vary` made. The DOF counts and paths are what the editor
+  acts on; the letter would be decoration bought with a symmetry search per
+  keystroke. If WP-1015 wants it for the viewer, it should be its own route.
+
+  **Gotcha for the next session on this panel**: the editors are mounted while
+  hidden (so a typed species survives a look at the plot) and guarded by
+  `active`, so the three GETs only fire while the pane is shown. If you add a
+  fourth read, put it behind the same guard.

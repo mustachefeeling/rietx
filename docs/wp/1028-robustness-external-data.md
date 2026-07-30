@@ -166,6 +166,23 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload route
+is now the front door for files nobody here authored**, which makes it this WP's
+most interesting surface. `imports.preview_pattern` catches
+`ValueError/OSError/RuntimeError/KeyError/IndexError` from the reader and turns
+them into a 400 quoting the parser (with the staging path scrubbed out); anything
+outside that set becomes a 500 with a type name, which is the shape of failure
+worth hunting here. Two known-good behaviours to keep: a filename is reduced to its
+leaf (`../../../etc/lab6.cif` stages as `lab6.cif`), and the size cap is checked
+against the *declared* `Content-Length` before a byte is read.
+
+Also relevant: `_as_structure` now refuses an atom species with no
+Waasmaier-Kirfel entry, naming the atom. Real CIFs carry `D`, `Wat`, `OH` and
+worse, so **how often that fires on external files is a measurement this WP can
+make** — and if it fires on files that ought to work, the fix is a species-mapping
+step at import, not removing the check (it only moves the failure from stage
+compile to the field it was typed in).
+
 From **WP-1007** (landed 2026-07-30) — **`GuardFinding` now exists, so the codes
 this WP adds have a home**, and the note that asked for an open vocabulary was
 honoured: `GuardFinding(code, paths, value, message)` in `strategy/staged.py`,

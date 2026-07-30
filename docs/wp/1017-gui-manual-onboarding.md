@@ -39,6 +39,20 @@ real UI.
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the onboarding
+path now exists and is the empty state.** With no project open the app renders the
+import wizard itself (`panels/Model.svelte`, the same component that is the model
+editor when a project *is* open), so "how do I start?" is answered by the screen
+rather than by a manual page. What the manual owes it is the part the wizard
+cannot say in a form: why the instrument step refuses to default (an anode nobody
+chose becomes a wavelength in every refined cell), what the aniso opt-in actually
+changes (which parameters a plan frees), and why the pattern step names a
+*reader* rather than a file type.
+
+Also: the wizard's own copy is deliberately terse and every step already carries
+its "why" as a `title` or a muted line — if the manual repeats those sentences
+they become two authorities. Link to them instead, or move them.
+
 From **WP-1013** (landed 2026-07-30): the **text pane** is the surface this manual
 has the most to explain, and three of its facts are not discoverable from the UI.
 It is a *mode*, not a tab — the header's `Text` button and the palette's `t` — so a

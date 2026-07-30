@@ -121,6 +121,68 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1014](wp/1014-import-structure-editing.md) landed 2026-07-30 — data gets *in*,
+and the model can be edited.** Upload endpoints with content-sniffed validated
+previews, an import wizard that *is* the empty state, an atom table over the
+Wyckoff DOFs, and instrument forms. `pxrdref gui` with no argument is now a
+usable program rather than a viewer for projects someone else made.
+
+**Its founding decision is a split, and it is the one to carry: if the parameter
+table has the path, the parameter table owns it.** A cell edge, an occupancy, a
+Biso, a profile term, a coordinate DOF are rows in `/api/params`, so the editor
+sends them through `PATCH /api/params` — where the tie, lock, mode-fixed and bound
+rules already live, and where a cubic `b` refuses by naming the `a` it follows.
+What is left for the whole-model routes is everything that is *not* a number in θ:
+a species, a label, an atom added or removed, a geometry declared, a wavelength, a
+background family — each of which changes what the parameter table *contains*.
+Without that line this panel would have become a second parameter table carrying
+its own copy of the crystal systems. Measured in Chrome: one cell edit produced
+exactly one `PATCH /api/params` and no model patch; one species edit exactly one
+`PATCH /api/structure` and no `set_values`.
+
+**Two phases, so a bad file never half-lands.** A file is staged and *read* before
+anything is created, and only a token crosses back — handing the browser a
+filesystem path and taking it back would make every commit verb a path-traversal
+surface. The preview is the decision rather than decoration: a pattern comes back
+with the reader that claimed it in that reader's own words (the same GSAS bytes
+sent as `11BM_NAC.fxye`, `mystery.dat` and `FAP.XRA` are all claimed by the `BANK`
+sniff), and a CIF comes back with **`aniso_available` measured, not assumed** — the
+file is read a second time with `aniso=True` and the answer is whether any site
+actually had a tensor, so the checkbox that mirrors "reading a file must not
+silently change what a plan frees" is offered only when there is something to opt
+into. The instrument step sends a *decision* — a geometry and an anode name — and
+the package supplies the wavelengths from its own NIST-scale table; a form that
+posted a whole `Instrument` would be a second copy of the physics kept in
+TypeScript, in the exact quantity a 100 ppm cell error hides in.
+
+**One new verb, and one refusal moved.** `POST /api/structure/aniso` exists because
+*both* of its directions are physics a client must not compute: on seeds
+`AnisoU.isotropic` (U^ij = Uiso·G\*ᵢⱼ/(a\*ᵢa\*ⱼ), **not** Uiso·δᵢⱼ off orthogonal
+reciprocal axes), off restores Biso from U_eq. And `_as_structure` now refuses an
+atom whose scattering species no form-factor table knows, naming it — such a
+structure validates fine and fails at *stage compile*, a long way from the field it
+was typed in. That makes the GUI stricter than the API it fronts, which is
+recorded as a WP-1003 freeze question rather than settled here.
+
+**A real browser found two defects for the third session running, and the second
+is a rule.** `structuredClone` **throws on a Svelte 5 `$state` proxy**, so *Add
+atom* silently did nothing in Chrome while passing under vitest — which hands the
+same functions plain objects. And an `UNKNOWN_SPECIES` refusal *flashed and
+vanished*, because `apply` reloads after a failure (a partial apply leaves the
+server half-ahead) and `load` cleared the same variable the refusal had just been
+written to. That is WP-1013's wiped-squiggle bug in a new costume, and the rule it
+yields is general: **two different facts must not share one field.** Both now have
+vitest guards; the clone one fails with `DataCloneError` if you put
+`structuredClone` back.
+
+Measured end to end in Chrome for Testing: boot → wizard interactive **145 ms**;
+a 59 498-point GSAS file, a cryolite CIF *with* its aniso loop opted into, a
+Bragg-Brentano Cu anode and a project created — then a cell edit, a species edit,
+a refused species, an ADP toggle (after which `biso` is locked, as it must be), an
+atom added and removed, leaving a history of `root · set_value · edit_model ×3`.
+Python 1148 → 1164 fast-suite passes with the skips unchanged; vitest 139 → 184;
+`app.js` 114.2 → 151.6 kB (51.3 kB gzip).
+
 **[1013](wp/1013-text-pane-sync.md) landed 2026-07-30 — the whole project is one
 editable document.** A CodeMirror 6 pane over WP-1009's `.pxt` rendering, with
 rectangular selection down the aligned columns, continuous server-side validation,
@@ -1215,7 +1277,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
-| [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |
+| [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |

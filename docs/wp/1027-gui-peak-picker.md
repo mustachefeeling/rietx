@@ -87,6 +87,24 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): three things this
+panel can reuse rather than rebuild.
+
+**The upload flow** (`POST /api/upload/pattern` → token → commit) is how a pattern
+with no known phase gets into a project at all, which is the case indexing exists
+for — and the wizard's structure step is currently *required*. An
+index-from-nothing flow needs a way past that, and the honest shape is a wizard
+branch that creates the project with the indexed candidate (or a Le Bail
+placeholder) rather than a fourth ingest path.
+
+**A full-window mode is an available shape.** `panels/Model.svelte` is toggled
+from the header beside Text; a peak list plus an FoM panel plus a plot has the same
+width problem the atom table did, and the sidebar is `clamp(340px, 38%, 560px)`.
+
+**`GET /api/structure`'s `sites` arm** and `POST /api/structure/aniso` exist, so an
+adopted cell's atoms render with their site-symmetry DOFs immediately — nothing
+about adoption needs a new read.
+
 From **WP-1013** (landed 2026-07-30): the `peaks` keyword **already highlights** in
 the text pane — `gui/src/lib/pxt.ts`'s `KEYWORDS` quotes `textdoc._KEYWORDS`,
 reserved blocks included — so a picked-peaks block will be coloured the day the
