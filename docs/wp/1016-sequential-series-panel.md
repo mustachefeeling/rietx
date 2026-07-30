@@ -52,6 +52,22 @@ re-implement, since `refine_sequential` takes the same `PlanSpec` — including 
 `refit` semantics, where WP-0505 measured the collapsed single-stage refit as the
 default.
 
+From **WP-1012** (landed 2026-07-30): the sidebar is now five tabs
+(Parameters, Plan, Report, History, Build) at `clamp(340px, 38%, 560px)`, so a
+`Series` tab is the sixth and the strip's width is the thing to check first — see
+the same note in WP-1013, which faces it for the text pane.
+
+Two reusable pieces. **`lib/history.ts`'s `layout`** assigns lanes over a
+topologically-ordered node list and returns edges with rows and lanes, drawn as
+plain SVG — a series is N history trees linked by annotation notes (WP-0505), and
+per-pattern lanes are the same shape as per-branch ones, so the renderer is
+reusable if the trees are concatenated with the links as edges. And **the
+trajectory table's `SEQUENTIAL_PATH_DEPENDENT` flags are `Diagnostic`s**, which
+carry `where` but **no numeric field** — the history panel hit the same wall
+displaying guard diagnostics per node, and it is recorded in WP-1003's Inherited as
+a freeze decision. If the panel wants to sort a trajectory by disagreement
+magnitude, expect to need it.
+
 From the **v1.0 GUI plan** (2026-07-29): series routes/panel are v1's only
 multi-pattern surface — `ProjectDoc.patterns` stays length 1 (a series is N
 patterns *outside* the project's single-pattern model, referenced by the

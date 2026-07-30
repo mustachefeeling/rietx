@@ -54,6 +54,24 @@ single-letter shortcut firing inside an editor. And **the sidebar is a tab strip
 whose tabs all stay mounted**, so a text pane holding unsaved edits survives a
 visit to the parameter table; add a tab rather than a route.
 
+From **WP-1012** (landed 2026-07-30): the tab strip is now five tabs wide
+(Parameters, Plan, Report, History, Build) in a sidebar clamped to
+`clamp(340px, 38%, 560px)` — a *sixth* labelled tab is where the strip stops
+fitting, so this WP is the one that has to decide whether the text pane is a tab, a
+second column, or a full-width mode. It is also the panel with the strongest case
+for not being in the sidebar at all: it is the only one whose content is
+line-oriented and wide.
+
+Two facts that bear directly on the sync's state machine. **The head is still the
+one reload signal**, and WP-1012 added two more writers of it — a `checkout` from
+the history panel and an applied suggestion from the report panel — so the text
+pane's CAS revision will go stale from panels that are not it, and the
+`STALE_REVISION` path is now easy to hit by hand rather than a theoretical race.
+And **the shell reloads the result on the run's *outcome*, not on a state
+transition** (WP-1012 fixed a case where a fast stage left stale curves on screen);
+if the text pane derives anything from "a run just ended", read that logic in
+`App.svelte` rather than re-deriving it.
+
 From the **v1.0 GUI plan** (2026-07-29): two-way text sync is the plan's
 top-listed correctness risk. The mitigations are structural and already
 decided — single server-side parser, CAS revisions, explicit apply,

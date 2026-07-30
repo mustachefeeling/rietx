@@ -55,6 +55,36 @@ glob, not on ticked rows, because one glob is one history node. And **Simple mod
 hides the rows nothing can free** (locked, tied, mode-fixed) along with bounds and
 transforms; it reports the count it hid, and Advanced brings them back.
 
+From **WP-1012** (history/report panels, landed 2026-07-30): the palette gained
+`?` (report) and `h` (history), and there are now **five things the report panel
+says that a user will misread unless the manual says them first** — every one is
+the FitReport's own design showing through, so this chapter is where they get
+explained rather than in tooltips:
+
+- **A suggestion with no Apply button is not a broken button.** Four `ActionKind`s
+  are advice (`report/apply.py`'s `RECIPES`), and the note beside them *is* the
+  action. The two background-flexibility ones are the interesting case: they are
+  advice because a more flexible background lowers Rwp *while* biasing ADPs up and
+  scales down, and the statistic that catches it (`BACKGROUND_ABSORPTION`) is not
+  in the report — so there is no honest one-click version.
+- **A greyed suggestion with "vetoed:" is the engine agreeing with you and having
+  already handled it.** Worth a sentence, because it looks like a refusal.
+- **"could not rule out" is the headline, not a footnote.** Measured on the WP's own
+  fixture: applying `refine_zero_shift` on a fit whose *cell* was wrong improves Rwp
+  from 21.6 % to 9.3 % by putting the error in the wrong parameter, and the report
+  said so in advance (confidence capped at 0.5, both templates listed,
+  `separable=false`). This is the best worked example in the repo of why the
+  never-a-confident-wrong-singleton rule earns its keep — use it.
+- **The predicted Δχ² is one number for the whole report**, not per suggestion, and
+  it is not a bound (16.19 predicted, 16.33 observed for a cell correction). The
+  panel prints it once and says so; the manual should explain why it cannot rank.
+- **Undo is a checkout**, and a checkout throws the fitted curves away because they
+  described the values it replaced. Users will read the empty plot as a crash.
+
+One onboarding fact: **boot-to-interactive is 104–200 ms** measured in Chrome for
+Testing (load → the parameter table's first row), so "it feels instant" is a claim
+this chapter may make.
+
 From the **v1.0 GUI plan** (2026-07-29): `gui-power.md` is where the
 provisional status of the HTTP routes and `.pxt` format is stated
 user-facing (schemas frozen at v1.0, wire/text surfaces provisional) —

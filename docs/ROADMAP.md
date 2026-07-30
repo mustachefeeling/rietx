@@ -121,6 +121,74 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1012](wp/1012-history-report-panel.md) landed 2026-07-30 — the GUI now
+*answers back*.** A git-like history worktree (lanes, Rwp badges, tags, HEAD,
+checkout / branch / tag / annotate, and a two-node parameter diff) and the first
+interactive FitReport anywhere: all three layers rendered, a worst region
+click-zooming the plot through the window route, and typed suggestions that apply
+in **one click**, land as a history node, and are undone by checkout.
+
+Its founding decision is that **an applicable suggestion is one stage.**
+`report/apply.py`'s `stage_for` returns a `StageSpec` and executes nothing, so
+applying a suggestion travels the path the per-stage Run button already travels —
+one `run_stage`, one node, the same 409 while a run is in flight, the same event
+stream — and *undo needs no inverse verb*, because the head before the apply is a
+node to check out. The mapping declares only **how** each of the sixteen
+`ActionKind`s is carried out (11 `stage`, 1 `index`, 4 `advice`, pinned complete
+against `get_args`); the globs are the action's own, because Layer 2 wrote them.
+The four advice notes *are* the deliverable rather than an apology, and the
+background-flexibility pair is the one worth reading: it is advice because it
+changes what the background can *absorb* rather than which parameters move, and
+the statistic that catches the cost — the block projection R² behind
+`BACKGROUND_ABSORPTION` — is not in the report, so a one-click version would be a
+button whose own evidence cannot see what it did. `reindex_or_recheck_cell` is
+declared applicable and refused by a *derived* predicate, so that button turns on
+by itself when `index()` lands (WP-1024 has been told, and told which assertion of
+ours will fail).
+
+**Three claims about the report were wrong and are corrected in place.**
+`expected_delta_chi2` is **one number per report, not per action** —
+`build_report` stamps the identical figure on every Layer-1-derived action
+(measured: 16.19 on all eight suggestions of a fit whose entire χ² is 16.96), so it
+ranks nothing and a per-row column would invent a prediction that does not exist.
+It is **not the "optimistic upper bound" two docstrings claimed**: it bounds the
+misfit attributed inside the *gated* regions, and the observed reduction came in
+0.8 % *above* it (16.19 → 16.33 observed) for a cell correction while being an
+over-estimate for a zero-shift one. And **Layer 2 proposes Bragg-Brentano
+aberrations whatever geometry was measured** — on the Debye-Scherrer fixture the
+highest-confidence suggestion in the whole report (confidence **1.000**,
+`refine_sample_transparency`) names a path `params/vector.py` force-fixes off
+`bragg_brentano`. Nothing had ever consumed the action list mechanically, so
+nothing had noticed; it is now unreachable-with-a-reason rather than a button that
+frees nothing, and whether a frozen report may propose a structurally impossible
+action is recorded as a WP-1003 question rather than patched in Layer 2.
+
+**A real browser was driven for the first time** (Chrome for Testing via
+`playwright-core`, installed outside the workspace so the dist digest is
+untouched), which settled WP-1010's one unmeasured number — **boot-to-interactive
+104–200 ms**, load to the parameter table's first row — and found two things a
+jsdom mount structurally could not. A single badge called **15 `unmatched_calc`
+peaks "unindexed"** beside a summary reading "0 unmatched observed peak(s)": the
+two kinds are opposite diagnoses, and all fifteen were what a *mispositioned* model
+produces at every peak, so the badge pointed at an impurity that was not there. And
+`Plot.draw`'s window fetch was **unguarded**, so a checkout — which clears the
+result server-side while the component still holds the old one — escaped as an
+unhandled page error; jsdom never reached the fetch, because it does not load the
+runtime plotly script. That script is now stubbed in `test-setup.ts`, which is also
+what makes the click-zoom assertable at all. A third defect was WP-1010's: the
+shell's end-of-run detection required having *seen* a non-idle state frame, so a
+stage that started and finished between two frames left the previous fit's curves
+and χ² on screen.
+
+Measured end to end in the browser, the loop the WP exists for: report → Apply
+`refine_cell` → predicted Δχ² 16.19, **observed 16.33** → Rwp 21.609 % →
+**4.155 %** → and the suggestion list is then empty, because there is nothing left
+to suggest. Applying the *other* half of a pair the report had declared
+non-separable (`refine_zero_shift`) instead reaches Rwp 9.3 % while putting the
+error in the wrong parameter — the best worked example in the repo of why the
+never-a-confident-wrong-singleton rule earns its keep, and why the strip shows
+"could not rule out" and caps confidence at 0.5.
+
 **[1011](wp/1011-parameter-plan-editors.md) landed 2026-07-30 — the GUI can now
 be *used*, not only watched.** A virtualized grouped parameter table, a plan
 editor over the stages a run will actually execute, per-stage Run, a Cmd-K
@@ -1087,7 +1155,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
-| [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |
+| [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |

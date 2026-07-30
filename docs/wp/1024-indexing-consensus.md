@@ -110,6 +110,32 @@ it *is* a `EVENT_SCHEMA_VERSION` bump — a new kind bumps, an added field does
 not. That rule is now written down in `history/events.py`; read it before
 touching the constant.
 
+From **WP-1012** (landed 2026-07-30): **`reindex_or_recheck_cell` is already
+declared applicable and already wired to a refusal that expires by itself.**
+`report/apply.py` classifies it `how="index"`, and `GuiSession.report_apply` refuses
+it with `ACTION_NOT_APPLICABLE` naming WP-1024 *only while*
+`capabilities().features["indexing"]` is False — a derived predicate
+(`hasattr(pxrdref, "index")`), so the report panel's Apply button on that suggestion
+turns on the moment `index()` exists, with **no edit in `report/apply.py`, in the
+session, or in the frontend**. Two consequences for this WP:
+
+- `tests/test_report_apply.py::test_indexing_is_declared_applicable_and_refused_until_an_engine_exists`
+  asserts `pr.capabilities().features["indexing"] is False` with a message saying
+  the applicable branch is now the live one. **It will fail here, deliberately** —
+  flip that assertion in this WP's commit and add the positive case.
+- `report/apply.py`'s `refusal()` is the only place indexing-availability is
+  consulted, and it takes `indexing: bool` as an argument rather than importing
+  `capabilities` — so if `index()` needs a *precondition* beyond existing (a peak
+  list, say), that precondition belongs in the session's `_indexing()`, not spread
+  through the report module.
+
+Also: **applying an action is one `StageSpec` through `POST /api/report/apply`**,
+which is a stage-shaped verb. An indexing run is not a stage, so this WP has to
+decide whether the apply route grows a second shape or whether the report panel's
+button posts `/api/index` directly. The second is cleaner and needs nothing new;
+the first would make the panel's control uniform. `Recipe.how == "index"` exists to
+mark exactly this fork.
+
 From **WP-1021/1022/1023**: each engine registers itself; `engines_run`,
 `engine_stats` and `search_complete` come from the registry, and
 `agent.tool_definition()` must quote the **live** registry so a new engine

@@ -353,6 +353,47 @@ freeze has to decide about, all measured:
   per GUI-touching push (~120/month at 40 such pushes). It joins the list of
   things that go to zero when the repo goes public.
 
+From **WP-1012** (history/report panels, landed 2026-07-30) — one new module to
+freeze and **three additive-field decisions** that only exist because something
+finally consumed the report mechanically:
+
+- **`pxrdref.report.apply` is new public surface**: `RECIPES` (a
+  `dict[ActionKind, Recipe]` classifying every member of the closed vocabulary as
+  `stage` / `index` / `advice`), `recipe`, `stage_for`, `api_call`, `unreachable`,
+  `refusal`, `describe_action`, `missing_kinds`. Re-exported from `pxrdref.report`.
+  Freeze question: is the *classification* part of the contract, or an
+  implementation detail of the GUI? It is the second half of `ActionKind` — a
+  vocabulary member whose `how` nobody can read is not actionable — so it probably
+  belongs in the frozen surface, and then moving a kind from `advice` to `stage`
+  becomes a minor-version change the way adding an `ActionKind` member is.
+- **`RegionAttribution.gate_failures` has no code field.** It is a list of
+  formatted strings (`local_r2=0.31<0.5`,
+  `outside_validity_radius(|Δ2θ|=0.030°>…)`), so a client that wants to group
+  fifteen regions by *which* gate refused has to read the prefix —
+  `gui/src/lib/report.ts`'s `gateName` is that parse, and it is the only message
+  parsing left in the frontend. This is exactly the gap WP-1007 closed for
+  `Diagnostic.where`, one layer up. An additive `gate: str` (or a
+  `list[GateFailure]` with `code`/`value`/`message`) would remove it; deciding
+  before the freeze is cheaper than after.
+- **`Diagnostic` still has no numeric field**, which WP-1007 fenced out of scope
+  and WP-1012 confirmed matters: the history panel renders each node's guard
+  diagnostics and cannot sort or threshold on ρ / a block R² / a min eigenvalue,
+  because the number is only in the message. `GuardFinding.value` has it and
+  `GuardReport` is transient. Additive optional `value: float | None`.
+- **`SuggestedAction.expected_delta_chi2` is one number per report**, stamped on
+  every Layer-1-derived action by `build_report`, and not a bound on what applying
+  one achieves (measured: 16.19 predicted, 16.33 observed). The docstrings now say
+  so. If the freeze wants it to *mean* "what this action will buy", that is a
+  Layer-2 change (per-action estimation) and a `THRESHOLDS_VERSION` bump — decide
+  which of the two the field is before it is frozen.
+- **Layer 2 emits actions for corrections the instrument does not have.** Measured
+  on a Debye-Scherrer fit: the highest-confidence suggestion (1.000,
+  `refine_sample_transparency`) names a path `params/vector.py` force-fixes off
+  `bragg_brentano`. WP-1012 reports it as unreachable rather than suppressing it
+  (its non-goals forbade changing what the report emits). Whether a *frozen* report
+  may propose a structurally impossible action is a contract question, not a
+  rendering one.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

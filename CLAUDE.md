@@ -8,15 +8,15 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~5-12 min (1319 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1240 collected, ~20-65 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~5-12 min (1329 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1250 collected, ~20-65 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount + fnmatch parity) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (85: jsdom mount, fnmatch parity, panel logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -228,6 +228,35 @@ carries: `gui/server.py` spells non-finite floats as the schemas do
 them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
 `bind:clientHeight` compiles to, so its absence throws *during mount*) and
 `DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled.
+
+The **history and report panels** (WP-1012) are the GUI's read-and-act half, and
+the module that carries them is `report/apply.py` — the *how* beside Layer 2's
+*what*, in a separate file because the two version differently (the vocabulary is
+a contract; the mapping onto verbs changes when a verb arrives). Four rules.
+**An applicable action is one stage**: `stage_for` returns a `StageSpec` and runs
+nothing, so applying a suggestion travels the path the per-stage Run button
+travels — one `run_stage`, one history node, the same 409 — and *undo is a
+`checkout`*, not an inverse verb. **The action's own `parameter_paths` are the
+globs**; `RECIPES` declares only how each of the sixteen `ActionKind`s is carried
+out (11 `stage`, 1 `index`, 4 `advice`, pinned complete against `get_args`), and
+the four advice notes *are* the deliverable — the background-flexibility pair is
+advice because it changes what the background can absorb rather than which
+parameters move, and the statistic that catches the cost (the block projection R²
+behind `BACKGROUND_ABSORPTION`) is not in the report. **Applicability and
+reachability are different questions**: `unreachable` separates a glob matching
+*nothing* (a `preferred_orientation` block not declared) from one whose every match
+is *held*, quoting `held_because`, and `GET /api/report` serves the answer as an
+`apply` arm **parallel to** `suggested_actions` — positional, because a kind is not
+unique — so a button's enabled-ness and the route's willingness to act are one
+answer. And **`expected_delta_chi2` is one number per report, not per action**:
+`build_report` stamps the same figure on every Layer-1-derived action and it bounds
+only the misfit attributed inside the *gated* regions (measured 16.19 predicted
+against 16.33 observed), so the panel prints it once and says what it is. Two
+traps a browser found and jsdom could not: the two `unmatched` kinds are opposite
+diagnoses (an observed peak with no reflection is an impurity; a calculated peak
+with no intensity is what a *mispositioned* model produces at every peak — 15 of
+them read as "unindexed" once), and `Plot`'s window fetch must stay guarded because
+a `checkout` clears the result server-side while the component still holds it.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

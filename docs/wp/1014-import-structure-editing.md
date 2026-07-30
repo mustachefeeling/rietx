@@ -56,6 +56,24 @@ retype a structure into a 409. And **non-finite floats cross the wire as strings
 `min`/`max` in a structure payload will arrive as strings, so `lib/table.ts`'s
 `num()` is what to read them with.
 
+From **WP-1012** (landed 2026-07-30): **`add_impurity_phase` is this WP's
+button.** It is one of the four `ActionKind`s `report/apply.py` classifies as
+`advice`, and the note says why — "no phase is named yet, so there is nothing to
+free … that is an `edit_model` move, and the search for a candidate is not
+something this report can do for you". The report already hands over everything the
+flow needs (the unindexed peaks' 2θ and height/σ, `two_theta_range` on the action,
+and a plot the panel can already zoom to it), so wiring "identify this, then add
+it" is an import-flow question rather than a report one. If this WP gives it a verb,
+move the kind from `advice` to a new `how` in `RECIPES` — the split is a table with
+a meta-test, not scattered conditionals.
+
+One measured trap for the instrument form: **Layer 2 proposes Bragg-Brentano
+aberrations whatever geometry is declared** — on a Debye-Scherrer instrument the
+highest-confidence suggestion named `instrument.geometry.sample_transparency`,
+which `params/vector.py` force-fixes off `bragg_brentano`. So a geometry change in
+this editor silently changes which report suggestions are reachable, and the
+`held_because` on those rows is what says so.
+
 From the **v1.0 GUI plan** (2026-07-29): the FCJ corner at S/L = H/L with
 both apertures started equal is a real parameterisation trap (identical
 Jacobian columns, ρ = +1.000 — measured in WP-0601). The instrument form

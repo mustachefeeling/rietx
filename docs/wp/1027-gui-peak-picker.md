@@ -109,6 +109,28 @@ From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `IndexingResult.candidates` is always a list — the frontend must not synthesise
 a "the answer is" view from `candidates[0]`.
 
+From **WP-1012** (landed 2026-07-30) — three reusable pieces and one measured trap:
+
+- **The plot takes a `zoom` prop** (`[lo, hi] | null`) and refetches
+  `/api/result/window` when it changes, so pointing at a 2θ range from a panel is
+  one line and arrives at full point budget (measured: 4129 points over 3–24°
+  becomes 54 over 17.060–17.325°). A peak picker wants exactly this, plus the
+  reverse direction — clicking the plot to *add* a peak needs a click handler on
+  the plotly node, which nothing has registered yet.
+- **`gui/src/test-setup.ts` now stubs `Plotly`** as well as `ResizeObserver`,
+  because jsdom does not fetch `<script src>` and the runtime plotly loader
+  therefore never resolves — without it, no component test can reach the line that
+  fetches plot data at all. Any picker test that asserts on plot interaction
+  depends on that stub.
+- **`lib/report.ts`'s `worstRegions` ranks by χ² share, not local Rwp**, and the
+  reason applies to a peak list too: a region can have a dreadful local Rwp over
+  four counts of noise. The candidate list should not be ranked on a normalised
+  quantity alone.
+- The trap: **`Plot.draw`'s fetch must stay guarded.** A checkout clears the result
+  server-side while the component still holds the old one, and the unguarded fetch
+  escaped as an unhandled page error — invisible to jsdom, found in Chrome. A
+  picker that fetches peaks on a head change has the same shape.
+
 From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
 `"edited"`; surface it, because a hand-placed peak and a fitted one carry
 different weight and the user should see which is which.
