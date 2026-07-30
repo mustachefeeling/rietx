@@ -172,8 +172,9 @@ def api_call(stage: StageSpec) -> str:
     """The public-API line ``stage`` corresponds to.
 
     Rendered by :meth:`NodeAction.api_call`, which is what the history panel
-    already prints for a stage node — so the line echoed *before* a click and the
-    line recorded *after* it are the same string from the same function.
+    already prints for a stage node — so the line an Apply button shows as its
+    tooltip and the line that node prints afterwards come from one function rather
+    than from two spellings that can drift.
     """
     from ..schemas.history import NodeAction
 
