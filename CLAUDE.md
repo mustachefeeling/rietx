@@ -559,6 +559,35 @@ is barred only from `usable()`. General, not a corundum quirk: satellites were 4
 of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
 nothing indicts its input before its tolerance.**
 
+**Three measured facts from checking the source papers against the code
+(2026-07-30), each of which contradicts something the tree asserted.** All three
+are recorded in WP-1026's handover and WP-1029; only the first is fixed.
+
+- **Niggli reduction is not canonical in floating point without a *relative*
+  tolerance.** Křivý-Gruber decides its normalisation on exact equalities — with
+  b = c the tie breaks on |η| ≤ |ζ| — and gemmi defaults to an *absolute* 1e-9,
+  under which two settings of one lattice came back with β and γ **swapped**
+  while gemmi's own `is_niggli` called both True. `NIGGLI_EPS_RELATIVE` = 1e-5,
+  as ε = 1e-5·V^(1/3), used in the reduction **and** in the predicate
+  (Grosse-Kunstleve *et al.* 2004, whose Test 3 *is*
+  `test_niggli_reduction_is_unimodular_invariant`). Since `same_lattice` dedups
+  on reduced A..F, a non-canonical reduction splits one lattice into two
+  candidates and denies the gate its agreement.
+- **`refine_with_shift` refuses its own correction on exactly the candidates that
+  need it**, because the accept test is χ²_red and the extra column costs a
+  degree of freedom. Measured on corundum: 9 of 17 calls declined, the *ranked
+  first* candidate among them (χ²_red 1.5829 → 1.5945) keeping c +2799 ppm out,
+  while a sibling that kept its −0.0606° shift lands −126 ppm from the
+  certificate. A declared shift template is the caller's physics, like `mu_t` —
+  not a hypothesis for a fit statistic to adjudicate. **The +2799 ppm in the
+  corundum acceptance row is this artifact, not a property of lab data.**
+- **`volume_envelope` is a mean line, not an envelope.** Smith (1977) is
+  triclinic-only, publishes **no** per-system factors (so the derived Laue/centring
+  scalings here have nothing to check against), and quotes −29 % to +32 % about a
+  10.6 % average. Used as a hard search ceiling it excludes the true cell below a
+  detection fraction of 0.713 — which is that same −29 %. `VOLUME_ENVELOPE_SLACK`
+  exists but guards only the *flagging* path, not the ceiling.
+
 **And an assumed precision may never refuse to index.** `assess_peak_list`'s
 `MAX_RELATIVE_SIGMA_Q` abstention is a statement about *measured* data, so it runs
 only when `PeakList.source == "fitted"`. On a `from_positions` list every σ is

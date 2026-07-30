@@ -215,13 +215,32 @@ _MAX_CENTRING: dict[str, int] = {
 
 def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
                     *, centring_multiplicity: int | None = None) -> float:
-    """Smith's (1977) upper envelope on the unit-cell volume, Å³.
+    """Smith's (1977) volume estimate from the N-th line, Å³.
 
         V ≈ 0.6·d_N³/(1/N − 0.0052)
 
-    from the d-spacing of the N-th line — a *statistical* statement (how large a
-    cell can be while still producing only N distinct lines above d_N), so it is
-    a search bound and never a measurement.  At N = 20 the constant is 13.39.
+    a *statistical* statement (how large a cell can be while still producing only
+    N distinct lines above d_N), so it is a search bound and never a
+    measurement.  At N = 20 the constant is 13.39.
+
+    **It is a mean line and not an envelope, and callers using it as a ceiling
+    must add their own slack.**  Checked against the paper (2026-07-30): Smith
+    fits this by least squares to ~40 well-determined *triclinic* patterns and
+    quotes an average discrepancy of 10.6 %, deviations from 32 % high to **29 %
+    low**, and names the low side as the ordinary case — it is what missing weak
+    lines produce.  With p the fraction of possible lines detected, this estimate
+    stands in ratio 1.40·p to the truth, so it *excludes the true cell* below
+    p = 0.71, and 1 − 0.71 is Smith's own worst case.  As a hard ceiling it
+    therefore carries no margin against the worst pattern in its own calibration
+    set.  :data:`~pxrdref.indexing.consensus.VOLUME_ENVELOPE_SLACK` exists for
+    this and is currently applied only when *flagging* a found candidate, not at
+    the search ceiling in the engines — see WP-1029.
+
+    The paper is **triclinic-only and publishes no per-system factors**; the two
+    scalings below are this package's derivation, and there is nothing in Smith
+    to check them against.  Its own closing paragraph names systematic absences
+    as the obstacle to extending the method to monoclinic and orthorhombic and
+    leaves it unsolved.
 
     Scaled by **two** factors, because the published form is for a *primitive
     triclinic* lattice and the count Smith's derivation makes is of *distinct

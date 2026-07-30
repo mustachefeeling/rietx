@@ -11,6 +11,7 @@ from importlib.metadata import version as _dist_version
 
 from pxrdref.crystallography.dispersion import NEAR_EDGE_EV
 from pxrdref.indexing.ambiguity import MAX_AMBIGUITY_INDEX
+from pxrdref.indexing.reduce import NIGGLI_EPS_RELATIVE
 from pxrdref.model.absorption import CYLINDER_MU_R_MAX
 from pxrdref.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
 from pxrdref.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
@@ -38,6 +39,7 @@ myst_substitutions = {
     "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
     "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
     "NEAR_EDGE_EV": NEAR_EDGE_EV,
+    "NIGGLI_EPS_RELATIVE": NIGGLI_EPS_RELATIVE,
     "NODES_PER_FWHM": NODES_PER_FWHM,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,

@@ -107,19 +107,19 @@ changing the answer indexing is about to produce.
 
 ## Volume from one line
 
-An upper envelope on the cell volume follows from the number of distinct
+An estimate of the cell volume follows from the number of distinct
 lines a lattice of that volume can show above a given $d$
 {cite}`smith1977`:
 
 ```{math}
 :label: idx-volume
 
-V \;\lesssim\; \frac{0.6\, d_N^3}{1/N - 0.0052},
+V \;\approx\; \frac{0.6\, d_N^3}{1/N - 0.0052},
 ```
 
 *Source:* `pxrdref.indexing.quality.volume_envelope`
 
-which at $N = 20$ is $V \lesssim 13.39\, d_{20}^3$ for a **primitive
+which at $N = 20$ is $V \approx 13.39\, d_{20}^3$ for a **primitive
 triclinic** lattice. Two scalings are needed before it can bound a search
 in another system, and both are about the same thing — the published form
 counts *distinct* lines: a high-symmetry lattice merges reflections into
@@ -128,6 +128,18 @@ volume shows some 96 times fewer distinct lines than a primitive triclinic
 one, so applying the printed constant to a cubic search bounds the volume
 96-fold too tightly and excludes the true cell. Since the centring is part
 of the answer, the bound uses the loosest centring each system admits.
+
+**It is a mean line, not an envelope, and the distinction is a live one.**
+Smith fits equation {eq}`idx-volume` by least squares to some forty
+well-determined triclinic patterns and reports an average discrepancy of
+10.6 %, with deviations running from 32 % too high to **29 % too low** —
+the low side being the ordinary case, since it is what missing weak lines
+produce. Writing $p$ for the fraction of possible lines actually detected,
+the bound stands in ratio $1.40\,p$ to the truth, so it excludes the true
+cell below $p = 0.71$ — and $1 - 0.71$ is Smith's own worst case. Used as a
+hard search ceiling the relation therefore has no margin at all against the
+worst pattern in its own calibration set, and the slack that makes it safe
+is this package's to supply, not the paper's.
 
 ## Figures of merit, in both directions
 
@@ -206,7 +218,21 @@ of a fit report saying "extend the range".
 De-duplication itself is a $\chi^2$ test on the Niggli-reduced
 $(A \ldots F)$ against $\chi^2_6$ at 99 %, using the two candidates' joint
 covariance, rather than a fixed percentage: a percentage merges distinct
-synchrotron cells and splits noisy laboratory ones. Lattice symmetry is
+synchrotron cells and splits noisy laboratory ones.
+
+That test presumes the reduction is *canonical*, and in floating point it is
+not so by default. The Křivý–Gruber algorithm {cite}`krivygruber1976` decides
+its normalisation on exact equalities — when $B = C$ the tie is broken on
+$\lvert \eta \rvert \le \lvert \zeta \rvert$ — and those equalities cannot be
+tested with finite precision. Every comparison therefore carries a **relative**
+tolerance $\varepsilon = \varepsilon_{\mathrm{rel}} V^{1/3}$ with
+$\varepsilon_{\mathrm{rel}} =$ {{ NIGGLI_EPS_RELATIVE }}, the same value in the
+reduction and in the predicate that checks it {cite}`grossekunstleve2004`.
+Without it a lattice with two equal reduced axes reduces to $\beta$ and
+$\gamma$ *swapped* depending on the setting it arrived in, so two descriptions
+of one lattice are declared two lattices.
+
+Lattice symmetry is
 decided by **two independent opinions** — a Le Page 2-fold search
 {cite}`lepage1982` with a tolerance in degrees of obliquity, and a
 distance-tolerance standardisation {cite}`togo2024` — swept over their

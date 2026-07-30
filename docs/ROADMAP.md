@@ -46,6 +46,109 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**Seven source papers were read against the tree and three of its claims did not
+survive (2026-07-30, second session of the day).** No acceptance rows were added;
+the deliverable is the audit, and it is filed in
+[1026](wp/1026-indexing-acceptance.md)'s handover and the new
+[1029](wp/1029-engine-scaling-low-symmetry.md). One defect is **fixed**, two are
+recorded with the behaviour deliberately unchanged.
+
+**Fixed — the fast suite was red and nobody had seen it.**
+`test_niggli_reduction_is_unimodular_invariant` was failing on a hypothesis
+example earlier runs had not generated, and `.hypothesis/` is gitignored so CI
+would not have replayed it either: the tree was green by luck. The reduced cell
+of (3, 3, 3, 66°, 110°, 65°) has **b = c exactly**, so Křivý-Gruber step A2 must
+break the tie on |η| ≤ |ζ|, and at gemmi's default the two settings came back
+with β and γ **swapped** — while gemmi's own `is_niggli` called both True.
+gemmi's ε is an *absolute* 1e-9; Grosse-Kunstleve *et al.* (2004) prescribe a
+*relative* ε = 1e-5·V^(1/3) in the reduction **and** in the predicate, and report
+their Test 3 — which *is* our test — failing at 1e-10 and passing at 1e-5. Since
+`same_lattice` dedups on the reduced A..F, the failure mode was one lattice
+counted as two and the gate denied its agreement. **1353 passed / 66 skipped.**
+
+**Not fixed, and the sharper one: `refine_with_shift` refuses its own correction
+on exactly the candidates that need it.** The template *does* reach both engines
+— that plumbing was never broken. Traced on corundum, it was called 17 times in
+dichotomy and **declined 9**, every decline on the χ²_red comparison. Where kept
+it works: a −0.0606° shift, against an independently measured −0.065° specimen
+displacement, lands a candidate 73 ppm and 126 ppm from the SRM 676a certificate.
+The candidate ranked **first** is a decline (χ²_red 1.5829 → 1.5945) and keeps
+c **+2799 ppm** out, and the reported answer is identical whether the template is
+`None`, `"cos_theta"` or `"constant"`. The cause is that χ²_red penalises the
+extra column, so a cell that has *already absorbed* the shift refuses the
+correction while one that has not accepts it — **1026's own ΔBIC lesson one rank
+up**, and v0.5's method result again: a declared correction is the caller's
+physics, not a hypothesis for a fit statistic to adjudicate. The consequence is
+uncomfortable and is recorded rather than smoothed over: the `1e-3 < dc < 5e-3`
+assertion 1026 landed, documented as "what an uncalibrated lab pattern costs", is
+**an artifact of the accept rule** — the accurate cell was in the candidate list
+all along.
+
+**Not fixed, and the one that can lose a right answer: `volume_envelope` is a
+mean line, not an envelope.** Smith (1977) turns out to be **triclinic-only** and
+to publish **no per-system factors at all**, so WP-1019's open item closes as
+*there is nothing to check the derived scalings against* rather than *checked and
+agree*. Our two constants are exactly the paper's. What is wrong is the status:
+Smith quotes an average discrepancy of 10.6 % with deviations **−29 % to +32 %**,
+the low side being the ordinary case since it is what missing weak lines produce
+— and we call it a "bound" and feed it to the engines as a hard ceiling. With p
+the detected fraction of possible lines the ratio to truth is 1.4025·p, so it
+**excludes the true cell below p = 0.713**, which is that same −29 %: no margin
+against the worst pattern in the paper's own calibration set. Worse,
+`VOLUME_ENVELOPE_SLACK = 1.5` exists but guards only the *flagging* path while
+the fatal one takes the raw envelope, and the test that validates it feeds a
+*complete* line list (p = 1.0), the most favourable regime there is. Docstrings
+and the manual now say "estimate" with the numbers; the behaviour is
+[1029](wp/1029-engine-scaling-low-symmetry.md)'s and
+[1028](wp/1028-robustness-external-data.md)'s.
+
+**And the monoclinic no-go now has a measured cause, which is not what either
+hypothesis said.** On the published bethanechol cell's *own twenty exact lines*,
+V ∈ [800, 1200] Å³, `n_unindexed = 0`: **0 candidates, budget expiry at 300 s,
+5.74 M boxes** (12 Å) and 5.82 M (16 Å) at ~15 rows/box. So it is not the
+tolerance, not the peak list, and **not** a `MAX_GRID_CELLS` frontier overflow —
+the cost is the number of boxes generated and tested, ~52 µs each. The cause:
+`_det_interval` over the domain is [−4.80e-5, 6.40e-5], **det_lo negative**, so
+the "cell too small" half of the volume test can never fire, and it is still
+negative one grid cell down — a declared V ∈ [800, 1200] window prunes
+essentially **nothing** until the last of four dimensions is cut. The first
+hypothesis (that the A..F reparameterisation loses the prune to interval
+inflation) was **refuted**: 1.1–3.2× at grid-cell scale, 93 % of the prune
+survives. The real difference is structural — DICVOL's `V = A·B·C/sin β` is a
+monotone separable product, so the volume shell is a **loop bound**; ours is a
+**test**. `det G* = B·(A·C − E²/4)` is monotone in C at fixed A, B, E, so cutting
+E before C restores it. With Louër & Louër (1972) Table 1 now in hand (the
+data-derived parameter floors, transcribed into 1029 — and its non-collinearity
+footnote on d₁/d₂ is exactly what a guess would have got wrong), plus the
+redundant per-centring pass, the ranked items are worth ~6.5× on monoclinic.
+
+**On the third engine: ITO is buildable and is *not* a fix for the shift
+problem.** Visser (1969) reduces the continuously-searched dimension to **one at
+every stage in every system** — monoclinic becomes three sequential 1-D
+coincidence searches instead of a 4-D box, at ~4×10⁴ scalar operations. But the
+hoped-for zero-point immunity is refuted by its own algebra: under Q → Q + δ the
+four (m,n) branches of `R` shift by −1.00, −2.00 and −1.75 δ, so a constant
+offset **splits** the coincidence peak rather than translating it — worse than
+shifting, since the acceptance test is a count — and errors amplify 3×. It also
+carries no exhaustiveness claim, so it can never contribute to `search_complete`.
+TREOR's short-axis test is the same dimensionality reduction for a fraction of
+the work, inside the engine we already have. **Do the cost items first and
+re-measure**; if monoclinic becomes affordable, a third engine buys confidence
+rather than capability, which is a weaker argument for it.
+
+**Finally, one grading correction.** 1026's criterion 1 ("global score ≥ +9") is
+mis-set: `first_4` is an **oracle over four programs**, and no entry in Table 5
+reaches +9 — the individual globals are ITO13 −14, DICVOL91 −8, TREOR90 −4,
+McMaille +5, Crysfire 2003 +6, and Crysfire is itself a suite. Restated in the WP
+to grade against individual globals, and blocked on 1029 regardless.
+
+Also landed: ATTRIBUTION.md now records the DICVOL, TREOR, ITO, Křivý-Gruber,
+Grosse-Kunstleve, Smith 1977, Smith & Kahara and Oishi-Tomiyasu sources, which
+were previously cited only in module docstrings or not at all — both engines
+implement published algorithms and neither was in that file.
+
+---
+
 **A certified pattern indexes, and the thing that had stopped it was our own peak
 list (2026-07-30).** [1026](wp/1026-indexing-acceptance.md) is in flight and its
 first result inverts [1023](wp/1023-engine-montecarlo.md)'s diagnosis. Corundum's
@@ -134,7 +237,10 @@ neighbours wins on parsimony alone; and the absence of a *line* is asked of the
 whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
 Next: finish [1026](wp/1026-indexing-acceptance.md) (the known-cell and abstention
-rows it has not reached, and the CI pricing), then
+rows it has not reached, and the CI pricing) — but its benchmark score is now
+blocked on [1029](wp/1029-engine-scaling-low-symmetry.md), and its corundum
+assertion needs the `refine_with_shift` accept rule decided first (see the
+2026-07-30 second-session entry above). Then
 [1027](wp/1027-gui-peak-picker.md) (GUI).
 
 **Indexing works end to end (2026-07-30).**
@@ -1125,7 +1231,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027 |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1029 |
 
 ### v1.0 — indexing (added 2026-07-29)
 
@@ -1139,7 +1245,9 @@ declared long ago — `report/layer2.py` has emitted the
 Order: peaks and quality first (1018–1019, useful on their own), then the
 shared core (1020), then the three engines (1021–1023, independent of each
 other), then consensus (1024), space groups (1025), acceptance (1026), GUI
-(1027).
+(1027). [1029](wp/1029-engine-scaling-low-symmetry.md) was added 2026-07-30 and
+sits between 1026 and its own grade: the benchmark cannot be scored until a
+monoclinic search finishes.
 
 **[1018](wp/1018-peak-picking.md) closed 2026-07-30**, and the row that had
 carried the 🔄 glyph ("landed but not finished") is the only one that ever has.
@@ -1225,10 +1333,25 @@ Four measurements, and two of them overturned something:
   separability is decided on the residual-SS ratio against real data and never on
   the geometry alone.
 
-One item is left open for the user rather than a session: the per-system envelope
+One item was left open for the user rather than a session: the per-system envelope
 scaling is *derived* here, not published, and a clean copy of Smith (1977) would
 let the derived factors be checked against the paper's — the WP-0501 b₂
 transposition being the precedent for why that check is worth asking for.
+
+**Closed 2026-07-30, and the answer was that the question had a false premise.**
+The paper arrived and is **triclinic-only**: it publishes *no* per-system factors,
+so there is nothing to check the derived scalings against, and its own closing
+paragraph names systematic absences as the obstacle to extending the method to
+monoclinic and orthorhombic and leaves it unsolved. Our two constants (0.60,
+0.0052) are exactly the paper's and reproduce its printed 13.39/17.24/21.32. What
+the check *did* find is a defect nobody was looking for — the relation is a
+least-squares **mean line** (−29 % to +32 % about a 10.6 % average), not the
+upper envelope this package calls it, and used as a hard search ceiling it
+excludes the true cell below a detection fraction of 0.713, which is that same
+−29 %. See "Current focus" and [1029](wp/1029-engine-scaling-low-symmetry.md).
+The precedent held, in other words, but not in the direction it was invoked for:
+asking for the paper was right, and the thing it caught was a status claim rather
+than a transposed coefficient.
 
 **[1020](wp/1020-indexing-core.md) closed the same day** — five modules, 40
 tests, an eleventh manual chapter, and **no engine**: the Q-space quadratic form
@@ -1313,6 +1436,7 @@ per concurrent session, or only one session commits.
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | 🟡 | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
+| [1029](wp/1029-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

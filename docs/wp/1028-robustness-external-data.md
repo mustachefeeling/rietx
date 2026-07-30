@@ -164,6 +164,32 @@ Rietveld ties intensities to atoms and has no such freedom.
   its strongest peak the whole pedestal goes to the Bragg reflections on cycle
   one.
 
+### Inherited
+
+**From the 2026-07-30 assessment session — a bound that can exclude the right
+answer, which is this WP's shape exactly ("a guard, a bound, a default").**
+`indexing.quality.volume_envelope` is documented and used as an **upper envelope**
+on the cell volume and is fed straight into the engines as a hard search ceiling
+(`dichotomy.py:487`, `trial_error.py:274,455`). Checked against Smith (1977): it
+is a least-squares **mean line**, average discrepancy 10.6 %, deviations −29 % to
++32 %, and the low side is the ordinary case because it is what missing weak
+lines produce. With p the fraction of possible lines detected the bound stands in
+ratio 1.4025·p to the truth, so it **excludes the true cell below p = 0.713** —
+and 28.7 % is Smith's own quoted worst case, so there is no margin at all against
+the worst pattern in his calibration set.
+
+Three things to know before fixing it. `VOLUME_ENVELOPE_SLACK = 1.5` already
+exists but is applied only in `consensus.py:302` to *flag* an already-found
+candidate — the fatal use has no slack, which is inverted. The test that guards
+it (`test_volume_envelope_contains_the_true_volume`) feeds `generate_reflections`,
+a complete line list at p = 1.0, so it validates the geometry in the most
+favourable regime and is blind to the calibration; a regression here needs an
+*incomplete* line list. And the docstrings and manual were corrected on
+2026-07-30 to say "estimate" with the numbers, so the false claim is gone but the
+**behaviour is unchanged** — the fix is still owed. Search-scope aspects are in
+[1029](1029-engine-scaling-low-symmetry.md); the guard-and-default aspect is
+yours if 1029 does not reach it first.
+
 ## Non-goals
 
 - No new *physics*. Every item is a guard, a bound, a default or a message.

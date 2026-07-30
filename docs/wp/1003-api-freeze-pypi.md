@@ -2,13 +2,28 @@
 
 Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
-the milestone's last row, so the freeze covers a surface the GUI exercised)
+the milestone's last row, so the freeze covers a surface the GUI exercised),
+WP-1018…WP-1029 (indexing)
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
 ## Inherited
+
+**From the 2026-07-30 assessment session — your dependency list grew by one, and
+one frozen constant is on a decision.** [1029](1029-engine-scaling-low-symmetry.md)
+was added to the indexing group (engine cost at low symmetry, plus the two
+Oishi-Tomiyasu figures of merit), so this row now depends on 1004–1029 rather
+than 1004–1027. Two consequences for the freeze itself. `SearchSpec` gains or
+changes fields there — at minimum `MAX_ANGLE_COSINE` is explicitly filed as a
+*costed choice* to be decided on measurement (150° today against DICVOL04's
+130°), and the volume-envelope slack may become a `SearchSpec` field rather than
+a `consensus` constant — so **do not freeze `SearchSpec` before 1029 closes.**
+And `fom.FomPanel` is expected to gain two members (`M^Rev`, `M^Sym`), which is a
+schema addition on a type that already travels on every `CellCandidate`; if 1029
+slips, freeze the panel as *extensible* rather than fixed, since the two figures
+are published and their absence is a recorded gap rather than a design choice.
 
 **From WP-1025 (landed 2026-07-30) — new frozen surface, and one decision left
 open on purpose.** `determine_extinction_symbol` is exported from `pxrdref` as a
