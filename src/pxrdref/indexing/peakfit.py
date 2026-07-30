@@ -29,12 +29,19 @@ other line sits at
     sin θ_l = (λ_l/λ₀)·sin θ₀     ⇒     d(2θ_l)/d(2θ₀) = (λ_l/λ₀)·cosθ₀/cosθ_l
 
 so the splitting grows as 2·tanθ·Δλ/λ rather than being a fixed 2θ offset.  The
-Kα2/Kα1 amplitude ratio is held at ``source.lines[l].weight`` and **never
-refined per peak**: a free per-peak ratio is precisely the freedom that lets a
-doublet fit swallow an unresolved neighbour, which is the error Rachinger (1948,
-J. Sci. Instrum. 25, 254) stripping formalises — and stripping additionally
-redistributes the counting noise, so what is left has neither the position nor
-the σ it appears to have.  Hence: fitted as a pair, never subtracted.
+Kα2/Kα1 amplitude ratio is **never refined per peak**: a free per-peak ratio is
+precisely the freedom that lets a doublet fit swallow an unresolved neighbour,
+which is the error Rachinger (1948, J. Sci. Instrum. 25, 254) stripping
+formalises — and stripping additionally redistributes the counting noise, so what
+is left has neither the position nor the σ it appears to have.  Hence: fitted as
+a pair, never subtracted.
+
+It is held at ``source.lines[l].weight`` **times the two lines'
+Lorentz-polarisation ratio**, which is not a refinement of the same idea but a
+correction of it: the second line diffracts at its own Bragg angle, so it
+carries its own Lp, exactly as ``CompiledModel._peak_terms`` gives each line.
+Holding the bare weight instead biases the fitted Kα1 position — measured, −2e-4°
+and −0.26 mean σ pull on lab Cu Kα LaB6 (:meth:`_GroupModel.freeze`).
 
 **Widths are shared across emission lines too**, and the physics is why: the
 dominant broadening is common in Δd/d, hence Δ2θ ∝ tanθ, and between Kα1 and
@@ -64,6 +71,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.optimize import least_squares
 
+from ..model.corrections import lorentz_polarization
 from ..model.profiles.fcj import fcj_node_count, fcj_offsets_weights
 from ..model.profiles.pseudovoigt import pseudo_voigt_derivs, tch_gamma_eta
 from ..model.profiles.voigt import fwhm_to_voigt_params, voigt_derivs
@@ -144,13 +152,16 @@ class _GroupModel:
         self.line_weight = np.array([ln.weight.value for ln in lines],
                                     dtype=np.float64)
         self.line_weight[0] = 1.0   # structurally locked (schemas.instrument)
+        self.polarization = instrument.source.polarization.value
         self.sl = instrument.geometry.axial_sl.value
         self.hl = instrument.geometry.axial_hl.value
         self.fcj = self.sl > 0.0 and self.hl > 0.0
-        # FCJ quadrature sizes, frozen per (component, line) before the fit and
-        # never changed inside it: the differentiability invariant one level down
-        # from the stage compile that owns it for a refinement.
+        # FCJ quadrature sizes and the per-line amplitude gains, frozen per
+        # (component, line) before the fit and never changed inside it: the
+        # differentiability invariant one level down from the stage compile that
+        # owns it for a refinement.
         self.n_nodes: dict[tuple[int, int], int] = {}
+        self.line_gain = np.tile(self.line_weight, (max(n_components, 1), 1))
 
     # -- parameter packing -----------------------------------------------
     def pack(self, gamma_g: float, gamma_l: float, pos: np.ndarray,
@@ -162,14 +173,38 @@ class _GroupModel:
         rest = np.asarray(p[2:]).reshape(self.n, 2)
         return float(p[0]), float(p[1]), rest[:, 0].copy(), rest[:, 1].copy()
 
-    def freeze_nodes(self, pos: np.ndarray) -> None:
+    def freeze(self, pos: np.ndarray) -> None:
+        """Freeze the FCJ node counts and the per-line amplitude gains.
+
+        The **gain** is ``weight_l · Lp(2θ_l)/Lp(2θ₀)``, not ``weight_l`` alone:
+        each emission line diffracts at its own Bragg angle, so it also carries
+        its own Lorentz-polarisation factor — which is exactly what
+        ``CompiledModel._peak_terms`` does per line.  Small and one-sided: over
+        the 0.0775° Cu Kα split of the LaB6 110 line at 30.4° it is a 0.43 %
+        deficit in the Kα2 amplitude, which drags the fitted **Kα1** position
+        down by ~2e-4°.  That is ~0.6σ on a strong lab line, and it showed up as
+        a −0.26 mean σ pull across the ensemble (WP-1018) — a bias, so no amount
+        of counting removes it.
+
+        Frozen at the *seed* position rather than recomputed inside the solve,
+        which is the same trade the FCJ node counts make: the ratio varies by
+        ~5 %/° while the fit moves the position by ~1e-3°, so freezing costs
+        ~1e-4 relative and buys an exactly differentiable residual and an
+        analytic Jacobian with no extra chain factor.
+        """
         self.n_nodes = {}
-        if not self.fcj:
-            return
         for j in range(self.n):
             for il in range(len(self.lam)):
                 tt = self._line_pos(float(pos[j]), il)
-                if np.isfinite(tt):
+                if not np.isfinite(tt):
+                    continue
+                if il > 0:
+                    lp = lorentz_polarization(
+                        np.array([tt, float(pos[j])]), self.polarization)
+                    if np.isfinite(lp[1]) and lp[1] > 0.0:
+                        self.line_gain[j, il] = (self.line_weight[il]
+                                                 * float(lp[0] / lp[1]))
+                if self.fcj:
                     self.n_nodes[(j, il)] = fcj_node_count(
                         float(tt), max(self.seed_fwhm, 1e-6), self.sl, self.hl)
 
@@ -247,7 +282,7 @@ class _GroupModel:
         for j in range(self.n):
             for il in range(len(self.lam)):
                 om = self._shape_terms(j, il, float(pos[j]), w1, w2)[0]
-                total = total + inten[j] * self.line_weight[il] * om
+                total = total + inten[j] * self.line_gain[j, il] * om
         return total
 
     def residual(self, p: np.ndarray) -> np.ndarray:
@@ -266,11 +301,11 @@ class _GroupModel:
             for il in range(len(self.lam)):
                 om, d_pos, d_w1, d_w2 = self._shape_terms(
                     j, il, float(pos[j]), w1, w2)
-                a = inten[j] * self.line_weight[il]
+                a = inten[j] * self.line_gain[j, il]
                 jac[:, 0] += a * (d_w1 * dw1_dgg + d_w2 * dw2_dgg)
                 jac[:, 1] += a * (d_w1 * dw1_dgl + d_w2 * dw2_dgl)
                 jac[:, 2 + 2 * j] += a * d_pos
-                jac[:, 3 + 2 * j] += self.line_weight[il] * om
+                jac[:, 3 + 2 * j] += self.line_gain[j, il] * om
         # r = (y − env − model)/σ  ⇒  ∂r/∂p = −(∂model/∂p)/σ
         return -jac / self.sigma[:, None]
 
@@ -344,7 +379,7 @@ def _asymmetry_t(m: _GroupModel, p: np.ndarray) -> np.ndarray:
 
 
 def _solve(m: _GroupModel, pos: np.ndarray) -> tuple[np.ndarray, object]:
-    m.freeze_nodes(pos)
+    m.freeze(pos)
     p0 = m.seed(pos)
     lo, hi = m.bounds(pos)
     p0 = np.clip(p0, lo + 1e-12, hi - 1e-12)
