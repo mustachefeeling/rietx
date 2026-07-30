@@ -1,0 +1,1044 @@
+"""The GUI's session model — every verb, and not one line of HTTP (WP-1008).
+
+``server.py`` is transport: it parses a path, calls a method here, and serialises
+what comes back.  Everything a client can *do* is a plain method on
+:class:`GuiSession`, which is what makes the transport swappable — a Tauri
+command handler, a notebook driver or a test calling the verbs directly all get
+the same surface, and none of them needs a socket.
+
+Three rules shape it.
+
+**One project per session, and its head is the working state.**  The project
+container (WP-1005) already decided that ``project.json`` holds the settings and
+``history.jsonl`` holds the model, so this object adds no third store: a verb
+that changes a parameter commits a history node, a verb that changes a setting
+rewrites ``project.json`` immediately.  A GUI therefore has nothing to warn about
+on close — which is a property to preserve, not a coincidence, so every settings
+verb here persists rather than deferring to :meth:`Project.save`.
+
+**Mutating verbs refuse while a run is in flight.**  Not politeness:
+frozen-per-stage discreteness (CLAUDE.md) says the hkl list, the symmetry-op
+subsets and the window ranges are computed at stage compile and never change
+during a least-squares run.  A ``PATCH /api/params`` mid-stage would edit the
+models the compiled state was derived from.  Enforcing it at the session
+boundary makes that structurally impossible rather than a thing to remember, and
+:class:`GuiError` carries the 409 the transport reports.
+
+**The run is watched through events, not by polling state.**  One worker thread,
+one :class:`~pxrdref.optimize.cancel.CancelToken`, and a seq-numbered ring
+buffer of the engine's own event dicts with a ``Condition`` for followers.  The
+buffer is a *transport* of the same stream that lands in
+``<project>/live/events.jsonl``, so ``pxrdref watch`` and the GUI are two views
+of one log rather than two logs.
+
+The one place this session adds a frame the engine does not emit is the **run
+state**: a fit that raises emits no ``fit_end``, so a follower watching only
+engine events would wait forever on a failed run.  ``EventKind`` is a closed set
+and WP-1006 deliberately declined to add a kind for a guess, so the state frame
+is *not* an event — it travels beside them (a separate SSE frame type, a separate
+key in the poll fallback) and is never written to the log.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import threading
+import time
+from collections import deque
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Literal
+
+from ..capabilities import capabilities as _capabilities
+from ..history.events import EventStream
+from ..optimize.cancel import CancelToken, RefinementCancelled
+from ..project import Project
+from ..refine import _VERSION
+from ..schemas.instrument import Instrument
+from ..schemas.plan import PlanSpec, StageSpec
+from ..schemas.structure import Structure
+from ..strategy.staged import PLAN_PRESETS, resolve_plan
+from ..viz.compare import decimation_index
+
+#: ``idle`` → ``running`` → (``cancelling``) → ``idle``.  There is no ``failed``
+#: state: a failure ends the run, and *what* happened is on the run record.
+RunState = Literal["idle", "running", "cancelling"]
+
+#: Events kept for replay.  A staged fit on a real pattern emits one ``eval``
+#: per residual evaluation — thousands — so the ring is a window, not an
+#: archive; ``events_since`` reports its oldest seq so a client that fell behind
+#: can tell it missed some instead of silently renumbering.  The log on disk is
+#: the archive.
+EVENT_RING = 4096
+
+#: Where ``/api/recent`` is remembered.  Overridable so tests (and a sandboxed
+#: build) never touch a real home directory.
+STATE_DIR_ENV = "PXRDREF_STATE_DIR"
+
+_MAX_RECENT = 12
+
+#: Routes whose *shape* is settled here but whose behaviour belongs to a later
+#: work package.  Declared rather than omitted so the frontend scaffold can be
+#: written against the final path set, and answered with the WP that will fill
+#: them in — a 404 saying "not yet, here is who" is a design document a client
+#: can read at runtime.
+RESERVED_ROUTES: dict[tuple[str, str], str] = {
+    ("GET", "/api/textdoc"): "WP-1009 (project text document)",
+    ("PUT", "/api/textdoc"): "WP-1009 (project text document)",
+    ("POST", "/api/upload/pattern"): "WP-1014 (import & in-GUI editing)",
+    ("POST", "/api/upload/cif"): "WP-1014 (import & in-GUI editing)",
+    ("POST", "/api/upload/instrument"): "WP-1014 (import & in-GUI editing)",
+    ("POST", "/api/report/apply"): "WP-1012 (one-click suggestions)",
+    ("GET", "/api/structure3d"): "WP-1015 (structure viewer)",
+    ("GET", "/api/peaks"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks/add"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks/remove"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks/move"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks/flag"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/peaks/refit"): "WP-1027 (GUI peak picker)",
+    ("POST", "/api/index"): "WP-1024/1027 (indexing consensus, GUI panel)",
+    ("GET", "/api/index/result"): "WP-1024/1027 (indexing consensus, GUI panel)",
+    ("POST", "/api/index/adopt"): "WP-1024/1027 (indexing consensus, GUI panel)",
+}
+
+_EXPORT_DEFAULTS = {
+    "cif": "refinement.cif",
+    "reflections": "reflections.csv",
+    "qpa": "qpa.csv",
+    "html": "fit.html",
+    "result_json": "result.json",
+}
+
+
+def _utcnow() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class GuiError(Exception):
+    """A verb refused, carrying what the transport should report.
+
+    Same grammar as :class:`~pxrdref.schemas.diagnostics.Diagnostic` and the
+    agent envelope (WP-0602): a ``code`` to branch on, a message for a human,
+    and ``where`` naming the paths at fault.  The HTTP status lives here rather
+    than in the router because the reason is what decides it — a run in flight
+    is a 409 wherever it is reported.
+    """
+
+    def __init__(self, message: str, *, code: str = "INVALID_REQUEST",
+                 status: int = 400, where: list[str] | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.status = status
+        self.where = list(where or [])
+
+    def payload(self) -> dict:
+        return {"error": {"code": self.code, "message": self.message,
+                          "where": self.where}}
+
+
+class GuiSession:
+    """One project, one run at a time, and every GUI verb as a method.
+
+    ``project`` may be ``None``: the app opens before a project exists, and the
+    verbs that need one raise ``NO_PROJECT`` rather than pretending.
+    """
+
+    def __init__(self, project: Project | None = None, *, backend: str = "numpy",
+                 solver: str = "trf", state_dir: str | Path | None = None) -> None:
+        self._lock = threading.RLock()
+        self._cond = threading.Condition(self._lock)
+        self.project = project
+        self.backend = backend
+        self.solver = solver
+        self.state_dir = Path(state_dir) if state_dir is not None else Path(
+            os.environ.get(STATE_DIR_ENV) or Path.home() / ".pxrdref")
+        self.closed = False
+
+        self._state: RunState = "idle"
+        self._cancel: CancelToken | None = None
+        self._worker: threading.Thread | None = None
+        self._events: deque[dict] = deque(maxlen=EVENT_RING)
+        self._seq = 0
+        self._n_eval = 0
+        self._run: dict = _idle_run()
+        if project is not None:
+            self._remember(project.path)
+
+    # ------------------------------------------------------------------
+    # introspection
+    # ------------------------------------------------------------------
+    def capabilities(self) -> dict:
+        """:func:`pxrdref.capabilities`, verbatim — the client's one guess-free call."""
+        return _capabilities().model_dump(mode="json")
+
+    def version(self) -> dict:
+        return {"package_version": _VERSION, "pid": os.getpid(),
+                "backend": self.backend, "solver": self.solver,
+                "project": None if self.project is None else str(self.project.path)}
+
+    # ------------------------------------------------------------------
+    # project
+    # ------------------------------------------------------------------
+    def project_new(self, body: dict) -> dict:
+        """``Project.create`` from a request body.
+
+        ``structure`` is either an inline :class:`Structure` dict or
+        ``{"cif": path}``; ``instrument`` is an inline dict, required because
+        :class:`Instrument` has no default source and guessing a diffractometer
+        is exactly the kind of silent assumption this package refuses.  Sniffing
+        an upload is WP-1014's; this verb takes server-side paths.
+        """
+        self._require_idle()
+        path = _need(body, "path")
+        pattern = _need(body, "pattern")
+        structure = _as_structure(body.get("structure"))
+        instrument = _as_instrument(body.get("instrument"))
+        kw: dict[str, Any] = {}
+        for key in ("mode", "two_theta_limits", "excluded_regions", "block", "ui"):
+            if body.get(key) is not None:
+                kw[key] = body[key]
+        if body.get("plan") is not None:
+            kw["plan"] = _as_plan_argument(body["plan"])
+        try:
+            project = Project.create(path, pattern=pattern, structure=structure,
+                                     instrument=instrument, backend=self.backend,
+                                     solver=self.solver, **kw)
+        except (FileExistsError, FileNotFoundError, ValueError, KeyError) as exc:
+            raise GuiError(str(exc), code="PROJECT_ERROR") from None
+        self._adopt(project)
+        return self.project_doc()
+
+    def project_open(self, body: dict) -> dict:
+        """``Project.open``, with its refusal messages surfaced verbatim.
+
+        ``Project.open`` distinguishes a missing pattern, changed bytes, a
+        same-bytes/different-numbers reader change, a tree recorded against
+        another pattern, a missing log, a future format major and a
+        multi-pattern document — seven causes with seven remedies.  Collapsing
+        them into "could not open project" would throw away the only place a
+        user will ever read which one happened.
+        """
+        self._require_idle()
+        path = _need(body, "path")
+        try:
+            project = Project.open(path, backend=self.backend, solver=self.solver)
+        except (FileNotFoundError, ValueError) as exc:
+            raise GuiError(str(exc), code="PROJECT_ERROR") from None
+        self._adopt(project)
+        return self.project_doc()
+
+    def project_doc(self) -> dict:
+        """The settings document plus what a client needs about the data."""
+        p = self._need_project()
+        ref = p.data_ref
+        return {
+            "path": str(p.path),
+            "doc": p.doc.model_dump(mode="json"),
+            "data": {
+                "filename": ref.filename, "reader": ref.reader,
+                "options": dict(ref.options), "n_points": ref.n_points,
+                "two_theta_range": list(ref.two_theta_range),
+                # which weights the fit uses is a correctness property that is
+                # invisible once the file is read (CLAUDE.md, Weights)
+                "has_sigma": ref.has_sigma,
+            },
+            "head": p.refinement._head_id,
+            "n_nodes": len(p.history),
+        }
+
+    def project_patch(self, body: dict) -> dict:
+        """Change settings, and persist them at once.
+
+        ``ui`` merges at the top level (the frontend owns those keys and pushes
+        whole blobs for the panel it touched); a ``null`` value drops a key.
+        ``excluded_regions`` goes through ``Project.set_excluded_regions`` so the
+        document and the in-memory pattern cannot disagree about what is masked.
+        """
+        self._require_idle()
+        p = self._need_project()
+        unknown = set(body) - {"mode", "two_theta_limits", "excluded_regions", "ui"}
+        if unknown:
+            raise GuiError(f"unknown setting(s): {sorted(unknown)}; the plan has "
+                           "its own route and the model lives in the history",
+                           where=sorted(unknown))
+        if "mode" in body:
+            p.doc.mode = body["mode"]
+        if "two_theta_limits" in body:
+            limits = body["two_theta_limits"]
+            p.doc.two_theta_limits = None if limits is None else tuple(limits)
+        if "excluded_regions" in body:
+            regions = [tuple(r) for r in (body["excluded_regions"] or [])]
+            p.set_excluded_regions(regions)
+        for key, value in (body.get("ui") or {}).items():
+            if value is None:
+                p.doc.ui.pop(key, None)
+            else:
+                p.doc.ui[key] = value
+        p.save()
+        return self.project_doc()
+
+    def project_save(self) -> dict:
+        """Rewrite ``project.json``.
+
+        Every settings verb above already saved, and the model was on disk the
+        moment its node was appended, so this is a flush a client may call and
+        never a thing it must call.  It exists because a "Save" affordance will
+        exist, and it should do something honest.
+        """
+        p = self._need_project()
+        p.save()
+        return {"saved": str(p.path), "updated_utc": p.doc.updated_utc}
+
+    def recent(self) -> list[dict]:
+        """Recently opened projects, newest first (missing ones filtered out)."""
+        try:
+            raw = json.loads((self.state_dir / "recent.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        out = []
+        for entry in raw if isinstance(raw, list) else []:
+            path = Path(str(entry.get("path", "")))
+            if (path / "project.json").is_file():
+                out.append({"path": str(path), "name": path.name,
+                            "opened_utc": entry.get("opened_utc", "")})
+        return out
+
+    # ------------------------------------------------------------------
+    # parameters
+    # ------------------------------------------------------------------
+    def params(self) -> dict:
+        """The whole parameter table as rows, held ones included.
+
+        ``refinable`` and ``held_because`` are :class:`ParameterRow` *properties*
+        rather than fields, so ``model_dump`` drops them — and they are the whole
+        point of the surface (WP-1004), so they are added here by asking the row
+        rather than by a second copy of the rule.
+
+        While a run is in flight the values are read off models a stage is
+        writing to, so a row may straddle two iterations; ``live`` says so.  That
+        is deliberate — the authoritative live signal is the event stream, and
+        the consistent alternative is the head node, which is a completed stage.
+        """
+        p = self._need_project()
+        rows = []
+        for row in p.refinement.parameters():
+            item = row.model_dump(mode="json")
+            item["refinable"] = row.refinable
+            item["held_because"] = row.held_because
+            rows.append(item)
+        return {"parameters": rows,
+                "n_free": sum(1 for r in rows if r["vary"]),
+                "mode": p.doc.mode,
+                "head": p.refinement._head_id,
+                "live": self._state != "idle"}
+
+    def params_patch(self, body: dict) -> dict:
+        """``set_values`` then ``set_vary``, each committing its own node.
+
+        Values first, then vary flags: the pair reads as "put it here, then let
+        it move", which is the order that leaves a freed parameter's node last in
+        the log — where a following run continues from.  ``vary`` is applied in
+        the order the JSON object gave, since overlapping globs are ordinary
+        (``phases.*`` then a single path back off).
+        """
+        self._require_idle()
+        p = self._need_project()
+        values = body.get("values") or {}
+        vary = body.get("vary") or {}
+        if not isinstance(values, dict) or not isinstance(vary, dict):
+            raise GuiError("'values' maps dot-path → number and 'vary' maps "
+                           "dot-path glob → bool")
+        changed: dict[str, Any] = {"values": [], "vary": {}}
+        if values:
+            try:
+                p.refinement.set_values({k: float(v) for k, v in values.items()})
+            except (ValueError, TypeError) as exc:
+                # a tied path names its sources, a locked one says it is
+                # structural, a bound violation prints the interval — each has a
+                # different fix, so the message travels intact
+                raise GuiError(str(exc), where=sorted(values)) from None
+            changed["values"] = sorted(values)
+        for glob, flag in vary.items():
+            changed["vary"][glob] = p.refinement.set_vary(glob, bool(flag))
+        return {"changed": changed, **self.params()}
+
+    # ------------------------------------------------------------------
+    # plan
+    # ------------------------------------------------------------------
+    def plan(self) -> dict:
+        """The plan the next run will use, expanded into stages.
+
+        A project stores the *expanded* plan, so which preset button was pressed
+        is not recoverable from it — ``preset`` is therefore derived by comparing
+        the stored stages against every registered preset, and is ``null`` for an
+        edited plan.  ``selected`` distinguishes "this project chose a plan" from
+        "nothing chose, and ``fit`` would default".
+        """
+        p = self._need_project()
+        effective = PlanSpec.from_plan(self._effective_plan())
+        return {"plan": effective.model_dump(mode="json"),
+                "selected": p.doc.plan is not None,
+                "preset": _matching_preset(effective),
+                "mode": p.doc.mode}
+
+    def plan_put(self, body: dict) -> dict:
+        """Select a preset (``{"preset": name}``) or an explicit plan spec."""
+        self._require_idle()
+        p = self._need_project()
+        if "preset" in body:
+            # stored expanded, and expanded *through the mode*: a project's plan
+            # is what will run verbatim (``Project.fit`` passes it as-is), so
+            # picking "mccusker_default" in Le Bail mode has to store
+            # profile_only's stages — the same mapping ``fit`` would apply, made
+            # visible in the editor instead of happening at run time
+            spec = PlanSpec.from_plan(
+                resolve_plan(_as_plan_argument(body["preset"]), p.doc.mode))
+        elif "plan" in body:
+            spec = _validate(PlanSpec, body["plan"], "plan")
+        else:
+            raise GuiError("send either {'preset': name} or {'plan': {...}}")
+        if not spec.stages:
+            raise GuiError("a plan needs at least one stage", where=["plan.stages"])
+        p.doc.plan = spec
+        p.save()
+        return self.plan()
+
+    def plans(self) -> dict:
+        """The preset registry, quoted through ``capabilities()``.
+
+        Not read off ``PLAN_INFO`` directly: the capabilities arm is already the
+        one answer to "what plans does this build have", and a menu that could
+        disagree with it would be a second answer.
+        """
+        return {"plans": [item.model_dump(mode="json")
+                          for item in _capabilities().plans]}
+
+    # ------------------------------------------------------------------
+    # the models
+    # ------------------------------------------------------------------
+    def structure(self) -> dict:
+        return {"structure": self._need_project().refinement.structure.model_dump(
+            mode="json")}
+
+    def instrument(self) -> dict:
+        return {"instrument": self._need_project().refinement.instrument.model_dump(
+            mode="json")}
+
+    def structure_patch(self, body: dict) -> dict:
+        """Replace the structure, recording an ``edit_model`` node.
+
+        A whole model, validated, not a field patch: adding a phase or an
+        anisotropic ADP block changes what the parameter table *contains*, and a
+        partial merge would have to reimplement pydantic's validation to know
+        whether the result is a legal structure.
+        """
+        self._require_idle()  # before validating: a state refusal outranks a
+        # body complaint, or a user retyping a structure never learns that the
+        # real problem is the fit still running
+        node = self._edit(structure=_as_structure(_need(body, "structure")),
+                          label=body.get("label") or "structure edited")
+        return {"node_id": node, **self.structure()}
+
+    def instrument_patch(self, body: dict) -> dict:
+        self._require_idle()
+        node = self._edit(instrument=_as_instrument(_need(body, "instrument")),
+                          label=body.get("label") or "instrument edited")
+        return {"node_id": node, **self.instrument()}
+
+    def _edit(self, *, structure: Structure | None = None,
+              instrument: Instrument | None = None, label: str = "") -> str | None:
+        self._require_idle()
+        p = self._need_project()
+        return p.refinement.edit(structure=structure, instrument=instrument,
+                                 label=label)
+
+    # ------------------------------------------------------------------
+    # run control
+    # ------------------------------------------------------------------
+    def run(self, body: dict) -> dict:
+        """Start a fit (``kind="fit"``) or one stage (``kind="stage"``).
+
+        Returns immediately with the run state; everything else about the run
+        arrives as events.  The call goes through ``Project.fit`` /
+        ``Project.run_stage`` rather than ``Refinement.fit`` so the document's
+        mode and limits are the ones that apply — the project is the authority
+        on the settings, and re-deriving them here would be the second copy
+        WP-1005 exists to prevent.
+        """
+        p = self._need_project()
+        kind = body.get("kind", "fit")
+        if kind not in ("fit", "stage"):
+            raise GuiError(f"unknown run kind {kind!r}; expected 'fit' or 'stage'",
+                           where=["kind"])
+        if kind == "stage":
+            stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")
+            stage = stage_spec.to_stage()
+
+            def call(stream, token):
+                return p.run_stage(stage, events=stream, cancel=token)
+
+            label = stage_spec.name
+            n_stages = 1
+        else:
+            plan = self._effective_plan(body.get("plan"))
+
+            def call(stream, token):
+                return p.fit(plan=plan, events=stream, cancel=token)
+
+            label = ""
+            n_stages = len(plan.stages)
+
+        p.live_dir.mkdir(exist_ok=True)  # a project copied without empty dirs
+        with self._cond:
+            self._require_idle()
+            token = CancelToken()
+            stream = EventStream(path=p.live_dir / "events.jsonl",
+                                 callback=self._push)
+            self._state = "running"
+            self._cancel = token
+            self._events.clear()
+            self._n_eval = 0
+            self._run = {"kind": kind, "name": label, "status": None,
+                         "stage": None, "stage_index": None, "n_stages": n_stages,
+                         "started_utc": _utcnow(), "finished_utc": None,
+                         "elapsed": None, "rwp": None, "gof": None,
+                         "node_id": None, "completed_stages": [], "error": None}
+            self._worker = threading.Thread(
+                target=self._work, args=(call, stream), name="pxrdref-gui-run",
+                daemon=True)
+            self._worker.start()
+            self._cond.notify_all()
+        return self.state_frame()
+
+    def cancel(self) -> dict:
+        """Set the token.  Cooperative: read between residual evaluations."""
+        with self._cond:
+            if self._state == "idle":
+                raise GuiError("nothing is running", code="NOT_RUNNING", status=409)
+            if self._cancel is not None:
+                self._cancel.cancel()
+            self._state = "cancelling"
+            self._cond.notify_all()
+            return self._state_frame_locked()
+
+    def run_state(self) -> dict:
+        """The coarse state frame plus the fine progress a poller wants."""
+        with self._cond:
+            frame = self._state_frame_locked()
+            started = self._run.get("started_utc")
+            frame["n_eval"] = self._n_eval
+            frame["seq"] = self._seq
+            frame["last_event"] = self._events[-1] if self._events else None
+            frame["run"]["elapsed"] = self._run.get("elapsed")
+            if self._state != "idle" and started:
+                frame["run"]["elapsed"] = self._elapsed()
+            return frame
+
+    def state_frame(self) -> dict:
+        with self._cond:
+            return self._state_frame_locked()
+
+    def _state_frame_locked(self) -> dict:
+        return {"state": self._state, "run": dict(self._run),
+                "project": None if self.project is None else str(self.project.path),
+                "head": (None if self.project is None
+                         else self.project.refinement._head_id)}
+
+    def events_since(self, since: int) -> dict:
+        """Buffered events after ``since`` (the ``?poll=1`` fallback's payload).
+
+        ``oldest`` is what tells a client it fell out of the window: if
+        ``since + 1 < oldest`` the run emitted more than the ring holds and the
+        gap is real, not a renumbering.
+        """
+        with self._cond:
+            events = [e for e in self._events if e["seq"] > since]
+            oldest = self._events[0]["seq"] if self._events else self._seq + 1
+            return {"events": events, "next": self._seq, "oldest": oldest,
+                    **self._state_frame_locked()}
+
+    def follow(self, since: int, last_state: str = "",
+               timeout: float = 1.0) -> tuple[list[dict], int, dict | None, str]:
+        """Block until something changed, then hand back what did.
+
+        Returns ``(events, next_seq, state_frame_or_None, state_key)``: the
+        events after ``since``, the seq to ask for next, the state frame *only
+        when it differs* from ``last_state``, and the key to pass back as
+        ``last_state``.  The comparison is on the coarse frame, which is why
+        ``n_eval`` is not in it — a frame per residual evaluation would make the
+        state channel a duplicate of the event channel.
+        """
+        with self._cond:
+            if not self._changed(since, last_state):
+                self._cond.wait(timeout)
+            events = [e for e in self._events if e["seq"] > since]
+            frame = self._state_frame_locked()
+            key = json.dumps(frame, sort_keys=True, default=str)
+            return events, self._seq, (None if key == last_state else frame), key
+
+    def _changed(self, since: int, last_state: str) -> bool:
+        if self.closed or self._seq > since:
+            return True
+        key = json.dumps(self._state_frame_locked(), sort_keys=True, default=str)
+        return key != last_state
+
+    def close(self) -> None:
+        """Release followers so a shutdown does not wait on a heartbeat."""
+        with self._cond:
+            self.closed = True
+            self._cond.notify_all()
+
+    # -- the worker ----------------------------------------------------
+    def _work(self, call, stream: EventStream) -> None:
+        """Run one fit or stage on this thread and record how it ended.
+
+        Three endings, and the difference between them is the WP-1006 result: a
+        cancelled run **raises** rather than returning a partial result, and what
+        it leaves behind is on the exception — the stages that did complete and
+        the node the working state now stands at, which is what a "resume" button
+        checks out.
+        """
+        started = time.monotonic()
+        token = self._cancel
+        try:
+            result = call(stream, token)
+            finish = {"status": result.status, "rwp": result.statistics.rwp,
+                      "gof": result.statistics.gof, "node_id": result.node_id,
+                      "completed_stages": [s.name for s in result.stages]}
+        except RefinementCancelled as exc:
+            finish = {"status": "cancelled", "stage": exc.stage,
+                      "node_id": exc.node_id,
+                      "completed_stages": [s.name for s in exc.completed_stages]}
+        except Exception as exc:  # noqa: BLE001 — the run record IS the channel
+            finish = {"status": "failed",
+                      "error": {"code": "RUN_FAILED",
+                                "message": f"{type(exc).__name__}: {exc}"}}
+        finally:
+            stream.close()
+        with self._cond:
+            self._run.update(finish)
+            self._run["finished_utc"] = _utcnow()
+            self._run["elapsed"] = time.monotonic() - started
+            self._state = "idle"
+            self._cancel = None
+            self._worker = None
+            self._cond.notify_all()
+
+    def _push(self, event: dict) -> None:
+        """``EventStream`` callback — runs on the worker thread, per event.
+
+        Reads the payload with ``.get`` only.  ``data`` is an open dict by
+        design (a new field is not a schema bump), so unpacking a fixed shape
+        here is exactly the thing the event contract forbids.
+        """
+        data = event.get("data") or {}
+        with self._cond:
+            self._seq += 1
+            self._events.append({"seq": self._seq, **event})
+            kind = event.get("kind")
+            if kind == "eval":
+                self._n_eval = int(data.get("n_eval") or self._n_eval + 1)
+            elif kind == "stage_start":
+                self._run["stage"] = data.get("stage") or data.get("name")
+                self._run["stage_index"] = data.get("index")
+                if data.get("n_stages"):
+                    self._run["n_stages"] = data["n_stages"]
+            elif kind == "stage_end":
+                completed = self._run["completed_stages"]
+                name = data.get("stage") or data.get("name") or self._run["stage"]
+                if name and name not in completed:
+                    completed.append(name)
+            self._cond.notify_all()
+
+    def _elapsed(self) -> float:
+        return max(0.0, time.time() - _parse_utc(self._run["started_utc"]))
+
+    # ------------------------------------------------------------------
+    # results
+    # ------------------------------------------------------------------
+    def result(self) -> dict:
+        """The last result without its curves (they go through ``result_window``).
+
+        A 40 000-point pattern is five arrays of 40 000 floats — ~4 MB of JSON
+        that a browser then decimates for a plot it can only draw a few thousand
+        points of.  So the arrays are excluded here and served per window, and
+        what is left is the whole of the rest: statistics, refined values with
+        esds, per-stage outcomes, diagnostics, QPA, absorption, provenance.
+        """
+        res = self._need_result()
+        payload = res.model_dump(mode="json", exclude={
+            "two_theta", "y_obs", "y_calc", "y_background", "sigma"})
+        payload["curves"] = {
+            "n_points": len(res.two_theta),
+            "two_theta_range": ([res.two_theta[0], res.two_theta[-1]]
+                                if res.two_theta else None)}
+        return {"result": payload}
+
+    def result_window(self, lo: float | None = None, hi: float | None = None,
+                      max_points: int = 4000) -> dict:
+        """Observed, calculated, background and weighted residual over a window.
+
+        Decimated with ``viz.compare.decimation_index`` — bucket min *and* max of
+        every curve, never striding, so zooming out cannot drop a peak top and
+        make a bad fit look clean.
+
+        ``max_points`` is a **budget, not a ceiling**: the index set is the union
+        of three curves' per-bucket extrema over ``max_points // 2`` buckets, so
+        it can come back larger (measured: 4132 points for a 4200-point pattern
+        at a budget of 4000).  ``n_returned`` is therefore the length to trust,
+        and a client sizing an array from ``max_points`` would be wrong.
+        """
+        import numpy as np
+
+        res = self._need_result()
+        if not res.two_theta:
+            raise GuiError("this result carries no curves", code="NO_RESULT",
+                           status=409)
+        tt = np.asarray(res.two_theta)
+        mask = np.ones(len(tt), dtype=bool)
+        if lo is not None:
+            mask &= tt >= lo
+        if hi is not None:
+            mask &= tt <= hi
+        if not mask.any():
+            return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
+                    "delta": [], "ticks": {}, "n_total": 0, "n_returned": 0,
+                    "max_points": max_points}
+        y_obs = np.asarray(res.y_obs)[mask]
+        y_calc = np.asarray(res.y_calc)[mask]
+        y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
+        sigma = np.asarray(res.sigma)[mask] if res.sigma else None
+        tt = tt[mask]
+        delta = ((y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)
+                 if sigma is not None else y_obs - y_calc)
+        idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
+        window = (float(tt[0]), float(tt[-1]))
+        return {
+            "two_theta": tt[idx].tolist(),
+            "y_obs": y_obs[idx].tolist(),
+            "y_calc": y_calc[idx].tolist(),
+            "y_background": [] if y_bkg is None else y_bkg[idx].tolist(),
+            "delta": delta[idx].tolist(),
+            # every emission line's ticks, not just the primary — Layer 0 flags
+            # each Kα2 peak as an impurity otherwise (CLAUDE.md)
+            "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]
+                      for phase, ticks in res.ticks.items()},
+            "window": list(window), "n_total": int(mask.sum()),
+            "n_returned": len(idx), "max_points": max_points,
+        }
+
+    def report(self, plan: str | None = None) -> dict:
+        """The three-layer :class:`FitReport` for the last fit.
+
+        Needs the compiled model, so it is idle-only: Layers 1-2 read the
+        derivative expansion of the state a stage would be rewriting.
+        """
+        self._require_idle()
+        p = self._need_project()
+        self._need_result()
+        try:
+            report = p.refinement.report(plan=plan or self._effective_plan())
+        except RuntimeError as exc:
+            raise GuiError(str(exc), code="NO_RESULT", status=409) from None
+        return {"report": report.model_dump(mode="json")}
+
+    # ------------------------------------------------------------------
+    # history
+    # ------------------------------------------------------------------
+    def history(self) -> dict:
+        """The DAG as nodes a client can draw, without any node's full state.
+
+        A node is ~10 kB of structure and instrument; a tree of thirty is 300 kB
+        of models nobody is looking at.  What a worktree panel needs is the
+        shape, the action, the metrics and the diagnostics count — plus
+        ``api_call``, which is the node's equivalent public-API line and turns
+        the log into a script a user can copy.
+        """
+        p = self._need_project()
+        tree = p.history
+        tags: dict[str, list[str]] = {}
+        for name, node_id in tree.refs.items():
+            if name != "head":
+                tags.setdefault(node_id, []).append(name)
+        nodes = []
+        for node_id in tree.order:
+            node = tree.nodes[node_id]
+            stats = node.metrics.statistics
+            nodes.append({
+                "id": node.id, "parents": list(node.parents),
+                "label": node.label, "created_utc": node.created_utc,
+                "kind": node.action.kind, "name": node.action.name,
+                "action": node.action.model_dump(mode="json"),
+                "api_call": node.action.api_call(),
+                "status": node.metrics.status,
+                "n_iterations": node.metrics.n_iterations,
+                "rwp": None if stats is None else stats.rwp,
+                "gof": None if stats is None else stats.gof,
+                "n_free": None if stats is None else stats.n_free_parameters,
+                "n_diagnostics": len(node.diagnostics),
+                "diagnostics": [d.model_dump(mode="json") for d in node.diagnostics],
+                "tags": tags.get(node.id, []),
+                "children": [c.id for c in tree.children(node.id)],
+                "scores": dict(node.scores), "notes": dict(node.notes),
+            })
+        return {"tree_id": tree.header.tree_id, "head": tree.head,
+                "root": None if tree.root is None else tree.root.id,
+                "n_nodes": len(tree), "nodes": nodes}
+
+    def history_diff(self, a: str, b: str) -> dict:
+        tree = self._need_project().history
+        try:
+            diff = tree.diff(a, b)
+        except KeyError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404) from None
+        return {"a": tree.resolve(a), "b": tree.resolve(b),
+                "diff": {path: list(pair) for path, pair in diff.items()}}
+
+    def history_compare(self, node_ids: list[str]) -> dict:
+        tree = self._need_project().history
+        try:
+            return {"rows": tree.compare(node_ids)}
+        except KeyError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404) from None
+
+    def history_checkout(self, body: dict) -> dict:
+        """Restore a node's state as the working state (``git checkout``)."""
+        self._require_idle()
+        p = self._need_project()
+        node_id = _need(body, "node_id")
+        try:
+            p.refinement.checkout(node_id)
+        except KeyError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404) from None
+        return {"head": p.refinement._head_id, **self.params()}
+
+    def history_branch(self, body: dict) -> dict:
+        """Check a node out **and name it** — which is what a branch is here.
+
+        Worth being explicit, because the word promises something this DAG does
+        not have: there are no moving refs, only ``head``.  A fork appears when
+        you run a stage from a node that already has a child, so "branch" is not
+        a separate act — the useful half is *naming the fork point* so a history
+        panel can label the lane, and that is a tag.  ``Refinement.branch``
+        (a second in-process working tree over one tree) has no meaning for a
+        one-project session and is not what this route calls.
+        """
+        p = self._need_project()
+        node_id = _need(body, "node_id")
+        name = str(body.get("name") or "").strip()
+        out = self.history_checkout({"node_id": node_id})
+        if name:
+            self.history_tag({"node_id": node_id, "name": name})
+        return {"branched_from": p.history.resolve(node_id), "name": name, **out}
+
+    def history_tag(self, body: dict) -> dict:
+        p = self._need_project()
+        try:
+            p.history.tag(_need(body, "node_id"), _need(body, "name"))
+        except (KeyError, ValueError) as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404) from None
+        return {"tags": {k: v for k, v in p.history.refs.items() if k != "head"}}
+
+    def history_annotate(self, body: dict) -> dict:
+        p = self._need_project()
+        try:
+            p.history.annotate(_need(body, "node_id"), label=body.get("label"),
+                               notes=body.get("notes") or {},
+                               scores=body.get("scores") or {})
+        except KeyError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404) from None
+        return {"annotated": p.history.resolve(body["node_id"])}
+
+    # ------------------------------------------------------------------
+    # exports
+    # ------------------------------------------------------------------
+    def export(self, kind: str, body: dict) -> dict:
+        """Write an export into ``<project>/exports/``.
+
+        Idle-only, and not because it writes: ``write_cif`` and the reflection
+        table read the *compiled model*, which a running stage owns.
+        """
+        self._require_idle()
+        p = self._need_project()
+        if kind not in _EXPORT_DEFAULTS:
+            raise GuiError(f"unknown export {kind!r}; "
+                           f"available: {sorted(_EXPORT_DEFAULTS)}",
+                           code="NOT_FOUND", status=404)
+        res = self._need_result()
+        target = self._export_target(body.get("filename") or _EXPORT_DEFAULTS[kind])
+        ref = p.refinement
+        try:
+            if kind == "cif":
+                ref.write_cif(target)
+            elif kind == "reflections":
+                ref.write_reflection_table(target)
+            elif kind == "qpa":
+                ref.write_qpa_table(target)
+            elif kind == "html":
+                from ..viz.html import write_html
+
+                write_html(res, str(target))
+            else:
+                target.write_text(res.model_dump_json(indent=2), encoding="utf-8")
+        except RuntimeError as exc:
+            # "no QPA on this result (Rietveld fits only)" is the interesting
+            # one: a Le Bail fit has no weight fractions, and saying so beats
+            # writing an empty table
+            raise GuiError(str(exc), code="EXPORT_UNAVAILABLE", status=409) from None
+        return {"kind": kind, "path": str(target), "name": target.name,
+                "bytes": target.stat().st_size}
+
+    def _export_target(self, filename: str) -> Path:
+        p = self._need_project()
+        root = p.exports_dir.resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        target = (root / filename).resolve()
+        if not target.is_relative_to(root):
+            raise GuiError(f"{filename!r} escapes the project's exports directory",
+                           where=["filename"])
+        return target
+
+    # ------------------------------------------------------------------
+    # internals
+    # ------------------------------------------------------------------
+    def _adopt(self, project: Project) -> None:
+        with self._cond:
+            self.project = project
+            self._events.clear()
+            self._seq = 0
+            self._n_eval = 0
+            self._run = _idle_run()
+            self._cond.notify_all()
+        self._remember(project.path)
+
+    def _remember(self, path: Path) -> None:
+        entry = {"path": str(Path(path).resolve()), "opened_utc": _utcnow()}
+        kept = [e for e in self.recent() if e["path"] != entry["path"]]
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            (self.state_dir / "recent.json").write_text(
+                json.dumps([entry, *kept][:_MAX_RECENT], indent=2), encoding="utf-8")
+        except OSError:
+            pass  # a read-only home is not a reason to fail opening a project
+
+    def _need_project(self) -> Project:
+        if self.project is None:
+            raise GuiError("no project is open; POST /api/project/new or "
+                           "/api/project/open first",
+                           code="NO_PROJECT", status=409)
+        return self.project
+
+    def _need_result(self):
+        p = self._need_project()
+        result = p.refinement.result_  # read once: the worker swaps it wholesale
+        if result is None:
+            raise GuiError("no fit has been run in this session yet (a reopened "
+                           "project resumes at its head, which carries state and "
+                           "metrics but no curves — run a stage to get a result)",
+                           code="NO_RESULT", status=409)
+        return result
+
+    def _require_idle(self) -> None:
+        with self._cond:
+            if self._state != "idle":
+                raise GuiError(
+                    f"a refinement is {self._state}; this verb would change the "
+                    "model a compiled stage was built from (frozen-per-stage "
+                    "discreteness). Cancel it or wait for it to finish.",
+                    code="RUN_IN_FLIGHT", status=409)
+
+    def _effective_plan(self, override: Any = None):
+        """The plan a run would use: an override, the document's, or the default."""
+        p = self._need_project()
+        if override is not None:
+            return resolve_plan(_as_plan_argument(override), p.doc.mode)
+        if p.doc.plan is not None:
+            return p.doc.plan.to_plan()
+        return resolve_plan("mccusker_default", p.doc.mode)
+
+
+# ----------------------------------------------------------------------
+# helpers
+# ----------------------------------------------------------------------
+def _idle_run() -> dict:
+    return {"kind": None, "name": "", "status": None, "stage": None,
+            "stage_index": None, "n_stages": None, "started_utc": None,
+            "finished_utc": None, "elapsed": None, "rwp": None, "gof": None,
+            "node_id": None, "completed_stages": [], "error": None}
+
+
+def _parse_utc(stamp: str) -> float:
+    return datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(
+        tzinfo=UTC).timestamp()
+
+
+def _need(body: dict, key: str):
+    value = body.get(key)
+    if value in (None, ""):
+        raise GuiError(f"{key!r} is required", where=[key])
+    return value
+
+
+def _validate(model, payload, where: str):
+    """``model.model_validate`` with pydantic's complaint kept addressable."""
+    from pydantic import ValidationError
+
+    if not isinstance(payload, dict):
+        raise GuiError(f"{where} must be an object", where=[where])
+    try:
+        return model.model_validate(payload)
+    except ValidationError as exc:
+        # a model-level error has an empty loc; ``"structure."`` would be a
+        # dot-path to nothing, and the GUI highlights fields by this string
+        paths = [".".join([where, *(str(p) for p in err["loc"])])
+                 for err in exc.errors()]
+        raise GuiError(f"{where} failed validation: {exc.error_count()} error(s); "
+                       f"{exc.errors()[0]['msg']} at {paths[0]}",
+                       where=paths) from None
+
+
+def _as_structure(payload) -> Structure:
+    """A :class:`Structure` from an inline dict or ``{"cif": path}``."""
+    if isinstance(payload, dict) and "cif" in payload:
+        from ..crystallography.cif import structure_from_cif
+
+        path = _need(payload, "cif")
+        try:
+            # aniso is opt-in on purpose: reading a file must not silently change
+            # what a plan frees (CLAUDE.md, anisotropic ADPs)
+            return structure_from_cif(path, aniso=bool(payload.get("aniso", False)),
+                                      phase_name=payload.get("phase_name"))
+        except (OSError, ValueError, RuntimeError) as exc:
+            raise GuiError(f"could not read structure from {path}: {exc}",
+                           where=["structure.cif"]) from None
+    return _validate(Structure, payload, "structure")
+
+
+def _as_instrument(payload) -> Instrument:
+    if payload is None:
+        raise GuiError("'instrument' is required: Instrument has no default "
+                       "source, and guessing an anode or a geometry would put a "
+                       "wavelength nobody chose into every refined cell",
+                       where=["instrument"])
+    return _validate(Instrument, payload, "instrument")
+
+
+def _as_plan_argument(plan: Any):
+    """A preset name or a plan spec, as something ``resolve_plan`` accepts."""
+    if isinstance(plan, str):
+        if plan not in PLAN_PRESETS:
+            raise GuiError(f"unknown plan preset {plan!r}; "
+                           f"available: {sorted(PLAN_PRESETS)}", where=["plan"])
+        return plan
+    return _validate(PlanSpec, plan, "plan").to_plan()
+
+
+def _matching_preset(spec: PlanSpec) -> str | None:
+    """The preset this plan is identical to, or ``None`` for an edited one."""
+    for name, build in PLAN_PRESETS.items():
+        if PlanSpec.from_plan(build()) == spec:
+            return name
+    return None

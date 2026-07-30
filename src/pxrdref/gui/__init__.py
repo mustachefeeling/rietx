@@ -1,0 +1,24 @@
+"""The human GUI: a session model, and a localhost server over it (WP-1008).
+
+``pxrdref gui my_sample.pxrd`` serves the app; ``GuiSession`` is the whole
+surface it serves.  The split is the point — see :mod:`pxrdref.gui.session` for
+why every verb lives there and nothing about HTTP does.
+"""
+
+from __future__ import annotations
+
+from .server import DEFAULT_PORT, ROUTES, build_server, main, serve
+from .session import EVENT_RING, RESERVED_ROUTES, GuiError, GuiSession, RunState
+
+__all__ = [
+    "DEFAULT_PORT",
+    "EVENT_RING",
+    "GuiError",
+    "GuiSession",
+    "RESERVED_ROUTES",
+    "ROUTES",
+    "RunState",
+    "build_server",
+    "main",
+    "serve",
+]

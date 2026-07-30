@@ -15,6 +15,8 @@ def main(argv: list[str] | None = None) -> int:
     if not argv or argv[0] in ("-h", "--help"):
         print("usage: pxrdref <command> [...]\n\n"
               "commands:\n"
+              "  gui [PROJECT.pxrd] [--port N] [--no-open] [--machine]\n"
+              "                                    the refinement GUI (localhost)\n"
               "  watch <dir> [--port N] [--open]   live viewer for a LiveSession directory\n"
               "  html <result.json> <out.html>     render a saved RefinementResult to HTML\n"
               "  compare [--data DIR] [--port N] [--open]\n"
@@ -23,6 +25,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     command, rest = argv[0], argv[1:]
+    if command == "gui":
+        from .gui.server import main as gui_main
+
+        return gui_main(rest)
     if command == "watch":
         from .watch import main as watch_main
 
