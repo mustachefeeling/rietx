@@ -1044,6 +1044,24 @@ acceptance fixture whose correct answer is "we do not know".
 guillemot-study:studies/guillemot/<file>` reads any of it without a checkout.
 The tag is what guarantees that stays true if the branch is ever pruned.
 
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ⬜ | — (before 1003 if frozen) |
+| [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
+
+**1050/1051 came from a literature review** (2026-07-30, Toby 2024 *J. Appl.
+Cryst.* **57**, 175 and Tian 2013 *J. Appl. Cryst.* **46**, 255 — SrRietveld).
+1050 is Toby's worst-fit-parameter mechanism made strictly stronger by what
+this package has and GSAS-II lacks: reusable analytic Jacobian columns (his ±δ
+FD, per-type δ heuristics and sign test all collapse into one Gauss-Newton
+score gain), plus collinearity gates so his own stated failure mode comes back
+as an unresolved group, never a confident singleton. 1051 is the one part of
+SrRietveld not already superseded here: its diverge-then-escalate scheme,
+which our chain has only two leaky rungs of — including a measured hygiene
+defect where a doubly-diverged pattern still seeds its successor. The review's
+third adoption, weighted Δ/σ difference curves as the default Rietveld panel,
+was small enough to land directly (commit `732535d`).
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack
