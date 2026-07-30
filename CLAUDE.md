@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-8 min (1197 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1116 tests, ~45-55 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-8 min (1251 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1172 tests, ~45-55 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
