@@ -54,6 +54,16 @@ result, not a failure** — the whole module is built so that "the data cannot
 distinguish these" is sayable, and a user who reads that as a bug will go
 looking for a setting to force an answer.
 
+From **WP-1009** (text document, landed 2026-07-30): `gui.textdoc.FORMAT_VERSION`
+is the fenced constant this WP was asked to inject into the manual (the `pxt 1`
+header line), and `gui.textdoc.VALUE_DIGITS` is worth injecting beside it — the
+manual has to state that the text view renders **12 significant digits and is
+lossy**, and why that is safe (a typed number is compared against the rendered
+current value, so an unedited apply is a no-op). Two more things a manual chapter
+should say because they are decisions, not accidents: comments in the text pane
+do **not** survive a re-render, and a glob line like `profile.* @` is bulk sugar
+that the next render expands into one line per parameter.
+
 ## Non-goals
 
 - No screencasts/video, no hosted docs decisions (that is WP-1003's

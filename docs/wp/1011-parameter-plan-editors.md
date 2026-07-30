@@ -86,6 +86,17 @@ through are live:
   refusal deliberately outranks body validation — disable the editor off the
   `state` SSE frame rather than letting a user retype a value into a 409.
 
+From **WP-1009** (text document, landed 2026-07-30): use **`Project.parameters()`**
+(or `GET /api/params`, which now does), not `Refinement.parameters()` directly.
+The refinement's carried mode is what its last stage *ran* in — `"rietveld"`
+before the first run — while the document says what the next run will use, so
+calling the refinement directly reported `mode_fixed=False` on a Le Bail
+project's `.atoms.` rows and would have rendered the mandatory dummy atom's
+`biso` as editable. `Refinement.parameters(mode=…)` takes the override;
+`Project.parameters()` supplies `doc.mode`. Also: `PlanSpec.preset_name()` is now
+a schema method (was a private in the session), so the plan editor's "custom"
+label and the text document's `plan` line cannot disagree.
+
 ## Non-goals
 
 - No structure/instrument *object* editing (WP-1014) — this WP edits θ-table

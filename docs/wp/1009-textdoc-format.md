@@ -1,6 +1,6 @@
 # WP-1009 — Project text document: format + parser
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: WP-1004, WP-1005
 
 ## Goal
@@ -134,15 +134,18 @@ methods to `GuiSession` — no routing work. Three things that shape the format:
 
 ## Tasks
 
-- [ ] `src/pxrdref/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
+- [x] `src/pxrdref/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
       `parse → (delta, errors)` with 1-based line numbers on every error.
-- [ ] Delta application through the WP-1004 verbs, all-or-nothing;
+- [x] Delta application through the WP-1004 verbs, all-or-nothing;
       locked/tied refused with the verb's own message + line number.
-- [ ] `GET/PUT /api/textdoc` with CAS revisions on the WP-1008 server.
-- [ ] `tests/test_textdoc.py`: hypothesis round-trip — `render → parse →
-      render` is a fixed point over generated projects (globs normalised
-      away, comments preserved); every error carries a line number;
-      glob-line expansion matches Python `fnmatch` semantics.
+- [x] `GET/PUT /api/textdoc` with CAS revisions on the WP-1008 server.
+- [x] `tests/test_textdoc.py`: round-trip fixed point (`render → parse →
+      changes` is empty), hypothesis on the numeric half, every error carrying
+      a line number, glob expansion on `fnmatch`. **Comments are *not*
+      preserved** — see the handover log; the sketch in Context said they
+      round-trip and that turned out to require a second authority.
+- [x] *(found here)* `Refinement.parameters(mode=…)` + `Project.parameters()` —
+      a Le Bail project's atom rows were reporting `mode_fixed=False`.
 
 ## Acceptance
 
@@ -158,5 +161,67 @@ methods to `GuiSession` — no routing work. Three things that shape the format:
   (CLAUDE.md Conventions).
 
 ## Handover log
+
+- **2026-07-30 — complete.** 20 tests in `tests/test_textdoc.py`, fast suite
+  1117 passed / 107 skipped in 20 s (numpy-only `[dev]` venv), ruff clean, and
+  the routes exercised over real HTTP: `GET /api/textdoc` → 2738 bytes +
+  revision, `PUT` with a value and a mode edit → `["ref.set_values({…})",
+  "project.doc.mode = 'lebail'"]`, a replayed `PUT` → 409 `STALE_REVISION`, and
+  an edit to a locked row → 400 `TEXTDOC_INVALID` with a line number per
+  problem.
+
+  **The design decision the WP did not have:** a delta is computed **against the
+  live project, never against the old text**. `parse` is pure syntax; `changes`
+  compares to `Refinement.parameters()` and `ProjectDoc`. Three things follow,
+  and they are why the format needs no read-only syntax: an untouched document
+  produces *no* verbs (which is what makes an editor pane safe to leave open), a
+  field nobody can change can still be *shown* — it errors only when it actually
+  differs — and values can render at 12 significant digits (lossy!) without an
+  apply perturbing anything, because a typed number is compared against the
+  **rendered** current value rather than the stored one.
+
+  **Two renderer bugs its own round-trip test caught**, both of which would have
+  shipped a document this module could not read back:
+
+  1. A fixed 36-column value field collided with the first annotation on a long
+     path — `polarization                   0.99min 0` — and the parser refused
+     `'0.99min'` as an unknown annotation. Column widths are now per block.
+  2. A tie rendered before the bounds swallowed them: `= 0.1993 +
+     1·phases.0.atoms.1.dof.0` contains spaces, so `=` has to run to
+     end-of-line. `tie` is last in `_ANNOTATION_ORDER`, and that ordering is now
+     a grammar rule with a comment saying so.
+
+  **A defect one layer down, found by needing the surface.** A Le Bail project's
+  `.atoms.` rows came back `mode_fixed=False`: `Refinement._mode` is what the
+  last stage *ran* in (`"rietveld"` before the first run) while the document says
+  what the next run will use — so a client would have rendered the mandatory
+  dummy atom's `biso` as editable, the exact trap that flag was added for.
+  `Refinement.parameters(mode=…)` takes an override and `Project.parameters()`
+  supplies `doc.mode`; `GuiSession.params()` and the renderer both go through it.
+
+  **Deviations from the Context sketch, both deliberate:**
+
+  - **Comments do not round-trip.** The document is regenerated from state on
+    every read, so keeping a user's comment would mean storing it — in
+    `project.json` (a second authority for something nothing else reads) or in
+    the history (which would make a comment a refinement move). Comments parse
+    and are ignored; a test pins that, and WP-1013 is told so its editor can
+    warn before a re-render.
+  - **`guard <x>` was added** to the plan section: `PlanSpec.correlation_guard`
+    is part of the plan, and a document that omitted it would silently reset it
+    to the default whenever a stage line was edited.
+
+  Other decisions: the `plan` line names a preset and the `stage` lines *are*
+  the plan, so **editing both at once is refused** rather than resolved by
+  precedence (silently discarding the lines a user is looking at is the worse
+  failure); a bad `phase 7` block **suppresses its own rows' errors**, because
+  one mistyped index otherwise buries its own fix under twenty "unknown
+  parameter" lines; and `PlanSpec.preset_name()` is now a schema method, so the
+  GUI's plan editor and this renderer cannot disagree about what "custom" means.
+
+  **Not done:** the reserved `peaks` block is recognised and refused with its
+  owner (`RESERVED_BLOCKS`), with the intended column layout and the two
+  editable columns recorded in the module docstring — WP-1027 fills it in
+  without a format bump.
 
 - **2026-07-29** — created from the v1.0 GUI plan.

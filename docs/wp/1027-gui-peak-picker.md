@@ -119,6 +119,15 @@ generic enough to carry an indexing run without new keys. Remember WP-1006's
 note carried into WP-1024: a **new** `EventKind` is a schema-version bump where
 an added `data` field is not.
 
+From **WP-1009** (text document, landed 2026-07-30): the **`peaks` block name is
+reserved in `pxt 1`**, so filling it in needs no format bump —
+`gui.textdoc.RESERVED_BLOCKS` maps it to this WP and the parser refuses it with
+that owner rather than as an unknown keyword. The intended layout (and the two
+editable columns, `2theta` and `flags`) is recorded in that module's docstring.
+Two grammar rules to follow when implementing it: an annotation containing spaces
+must render **last** on its line, and column widths are computed **per block** —
+a fixed width is what made the renderer emit output its own parser refused.
+
 ## Non-goals
 
 - No new indexing capability — this WP is a surface over WP-1018-1025.

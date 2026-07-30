@@ -121,6 +121,29 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1009](wp/1009-textdoc-format.md) landed 2026-07-30** — the project as text
+(`.pxt`), one parser, server-side only. Its founding decision was not in the
+charter: **a delta is computed against the live project, never against the old
+text.** `parse` is pure syntax and `changes` diffs the parsed document against
+`Refinement.parameters()` and `ProjectDoc`, which is what buys three properties at
+once — an untouched document emits *no* verbs (so an editor pane is safe to leave
+open), a read-only field can be shown without inventing a "look, don't touch"
+syntax because it errors only when it actually differs, and values can render at a
+readable 12 significant digits without an apply perturbing anything, since a typed
+number is compared to the *rendered* current value. Its own round-trip test caught
+two renderer bugs before they shipped — a fixed value column collided with its
+first annotation (`polarization  0.99min 0`, which the parser then refused) and a
+tie rendered mid-line swallowed everything after it, because `= 0.1993 + 1·…`
+contains spaces. Two deliberate deviations from the sketch are recorded rather
+than quietly implemented: **comments do not round-trip** (keeping one would mean
+storing it, i.e. a second authority), and `guard` joined the plan section because
+`correlation_guard` is part of a plan and would otherwise reset itself whenever a
+stage line was edited. And it found the milestone's fifth latent defect: **a Le
+Bail project's atom rows reported `mode_fixed=False`**, because `Refinement._mode`
+is what the last stage *ran* in while the document says what the next run will
+use — so a client would have rendered the mandatory Le Bail dummy atom's `biso`
+as editable, the one trap that flag exists to close.
+
 **[1008](wp/1008-gui-server.md) landed 2026-07-30** — `pxrdref gui` serves a
 localhost app over stdlib `http.server`: 35 live routes and 17 reserved ones, and
 **every verb a plain method on `GuiSession` with nothing about HTTP in it**, which
@@ -990,7 +1013,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
 | [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ✅ 2026-07-30 | 1004–1007 |
-| [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
+| [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |

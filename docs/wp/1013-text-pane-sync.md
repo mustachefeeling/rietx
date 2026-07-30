@@ -52,6 +52,34 @@ running, not that their text is invalid), and a text edit that changes *settings
 persists immediately (`project.json` is written by the verb, not by Save), which
 is what keeps "nothing to confirm on close" true.
 
+From **WP-1009** (text document, landed 2026-07-30) — the primitive is done and
+`GET/PUT /api/textdoc` are live. What the sync engine has to know:
+
+- **`PUT` is compare-and-set on a `revision`** (`textdoc.revision(text)`, a short
+  sha256 of the rendered document). A stale `base_revision` is a 409
+  `STALE_REVISION` and there is no merge — the document is *regenerated from
+  state*, so a three-way merge would be merging two renderings of the same
+  authority. The response to a successful `PUT` carries the re-rendered `text`
+  and its new `revision`, so the pane can adopt them without a second round trip.
+- **`validate_only: true`** does everything but apply and returns
+  `{valid, delta, would_change}` — that is the continuous-validation call, and it
+  is cheap (no fit, no compile).
+- **An invalid document applies none of itself.** The 400 carries
+  `error.details[]`, one entry per problem, each with a 1-based `line`, a
+  `where` dot-path and the offending `text` — enough to place a squiggle without
+  parsing prose. The frontend gets a regex highlighter and no grammar, by
+  decision, so this list is the only diagnostics channel.
+- **A re-render discards the user's comments** (see that WP's handover for why
+  storing them was rejected). The pane should say so before it replaces the
+  buffer — "apply, then re-read" is the flow, and a user who has annotated the
+  document will otherwise lose notes they had no reason to expect were transient.
+- Canonical output normalises **glob lines** away (`profile.* @` becomes one line
+  per parameter on the next render). That is deliberate bulk-edit sugar, and it is
+  the clearest case where the buffer *must* be replaced after an apply rather than
+  patched.
+- `PUT` is a mutating verb: 409 `RUN_IN_FLIGHT` while a run is going, and the
+  state refusal outranks a parse complaint.
+
 ## Non-goals
 
 - No lezer grammar, no client-side parsing beyond the regex highlighter.

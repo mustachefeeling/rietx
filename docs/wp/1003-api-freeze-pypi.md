@@ -306,6 +306,21 @@ surface, and one thing that is explicitly *not* frozen.
   package has ever written outside a project directory. Worth a README line and a
   decision on whether it should be XDG-aware before it is frozen.
 
+From **WP-1009** (text document, landed 2026-07-30): more surface to weigh, and
+one signature change.
+
+- `pxrdref.gui.textdoc` — `FORMAT_VERSION` (`pxt 1`, its own versioned contract,
+  making **five** in the build rather than the four `capabilities()` reports),
+  `VALUE_DIGITS`, `RESERVED_BLOCKS`, `render`, `parse`, `changes`, `apply`,
+  `revision`, and the `TextError`/`Row`/`ParsedDocument`/`Delta` dataclasses.
+  Decide whether `FORMAT_VERSION` joins the `capabilities()` contract arm — an
+  editor pane needs it, and it is currently only reachable through
+  `GET /api/textdoc`.
+- **`Refinement.parameters()` gained a keyword-only `mode=`**, and
+  `Project.parameters()` is new. Both are corrections rather than additions: a Le
+  Bail project's rows were answered for the wrong mode. Freeze the pair together.
+- `PlanSpec.preset_name()` is a new schema method (derived, never stored).
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

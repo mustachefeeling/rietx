@@ -161,6 +161,22 @@ budget, not a ceiling. `strategy.staged.resolve_plan` (preset name + mode → pl
 is likewise one function, previously inline in `fit` and duplicated in
 `sequential`.
 
+The **text document** (WP-1009, `gui/textdoc.py`, `pxt 1`) is the line-oriented
+view of a project — settings, plan, and every parameter row, where `@` frees and a
+bare value holds. `render` → `parse` → `changes` → `apply`, and the rule that
+makes it safe is that **a delta is diffed against the live project, never against
+the old text**: an untouched document emits no verbs, a read-only field is an
+error only when it *differs* (so everything can be shown without a "look, don't
+touch" syntax), and a typed number is compared to the **rendered** value, which is
+what lets values render lossily at 12 significant digits. Everything applies
+through the same verbs a form calls — same history nodes — and every refusal is
+the verb's own words (`held_because`, `TieSpec.describe`) with a line number
+attached, never restated. Two grammar facts are load-bearing: a `tie` renders
+**last** on its line (it contains spaces, so `=` runs to end-of-line) and column
+widths are **per block** (a fixed width made the renderer emit
+`polarization 0.99min 0`, which its own parser refused). Comments parse but do not
+survive a re-render, on purpose: storing one would be a second authority.
+
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as
