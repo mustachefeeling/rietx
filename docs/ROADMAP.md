@@ -46,6 +46,18 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**Indexing: 1018, 1019 and 1020 are done (2026-07-30); the three engines are
+next, and they are independent of each other.** Everything an engine shares now
+exists and is tested — a fitted peak list with *calibrated* per-line σ (1018), a
+gate that abstains rather than searching data that cannot support a search
+(1019), and the Q-space core: the quadratic form, the derived metric subspaces,
+weighted candidate refinement, reduction, two-opinion Bravais, the figure-of-merit
+panel and geometrical ambiguity (1020). [1021](wp/1021-engine-dichotomy.md),
+[1022](wp/1022-engine-trial-error.md) and [1023](wp/1023-engine-montecarlo.md) can
+be taken in any order or in parallel; each has a fresh `### Inherited` note naming
+the five things about the shared surface that are not obvious from the names. The
+per-WP narratives are in the indexing sub-table below.
+
 **v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
 measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
 milestone's headline is that three of its four deliverables are *decisions
