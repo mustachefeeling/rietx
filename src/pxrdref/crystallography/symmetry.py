@@ -53,6 +53,39 @@ def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
     return np.array(mats)
 
 
+def expand_orbit(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
+                 ) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Orbit of one fractional position, **with the rotation that produced each image**.
+
+    Returns ``(position, R)`` pairs — the position wrapped into [0,1) and the
+    fractional-space rotation part of the operation that generated it.  The
+    rotation is what a caller needs when the site carries something that
+    *transforms* rather than merely moves: a displacement ellipsoid is
+    U\\* → R·U\\*·Rᵀ (see ``adp.py``), so an image drawn with the parent's tensor
+    is drawn wrong in every non-orthogonal setting.  Deduplication is by position
+    with tolerance ``tol``, so a special position keeps the first operation that
+    reached it — any of the stabiliser's members leaves the site's own tensor
+    invariant, which is why "the first" is well defined here rather than
+    arbitrary.
+    """
+    ops = sg.operations()
+    seen: list[tuple[np.ndarray, np.ndarray]] = []
+    for op in ops:
+        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
+        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
+        p = (r @ np.asarray(xyz, dtype=np.float64) + t) % 1.0
+        dup = False
+        for q, _ in seen:
+            diff = np.abs(p - q)
+            diff = np.minimum(diff, 1.0 - diff)  # periodic distance
+            if np.all(diff < tol):
+                dup = True
+                break
+        if not dup:
+            seen.append((p, r))
+    return seen
+
+
 def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
                      ) -> list[np.ndarray]:
     """Orbit of one fractional position under the space group.
@@ -61,22 +94,7 @@ def expand_positions(sg: gemmi.SpaceGroup, xyz: np.ndarray, *, tol: float = 1e-4
     orbit length is the site multiplicity.  Coincident images (special
     positions) are deduplicated with tolerance ``tol``.
     """
-    ops = sg.operations()
-    seen: list[np.ndarray] = []
-    for op in ops:
-        r = np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN
-        t = np.array(op.tran, dtype=np.float64) / gemmi.Op.DEN
-        p = (r @ np.asarray(xyz, dtype=np.float64) + t) % 1.0
-        dup = False
-        for q in seen:
-            diff = np.abs(p - q)
-            diff = np.minimum(diff, 1.0 - diff)  # periodic distance
-            if np.all(diff < tol):
-                dup = True
-                break
-        if not dup:
-            seen.append(p)
-    return seen
+    return [p for p, _ in expand_orbit(sg, xyz, tol=tol)]
 
 
 @dataclass

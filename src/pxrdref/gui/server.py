@@ -146,6 +146,17 @@ def _compare(s: GuiSession, q: dict, _body: dict) -> dict:
     return s.history_compare(ids)
 
 
+def _structure3d(s: GuiSession, q: dict, _body: dict) -> dict:
+    """Geometry for one phase.  Both knobs are *drawing* thresholds, not physics,
+    which is why they ride here rather than in a settings document: the
+    probability level an ellipsoid is drawn at and the radius-sum slack a bond is
+    drawn at say nothing about the model, and persisting either would make one
+    picture the project's opinion."""
+    return s.structure3d(_query_int(q, "phase", 0),
+                         probability=_query_float(q, "probability") or 0.5,
+                         bond_tolerance=_query_float(q, "bond_tolerance"))
+
+
 def _report(s: GuiSession, q: dict, _body: dict) -> dict:
     plan = q.get("plan", [None])[0]
     return s.report(plan=plan or None)
@@ -171,6 +182,7 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("PUT", "/api/plan"): lambda s, q, b: s.plan_put(b),
     ("GET", "/api/plans"): lambda s, q, b: s.plans(),
     ("GET", "/api/structure"): lambda s, q, b: s.structure(),
+    ("GET", "/api/structure3d"): _structure3d,
     ("PATCH", "/api/structure"): lambda s, q, b: s.structure_patch(b),
     ("POST", "/api/structure/aniso"): lambda s, q, b: s.structure_aniso(b),
     ("GET", "/api/instrument"): lambda s, q, b: s.instrument(),

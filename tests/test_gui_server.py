@@ -241,10 +241,10 @@ def test_host_header_is_checked(blank):
 
 def test_reserved_routes_answer_404_naming_their_work_package(blank):
     _, client = blank
-    status, payload = client.get("/api/structure3d")
+    status, payload = client.get("/api/peaks")
     assert status == 404
     assert payload["error"]["code"] == "NOT_IMPLEMENTED"
-    assert "WP-1015" in payload["error"]["message"]
+    assert "WP-1027" in payload["error"]["message"]
     status, payload = client.post("/api/index")
     assert status == 404 and "WP-1024" in payload["error"]["message"]
 
@@ -621,6 +621,39 @@ def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
     for row in payload["sites"]:
         assert set(row["dof_paths"]) <= free
         assert set(row["adp_paths"]) <= free
+
+
+def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
+                                                           pattern_file):
+    """The route earns its place beside ``/api/structure`` (WP-1008's test).
+
+    Everything in it is something a ``Structure`` dump does not say: the
+    symmetry orbit, the bonds, and the cell frame.  The two knobs are drawing
+    thresholds and ride on the query string, which is also what keeps them out
+    of ``ProjectDoc`` — a probability level is not a fact about the sample.
+    The geometry itself is ``tests/test_structure3d.py``'s ground.
+    """
+    session, client = blank
+    _open(session, tmp_path / "viewer.pxrd", pattern_file)
+    status, payload = client.get("/api/structure3d")
+    assert status == 200, payload
+    assert [s["path"] for s in payload["sites"]] == ["phases.0.atoms.0",
+                                                     "phases.0.atoms.1"]
+    assert len(payload["edges"]) == 12
+    assert payload["probability"] == 0.5
+    assert payload["bond_tolerance"] == pytest.approx(1.15)
+
+    tuned = client.get("/api/structure3d?probability=0.9&bond_tolerance=1.05")[1]
+    assert tuned["scale"] > payload["scale"]            # 2.5003 against 1.5382
+    assert len(tuned["bonds"]) < len(payload["bonds"])
+
+    assert client.get("/api/structure3d?phase=4")[0] == 404
+    assert client.get("/api/structure3d?probability=2")[0] == 400
+
+    # …and it follows the model rather than a cached read: an edit moves it
+    before = payload["cell"][0]
+    client.patch("/api/params", {"values": {"phases.0.cell.a": before + 0.1}})
+    assert client.get("/api/structure3d")[1]["cell"][0] == pytest.approx(before + 0.1)
 
 
 def test_the_aniso_toggle_seeds_and_unseeds_through_the_metric(blank, tmp_path,

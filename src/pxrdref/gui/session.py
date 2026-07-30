@@ -97,7 +97,6 @@ _MAX_RECENT = 12
 #: them in — a 404 saying "not yet, here is who" is a design document a client
 #: can read at runtime.
 RESERVED_ROUTES: dict[tuple[str, str], str] = {
-    ("GET", "/api/structure3d"): "WP-1015 (structure viewer)",
     ("GET", "/api/peaks"): "WP-1027 (GUI peak picker)",
     ("POST", "/api/peaks"): "WP-1027 (GUI peak picker)",
     ("POST", "/api/peaks/add"): "WP-1027 (GUI peak picker)",
@@ -577,6 +576,36 @@ class GuiSession:
         structure = self._need_project().refinement.structure
         return {"structure": structure.model_dump(mode="json"),
                 "sites": _site_rows(structure)}
+
+    def structure3d(self, phase: int = 0, *, probability: float = 0.5,
+                    bond_tolerance: float | None = None) -> dict:
+        """The current model as drawable geometry (WP-1015).
+
+        A route beside ``/api/structure`` rather than an arm of it, on WP-1008's
+        test for a new one: it returns what the model does **not** already say —
+        the symmetry orbit with each image's rotated displacement tensor, bonds
+        over the 27 nearest lattice translations, and the cell frame — none of
+        which a client could reshape out of a ``Structure`` dump without owning a
+        space-group table.  Computed on demand, so it is also where a per-atom
+        symmetry search may live that ``/api/structure`` refused (that route
+        refetches on every head move; this one is opened deliberately).
+
+        Not idle-gated: it reads the model, like ``/api/structure``, and a fit in
+        flight does not move the values the working state holds.
+        """
+        from . import structure3d as geometry
+
+        structure = self._need_project().refinement.structure
+        try:
+            return geometry.build(
+                structure, int(phase), probability=float(probability),
+                bond_tolerance=(geometry.BOND_TOLERANCE if bond_tolerance is None
+                                else float(bond_tolerance)))
+        except IndexError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=["phase"]) from None
+        except ValueError as exc:
+            raise GuiError(str(exc), where=["probability"]) from None
 
     def instrument(self) -> dict:
         return {"instrument": self._need_project().refinement.instrument.model_dump(
