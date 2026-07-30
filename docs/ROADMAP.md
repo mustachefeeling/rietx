@@ -46,6 +46,65 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**A certified pattern indexes, and the thing that had stopped it was our own peak
+list (2026-07-30).** [1026](wp/1026-indexing-acceptance.md) is in flight and its
+first result inverts [1023](wp/1023-engine-montecarlo.md)'s diagnosis. Corundum's
+failure was recorded as too tight a matching window; the numbers 1023 measured
+stand, the attribution does not. `detect_peaks` was right all along — 41 groups,
+**one seed each**, the real lines — and `fit_group` then returned **63**
+components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its area
+with a small esd, so 19 % of what the search was offered were not lines. With
+those flagged `not_separable` **both engines rank the certified cell first**, at
+the same shift allowance, which was never touched.
+
+**The gate could not have refused them, and the reason is a limit of ΔBIC rather
+than a bad threshold in it.** ΔBIC asks whether the data prefer n+1 components to
+n. That is the same question as "is there a line here" *only while the
+n-component model is capable of fitting*. On the corundum 104 line χ²_red is 17.4
+at n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins by a mile.
+Hence the third condition of `_not_separable`: the group's own fit must still be
+refuted, at 3σ of χ²_red's *own* scatter rather than a flat bar, since groups
+differ 5× in size across one pattern. The component stays in the model (removing
+it displaces the real line by 0.010°) and is barred only from `usable()`. Three
+mechanisms were excluded by measurement first: axial asymmetry (declaring
+apertures gives 63 → 56 and takes χ²_red 2.9 → 10.7), the width bounds, the
+background envelope. General, not a corundum quirk: satellites were **4-21 %** of
+picked lines on all eight bundled real datasets, now 0-7 %.
+
+**A second latent defect fell out of the same session, and it is the sharper one:
+a precision nobody measured was refusing to index.** `assess_peak_list` abstained
+on median σ(Q)/Q without asking where σ came from, so all **ten** sets of the
+published bethanechol benchmark were refused — including the synchrotron set whose
+published M(20) is **197** — on the strength of `PEAK_ASSUMED_ESD_DEG`, a number
+this package chose. That is the module's founding rule inverted: an assumed
+precision must never be quoted as a measured one, and refusing on it is quoting
+it. The test now runs only on `source == "fitted"`; the figure is still computed
+and reported, it simply has no vote.
+
+**The benchmark itself is landed and verified, and the global score is a measured
+no-go.** Bergmann *et al.* (2004) Tables 5 and 6 are transcribed
+(`tests/data/bethanechol_indexing.json`) — **ten** sets, not the six the WP
+assumed, since A/B/C/D are treatments applied to *both* ICDD entries. Nothing is
+trusted because it was typed carefully: three statements the paper makes in prose
+and never tabulates are asserted (the zeroshift arithmetic on 80 values, the
+I ≥ 5 % subsetting bit-for-bit, and its own impurity counts recovered from the
+published cell — 3 of 20 in every 46-1964 set, 7 in 43-1748). But the score cannot
+be reported: the paper's own monoclinic domain (V 800-1200 Å³, axes 5-20 Å) never
+finishes, returning 0 candidates and `complete=False` at 240 s and at **900 s**
+on the *easiest* set, and the tolerance was excluded as the cause. Adopting a
+protocol means adopting it whole, so a score over a narrower domain is not
+comparable with Table 5. That is engine-scaling work, not acceptance work.
+
+**And the 2004 paper's own open question now has an answer, which is "you cannot
+tell".** It hypothesised the two entries' large zeroshift was a specimen
+displacement and had no way to check, every program of the day fitting one
+constant zeropoint. Asked properly with three nested single-template fits, the
+answer is `separable = False` on all ten sets at collinearity **1.0000** — over
+6-31° 2θ, cos θ ≈ 1 and sin 2θ ≈ 2θ. The *magnitude* is determined and disagrees
+with the paper: 43-1748 carries +0.062° and 46-1964 +0.058°, not the quoted 0.10°,
+so subtracting 0.100 overshoots — which is why Table 5 does not show C as
+uniformly easier than A.
+
 **The workflow now reaches the space group — as a *class*, which is what a powder
 measures (2026-07-30).** [1025](wp/1025-extinction-symbol.md) landed:
 `determine_extinction_symbol(data, candidate, instrument)` enumerates every gemmi
@@ -74,7 +133,8 @@ line the class still allows), without which a class whose absences all hide unde
 neighbours wins on parsimony alone; and the absence of a *line* is asked of the
 whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
-Next: [1026](wp/1026-indexing-acceptance.md) (real-data acceptance),
+Next: finish [1026](wp/1026-indexing-acceptance.md) (the known-cell and abstention
+rows it has not reached, and the CI pricing), then
 [1027](wp/1027-gui-peak-picker.md) (GUI).
 
 **Indexing works end to end (2026-07-30).**
@@ -1251,7 +1311,7 @@ per concurrent session, or only one session commits.
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
 | [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
-| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
+| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | 🟡 | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
 
 | WP | Title | Status | Depends on |

@@ -1,6 +1,6 @@
 # WP-1026 — Indexing acceptance: the bethanechol benchmark and known cells
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: 🟡 in progress
 Depends on: 1024 (1025 soft)
 
 ## Goal
@@ -218,25 +218,30 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       folder of datalab-org/guillemot (MIT), which is *not* vendored here; the
       peak table is our own derived product, carried with attribution, and the
       pattern it came from is unidentified — that is the point of the fixture.
-- [ ] `tests/test_acceptance_indexing.py` (`@pytest.mark.slow`): the six
-      bethanechol sets scored the paper's way, with the **global score printed
-      and asserted ≥ +9** (the "First 4" bar); the A/B shift-model assertions.
-- [ ] Known cells: LaB6 (`nist_srm660c_100a.cif`, certified a = 4.156780,
+- [~] `tests/test_acceptance_indexing.py`: landed with sixteen fast rows and
+      three `slow` ones. The A/B shift-model assertions are **done** and are the
+      strongest thing in the file. The **global score is not reported, and that
+      is a measured no-go** (see the handover log, 2026-07-30): the paper's own
+      monoclinic domain does not finish inside any budget tried, and a score over
+      a narrower domain is not comparable with Table 5.
+- [~] Known cells: **corundum done** (SRM 676a, certified, ranked first,
+      graded `low` for a measured reason). Not done: LaB6 (`nist_srm660c_100a.cif`, certified a = 4.156780,
       all engines, `high` confidence); NAC (`11BM_NAC.fxye`, cubic + CaF₂ —
       asserts `INDEX_IMPURITY_LINES` and that **engine C succeeds with the
       impurity lines left in while A/B need their mitigations**, the documented
       reason C is in the panel); FAP (`FAP.XRA`, Cu Kα doublet — asserts fitted
       positions are **Kα1** positions against the known cell's predicted 2θ);
       the six `qarr` pure phases (R-3c, Fm-3m, P6₃mc, P-3m1, Fd-3m, I4₁/amd).
-- [ ] The abstention suite: `qarr/cpd-1a.prn` (3-phase mixture) ⇒
-      `best_or_none() is None`; `hl2_peaks.txt` ⇒ `best_or_none() is None` and
+- [~] The abstention suite: **`qarr/cpd-1a.prn` done**. Not done:
+      `hl2_peaks.txt` ⇒ `best_or_none() is None` and
       the diagnostics name which systems were searched; a geometrical-ambiguity
       case where **neither** partner reaches `high`.
 - [ ] The joint-criterion regression (check D): with the prior art's screen
       data, assert `predicted_seen_fraction` reorders the 390-line impostor
       (9.0 % of its own lines seen) below the 23-line truth (56.5 %).
-- [ ] `tests/validation_matrix.py` rows for every new diagnostic; regenerate
-      `docs/VALIDATION.md`.
+- [x] `tests/validation_matrix.py` rows for every landed row; `docs/VALIDATION.md`
+      regenerated (39 → 43 claims), plus a `bethanechol` dataset entry and a
+      `SUITE_INTROS` paragraph.
 - [ ] **Price the CI cost before adding it** — per CLAUDE.md the budget is a
       design input (2000 free Actions minutes/month, macOS at 10×). Record the
       measured wall clock here and put the acceptance rows on the weekly job,
@@ -285,3 +290,87 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   is the reason this milestone can be graded rather than merely demonstrated:
   it is the only published, scored benchmark available to any feature in this
   package.
+
+- **2026-07-30** — the paper arrived, and the WP turned out to be about the peak
+  fitter. Session ran on branch `worktree-indexer`.
+
+  **Done.** The benchmark is transcribed and *verified* (`bethanechol_indexing.json`
+  + `tests/test_acceptance_indexing.py`, 16 fast rows + 3 slow); the HL2-1
+  abstention fixture is extracted; the certified corundum pattern indexes end to
+  end and is graded honestly; the validation matrix carries 8 new rows
+  (`docs/VALIDATION.md` 39 → 43 claims). Fast suite **1346 passed / 66 skipped in
+  ~48-149 s**; the acceptance file alone is **~120 s**, dominated by two module
+  fixtures (corundum 35 s, cpd-1a 84 s, both `xdist_group("indexing-acceptance")`).
+
+  **Four things the next session needs, in order of how much they change the plan.**
+
+  1. **The WP's founding fact was wrong in a way worth understanding.** Table 6
+     has **ten** columns, not six: A/B/C/D are *treatments* and each was applied to
+     *both* ICDD entries, so the global score runs over twenty numbers in ±20. The
+     WP context section is corrected. Table 5 was reconstructed from a garbled
+     conversion and checked: the two rows we are graded against sum to exactly the
+     published +9 and +12, which is what makes the reconstruction trustworthy.
+
+  2. **The real-data obstruction was never the tolerance, and WP-1023's diagnosis
+     is corrected in place** (`DEFAULT_UNKNOWN_SHIFT_DEG`'s docstring keeps its
+     numbers and loses its attribution). `detect_peaks` was right — 41 groups, one
+     seed each; `fit_group` returned **63** components, adding a phantom ~1 FWHM
+     below every strong peak at ~10 % of its area with a small esd. ΔBIC could not
+     refuse it, and not because 6.0 is wrong: ΔBIC asks whether the data prefer
+     n+1 components to n, which is the same question as "is there a line here" only
+     while the n-component model can fit at all. On the corundum 104 line χ²_red is
+     **17.4 at n = 1 and 4.6 at n = 2** — both refuted, so any extra component wins.
+     Ruled out first, each by measurement: axial asymmetry (declaring apertures
+     gives 63 → 56 and takes χ²_red 2.9 → 10.7), the width bounds (nowhere near
+     them), the background envelope (tracks the quiet regions). General: satellites
+     were **4-21 %** of picked lines on all eight bundled real datasets, now 0-7 %.
+     The fix is `not_separable` (`indexing/pick.py::_not_separable`,
+     `PEAK_REFUTED_SIGMA`) — three conditions, of which the third (the fit is still
+     refuted) is load-bearing. The component stays in the *model*, because removing
+     it displaces the real line by 0.010°.
+
+  3. **The global score is a measured no-go, not an unfinished row**, and it should
+     not be attempted again without changing the engine. The paper's manual-mode
+     domain is monoclinic, V 800-1200 Å³, axes 5-20 Å; adopting a protocol means
+     adopting it whole, so a score over a narrower domain is not comparable with
+     Table 5. On set F — the *easiest* of the ten, M(20) = 197, every line explained
+     by the published cell — dichotomy returns **0 candidates and
+     `complete=False`** at 240 s for `n_unindexed` 0 and 2 and at **900 s** in
+     manual mode; trial-and-error returns 12 without the truth. An incomplete
+     search says nothing (`search_complete`), so this is about cost. The tolerance
+     was excluded: σ 0.02 → 0.005° takes median σ(Q)/Q from 4.4e-3 to 1.1e-3 and
+     changes nothing. **What to try next is engine work, not acceptance work** —
+     the domain is four free metric parameters and the dichotomy explores it
+     breadth-first; the paper's own successful programs on this set are index-space
+     (ITO) and Monte-Carlo (McMaille), neither of which this package has, and
+     WP-1023 already closed the Monte-Carlo door. Consider this a WP-1021/1022
+     scaling question and give it its own row.
+
+  4. **Two open items are decisions, not work.** (a) *WP-1025's inherited
+     question, answered:* the FAP and NAC extinction-screen assertions **are**
+     acceptance-grade claims and belong in the matrix; the reason they are not in
+     it is purely that the guard collects `test_acceptance_*.py` and they live in
+     `tests/test_extinction_symbol.py`, which also holds unit tests. The mechanism
+     is to *move those two tests* into the acceptance suite, not to widen the
+     collector — widening it would demand matrix rows for unit tests. Not done.
+     (b) `SearchSpec.shift_template` appears not to reach the reported candidate:
+     declaring `"cos_theta"` or `"constant"` on the corundum run left the rank-0
+     candidate with `shift_template=None` and an unchanged +2799 ppm c-axis, even
+     though `refine_with_shift` is wired into both engines. Either it declines
+     silently or the ranked candidate takes a path that skips it. **Check this
+     before building anything on `refine_with_shift`** — it is the mechanism the
+     whole "measure the shift, then re-index" protocol rests on.
+
+  **Also landed, and it is a second latent defect this WP found rather than
+  caused:** `assess_peak_list` abstained on median σ(Q)/Q without asking where σ
+  came from, so **all ten benchmark sets were refused** — including the synchrotron
+  one whose published M(20) is 197 — on the strength of `PEAK_ASSUMED_ESD_DEG`, a
+  number this package chose. The test is now conditioned on `source == "fitted"`.
+  The figure is still computed and reported; it simply does not get a vote.
+
+  **Not started:** LaB6/NAC/FAP/six-qarr known cells, the `hl2_peaks` and
+  geometrical-ambiguity abstention rows, the check-D joint-criterion regression,
+  and the CI pricing. The CI decision is *nearly* free to take now: the acceptance
+  file costs ~120 s locally, so it belongs on the **weekly** job, and the two
+  module fixtures must keep their `xdist_group` or a second worker rebuilds an
+  84-second search.

@@ -87,6 +87,37 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+**From WP-1026 (landed 2026-07-30) — a picked line now has a third state, and the
+picker UI is where it becomes visible or invisible.** `pick_peaks` emits
+components flagged **`not_separable`**: profile-shape repair that the fitter
+believes in as *shape* and disbelieves as a *line*. They stay in `PeakList.peaks`
+and are **excluded from `usable()`**, exactly like the Kβ/W ghosts. Three
+consequences for this WP:
+
+- **`len(peaks.peaks) != len(peaks.usable())` is now the normal case on real lab
+  data**, not an edge case — 8 of 63 on the bundled corundum pattern, and 4-21 %
+  of components across the eight bundled real datasets before the fix (0-7 %
+  after). A panel that renders `peaks` will show lines the indexer never saw, and
+  one that renders only `usable()` will hide the fitter's own explanation of a
+  strong peak's shape. Render both, distinguished.
+- **It is the flag a user will most want to overrule**, because it is a judgement
+  about a real component rather than a detection. The `excluded` flag is the
+  existing route for a caller's own decision; treating a `not_separable` line as a
+  line is a *different* act and should look different.
+- **Its cause is worth surfacing when it fires a lot**: the third condition is
+  that the group's fit is still refuted (χ²_red above 3σ of its own scatter), so a
+  pattern full of `not_separable` lines is usually a pattern whose *instrument
+  profile is mis-declared* — undeclared axial divergence reproduced the whole
+  effect synthetically. That is an actionable message, not a peak-picking one.
+
+**Also from WP-1026: an assumed σ no longer refuses to index.** A
+`from_positions` list (which is what a GUI "paste peak positions" box produces)
+used to fail `assess_peak_list`'s σ(Q)/Q gate on the strength of
+`PEAK_ASSUMED_ESD_DEG`. It no longer does, but the figure is still reported and
+every line still carries `sigma_assumed` — so the panel must show "precision
+assumed", not "precision measured", and must not present the σ(Q)/Q number as a
+property of the data.
+
 **From WP-1025 (landed 2026-07-30) — there is a second answer to render, and it
 has the same shape rule.** `determine_extinction_symbol(data, candidate, instrument)`
 returns a ranked `ExtinctionScreen` whose every row lists its space groups, so the
