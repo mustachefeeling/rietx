@@ -54,6 +54,23 @@ CELL_EQUALITY_CHI2 = 16.8119
 #: an order looser than a synchrotron cell's precision, so it never *tightens* a
 #: comparison the χ² test would have made.
 CELL_EQUALITY_RELATIVE = 5e-3
+#: **Relative** tolerance for every floating-point comparison inside the Niggli
+#: reduction, as ε = ``NIGGLI_EPS_RELATIVE`` · V^(1/3) — Grosse-Kunstleve, Sauter
+#: & Adams (2004), *Acta Cryst.* **A60**, 1-6, eq. (3), and their value.
+#:
+#: **The Křivý-Gruber reduction is not stable in floating point without one**, and
+#: gemmi's default is an *absolute* 1e-9.  That paper's Test 3 — reduce a Niggli
+#: cell, re-set it by a unimodular matrix with large elements, reduce again, demand
+#: the same cell — is exactly ``test_niggli_reduction_is_unimodular_invariant``
+#: here, and it reports that test failing at ε_relative = 1e-10 and passing at
+#: 1e-5.  Measured here, on the case hypothesis found: the reduced cell of
+#: (3, 3, 3, 66°, 110°, 65°) has **b = c exactly**, so Křivý-Gruber step A2 must
+#: break the tie on |η| ≤ |ζ| — and at gemmi's default the two settings came back
+#: with β and γ *swapped* (106.877/108.054 against 108.054/106.877), the second of
+#: which violates A2 while gemmi's own ``is_niggli`` called both True.  At this
+#: value they agree.  The same ε must be used for the reduction *and* for the
+#: predicate, which is the paper's Goal 2.
+NIGGLI_EPS_RELATIVE = 1e-5
 #: Le Page obliquities (degrees) swept by :func:`bravais_screen`.
 BRAVAIS_OBLIQUITIES: tuple[float, ...] = (0.5, 1.0, 2.0, 3.0)
 #: Multiples of the cell's own esd used as spglib ``symprec`` values.  Tying the
@@ -153,15 +170,16 @@ def reduce_cell(cell: tuple[float, ...], centring: str = "P", *,
     import gemmi
 
     uc = gemmi.UnitCell(*cell)
+    eps = NIGGLI_EPS_RELATIVE * uc.volume ** (1.0 / 3.0)
     gv = gemmi.GruberVector(uc, centring, track_change_of_basis=True)
-    already = gv.is_niggli() if kind == "niggli" else gv.is_buerger()
+    already = gv.is_niggli(eps) if kind == "niggli" else gv.is_buerger()
     if kind == "niggli":
-        gv.niggli_reduce()
+        gv.niggli_reduce(epsilon=eps)
     elif kind == "delaunay":
         gv.selling()
     else:
         raise ValueError(f"kind must be 'niggli' or 'delaunay', not {kind!r}")
-    gv.normalize()
+    gv.normalize(epsilon=eps)
     out = gv.get_cell()
     return ReducedCell(
         cell=(out.a, out.b, out.c, out.alpha, out.beta, out.gamma),
