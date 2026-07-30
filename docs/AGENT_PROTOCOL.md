@@ -303,6 +303,9 @@ are read on the peak list, not on a `RefinementResult`.
 | `PEAK_ASYMMETRY_UNMODELLED` | Trust the *positions* of the flagged lines. An unmodelled one-sided aberration biases a centroid in one direction, which σ cannot see — and the low-angle lines are the ones indexing depends on most |
 | `PEAK_WIDTH_LAW_MISMATCH` | Leave `instrument.profile` as declared. A factor near 13 is the `ProfileTCHZ` synchrotron default (W = 1e-3 deg², FWHM ≈ 0.03°) on lab data |
 | `PEAK_SHOULDER_SEEDED` | (info) Read a shoulder-seeded line as a detection. Survival was decided by ΔBIC, not by detection |
+| `INDEX_SEARCH_INCOMPLETE` | Read "no cell found" as "no cell exists". Only a *completed* exhaustive search says that; this one ran out of budget, and `search_complete[system]` says which systems it covered |
+| `INDEX_DOMINANT_ZONE` | Conclude the pattern cannot be indexed. The exact-solve engine found nothing at its base-line index table but found a cell with a wider one, which means one axis is long enough (or short enough) that the lowest observed lines carry large indices. Use the dichotomy engine, which bounds the metric instead of assuming indices |
+| `INDEX_SHIFT_ALLOWANCE` | (info) Quote the winning cell without fitting a shift template. The search *assumed* a systematic allowance (no shift had been measured), and a cell found inside a widened window absorbs the shift — measured, +1400 ppm on a certified pattern. Re-fit with `shift_template` and quote that cell |
 
 ---
 

@@ -429,9 +429,37 @@ with the reflections that would break the tie rather than silently resolved;
 coverage is scored in *both* directions because ranking on
 share-of-observed-intensity alone demonstrably puts a 390-line wrong phase
 above the truth; and a restricted search reports `systems_searched` rather than
-concluding anything about the sample. Three engines (dichotomy, index
-heuristic, whole-profile Monte Carlo) supply the confidence by agreeing, the
-same device as `direction="both"` and the cross-backend matrix.
+concluding anything about the sample. Engines supply the confidence by
+**agreeing**, the same device as `direction="both"` and the cross-backend matrix —
+**two** of them, not three: the whole-profile Monte Carlo is a measured no-go
+(WP-1023), so `high` confidence means both landed engines agree and that is the
+ceiling rather than a shortfall.
+
+Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
+`EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
+that needs `cov_af`), the live registry the agent schema quotes, `Budget`, and the
+`reflection_ceiling_ok` crash guard that stands in front of every
+`generate_reflections` call a search reaches. `search_dichotomy` bounds Q over boxes
+in A..F (corner-exact, because Q is linear in the metric) and its silence is evidence
+*only when* `search_complete[system]` is true; `search_trial_error` assumes the
+indices of a few base lines and solves the metric exactly, so a bad base line poisons
+it where a wide domain poisons the other. Both rank on the FoM **panel** via
+`rank_candidates`, never on a member — supercells index every observed line exactly
+and lose only on `predicted_seen_fraction`.
+
+**The tolerance an engine searches with is not the per-line σ, and this is the one
+thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and
+the wrong *matching window*: measured on the bundled qarr corundum pattern, whose
+cell is certified, the lines sit a median 0.060° from the true positions (a cos θ
+displacement) against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the
+true cell indexes **zero** lines and both engines return nothing. Hence
+`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, added in quadrature whenever no shift has been
+*measured*, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
+never look like a measured one) and `refine_with_shift`, which fits the shift template
+to a candidate **after** it survives — a shift is identifiable only against reference
+positions, and a candidate cell is what supplies them. A cell found under a widened
+window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
+Closing this on real data is WP-1026.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
 the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU
