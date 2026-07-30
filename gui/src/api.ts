@@ -116,6 +116,18 @@ export const api = {
   /** The structure **plus** the `sites` arm: which `…dof.k` moves each atom, and
    *  which have none at all (a fully fixed special position). */
   structure: () => call("GET", "/api/structure"),
+  /** The same model as *drawable geometry*: the symmetry orbit with each image's
+   *  rotated displacement tensor, bonds over the 27 nearest lattice
+   *  translations, and the cell frame — none of which a `Structure` dump says.
+   *  Both arguments are drawing thresholds, not settings, which is why they ride
+   *  on the query string and are never persisted. */
+  structure3d: (phase = 0, bondTolerance?: number) => {
+    const query = new URLSearchParams({ phase: String(phase) });
+    if (bondTolerance !== undefined) {
+      query.set("bond_tolerance", String(bondTolerance));
+    }
+    return call("GET", `/api/structure3d?${query}`);
+  },
   instrument: () => call("GET", "/api/instrument"),
   /** A whole validated model, not a field patch — adding a phase or an ADP block
    *  changes what the parameter table *contains* (WP-1008).  One history node. */

@@ -57,6 +57,7 @@
     seedPreset,
     structureSummary,
   } from "../lib/wizard";
+  import Structure3D from "./Structure3D.svelte";
 
   let {
     project = null,
@@ -176,6 +177,14 @@
   let loadError = $state("");
   let note = $state("");
   let draft = $state({ label: "", species: "", x: "0", y: "0", z: "0" });
+  /** The 3D view is a **third column of this pane**, not a sixth tab and not a
+   *  window of its own: it answers questions about the rows beside it (is that
+   *  ADP a balloon? did that coordinate DOF move the atom off its axis?), and a
+   *  view you have to switch to in order to check an edit is a view nobody
+   *  checks. Toggleable because a narrow window has room for two columns. */
+  let viewer = $state(true);
+  /** Bumped by every successful `load()`; the 3D view redraws on it. */
+  let stamp = $state(0);
 
   const insFields = $derived(instrument ? instrumentFields(instrument) : []);
   const strFields = $derived(structure ? structureFields(structure) : []);
@@ -212,6 +221,10 @@
       instrument = i.instrument;
       rows = normalize(p.parameters);
       loadError = "";
+      // the signal the 3D view follows: this runs on every head move *and*
+      // immediately after every local write, which is one frame earlier than
+      // the head reaches the shell
+      stamp += 1;
     } catch (exc) {
       if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
     }
@@ -409,6 +422,11 @@
       <button class="ghost small" onclick={() => (wizardOpen = false)}>Back to the project</button>
     {/if}
     <span class="spacer"></span>
+    {#if !showWizard}
+      <button class="ghost small" class:on={viewer} onclick={() => (viewer = !viewer)}
+        title="the cell, the symmetry images, the bonds and the displacement
+               ellipsoids — drawn from the model on screen">3D</button>
+    {/if}
     {#if !showWizard && dirty > 0}
       <span class="muted small">{dirty} edit{dirty === 1 ? "" : "s"}</span>
       <button class="small" disabled={busy || invalid.length > 0} onclick={apply}>Apply</button>
@@ -779,6 +797,12 @@
           </label>
         {/if}
       </div>
+
+      {#if viewer}
+        <div class="column view">
+          <Structure3D {stamp} {say} />
+        </div>
+      {/if}
     </div>
 
     <footer>
@@ -935,7 +959,7 @@
   }
 
   .column {
-    flex: 1 1 50%;
+    flex: 1 1 0;
     min-width: 0;
     overflow: auto;
     padding: 4px 12px 16px;
@@ -943,6 +967,20 @@
 
   .column + .column {
     border-left: 1px solid var(--line);
+  }
+
+  /* the viewer scrolls nothing: its plot fills the column and its controls sit
+     under it, so an overflow here would scroll a 3D scene out of view */
+  .column.view {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 6px;
+  }
+
+  button.on {
+    background: var(--accent);
+    color: #fff;
   }
 
   nav.phases {

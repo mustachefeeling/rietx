@@ -143,6 +143,46 @@ const SITES = [
     adp_paths: [], adp_patterns: [], aniso: false },
 ];
 
+/** `GET /api/structure3d` for the same LaB6: the orbit of the corner atom with
+ *  one of its boundary copies, one boron, one bond, and the twelve cell edges.
+ *  Trimmed by hand — the geometry itself is `tests/test_structure3d.py`'s
+ *  ground, and what a mount can check is that the panel *draws* it. */
+const GEOMETRY = {
+  phase: 0, phases: ["LaB6"], name: "LaB6", space_group: "P m -3 m",
+  cell: [4.15678, 4.15678, 4.15678, 90, 90, 90], volume: 71.82,
+  lattice: [[4.15678, 0, 0], [0, 4.15678, 0], [0, 0, 4.15678]],
+  corners: [[0, 0, 0], [4.15678, 0, 0], [0, 4.15678, 0], [4.15678, 4.15678, 0],
+            [0, 0, 4.15678], [4.15678, 0, 4.15678], [0, 4.15678, 4.15678],
+            [4.15678, 4.15678, 4.15678]],
+  edges: [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3],
+          [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]],
+  sites: [
+    { index: 0, path: "phases.0.atoms.0", label: "La", species: "La",
+      element: "La", color: "#995cbc", radius: 2.07, metal: true, occ: 1,
+      biso: 0.5, u_iso: 0.00633, aniso: false, multiplicity: 1, special: true,
+      npd: false },
+    { index: 1, path: "phases.0.atoms.1", label: "B", species: "B",
+      element: "B", color: "#e0a080", radius: 0.84, metal: false, occ: 1,
+      biso: 0.4, u_iso: 0.00507, aniso: false, multiplicity: 6, special: true,
+      npd: false },
+  ],
+  atoms: [
+    { site: 0, frac: [0, 0, 0], pos: [0, 0, 0], boundary: false,
+      ellipsoid: [[0.08, 0, 0], [0, 0.08, 0], [0, 0, 0.08]],
+      rms: [0.08, 0.08, 0.08], npd: false },
+    { site: 0, frac: [1, 0, 0], pos: [4.15678, 0, 0], boundary: true,
+      ellipsoid: [[0.08, 0, 0], [0, 0.08, 0], [0, 0, 0.08]],
+      rms: [0.08, 0.08, 0.08], npd: false },
+    { site: 1, frac: [0.1993, 0.5, 0.5], pos: [0.8284, 2.0784, 2.0784],
+      boundary: false, ellipsoid: [[0.07, 0, 0], [0, 0.07, 0], [0, 0, 0.07]],
+      rms: [0.07, 0.07, 0.07], npd: false },
+  ],
+  bonds: [{ i: 0, j: 2, a: [0, 0, 0], b: [0.8284, 2.0784, 2.0784], d: 3.058 }],
+  probability: 0.5, probability_levels: { "0.5": 1.5382, "0.9": 2.5003 },
+  scale: 1.5382, ball_fraction: 0.32, bond_tolerance: 1.15,
+  bond_metals: false, note: "",
+};
+
 const INSTRUMENT = {
   zero_shift: { value: 0.01, vary: false },
   source: { polarization: { value: 0.99, vary: false },
@@ -316,6 +356,7 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN) {
     "/api/history": () => ({ body: HISTORY }),
     "/api/report": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
     "/api/structure": () => ({ body: { structure: STRUCTURE, sites: SITES } }),
+    "/api/structure3d": () => ({ body: GEOMETRY }),
     "/api/instrument": () => ({ body: { instrument: INSTRUMENT } }),
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
 }
@@ -1534,4 +1575,152 @@ describe("the model editor", () => {
     const call = stub.calls.find((c) => c.path === "/api/structure/aniso")!;
     expect(call.body).toEqual({ path: "phases.0.atoms.0", on: true });
   });
+});
+
+// ----------------------------------------------------------------------
+// the structure viewer (WP-1015)
+// ----------------------------------------------------------------------
+describe("the structure viewer", () => {
+  /** plotly is injected at runtime and stubbed globally in `test-setup.ts`; the
+   *  viewer's assertions are about the *traces it hands over*, so this replaces
+   *  the stub with a recording one for the duration of a test. */
+  function recorder() {
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_node: unknown, traces: any[], layout: any) => {
+        drawn.push({ traces, layout });
+      },
+      purge: () => {},
+    });
+    return drawn;
+  }
+
+  async function openViewer(extra: Record<string, any> = {}) {
+    const stub = server({ ...boot(), "/api/params": () => ({ body: MODEL_PARAMS }),
+                          ...extra });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Model")!.click();
+    await flush();
+    return stub;
+  }
+
+  it("draws the cell, the bonds and one mesh per species", async () => {
+    const drawn = recorder();
+    await openViewer();
+    const { traces, layout } = drawn[drawn.length - 1];
+    expect(traces.map((t: any) => t.type))
+      .toEqual(["scatter3d", "scatter3d", "mesh3d", "mesh3d"]);
+    expect(traces[2].name).toBe("La");
+    expect(traces[3].name).toBe("B");
+    // one Å is one Å on every axis, or a monoclinic cell is drawn orthogonal
+    expect(layout.scene.aspectmode).toBe("data");
+  });
+
+  it("says what it drew and at which thresholds", async () => {
+    recorder();
+    await openViewer();
+    expect(host.textContent).toContain("2 atoms in the cell + 1 image outside it");
+    expect(host.textContent).toContain("1 bond segment at 1.15×");
+    expect(host.textContent).toContain("metal–metal contacts not bonded");
+    expect(host.textContent).toContain("balls at 0.32× the covalent radius");
+  });
+
+  it("rescales the ellipsoids without asking the server again", async () => {
+    // the payload carries k(p) for every level it offers, so a probability
+    // change is a client multiply — a refetch would be a round trip for a
+    // number already on the page
+    const drawn = recorder();
+    const stub = await openViewer();
+    button("ellipsoids")!.click();
+    await flush();
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    // the sphere's first vertex is its +z pole, and La sits at the origin, so
+    // this is the semi-axis itself: 0.08 · k(p)
+    const at50 = drawn[drawn.length - 1].traces[2].z[0];
+    expect(at50).toBeCloseTo(0.08 * 1.5382, 6);
+
+    const select = [...host.querySelectorAll("select")]
+      .find((s) => [...s.options].some((o) => o.textContent?.trim() === "90 %"))!;
+    select.value = "0.9";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+    expect(drawn[drawn.length - 1].traces[2].z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+    expect(host.textContent).toContain("ellipsoids at 90 %");
+
+    // …and the level survives a reload.  Found in Chrome: the payload carries
+    // the server's default probability, so every refetch quietly put the
+    // ellipsoids back to 50 % — a choice undone by the next cell edit.
+    field("phases.0.cell.a").value = "4.2";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+    expect(host.textContent).toContain("ellipsoids at 90 %");
+    expect(drawn[drawn.length - 1].traces[2].z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+  });
+
+  it("refetches when the bond threshold moves, because the server owns the rule", async () => {
+    recorder();
+    const stub = await openViewer();
+    const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!;
+    slider.value = "1.05";
+    slider.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    const last = stub.calls.filter((c) => c.path === "/api/structure3d").pop()!;
+    expect(last.url).toContain("bond_tolerance=1.05");
+  });
+
+  it("switches a species off from the legend without a round trip", async () => {
+    const drawn = recorder();
+    const stub = await openViewer();
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    const chip = [...host.querySelectorAll("button")]
+      .find((b) => b.className.includes("chip") && b.textContent?.trim() === "La")!;
+    chip.click();
+    await flush();
+    expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
+      .toEqual(["cell", "bonds", "B"]);
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+  });
+
+  it("redraws as soon as the pane around it re-reads, not one frame later", async () => {
+    // A cell edit goes through `PATCH /api/params`, and the model pane re-reads
+    // the moment that returns — while the head reaches the *shell* only on the
+    // next SSE frame.  Following the pane is what keeps the picture and the atom
+    // table showing the same structure.
+    const drawn = recorder();
+    const stub = await openViewer();
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    field("phases.0.cell.a").value = "4.2";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length)
+      .toBeGreaterThan(before);
+    expect(drawn.length).toBeGreaterThan(1);
+  });
+
+  it("can be closed, and asks for nothing while it is", async () => {
+    recorder();
+    const stub = await openViewer();
+    button("3D")!.click();
+    await flush();
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    expect(host.querySelector('input[type="range"]')).toBeNull();
+    field("phases.0.cell.a").value = "4.3";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+  });
+
+  function field(path: string): HTMLInputElement {
+    return host.querySelector<HTMLInputElement>(`[data-field="${path}"]`)!;
+  }
 });

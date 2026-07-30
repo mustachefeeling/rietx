@@ -78,7 +78,11 @@ def test_a_cubic_phase_expands_to_its_multiplicities(lab6):
     real = [a for a in payload["atoms"] if not a["boundary"]]
     assert len(real) == 7
     assert sum(1 for a in real if a["site"] == 0) == by_label["La"]["multiplicity"]
-    assert sum(a["boundary"] for a in payload["atoms"]) == 7   # La at 8 corners
+    # …and with no bonds to complete, the only images are the seven copies that
+    # put the corner atom at all eight corners
+    plain = s3.build(lab6, bond_tolerance=0.5)
+    assert not plain["bonds"]
+    assert sum(a["boundary"] for a in plain["atoms"]) == 7
 
 
 def test_a_monoclinic_phase_expands_and_frames_the_same_way():
@@ -332,3 +336,35 @@ def test_a_cell_larger_than_the_viewer_draws_says_so(nac):
     payload = s3.build(nac, max_atoms=20)
     assert len(payload["atoms"]) == 20
     assert "trimmed to 20" in payload["note"]
+
+
+def test_every_bond_ends_on_an_atom_that_is_drawn(lab6):
+    """Found by looking at the picture, not at the payload.
+
+    A bond to a translated image is *correct* and reads as broken — the eye sees
+    a stick going into empty space — so each out-of-cell endpoint gets its atom
+    drawn.  Exactly one level: completing those atoms' bonds in turn would be
+    the packing diagram this WP declines to build.
+    """
+    payload = s3.build(lab6, bond_tolerance=1.05)
+    drawn = {tuple(round(v, 6) for v in atom["pos"]) for atom in payload["atoms"]}
+    for bond in payload["bonds"]:
+        assert tuple(round(v, 6) for v in bond["a"]) in drawn
+        assert tuple(round(v, 6) for v in bond["b"]) in drawn
+
+    # they are images, so they do not enter the multiplicity count…
+    real = [a for a in payload["atoms"] if not a["boundary"]]
+    assert len(real) == sum(s["multiplicity"] for s in payload["sites"])
+    # …and each carries its source's tensor unchanged, a translation being a
+    # translation, with the fractional coordinate that says which image it is
+    outside = [a for a in payload["atoms"] if a["boundary"] and min(a["frac"]) < 0]
+    assert outside
+    for atom in outside:
+        assert all(math.isfinite(v) for v in atom["frac"])
+        source = next(a for a in real if a["site"] == atom["site"])
+        assert atom["rms"] == source["rms"]
+
+    # the cap counts them: a cell that fills up says so rather than truncating
+    small = s3.build(lab6, bond_tolerance=1.15, max_atoms=20)
+    assert len(small["atoms"]) == 20
+    assert "end in mid-air" in small["note"]

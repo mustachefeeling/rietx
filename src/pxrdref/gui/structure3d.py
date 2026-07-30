@@ -231,6 +231,13 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
         notes.append(f"{len(bonds)} bond segments trimmed to {MAX_BONDS}; lower "
                      "the bond tolerance to see a picture rather than a cage")
         bonds = bonds[:MAX_BONDS]
+    partners = _partners(atoms, bonds, basis)
+    room = max(max_atoms - len(atoms), 0)
+    if len(partners) > room:
+        notes.append(f"{len(partners) - room} bonded neighbour(s) outside the cell "
+                     "are not drawn; their bonds end in mid-air")
+        partners = partners[:room]
+    atoms.extend(partners)
 
     corners = _corners(basis)
     return {
@@ -336,6 +343,39 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
                      "non-positive axes are drawn at zero, so that ellipsoid is "
                      "flat by construction")
     return sites, atoms, notes
+
+
+def _partners(atoms: list[dict], bonds: list[dict], basis: np.ndarray) -> list[dict]:
+    """The atoms a bond leaves the cell to reach, so no stick ends on nothing.
+
+    Found by looking at the picture rather than at the payload: a bond drawn to
+    a translated image is *correct* and reads as broken, because the eye sees a
+    stick going into empty space.  So each out-of-cell endpoint gets its atom
+    drawn — flagged ``boundary``, since it is an image and not a cell member, so
+    the multiplicity count is untouched.
+
+    Exactly **one** level, and that is a stopping rule rather than an omission:
+    completing the added atoms' own bonds would complete theirs in turn, which
+    is a packing diagram (this WP's explicit non-goal).  What one level buys is
+    the property that matters — every atom of the cell shows its full
+    coordination.
+    """
+    known = {tuple(np.round(a["pos"], 6)) for a in atoms}
+    inverse = np.linalg.inv(basis)
+    out: list[dict] = []
+    for bond in bonds:
+        key = tuple(np.round(bond["b"], 6))
+        if key in known:
+            continue
+        known.add(key)
+        source = atoms[bond["j"]]
+        # a lattice translation moves an atom and leaves its tensor alone, so
+        # the image carries the source's ellipsoid unchanged; the fractional
+        # coordinate is recovered rather than left blank, because it is what
+        # says *which* image the hover is over (−0.20 rather than 0.80)
+        out.append({**source, "pos": list(bond["b"]), "boundary": True,
+                    "frac": (inverse @ np.asarray(bond["b"])).tolist()})
+    return out
 
 
 def _boundary_shifts(frac: np.ndarray) -> list[np.ndarray]:

@@ -12,9 +12,11 @@
    *
    * plotly.js is loaded at runtime from `/plotly.js`, served out of the
    * installed Python package — no vendored 4.8 MB copy in the committed dist,
-   * and the page still works air-gapped.
+   * and the page still works air-gapped.  The loader itself is `lib/plotly.ts`,
+   * shared with the structure viewer since WP-1015.
    */
   import { ApiError, api } from "../api";
+  import { loadPlotly } from "../lib/plotly";
 
   let {
     result,
@@ -36,17 +38,6 @@
   let shown = $state<{ n: number; total: number; lo: number; hi: number } | null>(null);
 
   const COLORS = { obs: "#8a8a8a", calc: "#c23b22", bkg: "#6b7280", diff: "#1f5fa8" };
-
-  function loadPlotly(): Promise<any> {
-    if ((window as any).Plotly) return Promise.resolve((window as any).Plotly);
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "/plotly.js";
-      script.onload = () => resolve((window as any).Plotly);
-      script.onerror = () => reject(new Error("could not load /plotly.js"));
-      document.head.appendChild(script);
-    });
-  }
 
   function layout(): any {
     const style = getComputedStyle(document.body);
