@@ -16,6 +16,7 @@ from .io.readers import read_pattern, read_pdcif
 from .multi import MultiHistogramRefinement, refine_multi
 from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
+from .project import Project
 from .refine import Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
 from .schemas import (
@@ -32,6 +33,7 @@ from .schemas import (
 from .schemas.history import HistoryNode, NodeAction, RefinementState
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
+from .schemas.project import DataRef, ProjectDoc
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
 from .sequential import SequentialRefinement, refine_sequential
 from .strategy.staged import (
@@ -48,6 +50,7 @@ __all__ = [
     "agent",
     "CancelToken",
     "Cell",
+    "DataRef",
     "FitReport",
     "HistoryNode",
     "Instrument",
@@ -61,6 +64,8 @@ __all__ = [
     "Phase",
     "PlanInfo",
     "PlanSpec",
+    "Project",
+    "ProjectDoc",
     "Refinement",
     "RefinementCancelled",
     "RefinementPlan",

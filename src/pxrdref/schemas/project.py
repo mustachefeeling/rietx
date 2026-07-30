@@ -1,0 +1,113 @@
+"""Schemas for the project container — what a saved session *is* on disk.
+
+Two rules shape these models, and both are about avoiding a second authority:
+
+**The model state is not here.**  ``project.json`` carries the data reference
+and the settings; the parameter values, the vary flags and the free set live in
+``history.jsonl``, whose head is the working state.  Every verb that changes
+them (``set_vary``, ``set_values``, ``edit``, a stage) already commits a node, so
+a copy in this document could only ever be a second opinion about the same
+numbers — and WP-1004 spent its session on what happens when a stage's arguments
+exist in three places and one of them silently loses a field.  The consequence
+is worth stating plainly: **saving is about settings, not about durability.**  A
+refinement is on disk the moment its node is appended, whether or not anyone
+called ``Project.save``.
+
+**What is here is what nothing else owns.**  A pattern file does not record the
+regions a user excluded, the plan they selected, or their panel layout; a history
+node does not record them either (see ``ProjectDoc.excluded_regions``).  Those
+are the fields below.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from pydantic import Field
+
+from .common import Base, Mode
+from .plan import PlanSpec
+
+#: Bumped when a field's *meaning* changes, not when one is added.  ``open``
+#: refuses a newer major than it knows rather than letting pydantic's
+#: ``extra="forbid"`` report an unknown field, which is true but unhelpful.
+PROJECT_FORMAT_VERSION = "1"
+
+
+class DataRef(Base):
+    """The pattern a project is fitted against, as a checkable reference.
+
+    The bytes are copied into the project verbatim and *this* is what makes them
+    trustworthy again on re-open.  Three quantities, deliberately not one:
+
+    * ``sha256`` — of the file as copied.  Catches an edit in place.
+    * ``fingerprint`` — of the parsed float64 2θ/intensity arrays, the same
+      digest ``history/store.fingerprint`` computes and ``TreeHeader`` pins.
+      Catches a *reader* change: same bytes, different numbers.
+    * ``reader`` + ``options`` — which registered format claimed the file
+      (``io.readers.PATTERN_FORMATS``) and the keywords it was read with.  A
+      pdCIF carrying both a ``_meas`` and a ``_calc`` block is a different
+      pattern depending on ``block``, so the reader *call* is part of the
+      reference and not just the path.
+
+    The pair (sha256, fingerprint) is more informative than either alone: bytes
+    equal with a different fingerprint means this package now parses the file
+    differently, which is a thing to be told loudly rather than a corrupted
+    project.
+    """
+
+    filename: str  # relative to the project directory
+    sha256: str
+    fingerprint: str
+    reader: str
+    options: dict[str, str] = Field(default_factory=dict)
+    n_points: int
+    two_theta_range: tuple[float, float]
+    #: whether the file supplied per-point esds — i.e. whether the weights are
+    #: the file's or the Poisson fallback's.  Recorded because it is a
+    #: correctness property of the fit that is invisible once the data are read
+    #: (CLAUDE.md, Weights), and a GUI should be able to say which it is.
+    has_sigma: bool
+
+
+class ProjectDoc(Base):
+    """``project.json`` — the settings half of a project (see module docstring)."""
+
+    format_version: str = PROJECT_FORMAT_VERSION
+    package_version: str = ""
+    created_utc: str = ""
+    updated_utc: str = ""
+
+    #: length 1 in v1.0.  The list is the multi-histogram seam (``multi.py``
+    #: stacks N patterns into one joint residual); a project holding more than
+    #: one pattern is a later milestone's work, and ``Project.open`` refuses it
+    #: rather than opening the first and looking like it worked.
+    patterns: list[DataRef] = Field(default_factory=list)
+
+    # -- the next run's settings ---------------------------------------
+    # These three are what ``fit``/``run_stage`` will be *called* with.  A
+    # history node also records mode and limits, and that is not the same fact:
+    # the node says what a past run used, this document says what the next one
+    # will.  Before any run there is no node to ask, which is why a selected mode
+    # has to live somewhere — and why ``Project.run_stage`` passes it explicitly
+    # rather than letting the refinement's carried default answer.
+
+    #: the plan currently selected.  Not derivable from the history either: the
+    #: tree header records the plan the tree was *created* with.
+    plan: PlanSpec | None = None
+    mode: Mode = "rietveld"
+    two_theta_limits: tuple[float, float] | None = None
+
+    #: 2θ regions masked out of the residual.  These are on ``PatternData``, not
+    #: in the pattern file, and — unlike ``two_theta_limits`` — they are *not* in
+    #: ``RefinementState`` either, so a history node cannot say what was excluded
+    #: when it ran.  Until it can, this document is the only record, which is
+    #: why it lives here rather than being recoverable from the head node.
+    excluded_regions: list[tuple[float, float]] = Field(default_factory=list)
+
+    history_file: str = "history.jsonl"
+
+    #: Untyped on purpose: the GUI owns these keys (disclosure level, panel
+    #: layout, plot ranges) and the container only persists them.  A schema here
+    #: would make every frontend change a backend change.
+    ui: dict[str, Any] = Field(default_factory=dict)
