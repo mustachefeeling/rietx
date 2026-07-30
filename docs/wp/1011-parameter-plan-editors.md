@@ -276,3 +276,15 @@ instead`; `set_values` on `a` carrying `c` with it; one stage run through
     own `_comment`, and no path in this package contains a bracket.
   * `Refinement.parameters()` is answered for the **document's** mode via
     `Project.parameters()` — do not call the refinement directly (WP-1009).
+
+  **Not yet visually confirmed.** WP-1010's page was looked at by the user the
+  same day; these panels have been driven by a jsdom mount test (20 cases,
+  including the three held states, the PATCH bodies, drag-reorder and the
+  palette) and end to end over real HTTP, but **nobody has looked at them in a
+  browser.** No browser automation was available in this session either, so the
+  gap is the same one WP-1010 recorded and closed by asking: what jsdom cannot
+  catch is layout — a sidebar too narrow for the table's five columns, a
+  virtualized list whose row height disagrees with the CSS (`ROW_HEIGHT = 22`
+  must equal the `.row`/`.group` height, or the scroll drifts), or a palette
+  that opens off-screen. Run `pxrdref gui` on any `.pxrd` and look before
+  building anything on top.
