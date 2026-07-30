@@ -14,6 +14,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from ..schemas.common import Mode
+
 #: ``phases.i.atoms.j.u11`` … — the stored anisotropic components, grouped by
 #: site for the positive-definiteness guard.
 _ADP_COMPONENT = re.compile(r"^(phases\.\d+\.atoms\.\d+)\.u(11|22|33|12|13|23)$")
@@ -240,6 +242,118 @@ PLAN_PRESETS = {
     "lab_sample_refine": RefinementPlan.lab_sample_refine,
     "profile_only": RefinementPlan.profile_only,
     "pawley_default": RefinementPlan.pawley_default,
+}
+
+
+@dataclass(frozen=True)
+class PlanInfo:
+    """What a preset is for, in the words a chooser needs.
+
+    Beside the registry rather than in a UI, a docs page or a capabilities
+    module, because every one of those consumers needs the same four facts and
+    the presets are what they describe: a preset added without a row here is a
+    preset nobody can be told when to use.  ``tests/test_params_surface.py``
+    fails on a missing or extra key (the WP-0602 registry-meta-test pattern).
+
+    ``modes`` lists the intensity modes the plan is meaningful in — plural,
+    because ``profile_only`` is both the Le Bail plan and the way to fit a
+    profile in Rietveld mode without touching the structure.
+    """
+
+    title: str
+    description: str
+    modes: tuple[Mode, ...]
+    when_to_use: str
+
+
+#: Per-preset guidance.  Keys are held in bijection with PLAN_PRESETS by a test.
+PLAN_INFO: dict[str, PlanInfo] = {
+    "mccusker_default": PlanInfo(
+        title="Standard (profile only)",
+        description=(
+            "The IUCr-guideline turn-on order (McCusker et al., 1999): scale + "
+            "background, zero shift, cell, then the profile widths. Leaves every "
+            "structural parameter fixed."),
+        modes=("rietveld",),
+        when_to_use=(
+            "The default first fit of a known structure, and the plan to reach "
+            "for whenever a structural refinement has gone wrong — it converges "
+            "the parameters everything else depends on."),
+    ),
+    "mccusker_structural": PlanInfo(
+        title="Standard + structure",
+        description=(
+            "The standard order continued into the structure: coordinates as "
+            "site-symmetry DOFs, then displacement parameters (biso or the "
+            "anisotropic patterns, whichever each site declares), then preferred "
+            "orientation, extinction and surface roughness where declared."),
+        modes=("rietveld",),
+        when_to_use=(
+            "A structure worth refining against data good enough to carry it. "
+            "Run the profile-only plan first if the fit is not already close."),
+    ),
+    "lab_bragg_brentano": PlanInfo(
+        title="Lab diffractometer (one pass)",
+        description=(
+            "Bragg-Brentano flat-plate order: the sample displacement and "
+            "transparency corrections join the zero shift, and the axial "
+            "(Finger-Cox-Jephcoat) apertures refine with the widths."),
+        modes=("rietveld",),
+        when_to_use=(
+            "A single lab pattern with no instrument calibration to hand — it "
+            "refines specimen and instrument effects together, so read the "
+            "correlation guards before quoting a width."),
+    ),
+    "lab_calibrate": PlanInfo(
+        title="Lab: calibrate on a standard",
+        description=(
+            "Step 1 of the two-step lab workflow. Refines the instrument "
+            "profile and the position corrections on a line-position standard "
+            "**with its certified cell held fixed** — which is what decorrelates "
+            "zero shift, displacement and cell."),
+        modes=("rietveld",),
+        when_to_use=(
+            "On a standard (LaB6, Si, corundum), once per instrument "
+            "configuration. Follow it with save_instrument_profile."),
+    ),
+    "lab_sample_refine": PlanInfo(
+        title="Lab: refine a specimen",
+        description=(
+            "Step 2 of the two-step lab workflow. The instrument profile is "
+            "held at its calibrated values and only the sample's own broadening "
+            "(size and strain, isotropic or Stephens-anisotropic) refines, "
+            "instrument ⊕ sample."),
+        modes=("rietveld",),
+        when_to_use=(
+            "Any specimen measured on a calibrated instrument, and the only "
+            "plan whose size/strain numbers mean what they say — an "
+            "uncalibrated fit absorbs the instrument into them."),
+    ),
+    "profile_only": PlanInfo(
+        title="Cell + profile, no structure",
+        description=(
+            "Background, zero shift, cell and widths only. In Le Bail mode the "
+            "per-hkl intensities are extracted by iterated partitioning instead "
+            "of being computed from a structure."),
+        modes=("lebail", "rietveld"),
+        when_to_use=(
+            "A known cell with an unknown or untrusted structure — indexing "
+            "checks, extracted intensities for structure solution, or a "
+            "cell/width measurement you want independent of any structural model."),
+    ),
+    "pawley_default": PlanInfo(
+        title="Pawley whole-pattern",
+        description=(
+            "The same order as the Le Bail plan, but the per-hkl intensities "
+            "are refined *inside* the least squares, so they carry esds. "
+            "Overlapped groups are conditioned by an equal-split restraint and "
+            "come back flagged rather than confidently split."),
+        modes=("pawley",),
+        when_to_use=(
+            "Extracted intensities that need uncertainties — feeding structure "
+            "solution or a peak-shape study. Read PAWLEY_OVERLAP_UNRESOLVED "
+            "before using an intensity from an overlapped group."),
+    ),
 }
 
 

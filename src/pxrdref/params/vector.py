@@ -446,6 +446,26 @@ class ParameterTable:
             e.vary = False
         self._rebuild()
 
+    def refresh_ties(self) -> None:
+        """Recompute every tied entry's value from its sources.
+
+        :meth:`commit` does this as a side effect of decoding θ, which is the
+        only way values change *during* a refinement.  A direct edit of a source
+        value — ``Refinement.set_values`` — has no θ to decode, and without this
+        the dependents would keep the values they were collected with: setting
+        ``a`` on a cubic phase would leave ``b`` and ``c`` behind, silently
+        breaking the symmetry the tie exists to enforce.
+
+        One pass suffices: :meth:`_flatten` resolves each tie onto *untied*
+        entries, so no dependent is read before it is written.
+        """
+        self._rebuild()
+        for e in self.entries:
+            if e.tie is not None:
+                terms, const = self._flatten(e.tie, (e.path,))
+                e.value = const + sum(c * self.entries[j].value for j, c in terms)
+        self._rebuild()  # held tied entries contribute to d through their values
+
     # -- vary control (used by the staged strategy) --------------------
     def set_vary(self, path_globs: list[str], vary: bool) -> list[str]:
         """Glob-match entry paths (fnmatch semantics on dot paths); returns hits.

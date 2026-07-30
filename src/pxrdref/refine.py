@@ -39,6 +39,7 @@ from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import Instrument
+from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
     AbsorptionCorrection,
@@ -56,6 +57,22 @@ except PackageNotFoundError:  # editable/dev fallback
 
 def _utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def mode_fixed_path(path: str, mode: Mode) -> bool:
+    """Whether ``mode`` force-fixes ``path`` whatever the table says.
+
+    Against an intensity model that partitions or refines the per-hkl
+    intensities, three families of parameter cannot be refined at all: the
+    structural parameters (there is no |F|² to fit), the phase scale (degenerate
+    with those intensities) and the emission-line weights (which the intensities
+    absorb pairwise).  ``_run_stage`` drops them from the freed set; exported
+    once so :meth:`Refinement.parameters` reports the same set rather than a
+    second opinion about it.
+    """
+    if mode not in ("lebail", "pawley"):
+        return False
+    return ".atoms." in path or path.endswith(".scale") or ".source.lines." in path
 
 
 class Refinement:
@@ -238,6 +255,131 @@ class Refinement:
         self._head_id = node.id
         return node.id
 
+    # ------------------------------------------------------------------
+    # the parameter table as data, and the two verbs that edit it
+    # ------------------------------------------------------------------
+    def _working_table(self) -> ParameterTable:
+        """The table describing the current working state.
+
+        After a stage there is a recorded free set to restore; before the first
+        one there is not, and the models' own ``vary`` flags are what the caller
+        set — so a fresh table (which reads them) is the honest answer rather
+        than an all-fixed one.
+        """
+        if self._free_paths:
+            return self._prepare_table(restore=True)
+        return ParameterTable(self.structure, self.instrument)
+
+    def parameters(self) -> list[ParameterRow]:
+        """Every parameter as data — fixed, locked and tied rows included.
+
+        The counterpart of ``result_.parameters`` (which lists only what a fit
+        refined): this is the whole table, in θ order, with the most recent
+        fit's esds merged in and each held row saying *why* it is held.  A cold
+        path — pydantic here is fine, the no-pydantic rule binds the residual.
+        """
+        esd = ({p.path: p.stderr for p in self.result_.parameters}
+               if self.result_ is not None else {})
+        rows = []
+        for e in self._working_table().entries:
+            rows.append(ParameterRow(
+                path=e.path, value=e.value, vary=e.vary, lo=e.lo, hi=e.hi,
+                transform=e.transform,
+                tie=TieSpec.from_tie(e.tie) if e.tie is not None else None,
+                locked=e.locked,
+                esd=esd.get(e.path),
+                mode_fixed=mode_fixed_path(e.path, self._mode),
+            ))
+        return rows
+
+    def set_vary(self, path_globs: list[str] | str, vary: bool = True) -> list[str]:
+        """Free (or hold) every parameter matching ``path_globs``.
+
+        Dot-path globs with fnmatch semantics, exactly as a stage's ``turn_on``
+        (``"phases.*.cell.*"``).  Returns the paths actually changed, and
+        records a ``set_vary`` history node — freeing a parameter is a
+        refinement move, so it belongs in the log beside the stages.
+
+        Delegates to :meth:`ParameterTable.set_vary`, which is where the rules
+        live: a locked or tied entry never matches, however broad the glob.
+        Paths this mode force-fixes (see :func:`mode_fixed_path`) can be freed
+        here but are dropped again when a stage runs, and
+        :meth:`parameters` reports them as ``mode_fixed``.
+
+        The node is recorded only once the history tree exists — it is created
+        on the first ``fit``/``run_stage``, because a tree is pinned to its
+        pattern by a fingerprint and no pattern has been seen before then.  The
+        working state changes either way.
+        """
+        globs = [path_globs] if isinstance(path_globs, str) else list(path_globs)
+        table = self._working_table()
+        hits = table.set_vary(globs, vary)
+        self._free_paths = list(table.free_paths)
+        if self.history is None:
+            return hits
+        node = self.history.add(
+            parents=[self._head_id] if self._head_id else [],
+            action=NodeAction(kind="set_vary",
+                              turn_on=hits if vary else [],
+                              turn_off=[] if vary else hits),
+            state=self.snapshot())
+        self._head_id = node.id
+        return hits
+
+    def set_values(self, values: dict[str, float]) -> None:
+        """Set parameter values by dot-path, recording a ``set_value`` node.
+
+        Plural because a GUI (or a script) edits a table, not a cell: one node
+        per keystroke would bury the log, and a set of values applied together
+        is one refinement move.  The name is also what
+        ``NodeAction.api_call()`` has always rendered for the ``"set_value"``
+        node kind.
+
+        Raises rather than guessing, because each refusal has a different fix:
+        an unknown path is a typo; a **locked** path is structurally fixed; a
+        **tied** path names its sources, since setting those is what the caller
+        meant; a value outside the parameter's own bounds would make the
+        starting point infeasible for the bounded solver.
+
+        Dependents follow their sources (``b`` after ``a`` on a cubic cell, a
+        coordinate after its Wyckoff DOF).  Like :meth:`set_vary`, the node is
+        recorded only once the history tree exists.
+        """
+        table = self._working_table()
+        by_path = {e.path: e for e in table.entries}
+        unknown = [p for p in values if p not in by_path]
+        if unknown:
+            raise ValueError(f"unknown parameter path(s): {sorted(unknown)}")
+        for path, value in values.items():
+            e = by_path[path]
+            if e.locked:
+                raise ValueError(
+                    f"{path!r} is structurally fixed (symmetry, or a "
+                    "representation that owns this channel) and cannot be set")
+            if e.tie is not None:
+                sources = ", ".join(repr(p) for p, _ in e.tie.terms)
+                one = len(e.tie.terms) == 1
+                raise ValueError(
+                    f"{path!r} follows {sources} as an affine tie; set "
+                    f"{'that' if one else 'those'} instead")
+            if not (e.lo <= float(value) <= e.hi):
+                raise ValueError(
+                    f"{path}={value} lies outside its bounds [{e.lo}, {e.hi}]")
+        for path, value in values.items():
+            by_path[path].value = float(value)
+        table.refresh_ties()  # dependents follow their sources (b←a, x←dof)
+        table.apply_to_models(self.structure, self.instrument)
+        # the fitted curve and statistics described the *old* values
+        self._model = None
+        self.result_ = None
+        if self.history is None:
+            return
+        node = self.history.add(
+            parents=[self._head_id] if self._head_id else [],
+            action=NodeAction(kind="set_value", values=dict(values)),
+            state=self.snapshot())
+        self._head_id = node.id
+
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,
                   backend: str = "numpy", solver: str = "trf") -> "Refinement":
@@ -374,8 +516,7 @@ class Refinement:
             # model; drop them from the reported freed list too — it must
             # describe the set actually left free
             for path in list(freed):
-                if ".atoms." in path or path.endswith(".scale") \
-                        or ".source.lines." in path:
+                if mode_fixed_path(path, mode):
                     table.set_vary([path], False)
                     freed.remove(path)
 
