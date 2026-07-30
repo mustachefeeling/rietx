@@ -3,6 +3,7 @@
 from . import agent
 from .crystallography.cif import format_su
 from .history import RefinementTree
+from .indexing import pick_peaks
 from .io.exporters import (
     ReflectionRow,
     reflection_table,
@@ -81,6 +82,7 @@ __all__ = [
     "build_report",
     "format_su",
     "load_instrument_profile",
+    "pick_peaks",
     "read_pattern",
     "read_pdcif",
     "reflection_table",

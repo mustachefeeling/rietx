@@ -355,20 +355,33 @@ def _solve(m: _GroupModel, pos: np.ndarray) -> tuple[np.ndarray, object]:
 
 def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
               max_reseed: int = PEAK_MAX_RESEED_PASSES) -> GroupFit:
-    """Fit one group, re-seeding at most ``max_reseed`` times.
+    """Fit one group: solve, prune shoulder seeds, then re-seed if asked.
 
     The component count is frozen before each solve and never changes inside
     it — a fitter that adds or drops a component mid-solve has a discontinuous
     residual, which is the frozen-per-stage invariant restated one level down.
-    Re-seeding is therefore an explicit *second solve* with a larger frozen
-    count, and the added component is kept only if it clears
+    Adding *and removing* a component is therefore an explicit second solve, and
+    either way the decision is
     :data:`~pxrdref.schemas.indexing.PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` on
     ``report.layer2.delta_bic`` — the same statistic the Stephens acceptance
     quotes, and for the same reason Hamilton's R-ratio is not used: at these
     channel counts an R-ratio blesses an inert improvement.
+
+    **Pruning runs before re-seeding, and it is what closes a gap the ΔBIC gate
+    had.**  A shoulder seed that lands far from any maximum forms a group of its
+    own, and a *singleton* group faced no test at all: the gate as first written
+    only judged components that a re-seed pass had added, so a curvature false
+    positive became a reported line with an esd and no evidence.  Every
+    shoulder-seeded component now has to earn its two parameters against its own
+    absence — for a singleton, against there being no peak there whatsoever.
     """
     pos = np.asarray(group.seed_two_theta, dtype=np.float64)
+    shoulder = np.asarray(group.from_shoulder, dtype=bool)
     best = _fit_at(det, group, instrument, pos)
+    best, pos, shoulder = _prune_shoulders(det, group, instrument, best, pos,
+                                           shoulder)
+    if best is None:                            # every component was pruned
+        return _empty_fit(det, group, instrument)
     for _ in range(max_reseed):
         if best.reseed_at is None or not best.converged:
             break
@@ -380,6 +393,71 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
             break
         best = trial
     return best
+
+
+def _prune_shoulders(det: Detection, group: PeakGroup, instrument: Instrument,
+                     fit: GroupFit, pos: np.ndarray, shoulder: np.ndarray,
+                     ) -> tuple[GroupFit | None, np.ndarray, np.ndarray]:
+    """Drop shoulder-seeded components that do not clear ΔBIC.
+
+    Only shoulder seeds are tested, and the asymmetry is deliberate: a
+    maximum-detected component already cleared a σ-normalised *height* test on
+    the data itself, whereas a curvature seed cleared only a test on the second
+    derivative.  Weakest first, so that removing one cannot mask another.
+    """
+    tested: set[float] = set()
+    while shoulder.any():
+        # significance recomputed every pass, and candidacy keyed by seed 2θ
+        # rather than by index: dropping a component renumbers the rest, and an
+        # index list built once before the first drop points at the wrong ones
+        esd = np.where(fit.intensity_esd > 0.0, fit.intensity_esd, np.inf)
+        weakest_first = np.argsort(np.abs(fit.intensity) / esd)
+        cands = [int(j) for j in weakest_first
+                 if shoulder[j] and float(pos[j]) not in tested]
+        if not cands:
+            break
+        j = cands[0]
+        tested.add(float(pos[j]))
+        keep = np.ones(len(pos), dtype=bool)
+        keep[j] = False
+        if not keep.any():
+            gain = delta_bic(_null_chi2(det, group), _chi2(fit),
+                             n_points=fit.n_points, n_added=4)
+            if gain < PEAK_KEEP_COMPONENT_MIN_DELTA_BIC:
+                return None, pos[keep], shoulder[keep]
+            continue
+        trial = _fit_at(det, group, instrument, pos[keep])
+        gain = delta_bic(_chi2(trial), _chi2(fit),
+                         n_points=fit.n_points, n_added=2)
+        if gain < PEAK_KEEP_COMPONENT_MIN_DELTA_BIC:
+            fit, pos, shoulder = trial, pos[keep], shoulder[keep]
+    return fit, pos, shoulder
+
+
+def _null_chi2(det: Detection, group: PeakGroup) -> float:
+    """Σ((y − env)/σ)² over the window — the no-peak-at-all model.
+
+    The frozen envelope is the *whole* model in this hypothesis, which is only
+    honest because it is held additively rather than subtracted: there is a
+    background here either way, and the question is whether a peak is needed
+    on top of it.
+    """
+    s = slice(group.i0, group.i1)
+    r = (det.intensity[s] - det.envelope[s]) / det.sigma[s]
+    return float(r @ r)
+
+
+def _empty_fit(det: Detection, group: PeakGroup,
+               instrument: Instrument) -> GroupFit:
+    """A group that pruned away to nothing: zero components, no lines."""
+    n_points = group.i1 - group.i0
+    return GroupFit(
+        group=group, n=0, two_theta=np.zeros(0), two_theta_esd=np.zeros(0),
+        intensity=np.zeros(0), intensity_esd=np.zeros(0),
+        gamma_g=float("nan"), gamma_l=float("nan"), fwhm=group.seed_fwhm,
+        eta=float("nan"), chi2_red=_null_chi2(det, group) / max(n_points, 1),
+        converged=True, at_bound=np.zeros(0, dtype=bool),
+        asymmetry_t=np.zeros(0), n_points=n_points, reseed_at=None)
 
 
 def _chi2(fit: GroupFit) -> float:

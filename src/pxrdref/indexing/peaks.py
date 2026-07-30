@@ -48,6 +48,7 @@ from ..schemas.indexing import (
     PEAK_DETECT_SEPARATION_FWHM_FRAC,
     PEAK_MIN_HEIGHT_SIGMA,
     PEAK_MIN_PROMINENCE_SIGMA,
+    PEAK_SHOULDER_MIN_SIGMA,
     PEAK_WIDTH_CENSUS_N,
     PEAK_WIDTH_SCALE_BOUNDS,
     PEAK_WINDOW_FWHM_MULT,
@@ -123,6 +124,29 @@ def predicted_fwhm(two_theta_deg: np.ndarray, instrument: Instrument) -> np.ndar
     return np.asarray(gamma, dtype=np.float64)
 
 
+def _debiased_envelope(tt: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """``background_envelope`` with its known downward bias removed.
+
+    The envelope is a rolling *low quantile* (10th), and being biased low is
+    exactly what makes it peak-robust — but it means "net = 0" is not the
+    background level.  For flat Poisson counts the 10th percentile of a window
+    sits ≈1.28σ below the mean, so a nominal 5σ detection threshold behaves like
+    ≈3.7σ, and over a few thousand channels that is the difference between no
+    false positives and a handful.  Measured: one spurious line at 116.46° on a
+    two-peak synthetic before this correction.
+
+    The offset is recovered as the median of the residual, which is unbiased
+    whenever background channels outnumber peak channels — always true for a
+    powder pattern, and the same assumption ``background.peak_mask`` already
+    rests on.  Correcting the *envelope* rather than only ``net`` matters
+    because the envelope is also the fitter's additively-held background: left
+    biased, it puts a constant ≈1.28σ pedestal under every window for the peak
+    intensity and width to absorb.
+    """
+    env = background_envelope(tt, y)
+    return env + float(np.median(y - env))
+
+
 def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
                     fwhm: np.ndarray, found: np.ndarray) -> np.ndarray:
     """Curvature seeds for peaks that never reach a local maximum.
@@ -164,9 +188,14 @@ def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
         scale = fwhm[i] ** 2 / _LN2_8
         h_implied = -curv[i] * scale
         h_sigma = coef_norm * sigma[i] * scale
-        if h_implied <= PEAK_MIN_PROMINENCE_SIGMA * h_sigma:
+        if h_implied <= PEAK_SHOULDER_MIN_SIGMA * h_sigma:
             continue
-        gap = PEAK_DETECT_SEPARATION_FWHM_FRAC * fwhm[i]
+        # a curvature dip closer than half a FWHM to something already claimed
+        # is not separable from it by construction (that is what
+        # PAWLEY_OVERLAP_FWHM_FRAC means), so seeding it manufactures a
+        # component the least squares cannot resolve — and, for a dropped Kα2
+        # alias, one the parent's own doublet already models
+        gap = PAWLEY_OVERLAP_FWHM_FRAC * fwhm[i]
         if len(found) and np.min(np.abs(tt[found] - tt[i])) < gap:
             continue
         out.append(int(i))
@@ -241,7 +270,7 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
             f"only {len(tt)} points survive the mask and 2θ range; peak "
             "picking needs a pattern, not a window")
 
-    env = background_envelope(tt, y)
+    env = _debiased_envelope(tt, y)
     net = y - env
     z = np.where(net > 0.0, net, 0.0) / sigma
     step = float(np.median(np.diff(tt)))
@@ -270,7 +299,10 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
     idx, alias_idx = _drop_kalpha2_aliases(
         tt, idx, net[idx], fwhm_seed_curve, instrument)
 
-    shoulder_idx = (_shoulder_seeds(tt, net, sigma, fwhm_seed_curve, idx)
+    # a dropped alias is a strong real maximum, so it must be forbidden to the
+    # curvature seeder too — otherwise it comes straight back as a "shoulder"
+    claimed = np.concatenate([idx, alias_idx]).astype(np.int64)
+    shoulder_idx = (_shoulder_seeds(tt, net, sigma, fwhm_seed_curve, claimed)
                     if shoulders else np.array([], dtype=np.int64))
     all_idx = np.concatenate([idx, shoulder_idx]).astype(np.int64)
     if not len(all_idx):
