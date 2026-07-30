@@ -45,6 +45,32 @@ the freeze must cover, and four decisions parked here deliberately:
   notes (WP-1017's `gui-power.md` states it user-facing; this WP states it
   normatively).
 
+From **WP-1007** (capabilities + guard findings, landed 2026-07-30) — new surface
+and one open question:
+
+- **New freeze surface**: `capabilities()` and its five models
+  (`Capabilities`, `BackendCapability`, `PlanCapability`, `AnodeCapability`,
+  `ReaderCapability`), `GuardFinding` (frozen dataclass, its seven constructors,
+  and `str(finding)` — a *published* rendering pinned by literals in
+  `tests/test_capabilities.py`, because the diagnostics' messages are built from
+  it), `GuardReport.findings()`, and the newly exported `auto_background`,
+  `diagnose`, `PreferredOrientation`, `capabilities`, `GuardFinding`.
+- **`Capabilities` reports four contract versions** — schema, report thresholds,
+  event schema, project format. The freeze should state what each promises and,
+  in particular, that `features` keys are **additive** (a client must tolerate an
+  unknown flag) while removing one is breaking. The flags are derived predicates,
+  so `features["indexing"]` flips when `index()` lands with no code change here.
+- **Open: should `Diagnostic` grow an optional numeric `value`?** WP-1007 fenced
+  it out on purpose (no second diagnostic vocabulary), so a guard's *number* — ρ,
+  a block R², a min eigenvalue — reaches a client only inside the message text.
+  `GuardFinding` has it as `.value`, but `GuardReport` is transient and never
+  serialized, so nothing exposes it. A GUI that wants to sort by ρ has to parse
+  prose, which is the failure WP-1007 existed to end, one field short of finished.
+  Additive and cheap; decide it here rather than leaving each client to regex.
+- `GuardFinding.code` is deliberately an open `str`, not a `Literal` — WP-1028
+  adds codes. Say in the release notes that guard/diagnostic codes are an
+  extensible vocabulary and that clients must not exhaustively match on them.
+
 From **WP-1005** (project container, landed 2026-07-30) — three freeze
 decisions and one new surface:
 

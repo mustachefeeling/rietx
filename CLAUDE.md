@@ -104,6 +104,21 @@ mandatory dummy atom from looking editable. There is exactly **one**
 title/description/modes/when-to-use per preset, in bijection with
 `PLAN_PRESETS` by meta-test.
 
+`capabilities()` (WP-1007, `capabilities.py`) is the one call that says what this
+build can do — backends *with whether each optional dependency imports here*,
+solvers, plans from `PLAN_INFO`, modes, anodes, the formats `read_pattern` opens,
+and the four versioned contracts (schema / report-thresholds / event-schema /
+project-format). **Every arm is quoted from a live registry and a meta-test fails
+on a member missing from its arm**; `features` flags are *derived predicates* (a
+schema field's presence, a top-level export's existence), never literal `True`,
+which is what lets `features["indexing"]` flip by itself when `index()` lands.
+Guard hits are `GuardFinding(code, paths, value, message)` — `GuardReport`'s six
+fields hold those, `str(finding)` is the pre-v1.0 text byte for byte (pinned by
+test, because the diagnostics' messages are built from it), and every guard
+`Diagnostic` now carries its paths in `where`, `HIGH_CORRELATION` included. Add a
+new guard by adding a `GuardFinding` constructor there; `code` is deliberately an
+open vocabulary, not a `Literal`.
+
 A **project** (WP-1005) is a `.pxrd/` **directory** — `project.json`, the pattern
 file copied byte-for-byte, `history.jsonl`, `live/`, `exports/` — opened and
 saved through `Project.create/open/save` (`project.py`, `schemas/project.py`). A

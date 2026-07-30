@@ -282,6 +282,27 @@ if "BACKGROUND_ABSORPTION" in codes:
     ...
 ```
 
+**`where` now names the paths on every guard code, `HIGH_CORRELATION` included**
+(v1.0, WP-1007). It used to be empty on that one — the paths were recovered from
+the message by taking its first word, which for a *pair* is not a path at all —
+so a consumer had to parse `"a ~ b (ρ=+0.994)"` to learn which two parameters
+were degenerate. Read `d.where`; never split the message.
+
+```python
+for d in result.diagnostics:
+    if d.code == "HIGH_CORRELATION":
+        a, b = d.where          # the degenerate pair, as dot-paths
+```
+
+And ask the package what it can do rather than assuming: `pxrdref.capabilities()`
+returns the live registries — backends (with whether each optional dependency is
+importable *on this machine*), solvers, plan presets with their `when_to_use`
+text, modes, anodes, the pattern formats `read_pattern` opens, and the four
+versioned contracts (`schema_version`, `report_thresholds_version`,
+`event_schema_version`, `project_format_version`). Its `features` map is derived
+from the tree, so `features["indexing"]` tells you whether *this* build has an
+indexer instead of leaving you to try one.
+
 ---
 
 ## 8. Fourteen things that will surprise you, all measured

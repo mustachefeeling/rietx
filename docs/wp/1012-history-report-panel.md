@@ -50,6 +50,22 @@ something). `report/apply.py` must declare per-kind applicability and the
 panel renders unapplicable kinds as advice — decide the split explicitly in
 the first commit rather than discovering it kind by kind.
 
+From **WP-1007** (landed 2026-07-30): **the diagnostics panel needs no regex.**
+Every guard `Diagnostic` now carries its parameter paths in `where` — including
+`HIGH_CORRELATION`, which had an *empty* `where` until then, so the degenerate
+pair could only be recovered by parsing `"a ~ b (ρ=+0.994)"`. Read `d.where` to
+make a finding clickable, and `d.code` to branch; never split `d.message`.
+
+One limitation to design around rather than discover: **the headline *number* is
+still only in the message text.** `GuardFinding` carries it as `.value` (ρ, a
+block R², a min eigenvalue), but `Diagnostic` was fenced out of scope in WP-1007
+and has no numeric field, and `GuardReport` is transient — it is converted to
+diagnostics inside `_run_stage` and never stored, so it does not reach a client at
+all. If this panel wants to *sort* or *threshold* on ρ rather than display it,
+that is either an additive optional `value` on `Diagnostic` (a freeze decision —
+raise it in WP-1003) or a server-side arm on the run response. Do not parse the
+message for the number.
+
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): one of those
 kinds stops being advice. **`reindex_or_recheck_cell` becomes automatable** —
 `report/layer2.layer0_actions` has emitted it as an `alternatives` member since

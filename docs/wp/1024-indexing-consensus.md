@@ -115,6 +115,27 @@ From **WP-1021/1022/1023**: each engine registers itself; `engines_run`,
 `agent.tool_definition()` must quote the **live** registry so a new engine
 cannot be absent from the exported schema (the WP-0602 meta-test pattern).
 
+From **WP-1007** (landed 2026-07-30): **`capabilities()` exists and has no
+indexing arm — adding it is this WP's commit.** It was left out deliberately
+rather than stubbed: there is no engine registry yet, and a hardcoded or
+wrongly-named lookup would pass its own meta-test *while lying*, which is the
+failure that note was written to prevent. What to do here, in one commit:
+
+- add an `indexing_engines` arm to `capabilities.py` quoting the live registry
+  (name / title / when-to-use / whether it is a re-scorer rather than an
+  independent opinion — the WP-1023 no-go case), and extend
+  `tests/test_capabilities.py`'s registry meta-tests with it, exactly as the
+  backend/solver/plan/anode/reader arms are;
+- nothing else: **`features["indexing"]` needs no edit.** It is
+  `hasattr(pxrdref, "index")`, a derived predicate, so it flips the moment
+  WP-1020 exports `index()`. Every flag there is derived for this reason; if you
+  find yourself writing a literal `True`, that is the smell.
+
+Also from **WP-1007**: guard hits are now `GuardFinding(code, paths, value,
+message)` with an **open** `code` vocabulary, so an indexing guard (an ambiguous
+cell, a restricted search) can be reported through the same channel without
+reopening a `Literal`, and `Diagnostic.where` is expected to carry paths.
+
 From **WP-1023**: if its spike returned **no-go**, engine C is dropped from the
 confidence gate and `high` requires the two remaining engines — make that
 change here, in the same commit, rather than leaving a gate that silently

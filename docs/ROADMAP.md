@@ -121,10 +121,63 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
-**[1004](wp/1004-parameter-plan-api.md) and [1006](wp/1006-run-control.md)
-landed 2026-07-30** on branch `v1-gui-backend-api` — the two zero-dependency
-rows of the backend-API group, which unblocks 1005 and 1007. Both were framed as
-plumbing and both turned up a latent defect the framing had hidden.
+**The backend-API group is complete: [1004](wp/1004-parameter-plan-api.md),
+[1005](wp/1005-project-container.md), [1006](wp/1006-run-control.md) and
+[1007](wp/1007-capabilities-guards.md) all landed 2026-07-30**, which unblocks
+the server row [1008](wp/1008-gui-server.md). Four WPs framed as plumbing; four
+latent defects the framing had hidden, and the pattern is worth naming because it
+is the milestone's argument made concrete — **the GUI is not being served by these
+APIs, it is auditing them.** Every one of the four defects sat on a path no
+script had ever taken and every one was found by *needing* the surface rather
+than by reading it.
+
+[1005](wp/1005-project-container.md) is a `.pxrd/` **directory** —
+`project.json`, the pattern file copied byte-for-byte, `history.jsonl`, `live/`,
+`exports/` — behind `Project.create/open/save`. Its charter asked where an
+*un-run* edit lives, and the answer was to delete the second authority rather than
+choose between two: **`project.json` holds the settings, `history.jsonl` holds the
+model state, and its head is the working state.** The tree therefore exists from
+`create`, every `set_vary`/`set_values` commits a node, not one parameter value is
+duplicated between the two files — and *saving is about settings, not durability*,
+which is a sentence a GUI author needs before designing a close-confirmation
+dialog that has nothing to confirm.
+
+Its defect was in the history layer and it made the WP's own third task
+impossible: **HEAD did not survive a reload**, twice over. `add()` advances HEAD
+in memory but appends no ref record, so a log written by an ordinary `fit`
+reloaded with `refs == {}` — `tree["head"]` raised. And `load()` applied every
+node before every annotation, discarding file order, so an old `checkout`
+overrode the three stages committed after it and HEAD came back **stale**
+(measured: n0001 where the live tree stood at n0003). Records now replay in file
+order, which is the in-memory semantics of an append-only log rather than a
+re-reading of it. Two findings outlast it: **the reader *call* is part of a data
+reference**, not just the path (a pdCIF with a `_meas` and a `_calc` block reads
+as a different pattern, so `DataRef` records the reader and its options —
+recording only the filename made an SRM-660c-shaped project *unopenable*), and
+**two digests answer different questions** — sha256 of the bytes catches an edit,
+the parsed-array fingerprint catches a *reader change*, and their disagreement is
+diagnostic rather than corruption.
+
+[1007](wp/1007-capabilities-guards.md) gives a client one call for what it would
+otherwise guess — `capabilities()`, every arm quoted from a live registry with a
+meta-test that fails on a member missing from its arm, and `available` per backend
+answering the question the registry cannot (does its optional dependency import
+*here*). Two design results worth carrying: **`features` flags are derived
+predicates, never literal booleans** — `features["indexing"]` is False today and
+flips by itself when `index()` lands — and **there are four versioned contracts,
+not three**, because an SSE consumer needs `event_schema_version` too. Its defect
+is the one the WP was named for, found in our own code: `GuardReport` held
+formatted prose and `_guard_diagnostics` recovered a path from it with
+`msg.split(" ")[0]`, which yields nothing usable for a *pair* — so
+**`Diagnostic.where` was empty on `HIGH_CORRELATION`**, the finding a GUI most
+wants to make clickable, and the only way to learn which two parameters were
+degenerate was to parse `"a ~ b (ρ=+0.994)"`. Guard hits are now
+`GuardFinding(code, paths, value, message)`; every rendered string is pinned
+byte-for-byte by literals captured before the change, and the measured
+before/after difference is exactly `where: [] → the two paths`.
+
+Landed first, and each with its own defect: **[1004](wp/1004-parameter-plan-api.md)
+and [1006](wp/1006-run-control.md)** on branch `v1-gui-backend-api`.
 
 1004's charter was "the spec twins are duplicated and one of them loses data",
 and the fix (one `StageSpec`/`PlanSpec` in `schemas/plan.py`) was the easy half.
@@ -912,7 +965,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ✅ 2026-07-30 | — |
 | [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ✅ 2026-07-30 | 1004 |
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
-| [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ⬜ | 1004 |
+| [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
 | [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ⬜ | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
