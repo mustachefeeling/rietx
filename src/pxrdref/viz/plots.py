@@ -15,7 +15,17 @@ from ..schemas.results import RefinementResult
 
 def plot_result(result: RefinementResult, *, path: str | None = None,
                 two_theta_range: tuple[float, float] | None = None,
-                show_background: bool = True, dpi: int = 150):
+                show_background: bool = True, weighted: bool = True,
+                dpi: int = 150):
+    """Standard Rietveld panel; the difference is weighted (Δ/σ) by default.
+
+    A raw difference shares the intensity axis, so deviations on strong peaks
+    dominate the eye even when they are statistically insignificant; Δ/σ has
+    expectation 1 under a correct model, putting the curve on an absolute
+    statistical scale (Toby, 2024, J. Appl. Cryst. 57, 175). It cannot share
+    the intensity axis, so weighted mode draws it as a lower panel with a ±3σ
+    band; ``weighted=False`` restores the classic offset raw curve.
+    """
     try:
         import matplotlib
         matplotlib.use("Agg", force=False)
@@ -29,18 +39,27 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     y_bkg = np.asarray(result.y_background)
     diff = y_obs - y_calc
 
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=dpi)
+    if weighted:
+        fig, (ax, axd) = plt.subplots(
+            2, 1, figsize=(10, 7), dpi=dpi, sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]})
+    else:
+        fig, ax = plt.subplots(figsize=(10, 6), dpi=dpi)
+        axd = None
     ax.plot(tt, y_obs, ".", ms=2.5, color="#1f5fa8", label="observed", zorder=2)
     ax.plot(tt, y_calc, "-", lw=1.0, color="#c23b22", label="calculated", zorder=3)
     if show_background and np.any(y_bkg):
         ax.plot(tt, y_bkg, "--", lw=0.8, color="#7a7a7a", label="background", zorder=1)
 
     span = float(y_obs.max() - min(y_obs.min(), 0.0))
-    offset = -0.12 * span
-    ax.plot(tt, diff + offset, "-", lw=0.7, color="#4a4a4a", label="difference", zorder=2)
-    ax.axhline(offset, lw=0.4, color="#bbbbbb", zorder=1)
+    if weighted:
+        tick_base = -0.08 * span
+    else:
+        offset = -0.12 * span
+        ax.plot(tt, diff + offset, "-", lw=0.7, color="#4a4a4a", label="difference", zorder=2)
+        ax.axhline(offset, lw=0.4, color="#bbbbbb", zorder=1)
+        tick_base = offset - 0.08 * span
 
-    tick_base = offset - 0.08 * span
     for row, (name, positions) in enumerate(result.ticks.items()):
         yline = tick_base - row * 0.05 * span
         pos = np.asarray(positions)
@@ -51,11 +70,20 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
 
     if two_theta_range is not None:
         ax.set_xlim(*two_theta_range)
-    ax.set_xlabel(r"2$\theta$ (deg)")
     ax.set_ylabel("intensity")
     s = result.statistics
     ax.set_title(f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}")
     ax.legend(loc="upper right", fontsize=8, frameon=False)
+
+    if weighted:
+        sigma = (np.asarray(result.sigma) if result.sigma
+                 else np.sqrt(np.maximum(y_obs, 1.0)))
+        axd.plot(tt, diff / sigma, "-", lw=0.6, color="#4a4a4a")
+        axd.axhspan(-3, 3, color="#2a9d2a", alpha=0.15, lw=0)
+        axd.set_ylabel(r"$\Delta/\sigma$")
+        axd.set_xlabel(r"2$\theta$ (deg)")
+    else:
+        ax.set_xlabel(r"2$\theta$ (deg)")
     fig.tight_layout()
     if path is not None:
         fig.savefig(path)

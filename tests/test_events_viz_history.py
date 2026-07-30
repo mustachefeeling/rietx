@@ -2,6 +2,7 @@
 
 import json
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -10,6 +11,8 @@ import pxrdref as pr
 from pxrdref.history.events import EventStream, read_events
 from pxrdref.strategy.staged import Stage
 from tests.test_refine_synthetic import perturbed_models, synthesize
+
+OUT = Path(__file__).parent / "output"
 
 
 @pytest.fixture(scope="module")
@@ -84,6 +87,53 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
     import re
     assert not re.search(r"<script[^>]+src=", html)
     assert out.stat().st_size > 1_000_000       # plotly.js embedded
+    # the weighted Δ/σ panel is the default (trace name survives either
+    # ensure_ascii choice in plotly's JSON serialization)
+    assert ("Δ/σ" in html) or ("\\u0394" in html)
+    # raw stays available
+    write_html(result, str(tmp_path / "fit_raw.html"), weighted=False,
+               include_plotlyjs="cdn")
+    raw_html = (tmp_path / "fit_raw.html").read_text(encoding="utf-8")
+    assert "difference" in raw_html
+
+
+def test_figure_from_arrays_weighted_and_raw():
+    from pxrdref.viz.html import figure_from_arrays
+
+    tt = np.linspace(10, 60, 500)
+    y_calc = 100 + 50 * np.exp(-((tt - 30) ** 2) / 0.05)
+    rng = np.random.default_rng(0)
+    y_obs = y_calc + rng.normal(0, 5, tt.size)
+    sigma = np.full_like(tt, 5.0)
+    ticks = {"phase 0": [30.0, 45.0]}
+
+    weighted = figure_from_arrays(tt, y_obs, y_calc, None, ticks, sigma=sigma)
+    names = [t.name for t in weighted.data]
+    assert "Δ/σ" in names and "difference" not in names
+    dsig = weighted.data[names.index("Δ/σ")]
+    assert dsig.yaxis == "y2", "Δ/σ must live on its own axis, not intensity"
+    assert max(abs(v) for v in dsig.y) < 10     # statistical scale, not counts
+    assert len(weighted.layout.shapes) == 1     # the ±3σ band
+
+    raw = figure_from_arrays(tt, y_obs, y_calc, None, ticks)
+    names = [t.name for t in raw.data]
+    assert "difference" in names and "Δ/σ" not in names
+    assert all(t.yaxis in (None, "y") for t in raw.data)
+
+
+def test_plot_result_weighted_panels(synthetic_pattern):
+    structure, ins = perturbed_models()
+    ref = pr.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+
+    OUT.mkdir(exist_ok=True)
+    fig = result.plot(path=str(OUT / "viz_weighted_default.png"))
+    axes = fig.get_axes()
+    assert len(axes) == 2
+    assert axes[1].get_ylabel() == r"$\Delta/\sigma$"
+
+    fig_raw = result.plot(path=str(OUT / "viz_raw_optout.png"), weighted=False)
+    assert len(fig_raw.get_axes()) == 1
 
 
 def test_minmax_decimation_keeps_peaks():
