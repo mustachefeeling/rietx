@@ -3,7 +3,7 @@
 from . import agent
 from .crystallography.cif import format_su
 from .history import RefinementTree
-from .indexing import index_pattern, pick_peaks
+from .indexing import determine_extinction_symbol, index_pattern, pick_peaks
 from .io.exporters import (
     ReflectionRow,
     reflection_table,
@@ -32,6 +32,8 @@ from .schemas import (
 from .schemas.history import HistoryNode, NodeAction, RefinementState
 from .schemas.indexing import (
     CellCandidate,
+    ExtinctionCandidate,
+    ExtinctionScreen,
     IndexingResult,
     LeBailValidation,
     PeakList,
@@ -58,6 +60,8 @@ __all__ = [
     "FitReport",
     "HistoryNode",
     "Instrument",
+    "ExtinctionCandidate",
+    "ExtinctionScreen",
     "IndexingResult",
     "MultiHistogramRefinement",
     "NodeAction",
@@ -91,6 +95,7 @@ __all__ = [
     "SuggestedAction",
     "build_report",
     "format_su",
+    "determine_extinction_symbol",
     "index_pattern",
     "load_instrument_profile",
     "pick_peaks",

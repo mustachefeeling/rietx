@@ -610,6 +610,7 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     """
     from ..crystallography.symmetry import reflection_orbits
     from ..report.layer2 import delta_bic, hamilton_justified
+    from .diagnostics import extinction_class_diagnostics, extinction_diagnostics
     from .peaks import predicted_fwhm
     from .workflow import seed_widths, validation_plan
 
@@ -758,9 +759,12 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
     screen.n_screened = sum(1 for e in entries if e.screened)
     if cancel is not None and bool(cancel):
         screen.status = "cancelled"
+    for entry in entries:
+        entry.diagnostics = extinction_class_diagnostics(entry)
     screen.candidates = sorted(
         entries, key=lambda e: (e.refuted, not e.screened, e.delta_bic,
                                 e.n_absent))
+    screen.diagnostics = extinction_diagnostics(screen)
     return screen
 
 

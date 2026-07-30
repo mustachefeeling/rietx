@@ -45,6 +45,12 @@ engines (:mod:`pxrdref.indexing.consensus`).  The rule the whole milestone is bu
 around is enforced by the return type rather than by documentation:
 :class:`~pxrdref.schemas.indexing.IndexingResult` has no ``.cell``, and
 ``best_or_none()`` is the only way to one.
+
+WP-1025 takes the next step and keeps the same rule: :func:`determine_extinction_symbol`
+ranks the **extinction classes** an indexed lattice admits, each listing the space
+groups inside it.  What a powder shows is the extinction symbol, never the space
+group — groups sharing an absence set differ only by elements that produce no
+absences — so the answer is a class, and a class is a list.
 """
 
 from .ambiguity import ambiguity_partners, derivative_cells, hnf_matrices
@@ -59,6 +65,8 @@ from .consensus import (
 )
 from .diagnostics import (
     candidate_diagnostics,
+    extinction_class_diagnostics,
+    extinction_diagnostics,
     index_diagnostics,
     peak_diagnostics,
     quality_diagnostics,
@@ -80,6 +88,15 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     to_cell_candidate,
+)
+from .extinction import (
+    DECISIVE_DELTA_BIC,
+    AbsenceClass,
+    absence_classes,
+    compatible_groups,
+    determine_extinction_symbol,
+    extinction_symbol,
+    reflection_conditions,
 )
 from .fom import (
     borda_scores,
@@ -127,7 +144,9 @@ from .workflow import (
 
 __all__ = [
     "CENTRINGS",
+    "DECISIVE_DELTA_BIC",
     "SYSTEM_ORDER",
+    "AbsenceClass",
     "BravaisScreen",
     "Budget",
     "CandidateFit",
@@ -138,6 +157,7 @@ __all__ = [
     "PeakGroup",
     "ReducedCell",
     "SearchSpec",
+    "absence_classes",
     "absent_reflections",
     "af_from_cell",
     "ambiguity_partners",
@@ -150,13 +170,18 @@ __all__ = [
     "caveats_for",
     "cell_from_af",
     "checked_indices",
+    "compatible_groups",
     "consensus",
     "conventional_cell",
     "dedup_groups",
     "derivative_cells",
     "design_matrix",
     "detect_peaks",
+    "determine_extinction_symbol",
     "engine_descriptions",
+    "extinction_class_diagnostics",
+    "extinction_diagnostics",
+    "extinction_symbol",
     "engine_names",
     "f_n",
     "fit_group",
@@ -179,6 +204,7 @@ __all__ = [
     "quality_diagnostics",
     "rank_candidates",
     "reduce_cell",
+    "reflection_conditions",
     "reflection_ceiling_ok",
     "refine_candidate",
     "register_engine",

@@ -516,6 +516,138 @@ def _cell_systematic(instrument, have_candidates: bool) -> Diagnostic | None:
                     "with nothing to compare it against"))
 
 
+# ----------------------------------------------------------------------
+# WP-1025 — the extinction screen
+# ----------------------------------------------------------------------
+def extinction_class_diagnostics(cand) -> list[Diagnostic]:
+    """Everything to say about **one** extinction class.
+
+    Same split as :data:`_PER_CANDIDATE_CODES` one level up: a refutation belongs
+    to the class it refutes, while "your answer is not one space group" is a
+    statement about the answer and lives on the screen.
+    """
+    out: list[Diagnostic] = []
+    where = [f"{cand.symbol} (fitted as {cand.representative})"]
+    if cand.refuted and cand.forbidden_hkl:
+        pairs = ", ".join(f"{tuple(h)} at {t:.3f}°" for h, t in
+                          zip(cand.forbidden_hkl[:4],
+                              cand.forbidden_two_theta[:4]))
+        out.append(Diagnostic(
+            level="warning", code="EXTINCTION_FORBIDDEN_INTENSITY",
+            message=(f"{cand.n_present} of the {cand.n_testable} forbidden "
+                     "position(s) this class could be tested at carry intensity "
+                     "its own Le Bail fit cannot account for — the absences it "
+                     "claims are not in the pattern"),
+            where=where + [pairs],
+            suggestion=("look at those 2θ in the pattern: the test is a 3σ "
+                        "integral over ±½ FWHM of the fit residual, so it sees "
+                        "what the class's allowed reflections and the background "
+                        "leave over.  A single flagged position can also be an "
+                        "impurity line — check it against "
+                        "IndexingResult's unmatched_observed before dropping the "
+                        "class")))
+    if cand.n_absent and not cand.n_testable:
+        out.append(Diagnostic(
+            level="info", code="EXTINCTION_SYMBOL_AMBIGUOUS",
+            message=(f"none of the {cand.n_absent} line(s) this class forbids "
+                     "can be tested by these data: each is either outside the "
+                     "fitted range or coincides with a line the class still "
+                     "allows"),
+            where=where,
+            suggestion=("this class is indistinguishable from a less restrictive "
+                        "one here, and it is *not* preferred on parsimony — the "
+                        "nested comparison counts only testable lines, so an "
+                        "absence nobody could see earns nothing.  Extending the "
+                        "range or resolving the overlap is what would separate "
+                        "them")))
+    if not cand.conditions_complete:
+        out.append(Diagnostic(
+            level="info", code="EXTINCTION_CONDITIONS_PARTIAL",
+            message=("the reflection conditions printed for this class do not "
+                     "name every absence in it — the screen used the absence set "
+                     "itself, which is unaffected, but the human-readable list is "
+                     "incomplete"),
+            where=where + [f"conditions: {'; '.join(cand.conditions) or 'none'}"],
+            suggestion=("read space_groups rather than conditions here; the "
+                        "derivation covers 549 of gemmi's 550 settings and says "
+                        "so rather than guessing")))
+    return out
+
+
+def extinction_diagnostics(screen) -> list[Diagnostic]:
+    """Screen-level messages: what the answer is, and why it may not be one.
+
+    ``EXTINCTION_GROUPS_NOT_SEPARABLE`` fires whenever the leading class holds
+    more than one space group — **always**, not only when the data are weak.
+    That is a statement about the physics: those groups differ by symmetry
+    elements a powder pattern cannot carry, so no amount of counting time
+    separates them, and a caller who needs one of them is using chemistry, not
+    these data.
+    """
+    from ..schemas.indexing import ExtinctionScreen  # noqa: F401  (documented)
+    from .extinction import DECISIVE_DELTA_BIC
+
+    out: list[Diagnostic] = []
+    alive = [c for c in screen.candidates if not c.refuted and c.screened]
+    unscreened = [c for c in screen.candidates if not c.refuted and not c.screened]
+    if not screen.candidates:
+        return [Diagnostic(
+            level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
+            message=("no extinction class could be screened: the lattice "
+                     f"{screen.lattice_group} produced no fittable reflections in "
+                     f"{screen.two_theta_range[0]:.1f}-"
+                     f"{screen.two_theta_range[1]:.1f}° 2θ"),
+            where=[f"{screen.system} {screen.centring}"],
+            suggestion="check the cell and the wavelength before reading further")]
+
+    top = alive[0] if alive else screen.candidates[0]
+    if len(top.space_groups) > 1:
+        out.append(Diagnostic(
+            level="info", code="EXTINCTION_GROUPS_NOT_SEPARABLE",
+            message=(f"extinction symbol {top.symbol} is compatible with "
+                     f"{len(top.space_groups)} space groups, and a powder pattern "
+                     "cannot separate them: they differ only by symmetry elements "
+                     "that produce no systematic absences (centre of symmetry, "
+                     "enantiomorph, a mirror), so the patterns are identical by "
+                     "construction rather than for want of counting time"),
+            where=[", ".join(top.space_groups)],
+            suggestion=("choose between them with chemistry, not with these data "
+                        "— an optically active or polar compound cannot be "
+                        "centrosymmetric, |E²−1| statistics are indicative at "
+                        "best, and a structure solution that works in one is the "
+                        "usual arbiter.  Any of them can be handed to "
+                        "structure_from_candidate for the next fit")))
+
+    reasons = []
+    if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
+        reasons.append(f"{alive[1].symbol} is within ΔBIC "
+                       f"{alive[1].delta_bic - top.delta_bic:.1f} of it "
+                       f"(decisive is {DECISIVE_DELTA_BIC:g})")
+    if top.n_absent and not top.n_testable:
+        reasons.append("none of its absences is testable in this range")
+    if unscreened:
+        reasons.append(f"{len(unscreened)} class(es) were never fitted, so their "
+                       "standing is unknown")
+    if not alive:
+        reasons.append("every class was refuted, including the absence-free "
+                       "lattice — which means the fit itself failed, not the "
+                       "symmetry")
+    if reasons:
+        out.append(Diagnostic(
+            level="warning", code="EXTINCTION_SYMBOL_AMBIGUOUS",
+            message=("the extinction symbol is not settled by these data: "
+                     + "; ".join(reasons)),
+            where=[f"leading: {top.symbol}"]
+            + [f"then: {c.symbol} (ΔBIC {c.delta_bic:+.1f})" for c in alive[1:3]],
+            suggestion=("best_or_none() returns None for exactly this reason.  "
+                        "The discriminating evidence is the forbidden positions "
+                        "the leading classes disagree about — count longer at "
+                        "those 2θ, or extend the range, rather than picking the "
+                        "better Rwp, which always favours the class with more "
+                        "reflections")))
+    return out
+
+
 def _cell_str(cell) -> str:
     a, b, c, al, be, ga = cell
     return (f"{a:.4f} {b:.4f} {c:.4f} Å, {al:.3f} {be:.3f} {ga:.3f}°")
@@ -532,5 +664,6 @@ def significant(values: np.ndarray, threshold: float) -> np.ndarray:
 
 
 __all__ = ["BRAGG_BRENTANO_CELL_PPM", "SHIFT_CAUSE", "WIDTH_MISMATCH_RATIO",
-           "candidate_diagnostics", "index_diagnostics", "peak_diagnostics",
+           "candidate_diagnostics", "extinction_class_diagnostics",
+           "extinction_diagnostics", "index_diagnostics", "peak_diagnostics",
            "quality_diagnostics", "significant"]
