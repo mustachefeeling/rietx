@@ -46,12 +46,64 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**A certified pattern now indexes to its certificate, and the thing that had been
+costing it 2800 ppm was a performance filter (2026-07-30, third session).**
+[1026](wp/1026-indexing-acceptance.md) is still in flight. The corundum acceptance
+row asserted that an uncalibrated lab pattern costs ~2800 ppm on c; it does not,
+and neither of the two explanations the tree had offered for it — the matching
+tolerance, then the `refine_with_shift` accept rule — was the cause.
+
+**`_box_key` was.** Dichotomy hashes a converged box so one cell is not refined once
+per sibling leaf, and it divided A..F by `max|af|` — a 0.1 % grid on the largest
+component is a **~1 %** grid on the smallest, and for a long axis C = 1/c\*² *is* the
+smallest. The whole trigonal-R domain on this pattern converges to **eleven leaves**;
+three hashed onto a sibling and were **skipped before being refined**, and one of the
+three held the certificate's c. Binned per component now, and the row asserts the
+protocol a user with a standard would run: nothing declared gives trigonal R ranked
+first at a **+101 ppm**, c **+16 ppm**; declaring `shift_template="cos_theta"` gives
+**−73 / −126 ppm** with a fitted **−0.0606 ± 0.0138°** shift against the −0.065°
+displacement [1023](wp/1023-engine-montecarlo.md) measured independently. **A
+performance filter's failure mode is a wrong answer, not a slow one** — and a skipped
+leaf leaves no trace at all: no candidate, no diagnostic, nothing in `stats`, which
+is why three earlier probes came back clean before a leaf-by-leaf trace found it.
+
+**Two more defects fell out of chasing it.** The FoM panel *ranked* candidates in a
+window the search never used — the fitted σ (0.0045°) rather than σ ⊕ the allowance
+(0.0502°) — so `indexed_fraction` read 0.11-0.20 on candidates the search itself had
+indexed at 0.65-0.89, every candidate was refuted by `indexed_fraction_low` whatever
+its merit, and the Borda order was decided among cells that had all matched almost
+nothing. `fom_panel` now takes the matching window separately from the measurement:
+coverage members widen, M₂₀ and F_N keep the measured σ for their discrepancy floor.
+And a candidate carrying a shift is scored on the **corrected** positions it claims
+(`engines.scored_positions`) — without that, applying a declared template everywhere
+dropped the certified lattice out of the top six, because the panel was effectively
+ranking on how little a candidate had been corrected.
+
+**The accept rule was decided, and the honest framing is that it changed nothing
+here.** χ²_red is the wrong gatekeeper for a declared template — the column always
+costs a degree of freedom while a cell that has already absorbed the shift cannot gain
+enough χ² to pay for it — so only identifiability refuses one now. But the previous
+session's claim that this was *losing the accurate cell* was itself an artifact of the
+hash: with `_box_key` fixed, both rules return the same answer on corundum.
+
+**And a refuting caveat fires on correct cells.** `predicted_but_absent` counts 11-12
+reflections the *lattice* R-3m allows and the R-3c c-glide forbids, because the lattice
+group is the only model that exists before `determine_extinction_symbol` runs. So any
+phase with space-group extinctions refutes its own correct cell, and `high` is
+unreachable for a second structural reason. It is the blind spot
+`predicted_seen_fraction` already documents, promoted into a caveat that refutes;
+filed to [1028](wp/1028-robustness-external-data.md), not fixed, because the fix is
+running [1025](wp/1025-extinction-symbol.md)'s screen inside the gate.
+
+---
+
 **Seven source papers were read against the tree and three of its claims did not
 survive (2026-07-30, second session of the day).** No acceptance rows were added;
 the deliverable is the audit, and it is filed in
 [1026](wp/1026-indexing-acceptance.md)'s handover and the new
-[1029](wp/1029-engine-scaling-low-symmetry.md). One defect is **fixed**, two are
-recorded with the behaviour deliberately unchanged.
+[1029](wp/1029-engine-scaling-low-symmetry.md). One defect was **fixed**, two were
+recorded with the behaviour deliberately unchanged — and the second of the three has
+since been superseded by the session above.
 
 **Fixed — the fast suite was red and nobody had seen it.**
 `test_niggli_reduction_is_unimodular_invariant` was failing on a hypothesis
@@ -66,23 +118,16 @@ their Test 3 — which *is* our test — failing at 1e-10 and passing at 1e-5. S
 `same_lattice` dedups on the reduced A..F, the failure mode was one lattice
 counted as two and the gate denied its agreement. **1353 passed / 66 skipped.**
 
-**Not fixed, and the sharper one: `refine_with_shift` refuses its own correction
-on exactly the candidates that need it.** The template *does* reach both engines
-— that plumbing was never broken. Traced on corundum, it was called 17 times in
-dichotomy and **declined 9**, every decline on the χ²_red comparison. Where kept
-it works: a −0.0606° shift, against an independently measured −0.065° specimen
-displacement, lands a candidate 73 ppm and 126 ppm from the SRM 676a certificate.
-The candidate ranked **first** is a decline (χ²_red 1.5829 → 1.5945) and keeps
-c **+2799 ppm** out, and the reported answer is identical whether the template is
-`None`, `"cos_theta"` or `"constant"`. The cause is that χ²_red penalises the
-extra column, so a cell that has *already absorbed* the shift refuses the
-correction while one that has not accepts it — **1026's own ΔBIC lesson one rank
-up**, and v0.5's method result again: a declared correction is the caller's
-physics, not a hypothesis for a fit statistic to adjudicate. The consequence is
-uncomfortable and is recorded rather than smoothed over: the `1e-3 < dc < 5e-3`
-assertion 1026 landed, documented as "what an uncalibrated lab pattern costs", is
-**an artifact of the accept rule** — the accurate cell was in the candidate list
-all along.
+**Superseded the same day — `refine_with_shift` refuses its own correction on
+exactly the candidates that need it.** The reasoning held and the rule was changed
+(see the session above); the *diagnosis of the corundum row* did not. Traced on
+corundum, the template reached both engines, was called 17 times in dichotomy and
+**declined 9**, every decline on the χ²_red comparison, with the ranked-first
+candidate among them keeping c +2799 ppm out. That candidate turned out to be a
+different, worse lattice — 35 of 55 lines against the certified cell's 49 — which
+ranked first only because `_box_key` had skipped the leaf holding the true c. So
+"the accurate cell was in the candidate list all along" was true, and "the
++2799 ppm is an artifact of the accept rule" was not.
 
 **Not fixed, and the one that can lose a right answer: `volume_envelope` is a
 mean line, not an envelope.** Smith (1977) turns out to be **triclinic-only** and
@@ -238,10 +283,9 @@ whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
 Next: finish [1026](wp/1026-indexing-acceptance.md) (the known-cell and abstention
 rows it has not reached, and the CI pricing) — but its benchmark score is now
-blocked on [1029](wp/1029-engine-scaling-low-symmetry.md), and its corundum
-assertion needs the `refine_with_shift` accept rule decided first (see the
-2026-07-30 second-session entry above). Then
-[1027](wp/1027-gui-peak-picker.md) (GUI).
+blocked on [1029](wp/1029-engine-scaling-low-symmetry.md). Its corundum assertion is
+**done** (see the third-session entry above): the accept rule is decided and the row
+asserts the certificate in two calls. Then [1027](wp/1027-gui-peak-picker.md) (GUI).
 
 **Indexing works end to end (2026-07-30).**
 [1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of

@@ -224,8 +224,11 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       is a measured no-go** (see the handover log, 2026-07-30): the paper's own
       monoclinic domain does not finish inside any budget tried, and a score over
       a narrower domain is not comparable with Table 5.
-- [~] Known cells: **corundum done** (SRM 676a, certified, ranked first,
-      graded `low` for a measured reason). Not done: LaB6 (`nist_srm660c_100a.cif`, certified a = 4.156780,
+- [~] Known cells: **corundum done, and done twice** (SRM 676a: nothing declared
+      ⇒ trigonal R ranked first at a +101 / c +16 ppm; `shift_template` declared ⇒
+      −73 / −126 ppm with the specimen displacement recovered from the pattern.
+      Graded `low` both times, on four caveats that each name something real).
+      Not done: LaB6 (`nist_srm660c_100a.cif`, certified a = 4.156780,
       all engines, `high` confidence); NAC (`11BM_NAC.fxye`, cubic + CaF₂ —
       asserts `INDEX_IMPURITY_LINES` and that **engine C succeeds with the
       impurity lines left in while A/B need their mitigations**, the documented

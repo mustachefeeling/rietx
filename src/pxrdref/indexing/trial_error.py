@@ -79,6 +79,21 @@ BASE_INDEX_MAX = 2
 #: nothing and the engine's silence stayed unexplained.  A dominant row makes the
 #: needed index large, not slightly larger.
 DOMINANT_ZONE_PROBE_LADDER: tuple[int, ...] = (3, 5, 9)
+#: Seconds one rung of that ladder may take, capped further by the caller's own
+#: ``budget_seconds``.  A **runaway guard on a diagnostic**, not a timer: the probe
+#: runs only after the search has already found nothing, so its whole job is to
+#: explain a silence without costing more than the search did.
+#:
+#: Raised from a hard-coded 10.0 in WP-1026, and the reason is CLAUDE.md's rule
+#: about budgets in tests reaching one rank down into the library.  The three rungs
+#: on the construction this exists for cost **4.3 s serially**, so 10 s was a ~3×
+#: margin on the widest rung — and under ``-n auto`` on a 10-core machine that is a
+#: race, which is how it was found: ``test_a_dominant_row_is_raised_from_the_engines
+#: _own_experience`` failed in the full suite and passed on its own, asserting the
+#: absence of a *diagnostic* for a reason that had nothing to do with the index
+#: table.  A diagnostic that appears only on an idle machine is worse than one that
+#: costs a few seconds more.
+DOMINANT_ZONE_PROBE_SECONDS = 30.0
 #: Metric degrees of freedom above which the probe is not attempted.  The
 #: enumeration is (labels)ⁿ and the probe deliberately uses a *large* table, so it
 #: is affordable exactly where the condition it looks for lives: a dominant zone or
@@ -457,7 +472,8 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
             if quality is not None and system in quality.volume_envelope
             else 8000.0)
         for wider in DOMINANT_ZONE_PROBE_LADDER:
-            budget = Budget(min(spec.budget_seconds, 10.0), cancel)
+            budget = Budget(min(spec.budget_seconds, DOMINANT_ZONE_PROBE_SECONDS),
+                            cancel)
             found, _stats, _complete = _search_system(
                 peaks, system, basis, spec, budget, q_all, sigma, tt_all, tt_max,
                 vol_max, index_max=wider)
@@ -487,5 +503,5 @@ register_engine(
     "then checks against every line; seconds rather than minutes, and poisoned "
     "by a bad base line rather than by a wide domain")
 
-__all__ = ["BASE_INDEX_MAX", "BASE_POOL_MIN", "MAX_ASSIGN_PER_BASE",
-           "index_table", "search_trial_error"]
+__all__ = ["BASE_INDEX_MAX", "BASE_POOL_MIN", "DOMINANT_ZONE_PROBE_SECONDS",
+           "MAX_ASSIGN_PER_BASE", "index_table", "search_trial_error"]

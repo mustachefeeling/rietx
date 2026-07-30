@@ -607,10 +607,17 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
 
     The ladder matters and is asserted implicitly: one index wider is not enough
     here, which is why the probe tries several.
+
+    The budget declared below is a runaway guard, not a timer (CLAUDE.md), and so
+    is the probe's own per-rung cap one rank down — this test failed in the full
+    suite and passed serially when that cap was 10 s against a 4.3 s serial cost,
+    reporting no dominant zone for a reason that had nothing to do with the index
+    table.  See ``trial_error.DOMINANT_ZONE_PROBE_SECONDS``.
     """
     from pxrdref.indexing.trial_error import (
         BASE_INDEX_MAX,
         DOMINANT_ZONE_PROBE_LADDER,
+        DOMINANT_ZONE_PROBE_SECONDS,
         search_trial_error,
     )
 
@@ -619,7 +626,9 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
     peaks = PeakList.from_positions(tt[tt >= 28.0], LAM, two_theta_esd=0.005)
     spec = SearchSpec(systems=("tetragonal",), max_d_axis=30.0,
-                      max_volume=1500.0, budget_seconds=30.0,
+                      max_volume=1500.0,
+                      budget_seconds=max(DEFAULT_TEST_BUDGET,
+                                         DOMINANT_ZONE_PROBE_SECONDS),
                       sigma_sys_deg=1e-9)
 
     result = search_trial_error(peaks, spec=spec)

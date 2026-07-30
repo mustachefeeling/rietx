@@ -187,6 +187,20 @@ member. Every figure of merit is reported with the blind spot attached to
 the number, because a value read without it is one step from a confident
 wrong answer.
 
+Two of the panel's inputs are deliberately different quantities that a
+casual reading merges. The **matching window** — how far an observed and a
+calculated line may sit and still be the same line — is a statement about
+the systematics the search had to open its tolerance for, while the
+**measurement $\sigma$** that floors the two mean discrepancies is a
+statement about what the data resolve. On a laboratory pattern with an
+uncorrected specimen displacement the two differ by an order of magnitude,
+and scoring coverage at the tighter one makes every candidate look as
+though it explains nothing. A candidate that carries a fitted shift is
+likewise scored against the *corrected* positions it claims, not the raw
+ones: the alternative marks a candidate down for the very correction it
+declared, which on a certified pattern demoted the true lattice below
+cells that had merely been corrected less.
+
 ## Ambiguity, which is reported and not resolved
 
 Distinct lattices can give identical calculated line *positions*
