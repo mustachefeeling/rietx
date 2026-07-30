@@ -1,6 +1,6 @@
 # WP-1022 — Engine B: index-heuristic trial and error
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: 1020
 
 ## Goal
@@ -207,18 +207,19 @@ truth legitimately comes back as its a↔c partner.
 
 ## Tasks
 
-- [ ] `indexing/trial_error.py`: per-system index tables, base-set enumeration,
-      the exact n×n solve, the three cheap kills in cost order.
-- [ ] Full-list scoring + `refine_candidate`; dedup via WP-1020's χ² equality.
-- [ ] Dominant-zone abstention **raised here** (1019 has no such code — see
-      Inherited), from base sets repeatedly needing out-of-table indices;
-      predicted-reflection ceiling; time budget and `search_complete`.
-- [ ] Registry entry (so WP-1024's agent schema quotes it live).
-- [ ] `tests/test_indexing_engines.py::trial_error`: recover known cells in
-      every system from synthetic lists; recover with 1 impurity among the
-      first 8 lines (the base-set robustness test); **determinism** — same peak
-      list twice gives bit-identical reduced cells, and the candidate *set* is
-      invariant to peak-list ordering.
+- [x] `indexing/trial_error.py`: index tables **derived** as the distinct rows of
+      `design_matrix(hkl) @ basis.T` (not per-system tables — see the handover),
+      base-set enumeration, the exact n×n solve batched, the three cheap kills in
+      cost order.
+- [x] Full-list scoring + `refine_candidate`; dedup via WP-1020's χ² equality.
+- [x] Dominant-zone abstention **raised here** — `INDEX_DOMINANT_ZONE`, measured by
+      re-running with a **ladder** of wider tables rather than inferred from a
+      census; predicted-reflection ceiling; time budget and `search_complete`.
+- [x] Registry entry (so WP-1024's agent schema quotes it live).
+- [x] `tests/test_indexing_engines.py`: recovery cubic→monoclinic; 1 impurity among
+      the base lines; **determinism and order invariance**; the derived index
+      table; the per-line corner bound; the base-pool cross-term property; the
+      dominant-row diagnostic; and a **two-engine agreement** test.
 
 ## Acceptance
 
@@ -250,3 +251,80 @@ the handover log. Triclinic is budgeted, not claimed.
 ## Handover log
 
 - **2026-07-29** — created from the indexing plan.
+- **2026-07-30** — **complete.** `indexing/trial_error.py`, 32 fast tests + 2 slow
+  across the engine file, ruff clean.
+
+  **Done.** The exact n×n solve, batched; per-line label filtering by WP-1021's
+  corner bound; the three cheap kills (singular system → Sylvester
+  positive-definiteness → axis and volume bounds) in cost order; full-list
+  scoring; `INDEX_DOMINANT_ZONE`; the registry entry. Measured recovery, truth
+  **ranked first**, `search_complete` true: cubic 0.04 s, trigonal 0.73 s,
+  hexagonal 1.2 s, tetragonal 1.5 s, orthorhombic 5.3 s, **monoclinic 91 s**.
+  Deterministic and order-invariant (tested), seed-free by construction.
+
+  **The WP's premise held, but not in the way it was written.** The plan expected
+  "seconds where WP-1021 takes minutes". Measured on the same synthetic lists,
+  dichotomy is *faster* on every system (0.02-0.8 s against 0.04-5.3 s) and the two
+  are within ~10 % on monoclinic (103 s against 91 s). What the plan got right is
+  the part that matters: the two engines fail differently, and both now recover
+  every system cubic through monoclinic with the truth ranked first, so their
+  agreement is the confidence WP-1024 was designed around. What it got wrong is the
+  *cost* asymmetry — after WP-1021's grid-then-dichotomy structure, the exhaustive
+  engine is not the slow one.
+
+  **Four measured design points.**
+
+  1. **The index table is the distinct rows of `design_matrix(hkl) @ basis.T`**, not
+     the distinct hkl. In a cubic cell every reflection with h²+k²+l² = 9 is one
+     trial label; the enumeration is (labels)ⁿ, so the collapse is worth one to two
+     orders of magnitude, and deriving it from the basis is right in any setting
+     where a per-system table would need writing out.
+  2. **Each base line's labels are filtered by WP-1021's corner bound** — a label
+     whose whole reachable Q range over the metric domain misses that line cannot be
+     its index, for *any* metric in the domain. Exact, not heuristic, and the lowest
+     line ends up admitting the fewest labels because a large one would need an axis
+     longer than `max_d_axis`.
+  3. **`BASE_POOL_MIN` is 8, and 6 is not "slightly too few".** The monoclinic test
+     cell's six lowest reflections are 010, 100, 020, 110, 001, 011 — every one has
+     h·l = 0, so the E column of the exact system is identically zero and **no**
+     4-subset of them determines β. A six-line pool cannot index that cell at all,
+     and it fails by returning partial cells with the correct b axis, which is the
+     worse of the two failures. There is a property test for this.
+  4. **`INDEX_DOMINANT_ZONE` needs a ladder.** The condition is measured, not
+     inferred (WP-1019 showed a census cannot see it): when nothing is found, re-run
+     with wider tables and report that a cell appears only then. One index wider is
+     *not* enough — on a tetragonal cell with c = 26 Å cropped at 28° 2θ the lowest
+     observed reflections are 105, 106 and 009 — so the probe climbs 3, 5, 9 and
+     fires at 5. It is attempted only for systems with ≤ 2 metric degrees of
+     freedom, which is exactly where a single long axis has room to express itself.
+
+  **One defect this WP found in *both* engines, and it was the largest single
+  cost.** The acceptance rule "index all but `n_unindexed` of
+  `n_search_lines`" was being read as *at least that many lines anywhere in the
+  pattern*. On a 75-line monoclinic list that kept **17 607** candidates, because a
+  4-parameter metric indexes 18 of 75 lines by coincidence without difficulty.
+  `engines.indexes_the_search_lines` is now shared by both engines and checks the
+  lines the search was actually driven by; monoclinic went 208 s → 91 s here, and
+  dichotomy began completing monoclinic at all.
+
+  **Two shared-surface costs came out of profiling this engine** (both now fixed in
+  WP-1020's modules, both with the measurement in the docstring):
+  `match_lines` built an (observed × predicted) distance matrix where a binary
+  search on the sorted predictions is exact — ~10 ms per candidate against a
+  10 000-reflection trial set; and `dedup_candidates` re-Niggli-reduced *both* cells
+  on every pairwise comparison, which took a monoclinic search from 221 s to 10.5 s
+  once the reduction was hoisted and gated on reduced-cell volume.
+
+  **In flight:** nothing.
+
+  **Next / gotchas.**
+  - **A cropped low-angle range can make this engine confidently wrong.** On the
+    c = 20 Å tetragonal list cropped at 25° it returned (20, 20, 3.12) indexing 48
+    of 51 lines and no truth — the panel demotes it on `predicted_seen_fraction`,
+    but with only one engine reporting there is nothing to disagree with it. That
+    is a case for WP-1024's gate, and it is worth carrying into 1024's tests as a
+    known shape.
+  - The `EngineCandidate.base_hkl` field records the labels a candidate was solved
+    from. Nothing consumes it yet; it exists because it is the evidence a
+    dominant-zone report would be built from if the probe is ever replaced by
+    something cheaper.

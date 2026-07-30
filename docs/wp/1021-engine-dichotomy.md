@@ -263,6 +263,17 @@ incompleteness is reported** — do not assert exhaustiveness for it here or in
     rational nullspace once per accepted box: 2.5 s of a 15 s run, for seven
     possible answers.
 
+  **Corrected 2026-07-30 by WP-1022, same day.** The acceptance rule here read
+  "index at least `n_search_lines − n_unindexed` lines" as *anywhere in the
+  pattern* rather than *among the search lines*; WP-1022 found it (17 607 candidates
+  kept on a 75-line monoclinic list) and both engines now share
+  `engines.indexes_the_search_lines`. Two consequences for the numbers above:
+  monoclinic **completes** where it previously did not (103 s over d ∈ [6, 18] Å,
+  truth ranked first), and the small-system timings moved slightly (cubic 0.02 s,
+  hexagonal 0.06 s, tetragonal 0.13 s, trigonal 0.16 s, orthorhombic 0.81 s). The
+  qualification about the *declared axis range* stands: cost is the grid, and the
+  grid is (range/0.4)³ × angle slabs.
+
   **In flight:** nothing.
 
   **Next / gotchas for a successor on this WP.**
