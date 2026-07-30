@@ -70,6 +70,23 @@ dimension, so a cubic search is genuinely 1-D.
 From **WP-1019**: `σ_sys` and the chosen shift template; the volume envelope
 that bounds the outermost shell.
 
+**Correction from WP-1019 (2026-07-30): `INDEX_DOMINANT_ZONE` does not exist,
+and detecting a dominant zone or row is owed to *this* WP.** 1019's plan said
+both are "detectable in Q-space before any search"; measured, they are not.
+Neither is a summary statistic of a peak list — a dominant zone is the statement
+that the low-angle lines satisfy a **two-dimensional** quadratic form, and a
+dominant row is an arithmetic progression k²B among the low Q values. Each is a
+search, which is why it lands here. The census that was tried and removed (Ito's
+most-repeated Q difference) scored dominant-zone cells (c = 3.1, 2.7 Å) at +0.9σ
+and +0.8σ against a permutation null while scoring a *general* monoclinic cell at
++3.3σ; against a uniform null a **cubic** list scores +15.6σ, because
+Q = A(h²+k²+l²) makes every difference a multiple of A. Two lessons for any
+statistic this engine invents: use a **permutation** null (same spacing multiset,
+order destroyed) rather than a uniform one, since the uniform null would have
+"confirmed" the useless statistic; and check the negative case (a general cell)
+before believing the positive one. A test in `tests/test_indexing_quality.py`
+asserts the code's absence so it cannot creep back as an unmeasured claim.
+
 ## Non-goals
 
 - No consensus, no confidence gate, no Le Bail validation (WP-1024).

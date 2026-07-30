@@ -43,9 +43,12 @@ no TREOR or EXPO code may be read or ported.**
   survive the full-list check. The 2004 benchmark paper's TREOR rows are mostly
   this failure.
 - **Its other failure mode is a dominant zone**: a large axis makes the base
-  lines carry a large index along it, outside the index table.
-  `INDEX_DOMINANT_ZONE` from WP-1019 is the pre-warning, and it is what tells a
-  user *why* this engine abstained rather than leaving them guessing.
+  lines carry a large index along it, outside the index table. ~~`INDEX_DOMINANT_ZONE`
+  from WP-1019 is the pre-warning~~ — **there is no such pre-warning: 1019
+  measured that a dominant zone is not detectable from a census (see Inherited),
+  so this engine has to raise the condition itself**, from the fact that its own
+  base sets keep needing indices outside the table. That is a better signal
+  anyway: it is the engine's own experience rather than a proxy statistic.
 - **Prior art in miniature.** `studies/guillemot/index_hl2.py` is this engine
   restricted to two-parameter metrics: `candidates()` takes every pair of
   observed Q plus a pair of trial (M, l) labels and solves the 2×2 exactly.
@@ -77,8 +80,26 @@ From **WP-1020**: `metric_dof` via `adp_basis(Rᵀ)` sets `n` per system — do 
 hardcode 1/2/2/3/4/6; `refine_candidate`; the FoM panel; the χ² cell-equality
 for deduping this engine's own output.
 
-From **WP-1019**: `σ_eff` and the shift template; `INDEX_DOMINANT_ZONE` is
-raised there, and this engine's abstention message should point at it.
+From **WP-1019**: `σ_eff` and the shift template — but note the shift screen is
+*conditional* on reference positions, so at search time `shift.source` is
+normally `"unavailable"`; see the correction below.
+
+**Correction from WP-1019 (2026-07-30): `INDEX_DOMINANT_ZONE` does not exist,
+and detecting a dominant zone or row is owed to *this* WP.** 1019's plan said
+both are "detectable in Q-space before any search"; measured, they are not.
+Neither is a summary statistic of a peak list — a dominant zone is the statement
+that the low-angle lines satisfy a **two-dimensional** quadratic form, and a
+dominant row is an arithmetic progression k²B among the low Q values. Each is a
+search, which is why it lands here. The census that was tried and removed (Ito's
+most-repeated Q difference) scored dominant-zone cells (c = 3.1, 2.7 Å) at +0.9σ
+and +0.8σ against a permutation null while scoring a *general* monoclinic cell at
++3.3σ; against a uniform null a **cubic** list scores +15.6σ, because
+Q = A(h²+k²+l²) makes every difference a multiple of A. Two lessons for any
+statistic this engine invents: use a **permutation** null (same spacing multiset,
+order destroyed) rather than a uniform one, since the uniform null would have
+"confirmed" the useless statistic; and check the negative case (a general cell)
+before believing the positive one. A test in `tests/test_indexing_quality.py`
+asserts the code's absence so it cannot creep back as an unmeasured claim.
 
 ## Non-goals
 
@@ -93,7 +114,8 @@ raised there, and this engine's abstention message should point at it.
 - [ ] `indexing/trial_error.py`: per-system index tables, base-set enumeration,
       the exact n×n solve, the three cheap kills in cost order.
 - [ ] Full-list scoring + `refine_candidate`; dedup via WP-1020's χ² equality.
-- [ ] Dominant-zone abstention that names `INDEX_DOMINANT_ZONE` as the cause;
+- [ ] Dominant-zone abstention **raised here** (1019 has no such code — see
+      Inherited), from base sets repeatedly needing out-of-table indices;
       predicted-reflection ceiling; time budget and `search_complete`.
 - [ ] Registry entry (so WP-1024's agent schema quotes it live).
 - [ ] `tests/test_indexing_engines.py::trial_error`: recover known cells in

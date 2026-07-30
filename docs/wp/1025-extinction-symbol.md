@@ -72,6 +72,15 @@ From **WP-1020**: `CellCandidate.lattice_group` is the absence-free group used
 for validation — the screen's starting point, and the "no extinction
 conditions" reference model in the nested comparison.
 
+From **WP-1019** (2026-07-30): `quality.volume_envelope(d_n, n, system, *,
+centring_multiplicity=None)` defaults to the **worst case** centring each system
+allows, because centring is part of the answer this WP produces. Once an
+extinction symbol is determined, pass the real multiplicity (F 4, R 3, I/A/B/C 2,
+P 1) to tighten the volume bound — that is a concrete, already-wired use for this
+WP's output, and it is why the parameter exists. The default was not a guess: with
+no centring factor the envelope *excluded* corundum's true volume, 125 Å³ against
+255, because R-centring extinguishes two thirds of hkl.
+
 ## Non-goals
 
 - No structure solution, no |F| extraction for phasing — the screen ends at a

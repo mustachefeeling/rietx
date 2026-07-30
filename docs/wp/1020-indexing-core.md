@@ -161,6 +161,39 @@ template `refine_candidate` should carry as its one nonlinear column, and
 `σ_sys` is the floor added in quadrature to each line's σ(Q). If 1019 has not
 landed, default to `constant` and `σ_sys = 0` and leave the seam.
 
+From **WP-1019** (landed 2026-07-30), five things this WP must not re-derive:
+
+- **The API is `assess_peak_list(peaks, *, reference_two_theta=None,
+  sigma_sys_deg=None)` → `DataQualityReport`**, and the shift screen is
+  *conditional*: with no cell there is nothing to deviate from, so a shift is
+  identifiable only against reference positions. `shift.source` is `"measured"`
+  or `"unavailable"`, and `"unavailable"` is the **normal** state at index time.
+  So `refine_candidate` cannot expect a template from 1019 on the first pass —
+  default to `constant` and, once a candidate exists, feed its own predicted
+  positions back through `fit_shift_model(tt, tt − ref, esd)` to attribute the
+  shift *afterwards*. That is the seam, and it is the right way round.
+- **`ShiftScreen.prediction_spread_deg` is the number the tolerance model wants
+  when `separable` is False** — the largest disagreement, over the angles
+  sampled, between the corrections the *competitive* templates predict. Measured:
+  0.0011° over 10-25° for a 0.10° cos θ shift (1 % of it), against 0.046° if the
+  rejected template is included. Add `sigma_sys_deg` in quadrature to each line's
+  σ(Q) as planned; treat `prediction_spread_deg` as a *separate systematic* on the
+  cell, not as another σ to combine — it is a bias direction, not scatter.
+- **`DataQualityReport.volume_envelope` is a dict per system, not a float**, and
+  it is scaled by Laue orbit factor × worst-case centring multiplicity. Read the
+  entry for the system being searched. With the Laue factor alone the envelope
+  *excluded* corundum's true volume (125 Å³ against 255); with neither, a cubic
+  search would be bounded 96× too tightly. `volume_envelope(..., 
+  centring_multiplicity=n)` tightens it once WP-1025 knows the extinction symbol.
+- **`METRIC_DOF` already exists** in `schemas/indexing.py` (cubic 1 … triclinic
+  6) with `MIN_LINES_PER_DOF = 5`, and `DataQualityReport.systems_supported` is
+  the list of systems the data can support at all. Import them rather than
+  hardcoding 1/2/2/3/4/6 — 1022's Inherited note already says the same thing
+  about `adp_basis(Rᵀ)`, and these two must agree.
+- **`tan_theta` is deliberately not a shift template.** A tanθ deviation is a
+  *cell* error and belongs to `refine_candidate`'s cell columns; if a shift
+  screen were ever given it, it could "explain" a shift by changing the answer.
+
 ## Non-goals
 
 - No search engines (1021-1023), no consensus or confidence gate (1024), no
