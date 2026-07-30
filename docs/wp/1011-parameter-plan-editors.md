@@ -228,8 +228,15 @@ npm --prefix gui test                                    →  51 passed (4 files
 npm --prefix gui run check                               →  0 errors, 324 files
 .venv/bin/python -m ruff check src tests examples        →  clean
 fast suite (numpy-only [dev] venv)     → 1133 passed / 107 skipped in 63.6 s
+full suite (same venv, busy machine)   → 1203 passed / 116 skipped in 11:52
 dist: 76.8 kB JS (28.8 kB gzip), 8.9 kB CSS — was 48.7/19.1 at WP-1010
 ```
+
+The fast count moved by exactly the six tests this WP added; the full count moved
+by seven against the figure recorded the day before, on identical skip counts.
+That one test is a gap between two sessions' runs rather than anything reproduced
+here — both trees were green — and chasing it costs a 12-minute suite to settle a
+number that changes no decision. Recorded rather than quietly rounded.
 
 Driven end to end against a real server (`GuiSession` + `build_server` on an
 ephemeral port), in the order the GUI performs them: 38 rows with 11 locked and
