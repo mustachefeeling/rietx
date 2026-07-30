@@ -1116,6 +1116,22 @@ describe("disclosure and the command palette", () => {
     expect(writes[0].body).toEqual({ ui: { side_width: 500 } });
   });
 
+  it("lays the cell out as one row of six, in crystallography's letters", async () => {
+    vi.stubGlobal("fetch", server(boot()).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Model")!.click();
+    await flush();
+
+    const labels = [...host.querySelectorAll(".cellrow .cell > span:first-child")]
+      .map((s) => s.textContent?.trim());
+    expect(labels).toEqual(["a", "b", "c", "α", "β", "γ"]);
+    // the *path* keeps the spelled-out name: a glyph in one would be a second
+    // vocabulary for the same field
+    expect(host.querySelector('[data-field="phases.0.cell.alpha"]')
+      ?? host.querySelector(".cellrow .fixed")).toBeTruthy();
+  });
+
   it("drags a model column and persists both widths together", async () => {
     const stub = server(boot({ ...PROJECT,
       doc: { ...PROJECT.doc, ui: { model_columns: [400, 380] } } }));

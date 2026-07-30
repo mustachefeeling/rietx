@@ -324,16 +324,25 @@
     font-size: 11.5px;
   }
 
+  /* four fields of one kind, so four columns — inline labels of four different
+     widths put the four boxes at four different offsets on every stage */
   .advanced {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px 8px;
     margin-top: 3px;
     font-size: 11px;
   }
 
+  .advanced label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
   .advanced input {
-    width: 60px;
+    width: 100%;
     border-color: var(--line);
   }
 

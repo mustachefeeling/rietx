@@ -88,6 +88,11 @@
     onmoved?: () => void;
   } = $props();
 
+  /** The cell edges as crystallography writes them.  The *path* keeps the
+   *  spelled-out name — it is a parameter path, and a glyph in one would be a
+   *  second vocabulary for the same field. */
+  const CELL_GLYPH: Record<string, string> = { alpha: "α", beta: "β", gamma: "γ" };
+
   // -- the three columns ---------------------------------------------
   /** what the drag has set, ahead of the round trip that persists it */
   let colLocal = $state<number[] | null>(null);
@@ -648,13 +653,16 @@
         </div>
 
         <h3>Cell</h3>
-        <div class="grid cells">
+        <!-- one row of six, because that is how a cell is written.  A
+             wrap-when-it-must flex grid put it on three ragged rows at a 309 px
+             column and hid the fact that α β γ are one family. -->
+        <div class="cellrow">
           {#each ["a", "b", "c", "alpha", "beta", "gamma"] as edge (edge)}
             {@const path = `phases.${phase}.cell.${edge}`}
             {@const row = byPath.get(path)}
             {@const field = { path, label: edge, kind: "number" } as Field}
             <label class="cell" title={row?.held_because ?? ""}>
-              <span class="muted">{edge}</span>
+              <span class="muted">{CELL_GLYPH[edge] ?? edge}</span>
               {#if !editableValue(row)}
                 <span class="mono fixed">{formatValue(row!.value, row!.esd)}</span>
               {:else}
@@ -686,8 +694,9 @@
                   { path: `${row.base}.species`, label: "species", kind: "text" }, "structure")}
                   oninput={(e) => type(`${row.base}.species`,
                     (e.currentTarget as HTMLInputElement).value)} /></td>
-                <td class="mono xyz" title={row.frozen || "moved by the DOFs below"}>
-                  {row.xyz.map((v) => formatValue(v, null)).join("  ")}
+                <td class="mono xyz" title={`${row.xyz.join(", ")} — `
+                  + (row.frozen || "moved by the DOFs below")}>
+                  {row.xyz.map((v) => v.toFixed(4)).join(" ")}
                 </td>
                 {#each [`${row.base}.occ`, `${row.base}.biso`] as path (path)}
                   {@const prow = byPath.get(path)}
@@ -715,32 +724,40 @@
                 <tr class="sub"><td colspan="7" class="muted tiny">{row.frozen}</td></tr>
               {:else if row.dofs.length}
                 <tr class="sub"><td colspan="7">
-                  <span class="muted tiny">moves along</span>
-                  {#each row.dofs as dof, k (dof.path)}
-                    <label class="dof mono tiny" title={dof.path}>
-                      [{(row.site?.dof_directions?.[k] ?? []).join(" ")}]
-                      <input class="mono narrow" data-field={dof.path}
-                        value={pedits.get(dof.path)
-                        ?? formatValue(dof.value, dof.esd)}
-                        oninput={(e) => typeParam(dof.path,
-                          (e.currentTarget as HTMLInputElement).value)} />
-                    </label>
-                  {/each}
+                  <span class="sublabel">moves along</span>
+                  <!-- a grid, not a wrapping row: a six-component pattern and a
+                       one-component one are different widths, and letting them
+                       find their own put the brackets and the boxes on
+                       different rhythms -->
+                  <div class="dofs">
+                    {#each row.dofs as dof, k (dof.path)}
+                      <label class="dof mono tiny" title={dof.path}>
+                        <span class="pattern">[{(row.site?.dof_directions?.[k] ?? []).join(" ")}]</span>
+                        <input class="mono narrow" data-field={dof.path}
+                          value={pedits.get(dof.path)
+                          ?? formatValue(dof.value, dof.esd)}
+                          oninput={(e) => typeParam(dof.path,
+                            (e.currentTarget as HTMLInputElement).value)} />
+                      </label>
+                    {/each}
+                  </div>
                 </td></tr>
               {/if}
               {#if row.adps.length}
                 <tr class="sub"><td colspan="7">
-                  <span class="muted tiny">U^ij patterns</span>
-                  {#each row.adps as adp, k (adp.path)}
-                    <label class="dof mono tiny" title={adp.path}>
-                      [{(row.site?.adp_patterns?.[k] ?? []).join(" ")}]
-                      <input class="mono narrow" data-field={adp.path}
-                        value={pedits.get(adp.path)
-                        ?? formatValue(adp.value, adp.esd)}
-                        oninput={(e) => typeParam(adp.path,
-                          (e.currentTarget as HTMLInputElement).value)} />
-                    </label>
-                  {/each}
+                  <span class="sublabel">U<sup>ij</sup> patterns</span>
+                  <div class="dofs wide-patterns">
+                    {#each row.adps as adp, k (adp.path)}
+                      <label class="dof mono tiny" title={adp.path}>
+                        <span class="pattern">[{(row.site?.adp_patterns?.[k] ?? []).join(" ")}]</span>
+                        <input class="mono narrow" data-field={adp.path}
+                          value={pedits.get(adp.path)
+                          ?? formatValue(adp.value, adp.esd)}
+                          oninput={(e) => typeParam(adp.path,
+                            (e.currentTarget as HTMLInputElement).value)} />
+                      </label>
+                    {/each}
+                  </div>
                 </td></tr>
               {/if}
             {/each}
@@ -1039,8 +1056,20 @@
     min-width: 92px;
   }
 
-  .cells .cell {
-    min-width: 76px;
+  .cellrow {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 2px 6px;
+    margin: 2px 0;
+  }
+
+  .cellrow .cell {
+    min-width: 0;
+  }
+
+  .cellrow input,
+  .cellrow .fixed {
+    width: 100%;
   }
 
   input,
@@ -1098,6 +1127,13 @@
     vertical-align: middle;
   }
 
+  /* the column is resizable now, so the fields follow it rather than a fixed
+     72 px each summing past the column's own width */
+  table.atoms input.narrow {
+    width: 100%;
+    min-width: 44px;
+  }
+
   tr.sub td {
     padding-bottom: 4px;
     border-bottom: 1px solid var(--line);
@@ -1106,13 +1142,53 @@
   .xyz {
     opacity: 0.7;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* the sub-rows' captions in the same register as the table's own headers —
+     they used to be a plain muted span against uppercase tracked `th`s */
+  .sublabel {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 1px 0;
+  }
+
+  .sublabel sup {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .dofs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 2px 8px;
+  }
+
+  /* six components rather than three, so the bracket needs the room */
+  .dofs.wide-patterns {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   }
 
   label.dof {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 3px;
-    margin-right: 8px;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .dof .pattern {
+    flex: 0 0 auto;
+    color: var(--muted);
+  }
+
+  .dof input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
   }
 
   .add {
