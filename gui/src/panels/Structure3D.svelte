@@ -49,8 +49,12 @@
   let node: HTMLDivElement | undefined = $state();
   let plotly: any = $state(null);
   let observer: ResizeObserver | null = null;
-  /** The live camera — see `follow`.  Deliberately not `$state`. */
+  /** The last camera handed to plotly — see `liveCamera`.  Deliberately not
+   *  `$state`: nothing renders it, and making it reactive would redraw on
+   *  every frame of a drag. */
   let camera: Camera = DEFAULT_CAMERA;
+  /** A camera a *button* chose, which must outrank whatever is on screen. */
+  let pending: Camera | null = null;
   let geo = $state<Geometry | null>(null);
   let error = $state("");
   /** Has a first load *settled*? — see `load`. */
@@ -159,6 +163,10 @@
     // scene, and the first browser run drew a box nobody could see.  The a/b/c
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
+    // the camera for this draw: what a button chose, else what the user has
+    // rotated to, else the last one handed over
+    camera = pending ?? liveCamera() ?? camera;
+    pending = null;
     await plotly.react(
       node,
       traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary),
@@ -168,39 +176,43 @@
       // up vector to +z and would silently break the view-down-axis buttons.
       // `toImage` is the one worth keeping: a PNG of the structure for a slide.
       { responsive: true, displaylogo: false, modeBarButtons: [["toImage"]] });
-    follow();
     watch();
   }
 
   /**
-   * Hold on to the camera the user set, because plotly will not.
+   * The camera plotly is *actually* showing, read back before every redraw.
    *
-   * Every redraw here builds **new trace objects**, and replacing a `mesh3d`
-   * tears the gl3d scene down and rebuilds it from the layout — so `uirevision`
-   * does not survive it, and a rotation was silently thrown away by the next
-   * bond-threshold change or mode switch.  Reading plotly back does not detect
-   * this: `layout.scene.camera` reports whatever was last passed *in*, so it
-   * says the view was kept when it was not, which is why this was found by
-   * comparing screenshots rather than state.  `plotly_relayout` is the public
-   * signal, and the camera is a plain variable rather than `$state` on purpose:
-   * nothing renders it, and making it reactive would redraw on every drag.
+   * The view has to be re-supplied on every draw, because each one builds new
+   * trace objects and replacing a `mesh3d` tears the gl3d scene down and
+   * rebuilds it from the layout — which `uirevision` does not cover.  So the
+   * question is only where to read it from, and two of the three obvious
+   * answers are wrong:
+   *
+   * - `layout.scene.camera` reports whatever was last passed **in**.  Read it
+   *   back and it says the rotation was kept when it was thrown away, which is
+   *   why this is measured by comparing screenshots and never by reading state.
+   * - `plotly_relayout` — the public signal, and what this component listened
+   *   for until now — **does not fire for a gl3d camera drag at all**.
+   *   Measured in Chrome against plotly 6.9.0: zero events across a drag that
+   *   moved the eye from (1.35, 1.35, 0.95) to (−0.62, −1.41, −1.47), and the
+   *   next redraw put the scene back to the opening view.  It was wrong in the
+   *   shipped build too, not a regression: the same probe against WP-1015's own
+   *   `static/` says the same thing.
+   *
+   * What is left is the scene object, whose `getCamera()` returns the live
+   * `up`/`center`/`eye`/`projection` — private, but it is the only reading of
+   * the view that is a reading of the view.  When it is absent the last known
+   * camera stands, which is exactly the behaviour it replaces.
    */
-  function follow() {
-    const plotNode = node as HTMLDivElement & {
-      removeAllListeners?: (name: string) => void;
-      on?: (name: string, handler: (ev: any) => void) => void;
-    };
-    plotNode.removeAllListeners?.("plotly_relayout");
-    plotNode.on?.("plotly_relayout", (ev: any) => {
-      const next = ev?.["scene.camera"];
-      // plotly does report the projection back, but a camera that ever lost it
-      // would put the scene into perspective — and a projection *change*
-      // disposes and re-initialises the gl plot, so that would be a teardown per
-      // redraw rather than a wrong-looking cell.
-      if (next) {
-        camera = { ...next, projection: next.projection ?? DEFAULT_CAMERA.projection };
-      }
-    });
+  function liveCamera(): Camera | null {
+    const scene = (node as any)?._fullLayout?.scene?._scene;
+    const live = scene?.getCamera?.();
+    // a camera that lost its projection would put the scene back into
+    // perspective — and a projection *change* disposes and re-initialises the
+    // gl plot, so that is a teardown per redraw, not a cosmetic slip
+    return live
+      ? { ...live, projection: live.projection ?? DEFAULT_CAMERA.projection }
+      : null;
   }
 
   /**
@@ -234,12 +246,13 @@
    *  draws, and the cure for the roll that free rotation allows. */
   function look(axis: number) {
     if (!geo) return;
-    camera = axisCamera(geo, axis, camera);
+    // the distance from what is on screen, so the button keeps the user's zoom
+    pending = axisCamera(geo, axis, liveCamera() ?? camera);
     view += 1;
   }
 
   function home() {
-    camera = DEFAULT_CAMERA;
+    pending = DEFAULT_CAMERA;
     view += 1;
   }
 

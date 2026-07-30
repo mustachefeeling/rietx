@@ -255,13 +255,21 @@ describe("the traces", () => {
   });
 
   it("labels the cell's own axes, clear of the corner atoms", () => {
-    // the frame of reference is a, b, c — nothing here happens in x, y, z —
-    // and a letter placed exactly on the corner would be inside the corner atom
+    // The frame of reference is a, b, c — nothing here happens in x, y, z.  The
+    // clearance is in Å and set by the largest ball, because a corner site is
+    // drawn at all eight corners: a percentage of the edge put every letter
+    // inside an atom on the first structure it was tried on.
     const axes = axisTrace(geometry(), "#1f5fa8");
     expect(axes.text).toEqual(["a", "b", "c"]);
-    expect(axes.x).toEqual([4 * 1.08, 0, 0]);
-    expect(axes.y).toEqual([0, 4 * 1.08, 0]);
-    expect(axes.z).toEqual([0, 0, 4 * 1.08]);
+    const clear = 0.35 + 0.4 * 2.0;               // the fixture's largest radius
+    expect(axes.x).toEqual([4 + clear, 0, 0]);
+    expect(axes.y).toEqual([0, 4 + clear, 0]);
+    expect(axes.z).toEqual([0, 0, 4 + clear]);
+    // …and it clears the ball itself, whatever the cell edge is
+    const small = axisTrace(geometry({ cell: [1, 1, 1, 90, 90, 90],
+                                       lattice: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] }),
+                            "#1f5fa8");
+    expect(small.x[0] - 1).toBeGreaterThan(0.4 * 2.0);
   });
 });
 

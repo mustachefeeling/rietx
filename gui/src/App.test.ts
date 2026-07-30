@@ -1591,11 +1591,14 @@ describe("the structure viewer", () => {
   /** plotly is injected at runtime and stubbed globally in `test-setup.ts`; the
    *  viewer's assertions are about the *traces it hands over*, so this replaces
    *  the stub with a recording one for the duration of a test. */
-  function recorder() {
+  function recorder(live?: any) {
     const drawn: any[] = [];
     vi.stubGlobal("Plotly", {
-      react: async (_node: unknown, traces: any[], layout: any) => {
+      react: async (node: any, traces: any[], layout: any) => {
         drawn.push({ traces, layout });
+        // what a real gl3d plot leaves behind: the scene object whose
+        // `getCamera()` is the only honest reading of the view
+        if (live) node._fullLayout = { scene: { _scene: { getCamera: () => live } } };
       },
       purge: () => {},
     });
@@ -1682,6 +1685,36 @@ describe("the structure viewer", () => {
     await flush();
     expect(host.textContent).toContain("ellipsoids at 90 %");
     expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+  });
+
+  it("re-supplies the view the user rotated to, read from the scene", async () => {
+    // Every redraw builds new trace objects, and replacing a `mesh3d` rebuilds
+    // the gl3d scene from the layout — so the view has to be handed back in.
+    // Where it is read from is the whole question: `layout.scene.camera` reports
+    // what was passed *in*, and `plotly_relayout` does not fire for a gl3d drag
+    // at all (measured in Chrome, and true of the shipped build too).
+    const rotated = { up: { x: 0, y: 0, z: 1 }, center: { x: 0, y: 0, z: 0 },
+                      eye: { x: -0.62, y: -1.41, z: -1.47 },
+                      projection: { type: "orthographic" } };
+    const drawn = recorder(rotated);
+    await openViewer();
+    button("ellipsoids")!.click();
+    await flush();
+    expect(drawn[drawn.length - 1].layout.scene.camera.eye).toEqual(rotated.eye);
+  });
+
+  it("lets a view button outrank what is on screen", async () => {
+    // …but not the other way round: a camera the user *chose* must survive the
+    // read-back, or pressing "down c" would draw whatever the scene already had
+    const drawn = recorder({ eye: { x: -0.62, y: -1.41, z: -1.47 },
+                             projection: { type: "orthographic" } });
+    await openViewer();
+    button("c")!.click();
+    await flush();
+    const eye = drawn[drawn.length - 1].layout.scene.camera.eye;
+    expect(eye.x).toBeCloseTo(0, 12);
+    expect(eye.y).toBeCloseTo(0, 12);
+    expect(eye.z).toBeGreaterThan(0);
   });
 
   it("looks down a lattice vector without asking the server anything", async () => {

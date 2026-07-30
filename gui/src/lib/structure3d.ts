@@ -400,16 +400,28 @@ export function cellTrace(geometry: Geometry, color: string): any {
 }
 
 /**
- * "a", "b", "c" at the far end of the three cell edges leaving the origin.
+ * "a", "b", "c" just beyond the far end of the three cell edges leaving the
+ * origin.
  *
  * This is the scene's frame of reference, and it replaces plotly's Cartesian
  * box: nothing in the picture happens in x, y or z, and the box's tick labels
  * churn on every frame of a drag.  `lattice`'s rows *are* those three edges
- * (corner `1 << k` is `lattice[k]`), pushed 8 % past the corner because a corner
- * site is drawn at all eight corners and would otherwise swallow the letter.
+ * (corner `1 << k` is `lattice[k]`).
+ *
+ * The clearance is **in Å and set by the largest ball**, not a percentage of the
+ * cell edge.  A fraction is the wrong shape for the problem: a corner site is
+ * drawn at all eight corners, so the letter has to clear a *ball*, and 8 % of
+ * LaB6's 4.16 Å edge is 0.33 Å against a lanthanum drawn at 0.83 — every letter
+ * was inside an atom, which is what a browser showed and jsdom cannot.
  */
 export function axisTrace(geometry: Geometry, color: string): any {
-  const ends = [0, 1, 2].map((k) => geometry.lattice[k].map((v) => v * 1.08));
+  const largest = Math.max(0, ...geometry.sites.map((site) => site.radius));
+  const clear = 0.35 + geometry.ball_fraction * largest;
+  const ends = [0, 1, 2].map((k) => {
+    const v = geometry.lattice[k];
+    const length = Math.hypot(v[0], v[1], v[2]) || 1;
+    return v.map((c) => c * (1 + clear / length));
+  });
   return {
     type: "scatter3d", mode: "text", name: "axes",
     x: ends.map((p) => p[0]), y: ends.map((p) => p[1]), z: ends.map((p) => p[2]),
