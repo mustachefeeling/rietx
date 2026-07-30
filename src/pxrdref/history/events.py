@@ -18,7 +18,14 @@ Event kinds (closed set, versioned with the schema):
 * ``eval`` — one residual evaluation inside scipy TRF (cost, eval counter).
   scipy exposes no per-iteration callback, so the residual closure itself is
   the hook; ``n_eval`` counts every call (function + finite-difference), which
-  is exactly the quantity that tracks wall-clock progress.
+  is exactly the quantity that tracks wall-clock progress;
+* ``index_start`` / ``index_end`` — one **indexing** run (WP-1024).  A separate
+  pair rather than a reuse of ``fit_start``/``fit_end`` because an indexing run
+  has none of what a refinement run has: no mode, no Rwp, no history node.  What
+  it *does* have is engines and systems, and those go on the open ``data`` dict —
+  the per-engine progress in between is emitted as ``stage_start``/``stage_end``
+  with ``index``, ``n_stages``, ``engine`` and ``system``, so ``pxrdref watch``
+  and the GUI's progress reporting need no new case at all.
 
 Every line carries ``t`` (Unix seconds) so a tail of the file doubles as a
 progress bar; ``pxrdref watch`` renders it as the console pane.
@@ -36,6 +43,14 @@ usable as a compatibility signal.  A cancelled run's ``fit_end`` carries
 ``status="cancelled"`` and *omits* ``rwp``/``gof`` — there is no fitted result
 to report — which is the same rule seen from the reader's side: a consumer
 reads ``data`` with ``.get``, never by unpacking a fixed shape.
+
+**Version 2** (WP-1024) is the rule's other half made real:
+``index_start``/``index_end`` are new *kinds*, so the constant moves.  WP-1006
+declined to add them in advance precisely because a kind nothing emits is an
+untested guess about a loop that did not exist; now the loop exists
+(``index_pattern``) and emits them.  The per-engine progress inside the run
+deliberately reuses ``stage_start``/``stage_end`` with extra ``data`` keys, which
+is additive and would not have bumped anything on its own.
 """
 
 from __future__ import annotations
@@ -49,9 +64,13 @@ from pydantic import Field
 
 from ..schemas.common import Base
 
-EVENT_SCHEMA_VERSION = "1"
+#: "2" since WP-1024 added the ``index_start``/``index_end`` kinds.  Read the
+#: module docstring's additivity rule before changing it: a new kind bumps, an
+#: added ``data`` field does not.
+EVENT_SCHEMA_VERSION = "2"
 
-EventKind = Literal["fit_start", "stage_start", "eval", "stage_end", "fit_end"]
+EventKind = Literal["fit_start", "stage_start", "eval", "stage_end", "fit_end",
+                    "index_start", "index_end"]
 
 
 class EventRecord(Base):
