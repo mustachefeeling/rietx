@@ -976,7 +976,59 @@ per-line widths, model-σ weights) and the estimator shown unbiased to ±0.02 in
 isolation — so what is left is in the detection-seeded window, two orders below
 the systematic-error scale 1019 exists to model.
 
-Its earlier value was already banked, and it is the v0.5 method result in
+**[1019](wp/1019-indexing-data-quality.md) closed the same day**, and its
+deliverable is a *gate*: `assess_peak_list` judges a peak list fit to index or
+**abstains with a reason**, and `fit_shift_model` attributes a systematic 2θ shift
+to a zero-point error, a displaced specimen or a transparent one — or declines to,
+which is the half that matters, since every program the 2004 benchmark paper
+surveys fits one constant "zeropoint" instead.
+
+Its founding question was one the plan had not resolved: **what is knowable from a
+peak list alone.** Everything except the shift is a property of the list. The
+shift is not — with no cell there is nothing to deviate from — so the screen is
+*conditional* on reference positions, and with none the report says
+`shift.source == "unavailable"` rather than reporting a zero shift it never
+measured. What *is* computable with no data at all is the separability geometry of
+the three templates over the angles sampled: a statement about the experiment
+rather than the specimen, readable before a specimen is loaded.
+
+Four measurements, and two of them overturned something:
+
+- **"The cell stands when the cause is ambiguous" is true only with the word
+  *competitive* in it.** Over 10-25° 2θ with a 0.10° cos θ displacement, all three
+  templates' predicted corrections differ by 0.046° — nearly half the shift, a
+  0.2 % cell error if the wrong one is applied. But the template that disagrees is
+  the one the data *rejects*, and over the two that fit comparably the spread is
+  0.0011°. The plan's conclusion survives; its reasoning is narrowed, and
+  `prediction_spread_deg` now reports the number instead of a docstring asserting
+  the claim.
+- **A measured no-go: dominant zone and dominant row are not detectable from a
+  census.** Neither is a summary statistic — a dominant zone is the statement that
+  the low-angle lines satisfy a *two-dimensional* quadratic form, a dominant row an
+  arithmetic progression k²B among the low Q values. Each is a search. The obvious
+  census (Ito's most-repeated Q difference) was written, measured and removed: it
+  scores dominant-zone cells at +0.9σ and +0.8σ against a permutation null while
+  scoring a *general* monoclinic cell at +3.3σ, and against a uniform null a
+  **cubic** list scores +15.6σ — it detects commensurability, not zones. A test
+  asserts the diagnostic code's absence so it cannot creep back, and the engines
+  (1021/1022) have been told they own the detection.
+- **Smith's volume envelope needed two scalings, and the second was found by the
+  envelope excluding the right answer**: with the Laue orbit factor alone,
+  corundum's bound came out at 125 Å³ against a true 255 Å³, because R-centring
+  extinguishes two thirds of hkl. Centring is part of the answer (1025's extinction
+  symbol), so the default is the worst case each system allows — the one failure a
+  search bound may not have is excluding the true cell — and the envelope is
+  reported per system, since they span 96×.
+- **`constant` and `cos θ` stay 0.96 collinear even over 10-140°**, so
+  separability is decided on the residual-SS ratio against real data and never on
+  the geometry alone.
+
+One item is left open for the user rather than a session: the per-system envelope
+scaling is *derived* here, not published, and a clean copy of Smith (1977) would
+let the derived factors be checked against the paper's — the WP-0501 b₂
+transposition being the precedent for why that check is worth asking for.
+
+1018's earlier value was already banked, and it is the v0.5 method result in
 a new costume: **four defects, none of them visible by reading the code.** A
 resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
 group is fitted independently *with its own full doublet*, so the Kα2 maximum
@@ -1007,7 +1059,7 @@ per concurrent session, or only one session commits.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ✅ 2026-07-30 | — |
-| [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ⬜ | 1018 |
+| [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ✅ 2026-07-30 | 1018 |
 | [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
 | [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |
 | [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ⬜ | 1020 |
