@@ -181,6 +181,10 @@
         onApply: apply,
       });
     } catch (error) {
+      // released only on failure: on success `editor` is set and the effect
+      // above short-circuits, but a chunk that failed to load should be
+      // retryable by leaving the mode and coming back
+      mounting = false;
       bootError = `the editor did not load: ${(error as Error).message}`;
     }
   }
