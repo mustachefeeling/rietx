@@ -178,10 +178,14 @@ npm --prefix gui test
 
 - **2026-07-30 — landed.** Two commits: `report/apply.py` + `POST
   /api/report/apply` + `tests/test_report_apply.py` (12 tests), then the two
-  panels + `gui/src/lib/{history,report}.ts` + the rebuilt dist. Fast suite
-  **1145 passed / 107 skipped in 53 s** on a numpy-only `[dev]` venv (1133 before,
-  +12 = this WP's Python tests); vitest **85** (was 51); `svelte-check` clean;
-  ruff clean.
+  panels + `gui/src/lib/{history,report}.ts` + the rebuilt dist, then four small
+  corrections found by re-reading rather than by a test. On a numpy-only `[dev]`
+  venv: fast suite **1145 passed / 107 skipped in 53 s** (1133 before), full suite
+  **1215 passed / 116 skipped in 12:40** (1203 before) — both counts moved by
+  exactly the twelve tests this WP added. vitest **85** (was 51);
+  `svelte-check` clean; ruff clean. The 12:40 is at the top of the recorded range
+  because the machine was concurrently running a headless browser, three vite
+  builds and a second pytest; compare runs, not records.
 
   **Done.** The applicability split, decided once: 11 of the 16 `ActionKind`s are
   one stage, 1 is a search, 4 are advice — `missing_kinds()` is pinned empty

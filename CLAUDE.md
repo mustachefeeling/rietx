@@ -29,17 +29,18 @@ and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
 7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
 group rather than by total work — fast suite 60-80 s over three runs.
 **Quote wall clock as a range, never as a figure**: the same green tree
-measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), and 11:52 on
-a busier one (2026-07-30) — machine state moves it further than most changes do.
-Compare runs, not records.
+measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), 11:52 on
+a busier one (2026-07-30), and 12:40 later the same day on a machine
+simultaneously running a headless browser, three vite builds and a second pytest
+— machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1203 passed / 116 skipped and the fast suite
-1133 passed / 107 skipped. Installing `[jax,torch]` converts most of those skips
-into passes, so a bare "N tests" figure means nothing without the venv it was
-measured in. (WP-1011 added six tests and the fast count moved by exactly six;
-the full count moved by seven against the figure recorded a day earlier, which
-is a one-test bookkeeping gap between two sessions' runs, not a
-reproduced-here discrepancy — both trees were green.)
+`[dev]`** venv, the full suite is 1215 passed / 116 skipped and the fast suite
+1145 passed / 107 skipped (1250 of 1329 collected). Installing `[jax,torch]`
+converts most of those skips into passes, so a bare "N tests" figure means nothing
+without the venv it was measured in. (WP-1012 added twelve tests and **both**
+counts moved by exactly twelve, which is the bookkeeping check worth doing: the
+same two figures a day earlier disagreed by one, and a session that cannot say
+which of its numbers moved cannot tell a new skip from a new pass.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
