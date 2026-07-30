@@ -1732,6 +1732,14 @@ describe("the structure viewer", () => {
     return stub;
   }
 
+  /** The drawing knobs are behind a disclosure since WP-1029 — every one of
+   *  them used to be on screen at once under a 300 px plot. */
+  async function openKnobs() {
+    [...host.querySelectorAll("button")]
+      .find((b) => b.textContent?.includes("drawing"))!.click();
+    await flush();
+  }
+
   /** by name, not by index: the trace list grows, the names do not move. */
   function trace(drawn: any[], name: string): any {
     return drawn[drawn.length - 1].traces.find((t: any) => t.name === name);
@@ -1774,7 +1782,7 @@ describe("the structure viewer", () => {
     const drawn = recorder();
     const stub = await openViewer();
     button("ellipsoids")!.click();
-    await flush();
+    await openKnobs();
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
     // the sphere's first vertex is its +z pole, and La sits at the origin, so
     // this is the semi-axis itself: 0.08 · k(p)
@@ -1801,6 +1809,50 @@ describe("the structure viewer", () => {
     await flush();
     expect(host.textContent).toContain("ellipsoids at 90 %");
     expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+  });
+
+  it("calls an exaggeration an exaggeration, never a probability", async () => {
+    // WP-1029's one design question. A probability cannot exceed 1 — k(p) =
+    // √χ²₃(p) diverges as p → 1 and `probability_scale(1.0)` raises — so
+    // "bigger so I can see it" is a drawing scale, and a viewer that drew
+    // 1.5·k(0.5) under a "50 %" label would be claiming a surface it is not
+    // drawing.
+    const drawn = recorder();
+    await openViewer();
+    button("ellipsoids")!.click();
+    await openKnobs();
+    const at50 = trace(drawn, "La").z[0];
+
+    const size = [...host.querySelectorAll<HTMLInputElement>('input[type="range"]')]
+      .find((i) => i.max === "4")!;
+    size.value = "2";
+    size.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+
+    expect(trace(drawn, "La").z[0]).toBeCloseTo(at50 * 2, 6);
+    // the probability is still the probability…
+    expect(host.textContent).toContain("ellipsoids at 50 % (k = 1.538)");
+    // …and the factor is stated beside it, as what it is
+    expect(host.textContent).toContain("× 2.00 exaggeration");
+    expect(host.textContent).toContain("not a probability");
+    expect(host.textContent).not.toContain("ellipsoids at 100 %");
+  });
+
+  it("thins the stick for the mode it is drawn in", async () => {
+    // WP-1015's justification for an uncapped cylinder — "the far end is buried
+    // inside its own atom, whose ball is larger than the stick for every
+    // element there is" — is true in ball mode and overclaims in ellipsoid
+    // mode, where an atom's size is √U·k(p) and not a covalent radius.
+    const drawn = recorder();
+    await openViewer();
+    const ball = trace(drawn, "bonds:La");
+    const ballRadius = Math.max(...ball.x) - Math.min(...ball.x);
+
+    button("ellipsoids")!.click();
+    await flush();
+    const thin = trace(drawn, "bonds:La");
+    expect(Math.max(...thin.x) - Math.min(...thin.x)).toBeLessThan(ballRadius);
+    expect(host.textContent).toContain("sticks 0.0");
   });
 
   it("re-supplies the view the user rotated to, read from the scene", async () => {
@@ -1861,8 +1913,20 @@ describe("the structure viewer", () => {
   it("refetches when the bond threshold moves, because the server owns the rule", async () => {
     recorder();
     const stub = await openViewer();
+    await openKnobs();
     const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!;
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+
+    // the *label* follows the drag — one fetch per pixel would be a flood, but
+    // showing a number is not a fetch, and tying the cheap one to the expensive
+    // one is the whole of item (n)
     slider.value = "1.05";
+    slider.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(host.textContent).toContain("1.05×");
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+
+    // …and the *fetch* waits for the release, because the server owns the rule
     slider.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();
     const last = stub.calls.filter((c) => c.path === "/api/structure3d").pop()!;
@@ -1893,6 +1957,7 @@ describe("the structure viewer", () => {
         return { body, gate: g.promise };
       },
     });
+    await openKnobs();
     const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!;
     for (const value of ["1.05", "1.25"]) {
       slider.value = value;

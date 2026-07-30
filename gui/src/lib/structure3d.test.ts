@@ -15,6 +15,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_CAMERA,
   LIGHT_POSITION,
+  STICK_FLOOR,
+  STICK_RADIUS,
   atomLabel,
   atomTransform,
   atomTraces,
@@ -27,6 +29,7 @@ import {
   layout,
   lightPosition,
   legend,
+  stickRadius,
   stickTransform,
   traces,
   transform,
@@ -236,6 +239,30 @@ describe("the traces", () => {
     const edge = lightPosition({ eye: { x: 0, y: 0, z: 2 }, up: { x: 0, y: 0, z: 1 } });
     expect(Number.isFinite(edge.x) && Number.isFinite(edge.y) && Number.isFinite(edge.z))
       .toBe(true);
+  });
+
+  it("sizes the stick for the mode it is drawn in", () => {
+    const geo = geometry();
+    // ball mode: the fixed radius, pinned below BALL_FRACTION on the smallest
+    // covalent radius there is, so no species is a lump on a rod
+    expect(stickRadius(geo, "ball")).toBe(STICK_RADIUS);
+
+    // ellipsoid mode: an atom's size is √U·k(p) and has nothing to do with a
+    // covalent radius, so the stick follows the smallest semi-axis drawn.  The
+    // fixture's is 0.1 Å at k = 1.5382 → 0.1538, half of which is under the
+    // fixed radius, so the stick thins rather than swallowing the atom.
+    const thin = stickRadius(geo, "ellipsoid");
+    expect(thin).toBeCloseTo(0.5 * 0.1 * 1.5382, 12);
+    expect(thin).toBeLessThan(STICK_RADIUS);
+    // the burial is a proof, not a hope: r ≤ ½·min semi-axis puts the rim
+    // inside the ellipsoid's inscribed sphere, hence inside it in every
+    // direction — which is what `unitCylinder` going uncapped now rests on
+    expect(thin).toBeLessThanOrEqual(0.5 * 0.1 * geo.scale);
+
+    // it never *grows* past the fixed radius, however big the exaggeration
+    expect(stickRadius(geo, "ellipsoid", 8)).toBe(STICK_RADIUS);
+    // …and never vanishes, however small
+    expect(stickRadius(geo, "ellipsoid", 0.001)).toBe(STICK_FLOOR);
   });
 
   it("dims an image outside the cell rather than drawing it identically", () => {

@@ -69,6 +69,23 @@
   let level = $state("0.5");
   let hidden = $state(new Set<string>());
   let showBoundary = $state(true);
+  /** The bond threshold the *label* shows, which follows the drag; `tolerance`
+   *  is what the fetch uses and only moves on release.  Two facts, two fields —
+   *  the bug was precisely that the cheap one was tied to the expensive one. */
+  let toleranceShown = $state(1.15);
+  /**
+   * How much bigger than k(p) the ellipsoids are drawn.
+   *
+   * **Not a probability, and never labelled as one.**  k(p) = √χ²₃(p) diverges
+   * as p → 1 and `probability_scale(1.0)` raises, so there is no "120 %
+   * ellipsoid" to ask for: wanting them bigger is a drawing scale, and the
+   * caption states it beside the probability rather than folded into it.
+   */
+  let exaggeration = $state(1);
+  /** The drawing knobs, folded away.  Every one of them was on screen at once
+   *  under a 300 px plot in a 380 px column; mode and the view buttons stay in
+   *  the open because they are the two anyone reaches for. */
+  let knobsOpen = $state(false);
   /** Bumped by the view buttons.  The camera itself is not `$state` — nothing
    *  renders it — so this is what asks the draw effect for one more frame. */
   let view = $state(0);
@@ -102,6 +119,7 @@
     void mode;
     void hidden;
     void showBoundary;
+    void exaggeration;
     void view;
     draw();
   });
@@ -171,7 +189,8 @@
       node,
       // the camera is handed to `traces` as well as to `layout`: the key light
       // is computed from it, so it must be the *same* camera this draw uses
-      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary, camera),
+      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary, camera,
+             exaggeration),
       layout(style.color, camera),
       // the default gl3d modebar floats over a panel this small, and one of its
       // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the
@@ -316,33 +335,61 @@
         <button class="tiny" onclick={() => look(2)}>c</button>
         <button class="tiny" onclick={home}>reset</button>
       </span>
-      {#if mode === "ellipsoid"}
-        <label class="inline tiny">probability
-          <select class="tiny" value={String(geo.probability)}
-            onchange={(e) => setProbability((e.currentTarget as HTMLSelectElement).value)}>
-            {#each levels as key (key)}
-              <option value={key}>{(Number(key) * 100).toFixed(0)} %</option>
-            {/each}
-          </select>
-        </label>
-      {/if}
-      <label class="inline tiny" title="a drawing threshold, not physics: a bond is
-        drawn at d ≤ tol·(rᵢ+rⱼ) on covalent radii, and no fixed value is right
-        for both a large cation and an organic">bonds ≤
-        <input type="range" min="0.9" max="1.4" step="0.05" value={tolerance}
-          onchange={(e) => (tolerance = Number((e.currentTarget as HTMLInputElement).value))} />
-        <span class="mono">{tolerance.toFixed(2)}×</span>
-      </label>
-      <label class="inline tiny" title="the same atom at the opposite face (a corner
-        site drawn at all eight corners) and the bonded neighbours just outside —
-        off leaves the cell's own contents and sticks that end in mid-air">
-        <input type="checkbox" checked={showBoundary}
-          onchange={(e) => (showBoundary = (e.currentTarget as HTMLInputElement).checked)} />
-        images outside the cell
-      </label>
+      <span class="spacer"></span>
+      <button class="ghost tiny" class:on={knobsOpen}
+        onclick={() => (knobsOpen = !knobsOpen)}
+        title="drawing thresholds — none of them is a fact about the sample, so
+               none is stored in the project">{knobsOpen ? "▾" : "▸"} drawing</button>
     </div>
 
-    <p class="muted tiny">{caption(geo, mode)}</p>
+    {#if knobsOpen}
+      <!-- Where each knob lives is settled by *what it changes*, not by taste:
+           the server owns anything that changes the payload (the bond threshold
+           decides which bonds exist), the client owns anything that only
+           changes drawing (a probability rescale, an exaggeration). -->
+      <div class="knobs drawer">
+        {#if mode === "ellipsoid"}
+          <label class="inline tiny">probability
+            <select class="tiny" value={String(geo.probability)}
+              onchange={(e) => setProbability((e.currentTarget as HTMLSelectElement).value)}>
+              {#each levels as key (key)}
+                <option value={key}>{(Number(key) * 100).toFixed(0)} %</option>
+              {/each}
+            </select>
+          </label>
+          <label class="inline tiny" title="a drawing scale, not a probability: k(p)
+            = √χ²₃(p) diverges as p → 1, so there is no ellipsoid above 100 % to
+            ask for — this makes them bigger and the caption says so">× size
+            <input type="range" min="1" max="4" step="0.25" value={exaggeration}
+              oninput={(e) => (exaggeration =
+                Number((e.currentTarget as HTMLInputElement).value))} />
+            <span class="mono">{exaggeration.toFixed(2)}×</span>
+          </label>
+        {/if}
+        <label class="inline tiny" title="a drawing threshold, not physics: a bond is
+          drawn at d ≤ tol·(rᵢ+rⱼ) on covalent radii, and no fixed value is right
+          for both a large cation and an organic">bonds ≤
+          <!-- the *label* follows the drag and the *fetch* waits for the release:
+               one round trip per pixel would be a flood, but showing a number
+               is not a fetch -->
+          <input type="range" min="0.9" max="1.4" step="0.05" value={tolerance}
+            oninput={(e) => (toleranceShown =
+              Number((e.currentTarget as HTMLInputElement).value))}
+            onchange={(e) => (tolerance =
+              Number((e.currentTarget as HTMLInputElement).value))} />
+          <span class="mono">{toleranceShown.toFixed(2)}×</span>
+        </label>
+        <label class="inline tiny" title="the same atom at the opposite face (a corner
+          site drawn at all eight corners) and the bonded neighbours just outside —
+          off leaves the cell's own contents and sticks that end in mid-air">
+          <input type="checkbox" checked={showBoundary}
+            onchange={(e) => (showBoundary = (e.currentTarget as HTMLInputElement).checked)} />
+          images outside the cell
+        </label>
+      </div>
+    {/if}
+
+    <p class="muted tiny">{caption(geo, mode, exaggeration)}</p>
     {#if geo.note}<p class="warn tiny">{geo.note}</p>{/if}
     <p class="muted tiny mono">{geo.space_group} · V = {geo.volume.toFixed(2)} Å³</p>
   {/if}
@@ -411,8 +458,16 @@
   .knobs {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 4px 12px;
     margin: 2px 0;
+  }
+
+  .knobs.drawer {
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 4px 6px;
+    background: var(--panel);
   }
 
   .inline {

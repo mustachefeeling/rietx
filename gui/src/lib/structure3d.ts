@@ -231,7 +231,14 @@ export function unitSphere(rings = 12, segments = 24): Mesh {
  *
  * Caps would be triangles nobody ever sees — the two halves of a bond butt
  * against each other at the midpoint, and the far end is buried inside its own
- * atom, whose ball is larger than the stick for every element there is.
+ * atom.  WP-1015 justified the second half of that with "whose ball is larger
+ * than the stick for every element there is", which is true in **ball** mode
+ * and overclaims in ellipsoid mode, where an atom's size comes from √U·k(p) and
+ * not from a covalent radius: NAC's smallest semi-axis at the shipped 10 %
+ * level is 0.065 Å against a 0.08 Å stick, so the stick was *wider than the
+ * atom*.  `stickRadius` is what makes the sentence true again in both modes —
+ * see its own proof — and a tensor that is not positive definite is drawn as a
+ * visible disc on purpose, so an open end showing there is the point.
  *
  * Six segments: a hexagonal prism with averaged normals is indistinguishable
  * from round at the three or four pixels a bond is ever drawn at, and the
@@ -307,9 +314,11 @@ export function transform(matrix: number[][], v: number[]): number[] {
  * motion would make the ellipsoid toggle mean nothing.
  */
 export function atomTransform(geometry: Geometry, atom: DrawnAtom,
-                              mode: Mode): number[][] {
+                              mode: Mode, exaggeration = 1): number[][] {
   if (mode === "ellipsoid") {
-    const k = geometry.scale;
+    // k(p) and the exaggeration multiply here and are *named* separately
+    // everywhere they are shown: k is a probability, the other is not one
+    const k = geometry.scale * exaggeration;
     return atom.ellipsoid.map((row) => row.map((value) => value * k));
   }
   const r = geometry.ball_fraction * geometry.sites[atom.site].radius;
@@ -361,7 +370,8 @@ export function legend(geometry: Geometry): Array<{ species: string; color: stri
 export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
                            hidden: ReadonlySet<string> = new Set(),
                            showBoundary = true,
-                           light = LIGHT_POSITION): any[] {
+                           light = LIGHT_POSITION,
+                           exaggeration = 1): any[] {
   const traces: any[] = [];
   for (const entry of legend(geometry)) {
     if (hidden.has(entry.species)) continue;
@@ -377,7 +387,7 @@ export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
       for (const atom of geometry.atoms) {
         if (!indices.has(atom.site)) continue;
         if (Boolean(atom.boundary) !== outside) continue;
-        const matrix = atomTransform(geometry, atom, mode);
+        const matrix = atomTransform(geometry, atom, mode, exaggeration);
         const label = atomLabel(geometry, atom, mode);
         const offset = x.length;
         for (const v of sphere.vertices) {
@@ -414,6 +424,37 @@ export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
  */
 export const STICK_RADIUS = 0.08;
 
+/** How much of the smallest drawn semi-axis a stick may take in ellipsoid mode. */
+export const STICK_OF_SEMI_AXIS = 0.5;
+
+/** Below this a stick is a hairline at any zoom, so it stops shrinking. */
+export const STICK_FLOOR = 0.02;
+
+/**
+ * How thick a half-bond is drawn, in Å, **for the mode it is drawn in**.
+ *
+ * In ball mode this is `STICK_RADIUS`, pinned by test below `BALL_FRACTION` on
+ * the smallest covalent radius there is, so every ball is wider than its own
+ * stick.  In ellipsoid mode an atom's size is `√U·k(p)·e` and has nothing to do
+ * with a covalent radius, so the same fixed number made the sticks nearly as
+ * thick as the atoms — measured on NAC, the smallest semi-axis at the default
+ * 50 % is 0.130 Å against a 0.08 Å stick, and the *shipped* 10 % level put the
+ * atom inside the stick at 0.065 Å.
+ *
+ * So in ellipsoid mode the radius is half the smallest semi-axis actually
+ * drawn, which makes the burial a proof rather than a hope: a rim of radius
+ * `r ≤ ½·min semi-axis` lies inside the ellipsoid's inscribed sphere, hence
+ * inside the ellipsoid in every direction. It never *grows* past
+ * `STICK_RADIUS`, because a fat stick is a fat stick whatever it is buried in.
+ */
+export function stickRadius(geometry: Geometry, mode: Mode, exaggeration = 1): number {
+  if (mode !== "ellipsoid") return STICK_RADIUS;
+  const semi = geometry.atoms.flatMap((atom) => atom.rms).filter((v) => v > 0);
+  if (!semi.length) return STICK_RADIUS;
+  const smallest = Math.min(...semi) * geometry.scale * exaggeration;
+  return Math.max(STICK_FLOOR, Math.min(STICK_RADIUS, STICK_OF_SEMI_AXIS * smallest));
+}
+
 /**
  * Bonds as two-tone cylinders, one `mesh3d` per species.
  *
@@ -430,7 +471,9 @@ export const STICK_RADIUS = 0.08;
  */
 export function bondTraces(geometry: Geometry, cylinder: Mesh,
                            hidden: ReadonlySet<string> = new Set(),
-                           light = LIGHT_POSITION): any[] {
+                           light = LIGHT_POSITION,
+                           mode: Mode = "ball", exaggeration = 1): any[] {
+  const radius = stickRadius(geometry, mode, exaggeration);
   const buckets = new Map<string, any>();
   for (const bond of geometry.bonds) {
     const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
@@ -451,7 +494,7 @@ export function bondTraces(geometry: Geometry, cylinder: Mesh,
         };
         buckets.set(site.species, bucket);
       }
-      const matrix = stickTransform(from, mid, STICK_RADIUS);
+      const matrix = stickTransform(from, mid, radius);
       const offset = bucket.x.length;
       for (const v of cylinder.vertices) {
         const p = transform(matrix, v);
@@ -524,13 +567,15 @@ export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
                        cylinder: Mesh, cell: string,
                        hidden: ReadonlySet<string> = new Set(),
                        showBoundary = true,
-                       camera: Camera = DEFAULT_CAMERA): any[] {
+                       camera: Camera = DEFAULT_CAMERA,
+                       exaggeration = 1): any[] {
   // one light for the whole scene, from the camera this draw is using — the
   // sticks and the balls must not disagree about where it is
   const light = lightPosition(camera);
   return [cellTrace(geometry, cell), axisTrace(geometry, cell),
-          ...bondTraces(geometry, cylinder, hidden, light),
-          ...atomTraces(geometry, mode, sphere, hidden, showBoundary, light)];
+          ...bondTraces(geometry, cylinder, hidden, light, mode, exaggeration),
+          ...atomTraces(geometry, mode, sphere, hidden, showBoundary, light,
+                        exaggeration)];
 }
 
 /** A camera in the scene's coordinates.  Typed rather than `any` so a wrong
@@ -657,7 +702,7 @@ export function layout(fg: string, camera: Camera = DEFAULT_CAMERA): any {
 }
 
 /** The sentence under the plot: what is drawn, at what thresholds. */
-export function caption(geometry: Geometry, mode: Mode): string {
+export function caption(geometry: Geometry, mode: Mode, exaggeration = 1): string {
   const real = geometry.atoms.filter((a) => !a.boundary).length;
   const ghosts = geometry.atoms.length - real;
   const parts = [
@@ -667,8 +712,23 @@ export function caption(geometry: Geometry, mode: Mode): string {
       + ` at ${geometry.bond_tolerance.toFixed(2)}×(rᵢ+rⱼ)`,
   ];
   if (!geometry.bond_metals) parts.push("metal–metal contacts not bonded");
-  parts.push(mode === "ellipsoid"
-    ? `ellipsoids at ${(geometry.probability * 100).toFixed(0)} % (k = ${geometry.scale.toFixed(3)})`
-    : `balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
+  if (mode === "ellipsoid") {
+    // The probability and the exaggeration are stated **separately**, always.
+    // A probability cannot exceed 1 — k(p) = √χ²₃(p) diverges as p → 1, and
+    // `probability_scale(1.0)` raises — so "bigger so I can see it" is not a
+    // higher probability, and a viewer that drew 1.5·k(0.5) under a "50 %"
+    // label would be claiming a surface it is not drawing.  An ORTEP figure
+    // quotes a probability because the surface *means* something.
+    let text = `ellipsoids at ${(geometry.probability * 100).toFixed(0)} %`
+      + ` (k = ${geometry.scale.toFixed(3)})`;
+    if (exaggeration !== 1) {
+      text += ` × ${exaggeration.toFixed(2)} exaggeration — a drawing scale,`
+        + " not a probability: no surface encloses more at this size";
+    }
+    parts.push(text);
+  } else {
+    parts.push(`balls at ${geometry.ball_fraction.toFixed(2)}× the covalent radius`);
+  }
+  parts.push(`sticks ${stickRadius(geometry, mode, exaggeration).toFixed(3)} Å`);
   return parts.join(" · ");
 }
