@@ -224,8 +224,8 @@ with skips unchanged; `app.js` 161.5 → 164.3 kB (56.2 kB gzip).
 
 **[1029](wp/1029-gui-usability.md) filed 2026-07-30 — the GUI as one program
 rather than eleven correct panels.** Like 1028, it came from *use*: a session
-driving the shipped GUI produced twelve items, none of them a correctness bug
-and none findable by reading the code. Panes that cannot be resized (the Model
+driving the shipped GUI produced fifteen items, almost none of them a
+correctness bug and none findable by reading the code. Panes that cannot be resized (the Model
 pane's third column is 309 px at a 1000 px window, and there is no way to make
 it wider); element colours that are not distinguishable inside a phase — F
 `#48d860` against Ca `#40c060`, *both in NAC*, plus two more greens, two
@@ -234,8 +234,15 @@ flatly that overlapping atoms merge, which is the direct cost of the trade
 WP-1015's scene pass made and is now cheap to undo, since that pass also made
 the live camera readable at draw time; a plot with 2.5 px points and exactly one
 kind of residual; a dark mode that stops at CodeMirror's gutter; two different
-controls for one choice of pane; and a unit cell laid out down a column instead
-of across a row. One item resolved itself on measurement — "the NAC refinement
+controls for one choice of pane; a unit cell laid out down a column instead of
+across a row; every 3D knob on screen at once under a 300 px plot; a bond slider
+whose number only moves after you let go; and displacement ellipsoids so small
+that the sticks are nearly as thick as the atoms — measured on NAC, the
+smallest semi-axis at 50 % is 0.130 Å against a 0.08 Å stick, and the shipped
+10 % level is *inside* it. That last one carries the only real design question
+in the WP: a probability cannot exceed 1 (k = √χ²₃(p) diverges there), so
+"bigger so I can see it" is an exaggeration factor and has to be labelled one,
+or the picture claims a surface it is not drawing. One item resolved itself on measurement — "the NAC refinement
 doesn't refine" is a mismatched scratchpad project (NAC structure, synthetic
 LaB6 pattern), though the run it produced does report `converged` at Rwp 96.3 %,
 which is 1028's finding again and stays 1028's to fix. Lands before 1017, which

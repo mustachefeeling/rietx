@@ -5,7 +5,8 @@ Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal
 
-The GUI stops being a collection of correct panels and becomes one program a
+Fifteen items, all from use. The GUI stops being a collection of correct panels
+and becomes one program a
 person can read: panes the user can size, controls that look like each other,
 fields that line up, a structure view whose atoms are told apart by colour and
 by shading, a plot whose points are visible and whose residual can be asked a
@@ -14,20 +15,20 @@ different question, and a dark mode that is dark everywhere.
 ## Context
 
 **Every item here came from the user driving the shipped GUI on 2026-07-30**,
-after WP-1015's second pass. None of it was found by reading code, and none of
-it is a correctness bug — which is the reason it needs its own WP rather than a
-line in someone else's: each item is cheap, none is urgent, and together they
-are the difference between a tool that works and a tool that is used.
+after WP-1015's second pass. None of it was found by reading code, and almost
+none of it is a correctness bug — which is the reason it needs its own WP rather
+than a line in someone else's: each item is cheap, none is urgent, and together
+they are the difference between a tool that works and a tool that is used.
 
 The evidence is one screenshot of the Model pane at a 1000 px window, which
-shows nine of the twelve items at once. Reproduce it with:
+shows nine of the fifteen items at once. Reproduce it with:
 
 ```sh
 .venv/bin/pxrdref gui <project>.pxrd --port 8760 --no-open
 # then Model, at a ~1000 px wide window
 ```
 
-### The twelve items, with what is already known about each
+### The fifteen items, with what is already known about each
 
 **(a) The 3D scene is flat, and overlapping atoms and bonds merge.**
 `LIGHTING` in `gui/src/lib/structure3d.ts` is `ambient 0.75, diffuse 0.55,
@@ -165,6 +166,67 @@ rows. Crystallography writes a cell as one row of six; so should this. Watch the
 held/tied cases while doing it — a symmetry-fixed angle renders as fixed text,
 not an input, so the row has to align mixed content (see `editableValue`).
 
+**(m) The 3D view wants more controls, and fewer of them on screen.** Today
+`Structure3D.svelte` shows every knob it has, all the time: mode, phase,
+probability, bond threshold, boundary images, four view buttons — under a plot
+that is 300 px tall in a column that is 380 px wide. Wanted: more parameters
+exposed (ball scale, stick radius, sphere quality, and whatever item (a)'s
+shading pass adds) but folded into a menu, with only mode and the view buttons
+left in the open.
+
+Two rules already settled decide where each new knob lives. WP-1015's: these are
+**drawing thresholds, not facts about the sample**, so none of them enters
+`ProjectDoc` — storing one would make a picture the project's opinion. And the
+existing split between server and client: **the server owns anything that
+changes the payload** (the bond threshold changes which bonds *exist*, so it is
+a round trip), **the client owns anything that only changes drawing** (ball
+scale, stick radius, sphere quality are multiplications on geometry already in
+hand). Note that `BALL_FRACTION` currently sits server-side purely so the
+caption can quote it, while `STICK_RADIUS` sits client-side — if both become
+controls they should stop disagreeing about where they live. Reuse WP-1011's
+Simple/Advanced disclosure rather than inventing a second kind of menu.
+
+**(n) The bond slider's number does not follow the drag.** Deliberate, and
+half-right: `Structure3D.svelte` binds `onchange`, not `oninput`, because every
+change is a **server** round trip and one fetch per pixel would be a flood. But
+the *label* is not the fetch. Split them — the displayed value follows `oninput`
+so you can see where it will land, the fetch stays on `onchange`. The mount test
+must assert both halves, since the bug is precisely that the cheap one was tied
+to the expensive one.
+
+**(o) Ellipsoids are too small to read, and the sticks are part of why.**
+Measured on NAC at the default 50 % (k = √χ²₃(0.5) = 1.5382), against the 0.08 Å
+stick radius:
+
+| site | Biso | semi-axes at 50 % |
+|---|---|---|
+| Al1 | 0.592 | 0.130 – 0.135 Å |
+| Ca1 | 0.650 | 0.136 – 0.147 Å |
+| F3 | 0.821 | 0.146 – 0.177 Å |
+| Na1 | 2.156 | 0.152 – 0.292 Å |
+
+So the smallest ellipsoid is **1.6× the stick radius** — the sticks are nearly
+as thick as the atoms, which is exactly the "tiny and hidden" complaint. Below
+**k ≈ 0.95** the smallest semi-axis is *inside* the stick, and the shipped 10 %
+level (k = 0.764) is already there.
+
+Half of that is a defect from WP-1015's scene pass and should be fixed as one:
+the justification written into `unitCylinder`'s docstring — that a cylinder may
+be uncapped because "the far end is buried inside its own atom, whose ball is
+larger than the stick for every element there is" — is true in **ball** mode and
+overclaims in ellipsoid mode, where an atom's size comes from √U·k(p) and not
+from a covalent radius. The stick has to know which mode it is drawn in.
+
+The other half is the request for a maximum above 100 %, and it needs a
+distinction rather than a bigger number. **A probability cannot exceed 1**:
+k(p) = √χ²₃(p) diverges as p → 1, and `probability_scale(1.0)` raises (pinned by
+test). "Bigger so I can see it" is therefore an **exaggeration factor**, not a
+probability, and has to be labelled as one — an ORTEP figure quotes a
+probability because the surface *means* something, so a viewer that silently
+drew 1.5·k(0.5) under a "50 %" label would be claiming a surface it is not
+drawing. Add an explicit scale multiplier, keep the probability selector as the
+probability, and make `caption()` state both whenever the multiplier is not 1.
+
 ### Inherited
 
 From **WP-1015** (structure viewer + its scene pass, 2026-07-30): the panel now
@@ -235,6 +297,16 @@ independently, or the two will disagree.
 - [ ] **Shading.** `lightposition` from the live camera at each draw, diffuse
       and specular restored, and whatever second cue survives a screenshot
       comparison on NAC at a 1000 px column. (a)
+- [ ] **Viewer controls.** A disclosure menu holding the drawing thresholds and
+      the new ball/stick/quality knobs, with mode and the view buttons left in
+      the open; the server/client ownership split written down where the knobs
+      are declared; the bond slider's label following `oninput` while its fetch
+      stays on `onchange`. (m), (n)
+- [ ] **Ellipsoid size.** An exaggeration factor that is named one and never
+      folded into the probability label (`caption()` states both), and a stick
+      radius that knows which mode it is drawn in — with `unitCylinder`'s
+      docstring corrected, since its justification for going uncapped holds only
+      in ball mode. (o)
 - [ ] **One honest signal** that a fit is hopeless — Layer 0 already computes
       it — without touching the `status` vocabulary WP-1028 owns. (c)
 - [ ] Tests: vitest for every pure function added; a jsdom mount test per
@@ -264,14 +336,22 @@ the screenshot that prompted it, taken again.
 
 ## Handover log
 
-- **2026-07-30** — created from a user's list after driving the shipped GUI.
-  Nothing is started. Three things were measured while writing it and should
-  not be re-measured: the Model pane's column widths at four window sizes
-  (item d), the four colour collisions including Ti against the unknown-element
-  grey (item b), and the NAC "does not refine" report — it *does* run, five
-  stages in 3.6 s, `converged` at Rwp 96.3 %, and the cause is that the
+- **2026-07-30** — created from a user's list after driving the shipped GUI,
+  then extended the same day with three more (m, n, o). Nothing is started.
+  Four things were measured while writing it and should not be re-measured: the
+  Model pane's column widths at four window sizes (item d), the four colour
+  collisions including Ti against the unknown-element grey (item b), NAC's
+  ellipsoid semi-axes against the stick radius — smallest 0.130 Å against
+  0.08 Å, and inside the stick below k ≈ 0.95, which the shipped 10 % level
+  already is (item o) — and the NAC "does not refine" report, which *does* run,
+  five stages in 3.6 s, `converged` at Rwp 96.3 %, the cause being that the
   scratchpad project pairs the NAC structure with a synthetic **LaB6** pattern
-  (item c). Suggested order is the task list's: splitter and theme first,
-  because they are structural and everything else is read against them; colour
-  and shading last, because they are the two that need a browser to judge and
-  the rest can be judged in a diff.
+  (item c).
+
+  Suggested order is the task list's: splitter and theme first, because they are
+  structural and everything else is read against them; colour and shading last,
+  because they are the two that need a browser to judge and the rest can be
+  judged in a diff. Two items carry a decision rather than a repair and are
+  worth doing deliberately: (m)'s server/client ownership split for the drawing
+  knobs, and (o)'s insistence that an exaggeration factor is not a probability —
+  get that one wrong and the picture claims a surface it is not drawing.
