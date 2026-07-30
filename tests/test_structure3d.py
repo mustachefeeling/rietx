@@ -327,6 +327,22 @@ def test_the_payload_carries_the_paths_the_parameter_table_owns(lab6):
     assert payload["phases"] == [lab6.phases[0].name]
 
 
+def test_the_ball_radius_is_quoted_and_leaves_room_for_a_stick(lab6):
+    """The drawing constants are the payload's, not the client's own opinion.
+
+    ``ball_fraction`` is echoed rather than assumed because the caption under the
+    picture states it, and a client that hard-coded it would eventually state a
+    number the balls were not drawn at.  Bounded on both sides: balls of a
+    *bonded* pair cannot merge (their contact is at 0.4·(r_i+r_j), well inside
+    the 1.15 cutoff), and even hydrogen keeps a ball wider than the 0.08 Å stick
+    the client draws — or the smallest atom there is would be a lump on a rod.
+    """
+    payload = s3.build(lab6, phase=0)
+    assert payload["ball_fraction"] == s3.BALL_FRACTION
+    assert s3.BALL_FRACTION < payload["bond_tolerance"]
+    assert s3.BALL_FRACTION * s3.element_radius("H") > 0.08
+
+
 def test_a_phase_that_is_not_there_is_an_index_error(lab6):
     with pytest.raises(IndexError):
         s3.build(lab6, phase=3)

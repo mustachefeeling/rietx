@@ -76,9 +76,16 @@ MAX_BONDS = 4000
 #: disordered pair sharing a site) and no stick is drawn between them.
 BOND_MIN = 0.4
 
-#: Ball-and-stick spheres are drawn at this fraction of the covalent radius —
-#: small enough that the sticks are visible, large enough to read as atoms.
-BALL_FRACTION = 0.32
+#: Ball-and-stick spheres are drawn at this fraction of the covalent radius.
+#: 0.4 is VESTA's ball-and-stick fraction, and the number is only comparable
+#: because both ends of the comparison are stated: VESTA scales its *atomic*
+#: radii, these are gemmi's **covalent** ones, which are smaller — so this is
+#: the more conservative ball of the two.  It is bounded on both sides.  Balls
+#: cannot merge: two of them touch at ``0.4·(r_i + r_j)``, which is 0.35× the
+#: 1.15 bond cutoff, so no *bonded* pair can ever overlap.  And it must exceed
+#: the client's stick radius (0.08 Å) for the smallest atom there is, or
+#: hydrogen (r = 0.31 Å) would be a lump on a rod.
+BALL_FRACTION = 0.40
 
 #: How many drawn atoms (symmetry images and boundary duplicates included) the
 #: payload will carry.  A cap rather than a promise: it is reported in ``note``

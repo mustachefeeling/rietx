@@ -179,7 +179,7 @@ const GEOMETRY = {
   ],
   bonds: [{ i: 0, j: 2, a: [0, 0, 0], b: [0.8284, 2.0784, 2.0784], d: 3.058 }],
   probability: 0.5, probability_levels: { "0.5": 1.5382, "0.9": 2.5003 },
-  scale: 1.5382, ball_fraction: 0.32, bond_tolerance: 1.15,
+  scale: 1.5382, ball_fraction: 0.40, bond_tolerance: 1.15,
   bond_metals: false, note: "",
 };
 
@@ -1638,7 +1638,7 @@ describe("the structure viewer", () => {
     expect(host.textContent).toContain("2 atoms in the cell + 1 image outside it");
     expect(host.textContent).toContain("1 bond segment at 1.15×");
     expect(host.textContent).toContain("metal–metal contacts not bonded");
-    expect(host.textContent).toContain("balls at 0.32× the covalent radius");
+    expect(host.textContent).toContain("balls at 0.40× the covalent radius");
   });
 
   it("rescales the ellipsoids without asking the server again", async () => {

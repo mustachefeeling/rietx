@@ -69,7 +69,7 @@ function geometry(extra: Partial<Geometry> = {}): Geometry {
     ],
     bonds: [{ i: 0, j: 2, a: [0, 0, 0], b: [2, 2, 0.8], d: 3.0 }],
     probability: 0.5, probability_levels: { "0.5": 1.5382, "0.9": 2.5003 },
-    scale: 1.5382, ball_fraction: 0.32, bond_tolerance: 1.15,
+    scale: 1.5382, ball_fraction: 0.40, bond_tolerance: 1.15,
     bond_metals: false, note: "", ...extra,
   };
 }
@@ -162,8 +162,8 @@ describe("the transform", () => {
     const ellipsoid = atomTransform(geo, geo.atoms[2], "ellipsoid");
     expect(ellipsoid[2][0]).toBeCloseTo(0.05 * 1.5382, 12);
     const ball = atomTransform(geo, geo.atoms[2], "ball");
-    expect(ball).toEqual([[0.32 * 0.84, 0, 0], [0, 0.32 * 0.84, 0],
-                          [0, 0, 0.32 * 0.84]]);
+    expect(ball).toEqual([[0.40 * 0.84, 0, 0], [0, 0.40 * 0.84, 0],
+                          [0, 0, 0.40 * 0.84]]);
   });
 
   it("draws an anisotropic site as a ball in ball mode", () => {
@@ -289,7 +289,7 @@ describe("the caption and the layout", () => {
     expect(text).toContain("1 bond segment at 1.15×");
     expect(text).toContain("metal–metal contacts not bonded");
     expect(text).toContain("ellipsoids at 50 %");
-    expect(caption(geometry(), "ball")).toContain("0.32× the covalent radius");
+    expect(caption(geometry(), "ball")).toContain("0.40× the covalent radius");
   });
 
   it("marks an image whose tensor is not positive definite", () => {

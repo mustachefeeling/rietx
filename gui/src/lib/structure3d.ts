@@ -79,11 +79,24 @@ export interface Geometry {
 
 export type Mode = "ball" | "ellipsoid";
 
-/** One surface for every solid in the scene — balls, ellipsoids and sticks —
- *  so the three cannot drift apart. */
+/**
+ * One surface for every solid in the scene — balls, ellipsoids and sticks — so
+ * the three cannot drift apart.
+ *
+ * plotly's `lightposition` is a fixed point in **data** space, not a light that
+ * follows the camera, and this component deliberately does not redraw while the
+ * user drags: so whatever the far side of the scene looks like after a rotation
+ * is what it looks like until something else redraws.  The answer is therefore a
+ * surface that never needs the key light — mostly ambient, little diffuse — and
+ * a specular low enough that 400 identical spheres do not read as a tray of
+ * plastic beads.  The light itself sits over the opening view's shoulder rather
+ * than at the equator, which is the most a static light can do.
+ */
 export const LIGHTING = {
-  ambient: 0.62, diffuse: 0.82, specular: 0.18, roughness: 0.55,
+  ambient: 0.75, diffuse: 0.55, specular: 0.08, roughness: 0.5, fresnel: 0.1,
 };
+
+export const LIGHT_POSITION = { x: 1e5, y: 1e5, z: 1e5 };
 
 export interface Mesh {
   vertices: number[][];
@@ -94,10 +107,16 @@ export interface Mesh {
  * A unit sphere as vertices and triangles — built once and reused for every atom.
  *
  * Latitude/longitude rather than a subdivided icosahedron: the triangles bunch
- * at the poles, which a subdivided icosahedron avoids, but at eight rings the
- * difference is invisible and the construction is one that can be read.
+ * at the poles, which a subdivided icosahedron avoids, but at this resolution
+ * the difference is invisible and the construction is one that can be read.
+ *
+ * Twelve rings by twenty-four is 266 vertices and 528 triangles per atom, so
+ * the budget at `MAX_ATOMS` = 400 is 106 k vertices — an order below what plotly
+ * ships in an isosurface, and comfortably inside 32-bit mesh indices.  Sixteen
+ * segments left a 22.5° facet on every ball, which is what a sphere looks like
+ * when it is a polygon.
  */
-export function unitSphere(rings = 8, segments = 16): Mesh {
+export function unitSphere(rings = 12, segments = 24): Mesh {
   const vertices: number[][] = [[0, 0, 1]];
   for (let r = 1; r < rings; r += 1) {
     const theta = (Math.PI * r) / rings;
@@ -292,7 +311,7 @@ export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
     traces.push({
       type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
       color: entry.color, flatshading: false, showlegend: false,
-      lighting: LIGHTING,
+      lighting: LIGHTING, lightposition: LIGHT_POSITION,
       hovertemplate: "%{text}<extra></extra>",
     });
   }
@@ -338,7 +357,8 @@ export function bondTraces(geometry: Geometry, cylinder: Mesh,
           type: "mesh3d", name: `bonds:${site.species}`,
           x: [], y: [], z: [], i: [], j: [], k: [], text: [],
           color: site.color, flatshading: false, showlegend: false,
-          lighting: LIGHTING, hovertemplate: "%{text}<extra></extra>",
+          lighting: LIGHTING, lightposition: LIGHT_POSITION,
+          hovertemplate: "%{text}<extra></extra>",
         };
         buckets.set(site.species, bucket);
       }
