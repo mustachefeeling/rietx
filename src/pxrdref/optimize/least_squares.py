@@ -32,7 +32,7 @@ from scipy.optimize import least_squares
 
 from ..backend import get_backend
 from ..backend.api import TORCH_DEVICES
-from ..backend.linalg64 import get_precision_policy, require_fp64, to_host_fp64
+from ..backend.linalg64 import get_precision_policy, require_fp64
 from ..crystallography.adp import U_NAMES
 from ..crystallography.stephens import S_NAMES
 from ..model import rows as row_layout
@@ -735,31 +735,18 @@ def covariance_estimates(jac: np.ndarray, fun: np.ndarray, n_free: int,
     whose columns were computed at fp32 is upcast here before JᵀJ, while the
     residual is *required* to have been fp64 all along.
 
-    **The pseudo-inverse is taken on the symmetrised matrix with
-    ``hermitian=True``, and this is a correctness requirement, not a
-    micro-optimisation.**  JᵀJ is positive semi-definite, so its Moore-Penrose
-    inverse is too and every |ρ| ≤ 1 exactly.  But the *general* SVD path
-    ``pinv`` takes by default treats the matrix as unstructured, and on a
-    cond ≈ 10²⁰ normal matrix (routine here — the scale/axial/background block
-    of a real fit) it returns a visibly non-symmetric, non-PSD result: measured
-    |ρ| up to 1.6 × 10³ on synthetic ill-conditioning, and +2.75 for
-    ``scale ~ axial_sl`` on the WP-0502 fluorite fit, which is what made that WP
-    log "the correlation guard is undermined wherever conditioning is poor".
-    ``hermitian=True`` routes through ``eigh``, which cannot break the symmetry,
-    and caps the same cases at 1 + 4 ulp; the final clip removes that ulp so a
-    reported correlation is always a valid one.  Note the clip is *not* the fix —
+    The pinv guarding, the symmetrisation and the fp64 boundary live in
+    :func:`statistics.normal_covariance`, shared with the per-peak profile fits
+    (WP-1018) so the two surfaces cannot disagree about them; the final clip
+    below removes the 1-ulp overshoot ``eigh`` can leave, so a reported
+    correlation is always a valid one.  Note the clip is *not* the fix —
     clipping a 2.75 to 1.0 would report a degeneracy that the arithmetic, not
     the data, invented.
     """
-    from .statistics import berar_lelann_factor
+    from .statistics import berar_lelann_factor, normal_covariance
 
     data = fun if n_data is None else fun[:n_data]
-    require_fp64(data, "residual entering the covariance solve")
-    jac = to_host_fp64(jac)
-    JTJ = jac.T @ jac
-    JTJ = 0.5 * (JTJ + JTJ.T)  # kill the fp asymmetry before the eigensolve
-    chi2_red = float(data @ data) / max(len(data) - n_free, 1)
-    cov = np.linalg.pinv(JTJ, hermitian=True) * chi2_red
+    cov, _chi2_red = normal_covariance(jac, data, n_free)
     # Normalise the correlation by the *raw* (un-inflated) sqrt-diagonal so it is
     # a true Pearson matrix with unit diagonal; apply Bérar-Lelann only to the
     # returned esd diagonal.  Normalising by the inflated diagonal instead (the
