@@ -155,6 +155,41 @@ Report in the handover (don't gate): first-load JS size, boot-to-interactive.
 
 ## Handover log
 
+- **2026-07-30 (later) — the `*.html` trap had a second half, open for six WPs
+  and found by CI, not locally.** This WP caught the repo-wide `*.html` rule
+  matching the *dist's* `static/index.html` and un-ignored the dist. **The same
+  rule was also eating `gui/index.html` — vite's entry module — which had never
+  been tracked at all.**
+
+  The two halves fail differently, and the untracked one is worse. A missing
+  dist entry serves a placeholder page; a missing *source* entry means
+  `npm run build` cannot start, so the frontend cannot be rebuilt from a clean
+  checkout by anyone. CI's first clean-clone build of the GUI (PR #17, the only
+  time this workflow has ever run) failed in 17 ms with `[UNRESOLVED_ENTRY]
+  Cannot resolve entry module index.html`.
+
+  **Why six work packages passed over it**: it falls between the two guards this
+  WP built. `test_nothing_gitignores_the_dist` enumerates *dist* files, and the
+  freshness digest covers `SOURCE_GLOBS = ("src/**/*",)` — so a file missing
+  under `gui/src/` moves the digest and fails loudly, which is why that
+  directory needs no list. `gui/index.html` is in neither set, and it exists on
+  every machine that has ever run the build, so no local run could see it.
+
+  Closed by `!gui/index.html` in `.gitignore`, tracking the file, and
+  `test_a_fresh_clone_can_rebuild_the_frontend` over the seven build inputs that
+  live outside both guards. It asks with **`git ls-files`, not
+  `git check-ignore`**: "not ignored" is the weaker question, and this file was
+  *both* ignored and never added. Verified to bite — untracking the entry fails
+  it with the filename in the message.
+
+  **The general lesson for anything with a committed build output**: a guard on
+  the output cannot see a missing input, and a digest over the inputs cannot see
+  an input it does not glob. Verify by building from `git archive HEAD` into a
+  scratch tree — tracked files only — which is what a clone gets and what no
+  amount of local testing simulates. Measured that way after the fix: the build
+  succeeds and the dist is **byte-identical** to the committed one, digest
+  `91c018233e9c`, on both macOS and Linux CI.
+
 - **2026-07-30 — complete.** `npm --prefix gui run build` → 48.7 kB JS
   (19.1 kB gzip) + 3.4 kB CSS; 11 vitest tests; svelte-check 0 errors over 315
   files; `tests/test_gui_dist.py` 8 tests; fast suite 1127 passed / 107 skipped
