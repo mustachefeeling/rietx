@@ -46,6 +46,70 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**A second certified pattern indexes, this one to −2 ppm and at `high` — the
+first time the gate has returned a cell at all on real data (2026-07-30, fourth
+session).** [1026](wp/1026-indexing-acceptance.md) is still in flight; SRM 660c
+LaB6 landed as its second known-cell row, seven rows and seven matrix claims,
+and it was the right dataset to pick for a reason worth reusing: **choose the
+next known cell by its space group, not by its convenience.**
+
+**Because P m -3 m extinguishes nothing, LaB6 is the control the previous session
+owed itself.** That session found `predicted_but_absent` refuting corundum's
+*correct* cell on 11-12 reflections and argued they were the R-3c c-glide seen
+through the lattice R-3m. Argued, not measured — there was no phase without
+extinctions to check against. There is now: **0 of 30**, with
+`predicted_seen_fraction` **1.000** against corundum's 0.86. The caveat means
+what its name says, and reading a firing as "this cell is too big" remains the
+one wrong reading.
+
+**As picked the cell is −127 ppm out, and it is our own peak list again — the
+third time, and each time a different mechanism.** Thirteen weak components face
+the `not_separable` screen here; seven are flagged and six survive by failing
+**three different conditions** (four simply too far at 1.73-2.99 FWHM against a
+1.5 bar; one whose detection seed slid into the tail so the *new* component took
+the real line and the slot labels inverted; one on a group whose fit is not
+refuted, which the screen keeps on purpose). **So there is no knob** — widening
+1.5 reaches four of six. What they are was settled by looking: **five are
+axial-divergence tails**, sitting low below 90° 2θ and high above it, a sign
+reversal nothing else in a Bragg-Brentano pattern has; **one is a Kα2 residual**
+on a group-mate's resolved second line, i.e. an alias `detect_peaks` correctly
+dropped and `fit_group` re-created.
+
+**But the mechanism that makes them fatal is about the allowance, not the peaks,
+and it generalises.** `fit_shift_model` weights by each line's **own** σ, so the
+tail components (σ ≈ 0.005° against the real lines' 0.0005°) are down-weighted a
+hundredfold and it recovers the displacement anyway: **+0.0367 ± 0.0015°**
+against a *parameter-free* +0.0415° predicted from the CIF's own −0.07877 mm at
+R = 217.5 mm. The **search** cannot, because `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05°
+is added *in quadrature to every σ* — flat — which takes that 100× contrast to
+**1.005**. Its fitted shift is +0.009 ± 0.016°, consistent with none. **An
+assumed allowance is not free even when it is generous enough**: it buys a
+matching window at the cost of the weighting the peak fitter measured.
+
+**Supply what is missing and the gate reaches `high`: a = 4.156772 Å, −2 ppm,
+M₂₀ 1113, zero caveats, `best_or_none()` returning a cell.** It is an
+attribution probe rather than a protocol — the off-lattice components are
+identified *using* the certificate — and its value is exactly that: the
+pipeline's arithmetic is sound to the part per million, and **what stands between
+it and a blind certified answer is a peak list**.
+
+**Two gaps fell out, both filed to [1028](wp/1028-robustness-external-data.md).**
+`SearchSpec.sigma_sys_deg` and `ShiftScreen.sigma_sys_deg` are 4.3× apart and
+share a name: the screen reports the scatter a template *leaves* (0.0078°), the
+search needs the window the *uncorrected* positions span (0.037°), since
+`refine_with_shift` runs only after a candidate survives — so declaring the
+measured one silently finds nothing. And **a geometrical ambiguity the
+enumeration cannot see from one side**: tetragonal P at (a/√2, a) is *exactly*
+isospectral with cubic P, since 2(h²+k²)+l² and h²+k²+l² represent the same
+integers (both miss 4ⁿ(8m+7)). Both engines find it. `ambiguity_partners`
+enumerates *sublattices* of index 2-4 — supercells — so a half-volume rival is
+not in the enumeration: 0 partners from the cubic side, while from the tetragonal
+side the cubic is found with **zero** discriminating reflections. The gate
+refuses `high` to a candidate with a partner, so whichever of an isospectral pair
+is the larger cell can be promoted while its equal cannot.
+
+---
+
 **A certified pattern now indexes to its certificate, and the thing that had been
 costing it 2800 ppm was a performance filter (2026-07-30, third session).**
 [1026](wp/1026-indexing-acceptance.md) is still in flight. The corundum acceptance
@@ -281,11 +345,12 @@ line the class still allows), without which a class whose absences all hide unde
 neighbours wins on parsimony alone; and the absence of a *line* is asked of the
 whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
-Next: finish [1026](wp/1026-indexing-acceptance.md) (the known-cell and abstention
-rows it has not reached, and the CI pricing) — but its benchmark score is now
-blocked on [1029](wp/1029-engine-scaling-low-symmetry.md). Its corundum assertion is
-**done** (see the third-session entry above): the accept rule is decided and the row
-asserts the certificate in two calls. Then [1027](wp/1027-gui-peak-picker.md) (GUI).
+Next: finish [1026](wp/1026-indexing-acceptance.md) — NAC, FAP and the six qarr
+pure phases (take **Fm-3m fluorite** next, so the extinction control gets its
+second point), the `hl2_peaks` abstention row and check-D. Its benchmark score is
+blocked on [1029](wp/1029-engine-scaling-low-symmetry.md). Done and not to be
+redone: corundum in two calls, LaB6 in three, the geometrical-ambiguity row, and
+the CI pricing. Then [1027](wp/1027-gui-peak-picker.md) (GUI).
 
 **Indexing works end to end (2026-07-30).**
 [1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of

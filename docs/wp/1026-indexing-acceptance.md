@@ -228,17 +228,28 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       ⇒ trigonal R ranked first at a +101 / c +16 ppm; `shift_template` declared ⇒
       −73 / −126 ppm with the specimen displacement recovered from the pattern.
       Graded `low` both times, on four caveats that each name something real).
-      Not done: LaB6 (`nist_srm660c_100a.cif`, certified a = 4.156780,
-      all engines, `high` confidence); NAC (`11BM_NAC.fxye`, cubic + CaF₂ —
+      **LaB6 done** (SRM 660c: cubic P ranked first at a −127 ppm as picked,
+      `predicted_but_absent` **0 of 30** — the control that makes the corundum
+      caveat mean what its name says; and −2 ppm at `high` with zero caveats once
+      the tail components are out and the systematic is measured, the first
+      `high` and the first non-`None` `best_or_none()` on real data).
+      Not done: NAC (`11BM_NAC.fxye`, cubic + CaF₂ —
       asserts `INDEX_IMPURITY_LINES` and that **engine C succeeds with the
       impurity lines left in while A/B need their mitigations**, the documented
-      reason C is in the panel); FAP (`FAP.XRA`, Cu Kα doublet — asserts fitted
+      reason C is in the panel — note engine C was a no-go, so restate this row
+      against two engines); FAP (`FAP.XRA`, Cu Kα doublet — asserts fitted
       positions are **Kα1** positions against the known cell's predicted 2θ);
       the six `qarr` pure phases (R-3c, Fm-3m, P6₃mc, P-3m1, Fd-3m, I4₁/amd).
-- [~] The abstention suite: **`qarr/cpd-1a.prn` done**. Not done:
+- [~] The abstention suite: **`qarr/cpd-1a.prn` done**, and the
+      **geometrical-ambiguity case is done** — and it landed on real certified
+      data rather than synthetically, which is stronger than planned: cubic P *a*
+      and tetragonal P (a/√2, a) are **exactly** isospectral (2(h²+k²)+l² and
+      h²+k²+l² represent the same integers), both engines find the rival, and
+      neither partner reaches `high`. It also exposed that the enumeration cannot
+      see the pair from the cubic side at all — filed to
+      [1028](1028-robustness-external-data.md). Not done:
       `hl2_peaks.txt` ⇒ `best_or_none() is None` and
-      the diagnostics name which systems were searched; a geometrical-ambiguity
-      case where **neither** partner reaches `high`.
+      the diagnostics name which systems were searched.
 - [ ] The joint-criterion regression (check D): with the prior art's screen
       data, assert `predicted_seen_fraction` reorders the 390-line impostor
       (9.0 % of its own lines seen) below the 23-line truth (56.5 %).
@@ -602,3 +613,113 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   landed (index, then declare the systematic and index again) is what the others
   should copy, and `predicted_but_absent` will cap every one of them at `low` for
   any phase whose space group has extinctions.
+
+- **2026-07-30 (fourth session) — the second known cell landed, and it reached
+  `high`.** SRM 660c LaB6, seven rows (three `slow`), seven matrix claims.
+  Branch `worktree-indexer`. Everything below was measured on that pattern.
+
+  **1. The previous entry's advice was right and its prediction was wrong, which
+  is why LaB6 was the correct next row.** It warned that `predicted_but_absent`
+  would cap *every* known-cell row at `low`. LaB6 is **P m -3 m**, which
+  extinguishes nothing — so it is the control that entry needed and did not have.
+  Measured: `predicted_but_absent` **0 of 30**, `predicted_seen_fraction`
+  **1.000**, against corundum's 11-12 and 0.86. The caveat means exactly what its
+  name says and is not a proxy for cell size, so WP-1028's inherited note is now
+  confirmed rather than argued. **Pick the next known-cell dataset by its space
+  group, not by its convenience** — the pairing is what turned an argument into a
+  measurement, and Fm-3m fluorite among the six qarr phases is the next such
+  control (F-centred: absences from the *lattice*, which the candidate's centring
+  already models, so it too should read 0).
+
+  **2. As picked, the cell is −127 ppm out, and the cause is six components of
+  our own peak list again — but not the same six, and not for the same reason.**
+  WP-1026's earlier `not_separable` screen fixed corundum by flagging satellites
+  inside a neighbour's profile. Here thirteen weak components face that screen,
+  seven are flagged, and the six survivors fail **three different conditions**:
+  four are *too far* (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` =
+  1.5), one fails `reseeded()` because the detection seed slid into the tail and
+  the *new* component took the real line (the slot labels end up the wrong way
+  round), and one sits on a group whose fit is **not refuted** (χ²_red 1.38),
+  which the screen's docstring calls a deliberate keep. **So there is no knob**:
+  widening 1.5 reaches four of six. The census is pinned as a table in
+  `test_the_unflagged_tail_components_escape_for_three_different_reasons` so the
+  fix has something to move.
+
+  What they *are* was settled by looking rather than by arguing (a six-panel plot
+  of the groups, and it is worth redoing rather than trusting this paragraph):
+  **five are axial-divergence tails** — below 90° they sit on the low-2θ side, above
+  it on the high side, and nothing else in a Bragg-Brentano pattern reverses sign
+  there — and **one is a Kα2 residual**, sitting on a group-mate's *resolved*
+  second line. That last one is its own small finding: `detect_peaks` drops 23
+  Kα2 aliases correctly (`PEAK_KALPHA2_ALIAS`), and then `fit_group` re-creates
+  one as a component at 3 % of the parent's area, because the group window spans
+  the resolved doublet. The alias screen runs at detection; the fitter is
+  downstream of it.
+
+  **3. The mechanism that makes them fatal is the more general result, and it is
+  about the allowance rather than the peaks.** `fit_shift_model` weights each line
+  by its **own** fitted σ, and the tail components carry σ ≈ 0.005° against the
+  real lines' ≈ 0.0005°, so they are down-weighted a hundredfold and the screen
+  recovers the displacement anyway: **+0.0367 ± 0.0015°** against a
+  *parameter-free* prediction of **+0.0415°** from the CIF's own −0.07877 mm at
+  R = 217.5 mm. The **search** cannot, because `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05°
+  is added *in quadrature to every σ* — a flat addition, which takes that 100×
+  contrast to **1.005** — and its fitted shift is +0.009 ± 0.016°, consistent with
+  none. **An assumed allowance is not free even when it is generous enough**: it
+  buys a matching window at the price of the relative weighting the peak fitter
+  measured, and if it is ever revisited the question is its *shape* (a
+  multiplicative widening preserves the ordering) as much as its size.
+
+  **4. `high` is reachable on real data, and the number is worth the row.** With
+  the five off-lattice components out and the systematic measured rather than
+  assumed: **a = 4.156772 Å, −2 ppm** from the certification CIF's own cell for
+  this block, M₂₀ **1113**, **zero caveats**, `confidence == "high"` and
+  `best_or_none()` returning a cell — both firsts. It is an *attribution probe,
+  not a protocol*, and the row says so twice: the off-lattice components are
+  identified **using the certificate**, which no user of an unknown phase can do.
+  What it establishes is that the pipeline's arithmetic is sound to the part per
+  million and that **what stands between it and a blind certified answer is a peak
+  list** — which is why item 2 is the deliverable and not a footnote.
+
+  **5. A trap worth knowing before writing any "calibrate, then index" protocol.**
+  The obvious number to declare is `ShiftScreen.sigma_sys_deg` — the scatter the
+  winning template *leaves*, 0.0078° here. Declare it as
+  `SearchSpec.sigma_sys_deg` and the search returns **no candidate at all**,
+  because it matches **uncorrected** positions: `refine_with_shift` fits the
+  template only after a candidate survives, so the window still has to span the
+  shift itself. What works is the shift's **amplitude** (0.037°). The two are
+  4.3× apart, carry the same name, and the failure is silent. Filed to 1028 with
+  the two fixes worth considering (rename one, or let a declared template correct
+  the observed positions before matching).
+
+  **6. The geometrical-ambiguity row landed, and it is exact rather than
+  approximate.** Tetragonal P at (a/√2, a) gives Q = (2h²+2k²+l²)/a², and
+  **2(h²+k²)+l² represents exactly the integers h²+k²+l² does** — both miss
+  precisely 4ⁿ(8m+7) — so it is isospectral with cubic P *everywhere*, not within
+  a tolerance. Both engines find it on the measured pattern. And
+  `ambiguity_partners` reports **0 partners from the cubic side** while finding
+  the cubic from the tetragonal side (index 2, **zero** discriminating
+  reflections): the enumeration walks *sublattices* of index 2-4, i.e. supercells,
+  so a rival of **half** the volume is not in it at all. That one-directionality
+  matters because the gate refuses `high` to a candidate with a partner — so
+  whichever of an isospectral pair is the larger cell can be promoted while its
+  equal cannot. Filed to 1028; the assertion in
+  `test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival` says in
+  place that the fix is to delete it.
+
+  **Cost, re-priced.** `test_acceptance_indexing.py` is now **5-6 min serial**
+  (was 3:30): cpd-1a 106-127 s, corundum 50-63 s twice, LaB6 **20-67 s** and the
+  calibrated row 4-5 s. That LaB6 spread is one fixture measured three ways on one
+  machine and is the CLAUDE.md rule in miniature — quote the range. All three new
+  `slow` rows are inside `xdist_group("indexing-acceptance")`, so the weekly job's
+  billed 45 min does not move (it is set by `stephens-brucite` and `qpa-sample1`).
+  Four of the seven rows are **fast** — they need only the picked list (~1 s) or
+  no data at all — and they are the ones carrying the census and the isospectral
+  arithmetic, which is the right way round: the findings are cheap to re-check.
+  Fast suite **1400 passed / 66 skipped in 1:52** (+39 on the previous entry: 4
+  new fast rows and 7 new matrix claims × their per-claim checks).
+
+  **Next, unchanged except for what landed:** NAC / FAP / six-qarr known cells
+  (take Fm-3m fluorite next, per item 1), the `hl2_peaks` abstention row, check-D.
+  The bethanechol global score remains blocked on
+  [1029](1029-engine-scaling-low-symmetry.md).
