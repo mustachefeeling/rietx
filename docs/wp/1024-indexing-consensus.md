@@ -155,6 +155,73 @@ From **WP-1020** (landed 2026-07-30), three things that land in this WP's lap:
   `discriminating_reflections` — the hkl and 2θ that would break the tie, which is
   what makes an ambiguity report actionable rather than merely honest.
 
+From **WP-1021** (landed 2026-07-30) — **the shared engine surface exists; build
+on it rather than beside it.** `indexing/engines.py` holds everything the three
+engines have in common, and six things about it are not obvious from the names:
+
+- **`SearchSpec` is the one option object** (systems, centrings, `min_d_axis` /
+  `max_d_axis`, `min_volume` / `max_volume`, `n_unindexed`, `n_search_lines`,
+  `k_sigma`, `budget_seconds`, `max_candidates`, `seed`). The three engines must
+  mean the *same* thing by `max_volume` and `n_unindexed` or their agreement is not
+  evidence of anything, so take a `SearchSpec` and do not add per-engine keywords
+  for anything it already carries. `spec.centrings_for(system)` and
+  `spec.volume_limit(system, fallback)` are the accessors.
+- **Return an `EngineResult`, and fill `search_complete` per system.** It carries
+  `candidates: list[EngineCandidate]`, `systems_searched`, `search_complete`,
+  `stats` and `diagnostics`. `EngineCandidate` holds the `CandidateFit` itself
+  (not just the cell) because WP-1024's dedup is a χ² test needing `cov_af`, plus
+  the hkl assignment and the `line_index` it was fitted on. **`search_complete` is
+  the half that makes a negative result mean anything** — use
+  `engines.incomplete_diagnostic` for `INDEX_SEARCH_INCOMPLETE`.
+- **`engines.rank_candidates(cands, peaks, n_unindexed=…)` is how a ranked list is
+  produced** — dedup, then the FoM panel, then Borda over the whole panel. Do not
+  sort on `n_indexed` or χ²: on synthetic data supercells index every observed line
+  *exactly* and tie the truth on every forward-looking figure, losing only on
+  `predicted_seen_fraction`. Pass `spec.n_unindexed` through: the figures' mean
+  discrepancy is trimmed by the same count the search was allowed to leave
+  unindexed, and getting that wrong ranks an impurity-covering supercell first
+  (measured: M₂₀ 13.2 for the truth against 62.5 for an a√5 supercell).
+- **`engines.reflection_ceiling_ok(cell, λ, 2θ_max)` before every
+  `generate_reflections`** — the measured 1.6 PiB guard. It is arithmetic on the
+  cell, so it costs nothing and never touches memory.
+- **`engines.trial_hkl(max_index, centring)`** (re-exported from `qspace`) is the
+  centring-filtered, Friedel-halved trial set, and
+  **`engines.assign_lines(q, σ, hkl, af, design=…)`** gives each line its nearest
+  hkl within k·σ. Pass `design=design_matrix(hkl)` if you call it in a loop —
+  rebuilding the (N, 6) matrix per candidate was 90 % of one search's runtime.
+- **`engines.Budget(seconds, cancel)`** wraps the deadline *and* WP-1006's
+  `CancelToken`; `budget.expired()` is cheap enough to call per unit of work, and a
+  cancelled search returns what it has rather than raising.
+
+**Also from WP-1021: `metric_basis` is memoised and its arrays are read-only.**
+It re-derived the exact rational nullspace once per accepted box before that (2.5 s
+of a 15 s run). Do not mutate what it returns.
+
+**And the sharper lesson, if you are about to reach for a tolerance:** stopping
+rules and measurement tolerances are different numbers. WP-1021 conflated them and
+the 4-D search stopped terminating — zero leaves reached in 445 000 boxes. Its
+exhaustiveness comes from the pruning, which is exact however coarse the leaves
+are; the tolerance belongs in the *scoring*, not in the stopping rule.
+
+**Specific to this WP (WP-1021, 2026-07-30).** Four things land in your lap:
+
+- **`EngineResult.search_complete` must reach `IndexingResult`.** An exhaustive
+  engine that finished and found nothing has said "no such cell within these
+  bounds"; the same engine stopped by its budget has said nothing. The two must not
+  be one field, and `INDEX_SEARCH_INCOMPLETE` is already emitted per system.
+- **`systems_searched` is already on `EngineResult`** and a restricted search
+  populates only the systems it covered (tested). Merge them across engines rather
+  than recomputing.
+- **The engine registry is `engines.engine_names()` / `engine_descriptions()`**;
+  every registered engine has a one-line description precisely so
+  `tool_definition()` can quote it. The meta-test you owe is "every registered
+  engine appears in the exported schema".
+- **A candidate's `found_by` starts as one engine name** (`to_cell_candidate` sets
+  it from `EngineCandidate.engine`); merging is yours, and `dedup_candidates` keys
+  within a centring on purpose — the same metric with two centrings is two
+  *lattices* (one predicts half the lines of the other), and merging them would
+  silently drop a hypothesis the panel exists to choose between.
+
 ## Non-goals
 
 - No space-group determination (WP-1025) — validation uses the absence-free

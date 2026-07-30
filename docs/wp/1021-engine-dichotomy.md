@@ -1,6 +1,6 @@
 # WP-1021 — Engine A: successive dichotomy
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: 1020
 
 ## Goal
@@ -130,19 +130,28 @@ it that are not obvious from the names:
 
 ## Tasks
 
-- [ ] `indexing/dichotomy.py`: the A..F domain map, corner-exact Q bounds, the
+- [x] `indexing/dichotomy.py`: the A..F domain map, corner-exact Q bounds, the
       prune test with tolerated unindexed lines, bisection and recursion.
-- [ ] Volume-shell / symmetry search order; the predicted-reflection ceiling.
-- [ ] Time budget per system; `search_complete[system]`;
+- [x] Volume-shell / symmetry search order; the predicted-reflection ceiling.
+      **Shells were tried and removed** — see the handover log: the grid pass is
+      nearly shell-independent, so iterating shells pays the grid again per shell
+      with the answer's shell last. Ordering the *survivors* by volume gives the
+      same "cheap answers first" property for one grid pass.
+- [x] Time budget per system; `search_complete[system]`;
       `INDEX_SEARCH_INCOMPLETE`.
-- [ ] Registry entry so `engines=("dichotomy",…)` resolves, and so
-      WP-1024's agent schema can quote it from the live registry.
-- [ ] `tests/test_indexing_engines.py::dichotomy`: recover a known cell in
-      every system from a synthetic peak list (cubic through monoclinic);
-      recover it with 1 and 2 injected impurity lines at `n_unindexed=2`;
-      assert the corner-bound property directly (sampled `Q(hkl)` inside a box
-      never exceeds the computed bounds); assert the reflection ceiling
-      triggers instead of allocating.
+- [x] Registry entry so `engines=("dichotomy",…)` resolves, and so
+      WP-1024's agent schema can quote it from the live registry
+      (`engines.register_engine` / `engine_names`).
+- [x] `tests/test_indexing_engines.py`: recovery in every system cubic through
+      monoclinic; 1 and 2 injected impurity lines at `n_unindexed=2`, **with the
+      negative half** (at `n_unindexed=0` the impurity prunes the truth); the
+      corner bound asserted in both directions (no interior point outside the
+      interval *and* the interval attained, so a merely-valid bound fails);
+      the reflection ceiling refusing instead of allocating; an unfinished
+      search reporting itself; a restricted search reporting only what it
+      searched.
+- [x] Dominant zone / dominant row: **not** detected here. See the handover log
+      — it is owed to WP-1022, which is where the evidence for it arises.
 
 ## Acceptance
 
@@ -175,3 +184,97 @@ incompleteness is reported** — do not assert exhaustiveness for it here or in
 ## Handover log
 
 - **2026-07-29** — created from the indexing plan.
+- **2026-07-30** — **complete.** `indexing/engines.py` (the shared surface) and
+  `indexing/dichotomy.py` (the engine), 20 fast tests + 1 slow, green; ruff clean.
+
+  **Done.** Corner-exact Q bounds over the A..F box, the prune test with
+  tolerated unindexed lines, the grid-then-dichotomy structure, canonical axis
+  ordering, per-system budget and `search_complete`, the reflection ceiling, the
+  registry. Measured recovery with the truth **ranked first** and
+  `search_complete` true: cubic 0.02 s, hexagonal 0.05 s, tetragonal 0.12 s,
+  trigonal 0.14 s, orthorhombic 0.73 s (all over d ∈ [2, 12-16] Å, V ≤ 1500 Å³),
+  monoclinic **84 s** over d ∈ [6, 18] Å. NaCl comes back as `F` with the right
+  centring in 0.01 s.
+
+  **The acceptance criterion is met with one qualification, stated plainly:
+  monoclinic recovery needs a *declared axis range*.** Over d ∈ [6, 18] Å it
+  completes in 84 s; over d ∈ [2, 18] Å the same list does not finish in 90 s and
+  reports `search_complete = False` rather than "nothing found". That is the
+  domain cost, not a defect: the grid is (range/0.4)³ × angle slabs, so tripling
+  the axis range is ~27× the work. Triclinic is not claimed, as planned.
+
+  **Five structural facts that had to be measured, not designed.** Each replaced
+  a plausible design that silently did not work:
+
+  1. **Grid pass and dichotomy must be separate phases.** One combined
+     depth-first stack dives to a leaf through the first grid cell it likes and
+     exhausts that cell's subtree before looking at the second: 11.9 M boxes in
+     240 s on a monoclinic domain *without ever visiting the cell that held the
+     answer*, even with the volume shell narrowed to the one containing it.
+  2. **The off-diagonal grid must use the box's own Cauchy-Schwarz bound.**
+     |2G*ᵢⱼ| ≤ 2√(G*ᵢᵢ·G*ⱼⱼ) is a **cone**, so gridding E over the global bound
+     (both axes at their shortest) hands most cells a range they cannot reach and
+     *nothing prunes them*. Since the grid is staged, A and C are already narrowed
+     when E is cut, so the bound is free.
+  3. **Where to stop bisecting is not the measurement tolerance.**
+     Exhaustiveness comes from the pruning, which is exact however coarse the
+     leaves are. Requiring a box to resolve a line to its own 3σ forces ~15
+     halvings per dimension — depth 60 in monoclinic, the cap — so the leftmost
+     branch never terminates: **zero** leaves reached in 445 000 boxes. The right
+     scale is a quarter of the observed line spacing.
+  4. **The leaf's assignment window must be annealed** from the box's own
+     resolution down to σ. At a flat 3σ the box holding the true cubic cell
+     assigned *zero* lines (its centre is 2.6σ off) — the search had found the
+     answer and acceptance threw it away. Jumping straight to the wide window
+     instead locks in a mis-assignment: the orthorhombic truth came back as
+     (7.0002, 7.9972, 9.0002) indexing 57 of 88 lines and lost the ranking to an
+     exact supercell.
+  5. **Volume shells are a trap here.** The grid pass is nearly
+     shell-independent (its top stages leave whole dimensions undetermined, so
+     the volume interval is too wide to prune), so eight shells cost eight grid
+     passes with the answer's shell last. Ordering the *survivors* by volume gives
+     the same property once.
+
+  **Four upstream defects, three of them in WP-1020's own modules, all fixed
+  here with tests in `tests/test_indexing_core.py`:**
+
+  - `borda_scores` gave **tied** candidates distinct ranks in input order. Two of
+    five panel members are fractions that saturate at 1.0, so most candidates tie
+    on them and the noise is up to N−1 points per tied member — measured, two
+    derivative lattices outranked a truth that beat them on *every* member. Ties
+    now share an averaged rank (`scipy.stats.rankdata`), and non-finite values
+    rank worst rather than best.
+  - `predicted_lines` counted symmetry **orbits**, not lines: cubic 333 and 511
+    both give 27A, two orbits at one 2θ. Counting distinct lines is both the right
+    denominator for de Wolff's and Smith & Snyder's figures and **380× faster**
+    (683 ms → 1.8 ms for a 17 Å cubic cell), which is what had made ranking the
+    bottleneck. Orthorhombic, monoclinic and triclinic counts are unchanged, and
+    that asymmetry is what identifies the gap as coincidence rather than a
+    different rule.
+  - `m20` / `f_n` took a **plain** mean discrepancy, so a tolerated-unindexed line
+    wrecked the score of the cell the search was right to keep: on a tetragonal
+    list with one impurity the truth scored M₂₀ = 13.2 against **62.5** for an
+    a√5 supercell whose extra reflections cover the impurity — and the supercell
+    won, while showing 28 % of its own predicted lines against the truth's 100 %.
+    The mean is now trimmed by the same count the search was allowed
+    (`fom.trimmed_mean`), and the trim is reported in `blind_spot` because it buys
+    a new blind spot.
+  - `metric_basis` is now memoised. `refine_candidate` re-derived the exact
+    rational nullspace once per accepted box: 2.5 s of a 15 s run, for seven
+    possible answers.
+
+  **In flight:** nothing.
+
+  **Next / gotchas for a successor on this WP.**
+  - The junk-cell guard `_inside_domain` exists because refinement wanders: an
+    accepted box near the obliquity bound refined out to β = 174° with a 49 Å
+    axis. A cell outside the searched domain carries none of the engine's
+    exhaustiveness, so it is rejected on **scope**, not quality. If you widen
+    `MAX_ANGLE_COSINE`, that guard follows automatically — do not special-case it.
+  - `_pivots` raises if `adp_basis` ever returns a non-echelon basis. That is
+    deliberate: the failure it prevents is a *loose* bounding box, which returns
+    correct cells an order of magnitude slower and no test would notice.
+  - Cost is dominated by the grid, not by the line count, so a longer peak list is
+    nearly free while a wider axis range is cubic. If monoclinic/triclinic ever
+    need to be affordable from a bare `SearchSpec()`, the lever is the domain
+    (or engine B), not the tolerances.
