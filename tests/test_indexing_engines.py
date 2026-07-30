@@ -1,0 +1,375 @@
+"""WP-1021/1022/1023 — the search engines, and the properties they must have.
+
+Three things are being tested here and they are not the same kind of claim:
+
+* **recovery** — a known cell comes back, ranked first, from a synthetic peak
+  list.  This is the engines' basic job and it is checked per crystal system,
+  because cost and failure mode both depend on the metric degrees of freedom;
+* **the guards** — the corner-exactness of the Q bounds, the reflection ceiling
+  firing *instead of* allocating, an unfinished search reporting itself
+  unfinished.  These are the properties the engines' honesty rests on, and each
+  of them replaces a measured failure;
+* **the shared surface** — the registry, the setting-freedom derivation, the
+  pivot form the θ parameterisation assumes.
+
+Wall clock per system is in each WP's handover log; the domain bounds here are
+declared narrowly on purpose, because domain size is exactly what an exhaustive
+search costs (measured: a monoclinic search over d ∈ [6, 18] Å completes in
+~84 s and the same search over d ∈ [2, 18] Å does not finish in 90).
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from pxrdref.crystallography.symmetry import generate_reflections
+from pxrdref.indexing.dichotomy import (
+    _inside_domain,
+    _pivots,
+    _q_bounds,
+    axis_swaps,
+    search_dichotomy,
+)
+from pxrdref.indexing.engines import (
+    MAX_PREDICTED_REFLECTIONS,
+    SYSTEM_ORDER,
+    Budget,
+    SearchSpec,
+    engine_descriptions,
+    engine_names,
+    get_engine,
+    predicted_reflection_count,
+    reflection_ceiling_ok,
+    trial_hkl,
+)
+from pxrdref.indexing.qspace import af_from_cell, design_matrix, metric_basis
+from pxrdref.schemas.indexing import METRIC_DOF, PeakList
+
+LAM = 1.5405929
+
+#: (space group, cell, 2θ_max, d-axis bounds, volume bound) per system.  The
+#: cells are the ones ``tests/test_indexing_core.py`` uses, so a failure here and
+#: there points at the same lattice.
+CASES: dict[str, tuple] = {
+    "cubic": ("P m -3 m", (4.1566,) * 3 + (90.0,) * 3, 90.0, (2.0, 12.0), 1500.0),
+    "tetragonal": ("P 4/m m m", (3.7842, 3.7842, 9.5146, 90.0, 90.0, 90.0),
+                   70.0, (2.0, 12.0), 1500.0),
+    "hexagonal": ("P 6/m m m", (9.4166, 9.4166, 6.8745, 90.0, 90.0, 120.0),
+                  60.0, (2.0, 14.0), 1500.0),
+    "trigonal": ("P -3 m 1", (4.7591, 4.7591, 12.9894, 90.0, 90.0, 120.0),
+                 70.0, (2.0, 16.0), 1500.0),
+    "orthorhombic": ("P m m m", (7.0, 8.0, 9.0, 90.0, 90.0, 90.0),
+                     45.0, (2.0, 12.0), 1500.0),
+    "monoclinic": ("P 1 2/m 1", (8.875, 16.408, 7.137, 90.0, 93.84, 90.0),
+                   35.0, (6.0, 18.0), 1500.0),
+}
+
+
+def synthetic_peaks(system: str, *, esd_deg: float = 0.005,
+                    impurities: tuple[float, ...] = (),
+                    sg: str | None = None, cell: tuple | None = None,
+                    two_theta_max: float | None = None) -> tuple[PeakList, tuple]:
+    """A peak list from a known cell — exact positions, declared σ.
+
+    Positions are exact rather than noisy on purpose: an engine that cannot
+    recover a cell from perfect positions has a *search* problem, and mixing in
+    noise would confuse that with a tolerance problem.  σ is declared because the
+    tolerance model is per line, and ``PeakList.from_positions`` marks every line
+    ``sigma_assumed`` so nothing downstream can quote this σ as measured.
+    """
+    group, true_cell, tt_max, _bounds, _vol = CASES[system]
+    group = sg or group
+    true_cell = cell or true_cell
+    refl = generate_reflections(group, true_cell, LAM,
+                               two_theta_max or tt_max)
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d))))
+    tt = np.sort(np.concatenate([tt, np.asarray(impurities, dtype=np.float64)]))
+    return PeakList.from_positions(tt, LAM, two_theta_esd=esd_deg), true_cell
+
+
+def spec_for(system: str, **overrides) -> SearchSpec:
+    _sg, _cell, _tt, (min_d, max_d), vol = CASES[system]
+    kwargs = dict(systems=(system,), min_d_axis=min_d, max_d_axis=max_d,
+                  max_volume=vol, budget_seconds=180.0)
+    kwargs.update(overrides)
+    return SearchSpec(**kwargs)
+
+
+def assert_same_lattice(found: tuple, true_cell: tuple, *, atol: float = 2e-3):
+    """The found cell is the true lattice, up to a setting change.
+
+    Compared as **sorted axis lengths plus volume**, not element by element: the
+    engines quotient the search by the axis permutations a system's setting
+    freedom allows (``axis_swaps``), so the monoclinic truth legitimately comes
+    back as its a↔c partner and an element-wise comparison would fail on a
+    correct answer.
+    """
+    from pxrdref.crystallography.lattice import cell_volume
+
+    assert np.allclose(np.sort(found[:3]), np.sort(true_cell[:3]), atol=atol), (
+        f"{found} against {true_cell}")
+    assert cell_volume(*found) == pytest.approx(cell_volume(*true_cell),
+                                                rel=1e-3)
+
+
+# ----------------------------------------------------------------------
+# The shared surface
+# ----------------------------------------------------------------------
+def test_the_engine_registry_is_live_and_described():
+    """WP-1024's agent schema quotes this registry, so a registered engine must
+    be resolvable and must say what it is for."""
+    assert "dichotomy" in engine_names()
+    for name in engine_names():
+        assert callable(get_engine(name))
+        assert len(engine_descriptions()[name]) > 20, name
+    with pytest.raises(ValueError, match="unknown indexing engine"):
+        get_engine("dicvol")
+
+
+def test_metric_basis_is_in_the_echelon_form_the_theta_box_assumes():
+    """Every system's basis has one exclusive pivot per row.
+
+    The θ parameterisation reads each dimension's physical bound off its pivot
+    column; if ``adp_basis`` ever returned a rotated basis this would silently
+    become a loose bounding box — correct answers, an order of magnitude slower —
+    so it is asserted rather than assumed.
+    """
+    for system in METRIC_DOF:
+        basis = metric_basis(system)
+        piv = _pivots(basis)
+        assert len(piv) == METRIC_DOF[system]
+        assert len({p for p, _v in piv}) == len(piv)
+
+
+def test_axis_swaps_are_derived_from_the_subspace():
+    """Which axis permutations are a setting change is a property of the system,
+    and the derivation must reproduce the crystallography.
+
+    Orthorhombic and triclinic admit all three adjacent exchanges; monoclinic
+    b-unique admits only a↔c, which is the one that fixes β; the tied systems
+    admit them trivially because their metrics are already equal there.
+    """
+    assert axis_swaps(metric_basis("orthorhombic")) == [(0, 1), (0, 2), (1, 2)]
+    assert axis_swaps(metric_basis("triclinic")) == [(0, 1), (0, 2), (1, 2)]
+    assert axis_swaps(metric_basis("monoclinic")) == [(0, 2)]
+
+
+def test_predicted_reflection_count_matches_the_generator_it_guards():
+    """The ceiling must count the same box ``generate_reflections`` allocates.
+
+    A guard computed a different way drifts from the thing it guards, so the two
+    are pinned together: the generator enumerates ±(floor(a/d_min) + 1) per axis.
+    """
+    cell = (7.0, 8.0, 9.0, 90.0, 90.0, 90.0)
+    d_min = LAM / (2.0 * np.sin(np.radians(45.0)))
+    expected = 1
+    for axis in cell[:3]:
+        expected *= 2 * (int(np.floor(axis / d_min)) + 1) + 1
+    assert predicted_reflection_count(cell, LAM, 90.0) == expected
+
+
+def test_the_reflection_ceiling_refuses_instead_of_allocating():
+    """The measured crash guard: a runaway cell asked the generator for 1.6 PiB.
+
+    A 500 Å cell is refused *without* enumeration — the count is arithmetic on the
+    cell, so the guard costs nothing and never touches memory.
+    """
+    assert reflection_ceiling_ok((7.0, 8.0, 9.0, 90.0, 90.0, 90.0), LAM, 90.0)
+    runaway = (500.0, 500.0, 500.0, 90.0, 90.0, 90.0)
+    assert predicted_reflection_count(runaway, LAM, 90.0) > MAX_PREDICTED_REFLECTIONS
+    assert not reflection_ceiling_ok(runaway, LAM, 90.0)
+
+
+def test_trial_hkl_keeps_one_friedel_mate_and_obeys_the_centring():
+    hkl = trial_hkl(2, "P")
+    assert not np.any(np.all(hkl == 0, axis=1))
+    # no ±pair survives together
+    keys = {tuple(int(v) for v in h) for h in hkl}
+    assert not any(tuple(-v for v in k) in keys for k in keys)
+    for centring, rule in (("I", lambda h: (h.sum(axis=1) % 2 == 0)),
+                           ("F", lambda h: ((h[:, 0] + h[:, 1]) % 2 == 0)
+                            & ((h[:, 1] + h[:, 2]) % 2 == 0)),
+                           ("R", lambda h: ((-h[:, 0] + h[:, 1] + h[:, 2]) % 3
+                                            == 0))):
+        sub = trial_hkl(3, centring)
+        assert len(sub) < len(trial_hkl(3, "P"))
+        assert rule(sub).all(), centring
+
+
+def test_budget_expires_and_a_cancel_token_short_circuits_it():
+    from pxrdref.optimize.cancel import CancelToken
+
+    assert not Budget(30.0).expired()
+    assert not Budget(0.0).expired(), "zero seconds means no deadline, not none left"
+    token = CancelToken()
+    budget = Budget(30.0, token)
+    assert not budget.expired()
+    token.cancel()
+    assert budget.expired()
+
+
+# ----------------------------------------------------------------------
+# Dichotomy: the bound the whole engine rests on
+# ----------------------------------------------------------------------
+def test_dichotomy_q_bounds_are_attained_at_the_box_corners():
+    """**The claim the engine is built on**: over a box in A..F the extremes of
+    Q(hkl) are at corners, so the bound is exact rather than conservative.
+
+    Checked both ways — no sampled point may fall outside the computed interval,
+    and the interval must be *tight*, i.e. the extremes over the sampled corners
+    reach it.  A merely valid bound would still index correctly while pruning far
+    less, which no recovery test would notice.
+    """
+    rng = np.random.default_rng(1021)
+    for system in ("orthorhombic", "monoclinic", "triclinic"):
+        basis = metric_basis(system)
+        m = design_matrix(trial_hkl(3, "P")) @ basis.T
+        n = basis.shape[0]
+        lo = rng.uniform(0.005, 0.02, size=n)
+        hi = lo + rng.uniform(0.001, 0.01, size=n)
+        q_min, q_max = _q_bounds(m, lo, hi)
+        # every interior point is inside the interval
+        for _trial in range(50):
+            theta = lo + rng.uniform(size=n) * (hi - lo)
+            q = m @ theta
+            assert np.all(q >= q_min - 1e-12), system
+            assert np.all(q <= q_max + 1e-12), system
+        # and the interval is attained: the corner extremes reach both ends
+        corners = np.array(np.meshgrid(*[[lo[j], hi[j]] for j in range(n)],
+                                       indexing="ij")).reshape(n, -1).T
+        q_corners = corners @ m.T
+        assert np.allclose(q_corners.min(axis=0), q_min, atol=1e-12), system
+        assert np.allclose(q_corners.max(axis=0), q_max, atol=1e-12), system
+
+
+def test_dichotomy_only_reports_cells_inside_the_domain_it_searched():
+    """A refined cell may wander out of the domain, and one did — β = 174° with a
+    49 Å axis.  Reporting it would carry none of the exhaustiveness the engine
+    exists to provide, so it is rejected on *scope*, not quality."""
+    spec = spec_for("monoclinic")
+    assert _inside_domain(af_from_cell(CASES["monoclinic"][1]), spec)
+    assert not _inside_domain(af_from_cell(
+        (49.2384, 2.9893, 49.3784, 90.0, 174.0036, 90.0)), spec)
+    assert not _inside_domain(af_from_cell(
+        (1.5, 8.0, 9.0, 90.0, 90.0, 90.0)), spec)
+
+
+# ----------------------------------------------------------------------
+# Dichotomy: recovery
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("system", ["cubic", "tetragonal", "hexagonal",
+                                    "trigonal", "orthorhombic"])
+def test_dichotomy_recovers_a_known_cell(system):
+    """Rank 1 must be the truth, not merely present in the list.
+
+    Ranking is the FoM panel's Borda count (``engines.rank_candidates``), and the
+    candidates below the truth are its own derivative lattices — supercells index
+    every observed line *exactly* and lose only on ``predicted_seen_fraction``.
+    That is a geometrical ambiguity for WP-1024 to report, not a failure here.
+    """
+    peaks, cell = synthetic_peaks(system)
+    result = search_dichotomy(peaks, spec=spec_for(system))
+    assert result.candidates, f"{system}: no candidate at all"
+    assert result.search_complete[system], f"{system}: budget expired"
+    assert_same_lattice(result.candidates[0].cell, cell)
+    assert result.candidates[0].n_indexed == result.candidates[0].n_lines
+
+
+@pytest.mark.slow
+def test_dichotomy_recovers_a_monoclinic_cell():
+    """The 4-D case, and the one that pins the cost statement.
+
+    Marked slow because it is ~80 s: the grid is (range/0.4)³ × angle slabs, so
+    the *declared axis range* is what an exhaustive monoclinic search costs.  Over
+    d ∈ [6, 18] Å it completes; over d ∈ [2, 18] Å the same search does not finish
+    in 90 s and reports itself incomplete rather than reporting nothing found.
+    """
+    peaks, cell = synthetic_peaks("monoclinic")
+    result = search_dichotomy(peaks, spec=spec_for("monoclinic"))
+    assert result.candidates
+    assert result.search_complete["monoclinic"]
+    assert_same_lattice(result.candidates[0].cell, cell)
+
+
+def test_dichotomy_finds_a_centred_lattice_with_its_centring():
+    """A body- or face-centred lattice is found *as* one.
+
+    This is why the search enumerates centrings rather than metrics alone: an
+    F-centred cubic lattice's primitive cell is rhombohedral, so a cubic-subspace
+    search that assumed P would never see NaCl at all.
+    """
+    peaks, cell = synthetic_peaks("cubic", sg="F m -3 m",
+                                  cell=(5.6402,) * 3 + (90.0,) * 3)
+    result = search_dichotomy(peaks, spec=spec_for("cubic"))
+    assert result.candidates
+    best = result.candidates[0]
+    assert best.centring == "F"
+    assert_same_lattice(best.cell, cell)
+
+
+@pytest.mark.parametrize("n_impurity", [1, 2])
+def test_dichotomy_tolerates_impurity_lines(n_impurity):
+    """DICVOL06's own reported gain, checked at the default ``n_unindexed = 2``.
+
+    Without tolerated unindexed lines a single impurity line prunes the box that
+    contains the truth and the engine returns nothing *confidently* — which is
+    the failure this milestone exists to prevent, so the negative half is
+    asserted too: at ``n_unindexed = 0`` the same list loses the answer.
+    """
+    # mid-gap positions, checked against the true line list: an "impurity" that
+    # lands within a FWHM of a real line is not an impurity, it is a duplicate,
+    # and the first version of this test used 23.4° — 0.1° from the (100) line —
+    # so the strict half passed for the wrong reason.
+    impurities = (13.96, 21.06)[:n_impurity]
+    peaks, cell = synthetic_peaks("tetragonal", impurities=impurities)
+    result = search_dichotomy(peaks, spec=spec_for("tetragonal"))
+    assert result.candidates, f"{n_impurity} impurities lost the cell"
+    assert_same_lattice(result.candidates[0].cell, cell)
+
+    strict = search_dichotomy(peaks, spec=spec_for("tetragonal", n_unindexed=0))
+    assert not any(
+        np.allclose(np.sort(c.cell[:3]), np.sort(cell[:3]), atol=2e-3)
+        for c in strict.candidates), (
+        "with no tolerated unindexed lines the impurity should prune the truth")
+
+
+def test_an_unfinished_search_says_so_rather_than_reporting_nothing_found():
+    """``search_complete`` is what makes a *negative* result mean anything.
+
+    An exhaustive engine that finishes and finds nothing has said "no such cell";
+    the same engine stopped by its budget has said nothing at all, and the two
+    must not look alike.
+    """
+    peaks, _cell = synthetic_peaks("orthorhombic")
+    result = search_dichotomy(peaks, spec=spec_for(
+        "orthorhombic", min_d_axis=2.0, max_d_axis=20.0, max_volume=8000.0,
+        budget_seconds=0.5))
+    assert not result.complete
+    codes = [d.code for d in result.diagnostics]
+    assert "INDEX_SEARCH_INCOMPLETE" in codes
+    message = next(d for d in result.diagnostics
+                   if d.code == "INDEX_SEARCH_INCOMPLETE")
+    assert "not evidence" in message.message
+
+
+def test_a_restricted_search_reports_only_the_systems_it_searched():
+    """The engine never concludes anything about systems it did not look at —
+    WP-1022's withdrawn-claim lesson, one level down: a low score under a
+    restricted search is not evidence about the sample."""
+    peaks, _cell = synthetic_peaks("orthorhombic")
+    result = search_dichotomy(peaks, spec=spec_for(
+        "orthorhombic", systems=("cubic", "tetragonal")))
+    assert result.systems_searched == ("cubic", "tetragonal")
+    assert set(result.search_complete) == {"cubic", "tetragonal"}
+    assert "orthorhombic" not in result.search_complete
+
+
+def test_systems_are_searched_highest_symmetry_first():
+    """Search order is a cost statement, not a preference: 1 metric degree of
+    freedom in cubic against 6 in triclinic."""
+    dofs = [METRIC_DOF[s] for s in SYSTEM_ORDER]
+    assert dofs == sorted(dofs), f"{SYSTEM_ORDER} is not in cost order: {dofs}"
+    assert SYSTEM_ORDER[0] == "cubic"
+    assert SYSTEM_ORDER[-1] == "triclinic"
+    assert set(SYSTEM_ORDER) == set(METRIC_DOF)

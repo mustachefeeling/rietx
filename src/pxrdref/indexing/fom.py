@@ -68,17 +68,58 @@ def lattice_group(system: str, centring: str = "P") -> str:
     return centring + symbol[1:]
 
 
+#: Relative separation below which two calculated reflections are **one line**.
+#: 1e-9 is nine orders below any measurement precision, so it merges exact
+#: coincidences and nothing else.
+LINE_COINCIDENCE_RTOL = 1e-9
+
+
 def predicted_lines(cell: tuple[float, ...], system: str, centring: str,
                     wavelength: float, two_theta_max: float,
                     two_theta_min: float = 0.0):
-    """(hkl, Q) the lattice allows in range — the FoM denominators' population."""
-    from ..crystallography.symmetry import generate_reflections
+    """(hkl, Q) the lattice allows in range — the FoM denominators' population.
 
-    refl = generate_reflections(lattice_group(system, centring), tuple(cell),
-                                wavelength, two_theta_max, two_theta_min)
-    q = 1.0 / np.asarray(refl.d, dtype=np.float64) ** 2
+    **A line, not an orbit.**  ``generate_reflections`` returns one entry per
+    symmetry-unique orbit, and two distinct orbits routinely land at the *same*
+    Q — 333 and 511 in a cubic cell both give 27A.  Those are one line: they
+    arrive at one 2θ, they are one thing to observe, and a figure of merit whose
+    content is "how densely could this lattice produce lines" must count them
+    once.  Measured, the difference is not cosmetic: a 17 Å cubic cell has 470
+    orbits and **208 distinct lines** to 90° 2θ.  Low-symmetry cells are
+    unaffected (orthorhombic, monoclinic and triclinic test cells agree exactly),
+    which is what identifies the gap as coincidence rather than as a different
+    rule.
+
+    Enumerating directly also removes the cost that made ranking the bottleneck:
+    ``generate_reflections`` canonicalises orbits in a python loop over every hkl
+    in the box, which is 683 ms for that 17 Å cell against 1.8 ms here — and a
+    search ranks tens of candidates.  Correctness and speed point the same way
+    because a *lattice* group has no absences beyond its centring
+    (:func:`~pxrdref.indexing.qspace.centring_allows`), so no space-group
+    machinery is needed to enumerate one.
+    """
+    from .qspace import af_from_cell, design_matrix, trial_hkl
+
+    lattice_group(system, centring)          # validates the system name
+    d_min = wavelength / (2.0 * np.sin(np.radians(max(two_theta_max, 1e-6) / 2.0)))
+    # Q(h00) = A·h² and 1/√A = d(100) ≤ a, so h ≤ a/d_min bounds every index
+    max_index = int(np.ceil(max(tuple(cell)[:3]) / d_min)) + 1
+    hkl = trial_hkl(max_index, centring)
+    q = design_matrix(hkl) @ af_from_cell(tuple(cell))
+    # the same 0.1 % boundary slack generate_reflections applies to d
+    keep = (q > 0.0) & (q <= (1.0 / d_min ** 2) * 1.002)
+    if two_theta_min > 0.0:
+        d_max = wavelength / (2.0 * np.sin(np.radians(max(two_theta_min, 1e-3)
+                                                      / 2.0)))
+        keep &= q >= (1.0 / d_max ** 2) * 0.998
+    hkl, q = hkl[keep], q[keep]
     order = np.argsort(q)
-    return np.asarray(refl.hkl)[order], q[order]
+    hkl, q = hkl[order], q[order]
+    if len(q) > 1:
+        distinct = np.ones(len(q), dtype=bool)
+        distinct[1:] = np.diff(q) > LINE_COINCIDENCE_RTOL * q[1:]
+        hkl, q = hkl[distinct], q[distinct]
+    return hkl, q
 
 
 def match_lines(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
@@ -117,6 +158,31 @@ def _count_possible(pred: np.ndarray, limit: float) -> int:
                                 <= limit * (1.0 + _BOUNDARY_RTOL)))
 
 
+def trimmed_mean(discrepancy: np.ndarray, n_unindexed: int) -> float:
+    """Mean |Δ| with the ``n_unindexed`` worst lines dropped.
+
+    **A score must tolerate what the search was allowed to tolerate.**  An engine
+    run with ``n_unindexed = 2`` may accept a cell that leaves two lines
+    unexplained — that option is DICVOL06's own reported gain, and without it one
+    impurity line prunes the true cell.  But de Wolff's ⟨ΔQ⟩ is a plain mean, so
+    the same unexplained line then wrecks the *score* of the cell the search was
+    right to keep: measured on a tetragonal list with one impurity, the truth
+    scored M₂₀ = 13.2 against 62.5 for an a√5 supercell whose extra reflections
+    happen to cover the impurity — and the supercell won the ranking while showing
+    28 % of its own predicted lines against the truth's 100 %.
+
+    Trimming the same number of lines the search was allowed to leave unindexed
+    makes the two agree.  It is *not* free: it is the documented M₂₀ blind spot
+    (one bad line wrecks the mean) traded against a new one (k bad lines are
+    invisible), and which trade is right depends on a number the caller chose.  So
+    the trim count travels with the value in ``blind_spot``.
+    """
+    d = np.sort(np.asarray(discrepancy, dtype=np.float64))
+    if n_unindexed > 0 and len(d) > n_unindexed:
+        d = d[:len(d) - n_unindexed]
+    return float(np.mean(d)) if len(d) else float("inf")
+
+
 def nearest_discrepancy(obs: np.ndarray, pred: np.ndarray) -> np.ndarray:
     """|Δ| from each observed line to its **nearest** prediction, no window.
 
@@ -135,7 +201,8 @@ def nearest_discrepancy(obs: np.ndarray, pred: np.ndarray) -> np.ndarray:
 
 
 def m20(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
-        n: int = FOM_N, k_sigma: float = MATCH_SIGMA) -> FigureOfMerit:
+        n: int = FOM_N, k_sigma: float = MATCH_SIGMA,
+        n_unindexed: int = 0) -> FigureOfMerit:
     """de Wolff's M₂₀ = Q_N / (2·⟨ΔQ⟩·N_poss).
 
     *Source*: de Wolff, P. M. (1968), *J. Appl. Cryst.* **1**, 108-113.  Read it
@@ -169,7 +236,7 @@ def m20(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
     pred = np.asarray(q_pred, dtype=np.float64)
     n_poss = _count_possible(pred, q_n)
     dq = nearest_discrepancy(obs, pred)
-    mean_dq = float(np.mean(dq))
+    mean_dq = trimmed_mean(dq, n_unindexed)
     floor = float(np.median(esd))
     denom = max(mean_dq, floor)
     value = (q_n / (2.0 * denom * n_poss)
@@ -177,12 +244,12 @@ def m20(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
     return FigureOfMerit(name="m20", value=float(value), n_lines=len(obs),
                          n_possible=n_poss, k_sigma=k_sigma,
                          mean_discrepancy=mean_dq if np.isfinite(mean_dq) else -1.0,
-                         blind_spot=_BLIND["m20"])
+                         blind_spot=_blind("m20", n_unindexed))
 
 
 def f_n(two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
         two_theta_pred: np.ndarray, *, n: int = FOM_N,
-        k_sigma: float = MATCH_SIGMA) -> FigureOfMerit:
+        k_sigma: float = MATCH_SIGMA, n_unindexed: int = 0) -> FigureOfMerit:
     """Smith & Snyder's F_N = (1/⟨|Δ2θ|⟩)·(N_obs/N_poss).
 
     *Source*: Smith, G. S. & Snyder, R. L. (1979), *J. Appl. Cryst.* **12**,
@@ -205,7 +272,7 @@ def f_n(two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
     pred = np.asarray(two_theta_pred, dtype=np.float64)
     n_poss = _count_possible(pred, float(obs[-1]))
     d = nearest_discrepancy(obs, pred)
-    mean_d = float(np.mean(d))
+    mean_d = trimmed_mean(d, n_unindexed)
     # the same precision floor M₂₀ needs, in degrees this time
     denom = max(mean_d, float(np.median(esd)))
     value = (len(obs) / (denom * n_poss)
@@ -213,7 +280,7 @@ def f_n(two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
     return FigureOfMerit(name="f_n", value=float(value), n_lines=len(obs),
                          n_possible=n_poss, k_sigma=k_sigma,
                          mean_discrepancy=mean_d if np.isfinite(mean_d) else -1.0,
-                         blind_spot=_BLIND["f_n"])
+                         blind_spot=_blind("f_n", n_unindexed))
 
 
 def indexed_fraction(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
@@ -286,16 +353,21 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
               two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
               cell: tuple[float, ...], system: str, centring: str,
               wavelength: float, *, k_sigma: float = MATCH_SIGMA,
-              ) -> list[FigureOfMerit]:
-    """Every figure of merit for one candidate, in one pass over the predictions."""
+              n_unindexed: int = 0) -> list[FigureOfMerit]:
+    """Every figure of merit for one candidate, in one pass over the predictions.
+
+    ``n_unindexed`` must be the same count the *search* was allowed — see
+    :func:`trimmed_mean` for the measurement that makes them one number.
+    """
     tt_max = float(np.max(two_theta_obs)) if len(two_theta_obs) else 0.0
     _hkl, q_pred = predicted_lines(cell, system, centring, wavelength,
                                    max(tt_max, 1.0))
     tt_pred = np.degrees(2.0 * np.arcsin(np.clip(
         wavelength * np.sqrt(q_pred) / 2.0, -1.0, 1.0)))
     return [
-        m20(q_obs, q_esd, q_pred, k_sigma=k_sigma),
-        f_n(two_theta_obs, two_theta_esd, tt_pred, k_sigma=k_sigma),
+        m20(q_obs, q_esd, q_pred, k_sigma=k_sigma, n_unindexed=n_unindexed),
+        f_n(two_theta_obs, two_theta_esd, tt_pred, k_sigma=k_sigma,
+            n_unindexed=n_unindexed),
         indexed_fraction(q_obs, q_esd, q_pred, k_sigma=k_sigma),
         indexed_fraction(q_obs, q_esd, q_pred, intensity=intensity,
                          k_sigma=k_sigma),
@@ -311,16 +383,30 @@ def borda_scores(panels: list[list[FigureOfMerit]]) -> np.ndarray:
     aggregation needs none and is invariant to each member's units and scale,
     which matters when the panel mixes a ratio (M₂₀), an inverse-degrees quantity
     (F_N) and two fractions.
+
+    **Ties share their rank, and that is not a nicety.**  Two of the five members
+    are fractions that saturate at 1.0, so on any well-explained pattern most
+    candidates tie on them.  Ranking ties by array position instead (the
+    ``argsort(argsort)`` this function used to do) injects up to N−1 points of
+    pure ordering noise *per tied member* — measured on a synthetic tetragonal
+    list, that put two derivative lattices above a truth that beat them on every
+    single member of the panel.  Averaged ranks are the standard Borda treatment
+    of ties and they make the aggregate depend only on the values.
+
+    Non-finite values rank **worst** rather than best: a figure that could not be
+    computed is not evidence in a candidate's favour.
     """
+    from scipy.stats import rankdata
+
     if not panels:
         return np.zeros(0)
     names = [f.name for f in panels[0]]
     scores = np.zeros(len(panels))
     for k, name in enumerate(names):
-        values = np.array([p[k].value if p[k].name == name else np.nan
-                           for p in panels])
-        order = np.argsort(np.argsort(values))     # 0 = worst
-        scores += order
+        values = np.array([p[k].value if p[k].name == name else -np.inf
+                           for p in panels], dtype=np.float64)
+        values = np.where(np.isfinite(values), values, -np.inf)
+        scores += rankdata(values, method="average") - 1.0    # 0 = worst
     return scores
 
 
@@ -357,8 +443,18 @@ _BLIND: dict[str, str] = {
                                 "reflections too weak to detect"),
 }
 
+def _blind(name: str, n_unindexed: int) -> str:
+    """The blind spot, with the trim count in it when one was applied."""
+    text = _BLIND[name]
+    if n_unindexed > 0:
+        text += (f"; its mean discrepancy is trimmed by {n_unindexed} line(s) to "
+                 "match what the search was allowed to leave unindexed, so that "
+                 "many badly-fitting lines are invisible to it")
+    return text
+
+
 __all__ = ["FOM_N", "MATCH_SIGMA", "borda_scores", "f_n",
            "fom_panel", "fom_panel_disagrees", "indexed_fraction",
            "lattice_group", "m20", "match_lines", "nearest_discrepancy",
            "predicted_lines",
-           "predicted_seen_fraction", "q_of_two_theta"]
+           "predicted_seen_fraction", "q_of_two_theta", "trimmed_mean"]

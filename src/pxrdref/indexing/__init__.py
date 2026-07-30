@@ -19,9 +19,35 @@ determination (:func:`reduce_cell`, :func:`bravais_screen`), the figure-of-merit
 **panel** scored in both directions (:func:`fom_panel`), and geometrical-ambiguity
 enumeration (:func:`ambiguity_partners`).  After this a cell can be scored,
 reduced, classified and compared — there is still no engine.
+
+WP-1021 adds the first engine and the surface the three of them share:
+:func:`search_dichotomy` is an **exhaustive** branch-and-bound over the metric
+domain, whose value next to two cheaper engines is the contrapositive — a
+completed search that finds nothing has said that no cell of that symmetry within
+the bounds fits the list.  :class:`SearchSpec` is the one option surface, the
+registry (:func:`engine_names`) is what WP-1024's agent schema quotes live, and
+``EngineResult.search_complete`` is what keeps a budgeted search from looking like
+a negative result.
 """
 
 from .ambiguity import ambiguity_partners, derivative_cells, hnf_matrices
+from .dichotomy import search_dichotomy
+from .engines import (
+    CENTRINGS,
+    SYSTEM_ORDER,
+    Budget,
+    EngineCandidate,
+    EngineResult,
+    SearchSpec,
+    engine_descriptions,
+    engine_names,
+    get_engine,
+    predicted_reflection_count,
+    rank_candidates,
+    reflection_ceiling_ok,
+    register_engine,
+    to_cell_candidate,
+)
 from .fom import (
     borda_scores,
     f_n,
@@ -60,11 +86,17 @@ from .reduce import (
 )
 
 __all__ = [
+    "CENTRINGS",
+    "SYSTEM_ORDER",
     "BravaisScreen",
+    "Budget",
     "CandidateFit",
     "Detection",
+    "EngineCandidate",
+    "EngineResult",
     "PeakGroup",
     "ReducedCell",
+    "SearchSpec",
     "af_from_cell",
     "ambiguity_partners",
     "assess_peak_list",
@@ -75,22 +107,31 @@ __all__ = [
     "derivative_cells",
     "design_matrix",
     "detect_peaks",
+    "engine_descriptions",
+    "engine_names",
     "f_n",
     "fit_group",
     "fit_shift_model",
     "fom_panel",
     "fom_panel_disagrees",
+    "get_engine",
     "hnf_matrices",
     "indexed_fraction",
     "lattice_group",
     "m20",
     "metric_basis",
     "pick_peaks",
+    "predicted_reflection_count",
     "predicted_seen_fraction",
+    "rank_candidates",
     "reduce_cell",
+    "reflection_ceiling_ok",
     "refine_candidate",
+    "register_engine",
     "same_lattice",
+    "search_dichotomy",
     "sigma_effective",
     "template_collinearity",
+    "to_cell_candidate",
     "volume_envelope",
 ]

@@ -353,6 +353,74 @@ def test_match_lines_uses_each_lines_own_sigma():
     assert idx_loose.tolist() == [-1, 1]
 
 
+def test_borda_shares_the_rank_of_tied_candidates():
+    """**Ties must not be broken by array position** (found by WP-1021).
+
+    Two of the five panel members are fractions that saturate at 1.0, so on a
+    well-explained pattern most candidates tie on them.  The old
+    ``argsort(argsort)`` gave tied entries distinct ranks in input order, injecting
+    up to N−1 points of ordering noise per tied member — measured, that put two
+    derivative lattices above a truth that beat them on *every* member.  Here the
+    first candidate is better on one member and tied on the other; sharing the tie
+    is the only way its single real win decides the ranking.
+    """
+    def panel(a, b):
+        return [FigureOfMerit(name="x", value=a, n_lines=1, n_possible=1,
+                              k_sigma=3.0),
+                FigureOfMerit(name="y", value=b, n_lines=1, n_possible=1,
+                              k_sigma=3.0)]
+
+    scores = borda_scores([panel(2.0, 1.0), panel(1.0, 1.0), panel(1.0, 1.0)])
+    assert scores[0] > scores[1]
+    assert scores[1] == scores[2], "tied candidates must score equally"
+    # a non-finite member ranks worst rather than best
+    worst = borda_scores([panel(float("nan"), 1.0), panel(1.0, 1.0)])
+    assert worst[0] < worst[1]
+
+
+def test_predicted_lines_counts_distinct_lines_not_orbits():
+    """A coincidence is one line (found by WP-1021).
+
+    Cubic 333 and 511 both give Q = 27A: two orbits, one 2θ, one thing to observe.
+    Counting them twice inflates every FoM denominator on exactly the
+    high-symmetry large cells the panel has to judge — measured, 470 orbits
+    against 208 distinct lines for a 17 Å cubic cell.  Low-symmetry cells have no
+    coincidences to merge, and that asymmetry is what identifies the difference as
+    coincidence rather than a different counting rule.
+    """
+    from pxrdref.crystallography.symmetry import generate_reflections
+
+    for system, expect_fewer in (("cubic", True), ("triclinic", False)):
+        sg, cell = CELLS[system]
+        orbits = len(generate_reflections(sg, cell, LAM, 90.0).d)
+        _hkl, q = predicted_lines(cell, system, "P", LAM, 90.0)
+        assert (len(q) < orbits) is expect_fewer, system
+        assert len(np.unique(np.round(q, 9))) == len(q), system
+
+
+def test_the_figures_of_merit_tolerate_what_the_search_tolerated():
+    """``n_unindexed`` is one number shared by the search and the score.
+
+    Measured on a tetragonal list with one impurity line: with a plain mean the
+    truth scored M₂₀ = 13.2 against 62.5 for an a√5 supercell whose extra
+    reflections happen to cover the impurity, and the supercell won the ranking
+    while showing 28 % of its own predicted lines against the truth's 100 %.
+    Trimming the same one line the search was allowed to leave unindexed reverses
+    it — and the trim is *reported*, because it buys a new blind spot.
+    """
+    q, q_esd, tt, esd_tt, cell = _panel_inputs("tetragonal", two_theta_max=70.0)
+    q_all = np.sort(np.append(q, 0.1177))          # a line no lattice here indexes
+    esd_all = np.interp(q_all, q, q_esd)
+    _hkl, q_pred = predicted_lines(cell, "tetragonal", "P", LAM, 70.0)
+
+    plain = m20(q_all, esd_all, q_pred)
+    trimmed = m20(q_all, esd_all, q_pred, n_unindexed=1)
+    assert trimmed.value > 3.0 * plain.value
+    assert trimmed.mean_discrepancy < plain.mean_discrepancy
+    assert "trimmed by 1 line" in trimmed.blind_spot
+    assert "trimmed" not in plain.blind_spot
+
+
 def test_fom_n_is_twenty_lines():
     """M₂₀ and F₂₀ are defined on twenty lines; a longer list must not silently
     change the figure's meaning."""

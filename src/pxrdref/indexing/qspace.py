@@ -36,6 +36,7 @@ dG = −G·dG*·G, since G = (G*)⁻¹.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -79,6 +80,49 @@ def design_matrix(hkl: np.ndarray) -> np.ndarray:
     return np.column_stack([h[:, 0] ** 2, h[:, 1] ** 2, h[:, 2] ** 2,
                             h[:, 1] * h[:, 2], h[:, 0] * h[:, 2],
                             h[:, 0] * h[:, 1]])
+
+
+def centring_allows(hkl: np.ndarray, centring: str) -> np.ndarray:
+    """Which hkl a Bravais centring allows — the *lattice* absences, only.
+
+    Space-group absences are not known until an extinction symbol is determined
+    (WP-1025) and must never be assumed here: "lattice-possible" is exactly the
+    population de Wolff's and Smith & Snyder's denominators count.
+    """
+    h, k, ll = hkl[:, 0], hkl[:, 1], hkl[:, 2]
+    if centring in ("", "P"):
+        return np.ones(len(hkl), dtype=bool)
+    if centring == "I":
+        return (h + k + ll) % 2 == 0
+    if centring == "F":
+        return ((h + k) % 2 == 0) & ((k + ll) % 2 == 0)
+    if centring == "A":
+        return (k + ll) % 2 == 0
+    if centring == "B":
+        return (h + ll) % 2 == 0
+    if centring == "C":
+        return (h + k) % 2 == 0
+    if centring == "R":            # obverse setting on hexagonal axes
+        return (-h + k + ll) % 3 == 0
+    raise ValueError(f"unknown centring {centring!r}")
+
+
+def trial_hkl(max_index: int, centring: str = "P") -> np.ndarray:
+    """Every centring-allowed hkl up to ``max_index``, one per Friedel pair.
+
+    A powder measures |g|, so h and −h are the same line and only one is kept
+    (the first non-zero component positive).  Vectorised on purpose: this is both
+    the engines' trial set and — through :func:`~pxrdref.indexing.fom.predicted_lines`
+    — the figures of merit's denominator population, and it is evaluated once per
+    candidate cell in a ranking loop.
+    """
+    rng = np.arange(-int(max_index), int(max_index) + 1)
+    h, k, ll = np.meshgrid(rng, rng, rng, indexing="ij")
+    hkl = np.column_stack([h.ravel(), k.ravel(), ll.ravel()]).astype(np.int64)
+    hkl = hkl[~np.all(hkl == 0, axis=1)]
+    lead = hkl[np.arange(len(hkl)), np.argmax(hkl != 0, axis=1)]
+    hkl = hkl[lead > 0]
+    return hkl[centring_allows(hkl, centring)]
 
 
 def gstar_from_af(af: np.ndarray) -> np.ndarray:
@@ -177,6 +221,32 @@ def cell_esds(af: np.ndarray, cov_af: np.ndarray) -> np.ndarray:
     return np.sqrt(np.maximum(np.diag(cov_cell), 0.0))
 
 
+@lru_cache(maxsize=None)
+def _metric_basis_cached(system: str) -> np.ndarray:
+    """The uncached derivation, memoised — see :func:`metric_basis`.
+
+    Memoised because a search calls ``refine_candidate`` once per accepted box
+    and each call re-derives the subspace: measured on an orthorhombic search,
+    the exact-rational nullspace was 2.5 s of a 15 s run, for seven possible
+    answers.  The array is returned read-only so a cached value cannot be mutated
+    by a caller.
+    """
+    import gemmi
+
+    if system not in _HOLOHEDRY:
+        raise ValueError(f"unknown crystal system {system!r}; expected one of "
+                         f"{sorted(_HOLOHEDRY)}")
+    sg = gemmi.find_spacegroup_by_name(_HOLOHEDRY[system])
+    rots = [np.array(op.rot, dtype=np.int64) // gemmi.Op.DEN
+            for op in sg.operations()]
+    basis_voigt = adp_basis(rots)
+    out = np.zeros((basis_voigt.shape[0], 6))
+    for p in range(6):
+        out[:, p] = _AF_FACTOR[p] * basis_voigt[:, _VOIGT_OF_AF[p]]
+    out.setflags(write=False)
+    return out
+
+
 def metric_basis(system: str) -> np.ndarray:
     """(m, 6) basis of the A..F directions a ``system`` allows.
 
@@ -200,19 +270,7 @@ def metric_basis(system: str) -> np.ndarray:
     the *true* metric lies in the span catches it — ``tests/test_indexing_core.py``
     has one.
     """
-    import gemmi
-
-    if system not in _HOLOHEDRY:
-        raise ValueError(f"unknown crystal system {system!r}; expected one of "
-                         f"{sorted(_HOLOHEDRY)}")
-    sg = gemmi.find_spacegroup_by_name(_HOLOHEDRY[system])
-    rots = [np.array(op.rot, dtype=np.int64) // gemmi.Op.DEN
-            for op in sg.operations()]
-    basis_voigt = adp_basis(rots)
-    out = np.zeros((basis_voigt.shape[0], 6))
-    for p in range(6):
-        out[:, p] = _AF_FACTOR[p] * basis_voigt[:, _VOIGT_OF_AF[p]]
-    return out
+    return _metric_basis_cached(system)
 
 
 @dataclass
