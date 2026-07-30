@@ -225,13 +225,29 @@ def test_no_route_is_declared_twice(blank):
     assert not set(ROUTES) & set(RESERVED_ROUTES)
 
 
-def test_the_placeholder_page_and_plotly_are_served(blank):
+def test_the_built_app_is_served_and_so_is_plotly(blank):
+    """With the committed dist present (WP-1010), ``/`` is the real app."""
     _, client = blank
     status, payload = client.get("/")
-    assert status == 200 and "pxrdref gui" in payload["raw"]
+    assert status == 200
+    assert 'src="/assets/app.js"' in payload["raw"]
+    assert client.get("/assets/app.js")[0] == 200
+    assert client.get("/assets/app.css")[0] == 200
     status, payload = client.get("/plotly.js")
     assert status == 200 and len(payload["raw"]) > 1000
     assert client.get("/assets/nope.js")[0] == 404
+
+
+def test_the_placeholder_explains_itself_when_the_dist_is_absent(blank, tmp_path,
+                                                                monkeypatch):
+    """A checkout without the built assets must still say what is going on."""
+    from pxrdref.gui import server as server_module
+
+    _, client = blank
+    monkeypatch.setattr(server_module, "STATIC_DIR", tmp_path / "nothing-here")
+    status, payload = client.get("/")
+    assert status == 200 and "pxrdref gui" in payload["raw"]
+    assert "WP-1010" in payload["raw"]
 
 
 def test_asset_paths_cannot_escape_the_static_directory(blank):

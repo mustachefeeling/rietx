@@ -1,0 +1,23 @@
+{
+  "name": "pxrdref-gui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Frontend workspace for `pxrdref gui`. Never ships in the wheel — the build output under src/pxrdref/gui/static is committed, so installing pxrd-refine[gui] needs no node.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && python3 scripts/build_info.py",
+    "test": "vitest run",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@types/node": "^26.1.2",
+    "jsdom": "^30.0.1",
+    "svelte": "^5.56.8",
+    "svelte-check": "^4.1.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.0.18"
+  }
+}

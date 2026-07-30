@@ -1,0 +1,86 @@
+/* Theming by CSS custom properties, light and dark, following the system —
+   the same approach `pxrdref compare` uses, so the three browser surfaces this
+   package ships look like one program. */
+:root {
+  color-scheme: light dark;
+  --fg: #1b1b1b;
+  --bg: #fbfbfa;
+  --panel: #ffffff;
+  --line: #dcdcd6;
+  --muted: #6b6b66;
+  --accent: #1f5fa8;
+  --ok: #2e8b57;
+  --warn: #b3541e;
+  --bad: #c23b22;
+  --mono: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e6e6e2;
+    --bg: #151515;
+    --panel: #1e1e1e;
+    --line: #333333;
+    --muted: #9a9a94;
+    --accent: #7fb2ea;
+    --ok: #6cc08b;
+    --warn: #e0955c;
+    --bad: #e8776a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+button {
+  font: inherit;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+code,
+kbd {
+  font: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font: var(--mono);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

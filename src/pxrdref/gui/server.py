@@ -403,11 +403,14 @@ def serve(session: GuiSession, *, port: int = DEFAULT_PORT,
                           "pid": session.version()["pid"]}), flush=True)
     else:
         project = session.version()["project"]
-        print(f"pxrdref gui — {url}")
-        print(f"  project: {project or '(none open yet)'}")
+        # flush: redirecting the banner to a log file otherwise buffers it until
+        # the process exits, which is exactly when nobody needs to read the port
+        print(f"pxrdref gui — {url}", flush=True)
+        print(f"  project: {project or '(none open yet)'}", flush=True)
         if not (STATIC_DIR / "index.html").is_file():
-            print("  frontend: not built (WP-1010) — the HTTP API is live")
-        print("  Ctrl-C to stop")
+            print("  frontend: not built — run `npm --prefix gui run build`; "
+                  "the HTTP API is live either way", flush=True)
+        print("  Ctrl-C to stop", flush=True)
     if open_browser:
         import webbrowser
 

@@ -12,6 +12,13 @@ htmlcov/
 *.png
 *.html
 !docs/**/*.html
+# The GUI's built frontend is COMMITTED (WP-1010) so installing the wheel never
+# needs node — and `*.html` above would have quietly dropped its entry point,
+# leaving a dist whose freshness test passes on this machine while a fresh clone
+# serves the placeholder page instead of the app.
+!src/pxrdref/gui/static/**
+gui/node_modules/
+gui/.vite/
 # every test refinement writes obs/calc/diff plots and exported tables here,
 # for visual inspection (Rwp hides locally-bad fits).  The *.png rule above
 # used to cover this by accident; WP-0505 added a CSV export and it was
