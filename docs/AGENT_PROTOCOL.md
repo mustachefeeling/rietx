@@ -241,6 +241,8 @@ propagate it, do not paper over it.
 | `INDEX_MULTIPLE_SOLUTIONS` | More than one candidate satisfies the whole gate | Compare the panels and each `lebail.rwp`, and extend the 2θ range: two cells that both explain a range this wide are usually separated by one high-angle reflection |
 | `INDEX_SEARCH_INCOMPLETE` | A budget expired before the domain did | Do not read "no cell found" as "no cell exists". Only a *completed* exhaustive search says that, and `search_complete[system]` says which systems finished |
 | `INDEX_SYSTEMS_NOT_COVERED` | Systems were not searched | Read a failure as "no cell in the systems searched", never as a statement about the specimen — and in particular never as "this is multiphase" (§8.15) |
+| `ExtinctionScreen.best_or_none()` returns `None` | No extinction class is separated from its rivals by these data | Read the ranked `candidates` and `EXTINCTION_SYMBOL_AMBIGUOUS`, which states every reason at once. The action is a longer count at the *forbidden positions the leading classes disagree about*, or a wider range — never the better Rwp, which always favours the class with more reflections |
+| `EXTINCTION_GROUPS_NOT_SEPARABLE` | The leading class holds more than one space group | Nothing. This is **not** a data problem and no counting time fixes it: those groups differ only by elements that produce no absences. Carry the whole list forward and choose with chemistry (§7e) |
 
 `Layer 1`'s gates, for reference, are: resolvability on the **scale-normalised**
 Gram matrix, a 0.4·FWHM validity radius (a peak 5 FWHM off must trigger
@@ -331,6 +333,36 @@ result.
 | `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
 
+### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
+
+These arrive from `pxrdref.determine_extinction_symbol`, which runs *after* a cell
+is in hand and answers the next question — which systematic absences the pattern
+shows. Same split as §7c: a refutation lives on the class it refutes.
+
+| Code | What it means you must not do |
+|---|---|
+| `EXTINCTION_GROUPS_NOT_SEPARABLE` | (info) Pick one of the listed space groups and call it the answer. They produce **identical** powder patterns by construction — a centre of symmetry, an enantiomorph or a mirror leaves no absence — so this is not weak data and not a tie to be broken by counting longer. Carry the list; `structure_from_candidate(cand, space_group=…)` accepts any member. The arbiters are chemistry (a polar or optically active compound cannot be centrosymmetric) and, eventually, which one a structure solution works in |
+| `EXTINCTION_SYMBOL_AMBIGUOUS` | Read the ranked first class as the answer. It fires for three different reasons and says which: a runner-up inside the decisive ΔBIC margin, a leading class none of whose absences is **testable** here (each is outside the range or coincides with a line the class still allows), or classes a `max_classes` cap never fitted. Only the first is fixed by better data at the same setting |
+| `EXTINCTION_FORBIDDEN_INTENSITY` | Keep this class. A position it forbids carries intensity its own Le Bail fit cannot account for, and the hkl and 2θ are named so you can look. One flagged position can also be an impurity line — check it against the indexing result's `unmatched_observed` before concluding |
+| `EXTINCTION_CONDITIONS_PARTIAL` | (info) Read `conditions` as the complete condition list for this class. The screen used the absence set itself, which is unaffected; only the human-readable reduction is short. Read `space_groups` |
+
+Three things about the screen that change how you use its answer:
+
+1. **The score is a nested comparison, not Rwp.** A class with fewer absences has
+   more reflections and can only fit at least as well, so Rwp ranks the
+   least-constrained class first every time. `delta_bic` is BIC(class) −
+   BIC(absence-free lattice); **negative favours the class**, and the difference
+   between two classes' values is itself a ΔBIC. Measured on a synthetic P 2₁/c
+   specimen: the true class and its screw-free partner differ by 1e-5 in Rwp and
+   by 24 in ΔBIC.
+2. **`n_added` counts only *testable* absences**, so a class whose extra absences
+   all hide under allowed neighbours earns nothing for them. Read `n_testable`
+   beside `n_absent`: if it is zero the class is a hypothesis these data cannot
+   address, whatever its Rwp.
+3. **The absence-free class winning is a result, not a failure.** On NAC (I 2₁3)
+   it is the *correct* answer: I-centring already extinguishes the very
+   reflections the 2₁ screws would, so those screws are invisible in principle.
+
 ---
 
 ## 7d. The closed loop: from a pattern of an unknown phase to a refinement
@@ -354,9 +386,16 @@ if cell is None:
 phase = pxrdref.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
 result = pxrdref.refine(data, phase, instrument, mode="lebail",
                         plan="profile_only")
+
+screen = pxrdref.determine_extinction_symbol(data, cell, instrument)
+klass  = screen.best_or_none()          # an extinction *class*, never one group
+if klass is not None:
+    # any member fits the data equally well — that is what the class means
+    phase = pxrdref.indexing.structure_from_candidate(
+        cell, space_group=klass.space_groups[0])
 ```
 
-Four things about that sequence are load-bearing:
+Five things about that sequence are load-bearing:
 
 1. **Pass the pattern, not only the peaks.** It is what turns whole-profile
    validation on, and validation is what catches the oversized cell no figure of
@@ -370,10 +409,19 @@ Four things about that sequence are load-bearing:
 3. **Go through `structure_from_candidate`.** It supplies the mandatory dummy
    atom and, more importantly, defaults the space group to the **absence-free
    lattice group**. A plausible-looking space group would hide exactly the
-   reflections whose absence is not yet established.
-4. **The next question is the space group, and this package does not answer it
-   yet.** A Le Bail refinement of the lattice group is the right next step and is
-   as far as the closed loop goes today.
+   reflections whose absence is not yet established — which is also why the
+   indexing gate's `predicted_but_absent` test must keep running against the
+   lattice group even after the screen has named a class.
+4. **The extinction screen answers the next question, and answers it as a
+   class.** `determine_extinction_symbol` ranks the classes the lattice admits,
+   each listing its space groups; the powder observable *is* the extinction
+   symbol, so a returned class with three groups in it is a complete answer, not
+   a hedge (§7e).
+5. **Choosing inside the class is chemistry, not diffraction.** Any member can be
+   handed to `structure_from_candidate` for the Le Bail or Rietveld step that
+   follows — they predict the same reflections at the same positions. What
+   separates them is what you know about the compound, or which one a structure
+   solution works in.
 
 The reverse direction closes too. When a refinement's Layer 2 emits
 `reindex_or_recheck_cell` — peak offsets beyond the linearisation radius, i.e. the

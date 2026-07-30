@@ -48,8 +48,9 @@ def lattice_group(system: str, centring: str = "P") -> str:
 
     "Lattice-possible" in de Wolff's and Smith & Snyder's denominators means every
     reflection the *lattice* allows — so centring conditions count (they are
-    lattice absences) and space-group conditions do not (they are not known yet,
-    and determining them is WP-1025).  Passing this symbol to
+    lattice absences) and space-group conditions do not (they are not known when a
+    search runs; ``indexing.extinction.determine_extinction_symbol`` determines
+    them afterwards, and this symbol stays its reference model).  Passing this to
     ``generate_reflections`` is what makes ``n_possible`` mean the same thing as
     in the papers.
     """
@@ -335,7 +336,8 @@ def predicted_seen_fraction(q_obs: np.ndarray, q_esd: np.ndarray,
     in the wrong direction.
 
     **Blind spot**: legitimately absent reflections count against a *correct*
-    cell — space-group extinctions (unknown until WP-1025) and reflections too
+    cell — space-group extinctions (unknown while indexing runs; WP-1025's screen
+    determines them from this cell, not before it) and reflections too
     weak to detect.  So a low value is not evidence of a wrong cell on its own;
     it is evidence against a cell that also indexes suspiciously much.
     """

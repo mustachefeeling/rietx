@@ -86,7 +86,8 @@ def centring_allows(hkl: np.ndarray, centring: str) -> np.ndarray:
     """Which hkl a Bravais centring allows — the *lattice* absences, only.
 
     Space-group absences are not known until an extinction symbol is determined
-    (WP-1025) and must never be assumed here: "lattice-possible" is exactly the
+    (``indexing.extinction``, which needs a cell first) and must never be assumed
+    here: "lattice-possible" is exactly the
     population de Wolff's and Smith & Snyder's denominators count.
     """
     h, k, ll = hkl[:, 0], hkl[:, 1], hkl[:, 2]

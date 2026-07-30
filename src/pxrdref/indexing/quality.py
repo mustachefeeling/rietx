@@ -203,7 +203,8 @@ def fit_shift_model(two_theta: np.ndarray, deviation_deg: np.ndarray,
 #: A centred lattice extinguishes reflections (F keeps 1/4 of hkl, R in the
 #: hexagonal setting 1/3, I/A/B/C a half), so the *same* N distinct lines imply a
 #: correspondingly larger conventional cell.  Centring is not knowable before a
-#: search — it is part of the answer (the extinction symbol, WP-1025) — so the
+#: search — it is part of the answer (the extinction symbol, determined after
+#: one by ``indexing.extinction``) — so the
 #: envelope must use the **worst case**, since the one failure a search bound may
 #: not have is excluding the true cell.
 _MAX_CENTRING: dict[str, int] = {
@@ -234,8 +235,10 @@ def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
       125 Å³ against a true 255 Å³, i.e. it **excluded the right answer**,
       because R-centring extinguishes two thirds of hkl.
 
-    Pass ``centring_multiplicity`` once an extinction symbol is known (WP-1025)
-    to tighten the bound; the default is the loosest the system allows.
+    Pass ``centring_multiplicity`` once an extinction symbol is known
+    (:func:`pxrdref.indexing.extinction.determine_extinction_symbol`, whose
+    leading class names the centring) to tighten the bound; the default is the
+    loosest the system allows.
     """
     if d_n <= 0.0 or n_lines < 2:
         raise ValueError("need a positive d and at least two lines")

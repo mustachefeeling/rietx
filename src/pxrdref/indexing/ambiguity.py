@@ -43,7 +43,7 @@ about one lattice instead of a ranking.
 The exclusion is **asymmetric on purpose** and the asymmetry is what makes it
 sound: it tests the partner's *extra* predictions, never the parent's own absent
 ones.  A correct lattice routinely predicts reflections nothing is observed at
-(space-group extinctions, still unknown until WP-1025, and lines too weak to
+(space-group extinctions, not yet determined while indexing runs, and lines too weak to
 detect — the truth showed 56.5 % of its own predicted lines in this repo's §D
 data), so a symmetric rule would exclude the truth first.  What the data can rule
 out is a line a *rival* lattice needs and the parent does not.

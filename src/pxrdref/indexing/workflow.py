@@ -89,8 +89,9 @@ from .fom import lattice_group
 #:
 #: **Its failure mode is on a correct cell and is worth knowing before you read a
 #: count.**  A genuinely weak reflection — a space-group extinction that is not
-#: yet known to be one (WP-1025), or a high-angle line the counting time did not
-#: reach — is absent for reasons that have nothing to do with the lattice, and
+#: yet known to be one (the extinction screen runs after this and asks the same
+#: question with a different null model), or a high-angle line the counting time
+#: did not reach — is absent for reasons that have nothing to do with the lattice, and
 #: this test cannot tell it from an oversized cell's phantom.  That is
 #: ``predicted_seen_fraction``'s documented blind spot one level down, and it is
 #: why the 2θ of every flagged reflection travels with the count: a caller can
@@ -134,7 +135,12 @@ def structure_from_candidate(candidate: CellCandidate, *,
     has been determined.  A group carrying reflection conditions would hide
     exactly the reflections whose absence is not yet established, and hiding them
     is how an oversized cell passes: every phantom it predicts would be excused as
-    an extinction.  Determining the real conditions is WP-1025.
+    an extinction.
+
+    The real conditions are determined afterwards by
+    :func:`pxrdref.indexing.extinction.determine_extinction_symbol`, which passes
+    a class's representative in here as ``space_group`` — but the *validation*
+    call above it must keep using the default, or the gate loses the detector.
     """
     symbol = space_group or candidate.lattice_group or lattice_group(
         candidate.system, candidate.centring)
