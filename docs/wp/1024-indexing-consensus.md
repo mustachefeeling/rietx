@@ -310,12 +310,26 @@ only when the gate is fully satisfied; the agent schema quotes every registered
 engine; and the restricted-search test proves a limited search cannot be read
 as a multiphase verdict.
 
-**Met, 2026-07-30.** 26 + 28 + 22 tests green; ruff clean; fast suite 1247 passed
-/ 66 skipped. End to end on a synthetic LaB₆ pattern, picking its own peaks:
-`best_or_none()` returns a = 4.15659 Å against a true 4.1566 (2 ppm) at `high`,
-and the cubic F and I supercells — which index every observed line and tie the
-truth on every forward-looking figure — come back `low`, refuted by
-`predicted_but_absent`.
+**Met, 2026-07-30.** 26 + 28 + 22 tests green; ruff clean; **full suite 1325 passed
+/ 71 skipped in 8:11**, fast suite 1247 / 66 in 2:10. End to end on a synthetic
+LaB₆ pattern, picking its own peaks: `best_or_none()` returns a = 4.15659 Å against
+a true 4.1566 (2 ppm) at `high`, and the cubic F and I supercells — which index
+every observed line and tie the truth on every forward-looking figure — come back
+`low`, refuted by `predicted_but_absent`.
+
+The first full-suite run was **2 failed**, and the failure is worth the paragraph
+because it was not in this WP's code and not really a flake either. Both monoclinic
+engine rows failed under `-n auto` and passed serially: they assert
+`search_complete["monoclinic"]` — that the metric *domain* was exhausted — while
+declaring `budget_seconds=180` against a search that takes ~85-105 s alone, so
+adding one more test module was enough to push them over their own stopping rule.
+They then reported themselves incomplete **correctly**, and failed an assertion
+about exhaustiveness for a reason that had nothing to do with the domain. Fixed by
+declaring a generous per-system budget (`BUDGET_SECONDS` in
+`tests/test_indexing_engines.py`) with the reasoning attached, and the general rule
+is now in CLAUDE.md: **a wall-clock budget inside a test is a runaway guard, never a
+timer** — any test whose serial time is a large fraction of its declared budget is a
+load sensor pretending to be an assertion.
 
 ## References
 

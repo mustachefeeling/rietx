@@ -88,6 +88,26 @@ def synthetic_peaks(system: str, *, esd_deg: float = 0.005,
     return PeakList.from_positions(tt, LAM, two_theta_esd=esd_deg), true_cell
 
 
+#: Wall-clock budget declared per system, seconds.  A **runaway guard, not a
+#: timer.**  The recovery tests assert ``search_complete[system]``, which is a
+#: statement about the metric *domain* being exhausted; tying it to a budget the
+#: machine can miss turns a correctness assertion into a performance one, and the
+#: performance claim belongs in the WP handover logs quoted as a range (CLAUDE.md:
+#: "quote wall clock as a range, never as a figure").
+#:
+#: Found the hard way, 2026-07-30: at 180 s both monoclinic rows **failed in the
+#: full suite and passed serially**.  The searches take ~85-105 s alone on a 10-core
+#: M4, so 180 s is barely a 2× margin, and under ``-n auto`` with the rest of the
+#: suite competing they exceeded it, reported themselves incomplete — correctly —
+#: and failed an assertion about exhaustiveness for a reason that had nothing to do
+#: with the domain.  Any future case whose serial time is a large fraction of its
+#: budget wants a row here rather than a flake.
+BUDGET_SECONDS: dict[str, float] = {"monoclinic": 900.0}
+#: Budget for the systems that finish in under a second.  Left far above their cost
+#: for the same reason: it is there to stop a runaway, not to time anything.
+DEFAULT_TEST_BUDGET = 180.0
+
+
 def spec_for(system: str, **overrides) -> SearchSpec:
     """A search spec for a synthetic list, with **σ_sys declared as zero**.
 
@@ -102,7 +122,8 @@ def spec_for(system: str, **overrides) -> SearchSpec:
     """
     _sg, _cell, _tt, (min_d, max_d), vol = CASES[system]
     kwargs = dict(systems=(system,), min_d_axis=min_d, max_d_axis=max_d,
-                  max_volume=vol, budget_seconds=180.0, sigma_sys_deg=1e-9)
+                  max_volume=vol, sigma_sys_deg=1e-9,
+                  budget_seconds=BUDGET_SECONDS.get(system, DEFAULT_TEST_BUDGET))
     kwargs.update(overrides)
     return SearchSpec(**kwargs)
 

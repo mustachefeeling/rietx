@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-8 min (1197 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1116 tests, ~45-55 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-11 min (1396 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1313 tests, ~2-2.5 min)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -25,9 +25,23 @@ on one worker (see the Tests bullet below); plain `--dist load` ignores them
 and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
 7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
 group rather than by total work — fast suite 60-80 s over three runs.
+Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
+fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
+are ~85-105 s each on their own.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
+
+**A wall-clock budget inside a test is a runaway guard, never a timer**, and
+WP-1024 learned it by breaking WP-1021's tests without touching them. The engine
+recovery tests assert `search_complete[system]` — a statement about the metric
+*domain* being exhausted — while declaring `budget_seconds=180`, which against an
+~85-105 s search is barely a 2× margin. Adding one more test module was enough:
+both monoclinic rows failed under `-n auto` and passed serially, reporting
+themselves incomplete *correctly* for a reason that had nothing to do with the
+domain. `BUDGET_SECONDS` in `tests/test_indexing_engines.py` now declares a
+generous per-system budget. Any test whose serial time is a large fraction of its
+declared budget is a load sensor pretending to be an assertion.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
