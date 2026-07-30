@@ -13,6 +13,7 @@ from .io.exporters import (
 from .io.instrument_profile import load_instrument_profile, save_instrument_profile
 from .io.readers import read_pattern, read_pdcif
 from .multi import MultiHistogramRefinement, refine_multi
+from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
 from .refine import Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
@@ -44,6 +45,7 @@ __all__ = [
     "AnisoU",
     "Atom",
     "agent",
+    "CancelToken",
     "Cell",
     "FitReport",
     "HistoryNode",
@@ -59,6 +61,7 @@ __all__ = [
     "PlanInfo",
     "PlanSpec",
     "Refinement",
+    "RefinementCancelled",
     "RefinementPlan",
     "RefinementResult",
     "RefinementState",

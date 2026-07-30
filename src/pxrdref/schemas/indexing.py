@@ -45,6 +45,16 @@ PEAK_MIN_HEIGHT_SIGMA = 5.0
 #: neighbouring saddle rather than the baseline, and a genuine shoulder on a
 #: strong line has small prominence by construction.
 PEAK_MIN_PROMINENCE_SIGMA = 3.0
+#: Significance a *curvature* (shoulder) seed must reach, in units of the
+#: propagated noise of the second-derivative filter.  Higher than the prominence
+#: floor for a multiple-comparison reason, not a physical one: the curvature test
+#: is applied at every local dip in the pattern, i.e. of order (2θ range)/FWHM ≈
+#: several hundred independent trials, so a 3σ per-trial threshold yields about
+#: one false shoulder per pattern *by construction* — measured, one at 31.56° on
+#: a three-peak synthetic.  At 5σ the expected count is ~1e-4.  A false line is
+#: far worse here than a missed shoulder: it is the "confident wrong singleton"
+#: the FitReport gates exist to prevent, one rank down.
+PEAK_SHOULDER_MIN_SIGMA = 5.0
 #: Detection separation floor as a fraction of the *narrowest* predicted FWHM
 #: in range.  Deliberately smaller than
 #: ``model.forward.PAWLEY_OVERLAP_FWHM_FRAC`` (0.5, the point past which least
@@ -52,6 +62,24 @@ PEAK_MIN_PROMINENCE_SIGMA = 3.0
 #: 0.3 FWHM as a seed and let grouping plus the ΔBIC test decide whether the
 #: component survives, rather than never seeing it.
 PEAK_DETECT_SEPARATION_FWHM_FRAC = 0.25
+#: A candidate is an **Kα2 alias** — the same reflection's second emission line,
+#: not a line of its own — if it sits within this fraction of a FWHM of the
+#: Bragg-predicted Kα2 position of a stronger candidate.  Why this filter has to
+#: exist: once a doublet resolves (Δ2θ = 2·tanθ·Δλ/λ exceeds half a FWHM) the Kα2
+#: maximum is a separate detection, lands in its own group, and — because each
+#: group is fitted independently, with its own full doublet — comes back as a
+#: real line with real intensity.  Measured on a synthetic Cu Kα pattern: one
+#: spurious line per resolved doublet.  Stripping is not the alternative (see
+#: :mod:`pxrdref.indexing.peakfit`); recognising the alias is.
+PEAK_ALIAS_TOL_FWHM_FRAC = 0.3
+#: Observed height ratio, as multiples of the emission line's own ``weight``,
+#: inside which an alias is accepted as such.  Wide on purpose: the ratio equals
+#: the weight only for a fully resolved pair, and at partial overlap the apparent
+#: height at the Kα2 maximum is inflated by the Kα1 tail.  A *genuine* line that
+#: happens to sit at a stronger line's Kα2 position is indistinguishable from an
+#: alias in one pattern, so the drop is reported (``PEAK_KALPHA2_ALIAS``) rather
+#: than made silently.
+PEAK_ALIAS_RATIO_RANGE = (0.25, 4.0)
 #: How many of the most prominent detections the width census averages over.
 #: **Rank first, then measure** (WP-1028, measured on third-party lab data): a
 #: median FWHM over *all* detections above a prominence floor read 0.071° on a
@@ -70,11 +98,15 @@ PEAK_WIDTH_CENSUS_N = 12
 #: should come back at its bound with a flag rather than converge somewhere
 #: unrelated.
 PEAK_POSITION_BOUND_FWHM = 0.5
-#: Multiplicative bounds on each fitted component FWHM relative to its seed.
-#: The lower bound is what keeps Γ strictly positive — the profile is
-#: (1/Γ)·f(x/Γ) — so no softplus reparameterisation is needed on top of the
-#: bounded trust-region solver.
-PEAK_WIDTH_BOUND_FACTORS = (0.2, 5.0)
+#: Bounds on each fitted **component** FWHM (Γ_G, Γ_L separately), as multiples
+#: of the group's seed combined Γ.  The lower one is a *positivity floor*, not a
+#: physical constraint, and it is tiny on purpose: a genuinely Lorentzian line
+#: has Γ_G → 0 and a genuinely Gaussian one has Γ_L → 0, so a floor at a
+#: fraction like 0.2 would forbid both limits.  All it has to do is keep Γ
+#: strictly positive, since the profile is (1/Γ)·f(x/Γ) — which is the only thing
+#: a softplus reparameterisation was ever buying here, and native trust-region
+#: bounds keep the analytic Jacobian in physical units with no chain factor.
+PEAK_WIDTH_BOUND_FACTORS = (1e-4, 5.0)
 #: Half-width of a group's fitting window, in seed FWHM beyond the outermost
 #: seed.  Far narrower than the refinement's ``WINDOW_FWHM_MULT = 30``, and for
 #: a different reason: there the whole pattern is modelled and a truncated tail

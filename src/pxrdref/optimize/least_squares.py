@@ -40,6 +40,7 @@ from ..model.forward import CompiledModel, DerivativeBases
 from ..model.restraints import restraint_partials
 from ..params.transforms import dphys_dinternal
 from ..params.vector import ParameterTable
+from .cancel import RefinementCancelled
 
 if TYPE_CHECKING:
     from ..params.multi import MultiParameterTable
@@ -491,11 +492,32 @@ def run_least_squares(model: CompiledModel, table: ParameterTable,
                       compute_uncertainties: bool = True,
                       events=None, stage: str = "",
                       backend: str = "numpy",
-                      solver: str = "trf") -> LSQOutcome:
+                      solver: str = "trf",
+                      cancel=None) -> LSQOutcome:
+    """Solve one stage.  ``cancel`` — a :class:`~.cancel.CancelToken`, read
+    between residual evaluations; a set token raises
+    :class:`~.cancel.RefinementCancelled` out of this call, leaving the model
+    and table exactly as the last accepted evaluation found them."""
     if solver not in SOLVERS:
         raise ValueError(f"unknown solver {solver!r}; available: {', '.join(SOLVERS)}")
     residual = _make_residual(model, table)
     jacobian = _jacobian_for(model, table, backend)
+
+    if cancel is not None:
+        # Both drivers, and *before* the event wrapper, so the check costs one
+        # branch on the path that would otherwise evaluate: the flag is read at
+        # an eval boundary, where the compiled state is quiescent — nothing
+        # reaches into the frozen discreteness.  This is deliberately not the LM
+        # driver's callback, which fires only on *accepted* points: an inner
+        # loop that never accepts a step would never see the token.
+        inner_c = residual
+
+        def residual(theta: np.ndarray):
+            if cancel.is_set():
+                raise RefinementCancelled(
+                    f"cancelled during stage {stage!r}" if stage else "cancelled",
+                    stage=stage)
+            return inner_c(theta)
 
     if events is not None and solver == "trf":
         # scipy TRF has no per-iteration callback, so the residual closure is

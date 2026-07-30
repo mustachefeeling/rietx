@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import warnings
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -26,6 +27,7 @@ from .model.absorption import (
 )
 from .model.forward import CompiledModel, Mode, compile_model
 from .model.restraints import summarise_restraints
+from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import SOLVERS, run_least_squares
 from .optimize.qpa import (
     compute_qpa,
@@ -490,10 +492,45 @@ class Refinement:
                     UserWarning, stacklevel=3)
         return table
 
+    @contextmanager
+    def _abandon_on_cancel(self, cancel, stage_name: str, completed: list, stream):
+        """Make "the in-flight stage is abandoned" literally true.
+
+        A stage writes to ``self.structure``/``self.instrument`` *before*
+        solving — the between-stage recompile needs the freed values in the
+        models, and a seeding stage (extinction's softplus lift, the Stephens
+        isotropic ray) changes them.  Without restoring, a cancelled stage would
+        leave that seed behind: half a stage, and exactly the kind of state
+        nobody would think to look for.  The parameter table and the history
+        node need no undoing — the table is local to the run and is committed
+        only after a solve returns, so cancelling simply means neither happens.
+
+        The copies are taken only when a token is present, so an ordinary fit
+        pays nothing.
+        """
+        if cancel is None:
+            yield
+            return
+        saved = (self.structure.model_copy(deep=True),
+                 self.instrument.model_copy(deep=True))
+        try:
+            yield
+        except RefinementCancelled as exc:
+            self.structure, self.instrument = saved
+            exc.stage = exc.stage or stage_name
+            exc.completed_stages = list(completed)
+            exc.node_id = self._head_id
+            if stream is not None:
+                # the stage really did end, so it gets a stage_end — with no
+                # costs, because an abandoned stage has no outcome to report
+                stream.emit("stage_end", stage=exc.stage, status="cancelled")
+            raise
+
     def _run_stage(self, stage: Stage, data: PatternData, mode: Mode,
                    table: ParameterTable, model: CompiledModel | None,
                    two_theta_limits: tuple[float, float] | None,
-                   correlation_guard: float, events=None):
+                   correlation_guard: float, events=None, cancel=None,
+                   stage_index: int = 1, n_stages: int = 1):
         """One stage: free params, recompile, solve, commit, guard.
 
         The recompile is what keeps the residual smooth *within* the stage —
@@ -554,10 +591,12 @@ class Refinement:
         if events is not None:
             events.emit("stage_start", stage=stage.name, turn_on=list(stage.turn_on),
                         freed=freed, n_free=len(table.free_paths),
-                        n_points=len(model.tt))
+                        n_points=len(model.tt),
+                        index=stage_index, n_stages=n_stages)
         outcome = run_least_squares(model, table, max_iter=stage.max_iter,
                                     events=events, stage=stage.name,
-                                    backend=self._backend, solver=self._solver)
+                                    backend=self._backend, solver=self._solver,
+                                    cancel=cancel)
         table.commit(outcome.theta)
 
         if mode == "lebail":
@@ -574,13 +613,19 @@ class Refinement:
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
-            events=None) -> RefinementResult:
+            events=None, cancel=None) -> RefinementResult:
         """Run a staged refinement.
 
         ``events`` — optional per-iteration telemetry: a path (JSONL appended),
         a callable (called per event dict), or an
         :class:`~pxrdref.history.events.EventStream`.  See that module for the
         record format; ``pxrdref watch`` tails it live.
+
+        ``cancel`` — an :class:`~pxrdref.optimize.cancel.CancelToken` another
+        thread can set.  The stage in flight is abandoned (no node, no commit,
+        the models restored to their pre-stage values) and
+        :class:`~pxrdref.optimize.cancel.RefinementCancelled` is raised carrying
+        the stages that *did* complete and the node the working state stands at.
         """
         if isinstance(plan, str):
             if plan == "mccusker_default" and mode == "lebail":
@@ -614,29 +659,18 @@ class Refinement:
         outcome = None
         model = None
 
-        for stage in plan.stages:
-            model, outcome, guard, freed = self._run_stage(
-                stage, data, mode, table, model, two_theta_limits,
-                plan.correlation_guard, events=stream)
-            stage_diagnostics = _guard_diagnostics(guard)
-            diagnostics.extend(stage_diagnostics)
-            stage_results.append(StageResult(
-                name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
-                cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
-                freed=freed,
-                n_constraint_truncations=outcome.n_constraint_truncations,
-            ))
-            if stream is not None and hasattr(stream, "write_snapshot"):
-                # live monitoring (viz.live.LiveSession): rewrite the HTML view
-                stream.write_snapshot(model, table, outcome, stage.name)
-            if tree is not None:
-                table.apply_to_models(self.structure, self.instrument)
-                self._free_paths = list(table.free_paths)
-                self._record(tree, NodeAction(
-                    kind="stage", name=stage.name, turn_on=list(stage.turn_on),
-                    max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
-                    seed=stage.seed, strain_seed=stage.strain_seed,
-                ), model, table, outcome, stage_diagnostics)
+        try:
+            model, outcome, stage_results, diagnostics = self._run_plan(
+                plan, data, mode, table, two_theta_limits, tree, stream, cancel,
+                stage_results, diagnostics)
+        except RefinementCancelled as exc:
+            if stream is not None:
+                stream.emit("fit_end", status="cancelled", stage=exc.stage,
+                            completed=[s.name for s in exc.completed_stages],
+                            node_id=exc.node_id)
+                if stream is not events:
+                    stream.close()
+            raise
 
         assert model is not None and outcome is not None
         self._model = model
@@ -665,25 +699,73 @@ class Refinement:
                 stream.close()
         return self.result_
 
+    def _run_plan(self, plan, data, mode, table, two_theta_limits, tree, stream,
+                  cancel, stage_results, diagnostics):
+        """The stage loop of :meth:`fit`, split out so cancellation has one exit.
+
+        Returns ``(model, outcome, stage_results, diagnostics)``; raises
+        :class:`RefinementCancelled` with the completed stages attached.
+        """
+        model = outcome = None
+        for k, stage in enumerate(plan.stages, start=1):
+            with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
+                model, outcome, guard, freed = self._run_stage(
+                    stage, data, mode, table, model, two_theta_limits,
+                    plan.correlation_guard, events=stream, cancel=cancel,
+                    stage_index=k, n_stages=len(plan.stages))
+            stage_diagnostics = _guard_diagnostics(guard)
+            diagnostics.extend(stage_diagnostics)
+            stage_results.append(StageResult(
+                name=stage.name, status=outcome.status, n_iterations=outcome.n_iterations,
+                cost_initial=outcome.cost_initial, cost_final=outcome.cost_final,
+                freed=freed,
+                n_constraint_truncations=outcome.n_constraint_truncations,
+            ))
+            if stream is not None and hasattr(stream, "write_snapshot"):
+                # live monitoring (viz.live.LiveSession): rewrite the HTML view
+                stream.write_snapshot(model, table, outcome, stage.name)
+            if tree is not None:
+                table.apply_to_models(self.structure, self.instrument)
+                self._free_paths = list(table.free_paths)
+                self._record(tree, NodeAction(
+                    kind="stage", name=stage.name, turn_on=list(stage.turn_on),
+                    max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
+                    seed=stage.seed, strain_seed=stage.strain_seed,
+                ), model, table, outcome, stage_diagnostics)
+        return model, outcome, stage_results, diagnostics
+
     def run_stage(self, data: PatternData, stage: Stage, *,
                   mode: Mode | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
-                  correlation_guard: float = 0.98) -> RefinementResult:
+                  correlation_guard: float = 0.98,
+                  events=None, cancel=None) -> RefinementResult:
         """Run a single stage from the current state, recording a child node.
 
         This is the incremental verb: after ``checkout``, it continues down a
         new branch.  (``fit`` is the other verb — it resets the free set and
         runs a whole plan from wherever the working state currently is.)
+
+        ``events`` and ``cancel`` mean exactly what they mean on :meth:`fit`,
+        and are here for the same reason the GUI exists: interactive
+        single-stage work was the one path with no telemetry at all, so a client
+        driving stages one at a time was blind to a run it had started.
         """
         mode = mode or self._mode
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
         self._two_theta_limits = ttl
         tree = self._ensure_history(data)
+        stream = as_event_stream(events)
 
         table = self._prepare_table(restore=True)
-        model, outcome, guard, freed = self._run_stage(
-            stage, data, mode, table, self._model, ttl, correlation_guard)
+        try:
+            with self._abandon_on_cancel(cancel, stage.name, [], stream):
+                model, outcome, guard, freed = self._run_stage(
+                    stage, data, mode, table, self._model, ttl, correlation_guard,
+                    events=stream, cancel=cancel)
+        finally:
+            if stream is not None and stream is not events:
+                stream.close()  # we created it from a path/callable
         diagnostics = _guard_diagnostics(guard)
         if mode == "pawley":
             diagnostics.extend(_pawley_unresolved_diagnostics(model, self.structure))
@@ -1583,12 +1665,19 @@ def refine(data: PatternData, structure: Structure, instrument: Instrument,
            *, mode: Mode = "rietveld", plan: RefinementPlan | str = "mccusker_default",
            two_theta_limits: tuple[float, float] | None = None,
            backend: str = "numpy", solver: str = "trf",
-           history: bool | str | Path | RefinementTree = False) -> RefinementResult:
+           history: bool | str | Path | RefinementTree = False,
+           events=None, cancel=None) -> RefinementResult:
     """One-shot functional API: ``refine(data, structure, instrument)``.
 
     History defaults to *off* here: this call discards the ``Refinement``, so
     an in-memory tree would be unreachable.  Pass a path to keep one.
+
+    ``events``/``cancel`` are :meth:`Refinement.fit`'s, forwarded — a run this
+    call started is otherwise unwatchable and unstoppable, and a caller who
+    reached for the one-shot form is the one least able to build the object
+    graph that would fix that.
     """
     ref = Refinement(structure, instrument, backend=backend, solver=solver,
                      history=history)
-    return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits)
+    return ref.fit(data, mode=mode, plan=plan, two_theta_limits=two_theta_limits,
+                   events=events, cancel=cancel)

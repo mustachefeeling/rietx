@@ -12,7 +12,9 @@ validation, never for writing.
 Event kinds (closed set, versioned with the schema):
 
 * ``fit_start`` / ``fit_end`` — one refinement run (mode, plan, statistics);
-* ``stage_start`` / ``stage_end`` — one staged-plan stage (freed paths, costs);
+* ``stage_start`` / ``stage_end`` — one staged-plan stage (freed paths, costs).
+  ``stage_start`` carries ``index`` (**1-based**, so it reads "stage 3 of 5"
+  directly) and ``n_stages``;
 * ``eval`` — one residual evaluation inside scipy TRF (cost, eval counter).
   scipy exposes no per-iteration callback, so the residual closure itself is
   the hook; ``n_eval`` counts every call (function + finite-difference), which
@@ -20,6 +22,20 @@ Event kinds (closed set, versioned with the schema):
 
 Every line carries ``t`` (Unix seconds) so a tail of the file doubles as a
 progress bar; ``pxrdref watch`` renders it as the console pane.
+
+**Adding a field to an existing kind does not bump**
+:data:`EVENT_SCHEMA_VERSION`.  ``data`` is an open dict on both sides: readers
+render whatever keys arrive (``watch.py`` iterates ``Object.entries``) and
+:class:`EventRecord` validates the envelope, not the payload — so an older
+reader tailing a newer log shows the new key and misses nothing it knew about.
+A **new kind**, a **removed or renamed field**, or a change of a field's
+*meaning* is what the version is for.  ``stage_start.index``/``n_stages``
+(WP-1006) were added under exactly this rule; the note is here because the
+reflex is to bump, and a version that moves for additive changes stops being
+usable as a compatibility signal.  A cancelled run's ``fit_end`` carries
+``status="cancelled"`` and *omits* ``rwp``/``gof`` — there is no fitted result
+to report — which is the same rule seen from the reader's side: a consumer
+reads ``data`` with ``.get``, never by unpacking a fixed shape.
 """
 
 from __future__ import annotations

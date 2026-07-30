@@ -70,9 +70,9 @@ from ..model.profiles.voigt import fwhm_to_voigt_params, voigt_derivs
 from ..optimize.statistics import normal_covariance
 from ..report.layer2 import delta_bic
 from ..schemas.indexing import (
-    PEAK_ASYMMETRY_MIN_SIGMA,
     PEAK_KEEP_COMPONENT_MIN_DELTA_BIC,
     PEAK_MAX_RESEED_PASSES,
+    PEAK_MIN_HEIGHT_SIGMA,
     PEAK_POSITION_BOUND_FWHM,
     PEAK_WIDTH_BOUND_FACTORS,
 )
@@ -116,6 +116,9 @@ class GroupFit:
     at_bound: np.ndarray           # bool per component
     asymmetry_t: np.ndarray        # odd-cubic residual projection, in σ
     n_points: int
+    #: 2θ where an extra component would go, if the residual asks for one at
+    #: all.  A *proposal*: :func:`fit_group`'s ΔBIC test decides.
+    reseed_at: float | None = None
 
 
 class _GroupModel:
@@ -274,16 +277,19 @@ class _GroupModel:
     # -- seeds and bounds --------------------------------------------------
     def seed(self, pos: np.ndarray) -> np.ndarray:
         """Seed vector: the calibrated width split Gaussian-dominant, and each
-        component's area from its net height × its FWHM."""
+        component's area as net height × FWHM.
+
+        A unit-area profile of width Γ has height ≈ 0.94/Γ (Gaussian) to 0.64/Γ
+        (Lorentzian), so height × Γ is the area to within tens of percent — which
+        is all a seed for a linear-in-intensity parameter needs.
+        """
         gg = _SEED_GAUSS_FRACTION * self.seed_fwhm
         gl = (1.0 - _SEED_GAUSS_FRACTION) * self.seed_fwhm
         net = self.y - self.env
         inten = np.empty(len(pos))
         for j, p0 in enumerate(pos):
             k = int(np.argmin(np.abs(self.x - p0)))
-            h = max(float(net[k]), 1e-3)
-            # area of a unit-height peak of this FWHM, split across the lines
-            inten[j] = h * self.seed_fwhm / max(self.line_weight.sum(), 1e-12)
+            inten[j] = max(float(net[k]), 1e-3) * self.seed_fwhm
         return self.pack(gg, gl, np.asarray(pos, dtype=np.float64), inten)
 
     def bounds(self, pos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -299,8 +305,7 @@ class _GroupModel:
         """
         f_lo, f_hi = PEAK_WIDTH_BOUND_FACTORS
         r = PEAK_POSITION_BOUND_FWHM * self.seed_fwhm
-        lo = [f_lo * _SEED_GAUSS_FRACTION * self.seed_fwhm * 1e-3,
-              f_lo * (1.0 - _SEED_GAUSS_FRACTION) * self.seed_fwhm * 1e-3]
+        lo = [f_lo * self.seed_fwhm, f_lo * self.seed_fwhm]
         hi = [f_hi * self.seed_fwhm, f_hi * self.seed_fwhm]
         for p0 in pos:
             lo += [p0 - r, 0.0]
@@ -324,7 +329,7 @@ def _asymmetry_t(m: _GroupModel, p: np.ndarray) -> np.ndarray:
     """
     gg, gl, pos, _inten = m.unpack(p)
     w1, w2 = m._widths(gg, gl)
-    gamma = w1 if m.shape != "voigt" else m.seed_fwhm
+    gamma = float(tch_gamma_eta(gg, gl)[0])
     r = m.residual(p)
     out = np.zeros(m.n)
     for j in range(m.n):
@@ -365,13 +370,11 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
     pos = np.asarray(group.seed_two_theta, dtype=np.float64)
     best = _fit_at(det, group, instrument, pos)
     for _ in range(max_reseed):
-        extra = _reseed_position(best)
-        if extra is None:
+        if best.reseed_at is None or not best.converged:
             break
-        trial_pos = np.sort(np.concatenate([best.two_theta, [extra]]))
+        trial_pos = np.sort(np.concatenate([best.two_theta, [best.reseed_at]]))
         trial = _fit_at(det, group, instrument, trial_pos)
-        gain = delta_bic(best.chi2_red * (best.n_points - (2 + 2 * best.n)),
-                         trial.chi2_red * (trial.n_points - (2 + 2 * trial.n)),
+        gain = delta_bic(_chi2(best), _chi2(trial),
                          n_points=best.n_points, n_added=2)
         if gain < PEAK_KEEP_COMPONENT_MIN_DELTA_BIC:
             break
@@ -379,16 +382,14 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
     return best
 
 
-def _reseed_position(fit: GroupFit) -> float | None:
-    """Where an extra component would go, or ``None`` if none is warranted.
+def _chi2(fit: GroupFit) -> float:
+    """Σr² from the reported reduced χ², undoing the (N−P) division only.
 
-    The residual's largest positive excursion inside the window, provided it
-    clears the same σ-normalised height a detection would have had to.  This is
-    a *proposal*; the ΔBIC test in :func:`fit_group` decides.
+    ``delta_bic`` wants the two models' *absolute* χ² at a common N, and
+    ``normal_covariance`` reports the reduced form; the floor it applies to the
+    covariance is not applied to the returned value, so this is the raw sum.
     """
-    if not fit.converged or fit.chi2_red < 1.5:
-        return None
-    return fit._reseed_at
+    return fit.chi2_red * max(fit.n_points - (2 + 2 * fit.n), 1)
 
 
 def _fit_at(det: Detection, group: PeakGroup, instrument: Instrument,
@@ -397,35 +398,31 @@ def _fit_at(det: Detection, group: PeakGroup, instrument: Instrument,
     m = _GroupModel(det, group, instrument, len(pos), group.seed_fwhm)
     p, res = _solve(m, pos)
     gg, gl, fit_pos, inten = m.unpack(p)
-    n_free = len(p)
     cov, chi2_red = normal_covariance(
-        np.asarray(res.jac), np.asarray(res.fun), n_free, chi2_floor=True,
+        np.asarray(res.jac), np.asarray(res.fun), len(p), chi2_floor=True,
         what="peak-group residual entering the covariance solve")
     esd = np.sqrt(np.maximum(np.diag(cov), 0.0))
-    fwhm, eta = m._widths(gg, gl)
-    if m.shape == "voigt":
-        fwhm, eta = float(tch_gamma_eta(gg, gl)[0]), float(tch_gamma_eta(gg, gl)[1])
+    # the combined TCH Γ and η are the reported width and mixing under *both*
+    # shapes: Γ_TCH tracks the true Voigt FWHM to ~1 %, which is what the TCH
+    # quintic is fitted to, and one width summary keeps a peak list comparable
+    # across instruments that differ only in `profile.shape`
+    fwhm, eta = tch_gamma_eta(gg, gl)
 
     lo, hi = m.bounds(pos)
     tol = 1e-8 * np.maximum(np.abs(pos), 1.0)
     at_bound = np.array([
         bool(abs(fit_pos[j] - lo[2 + 2 * j]) <= tol[j]
              or abs(fit_pos[j] - hi[2 + 2 * j]) <= tol[j])
-        for j in range(len(pos))])
+        for j in range(len(pos))], dtype=bool)
 
-    net_resid = res.fun
-    fit = GroupFit(
+    # a proposal for one more component: the residual's largest positive
+    # excursion, held to the same σ-normalised height a detection needed
+    k = int(np.argmax(res.fun))
+    reseed = float(m.x[k]) if res.fun[k] > PEAK_MIN_HEIGHT_SIGMA else None
+
+    return GroupFit(
         group=group, n=len(pos), two_theta=fit_pos,
         two_theta_esd=esd[2::2], intensity=inten, intensity_esd=esd[3::2],
         gamma_g=gg, gamma_l=gl, fwhm=float(fwhm), eta=float(eta),
         chi2_red=chi2_red, converged=bool(res.status > 0), at_bound=at_bound,
-        asymmetry_t=_asymmetry_t(m, p), n_points=len(m.x))
-    # where an extra component would go, if the caller asks for one
-    k = int(np.argmax(net_resid))
-    fit._reseed_at = (float(m.x[k]) if net_resid[k] > PEAK_ASYMMETRY_MIN_SIGMA
-                      else None)
-    return fit
-
-
-#: attached by :func:`_fit_at`, read by :func:`_reseed_position`
-GroupFit._reseed_at = None
+        asymmetry_t=_asymmetry_t(m, p), n_points=len(m.x), reseed_at=reseed)

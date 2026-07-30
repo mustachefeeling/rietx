@@ -35,8 +35,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.ndimage import uniform_filter1d
-from scipy.signal import find_peaks, peak_widths
+from scipy.signal import find_peaks, peak_widths, savgol_coeffs, savgol_filter
 
 from ..background import background_envelope
 from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC, _overlap_groups
@@ -44,6 +43,8 @@ from ..model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
 from ..model.profiles.fcj import fcj_extent_deg
 from ..model.profiles.pseudovoigt import tch_gamma_eta
 from ..schemas.indexing import (
+    PEAK_ALIAS_RATIO_RANGE,
+    PEAK_ALIAS_TOL_FWHM_FRAC,
     PEAK_DETECT_SEPARATION_FWHM_FRAC,
     PEAK_MIN_HEIGHT_SIGMA,
     PEAK_MIN_PROMINENCE_SIGMA,
@@ -99,6 +100,10 @@ class Detection:
     fwhm_predicted: float
     width_scale: float
     n_shoulder_seeds: int
+    #: 2θ of candidates dropped as Kα2 aliases of a stronger line.  Reported,
+    #: because in one pattern an alias and a genuine coincident line are
+    #: indistinguishable (:data:`~pxrdref.schemas.indexing.PEAK_ALIAS_RATIO_RANGE`).
+    alias_two_theta: np.ndarray
 
 
 def predicted_fwhm(two_theta_deg: np.ndarray, instrument: Instrument) -> np.ndarray:
@@ -123,34 +128,97 @@ def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
     """Curvature seeds for peaks that never reach a local maximum.
 
     A shoulder on a strong line has no maximum, so ``find_peaks`` cannot see
-    it — but it does have a curvature minimum.  The amplitude that curvature
-    implies is recovered from the Gaussian relation |y″| = 8ln2·h/Γ² and put
-    through the *same* σ-normalised threshold as a detected peak, so a shoulder
-    seed and a detection mean the same thing about significance.
+    it — but it does have a curvature minimum, and the amplitude that curvature
+    implies follows from the Gaussian relation |y″| = 8ln2·h/Γ².
+
+    **The threshold has to be the filter's own noise, not the channel's.**  A
+    second derivative amplifies white noise by ~1/step², so on a 0.01°-step
+    pattern the raw curvature of pure noise implies an apparent peak height an
+    order of magnitude above any per-channel σ — a threshold written against
+    ``sigma[i]`` passes essentially every noise dip, and the first version of
+    this function did exactly that (measured: hundreds of spurious seeds on a
+    three-peak synthetic pattern).  So the derivative is a Savitzky-Golay filter
+    over a window of about one FWHM, and its noise is *propagated exactly*: the
+    filter is linear with known coefficients c, so σ(y″) = ‖c‖₂·σ.  The test is
+    then the same σ-normalised significance a detection had to clear, which is
+    what makes a shoulder seed and a detection mean the same thing.
 
     These are **seeds only**.  Whether the component survives is decided by the
     group fit's ΔBIC test (:mod:`.peakfit`), not here: this function is allowed
-    to be generous, and being generous is why the ΔBIC gate exists.
+    to be generous, and being generous is why that gate exists.
     """
-    step = float(np.median(np.diff(tt)))
     out: list[int] = []
-    if len(tt) < 5:
+    step = float(np.median(np.diff(tt)))
+    if len(tt) < 9 or step <= 0.0:
         return np.array(out, dtype=np.int64)
-    # smooth over ~a quarter FWHM before differentiating twice: the second
-    # difference of raw counts is dominated by noise at any realistic step
-    m = max(int(0.25 * float(np.median(fwhm)) / max(step, 1e-12)), 3)
-    smooth = uniform_filter1d(net, m, mode="nearest")
-    curv = np.gradient(np.gradient(smooth, tt), tt)
+    width = max(int(float(np.median(fwhm)) / step), 5)
+    width = min(width | 1, (len(tt) - 1) | 1)   # odd, and inside the pattern
+    poly = min(4, width - 1)
+    if poly < 3:                                # deriv=2 needs order ≥ 3
+        return np.array(out, dtype=np.int64)
+    curv = savgol_filter(net, width, poly, deriv=2, delta=step, mode="interp")
+    coef_norm = float(np.linalg.norm(
+        savgol_coeffs(width, poly, deriv=2, delta=step)))
     dips, _ = find_peaks(-curv)
     for i in dips:
-        h_implied = -curv[i] * fwhm[i] ** 2 / _LN2_8
-        if h_implied <= PEAK_MIN_PROMINENCE_SIGMA * sigma[i]:
+        scale = fwhm[i] ** 2 / _LN2_8
+        h_implied = -curv[i] * scale
+        h_sigma = coef_norm * sigma[i] * scale
+        if h_implied <= PEAK_MIN_PROMINENCE_SIGMA * h_sigma:
             continue
         gap = PEAK_DETECT_SEPARATION_FWHM_FRAC * fwhm[i]
         if len(found) and np.min(np.abs(tt[found] - tt[i])) < gap:
             continue
         out.append(int(i))
     return np.array(sorted(out), dtype=np.int64)
+
+
+def _drop_kalpha2_aliases(tt: np.ndarray, idx: np.ndarray, height: np.ndarray,
+                          fwhm: np.ndarray, instrument: Instrument,
+                          ) -> tuple[np.ndarray, np.ndarray]:
+    """Split candidates into (real lines, Kα2 aliases of stronger candidates).
+
+    Once the doublet resolves, the Kα2 maximum is a detection in its own right
+    and — since every group is fitted independently, each with its *own* full
+    doublet — it comes back as a line with real intensity.  So it has to be
+    recognised here.  Same d-spacing, different λ, exactly the ghost transform:
+    sin θ_alias = (λ_l/λ₀)·sin θ_parent, checked against the candidate's height
+    ratio to the parent.
+
+    The parent must be *stronger*, which is what keeps the relation
+    antisymmetric and stops a pair annihilating each other; ties are broken by
+    the lower 2θ, since the alias of a Kα1 line is always above it.
+    """
+    lines = instrument.source.lines
+    if len(lines) < 2 or not len(idx):
+        return idx, np.array([], dtype=np.int64)
+    lo_r, hi_r = PEAK_ALIAS_RATIO_RANGE
+    alias: set[int] = set()
+    order = np.argsort(height)[::-1]            # strongest parent first
+    for a in order:
+        if int(idx[a]) in alias:
+            continue                            # an alias cannot parent one
+        for il in range(1, len(lines)):
+            ratio = lines[il].wavelength / lines[0].wavelength
+            s = ratio * np.sin(np.radians(0.5 * tt[idx[a]]))
+            if not (-1.0 <= s <= 1.0):
+                continue
+            predicted = 2.0 * np.degrees(np.arcsin(s))
+            w = lines[il].weight.value
+            for b in range(len(idx)):
+                if b == a or int(idx[b]) in alias:
+                    continue
+                if height[b] >= height[a]:
+                    continue
+                if abs(tt[idx[b]] - predicted) > (PEAK_ALIAS_TOL_FWHM_FRAC
+                                                  * fwhm[idx[b]]):
+                    continue
+                r = height[b] / max(height[a], 1e-12)
+                if lo_r * w <= r <= hi_r * w:
+                    alias.add(int(idx[b]))
+    keep = np.array([i for i in idx if int(i) not in alias], dtype=np.int64)
+    dropped = np.array(sorted(alias), dtype=np.int64)
+    return keep, dropped
 
 
 def detect_peaks(data: PatternData, instrument: Instrument, *,
@@ -197,12 +265,18 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
             scale = float(np.clip(fwhm_meas / ref, *PEAK_WIDTH_SCALE_BOUNDS))
     fwhm_seed_curve = scale * fwhm_pred
 
+    # the Kα2 maximum of a resolved doublet is not a line — drop it before it
+    # can become a group of its own with its own doublet
+    idx, alias_idx = _drop_kalpha2_aliases(
+        tt, idx, net[idx], fwhm_seed_curve, instrument)
+
     shoulder_idx = (_shoulder_seeds(tt, net, sigma, fwhm_seed_curve, idx)
                     if shoulders else np.array([], dtype=np.int64))
     all_idx = np.concatenate([idx, shoulder_idx]).astype(np.int64)
     if not len(all_idx):
         return Detection(tt, y, sigma, env, [], fwhm_meas,
-                         float(np.median(fwhm_pred)), scale, 0)
+                         float(np.median(fwhm_pred)), scale, 0,
+                         tt[alias_idx])
     order = np.argsort(tt[all_idx])
     all_idx = all_idx[order]
     is_shoulder = np.isin(all_idx, shoulder_idx)
@@ -224,7 +298,8 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
         out.append(PeakGroup(i0=i0, i1=i1, seed_two_theta=seeds, seed_fwhm=fw,
                              from_shoulder=is_shoulder[members]))
     return Detection(tt, y, sigma, env, out, fwhm_meas,
-                     float(np.median(fwhm_pred)), scale, int(len(shoulder_idx)))
+                     float(np.median(fwhm_pred)), scale, int(len(shoulder_idx)),
+                     tt[alias_idx])
 
 
 def _group_indices(tt: np.ndarray, fwhm: np.ndarray) -> list[np.ndarray]:
