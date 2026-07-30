@@ -222,6 +222,19 @@ powder data cannot support one.
      ~0.1 s per class after a ~2 s shared profile fit, so seven classes are 2.2 s
      and an orthorhombic-P screen's 71 would be ~10 s.
 
+  **The acceptance criterion above needed re-reading, and the reason is worth
+  keeping.** It asks for "the screw-free class refuted with its forbidden hkl
+  reported" on the synthetic pattern. That cannot happen and should not:
+  **refutation is one-sided by construction.** An extinction symbol asserts
+  absences and nothing else, so intensity at a position it forbids contradicts
+  it, while a class claiming *too few* absences asserts nothing the data can
+  falsify — `P 1 c 1` is a perfectly true statement about a P 2₁/c pattern,
+  merely not the most specific true one. Preferring the specific answer is what
+  the nested comparison is for, and the criterion is met from the other side
+  instead: inject one peak at 030 and `P 1 21/c 1` comes back refuted **naming
+  (0,3,0)** while `P 1 c 1`, which predicts a line there, is untouched and takes
+  first place. Both directions are tested.
+
   **Two design decisions worth not re-litigating.** `n_added` counts only
   *testable* forbidden lines (covered by data, separable from allowed ones);
   without that a class whose absences all hide under neighbours wins on parsimony

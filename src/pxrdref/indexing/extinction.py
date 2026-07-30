@@ -65,6 +65,16 @@ restricted model, and the reported ``delta_bic`` is BIC(class) − BIC(absence-f
 lattice): negative favours the class, and the difference between two classes'
 values is itself a ΔBIC because both share the reference.
 
+**Refutation is one-sided, and that is not a gap in the evidence.**  An extinction
+symbol asserts *absences* and nothing else, so intensity at a forbidden position
+contradicts it — while a class claiming **too few** absences asserts nothing that
+the data can falsify.  ``P 1 c 1`` is a perfectly true statement about a P 2₁/c
+pattern; it is merely not the most specific true one.  So a less restrictive class
+is never ``refuted``, only outranked, and preferring the specific answer is exactly
+what the nested comparison is for — which is also why the absence-free class always
+survives to the end as the reference, and why :meth:`ExtinctionScreen.best_or_none`
+needs a decisive *margin* rather than a refutation before it will answer at all.
+
 Markvardsen, David, Johnston & Shankland (2001), *Acta Cryst.* **A57**, 47-54 is
 the Bayesian formulation of this problem — a full posterior over **extinction
 symbols** (their term and their unit of answer, which is the corroboration that
@@ -80,6 +90,7 @@ from dataclasses import dataclass, field
 import gemmi
 import numpy as np
 
+from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     CellCandidate,
     ExtinctionCandidate,
@@ -627,17 +638,35 @@ def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
         ins, _seeded = seed_widths(ins, peaks)
     from ..refine import Refinement
 
-    pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
-                     ins, history=False)
-    profile = pre.fit(data, mode="lebail",
-                      plan=validation_plan(candidate, ins),
-                      two_theta_limits=two_theta_limits)
-    screen.profile_rwp = float(profile.statistics.rwp)
-    frozen = pre.fitted_instrument
+    # A failure *here* is about the cell, the instrument or the data — every
+    # class would inherit it — so it comes back as a failed screen with a reason
+    # rather than as a traceback, the same way ``validate_by_lebail`` reports a
+    # candidate the physics refuses.
+    try:
+        pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
+                         ins, history=False)
+        profile = pre.fit(data, mode="lebail",
+                          plan=validation_plan(candidate, ins),
+                          two_theta_limits=two_theta_limits)
+        screen.profile_rwp = float(profile.statistics.rwp)
+        frozen = pre.fitted_instrument
+        ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,
+                                         two_theta_limits)
+    except Exception as exc:                          # noqa: BLE001
+        screen.status = "failed"
+        screen.diagnostics = [Diagnostic(
+            level="error", code="EXTINCTION_SCREEN_FAILED",
+            message=(f"the reference Le Bail fit of the lattice group {symbol} "
+                     f"raised {type(exc).__name__}: {exc}, so no class could be "
+                     "screened against it"),
+            where=[f"{candidate.system} {candidate.centring}, cell "
+                   f"{tuple(round(v, 4) for v in candidate.cell)}"],
+            suggestion=("this is about the cell, the instrument or the data — "
+                        "every class would fail the same way.  Validate the cell "
+                        "first (index_pattern's validate_by_lebail), and check "
+                        "the wavelength is not on an absorption edge"))]
+        return screen
 
-    # 2 — the reference model: the same class, the same protocol as the rest
-    ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,
-                                     two_theta_limits)
     rows = ref_fit.reflection_table()
     primary = [r for r in rows if r.line == 0]
     if not primary:

@@ -362,6 +362,24 @@ def test_every_wrong_class_is_refuted_by_a_named_reflection(mono_screen):
         assert all(lo <= t <= hi for t in cand.forbidden_two_theta)
 
 
+def test_a_screen_that_cannot_run_reports_rather_than_raises():
+    """A cell with no reflections in range fails *every* class identically, so it
+    is a statement about the input — reported as a failed screen with a reason,
+    never as a traceback that would abandon the caller mid-workflow."""
+    from pxrdref.schemas.instrument import Instrument
+    from pxrdref.schemas.pattern import PatternData
+
+    tt = np.arange(5.0, 8.0, 0.02)
+    data = PatternData(two_theta=tt.tolist(),
+                       intensity=np.full_like(tt, 100.0).tolist())
+    screen = determine_extinction_symbol(
+        data, _candidate((4.0,) * 3 + (90.0,) * 3, "cubic"),
+        Instrument.debye_scherrer(wavelength=LAM), two_theta_limits=(5.0, 8.0))
+    assert screen.status == "failed"
+    assert screen.best_or_none() is None
+    assert [d.code for d in screen.diagnostics] == ["EXTINCTION_SCREEN_FAILED"]
+
+
 def test_a_capped_screen_abstains_because_the_question_was_not_asked():
     """``max_classes`` bounds the cost, and the answer says it was bounded.
 
