@@ -93,7 +93,10 @@
 
   async function apply(kind: string, paths: string[]) {
     try {
-      say(`# ${kind}\n${arms.find((a) => a.kind === kind)?.api_call ?? ""}`);
+      // no echo here: the shell prints the `api_call` the *server* said it would
+      // run, once, on the way back — echoing the arm's copy first would print the
+      // same line twice, and looking the arm up by kind would be wrong anyway
+      // (two textured phases share a kind)
       const payload = await api.applyAction(kind, paths);
       onapplied(payload);
       error = "";
