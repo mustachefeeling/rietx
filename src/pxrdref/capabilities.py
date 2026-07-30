@@ -3,7 +3,7 @@
 One call a client makes once, so it never has to guess: which backends exist and
 which are *installed*, which solvers and plan presets are registered, which
 intensity modes and anodes are known, what ``read_pattern`` actually opens, and
-which of the four versioned contracts it is talking to.
+which of the five versioned contracts it is talking to.
 
 **Every arm is quoted from the live registry, never restated.** The lesson is
 measured rather than stylistic: the fourth backend name arrived two days after
@@ -113,11 +113,17 @@ class Capabilities(Base):
     """The whole answer.  JSON-serialisable; WP-1008 serves it verbatim."""
 
     package_version: str
-    #: the four versioned contracts a client can be talking to, all live values
+    #: the five versioned contracts a client can be talking to, all live values.
+    #: The count moved from four to five when WP-1009 added the text document,
+    #: which is the argument for putting them here rather than in prose: a client
+    #: reads the arm, not a paragraph that has to be remembered.
     schema_version: str
     report_thresholds_version: str
     event_schema_version: str
     project_format_version: str
+    #: ``pxt N`` — the line-oriented project document (WP-1009).  A client that
+    #: offers a text pane needs it *before* fetching a document
+    textdoc_format_version: str
 
     backends: list[BackendCapability] = Field(default_factory=list)
     solvers: list[str] = Field(default_factory=list)
@@ -130,12 +136,19 @@ class Capabilities(Base):
 
 def capabilities() -> Capabilities:
     """Everything this build can do — see the module docstring."""
+    # Local, and not for cost: ``pxrdref.gui`` imports the session, which imports
+    # this module, so a top-level import here would be a cycle.  By call time the
+    # package is initialised and the constant is reachable — still quoted from
+    # where it is defined, never copied.
+    from .gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
+
     return Capabilities(
         package_version=_VERSION,
         schema_version=SCHEMA_VERSION,
         report_thresholds_version=THRESHOLDS_VERSION,
         event_schema_version=EVENT_SCHEMA_VERSION,
         project_format_version=PROJECT_FORMAT_VERSION,
+        textdoc_format_version=TEXTDOC_FORMAT_VERSION,
         backends=[_backend(name) for name in BACKEND_NAMES],
         solvers=list(SOLVERS),
         plans=[PlanCapability(name=name, title=info.title,

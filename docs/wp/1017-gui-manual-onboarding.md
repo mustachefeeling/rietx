@@ -64,6 +64,15 @@ should say because they are decisions, not accidents: comments in the text pane
 do **not** survive a re-render, and a glob line like `profile.* @` is bulk sugar
 that the next render expands into one line per parameter.
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30): the app's help text has a
+home — `panels/Stubs.svelte` is where "this build can do X" is rendered from
+`capabilities().features`, whose flags are derived predicates, so an in-app
+capability list cannot drift from the package. Two constants worth injecting into
+the manual beside the textdoc ones: the dist is **committed** (a manual chapter
+should say `npm --prefix gui run build` is only for contributors, never for users)
+and plotly is served from the installed package rather than bundled, which is why
+`[gui]` is a plotly-only extra.
+
 ## Non-goals
 
 - No screencasts/video, no hosted docs decisions (that is WP-1003's

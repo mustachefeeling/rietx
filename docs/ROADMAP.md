@@ -121,6 +121,31 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1010](wp/1010-frontend-scaffold.md) landed 2026-07-30 — there is a GUI you can
+look at.** `pxrdref gui my_sample.pxrd` now serves a real app: a Svelte 5 + Vite
+workspace under `gui/`, built into a **committed** dist at
+`src/pxrdref/gui/static` so `pip install pxrd-refine[gui]` never needs node —
+48.7 kB of JS (19.1 kB gzip), 52.8 kB of first-load bytes in three requests. It
+carries the shell, the obs/calc/diff/ticks plot and the console; the panels
+WP-1011…1016 owe are listed by name in the sidebar rather than stubbed. Driven end
+to end against the real server it converges a synthetic LaB6 project to **Rwp
+0.04153** and the plot's window endpoint returns 1498 of 4200 points with 17
+ticks. Its decisions are mostly refusals to duplicate: **no client-side
+decimator** (the window route already decimates through the shared helper, so the
+GUI plot and `pxrdref compare` cannot disagree about which points survive), **no
+vendored plotly** (injected at runtime from `/plotly.js`, so the app still boots
+without it and says so), and the **freshness digest defined once in stdlib
+Python** rather than as a JS hasher plus a Python re-implementation. Two hazards
+were found by checking rather than assuming, and both would have shipped
+silently: the repo-wide `*.html` ignore rule matched `static/index.html` — a dist
+whose freshness test is green on the machine that built it and whose entry point
+is missing from every fresh clone — and the wheel's contents are now asserted,
+because "installing the wheel never needs node" is the premise the whole design
+rests on. One acceptance line is left open and named: **boot-to-interactive was
+not measured**, because no browser was available in the session; a jsdom mount
+test stands in for the screenshot and rules out the blank-page failure, but it
+cannot say how the page looks.
+
 **[1009](wp/1009-textdoc-format.md) landed 2026-07-30** — the project as text
 (`.pxt`), one parser, server-side only. Its founding decision was not in the
 charter: **a delta is computed against the live project, never against the old
@@ -1014,7 +1039,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
 | [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ✅ 2026-07-30 | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
-| [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
+| [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |

@@ -97,6 +97,28 @@ project's `.atoms.` rows and would have rendered the mandatory dummy atom's
 a schema method (was a private in the session), so the plan editor's "custom"
 label and the text document's `plan` line cannot disagree.
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30) — the workspace exists and
+`npm --prefix gui run build` writes the committed dist. What a panel author needs:
+
+- **Add a panel, then delete its row.** `gui/src/panels/Stubs.svelte` lists every
+  owed panel by name and WP; a landing panel replaces its row rather than a
+  placeholder component, so you start from an empty file.
+- `gui/src/api.ts` is the only place a route is named, and `ApiError` carries
+  `code`/`where`/`details` with `.busy` (`RUN_IN_FLIGHT`) and `.empty`
+  (`NO_RESULT`/`NO_PROJECT`) already spelled out — **branch on those, not on
+  status codes or message text.**
+- Controls derive `disabled` from the **`state` frame** the stream pushes
+  (`App.svelte` holds it in one rune), never from what the last click hoped. A
+  parameter table is the panel where that matters most: a PATCH during a run is a
+  409 by design.
+- `gui/src/App.test.ts` is a **jsdom mount test** against a stubbed `fetch`; copy
+  its shape. It exists because no browser automation was available, and it catches
+  the failure a Python test cannot: a mount-time error rendering a blank page.
+  Note `resolve.conditions: ["browser"]` in `vite.config.ts` — without it
+  `mount()` comes from svelte's server build and throws.
+- Rebuild the dist in the same commit as any `gui/src/**` change, or
+  `tests/test_gui_dist.py` fails with "run `npm --prefix gui run build`".
+
 ## Non-goals
 
 - No structure/instrument *object* editing (WP-1014) — this WP edits θ-table

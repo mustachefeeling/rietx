@@ -56,6 +56,13 @@ the model does not already say (expanded symmetry images, bonds, a cell frame);
 if it would only reshape `Structure`, do it in the frontend and leave the route
 reserved rather than shipping a second view of the same fact.
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30): "zero new dependencies"
+now has a precedent to follow — plotly is **not** bundled, it is injected at
+runtime from `/plotly.js` (served out of the installed Python package), so the
+committed dist stays small and the page stays offline-safe. A 3D viewer built on
+the same plotly instance inherits that for free; anything else has to justify
+bytes in a dist that is reviewed as a diff.
+
 ## Non-goals
 
 - No coordination polyhedra, no supercell packing view, no measurement

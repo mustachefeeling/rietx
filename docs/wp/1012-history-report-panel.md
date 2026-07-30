@@ -97,6 +97,16 @@ From **WP-1008** (GUI server, landed 2026-07-30):
   not pass one. `POST /api/report/apply` is reserved for this WP and 404s naming
   it.
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30): the app shell, `api.ts`
+(with `history`, `checkout` and `report` already wired) and the console panel are
+in place; add panels beside `panels/Plot.svelte` and delete the matching row from
+`panels/Stubs.svelte`. Two shell behaviours to build on rather than duplicate:
+the shell refetches `/api/result` whenever the run state returns to `idle` (any
+way it ended) and holds the single `state` frame every control's `disabled`
+derives from, and `ApiError.empty` already marks `NO_RESULT` — which is exactly
+the state a history panel puts the app into every time it checks out a node.
+Rebuild the committed dist in the same commit as any `gui/src/**` edit.
+
 ## Non-goals
 
 - No new Layer-2 statistics or thresholds — render and apply what the

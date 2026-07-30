@@ -321,6 +321,25 @@ one signature change.
   Bail project's rows were answered for the wrong mode. Freeze the pair together.
 - `PlanSpec.preset_name()` is a new schema method (derived, never stored).
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30) — packaging facts the
+freeze has to decide about, all measured:
+
+- **The built frontend ships in the wheel** (`pxrdref/gui/static/{index.html,
+  build-info.json,assets/app.js,assets/app.css}`, verified by `uv build --wheel`
+  in `tests/test_gui_dist.py`). Hatchling includes it because it is a non-ignored
+  file under the package — and the repo-wide `*.html` ignore rule matched
+  `static/index.html` until this WP un-ignored it, which is a trap worth
+  re-checking before the first real publish.
+- **`gui/` itself must not ship** (it is outside `src/`, so it does not today),
+  and `gui/node_modules` is gitignored. An sdist that carried the workspace would
+  be harmless but confusing; decide explicitly.
+- The `[gui]` extra stays **plotly-only**: plotly.js is served from the installed
+  package at runtime rather than vendored into the dist, which is what keeps the
+  dist at 48.7 kB and the page offline-safe.
+- `.github/workflows/gui.yml` is a fourth workflow, priced at ~3 billed minutes
+  per GUI-touching push (~120/month at 40 such pushes). It joins the list of
+  things that go to zero when the repo goes public.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

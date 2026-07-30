@@ -15,6 +15,8 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
+npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
+npm --prefix gui test && npm --prefix gui run check    # vitest (incl. a jsdom mount test) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -108,8 +110,11 @@ title/description/modes/when-to-use per preset, in bijection with
 `capabilities()` (WP-1007, `capabilities.py`) is the one call that says what this
 build can do — backends *with whether each optional dependency imports here*,
 solvers, plans from `PLAN_INFO`, modes, anodes, the formats `read_pattern` opens,
-and the four versioned contracts (schema / report-thresholds / event-schema /
-project-format). **Every arm is quoted from a live registry and a meta-test fails
+and the **five** versioned contracts (schema / report-thresholds / event-schema /
+project-format / textdoc-format — the fifth arrived with WP-1009, which is the
+argument for keeping them in the arm rather than in prose: a client reads the
+field list, and a meta-test fails on a `*_version` field that is not the constant
+it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
 on a member missing from its arm**; `features` flags are *derived predicates* (a
 schema field's presence, a top-level export's existence), never literal `True`,
 which is what lets `features["indexing"]` flip by itself when `index()` lands.
@@ -176,6 +181,22 @@ attached, never restated. Two grammar facts are load-bearing: a `tie` renders
 widths are **per block** (a fixed width made the renderer emit
 `polarization 0.99min 0`, which its own parser refused). Comments parse but do not
 survive a re-render, on purpose: storing one would be a second authority.
+
+The **frontend** (WP-1010) is a Svelte 5 + Vite + TS workspace in `gui/` whose
+build output is **committed** under `src/pxrdref/gui/static`, so installing the
+wheel never needs node — and `tests/test_gui_dist.py` is what keeps that honest:
+the dist's digest is recomputed in the ordinary (node-free) suite, nothing may
+gitignore the dist (the repo-wide `*.html` rule matched its `index.html` once),
+the built files must be *in* the wheel, and no built file may name a remote host.
+The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
+build and the test; `build-info.json` deliberately carries no timestamp, because
+`git diff --exit-code src/pxrdref/gui/static` has to mean "stale", not "rebuilt".
+Two duplications were refused: the client does **not** decimate (`/api/result/window`
+does, through `viz.compare.decimation_index`, and zoom refetches the window) and
+plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
+and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
+`resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
+and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

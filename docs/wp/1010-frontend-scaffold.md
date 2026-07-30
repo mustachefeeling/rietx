@@ -1,6 +1,6 @@
 # WP-1010 — Frontend scaffold: build, committed dist, shell, plot, console
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: WP-1008
 
 ## Goal
@@ -117,20 +117,24 @@ persisted immediately, no save step.
 
 ## Tasks
 
-- [ ] `gui/` workspace: Svelte 5 + Vite + TS + vitest, lockfile committed;
+- [x] `gui/` workspace: Svelte 5 + Vite 8 + TS + vitest, lockfile committed;
       build → `src/pxrdref/gui/static/` with stable filenames +
       `build-info.json`.
-- [ ] `tests/test_gui_dist.py`: pure-Python source-hash freshness check +
-      the no-external-asset (offline) assertion.
-- [ ] App shell + theming + `api.ts` + `lib/sse.ts` (SSE with `?since=`
-      resume, `?poll=1` fallback).
-- [ ] Plot panel (obs/calc/diff/ticks, `lib/decimate.ts` port of
-      `_minmax_decimate`, window refetch on zoom) + vitest decimation
-      envelope property test.
-- [ ] Console panel on SSE with the per-action API-echo line.
-- [ ] `.github/workflows/gui.yml` (gui-paths trigger, node + build +
-      `git diff --exit-code` + vitest), priced in the workflow file per the
-      WP-1002 rule.
+- [x] `tests/test_gui_dist.py`: freshness check (digest defined **once**, in
+      `gui/scripts/build_info.py`) + the no-external-asset assertion + two
+      checks the WP did not ask for and needed: nothing gitignores the dist, and
+      the dist is in the wheel.
+- [x] App shell + theming + `api.ts` + `lib/stream.ts` (SSE with `?since=`
+      resume, `?poll=1` fallback, dropped-frame accounting).
+- [x] Plot panel (obs/calc/diff/ticks, window refetch on zoom). **No
+      `lib/decimate.ts`** — the server already decimates through the shared
+      helper; a client port would be a second answer. See the handover.
+- [x] Console panel on the stream with the per-action API echo.
+- [x] `.github/workflows/gui.yml` (gui-paths trigger, node + build +
+      `git diff --exit-code` + vitest + svelte-check), priced in the workflow
+      file per the WP-1002 rule.
+- [x] *(added)* `src/App.test.ts` — a jsdom mount test, standing in for the
+      screenshot no browser was available to take.
 
 ## Acceptance
 
@@ -150,5 +154,71 @@ Report in the handover (don't gate): first-load JS size, boot-to-interactive.
   decision).
 
 ## Handover log
+
+- **2026-07-30 — complete.** `npm --prefix gui run build` → 48.7 kB JS
+  (19.1 kB gzip) + 3.4 kB CSS; 11 vitest tests; svelte-check 0 errors over 315
+  files; `tests/test_gui_dist.py` 8 tests; fast suite 1126 passed / 107 skipped
+  in ~18 s. Driven end to end against the real server on a synthetic LaB6
+  project: boot payloads served, `POST /api/run` → converged **Rwp 0.04153, GoF
+  0.792** over five stages, and `/api/result/window?max_points=800` returning
+  1498 of 4200 points with 17 LaB6 ticks — i.e. exactly what the plot panel
+  consumes.
+
+  **Measured, reported not gated** (per the WP): first-load **52.8 kB in three
+  requests** (`/`, `app.js`, `app.css`) against a ≤250 kB gz budget; server-side
+  response times on localhost 0.5–0.8 ms for every JSON route, 11.9 ms for a
+  4000-point window (350 kB of JSON), 6.6 ms for plotly's 4.85 MB. **Boot-to-
+  interactive was not measured**: no browser automation was available in this
+  session, and a number invented from payload sizes would not be a measurement.
+  That is the one acceptance line left open, and it needs someone to open
+  `pxrdref gui` and look.
+
+  **Four decisions that changed the WP's plan:**
+
+  1. **The freshness digest is defined once, in stdlib Python**
+     (`gui/scripts/build_info.py`), called by both `npm run build` and the test.
+     The WP asked for a JS hasher plus a Python re-implementation — two answers
+     to "which files decide staleness", and the only thing the JS version buys is
+     not needing `python3` on a machine that is building a Python package's
+     frontend.
+  2. **`build-info.json` carries nothing time-varying.** A build timestamp would
+     make every rebuild a dist diff and destroy the property the digest exists
+     for: `git diff --exit-code` has to mean *stale*, not *rebuilt*.
+  3. **No `lib/decimate.ts`.** WP-1008's `/api/result/window` decimates with the
+     same `viz.compare.decimation_index` the comparison UI uses; a client port
+     would be a second answer to the one question a plot must not have two
+     answers to. Zoom refetches the window instead, which is also *more* honest
+     (full-resolution within the visible range rather than an interpolation of a
+     decimated set).
+  4. **plotly is loaded at runtime** by injecting a `<script src="/plotly.js">`
+     rather than importing it, so the build never learns about it: no 4.8 MB
+     vendored copy in the committed dist, and the app still boots (console,
+     panels, run controls) when plotly is absent — it says so in the plot pane.
+
+  **Two things found by checking rather than assuming**, both of which would have
+  shipped silently:
+
+  - **The repo-wide `*.html` ignore rule matched `static/index.html`.** The
+    committed dist would have lacked its entry point: the freshness test passes
+    on the machine that built it, and a fresh clone (or CI, or a wheel) serves
+    the placeholder page instead of the app. `.gitignore` now un-ignores
+    `src/pxrdref/gui/static/**` with a note, and `git check-ignore` is a test.
+  - **The wheel contents are asserted.** `uv build --wheel` and all four dist
+    files are inside. "Installing the wheel never needs node" is the premise of
+    the whole design, so it is measured rather than believed.
+
+  **Gotchas for the next frontend session.** (a) Under vitest, `svelte` resolves
+  to its *server* build and `mount()` throws `lifecycle_function_unavailable`;
+  the fix is `resolve: process.env.VITEST ? { conditions: ["browser"] } : undefined`
+  in `vite.config.ts`, which is Svelte's own documented incantation. (b) Vite 8.1
+  wants `build.codeSplitting: false` in place of rollup's
+  `inlineDynamicImports` but has not added the key to its types, hence the cast.
+  (c) `defineConfig` must come from `vitest/config`, not `vite`, or the `test`
+  key does not type-check. (d) `@sveltejs/vite-plugin-svelte` must be **v7** for
+  Vite 8 — v6 fails `npm install` on peer resolution.
+
+  **Not done, deliberately:** every panel WP-1011…1016 owns is a named row in the
+  sidebar rather than a stub component, so the next WP starts from an empty file
+  instead of deleting placeholder markup.
 
 - **2026-07-29** — created from the v1.0 GUI plan.

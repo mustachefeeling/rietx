@@ -80,6 +80,15 @@ From **WP-1009** (text document, landed 2026-07-30) — the primitive is done an
 - `PUT` is a mutating verb: 409 `RUN_IN_FLIGHT` while a run is going, and the
   state refusal outranks a parse complaint.
 
+From **WP-1010** (frontend scaffold, landed 2026-07-30): `api.ts` already has
+`textdoc()` / `putTextdoc(text, baseRevision, validateOnly)`, and CodeMirror will
+be the **first real dependency in the dist** — everything so far is 48.7 kB of JS
+because plotly is served from the Python package rather than bundled. Budget for
+it deliberately (the WP-1010 report: ≤250 kB gz first load, 52.8 kB used), and
+consider whether `vendor-cm.js` should be a separate chunk — `vite.config.ts`
+currently forces one chunk (`codeSplitting: false`) to keep the committed dist
+reviewable, which is a decision to revisit rather than inherit silently.
+
 ## Non-goals
 
 - No lezer grammar, no client-side parsing beyond the regex highlighter.

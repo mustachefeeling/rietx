@@ -93,16 +93,32 @@ def test_every_reader_format_appears_in_dispatch_order(caps):
     assert by_name["xy"].options == []
 
 
-def test_the_four_versioned_contracts_are_live_values(caps):
+def test_every_versioned_contract_is_a_live_value(caps):
+    """Five of them since WP-1009 — and the count is why they live in the arm.
+
+    A contract named only in prose is a contract someone forgets to add; this
+    test fails on a ``*_version`` field whose value is not the constant it
+    claims to quote, and the field list below is checked against the model, so a
+    sixth contract cannot arrive unnoticed either.
+    """
+    from pxrdref.gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
     from pxrdref.history.events import EVENT_SCHEMA_VERSION
     from pxrdref.report.schemas import THRESHOLDS_VERSION
     from pxrdref.schemas.common import SCHEMA_VERSION
     from pxrdref.schemas.project import PROJECT_FORMAT_VERSION
 
-    assert caps.schema_version == SCHEMA_VERSION
-    assert caps.report_thresholds_version == THRESHOLDS_VERSION
-    assert caps.event_schema_version == EVENT_SCHEMA_VERSION
-    assert caps.project_format_version == PROJECT_FORMAT_VERSION
+    live = {
+        "schema_version": SCHEMA_VERSION,
+        "report_thresholds_version": THRESHOLDS_VERSION,
+        "event_schema_version": EVENT_SCHEMA_VERSION,
+        "project_format_version": PROJECT_FORMAT_VERSION,
+        "textdoc_format_version": TEXTDOC_FORMAT_VERSION,
+    }
+    declared = {name for name in type(caps).model_fields
+                if name.endswith("_version") and name != "package_version"}
+    assert declared == set(live), "a versioned contract is missing from the arm"
+    for name, constant in live.items():
+        assert getattr(caps, name) == constant
     assert caps.package_version and caps.package_version[0].isdigit()
 
 
