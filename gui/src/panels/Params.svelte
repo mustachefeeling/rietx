@@ -21,7 +21,9 @@
     flatten,
     formatEsd,
     formatValue,
+    groupOf,
     heldKind,
+    leafName,
     normalize,
     selection,
     validateEdit,
@@ -224,7 +226,7 @@
           {@const bad = edits.has(row.path) ? validateEdit(row, edits.get(row.path)!) : ""}
           <div class="row" class:held={held !== ""} data-held={held}>
             <span class="path mono" title={row.held_because || row.path}>
-              {row.path.slice(row.path.lastIndexOf(".") + 1)}
+              {leafName(row.path, groupOf(row.path))}
             </span>
             {#if row.tie}
               <span class="value mono muted" title={row.held_because}>

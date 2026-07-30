@@ -43,6 +43,7 @@
 
   let node: HTMLDivElement | undefined = $state();
   let plotly: any = $state(null);
+  let observer: ResizeObserver | null = null;
   let loadError = $state("");
   let shown = $state<{ n: number; total: number; lo: number; hi: number } | null>(null);
   /** Drawing choices, not facts about the fit — so neither is persisted, for
@@ -67,7 +68,11 @@
       font: { color: fg, size: 11 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1] },
+      // anchored to the *lower* subplot, so the ticks and the title sit under
+      // the residual rather than between the two — where the title landed
+      // inside the residual plot, on top of a cumulative χ² curve
+      xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
+               anchor: "y2" },
       yaxis: {
         title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },
         domain: [0.28, 1],
@@ -156,7 +161,30 @@
       if (typeof a === "number" && typeof b === "number") draw(a, b);
       else if (ev["xaxis.autorange"]) draw();
     });
+    watch();
   }
+
+  /**
+   * Keep the canvas the size of its box.
+   *
+   * WP-1015 found this in the structure viewer and it landed here in WP-1029,
+   * because it is not a viewer bug: plotly's `responsive: true` listens for
+   * **window** resizes only, so a plot whose box shrinks without one keeps an
+   * oversized canvas — which then overhangs whatever is below it and swallows
+   * every click. This plot had nothing below it until the residual and scaling
+   * knobs arrived, and the browser reported the result in the defect's own
+   * words: a `<rect class="sdrag drag">` from the plot div "intercepts pointer
+   * events" on a button 40 px underneath it.
+   */
+  function watch() {
+    if (observer || !node || typeof ResizeObserver === "undefined") return;
+    observer = new ResizeObserver(() => {
+      if (node && plotly) plotly.Plots?.resize(node);
+    });
+    observer.observe(node);
+  }
+
+  $effect(() => () => observer?.disconnect());
 
   $effect(() => {
     plotKey; // redraw when the session says the curves moved

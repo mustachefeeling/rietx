@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { axisOf, clampSize, dragged } from "./resize";
+import { axisOf, clampSize, dragged, fitColumns } from "./resize";
 
 describe("which coordinate a grip reads", () => {
   it("is the one its pane grows along", () => {
@@ -59,5 +59,31 @@ describe("clamping", () => {
 
   it("rounds, so a style attribute is a whole number of pixels", () => {
     expect(clampSize(210.6, 26, 120, 0)).toBe(211);
+  });
+});
+
+describe("fitting stored columns into the window they are reopened in", () => {
+  it("passes them through when they fit", () => {
+    expect(fitColumns([400, 380], 1400, 200, 260)).toEqual([400, 380]);
+  });
+
+  it("shrinks them proportionally when they do not", () => {
+    // measured in a browser: widths chosen at 1500 px reopened at 1000 px left
+    // the third column **24 px** wide.  A drag clamps against the extent it was
+    // performed in; a stored width has to be clamped against the one it is
+    // rendered in, and no drag is present to do it.
+    const fitted = fitColumns([920, 393], 1000, 200, 260)!;
+    expect(fitted[0] + fitted[1]).toBeLessThanOrEqual(1000 - 260);
+    // the *relative* choice survives, which is the part still worth keeping
+    expect(fitted[0] / fitted[1]).toBeCloseTo(920 / 393, 1);
+  });
+
+  it("stops at the floor rather than shrinking to nothing", () => {
+    expect(fitColumns([900, 900], 500, 200, 260)).toEqual([200, 200]);
+  });
+
+  it("leaves them alone when nothing is measurable", () => {
+    expect(fitColumns([920, 393], 0)).toEqual([920, 393]);
+    expect(fitColumns(null, 1200)).toBeNull();
   });
 });

@@ -576,17 +576,23 @@
     gap: 6px;
   }
 
+  /* the one thing in the header that may be shortened: everything else is a
+     control, and a clipped `Advanced` is worse than a clipped filename */
   .project {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .stats {
     margin-left: auto;
+    flex: 0 0 auto;
     display: flex;
     align-items: baseline;
     gap: 6px;
+    white-space: nowrap;
   }
 
   .stats.immature strong {
@@ -603,6 +609,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 0 0 auto;
   }
 
   .segmented.theme button {

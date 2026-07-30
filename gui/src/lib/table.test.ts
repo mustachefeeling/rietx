@@ -18,6 +18,7 @@ import {
   formatEsd,
   formatValue,
   groupOf,
+  leafName,
   heldKind,
   normalize,
   num,
@@ -101,6 +102,22 @@ describe("grouping", () => {
     const rows = ROWS.map((r) => (r.path.startsWith("phases.0.cell") ? { ...r, vary: true } : r));
     const header = flatten(rows).items.find((i) => i.kind === "group" && i.key === "phases.0.cell");
     expect(header).toMatchObject({ n: 6, free: 6 });
+  });
+});
+
+describe("what a row is called", () => {
+  it("keeps the index's own name, so a row is never called `0`", () => {
+    // measured in a browser on NAC: five rows under one heading called `0`,
+    // `1`, `2`, `3` and `occ`, because the last dot segment of
+    // `phases.0.atoms.0.adp.0` is a bare index and says nothing (WP-1029)
+    expect(leafName("phases.0.atoms.0.adp.0", "phases.0.atoms.0")).toBe("adp.0");
+    expect(leafName("phases.0.atoms.0.dof.1", "phases.0.atoms.0")).toBe("dof.1");
+    expect(leafName("phases.0.microstrain.dof.2", "phases.0.microstrain")).toBe("dof.2");
+    // …and a leaf that is a name is left alone, heading or no heading
+    expect(leafName("phases.0.atoms.0.biso", "phases.0.atoms.0")).toBe("biso");
+    expect(leafName("phases.0.cell.a", "phases.0.cell")).toBe("a");
+    expect(leafName("instrument.source.lines.1.weight", "instrument.source.lines.1"))
+      .toBe("weight");
   });
 });
 

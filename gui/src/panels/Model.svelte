@@ -57,6 +57,7 @@
     seedPreset,
     structureSummary,
   } from "../lib/wizard";
+  import { fitColumns } from "../lib/resize";
   import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
 
@@ -88,6 +89,10 @@
     onmoved?: () => void;
   } = $props();
 
+  /** The narrowest a form column may be, and what the 3D column must keep. */
+  const COL_MIN = 200;
+  const VIEW_KEEP = 260;
+
   /** The cell edges as crystallography writes them.  The *path* keeps the
    *  spelled-out name — it is a parameter path, and a glyph in one would be a
    *  second vocabulary for the same field. */
@@ -98,7 +103,11 @@
   let colLocal = $state<number[] | null>(null);
   let colMeasured = $state([0, 0]);
   let editorsEl: HTMLElement | undefined = $state();
-  const cols = $derived(colLocal ?? columns);
+  let editorsWidth = $state(0);
+  /** Clamped at *render*, not only at drag: widths chosen in one window have to
+   *  survive being reopened in a smaller one, and no drag is present to clamp
+   *  them.  A browser found the alternative — a 3D column 24 px wide. */
+  const cols = $derived(fitColumns(colLocal ?? columns, editorsWidth, COL_MIN, VIEW_KEEP));
 
   /** The rendered width of column `i`, in px — its stored value if it has one,
    *  else whatever the flex default is currently producing. */
@@ -623,7 +632,7 @@
     </div>
   {:else if structure && instrument}
     <!-- ---------------------------------------------------------- -->
-    <div class="editors" bind:this={editorsEl}>
+    <div class="editors" bind:this={editorsEl} bind:clientWidth={editorsWidth}>
       <div class="column" bind:clientWidth={colMeasured[0]}
         style:flex={cols ? `0 0 ${cols[0]}px` : null}>
         <h2>Structure
@@ -778,7 +787,8 @@
         </p>
       </div>
 
-      <Splitter size={colWidth(0)} grow="right" min={220} keep={360} flow="inline"
+      <Splitter size={colWidth(0)} grow="right" min={COL_MIN}
+        keep={colWidth(1) + VIEW_KEEP} flow="inline"
         extent={() => editorsEl?.clientWidth ?? 0}
         onsize={(next, done) => dragColumn(0, next, done)}
         title="drag to resize the structure column" />
@@ -845,8 +855,9 @@
       </div>
 
       {#if viewer}
-        <Splitter size={colWidth(1)} grow="right" min={200} keep={280} flow="inline"
-          extent={() => editorsEl?.clientWidth ?? 0}
+        <Splitter size={colWidth(1)} grow="right" min={COL_MIN} keep={VIEW_KEEP}
+          flow="inline"
+          extent={() => (editorsEl?.clientWidth ?? 0) - colWidth(0)}
           onsize={(next, done) => dragColumn(1, next, done)}
           title="drag to resize the instrument column" />
         <div class="column view">

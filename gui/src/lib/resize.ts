@@ -41,3 +41,31 @@ export function clampSize(value: number, min: number, keep: number, available: n
   const ceiling = available > keep + min ? available - keep : Number.POSITIVE_INFINITY;
   return Math.round(Math.min(Math.max(value, min), ceiling));
 }
+
+/**
+ * Fit stored column widths into the space there actually is.
+ *
+ * A drag clamps against the extent it was performed in; **a stored width has to
+ * be clamped against the extent it is being rendered in**, and no drag is
+ * present to do it. Found in a browser: widths saved at 1500 px reopened at
+ * 1000 px left the third column **24 px wide** — a 3D scene in a sliver. The
+ * sidebar covers the same case with a CSS `max-width`, which a row of N sized
+ * columns cannot express, so this is that guard as arithmetic.
+ *
+ * Shrinks proportionally rather than truncating the last column, because the
+ * user's *relative* choice is the part worth keeping when their absolute one no
+ * longer fits. `available <= 0` means nothing is measurable (jsdom, or before
+ * layout) and the widths pass through, which is the same fallback `clampSize`
+ * makes.
+ */
+export function fitColumns(widths: number[] | null | undefined, available: number,
+                           min = 200, keep = 260): number[] | null {
+  if (!widths || !widths.length || available <= 0) return widths ?? null;
+  const room = available - keep;
+  const total = widths.reduce((a, b) => a + b, 0);
+  if (total <= room) return widths;
+  const floor = min * widths.length;
+  if (room <= floor) return widths.map(() => min);
+  const factor = room / total;
+  return widths.map((w) => Math.max(min, Math.round(w * factor)));
+}

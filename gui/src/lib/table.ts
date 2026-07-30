@@ -285,6 +285,23 @@ export function formatValue(value: number, esd: number | null | undefined): stri
   return value.toFixed(places);
 }
 
+/**
+ * The part of a dot-path a group heading has not already shown.
+ *
+ * The last segment alone is enough for `…cell.a` and useless for
+ * `phases.0.atoms.0.adp.0`, which renders as **`0`** — measured in a browser on
+ * NAC, where the parameter table listed five rows called `0`, `1`, `2`, `3` and
+ * `occ` under one heading (WP-1029). A purely numeric leaf is an index into
+ * something, so it keeps the thing it indexes.
+ */
+export function leafName(path: string, group = ""): string {
+  const rest = group && path.startsWith(`${group}.`) ? path.slice(group.length + 1) : path;
+  const parts = rest.split(".");
+  const last = parts[parts.length - 1];
+  if (parts.length > 1 && /^\d+$/.test(last)) return parts.slice(-2).join(".");
+  return last;
+}
+
 /** `4.15678(19)` — the esd in units of the value's last decimal place. */
 export function formatEsd(value: number, esd: number | null | undefined): string {
   if (esd == null || !Number.isFinite(esd) || esd <= 0) return "";
