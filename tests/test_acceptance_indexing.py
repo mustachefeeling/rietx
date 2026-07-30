@@ -21,6 +21,35 @@ hypothesis about what caused the zeroshift.
 
 **Then the search itself**, marked ``slow``.
 
+**What is deliberately absent is the global score, and that is a measured
+no-go rather than an unfinished row.**  The paper's protocol specifies the
+search domain — "maximum cell parameters of 20 Å and V_max = 2000 Å³ in
+monoclinic symmetry" by default, and in manual mode "a monoclinic run with
+volume range 800-1200 Å³, and 5-20 Å cell parameters".  Adopting a protocol
+means adopting it wholesale (CLAUDE.md), and a score computed over a narrower
+domain is not comparable with Table 5.  Measured on set F, the *easiest* of the
+ten (synchrotron, M(20) = 197, all twenty lines explained by the published cell):
+
+===========================  ==========  ============  =========
+run                          budget      candidates    complete
+===========================  ==========  ============  =========
+dichotomy, n_unindexed = 0   240 s       0             **False**
+dichotomy, n_unindexed = 2   240 s       0             **False**
+dichotomy, manual mode       900 s       0             **False**
+trial-and-error, n_un = 0/2  240 s       12 (no truth) **False**
+===========================  ==========  ============  =========
+
+Every one of them exhausted its budget without finishing the domain, so the
+negative is about *cost*, not about the search being wrong — an incomplete
+search says nothing at all (``EngineResult.search_complete``).  The tolerance
+was excluded as the cause: declaring σ = 0.005° instead of the assumed 0.02°
+takes median σ(Q)/Q from 4.4e-3 to 1.1e-3 and changes nothing (0 candidates,
+still incomplete at 240 s).  So an exhaustive dichotomy over four free metric
+parameters at this domain size is the limit, and reporting a score obtained by
+shrinking the domain would be reporting a different experiment.  The engines'
+synthetic monoclinic recovery is solid, so this is a statement about the
+*domain*, not about monoclinic.
+
 One protocol note, because it decides whether any of this means anything: the
 sets arrive as bare positions, so every one of them is a ``from_positions`` list
 whose σ is *assumed*.  That is the input the benchmark defines, and it is why
@@ -98,6 +127,79 @@ def _best_offset(bench: dict, name: str, tol: float = EXPLAINED_DEG):
     resid = [float(np.mean(np.min(np.abs((tt - grid[k])[:, None] - pred[None, :]),
                                   axis=1) ** 2)) for k in tied]
     return float(grid[tied[int(np.argmin(resid))]]), best
+
+
+# ----------------------------------------------------------------------
+# Real-data fixtures.  Each search is ~60-90 s, so they are module-scoped and
+# every consumer carries the matching xdist_group (CLAUDE.md).
+# ----------------------------------------------------------------------
+#: Lines a search may leave unindexed on these real patterns.  **Three, not the
+#: default two, and it is a measurement rather than a knob.**  After the
+#: ``not_separable`` fix the corundum list still carries one 5.17° edge artifact
+#: (the pattern starts at 5.00°, where no background can be estimated) and two
+#: satellites the flag does not reach, so three of the first twenty lines are not
+#: lines of the phase.  The sweep is the evidence that this is not tuning: at 2
+#: neither engine finds the certified cell, at 3 **both rank it first**, and at 5
+#: and 6 dichotomy loses it *entirely* — the extra tolerance manufactures
+#: better-scoring wrong cells, exactly as ``DEFAULT_N_UNINDEXED`` warns.
+REAL_DATA_N_UNINDEXED = 3
+#: Systems searched on the real-data rows.  A restriction, declared: the answers
+#: are known to be trigonal/cubic/hexagonal, an exhaustive monoclinic or triclinic
+#: pass costs minutes (see the handover log), and ``systems_searched`` travels on
+#: the result so the report says what was covered rather than concluding about
+#: the specimen.
+REAL_DATA_SYSTEMS = ("cubic", "tetragonal", "hexagonal", "trigonal")
+
+A_SRM676A, C_SRM676A = 4.759355, 12.99231     # k = 2, 22.5 °C (certificate)
+
+
+def _qarr(name: str):
+    """(pattern, instrument) for one IUCr round-robin pure phase.
+
+    Dispersion is **declined explicitly**, inherited from ``qarr_instrument``
+    which sets ``source.dispersion = None``, and it is worth saying why rather
+    than riding it: indexing consumes only peak *positions*, and the one place a
+    structure factor enters here is the Le Bail validation, whose phase is a
+    single dummy carbon (``workflow.DUMMY_SPECIES``) whose intensities are
+    force-fixed and re-extracted.  So f′/f″ is inert on this row — but "inert"
+    is a measurement, not a licence to leave the setting implicit (WP-1001).
+    """
+    from tests.test_acceptance_qpa_roundrobin import DATA as QARR
+    from tests.test_acceptance_qpa_roundrobin import qarr_instrument
+    if not (QARR / name).exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    import pxrdref as pr
+    ins = qarr_instrument()
+    assert ins.source.dispersion is None
+    return pr.read_pattern(QARR / name), ins
+
+
+@pytest.fixture(scope="module")
+def corundum_peaks():
+    from pxrdref.indexing.pick import pick_peaks
+    data, ins = _qarr("corundum.prn")
+    return pick_peaks(data, ins)
+
+
+@pytest.fixture(scope="module")
+def corundum_index(corundum_peaks):
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    data, ins = _qarr("corundum.prn")
+    spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
+                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
+    res = index_pattern(corundum_peaks, data=data, instrument=ins, spec=spec)
+    return res, A_SRM676A, C_SRM676A
+
+
+@pytest.fixture(scope="module")
+def qpa_mixture_index():
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    data, ins = _qarr("cpd-1a.prn")
+    spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
+                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
+    return index_pattern(data=data, instrument=ins, spec=spec)
 
 
 # ----------------------------------------------------------------------
@@ -283,3 +385,95 @@ def test_a_bare_position_list_says_its_sigma_was_assumed(bench):
         report = assess_peak_list(peaks)
         assert report.supports_indexing, (name, report.abstained_reason)
         assert report.shift.source == "unavailable"
+
+
+# ----------------------------------------------------------------------
+# Real data: the certified pattern the milestone was blocked on
+# ----------------------------------------------------------------------
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
+    """SRM 676a corundum, picked and indexed by this package end to end.
+
+    This is the row the indexing milestone was blocked on, and it was blocked for
+    a reason nobody had looked for: ``pick_peaks`` was reporting one phantom line
+    per strong peak (``not_separable``, WP-1026), so 19 % of the lines handed to
+    the search were not lines.  With those barred from ``usable()`` the certified
+    lattice comes back **ranked first** by ``index_pattern`` on a raw pattern —
+    peaks picked by the package, no cell supplied, no shift measured.
+
+    Two halves, and the second is the point.  The cell is found; it is graded
+    ``low``, and that grade is *correct*.  ``a`` lands within 100 ppm of the
+    certificate while ``c`` is out by ~2800 ppm, because with no measured shift
+    both engines widen their window by ``DEFAULT_UNKNOWN_SHIFT_DEG`` and each
+    absorbs the specimen displacement differently — which is exactly what
+    ``engines_disagree`` reports.  A gate that called this ``high`` would be
+    quoting a c-axis that is wrong in the fourth digit.
+    """
+    res, a_cert, c_cert = corundum_index
+
+    assert res.validated
+    assert res.candidates, "no candidate at all on a pattern with a certificate"
+    best = res.candidates[0]
+    assert best.system == "trigonal" and best.centring == "R", (
+        f"ranked first: {best.system} {best.centring}")
+
+    da = best.cell[0] / a_cert - 1.0
+    assert abs(da) < 3e-4, f"a = {best.cell[0]:.5f} against {a_cert} ({da*1e6:+.0f} ppm)"
+    # c is the axis the absorbed shift lands on, and it is out by ~2800 ppm.
+    # Asserted as a *range* rather than a bound: this is a characterisation of
+    # what an uncalibrated lab pattern costs, and a version of it that silently
+    # got better would mean the protocol changed.
+    dc = best.cell[2] / c_cert - 1.0
+    assert 1e-3 < dc < 5e-3, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
+
+    # the gate refuses to promote it, and names why
+    assert best.confidence == "low"
+    assert "shift_allowance_assumed" in best.confidence_caveats
+    assert res.best_or_none() is None, (
+        "a cell whose c-axis is 2800 ppm out was returned as the answer")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_the_phantom_lines_are_what_had_blocked_it(corundum_peaks):
+    """The measurement behind the fix, pinned so it cannot silently regress.
+
+    ``detect_peaks`` proposes 41 groups with one seed each; the fitter returns 63
+    components.  Eight of them are shape repair rather than lines, and the ones
+    that matter sit ~0.17-0.24° below a strong line — far outside the ~0.06°
+    specimen displacement the real lines carry, which is what makes them
+    separable from a systematic shift by eye and *not* by ΔBIC.
+    """
+    peaks = corundum_peaks
+    flagged = [p for p in peaks.peaks if "not_separable" in p.flags]
+
+    assert len(peaks.peaks) > len(peaks.usable()), "nothing was flagged at all"
+    assert 4 <= len(flagged) <= 14, len(flagged)
+    assert len(peaks.usable()) >= 50
+    # every flagged line sits below a much stronger one, and further from it than
+    # the real lines sit from their own predicted positions
+    tt = np.array([p.two_theta for p in peaks.peaks])
+    inten = np.array([p.intensity for p in peaks.peaks])
+    for p in flagged:
+        near = (np.abs(tt - p.two_theta) < 1.5 * p.fwhm) & (tt != p.two_theta)
+        assert near.any() and inten[near].max() > 4.0 * p.intensity
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_a_three_phase_mixture_abstains(qpa_mixture_index):
+    """The correct answer is "we do not know", and the API must be able to say it.
+
+    ``qarr/cpd-1a.prn`` is corundum + zincite + fluorite.  No single lattice
+    explains it, and the failure mode this guards against is the one the prior
+    art at ``guillemot-study`` retracted a claim over: a coverage score cannot
+    tell a multiphase pattern from a single-phase one of lower symmetry, so a
+    ranked list is exactly what a naive indexer produces here.
+    """
+    res = qpa_mixture_index
+    assert res.best_or_none() is None
+    # and it says what it looked at rather than concluding about the sample
+    assert res.systems_searched
+    for cand in res.candidates:
+        assert cand.confidence != "high"

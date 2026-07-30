@@ -155,6 +155,13 @@ DATASETS: dict[str, Dataset] = {
         "APS 11-BM SRM 660a LaB6 in the beamline's documented 0.81 mm Kapton "
         "bore; lambda was calibrated against this very standard",
         "consistency"),
+    "bethanechol": Dataset(
+        "bethanechol_indexing.json",
+        "Bergmann et al. (2004) Tables 5 and 6: ten sets of twenty 2theta "
+        "positions for bethanechol chloride, the known P21/n cell, and every "
+        "program's published score -- the only externally graded benchmark any "
+        "feature in this package has",
+        "cross_code"),
 }
 
 
@@ -614,6 +621,161 @@ CLAIMS: tuple[Claim, ...] = (
         starts=4,
         diagnostics=("STEPHENS_STRAIN_NOT_POSITIVE",),
     ),
+    # ---- WP-1026: indexing, the first externally graded feature ----------
+    # Four rows verify the transcription itself.  Two hundred numbers were typed
+    # from a printed table, and each of these checks a statement the paper makes
+    # in PROSE and never tabulates, so a typo breaks at least one of them.
+    Claim(
+        "test_acceptance_indexing", "test_every_set_is_twenty_ascending_lines",
+        "bethanechol", ("identity",),
+        "the fixture has the shape the paper's Table 6 has: ten sets, twenty "
+        "strictly ascending positions each",
+        reference="Table 6's ten columns -- A/B/C/D are treatments and each was "
+                  "applied to BOTH ICDD entries, which is why the global score "
+                  "runs over twenty numbers and not ten",
+        measured="10 sets x 20 lines, all ascending",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_zeroshift_correction_is_exactly_the_paper_s",
+        "bethanechol", ("identity", "cross_code"),
+        "the zero-corrected columns are exactly the raw ones less the paper's "
+        "stated zeropoint",
+        reference="the text says only that the entries carry 'a surprisingly "
+                  "large zeropoint error that is close to 0.10 (2theta) deg' "
+                  "and prints both columns; the arithmetic linking them is "
+                  "never stated, and eighty values have to agree",
+        measured="C = A - 0.100 and D = B - 0.100 to 5e-13 on all four pairs",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_intensity_cut_is_a_subset_of_the_same_measurement",
+        "bethanechol", ("identity", "cross_code"),
+        "the I >= 5 % sets are subsets of the raw sets of the same specimen, "
+        "and reach further in 2theta for the stated reason",
+        reference="B is 'the first 20 lines with I >= 5 % I_max' of the same "
+                  "pattern as A, so every B line inside A's range must be one "
+                  "of A's bit-for-bit -- and dropping the weak lines is what "
+                  "lets twenty survivors extend past A's last line",
+        measured="13 of 13 and 15 of 15 common lines identical to 1e-12; both "
+                 "B sets reach beyond their A set's maximum",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_published_cell_reproduces_the_paper_s_impurity_counts",
+        "bethanechol", ("cross_code", "characterisation"),
+        "the published cell accounts for exactly as many of each entry's first "
+        "twenty lines as the paper's own impurity statement implies",
+        reference="'8 impurity lines among the first 26 lines' in PDF 43-1748 "
+                  "and '3 impurity lines among the first 35' in 46-1964.  "
+                  "Nothing is fitted: the cell is the paper's and the offset is "
+                  "a one-parameter scan, so this uses the ANSWER to check the "
+                  "data and no typo in either survives it",
+        measured="3 unexplained of 20 in every 46-1964 set, 7 in 43-1748, 0 in "
+                 "both new measurements",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_bare_position_list_says_its_sigma_was_assumed",
+        "bethanechol", ("characterisation",),
+        "the benchmark's input form is carried honestly: every line says its "
+        "sigma was assumed, and the quality gate lets it through anyway",
+        reference="the sets are positions only, so sigma is "
+                  "PEAK_ASSUMED_ESD_DEG -- chosen by this package.  A precision "
+                  "nobody measured may not be grounds for refusing to index, "
+                  "which is the inverse of the mistake indexing/quality.py "
+                  "exists to prevent.  All ten sets failed the sigma(Q)/Q "
+                  "abstention before WP-1026, including the one whose published "
+                  "M(20) is 197",
+        measured="source == 'positions' and sigma_assumed on every line of all "
+                 "ten sets; supports_indexing True on all ten; shift.source "
+                 "'unavailable'",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_published_figures_of_merit_are_reproduced_unfloored",
+        "bethanechol", ("cross_code", "characterisation"),
+        "the published M(20) and F(20) are reproduced from the transcription "
+        "with the de Wolff / Smith-Snyder definitions, and are shown NOT to be "
+        "reproducible from this package's own floored versions",
+        reference="M(20) = 197 and F(20) = 1080 (0.0006, 32) on the "
+                  "synchrotron set.  m20/f_n floor <delta> at the median sigma, "
+                  "which on a from_positions list is the ASSUMED 0.02 deg -- "
+                  "thirty times the paper's <|d2theta|> -- so the floored "
+                  "figures are not comparable with a published value computed "
+                  "without the floor, and the row says so rather than quietly "
+                  "comparing them",
+        measured="unfloored M = 116, F = 654 with <|d2theta|> = 0.00099 deg "
+                 "and N_poss = 31 against the published 0.0006 and 32; the "
+                 "residual gap is the printed cell's own rounding (3 dp on the "
+                 "axes, 2 on beta).  Floored, the same data give 5.8 and 32.3",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_2004_zeroshift_hypothesis_cannot_be_tested_on_these_data",
+        "bethanechol", ("characterisation", "prediction"),
+        "the paper's own hypothesis about the cause of the zeroshift is tested "
+        "for the first time and comes back UNANSWERABLE, with the reason "
+        "quantified -- and the magnitude it does determine disagrees with the "
+        "paper's round number",
+        reference="Bergmann et al. wrote the shift 'would be consistent with a "
+                  "systematic specimen-displacement error' and had no way to "
+                  "check, every program of the day fitting one constant "
+                  "zeropoint.  fit_shift_model fits three physical causes as "
+                  "nested single fits.  The prediction written down before the "
+                  "measurement is quality.py's: over a short low-angle range "
+                  "the templates are collinear and no cause is attributable",
+        measured="max_collinearity 1.0000 and separable=False on all ten sets "
+                 "over their 6-31 deg span.  Magnitude: PDF 43-1748 carries "
+                 "+0.062 deg and 46-1964 +0.058, not the quoted 0.10 -- so "
+                 "subtracting 0.100 overshoots to -0.039 and -0.043, which is "
+                 "why Table 5 does not show C as uniformly easier than A",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_certified_lab_pattern_indexes_and_is_graded_honestly",
+        "srm676a", ("certificate", "characterisation"),
+        "a raw certified pattern is picked and indexed end to end, the "
+        "certified lattice is ranked first, and the gate refuses to promote it "
+        "because one axis is genuinely wrong",
+        reference="NIST SRM 676a a = 4.759355(80), c = 12.99231(15) A (k = 2). "
+                  "The a bar is 300 ppm -- lab-realistic, not certificate "
+                  "grade.  c is asserted as a RANGE (1000-5000 ppm) because "
+                  "the row characterises what an uncalibrated lab pattern "
+                  "costs: with no measured shift both engines widen their "
+                  "window by DEFAULT_UNKNOWN_SHIFT_DEG and each absorbs the "
+                  "specimen displacement differently",
+        measured="ranked first, trigonal R, a -64 ppm and c +2799 ppm; "
+                  "confidence low; best_or_none() returns None",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing", "test_the_phantom_lines_are_what_had_blocked_it",
+        "srm676a", ("characterisation",),
+        "the peak list this package produces from a real lab pattern contains "
+        "components that are profile-shape repair rather than lines, and they "
+        "are flagged rather than reported",
+        reference="detect_peaks proposes 41 groups with ONE seed each; the "
+                  "fitter returns 63 components.  The row asserts the flagged "
+                  "ones are weak satellites of much stronger lines -- the "
+                  "geometry no dBIC can refuse, because dBIC judges two models "
+                  "that both fail (chi2_red 17.4 at n=1, 4.6 at n=2)",
+        measured="8 of 63 flagged not_separable, >=50 usable; before the fix "
+                  "neither engine could index this certified pattern at all",
+    ),
+    Claim(
+        "test_acceptance_indexing", "test_a_three_phase_mixture_abstains",
+        "qarr", ("characterisation",),
+        "a three-phase mixture returns no cell rather than the best of a bad "
+        "list, and reports which systems were searched instead of concluding "
+        "about the specimen",
+        reference="qarr/cpd-1a.prn is corundum + zincite + fluorite.  The "
+                  "failure this guards against is the one the prior art at the "
+                  "guillemot-study tag retracted a claim over: a coverage "
+                  "score cannot tell a multiphase pattern from a single-phase "
+                  "one of lower symmetry",
+        measured="best_or_none() is None; no candidate reaches high",
+    ),
 )
 
 
@@ -764,6 +926,13 @@ GAPS: tuple[tuple[str, str], ...] = (
 #: Suite-level narrative, keyed by module.  The per-row prose is in the
 #: ``Claim`` objects; this is the sentence that says what the *dataset* is for.
 SUITE_INTROS: dict[str, str] = {
+    "test_acceptance_indexing":
+        "The only externally *graded* feature in the package. Bergmann et al. "
+        "(2004) published both the data and every program's score, so the bar "
+        "here is what ITO13, DICVOL91, TREOR90 and McMaille actually achieved "
+        "rather than a tolerance chosen in this repo. The fixture is checked "
+        "against three statements that paper makes in prose and never "
+        "tabulates before anything is graded against it.",
     "test_acceptance_srm660c":
         "The absolute lab anchor. NIST's own SRM 660c certification "
         "measurement, refined against the cell recomputed for this dataset's "
