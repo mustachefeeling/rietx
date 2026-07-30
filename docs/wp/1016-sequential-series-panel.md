@@ -42,6 +42,18 @@ warning and per-pattern drill-down into each pattern's own history tree.
 
 ### Inherited
 
+From **WP-1013** (landed 2026-07-30): **the tab strip is still five wide, and a
+`Series` tab would be the sixth.** WP-1012 warned that six labelled tabs stop
+fitting a `clamp(340px, 38%, 560px)` sidebar and handed the question to 1013,
+which took the text pane *out* of the strip rather than growing it — but on
+grounds that do not transfer: the `.pxt` document is line-oriented and its columns
+are aligned so a rectangular selection can hit one field, which a narrow column
+undoes. A series panel is a table of per-pattern summaries and trajectories, which
+the sidebar suits. So the sixth-tab problem is still open and is now this WP's; the
+two shapes available are a full-width **mode** (`App.svelte`'s `textMode`, a header
+toggle plus a palette entry, hidden with `class:hidden` so it stays mounted) and a
+narrower tab strip. Pick deliberately rather than adding a sixth label and seeing.
+
 From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs all
 stay mounted** — add a `Series` tab, not a route or a modal. `lib/table.ts` is
 reusable for the per-pattern parameter listing (grouping, the virtual window, and

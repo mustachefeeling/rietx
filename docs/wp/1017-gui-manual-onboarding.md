@@ -39,6 +39,30 @@ real UI.
 
 ### Inherited
 
+From **WP-1013** (landed 2026-07-30): the **text pane** is the surface this manual
+has the most to explain, and three of its facts are not discoverable from the UI.
+It is a *mode*, not a tab — the header's `Text` button and the palette's `t` — so a
+chapter that walks the tabs will miss it entirely. `⌥`-drag is a **rectangular
+selection**, which is the entire reason the `.pxt` format aligns its columns, and
+the pane's footer says so in one line that a manual should expand rather than
+repeat. And **a re-render discards the user's own comments**: the pane warns when
+the buffer has gained comment lines, but the flow ("apply, then re-read") wants
+stating once, properly.
+
+`textdoc.FORMAT_VERSION` is still owed to this WP as a **fenced constant**
+(WP-1009's own note says a bump that misses the manual must fail the docs build),
+and the `.pxt` grammar chapter should quote `gui/src/lib/pxt.ts`'s token
+vocabulary rather than restating it — that array is already pinned to
+`textdoc._KEYWORDS` by `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`,
+so a manual that quotes it inherits the guard.
+
+One sentence is worth carrying verbatim into the conflict/undo chapter, because it
+is the pane's whole safety story: **there is no merge and no force-apply** — a
+document regenerated from state has one authority, so a stale buffer re-reads and
+re-applies. The reason is sharper than "merging is hard": the loser's document also
+carries the winner's *old* values for every row it did not touch, so applying it
+anyway would silently revert them.
+
 From **WP-1011** (landed 2026-07-30): **the command palette is already the
 manual's index, and it is executable.** Cmd-K lists every command with the Python
 call it makes (`ref.set_vary(glob, True)`, `ref.run_stage(stage)`,

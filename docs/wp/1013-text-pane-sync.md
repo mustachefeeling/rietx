@@ -1,6 +1,6 @@
 # WP-1013 — Text pane (CodeMirror 6) + two-way sync
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: WP-1009, WP-1010
 
 ## Goal
@@ -133,16 +133,17 @@ reviewable, which is a decision to revisit rather than inherit silently.
 
 ## Tasks
 
-- [ ] Text panel: CM6 + `rectangularSelection` + multi-cursor +
+- [x] Text panel: CM6 + `rectangularSelection` + multi-cursor +
       `StreamLanguage` highlighter, loaded as `vendor-cm.js`.
-- [ ] `lib/sync.ts` state machine (clean/dirty/validating/conflict) +
-      minimal-diff application preserving cursor/scroll on SSE re-render.
-- [ ] Debounced validate-only PUT → lint diagnostics; Cmd-Enter apply;
+- [x] `lib/sync.ts` state machine (clean/dirty/validating/conflict) +
+      minimal-diff application preserving cursor/scroll on re-render. The
+      trigger is the **head**, not an SSE frame — see the handover log.
+- [x] Debounced validate-only PUT → lint diagnostics; Cmd-Enter apply;
       409 conflict banner + re-render path.
-- [ ] vitest: sync state-machine transitions (clean edit, concurrent model
+- [x] vitest: sync state-machine transitions (clean edit, concurrent model
       change, conflict, re-apply); highlighter never claims validity (only
-      the server does).
-- [ ] `tests/test_gui_server.py`: textdoc CAS-conflict row (two writers,
+      the server does). 85 → 139 cases.
+- [x] `tests/test_gui_server.py`: textdoc CAS-conflict row (two writers,
       second gets 409, no partial apply).
 
 ## Acceptance
@@ -161,3 +162,86 @@ npm --prefix gui test
 ## Handover log
 
 - **2026-07-29** — created from the v1.0 GUI plan.
+- **2026-07-30** — **landed.** All five checklist items; vitest 85 → 139,
+  `svelte-check` clean, ruff clean, the fast suite green. Driven end to end
+  in Chrome for Testing, which is where the one defect came from.
+
+  **Four decisions, three of which the charter left open.**
+
+  *The pane is a **mode**, not a sixth tab.* WP-1012 handed this WP the
+  question and it decides against the strip: five tabs already fill a
+  `clamp(340px, 38%, 560px)` sidebar, and this is the one panel whose content
+  is line-oriented — the format aligns its columns *so that a rectangular
+  selection can hit one field*, which a 340 px column undoes. So the whole
+  window, toggled from the header and from the palette (`t`). It stays
+  **mounted while hidden**, exactly as the tabs do, because a buffer with
+  typed-but-unapplied edits has to survive a look at the parameter table; the
+  editor itself is built on first entry.
+
+  *The **head** is the reload signal — there is no new SSE frame type.* The
+  charter said "every model change pushes a fresh render + revision over SSE",
+  which would have meant a third frame type beside events and run state.
+  Unnecessary: the head already moves for every writer (a run, a checkout, an
+  applied suggestion, a form edit), the parameter table already reloads on it,
+  and WP-1008's rule that the run state is not an event exists precisely so
+  that new frame types are decisions rather than reflexes. `GET /api/textdoc`
+  on `head` costs one render of the parameter rows, and only while the pane is
+  open.
+
+  *CodeMirror is split out **and** off the boot path*, which serves WP-1010's
+  one-chunk decision rather than reversing it. Two independent reasons, and
+  they point the same way: a committed dist has to diff reviewably, and ~330 kB
+  of minified third-party bytes inside `app.js` would sit in the middle of
+  every application diff; and `panels/Text.svelte` imports the adapter
+  dynamically, so the page still loads `app.js` and nothing else. Measured:
+  `app.js` 104.7 → **114.2 kB** (40.4 kB gzip) for the pane's own code,
+  `vendor-cm.js` **328 kB** (106 kB gzip) fetched on first open. In the
+  browser: **boot-to-interactive 81 ms** with zero textdoc/vendor requests
+  before the pane is opened, and **132 ms** from the click to a mounted editor.
+  `tests/test_gui_dist.py` asserts the split rather than trusting it — a stray
+  static import would inline the library, and no byte count would say so.
+
+  *There is no force-apply.* A stale buffer has exactly one exit and it is the
+  one the server's 409 recommends: re-read, re-apply. Sending the *new*
+  revision with the old text would be a merge by another name — and worse than
+  the usual kind, because the loser's document also carries the winner's old
+  values for every row it did not touch, so it would silently revert them.
+  That is now the sharpest of the Python tests.
+
+  **The defect, and it took a browser.** `load` cleared the editor's
+  diagnostics unconditionally, so a head moving underneath an *invalid* buffer
+  wiped the squiggle and the gutter marker while the problem list below still
+  named the line — two views of one answer, able to disagree. jsdom could not
+  see it: the vitest assertions read `textContent`, which is the list. The fix
+  is structural — the editor's document *and* its diagnostics are now
+  `$effect`s over `sync`, so the four places that change the state push nothing
+  and cannot forget to. The regression test asserts through
+  `diagnosticCount(view.state)`, and was checked by re-introducing the push and
+  watching it fail. Measured before/after on a head move: gutter 1 → 0 and
+  underline 1 → 0, now 1 → 1.
+
+  **Two things worth knowing before touching this.**
+
+  `lib/pxt.ts` has **no `error` token** and that is the property the whole
+  design rests on: the frontend colours the document and only the server can
+  call it wrong. It is asserted from both sides (`pxt.test.ts` and
+  `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`), and the
+  same Python test pins the shared *vocabulary* — keywords, flag words,
+  annotation words, and the stage keys, which are derived from
+  `StageSpec.model_fields` rather than restated. One rule there came from
+  reading `textdoc.parse` rather than the format: **indentation is the parser's
+  own dispatch**, so an indented `plan` is a parameter named `plan`, not a
+  keyword line.
+
+  And a response carrying an older `seq` is **dropped**. With a 300 ms debounce
+  two validations can be in flight across one pause and they can land out of
+  order; without the guard the slow first answer paints squiggles at line
+  numbers the buffer no longer has.
+
+  Verified in the browser, in order: 81 ms boot → open → nine token classes
+  painted → an alt-drag down the vary column drew **7 selection rectangles**
+  on the `@` column → edit → one validate PUT → `ready to apply` → Cmd-Enter →
+  `limits 3.5 22` applied and persisted across a reload → `mode nonsense` →
+  one problem at line 4 in the parser's own words → a `PATCH /api/params` from
+  outside → **stale**, edit intact, Apply disabled → Re-read → in sync. No
+  unhandled page errors.

@@ -87,6 +87,24 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1013** (landed 2026-07-30): the `peaks` keyword **already highlights** in
+the text pane — `gui/src/lib/pxt.ts`'s `KEYWORDS` quotes `textdoc._KEYWORDS`,
+reserved blocks included — so a picked-peaks block will be coloured the day the
+parser stops refusing it, with no frontend change. Two things follow.
+
+`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words` compares the four
+word lists in `pxt.ts` against `textdoc._KEYWORDS`, `_FLAG_WORDS`, `_PAIR_WORDS`
+and `StageSpec.model_fields`; **a new annotation word in the peaks block is a
+failing test until it is restated there**, which is deliberate — that is the guard
+that keeps the frontend's second reading of the grammar from drifting. A new
+*block* name needs nothing, since `peaks` is already in the list.
+
+And the peaks block's own sketch (in `textdoc.RESERVED_BLOCKS`) says it carries
+**no `@` markers**, because peaks are not refinable parameters. The scanner colours
+`@` as its own `vary` token in green, so that absence will read visually as well as
+grammatically — worth keeping when the block is designed, rather than adding a mark
+that means something else.
+
 From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs
 stay mounted** — `Peaks` is a tab, and a picker holding an unsaved edit survives a
 visit elsewhere. Reuse `lib/table.ts` for the peak list (grouping, the virtual

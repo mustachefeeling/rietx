@@ -10,6 +10,20 @@ the milestone's last row, so the freeze covers a surface the GUI exercised)
 
 ## Inherited
 
+From **WP-1013** (landed 2026-07-30) — **the wheel redistributes third-party
+JavaScript, and until now nothing said so.** The committed dist ships inside the
+wheel by design, so `assets/app.js` carries Svelte's runtime (true since WP-1010,
+never written down) and `assets/vendor-cm.js` carries CodeMirror 6 — ~330 kB of
+it. Both are MIT and unmodified; `ATTRIBUTION.md` now has a *Bundled frontend
+code* section stating it, with `gui/package-lock.json` as the version statement.
+What this WP owes at publication is the packaging half rather than the prose: a
+wheel that redistributes MIT code should carry those licenses, and the sdist/wheel
+metadata currently names only pxrd-refine's own. Worth deciding at the same time
+whether the `[gui]` extra's description should mention the bundle size, since
+`pip install pxrd-refine[gui]` now pulls ~460 kB of committed assets whether or
+not anyone opens the text pane. `tests/test_gui_dist.py` already asserts every
+chunk is *in* the wheel and that none of them names a remote host.
+
 From **WP-1011** (landed 2026-07-30) — **the HTTP wire has a JSON dialect, and
 it should be stated rather than inherited.** `json.dumps` writes bare
 `Infinity`/`NaN` tokens, which are a Python extension that `JSON.parse` rejects

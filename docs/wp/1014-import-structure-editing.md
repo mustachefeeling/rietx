@@ -43,6 +43,17 @@ editing through the Wyckoff DOFs, and instrument forms.
 
 ### Inherited
 
+From **WP-1013** (landed 2026-07-30): a structure or instrument edit commits an
+`edit_model` node, which **moves the head**, which is the text pane's reload signal
+— so an open text buffer will go *stale* the moment this WP's import or model
+editor lands a change, and correctly so. Nothing to build: `lib/sync.ts` already
+holds the edit and offers a re-read. What is worth knowing is that the head is now
+load-bearing for three panels (parameters, report, text), so **a verb that changes
+the model and does not commit a node leaves all three showing the previous state**.
+
+Also: `panels/Stubs.svelte`'s "panels still owed" list is where this WP's row lives
+(`Import / editing — WP-1014`); delete it when the panel lands, as 1013 did.
+
 From **WP-1011** (landed 2026-07-30): the shell's empty state already points at
 this WP by name ("Creating a project in the browser needs the import flow
 (WP-1014)"), so that copy is what this panel replaces. Three carried facts:
