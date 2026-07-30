@@ -282,6 +282,28 @@ if "BACKGROUND_ABSORPTION" in codes:
     ...
 ```
 
+### 7b. Peak picking and indexing (`PeakList.diagnostics`,
+`DataQualityReport.diagnostics`)
+
+These arrive from `pxrdref.pick_peaks` and
+`pxrdref.indexing.assess_peak_list`, *before* any refinement exists — so they
+are read on the peak list, not on a `RefinementResult`.
+
+| Code | What it means you must not do |
+|---|---|
+| `PEAK_LIST_TOO_SHORT` | Index it anyway. Below 20 usable lines nothing (M₂₀, F₂₀, Smith's volume envelope) is defined, so a rank order would have no evidence behind it |
+| `INDEX_DATA_INSUFFICIENT` | Spend a search budget. The gate has already decided the data cannot support one, and it names which of the three reasons applies (line count, lines per metric degree of freedom, or σ(Q)/Q) |
+| `PEAK_SIGMA_ASSUMED` | Quote a precision, or weight lines by 1/σ² as if that meant something — every σ in the list is the same assumed constant. Re-pick from the pattern if you have it |
+| `PEAK_POSITION_PRECISION` | (info/warning) Ignore it when choosing a tolerance: it *is* the resolving power of the list, and it bounds every tolerance downstream |
+| `INDEX_SHIFT_DETECTED` | Absorb the shift into the cell. The named template is the physical cause; correct the instrument (`zero_shift`, `sample_displacement`, `sample_transparency`) rather than the lattice |
+| `INDEX_SHIFT_MODEL_AMBIGUOUS` | Pick one cause from this data. The magnitude is measured and the cell is safe to `prediction_spread_deg`; the *cause* is not identified, and extending the 2θ range is the only fix |
+| `PEAK_KALPHA2_ALIAS` | Assume the dropped candidates were noise — each is at a stronger line's Bragg-predicted Kα2 position, and a genuine coincident line is indistinguishable from an alias in one pattern |
+| `PEAK_UNRESOLVED_SHOULDER` | Quote one of a pair as an independent line. Their σ already carries the correlation |
+| `PEAK_CONTAMINATION_LINE` | Subtract it. Ghosts are flagged and excluded from `usable()`, never stripped |
+| `PEAK_ASYMMETRY_UNMODELLED` | Trust the *positions* of the flagged lines. An unmodelled one-sided aberration biases a centroid in one direction, which σ cannot see — and the low-angle lines are the ones indexing depends on most |
+| `PEAK_WIDTH_LAW_MISMATCH` | Leave `instrument.profile` as declared. A factor near 13 is the `ProfileTCHZ` synchrotron default (W = 1e-3 deg², FWHM ≈ 0.03°) on lab data |
+| `PEAK_SHOULDER_SEEDED` | (info) Read a shoulder-seeded line as a detection. Survival was decided by ΔBIC, not by detection |
+
 ---
 
 ## 8. Fourteen things that will surprise you, all measured
