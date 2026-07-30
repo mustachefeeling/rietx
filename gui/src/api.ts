@@ -87,10 +87,33 @@ export const api = {
     if (hi !== undefined) query.set("hi", String(hi));
     return call("GET", `/api/result/window?${query}`);
   },
+  /** The three layers **plus** an `apply` arm parallel to `suggested_actions`:
+   *  whether the server would act on each one, and what it would run.  Idle-only
+   *  (Layers 1-2 read the compiled model a stage would be rewriting), so this
+   *  answers 409 `RUN_IN_FLIGHT` mid-run. */
   report: () => call("GET", "/api/report"),
+  /** Carry out one suggestion, as one stage, through the run machinery.
+   *  `paths` disambiguates when a report suggests one kind twice (two textured
+   *  phases); the server refuses rather than guessing if it is omitted. */
+  applyAction: (kind: string, paths?: string[]) =>
+    call("POST", "/api/report/apply", paths ? { kind, paths } : { kind }),
 
   history: () => call("GET", "/api/history"),
   checkout: (nodeId: string) => call("POST", "/api/history/checkout", { node_id: nodeId }),
+  /** Checkout **plus** a tag: this DAG has only `head` and tags, so "branch"
+   *  names a fork point rather than creating a ref (WP-1008). */
+  branch: (nodeId: string, name: string) =>
+    call("POST", "/api/history/branch", { node_id: nodeId, name }),
+  tag: (nodeId: string, name: string) =>
+    call("POST", "/api/history/tag", { node_id: nodeId, name }),
+  annotate: (nodeId: string, body: { label?: string; notes?: Record<string, string> }) =>
+    call("POST", "/api/history/annotate", { node_id: nodeId, ...body }),
+  /** Parameter values that differ between two nodes — the question a compare view
+   *  actually has, and the reason a node's ~10 kB state is not in `/api/history`. */
+  historyDiff: (a: string, b: string) =>
+    call("GET", `/api/history/diff?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+  historyCompare: (ids: string[]) =>
+    call("GET", `/api/history/compare?ids=${encodeURIComponent(ids.join(","))}`),
 
   textdoc: () => call("GET", "/api/textdoc"),
   putTextdoc: (text: string, baseRevision?: string, validateOnly = false) =>

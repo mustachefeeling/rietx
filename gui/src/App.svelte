@@ -20,10 +20,12 @@
 
   import { ApiError, api } from "./api";
   import Console from "./panels/Console.svelte";
+  import History from "./panels/History.svelte";
   import Palette from "./panels/Palette.svelte";
   import Params from "./panels/Params.svelte";
   import Plan from "./panels/Plan.svelte";
   import Plot from "./panels/Plot.svelte";
+  import Report from "./panels/Report.svelte";
   import Stubs from "./panels/Stubs.svelte";
   import { isShortcutTarget, type Command } from "./lib/palette";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
@@ -41,12 +43,18 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
-  let tab = $state<"params" | "plan" | "build">("params");
+  let tab = $state<"params" | "plan" | "history" | "report" | "build">("params");
   let simple = $state(true);
   let consoleHeight = $state(150);
   let paletteOpen = $state(false);
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
+  /** a 2θ window the report panel asked the plot to show, or null for all of it */
+  let zoom = $state<[number, number] | null>(null);
+  /** the last applied suggestion, until it is undone — carries the node to check
+   *  out and the χ² it was applied at, which is what makes the *observed* Δχ²
+   *  measurable beside the predicted one */
+  let applied = $state<any>(null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -143,6 +151,35 @@
     }
   }
 
+  /** A panel moved the head without running: refetch the result.
+   *
+   * Needed because a `checkout` **discards the fitted curves** server-side — they
+   * described the values it just replaced — and the shell otherwise keeps showing
+   * a plot of a state the project is no longer in.  Not an `$effect` on `head`: a
+   * `set_vary` moves the head too and keeps the result, and refetching there would
+   * throw away the plot's zoom on every parameter edit.
+   */
+  async function moved() {
+    zoom = null;
+    await loadResult();
+  }
+
+  /** `POST /api/report/apply` came back: a stage is running for a suggestion. */
+  function absorbApply(payload: any) {
+    if (payload === null) {
+      applied = null;
+      return;
+    }
+    run = payload;
+    applied = {
+      kind: payload.applied.kind,
+      chi2_before: payload.chi2_before,
+      predicted: payload.applied.expected_delta_chi2,
+      undo: payload.undo,
+    };
+    say(payload.api_call);
+  }
+
   async function setSimple(next: boolean) {
     simple = next;
     await setUi({ simple: next });
@@ -170,6 +207,10 @@
       run: () => { tab = "params"; paramsPanel?.fixSelection(); } },
     { id: "filter", label: "Filter parameters", echo: "ref.parameters()", key: "/",
       disabled: !project, run: () => { tab = "params"; setTimeout(() => paramsPanel?.focusFilter(), 0); } },
+    { id: "report", label: "Show the fit report", echo: "ref.report()", key: "?",
+      disabled: !project, run: () => (tab = "report") },
+    { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
+      disabled: !project, run: () => (tab = "history") },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
     { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
@@ -206,19 +247,27 @@
       await loadResult();
     })();
 
-    let last = run?.state ?? "idle";
+    // The run this shell has already reacted to, as (state, outcome, node).  Keyed
+    // on the *outcome* rather than on having seen a `running` frame: the state
+    // channel only sends a frame when the coarse frame changes, so a stage that
+    // starts and finishes between two frames delivers one idle frame carrying a
+    // new status — and a transition test would treat it as nothing having happened
+    // and leave the previous fit's curves on screen.  `null` until the first frame,
+    // so a reload does not announce the outcome of a run that ended before it.
+    let seen: string | null = null;
     return follow(
       (event: EngineEvent) => say(consoleLine(event)),
       (frame: RunState) => {
         run = frame;
+        const key = `${frame.state}:${frame.run.status ?? ""}:${frame.run.node_id ?? ""}`;
         // a run just ended (any way it ended) → the result and the history moved
-        if (last !== "idle" && frame.state === "idle") {
+        if (seen !== null && key !== seen && frame.state === "idle" && frame.run.status) {
           loadResult();
           if (frame.run.status === "failed") say(`FAILED  ${frame.run.error?.message ?? ""}`);
           if (frame.run.status === "cancelled")
             say(`cancelled at stage ${frame.run.stage} — state stands at ${frame.run.node_id}`);
         }
-        last = frame.state;
+        seen = key;
       },
       { poll: (since) => api.events(since) },
     );
@@ -296,21 +345,32 @@
     </section>
   {:else}
     <div class="panes">
-      <Plot {result} {plotKey} error={resultError} />
+      <Plot {result} {plotKey} {zoom} error={resultError} />
       <div class="side">
         <nav class="tabs">
           <button class:on={tab === "params"} onclick={() => (tab = "params")}>Parameters</button>
           <button class:on={tab === "plan"} onclick={() => (tab = "plan")}>Plan</button>
+          <button class:on={tab === "report"} onclick={() => (tab = "report")}>Report</button>
+          <button class:on={tab === "history"} onclick={() => (tab = "history")}>History</button>
           <button class:on={tab === "build"} onclick={() => (tab = "build")}>Build</button>
         </nav>
-        <!-- all three stay mounted: switching tabs must not throw away a filter,
-             a pending edit or an unsaved stage list -->
+        <!-- every tab stays mounted: switching must not throw away a filter, a
+             pending edit, an unsaved stage list or a two-node comparison -->
         <div class="panel" class:hidden={tab !== "params"}>
           <Params bind:this={paramsPanel} {head} {busy} {simple} {say} />
         </div>
         <div class="panel" class:hidden={tab !== "plan"}>
           <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
             onrun={runStage} />
+        </div>
+        <div class="panel" class:hidden={tab !== "report"}>
+          <Report {head} {busy} {simple} {say} {applied}
+            chi2={result?.statistics?.chi2 ?? null}
+            onzoom={(lo, hi) => (zoom = [lo, hi])}
+            onapplied={absorbApply} onmoved={moved} />
+        </div>
+        <div class="panel" class:hidden={tab !== "history"}>
+          <History {head} {busy} {say} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={tab !== "build"}>
           <Stubs {capabilities} {project} />

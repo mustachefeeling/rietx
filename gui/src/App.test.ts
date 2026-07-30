@@ -115,9 +115,113 @@ const PLANS = {
   ],
 };
 
+/** A history with a fork: n0003 ran from n0001, which already had n0002. */
+const HISTORY = {
+  tree_id: "t1",
+  head: "n0003",
+  root: "n0000",
+  n_nodes: 4,
+  nodes: [
+    { id: "n0000", parents: [], children: ["n0001"], label: "", created_utc: "2026-07-30T10:00:00Z",
+      kind: "root", name: "", action: { kind: "root" }, api_call: "pr.Refinement(structure, instrument)",
+      status: null, n_iterations: null, rwp: null, gof: null, n_free: null,
+      n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {} },
+    { id: "n0001", parents: ["n0000"], children: ["n0002", "n0003"], label: "",
+      created_utc: "2026-07-30T10:00:01Z", kind: "stage", name: "scale+bkg",
+      action: { kind: "stage", name: "scale+bkg", turn_on: ["phases.*.scale"] },
+      api_call: "ref.run_stage(data, pr.Stage('scale+bkg', ['phases.*.scale'], max_iter=100))",
+      status: "converged", n_iterations: 7, rwp: 0.21, gof: 1.9, n_free: 4,
+      n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {} },
+    { id: "n0002", parents: ["n0001"], children: [], label: "",
+      created_utc: "2026-07-30T10:00:02Z", kind: "stage", name: "cell",
+      action: { kind: "stage", name: "cell", turn_on: ["phases.*.cell.*"] },
+      api_call: "ref.run_stage(data, pr.Stage('cell', ['phases.*.cell.*'], max_iter=100))",
+      status: "converged", n_iterations: 5, rwp: 0.04, gof: 0.8, n_free: 5,
+      n_diagnostics: 1,
+      diagnostics: [{ level: "warning", code: "HIGH_CORRELATION",
+                      message: "a ~ b (ρ=+0.994)", where: ["phases.0.cell.a", "instrument.zero_shift"] }],
+      tags: ["best-so-far"], scores: {}, notes: {} },
+    { id: "n0003", parents: ["n0001"], children: [], label: "",
+      created_utc: "2026-07-30T10:00:03Z", kind: "set_vary",
+      name: "", action: { kind: "set_vary", turn_on: ["a", "b", "c"], turn_off: [] },
+      api_call: "ref.set_vary(['a', 'b', 'c'], True)",
+      status: null, n_iterations: null, rwp: null, gof: null, n_free: null,
+      n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {} },
+  ],
+};
+
+/** A report with all three layers, an unindexed peak, and one of each
+ *  applicability: a button, a veto, and advice. */
+const REPORT = {
+  report: {
+    thresholds_version: "0.3",
+    rwp: 0.216, gof: 1.41,
+    summary: "Rwp 21.6 %, 15 misfitting regions; Layer 1 on 15/15 regions",
+    regions: [
+      { two_theta_lo: 9.0, two_theta_hi: 9.4, local_rwp: 0.31, chi2_share: 0.42,
+        max_abs_delta_over_sigma: 41, n_reflections: 1 },
+      { two_theta_lo: 5.6, two_theta_hi: 5.9, local_rwp: 0.88, chi2_share: 0.02,
+        max_abs_delta_over_sigma: 6, n_reflections: 0 },
+    ],
+    unmatched: [{ two_theta: 12.34, height_over_sigma: 19, kind: "unmatched_obs" }],
+    attribution: [
+      { two_theta_lo: 9.0, two_theta_hi: 9.4, n_reflections: 1, chi2_share: 0.42,
+        mean_two_theta: 9.2, mean_fwhm: 0.016, r2: 0.91, gram_condition: 220,
+        chi2_reduced: 30, gates_passed: true, gate_failures: [],
+        coefficients: [{ kind: "position", value: -0.0024, stderr: 0.0002,
+                         significant: true, share: 0.9 }] },
+      { two_theta_lo: 5.6, two_theta_hi: 5.9, n_reflections: 0, chi2_share: 0.02,
+        mean_two_theta: 5.7, mean_fwhm: 0.016, r2: 0.2, gram_condition: 1.2e5,
+        chi2_reduced: 4, gates_passed: false,
+        gate_failures: ["local_r2=0.20<0.5", "gram_condition=1.2e+05>1e+04"],
+        coefficients: [] },
+    ],
+    trends: [
+      { observable: "position", n_regions_used: 15, max_template_collinearity: 0.999,
+        separability_ratio: 1.1, separable: false, misfit_share: 0.85,
+        templates: [{ name: "tan_theta", coefficient: -0.0024, stderr: 0.0002, r2: 0.88 },
+                    { name: "constant", coefficient: -0.0011, stderr: 0.0003, r2: 0.71 }] },
+    ],
+    texture: [], strain: [], restraints: null,
+    layer1_available: true, abstained_reason: null,
+    suggested_actions: [
+      { kind: "refine_scale", confidence: 0.9, rationale: "intensities are uniformly off",
+        parameter_paths: ["phases.*.scale"], expected_delta_chi2: 16.19,
+        alternatives: ["refine_biso"], two_theta_range: null,
+        vetoed_by: "already refined by the staged plan (phases.*.scale)" },
+      { kind: "refine_cell", confidence: 0.5,
+        rationale: "position error follows the tan_theta template; templates are collinear",
+        parameter_paths: ["phases.*.cell.*"], expected_delta_chi2: 16.19,
+        alternatives: ["refine_zero_shift"], two_theta_range: null, vetoed_by: null },
+      { kind: "add_impurity_phase", confidence: 0.4,
+        rationale: "1 observed peak has no calculated reflection nearby",
+        parameter_paths: [], expected_delta_chi2: null,
+        alternatives: ["reindex_or_recheck_cell"], two_theta_range: [12.34, 12.34],
+        vetoed_by: null },
+    ],
+  },
+  apply: [
+    { kind: "refine_scale", how: "stage", note: "", can_apply: false,
+      refusal: "vetoed: already refined by the staged plan (phases.*.scale)",
+      paths: ["phases.*.scale"], stage: null, api_call: null },
+    { kind: "refine_cell", how: "stage", note: "", can_apply: true, refusal: "",
+      paths: ["phases.*.cell.*"],
+      stage: { name: "apply:refine_cell", turn_on: ["phases.*.cell.*"], max_iter: 100,
+               lebail_cycles: 3, seed: 0, strain_seed: 0 },
+      api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))" },
+    { kind: "add_impurity_phase", how: "advice",
+      note: "no phase is named yet, so there is nothing to free.",
+      can_apply: false,
+      refusal: "not a one-click action — no phase is named yet, so there is nothing to free.",
+      paths: [], stage: null, api_call: null },
+  ],
+};
+
 interface Call {
   method: string;
   path: string;
+  /** the path *with* its query — the report panel's zoom is a query, not a body */
+  url: string;
   body: any;
 }
 
@@ -125,10 +229,12 @@ interface Call {
 function server(routes: Record<string, (call: Call) => { status?: number; body: unknown }>) {
   const calls: Call[] = [];
   const fetcher = vi.fn(async (input: any, init: any = {}) => {
-    const path = String(input).split("?")[0];
+    const url = String(input);
+    const path = url.split("?")[0];
     const call: Call = {
       method: init.method ?? "GET",
       path,
+      url,
       body: init.body ? JSON.parse(init.body) : null,
     };
     calls.push(call);
@@ -158,8 +264,20 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN) {
     "/api/params": () => ({ body: PARAMS }),
     "/api/plan": () => ({ body: PLAN }),
     "/api/plans": () => ({ body: PLANS }),
+    "/api/history": () => ({ body: HISTORY }),
+    "/api/report": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
 }
+
+/** The result routes, for the tests that need a fit to exist. */
+const FITTED = {
+  "/api/result": () => ({ body: { result: { ...RESULT, statistics: { rwp: 0.216, gof: 1.41, chi2: 16.96 } } } }),
+  "/api/result/window": () => ({ body: { two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2],
+                                         y_background: [], delta: [0, 0], ticks: {},
+                                         window: [9, 9.4], n_total: 2, n_returned: 2,
+                                         max_points: 4000 } }),
+  "/api/report": () => ({ body: REPORT }),
+};
 
 const flush = async () => {
   for (let i = 0; i < 16; i++) await Promise.resolve();
@@ -230,7 +348,7 @@ describe("the shell", () => {
     expect(host.textContent).toContain("4200 pts");
     expect(host.textContent).toContain("σ from file");     // which weights the fit used
     expect(host.textContent).toContain("No fitted curves yet");
-    expect(host.textContent).toContain("WP-1012");         // the panels still owed
+    expect(host.textContent).toContain("WP-1013");         // the panels still owed
     expect(button("Run")?.disabled).toBe(false);
   });
 
@@ -513,6 +631,256 @@ describe("the plan editor", () => {
     const put = stub.calls.find((call) => call.method === "PUT");
     expect(put?.body.plan.stages.map((s: any) => s.name)).toEqual(["cell", "scale+bkg"]);
     expect(put?.body.plan.correlation_guard).toBe(0.98);
+  });
+});
+
+// ----------------------------------------------------------------------
+// the history worktree and the report panel (WP-1012)
+// ----------------------------------------------------------------------
+async function openTab(name: string, project: any = PROJECT,
+                       extra: Record<string, any> = {}) {
+  const stub = server({ ...boot(project), ...extra });
+  vi.stubGlobal("fetch", stub.fetcher);
+  app = mount(App, { target: host });
+  await flush();
+  button(name)!.click();
+  await flush();
+  return stub;
+}
+
+describe("the history worktree", () => {
+  it("draws the DAG with a second lane for the fork, and marks HEAD", async () => {
+    await openTab("History");
+    // four nodes, and the fork (n0003 from n0001, which already had n0002) needs
+    // a second rail — this DAG has no refs, so a lane is where it divided
+    expect(host.querySelectorAll(".node").length).toBe(4);
+    expect(host.querySelectorAll("svg.rail circle").length).toBe(4);
+    expect(host.textContent).toContain("2 lanes");
+    expect(host.querySelector("svg.rail circle.head")).not.toBeNull();
+
+    // the action, not the id — and Rwp with its move against the first parent
+    expect(host.textContent).toContain("scale+bkg");
+    expect(host.textContent).toContain("free 3 paths");
+    expect(host.textContent).toContain("4.00%");
+    expect(host.textContent).toContain("▾17.00");           // 0.04 against 0.21
+    expect(host.textContent).toContain("best-so-far");      // a tag chip
+    expect(host.textContent).toContain("⚠ 1");              // a node's diagnostics
+  });
+
+  it("shows the selected node's api_call and its guard finding's paths", async () => {
+    await openTab("History");
+    const rows = [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")];
+    rows[2].click();                                        // n0002
+    await flush();
+    expect(host.querySelector(".call")?.textContent).toContain("pr.Stage('cell'");
+    // WP-1007: `where` carries the pair, so no message needs parsing
+    expect(host.textContent).toContain("HIGH_CORRELATION");
+    expect(host.textContent).toContain("phases.0.cell.a instrument.zero_shift");
+  });
+
+  it("checks a node out and tells the shell the curves are gone", async () => {
+    const stub = await openTab("History", PROJECT, {
+      ...FITTED,
+      "/api/history/checkout": () => ({ body: { head: "n0002", parameters: [], n_free: 0 } }),
+    });
+    [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+    await flush();
+    expect(host.textContent).toContain("Checking out discards the fitted curves");
+
+    const before = stub.calls.filter((c) => c.path === "/api/result").length;
+    button("Checkout")!.click();
+    await flush();
+    const post = stub.calls.find((c) => c.path === "/api/history/checkout");
+    expect(post?.body).toEqual({ node_id: "n0002" });
+    // …and the shell refetched: a checkout discards the result server-side, so a
+    // plot of the old curves would be a plot of a state the project is not in
+    expect(stub.calls.filter((c) => c.path === "/api/result").length).toBe(before + 1);
+    expect(host.textContent).toContain('ref.checkout("n0002")');
+  });
+
+  it("branches by naming a fork point — checkout plus tag, not a new ref", async () => {
+    const stub = await openTab("History", PROJECT, {
+      ...FITTED,
+      "/api/history/branch": () => ({ body: { branched_from: "n0002", name: "keeper",
+                                              head: "n0002", parameters: [] } }),
+    });
+    [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+    await flush();
+    await type("footer input", "keeper");
+    button("Branch")!.click();
+    await flush();
+    const post = stub.calls.find((c) => c.path === "/api/history/branch");
+    expect(post?.body).toEqual({ node_id: "n0002", name: "keeper" });
+  });
+
+  it("compares two nodes through diff, ranked, with the metrics beside it", async () => {
+    const stub = await openTab("History", PROJECT, {
+      "/api/history/diff": () => ({ body: { a: "n0001", b: "n0002", diff: {
+        "phases.0.cell.a": [4.1566, 4.1568], "instrument.profile.w": [0.00025, 0.0005] } } }),
+      "/api/history/compare": () => ({ body: { rows: [
+        { id: "n0001", rwp: 0.21, n_free: 4, action: "stage:scale+bkg" },
+        { id: "n0002", rwp: 0.04, n_free: 5, action: "stage:cell" }] } }),
+    });
+    const nodes = [...host.querySelectorAll<HTMLElement>(".node")];
+    nodes[1].querySelector<HTMLButtonElement>("button.pick")!.click();
+    await flush();
+    nodes[2].querySelector<HTMLButtonElement>("button.tiny")!.click();   // ⇄
+    await flush();
+
+    expect(stub.calls.some((c) => c.url.includes("/api/history/diff?a=n0001&b=n0002"))).toBe(true);
+    expect(host.textContent).toContain("2 paths differ");
+    // biggest relative move first: w doubled, a moved 5e-5
+    const paths = [...host.querySelectorAll(".drow .path")].map((n) => n.textContent?.trim());
+    expect(paths).toEqual(["instrument.profile.w", "phases.0.cell.a"]);
+    expect(host.textContent).toContain("21.00% → 4.00%");
+  });
+});
+
+describe("the report panel", () => {
+  it("renders the layers, and an unapplicable suggestion keeps its reason", async () => {
+    await openTab("Report", PROJECT, FITTED);
+    expect(host.textContent).toContain("21.600%");
+    expect(host.textContent).toContain("Layer 1 on 15/15 regions");
+    expect(host.textContent).toContain("1 unindexed");
+    // the gates that refused, by name, counted — the values are on the row
+    expect(host.textContent).toContain("local_r2 ×1");
+
+    const actions = [...host.querySelectorAll<HTMLElement>(".action")];
+    // applicable first, then the veto, then advice — and nothing is dropped
+    expect(actions.map((a) => a.querySelector(".kind")?.textContent?.trim()))
+      .toEqual(["refine_cell", "refine_scale", "add_impurity_phase"]);
+    expect(actions[1].textContent).toContain("already refined by the staged plan");
+    expect(actions[2].textContent).toContain("no phase is named yet");
+    // one Apply button: the other two are refusals with reasons, not controls
+    expect(host.querySelectorAll(".action button.small").length).toBe(1);
+    // 0.5 is capped by the collinear templates, so it must not read as confident
+    expect(actions[0].dataset.tone).toBe("medium");
+  });
+
+  it("says the predicted Δχ² is the report's, once, not per suggestion", async () => {
+    await openTab("Report", PROJECT, FITTED);
+    expect(host.textContent).toContain("one estimate for the whole report");
+    // the figure appears once, in the note — not in a column beside three rows
+    expect(host.textContent!.split("16.19").length - 1).toBe(1);
+  });
+
+  it("zooms the plot to a region, padded, at full point budget", async () => {
+    const stub = await openTab("Report", PROJECT, FITTED);
+    const rows = [...host.querySelectorAll<HTMLButtonElement>(".trow")];
+    // ranked by χ² share: the 9.0–9.4° region leads, not the worse local Rwp one
+    expect(rows[0].textContent).toContain("9.00–9.40");
+    rows[0].click();
+    await flush();
+    // padded by 35 % of its own width, so a one-peak region arrives with a
+    // baseline; and it is a *server* fetch, not an axis range
+    const zoomed = stub.calls.filter((c) => c.path === "/api/result/window").at(-1);
+    expect(zoomed?.url).toContain("lo=8.86");
+    expect(zoomed?.url).toContain("hi=9.54");
+  });
+
+  it("applies a suggestion and measures it, with undo as a checkout", async () => {
+    const stub = await openTab("Report", PROJECT, {
+      ...FITTED,
+      "/api/report/apply": () => ({ body: {
+        applied: { kind: "refine_cell", confidence: 0.5, rationale: "…",
+                   expected_delta_chi2: 16.19,
+                   stage: { name: "apply:refine_cell", turn_on: ["phases.*.cell.*"] } },
+        api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
+        undo: "n0003", chi2_before: 16.96,
+        state: "running", run: { ...IDLE_RUN.run, kind: "stage" }, head: "n0003" } }),
+    });
+    button("Apply")!.click();
+    await flush();
+
+    const post = stub.calls.find((c) => c.path === "/api/report/apply");
+    expect(post?.body).toEqual({ kind: "refine_cell", paths: ["phases.*.cell.*"] });
+    // the console echoes the stage the server said it would run
+    expect(host.textContent).toContain("pr.Stage('apply:refine_cell'");
+    // mid-run the observed value is *absent*, not zero: `chi2` is still the one
+    // the action was applied at, and subtracting it would print a confident
+    // "observed 0.000" for a measurement nobody has made
+    expect(host.textContent).toContain("observed running…");
+    expect(host.textContent).toContain("applied refine_cell");
+    // …and Undo waits for the stage: a checkout mid-run is what the server 409s
+    expect(button("Undo")?.disabled).toBe(true);
+  });
+
+  it("puts the observed Δχ² beside the predicted one, and undoes by checkout", async () => {
+    // The applied stage runs and finishes, and the shell learns *only* from the
+    // state frame that carries the outcome — which is the case a transition test
+    // ("have I seen a running frame?") misses on a stage this fast, leaving the
+    // previous fit's curves and χ² on screen.
+    let done = false;
+    let reads = 0;
+    const finished = { state: "idle", project: PROJECT.path, head: "n0004",
+                       run: { ...IDLE_RUN.run, kind: "stage", status: "converged",
+                              node_id: "n0004" } };
+    const stub = await openTab("Report", PROJECT, {
+      ...FITTED,
+      "/api/result": () => ({ body: { result: { ...RESULT, statistics: {
+        rwp: 0.216, gof: 1.41, chi2: reads++ ? 0.63 : 16.96 } } } }),
+      "/api/events": () => ({ body: { events: [], next: 0, oldest: 1,
+                                      ...(done ? finished : IDLE_RUN) } }),
+      "/api/report/apply": () => {
+        done = true;
+        return { body: {
+          applied: { kind: "refine_cell", expected_delta_chi2: 16.19,
+                     stage: { name: "apply:refine_cell" } },
+          api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
+          undo: "n0003", chi2_before: 16.96,
+          state: "running", run: { ...IDLE_RUN.run, kind: "stage" }, head: "n0003" } };
+      },
+      "/api/history/checkout": () => ({ body: { head: "n0003", parameters: [], n_free: 0 } }),
+    });
+    button("Apply")!.click();
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 800)); // one poll interval
+    await flush();
+
+    expect(host.textContent).toContain("predicted Δχ² 16.19");
+    expect(host.textContent).toContain("observed 16.33");
+
+    // undo needs no inverse verb: the head before the apply is a history node
+    button("Undo")!.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/history/checkout")?.body)
+      .toEqual({ node_id: "n0003" });
+    expect(host.textContent).not.toContain("applied refine_cell");
+  });
+
+  it("keeps the per-region coefficients behind the disclosure", async () => {
+    await openTab("Report", PROJECT, FITTED);
+    expect(host.textContent).not.toContain("Attribution");
+    unmount(app);
+    app = null;
+    host.innerHTML = "";
+    await openTab("Report", ADVANCED, FITTED);
+    expect(host.textContent).toContain("Attribution");
+    // a trend the report itself calls non-separable must say so where it is read:
+    // its confidence was already capped, and the alternatives travel with it
+    expect(host.textContent).toContain("not separable");
+    expect(host.textContent).toContain("tan_theta");
+  });
+
+  it("renders an abstention as an abstention", async () => {
+    const abstained = {
+      ...REPORT,
+      report: { ...REPORT.report, layer1_available: false, attribution: [], trends: [],
+                abstained_reason: "fit is immature (Rwp=0.407 > 0.35); Layer 1 abstains",
+                suggested_actions: [REPORT.report.suggested_actions[2]] },
+      apply: [REPORT.apply[2]],
+    };
+    await openTab("Report", PROJECT, { ...FITTED, "/api/report": () => ({ body: abstained }) });
+    expect(host.textContent).toContain("Layer 1 abstained");
+    expect(host.textContent).toContain("fit is immature");
+    // the model-free action survives the abstention, which is the whole point
+    expect(host.textContent).toContain("add_impurity_phase");
+  });
+
+  it("says there is nothing to report on before a fit, without erroring", async () => {
+    await openTab("Report");                            // /api/report 409s NO_RESULT
+    expect(host.textContent).toContain("No fit to report on yet");
+    expect(host.querySelector(".bad")).toBeNull();
   });
 });
 

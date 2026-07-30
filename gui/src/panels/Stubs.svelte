@@ -11,8 +11,6 @@
   let { capabilities, project }: { capabilities: any; project: any } = $props();
 
   const OWED: Array<[string, string]> = [
-    ["History worktree", "WP-1012"],
-    ["Report", "WP-1012"],
     ["Text pane", "WP-1013"],
     ["Import / editing", "WP-1014"],
     ["Structure viewer", "WP-1015"],

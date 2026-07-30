@@ -14,9 +14,21 @@
    * installed Python package — no vendored 4.8 MB copy in the committed dist,
    * and the page still works air-gapped.
    */
-  import { api } from "../api";
+  import { ApiError, api } from "../api";
 
-  let { result, plotKey, error }: { result: any; plotKey: number; error: string } = $props();
+  let {
+    result,
+    plotKey,
+    zoom = null,
+    error,
+  }: {
+    result: any;
+    plotKey: number;
+    /** a 2θ window another panel asked for (a report region, an unindexed peak);
+     *  null means the whole pattern */
+    zoom?: [number, number] | null;
+    error: string;
+  } = $props();
 
   let node: HTMLDivElement | undefined = $state();
   let plotly: any = $state(null);
@@ -61,7 +73,20 @@
       loadError = (exc as Error).message;
       return;
     }
-    const w = await api.window(lo, hi);
+    let w: any;
+    try {
+      w = await api.window(lo, hi);
+    } catch (exc) {
+      // A `checkout` clears the result server-side while this component still
+      // holds the previous one, so the window 409s `NO_RESULT` — an empty state,
+      // not a failure, and an *unhandled* rejection until it was caught here (a
+      // real browser reported it as a page error; jsdom never reached the fetch,
+      // because it does not load the runtime plotly script).
+      shown = null;
+      if (!(exc instanceof ApiError && exc.empty)) loadError = (exc as Error).message;
+      return;
+    }
+    loadError = "";
     shown = { n: w.n_returned, total: w.n_total, lo: w.window?.[0] ?? 0, hi: w.window?.[1] ?? 0 };
 
     const traces: any[] = [
@@ -107,7 +132,11 @@
 
   $effect(() => {
     plotKey; // redraw when the session says the curves moved
-    if (result) draw();
+    // …and refetch the window when another panel points at one: the zoom is a
+    // *server* fetch, not an axis range, so a region the report sent us to comes
+    // back at full point budget rather than as the decimated overview stretched
+    const window = zoom;
+    if (result) draw(window?.[0], window?.[1]);
     else if (plotly && node) plotly.purge(node);
   });
 </script>
