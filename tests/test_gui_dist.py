@@ -178,6 +178,48 @@ def test_nothing_gitignores_the_dist():
     assert not ignored, f"the committed dist is gitignored: {ignored}"
 
 
+#: What `npm run build` reads that is **not** under `gui/src/**`.
+#:
+#: `src/**` needs no list: it is `SOURCE_GLOBS`, so a file missing from a clone
+#: changes the digest and `test_the_dist_is_current` fails.  These sit outside
+#: the digest *and* outside the dist, which is precisely the blind spot that let
+#: the entry point go missing — so they are enumerated.
+BUILD_INPUTS = (
+    "index.html",          # vite's entry module; the one that broke
+    "vite.config.ts",
+    "svelte.config.js",
+    "tsconfig.json",
+    "package.json",
+    "package-lock.json",   # the version statement ATTRIBUTION.md cites
+    "scripts/build_info.py",
+)
+
+
+def test_a_fresh_clone_can_rebuild_the_frontend():
+    """The dist trap's other half, and the half that was still open.
+
+    ``test_nothing_gitignores_the_dist`` guards the build's *output*: the
+    repo-wide ``*.html`` rule matched ``static/index.html``, so WP-1010
+    un-ignored the whole dist. The same rule also matched **``gui/index.html``**
+    — vite's entry module — and nothing noticed for six work packages, because
+    the file exists on every machine that has ever run the build and it is
+    outside both the digest and the dist. CI found it on the first clean-clone
+    build with ``[UNRESOLVED_ENTRY] Cannot resolve entry module index.html``.
+
+    ``git ls-files`` rather than ``git check-ignore``: "not ignored" is the
+    weaker question, and this file was *both* ignored and never added. What a
+    fresh clone gets is what git tracks.
+    """
+    import subprocess
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", *[f"gui/{name}" for name in BUILD_INPUTS]],
+        cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    missing = [name for name in BUILD_INPUTS if f"gui/{name}" not in tracked]
+    assert not missing, (
+        f"the frontend cannot be built from a clean checkout — untracked: {missing}")
+
+
 def test_the_dist_is_in_the_wheel(tmp_path):
     """"Installing the wheel never needs node" is only true if this holds.
 
