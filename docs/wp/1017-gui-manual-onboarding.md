@@ -39,6 +39,22 @@ real UI.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30): **the command palette is already the
+manual's index, and it is executable.** Cmd-K lists every command with the Python
+call it makes (`ref.set_vary(glob, True)`, `ref.run_stage(stage)`,
+`project.doc.ui["simple"]`), and the console echoes the same string when a control
+is clicked — so the chapter that teaches "the GUI is a front for the API" should
+quote the palette rather than restate it, and any command added later appears
+without the manual being edited. The shortcut set to document is `r` run, `.` run
+the selected stage, `Esc` cancel, `f`/`x` free/fix the filtered selection, `/`
+focus the filter, Cmd-K palette.
+
+Two things the onboarding path must say plainly, because both are surprising and
+both are deliberate. **The filter box is the selection** — a bulk free acts on the
+glob, not on ticked rows, because one glob is one history node. And **Simple mode
+hides the rows nothing can free** (locked, tied, mode-fixed) along with bounds and
+transforms; it reports the count it hid, and Advanced brings them back.
+
 From the **v1.0 GUI plan** (2026-07-29): `gui-power.md` is where the
 provisional status of the HTTP routes and `.pxt` format is stated
 user-facing (schemas frozen at v1.0, wire/text surfaces provisional) —

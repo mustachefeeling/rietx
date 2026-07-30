@@ -1,6 +1,6 @@
 # WP-1011 — Parameter editor, plan editor, run controls, disclosure
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: WP-1010
 
 ## Goal
@@ -130,19 +130,19 @@ From **WP-1010** (frontend scaffold, landed 2026-07-30) — the workspace exists
 
 ## Tasks
 
-- [ ] Virtualized grouped parameter table: value edit, vary checkbox, esd,
+- [x] Virtualized grouped parameter table: value edit, vary checkbox, esd,
       locked/tied greyed + tooltip; glob filter; bulk free/fix via PATCH
       globs.
-- [ ] fnmatch parity fixture: pytest writes
+- [x] fnmatch parity fixture: pytest writes
       `tests/data/gui/fnmatch_cases.json`; vitest consumes it against
       `lib/fnmatch.ts`.
-- [ ] Plan editor: `PLAN_INFO` preset picker, stage list, drag-reorder,
+- [x] Plan editor: `PLAN_INFO` preset picker, stage list, drag-reorder,
       disclosure for advanced stage fields.
-- [ ] Run / Run-stage / Cancel with optimistic status; 409 surfaced as
+- [x] Run / Run-stage / Cancel with optimistic status; 409 surfaced as
       state, not failure.
-- [ ] Simple/Advanced toggle persisted to `ProjectDoc.ui`; command palette +
+- [x] Simple/Advanced toggle persisted to `ProjectDoc.ui`; command palette +
       shortcut keys with API echo.
-- [ ] Server-side: params PATCH (incl. bulk glob) rows in
+- [x] Server-side: params PATCH (incl. bulk glob) rows in
       `tests/test_gui_server.py`; vitest for table selection logic and
       fnmatch parity.
 
@@ -159,6 +159,113 @@ npm --prefix gui test
 - WP-1004's `ParameterRow` / verbs; CLAUDE.md path conventions (fnmatch, no
   brackets in paths).
 
+## What landed
+
+- `gui/src/lib/table.ts` — grouping, filtering, the virtual window, pending
+  edits, esd-aware formatting; `lib/fnmatch.ts` — Python's `fnmatchcase`,
+  ported; `lib/palette.ts` — command ranking and the shortcut-target rule.
+  All four asserted in vitest without a DOM.
+- `gui/src/panels/Params.svelte`, `Plan.svelte`, `Palette.svelte`; the shell
+  grew a three-tab sidebar (Parameters / Plan / Build), a Simple↔Advanced
+  segmented control and a keyboard layer.
+- `tests/test_gui_fnmatch.py` writes the committed
+  `tests/data/gui/fnmatch_cases.json`; `tests/test_gui_server.py` gained the
+  bulk-glob row and the strict-JSON row.
+- `src/pxrdref/gui/server.py` — `_finite`/`_dumps`, the defect below.
+- `gui/src/test-setup.ts` — a `ResizeObserver` stub, with the rule for what
+  may go in it. Every future component test inherits it.
+
+## The defect this WP found
+
+**`JSON.parse` rejects a bare `Infinity`, and every parameter row has one.**
+`json.dumps` emits `Infinity`/`NaN` as bare tokens — a Python extension, not
+JSON — and `json.loads` accepts them back, so the whole of `/api/params` was
+unparseable in a browser while every Python test that read it passed. WP-1010
+shipped because it only ever fetched the curves. The fix spells a non-finite
+float the way the schemas already do (`ser_json_inf_nan="strings"`, CLAUDE.md's
+"±inf bounds must survive JSON round-trip"): the GUI server was the one place
+in the package re-serialising already-dumped dicts with stdlib `json`, and so
+the one place that convention was being lost. It applies to the SSE frames too,
+since an event's `data` is an open dict. The scan is a substring test on the
+*output*, so an ordinary response pays one C-level search rather than a
+recursive walk of a 4000-point payload. Pinned by `parse_constant` wired to
+raise, over seven routes.
+
+## Decisions worth carrying
+
+- **The filter box *is* the selection.** There is no per-row multi-select,
+  because `set_vary` takes one glob and records one node for it — N ticked rows
+  would be N globs and N nodes. `asGlob` wraps a bare word as `*word*` so the
+  string previewed and the string sent are the same one, and `selection()`
+  counts only rows `set_vary` could actually move (locked and tied excluded,
+  `mode_fixed` included, since that one *is* freeable and merely dropped again
+  when a stage runs).
+- **A typed number is compared to the rendered value**, not the stored float —
+  WP-1009's rule, needed here for the same reason: values display at the
+  precision their esd justifies (`4.1568(2)`), so comparing against 4.156783
+  would turn "clicked into a cell and out again" into a `set_values` that
+  truncates the parameter.
+- **An invalid cell blocks Apply** rather than being dropped from the body. The
+  point of carrying bounds on the row is to refuse before the round trip; a
+  partial apply is a worse answer than none. Revert stays offered — an invalid
+  edit is *counted* as pending precisely so it can be undone.
+- **Simple mode hides held rows and the bounds/transform columns**, and says how
+  many it hid. The charter also asked it to hide "Pawley/Stephens/ADP blocks
+  unless the structure declares them" — those rows *only exist* when declared
+  (`microstrain.dof.k`, `adp.k` are absent from the table otherwise), so no
+  filter was written for a predicate the parameter table already enforces.
+- **Group = the path minus its leaf, minus one more when the leaf is a bare
+  index.** That is what puts an atom's coordinate DOFs, ADP components and
+  `biso` under one heading instead of scattering one atom across three called
+  `dof`, `adp` and the atom.
+
+## Acceptance (measured 2026-07-30)
+
+```
+.venv/bin/python -m pytest tests/test_gui_server.py -q   →  33 passed
+.venv/bin/python -m pytest tests/test_gui_fnmatch.py -q  →   4 passed
+npm --prefix gui test                                    →  51 passed (4 files)
+npm --prefix gui run check                               →  0 errors, 324 files
+.venv/bin/python -m ruff check src tests examples        →  clean
+fast suite (numpy-only [dev] venv)     → 1133 passed / 107 skipped in 63.6 s
+dist: 76.8 kB JS (28.8 kB gzip), 8.9 kB CSS — was 48.7/19.1 at WP-1010
+```
+
+Driven end to end against a real server (`GuiSession` + `build_server` on an
+ephemeral port), in the order the GUI performs them: 38 rows with 11 locked and
+3 tied; `instrument.profile.*` freeing 5 parameters in **one** history node;
+`phases.*.cell.*` freeing exactly `a` on a cubic cell; a tied edit refused with
+`'phases.0.cell.b' follows 'phases.0.cell.a' as an affine tie; set that
+instead`; `set_values` on `a` carrying `c` with it; one stage run through
+`POST /api/run {kind:"stage"}` to Rwp 0.596, then the full plan to **Rwp
+0.04153** (WP-1010's figure, unchanged); 13 rows coming back with esds; and
+`ui.simple` surviving a `Project.open`.
+
 ## Handover log
 
 - **2026-07-29** — created from the v1.0 GUI plan.
+- **2026-07-30** — **landed.** Done: all six checklist items, in two commits
+  (`0c2eec3` the logic + glob fixture, `6882e87` the components + the JSON
+  fix). In flight: nothing. Next: WP-1012 (history worktree, report panel),
+  which plugs into the sidebar's tab strip.
+
+  Gotchas for whoever touches this next:
+
+  * **Rebuild the dist in the same commit** as any `gui/src/**` change or
+    `tests/test_gui_dist.py` fails. Still true, still the most likely trip.
+  * **jsdom lacks browser APIs the panels use.** `bind:clientHeight` compiles to
+    a `ResizeObserver`, and its absence throws *during mount* — the blank-page
+    failure. `gui/src/test-setup.ts` stubs it; `DragEvent` is also absent, so
+    the plan editor's reorder test dispatches a plain `Event` of the same type.
+    Add to the setup file only what a real browser always has.
+  * **jsdom reports every measurement as 0**, so the virtual window renders only
+    its overscan there. That is why `windowSlice` must stay correct at
+    `viewport = 0` — a test asserting "all rows are in the DOM" would be
+    asserting a coincidence.
+  * The client-side matcher is a **preview only**. If a glob shape ever
+    disagrees with Python, add the case to `tests/test_gui_fnmatch.py`'s
+    `_EDITOR_GLOBS` and let the parity test locate it. Python *repairs* an
+    inverted range (`[z-a]`) and the port does not; the corpus says so in its
+    own `_comment`, and no path in this package contains a bracket.
+  * `Refinement.parameters()` is answered for the **document's** mode via
+    `Project.parameters()` — do not call the refinement directly (WP-1009).

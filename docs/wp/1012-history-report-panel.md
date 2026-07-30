@@ -44,6 +44,31 @@ undoable by checkout.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30) — the sidebar this panel plugs into now
+exists, and three of its rules are not obvious:
+
+- **The sidebar is a tab strip in `App.svelte`, and every tab stays mounted**
+  (`.panel.hidden { display: none }`). Add `History` and `Report` as tabs; do
+  *not* mount on demand, because switching tabs must not throw away a filter, a
+  pending edit or an unsaved stage list. Adding a tab is one `<button>` and one
+  wrapper div.
+- **`head` is the one reload signal.** The head node *is* the working state
+  (WP-1005), so panels take `head` as a prop and reload in an `$effect` keyed on
+  it — that covers a run, a checkout and an edit made in another panel with one
+  subscription. A checkout from this panel will therefore refresh the parameter
+  table by itself, provided the state frame's `head` moves.
+- **A `ResizeObserver` stub lives in `gui/src/test-setup.ts`** because
+  `bind:clientHeight` throws in jsdom *during mount* — the blank-page failure the
+  component test exists to catch. jsdom also has no `DragEvent`, and reports every
+  measurement as 0. Any panel that measures itself must still work at zero height.
+
+And one contract fact: **`"Infinity"` crosses the wire as a string.** WP-1011
+found that `json.dumps` writes a bare `Infinity` token, which `JSON.parse`
+rejects outright — so `gui/server.py` now spells non-finite floats as the schemas
+do. A report payload carrying an infinite bound or a NaN statistic is therefore a
+*string* on the client side; run it through `lib/table.ts`'s `num()` before
+comparing it to anything.
+
 From the **v1.0 GUI plan** (2026-07-29): not every `ActionKind` maps to an
 automatable verb (`collect_better_data` cannot be a button that does
 something). `report/apply.py` must declare per-kind applicability and the

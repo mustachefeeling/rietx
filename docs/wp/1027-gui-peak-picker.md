@@ -87,6 +87,16 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs
+stay mounted** — `Peaks` is a tab, and a picker holding an unsaved edit survives a
+visit elsewhere. Reuse `lib/table.ts` for the peak list (grouping, the virtual
+window, esd-aware value formatting) rather than writing a second table; a
+thousand-peak list is exactly the case its virtualization exists for. Two
+contract facts: non-finite floats cross the wire as **strings** (`"Infinity"`),
+because `JSON.parse` rejects Python's bare token — read them with `num()`; and
+`gui/src/test-setup.ts` stubs the browser APIs jsdom lacks (`ResizeObserver`;
+`DragEvent` is also absent, which matters for a drag-to-move peak marker).
+
 From **WP-1008**: routes `GET/POST /api/peaks`,
 `POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
 `GET /api/index/result`, `POST /api/index/adopt` were reserved (404 until this

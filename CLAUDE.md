@@ -16,7 +16,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (incl. a jsdom mount test) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount + fnmatch parity) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -202,6 +202,28 @@ plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app bo
 and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
 and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
+
+The **editors** (WP-1011) are the parameter table and the plan editor, and their
+logic is in `gui/src/lib/` as pure functions (`table.ts`, `fnmatch.ts`,
+`palette.ts`) so it can be asserted without a DOM. Four rules. **The filter box
+is the selection**: a bulk free/fix sends the *glob*, because `set_vary` takes one
+and records **one** history node for it — a per-row multi-select would be N globs
+and N nodes — and `asGlob` wraps a bare word as `*word*` so the string previewed
+and the string sent are the same one. **A held row gets no vary checkbox at all**,
+with `held_because` as its tooltip and the three reasons rendered as three
+(`mode_fixed` is not `locked`). **A typed number is compared to the *rendered*
+value**, WP-1009's rule reused, so a cell showing `4.1568(2)` cannot truncate a
+parameter on a click-in/click-out. And the client's matcher is a **preview only**
+— it is `fnmatch.fnmatchcase` ported, held to Python by a committed corpus
+(`tests/test_gui_fnmatch.py` writes `tests/data/gui/fnmatch_cases.json` from the
+live parameter vocabulary; `fnmatch.test.ts` replays it), so a divergence is a
+wrong count, never the wrong parameters freed. **`JSON.parse` rejects Python's
+bare `Infinity`**, which `json.dumps` writes by default and every parameter row
+carries: `gui/server.py` spells non-finite floats as the schemas do
+(`ser_json_inf_nan="strings"`) on responses *and* SSE frames, and the client reads
+them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
+`bind:clientHeight` compiles to, so its absence throws *during mount*) and
+`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

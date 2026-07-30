@@ -10,6 +10,19 @@ the milestone's last row, so the freeze covers a surface the GUI exercised)
 
 ## Inherited
 
+From **WP-1011** (landed 2026-07-30) — **the HTTP wire has a JSON dialect, and
+it should be stated rather than inherited.** `json.dumps` writes bare
+`Infinity`/`NaN` tokens, which are a Python extension that `JSON.parse` rejects
+outright; `gui/server.py` therefore spells a non-finite float as the *string*
+`"Infinity"`/`"-Infinity"`/`"NaN"`, matching the schemas' own
+`ser_json_inf_nan="strings"`. Nearly every `ParameterRow` has an unbounded side,
+so this is the common case, not an edge one. Two consequences for the freeze:
+any non-Python client must be told (a `"lo": "Infinity"` that a naive consumer
+coerces to `NaN` is a silent wrong bound), and the rule belongs with whatever
+statement WP-1017's `gui-power.md` makes about the routes being provisional. A
+third option exists and was *not* taken — `null` for non-finite — because it
+cannot distinguish +∞ from −∞.
+
 From the **v1.0 GUI expansion** (un-fencing commit, 2026-07-29) — new surface
 the freeze must cover, and four decisions parked here deliberately:
 

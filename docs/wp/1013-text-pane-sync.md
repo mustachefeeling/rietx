@@ -37,6 +37,23 @@ apply — the Profex/TOPAS-jEdit lineage, without merge hell.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30): **the form side now follows the text
+document's comparison rule**, which is what makes a two-way sync coherent rather
+than merely bidirectional. A cell counts as edited when its text differs from the
+*rendered* value (`lib/table.ts`'s `editState`), exactly as `textdoc.changes`
+diffs against the rendered document — so a value shown at the precision its esd
+justifies (`4.1568(2)` for 4.156783) is not silently truncated by a round trip
+through either surface. If this pane's sync ever compares against the stored
+float on one side and the rendered string on the other, that asymmetry is where
+the drift will come from.
+
+Two smaller ones. The **command palette** (`lib/palette.ts`, Cmd-K) is where a
+"Format document" / "Apply text" command belongs — every entry carries the Python
+call it makes, and its `isShortcutTarget` is already the rule that stops a
+single-letter shortcut firing inside an editor. And **the sidebar is a tab strip
+whose tabs all stay mounted**, so a text pane holding unsaved edits survives a
+visit to the parameter table; add a tab rather than a route.
+
 From the **v1.0 GUI plan** (2026-07-29): two-way text sync is the plan's
 top-listed correctness risk. The mitigations are structural and already
 decided — single server-side parser, CAS revisions, explicit apply,

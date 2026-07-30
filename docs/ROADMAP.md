@@ -121,6 +121,50 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1011](wp/1011-parameter-plan-editors.md) landed 2026-07-30 — the GUI can now
+be *used*, not only watched.** A virtualized grouped parameter table, a plan
+editor over the stages a run will actually execute, per-stage Run, a Cmd-K
+command palette and a Simple↔Advanced flag persisted to `ProjectDoc.ui`. The
+editing logic is in `gui/src/lib/` as pure functions, which is what let it be
+asserted without a DOM — 51 vitest cases now, against 15.
+
+Its founding decision is that **the filter box is the selection.** A bulk
+free/fix sends the *glob*, not the paths the client matched, because
+`Refinement.set_vary` takes one glob and records **one** history node for it — N
+ticked rows would be N globs and N nodes, and a log buried under them is not a
+log. That is also what makes a TypeScript matcher safe to have at all: it only
+ever *previews*, so a divergence from Python is a wrong count and never the wrong
+parameters freed. It is still held to Python exactly, by a committed corpus
+`tests/test_gui_fnmatch.py` generates from `fnmatch.fnmatchcase` over a **live**
+parameter vocabulary — two models chosen to disagree, so the shapes a hand-written
+corpus omits (`adp.0`, `microstrain.dof.3`, `source.lines.1.weight`) are the ones
+it is built from — plus every glob the seven shipped presets free. Two further
+rules came from the API rather than from taste: a held row gets **no vary checkbox
+at all** (a control that errors on click is worse than an absent one), and a typed
+number is compared to the **rendered** value — WP-1009's rule, needed again
+because a cell showing `4.1568(2)` would otherwise truncate a parameter on a
+click-in/click-out.
+
+**And it found the milestone's sixth latent defect, one that would have made the
+whole panel unreachable: `JSON.parse` rejects a bare `Infinity`.** `json.dumps`
+writes `Infinity`/`NaN` as bare tokens — a Python extension, not JSON — and
+`json.loads` accepts them straight back, so `/api/params` was an *unparseable
+response in a browser* while every Python test that read it passed. Almost every
+parameter row carries an infinite bound, so this was not an edge case; WP-1010
+shipped only because it fetched the curves and never the table. The GUI server was
+the one place in the package re-serialising already-dumped dicts with stdlib
+`json`, and so the one place the schemas' own convention
+(`ser_json_inf_nan="strings"`) was being lost — it now spells non-finite floats as
+strings on responses *and* SSE frames, pinned by `parse_constant` wired to raise
+over seven routes. `null` was considered and refused: it cannot distinguish +∞
+from −∞.
+
+Measured end to end over real HTTP, in the order the GUI performs them: 38 rows
+with 11 locked and 3 tied, `instrument.profile.*` freeing five parameters in one
+node, `phases.*.cell.*` freeing exactly `a` on a cubic cell, a tied edit refused
+in the verb's own words, one stage run through the same machinery as a fit, then
+the full plan to **Rwp 0.04153** — WP-1010's figure, unchanged.
+
 **[1010](wp/1010-frontend-scaffold.md) landed 2026-07-30 — there is a GUI you can
 look at.** `pxrdref gui my_sample.pxrd` now serves a real app: a Svelte 5 + Vite
 workspace under `gui/`, built into a **committed** dist at
@@ -1042,7 +1086,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ✅ 2026-07-30 | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
-| [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
+| [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |

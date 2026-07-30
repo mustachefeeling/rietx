@@ -42,6 +42,16 @@ warning and per-pattern drill-down into each pattern's own history tree.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs all
+stay mounted** — add a `Series` tab, not a route or a modal. `lib/table.ts` is
+reusable for the per-pattern parameter listing (grouping, the virtual window, and
+`formatValue`/`formatEsd`, which render a value at the precision its esd
+justifies); a trajectory table is the same shape one axis over. And the plan
+editor's preset picker is the thing a series run needs to *reuse* rather than
+re-implement, since `refine_sequential` takes the same `PlanSpec` — including its
+`refit` semantics, where WP-0505 measured the collapsed single-stage refit as the
+default.
+
 From the **v1.0 GUI plan** (2026-07-29): series routes/panel are v1's only
 multi-pattern surface — `ProjectDoc.patterns` stays length 1 (a series is N
 patterns *outside* the project's single-pattern model, referenced by the

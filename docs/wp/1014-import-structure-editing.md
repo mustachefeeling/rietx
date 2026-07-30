@@ -43,6 +43,19 @@ editing through the Wyckoff DOFs, and instrument forms.
 
 ### Inherited
 
+From **WP-1011** (landed 2026-07-30): the shell's empty state already points at
+this WP by name ("Creating a project in the browser needs the import flow
+(WP-1014)"), so that copy is what this panel replaces. Three carried facts:
+**`ProjectDoc.ui` is live** and the frontend owns its keys — `{"simple": bool}`
+is taken, set through `POST /api/project {ui: …}`, which persists on the verb, so
+an import wizard's own state can join it the same way. **A model patch is a whole
+validated model** (`PATCH /api/structure`), and a state refusal outranks body
+validation — disable the form off the `state` frame rather than letting a user
+retype a structure into a 409. And **non-finite floats cross the wire as strings**
+(`"Infinity"`), since `JSON.parse` rejects Python's bare token — a `Parameter`'s
+`min`/`max` in a structure payload will arrive as strings, so `lib/table.ts`'s
+`num()` is what to read them with.
+
 From the **v1.0 GUI plan** (2026-07-29): the FCJ corner at S/L = H/L with
 both apertures started equal is a real parameterisation trap (identical
 Jacobian columns, ρ = +1.000 — measured in WP-0601). The instrument form
