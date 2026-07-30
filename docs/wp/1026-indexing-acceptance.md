@@ -163,6 +163,35 @@ dataset is not a calibration. The engines' synthetic recovery is solid (cubic
 through monoclinic, truth ranked first, both engines) so a failure here is about the
 data, not the search.
 
+**RESOLVED 2026-07-30, and neither route was needed — the diagnosis above was
+wrong.** The last sentence was the useful one: the failure was about the data, but
+about the *peak list* rather than the tolerance. `detect_peaks` was correct (41
+groups, **one seed each**, the real lines); `fit_group`'s ΔBIC re-seed pass then
+returned **63** components, adding a phantom ~1 FWHM below every strong peak at
+~10 % of its area, carrying a small esd so it read downstream as a well-measured
+line. ΔBIC could not refuse it, and not because the threshold was wrong: it asks
+whether the data prefer n+1 components to n, which is the same question as "is there
+a line here" only while the n-component model is *capable of fitting*. On the
+corundum 104 line χ²_red is 17.4 at n = 1 and 4.6 at n = 2 — both refuted, so any
+extra component wins.
+
+Ruled out by measurement before landing anything: axial asymmetry (declaring FCJ
+apertures moves 63 → 56 components and takes χ²_red from 2.9 to 10.7), the width
+bounds (Γ_G, Γ_L are nowhere near them), and the background envelope (it tracks the
+quiet regions to a few counts). The defect is general, not a corundum quirk —
+satellites were 4-21 % of picked lines across all eight bundled real datasets, worst
+on lab Bragg-Brentano and least on synchrotron.
+
+The fix is a `not_separable` flag in `pick.py` (`_not_separable`), which keeps the
+component in the *model* — removing it displaces the real line by 0.010° — and bars
+it from `usable()`. Measured after: satellites 0-7 %, and **both engines rank the
+certified cell first** at `n_unindexed = 3` (dichotomy a = 4.7591 Å against the
+certified 4.759355 — +5 ppm; trial-and-error a = 4.7631). The `n_unindexed` sweep is
+itself a result and confirms CLAUDE.md's warning: at 2 neither engine finds it (the
+list still carries one 5.17° edge artifact and two surviving satellites), at 3 both
+rank it first, and at 5-6 dichotomy **loses it entirely** — raising the tolerance
+manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not touched.
+
 ## Non-goals
 
 - No new engine, no new diagnostic — this WP only measures.

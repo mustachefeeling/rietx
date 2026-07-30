@@ -297,14 +297,70 @@ PeakFlag = Literal[
     "unresolved_shoulder",
     "position_at_bound",
     "asymmetry_unmodelled",
+    "not_separable",
 ]
 
 #: Flags that take a line out of :meth:`PeakList.usable`.  ``sigma_assumed``
 #: and ``unresolved_shoulder`` are deliberately absent: those lines are still
 #: evidence, just less precise evidence, and their σ already says so.  Dropping
 #: them would discard the input the bethanechol benchmark arrives as.
+#:
+#: ``not_separable`` **is** here, and it is the one flag that marks a component
+#: the fitter believes in as a *shape* and disbelieves as a *line* — see
+#: :data:`PEAK_SEPARABLE_MAX_CHI2`.  It stays in ``peaks`` (a report must be able
+#: to say why a line went, and the component genuinely improves the group's fit,
+#: so removing it from the *model* would bias the position of the line it sits
+#: on) while never being offered as evidence of a lattice.
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
-    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed"})
+    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable"})
+
+#: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
+#: therefore above which a ΔBIC verdict on adding one more component to it cannot
+#: be read as evidence of a line.
+#:
+#: Not a flat χ²_red bar, because the groups differ in size by 5× across one
+#: pattern and χ²_red's own scatter is ν-dependent: for ν degrees of freedom
+#: σ(χ²_red) = √(2/ν), so the bar is ``1 + 3·√(2/ν)`` — 1.48 on an 83-point
+#: window, 1.27 on a 300-point one.  Three σ, the same 99.7 % convention
+#: :data:`~pxrdref.indexing.fom.MATCH_SIGMA` uses on positions, so one number
+#: means one thing across the package.
+#:
+#: This is the constant that closes WP-1026's real-data obstruction, and the
+#: reason it is needed is a limit of ΔBIC rather than a bad threshold in it.
+#: :data:`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` asks "does the data prefer n+1
+#: components to n?", which is only the same question as "is there a line here?"
+#: when the n-component model is *capable of fitting*.  Measured on the bundled
+#: qarr corundum pattern (Cu Kα, lab Bragg-Brentano): the strong 104 line at
+#: 35.09° fits with χ²_red = **17.4** at n = 1 and **4.6** at n = 2, so both
+#: models are refuted, the ΔBIC gain is enormous, and the component bought sits
+#: 0.17° (≈ 1 FWHM) below the real line at 10 % of its area — carrying a small
+#: esd, so it reads downstream as a well-measured line.  Detection never proposed
+#: it: ``detect_peaks`` returned 41 groups with **one seed each**, and the fitter
+#: returned 63 components.
+#:
+#: **The consequence was total, not marginal.**  With those satellites in the
+#: list neither engine could index a pattern whose cell is certified; with them
+#: out, both do (a = 4.7583/4.7626 Å against the certified 4.759355).  That is
+#: also why the earlier diagnosis of the same failure — that the matching
+#: tolerance was too tight — was wrong; see
+#: :data:`pxrdref.indexing.engines.DEFAULT_UNKNOWN_SHIFT_DEG`.
+#:
+#: **It is a "the model is refuted" bar, not a goodness bar**, and its failure
+#: mode is stated rather than eliminated: on a *well*-fitted group a weak close
+#: neighbour is kept, and on a badly-fitted one a genuine weak neighbour is
+#: demoted to ``not_separable``.  The second is the deliberate direction — a line
+#: the fitter cannot separate from its neighbour's shape is not evidence, and the
+#: flag says exactly that rather than deleting the component.
+PEAK_REFUTED_SIGMA = 3.0
+#: Distance, in the group's fitted FWHM, within which a component lies *inside* a
+#: neighbour's own profile rather than beside it.  Paired with
+#: :data:`PEAK_SATELLITE_MAX_RATIO`: both must hold, plus the component must have
+#: come from a re-seed pass rather than from a detected maximum.
+PEAK_SATELLITE_NEAR_FWHM = 1.5
+#: Area ratio below which a component is a *satellite* of a group-mate — small
+#: enough that the stronger line's shape error can account for it.  Measured
+#: satellite ratios on the qarr lab patterns are 0.08-0.14.
+PEAK_SATELLITE_MAX_RATIO = 0.25
 
 
 def q_of_two_theta(two_theta_deg: np.ndarray, wavelength: float) -> np.ndarray:

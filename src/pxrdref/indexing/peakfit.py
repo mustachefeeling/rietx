@@ -127,6 +127,19 @@ class GroupFit:
     #: 2θ where an extra component would go, if the residual asks for one at
     #: all.  A *proposal*: :func:`fit_group`'s ΔBIC test decides.
     reseed_at: float | None = None
+    #: bool per component: did a **re-seed pass** put this component here, rather
+    #: than detection?  Provenance, not a judgement — a re-seeded component that
+    #: is well separated and comparable in area is an ordinary line.  It is one
+    #: of the three conditions :func:`~pxrdref.indexing.pick._not_separable`
+    #: needs, and it is tracked here because ``fit_group`` is the only place that
+    #: knows: ``_fit_at`` sees positions, not where they came from.
+    from_reseed: np.ndarray | None = None
+
+    def reseeded(self) -> np.ndarray:
+        """``from_reseed``, or all-False for a fit that never re-seeded."""
+        if self.from_reseed is None:
+            return np.zeros(self.n, dtype=bool)
+        return np.asarray(self.from_reseed, dtype=bool)
 
 
 class _GroupModel:
@@ -417,6 +430,7 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
                                            shoulder)
     if best is None:                            # every component was pruned
         return _empty_fit(det, group, instrument)
+    added = np.zeros(best.n, dtype=bool)
     for _ in range(max_reseed):
         if best.reseed_at is None or not best.converged:
             break
@@ -426,7 +440,12 @@ def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
                          n_points=best.n_points, n_added=2)
         if gain < PEAK_KEEP_COMPONENT_MIN_DELTA_BIC:
             break
+        # provenance travels with the *sorted* position vector, so the new
+        # component is identified by where it was inserted rather than by index
+        k = int(np.searchsorted(best.two_theta, best.reseed_at))
+        added = np.insert(added, k, True)
         best = trial
+    best.from_reseed = added
     return best
 
 

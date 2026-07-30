@@ -30,7 +30,7 @@ from hypothesis import strategies as st
 from pxrdref import Instrument, PatternData, pick_peaks
 from pxrdref.crystallography.lattice import d_spacings
 from pxrdref.indexing.diagnostics import peak_diagnostics
-from pxrdref.indexing.peakfit import _fit_at, _GroupModel
+from pxrdref.indexing.peakfit import GroupFit, _fit_at, _GroupModel, fit_group
 from pxrdref.indexing.peaks import (
     Detection,
     PeakGroup,
@@ -39,6 +39,7 @@ from pxrdref.indexing.peaks import (
     detect_peaks,
     predicted_fwhm,
 )
+from pxrdref.indexing.pick import _not_separable
 from pxrdref.model.corrections import lorentz_polarization
 from pxrdref.model.forward import compile_model
 from pxrdref.params.vector import ParameterTable
@@ -46,6 +47,7 @@ from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.indexing import (
     PEAK_ASSUMED_ESD_DEG,
     PEAK_MIN_USABLE_LINES,
+    PEAK_UNUSABLE_FLAGS,
     ObservedPeak,
     PeakList,
     q_esd_of_two_theta,
@@ -476,7 +478,6 @@ def test_singleton_shoulder_must_earn_its_parameters():
     ``_prune_shoulders`` must reject a component seeded on a feature that is not
     there, against the no-peak-at-all hypothesis.
     """
-    from pxrdref.indexing.peakfit import fit_group
 
     instrument = _instrument()
     fwhm = 0.09
@@ -664,3 +665,120 @@ def test_excluded_regions_and_range_crop_compose():
 
     with pytest.raises(ValueError, match="needs a pattern, not a window"):
         pick_peaks(data, instrument, two_theta_range=(60.0, 60.1))
+
+
+# ----------------------------------------------------------------------
+# WP-1026 — a component the fit believes in as a shape and not as a line
+# ----------------------------------------------------------------------
+def test_shape_repair_is_flagged_not_reported_as_a_line():
+    """The defect that stopped a certified pattern from indexing at all.
+
+    ``fit_group``'s re-seed pass adds a component when ΔBIC prefers it, and ΔBIC
+    asks whether the data prefer n+1 components to n — which is the same question
+    as "is there a line here" only while the n-component model is *capable of
+    fitting*.  Against a refuted model any extra component wins, so on a real
+    laboratory profile the fitter bought one phantom per strong peak: ~1 FWHM
+    below it, ~10 % of its area, carrying a small esd so it read downstream as a
+    well-measured line.  Measured on the bundled qarr corundum pattern,
+    ``detect_peaks`` returned 41 groups with **one seed each** and the fitter
+    returned 63 components, and neither engine could index a cell that is
+    certified.
+
+    Reproduced here without any real data, by giving the fitter a model it cannot
+    match: the pattern is generated *with* axial divergence and picked with an
+    instrument that declares none.  That is exactly the real situation — a
+    profile aberration the group model does not carry — and it is the mechanism
+    rather than the particular aberration that is under test.
+    """
+    truth_ins = _instrument(axial=(0.04, 0.02))
+    y_true, grid, truth = _forward(truth_ins, tt_lo=20.0, tt_hi=60.0)
+    data = _noisy(y_true, grid, 4242)
+
+    blind = _instrument(axial=(0.0, 0.0))         # the aberration is undeclared
+    peaks = pick_peaks(data, blind)
+
+    flagged = [p for p in peaks.peaks if "not_separable" in p.flags]
+    assert flagged, "no shape-repair component was recognised at all"
+    # every one of them is a weak satellite of a much stronger line…
+    tt = np.array([p.two_theta for p in peaks.peaks])
+    inten = np.array([p.intensity for p in peaks.peaks])
+    for p in flagged:
+        near = np.abs(tt - p.two_theta) < 1.5 * p.fwhm
+        near &= tt != p.two_theta
+        assert near.any() and inten[near].max() > 4.0 * p.intensity
+    # …and none of them is offered as evidence of a lattice
+    assert not (set(p.two_theta for p in flagged)
+                & set(p.two_theta for p in peaks.usable()))
+    # the component is *kept*, because it earns its place as shape: removing it
+    # from the model would push the position of the line it sits on
+    assert len(peaks.peaks) > len(peaks.usable())
+    # and the real lines survive — this must not be a filter that eats the pattern
+    matched = sum(1 for t in truth
+                  if min(abs(p.two_theta - t) for p in peaks.usable()) < 0.05)
+    assert matched >= len(truth) - 1
+
+
+@pytest.mark.parametrize("axial", [(0.0, 0.0), (0.04, 0.02)])
+def test_the_flag_never_fires_when_the_model_can_fit(axial):
+    """The false-positive guard, and it is the half that decides the design.
+
+    Same pattern, same fitter, same re-seed gate — but the instrument used to
+    pick is the one the data were generated with, so the group model is capable
+    of fitting.  Nothing may be flagged: on data the model can describe, an added
+    component *is* evidence, and a rule that demoted it would be deleting lines.
+    Measured over three noise realisations of each geometry: 6 components for
+    6 reflections, median χ²_red 0.79-1.09, no flags at all — against 9-10
+    components and 1-2 flags for the same pattern picked blind to its axial
+    divergence (the test above).
+    """
+    ins = _instrument(axial=axial)
+    y_true, grid, truth = _forward(ins, tt_lo=20.0, tt_hi=60.0)
+    for seed in (4242, 7, 99):
+        peaks = pick_peaks(_noisy(y_true, grid, seed), ins)
+        flagged = [p.two_theta for p in peaks.peaks
+                   if "not_separable" in p.flags]
+        assert not flagged, f"seed {seed}: flagged {flagged} on a fit that works"
+        assert len(peaks.usable()) == len(truth)
+
+
+def test_the_refutation_condition_is_what_separates_shape_from_line():
+    """Condition 3 alone, isolated: two fits identical but for their χ²_red.
+
+    The behavioural tests above exercise the rule through the fitter, where all
+    three conditions move together.  This one pins the discriminator itself, and
+    it is the reason ``not_separable`` is not simply a tighter ΔBIC: the geometry
+    of the component (a re-seeded satellite inside a stronger line's profile) is
+    held *fixed*, and only whether the group's fit is refuted is varied.
+    """
+    def _fit(chi2_red: float) -> GroupFit:
+        return GroupFit(
+            group=None, n=2,
+            two_theta=np.array([40.0, 40.10]),
+            two_theta_esd=np.array([1e-3, 5e-3]),
+            intensity=np.array([2.0e4, 2.0e3]),
+            intensity_esd=np.array([1e2, 5e1]),
+            gamma_g=0.07, gamma_l=0.02, fwhm=0.09, eta=0.3,
+            chi2_red=chi2_red, converged=True,
+            at_bound=np.zeros(2, dtype=bool), asymmetry_t=np.zeros(2),
+            n_points=51, from_reseed=np.array([False, True]))
+
+    dof = 51 - 2 - 4
+    bar = 1.0 + 3.0 * np.sqrt(2.0 / dof)
+    assert _not_separable(_fit(bar + 0.5), 1)      # refuted → shape, not a line
+    assert not _not_separable(_fit(bar - 0.1), 1)  # fits → the component is a line
+    # and the *stronger* group-mate is never flagged, whatever the fit quality
+    assert not _not_separable(_fit(bar + 0.5), 0)
+
+
+def test_not_separable_is_unusable_and_the_flag_set_says_so():
+    """Flag semantics, pinned where the set is defined rather than inferred."""
+    assert "not_separable" in PEAK_UNUSABLE_FLAGS
+    peak = ObservedPeak(
+        two_theta=30.0, two_theta_esd=0.01, intensity=10.0, intensity_esd=1.0,
+        q=q_of_two_theta(np.array(30.0), 1.5406).item(), q_esd=1e-4,
+        fwhm=0.1, eta=0.5, group=0, n_in_group=2, chi2_red=9.0,
+        flags=["not_separable"])
+    assert not peak.usable
+    # …and it is *not* one of the "less precise, still evidence" flags
+    assert "unresolved_shoulder" not in PEAK_UNUSABLE_FLAGS
+    assert "sigma_assumed" not in PEAK_UNUSABLE_FLAGS

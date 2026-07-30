@@ -123,16 +123,27 @@ DEFAULT_N_UNINDEXED = 2
 #: tolerance" of ~0.03° 2θ is the literature's default, and 0.05 is that number with
 #: margin.
 #:
-#: **It is not enough to index that pattern, and that is an open result, not a
-#: solved one.**  At 0.05 the trial-and-error engine still finds nothing and
-#: dichotomy ranks a wrong 618 Å³ cell first; at 0.08 trial-and-error recovers
-#: a = 4.7659 Å against the certified 4.7593 (+1400 ppm, the shift absorbed into the
-#: cell).  Widening further costs specificity in both directions, so the remedy is
-#: not a bigger number: it is fitting the shift template, which
-#: :func:`refine_with_shift` does *after* a candidate survives — because a shift is
-#: only identifiable against reference positions and a candidate cell is what
-#: supplies them.  Closing the loop on real data is WP-1026's acceptance work; every
-#: result records which allowance it used and says so with
+#: **Widening it was never what that pattern needed, and the correction matters
+#: more than the constant.**  WP-1023 measured that at 0.05 the trial-and-error
+#: engine still found nothing and dichotomy ranked a wrong 618 Å³ cell first, and
+#: that at 0.08 trial-and-error recovered a = 4.7659 Å against the certified
+#: 4.7593 (+1400 ppm, the shift absorbed into the cell).  Those numbers stand.
+#: The *attribution* did not: WP-1026 found the obstruction was the **peak list**,
+#: not the tolerance.  ``pick_peaks`` was reporting one phantom line per strong
+#: peak — a re-seeded component ~1 FWHM below it at ~10 % of its area, bought by a
+#: ΔBIC gate judging a profile the group model cannot fit — so 19 % of the lines
+#: offered to the search were not lines at all.  With those flagged
+#: ``not_separable`` (:data:`~pxrdref.schemas.indexing.PEAK_REFUTED_SIGMA`) **both
+#: engines index the certified pattern and rank it first**, at this allowance and
+#: without widening it.  The lesson is worth more than either number: a search
+#: that finds nothing indicts its input before its tolerance.
+#:
+#: What the allowance is still for is unchanged, and so is what it cannot do: it
+#: opens the window wide enough for a systematic to fit through, and a cell found
+#: inside a widened window has absorbed it.  Fixing that is
+#: :func:`refine_with_shift`, *after* a candidate survives — a shift is only
+#: identifiable against reference positions and a candidate cell is what supplies
+#: them.  Every result records which allowance it used and says so with
 #: ``INDEX_SHIFT_ALLOWANCE``.
 DEFAULT_UNKNOWN_SHIFT_DEG = 0.05
 #: Wall-clock seconds a single system may consume before the engine gives up on
