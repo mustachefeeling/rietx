@@ -543,9 +543,11 @@ every route is a method on <code>pxrdref.gui.GuiSession</code>.</p>
      <code>/api/result/window?lo=&amp;hi=</code> · <code>/api/report</code></li>
  <li><span class="m">GET</span> <code>/api/history</code> ·
      <span class="m">POST</span> <code>/api/history/checkout</code></li>
+ <li><span class="m">GET</span>/<span class="m">PUT</span> <code>/api/textdoc</code>
+     — the project as text (<code>.pxt</code>), compare-and-set on a revision</li>
  <li><span class="m">POST</span> <code>/api/export/{cif,reflections,qpa,html,result_json}</code></li>
 </ul>
 <p class="sub">Reserved paths answer 404 naming the work package that fills them
-(<code>/api/textdoc</code>, <code>/api/peaks</code>, <code>/api/index</code>, …).</p>
+(<code>/api/peaks</code>, <code>/api/index</code>, …).</p>
 </body></html>
 """
