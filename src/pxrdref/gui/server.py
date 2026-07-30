@@ -34,6 +34,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from ..project import Project
+from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
 from .session import RESERVED_ROUTES, GuiError, GuiSession
 
 #: ``compare`` owns 8730 and ``watch`` 8899; the GUI takes the next one up.
@@ -200,6 +201,33 @@ for _kind in ("cif", "reflections", "qpa", "html", "result_json"):
         lambda s, q, b, _k=_kind: s.export(_k, b))
 del _kind
 
+#: ``(method, path) → upload kind``.  The **only** routes in this surface whose
+#: body is not JSON: a file goes up as its own bytes, and its name and options
+#: travel in the query string.  Base64 in a JSON envelope was the alternative and
+#: buys nothing — it inflates the body by a third and still needs the same cap —
+#: while multipart would mean parsing a format the stdlib no longer ships a
+#: parser for (``cgi`` is gone in 3.13).  Kept as a third table rather than a
+#: branch inside :data:`ROUTES` so "the route table is the wire contract" stays
+#: true and a test can assert the three tables are disjoint.
+UPLOAD_ROUTES: dict[tuple[str, str], str] = {
+    ("POST", f"/api/upload/{kind}"): kind for kind in UPLOAD_KINDS}
+
+
+def _upload_options(query: dict) -> dict:
+    """The reader keywords an upload may carry, off the query string.
+
+    ``aniso`` is the checkbox that mirrors ``structure_from_cif(aniso=)`` and
+    ``block`` names a pdCIF data block — both are *re-read* options, which is why
+    they belong on the upload route rather than only on the commit that follows.
+    """
+    options: dict[str, Any] = {}
+    if query.get("aniso"):
+        options["aniso"] = query["aniso"][0].lower() not in ("", "0", "false")
+    for key in ("phase_name", "block"):
+        if query.get(key) and query[key][0]:
+            options[key] = query[key][0]
+    return options
+
 
 # ----------------------------------------------------------------------
 # the handler
@@ -256,6 +284,20 @@ def _handler(session: GuiSession, holder: dict):
                 raise GuiError("request body must be a JSON object")
             return parsed
 
+        def _raw_body(self) -> bytes:
+            """The body as bytes — the upload routes' half of ``_body``.
+
+            The cap is checked against the *declared* length before a byte is
+            read, because reading first and refusing after is how a 4 GB
+            ``Content-Length`` becomes this process's memory.
+            """
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > MAX_UPLOAD_BYTES:
+                raise GuiError(
+                    f"{length} bytes is over the {MAX_UPLOAD_BYTES}-byte upload "
+                    "limit", code="UPLOAD_TOO_LARGE", status=413)
+            return self.rfile.read(length) if length else b""
+
         def _origin_ok(self) -> bool:
             """Reject cross-site drivers; a same-origin fetch sends no Origin.
 
@@ -308,6 +350,14 @@ def _handler(session: GuiSession, holder: dict):
                     return
                 if method == "GET" and path == "/api/events":
                     self._events(query)
+                    return
+                kind = UPLOAD_ROUTES.get((method, path))
+                if kind is not None:
+                    self._json(session.upload(
+                        kind, data=self._raw_body(),
+                        filename=query.get("filename", [""])[0],
+                        token=query.get("upload", [""])[0],
+                        options=_upload_options(query)))
                     return
                 handler = ROUTES.get((method, path))
                 if handler is not None:

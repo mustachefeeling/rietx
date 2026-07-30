@@ -62,6 +62,17 @@ from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz.compare import decimation_index
+from .imports import (
+    UPLOAD_KINDS,
+    UploadRefused,
+    UploadStore,
+    instrument_from_preset,
+    preview_cif,
+    preview_instrument,
+    preview_pattern,
+    scrub,
+    unknown_species,
+)
 
 #: ``idle`` → ``running`` → (``cancelling``) → ``idle``.  There is no ``failed``
 #: state: a failure ends the run, and *what* happened is on the run record.
@@ -86,9 +97,6 @@ _MAX_RECENT = 12
 #: them in — a 404 saying "not yet, here is who" is a design document a client
 #: can read at runtime.
 RESERVED_ROUTES: dict[tuple[str, str], str] = {
-    ("POST", "/api/upload/pattern"): "WP-1014 (import & in-GUI editing)",
-    ("POST", "/api/upload/cif"): "WP-1014 (import & in-GUI editing)",
-    ("POST", "/api/upload/instrument"): "WP-1014 (import & in-GUI editing)",
     ("GET", "/api/structure3d"): "WP-1015 (structure viewer)",
     ("GET", "/api/peaks"): "WP-1027 (GUI peak picker)",
     ("POST", "/api/peaks"): "WP-1027 (GUI peak picker)",
@@ -159,6 +167,10 @@ class GuiSession:
         self.solver = solver
         self.state_dir = Path(state_dir) if state_dir is not None else Path(
             os.environ.get(STATE_DIR_ENV) or Path.home() / ".pxrdref")
+        #: staged uploads (WP-1014).  Session-scoped on purpose: a token is only
+        #: meaningful to the process that issued it, and the directory goes away
+        #: with :meth:`close` rather than accumulating in a temp dir.
+        self.uploads = UploadStore()
         self.closed = False
 
         self._state: RunState = "idle"
@@ -184,22 +196,67 @@ class GuiSession:
                 "project": None if self.project is None else str(self.project.path)}
 
     # ------------------------------------------------------------------
+    # uploads (WP-1014)
+    # ------------------------------------------------------------------
+    def upload(self, kind: str, *, data: bytes | None = None, filename: str = "",
+               token: str = "", options: dict | None = None) -> dict:
+        """Stage a file (or re-read one already staged) and describe it.
+
+        The two argument shapes are the two halves of one flow: **bytes plus a
+        filename** stage a new file, **a token** re-reads one with different
+        options — which is what the aniso checkbox and the pdCIF block picker
+        need, since flipping either must not mean re-uploading a file the server
+        already has.
+
+        Not idle-gated.  An upload reads its own staged copy and touches neither
+        the models nor the project, so it is one of the few verbs that is safe
+        while a fit runs; the *commit* verbs it feeds are all idle-only already.
+        """
+        opts = dict(options or {})
+        try:
+            if kind not in UPLOAD_KINDS:
+                raise UploadRefused(f"unknown upload kind {kind!r}; expected one "
+                                    f"of {list(UPLOAD_KINDS)}", where=["kind"])
+            if data:
+                staged = self.uploads.stage(kind, filename, data)
+            elif token:
+                staged = self.uploads.get(token, kind)
+            else:
+                raise UploadRefused(
+                    "send the file's bytes with ?filename=<name>, or "
+                    "?upload=<token> to re-read one already staged",
+                    where=["upload"])
+            if kind == "pattern":
+                return preview_pattern(staged, block=opts.get("block"))
+            if kind == "cif":
+                return preview_cif(staged, aniso=bool(opts.get("aniso")),
+                                   phase_name=opts.get("phase_name"))
+            return preview_instrument(staged)
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=exc.where) from None
+
+    # ------------------------------------------------------------------
     # project
     # ------------------------------------------------------------------
     def project_new(self, body: dict) -> dict:
         """``Project.create`` from a request body.
 
-        ``structure`` is either an inline :class:`Structure` dict or
-        ``{"cif": path}``; ``instrument`` is an inline dict, required because
-        :class:`Instrument` has no default source and guessing a diffractometer
-        is exactly the kind of silent assumption this package refuses.  Sniffing
-        an upload is WP-1014's; this verb takes server-side paths.
+        Each of the three inputs takes a server-side path *or* the token of a
+        staged upload (WP-1014), which is the whole of the commit step: the file
+        was read once already, so a project is only ever created around bytes
+        that parsed.  ``structure`` is an inline :class:`Structure` dict,
+        ``{"cif": path}`` or ``{"upload": token, "aniso": bool}``; ``instrument``
+        is an inline dict, ``{"preset": name, …}`` or ``{"upload": token}``, and
+        is **required** because :class:`Instrument` has no default source and
+        guessing a diffractometer is exactly the kind of silent assumption this
+        package refuses.
         """
         self._require_idle()
         path = _need(body, "path")
-        pattern = _need(body, "pattern")
-        structure = _as_structure(body.get("structure"))
-        instrument = _as_instrument(body.get("instrument"))
+        pattern = self._as_pattern_path(_need(body, "pattern"))
+        structure = _as_structure(body.get("structure"), self.uploads)
+        instrument = _as_instrument(body.get("instrument"), self.uploads)
         kw: dict[str, Any] = {}
         for key in ("mode", "two_theta_limits", "excluded_regions", "block", "ui"):
             if body.get(key) is not None:
@@ -214,6 +271,23 @@ class GuiSession:
             raise GuiError(str(exc), code="PROJECT_ERROR") from None
         self._adopt(project)
         return self.project_doc()
+
+    def _as_pattern_path(self, pattern: Any) -> str:
+        """A pattern argument as a path: a server-side one, or a staged upload's.
+
+        The staged file is what ``Project.create`` copies, so the project owns
+        its own bytes from the first moment and the staging directory can be
+        thrown away with the session — the copy is byte-for-byte either way
+        (WP-1005: the bytes are the contract).
+        """
+        if isinstance(pattern, dict):
+            token = _need(pattern, "upload")
+            try:
+                return str(self.uploads.get(str(token), "pattern").path)
+            except UploadRefused as exc:
+                raise GuiError(str(exc), code=exc.code, status=exc.status,
+                               where=["pattern.upload"]) from None
+        return str(pattern)
 
     def project_open(self, body: dict) -> dict:
         """``Project.open``, with its refusal messages surfaced verbatim.
@@ -484,8 +558,25 @@ class GuiSession:
     # the models
     # ------------------------------------------------------------------
     def structure(self) -> dict:
-        return {"structure": self._need_project().refinement.structure.model_dump(
-            mode="json")}
+        """The structure, plus what site symmetry allows each atom to do.
+
+        The ``sites`` arm is why an in-GUI structure editor can be safe: a
+        coordinate is edited through its ``…dof.k`` parameters, so a site-symmetry
+        violation is *unrepresentable* rather than refused after the fact, and a
+        fully fixed special position has an empty ``dof_paths`` — which is what
+        an editor renders read-only.  Derived through the same two functions
+        ``ParameterTable`` uses (``stabilizer_rotations`` → ``coordinate_basis`` /
+        ``adp_basis``), never a second rule.
+
+        The Wyckoff *letter* is deliberately absent: it needs
+        ``wyckoff.site_constraints``, which runs spglib per atom, and this route
+        is refetched on every head move — including one a ``set_vary`` made.  The
+        counts and the paths are what the editor acts on; the letter would be
+        decoration bought with a symmetry search per keystroke.
+        """
+        structure = self._need_project().refinement.structure
+        return {"structure": structure.model_dump(mode="json"),
+                "sites": _site_rows(structure)}
 
     def instrument(self) -> dict:
         return {"instrument": self._need_project().refinement.instrument.model_dump(
@@ -502,14 +593,16 @@ class GuiSession:
         self._require_idle()  # before validating: a state refusal outranks a
         # body complaint, or a user retyping a structure never learns that the
         # real problem is the fit still running
-        node = self._edit(structure=_as_structure(_need(body, "structure")),
-                          label=body.get("label") or "structure edited")
+        node = self._edit(
+            structure=_as_structure(_need(body, "structure"), self.uploads),
+            label=body.get("label") or "structure edited")
         return {"node_id": node, **self.structure()}
 
     def instrument_patch(self, body: dict) -> dict:
         self._require_idle()
-        node = self._edit(instrument=_as_instrument(_need(body, "instrument")),
-                          label=body.get("label") or "instrument edited")
+        node = self._edit(
+            instrument=_as_instrument(_need(body, "instrument"), self.uploads),
+            label=body.get("label") or "instrument edited")
         return {"node_id": node, **self.instrument()}
 
     def _edit(self, *, structure: Structure | None = None,
@@ -654,6 +747,7 @@ class GuiSession:
         with self._cond:
             self.closed = True
             self._cond.notify_all()
+        self.uploads.close()  # staged bytes outlive nothing
 
     # -- the worker ----------------------------------------------------
     def _work(self, call, stream: EventStream) -> None:
@@ -1196,29 +1290,128 @@ def _validate(model, payload, where: str):
                        where=paths) from None
 
 
-def _as_structure(payload) -> Structure:
-    """A :class:`Structure` from an inline dict or ``{"cif": path}``."""
-    if isinstance(payload, dict) and "cif" in payload:
+def _site_rows(structure: Structure) -> list[dict]:
+    """Per atom: the DOF paths that move it, and what its site symmetry allows."""
+    from ..crystallography.symmetry import get_spacegroup
+    from ..crystallography.wyckoff import (
+        adp_basis,
+        coordinate_basis,
+        stabilizer_rotations,
+    )
+
+    rows: list[dict] = []
+    for i, phase in enumerate(structure.phases):
+        try:
+            sg = get_spacegroup(phase.space_group)
+        except (ValueError, RuntimeError) as exc:  # pragma: no cover - schema-validated
+            rows.append({"path": f"phases.{i}", "error": str(exc)})
+            continue
+        for j, atom in enumerate(phase.atoms):
+            xyz = [atom.x.value, atom.y.value, atom.z.value]
+            rots = stabilizer_rotations(sg, xyz)
+            coord = coordinate_basis(rots)
+            adp = adp_basis(rots)
+            base = f"phases.{i}.atoms.{j}"
+            rows.append({
+                "path": base, "phase": i, "atom": j,
+                # the stabilizer's order is the site symmetry's; 1 is a general
+                # position, and anything above it is why a coordinate may not
+                # be typed directly
+                "site_symmetry_order": len(rots),
+                "special": len(rots) > 1,
+                "dof_paths": [f"{base}.dof.{k}" for k in range(len(coord))],
+                "dof_directions": coord.tolist(),
+                "adp_paths": ([f"{base}.adp.{k}" for k in range(len(adp))]
+                              if atom.aniso is not None else []),
+                "adp_patterns": adp.tolist(),
+                "aniso": atom.aniso is not None,
+            })
+    return rows
+
+
+def _as_structure(payload, uploads=None) -> Structure:
+    """A :class:`Structure` from an inline dict, ``{"cif": path}`` or an upload.
+
+    Every route into the model passes through here, which is where the species
+    check belongs: a structure carrying a scattering species no form-factor table
+    knows validates fine and fails at *stage compile*, a long way from the field
+    it was typed in.  Refusing at the boundary is a GUI judgement, not a schema
+    change — the Python API still accepts it — and the message names the atom.
+    """
+    if isinstance(payload, dict) and ("cif" in payload or "upload" in payload):
         from ..crystallography.cif import structure_from_cif
 
-        path = _need(payload, "cif")
+        staged = None
+        if "upload" in payload:
+            if uploads is None:  # pragma: no cover - every caller passes one
+                raise GuiError("uploads are not available here",
+                               where=["structure.upload"])
+            try:
+                staged = uploads.get(str(payload["upload"]), "cif")
+            except UploadRefused as exc:
+                raise GuiError(str(exc), code=exc.code, status=exc.status,
+                               where=["structure.upload"]) from None
+            path = str(staged.path)
+        else:
+            path = _need(payload, "cif")
         try:
             # aniso is opt-in on purpose: reading a file must not silently change
             # what a plan frees (CLAUDE.md, anisotropic ADPs)
-            return structure_from_cif(path, aniso=bool(payload.get("aniso", False)),
-                                      phase_name=payload.get("phase_name"))
+            structure = structure_from_cif(
+                path, aniso=bool(payload.get("aniso", False)),
+                phase_name=payload.get("phase_name"))
         except (OSError, ValueError, RuntimeError) as exc:
-            raise GuiError(f"could not read structure from {path}: {exc}",
+            name = path if staged is None else staged.filename
+            message = str(exc) if staged is None else scrub(str(exc), staged)
+            raise GuiError(f"could not read structure from {name}: {message}",
                            where=["structure.cif"]) from None
-    return _validate(Structure, payload, "structure")
+    else:
+        structure = _validate(Structure, payload, "structure")
+    unknown = unknown_species(structure)
+    if unknown:
+        named = ", ".join(f"{u['label']} ({u['species']})" for u in unknown)
+        raise GuiError(
+            f"{len(unknown)} atom(s) carry a scattering species this build has "
+            f"no form factor for: {named}. A fit would fail at stage compile "
+            "with the same lookup; edit the species (ions fall back to the "
+            "neutral atom, so 'O2-' is fine and 'D' is not).",
+            code="UNKNOWN_SPECIES",
+            where=[f"{u['path']}.species" for u in unknown])
+    return structure
 
 
-def _as_instrument(payload) -> Instrument:
+def _as_instrument(payload, uploads=None) -> Instrument:
+    """An :class:`Instrument` from an inline dict, a preset spec, or an upload.
+
+    The preset form is what the import wizard sends: a geometry and an anode
+    name, with the *wavelengths* supplied by the package's table rather than
+    typed by a client (WP-0507's scale, kept in one place).
+    """
     if payload is None:
         raise GuiError("'instrument' is required: Instrument has no default "
                        "source, and guessing an anode or a geometry would put a "
                        "wavelength nobody chose into every refined cell",
                        where=["instrument"])
+    if isinstance(payload, dict) and "upload" in payload:
+        from ..io.instrument_profile import load_instrument_profile
+
+        if uploads is None:  # pragma: no cover - every caller passes one
+            raise GuiError("uploads are not available here",
+                           where=["instrument.upload"])
+        try:
+            staged = uploads.get(str(payload["upload"]), "instrument")
+            return load_instrument_profile(staged.path)
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=["instrument.upload"]) from None
+        except (ValueError, OSError, KeyError) as exc:
+            raise GuiError(str(exc), where=["instrument.upload"]) from None
+    if isinstance(payload, dict) and "preset" in payload:
+        try:
+            return instrument_from_preset(payload)
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=exc.where) from None
     return _validate(Instrument, payload, "instrument")
 
 
