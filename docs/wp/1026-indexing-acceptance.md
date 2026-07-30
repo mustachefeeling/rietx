@@ -245,10 +245,15 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
 - [x] `tests/validation_matrix.py` rows for every landed row; `docs/VALIDATION.md`
       regenerated (39 → 43 claims), plus a `bethanechol` dataset entry and a
       `SUITE_INTROS` paragraph.
-- [ ] **Price the CI cost before adding it** — per CLAUDE.md the budget is a
-      design input (2000 free Actions minutes/month, macOS at 10×). Record the
-      measured wall clock here and put the acceptance rows on the weekly job,
-      not per push.
+- [x] **Price the CI cost before adding it** — per CLAUDE.md the budget is a
+      design input (2000 free Actions minutes/month, macOS at 10×). **Done, and
+      it needs no cadence change**: the rows are `slow`, so `ci.yml`'s per-push
+      `-m "not slow"` never sees them and only `weekly.yml` runs them.
+      `test_acceptance_indexing.py` is **3:30 serial** (cpd-1a 106 s, corundum
+      52 s twice), and the weekly job's billed 45 minutes is set by the
+      `stephens-brucite` and `qpa-sample1` groups, both several times longer,
+      so this does not move it. Re-price if a row is added outside
+      `xdist_group("indexing-acceptance")`.
 
 ## Acceptance
 
@@ -272,6 +277,12 @@ Criteria, all measured and recorded in `docs/milestones/v1.0.md`:
    adopting it whole.
 2. Every known-cell dataset recovers its cell — lab data within the ±85 ppm
    radius floor, LaB6 within 3e-4 Å, NAC and FAP within their stated tolerances.
+   **Corundum done** (2026-07-30, third session), and its numbers sit where that
+   floor predicts rather than inside it: +101 / +16 ppm with nothing declared and
+   −73 / −126 ppm with the shift template declared, against a ±85 ppm systematic
+   the data cannot resolve. Both rows therefore assert at **150 ppm** — a bar
+   above the floor, because a tighter one would be asserting noise, and the
+   context paragraph on the goniometer radius is what sets it.
 3. Every abstention test returns `None` rather than a ranked cell.
 
 Quote wall clock as a **range**, never a figure (CLAUDE.md).
@@ -565,6 +576,29 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   probe fed it garbage; it was not worth chasing to land a row that adds a third
   50-second search. **Do not quote the 0.0445° σ_sys from that run.**
 
+  **A third load-sensitive budget, and this one was in the library.**
+  `test_a_dominant_row_is_raised_from_the_engines_own_experience` failed in the full
+  suite and passed serially: `trial_error`'s dominant-zone probe capped each ladder
+  rung at a hard-coded `min(budget_seconds, 10.0)` against a **4.3 s serial** cost
+  for all three rungs, so under `-n auto` the test asserted the *absence* of
+  `INDEX_DOMINANT_ZONE` for a reason with nothing to do with the index table. Now
+  `DOMINANT_ZONE_PROBE_SECONDS = 30.0`, named and measured, and CLAUDE.md's rule is
+  extended: the budget a test depends on may be one rank down, in the library.
+
+  **CI pricing, which closes that task rather than deferring it.** The acceptance
+  rows carry `@pytest.mark.slow`, so they are **already** weekly-only — `ci.yml`
+  runs `-m "not slow"` per push and only `weekly.yml` runs the full suite — and no
+  cadence change is needed or wanted. The price: `test_acceptance_indexing.py` is
+  **3:30 serial** (cpd-1a 106 s, corundum 52 s twice), up from ~120 s, all of it
+  inside `xdist_group("indexing-acceptance")`. It does **not** move the weekly job's
+  billed 45 minutes, because that job's wall clock is set by the longest group and
+  `stephens-brucite` and `qpa-sample1` are several times longer. Full suite **8:24**,
+  fast **1361 passed / 66 skipped in 1:11-1:21**.
+
   **Still not started:** LaB6/NAC/FAP/six-qarr known cells, the `hl2_peaks` and
-  geometrical-ambiguity abstention rows, check-D, CI pricing. The bethanechol global
-  score remains blocked on [1029](1029-engine-scaling-low-symmetry.md).
+  geometrical-ambiguity abstention rows, check-D. The bethanechol global score
+  remains blocked on [1029](1029-engine-scaling-low-symmetry.md). **Read the
+  corundum row before adding another known-cell row** — the two-call shape it
+  landed (index, then declare the systematic and index again) is what the others
+  should copy, and `predicted_but_absent` will cap every one of them at `low` for
+  any phase whose space group has extinctions.

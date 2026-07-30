@@ -33,6 +33,12 @@ the screen itself is 9 s for 29 tests, four of them real-data.  With WP-1026's
 acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
 `test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
 (corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
+After WP-1026's third session (the `_box_key` fix costs the dichotomy more
+refinements, and the corundum row became two searches): full **8:24**, fast
+**1361 / 66 in 1:11-1:21**, and that file **3:30 serial** — cpd-1a 106 s,
+corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
+the billed 45 min, because the weekly job's wall clock is set by the
+`stephens-brucite` and `qpa-sample1` groups, both several times longer.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
@@ -46,7 +52,12 @@ both monoclinic rows failed under `-n auto` and passed serially, reporting
 themselves incomplete *correctly* for a reason that had nothing to do with the
 domain. `BUDGET_SECONDS` in `tests/test_indexing_engines.py` now declares a
 generous per-system budget. Any test whose serial time is a large fraction of its
-declared budget is a load sensor pretending to be an assertion.
+declared budget is a load sensor pretending to be an assertion. **And the budget a
+test depends on may be one rank down, in the library** — WP-1026 hit the same
+failure through `trial_error`'s dominant-zone probe, which capped each ladder rung
+at a hard-coded 10 s against a 4.3 s serial cost, so under `-n auto` the test
+asserted the *absence* of `INDEX_DOMINANT_ZONE` for a reason unrelated to the index
+table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s).
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
