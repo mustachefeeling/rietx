@@ -66,6 +66,22 @@
   const textMode = $derived(mode === "text");
   const modelMode = $derived(mode === "model");
 
+  /** One control for one choice (WP-1029).
+   *
+   * There used to be two toggle buttons in the header plus a `Close` inside each
+   * pane — two different controls for the same choice, and no button named for
+   * where a click lands you.  A segmented three is the choice itself: the
+   * options *are* the control, "where am I" and "where can I go" are one
+   * reading, and Plot has a name rather than being the absence of the other two.
+   * This is not a re-litigation of WP-1013: Model and Text remain **modes over
+   * the whole window** rather than a sixth tab, and the five-wide strip below
+   * stays what it is — the sidebar's tabs *within* the plot mode. */
+  const MODES: { id: "panes" | "model" | "text"; label: string; title: string }[] = [
+    { id: "panes", label: "Plot", title: "the pattern, the panels and the console" },
+    { id: "model", label: "Model", title: "atoms, site-symmetry DOFs and the instrument" },
+    { id: "text", label: "Text", title: "the whole project as one editable document" },
+  ];
+
   function toggleMode(which: "text" | "model") {
     mode = mode === which ? "panes" : which;
   }
@@ -416,10 +432,12 @@
 
   <div class="controls">
     {#if project}
-      <button class="ghost" class:on={modelMode} onclick={() => toggleMode("model")}
-        title="atoms, site-symmetry DOFs and the instrument">Model</button>
-      <button class="ghost" class:on={textMode} onclick={() => toggleMode("text")}
-        title="the whole project as one editable document">Text</button>
+      <div class="segmented" role="group" aria-label="view">
+        {#each MODES as entry (entry.id)}
+          <button class:on={mode === entry.id} onclick={() => (mode = entry.id)}
+            title={entry.title}>{entry.label}</button>
+        {/each}
+      </div>
       <div class="segmented" role="group" aria-label="disclosure">
         <button class:on={simple} onclick={() => setSimple(true)}
           title="hide bounds, transforms and stage seeds">Simple</button>
@@ -471,8 +489,7 @@
          buffer with unedited-but-typed changes has to survive a look at the
          parameter table.  Its editor is built on first entry, not on boot. -->
     <div class="textmode" class:hidden={!textMode}>
-      <Text {head} {busy} active={textMode} dark={theme === "dark"} {say} onmoved={moved}
-        onclose={() => (mode = "panes")} />
+      <Text {head} {busy} active={textMode} dark={theme === "dark"} {say} onmoved={moved} />
     </div>
     <!-- mounted while hidden, as the tabs are: a typed species or a half-filled
          wizard has to survive a look at the plot.  `active` is what keeps it from
@@ -480,7 +497,7 @@
     <div class="textmode" class:hidden={!modelMode}>
       <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
         {say} active={modelMode} columns={modelColumns} oncolumns={modelSized}
-        onopened={opened} onmoved={moved} onclose={() => (mode = "panes")} />
+        onopened={opened} onmoved={moved} />
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} error={resultError} />
@@ -560,40 +577,10 @@
     gap: 8px;
   }
 
-  .segmented {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    overflow: hidden;
-  }
-
-  .segmented button {
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    color: var(--muted);
-    font-weight: 400;
-    padding: 3px 9px;
-    font-size: 11.5px;
-  }
-
-  .segmented button.on {
-    background: var(--accent);
-    color: #fff;
-  }
-
   .segmented.theme button {
     padding: 3px 7px;
     font-size: 12px;
     line-height: 1.1;
-  }
-
-  .pill {
-    font: var(--mono);
-    padding: 2px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--line);
-    color: var(--muted);
   }
 
   .pill[data-state="running"] {
@@ -623,12 +610,6 @@
   .panes.hidden,
   .textmode.hidden {
     display: none;
-  }
-
-  .controls button.on {
-    background: var(--accent);
-    color: #fff;
-    font-weight: 600;
   }
 
   .side {

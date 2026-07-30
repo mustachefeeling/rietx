@@ -379,11 +379,6 @@
     min-height: 300px;
   }
 
-  .modes button.on {
-    background: var(--accent);
-    color: #fff;
-  }
-
   .legend {
     display: flex;
     flex-wrap: wrap;

@@ -341,11 +341,6 @@ mispositioned or absent phase, not an impurity">
     font-size: 11px;
   }
 
-  button.small {
-    padding: 2px 7px;
-    font-size: 11.5px;
-  }
-
   button.tiny {
     padding: 0 5px;
     font-size: 10.5px;

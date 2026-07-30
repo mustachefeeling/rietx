@@ -355,16 +355,6 @@
     margin: 3px 0 0;
   }
 
-  button.small {
-    padding: 2px 7px;
-    font-size: 11.5px;
-  }
-
-  button.tiny {
-    padding: 0 5px;
-    font-size: 11px;
-  }
-
   .scroller {
     flex: 1 1 auto;
     overflow: auto;

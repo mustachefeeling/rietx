@@ -259,11 +259,6 @@
     font-size: 11.5px;
   }
 
-  button.small {
-    padding: 2px 7px;
-    font-size: 11.5px;
-  }
-
   .blurb {
     margin: 4px 0;
   }

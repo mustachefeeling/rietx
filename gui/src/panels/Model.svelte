@@ -72,7 +72,6 @@
     onopened = (_doc: any) => {},
     oncolumns = (_widths: number[], _done: boolean) => {},
     onmoved = () => {},
-    onclose = () => {},
   }: {
     project?: any;
     capabilities?: any;
@@ -87,7 +86,6 @@
     onopened?: (doc: any) => void;
     oncolumns?: (widths: number[], done: boolean) => void;
     onmoved?: () => void;
-    onclose?: () => void;
   } = $props();
 
   // -- the three columns ---------------------------------------------
@@ -458,9 +456,6 @@
       <span class="muted small">{dirty} edit{dirty === 1 ? "" : "s"}</span>
       <button class="small" disabled={busy || invalid.length > 0} onclick={apply}>Apply</button>
       <button class="ghost small" onclick={revert}>Revert</button>
-    {/if}
-    {#if project}
-      <button class="ghost small" onclick={onclose} title="back to the panels">Close</button>
     {/if}
   </header>
 
@@ -1023,20 +1018,10 @@
     flex: 1.25 1 0;
   }
 
-  button.on {
-    background: var(--accent);
-    color: #fff;
-  }
-
   nav.phases {
     display: flex;
     gap: 4px;
     margin: 4px 0;
-  }
-
-  nav.phases button.on {
-    background: var(--accent);
-    color: #fff;
   }
 
   .grid {
@@ -1152,16 +1137,6 @@
   }
 
   .small {
-    font-size: 11.5px;
-  }
-
-  button.tiny {
-    padding: 0 5px;
-    font-size: 11px;
-  }
-
-  button.small {
-    padding: 2px 7px;
     font-size: 11.5px;
   }
 

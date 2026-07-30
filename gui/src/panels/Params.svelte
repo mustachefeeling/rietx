@@ -339,11 +339,6 @@
     font-size: 11.5px;
   }
 
-  button.small {
-    padding: 2px 7px;
-    font-size: 11.5px;
-  }
-
   .scroller {
     flex: 1 1 auto;
     overflow-y: auto;

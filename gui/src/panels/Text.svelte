@@ -34,7 +34,6 @@
     dark = false,
     say = (_line: string) => {},
     onmoved = () => {},
-    onclose = () => {},
   }: {
     head?: string | null;
     busy?: boolean;
@@ -44,7 +43,6 @@
     dark?: boolean;
     say?: (line: string) => void;
     onmoved?: () => void;
-    onclose?: () => void;
   } = $props();
 
   /** Long enough that a burst of typing is one request, short enough that a
@@ -229,7 +227,6 @@
          re-render from state, which is also the only exit a stale pane has -->
     <button class:ghost={!sync.stale} onclick={() => load(true)}
       title="discard this buffer and re-read the project">Re-read</button>
-    <button class="ghost" onclick={onclose}>Close</button>
   </header>
 
   {#if sync.stale}

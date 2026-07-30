@@ -1044,6 +1044,33 @@ describe("disclosure and the command palette", () => {
     expect(writes[0].body).toEqual({ ui: { console_height: 210 } });
   });
 
+  it("selects the top-level view from one segmented control", async () => {
+    vi.stubGlobal("fetch", server(boot()).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const group = host.querySelector<HTMLElement>('[aria-label="view"]')!;
+    const labels = [...group.querySelectorAll("button")].map((b) => b.textContent?.trim());
+    expect(labels).toEqual(["Plot", "Model", "Text"]);
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Plot");
+
+    button("Model")!.click();
+    await flush();
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Model");
+    // …and clicking Model again stays on Model.  The old pair toggled, so the
+    // same click meant two different things depending on where you already were
+    button("Model")!.click();
+    await flush();
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Model");
+
+    // leaving is a button named for where you land, not a Close inside the pane
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent?.trim() === "Close"))
+      .toBe(false);
+    button("Plot")!.click();
+    await flush();
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Plot");
+  });
+
   it("stamps an explicit theme on the root and persists the choice", async () => {
     const stub = server(boot());
     vi.stubGlobal("fetch", stub.fetcher);
