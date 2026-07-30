@@ -29,6 +29,7 @@
     layout,
     legend,
     traces,
+    unitCylinder,
     unitSphere,
     type Camera,
     type Geometry,
@@ -62,6 +63,7 @@
   let showBoundary = $state(true);
 
   const sphere = unitSphere();
+  const cylinder = unitCylinder();
   const entries = $derived(geo ? legend(geo) : []);
   const levels = $derived(geo ? Object.keys(geo.probability_levels) : []);
 
@@ -130,11 +132,9 @@
     // scene, and the first browser run drew a box nobody could see.  The a/b/c
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
-    const muted = style.getPropertyValue("--muted").trim() || "#888";
     await plotly.react(
       node,
-      traces(geometry, mode, sphere, { cell, bond: muted }, hidden,
-             showBoundary),
+      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary),
       layout(style.color, camera),
       // the default gl3d modebar floats over a panel this small, and one of its
       // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the

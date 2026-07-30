@@ -79,6 +79,12 @@ export interface Geometry {
 
 export type Mode = "ball" | "ellipsoid";
 
+/** One surface for every solid in the scene — balls, ellipsoids and sticks —
+ *  so the three cannot drift apart. */
+export const LIGHTING = {
+  ambient: 0.62, diffuse: 0.82, specular: 0.18, roughness: 0.55,
+};
+
 export interface Mesh {
   vertices: number[][];
   faces: number[][];
@@ -119,6 +125,71 @@ export function unitSphere(rings = 8, segments = 16): Mesh {
     }
   }
   return { vertices, faces };
+}
+
+/**
+ * A unit cylinder along +z: radius 1, from z = 0 to z = 1, **open at both ends**.
+ *
+ * Caps would be triangles nobody ever sees — the two halves of a bond butt
+ * against each other at the midpoint, and the far end is buried inside its own
+ * atom, whose ball is larger than the stick for every element there is.
+ *
+ * Six segments: a hexagonal prism with averaged normals is indistinguishable
+ * from round at the three or four pixels a bond is ever drawn at, and the
+ * budget is real — at `MAX_BONDS` this is 4000 × 2 halves × 24 vertices.
+ */
+export function unitCylinder(segments = 6): Mesh {
+  const vertices: number[][] = [];
+  for (let s = 0; s < segments; s += 1) {
+    const phi = (2 * Math.PI * s) / segments;
+    vertices.push([Math.cos(phi), Math.sin(phi), 0],
+                  [Math.cos(phi), Math.sin(phi), 1]);
+  }
+  const faces: number[][] = [];
+  for (let s = 0; s < segments; s += 1) {
+    const a = 2 * s, b = a + 1;
+    const c = (2 * s + 2) % (2 * segments), d = c + 1;
+    faces.push([a, c, d], [a, d, b]);
+  }
+  return { vertices, faces };
+}
+
+function cross(a: number[], b: number[]): number[] {
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+          a[0] * b[1] - a[1] * b[0]];
+}
+
+/**
+ * The 3×3 one half-stick is drawn through: columns `(r·u, r·v, w)`.
+ *
+ * The same convention `atomTransform` uses — columns are the axes — so a
+ * cylinder goes through the *same* `transform()` a sphere does, and
+ * `(cos φ, sin φ, t)` lands at `from + r·cos φ·u + r·sin φ·v + t·w`: a tube of
+ * radius `r` running from `from` to `to`.  That is this module's one code path
+ * earning its keep a second time.
+ *
+ * `u` is built against the coordinate axis the stick is *least* aligned with.  A
+ * fixed choice like ẑ is exactly parallel for a bond down c — a chain along the
+ * c axis is the common case, not the rare one — and the cross product would be
+ * zero, which is a NaN tube.
+ */
+export function stickTransform(from: number[], to: number[],
+                               radius: number): number[][] {
+  const w = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+  const n = Math.hypot(w[0], w[1], w[2]) || 1;
+  const d = [w[0] / n, w[1] / n, w[2] / n];
+  const k = Math.abs(d[0]) <= Math.abs(d[1])
+    ? (Math.abs(d[0]) <= Math.abs(d[2]) ? 0 : 2)
+    : (Math.abs(d[1]) <= Math.abs(d[2]) ? 1 : 2);
+  const pick = [0, 0, 0];
+  pick[k] = 1;
+  const raw = cross(d, pick);
+  const length = Math.hypot(raw[0], raw[1], raw[2]) || 1;
+  const u = raw.map((c) => c / length);
+  const v = cross(d, u);        // unit, since d ⟂ u and both are unit
+  return [[radius * u[0], radius * v[0], w[0]],
+          [radius * u[1], radius * v[1], w[1]],
+          [radius * u[2], radius * v[2], w[2]]];
 }
 
 /** `T·v` for a 3×3 whose **columns** are the axes — the payload's convention. */
@@ -221,30 +292,75 @@ export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
     traces.push({
       type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
       color: entry.color, flatshading: false, showlegend: false,
-      lighting: { ambient: 0.62, diffuse: 0.82, specular: 0.18, roughness: 0.55 },
+      lighting: LIGHTING,
       hovertemplate: "%{text}<extra></extra>",
     });
   }
   return traces;
 }
 
-/** Bonds as one null-broken polyline; the hover carries the distance. */
-export function bondTrace(geometry: Geometry, color: string): any {
-  const x: Array<number | null> = [], y: Array<number | null> = [];
-  const z: Array<number | null> = [], text: Array<string | null> = [];
+/** Half a bond is 0.08 Å thick.
+ *
+ * These are *covalent* radii, which is what makes the number smaller than it
+ * looks beside VESTA's: at `ball_fraction` even hydrogen (r = 0.31 Å) keeps a
+ * ball wider than its own stick, so no species is drawn as a lump on a rod.
+ */
+export const STICK_RADIUS = 0.08;
+
+/**
+ * Bonds as two-tone cylinders, one `mesh3d` per species.
+ *
+ * A `scatter3d` line is sized in **pixels**, which is the objection the atoms
+ * already answered: at any zoom but the one it was tuned for, a 4 px stick is a
+ * hairline or a drainpipe, and it cannot be compared with the cell around it.
+ * A cylinder is in Å like everything else in the picture.
+ *
+ * Split at the midpoint and coloured by the atom each half leaves — the
+ * convention every other viewer uses, and the thing that makes a bond say which
+ * two species it joins without a hover.  It also gives the legend a rule it did
+ * not have: **a half belongs to its atom**, so switching a species off takes its
+ * own halves with it rather than leaving coloured stubs in mid-air.
+ */
+export function bondTraces(geometry: Geometry, cylinder: Mesh,
+                           hidden: ReadonlySet<string> = new Set()): any[] {
+  const buckets = new Map<string, any>();
   for (const bond of geometry.bonds) {
+    const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
+    const ends: Array<[number[], number]> = [[bond.a, bond.i], [bond.b, bond.j]];
     const label = `${geometry.sites[geometry.atoms[bond.i].site].label}–`
       + `${geometry.sites[geometry.atoms[bond.j].site].label}  ${bond.d.toFixed(3)} Å`;
-    x.push(bond.a[0], bond.b[0], null);
-    y.push(bond.a[1], bond.b[1], null);
-    z.push(bond.a[2], bond.b[2], null);
-    text.push(label, label, null);
+    for (const [from, index] of ends) {
+      const site = geometry.sites[geometry.atoms[index].site];
+      if (hidden.has(site.species)) continue;
+      let bucket = buckets.get(site.species);
+      if (!bucket) {
+        bucket = {
+          type: "mesh3d", name: `bonds:${site.species}`,
+          x: [], y: [], z: [], i: [], j: [], k: [], text: [],
+          color: site.color, flatshading: false, showlegend: false,
+          lighting: LIGHTING, hovertemplate: "%{text}<extra></extra>",
+        };
+        buckets.set(site.species, bucket);
+      }
+      const matrix = stickTransform(from, mid, STICK_RADIUS);
+      const offset = bucket.x.length;
+      for (const v of cylinder.vertices) {
+        const p = transform(matrix, v);
+        bucket.x.push(from[0] + p[0]);
+        bucket.y.push(from[1] + p[1]);
+        bucket.z.push(from[2] + p[2]);
+        bucket.text.push(label);
+      }
+      for (const face of cylinder.faces) {
+        bucket.i.push(offset + face[0]);
+        bucket.j.push(offset + face[1]);
+        bucket.k.push(offset + face[2]);
+      }
+    }
   }
-  return {
-    type: "scatter3d", mode: "lines", name: "bonds", x, y, z, text,
-    line: { width: 4, color }, showlegend: false,
-    hovertemplate: "%{text}<extra></extra>",
-  };
+  // legend order, so the trace list is the same one twice running
+  return legend(geometry).map((entry) => buckets.get(entry.species))
+    .filter((bucket) => bucket !== undefined);
 }
 
 /** The cell frame: the twelve edges the payload names, as one polyline. */
@@ -282,13 +398,13 @@ export function axisTrace(geometry: Geometry, color: string): any {
   };
 }
 
-/** Everything, in draw order: cell and its letters behind, bonds, then atoms. */
+/** Everything, in draw order: cell and its letters behind, sticks, then atoms. */
 export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
-                       colors: { cell: string; bond: string },
+                       cylinder: Mesh, cell: string,
                        hidden: ReadonlySet<string> = new Set(),
                        showBoundary = true): any[] {
-  return [cellTrace(geometry, colors.cell), axisTrace(geometry, colors.cell),
-          bondTrace(geometry, colors.bond),
+  return [cellTrace(geometry, cell), axisTrace(geometry, cell),
+          ...bondTraces(geometry, cylinder, hidden),
           ...atomTraces(geometry, mode, sphere, hidden, showBoundary)];
 }
 

@@ -18,13 +18,15 @@ import {
   atomTransform,
   atomTraces,
   axisTrace,
-  bondTrace,
+  bondTraces,
   caption,
   cellTrace,
   layout,
   legend,
+  stickTransform,
   traces,
   transform,
+  unitCylinder,
   unitSphere,
   type Geometry,
   type Site,
@@ -98,6 +100,53 @@ describe("the unit sphere", () => {
   });
 });
 
+describe("the unit cylinder", () => {
+  it("is a tube of unit radius running z = 0 to z = 1", () => {
+    const { vertices, faces } = unitCylinder(6);
+    expect(vertices.length).toBe(12);
+    expect(faces.length).toBe(12);        // two triangles per segment
+    for (const v of vertices) {
+      expect(Math.hypot(v[0], v[1])).toBeCloseTo(1, 12);
+      expect(v[2] === 0 || v[2] === 1).toBe(true);
+    }
+    for (const face of faces) {
+      for (const index of face) expect(index).toBeLessThan(vertices.length);
+    }
+  });
+
+  it("wraps: the last segment closes onto the first", () => {
+    const { faces } = unitCylinder(5);
+    expect(faces[faces.length - 1].some((i) => i < 2)).toBe(true);
+  });
+});
+
+describe("the stick transform", () => {
+  it("sends the cylinder's axis to the segment and its rim to the radius", () => {
+    const t = stickTransform([1, 0, 0], [1, 0, 3], 0.08);
+    // z spans the segment itself…
+    expect(transform(t, [0, 0, 1])).toEqual([0, 0, 3]);
+    // …and x̂, ŷ are perpendicular to it, at exactly the radius
+    for (const v of [[1, 0, 0], [0, 1, 0]]) {
+      const p = transform(t, v);
+      expect(Math.hypot(p[0], p[1], p[2])).toBeCloseTo(0.08, 12);
+      expect(p[2]).toBeCloseTo(0, 12);
+    }
+  });
+
+  it("does not degenerate for a bond along any axis", () => {
+    // a chain along c is the common case, not the rare one, and a perpendicular
+    // built against a fixed ẑ would be a zero cross product — i.e. a NaN tube
+    for (const to of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]]) {
+      const t = stickTransform([0, 0, 0], to, 0.1);
+      for (const row of t) for (const value of row) expect(value).not.toBeNaN();
+      const u = transform(t, [1, 0, 0]);
+      const dot = u[0] * to[0] + u[1] * to[1] + u[2] * to[2];
+      expect(dot).toBeCloseTo(0, 12);
+      expect(Math.hypot(u[0], u[1], u[2])).toBeCloseTo(0.1, 12);
+    }
+  });
+});
+
 describe("the transform", () => {
   it("reads the matrix by rows, so the payload's columns stay the axes", () => {
     // the payload's convention: column k is the k-th principal axis, so the
@@ -159,24 +208,49 @@ describe("the traces", () => {
     expect(inner[0].x.length).toBe(sphere.vertices.length);   // one La, not two
   });
 
-  it("breaks the bond and cell polylines with nulls", () => {
-    const geo = geometry();
-    const bonds = bondTrace(geo, "#888");
-    expect(bonds.x).toEqual([0, 2, null]);
-    expect(bonds.text[0]).toContain("La–B");
-    expect(bonds.text[0]).toContain("3.000 Å");
-
-    const cell = cellTrace(geo, "#ccc");
+  it("breaks the cell polyline with nulls", () => {
+    const cell = cellTrace(geometry(), "#ccc");
     expect(cell.x.length).toBe(12 * 3);
     // exactly one null per edge: without them plotly joins edge to edge and
     // draws a scribble that reads as a cell
     expect(cell.x.filter((v: number | null) => v === null).length).toBe(12);
   });
 
+  it("splits a bond at its midpoint and colours each half by its own atom", () => {
+    const geo = geometry();
+    const tube = unitCylinder(6);
+    const sticks = bondTraces(geo, tube);
+    expect(sticks.map((t) => t.name)).toEqual(["bonds:La", "bonds:B"]);
+    expect(sticks.map((t) => t.color)).toEqual(["#aabbcc", "#e0a080"]);
+    // one half each, and both carry the whole bond's hover
+    for (const half of sticks) {
+      expect(half.x.length).toBe(tube.vertices.length);
+      expect(half.i.length).toBe(tube.faces.length);
+      expect(Math.max(...half.i)).toBeLessThan(half.x.length);
+      expect(half.text[0]).toContain("La–B");
+      expect(half.text[0]).toContain("3.000 Å");
+    }
+    // La's half runs from La's own position to the midpoint, and no further
+    const mid = [1, 1, 0.4];
+    for (const k of [0, 1, 2]) {
+      const axis = [sticks[0].x, sticks[0].y, sticks[0].z][k];
+      expect(Math.min(...axis)).toBeGreaterThanOrEqual(-0.09);
+      expect(Math.max(...axis)).toBeLessThanOrEqual(mid[k] + 0.09);
+    }
+  });
+
+  it("takes a species' half-sticks with it when the legend switches it off", () => {
+    // a half belongs to its atom: hiding La and leaving its stub would be a
+    // coloured spike ending in mid-air
+    const sticks = bondTraces(geometry(), unitCylinder(6), new Set(["La"]));
+    expect(sticks.map((t) => t.name)).toEqual(["bonds:B"]);
+  });
+
   it("draws the cell behind the bonds behind the atoms", () => {
-    const all = traces(geometry(), "ball", unitSphere(4, 6),
-                       { cell: "#ccc", bond: "#888" });
-    expect(all.map((t) => t.name)).toEqual(["cell", "axes", "bonds", "La", "B"]);
+    const all = traces(geometry(), "ball", unitSphere(4, 6), unitCylinder(6),
+                       "#ccc");
+    expect(all.map((t) => t.name))
+      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "B"]);
   });
 
   it("labels the cell's own axes, clear of the corner atoms", () => {

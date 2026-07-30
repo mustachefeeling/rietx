@@ -1616,8 +1616,10 @@ describe("the structure viewer", () => {
     await openViewer();
     const { traces, layout } = drawn[drawn.length - 1];
     expect(traces.map((t: any) => t.name))
-      .toEqual(["cell", "axes", "bonds", "La", "B"]);
+      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "B"]);
     expect(trace(drawn, "La").type).toBe("mesh3d");
+    // a stick is in Å like everything else, so it is a mesh and not a 4 px line
+    expect(trace(drawn, "bonds:La").type).toBe("mesh3d");
     expect(trace(drawn, "axes").text).toEqual(["a", "b", "c"]);
     // a crystal, not a plot: parallel projection and no Cartesian box
     expect(layout.scene.camera.projection.type).toBe("orthographic");
@@ -1694,8 +1696,9 @@ describe("the structure viewer", () => {
       .find((b) => b.className.includes("chip") && b.textContent?.trim() === "La")!;
     chip.click();
     await flush();
+    // La's half-sticks go with it: a half belongs to its atom
     expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
-      .toEqual(["cell", "axes", "bonds", "B"]);
+      .toEqual(["cell", "axes", "bonds:B", "B"]);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
   });
 
