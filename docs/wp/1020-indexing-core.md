@@ -100,8 +100,40 @@ compared — no engine yet.
 ### Inherited
 
 From **WP-1018**: `inv_d_squared` is in `crystallography/lattice.py`; import it.
-`ObservedPeak` carries `q` and `q_esd` already propagated —
-`σ(Q) = (π/180)·sin(2θ)/λ²·σ(2θ)` — so do not recompute from `two_theta_esd`.
+`ObservedPeak` carries `q` and `q_esd` already propagated, so do not recompute
+from `two_theta_esd`.
+
+**Correction (WP-1018, 2026-07-30): the σ(Q) constant this section carried was
+wrong by a factor of 2.** It read `σ(Q) = (π/180)·sin(2θ)/λ²·σ(2θ)`; the correct
+propagation is
+
+    σ(Q) = (π/90)·sin(2θ)/λ²·σ(2θ)
+
+Differentiating Q = 4sin²θ/λ² with respect to 2θ *in degrees* picks up **two**
+halvings-and-doublings that partly cancel: `dQ/dθ_rad = 4·sin(2θ)/λ²`, then
+`dθ_rad/d(2θ°) = (π/180)/2`, giving `(π/90)`. Applying only the degree
+conversion and forgetting the θ = (2θ)/2 chain — or the reverse — is exactly how
+the π/180 form arises. Verified against a central difference (ratio 1.0000000014
+for π/90, 0.5000000007 for π/180) and pinned in
+`tests/test_peak_picking.py`. The implementation in
+`schemas.indexing.q_esd_of_two_theta` is correct; **import it rather than
+retyping the constant**, and note that an engine that had silently used the old
+form would have weighted every line by 4× its true 1/σ², i.e. been four times
+too confident.
+
+Also from **WP-1018**: `PeakList` exposes `q()`, `q_esd()`, `two_theta()`,
+`two_theta_esd()` and `intensity()` as arrays over `usable()` only — ghosts,
+failed fits and caller exclusions are already out, so an engine does not filter.
+A `PeakList` validator re-derives every peak's `q` from its `two_theta` and the
+list wavelength and raises on disagreement, so hand-building an `ObservedPeak`
+with a stale `q` fails loudly rather than mis-indexing quietly.
+
+**One caveat that bounds what 1020 can claim.** WP-1018 merged with its σ pull
+calibration *not yet run* (see its handover log). Until that gate passes, every
+σ(Q) this WP consumes is of unvalidated scale — the *shape* of the propagation
+is checked, the *calibration* of σ(2θ) itself is not. Do not tune a tolerance
+model against these σ before that test is green, or the tuning absorbs the
+fitter's error.
 
 From **WP-1019** (soft): `DataQualityReport.shift_template` names which
 template `refine_candidate` should carry as its one nonlinear column, and

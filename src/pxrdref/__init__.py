@@ -3,6 +3,7 @@
 from . import agent
 from .crystallography.cif import format_su
 from .history import RefinementTree
+from .indexing import pick_peaks
 from .io.exporters import (
     ReflectionRow,
     reflection_table,
@@ -13,6 +14,7 @@ from .io.exporters import (
 from .io.instrument_profile import load_instrument_profile, save_instrument_profile
 from .io.readers import read_pattern, read_pdcif
 from .multi import MultiHistogramRefinement, refine_multi
+from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
 from .refine import Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
@@ -28,24 +30,39 @@ from .schemas import (
     Structure,
 )
 from .schemas.history import HistoryNode, NodeAction, RefinementState
+from .schemas.params import ParameterRow, TieSpec
+from .schemas.plan import PlanSpec, StageSpec
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
 from .sequential import SequentialRefinement, refine_sequential
-from .strategy.staged import RefinementPlan, Stage
+from .strategy.staged import (
+    PLAN_INFO,
+    PLAN_PRESETS,
+    PlanInfo,
+    RefinementPlan,
+    Stage,
+)
 
 __all__ = [
     "AnisoU",
     "Atom",
     "agent",
+    "CancelToken",
     "Cell",
     "FitReport",
     "HistoryNode",
     "Instrument",
     "MultiHistogramRefinement",
     "NodeAction",
+    "PLAN_INFO",
+    "PLAN_PRESETS",
     "Parameter",
+    "ParameterRow",
     "PatternData",
     "Phase",
+    "PlanInfo",
+    "PlanSpec",
     "Refinement",
+    "RefinementCancelled",
     "RefinementPlan",
     "RefinementResult",
     "RefinementState",
@@ -57,12 +74,15 @@ __all__ = [
     "SeriesResult",
     "SharingMap",
     "Stage",
+    "StageSpec",
     "Structure",
+    "TieSpec",
     "Trajectory",
     "SuggestedAction",
     "build_report",
     "format_su",
     "load_instrument_profile",
+    "pick_peaks",
     "read_pattern",
     "read_pdcif",
     "reflection_table",

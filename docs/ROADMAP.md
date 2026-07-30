@@ -121,7 +121,46 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
-Landed so far: [1001](wp/1001-validation-matrix.md) (validation matrix) and
+**[1004](wp/1004-parameter-plan-api.md) and [1006](wp/1006-run-control.md)
+landed 2026-07-30** on branch `v1-gui-backend-api` — the two zero-dependency
+rows of the backend-API group, which unblocks 1005 and 1007. Both were framed as
+plumbing and both turned up a latent defect the framing had hidden.
+
+1004's charter was "the spec twins are duplicated and one of them loses data",
+and the fix (one `StageSpec`/`PlanSpec` in `schemas/plan.py`) was the easy half.
+The **third** copy of a stage's arguments is `NodeAction` — the one
+`cherry_pick` actually replays from — and it carried neither `seed` nor
+`strain_seed`, so a cherry-picked extinction stage started on the softplus
+dead-gradient floor and a Stephens stage from the all-zero block: precisely the
+two pathologies the seeds exist to prevent, silently, on the verb whose entire
+purpose is to reproduce a stage elsewhere. Both are now recorded (additively, so
+old nodes replay unchanged), and `StageSpec`'s field set is pinned against
+`dataclasses.fields(Stage)` so the next added field cannot repeat it. The
+parameter surface itself is `Refinement.parameters()` → the *whole* table with
+each held row saying which of three reasons holds it, plus `set_vary` /
+`set_values` recording the NodeKinds reserved since v0.2. Its own latent bug:
+`ParameterTable` only ever recomputed tied entries while decoding a θ, so a
+direct edit of `a` on a cubic cell would have left `b` and `c` behind —
+`refresh_ties()` is the missing verb.
+
+1006 has the sharper method result. "No history node, table not committed" is
+**not** the whole of *abandoned*: `_run_stage` writes to the models before
+solving, so a seeding stage has already put a value nobody chose into the
+structure by the time the first residual runs. Cancelling now restores a
+pre-stage copy (taken only when a token is present, so an ordinary fit pays
+nothing). The other decision went against the WP's own plan on measurement: the
+cancel check belongs in the residual wrapper on **both** drivers, not in the LM
+callback, which fires only on *accepted* points — an inner loop that never
+accepts would never see the token. Measured, zero further evaluations run after
+the flag trips, against a ≤2 bar. And the `"index"` run kind the indexing plan
+asked for was deliberately **not** added: `EventKind` is closed, a kind nothing
+emits is an untested guess, and everything the guess protected is already true
+(the token needs no stages/Rwp/node; the event payload is an open dict, so
+"engine 2 of 3, orthorhombic" is expressible today). WP-1024 has been told, in
+its `### Inherited`, that adding it is its commit — and that a new kind *is* a
+version bump where an added field is not.
+
+Landed before that: [1001](wp/1001-validation-matrix.md) (validation matrix) and
 [1002](wp/1002-ci-matrix.md) (CI matrix), both **2026-07-29** — see below.
 [1003](wp/1003-api-freeze-pypi.md) is not started and now depends on
 everything else in the milestone; its `### Inherited` section has been curated
@@ -870,9 +909,9 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 |---|---|---|---|
 | [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
 | [1002](wp/1002-ci-matrix.md) | CI matrix | ✅ 2026-07-29 | — |
-| [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ⬜ | — |
+| [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ✅ 2026-07-30 | — |
 | [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ⬜ | 1004 |
-| [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ⬜ | — |
+| [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ⬜ | 1004 |
 | [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ⬜ | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
@@ -900,9 +939,48 @@ shared core (1020), then the three engines (1021–1023, independent of each
 other), then consensus (1024), space groups (1025), acceptance (1026), GUI
 (1027).
 
+**[1018](wp/1018-peak-picking.md) is the first row and is on `main` in a
+partial state — code complete, tests outstanding.** `pxrdref.pick_peaks` works
+and the fast suite is green (1158 passed / 4 skipped), but
+`tests/test_peak_picking.py` does not exist, and the missing piece is the one
+that matters: **the σ pull calibration is the gate the whole downstream
+tolerance model rests on**, so until it runs, the per-line σ this WP exists to
+produce is of unvalidated scale. 1019 and 1020 both consume that σ; their
+`### Inherited` sections say not to tune a tolerance model against it yet. The
+new glyph 🔄 means exactly this — landed but not finished — and 1018 is the only
+row that has ever carried it.
+
+Its per-WP value is already banked, though, and it is the v0.5 method result in
+a new costume: **four defects, none of them visible by reading the code.** A
+resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
+group is fitted independently *with its own full doublet*, so the Kα2 maximum
+comes back as a real line — structural to per-group fitting, and any future
+change to grouping must keep the alias filter); the first curvature seeder was
+useless because differentiating twice amplifies noise by ~1/step², so a
+per-channel-σ threshold passed essentially every noise dip; a shoulder seed
+landing alone formed a *singleton* group that the ΔBIC gate never judged, so a
+false positive became a line with an esd and no evidence; and
+`background_envelope` is a rolling *low* quantile, ≈1.28σ below the true
+background, which quietly turned a nominal 5σ detection threshold into ≈3.7σ.
+Against that, the thing that *was* verified by reading — the analytic group
+Jacobian — agreed with central differences to 2.5e-07 on every column first
+time. Reading finds the algebra; only running finds the four above.
+
+**A process note that outlasts the WP.** 1018, [1004](wp/1004-parameter-plan-api.md)
+and [1006](wp/1006-run-control.md) were developed *concurrently in one working
+directory*, and both other WPs' commits ran `git add -A` while 1018's files were
+uncommitted — so `indexing/peaks.py`, `peakfit.py`, `pick.py`, `diagnostics.py`
+and most of `schemas/indexing.py` are committed inside `f63556c`, `e46ead2` and
+`62d6a76`, whose messages say WP-1004 / WP-1006. Nothing was lost and the tree
+is green; the history was left interleaved deliberately, because the swept files
+sit *inside* those commits, so untangling means surgery on three already-closed
+WPs' commits to fix a comment in `git log`. **`git log -- src/pxrdref/indexing/`
+will mislead you — start from `068149e`.** The rule this buys: one `git worktree`
+per concurrent session, or only one session commits.
+
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ⬜ | — |
+| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | 🔄 code 2026-07-30, **tests outstanding** | — |
 | [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ⬜ | 1018 |
 | [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
 | [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |

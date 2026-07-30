@@ -48,10 +48,14 @@ from .report.schemas import FitReport
 from .schemas.common import Base, Mode
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
+
+# one plan schema for the whole package (WP-1004): this module used to define a
+# second ``StageSpec``/``PlanSpec`` pair that had drifted from the history one
+from .schemas.plan import PlanSpec, StageSpec  # noqa: F401
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesResult
 from .schemas.structure import Structure
-from .strategy.staged import PLAN_PRESETS, RefinementPlan, Stage
+from .strategy.staged import PLAN_PRESETS
 
 # ----------------------------------------------------------------------
 # vocabularies quoted from the live registries (never restated literals)
@@ -70,38 +74,6 @@ _PLAN_DESC = (
     + ") or an explicit stage list; hand-roll stages only with a reason you "
     "can state — the presets encode the McCusker turn-on order "
     "(AGENT_PROTOCOL §2)")
-
-
-class StageSpec(Base):
-    """One stage of a hand-rolled plan; mirrors ``strategy.staged.Stage``."""
-
-    name: str
-    turn_on: list[str] = Field(
-        description="dot-path globs freed this stage, e.g. 'phases.*.cell.*'")
-    max_iter: int = 100
-    lebail_cycles: int = 3
-    seed: float = Field(0.0, description=(
-        "lift softplus-floored parameters this stage frees to this value "
-        "(dead-gradient pathology, e.g. extinction)"))
-    strain_seed: float = Field(0.0, description=(
-        "microstrain (ppm) to seed an all-zero Stephens block onto the "
-        "isotropic ray (exploding-gradient pathology — the opposite fix)"))
-
-    def to_stage(self) -> Stage:
-        return Stage(self.name, list(self.turn_on), max_iter=self.max_iter,
-                     lebail_cycles=self.lebail_cycles, seed=self.seed,
-                     strain_seed=self.strain_seed)
-
-
-class PlanSpec(Base):
-    """An explicit staged plan, for when no preset fits (state why)."""
-
-    stages: list[StageSpec] = Field(min_length=1)
-    correlation_guard: float = 0.98
-
-    def to_plan(self) -> RefinementPlan:
-        return RefinementPlan(stages=[s.to_stage() for s in self.stages],
-                              correlation_guard=self.correlation_guard)
 
 
 class SharingSpec(Base):
@@ -147,6 +119,13 @@ class _RequestBase(Base):
         if isinstance(v, str) and v not in PLAN_PRESETS:
             raise ValueError(f"unknown plan preset {v!r}; "
                              f"available: {', '.join(sorted(PLAN_PRESETS))}")
+        # the shared PlanSpec (schemas/plan.py) allows an empty stage list so it
+        # can read history headers written before the first stage ran; a request
+        # about to spend minutes on a plan that frees nothing is a mistake
+        if isinstance(v, PlanSpec) and not v.stages:
+            raise ValueError("plan.stages must not be empty; name a preset "
+                             f"({', '.join(sorted(PLAN_PRESETS))}) or list at "
+                             "least one stage")
         return v
 
 

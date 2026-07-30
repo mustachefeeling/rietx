@@ -2,6 +2,8 @@ from .auto import auto_background
 from .diagnostics import (
     ContaminationFlag,
     PatternDiagnostics,
+    background_envelope,
+    contamination_flags_from_peaks,
     diagnose,
     identify_anode,
 )
@@ -27,9 +29,11 @@ __all__ = [
     "arpls",
     "auto_background",
     "auto_lambda",
+    "background_envelope",
     "bspline_design_matrix",
     "chebyshev_background",
     "chebyshev_design_matrix",
+    "contamination_flags_from_peaks",
     "diagnose",
     "identify_anode",
     "interpolate_fixed",

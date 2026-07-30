@@ -50,6 +50,25 @@ _W_LA1 = 1.4763800
 #: *absent*, and that is the case the caller has to handle.
 _ANODE_MATCH_TOL = 0.01
 
+#: Floor on the ghost-matching window in ° 2θ.  It is a *floor*, not the whole
+#: budget: the predicted ghost position carries error that a fitted σ(2θ) knows
+#: nothing about — the Kβ wavelength table (≈3e-4 relative for the blended 3d
+#: entries, i.e. Δ2θ = 2·tanθ·Δλ/λ ≈ 0.02° at 60°) and any unmodelled 2θ shift.
+#: When per-line σ(2θ) *is* supplied, :data:`GHOST_MATCH_K`·√(σ_g² + σ_p²) may
+#: widen the window but never narrows it, so a poorly-determined line is matched
+#: loosely and a well-determined one is not matched *more* tightly than the
+#: prediction deserves.
+GHOST_TOL_DEG = 0.15
+#: How many combined σ the observed ghost may sit from its predicted position.
+GHOST_MATCH_K = 3.0
+#: Ghost/parent intensity-ratio window.  Kβ is ≤ ~0.2 of Kα even unfiltered and
+#: W Lα weaker still, so anything above the upper bound is a reflection, not a
+#: ghost; the lower bound keeps noise-level coincidences out.
+GHOST_RATIO_RANGE = (0.005, 0.6)
+#: How many of the strongest lines are searched for ghosts.  A ghost of a weak
+#: line is below noise by construction.
+GHOST_N_PARENTS = 8
+
 
 class ContaminationFlag(Base):
     """A weak peak consistent with a known contamination line of a strong one."""
@@ -192,28 +211,47 @@ def identify_anode(wavelength: float) -> str | None:
     return None
 
 
-def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
-                         peak_idx: np.ndarray, wavelength: float,
-                         *, tol_deg: float = 0.15) -> list[ContaminationFlag]:
-    """Ghost peaks at the Kβ / W Lα positions of the strongest reflections.
+def contamination_flags_from_peaks(
+    two_theta: np.ndarray, intensity: np.ndarray,
+    two_theta_esd: np.ndarray | None, wavelength: float, *,
+    intensity_esd: np.ndarray | None = None,
+    tt_range: tuple[float, float] | None = None,
+    tol_deg: float = GHOST_TOL_DEG, k_sigma: float = GHOST_MATCH_K,
+) -> list[ContaminationFlag]:
+    """Ghost lines at the Kβ / W Lα positions of the strongest lines in a
+    **peak list** — the one implementation of the ghost rule in this package.
 
     Same d-spacing, different λ:  sinθ_ghost = sinθ_parent · λ_ghost/λ_parent.
-    A candidate must be a *weaker* detected peak near the predicted position
-    (height ratio < 0.6 — Kβ is ≤ ~0.2 of Kα even unfiltered; W Lα weaker
-    still).
+    A candidate must be a *weaker* line near the predicted position, with
+    ghost/parent intensity inside :data:`GHOST_RATIO_RANGE`.
 
     Which ghosts are looked for follows the anode: Kβ is anode-specific, W Lα1
     is filament-derived and so applies to any of them.  An unrecognised
     wavelength yields no flags, which is a *silence*, not a clean bill — the
     caller sees the same empty list either way, and that asymmetry is why
     every anode this package can build a source for has a Kβ entry.
+
+    Two arguments are optional because the two callers know different things.
+    ``two_theta_esd`` is the per-line **position** esd; when given, the matching
+    window becomes ``max(tol_deg, k_sigma·√(σ_ghost² + σ_parent²))`` — see
+    :data:`GHOST_TOL_DEG` for why σ can only widen it.  ``intensity_esd``
+    switches on a ``intensity > 5σ`` significance test, which a fitted peak list
+    does not need (its lines cleared a σ-normalised detection threshold already)
+    but a raw channel-index census does.  ``intensity`` should be an
+    *integrated* intensity where one exists; net height is a fallback that
+    biases the ratio test by the ghost/parent width ratio.
     """
     anode = identify_anode(wavelength)
     if anode is None:
         return []
-    heights = net[peak_idx]
-    order = np.argsort(heights)[::-1]
-    strongest = peak_idx[order[:8]]
+    tt = np.asarray(two_theta, dtype=np.float64)
+    inten = np.asarray(intensity, dtype=np.float64)
+    if not len(tt):
+        return []
+    lo, hi = (float(tt.min()), float(tt.max())) if tt_range is None else tt_range
+    esd = None if two_theta_esd is None else np.asarray(two_theta_esd, dtype=np.float64)
+    r_lo, r_hi = GHOST_RATIO_RANGE
+    strongest = np.argsort(inten)[::-1][:GHOST_N_PARENTS]
     flags: list[ContaminationFlag] = []
     for kind, lam_ghost in (("kbeta", _KBETA[anode]), ("tungsten_la", _W_LA1)):
         ratio = lam_ghost / wavelength
@@ -222,13 +260,39 @@ def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
             if s >= 1.0:
                 continue
             tt_ghost = 2.0 * np.degrees(np.arcsin(s))
-            if not (tt[0] <= tt_ghost <= tt[-1]):
+            if not (lo <= tt_ghost <= hi):
                 continue
-            near = peak_idx[np.abs(tt[peak_idx] - tt_ghost) < tol_deg]
+            if esd is None:
+                window = np.full(len(tt), tol_deg)
+            else:
+                window = np.maximum(
+                    tol_deg, k_sigma * np.sqrt(esd ** 2 + esd[ip] ** 2))
+            near = np.flatnonzero(np.abs(tt - tt_ghost) < window)
             for ig in near:
-                r = float(net[ig] / max(net[ip], 1e-12))
-                if 0.005 < r < 0.6 and net[ig] > 5.0 * sigma[ig]:
-                    flags.append(ContaminationFlag(
-                        kind=kind, two_theta=float(tt[ig]),
-                        parent_two_theta=float(tt[ip]), intensity_ratio=r))
+                r = float(inten[ig] / max(inten[ip], 1e-12))
+                if not (r_lo < r < r_hi):
+                    continue
+                if (intensity_esd is not None
+                        and inten[ig] <= 5.0 * intensity_esd[ig]):
+                    continue
+                flags.append(ContaminationFlag(
+                    kind=kind, two_theta=float(tt[ig]),
+                    parent_two_theta=float(tt[ip]), intensity_ratio=r))
     return flags
+
+
+def _contamination_flags(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
+                         peak_idx: np.ndarray, wavelength: float,
+                         *, tol_deg: float = GHOST_TOL_DEG
+                         ) -> list[ContaminationFlag]:
+    """Channel-index view of :func:`contamination_flags_from_peaks`.
+
+    This is the pre-WP-1018 surface, kept because :func:`diagnose` works from
+    ``find_peaks`` channel indices and has neither a fitted position esd nor an
+    integrated intensity: it passes net height for both the ranking and the
+    ratio test, and no σ(2θ), so the window is the flat ``tol_deg``.
+    """
+    return contamination_flags_from_peaks(
+        tt[peak_idx], net[peak_idx], None, wavelength,
+        intensity_esd=sigma[peak_idx], tt_range=(float(tt[0]), float(tt[-1])),
+        tol_deg=tol_deg)

@@ -96,6 +96,20 @@ ambiguities, validates the survivors by Le Bail fit, and gates confidence on
 
 ### Inherited
 
+From **WP-1006** (landed 2026-07-30): the `"index"` **run kind that WP's
+Inherited asked for was deliberately not added** — `EventKind` is a closed
+Literal and a kind nothing emits is an untested guess about a search loop that
+does not exist yet. What did land is everything the guess was protecting:
+`CancelToken` works on any loop that evaluates something (the check is
+cooperative, between evaluations — it needs no stages, no Rwp and no history
+node), and `stage_start`'s payload is an **open dict**, so "engine 2 of 3,
+orthorhombic" is expressible today as
+`index=2, n_stages=3, engine="dichotomy", system="orthorhombic"`. So: adding
+`"index"` (and any `index_start`/`index_end` pair) is **this WP's** commit, and
+it *is* a `EVENT_SCHEMA_VERSION` bump — a new kind bumps, an added field does
+not. That rule is now written down in `history/events.py`; read it before
+touching the constant.
+
 From **WP-1021/1022/1023**: each engine registers itself; `engines_run`,
 `engine_stats` and `search_complete` come from the registry, and
 `agent.tool_definition()` must quote the **live** registry so a new engine

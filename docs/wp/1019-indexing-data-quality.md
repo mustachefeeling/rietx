@@ -71,6 +71,39 @@ lines — the σ census and every screen here run on `usable()`, not on `peaks`.
 input the bethanechol benchmark arrives as, WP-1026) and say so rather than
 quoting a precision it does not have.
 
+Landed 2026-07-30, and four things sharpen what this WP has to do:
+
+- **Read `PeakList.source`, not the flags, for the assumed-σ question.** It is
+  `"fitted"` or `"positions"`, one field on the list, and it is what
+  `PEAK_SIGMA_ASSUMED` is emitted from. `PEAK_UNUSABLE_FLAGS` deliberately does
+  **not** drop `sigma_assumed` or `unresolved_shoulder` lines — they are still
+  evidence, just less precise evidence, and their σ says so.
+- **The diagnostics translator is already public and already handles a
+  handed-in list**: `indexing.diagnostics.peak_diagnostics(peaks, detection=None)`.
+  Call it rather than re-deriving `PEAK_SIGMA_ASSUMED` here, and add this WP's
+  `INDEX_*` codes alongside rather than inside it — a peak list's flags and a
+  data-quality verdict are different statements.
+- **A precision floor already exists in the fitter, and this WP's σ_sys sits on
+  top of it.** Per-line σ carries `√max(χ²_red, 1)` (via
+  `statistics.normal_covariance(chi2_floor=True)`) but deliberately **not**
+  Bérar-Lelann — that estimator is about serial correlation across a whole
+  pattern, and a 40-400-point window is not that population. If this WP's σ_sys
+  ends up looking like a serial-correlation term, do not reach for BL per peak;
+  ~150 independent inflations compounded into the tolerance model is the failure
+  mode being avoided.
+- **σ is measured but not yet *calibrated*.** WP-1018 merged with its σ pull
+  calibration outstanding (see its handover log). This WP's whole premise is
+  that per-line σ can be trusted enough to abstain on, so **run or write that
+  test before tuning anything here** — the `SEPARABILITY_MIN_SS_RATIO` screen
+  and the σ census both read σ as if its scale were known.
+
+One measured fact worth having before the shift screen is written: on clean
+synthetics the fitter recovers injected positions to **0.0005°** with reported
+σ(2θ) of 0.0003-0.0006°, i.e. 1-2σ. So the ~0.10° bethanechol shift this WP
+exists to model is **two to three orders of magnitude above** the per-line
+precision — the shift is richly determined, and the difficulty is entirely in
+*attributing* it to the right template, never in detecting it.
+
 ## Non-goals
 
 - No cell search (WP-1021-1023), no FoM panel or Q-space machinery (WP-1020).

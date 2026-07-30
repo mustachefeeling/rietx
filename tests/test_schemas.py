@@ -3,6 +3,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
+import pxrdref as pr
 from pxrdref import Instrument, Parameter, PatternData, Structure
 from pxrdref.schemas import Atom, Cell, Phase
 
@@ -59,3 +60,62 @@ def test_pattern_validation():
         PatternData(two_theta=[1.0, 2.0], intensity=[1.0])  # length mismatch
     p = PatternData(two_theta=[1.0, 2.0, 3.0], intensity=[4.0, 9.0, 16.0])
     assert p.sig().tolist() == [2.0, 3.0, 4.0]  # Poisson fallback
+
+
+# ------------------------------------------------------- the one plan schema
+def test_stage_spec_mirrors_every_stage_field():
+    """StageSpec must carry every field of the dataclass it mirrors.
+
+    The mirror lost data before WP-1004: ``strain_seed`` existed on ``Stage``
+    and on the agent surface's copy of this schema but not on the history one,
+    so a Stephens stage round-tripped through a history tree with its seed
+    reset to 0.  A field-set assertion is the guard that makes the next added
+    ``Stage`` field fail loudly instead of silently failing to serialize.
+    """
+    import dataclasses
+
+    from pxrdref.schemas.plan import StageSpec
+
+    assert set(StageSpec.model_fields) == {f.name for f in dataclasses.fields(pr.Stage)}
+
+
+def test_stage_spec_round_trips_strain_seed():
+    from pxrdref.schemas.plan import StageSpec
+
+    stage = pr.Stage("sample_broadening", ["phases.*.microstrain.dof.*"],
+                     seed=1e-3, strain_seed=1000.0)
+    back = StageSpec.model_validate_json(
+        StageSpec.from_stage(stage).model_dump_json()).to_stage()
+    assert back == stage
+
+
+def test_plan_spec_is_one_class_everywhere():
+    """History and the agent surface must not re-acquire private copies."""
+    from pxrdref import agent
+    from pxrdref.schemas import history, plan
+
+    assert history.StageSpec is plan.StageSpec is agent.StageSpec
+    assert history.PlanSpec is plan.PlanSpec is agent.PlanSpec
+
+
+def test_plan_spec_reads_a_pre_v1_history_header():
+    """A tree written before ``strain_seed`` existed still validates.
+
+    Vendored header line from a v0.6 history JSONL (schema_version 0.1), whose
+    stage specs have no ``strain_seed`` key at all.
+    """
+    from pxrdref.schemas.history import HistoryRecord
+
+    line = (
+        '{"record":"header","header":{"tree_id":"t0","created_utc":'
+        '"2026-07-28T10:00:00Z","data_fingerprint":"abc","data_source":"",'
+        '"n_points":100,"plan":{"stages":[{"name":"scale_bkg","turn_on":'
+        '["phases.*.scale"],"max_iter":100,"lebail_cycles":3,"seed":0.0},'
+        '{"name":"cell","turn_on":["phases.*.cell.*"],"max_iter":100,'
+        '"lebail_cycles":3,"seed":0.0}],"correlation_guard":0.98},'
+        '"package_version":"0.6.0.dev0","schema_version":"0.1"}}'
+    )
+    rec = HistoryRecord.model_validate_json(line)
+    assert rec.header is not None
+    assert [s.name for s in rec.header.plan.stages] == ["scale_bkg", "cell"]
+    assert all(s.strain_seed == 0.0 for s in rec.header.plan.stages)

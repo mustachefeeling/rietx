@@ -41,7 +41,17 @@ estimator from the top level — the three "the GUI must not guess" gaps.
 ### Inherited
 
 From **WP-1004**: `PLAN_INFO` is the source for the plans arm of
-`capabilities()` — do not restate titles here.
+`capabilities()` — do not restate titles here. As landed (2026-07-30) it is
+`dict[str, PlanInfo]` in `strategy/staged.py`, a frozen dataclass of
+`title / description / modes / when_to_use`, exported as `pxrdref.PLAN_INFO`
+alongside `PLAN_PRESETS`; its membership meta-test lives in
+`tests/test_params_surface.py`, so `capabilities()`'s own registry test should
+assert the *arm* is complete rather than re-assert the bijection. Note `modes`
+is a **tuple** (plural): `profile_only` is legitimately both the Le Bail plan
+and a no-structure Rietveld plan, so a modes-arm keyed one-plan-one-mode would
+be wrong. Also already exported by 1004 and worth a `capabilities()` feature
+flag rather than a re-derivation: `refine.mode_fixed_path(path, mode)`, the
+single definition of which paths lebail/pawley force-fix.
 
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): `capabilities()`
 gains an **indexing engines** arm, and it must be quoted from the **live

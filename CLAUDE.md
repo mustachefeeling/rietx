@@ -64,6 +64,17 @@ Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
     events, viz/live.py + watch.py render them live
 ```
 
+`fit`, `run_stage` and `refine` all take `events=` (telemetry) and `cancel=`
+(an `optimize.cancel.CancelToken` another thread sets). Cancellation is
+**cooperative, read between residual evaluations** — never an interrupt, so
+frozen-per-stage discreteness holds — and the in-flight stage is *abandoned*:
+no node, no commit, and the models restored to their pre-stage values, because
+a seeding stage writes to them before solving. `RefinementCancelled` carries
+`.completed_stages` and `.node_id`, the last completed node the working state
+now stands at. Event `data` is an **open dict**: adding a field to a kind is
+not an `EVENT_SCHEMA_VERSION` bump (a new kind is) — the rule, and both halves
+of its test, are in `history/events.py`.
+
 A **series** (in-situ ramp, parametric sweep, tray of related specimens) is N
 separate refinements chained by a warm start — `sequential.py`
 (`SequentialRefinement` / `refine_sequential`), returning a `SeriesResult` of
@@ -75,6 +86,23 @@ and nothing in accuracy, and its trajectory is path-dependent by construction,
 so `direction="both"` runs the chain each way and flags parameters the two
 disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only check that separates a
 measured trajectory from an ordering artefact.
+
+The **parameter surface** (WP-1004) is how a client works the table without
+running a fit: `Refinement.parameters() → list[ParameterRow]` lists *every*
+entry — fixed, locked and tied included, esds from the last fit merged in, each
+held row saying which of the three reasons holds it (`.refinable`,
+`.held_because`); `set_vary(globs, vary)` and `set_values({path: value})` edit
+it and auto-commit the `set_vary`/`set_value` history nodes. Three rules there
+are load-bearing: `ParameterRow` mirrors `params.vector.Entry` field for field
+(pinned by `dataclasses.fields`, `esd`/`mode_fixed` declared as the deliberate
+extras), a **tied** path refuses an edit and names its sources instead, and
+`mode_fixed` — lebail/pawley force-fix every `.atoms.` path, `.scale` and
+`.source.lines.` — is *not* `locked`, which is what keeps a Le Bail phase's
+mandatory dummy atom from looking editable. There is exactly **one**
+`StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py` and
+`agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
+title/description/modes/when-to-use per preset, in bijection with
+`PLAN_PRESETS` by meta-test.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

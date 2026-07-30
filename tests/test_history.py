@@ -377,3 +377,36 @@ def test_branch_overlay_plot(tmp_path, pattern):
     fig.savefig(OUT / "history_branches.png")
     plt.close(fig)
     assert (OUT / "history_branches.png").exists()
+
+
+# ----------------------------------------------- stage arguments survive a node
+def test_stage_node_carries_its_seeds(pattern):
+    """A recorded stage must replay as the stage that ran (WP-1004).
+
+    ``cherry_pick`` rebuilds a ``Stage`` from ``NodeAction``, so any stage
+    argument missing there is a stage that replays *differently* — the
+    extinction stage would start on the softplus dead-gradient floor and a
+    Stephens stage from the all-zero block its seed exists to avoid.  Pinned on
+    the recorded action and on the rendered api_call, which is what a session
+    log promises is equivalent.
+    """
+    structure, ins = perturbed_models()
+    ref = pr.Refinement(structure, ins)
+    seeded = pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+                      max_iter=10, seed=1e-3, strain_seed=1000.0)
+    ref.run_stage(pattern, seeded)
+    action = ref.history[ref.history.order[-1]].action
+    assert (action.seed, action.strain_seed) == (1e-3, 1000.0)
+    assert "seed=0.001" in action.api_call()
+    assert "strain_seed=1000.0" in action.api_call()
+    # and through JSON, the round trip a persisted tree takes
+    reloaded = pr.NodeAction.model_validate_json(action.model_dump_json())
+    assert (reloaded.seed, reloaded.strain_seed) == (1e-3, 1000.0)
+
+
+def test_stage_node_without_seeds_renders_unchanged(fitted):
+    """An unseeded stage's api_call keeps its pre-WP-1004 text exactly."""
+    ref, _ = fitted
+    node = ref.history[ref.history.order[-1]]
+    assert node.action.api_call() == (
+        "ref.run_stage(data, pr.Stage('cell', ['phases.*.cell.*'], max_iter=40))")

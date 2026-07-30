@@ -40,13 +40,34 @@ def reciprocal_metric_tensor(a: float, b: float, c: float,
     return xp.linalg.inv(direct_metric_tensor(a, b, c, alpha, beta, gamma))
 
 
+def inv_d_squared(hkl: np.ndarray, a: float, b: float, c: float,
+                  alpha: float, beta: float, gamma: float) -> np.ndarray:
+    """1/d² (Å⁻²) for an (N,3) integer hkl array — the quadratic form h·G*·hᵀ.
+
+    This is the quantity indexing works in, and the reason is that it is
+    **linear in the metric**: with (A..F) = (G*₁₁, G*₂₂, G*₃₃, 2G*₂₃, 2G*₁₃,
+    2G*₁₂),
+
+        1/d² = A h² + B k² + C l² + D kl + E hl + F hk
+
+    so a cell fitted to assigned lines is a *linear* least-squares problem,
+    while d and 2θ are not linear in the metric at all (Altomare, Cuocci,
+    Moliterni & Rizzi, 2019, *International Tables for Crystallography* Vol. H
+    ch. 3.4, eq. 3.4.2).  :func:`d_spacings` is the reciprocal-square-root of
+    this; both are on the hot path, so the arithmetic is kept in one place
+    rather than recovered from ``d``.
+    """
+    xp = get_backend()
+    gstar = reciprocal_metric_tensor(a, b, c, alpha, beta, gamma)
+    h = xp.asarray(hkl, dtype=np.float64)
+    return xp.einsum("ni,ij,nj->n", h, gstar, h)
+
+
 def d_spacings(hkl: np.ndarray, a: float, b: float, c: float,
                alpha: float, beta: float, gamma: float) -> np.ndarray:
     """d (Å) for an (N,3) integer hkl array."""
     xp = get_backend()
-    gstar = reciprocal_metric_tensor(a, b, c, alpha, beta, gamma)
-    h = xp.asarray(hkl, dtype=np.float64)
-    inv_d2 = xp.einsum("ni,ij,nj->n", h, gstar, h)
+    inv_d2 = inv_d_squared(hkl, a, b, c, alpha, beta, gamma)
     return 1.0 / xp.sqrt(inv_d2)
 
 

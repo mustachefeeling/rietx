@@ -23,7 +23,56 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..backend.linalg64 import require_fp64, to_host_fp64
 from ..schemas.results import Statistics
+
+
+def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
+                      chi2_floor: bool = False,
+                      what: str = "residual entering the covariance solve",
+                      ) -> tuple[np.ndarray, float]:
+    """``Cov = χ²_red · pinv(JᵀJ)`` — the one guarded normal-matrix solve.
+
+    Returns ``(cov, chi2_red)`` with ``chi2_red`` always the *raw*
+    Σr²/(N−P), even when ``chi2_floor`` has floored the factor applied to
+    ``cov``: the raw value is what a caller reports, the floored one is what it
+    should trust.  ``chi2_floor=True`` replaces the factor with
+    ``max(χ²_red, 1)``, for a fit whose model is known to be inexact and whose
+    esds must not be *deflated* by a locally-good χ² (peak profiles over a
+    single line); the whole-pattern fit leaves it off, because there χ²_red < 1
+    means the file's esds are pessimistic and shrinking is correct.
+
+    **The pseudo-inverse is taken on the symmetrised matrix with
+    ``hermitian=True``, and this is a correctness requirement, not a
+    micro-optimisation.**  JᵀJ is positive semi-definite, so its Moore-Penrose
+    inverse is too and every |ρ| ≤ 1 exactly.  But the *general* SVD path
+    ``pinv`` takes by default treats the matrix as unstructured, and on a
+    cond ≈ 10²⁰ normal matrix (routine here — the scale/axial/background block
+    of a real fit) it returns a visibly non-symmetric, non-PSD result: measured
+    |ρ| up to 1.6 × 10³ on synthetic ill-conditioning, and +2.75 for
+    ``scale ~ axial_sl`` on the WP-0502 fluorite fit, which is what made that WP
+    log "the correlation guard is undermined wherever conditioning is poor".
+    ``hermitian=True`` routes through ``eigh``, which cannot break the symmetry,
+    and caps the same cases at 1 + 4 ulp.
+
+    The solve is fp64 unconditionally (architecture invariant 2): cond(JᵀJ) =
+    cond(J)², so forming and inverting the normal matrix is the step reduced
+    precision can never take.  ``to_host_fp64`` is that boundary — a Jacobian
+    whose columns were computed at fp32 is upcast here before JᵀJ, while the
+    residual is *required* to have been fp64 all along.
+
+    This lives here, rather than inside :func:`covariance_estimates`, because
+    two surfaces now need it — the whole-pattern fit and the per-peak profile
+    fits of :mod:`pxrdref.indexing.peakfit` — and they must not be able to
+    disagree about the pinv guarding.
+    """
+    require_fp64(resid, what)
+    jac = to_host_fp64(jac)
+    JTJ = jac.T @ jac
+    JTJ = 0.5 * (JTJ + JTJ.T)  # kill the fp asymmetry before the eigensolve
+    chi2_red = float(resid @ resid) / max(len(resid) - n_free, 1)
+    scale = max(chi2_red, 1.0) if chi2_floor else chi2_red
+    return np.linalg.pinv(JTJ, hermitian=True) * scale, chi2_red
 
 
 def berar_lelann_factor(delta: np.ndarray) -> float:
