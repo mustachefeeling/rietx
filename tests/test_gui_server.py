@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 
 import pxrdref as pr
-from pxrdref.gui import ROUTES, GuiSession, build_server
+from pxrdref.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
 from pxrdref.gui.session import RESERVED_ROUTES
 from pxrdref.history.events import read_events
 from tests.test_project import _write_xye
@@ -116,6 +116,35 @@ class Client:
 
     def put(self, path, body):
         return self.request("PUT", path, body)
+
+    def upload(self, kind: str, data: bytes | None = None, *, declared: int | None
+               = None, **query) -> tuple[int, dict]:
+        """``POST /api/upload/<kind>`` — the one body in this surface that is
+        not JSON.  ``declared`` lies about ``Content-Length`` on purpose, which
+        is the only way to test the cap without sending 64 MB."""
+        from urllib.parse import urlencode
+
+        conn = HTTPConnection("127.0.0.1", self.port, timeout=60)
+        head = {"Host": f"127.0.0.1:{self.port}",
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(len(data or b"") if declared is None
+                                      else declared)}
+        path = f"/api/upload/{kind}"
+        if "token" in query:            # the wire name for a staged upload
+            query["upload"] = query.pop("token")
+        if query:
+            path += "?" + urlencode({k: v for k, v in query.items()
+                                     if v is not None})
+        try:
+            conn.request("POST", path, body=data or b"", headers=head)
+            response = conn.getresponse()
+            raw = response.read()
+            try:
+                return response.status, json.loads(raw)
+            except ValueError:
+                return response.status, {"raw": raw.decode("utf-8", "replace")}
+        finally:
+            conn.close()
 
 
 @pytest.fixture
@@ -221,8 +250,15 @@ def test_reserved_routes_answer_404_naming_their_work_package(blank):
 
 
 def test_no_route_is_declared_twice(blank):
-    """A path may be live or reserved, never both — a 404 that shadows a verb."""
+    """A path may be live, reserved or an upload — never two of the three.
+
+    Three tables now, because an upload's body is bytes rather than JSON
+    (WP-1014); together they are still the complete wire surface, which is the
+    property this asserts.
+    """
     assert not set(ROUTES) & set(RESERVED_ROUTES)
+    assert not set(UPLOAD_ROUTES) & set(ROUTES)
+    assert not set(UPLOAD_ROUTES) & set(RESERVED_ROUTES)
 
 
 def test_the_built_app_is_served_and_so_is_plotly(blank):
@@ -308,6 +344,266 @@ def test_open_surfaces_the_binding_message_it_refused_on(blank, tmp_path,
     assert status == 400
     assert "has changed since the project was created" in payload["error"]["message"]
     assert "sha256" in payload["error"]["message"]
+
+
+# ----------------------------------------------------------------------
+# uploads and the import flow (WP-1014)
+# ----------------------------------------------------------------------
+DATA = Path(__file__).parent / "data"
+
+
+@pytest.mark.parametrize("source, sent_as, reader, has_sigma", [
+    # the .xye written by the module fixture — three columns, esd in the third
+    (None, "synth.xye", "xy", True),
+    # GSAS is recognised by its BANK record, so the suffix is free to lie: the
+    # WP's own note is that ``.XRA`` has no parser and reads through this sniff
+    (DATA / "11BM_NAC.fxye", "11BM_NAC.fxye", "gsas", True),
+    (DATA / "11BM_NAC.fxye", "mystery.dat", "gsas", True),
+    (DATA / "FAP.XRA", "FAP.XRA", "gsas", False),
+    # pdCIF is the one format dispatched on its suffix, and the only one with
+    # a reader *option*
+    (DATA / "nist_srm660c_100a.cif", "nist.cif", "pdcif", True),
+])
+def test_an_upload_is_claimed_by_content_not_by_extension(
+        blank, pattern_file, source, sent_as, reader, has_sigma):
+    _, client = blank
+    raw = (pattern_file if source is None else source).read_bytes()
+    status, payload = client.upload("pattern", raw, filename=sent_as)
+    assert status == 200, payload
+    assert payload["format"]["name"] == reader
+    assert payload["has_sigma"] is has_sigma
+    assert payload["n_points"] > 100
+    lo, hi = payload["two_theta_range"]
+    assert lo < hi
+    # the reader's own words travel, so a UI never restates the dispatch rule
+    assert payload["format"]["sniff"]
+    # …and a preview curve, so the file can be *looked at* before it is committed
+    curve = payload["curve"]
+    assert len(curve["two_theta"]) == len(curve["intensity"]) == curve["n_returned"]
+    assert curve["n_returned"] <= payload["n_points"]
+    assert payload["sha256"] == __import__("hashlib").sha256(raw).hexdigest()
+
+
+def test_a_staged_pdcif_is_re_read_for_another_block_without_re_uploading(blank):
+    """``block`` is why the *reader call* is part of a data reference (WP-1005).
+
+    The certification file carries a measured and a calculated block with
+    identical tags; picking one is a decision the wizard makes after seeing the
+    preview, and re-sending 300 kB to change a radio button would be absurd.
+    """
+    _, client = blank
+    raw = (DATA / "nist_srm660c_100a.cif").read_bytes()
+    status, first = client.upload("pattern", raw, filename="nist.cif")
+    assert status == 200 and first["metadata"]["block"].endswith("_meas")
+    status, second = client.upload("pattern", token=first["upload"], block="calc")
+    assert status == 200, second
+    assert second["upload"] == first["upload"]     # the same staged bytes
+    assert second["metadata"]["block"].endswith("_calc")
+    assert second["block"] == "calc"
+
+
+def test_the_aniso_checkbox_is_offered_only_when_the_cif_carries_a_loop(blank):
+    """The opt-in mirrors an invariant, so the UI has to know if it is inert."""
+    _, client = blank
+    plain = client.upload("cif", (DATA / "cod_1000055.cif").read_bytes(),
+                          filename="lab6.cif")[1]
+    assert plain["aniso_available"] is False
+    assert plain["aniso"] is False
+    assert plain["phases"][0]["n_aniso"] == 0
+    assert plain["phases"][0]["space_group"] == "P m -3 m"
+
+    status, off = client.upload("cif", (DATA / "cod_1000236.cif").read_bytes(),
+                                filename="cryolite.cif")
+    assert status == 200, off
+    # the file *has* a loop and the default read still ignores it — reading a
+    # file must not silently change what a plan frees (CLAUDE.md)
+    assert off["aniso_available"] is True
+    assert off["phases"][0]["n_aniso"] == 0
+    assert all(atom["aniso"] is None for atom in off["structure"]["phases"][0]["atoms"])
+
+    on = client.upload("cif", token=off["upload"], aniso="1")[1]
+    assert on["aniso"] is True and on["phases"][0]["n_aniso"] > 0
+    assert on["upload"] == off["upload"]
+
+
+def test_an_uploaded_pattern_and_cif_commit_into_a_project(blank, tmp_path):
+    """The second phase: tokens become a project, and the bytes are the ones sent."""
+    session, client = blank
+    pattern = (DATA / "11BM_NAC.fxye").read_bytes()
+    pat = client.upload("pattern", pattern, filename="nac.fxye")[1]
+    cif = client.upload("cif", (DATA / "cod_1000055.cif").read_bytes(),
+                        filename="lab6.cif")[1]
+
+    root = tmp_path / "imported.pxrd"
+    status, payload = client.post("/api/project/new", {
+        "path": str(root),
+        "pattern": {"upload": pat["upload"]},
+        "structure": {"upload": cif["upload"]},
+        # the wizard sends a decision, not a wavelength: the package supplies
+        # the physics (WP-0507's scale lives in one place)
+        "instrument": {"preset": "debye_scherrer", "wavelength": 0.413909}})
+    assert status == 200, payload
+    assert payload["data"]["reader"] == "gsas"
+    assert payload["data"]["n_points"] == pat["n_points"]
+    # copied byte-for-byte, which is what makes the reader's esd column the
+    # contract rather than a re-serialisation (WP-1005)
+    assert (root / "nac.fxye").read_bytes() == pattern
+    assert session.project.refinement.instrument.source.lines[0].wavelength == 0.413909
+    assert session.project.refinement.structure.phases[0].space_group == "P m -3 m"
+
+
+def test_a_file_that_does_not_parse_leaves_nothing_behind(blank, tmp_path):
+    """Two-phase means the failure is a message, not a directory to clean up."""
+    _, client = blank
+    status, payload = client.upload("cif", b"this is not a CIF\n",
+                                    filename="notes.cif")
+    assert status == 400, payload
+    assert payload["error"]["code"] == "UPLOAD_INVALID"
+    # the parser's own complaint, with its line and column…
+    assert "expected block header" in payload["error"]["message"]
+    # …and the staging path replaced by the name the client sent
+    assert "notes.cif" in payload["error"]["message"]
+    assert "/pxrdref-upload-" not in payload["error"]["message"]
+
+    status, payload = client.upload("pattern", b"\x00\x01\x02\x03", filename="x.xye")
+    assert status == 400 and payload["error"]["code"] == "UPLOAD_INVALID"
+    assert not list(tmp_path.iterdir())
+
+
+def test_uploads_refuse_a_filename_that_is_a_path_and_a_body_that_is_a_claim(blank):
+    _, client = blank
+    raw = (DATA / "cod_1000055.cif").read_bytes()
+    # a filename is data: reduced to its leaf rather than trusted
+    payload = client.upload("cif", raw, filename="../../../etc/lab6.cif")[1]
+    assert payload["filename"] == "lab6.cif"
+    assert client.upload("cif", raw, filename="..")[0] == 400
+    assert client.upload("cif", raw)[0] == 400            # no filename at all
+    assert client.upload("cif", b"")[0] == 400            # no body and no token
+    assert client.upload("nonsense", raw, filename="a.cif")[0] == 404
+
+    # the cap is checked against the *declared* length, before a byte is read
+    status, payload = client.upload("cif", raw, declared=99 * 1024 * 1024,
+                                    filename="huge.cif")
+    assert status == 413 and payload["error"]["code"] == "UPLOAD_TOO_LARGE"
+
+    # a token is typed: a pattern's token is not a structure
+    pat = client.upload("pattern", (DATA / "11BM_NAC.fxye").read_bytes(),
+                        filename="nac.fxye")[1]
+    status, payload = client.upload("cif", token=pat["upload"])
+    assert status == 400 and "staged as a pattern" in payload["error"]["message"]
+    assert client.upload("cif", token="deadbeef")[0] == 404
+
+
+def test_an_instrument_profile_uploads_frozen_and_patches_in(blank, tmp_path,
+                                                             pattern_file):
+    """`load_instrument_profile`'s contract, unchanged by crossing the wire."""
+    session, client = blank
+    _open(session, tmp_path / "profile.pxrd", pattern_file)
+
+    calibrated = session.project.refinement.instrument.model_copy(deep=True)
+    calibrated.profile.u.value = 0.0123
+    calibrated.profile.u.vary = True          # a calibration is data…
+    path = tmp_path / "lab.instprm.json"
+    pr.save_instrument_profile(calibrated, path)
+
+    status, payload = client.upload("instrument", path.read_bytes(),
+                                    filename="lab.instprm.json")
+    assert status == 200, payload
+    assert payload["instrument"]["profile"]["u"]["value"] == 0.0123
+    assert payload["instrument"]["profile"]["u"]["vary"] is False   # …not a guess
+    assert payload["frozen"] is True
+    assert payload["summary"]["geometry"] == calibrated.geometry.kind
+
+    status, patched = client.patch("/api/instrument",
+                                   {"instrument": {"upload": payload["upload"]},
+                                    "label": "lab profile"})
+    assert status == 200, patched
+    assert patched["instrument"]["profile"]["u"]["value"] == 0.0123
+    assert session.project.history[patched["node_id"]].action.kind == "edit_model"
+
+    assert client.upload("instrument", b'{"not": "a profile"}',
+                         filename="x.json")[0] == 400
+
+
+def test_an_instrument_preset_supplies_the_wavelengths_it_is_not_given(blank):
+    from pxrdref.gui.imports import instrument_from_preset
+
+    _, client = blank
+    anodes = {a["name"] for a in client.get("/api/capabilities")[1]["anodes"]}
+    assert "CuKa" in anodes and "MoKa" in anodes
+
+    doublet = instrument_from_preset({"preset": "bragg_brentano",
+                                      "radiation": "CuKa"})
+    assert [line.wavelength for line in doublet.source.lines] == [1.5405929, 1.5444274]
+    assert doublet.geometry.kind == "bragg_brentano"
+
+    with pytest.raises(ValueError, match="unknown radiation"):
+        instrument_from_preset({"preset": "bragg_brentano", "radiation": "UnobtaniumKa"})
+    with pytest.raises(ValueError, match="does not take"):
+        instrument_from_preset({"preset": "debye_scherrer", "wavelength": 1.0,
+                                "radiation": "CuKa"})
+    with pytest.raises(ValueError, match="needs a wavelength"):
+        instrument_from_preset({"preset": "debye_scherrer"})
+    with pytest.raises(ValueError, match="unknown instrument preset"):
+        instrument_from_preset({"preset": "neutron_tof"})
+
+
+def test_every_instrument_preset_argument_is_the_constructors_own():
+    """The registry a form is built from, pinned to the classmethod it calls.
+
+    Same rule as every other registry here: an argument added to
+    ``Instrument.bragg_brentano`` either reaches the import form or fails this,
+    never sits silently unreachable.
+    """
+    import inspect
+
+    from pxrdref.gui.imports import INSTRUMENT_PRESETS
+    from pxrdref.schemas.instrument import Instrument
+
+    for name, declared in INSTRUMENT_PRESETS.items():
+        signature = inspect.signature(getattr(Instrument, name))
+        expected = tuple(p for p in signature.parameters if p != "cls")
+        assert set(declared) == set(expected), name
+
+
+def test_an_unknown_scattering_species_is_refused_where_it_is_typed(blank, tmp_path,
+                                                                    pattern_file):
+    """It would otherwise fail at stage compile, far from the field it was typed in."""
+    session, client = blank
+    _open(session, tmp_path / "species.pxrd", pattern_file)
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"][0]["species"] = "Xx"
+    status, payload = client.patch("/api/structure", {"structure": structure})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "UNKNOWN_SPECIES"
+    assert payload["error"]["where"] == ["phases.0.atoms.0.species"]
+    assert "Xx" in payload["error"]["message"]
+    # an ion the table lacks is *not* refused: it falls back to the neutral atom
+    structure["phases"][0]["atoms"][0]["species"] = "La7+"
+    assert client.patch("/api/structure", {"structure": structure})[0] == 200
+
+
+def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
+                                                            pattern_file):
+    """The arm an editor renders read-only from, derived where θ derives it."""
+    session, client = blank
+    _open(session, tmp_path / "sites.pxrd", pattern_file)
+    status, payload = client.get("/api/structure")
+    assert status == 200
+    sites = {row["path"]: row for row in payload["sites"]}
+    free = {row.path for row in session.project.parameters()}
+
+    la = sites["phases.0.atoms.0"]          # La at 1a: m-3m, nothing to move
+    assert la["dof_paths"] == [] and la["special"] is True
+    assert la["site_symmetry_order"] == 48
+    b = sites["phases.0.atoms.1"]           # B at 6f (x, ½, ½): one DOF, along x
+    assert b["dof_paths"] == ["phases.0.atoms.1.dof.0"]
+    assert b["dof_directions"] == [[1, 0, 0]]
+    assert b["site_symmetry_order"] == 8
+    # every path this arm names is a path the parameter table has
+    for row in payload["sites"]:
+        assert set(row["dof_paths"]) <= free
+        assert set(row["adp_paths"]) <= free
 
 
 def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,
