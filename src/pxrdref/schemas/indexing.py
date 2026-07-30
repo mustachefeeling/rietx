@@ -75,6 +75,22 @@ PEAK_POSITION_BOUND_FWHM = 0.5
 #: (1/Γ)·f(x/Γ) — so no softplus reparameterisation is needed on top of the
 #: bounded trust-region solver.
 PEAK_WIDTH_BOUND_FACTORS = (0.2, 5.0)
+#: Half-width of a group's fitting window, in seed FWHM beyond the outermost
+#: seed.  Far narrower than the refinement's ``WINDOW_FWHM_MULT = 30``, and for
+#: a different reason: there the whole pattern is modelled and a truncated tail
+#: shows up as missing intensity under its neighbours, whereas here each window
+#: is fitted alone against a frozen background, so a wide window only buys more
+#: baseline error.  Truncation does not bias the reported area — the profile is
+#: unit-area and *not* renormalised over the window — it costs precision on the
+#: Lorentzian fraction, which is why the window is not narrower still.
+PEAK_WINDOW_FWHM_MULT = 4.0
+#: Bounds on the global broadening factor that calibrates the instrument width
+#: law to the measured width census.  A factor above 1 is ordinary sample
+#: broadening; below 1 means the declared instrument is broader than the data,
+#: which is a mis-declared instrument rather than physics — allowed, but not
+#: without limit, and the range is what stops a pathological census (all
+#: shoulders, or one saturated line) from setting every window.
+PEAK_WIDTH_SCALE_BOUNDS = (0.5, 50.0)
 #: Re-seeding (adding a component to a group whose residual demands one) is an
 #: explicit extra pass, capped at this many.  The component count per group is
 #: frozen *before* each fit and never changes inside it: a fitter that adds or

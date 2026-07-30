@@ -28,9 +28,17 @@ from .schemas import (
     Structure,
 )
 from .schemas.history import HistoryNode, NodeAction, RefinementState
+from .schemas.params import ParameterRow, TieSpec
+from .schemas.plan import PlanSpec, StageSpec
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
 from .sequential import SequentialRefinement, refine_sequential
-from .strategy.staged import RefinementPlan, Stage
+from .strategy.staged import (
+    PLAN_INFO,
+    PLAN_PRESETS,
+    PlanInfo,
+    RefinementPlan,
+    Stage,
+)
 
 __all__ = [
     "AnisoU",
@@ -42,9 +50,14 @@ __all__ = [
     "Instrument",
     "MultiHistogramRefinement",
     "NodeAction",
+    "PLAN_INFO",
+    "PLAN_PRESETS",
     "Parameter",
+    "ParameterRow",
     "PatternData",
     "Phase",
+    "PlanInfo",
+    "PlanSpec",
     "Refinement",
     "RefinementPlan",
     "RefinementResult",
@@ -57,7 +70,9 @@ __all__ = [
     "SeriesResult",
     "SharingMap",
     "Stage",
+    "StageSpec",
     "Structure",
+    "TieSpec",
     "Trajectory",
     "SuggestedAction",
     "build_report",
