@@ -430,7 +430,7 @@ pick peaks and run `index_pattern` on the same data.
 
 ---
 
-## 8. Sixteen things that will surprise you, all measured
+## 8. Seventeen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -640,6 +640,21 @@ window has absorbed the shift (+1400 ppm measured), so re-fit it with
 `shift_template` before quoting it — and the way to earn `high` confidence is to
 supply a measured `sigma_sys_deg` from an internal standard, not to widen
 further.**
+
+**8.17 "Is there intensity here?" is not one question — it depends on what else
+your hypothesis predicts nearby.** Two detectors in this package ask it with the
+same window (±½ FWHM) and the same threshold (3σ), and they must use different
+null models. WP-1024's `predicted_but_absent` asks it against the fitted
+**background**, which is right for an oversized cell's phantom reflection because
+a phantom sits in a *gap*. WP-1025's extinction screen asks it at a **forbidden**
+position, which sits inside a dense predicted pattern — and measured on the FAP
+lab pattern, the 003 that P 6₃/m forbids is 0.89 FWHM from an allowed neighbour
+ten times stronger whose tail fills the window to **+27.6 σ**. Against the class's
+own `y_calc` — background plus every reflection the class still allows — the same
+window reads **−3.9 σ**. **Corollary for the agent: never compute your own
+"nothing is here" test from the raw pattern minus a background.** Where nothing
+else is predicted nearby the two agree; where something is, the raw test refutes
+the true answer.
 
 ---
 
