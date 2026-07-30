@@ -17,6 +17,7 @@ import {
   atomLabel,
   atomTransform,
   atomTraces,
+  axisTrace,
   bondTrace,
   caption,
   cellTrace,
@@ -175,8 +176,17 @@ describe("the traces", () => {
   it("draws the cell behind the bonds behind the atoms", () => {
     const all = traces(geometry(), "ball", unitSphere(4, 6),
                        { cell: "#ccc", bond: "#888" });
-    expect(all.map((t) => t.type)).toEqual(
-      ["scatter3d", "scatter3d", "mesh3d", "mesh3d"]);
+    expect(all.map((t) => t.name)).toEqual(["cell", "axes", "bonds", "La", "B"]);
+  });
+
+  it("labels the cell's own axes, clear of the corner atoms", () => {
+    // the frame of reference is a, b, c — nothing here happens in x, y, z —
+    // and a letter placed exactly on the corner would be inside the corner atom
+    const axes = axisTrace(geometry(), "#1f5fa8");
+    expect(axes.text).toEqual(["a", "b", "c"]);
+    expect(axes.x).toEqual([4 * 1.08, 0, 0]);
+    expect(axes.y).toEqual([0, 4 * 1.08, 0]);
+    expect(axes.z).toEqual([0, 0, 4 * 1.08]);
   });
 });
 
@@ -220,9 +230,24 @@ describe("the caption and the layout", () => {
   it("keeps one Å the same length on all three axes", () => {
     // without `aspectmode: "data"` plotly stretches the box to a cube, which
     // draws a monoclinic cell as an orthogonal one — the whole content of the
-    // picture for a low-symmetry phase
-    expect(layout("#111", "#ccc").scene.aspectmode).toBe("data");
-    expect(layout("#111", "#ccc").uirevision).toBe("structure3d");
+    // picture for a low-symmetry phase.  It is also what makes `axisCamera`
+    // legal: the data→scene map is then a uniform scale.
+    expect(layout("#111").scene.aspectmode).toBe("data");
+    expect(layout("#111").uirevision).toBe("structure3d");
+  });
+
+  it("draws a crystal, not a plot: parallel projection, no Cartesian box", () => {
+    const scene = layout("#111").scene;
+    // perspective converges the far edges of the cell, so a cubic cell does not
+    // look cubic; every crystallographic figure is a parallel projection
+    expect(scene.camera.projection.type).toBe("orthographic");
+    // turntable pins `up` to +z and rewrites any camera that disagrees — and
+    // `cartesian_basis` is upper triangular, so c ∥ ẑ for every orthogonal cell
+    // and "view down c" would be a degenerate lookAt
+    expect(scene.dragmode).toBe("orbit");
+    for (const key of ["xaxis", "yaxis", "zaxis"]) {
+      expect(scene[key].visible).toBe(false);
+    }
   });
 
   it("takes the camera from its caller, defaulting to the opening view", () => {
@@ -231,9 +256,11 @@ describe("the caption and the layout", () => {
     // scene from the layout.  Isolated in a browser and measured by comparing
     // screenshots — reading `layout.scene.camera` back reports whatever was
     // last passed *in*, so it says a rotation was preserved when it was not.
-    expect(layout("#111", "#ccc").scene.camera).toEqual(DEFAULT_CAMERA);
+    expect(layout("#111").scene.camera).toEqual(DEFAULT_CAMERA);
     const held = { eye: { x: 0.2, y: 2.1, z: 0.4 } };
-    expect(layout("#111", "#ccc", held).scene.camera).toBe(held);
-    expect(layout("#111", "#ccc").scene.uirevision).toBe("structure3d");
+    // by identity: merging anything into the caller's camera here — the
+    // projection included — would be a second authority on the view
+    expect(layout("#111", held).scene.camera).toBe(held);
+    expect(layout("#111").scene.uirevision).toBe("structure3d");
   });
 });

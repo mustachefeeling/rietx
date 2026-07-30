@@ -30,6 +30,7 @@
     legend,
     traces,
     unitSphere,
+    type Camera,
     type Geometry,
     type Mode,
   } from "../lib/structure3d";
@@ -47,7 +48,7 @@
   let plotly: any = $state(null);
   let observer: ResizeObserver | null = null;
   /** The live camera — see `follow`.  Deliberately not `$state`. */
-  let camera: any = DEFAULT_CAMERA;
+  let camera: Camera = DEFAULT_CAMERA;
   let geo = $state<Geometry | null>(null);
   let error = $state("");
   let mode = $state<Mode>("ball");
@@ -126,16 +127,20 @@
     const style = getComputedStyle(document.body);
     // the cell frame is the picture's frame, so it gets the accent rather than
     // `--line`: a hairline border colour is invisible against the page in a 3D
-    // scene, and the first browser run drew a box nobody could see
+    // scene, and the first browser run drew a box nobody could see.  The a/b/c
+    // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
     const muted = style.getPropertyValue("--muted").trim() || "#888";
-    const line = style.getPropertyValue("--line").trim() || "#ccc";
     await plotly.react(
       node,
       traces(geometry, mode, sphere, { cell, bond: muted }, hidden,
              showBoundary),
-      layout(style.color, line, camera),
-      { responsive: true, displaylogo: false });
+      layout(style.color, camera),
+      // the default gl3d modebar floats over a panel this small, and one of its
+      // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the
+      // up vector to +z and would silently break the view-down-axis buttons.
+      // `toImage` is the one worth keeping: a PNG of the structure for a slide.
+      { responsive: true, displaylogo: false, modeBarButtons: [["toImage"]] });
     follow();
     watch();
   }
@@ -160,7 +165,14 @@
     };
     plotNode.removeAllListeners?.("plotly_relayout");
     plotNode.on?.("plotly_relayout", (ev: any) => {
-      if (ev?.["scene.camera"]) camera = ev["scene.camera"];
+      const next = ev?.["scene.camera"];
+      // plotly does report the projection back, but a camera that ever lost it
+      // would put the scene into perspective — and a projection *change*
+      // disposes and re-initialises the gl plot, so that would be a teardown per
+      // redraw rather than a wrong-looking cell.
+      if (next) {
+        camera = { ...next, projection: next.projection ?? DEFAULT_CAMERA.projection };
+      }
     });
   }
 

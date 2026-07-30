@@ -1606,14 +1606,22 @@ describe("the structure viewer", () => {
     return stub;
   }
 
+  /** by name, not by index: the trace list grows, the names do not move. */
+  function trace(drawn: any[], name: string): any {
+    return drawn[drawn.length - 1].traces.find((t: any) => t.name === name);
+  }
+
   it("draws the cell, the bonds and one mesh per species", async () => {
     const drawn = recorder();
     await openViewer();
     const { traces, layout } = drawn[drawn.length - 1];
-    expect(traces.map((t: any) => t.type))
-      .toEqual(["scatter3d", "scatter3d", "mesh3d", "mesh3d"]);
-    expect(traces[2].name).toBe("La");
-    expect(traces[3].name).toBe("B");
+    expect(traces.map((t: any) => t.name))
+      .toEqual(["cell", "axes", "bonds", "La", "B"]);
+    expect(trace(drawn, "La").type).toBe("mesh3d");
+    expect(trace(drawn, "axes").text).toEqual(["a", "b", "c"]);
+    // a crystal, not a plot: parallel projection and no Cartesian box
+    expect(layout.scene.camera.projection.type).toBe("orthographic");
+    expect(layout.scene.xaxis.visible).toBe(false);
     // one Å is one Å on every axis, or a monoclinic cell is drawn orthogonal
     expect(layout.scene.aspectmode).toBe("data");
     // …and every draw supplies the *same* camera under a scene revision, which
@@ -1642,7 +1650,7 @@ describe("the structure viewer", () => {
     const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
     // the sphere's first vertex is its +z pole, and La sits at the origin, so
     // this is the semi-axis itself: 0.08 · k(p)
-    const at50 = drawn[drawn.length - 1].traces[2].z[0];
+    const at50 = trace(drawn, "La").z[0];
     expect(at50).toBeCloseTo(0.08 * 1.5382, 6);
 
     const select = [...host.querySelectorAll("select")]
@@ -1652,7 +1660,7 @@ describe("the structure viewer", () => {
     await flush();
 
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
-    expect(drawn[drawn.length - 1].traces[2].z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+    expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
     expect(host.textContent).toContain("ellipsoids at 90 %");
 
     // …and the level survives a reload.  Found in Chrome: the payload carries
@@ -1664,7 +1672,7 @@ describe("the structure viewer", () => {
     button("Apply")!.click();
     await flush();
     expect(host.textContent).toContain("ellipsoids at 90 %");
-    expect(drawn[drawn.length - 1].traces[2].z[0]).toBeCloseTo(0.08 * 2.5003, 6);
+    expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
   });
 
   it("refetches when the bond threshold moves, because the server owns the rule", async () => {
@@ -1687,7 +1695,7 @@ describe("the structure viewer", () => {
     chip.click();
     await flush();
     expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
-      .toEqual(["cell", "bonds", "B"]);
+      .toEqual(["cell", "axes", "bonds", "B"]);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
   });
 

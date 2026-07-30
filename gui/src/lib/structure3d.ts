@@ -258,22 +258,68 @@ export function cellTrace(geometry: Geometry, color: string): any {
   }
   return {
     type: "scatter3d", mode: "lines", name: "cell", x, y, z,
-    line: { width: 1.6, color, dash: "dot" }, showlegend: false,
+    line: { width: 2, color }, showlegend: false,
     hoverinfo: "skip",
   };
 }
 
-/** Everything, in draw order: cell behind, bonds, then atoms. */
+/**
+ * "a", "b", "c" at the far end of the three cell edges leaving the origin.
+ *
+ * This is the scene's frame of reference, and it replaces plotly's Cartesian
+ * box: nothing in the picture happens in x, y or z, and the box's tick labels
+ * churn on every frame of a drag.  `lattice`'s rows *are* those three edges
+ * (corner `1 << k` is `lattice[k]`), pushed 8 % past the corner because a corner
+ * site is drawn at all eight corners and would otherwise swallow the letter.
+ */
+export function axisTrace(geometry: Geometry, color: string): any {
+  const ends = [0, 1, 2].map((k) => geometry.lattice[k].map((v) => v * 1.08));
+  return {
+    type: "scatter3d", mode: "text", name: "axes",
+    x: ends.map((p) => p[0]), y: ends.map((p) => p[1]), z: ends.map((p) => p[2]),
+    text: ["a", "b", "c"], textposition: "middle center",
+    textfont: { color, size: 12 }, showlegend: false, hoverinfo: "skip",
+  };
+}
+
+/** Everything, in draw order: cell and its letters behind, bonds, then atoms. */
 export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
                        colors: { cell: string; bond: string },
                        hidden: ReadonlySet<string> = new Set(),
                        showBoundary = true): any[] {
-  return [cellTrace(geometry, colors.cell), bondTrace(geometry, colors.bond),
+  return [cellTrace(geometry, colors.cell), axisTrace(geometry, colors.cell),
+          bondTrace(geometry, colors.bond),
           ...atomTraces(geometry, mode, sphere, hidden, showBoundary)];
 }
 
-/** The opening view — down the body diagonal, so no axis is edge-on. */
-export const DEFAULT_CAMERA = { eye: { x: 1.35, y: 1.35, z: 0.95 } };
+/** A camera in the scene's coordinates.  Typed rather than `any` so a wrong
+ *  argument to `layout` is a `svelte-check` failure and not a silently
+ *  perspective scene. */
+export interface Camera {
+  eye: { x: number; y: number; z: number };
+  up?: { x: number; y: number; z: number };
+  center?: { x: number; y: number; z: number };
+  projection?: { type: "orthographic" | "perspective" };
+}
+
+/**
+ * The opening view — down the body diagonal, so no axis is edge-on, and
+ * **orthographic**.
+ *
+ * plotly's default is perspective, under which the far face of a cell is drawn
+ * smaller than the near one and parallel edges converge: a cubic cell does not
+ * look cubic, which is the one thing a picture of a cell is for.  Every
+ * crystallographic figure is a parallel projection (VESTA calls it that and
+ * offers both).  The projection must survive the component's camera capture —
+ * changing it disposes and re-initialises the whole gl plot, so losing the field
+ * would be a scene teardown per redraw rather than a cosmetic slip.
+ */
+export const DEFAULT_CAMERA: Camera = {
+  eye: { x: 1.35, y: 1.35, z: 0.95 },
+  up: { x: 0, y: 0, z: 1 },
+  center: { x: 0, y: 0, z: 0 },
+  projection: { type: "orthographic" },
+};
 
 /**
  * The scene layout.
@@ -281,7 +327,18 @@ export const DEFAULT_CAMERA = { eye: { x: 1.35, y: 1.35, z: 0.95 } };
  * `aspectmode: "data"` keeps one Å the same length on all three axes — without
  * it plotly stretches the box to a cube and a monoclinic cell is drawn as an
  * orthogonal one, which is the whole *content* of the picture for a
- * low-symmetry phase.
+ * low-symmetry phase.  It does a second job that `axisCamera` depends on: the
+ * data→scene map becomes a *uniform* scale, so a direction in Å is the same
+ * direction in camera coordinates.
+ *
+ * **`dragmode: "orbit"` is load-bearing, not a preference.**  Turntable — which
+ * is what gl3d picks when no `camera.up` is supplied, i.e. what this scene used
+ * to be — pins `up` to +z and *rewrites* any camera that disagrees.  The
+ * server's `cartesian_basis` is an upper-triangular Cholesky factor, so **c ∥ ẑ
+ * for every orthogonal cell**, and "view down c" under turntable would put the
+ * eye exactly on the up axis: a degenerate `lookAt`, i.e. a blank scene.  Orbit
+ * is also how Jmol and VESTA rotate, and the a/b/c buttons are the cure for the
+ * roll it allows.
  *
  * **The caller supplies the camera, and must supply the live one.**  This is the
  * part that took a screenshot comparison to establish, because plotly's stored
@@ -296,13 +353,11 @@ export const DEFAULT_CAMERA = { eye: { x: 1.35, y: 1.35, z: 0.95 } };
  * `plotly_relayout` and handed back in — which is what
  * `panels/Structure3D.svelte` does.
  */
-export function layout(fg: string, muted: string,
-                       camera: any = DEFAULT_CAMERA): any {
-  const axis = {
-    showspikes: false, showbackground: false,
-    gridcolor: muted, zerolinecolor: muted,
-    titlefont: { size: 10 }, tickfont: { size: 9 },
-  };
+export function layout(fg: string, camera: Camera = DEFAULT_CAMERA): any {
+  // No Cartesian box: `axisTrace` labels the frame of reference this picture
+  // actually has.  `visible: false` takes plotly's wholesale branch — ticks,
+  // labels, title, grid, zeroline and background off in one flag.
+  const axis = { visible: false };
   return {
     margin: { l: 0, r: 0, t: 0, b: 0 },
     showlegend: false,
@@ -310,9 +365,8 @@ export function layout(fg: string, muted: string,
     paper_bgcolor: "rgba(0,0,0,0)",
     scene: {
       aspectmode: "data",
-      xaxis: { ...axis, title: { text: "x (Å)" } },
-      yaxis: { ...axis, title: { text: "y (Å)" } },
-      zaxis: { ...axis, title: { text: "z (Å)" } },
+      dragmode: "orbit",
+      xaxis: axis, yaxis: axis, zaxis: axis,
       camera,
       uirevision: "structure3d",
     },
