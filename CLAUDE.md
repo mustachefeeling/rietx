@@ -76,6 +76,23 @@ so `direction="both"` runs the chain each way and flags parameters the two
 disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only check that separates a
 measured trajectory from an ordering artefact.
 
+The **parameter surface** (WP-1004) is how a client works the table without
+running a fit: `Refinement.parameters() → list[ParameterRow]` lists *every*
+entry — fixed, locked and tied included, esds from the last fit merged in, each
+held row saying which of the three reasons holds it (`.refinable`,
+`.held_because`); `set_vary(globs, vary)` and `set_values({path: value})` edit
+it and auto-commit the `set_vary`/`set_value` history nodes. Three rules there
+are load-bearing: `ParameterRow` mirrors `params.vector.Entry` field for field
+(pinned by `dataclasses.fields`, `esd`/`mode_fixed` declared as the deliberate
+extras), a **tied** path refuses an edit and names its sources instead, and
+`mode_fixed` — lebail/pawley force-fix every `.atoms.` path, `.scale` and
+`.source.lines.` — is *not* `locked`, which is what keeps a Le Bail phase's
+mandatory dummy atom from looking editable. There is exactly **one**
+`StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py` and
+`agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
+title/description/modes/when-to-use per preset, in bijection with
+`PLAN_PRESETS` by meta-test.
+
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as

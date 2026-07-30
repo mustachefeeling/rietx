@@ -870,7 +870,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 |---|---|---|---|
 | [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
 | [1002](wp/1002-ci-matrix.md) | CI matrix | ✅ 2026-07-29 | — |
-| [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ⬜ | — |
+| [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ✅ 2026-07-30 | — |
 | [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ⬜ | 1004 |
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ⬜ | — |
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ⬜ | 1004 |

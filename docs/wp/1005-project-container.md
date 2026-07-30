@@ -41,6 +41,18 @@ From **WP-1004**: `ParameterRow` and the unified `PlanSpec` in
 `schemas/plan.py` are what `ProjectDoc.plan` stores — do not re-declare a
 plan shape here.
 
+Also from **WP-1004** (landed 2026-07-30): the history tree is created on the
+**first `fit`/`run_stage`**, because it is pinned to its pattern by a
+fingerprint — so `set_vary`/`set_values` before that change the working state
+without recording a node. A project that is opened, edited and saved *without
+running anything* therefore has parameter state in `project.json` that no
+history node describes. Decide that deliberately: either `Project.open` forces
+the tree (it has the pattern, so it can) and every edit is logged, or
+`ProjectDoc` is documented as the authority for un-run edits. Note the second
+half of the same asymmetry: `Refinement.parameters()` reads the models' `vary`
+flags before the first stage and the recorded free set after one, so it is not a
+pure function of the history head.
+
 ## Non-goals
 
 - No multi-pattern projects (the `list[DataRef]` seam exists; length > 1 is

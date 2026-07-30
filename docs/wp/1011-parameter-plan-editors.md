@@ -46,6 +46,22 @@ entries (emission-line weight 0, symmetry-fixed cell angles) — the table
 must render those rows without a vary checkbox at all, not with one that
 errors on click.
 
+From **WP-1004** (landed 2026-07-30): **do not re-derive the greying rule.**
+`ParameterRow.refinable` is the single predicate over all three reasons a row
+cannot be freed — `locked`, `tie`, and `mode_fixed` — and
+`ParameterRow.held_because` is the tooltip text, already written. Three
+consequences for this table: (a) there are **three** greyed states, not two, and
+`mode_fixed` (lebail/pawley force-fixing every `.atoms.` path, `.scale`, the
+line weights) must not be rendered as `locked`, because it comes back when the
+mode changes — a Le Bail phase's mandatory dummy atom is the case that matters;
+(b) a **tied** row's value cell is read-only and its tooltip should offer the tie
+sources, since `set_values` on it raises naming them (`TieSpec.sources` /
+`.describe()`); (c) `set_values` takes a **dict of several paths** on purpose —
+batch the grid's edits into one call, because each call is one history node, and
+per-keystroke nodes would bury the log. Bounds and transform are on the row too,
+so the value editor can validate before the round trip (`set_values` refuses an
+out-of-bounds value).
+
 ## Non-goals
 
 - No structure/instrument *object* editing (WP-1014) — this WP edits θ-table
