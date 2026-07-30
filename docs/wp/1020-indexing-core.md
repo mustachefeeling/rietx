@@ -1,6 +1,6 @@
 # WP-1020 — Indexing core: Q-space, reduced cells, Bravais, FoM panel, ambiguity
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: 1018 (1019 soft)
 
 ## Goal
@@ -204,32 +204,44 @@ From **WP-1019** (landed 2026-07-30), five things this WP must not re-derive:
 
 ## Tasks
 
-- [ ] `indexing/qspace.py`: Q form, σ(Q) propagation, A..F ↔ cell with
+- [x] `indexing/qspace.py`: Q form, σ(Q) propagation, A..F ↔ cell with
       **analytic** delta-method esds (do not finite-difference — the analytic
       preference everywhere else in this package), symmetry subspaces via
-      `adp_basis(Rᵀ)`.
-- [ ] `refine_candidate(peaks, assignment, *, system, shift_model)`: weighted
+      ~~`adp_basis(Rᵀ)`~~ **`adp_basis(R)` — untransposed; see the handover log,
+      the transposed call gives the direct metric's invariants with the same
+      dimension in every system.**
+- [x] `refine_candidate(peaks, assignment, *, system, shift_model)`: weighted
       linear solve `min Σ wᵢ(Qᵢ − Σ M_ip θ_p)²`, `w = 1/σ_eff²`, plus at most
       one nonlinear shift coefficient with an analytic Jacobian column
-      `∂Q/∂δ = −(π/180)·sin(2θ)/λ²·t(θ)`; esds from `χ²_red·pinv(MᵀWM)`.
-- [ ] `indexing/reduce.py`: Niggli/Delaunay via gemmi with a spglib
+      ~~`∂Q/∂δ = −(π/180)·sin(2θ)/λ²·t(θ)`~~ **`−(π/90)·…` — the same
+      factor-of-2 this file's σ(Q) line carried**; esds from
+      `χ²_red·pinv(MᵀWM)`, routed through `statistics.normal_covariance`.
+- [x] `indexing/reduce.py`: Niggli/Delaunay via gemmi with a spglib
       cross-check (an identity test, not a fallback); two-opinion Bravais with
       the tolerance sweep; conventional-cell derivation; the χ² reduced-cell
-      equality used for dedup. `INDEX_BRAVAIS_AMBIGUOUS`.
-- [ ] `indexing/fom.py`: `m20`, `f20`, `m20_reversed`, `m20_symmetric`,
-      `wrip20`, `mcm20`/`lebail_rwp`, `indexed_fraction`,
-      **`predicted_seen_fraction`** — each with its citation and blind spot;
-      the Borda ranking helper; `fom_panel_disagrees`.
-- [ ] `indexing/ambiguity.py`: HNF derivative-lattice enumeration (index 2-4),
-      partner test, `discriminating_reflections`.
-- [ ] `schemas/indexing.py`: `FigureOfMerit`, `AmbiguityPartner`,
+      equality used for dedup. `BravaisScreen.ambiguous` /
+      `.methods_disagree` carry the verdict; the `INDEX_BRAVAIS_AMBIGUOUS`
+      *diagnostic* is left to WP-1024, where a `CellCandidate` exists to attach
+      it to (this WP emits no diagnostics — it has no answer to qualify).
+- [x] `indexing/fom.py`: `m20`, `f_n`, `indexed_fraction` (lines **and**
+      intensity), **`predicted_seen_fraction`** — each with its citation and
+      blind spot as a *field*; the Borda ranking helper; `fom_panel_disagrees`;
+      `lattice_group`, `predicted_lines`, `match_lines`,
+      `nearest_discrepancy`. **`m20_reversed`, `m20_symmetric`, `wrip20` and
+      `mcm20` are NOT implemented** — their formulas need their papers before
+      they can be attributed correctly (handover log). `lebail_rwp` needs a Le
+      Bail fit against a candidate, i.e. WP-1024's `structure_from_candidate`.
+- [x] `indexing/ambiguity.py`: HNF derivative-lattice enumeration (index 2-4 —
+      7/13/35 matrices, verified), partner test, `discriminating_reflections`.
+- [x] `schemas/indexing.py`: `FigureOfMerit`, `AmbiguityPartner`,
       `CellCandidate`.
-- [ ] `docs/manual/indexing.md` — the Q form, the FoM definitions, the σ(Q)
+- [x] `docs/manual/indexing.md` — the Q form, the FoM definitions, the σ(Q)
       propagation. Every displayed equation needs a `*Source:*` line whose
       symbol imports, fenced constants need a `conf.py` line **and** a use, and
       every new bib entry must be cited: `tests/test_manual.py` fails the fast
       suite otherwise.
-- [ ] `tests/test_indexing_core.py` + `tests/test_indexing_reduce.py`:
+- [x] `tests/test_indexing_core.py` + `tests/test_indexing_reduce.py` (40
+      tests, ~7 s):
       metric-subspace dimensions vs `_CELL_TIES`; **exact linear recovery** of
       A..F from a random cell with true assignments (to 1e-10 — the linearity
       claim, checked); **Niggli idempotence and unimodular invariance**
@@ -281,6 +293,80 @@ the 390-line impostor once `predicted_seen_fraction` is in the panel.
   ```
 
 ## Handover log
+
+- **2026-07-30 — CLOSED.** `indexing/{qspace,reduce,fom,ambiguity}.py`,
+  `FigureOfMerit`/`AmbiguityPartner`/`CellCandidate` in `schemas/indexing.py`,
+  `docs/manual/indexing.md`, and `tests/test_indexing_{core,reduce}.py` (40 tests,
+  ~7 s). Fast suite 1175 passed / 66 skipped in 40 s, ruff clean, manual `-W`
+  clean with its five guards green. **No engine and no diagnostics** — this WP has
+  no answer to qualify, so `INDEX_BRAVAIS_AMBIGUOUS` and the rest go to 1024 where
+  a `CellCandidate` exists to attach them to.
+
+  *Four defects. Three of them passed the test that "should" have caught them,
+  which is the lesson worth carrying more than the fixes.*
+
+  1. **The metric subspace was derived from the *transposed* rotations, and the
+     dimension test passed anyway.** CLAUDE.md's "reciprocal-space symmetry action
+     is Rᵀ" is about **hkl**: h → Rᵀh. A tensor that contracts with h *twice* is
+     therefore invariant under U → R·U·Rᵀ — the same statement, since
+     (Rᵀh)ᵀU(Rᵀh) = hᵀ(RURᵀ)h — and G\* is such a tensor, exactly like the U\* form
+     of an ADP. Passing Rᵀ returns the invariants of the **direct** metric G. Same
+     dimension in every system, because the transposed set is a group too, so
+     1/2/2/2/3/4/6 came out right and the acceptance criterion was met by the wrong
+     subspace; the hexagonal basis had F = −A (direct cos γ = −½) where the
+     reciprocal metric has F = +A. What catches it is asserting that the **true**
+     metric lies in the span, which is now a test.
+  2. **A Gauss-Newton sign error that looks right in the θ block.** For
+     r = (Q(2θ − s·t) − Mθ)·w, both ∂r/∂θ and ∂r/∂s are negative, so the step
+     solves [+M·w, −∂r/∂s]·Δ = r — *both* flipped together. Flipping only the θ
+     block is locally correct on its own (+M·w·Δθ = r is the right linear solve),
+     which is why it looked fine; the shift column then has the wrong relative
+     sign and s runs away. Measured: −11.65 for an injected +0.05°.
+  3. **M₂₀ was not invariant under a unimodular setting change, by 5 %.** N_poss
+     counts predictions up to the N-th observed line, and that line *is* one of
+     the predictions, so a strict comparison makes the count depend on fp
+     rounding: the same lattice in two settings gave N_poss 20 and 19 and M₂₀
+     76.43 and 80.45. The boundary now carries a relative tie tolerance
+     (`_BOUNDARY_RTOL`), and the invariance is asserted rather than assumed.
+  4. **A perfect cell scored M₂₀ = 0.** The figure divides by ⟨ΔQ⟩, which → 0
+     when a candidate fits within fp noise; unfloored it is infinite, and the
+     obvious zero-guard ranks the *right* answer last. Both were seen. ⟨ΔQ⟩ and
+     F_N's ⟨|Δ2θ|⟩ are now floored at the median σ — a *meaning*, not an epsilon:
+     a discrepancy below the measurement precision is not knowable, and per-line σ
+     is exactly what this package has and 1968 did not. Measured, the floor makes
+     M₂₀ scale exactly inversely with the data's precision (10× worse σ → 10×
+     smaller M₂₀), which is the right behaviour for a signal-to-noise ratio.
+
+  *Two dependency facts worth not rediscovering.* `gemmi.is_niggli` is **not** a
+  fixed-point test on floating-point input — a rhombohedral cell (3, 3, 3, 65°,
+  65°, 65°) whose reduction changes nothing to 1e-15 reports `False` on the second
+  pass — so the field is named `already_reduced`, documented as gemmi's own
+  predicate, and idempotence is asserted on the parameters. And the two Bravais
+  opinions genuinely disagree on pseudosymmetry *because their tolerances are
+  different kinds of number*: on a 1 %-tetragonal cell gemmi (obliquity ≥ 1°) says
+  cubic while spglib (symprec ≤ 0.01 Å) says tetragonal, so the screen keeps each
+  method's tightest answer separately (`system_gemmi`, `system_spglib`) and takes
+  the conservative one, instead of pairing tolerances that are not comparable.
+  Monotonicity in the tolerance is asserted, and it is what makes "stable across
+  the sweep" equal to "the tightest tolerance's answer".
+
+  *What is deliberately NOT in `fom.py`, and it needs the user rather than a
+  session.* `m20_reversed`, `m20_symmetric` (Oishi-Tomiyasu 2013), `wrip20`
+  (Altomare 2009) and `mcm20` (Le Bail 2008) are **not implemented**: their
+  formulas cannot be written down from memory with correct attribution, and
+  guessing one and citing a paper for it is precisely the WP-0501 b₂ failure in a
+  new costume. The panel's *argument* — coverage scored in both directions — is
+  fully implemented via `indexed_fraction` and `predicted_seen_fraction`, which is
+  what the measured §D result actually demands; the extra figures would add
+  independent opinions to the Borda count, not a missing capability. `lebail_rwp`
+  is a different matter: it needs a Le Bail fit against a candidate structure,
+  i.e. WP-1024's `structure_from_candidate`, so it belongs there.
+
+  *One number this WP owes 1021-1023.* `refine_candidate` without a shift is a
+  single `lstsq` on an (N, m) system — no iteration, no scipy call, because it is
+  the engines' inner loop. With a shift it is Gauss-Newton (≤ 8 steps, converging
+  in 2-3). Do not add a shift column inside a search loop; fit the shift *after* a
+  candidate survives.
 
 - **2026-07-29** — created from the indexing plan. gemmi/spglib reduction and
   Bravais availability verified in `.venv` the same day (see Context) — an

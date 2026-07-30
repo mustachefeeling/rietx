@@ -133,6 +133,28 @@ the partition, not the starting point. Validate a candidate cell against a
 single-phase Le Bail; do not use it to score a multi-phase hypothesis until
 WP-1028 decides whether to damp, refuse or fence.
 
+From **WP-1020** (landed 2026-07-30), three things that land in this WP's lap:
+
+- **1020 emits no diagnostics at all**, deliberately: it has no answer to qualify.
+  So `INDEX_BRAVAIS_AMBIGUOUS` is *this* WP's code to emit, from
+  `BravaisScreen.ambiguous` (symmetry that appears only at a loose tolerance) and
+  `BravaisScreen.methods_disagree` (gemmi and spglib differ at their tightest
+  tolerances — which happens on genuine pseudosymmetry, because an obliquity in
+  degrees and a `symprec` in Å are different kinds of number). Both fields are
+  already computed; only the translation is missing.
+- **`lebail_rwp` is owed here, not to 1020.** It needs a Le Bail fit against a
+  candidate, i.e. exactly this WP's `structure_from_candidate`. Four other
+  published figures (`m20_reversed`, `m20_symmetric`, `wrip20`, `mcm20`) are
+  *not* implemented and should not be added without their papers — see 1020's
+  handover for why guessing a formula and citing a source for it is the WP-0501 b₂
+  failure again.
+- **`CellCandidate` already carries `found_by`, `fom`, `ambiguity`,
+  `lattice_group` and the shift fields**, and it deliberately has no "is correct"
+  field. The consensus gate fills `found_by` and reads `fom_panel_disagrees`; the
+  ambiguity list is populated by 1020's `ambiguity_partners`, whose entries carry
+  `discriminating_reflections` — the hkl and 2θ that would break the tie, which is
+  what makes an ambiguity report actionable rather than merely honest.
+
 ## Non-goals
 
 - No space-group determination (WP-1025) — validation uses the absence-free

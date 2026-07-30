@@ -1028,6 +1028,48 @@ scaling is *derived* here, not published, and a clean copy of Smith (1977) would
 let the derived factors be checked against the paper's — the WP-0501 b₂
 transposition being the precedent for why that check is worth asking for.
 
+**[1020](wp/1020-indexing-core.md) closed the same day** — five modules, 40
+tests, an eleventh manual chapter, and **no engine**: the Q-space quadratic form
+and its symmetry-allowed subspaces, weighted candidate refinement with an optional
+shift column, Niggli/Delaunay reduction with two-opinion Bravais determination over
+a tolerance sweep, the figure-of-merit **panel** scored in both directions, and
+HNF derivative-lattice ambiguity with the reflections that would break each tie.
+1021-1023 now have everything they share.
+
+**Its lesson is about tests, not about crystallography: three of its four defects
+passed the test that should have caught them.**
+
+- The metric subspace was derived from the **transposed** rotations, and the
+  dimension test passed. CLAUDE.md's "reciprocal-space action is Rᵀ" is about
+  *hkl*; a tensor contracting with h twice is invariant under U → R·U·Rᵀ, and G\*
+  is one. The transposed call returns the *direct* metric's invariants — the same
+  dimension in every system, because the transposed set is a group too, so the
+  WP's own acceptance criterion (1/2/2/2/3/4/6) was satisfied by the wrong
+  subspace, with F = −A for hexagonal where the reciprocal metric has F = +A. What
+  catches it is asserting the **true** metric lies in the span.
+- A Gauss-Newton sign error that is locally correct: flipping only the θ block
+  still solves for θ, and leaves the shift column with the wrong relative sign —
+  s = −11.65 for an injected +0.05°.
+- **M₂₀ was not invariant under a unimodular setting change, by 5 %**, because
+  N_poss counts predictions up to the N-th observed line and that line *is* a
+  prediction, so a strict comparison depends on fp rounding (N_poss 20 vs 19,
+  M₂₀ 76.43 vs 80.45).
+- And a perfect cell scored **M₂₀ = 0**: the figure divides by ⟨ΔQ⟩, which → 0 when
+  a candidate fits within fp noise, so the obvious zero-guard ranked the right
+  answer last. The mean is now floored at the median σ — a meaning rather than an
+  epsilon, since a discrepancy below the measurement precision is not knowable, and
+  per-line σ is what this package has and 1968 did not.
+
+Two things it declined to do. **Four published figures of merit are not
+implemented** — the Oishi-Tomiyasu reversed/symmetric de Wolff pair, WRIP20 and
+McM₂₀ — because their formulas cannot be written from memory with correct
+attribution, and guessing one while citing its paper is the WP-0501 b₂ failure in a
+new costume; the panel's *argument* (coverage in both directions) is fully
+implemented, which is what the measured §D result demands. And **1020 emits no
+diagnostics at all**, deliberately: it has no answer to qualify, so
+`INDEX_BRAVAIS_AMBIGUOUS` belongs to 1024 where a `CellCandidate` exists to carry
+it.
+
 1018's earlier value was already banked, and it is the v0.5 method result in
 a new costume: **four defects, none of them visible by reading the code.** A
 resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
@@ -1060,7 +1102,7 @@ per concurrent session, or only one session commits.
 |---|---|---|---|
 | [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ✅ 2026-07-30 | — |
 | [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ✅ 2026-07-30 | 1018 |
-| [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
+| [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ✅ 2026-07-30 | 1018 (1019 soft) |
 | [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |
 | [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ⬜ | 1020 |
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | ⬜ | 1020 |

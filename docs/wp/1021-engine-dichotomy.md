@@ -87,6 +87,39 @@ order destroyed) rather than a uniform one, since the uniform null would have
 before believing the positive one. A test in `tests/test_indexing_quality.py`
 asserts the code's absence so it cannot creep back as an unmeasured claim.
 
+From **WP-1020** (landed 2026-07-30) — the shared surface, and five things about
+it that are not obvious from the names:
+
+- **`refine_candidate(q, q_esd, hkl, *, system=...)` without a shift template is
+  one `lstsq` on an (N, m) system** — no iteration, no scipy call, because it is
+  this engine's inner loop. With `shift_template=` it becomes Gauss-Newton (≤ 8
+  steps). **Do not put a shift column inside the search loop**: fit the shift
+  after a candidate survives, which is also the order WP-1019's screen needs
+  (it is conditional on reference positions, and a candidate is what supplies
+  them).
+- **`metric_basis(system)` is the search space.** Its row count is the box
+  dimension — 1 cubic … 6 triclinic — and it is derived from the operators, so it
+  is right in any setting. Import it; do not hardcode 1/2/2/2/3/4/6. It takes the
+  rotations **untransposed**, and getting that wrong is invisible in the dimension
+  (see 1020's handover: the transposed call returns the *direct* metric's
+  invariants, same dimension in every system, wrong subspace for hexagonal and
+  trigonal).
+- **`cell_from_af` raises on a non-positive-definite metric** rather than
+  returning NaNs. A search that steps outside the cone will hit this, so catch
+  `ValueError` at the point where a trial metric is turned into a cell rather than
+  letting it abort a sweep.
+- **`reduce.same_lattice(af_a, af_b, cov_a=…, cov_b=…)` is the dedup**, returning
+  `(verdict, χ²)`; it Niggli-reduces both first, so a setting change is *equality*
+  and never an ambiguity. Feed it `CandidateFit.cov_af`, which is already the
+  delta-method covariance; the relative fallback (χ² = NaN) means one of the
+  covariances was missing.
+- **`fom_panel(...)` returns the whole panel and `borda_scores` ranks it.** Rank on
+  the panel, never on a member: `indexed_fraction` alone prefers a large cell, and
+  1020's test reproduces that failure on synthetic data (an impostor ties or beats
+  the truth on the forward direction and loses 5× on `predicted_seen_fraction`).
+  Two figures' means are **floored at the measured precision** — a candidate that
+  fits within fp noise would otherwise score 0 or ∞.
+
 ## Non-goals
 
 - No consensus, no confidence gate, no Le Bail validation (WP-1024).
