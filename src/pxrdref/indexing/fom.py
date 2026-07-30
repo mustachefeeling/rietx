@@ -136,9 +136,22 @@ def match_lines(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
     sig = np.maximum(np.asarray(q_esd, dtype=np.float64), 1e-300)
     if not len(pred):
         return np.full(len(obs), -1, dtype=np.int64), np.full(len(obs), np.inf)
-    d = np.abs(obs[:, None] - pred[None, :])
-    j = np.argmin(d, axis=1)
-    best = d[np.arange(len(obs)), j]
+    # Binary search, not an (observed × predicted) distance matrix.  The nearest
+    # entry of a sorted array is one of the two straddling it, so this is exact —
+    # and it is the difference between O(N·M) and O((N+M)·log M) in the innermost
+    # loop of every engine: on a monoclinic search the trial set is ~10 000
+    # reflections and this was ~10 ms per candidate.
+    order = np.argsort(pred)
+    sorted_pred = pred[order]
+    right = np.searchsorted(sorted_pred, obs)
+    left = np.clip(right - 1, 0, len(sorted_pred) - 1)
+    right = np.clip(right, 0, len(sorted_pred) - 1)
+    d_left = np.abs(obs - sorted_pred[left])
+    d_right = np.abs(obs - sorted_pred[right])
+    take_left = d_left <= d_right
+    j_sorted = np.where(take_left, left, right)
+    best = np.where(take_left, d_left, d_right)
+    j = order[j_sorted]
     matched = best <= k_sigma * sig
     return np.where(matched, j, -1), np.where(matched, best, np.inf)
 

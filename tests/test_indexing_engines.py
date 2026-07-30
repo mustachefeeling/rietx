@@ -365,6 +365,217 @@ def test_a_restricted_search_reports_only_the_systems_it_searched():
     assert "orthorhombic" not in result.search_complete
 
 
+# ----------------------------------------------------------------------
+# Trial and error (WP-1022)
+# ----------------------------------------------------------------------
+def test_the_index_table_is_distinct_design_rows_not_distinct_hkl():
+    """Q sees hkl only through ``design_matrix(hkl) @ basis.T``, so equal rows are
+    one trial label.
+
+    In a cubic cell every reflection with h²+k²+l² = 9 is one label, not three, and
+    since the enumeration goes as (labels)ⁿ that collapse is worth one to two
+    orders of magnitude.  Asserted against the invariant computed independently.
+    """
+    from pxrdref.indexing.trial_error import index_table
+
+    rows, hkl, truncated = index_table(metric_basis("cubic"), "P", 2)
+    assert not truncated
+    invariants = {int(h @ h) for h in trial_hkl(2, "P")}
+    assert len(rows) == len(invariants)
+    assert len(hkl) == len(rows)
+    # and they arrive smallest first, which is what makes a truncation sensible
+    norms = np.linalg.norm(rows, axis=1)
+    assert np.all(np.diff(norms) >= -1e-12)
+
+
+def test_allowed_labels_is_the_corner_bound_applied_per_line():
+    """A label whose whole reachable Q range misses a line cannot be its index.
+
+    Same exact bound WP-1021 prunes boxes with, which is why it is not a heuristic:
+    the lowest line can only carry small-‖m‖ labels, because a large one would need
+    an axis longer than ``max_d_axis``.
+    """
+    from pxrdref.indexing.dichotomy import _initial_box
+    from pxrdref.indexing.trial_error import allowed_labels, index_table
+
+    system = "orthorhombic"
+    basis = metric_basis(system)
+    spec = spec_for(system)
+    lo, hi = _initial_box(basis, spec)
+    rows, _hkl, _t = index_table(basis, "P", 2)
+
+    peaks, cell = synthetic_peaks(system)
+    q = np.sort(peaks.q())
+    low = allowed_labels(rows, float(q[0]), lo, hi)
+    high = allowed_labels(rows, float(q[-1]), lo, hi)
+    assert len(low) < len(high), "the lowest line must admit the fewest labels"
+    # the truth is never excluded: its own label reaches its own line
+    af = af_from_cell(cell)
+    theta, *_ = np.linalg.lstsq(basis.T, af, rcond=None)
+    for label in low:
+        reach = float(rows[label] @ theta)
+        assert reach > 0.0
+
+
+def test_the_base_pool_must_reach_a_line_with_a_cross_term():
+    """**The measured reason `BASE_POOL_MIN` is 8 and not 6.**
+
+    The monoclinic test cell's six lowest reflections are 010, 100, 020, 110, 001,
+    011 — every one has h·l = 0, so the E column of the exact system is identically
+    zero and *no* 4-subset of them determines β.  A pool of six cannot index this
+    cell at all, and it fails by returning partial cells with the right b axis
+    rather than by returning nothing, which is the worse failure of the two.
+    """
+    from itertools import combinations as _combinations
+
+    from pxrdref.indexing.trial_error import BASE_POOL_MIN
+
+    basis = metric_basis("monoclinic")
+    peaks, cell = synthetic_peaks("monoclinic")
+    _sg, true_cell, tt_max, _b, _v = CASES["monoclinic"]
+    refl = generate_reflections("P 1 2/m 1", true_cell, LAM, tt_max)
+    q = 1.0 / np.asarray(refl.d) ** 2
+    order = np.argsort(q)
+    rows = design_matrix(np.asarray(refl.hkl)[order]) @ basis.T
+
+    assert np.all(rows[:6, 3] == 0.0), "the six lowest lines carry no cross term"
+    assert not any(abs(np.linalg.det(rows[list(base)])) > 1e-12
+                   for base in _combinations(range(6), 4)), (
+        "a six-line pool is singular for every base set")
+    assert any(abs(np.linalg.det(rows[list(base)])) > 1e-12
+               for base in _combinations(range(8), 4)), (
+        "an eight-line pool determines the metric")
+    assert BASE_POOL_MIN >= 8
+
+
+@pytest.mark.parametrize("system", ["cubic", "tetragonal", "hexagonal",
+                                    "trigonal", "orthorhombic"])
+def test_trial_error_recovers_a_known_cell(system):
+    """The exact n×n solve, ranked on the same panel dichotomy is ranked on."""
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, cell = synthetic_peaks(system)
+    result = search_trial_error(peaks, spec=spec_for(system))
+    assert result.candidates, f"{system}: no candidate at all"
+    assert result.search_complete[system]
+    assert_same_lattice(result.candidates[0].cell, cell)
+
+
+@pytest.mark.slow
+def test_trial_error_recovers_a_monoclinic_cell():
+    """~90 s: the 4-D case, recovered as the a↔c setting partner of the truth."""
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, cell = synthetic_peaks("monoclinic")
+    result = search_trial_error(peaks, spec=spec_for("monoclinic"))
+    assert result.candidates
+    assert result.search_complete["monoclinic"]
+    assert_same_lattice(result.candidates[0].cell, cell)
+
+
+def test_trial_error_is_deterministic_and_order_invariant():
+    """Seed-free by construction, so the same list must give the same answer —
+    and the *set* of candidates must not depend on the order the lines arrived in.
+
+    Order invariance is the sharper of the two: the base sets come from
+    ``combinations`` over the lines sorted by Q, so a shuffled peak list must sort
+    to the same pool.  A reduced cell is compared rather than the raw one, because
+    a permuted input may legitimately produce a different *setting*.
+    """
+    from pxrdref.indexing.reduce import reduced_af
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, _cell = synthetic_peaks("tetragonal")
+    spec = spec_for("tetragonal")
+    first = search_trial_error(peaks, spec=spec)
+    again = search_trial_error(peaks, spec=spec)
+    assert [c.cell for c in first.candidates] == [c.cell for c in again.candidates]
+
+    rng = np.random.default_rng(1022)
+    shuffled = PeakList(
+        peaks=[peaks.peaks[i] for i in rng.permutation(len(peaks.peaks))],
+        wavelength=peaks.wavelength, two_theta_min=peaks.two_theta_min,
+        two_theta_max=peaks.two_theta_max, source=peaks.source)
+    out_of_order = search_trial_error(shuffled, spec=spec)
+    keys = {tuple(np.round(reduced_af(c.fit.af), 6)) for c in first.candidates}
+    other = {tuple(np.round(reduced_af(c.fit.af), 6))
+             for c in out_of_order.candidates}
+    assert keys == other
+
+
+def test_trial_error_survives_an_impurity_among_the_base_lines():
+    """Its own failure mode, and the mitigation that is not shared with dichotomy.
+
+    One impurity among the base lines poisons the *exact* solve — there is no
+    tolerance in it to absorb the line.  Leave-k-out is implicit in
+    ``combinations``, so some base set of size n misses the impurity, and the
+    full-list check then rejects every metric fitted to it.
+    """
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, cell = synthetic_peaks("tetragonal", impurities=(13.96,))
+    result = search_trial_error(peaks, spec=spec_for("tetragonal"))
+    assert result.candidates, "an impurity among the base lines lost the cell"
+    assert_same_lattice(result.candidates[0].cell, cell)
+
+
+def test_a_dominant_row_is_raised_from_the_engines_own_experience():
+    """``INDEX_DOMINANT_ZONE``, which WP-1019 measured a *census* cannot supply.
+
+    The construction is the real condition rather than a mock of it: a tetragonal
+    cell with c = 26 Å whose pattern is cropped at 28° 2θ, so the lines that would
+    pin the short axis are outside the measured range and the lowest *observed*
+    reflections are 105, 106 and 009.  Indices that large are outside the base
+    table, so the exact solve finds nothing — and the engine says *why* by
+    re-running with a wider table and reporting that a cell appears only then.
+
+    The ladder matters and is asserted implicitly: one index wider is not enough
+    here, which is why the probe tries several.
+    """
+    from pxrdref.indexing.trial_error import (
+        BASE_INDEX_MAX,
+        DOMINANT_ZONE_PROBE_LADDER,
+        search_trial_error,
+    )
+
+    refl = generate_reflections("P 4/m m m", (4.0, 4.0, 26.0, 90.0, 90.0, 90.0),
+                                LAM, 70.0)
+    tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
+    peaks = PeakList.from_positions(tt[tt >= 28.0], LAM, two_theta_esd=0.005)
+    spec = SearchSpec(systems=("tetragonal",), max_d_axis=30.0,
+                      max_volume=1500.0, budget_seconds=30.0)
+
+    result = search_trial_error(peaks, spec=spec)
+    assert not result.candidates, "the base table should not reach these indices"
+    diag = [d for d in result.diagnostics if d.code == "INDEX_DOMINANT_ZONE"]
+    assert diag, [d.code for d in result.diagnostics]
+    assert f"up to {BASE_INDEX_MAX}" in diag[0].message
+    assert "dichotomy" in (diag[0].suggestion or "")
+    assert DOMINANT_ZONE_PROBE_LADDER[0] > BASE_INDEX_MAX
+
+
+def test_the_two_engines_agree_on_the_same_list():
+    """**Agreement between independent searches is the confidence** (WP-1024
+    turns this into a gate; here it is checked to exist at all).
+
+    The two engines share the Q-space core and nothing about how they search:
+    dichotomy bounds Q over a box of metrics and never assumes an index, trial and
+    error assumes indices and never bounds anything.  Landing on the same lattice
+    is therefore evidence, which is the entire premise of the three-engine design.
+    """
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    for system in ("hexagonal", "orthorhombic"):
+        peaks, cell = synthetic_peaks(system)
+        a = search_dichotomy(peaks, spec=spec_for(system))
+        b = search_trial_error(peaks, spec=spec_for(system))
+        assert a.candidates and b.candidates, system
+        assert_same_lattice(a.candidates[0].cell, cell)
+        assert_same_lattice(b.candidates[0].cell, cell)
+        assert a.candidates[0].engine == "dichotomy"
+        assert b.candidates[0].engine == "trial_error"
+
+
 def test_systems_are_searched_highest_symmetry_first():
     """Search order is a cost statement, not a preference: 1 metric degree of
     freedom in cubic against 6 in triclinic."""

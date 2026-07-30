@@ -76,6 +76,12 @@ CENTRINGS: dict[str, tuple[str, ...]] = {
 #: (SRM 660c to 90° 2θ predicts 24) and small enough to be an instant, survivable
 #: refusal.  See the module docstring for the 1.6 PiB that motivated it.
 MAX_PREDICTED_REFLECTIONS = 2_000_000
+#: Relative agreement in reduced-cell volume below which two candidates are worth
+#: comparing properly.  A gate, not a test: two lattices whose volumes differ by
+#: more than this cannot pass the χ² metric equality, so the gate only skips
+#: comparisons whose answer is already known — which is what keeps a dedup pass
+#: over thousands of raw candidates from being O(N²) pinv solves.
+DEDUP_VOLUME_RTOL = 0.01
 
 #: Default shortest principal d-spacing (Å) a search will consider.  A bound on
 #: *d(100)*, not on *a*: for an oblique cell d(100) = a·sin β < a, so this is
@@ -177,6 +183,11 @@ class EngineCandidate:
     #: the FoM panel, filled by :func:`rank_candidates` (which is what ranks) so
     #: ``to_cell_candidate`` does not enumerate the same reflections twice
     fom: list = field(default_factory=list)
+    #: hkl the engine *assumed* for its base lines, where it assumed any
+    #: (WP-1022).  Kept because it is the evidence a dominant zone is reported
+    #: from: a solution whose base indices sit at the table's edge is one the table
+    #: nearly excluded.
+    base_hkl: np.ndarray | None = None
 
     @property
     def n_indexed(self) -> int:
@@ -356,6 +367,24 @@ def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
     return np.flatnonzero(hit), hkl_in[order][idx[hit]]
 
 
+def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
+                             n_unindexed: int) -> bool:
+    """Did this candidate index the lines the search was **driven by**?
+
+    The acceptance bar has to be "all but ``n_unindexed`` of the *search* lines",
+    not "at least that many lines somewhere in the pattern".  The two are wildly
+    different once a pattern has more lines than the search uses: measured on a
+    75-line monoclinic list, the second reading kept **17 607** candidates, because
+    a 4-parameter metric indexes 18 of 75 lines by coincidence without difficulty.
+    The first reading is also the honest one — those are the lines whose failure
+    the tolerated-unindexed count was chosen against.
+    """
+    if not len(search):
+        return True
+    hit = int(np.count_nonzero(np.isin(search, line_index)))
+    return hit >= len(search) - n_unindexed
+
+
 def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
                       k_sigma: float = MATCH_SIGMA, n_unindexed: int = 0,
                       diagnostics: Sequence[Diagnostic] = (),
@@ -428,24 +457,45 @@ def dedup_candidates(cands: Sequence[EngineCandidate],
     predicts half the lines of the other) and merging them would silently drop a
     hypothesis the figures of merit are there to choose between.
     """
-    from .reduce import same_lattice
+    from .reduce import equal_reduced, reduced_af
 
-    kept: list[EngineCandidate] = []
+    #: reduce **once** per candidate, not once per comparison
+    prepared: list[tuple[EngineCandidate, np.ndarray, float]] = []
     for cand in sorted(cands, key=lambda c: (-c.n_indexed, c.fit.chi2_red)):
-        for other in kept:
+        try:
+            red = reduced_af(cand.fit.af)
+        except (ValueError, np.linalg.LinAlgError, RuntimeError):
+            continue
+        prepared.append((cand, red, _reduced_volume(red)))
+
+    kept: list[tuple[EngineCandidate, np.ndarray, float]] = []
+    for cand, red, volume in prepared:
+        for other, other_red, other_volume in kept:
+            # volume gate first: two lattices whose reduced volumes differ by more
+            # than a per-cent cannot pass a χ² test on their metrics, and this is
+            # what keeps the pass from being N² pinv solves as well as N² reductions
+            if abs(volume - other_volume) > DEDUP_VOLUME_RTOL * max(volume,
+                                                                    other_volume):
+                continue
             if other.centring != cand.centring or other.system != cand.system:
                 continue
             try:
-                same, _chi2 = same_lattice(cand.fit.af, other.fit.af,
-                                           cov_a=cand.fit.cov_af,
-                                           cov_b=other.fit.cov_af)
+                same, _chi2 = equal_reduced(red, other_red,
+                                            cov_a=cand.fit.cov_af,
+                                            cov_b=other.fit.cov_af)
             except (ValueError, np.linalg.LinAlgError):
                 same = False
             if same:
                 break
         else:
-            kept.append(cand)
-    return kept
+            kept.append((cand, red, volume))
+    return [cand for cand, _red, _vol in kept]
+
+
+def _reduced_volume(red: np.ndarray) -> float:
+    from .qspace import gstar_from_af
+    det = float(np.linalg.det(gstar_from_af(red)))
+    return det ** -0.5 if det > 0.0 else float("inf")
 
 
 def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
@@ -528,6 +578,7 @@ __all__ = ["CENTRINGS", "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "MAX_PREDICTED_REFLECTIONS", "SYSTEM_ORDER", "Budget",
            "EngineCandidate", "EngineResult", "SearchSpec", "assign_lines",
            "dedup_candidates", "engine_descriptions", "engine_names",
+           "indexes_the_search_lines",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",
            "trial_hkl"]

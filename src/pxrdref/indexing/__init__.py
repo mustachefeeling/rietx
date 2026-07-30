@@ -28,6 +28,13 @@ the bounds fits the list.  :class:`SearchSpec` is the one option surface, the
 registry (:func:`engine_names`) is what WP-1024's agent schema quotes live, and
 ``EngineResult.search_complete`` is what keeps a budgeted search from looking like
 a negative result.
+
+WP-1022 adds the second engine, :func:`search_trial_error`, which is the same
+linearity used from the other end: it *assumes* the indices of a few base lines and
+solves the metric exactly, with no tolerance in the solve at all.  Its failure mode
+is a bad base line rather than a wide domain, which is what makes the two engines'
+agreement evidence — and it raises ``INDEX_DOMINANT_ZONE`` from its own experience
+when the base-line indices it is allowed cannot reach the lowest observed lines.
 """
 
 from .ambiguity import ambiguity_partners, derivative_cells, hnf_matrices
@@ -84,6 +91,7 @@ from .reduce import (
     reduce_cell,
     same_lattice,
 )
+from .trial_error import index_table, search_trial_error
 
 __all__ = [
     "CENTRINGS",
@@ -129,7 +137,9 @@ __all__ = [
     "refine_candidate",
     "register_engine",
     "same_lattice",
+    "index_table",
     "search_dichotomy",
+    "search_trial_error",
     "sigma_effective",
     "template_collinearity",
     "to_cell_candidate",

@@ -66,6 +66,7 @@ from .engines import (
     assign_lines,
     dedup_candidates,
     incomplete_diagnostic,
+    indexes_the_search_lines,
     rank_candidates,
     reflection_ceiling_ok,
     register_engine,
@@ -490,7 +491,8 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
         for centring in spec.centrings_for(system):
             found, (boxes, rows), done = _search_one(
                 basis, system, centring, spec, budget, q_all, sigma, q_search,
-                tol_search, peaks.wavelength, tt_max, spec.min_volume, vol_max)
+                tol_search, peaks.wavelength, tt_max, spec.min_volume, vol_max,
+                search)
             raw.extend(found)
             n_boxes += boxes
             n_rows += rows
@@ -530,6 +532,7 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
                 budget: Budget, q_all: np.ndarray, sigma: np.ndarray,
                 q_search: np.ndarray, tol_search: np.ndarray, wavelength: float,
                 tt_max: float, vol_min: float, vol_max: float,
+                search_lines: np.ndarray,
                 ) -> tuple[list[EngineCandidate], tuple[int, int], bool]:
     """One (system, centring, volume shell): **the grid pass, then dichotomy.**
 
@@ -660,7 +663,7 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             seen.add(key)
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_all, dm_all, q_all, sigma, wavelength, tt_max,
-                           vol_min, vol_max, width)
+                           vol_min, vol_max, width, search_lines)
             if cand is not None:
                 found.append(cand)
             continue
@@ -729,7 +732,7 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             theta: np.ndarray, hkl: np.ndarray, dm: np.ndarray,
             q_all: np.ndarray, sigma: np.ndarray, wavelength: float,
             tt_max: float, vol_min: float, vol_max: float,
-            width: float) -> EngineCandidate | None:
+            width: float, search_lines: np.ndarray) -> EngineCandidate | None:
     """Turn a converged box into a refined candidate, or reject it.
 
     Assign, refine, repeat — with the match window **annealed** from the box's own
@@ -791,8 +794,7 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         return None
     if fit.chi2_red > spec.k_sigma ** 2:
         return None
-    n_needed = min(spec.n_search_lines, len(q_all)) - spec.n_unindexed
-    if len(line_index) < max(n_needed, basis.shape[0] + 1):
+    if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
         return None
     return EngineCandidate(fit=fit, system=system, centring=centring,
                            engine="dichotomy", hkl=assigned,

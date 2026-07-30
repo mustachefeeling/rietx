@@ -242,6 +242,33 @@ def conventional_cell(cell: tuple[float, ...], *, symprec: float = 1e-3
     return cell_from_vectors(np.asarray(data.std_lattice)), symbol[0], symbol
 
 
+def reduced_af(af: np.ndarray) -> np.ndarray:
+    """(A..F) of the Niggli-reduced form of this metric.
+
+    Split out of :func:`same_lattice` because the reduction is the expensive half
+    (a gemmi call) and a dedup pass compares every candidate against every kept
+    one: reducing inside the comparison makes it O(N²) reductions where O(N) will
+    do.  Measured on a monoclinic search that accepted ~5 000 raw candidates, that
+    was the single largest cost in the engine.
+    """
+    from .qspace import af_from_cell, cell_from_af
+    return af_from_cell(reduce_cell(cell_from_af(af)).cell)
+
+
+def equal_reduced(red_a: np.ndarray, red_b: np.ndarray, *,
+                  cov_a: np.ndarray | None = None,
+                  cov_b: np.ndarray | None = None) -> tuple[bool, float]:
+    """The χ² equality test on **already reduced** A..F vectors."""
+    delta = np.asarray(red_a) - np.asarray(red_b)
+    if cov_a is None or cov_b is None:
+        scale = np.maximum(np.abs(red_a), np.abs(red_b))
+        ok = bool(np.all(np.abs(delta) <= CELL_EQUALITY_RELATIVE * scale))
+        return ok, float("nan")
+    sigma = np.asarray(cov_a) + np.asarray(cov_b)
+    chi2 = float(delta @ np.linalg.pinv(sigma, hermitian=True) @ delta)
+    return chi2 <= CELL_EQUALITY_CHI2, chi2
+
+
 def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
                  cov_a: np.ndarray | None = None,
                  cov_b: np.ndarray | None = None) -> tuple[bool, float]:
@@ -254,21 +281,12 @@ def same_lattice(af_a: np.ndarray, af_b: np.ndarray, *,
     to :data:`CELL_EQUALITY_RELATIVE` on the reduced cell parameters and the
     returned χ² is NaN so a caller can see which test ran.
     """
-    from .qspace import af_from_cell, cell_from_af
-
-    red_a = af_from_cell(reduce_cell(cell_from_af(af_a)).cell)
-    red_b = af_from_cell(reduce_cell(cell_from_af(af_b)).cell)
-    delta = red_a - red_b
-    if cov_a is None or cov_b is None:
-        scale = np.maximum(np.abs(red_a), np.abs(red_b))
-        ok = bool(np.all(np.abs(delta) <= CELL_EQUALITY_RELATIVE * scale))
-        return ok, float("nan")
-    sigma = np.asarray(cov_a) + np.asarray(cov_b)
-    chi2 = float(delta @ np.linalg.pinv(sigma, hermitian=True) @ delta)
-    return chi2 <= CELL_EQUALITY_CHI2, chi2
+    return equal_reduced(reduced_af(af_a), reduced_af(af_b),
+                         cov_a=cov_a, cov_b=cov_b)
 
 
 __all__ = ["BRAVAIS_OBLIQUITIES", "BRAVAIS_SYMPREC_SIGMAS",
            "CELL_EQUALITY_CHI2", "CELL_EQUALITY_RELATIVE", "SYSTEM_RANK",
            "BravaisScreen", "ReducedCell", "bravais_screen", "cell_from_vectors",
-           "conventional_cell", "lattice_vectors", "reduce_cell", "same_lattice"]
+           "conventional_cell", "equal_reduced", "lattice_vectors",
+           "reduce_cell", "reduced_af", "same_lattice"]
