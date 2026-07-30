@@ -3,7 +3,7 @@
 from . import agent
 from .crystallography.cif import format_su
 from .history import RefinementTree
-from .indexing import pick_peaks
+from .indexing import index_pattern, pick_peaks
 from .io.exporters import (
     ReflectionRow,
     reflection_table,
@@ -30,6 +30,12 @@ from .schemas import (
     Structure,
 )
 from .schemas.history import HistoryNode, NodeAction, RefinementState
+from .schemas.indexing import (
+    CellCandidate,
+    IndexingResult,
+    LeBailValidation,
+    PeakList,
+)
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
@@ -48,16 +54,20 @@ __all__ = [
     "agent",
     "CancelToken",
     "Cell",
+    "CellCandidate",
     "FitReport",
     "HistoryNode",
     "Instrument",
+    "IndexingResult",
     "MultiHistogramRefinement",
     "NodeAction",
     "PLAN_INFO",
     "PLAN_PRESETS",
+    "LeBailValidation",
     "Parameter",
     "ParameterRow",
     "PatternData",
+    "PeakList",
     "Phase",
     "PlanInfo",
     "PlanSpec",
@@ -81,6 +91,7 @@ __all__ = [
     "SuggestedAction",
     "build_report",
     "format_su",
+    "index_pattern",
     "load_instrument_profile",
     "pick_peaks",
     "read_pattern",

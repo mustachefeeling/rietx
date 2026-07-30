@@ -35,9 +35,34 @@ solves the metric exactly, with no tolerance in the solve at all.  Its failure m
 is a bad base line rather than a wide domain, which is what makes the two engines'
 agreement evidence — and it raises ``INDEX_DOMINANT_ZONE`` from its own experience
 when the base-line indices it is allowed cannot reach the lowest observed lines.
+
+WP-1024 closes the loop with :func:`index_pattern`, the public entry point and a
+peer of :func:`pxrdref.refine`.  It merges the engines' candidates as reduced
+cells, ranks them on the whole figure-of-merit panel, enumerates geometrical
+ambiguity, validates the survivors against the **whole profile** by a Le Bail fit
+(:func:`validate_by_lebail`), and gates confidence on **agreement** between the
+engines (:mod:`pxrdref.indexing.consensus`).  The rule the whole milestone is built
+around is enforced by the return type rather than by documentation:
+:class:`~pxrdref.schemas.indexing.IndexingResult` has no ``.cell``, and
+``best_or_none()`` is the only way to one.
 """
 
 from .ambiguity import ambiguity_partners, derivative_cells, hnf_matrices
+from .consensus import (
+    ConsensusOutcome,
+    apply_gate,
+    bravais_opinion,
+    caveats_for,
+    checked_indices,
+    consensus,
+    grade,
+)
+from .diagnostics import (
+    candidate_diagnostics,
+    index_diagnostics,
+    peak_diagnostics,
+    quality_diagnostics,
+)
 from .dichotomy import search_dichotomy
 from .engines import (
     CENTRINGS,
@@ -46,6 +71,7 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    dedup_groups,
     engine_descriptions,
     engine_names,
     get_engine,
@@ -92,6 +118,12 @@ from .reduce import (
     same_lattice,
 )
 from .trial_error import index_table, search_trial_error
+from .workflow import (
+    absent_reflections,
+    index_pattern,
+    structure_from_candidate,
+    validate_by_lebail,
+)
 
 __all__ = [
     "CENTRINGS",
@@ -99,19 +131,28 @@ __all__ = [
     "BravaisScreen",
     "Budget",
     "CandidateFit",
+    "ConsensusOutcome",
     "Detection",
     "EngineCandidate",
     "EngineResult",
     "PeakGroup",
     "ReducedCell",
     "SearchSpec",
+    "absent_reflections",
     "af_from_cell",
     "ambiguity_partners",
+    "apply_gate",
     "assess_peak_list",
     "borda_scores",
+    "bravais_opinion",
     "bravais_screen",
+    "candidate_diagnostics",
+    "caveats_for",
     "cell_from_af",
+    "checked_indices",
+    "consensus",
     "conventional_cell",
+    "dedup_groups",
     "derivative_cells",
     "design_matrix",
     "detect_peaks",
@@ -123,14 +164,19 @@ __all__ = [
     "fom_panel",
     "fom_panel_disagrees",
     "get_engine",
+    "grade",
     "hnf_matrices",
+    "index_diagnostics",
+    "index_pattern",
     "indexed_fraction",
     "lattice_group",
     "m20",
     "metric_basis",
+    "peak_diagnostics",
     "pick_peaks",
     "predicted_reflection_count",
     "predicted_seen_fraction",
+    "quality_diagnostics",
     "rank_candidates",
     "reduce_cell",
     "reflection_ceiling_ok",
@@ -141,7 +187,9 @@ __all__ = [
     "search_dichotomy",
     "search_trial_error",
     "sigma_effective",
+    "structure_from_candidate",
     "template_collinearity",
     "to_cell_candidate",
+    "validate_by_lebail",
     "volume_envelope",
 ]

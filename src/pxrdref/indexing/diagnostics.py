@@ -260,6 +260,267 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
     return out
 
 
+# ----------------------------------------------------------------------
+# The answer's diagnostics (WP-1024)
+# ----------------------------------------------------------------------
+#: Cell systematic a Bragg-Brentano geometry carries that no esd reports, in ppm.
+#: Measured (tag ``guillemot-study``, ``audit_tools.py`` check A): sweeping
+#: ``Geometry.goniometer_radius_mm`` over 180-320 mm moves Rwp by 0.029 points —
+#: i.e. **the data cannot identify R** — while specimen displacement absorbs the
+#: change 4.6× and ≈ ±85 ppm lands on the lattice parameters, larger than the
+#: fit's own 1σ.  It bites hardest here of anywhere in the package, because
+#: indexing *produces* a cell from lab data with nothing to compare it against.
+BRAGG_BRENTANO_CELL_PPM = 85.0
+
+#: Where a per-candidate statement belongs.  Statements about **one** candidate go
+#: on that candidate (``CellCandidate.diagnostics``); statements about the
+#: **result** — that it abstained, what it did not search, that nothing validated
+#: it — go on the result.  Not duplicated: ``INDEX_ABSTAINED`` names the top
+#: candidates' caveats, which is the pointer from one level to the other, and
+#: duplicating the text would let the two copies disagree.
+_PER_CANDIDATE_CODES = ("INDEX_GEOMETRIC_AMBIGUITY", "INDEX_BRAVAIS_AMBIGUOUS",
+                        "INDEX_PREDICTED_BUT_ABSENT", "INDEX_IMPURITY_LINES",
+                        "INDEX_VOLUME_UNPHYSICAL")
+
+
+def candidate_diagnostics(cand) -> list[Diagnostic]:
+    """Everything to say about **one** candidate cell.
+
+    Attached to the candidate rather than to the result, so a caller reading the
+    third-ranked cell sees why it is third — and so a twelve-candidate answer does
+    not bury its own abstention under thirty-six messages.
+    """
+    out: list[Diagnostic] = []
+    where = [f"{cand.system} {cand.centring}, "
+             f"V = {cand.volume:.1f} Å³, cell {_cell_str(cand.cell)}"]
+
+    if cand.ambiguity:
+        tt = [t for p in cand.ambiguity for t in p.discriminating_two_theta]
+        out.append(Diagnostic(
+            level="warning", code="INDEX_GEOMETRIC_AMBIGUITY",
+            message=(f"{len(cand.ambiguity)} distinct lattice(s) explain these "
+                     "line positions as well as this one does, and a powder "
+                     "pattern carries only the length of each reciprocal vector "
+                     "(Mighell & Santoro 1975) — so the information that would "
+                     "separate them is absent from the measurement, not buried "
+                     "in noise"),
+            where=where,
+            suggestion=("this is reported, never resolved: collect to the 2θ in "
+                        "each partner's discriminating_two_theta and look for the "
+                        "reflections it names"
+                        + (f" (nearest: {min(tt):.2f}°)" if tt else "")
+                        + ".  Quoting either cell before that is a coin toss with "
+                        "a confidence attached")))
+
+    if cand.bravais is not None and (cand.bravais.ambiguous
+                                     or cand.bravais.methods_disagree):
+        b = cand.bravais
+        detail = []
+        if b.ambiguous:
+            detail.append(f"{b.system_loosest} appears only at a loose tolerance "
+                          f"while {b.system} survives the whole sweep")
+        if b.methods_disagree:
+            detail.append(f"gemmi says {b.system_gemmi} and spglib says "
+                          f"{b.system_spglib} at their tightest tolerances")
+        out.append(Diagnostic(
+            level="warning", code="INDEX_BRAVAIS_AMBIGUOUS",
+            message="the lattice symmetry is not settled: " + "; ".join(detail),
+            where=where,
+            suggestion=("the reported system is the conservative one.  A "
+                        "disagreement between the two methods is information "
+                        "rather than a bug — their tolerances are different kinds "
+                        "of number (a Le Page obliquity in degrees against a "
+                        "symprec in Å) — and it is what genuine pseudosymmetry "
+                        "looks like.  Refine in the lower symmetry and test the "
+                        "higher one, never the reverse")))
+
+    lebail = cand.lebail
+    if lebail is not None and lebail.predicted_but_absent:
+        tt = lebail.predicted_but_absent_two_theta
+        out.append(Diagnostic(
+            level="warning", code="INDEX_PREDICTED_BUT_ABSENT",
+            message=(f"{lebail.predicted_but_absent} of {lebail.n_reflections} "
+                     "reflections this lattice predicts have no net intensity "
+                     "above the fitted background — the oversized-cell "
+                     "signature, and the one M20 cannot see (its N_poss "
+                     "denominator penalises it only weakly, Oishi-Tomiyasu 2013)"),
+            where=where + ([f"first at {tt[0]:.3f}°"] if tt else []),
+            suggestion=("prefer the smaller cell that indexes the same lines: a "
+                        "cell whose extra reflections are systematically absent "
+                        "has a translation it is not using, so the lattice is the "
+                        "sublattice.  Read this beside lebail.rwp — Rwp is nearly "
+                        "silent on an oversized cell (measured 0.389 against a "
+                        "correct 0.200) and this count is what sees it")))
+
+    if lebail is not None and lebail.unmatched_observed:
+        tt = lebail.unmatched_observed_two_theta
+        out.append(Diagnostic(
+            level="warning", code="INDEX_IMPURITY_LINES",
+            message=(f"{lebail.unmatched_observed} observed peak(s) have no "
+                     "calculated reflection nearby after a whole-pattern Le Bail "
+                     "fit of this cell"),
+            where=where + ([f"strongest region near {tt[0]:.3f}°" ] if tt else []),
+            suggestion=("two readings, and they are not the same action: a second "
+                        "phase (index the residual — but note that this package "
+                        "does not index multi-phase patterns, so subtract the "
+                        "solved phase first), or a wrong cell.  A handful of "
+                        "lines is an impurity; most of the pattern is a wrong "
+                        "metric — measured, 87 of a 17-reflection cell's list "
+                        "when the metric was 1 % off")))
+
+    if "volume_unphysical" in cand.confidence_caveats:
+        out.append(Diagnostic(
+            level="warning", code="INDEX_VOLUME_UNPHYSICAL",
+            message=(f"the cell volume {cand.volume:.1f} Å³ is outside what these "
+                     "data can support — either below a single atom's exclusion "
+                     "volume (a numerical artefact of the metric cone rather than "
+                     "a lattice) or clear of Smith's (1977) envelope for the "
+                     "number of lines observed"),
+            where=where,
+            suggestion=("a search only reaches here if max_volume was widened "
+                        "past the envelope assess_peak_list supplied; narrow it, "
+                        "or measure more lines — the envelope is a statement "
+                        "about how many lines a cell of that size would show")))
+    return out
+
+
+def index_diagnostics(result, instrument=None) -> list[Diagnostic]:
+    """Result-level ``INDEX_*`` messages: abstention, coverage, validation.
+
+    Separate from :func:`candidate_diagnostics` on the rule stated at
+    :data:`_PER_CANDIDATE_CODES`, and separate from the engines' own diagnostics
+    (which arrive already built on :attr:`IndexingResult.diagnostics`) for the same
+    reason :func:`quality_diagnostics` is separate from :func:`peak_diagnostics`:
+    "the search did not finish" and "the answer does not qualify" are different
+    statements, and an agent acting on one would be answering the wrong question
+    for the other.
+    """
+    from ..schemas.indexing import Confidence  # noqa: F401  (documented vocabulary)
+    from .engines import SYSTEM_ORDER
+
+    out: list[Diagnostic] = []
+    high = [c for c in result.candidates if c.confidence == "high"]
+
+    if len(high) > 1:
+        out.append(Diagnostic(
+            level="warning", code="INDEX_MULTIPLE_SOLUTIONS",
+            message=(f"{len(high)} candidate lattices each satisfy the whole "
+                     "confidence gate, so the evidence does not choose between "
+                     "them"),
+            where=[f"{c.system} {c.centring}, V = {c.volume:.1f} Å³"
+                   for c in high],
+            suggestion=("best_or_none() returns None by construction here — a "
+                        "singleton would be the confident wrong answer this API "
+                        "exists to prevent.  Compare their figure-of-merit panels "
+                        "and their lebail.rwp, and extend the 2θ range: two cells "
+                        "that both explain a range this wide are usually "
+                        "separated by one high-angle reflection")))
+
+    if result.best_or_none() is None:
+        top = result.candidates[0] if result.candidates else None
+        caveats = ", ".join(top.confidence_caveats) if top else "no candidates"
+        out.append(Diagnostic(
+            level="warning" if result.candidates else "error",
+            code="INDEX_ABSTAINED",
+            message=(("no cell reached the confidence gate; the best candidate "
+                      f"({top.system} {top.centring}, V = {top.volume:.1f} Å³) is "
+                      f"{top.confidence} because of: {caveats}")
+                     if top else
+                     ("no candidate cell was found in the systems searched — "
+                      "which is not the same statement as none existing, see "
+                      "search_complete")),
+            where=[f"searched: {', '.join(result.systems_searched) or 'nothing'}"],
+            suggestion=("abstention is the result.  Read each candidate's "
+                        "confidence_caveats and act on the refuting ones first "
+                        "(geometric_ambiguity, predicted_but_absent, "
+                        "fom_panel_disagrees, indexed_fraction_low, "
+                        "volume_unphysical) — the others cap confidence rather "
+                        "than arguing against the cell, and most of them are "
+                        "closed by better data rather than by a different search")))
+
+    if not result.validated:
+        out.append(Diagnostic(
+            level="warning", code="INDEX_NOT_VALIDATED",
+            message=("no pattern was supplied, so no candidate was tested against "
+                     "the whole profile; the figure-of-merit panel is computed on "
+                     "at most 20 lines and is blind to lines beyond them, to "
+                     "impurity content, and to reflections predicted where there "
+                     "is no intensity"),
+            where=[f"{len(result.candidates)} candidate(s) from a peak list only"],
+            suggestion=("pass data= (and instrument=) to index_pattern.  Every "
+                        "candidate caps at medium without it — the result "
+                        "abstains rather than one field being quietly "
+                        "downgraded")))
+
+    missing = [s for s in SYSTEM_ORDER if s not in result.systems_searched]
+    if missing:
+        out.append(Diagnostic(
+            level="info", code="INDEX_SYSTEMS_NOT_COVERED",
+            message=(f"{len(missing)} crystal system(s) were not searched, so "
+                     "this result says nothing about them"),
+            where=missing,
+            suggestion=("read a failure as 'no cell found in the systems "
+                        "searched', never as a statement about the specimen — and "
+                        "in particular never as 'this pattern is multiphase'.  "
+                        "Measured on this repo's own data, a restricted engine's "
+                        "coverage bands overlap between single-phase "
+                        "low-symmetry patterns (47-60 %) and a genuine mixture "
+                        "(69 %), and a multiphase claim built on that ambiguity "
+                        "was withdrawn")))
+
+    systematic = _cell_systematic(instrument, bool(result.candidates))
+    if systematic is not None:
+        out.append(systematic)
+    return out
+
+
+def _cell_systematic(instrument, have_candidates: bool) -> Diagnostic | None:
+    """``INDEX_CELL_SYSTEMATIC_UNQUANTIFIED`` — the cell's esd is not its accuracy.
+
+    **The trigger the plan named is unreachable, and the reachable one is
+    stronger.**  WP-1024 asked for this to fire "on Bragg-Brentano data when no
+    radius was supplied"; ``Geometry._bb_needs_radius`` *raises* on exactly that,
+    so no such instrument exists.  The real gap is that a **declared** radius is
+    not identifiable from the data either — Rwp moves 0.029 points across
+    180-320 mm — so the systematic is present whatever the caller declared, and it
+    is unquantified because the fit cannot measure it.
+    """
+    if not have_candidates:
+        return None
+    if instrument is None:
+        return Diagnostic(
+            level="info", code="INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
+            message=("no instrument was supplied, so the geometry that would "
+                     "determine the cell's systematic error is unknown; the "
+                     "reported cell_esd is a *precision* from the line positions "
+                     "and says nothing about accuracy"),
+            where=["geometry unknown"],
+            suggestion=("pass instrument= — on a Bragg-Brentano diffractometer "
+                        f"the goniometer radius alone carries ≈ ±"
+                        f"{BRAGG_BRENTANO_CELL_PPM:.0f} ppm onto the cell"))
+    if instrument.geometry.kind != "bragg_brentano":
+        return None
+    return Diagnostic(
+        level="info", code="INDEX_CELL_SYSTEMATIC_UNQUANTIFIED",
+        message=(f"a Bragg-Brentano cell carries ≈ ±{BRAGG_BRENTANO_CELL_PPM:.0f} "
+                 "ppm that no esd reports: sweeping the goniometer radius over "
+                 "180-320 mm moves Rwp by only 0.029 points, so the data cannot "
+                 "identify it, while specimen displacement absorbs the change 4.6× "
+                 "and the rest lands on the lattice parameters"),
+        where=[f"R = {instrument.geometry.goniometer_radius_mm:g} mm (declared, "
+               "not measured by the fit)"],
+        suggestion=("quote the cell to no better than this, or calibrate against "
+                    "a certified standard (lab_calibrate with the certified cell "
+                    "held fixed) and carry the correction.  It bites hardest here "
+                    "of anywhere in the package, because indexing produces a cell "
+                    "with nothing to compare it against"))
+
+
+def _cell_str(cell) -> str:
+    a, b, c, al, be, ga = cell
+    return (f"{a:.4f} {b:.4f} {c:.4f} Å, {al:.3f} {be:.3f} {ga:.3f}°")
+
+
 def significant(values: np.ndarray, threshold: float) -> np.ndarray:
     """``|values| >= threshold`` with non-finite entries counted as False.
 
@@ -270,5 +531,6 @@ def significant(values: np.ndarray, threshold: float) -> np.ndarray:
     return np.isfinite(v) & (np.abs(v) >= threshold)
 
 
-__all__ = ["SHIFT_CAUSE", "WIDTH_MISMATCH_RATIO", "peak_diagnostics",
+__all__ = ["BRAGG_BRENTANO_CELL_PPM", "SHIFT_CAUSE", "WIDTH_MISMATCH_RATIO",
+           "candidate_diagnostics", "index_diagnostics", "peak_diagnostics",
            "quality_diagnostics", "significant"]

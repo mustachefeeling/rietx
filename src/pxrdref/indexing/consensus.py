@@ -215,7 +215,15 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
                 out.search_complete.get(system, True) and bool(complete))
         for key, value in result.stats.items():
             out.engine_stats[f"{result.engine}.{key}"] = float(value)
-        out.diagnostics.extend(result.diagnostics)
+        # deduplicated on (code, message): every engine widens its window by the
+        # same assumed allowance and says so in the same words, and N identical
+        # copies of one statement reads as N problems.  Two engines that say
+        # different things about the same code (different systems incomplete, say)
+        # keep both messages, which is why the message is part of the key.
+        for diag in result.diagnostics:
+            if not any(d.code == diag.code and d.message == diag.message
+                       for d in out.diagnostics):
+                out.diagnostics.append(diag)
         if any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in result.diagnostics):
             out.shift_allowance_assumed = True
     out.systems_searched = systems
