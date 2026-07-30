@@ -139,6 +139,9 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/result/window"): _window,
     ("GET", "/api/report"): _report,
 
+    ("GET", "/api/textdoc"): lambda s, q, b: s.textdoc(),
+    ("PUT", "/api/textdoc"): lambda s, q, b: s.textdoc_put(b),
+
     ("GET", "/api/history"): lambda s, q, b: s.history(),
     ("GET", "/api/history/diff"): _diff,
     ("GET", "/api/history/compare"): _compare,

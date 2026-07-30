@@ -212,10 +212,10 @@ def test_host_header_is_checked(blank):
 
 def test_reserved_routes_answer_404_naming_their_work_package(blank):
     _, client = blank
-    status, payload = client.get("/api/textdoc")
+    status, payload = client.get("/api/structure3d")
     assert status == 404
     assert payload["error"]["code"] == "NOT_IMPLEMENTED"
-    assert "WP-1009" in payload["error"]["message"]
+    assert "WP-1015" in payload["error"]["message"]
     status, payload = client.post("/api/index")
     assert status == 404 and "WP-1024" in payload["error"]["message"]
 

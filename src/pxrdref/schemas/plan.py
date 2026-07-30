@@ -84,3 +84,20 @@ class PlanSpec(Base):
 
         return RefinementPlan(stages=[s.to_stage() for s in self.stages],
                               correlation_guard=self.correlation_guard)
+
+    def preset_name(self) -> str | None:
+        """The registered preset this plan equals, or ``None`` if it was edited.
+
+        **Derived, never stored.**  A project records the *expanded* plan (that
+        is what will run, verbatim), so "which preset was this?" has no field to
+        read — and adding one would be a second authority that can disagree with
+        the stages beside it.  Two consumers already ask: the GUI's plan editor,
+        which labels the menu, and the text document, which prints
+        ``plan mccusker_default`` instead of eight stage lines.
+        """
+        from ..strategy.staged import PLAN_PRESETS
+
+        for name, build in PLAN_PRESETS.items():
+            if PlanSpec.from_plan(build()) == self:
+                return name
+        return None

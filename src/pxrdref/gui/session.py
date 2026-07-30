@@ -84,8 +84,6 @@ _MAX_RECENT = 12
 #: them in — a 404 saying "not yet, here is who" is a design document a client
 #: can read at runtime.
 RESERVED_ROUTES: dict[tuple[str, str], str] = {
-    ("GET", "/api/textdoc"): "WP-1009 (project text document)",
-    ("PUT", "/api/textdoc"): "WP-1009 (project text document)",
     ("POST", "/api/upload/pattern"): "WP-1014 (import & in-GUI editing)",
     ("POST", "/api/upload/cif"): "WP-1014 (import & in-GUI editing)",
     ("POST", "/api/upload/instrument"): "WP-1014 (import & in-GUI editing)",
@@ -127,16 +125,21 @@ class GuiError(Exception):
     """
 
     def __init__(self, message: str, *, code: str = "INVALID_REQUEST",
-                 status: int = 400, where: list[str] | None = None) -> None:
+                 status: int = 400, where: list[str] | None = None,
+                 details: list[dict] | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.code = code
         self.status = status
         self.where = list(where or [])
+        #: per-item failures, as ``AgentError.details`` does it — a text document
+        #: apply reports every bad line at once, because fixing them one HTTP
+        #: round trip at a time is not an editing experience
+        self.details = list(details or [])
 
     def payload(self) -> dict:
         return {"error": {"code": self.code, "message": self.message,
-                          "where": self.where}}
+                          "where": self.where, "details": self.details}}
 
 
 class GuiSession:
@@ -324,7 +327,7 @@ class GuiSession:
         """
         p = self._need_project()
         rows = []
-        for row in p.refinement.parameters():
+        for row in p.parameters():  # answered for the document's mode
             item = row.model_dump(mode="json")
             item["refinable"] = row.refinable
             item["held_because"] = row.held_because
@@ -381,7 +384,7 @@ class GuiSession:
         effective = PlanSpec.from_plan(self._effective_plan())
         return {"plan": effective.model_dump(mode="json"),
                 "selected": p.doc.plan is not None,
-                "preset": _matching_preset(effective),
+                "preset": effective.preset_name(),
                 "mode": p.doc.mode}
 
     def plan_put(self, body: dict) -> dict:
@@ -415,6 +418,66 @@ class GuiSession:
         """
         return {"plans": [item.model_dump(mode="json")
                           for item in _capabilities().plans]}
+
+    # ------------------------------------------------------------------
+    # the text document (WP-1009)
+    # ------------------------------------------------------------------
+    def textdoc(self) -> dict:
+        """The project as text, with the CAS token for the matching ``PUT``."""
+        from . import textdoc as td
+
+        text = td.render(self._need_project())
+        return {"text": text, "revision": td.revision(text),
+                "format_version": td.FORMAT_VERSION}
+
+    def textdoc_put(self, body: dict) -> dict:
+        """Parse, diff against the live project, and apply — or apply nothing.
+
+        ``base_revision`` is compare-and-set: it is the revision the editor was
+        showing, and a mismatch means the project moved underneath it (a stage
+        committed, a form edited a value). Rejecting is the whole conflict story
+        — a three-way merge of a document that is regenerated from state would be
+        inventing an authority. ``validate_only`` runs everything except the
+        apply, which is what a continuously-validating editor calls.
+        """
+        from . import textdoc as td
+
+        self._require_idle()
+        project = self._need_project()
+        text = body.get("text")
+        if not isinstance(text, str):
+            raise GuiError("'text' is required and must be a string",
+                           where=["text"])
+        current = td.render(project)
+        base = body.get("base_revision")
+        if base and base != td.revision(current):
+            raise GuiError(
+                "the project changed since this text was rendered "
+                f"(revision {td.revision(current)}, you sent {base}); re-read "
+                "/api/textdoc and re-apply your edit",
+                code="STALE_REVISION", status=409)
+
+        delta, errors = td.changes(td.parse(text), project)
+        if errors:
+            raise GuiError(
+                f"{len(errors)} problem(s) in the document; nothing was applied",
+                code="TEXTDOC_INVALID",
+                where=sorted({e.where for e in errors if e.where}),
+                details=[e.as_dict() for e in errors])
+        if body.get("validate_only"):
+            return {"valid": True, "applied": [], "delta": delta.as_dict(),
+                    "revision": td.revision(current), "would_change":
+                    not delta.is_empty()}
+        try:
+            applied = td.apply(project, delta)
+        except ValueError as exc:
+            # the verbs' own refusals (a tied path, a bound); ``set_values``
+            # validates before writing, so nothing was applied
+            raise GuiError(str(exc), code="TEXTDOC_INVALID",
+                           details=[_locate(str(exc), text)]) from None
+        rendered = td.render(project)
+        return {"valid": True, "applied": applied, "delta": delta.as_dict(),
+                "text": rendered, "revision": td.revision(rendered)}
 
     # ------------------------------------------------------------------
     # the models
@@ -975,6 +1038,21 @@ def _parse_utc(stamp: str) -> float:
         tzinfo=UTC).timestamp()
 
 
+def _locate(message: str, text: str) -> dict:
+    """Attach a line number to a verb's refusal by finding the path it names.
+
+    The verbs raise in their own words (``'phases.0.cell.b' follows … as an
+    affine tie``) and a text editor needs a line, so the path in the message is
+    matched against the document rather than the message being rewritten here.
+    """
+    for n, line in enumerate(text.splitlines(), start=1):
+        head = line.split("#", 1)[0].split()
+        if head and head[0] and f"{head[0]}'" in message:
+            return {"line": n, "message": message, "where": head[0],
+                    "text": line.rstrip()}
+    return {"line": 0, "message": message, "where": "", "text": ""}
+
+
 def _need(body: dict, key: str):
     value = body.get(key)
     if value in (None, ""):
@@ -1035,10 +1113,3 @@ def _as_plan_argument(plan: Any):
         return plan
     return _validate(PlanSpec, plan, "plan").to_plan()
 
-
-def _matching_preset(spec: PlanSpec) -> str | None:
-    """The preset this plan is identical to, or ``None`` for an edited one."""
-    for name, build in PLAN_PRESETS.items():
-        if PlanSpec.from_plan(build()) == spec:
-            return name
-    return None

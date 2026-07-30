@@ -283,6 +283,19 @@ class Project:
         self.doc.excluded_regions = [tuple(r) for r in regions]
         self.data.excluded_regions = list(self.doc.excluded_regions)
 
+    def parameters(self, **kw):
+        """:meth:`Refinement.parameters` answered for *this project's* mode.
+
+        The refinement's carried mode is what its last stage ran in, and before
+        the first run it is the ``"rietveld"`` default — while the document says
+        what the next run will use.  Without this, a Le Bail project's
+        ``.atoms.`` rows come back with ``mode_fixed=False`` and a client renders
+        the mandatory dummy atom's ``biso`` as editable, which is exactly the
+        trap that flag was added to close.
+        """
+        kw.setdefault("mode", self.doc.mode)
+        return self.refinement.parameters(**kw)
+
     def fit(self, **kw):
         """:meth:`Refinement.fit` on this project's data and settings."""
         kw.setdefault("mode", self.doc.mode)

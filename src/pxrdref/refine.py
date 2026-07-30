@@ -278,16 +278,25 @@ class Refinement:
             return self._prepare_table(restore=True)
         return ParameterTable(self.structure, self.instrument)
 
-    def parameters(self) -> list[ParameterRow]:
+    def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data — fixed, locked and tied rows included.
 
         The counterpart of ``result_.parameters`` (which lists only what a fit
         refined): this is the whole table, in θ order, with the most recent
         fit's esds merged in and each held row saying *why* it is held.  A cold
         path — pydantic here is fine, the no-pydantic rule binds the residual.
+
+        ``mode`` overrides which intensity mode ``mode_fixed`` is answered for.
+        It exists because this object's carried ``_mode`` is what the last stage
+        *ran* in, and before the first run that is the ``"rietveld"`` default —
+        so a caller that knows the mode the **next** run will use (a
+        :class:`~pxrdref.project.Project`, from its document) has to be able to
+        say so, or a Le Bail project's atom rows come back looking editable,
+        which is the one thing ``mode_fixed`` exists to prevent.
         """
         esd = ({p.path: p.stderr for p in self.result_.parameters}
                if self.result_ is not None else {})
+        mode = mode or self._mode
         rows = []
         for e in self._working_table().entries:
             rows.append(ParameterRow(
@@ -296,7 +305,7 @@ class Refinement:
                 tie=TieSpec.from_tie(e.tie) if e.tie is not None else None,
                 locked=e.locked,
                 esd=esd.get(e.path),
-                mode_fixed=mode_fixed_path(e.path, self._mode),
+                mode_fixed=mode_fixed_path(e.path, mode),
             ))
         return rows
 
