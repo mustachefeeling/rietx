@@ -152,6 +152,27 @@ REAL_DATA_SYSTEMS = ("cubic", "tetragonal", "hexagonal", "trigonal")
 
 A_SRM676A, C_SRM676A = 4.759355, 12.99231     # k = 2, 22.5 °C (certificate)
 
+#: NIST SRM 660c LaB6, the *absolute* lab anchor: the cell the certification CIF
+#: recomputes for this data block's own temperature (20.85 °C), which is the
+#: value ``test_acceptance_srm660c`` refines against.  The certificate's
+#: 4.156826(8) Å applies at 22.5 °C and is not the number to compare with here.
+A_SRM660C = 4.156780
+#: The specimen displacement NIST's own analysis of this pattern recorded, and
+#: the goniometer radius of the divergent-beam diffractometer it was measured on.
+#: Together they *predict* the ``cos_theta`` template's amplitude, which is what
+#: makes the shift this package fits from the pattern alone checkable rather than
+#: merely plausible: Δ2θ = −(2s/R)·cos θ (``model.corrections``), so
+#: s = −0.07877 mm at R = 217.5 mm is **+0.0415° · cos θ**.
+SRM660C_DISPLACEMENT_MM, SRM660C_RADIUS_MM = -0.07877, 217.5
+#: How far a picked component may sit from *every* position the certified cubic
+#: cell allows before it is not a line of the phase.  An order of magnitude above
+#: the real lines' own displacement (they run +0.010 to +0.041°) and an order
+#: below the components this separates out (−0.16 to +0.19°), so nothing lands
+#: near it.  **This uses the answer**, which is what makes every row that applies
+#: it an attribution probe rather than a protocol — see
+#: ``test_what_the_unflagged_tail_components_cost_the_certified_cell``.
+LAB6_OFF_LATTICE_DEG = 0.05
+
 
 def _qarr(name: str):
     """(pattern, instrument) for one IUCr round-robin pure phase.
@@ -212,6 +233,126 @@ def qpa_mixture_index():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
     return index_pattern(data=data, instrument=ins, spec=spec)
+
+
+# ----------------------------------------------------------------------
+# SRM 660c LaB6 — the *absolute* anchor, and the one bundled phase whose space
+# group has no extinctions at all
+# ----------------------------------------------------------------------
+def _lab6_inputs():
+    """(pattern, instrument) for the NIST certification measurement.
+
+    Built by ``test_acceptance_srm660c.build_srm_inputs`` so the two suites
+    cannot disagree about the protocol — same CIF block, same instrument, same
+    explicitly-declined dispersion.  Its ``structure`` is discarded: indexing is
+    the question of what the cell *is*, so nothing here may see one.
+    """
+    from tests.test_acceptance_srm660c import build_srm_inputs
+    data, _structure, instrument = build_srm_inputs()
+    return data, instrument
+
+
+@pytest.fixture(scope="module")
+def lab6_peaks():
+    """The picked line list, ~1 s.  Shared by the fast rows and the searches."""
+    from pxrdref.indexing.pick import pick_peaks
+    data, ins = _lab6_inputs()
+    return pick_peaks(data, ins)
+
+
+def _cubic_positions(a: float, wavelength: float, two_theta_max: float
+                     ) -> np.ndarray:
+    """2θ of every line a cubic P lattice of edge ``a`` allows, in range."""
+    _, q = predicted_lines((a, a, a, 90.0, 90.0, 90.0), "cubic", "P",
+                           wavelength, two_theta_max=two_theta_max * 1.02)
+    return np.degrees(2.0 * np.arcsin(
+        np.clip(wavelength * np.sqrt(np.unique(q)) / 2.0, -1.0, 1.0)))
+
+
+def _certified_deviation(peaks, two_theta: np.ndarray) -> np.ndarray:
+    """Signed distance from each position to the nearest certified-cell line.
+
+    Signed, not absolute, because the sign is the measurement: the real lines
+    are displaced one way by the specimen displacement and the tail components
+    sit on the *other* side of their own line below 90° 2θ.
+    """
+    pred = _cubic_positions(A_SRM660C, peaks.wavelength, peaks.two_theta_max)
+    k = np.argmin(np.abs(two_theta[:, None] - pred[None, :]), axis=1)
+    return two_theta - pred[k]
+
+
+def _without_the_off_lattice_lines(peaks):
+    """The same list with the components no certified position explains removed.
+
+    A *probe*, not a proposal.  It answers "what do these components cost?" by
+    using the answer to identify them, which no user indexing an unknown phase
+    can do — and the package's own screen cannot reach them either, for three
+    different reasons measured in
+    ``test_the_unflagged_tail_components_escape_for_three_different_reasons``.
+    """
+    kept = [p for p in peaks.peaks
+            if not p.usable
+            or abs(_certified_deviation(peaks, np.array([p.two_theta]))[0])
+            < LAB6_OFF_LATTICE_DEG]
+    return peaks.model_copy(update={"peaks": kept})
+
+
+def _weak_partners(peaks):
+    """Every usable component that is the weak member of a two-line group.
+
+    These are the components the ``not_separable`` screen is *about*, whether or
+    not it reached them, so both the flagged and the surviving ones come from
+    one definition rather than from a hand-written list of positions.
+    """
+    by_group: dict[int, list] = {}
+    for p in peaks.peaks:
+        by_group.setdefault(p.group, []).append(p)
+    out = []
+    for members in by_group.values():
+        if len(members) < 2:
+            continue
+        strongest = max(members, key=lambda p: p.intensity)
+        for p in members:
+            if p is not strongest and p.usable:
+                out.append((p, strongest))
+    return out
+
+
+@pytest.fixture(scope="module")
+def lab6_index(lab6_peaks):
+    """Step 1: index the pattern exactly as picked, nothing declared. ~20 s."""
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    data, ins = _lab6_inputs()
+    spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
+                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
+    return index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+
+
+@pytest.fixture(scope="module")
+def lab6_calibrated(lab6_peaks):
+    """``(result, screen)`` for the fully calibrated protocol. ~4 s.
+
+    Everything the gate can be given, given: the off-lattice components removed,
+    the systematic **measured** against the certificate rather than assumed, and
+    the template that names its cause declared.  Cubic only — the point of this
+    fixture is what the *gate* does once the evidence exists, and a four-system
+    search costs 35 s to reach the identical cell (measured: 4.156772 either way).
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    data, ins = _lab6_inputs()
+    trimmed = _without_the_off_lattice_lines(lab6_peaks)
+    tt = trimmed.two_theta()
+    screen = fit_shift_model(tt, _certified_deviation(trimmed, tt),
+                             trimmed.two_theta_esd())
+    amplitude = next(t.coefficient for t in screen.templates
+                     if t.name == screen.best)
+    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=60.0,
+                      n_unindexed=REAL_DATA_N_UNINDEXED,
+                      shift_template="cos_theta",
+                      sigma_sys_deg=abs(float(amplitude)))
+    return index_pattern(trimmed, data=data, instrument=ins, spec=spec), screen
 
 
 # ----------------------------------------------------------------------
@@ -588,3 +729,395 @@ def test_a_three_phase_mixture_abstains(qpa_mixture_index):
     assert res.systems_searched
     for cand in res.candidates:
         assert cand.confidence != "high"
+
+
+# ----------------------------------------------------------------------
+# SRM 660c: the absolute anchor, a phase with no extinctions, and a rival
+# no enumeration of derivative lattices can reach
+# ----------------------------------------------------------------------
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_index):
+    """SRM 660c LaB6, indexed end to end — and the control for the corundum row.
+
+    Corundum comes back carrying ``predicted_but_absent = 11-12``, and WP-1026
+    read that as the R-3c c-glide seen through the *lattice* R-3m, since the
+    lattice group is the only model that exists before
+    ``determine_extinction_symbol`` runs.  That reading has an obvious test and
+    this is it: **LaB6 is P m -3 m, whose only absences are none at all.**  If the
+    caveat tracks space-group extinctions it must be silent here, on a pattern
+    that is otherwise the same kind of object — a certified lab standard, Cu Kα
+    doublet, one phase, picked by this package.
+
+    It is silent.  ``predicted_seen_fraction`` is **1.000** — every reflection the
+    lattice predicts has intensity where it predicts it — against corundum's
+    0.86, and ``predicted_but_absent`` is 0 of 30.  So the caveat says what its
+    name says and not "this cell is too big", which is the one reading WP-1026
+    warned against and the reason it was filed to WP-1028 rather than retuned.
+
+    What is *not* recovered here is the accuracy corundum reached: a lands **−127
+    ppm** low, because the specimen displacement is absorbed into the cell and
+    the shift that would take it out is defeated by five components of the peak
+    list (the next three rows).  The bar is set at 200 ppm deliberately — a
+    tighter one would be asserting that a defect this file measures does not
+    exist.
+    """
+    res = lab6_index
+
+    assert res.validated
+    assert res.candidates, "no candidate on the absolute lab anchor"
+    best = res.candidates[0]
+    assert best.system == "cubic" and best.centring == "P", (
+        f"ranked first: {best.system} {best.centring}")
+
+    da = best.cell[0] / A_SRM660C - 1.0
+    assert abs(da) < 2.0e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
+    assert best.chi2_red < 1.5, best.chi2_red
+
+    # the control itself: a phase with no extinctions leaves no absences behind
+    assert best.lebail is not None
+    assert best.lebail.predicted_but_absent == 0, (
+        f"{best.lebail.predicted_but_absent} of {best.lebail.n_reflections} "
+        "reflections predicted where nothing was seen, on P m -3 m")
+    assert best.fom_value("predicted_seen_fraction") == pytest.approx(1.0)
+    assert "predicted_but_absent" not in best.confidence_caveats
+
+    # …and it is still not promoted, on caveats that have nothing to do with
+    # extinctions: the allowance was assumed, and only one engine found it
+    assert best.confidence == "low"
+    assert set(best.confidence_caveats) >= {"shift_allowance_assumed",
+                                            "engines_disagree"}
+    assert res.best_or_none() is None
+
+
+def test_the_unflagged_tail_components_escape_for_three_different_reasons(
+        lab6_peaks):
+    """Six components survive the ``not_separable`` screen, and no one knob explains it.
+
+    The screen (``indexing/pick.py``) asks three questions of a weak component
+    sharing a group with a strong one: was it put there by a re-seed pass, is it
+    *inside* the neighbour's profile (``PEAK_SATELLITE_NEAR_FWHM`` = 1.5 fitted
+    FWHM) at no more than ``PEAK_SATELLITE_MAX_RATIO`` of its area, and is the
+    group's fit still refuted with it in.  On this pattern thirteen components
+    face those questions, seven are flagged and six are not — and the six fail
+    **three different conditions**:
+
+    ==========  ==========  ============================================
+    2θ          sep/FWHM    the condition that lets it through
+    ==========  ==========  ============================================
+    21.200      2.99        too far — 3 FWHM out, on the axial tail
+    30.288      2.24        too far
+    37.377      1.73        too far
+    71.942      2.27        too far — and it sits on its mate's Kα2
+    43.505      0.81        **not re-seeded**: the detection seed slid into
+                            the tail and the new component took the real
+                            line, so the slot labels are the wrong way round
+    141.911     1.01        **not refuted** — χ²_red 1.38, and the screen
+                            deliberately keeps a weak neighbour on a
+                            well-fitted group
+    ==========  ==========  ============================================
+
+    That table is the finding.  Widening 1.5 would reach four of the six and
+    would be a knob rather than a measurement; the other two are a slot-labelling
+    weakness and a stated design choice.  So this row pins the *census* rather
+    than any threshold, and the fix — if there is one — is WP-1028's.
+    """
+    from pxrdref.schemas.indexing import (
+        PEAK_SATELLITE_MAX_RATIO,
+        PEAK_SATELLITE_NEAR_FWHM,
+    )
+    peaks = lab6_peaks
+    survivors = _weak_partners(peaks)
+    flagged = [p for p in peaks.peaks if "not_separable" in p.flags]
+
+    assert len(flagged) >= 5, f"only {len(flagged)} flagged at all"
+    assert 4 <= len(survivors) <= 8, len(survivors)
+    # every survivor is weak enough and close enough to be *about* the screen —
+    # so what let it through is one of the other two conditions, or the distance
+    for weak, strong in survivors:
+        assert weak.intensity < PEAK_SATELLITE_MAX_RATIO * strong.intensity, (
+            f"{weak.two_theta:.4f}° is not a satellite of "
+            f"{strong.two_theta:.4f}° at all")
+    far = [(w, s) for w, s in survivors
+           if abs(w.two_theta - s.two_theta) >= PEAK_SATELLITE_NEAR_FWHM * w.fwhm]
+    assert len(far) >= 3, (
+        "the distance condition is no longer what lets most of them through; "
+        "re-measure the census before trusting the docstring above")
+
+
+def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
+    """They are not lines, and the *side* they are on says which aberration.
+
+    Axial divergence puts a peak's tail on the low-2θ side below 90° and on the
+    high-2θ side above it — that sign change is the aberration's signature, and
+    nothing else in a Bragg-Brentano pattern has it.  Every surviving component
+    lands on the tail side of its own line, with a single exception that lands on
+    its group-mate's **Kα2 maximum**: the alias screen drops that candidate at
+    detection (``PEAK_KALPHA2_ALIAS``, 23 dropped here), but the group is wide
+    enough that the fitter re-seeds a component there — 3 % of the parent's area,
+    i.e. the residual of a *modelled* Kα2 rather than an unmodelled one.
+
+    So the census is: five axial-divergence tails and one Kα2 residual, none of
+    them lines of LaB6, all six carrying a σ ten times the real lines'.  That
+    last part is what makes them survivable by one consumer and fatal to another
+    — the next row.
+    """
+    peaks = lab6_peaks
+    kalpha2: list[float] = []
+    exceptions = 0
+    for weak, strong in _weak_partners(peaks):
+        # where this line's own Kα2 would be, from the instrument's own splitting
+        theta = np.radians(strong.two_theta / 2.0)
+        lam2_over_lam1 = 1.5444274 / 1.5405929        # Cu Kα2/Kα1, Hölzer 1997
+        d_alias = np.degrees(2.0 * (lam2_over_lam1 - 1.0) * np.tan(theta))
+        if abs(weak.two_theta - (strong.two_theta + d_alias)) < strong.fwhm:
+            exceptions += 1
+            kalpha2.append(weak.two_theta)
+            continue
+        tail_side = -1.0 if strong.two_theta < 90.0 else 1.0
+        assert np.sign(weak.two_theta - strong.two_theta) == tail_side, (
+            f"{weak.two_theta:.4f}° is on the wrong side of "
+            f"{strong.two_theta:.4f}° for an axial-divergence tail")
+    assert exceptions == 1, (
+        f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
+
+
+def test_the_shift_screen_survives_the_tail_components_but_the_search_cannot(
+        lab6_peaks):
+    """Why the corundum protocol's second step does nothing here, in one number.
+
+    Declaring ``shift_template="cos_theta"`` moved corundum's cell to its
+    certificate.  On this pattern it does not, and the reason is not the
+    template: it is that the two consumers of a peak list weight it differently.
+
+    ``fit_shift_model`` weights each line by its **own** fitted σ, and the tail
+    components carry σ ≈ 0.005° against the real lines' ≈ 0.0005° — so they are
+    down-weighted a hundredfold and the screen recovers the displacement anyway:
+    **+0.0367 ± 0.0015°** against a certified-geometry prediction of **+0.0415°**
+    (−0.07877 mm at R = 217.5 mm, ``model.corrections.displacement_shift_deg``).
+
+    The *search* cannot, because it adds ``DEFAULT_UNKNOWN_SHIFT_DEG`` = 0.05° in
+    quadrature to every σ.  That is a flat addition, so a hundredfold precision
+    contrast becomes **1.005** and the tail components are weighted like the real
+    lines — which is exactly what a shift column cannot survive, since they sit
+    on the side the template is trying to measure.  Measured end to end: the
+    search's fitted shift is +0.009 ± 0.016° (consistent with none) and the cell
+    keeps its −127 ppm.
+
+    **An assumed allowance is not free even when it is generous enough.**  It
+    buys the search a matching window at the cost of the relative weighting the
+    peak fitter measured, and this row is where that shows up.
+    """
+    from pxrdref.indexing.engines import DEFAULT_UNKNOWN_SHIFT_DEG
+    peaks = lab6_peaks
+    tt, esd = peaks.two_theta(), peaks.two_theta_esd()
+    dev = _certified_deviation(peaks, tt)
+    off = np.abs(dev) >= LAB6_OFF_LATTICE_DEG
+
+    # the two populations, and the contrast the allowance is about to flatten
+    assert off.sum() >= 4, f"only {off.sum()} off-lattice components"
+    assert np.median(esd[off]) > 5.0 * np.median(esd[~off])
+    widened = np.hypot(esd, DEFAULT_UNKNOWN_SHIFT_DEG)
+    assert np.median(widened[off]) / np.median(widened[~off]) < 1.02, (
+        "the allowance no longer flattens the σ contrast — re-measure")
+
+    # and the screen, which never sees the allowance, gets the displacement
+    screen = fit_shift_model(tt, dev, esd)
+    assert screen.best == "cos_theta"
+    best = next(t for t in screen.templates if t.name == screen.best)
+    predicted = np.degrees(-2.0 * SRM660C_DISPLACEMENT_MM / SRM660C_RADIUS_MM)
+    assert predicted == pytest.approx(0.0415, abs=5e-4)
+    assert best.coefficient == pytest.approx(0.037, abs=0.004)
+    assert 0.75 < best.coefficient / predicted < 1.0, (
+        "the fitted amplitude should fall a little short of the geometric "
+        "prediction — the other aberrations SRM 660c's docstring names are "
+        "still in the residual")
+
+    # with the off-lattice components out the same fit sharpens threefold and
+    # the cause becomes separable, which is what the calibrated row rides on
+    sharp = fit_shift_model(tt[~off], dev[~off], esd[~off])
+    sharp_best = next(t for t in sharp.templates if t.name == sharp.best)
+    assert sharp.best == "cos_theta"
+    assert sharp_best.stderr < best.stderr / 2.0
+    assert sharp.separable and not screen.separable
+
+
+def test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival():
+    """A geometrical ambiguity the derivative-lattice enumeration cannot reach.
+
+    A tetragonal P lattice with a′ = a/√2 and c′ = a gives
+    Q = (2h² + 2k² + l²)/a², and **2(h²+k²)+l² represents exactly the integers
+    h²+k²+l² does** — both miss precisely 4^n(8m+7) — so the two lattices produce
+    powder lines at *identical* positions, everywhere, forever.  The identity is
+    exact in arithmetic and lands at 3e-16 relative in doubles, which is the
+    round-off of the √2 in a/√2 and not a difference between the lattices.  Only
+    the multiplicities differ, so only intensities can separate them, and Le Bail
+    validation cannot either, since it fits intensities freely.
+
+    ``ambiguity_partners`` does not report it, and the reason is structural
+    rather than a threshold: it enumerates *derivative* lattices — sublattices of
+    index 2-4, i.e. supercells — and this rival has **half** the volume, so it is
+    not in the enumeration at all.  The asymmetry is measurable in one call: from
+    the cubic cell the tetragonal rival is invisible (0 partners), while from the
+    tetragonal cell the cubic **is** found, as an index-2 derivative with **zero**
+    discriminating reflections — the report saying, correctly, that nothing in
+    range tells them apart.
+
+    That one-directionality is the gap.  It is not merely cosmetic: the gate
+    refuses ``high`` to a candidate with an ambiguity partner, so a cell whose
+    rival happens to be the smaller lattice can be promoted while its rival
+    cannot.  Filed to WP-1028; asserted here so the fix has a failing test to
+    turn round.
+    """
+    from pxrdref.indexing.ambiguity import ambiguity_partners
+
+    a, lam, tt_max = A_SRM660C, 1.5405929, 150.91
+    at = a / np.sqrt(2.0)
+
+    # 1. the arithmetic, over a range no measurement reaches
+    def represented(form) -> set[int]:
+        return {n for h in range(25) for k in range(25) for ell in range(25)
+                if 0 < (n := form(h, k, ell)) <= 400}
+
+    cubic_n = represented(lambda h, k, ell: h * h + k * k + ell * ell)
+    tetr_n = represented(lambda h, k, ell: 2 * h * h + 2 * k * k + ell * ell)
+    assert cubic_n == tetr_n
+    missing = sorted(set(range(1, 401)) - cubic_n)
+    assert missing[:6] == [7, 15, 23, 28, 31, 39]      # 4^n(8m+7), both forms
+
+    # 2. and therefore the package's own predicted positions, bit for bit
+    _, q_cubic = predicted_lines((a, a, a, 90, 90, 90), "cubic", "P", lam,
+                                 two_theta_max=tt_max)
+    _, q_tetr = predicted_lines((at, at, a, 90, 90, 90), "tetragonal", "P", lam,
+                                two_theta_max=tt_max)
+    uc, ut = np.unique(q_cubic), np.unique(q_tetr)
+    assert len(uc) == len(ut) > 20
+    # the *only* difference doubles can carry: one line's worth of round-off in
+    # the irrational axis ratio, a hundred million times below the fitted σ(Q)
+    assert np.max(np.abs(uc - ut) / uc) < 1e-15, "no longer isospectral"
+
+    # 3. the enumeration sees it from one side only
+    q_esd = np.full_like(uc, 1e-5)
+    from_cubic = ambiguity_partners((a, a, a, 90, 90, 90), "cubic", "P",
+                                    uc, q_esd, lam, tt_max)
+    from_tetr = ambiguity_partners((at, at, a, 90, 90, 90), "tetragonal", "P",
+                                   uc, q_esd, lam, tt_max)
+    assert from_cubic == [], (
+        "the enumeration now reaches the half-volume rival — good; delete this "
+        "assertion and the WP-1028 note with it")
+    assert len(from_tetr) == 1
+    partner = from_tetr[0]
+    assert partner.index == 2
+    assert partner.volume == pytest.approx(a ** 3, rel=1e-3)
+    assert partner.discriminating_reflections == [], (
+        "a reflection was offered as a tie-breaker between two lattices whose "
+        "predicted positions are identical")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_the_isospectral_rival_is_ranked_beside_the_truth(lab6_index):
+    """And on the real pattern both are in the list, with neither promoted.
+
+    The rival of the row above is not a thought experiment: both engines find it
+    on the measured lines, and it is ranked within the top few of the truth.  The
+    gate does the right thing for the wrong reason — nothing is promoted here
+    anyway, because the allowance was assumed — so what this row pins is that
+    **neither** carries ``geometric_ambiguity``, which is the caveat that ought
+    to be carrying this pair.
+
+    It is the WP's "a geometrical-ambiguity case where neither partner reaches
+    ``high``" row, answered on certified data rather than synthetically, and it
+    is a stronger case than a synthetic one would have been: the partner here is
+    exactly isospectral rather than isospectral within a tolerance.
+    """
+    res = lab6_index
+    truth = res.candidates[0]
+    assert truth.system == "cubic"
+
+    rivals = [c for c in res.candidates
+              if c.system == "tetragonal"
+              and c.cell[2] / c.cell[0] == pytest.approx(np.sqrt(2.0), rel=1e-3)
+              and c.volume == pytest.approx(truth.volume / 2.0, rel=5e-3)]
+    assert len(rivals) == 1, [
+        (c.system, tuple(round(x, 4) for x in c.cell[:3])) for c in res.candidates]
+    rival = rivals[0]
+    assert set(rival.found_by) == set(res.engines_run), (
+        f"only {rival.found_by} reached a lattice that predicts exactly the "
+        "same lines as the one ranked first")
+
+    for cand in (truth, rival):
+        assert cand.confidence != "high"
+        assert "geometric_ambiguity" not in cand.confidence_caveats
+    assert res.best_or_none() is None
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_what_the_unflagged_tail_components_cost_the_certified_cell(
+        lab6_calibrated, lab6_peaks):
+    """The whole protocol, with every piece of evidence supplied — and ``high``.
+
+    This is the first ``high`` confidence answer ``index_pattern`` returns on
+    real data, and the first time ``best_or_none()`` hands back a cell at all.
+    It costs three things, and naming them is the point of the row:
+
+    1. the five off-lattice components removed — **using the certificate**, which
+       no user of an unknown phase can do;
+    2. the systematic **measured** rather than assumed, which clears
+       ``shift_allowance_assumed``, the caveat WP-1024 identified as the reason
+       ``high`` was unreachable on lab data;
+    3. ``shift_template="cos_theta"`` declared, so the measured displacement is
+       taken out of the cell instead of absorbed into it.
+
+    With all three: **a = 4.156772 Å, −2 ppm** from the NIST certification CIF's
+    own cell for this data block, M₂₀ = 1113, zero caveats.  Against the −127 ppm
+    the same pattern gives with none of them.  So the arithmetic of the whole
+    pipeline is sound to the part-per-million and what stands between it and a
+    blind certified answer is a peak list — which is the useful form of this
+    result, and the reason the tail rows above are not a footnote.
+
+    **What the σ_sys argument means, measured the hard way.**  The obvious number
+    to declare is the one ``ShiftScreen`` calls ``sigma_sys_deg`` — the scatter
+    the winning template *leaves* (0.0078° here).  Declare that and the search
+    finds **nothing**, because it matches against uncorrected positions: the
+    template is fitted by ``refine_with_shift`` only after a candidate survives,
+    so the window still has to span the shift itself.  What the search needs is
+    the shift's **amplitude** (0.037°), and this fixture declares that.  The two
+    quantities differ by 4.3× and only one of them indexes; filed to WP-1028.
+    """
+    res, screen = lab6_calibrated
+
+    assert res.candidates, "the calibrated protocol found nothing"
+    best = res.candidates[0]
+    assert best.system == "cubic" and best.centring == "P"
+
+    da = best.cell[0] / A_SRM660C - 1.0
+    assert abs(da) < 1.0e-5, f"a = {best.cell[0]:.6f} ({da*1e6:+.1f} ppm)"
+
+    # the gate, with nothing left to object to
+    assert best.confidence == "high", sorted(best.confidence_caveats)
+    assert best.confidence_caveats == []
+    assert res.best_or_none() is not None
+    assert set(best.found_by) == set(res.engines_run)
+
+    # the displacement, taken out of the cell rather than absorbed into it
+    assert best.shift_template == "cos_theta"
+    assert best.shift_coefficient == pytest.approx(0.034, abs=0.006)
+    assert best.fom_value("m20") > 500.0
+
+    # and the trap: the residual the screen leaves is not the window the search
+    # needs, and declaring it returns no candidate at all
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    data, ins = _lab6_inputs()
+    assert screen.sigma_sys_deg < 0.3 * abs(best.shift_coefficient)
+    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=60.0,
+                      n_unindexed=REAL_DATA_N_UNINDEXED,
+                      shift_template="cos_theta",
+                      sigma_sys_deg=float(screen.sigma_sys_deg))
+    tight = index_pattern(_without_the_off_lattice_lines(lab6_peaks),
+                          data=data, instrument=ins, spec=spec)
+    assert tight.candidates == [], (
+        "the post-correction residual now indexes — re-read the docstring, the "
+        "σ_sys semantics may have been fixed")
