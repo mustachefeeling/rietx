@@ -83,20 +83,100 @@ export type Mode = "ball" | "ellipsoid";
  * One surface for every solid in the scene — balls, ellipsoids and sticks — so
  * the three cannot drift apart.
  *
- * plotly's `lightposition` is a fixed point in **data** space, not a light that
- * follows the camera, and this component deliberately does not redraw while the
- * user drags: so whatever the far side of the scene looks like after a rotation
- * is what it looks like until something else redraws.  The answer is therefore a
- * surface that never needs the key light — mostly ambient, little diffuse — and
- * a specular low enough that 400 identical spheres do not read as a tray of
- * plastic beads.  The light itself sits over the opening view's shoulder rather
- * than at the equator, which is the most a static light can do.
+ * WP-1015's second pass set this to `ambient 0.75, diffuse 0.55, specular 0.08`
+ * for a stated reason: plotly's `lightposition` is a fixed point in **data**
+ * space rather than a light that follows the camera, and this component does
+ * not redraw during a drag — so a light over the opening view's shoulder ends
+ * up behind the scene after a half turn, and the far side goes black. Raising
+ * ambient bought "never black" and paid for it with every depth cue, which is
+ * why overlapping same-coloured atoms merged into one blob.
+ *
+ * That trade is avoidable now, and the thing that makes it avoidable landed in
+ * the same pass: the panel reads the **live camera** before every redraw
+ * (`Structure3D.svelte:liveCamera`, added when `plotly_relayout` turned out
+ * never to fire for a gl3d drag). So `lightPosition` is recomputed from that
+ * camera at each `react` and the key light is always over the viewer's
+ * shoulder. It still does not follow a *drag* — but a drag is precisely the
+ * interaction that supplies its own depth cue by moving, and every redraw after
+ * it is lit correctly.
+ *
+ * Specular stays modest: 400 identical spheres at a high specular read as a
+ * tray of plastic beads, which is WP-1015's observation and still true.
  */
 export const LIGHTING = {
-  ambient: 0.75, diffuse: 0.55, specular: 0.08, roughness: 0.5, fresnel: 0.1,
+  ambient: 0.42, diffuse: 0.88, specular: 0.12, roughness: 0.45, fresnel: 0.15,
 };
 
-export const LIGHT_POSITION = { x: 1e5, y: 1e5, z: 1e5 };
+/** Far enough that the light is effectively directional at any cell size. */
+const LIGHT_DISTANCE = 1e5;
+
+/** The opening view's shoulder — the fallback, and what the scene looked like
+ *  before the light could follow anything. */
+export const LIGHT_POSITION = { x: LIGHT_DISTANCE, y: LIGHT_DISTANCE, z: LIGHT_DISTANCE };
+
+/**
+ * A key light over the viewer's shoulder, up and to the left.
+ *
+ * `lightposition` is in **data** coordinates while `camera.eye` is in the
+ * scene's, and the one line that makes this legal is a fact WP-1015's second
+ * pass established for a different reason: `aspectmode: "data"` makes the
+ * data→scene map a *uniform* scale, so a direction in Å is a direction in
+ * camera coordinates. (It is the same premise `axisCamera` rests on.) Only the
+ * direction is used — the magnitude is large enough that the light is
+ * directional and the scene's own offset from the origin does not matter.
+ *
+ * Up-and-to-the-left rather than straight down the eye: a light *at* the eye
+ * flattens everything it lights, because nothing it can see is in shadow. The
+ * three-quarter key is the oldest fix there is.
+ */
+export function lightPosition(camera: Camera): { x: number; y: number; z: number } {
+  const eye = norm([camera.eye.x, camera.eye.y, camera.eye.z]);
+  if (!eye) return LIGHT_POSITION;
+  const rawUp = camera.up ?? { x: 0, y: 0, z: 1 };
+  // the part of `up` across the line of sight; a camera looking straight down
+  // its own up vector leaves nothing, and then any perpendicular will do
+  const along = rawUp.x * eye[0] + rawUp.y * eye[1] + rawUp.z * eye[2];
+  const up = norm([rawUp.x - along * eye[0], rawUp.y - along * eye[1],
+                   rawUp.z - along * eye[2]]) ?? perpendicular(eye);
+  const right = [eye[1] * up[2] - eye[2] * up[1],
+                 eye[2] * up[0] - eye[0] * up[2],
+                 eye[0] * up[1] - eye[1] * up[0]];
+  const dir = norm([eye[0] + 0.55 * up[0] - 0.45 * right[0],
+                    eye[1] + 0.55 * up[1] - 0.45 * right[1],
+                    eye[2] + 0.55 * up[2] - 0.45 * right[2]]) ?? eye;
+  return { x: dir[0] * LIGHT_DISTANCE, y: dir[1] * LIGHT_DISTANCE,
+           z: dir[2] * LIGHT_DISTANCE };
+}
+
+function norm(v: number[]): number[] | null {
+  const n = Math.hypot(v[0], v[1], v[2]);
+  return n > 1e-12 ? [v[0] / n, v[1] / n, v[2] / n] : null;
+}
+
+function perpendicular(v: number[]): number[] {
+  const axis = Math.abs(v[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  return norm([axis[1] * v[2] - axis[2] * v[1],
+               axis[2] * v[0] - axis[0] * v[2],
+               axis[0] * v[1] - axis[1] * v[0]]) ?? [0, 0, 1];
+}
+
+/**
+ * A colour scaled toward black — the second depth cue, for images outside the
+ * cell.
+ *
+ * Not decoration and not only a depth cue: a boundary atom is the *same* atom
+ * seen at the opposite face (or a bonded neighbour just outside), so drawing it
+ * dimmer says what it is. It also separates the case the complaint was really
+ * about — two same-coloured spheres overlapping at a cell face, one of which is
+ * an image of the other.
+ */
+export function dim(color: string, factor = 0.62): string {
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return color;
+  const channel = (at: number) =>
+    Math.round(parseInt(color.slice(at, at + 2), 16) * factor)
+      .toString(16).padStart(2, "0");
+  return `#${channel(1)}${channel(3)}${channel(5)}`;
+}
 
 export interface Mesh {
   vertices: number[][];
@@ -280,40 +360,48 @@ export function legend(geometry: Geometry): Array<{ species: string; color: stri
  */
 export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
                            hidden: ReadonlySet<string> = new Set(),
-                           showBoundary = true): any[] {
+                           showBoundary = true,
+                           light = LIGHT_POSITION): any[] {
   const traces: any[] = [];
   for (const entry of legend(geometry)) {
     if (hidden.has(entry.species)) continue;
     const indices = new Set(entry.sites.map((site) => site.index));
-    const x: number[] = [], y: number[] = [], z: number[] = [];
-    const i: number[] = [], j: number[] = [], k: number[] = [];
-    const text: string[] = [];
-    for (const atom of geometry.atoms) {
-      if (!indices.has(atom.site)) continue;
-      if (atom.boundary && !showBoundary) continue;
-      const matrix = atomTransform(geometry, atom, mode);
-      const label = atomLabel(geometry, atom, mode);
-      const offset = x.length;
-      for (const v of sphere.vertices) {
-        const p = transform(matrix, v);
-        x.push(atom.pos[0] + p[0]);
-        y.push(atom.pos[1] + p[1]);
-        z.push(atom.pos[2] + p[2]);
-        text.push(label);
+    // two buffers per species, not one: an image outside the cell is drawn
+    // dimmer, which says what it is *and* separates the overlap at a cell face
+    // that the "atoms merge" complaint was really about
+    for (const outside of [false, true]) {
+      if (outside && !showBoundary) continue;
+      const x: number[] = [], y: number[] = [], z: number[] = [];
+      const i: number[] = [], j: number[] = [], k: number[] = [];
+      const text: string[] = [];
+      for (const atom of geometry.atoms) {
+        if (!indices.has(atom.site)) continue;
+        if (Boolean(atom.boundary) !== outside) continue;
+        const matrix = atomTransform(geometry, atom, mode);
+        const label = atomLabel(geometry, atom, mode);
+        const offset = x.length;
+        for (const v of sphere.vertices) {
+          const p = transform(matrix, v);
+          x.push(atom.pos[0] + p[0]);
+          y.push(atom.pos[1] + p[1]);
+          z.push(atom.pos[2] + p[2]);
+          text.push(label);
+        }
+        for (const face of sphere.faces) {
+          i.push(offset + face[0]);
+          j.push(offset + face[1]);
+          k.push(offset + face[2]);
+        }
       }
-      for (const face of sphere.faces) {
-        i.push(offset + face[0]);
-        j.push(offset + face[1]);
-        k.push(offset + face[2]);
-      }
+      if (!x.length) continue;
+      traces.push({
+        type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
+        color: outside ? dim(entry.color) : entry.color,
+        flatshading: false, showlegend: false,
+        lighting: LIGHTING, lightposition: light,
+        hovertemplate: "%{text}<extra></extra>",
+      });
     }
-    if (!x.length) continue;
-    traces.push({
-      type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
-      color: entry.color, flatshading: false, showlegend: false,
-      lighting: LIGHTING, lightposition: LIGHT_POSITION,
-      hovertemplate: "%{text}<extra></extra>",
-    });
   }
   return traces;
 }
@@ -341,7 +429,8 @@ export const STICK_RADIUS = 0.08;
  * own halves with it rather than leaving coloured stubs in mid-air.
  */
 export function bondTraces(geometry: Geometry, cylinder: Mesh,
-                           hidden: ReadonlySet<string> = new Set()): any[] {
+                           hidden: ReadonlySet<string> = new Set(),
+                           light = LIGHT_POSITION): any[] {
   const buckets = new Map<string, any>();
   for (const bond of geometry.bonds) {
     const mid = [0, 1, 2].map((k) => (bond.a[k] + bond.b[k]) / 2);
@@ -357,7 +446,7 @@ export function bondTraces(geometry: Geometry, cylinder: Mesh,
           type: "mesh3d", name: `bonds:${site.species}`,
           x: [], y: [], z: [], i: [], j: [], k: [], text: [],
           color: site.color, flatshading: false, showlegend: false,
-          lighting: LIGHTING, lightposition: LIGHT_POSITION,
+          lighting: LIGHTING, lightposition: light,
           hovertemplate: "%{text}<extra></extra>",
         };
         buckets.set(site.species, bucket);
@@ -434,10 +523,14 @@ export function axisTrace(geometry: Geometry, color: string): any {
 export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
                        cylinder: Mesh, cell: string,
                        hidden: ReadonlySet<string> = new Set(),
-                       showBoundary = true): any[] {
+                       showBoundary = true,
+                       camera: Camera = DEFAULT_CAMERA): any[] {
+  // one light for the whole scene, from the camera this draw is using — the
+  // sticks and the balls must not disagree about where it is
+  const light = lightPosition(camera);
   return [cellTrace(geometry, cell), axisTrace(geometry, cell),
-          ...bondTraces(geometry, cylinder, hidden),
-          ...atomTraces(geometry, mode, sphere, hidden, showBoundary)];
+          ...bondTraces(geometry, cylinder, hidden, light),
+          ...atomTraces(geometry, mode, sphere, hidden, showBoundary, light)];
 }
 
 /** A camera in the scene's coordinates.  Typed rather than `any` so a wrong

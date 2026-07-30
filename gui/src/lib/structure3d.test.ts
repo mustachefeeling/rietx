@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_CAMERA,
+  LIGHT_POSITION,
   atomLabel,
   atomTransform,
   atomTraces,
@@ -22,7 +23,9 @@ import {
   bondTraces,
   caption,
   cellTrace,
+  dim,
   layout,
+  lightPosition,
   legend,
   stickTransform,
   traces,
@@ -178,26 +181,26 @@ describe("the transform", () => {
 });
 
 describe("the traces", () => {
-  it("groups atoms into one mesh per species, with per-atom face offsets", () => {
+  it("groups atoms per species and per side of the cell wall, with face offsets", () => {
     const geo = geometry();
     const sphere = unitSphere(4, 6);
     const meshes = atomTraces(geo, "ball", sphere);
-    expect(meshes.map((m) => m.name)).toEqual(["La", "B"]);
-    // La is drawn twice (the corner and its boundary image), B once
-    expect(meshes[0].x.length).toBe(2 * sphere.vertices.length);
-    expect(meshes[1].x.length).toBe(sphere.vertices.length);
-    expect(meshes[0].i.length).toBe(2 * sphere.faces.length);
-    // the second atom's faces must point into the second atom's vertices
-    const second = meshes[0].i.slice(sphere.faces.length);
-    expect(Math.min(...second)).toBeGreaterThanOrEqual(sphere.vertices.length);
-    expect(Math.max(...meshes[0].i)).toBeLessThan(meshes[0].x.length);
+    // two buffers for La — one inside the cell, one for its boundary image,
+    // which is drawn dimmer (WP-1029) — and one for B, which has no image
+    expect(meshes.map((m) => m.name)).toEqual(["La", "La", "B"]);
+    expect(meshes[1].color).toBe(dim(meshes[0].color));
+    for (const mesh of meshes) {
+      expect(mesh.x.length).toBe(sphere.vertices.length);
+      expect(mesh.i.length).toBe(sphere.faces.length);
+      expect(Math.max(...mesh.i)).toBeLessThan(mesh.x.length);
+    }
   });
 
   it("puts each atom's own hover text on each of its vertices", () => {
     const meshes = atomTraces(geometry(), "ellipsoid", unitSphere(4, 6));
-    expect(new Set(meshes[0].text).size).toBe(2);   // corner and boundary image
     expect(meshes[0].text[0]).toContain("La (La)");
-    expect(meshes[1].text[0]).toContain("RMS");
+    expect(meshes[1].text[0]).toContain("La (La)");   // the image, same atom
+    expect(meshes[2].text[0]).toContain("RMS");
   });
 
   it("hides the species the legend switched off, and the boundary images", () => {
@@ -207,6 +210,38 @@ describe("the traces", () => {
       .toEqual(["B"]);
     const inner = atomTraces(geo, "ball", sphere, new Set(), false);
     expect(inner[0].x.length).toBe(sphere.vertices.length);   // one La, not two
+  });
+
+  it("puts the key light over the viewer's shoulder, wherever the viewer is", () => {
+    // WP-1029: the light is recomputed from the *live* camera at each draw, so
+    // the far side of the scene is never the unlit side.  That is only legal
+    // because `aspectmode: "data"` makes the data→scene map a uniform scale —
+    // a direction in Å is a direction in camera coordinates.
+    for (const eye of [{ x: 1.4, y: 1.4, z: 1.0 }, { x: -2, y: 0, z: 0 },
+                       { x: 0, y: 0, z: 3 }, { x: -0.6, y: -1.4, z: -1.5 }]) {
+      const light = lightPosition({ eye, up: { x: 0, y: 0, z: 1 } });
+      const eyeLen = Math.hypot(eye.x, eye.y, eye.z);
+      const lightLen = Math.hypot(light.x, light.y, light.z);
+      const cos = (light.x * eye.x + light.y * eye.y + light.z * eye.z)
+        / (eyeLen * lightLen);
+      // in front of the scene from the viewer's side…
+      expect(cos).toBeGreaterThan(0.5);
+      // …and off-axis, because a light *at* the eye casts no shadow at all and
+      // flattens every sphere it lights, which is the bug being fixed
+      expect(cos).toBeLessThan(0.95);
+    }
+    // a degenerate camera falls back rather than emitting NaNs
+    expect(lightPosition({ eye: { x: 0, y: 0, z: 0 } })).toEqual(LIGHT_POSITION);
+    // …including one whose up vector is its own line of sight
+    const edge = lightPosition({ eye: { x: 0, y: 0, z: 2 }, up: { x: 0, y: 0, z: 1 } });
+    expect(Number.isFinite(edge.x) && Number.isFinite(edge.y) && Number.isFinite(edge.z))
+      .toBe(true);
+  });
+
+  it("dims an image outside the cell rather than drawing it identically", () => {
+    expect(dim("#ffffff", 0.5)).toBe("#808080");
+    expect(dim("#48d860")).toBe("#2d863c");   // 0.62 of each channel, rounded
+    expect(dim("not a colour")).toBe("not a colour");
   });
 
   it("breaks the cell polyline with nulls", () => {
@@ -251,7 +286,7 @@ describe("the traces", () => {
     const all = traces(geometry(), "ball", unitSphere(4, 6), unitCylinder(6),
                        "#ccc");
     expect(all.map((t) => t.name))
-      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "B"]);
+      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "La", "B"]);
   });
 
   it("labels the cell's own axes, clear of the corner atoms", () => {

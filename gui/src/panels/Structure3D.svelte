@@ -169,7 +169,9 @@
     pending = null;
     await plotly.react(
       node,
-      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary),
+      // the camera is handed to `traces` as well as to `layout`: the key light
+      // is computed from it, so it must be the *same* camera this draw uses
+      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary, camera),
       layout(style.color, camera),
       // the default gl3d modebar floats over a panel this small, and one of its
       // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the

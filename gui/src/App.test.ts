@@ -1742,7 +1742,7 @@ describe("the structure viewer", () => {
     await openViewer();
     const { traces, layout } = drawn[drawn.length - 1];
     expect(traces.map((t: any) => t.name))
-      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "B"]);
+      .toEqual(["cell", "axes", "bonds:La", "bonds:B", "La", "La", "B"]);
     expect(trace(drawn, "La").type).toBe("mesh3d");
     // a stick is in Å like everything else, so it is a mesh and not a 4 px line
     expect(trace(drawn, "bonds:La").type).toBe("mesh3d");
