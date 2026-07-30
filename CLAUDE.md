@@ -451,7 +451,11 @@ concluding anything about the sample. Engines supply the confidence by
 **agreeing**, the same device as `direction="both"` and the cross-backend matrix —
 **two** of them, not three: the whole-profile Monte Carlo is a measured no-go
 (WP-1023), so `high` confidence means both landed engines agree and that is the
-ceiling rather than a shortfall.
+ceiling rather than a shortfall. The same rule runs one step further into the
+workflow: the **extinction symbol**, not the space group, is what a powder measures,
+so `determine_extinction_symbol` answers with a ranked list of classes and every
+class carries a *list* of space groups — the one place in the package where the
+singleton is not merely unsupported but unmeasurable.
 
 `index_pattern(peaks | data+instrument)` (`indexing/workflow.py`) runs that
 pipeline: quality gate → engines → `indexing/consensus.py` (merge on the reduced
@@ -472,6 +476,29 @@ and frees exactly one peak-position parameter, chosen from the candidate's own s
 template. And on real data with no measured shift, `high` is currently
 *unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
 bigger constant, and it is WP-1026's.
+
+`determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
+is the next step and keeps the same rule one rank down: it ranks the **extinction
+classes** the lattice admits, each listing its space groups, because the powder
+observable is the extinction symbol and groups sharing an absence set produce
+identical patterns *by construction*. Classes are derived — every gemmi setting
+whose **lattice** (not crystal system: a hexagonal metric carries the trigonal-P
+groups) matches, grouped by identical absences over the hkl in range — never
+transcribed from IT A Table 3.2, which cannot speak about a non-standard setting the
+indexed axes may be in. Each class is fitted by Le Bail with the profile frozen at
+one shared pre-fit and scored by `report.layer2`'s ΔBIC against the absence-free
+lattice; **Rwp cannot be the score** (fewer absences ⇒ more reflections ⇒ never a
+worse fit; measured, the true monoclinic class and its screw-free partner differ by
+1e-5 in Rwp and 24 in ΔBIC). Three counts are decisions: `n_added` counts only
+**testable** absences — in range and separable from every line the class still
+allows — or a class whose absences all hide under neighbours wins on parsimony with
+no measurement behind it; a *line*'s absence is asked of the whole orbit (`P a -3`
+extinguishes 012 but not 021, one 2θ); and **the absence test's null model is the
+class's own `y_calc`, not the fitted background** — the same
+`workflow.absent_reflections`, called with `y_calc` in the `y_background` slot,
+because a forbidden position sits inside a dense predicted pattern where a phantom
+reflection sits in a gap (measured on FAP: the forbidden 003 reads +27.6 σ against
+the background and −3.9 σ against the model, its allowed neighbour 0.89 FWHM away).
 
 Two invariants inherited from fixing WP-1020 while building on it. **An ambiguity
 partner must be refuted by the lines it needs and the data lack** — a superlattice

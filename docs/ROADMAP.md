@@ -46,6 +46,37 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**The workflow now reaches the space group — as a *class*, which is what a powder
+measures (2026-07-30).** [1025](wp/1025-extinction-symbol.md) landed:
+`determine_extinction_symbol(data, candidate, instrument)` enumerates every gemmi
+setting whose **lattice** is the indexed one, groups them by identical absence sets
+over the hkl in range, fits each class by Le Bail with the profile frozen at one
+shared pre-fit, and scores them by ΔBIC against the absence-free lattice. Measured
+on fluorapatite, whose group the GSAS-II tutorial refines as P 6₃/m, the answer is
+`P 63 - -` listing {P 6₃, P 6₃/m, P 6₃22} — the truth is *inside* the answer and is
+not the answer, because those three produce identical patterns by construction. On
+NAC the answer is the absence-free I class, which is also correct and for a sharper
+reason: I 2₁3's screw axes are invisible **in principle**, since I-centring already
+extinguishes the very reflections the 2₁ would.
+
+**Its method result is that a detector's null model has to contain the competing
+hypothesis's own predictions.** The plan said to reuse WP-1024's
+`absent_reflections` against the fitted background; measured, that refutes the true
+class. FAP's forbidden 003 sits **0.89 FWHM** from an allowed neighbour ten times
+stronger, whose tail fills the ±½ FWHM window to **+27.6 σ**. Against the class's
+own `y_calc` — background plus every reflection the class still allows — the same
+window reads **−3.9 σ**. The fix keeps one detector: the same function, called with
+`y_calc` in the `y_background` slot, which reduces to WP-1024's test exactly where
+nothing is predicted nearby. WP-1024's version was right for what it did, because a
+phantom reflection sits in a gap. Two counts carry the rest of the epistemics:
+`n_added` counts only the **testable** absences (in range, and separable from every
+line the class still allows), without which a class whose absences all hide under
+neighbours wins on parsimony alone; and the absence of a *line* is asked of the
+whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
+
+Next: [1026](wp/1026-indexing-acceptance.md) (real-data acceptance),
+[1027](wp/1027-gui-peak-picker.md) (GUI).
+
 **Indexing works end to end (2026-07-30).**
 [1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of
 `refine()`: a raw pattern goes in, peaks are picked, both engines search, their
@@ -58,9 +89,7 @@ observed line and tie the truth on every forward-looking figure come back `low`,
 refuted by `predicted_but_absent`. `pxrdref index <file> --wavelength λ` does the
 same from a shell and carries the verdict in its exit status; `task="index"` is the
 agent surface's fourth branch, answering in its own arm because its answer has no
-cell in it. Next: [1025](wp/1025-extinction-symbol.md) (space group),
-[1026](wp/1026-indexing-acceptance.md) (real-data acceptance),
-[1027](wp/1027-gui-peak-picker.md) (GUI).
+cell in it.
 
 **The gate's ceiling is a result, not a shortfall — and on real lab data it is
 currently unreachable, deliberately.** `high` means every engine that ran found the
@@ -1221,7 +1250,7 @@ per concurrent session, or only one session commits.
 | [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ✅ 2026-07-30 | — |
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
 | [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
-| [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ⬜ | 1024 |
+| [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
 

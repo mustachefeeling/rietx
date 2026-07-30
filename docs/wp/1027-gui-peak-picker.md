@@ -87,6 +87,19 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+**From WP-1025 (landed 2026-07-30) — there is a second answer to render, and it
+has the same shape rule.** `determine_extinction_symbol(data, candidate, instrument)`
+returns a ranked `ExtinctionScreen` whose every row lists its space groups, so the
+panel that follows "adopt this cell" is another **table**, not a symbol: a row per
+extinction class with `symbol`, `space_groups` (all of them), `delta_bic`,
+`n_absent`/`n_testable`, and the refuting hkl for a refuted row. A UI that renders
+one space group re-introduces exactly what the API forbids — and here the singleton
+is not merely unsupported but *unmeasurable*, since the groups in a class produce
+identical patterns. `EXTINCTION_GROUPS_NOT_SEPARABLE` is an `info` that must be
+shown rather than filtered as noise; it is the explanation of why the row has three
+names in it. Cost for a progress affordance: one shared profile fit (~2 s) then
+~0.1 s per class, 7 classes for a hexagonal lattice and 71 for orthorhombic P.
+
 From **WP-1008**: routes `GET/POST /api/peaks`,
 `POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
 `GET /api/index/result`, `POST /api/index/adopt` were reserved (404 until this

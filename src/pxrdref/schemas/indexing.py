@@ -944,16 +944,20 @@ class ExtinctionScreen(Base):
 
         Returns a class only when it was fitted, is not refuted, rests on at
         least one absence the data could **test** (or is the absence-free class
-        itself, whose claim is that there is nothing to see), and is separated
-        from the next surviving class by a decisive ΔBIC margin.  Every other
-        situation returns None with the reason in :attr:`diagnostics`.
+        itself, whose claim is that there is nothing to see), is separated from
+        the next surviving class by a decisive ΔBIC margin, and **no unrefuted
+        class was left unfitted** — a ``max_classes`` cap or a cancelled run
+        leaves an unasked question, which must not read as a clean answer.  Every
+        other situation returns None with the reason in :attr:`diagnostics`.
 
         A returned class still lists every space group it contains.  There is no
         accessor anywhere in this module that yields one space group.
         """
         from ..indexing.extinction import DECISIVE_DELTA_BIC
 
-        alive = [c for c in self.candidates if not c.refuted and c.screened]
+        if any(not c.refuted and not c.screened for c in self.candidates):
+            return None                 # an unasked question, not a clean answer
+        alive = [c for c in self.candidates if not c.refuted]
         if not alive:
             return None
         top = alive[0]

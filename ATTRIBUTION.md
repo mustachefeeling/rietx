@@ -15,6 +15,11 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   term counts of its Table 1. The allowed subspace here is *derived* from the
   space-group operators (`crystallography/stephens.py`), not transcribed from the
   table — the table is the independent check.
+- Markvardsen, A. J., David, W. I. F., Johnston, J. C. & Shankland, K. (2001).
+  *Acta Cryst.* A57, 47–54 — probabilistic space-group determination from powder
+  data, and the reason the answer here is an *extinction symbol* rather than a
+  space group. Method reference only: the screen in `indexing/extinction.py`
+  scores classes by ΔBIC and direct absence evidence, not by their posterior.
 - Popa, N. C. (1998). *J. Appl. Cryst.* 31, 176–180 — the equivalent
   strain-tensor formulation of the same anisotropy (concept reference; the
   phenomenological parameterisation is what is implemented).

@@ -101,7 +101,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Indexing core: Q-space form, derived metric subspaces, reduction, two-opinion Bravais, figure-of-merit **panel**, geometrical ambiguity with the reflections that break each tie | ✅ |
 | Unit-cell search engines: exhaustive dichotomy over the metric domain, and the exact-solve index heuristic — cubic→monoclinic recovered from synthetic lists, ranked on the FoM panel | ✅ |
 | `index_pattern()`: consensus across engines, whole-profile Le Bail validation, and a confidence gate whose API cannot express a confident wrong singleton — no `.cell`, only a gated `best_or_none()` | ✅ |
-| Extinction symbol / space group from the systematic absences | in flight |
+| Extinction symbol from the systematic absences: classes derived from the operators, screened by Le Bail and ΔBIC, each **listing** its space groups because a powder cannot separate them | ✅ |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes

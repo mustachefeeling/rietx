@@ -99,6 +99,25 @@ is now a named, gated caveat rather than a loose observation.** Four things:
   accordingly and give it `@pytest.mark.slow`; the module fixture group name to
   follow is `indexing-consensus`'s.
 
+**From WP-1025 (landed 2026-07-30) — the extinction screen exists, it has already
+made two real-data claims, and neither is in the validation matrix.** Three things:
+
+- **`tests/test_extinction_symbol.py` asserts on FAP and on NAC** (leading class
+  `P 63 - -` listing {P 6₃, P 6₃/m, P 6₃22}; `I - - -` listing six groups including
+  the true I 2₁3), marked `slow`, ~2 s each. The matrix guard only collects
+  `test_acceptance_*.py`, so **those rows are invisible to `docs/VALIDATION.md`**.
+  Decide deliberately: register them (they are `characterisation` claims — "the
+  answer is a class, and the true group is inside it" — plus a `consistency` row
+  against the GSAS-II tutorial's own space group), or state why a screen assertion
+  is not an acceptance assertion. Do not leave it decided by which file it landed in.
+- **The screen needs a *pattern*, so the bethanechol sets cannot run it.** Its
+  evidence is a Le Bail fit's residual at forbidden positions, and those six sets
+  are bare 2θ lists. The benchmark scores the cell; the extinction symbol is a
+  separate claim that only your two profile datasets can carry.
+- **Its cost model is the one to copy**: one shared profile fit (~2 s) plus ~0.1 s
+  per class, so a hexagonal screen is 2.2 s and an orthorhombic-P one (71 classes)
+  ~10 s. The module fixture group name is `extinction-symbol`.
+
 From **WP-1023**: if its spike returned no-go and engine C was dropped, the
 `found_by == all engines` assertions here are against two engines, not three.
 

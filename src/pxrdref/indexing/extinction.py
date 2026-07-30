@@ -65,10 +65,11 @@ restricted model, and the reported ``delta_bic`` is BIC(class) − BIC(absence-f
 lattice): negative favours the class, and the difference between two classes'
 values is itself a ΔBIC because both share the reference.
 
-Markvardsen, David, Johnson & Shankland (2001), *Acta Cryst.* **A57**, 47-54 is
-the Bayesian formulation of this problem — a full posterior over extinction
-symbols from the extracted intensities.  ΔBIC plus direct absence evidence is the
-v1.0 form of the same logic; the posterior is a v2 fence.
+Markvardsen, David, Johnston & Shankland (2001), *Acta Cryst.* **A57**, 47-54 is
+the Bayesian formulation of this problem — a full posterior over **extinction
+symbols** (their term and their unit of answer, which is the corroboration that
+matters here) from the extracted intensities.  ΔBIC plus direct absence evidence
+is the v1.0 form of the same logic; the posterior is a v2 fence.
 """
 
 from __future__ import annotations

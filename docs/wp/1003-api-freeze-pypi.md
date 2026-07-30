@@ -10,6 +10,19 @@ the milestone's last row, so the freeze covers a surface the GUI exercised)
 
 ## Inherited
 
+**From WP-1025 (landed 2026-07-30) — new frozen surface, and one decision left
+open on purpose.** `determine_extinction_symbol` is exported from `pxrdref` as a
+peer of `index_pattern`, with `ExtinctionCandidate`/`ExtinctionScreen` in
+`schemas/indexing.py`; `ExtinctionScreen.best_or_none()` is the singleton
+accessor and the freeze should cover the *absence* of a `.symbol`/`.space_group`
+attribute as deliberately as it covers what is there. The open decision: **the
+agent JSON surface has four task arms and the extinction screen is not one of
+them.** WP-0602's union is strict and `agent.tool_definition()` quotes live
+registries, so adding a fifth arm is a schema change that ought to happen before
+the freeze rather than after — or be declined on the record. Note its answer is a
+third *shape* (a ranked list of classes, each with a list of groups), so it would
+need its own arm the way `indexing` did, not a field on an existing one.
+
 From the **v1.0 GUI expansion** (un-fencing commit, 2026-07-29) — new surface
 the freeze must cover, and four decisions parked here deliberately:
 

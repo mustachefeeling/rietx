@@ -362,6 +362,26 @@ def test_every_wrong_class_is_refuted_by_a_named_reflection(mono_screen):
         assert all(lo <= t <= hi for t in cand.forbidden_two_theta)
 
 
+def test_a_capped_screen_abstains_because_the_question_was_not_asked():
+    """``max_classes`` bounds the cost, and the answer says it was bounded.
+
+    The same rule as the indexing gate's ``checked`` caveat one rank up: a class
+    nobody fitted has an unasked question behind it, and an unasked question must
+    not read as a clean answer — even when the classes that *were* fitted look
+    decisive on their own.
+    """
+    structure, instrument = _mono_models()
+    data = _pattern(structure, instrument)
+    screen = determine_extinction_symbol(
+        data, _candidate(MONO_CELL, "monoclinic"), instrument,
+        two_theta_limits=MONO_RANGE, max_classes=2)
+    assert screen.n_classes > screen.n_screened == 2
+    assert screen.best_or_none() is None
+    note = next(d for d in screen.diagnostics
+                if d.code == "EXTINCTION_SYMBOL_AMBIGUOUS")
+    assert "never fitted" in note.message
+
+
 def test_intensity_at_a_forbidden_position_refutes_the_class():
     """Inject one peak where P 2₁/c forbids a reflection, and the class falls.
 
