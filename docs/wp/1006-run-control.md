@@ -1,6 +1,6 @@
 # WP-1006 — Run control: streaming, progress, cancellation
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: —
 
 ## Goal
@@ -63,19 +63,19 @@ check-between-evaluations pattern transfers directly to a search loop.
 
 ## Tasks
 
-- [ ] `Refinement.run_stage(..., events=)` — mirror `fit`'s parameter into
+- [x] `Refinement.run_stage(..., events=)` — mirror `fit`'s parameter into
       the public single-stage path; test that `run_stage` emits
       `stage_start`/`eval`/`stage_end`.
-- [ ] `optimize/cancel.py`: `CancelToken` + `RefinementCancelled`;
+- [x] `optimize/cancel.py`: `CancelToken` + `RefinementCancelled`;
       `run_least_squares(..., cancel=None)` checked in the TRF residual
       wrapper and the LM callback only.
-- [ ] Cancel semantics in `refine.py`: abandoned stage (no node, table not
+- [x] Cancel semantics in `refine.py`: abandoned stage (no node, table not
       committed), re-raise with `.completed_stages`; working state at last
       completed node — tested via a token tripped from an event callback.
-- [ ] `stage_start.index` / `.n_stages` additive fields + the additivity
+- [x] `stage_start.index` / `.n_stages` additive fields + the additivity
       note in `history/events.py`; live viewer/watch unaffected (they ignore
       unknown fields — assert that stays true).
-- [ ] `tests/test_run_control.py`: cancel stops within ≤2 further residual
+- [x] `tests/test_run_control.py`: cancel stops within ≤2 further residual
       evals; `run_stage` streams; `.completed_stages` correct across both
       solvers (`trf`, `lm`).
 
@@ -97,3 +97,68 @@ check-between-evaluations pattern transfers directly to a search loop.
   against the tree the same day (`run_stage` lacks `events=`; `_run_stage`
   has it; `run_least_squares` has no `cancel=`; both solver paths already
   have an event hook to piggyback on).
+
+- **2026-07-30 — landed**, on branch `v1-gui-backend-api` (with WP-1004).
+  Acceptance green; fast suite 1158 passed / 4 skipped in ~52 s.
+
+  **Done.** All five checklist items, plus `events=`/`cancel=` forwarded through
+  the one-shot `refine()` — a caller who reached for that form is the least able
+  to build the object graph that would otherwise be needed to watch or stop a
+  run.
+
+  **Two designed-against-the-plan decisions, both measured.**
+
+  - *The cancel check went into the residual wrapper for **both** drivers, not
+    into the LM callback.* The plan put it in `lm.minimize`'s callback, which
+    fires only on **accepted** points (`lm.py:324`) — so an inner loop that
+    raises λ without ever accepting a step would never see the token, and the
+    worst case is unbounded rather than one iteration. Wrapping the residual is
+    still "at eval boundaries only" and bounds the latency on both drivers.
+    The *events* wrapper stays TRF-only, so the LM event stream is still
+    accepted-points-only, as its comment promises. **Measured: zero further
+    evaluations run after the token trips** (the check precedes the evaluation),
+    against the WP's ≤2 bar.
+  - *Abandoning a stage had to restore the models, which the plan did not
+    anticipate.* "No history node, table not committed" is not the whole of
+    "abandoned": `_run_stage` calls `apply_to_models` **before** solving, so a
+    seeding stage (`seed` lifting extinction off the softplus floor,
+    `strain_seed` putting a Stephens block on the isotropic ray) has already
+    written a value nobody chose by the time the first residual runs. The
+    `_abandon_on_cancel` context manager keeps a pre-stage deep copy — **only
+    when a token is present**, so an ordinary fit pays nothing — and restores it.
+    Pinned by a test that cancels an extinction stage and asserts the
+    coefficient is back at exactly 0.
+
+  **Findings.**
+
+  - **The `"index"` run kind was not added, on purpose**, and WP-1024 has been
+    told so in its `### Inherited`. `EventKind` is a closed Literal; a kind
+    nothing emits is an untested guess about a loop that does not exist. What
+    the guess was protecting landed anyway: the token needs no stages, no Rwp
+    and no history node, and `data` is an open dict, so "engine 2 of 3,
+    orthorhombic" is expressible *today*.
+  - **The additivity rule needed writing down more than it needed enforcing.**
+    Both halves are now tested — every field an old reader knew is still
+    emitted, and a key nobody knows still validates, because `EventRecord`
+    validates the *envelope* and not the payload. The same rule read from the
+    other side is why a cancelled `fit_end` may simply omit `rwp`/`gof`: there
+    is no result, and a consumer that unpacks a fixed shape was already wrong.
+  - **`fit`'s stage loop is now `_run_plan`.** Cancellation needs exactly one
+    exit point to emit `fit_end` and close a stream it created; leaving that
+    inline would have meant a `try` wrapping two thirds of a 90-line method.
+    Behaviour is unchanged (same suite, same numbers).
+
+  **Next / not done here.** Nothing outstanding. The GUI server (WP-1008) holds
+  the token; its `### Inherited` now names the three things the session model
+  should encode rather than rediscover (a cancelled run *raises*; progress is
+  1-based and server-side bookkeeping-free; read event payloads with `.get`).
+
+  **Gotchas.**
+
+  - A `CancelToken` set *before* `fit` is called raises on the very first
+    residual evaluation of the first stage, so `completed_stages` is empty and
+    `node_id` is the root (or `None` without history). That is correct, but a
+    UI that assumes "cancelled ⇒ something completed" will be wrong.
+  - `sequential.py` and `multi.py` do **not** thread a token: cancelling a
+    series would need per-pattern semantics (abandon this pattern, or the whole
+    chain?) and that is a decision, not plumbing. Left for whoever needs it.

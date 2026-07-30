@@ -64,6 +64,17 @@ Structure/Instrument/PatternData (schemas/, pydantic, JSON round-trip)
     events, viz/live.py + watch.py render them live
 ```
 
+`fit`, `run_stage` and `refine` all take `events=` (telemetry) and `cancel=`
+(an `optimize.cancel.CancelToken` another thread sets). Cancellation is
+**cooperative, read between residual evaluations** — never an interrupt, so
+frozen-per-stage discreteness holds — and the in-flight stage is *abandoned*:
+no node, no commit, and the models restored to their pre-stage values, because
+a seeding stage writes to them before solving. `RefinementCancelled` carries
+`.completed_stages` and `.node_id`, the last completed node the working state
+now stands at. Event `data` is an **open dict**: adding a field to a kind is
+not an `EVENT_SCHEMA_VERSION` bump (a new kind is) — the rule, and both halves
+of its test, are in `history/events.py`.
+
 A **series** (in-situ ramp, parametric sweep, tray of related specimens) is N
 separate refinements chained by a warm start — `sequential.py`
 (`SequentialRefinement` / `refine_sequential`), returning a `SeriesResult` of

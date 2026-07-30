@@ -66,6 +66,19 @@ From the **v1.0 GUI plan** (2026-07-29): the HTTP routes are declared
 **provisional** at v1.0 — schemas frozen, wire surface not (recorded in
 WP-1003's `### Inherited`). Don't burn effort on wire-level backcompat here.
 
+From **WP-1006** (landed 2026-07-30): the run machinery is `CancelToken` (dumb:
+`cancel()` / `is_set()` / `reset()`, reusable) and `RefinementCancelled`, both
+exported from `pxrdref`. `fit`, `run_stage` and `refine` all take
+`events=`/`cancel=`. Three things the session model should encode rather than
+rediscover: (a) a cancelled run **raises**, it does not return a partial result
+— the response is built from `exc.completed_stages` and `exc.node_id`, and that
+node id is where the working state stands, so it is what a "resume" button
+checks out; (b) `stage_start` carries **1-based** `index` and `n_stages`, so
+progress needs no bookkeeping server-side; (c) a cancelled run's `fit_end`
+carries `status="cancelled"` and **no** `rwp`/`gof` — read the event payload
+with `.get`, never by unpacking a fixed shape, because that rule is what makes
+event fields addable without a schema version bump.
+
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): **reserve these
 routes now** (404 until WP-1027 fills them) so the shape is settled before the
 frontend scaffold lands — `GET/POST /api/peaks`,

@@ -21,6 +21,25 @@ the freeze must cover, and four decisions parked here deliberately:
   (`parameters()`, `set_vary`, the set-value verb — WP-1004 settles its
   name against `NodeAction.api_call`'s rendering), and
   `CancelToken`/`RefinementCancelled` (WP-1006).
+
+  *Updated 2026-07-30, WP-1004 + WP-1006 landed.* Now concrete, and the
+  top-level exports are already added: `ParameterRow`, `TieSpec`, `PlanSpec`,
+  `StageSpec`, `PlanInfo`, `PLAN_INFO`, `PLAN_PRESETS`, `CancelToken`,
+  `RefinementCancelled`; the verbs are `parameters()`, `set_vary(globs, vary)`
+  and **`set_values({path: value})`** (plural — decided in favour of what
+  `api_call` had always rendered, so the persisted `"set_value"` NodeKind
+  literal is untouched). Four freeze decisions this leaves:
+  (a) the `schemas.history` / `agent` re-export aliases — frozen path or
+  deprecation, as above, now that both are one-line `# noqa: F401` imports;
+  (b) `NodeAction` gained `seed`/`strain_seed` (WP-1004) and event `data` is an
+  open dict (WP-1006) — **the freeze should say explicitly that additive fields
+  on these two are not breaking changes**, or every later correction is stuck;
+  (c) `ParameterRow`'s field set is pinned to `params.vector.Entry` by test, so
+  freezing the row freezes the *internal* dataclass by proxy — say so
+  deliberately or the coupling will be discovered the hard way;
+  (d) `PlanSpec.stages` is permissive (no `min_length`) because it must read
+  pre-v1.0 history headers, with the non-empty check living in the agent
+  request validator — that asymmetry is intentional and worth a release note.
 - **The HTTP routes and the `.pxt` text format are declared *provisional* at
   v1.0** — schemas frozen, wire/text surfaces not. State this in the release
   notes (WP-1017's `gui-power.md` states it user-facing; this WP states it
