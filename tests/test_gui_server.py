@@ -576,6 +576,8 @@ def test_report_and_history_read_the_fitted_session(fitted):
     assert report["summary"] and report["thresholds_version"]
     assert report["rwp"] == pytest.approx(
         project.refinement.result_.statistics.rwp)
+    # WP-1012: what applies travels beside what is suggested, one arm per action
+    assert len(payload["apply"]) == len(report["suggested_actions"])
 
     status, payload = client.get("/api/history")
     assert status == 200
@@ -701,7 +703,10 @@ def test_mutating_verbs_refuse_while_a_run_is_in_flight(blocked):
             # the body complaint, or the user debugs the wrong thing
             ("PATCH", "/api/structure", {"structure": {"phases": []}}),
             ("POST", "/api/export/cif", {}),
-            ("GET", "/api/report", None)):
+            ("GET", "/api/report", None),
+            # …and the state refusal outranks "there is no result to apply to",
+            # which is the complaint this one would otherwise answer with
+            ("POST", "/api/report/apply", {"kind": "refine_cell"})):
         status, payload = client.request(method, path, body)
         assert status == 409, (path, status, payload)
         assert payload["error"]["code"] == "RUN_IN_FLIGHT", (path, payload)

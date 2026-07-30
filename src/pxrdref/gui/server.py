@@ -181,6 +181,7 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/result"): lambda s, q, b: s.result(),
     ("GET", "/api/result/window"): _window,
     ("GET", "/api/report"): _report,
+    ("POST", "/api/report/apply"): lambda s, q, b: s.report_apply(b),
 
     ("GET", "/api/textdoc"): lambda s, q, b: s.textdoc(),
     ("PUT", "/api/textdoc"): lambda s, q, b: s.textdoc_put(b),

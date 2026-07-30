@@ -394,9 +394,14 @@ def estimate_delta_chi2(result: RefinementResult,
                         attributions: list[RegionAttribution]) -> float | None:
     """Optimistic χ² reduction if every gated region's misfit were removed.
 
-    Upper bound by construction (it assumes the linear model is exact and the
-    corrections are mutually compatible); reported so an agent can rank
-    actions, never as a promise.
+    Optimistic *within the gated regions* — it assumes the linear model is exact
+    and the corrections mutually compatible.  It is **not** a bound on what
+    applying an action achieves: a refinement also improves regions that failed a
+    gate and stretches of pattern no region entry covers, and WP-1012 measured the
+    observed reduction exceeding this estimate by 0.8 % on a cell correction
+    (16.19 predicted, 16.33 observed).  It is also one number for the whole
+    report, which ``build_report`` stamps on every action, so it ranks nothing —
+    see :class:`~pxrdref.report.schemas.SuggestedAction`.
     """
     usable = [a for a in attributions if a.gates_passed]
     if not usable:

@@ -56,6 +56,7 @@ from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
 from ..project import Project
 from ..refine import _VERSION
+from ..report.apply import api_call, describe_action, refusal, stage_for
 from ..schemas.instrument import Instrument
 from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.structure import Structure
@@ -88,7 +89,6 @@ RESERVED_ROUTES: dict[tuple[str, str], str] = {
     ("POST", "/api/upload/pattern"): "WP-1014 (import & in-GUI editing)",
     ("POST", "/api/upload/cif"): "WP-1014 (import & in-GUI editing)",
     ("POST", "/api/upload/instrument"): "WP-1014 (import & in-GUI editing)",
-    ("POST", "/api/report/apply"): "WP-1012 (one-click suggestions)",
     ("GET", "/api/structure3d"): "WP-1015 (structure viewer)",
     ("GET", "/api/peaks"): "WP-1027 (GUI peak picker)",
     ("POST", "/api/peaks"): "WP-1027 (GUI peak picker)",
@@ -795,19 +795,82 @@ class GuiSession:
         }
 
     def report(self, plan: str | None = None) -> dict:
-        """The three-layer :class:`FitReport` for the last fit.
+        """The three-layer :class:`FitReport` for the last fit, plus what applies.
 
         Needs the compiled model, so it is idle-only: Layers 1-2 read the
         derivative expansion of the state a stage would be rewriting.
+
+        ``apply`` runs **parallel to** ``report["suggested_actions"]``, one entry
+        per action in the same order, and says whether :meth:`report_apply` would
+        act on it and what it would run.  Parallel rather than keyed by kind
+        because a kind is not unique — two textured phases emit two
+        ``refine_preferred_orientation`` actions — and served here rather than
+        computed in the client for the reason ``held_because`` travels on a
+        parameter row: a button's enabled-ness and the route's willingness to act
+        must not be two answers.
         """
+        report = self._report_object(plan)
+        return {"report": report.model_dump(mode="json"),
+                "apply": [describe_action(a, held=self._held(),
+                                          indexing=_indexing())
+                          for a in report.suggested_actions]}
+
+    def _held(self) -> dict[str, str]:
+        """Every parameter path → why it is held, ``""`` when it is refinable.
+
+        The reachability half of ``report.apply`` reads this rather than a list of
+        refinable paths, so a refusal can quote ``held_because`` verbatim instead
+        of guessing which of the three reasons applies.
+        """
+        return {row.path: row.held_because
+                for row in self._need_project().parameters()}
+
+    def _report_object(self, plan: str | None = None):
         self._require_idle()
         p = self._need_project()
         self._need_result()
         try:
-            report = p.refinement.report(plan=plan or self._effective_plan())
+            return p.refinement.report(plan=plan or self._effective_plan())
         except RuntimeError as exc:
             raise GuiError(str(exc), code="NO_RESULT", status=409) from None
-        return {"report": report.model_dump(mode="json")}
+
+    def report_apply(self, body: dict) -> dict:
+        """Carry out one suggested action — as one stage, through ``run``.
+
+        The action is looked up in a report built **now**, not taken from the
+        body: a client-supplied glob would make this a second spelling of
+        ``POST /api/run``, and the veto (which the strategy engine holds) is a
+        server-side judgement that a stale panel must not be able to skip.
+        ``paths`` is only a disambiguator — a kind can appear twice, and guessing
+        which of two textured phases was meant is exactly the confident-wrong
+        singleton this report is built not to produce.
+
+        Returns before the run finishes, like every other run: what is new is
+        ``undo`` (the head to check out to get back — an applied action is a
+        history node, so undo needs no inverse verb) and ``chi2_before``, which is
+        what lets a panel put the *observed* Δχ² beside the predicted one.
+        """
+        self._require_idle()
+        p = self._need_project()
+        kind = _need(body, "kind")
+        report = self._report_object(body.get("plan"))
+        action = _pick_action(report, kind, body.get("paths"))
+        why = refusal(action, held=self._held(), indexing=_indexing())
+        if why:
+            raise GuiError(
+                f"{kind} cannot be applied here: {why}", code="ACTION_NOT_APPLICABLE",
+                status=409, where=list(action.parameter_paths))
+        stage = stage_for(action)
+        undo = p.refinement._head_id
+        before = p.refinement.result_.statistics.chi2
+        frame = self.run({"kind": "stage", "stage": stage.model_dump(mode="json")})
+        return {"applied": {"kind": action.kind,
+                            "confidence": action.confidence,
+                            "rationale": action.rationale,
+                            "expected_delta_chi2": action.expected_delta_chi2,
+                            "stage": stage.model_dump(mode="json")},
+                "api_call": api_call(stage), "undo": undo,
+                "chi2_before": before, **frame}
 
     # ------------------------------------------------------------------
     # history
@@ -1062,6 +1125,48 @@ def _locate(message: str, text: str) -> dict:
                 return {"line": n, "message": message, "where": path,
                         "text": line.rstrip()}
     return {"line": 0, "message": message, "where": "", "text": ""}
+
+
+def _indexing() -> bool:
+    """Whether this build has an indexing engine — a *derived* predicate.
+
+    Read through ``capabilities()`` rather than by importing ``index``, so the one
+    action whose availability is a build feature turns on by itself when WP-1024
+    lands and nothing here has to be edited (WP-1007's rule).
+    """
+    return bool(_capabilities().features.get("indexing"))
+
+
+def _pick_action(report, kind: str, paths: Any = None):
+    """The one suggestion ``kind`` (and optionally ``paths``) names.
+
+    ``FitReport.action`` returns the *first* match, which is wrong here: two
+    textured phases emit two ``refine_preferred_orientation`` actions with
+    different ``parameter_paths``, and applying the wrong one would free the wrong
+    phase's March coefficient.  So an ambiguous request is refused and told how to
+    disambiguate rather than resolved by position.
+    """
+    hits = [a for a in report.suggested_actions if a.kind == kind]
+    if not hits:
+        raise GuiError(
+            f"this report suggests no {kind!r}; it suggests "
+            f"{[a.kind for a in report.suggested_actions]}",
+            code="NOT_FOUND", status=404, where=["kind"])
+    if paths is not None:
+        wanted = [str(p) for p in paths]
+        exact = [a for a in hits if list(a.parameter_paths) == wanted]
+        if not exact:
+            raise GuiError(
+                f"no {kind!r} suggestion carries paths {wanted}; this report has "
+                f"{[list(a.parameter_paths) for a in hits]}",
+                code="NOT_FOUND", status=404, where=["paths"])
+        return exact[0]
+    if len(hits) > 1:
+        raise GuiError(
+            f"{len(hits)} {kind!r} suggestions in this report; send 'paths' to say "
+            f"which — {[list(a.parameter_paths) for a in hits]}",
+            code="AMBIGUOUS_ACTION", where=["paths"])
+    return hits[0]
 
 
 def _need(body: dict, key: str):
