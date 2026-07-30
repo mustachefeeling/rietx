@@ -46,21 +46,71 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
-**Indexing: the three engine rows are closed (2026-07-30) — two built, one a
-measured no-go — and [1024](wp/1024-indexing-consensus.md) (consensus,
-`index_pattern`, the confidence gate) is next.** Both landed engines recover cubic
-through monoclinic from synthetic lists with the truth **ranked first** and
-`search_complete` true: [1021](wp/1021-engine-dichotomy.md) exhaustive
-branch-and-bound over the metric domain (0.02-0.8 s, monoclinic 103 s over a
-declared d ∈ [6,18] Å) and [1022](wp/1022-engine-trial-error.md) the exact n×n solve
-from assumed base-line indices (0.04-5.3 s, monoclinic 91 s). They share
-`indexing/engines.py` — one `SearchSpec`, one answer shape, the live registry 1024's
-agent schema will quote, and the reflection-ceiling crash guard.
-[1023](wp/1023-engine-montecarlo.md) is a **recorded no-go**: its Task-0 spike shows
-tier-1 cannot rank (details below), so the confidence gate is a **two-engine
-consensus** and 1024's `### Inherited` already says so.
+**Indexing works end to end (2026-07-30).**
+[1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of
+`refine()`: a raw pattern goes in, peaks are picked, both engines search, their
+candidates are merged as reduced cells, ranked on the whole figure-of-merit panel,
+screened for geometrical ambiguity, validated against the **whole profile** by a Le
+Bail fit, and gated on **agreement**. Measured on a synthetic LaB₆ pattern picking
+its own peaks, `best_or_none()` returns a = 4.15659 Å against a true 4.1566 — 2 ppm
+— at `high` confidence, while the cubic F and I supercells that index *every*
+observed line and tie the truth on every forward-looking figure come back `low`,
+refuted by `predicted_but_absent`. `pxrdref index <file> --wavelength λ` does the
+same from a shell and carries the verdict in its exit status; `task="index"` is the
+agent surface's fourth branch, answering in its own arm because its answer has no
+cell in it. Next: [1025](wp/1025-extinction-symbol.md) (space group),
+[1026](wp/1026-indexing-acceptance.md) (real-data acceptance),
+[1027](wp/1027-gui-peak-picker.md) (GUI).
 
-**The milestone's method result so far is that every one of the three rows was
+**The gate's ceiling is a result, not a shortfall — and on real lab data it is
+currently unreachable, deliberately.** `high` means every engine that ran found the
+same lattice and *nothing* qualifies it; two engines is the ceiling because
+[1023](wp/1023-engine-montecarlo.md) is a measured no-go. But both engines widen
+their matching window by an **assumed** systematic allowance whenever no shift has
+been measured — which is the normal state at index time — and a cell found inside a
+widened window absorbs the shift (+1400 ppm measured). That raises
+`shift_allowance_assumed`, which caps confidence on its own. So a real pattern with
+no internal standard tops out at `medium`, and the way to clear it is *evidence* — a
+calibrated `sigma_sys_deg`, or reference positions — never a bigger constant. Same
+posture as Layer 1's abstention, one rank up; 1026 owns closing it.
+
+**Two of the three engine rows' plans were contradicted by measurement, and so was
+1024's.** Its context section named Layer 0's `unmatched_calc` as the
+predicted-but-absent detector. It cannot work, structurally: Le Bail extraction
+assigns each reflection `max(y_obs − y_bkg, 0)`, so a reflection predicted where
+there is nothing gets nothing and **produces no negative residual at all** — what
+the detector finds instead is 5σ noise excursions near a tick. Measured, it fired on
+**17 of a certified cell's own 28 reflections** and 94 of a doubled cell's 153, 61 %
+either way. Asking the question directly against the *fitted* background separates
+them cleanly (0/28 against 117/153). The general form is worth carrying: **a detector
+built for a Rietveld residual does not transfer to a Le Bail one**, because Le Bail
+cannot over-predict — it fits whatever is there.
+
+**And the three detectors that do work catch different failures, which is why none
+of them is the score.** Same four cells, same pattern: Rwp is decisive on a wrong
+*metric* (0.98 against a correct 0.22) and nearly silent on an *oversized* one
+(0.379 — a gap smaller than the spread between specimens), where only
+`predicted_but_absent` sees it; the wrong metric is caught from the other side by
+`unmatched_observed` (95 observed peaks with nothing calculated). This is v0.5's
+method result in a new costume: **judge a step by what it makes visible, not by
+Δ Rwp.**
+
+**Two more WP-1020 defects surfaced, and both were invisible until a consumer needed
+a *yes*.** Every earlier WP consumed 1020 to *rank*; 1024 is the first to consume it
+to *promote*. `ambiguity.py` never implemented the exclusion its own docstring
+states, so every derivative superlattice was reported as an ambiguity partner — **28
+for a certified cubic cell** — and since the gate refuses `high` to any candidate
+with a partner, the indexer could never have answered at all. And
+`bravais_screen` handed a Niggli-reduced cell's *input* centring back to
+`find_lattice_symmetry`, but the reduction already consumed it: gemmi called a cubic
+I lattice **trigonal** (6 lattice rotations instead of 24) while spglib correctly
+said `Im-3m`, so the two "disagreed" on every centred candidate and capped half of
+all real structures at `medium` for good. The ambiguity defect had a *passing test
+asserting the wrong behaviour*, with reasoning that read only the observed positions
+and ignored the absences — `indexed_fraction`'s measured blind spot, one module
+over, written into a test.
+
+**The milestone's method result so far is that every one of the engine rows was
 decided by a measurement that contradicted its own plan.** 1021's plan had volume
 shells and a bisection from one domain; measured, shells cost eight grid passes with
 the answer's shell last, and a single depth-first stack explored 11.9 M boxes without
@@ -93,8 +143,9 @@ cell comes back +1400 ppm with the shift absorbed — and the gap is handed to
 [1026](wp/1026-indexing-acceptance.md) with the numbers rather than closed by raising
 a constant against one dataset.
 
-**Four defects in already-landed WP-1020 code were found by building on it**, each
-of which had been ranking a wrong cell above the truth: `borda_scores` gave *tied*
+**Four earlier defects in already-landed WP-1020 code were found by building on it**
+(the two above are a fifth and sixth), each of which had been ranking a wrong cell
+above the truth: `borda_scores` gave *tied*
 candidates distinct ranks in input order (up to N−1 points of noise per tied member,
 and two of five panel members saturate at 1.0, so most candidates tie);
 `predicted_lines` counted symmetry orbits rather than lines, so cubic 333 and 511 —
@@ -1169,7 +1220,7 @@ per concurrent session, or only one session commits.
 | [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ✅ 2026-07-30 | — |
 | [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ✅ 2026-07-30 | — |
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
-| [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ⬜ | 1021–1023 |
+| [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ⬜ | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |

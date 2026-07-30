@@ -100,7 +100,8 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Indexing data-quality gate + systematic-shift model (zero shift vs displacement vs transparency, named only when separable) | ✅ |
 | Indexing core: Q-space form, derived metric subspaces, reduction, two-opinion Bravais, figure-of-merit **panel**, geometrical ambiguity with the reflections that break each tie | ✅ |
 | Unit-cell search engines: exhaustive dichotomy over the metric domain, and the exact-solve index heuristic — cubic→monoclinic recovered from synthetic lists, ranked on the FoM panel | ✅ |
-| `index_pattern()`: consensus across engines, the confidence gate, Le Bail validation | in flight |
+| `index_pattern()`: consensus across engines, whole-profile Le Bail validation, and a confidence gate whose API cannot express a confident wrong singleton — no `.cell`, only a gated `best_or_none()` | ✅ |
+| Extinction symbol / space group from the systematic absences | in flight |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes

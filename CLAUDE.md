@@ -111,11 +111,14 @@ an off-table θ block — `model.forward.PawleyBlock`, appended in
 `run_least_squares`; overlapped groups get equal-split restraints and come back
 flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
 tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602):
-one call covering refine/refine_multi/refine_sequential behind a strict task
-union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
+one call covering refine/refine_multi/refine_sequential/**index** behind a strict
+task union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
 traceback), and `agent.tool_definition()` exporting the JSON Schema with the
-backend/solver/plan names quoted from the live registries — a meta-test fails
-if a registry member is missing from the schema.
+backend/solver/plan/**engine** names quoted from the live registries — a meta-test
+fails if a registry member is missing from the schema. The four answers live in
+separate arms (`result` / `series` / `indexing`) because they are different
+*shapes*, and for indexing the shape is the rule: the serialized answer carries no
+`cell` key either.
 
 ## Invariants (do not break)
 
@@ -343,7 +346,8 @@ if a registry member is missing from the schema.
   consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
   second worker rebuilds the whole fixture and the sharing costs more than it
   saved. Same rule one scope down: a module fixture several tests share pins
-  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`, …). The
+  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`,
+  `indexing-consensus`, …). The
   failure is silent, so the check is a `--durations` scan for the same setup
   appearing twice. Because runtime is set by the longest *group*, not by total
   work, splitting a group is the only way to go faster — and un-sharing a
@@ -420,7 +424,7 @@ last one shipped, because that string is stamped into every
 expanded into v1.0 on 2026-07-29) lands *before* the freeze (WP-1003) so the
 freeze covers an exercised surface; stack decision in DESIGN.md §Outputs.
 **Indexing** (WP-1018…1027, added the same day) lands before the freeze for the
-same reason — `index()` is a peer of `refine()`, and until it exists the
+same reason — `index_pattern()` is a peer of `refine()`, and until it exists the
 package cannot touch a phase whose cell is unknown. Its governing rule is the
 FitReport's one rank up: an indexer must never hand back one cell confidently,
 so `IndexingResult` has **no** `.cell`/`.best` attribute, only a gated
@@ -434,6 +438,37 @@ concluding anything about the sample. Engines supply the confidence by
 **two** of them, not three: the whole-profile Monte Carlo is a measured no-go
 (WP-1023), so `high` confidence means both landed engines agree and that is the
 ceiling rather than a shortfall.
+
+`index_pattern(peaks | data+instrument)` (`indexing/workflow.py`) runs that
+pipeline: quality gate → engines → `indexing/consensus.py` (merge on the reduced
+cell, `found_by` union, Borda over the panel, two-opinion Bravais, ambiguity) →
+Le Bail validation → the gate. Three rules there are load-bearing. **`high`
+requires zero caveats**, and `IndexCaveat`/`INDEX_REFUTING_CAVEATS`
+(`schemas/indexing.py`) are the whole gate: five caveats refute a cell and drop it
+to `low`, the rest cap it at `medium`, and *count* deliberately does not separate
+medium from low. **Whole-profile validation is mandatory** — the FoM panel sees ≤20
+lines and cannot see reflections predicted where there is no intensity, so
+`validate_by_lebail` reports `predicted_but_absent`, which is what catches an
+oversized cell (measured: 117 of 153 reflections for a doubled cell, 0 of 28 for the
+truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
+serve as that detector and the plan was wrong to name it: Le Bail extraction assigns
+~nothing to a phantom reflection, so there is no negative residual, and the detector
+fires on 61 % of the reflections either way. **The validation fit holds the cell**
+and frees exactly one peak-position parameter, chosen from the candidate's own shift
+template. And on real data with no measured shift, `high` is currently
+*unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
+bigger constant, and it is WP-1026's.
+
+Two invariants inherited from fixing WP-1020 while building on it. **An ambiguity
+partner must be refuted by the lines it needs and the data lack** — a superlattice
+indexes every observed line by construction, so without that exclusion every
+derivative lattice is reported (28 for a certified cubic cell) and the gate can never
+promote anything; the test is asymmetric (the partner's *extra* predictions, never the
+parent's own absent ones) and a surviving partner's discriminating reflections are
+therefore *outside* the measured range. **A Niggli-reduced cell is primitive**, so
+`ReducedCell.centring` is provenance about the input and must never be handed back to
+anything that applies a centring — doing so made gemmi call a cubic I lattice
+trigonal.
 
 Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
 `EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test

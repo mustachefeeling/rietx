@@ -215,6 +215,11 @@ intact:
   property "since everyone writes `candidates[0]` anyway"; the answer is no,
   and the reason is that the module exists to be able to say "the data cannot
   distinguish these". WP-1026 ships an API-shape test asserting this; keep it.
+  *(Amended by WP-1024, 2026-07-30: the API-shape test landed **here**, not in
+  1026 — `tests/test_indexing_consensus.py`, asserting on
+  `IndexingResult.model_fields` and on the class itself, plus a second one on the
+  **serialized** agent answer, since the envelope is where a convenience
+  singleton is easiest to reintroduce.)*
 - **`report/schemas.py`'s `ActionKind` does not change** — indexing gives the
   already-declared `reindex_or_recheck_cell` something to call, nothing more —
   so `THRESHOLDS_VERSION` should **not** bump for it. Check this before
@@ -225,6 +230,29 @@ intact:
 - **This WP's `Depends on` becomes `1001, 1002, 1004-1027`**, and the freeze is
   still the milestone's last row: the point of landing indexing before it is
   that the frozen surface has been exercised.
+
+**From WP-1024 (landed 2026-07-30) — three additions to that freeze list, and one
+version that already moved.**
+
+- **Two closed vocabularies join the frozen surface**: `IndexCaveat` (the reasons a
+  candidate is not `high`) and `INDEX_REFUTING_CAVEATS` (which of them refute rather
+  than cap). They are closed for the same reason `ActionKind` is — consumers branch
+  on them, and a GUI colours chips from the split — so adding a member is a
+  compatibility event, not a detail. Also `Confidence`
+  (`"high" | "medium" | "low"`) and `INDEX_MIN_INDEXED_FRACTION`.
+- **`EVENT_SCHEMA_VERSION` is now `"2"`.** WP-1024 added the
+  `index_start`/`index_end` kinds WP-1006 deferred, which is what that constant is
+  *for*; the per-engine progress deliberately reuses `stage_start`/`stage_end` with
+  extra `data` keys, which is additive. So the freeze inherits `"2"` and the
+  additivity rule written down in `history/events.py` — check it before bumping
+  reflexively, in both directions.
+- **`AgentSuccess` has a third arm, `indexing`**, and the docstring's "exactly one
+  of result/series" became "exactly one of result/series/indexing". A consumer
+  branching on which arm is set is the intended contract and is now three-way.
+- **`report/schemas.py`'s `ActionKind` did not change and `THRESHOLDS_VERSION` did
+  not bump**, exactly as the note above predicted: `reindex_or_recheck_cell` and
+  `add_impurity_phase` got new *rationale text* naming `index_pattern`, nothing
+  more. Confirmed rather than assumed.
 
 From **WP-0309** (exporters, landed 2026-07-24): `write_refinement_cif`'s
 round-trip is validated for **single-phase only** — a full multi-phase

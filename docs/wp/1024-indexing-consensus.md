@@ -1,6 +1,6 @@
 # WP-1024 — Consensus, `index_pattern`, Le Bail validation, agent & CLI surface
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: 1021, 1022, 1023
 
 ## Goal
@@ -260,39 +260,47 @@ are; the tolerance belongs in the *scoring*, not in the stopping rule.
 
 ## Tasks
 
-- [ ] `indexing/consensus.py`: reduce → two-opinion Bravais → χ² dedup and
+- [x] `indexing/consensus.py`: reduce → two-opinion Bravais → χ² dedup and
       `found_by` merge → ambiguity partners → Borda rank → validation →
       the confidence gate; `best_or_none`.
-- [ ] `indexing/workflow.py`: `structure_from_candidate` (both footguns in the
+- [x] `indexing/workflow.py`: `structure_from_candidate` (both footguns in the
       docstring), `validate_by_lebail` returning `LeBailValidation` with
-      `predicted_but_absent` from Layer 0's `unmatched_calc`.
-- [ ] `index_pattern` + `IndexingResult` in `schemas/indexing.py`
+      `predicted_but_absent` from ~~Layer 0's `unmatched_calc`~~ **the net
+      intensity above the fitted background** — `unmatched_calc` was measured
+      unusable (see the handover).
+- [x] `index_pattern` + `IndexingResult` in `schemas/indexing.py`
       (`systems_searched`, `search_complete`, `engine_stats`, seed in
       `Provenance`); `pxrdref/__init__.py` exports.
-- [ ] All `INDEX_*` diagnostics not already owned by 1019, in particular
+- [x] All `INDEX_*` diagnostics not already owned by 1019, in particular
       `INDEX_ABSTAINED`, `INDEX_MULTIPLE_SOLUTIONS`,
       `INDEX_GEOMETRIC_AMBIGUITY`, `INDEX_SYSTEMS_NOT_COVERED`,
       `INDEX_NOT_VALIDATED`, `INDEX_IMPURITY_LINES`,
-      `INDEX_VOLUME_UNPHYSICAL`, `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED`.
-- [ ] `agent.py`: `IndexRequest` in the discriminated task union
+      `INDEX_VOLUME_UNPHYSICAL`, `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED`
+      (+ `INDEX_BRAVAIS_AMBIGUOUS`, `INDEX_PREDICTED_BUT_ABSENT`).
+- [x] `history/events.py`: the `index_start`/`index_end` kinds WP-1006 deferred,
+      `EVENT_SCHEMA_VERSION` 1 → 2 (a new kind bumps; the per-engine progress
+      reuses `stage_start`/`stage_end`, which is additive and would not have).
+- [x] `agent.py`: `IndexRequest` in the discriminated task union
       (`_TASK_TAGS`), `tool_definition()` quoting the live engine registry, and
       the meta-test that fails when a registered engine is missing from the
       schema. `cli.py`: `pxrdref index`.
-- [ ] `docs/AGENT_PROTOCOL.md`: the closed-loop workflow section
+- [x] `docs/AGENT_PROTOCOL.md`: the closed-loop workflow section
       (`pick_peaks → index_pattern → best_or_none → … → refine`), plus §6
       abstention and §7 code rows; `report/layer2.py` suggestion text points at
-      the new API (**no enum change, no version bump** — say so in the commit).
-- [ ] `tests/test_indexing.py`: the confidence gate under each caveat; the
-      **API-shape test** (no unconditional singleton accessor; `best_or_none()`
-      returns `None` for each gate failure); the **restricted-search test**
-      (synthetic orthorhombic list with `systems=("cubic","tetragonal",
-      "hexagonal")` ⇒ `INDEX_SYSTEMS_NOT_COVERED`, `systems_searched` excludes
-      orthorhombic, nothing asserts multiphase; unrestricted rerun finds it).
+      the new API (**no enum change, no version bump** — said so in the commit).
+- [x] `tests/test_indexing_consensus.py` (not `test_indexing.py` — the WP-1018…
+      1022 files are already split by subject): the confidence gate under each
+      caveat; the **API-shape test** (no unconditional singleton accessor;
+      `best_or_none()` returns `None` for each gate failure); the
+      **restricted-search test** (synthetic orthorhombic list with
+      `systems=("cubic","tetragonal","hexagonal")` ⇒
+      `INDEX_SYSTEMS_NOT_COVERED`, `systems_searched` excludes orthorhombic,
+      nothing asserts multiphase; rerun with orthorhombic in scope finds it).
 
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_indexing.py tests/test_agent_surface.py -q
+.venv/bin/python -m pytest tests/test_indexing_consensus.py tests/test_agent_surface.py -q
 .venv/bin/python -m pytest tests/test_fitreport_layers.py -q
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -301,6 +309,13 @@ Criterion: `best_or_none()` returns `None` under every gate failure and a cell
 only when the gate is fully satisfied; the agent schema quotes every registered
 engine; and the restricted-search test proves a limited search cannot be read
 as a multiphase verdict.
+
+**Met, 2026-07-30.** 26 + 28 + 22 tests green; ruff clean; fast suite 1247 passed
+/ 66 skipped. End to end on a synthetic LaB₆ pattern, picking its own peaks:
+`best_or_none()` returns a = 4.15659 Å against a true 4.1566 (2 ppm) at `high`,
+and the cubic F and I supercells — which index every observed line and tie the
+truth on every forward-looking figure — come back `low`, refuted by
+`predicted_but_absent`.
 
 ## References
 
@@ -320,3 +335,135 @@ as a multiphase verdict.
 ## Handover log
 
 - **2026-07-29** — created from the indexing plan.
+
+- **2026-07-30 — landed.** `indexing/consensus.py` (merge → Bravais → ambiguity →
+  Borda → the gate), `indexing/workflow.py` (`index_pattern`,
+  `structure_from_candidate`, `validate_by_lebail`), `IndexingResult` +
+  `LeBailValidation` + `BravaisOpinion` + the gate fields in
+  `schemas/indexing.py`, the `INDEX_*` translators in `indexing/diagnostics.py`,
+  the `index_start`/`index_end` event kinds, `task="index"`, `pxrdref index`,
+  AGENT_PROTOCOL §7c/§7d/§8.15/§8.16, and
+  `tests/test_indexing_consensus.py`.
+
+  **Done / measured.** The whole pipeline works end to end from a raw pattern:
+  peaks picked, both engines run, the truth ranked first, validated, gated, and
+  `best_or_none()` returning a cell 2 ppm from the true one. The CLI does the same
+  from a file and carries the verdict in its exit status.
+
+  ### The three findings that outlast this WP
+
+  **1. The plan's `predicted_but_absent` detector cannot work, and the reason is
+  structural.** WP-1024's context section named Layer 0's `unmatched_calc` — its
+  strong-negative-residual count. Le Bail extraction sets each intensity from
+  `max(y_obs − y_bkg, 0)`, so a reflection predicted where there is nothing is
+  assigned ~nothing and **produces no negative residual at all**; what the detector
+  finds instead is 5σ noise excursions that happen to sit near a tick. Measured on
+  a synthetic LaB₆ pattern (15-145° 2θ, Poisson noise): `unmatched_calc` fired on
+  **17 of the certified cell's own 28 reflections** and 94 of a doubled cell's 153
+  — 61 % either way, i.e. it does not separate them. `workflow.absent_reflections`
+  asks the question directly against the *fitted* background and separates them
+  cleanly (0/28 against 117/153). The generalisable form: **a detector built for a
+  Rietveld residual does not transfer to a Le Bail one**, because Le Bail cannot
+  over-predict by construction — it fits whatever is there. Anything else that
+  reads the Le Bail residual for "the model says something the data do not" needs
+  re-deriving, not re-using.
+
+  **2. Two WP-1020 defects, both invisible until a consumer needed a *yes*.** Every
+  earlier WP consumed 1020 to *rank*; this one is the first to consume it to
+  *promote*, and both defects only bit in that direction.
+
+  - `ambiguity.py` never implemented the exclusion its own module docstring
+    states. A superlattice's reciprocal lattice contains the parent's, so it
+    indexes every observed line exactly and passed both existing screens
+    (`n_indexed`, mean discrepancy): **28 partners for a certified cubic cell** on
+    exact positions, 20-35 across systems. Since the gate refuses `high` to any
+    candidate with a partner, the indexer could never have answered. The fix is the
+    docstring's own rule — a partner needing a line the data lack is refuted — and
+    it moves the discriminating reflections *outside* the measured range, so
+    partner lines are now predicted to 1.5× 2θ_max.
+  - `bravais_screen` handed `ReducedCell.centring` back to
+    `gemmi.find_lattice_symmetry`, but Niggli reduction of a centred cell returns
+    the reduced **primitive** cell — the centring is already consumed. gemmi
+    therefore called a cubic I lattice **trigonal** (6 lattice rotations instead of
+    24) while spglib, which gets the bare lattice, correctly said `Im-3m`. The two
+    "disagreed" on every centred candidate, and `methods_disagree` capped their
+    confidence for good. Half of all real structures are centred.
+
+  Both had passing tests. The ambiguity one had a test asserting the *wrong*
+  behaviour, with reasoning ("a supercell indexes every observed line, so it cannot
+  be excluded by the positions alone") that reads only the observed positions and
+  ignores the absences — which is `indexed_fraction`'s measured blind spot, one
+  module over, in a test. It is rewritten with the crystallography: a 2a cell whose
+  odd reflections are identically zero has the a-translation, so the *lattice* is
+  the a-lattice and the supercell is a cell choice.
+
+  **3. `high` confidence is currently unreachable on real lab data, by design, and
+  that is the honest state rather than a bug to file.** Both engines widen their
+  matching window by an *assumed* `DEFAULT_UNKNOWN_SHIFT_DEG` when no shift has
+  been measured, which raises `shift_allowance_assumed` — and a cell found inside a
+  widened window absorbs the shift (+1400 ppm measured). The gate therefore caps
+  such a candidate at `medium`. Declaring a calibrated `sigma_sys_deg`, or handing
+  `assess_peak_list` reference positions from an internal standard, clears it — and
+  the synthetic tests reach `high` by declaring `sigma_sys_deg=1e-9`. **Do not
+  "fix" this by removing the caveat or widening the constant.** WP-1026 owns
+  closing it with evidence.
+
+  ### Decisions taken against the plan, with reasons
+
+  - **`INDEX_CELL_SYSTEMATIC_UNQUANTIFIED`'s trigger changed.** The plan asked for
+    it "on Bragg-Brentano data when no radius was supplied"; `Geometry`'s validator
+    *raises* on exactly that, so no such instrument can exist. The reachable — and
+    stronger — statement is that a **declared** radius is not identifiable from the
+    data either (Rwp moves 0.029 points across 180-320 mm), so the ±85 ppm is
+    present whatever the caller declared and unquantified because the fit cannot
+    measure it. It now fires on any Bragg-Brentano answer, and also when no
+    instrument was supplied at all (geometry unknown).
+  - **The validation fit holds the cell.** `profile_only` frees
+    `phases.*.cell.*`, which would validate a *different* cell from the one
+    reported. `workflow.validation_plan` frees the background, exactly **one**
+    peak-position parameter (chosen from the candidate's own `shift_template`
+    through `diagnostics.SHIFT_CAUSE`'s mapping, because the three templates are
+    collinear), then the widths in the `profile_only` order.
+  - **`lebail_rwp` is a field on `LeBailValidation`, not a panel member.** 1020's
+    handover owed it here. It costs a refinement, so it exists only for the
+    shortlist — and ranking on it would reintroduce the blind spot validation
+    exists to close, since a bigger cell with more free intensities fits better.
+  - **Two extra caveats beyond the plan's gate**: `validation_failed` (a Le Bail
+    fit that raised or diverged — evidence *about* the candidate, and not the same
+    statement as `not_validated`, which is the absence of a test), and
+    `bravais_ambiguous`. And **caveat count does not separate medium from low**: an
+    assumed tolerance plus an unvalidated candidate is the ordinary state of a
+    peaks-only run, so the plan's "all with one caveat → medium" is read with its
+    first clause ("≥2 engines") as the fallback.
+  - **`pxrdref compare` got no new row**, as the plan required, and the reasoning
+    is worth keeping: indexing is not a correction and produces no alternative fit
+    of the same model, so a variant row would be a fake comparison.
+
+  ### In flight / next
+
+  Nothing in flight. What this WP did **not** do, and where it went:
+
+  - **Real-data acceptance is WP-1026's**, and it inherits a live gap (see §3
+    above) plus a working `index_pattern` to test with.
+  - **Space-group determination is WP-1025's.** `structure_from_candidate`'s
+    absence-free default is the seam it takes over, and the reflections
+    `predicted_but_absent` lists are exactly the extinction evidence it wants.
+  - **The GUI (WP-1027)** now has `IndexingResult` to render, `index_start`/
+    `index_end` to drive a progress bar from, and `CancelToken` support.
+
+  ### Gotchas for a successor on this WP
+
+  - **A short pattern tests the abstention, not the search.** A cubic cell shows 15
+    lines to 100° 2θ and 23 to 145°, and `PEAK_MIN_USABLE_LINES = 20` means the
+    first list comes back `supports_indexing=False`. Two spikes were debugged
+    before noticing that the gate was doing its job.
+  - **The expensive checks run on a subset** (`consensus.checked_indices`:
+    the top 3 plus every candidate all engines found). Ambiguity is ~0.5 s per
+    candidate and validation ~0.6 s, so the cap matters — but it must never remove
+    a candidate the gate could promote, which is why the second half of that union
+    is not optional. A candidate outside the set carries `geometric_ambiguity`,
+    because an unasked question must not read as a clean answer.
+  - **Engine diagnostics are deduplicated on (code, message)**, not on code: both
+    engines widen their window by the same allowance in the same words, and two
+    copies read as two problems, while two engines saying *different* things under
+    one code must both survive.

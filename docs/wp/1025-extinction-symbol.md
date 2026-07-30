@@ -68,6 +68,34 @@ required by `Phase._nonempty`; `space_group=None` means the absence-free
 lattice group). This WP is where a *real* space group finally replaces that
 default, so it is also where the docstring should point next.
 
+**From WP-1024 (landed 2026-07-30) — the extinction evidence already exists and is
+already being counted, but against a different question.** Three things land in
+your lap:
+
+- **`LeBailValidation.predicted_but_absent_two_theta` is an extinction list in all
+  but name.** `workflow.absent_reflections` integrates `y_obs − y_background` over
+  ±½ FWHM at every predicted position and reports the ones below 3σ — measured, 0
+  of 28 for a certified cubic cell and 117 of 153 for a doubled one. That is the
+  *lattice*-level version of your question, computed against the **fitted**
+  background (which is why it beats asking the peak list). Reuse the function
+  rather than writing a second absence test: two absence detectors that disagree
+  would be worse than either.
+- **Its documented failure mode is exactly your subject matter**, so read
+  `ABSENT_SIGMA`'s docstring before trusting a count. A reflection can be absent
+  because the space group forbids it (yours), because the lattice is wrong
+  (WP-1024's), or because it is too weak to see (nobody's) — and the detector
+  cannot tell them apart. WP-1024 gates on "any absent reflection refutes the
+  candidate", which is only sound *because* it validates the absence-free lattice
+  group: once you supply a group with reflection conditions, that gate would
+  excuse a phantom as an extinction, which is precisely how an oversized cell
+  passes. **If you make `structure_from_candidate`'s default a real space group,
+  `INDEX_PREDICTED_BUT_ABSENT` stops meaning what it means** — keep the
+  lattice-group validation as the gate's input and add yours beside it.
+- **A candidate's `INDEX_BRAVAIS_AMBIGUOUS` is a live warning for your screen.**
+  `BravaisOpinion.methods_disagree` fires on genuine pseudosymmetry, and the
+  reported system is the *conservative* one. The nested comparison should start
+  from `bravais.system`, not `bravais.system_loosest`.
+
 From **WP-1020**: `CellCandidate.lattice_group` is the absence-free group used
 for validation — the screen's starting point, and the "no extinction
 conditions" reference model in the nested comparison.

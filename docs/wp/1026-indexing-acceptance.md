@@ -67,6 +67,38 @@ From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `systems_searched` is on the result — the abstention tests below assert on
 those, not on a `.cell` attribute that does not exist.
 
+**From WP-1024 (landed 2026-07-30) — `index_pattern` exists, and the thing you own
+is now a named, gated caveat rather than a loose observation.** Four things:
+
+- **`high` confidence is currently unreachable on real lab data, by construction.**
+  With no measured shift both engines widen their window by
+  `DEFAULT_UNKNOWN_SHIFT_DEG` and the gate raises `shift_allowance_assumed`, which
+  caps every candidate at `medium`. So **your acceptance bar cannot be "returns
+  `high`" unless you also supply the evidence that clears the caveat** — a
+  calibrated `sigma_sys_deg`, or reference positions to `assess_peak_list` from a
+  certified cell. On the bundled corundum pattern you *have* a certified cell, so
+  the honest protocol is: index with the assumed allowance (expect `medium` at
+  best), then measure the shift against the certificate, then re-index with it
+  declared. That sequence is itself the deliverable — it is what a user with a
+  standard would do — and the caveat is what makes the two runs distinguishable.
+  Do **not** close the gap by widening the constant or dropping the caveat; the
+  +1400 ppm bias it protects against is measured.
+- **The synthetic protocol to copy is in `tests/test_indexing_consensus.py`**, and
+  one detail of it will bite: a cubic cell shows 15 lines to 100° 2θ and 23 to
+  145°, so with `PEAK_MIN_USABLE_LINES = 20` a short pattern comes back
+  `supports_indexing=False` and the run abstains **before any engine starts**. Two
+  spikes were debugged before noticing the gate was working correctly. Check
+  `quality.n_usable` first on any real dataset that returns nothing.
+- **`predicted_but_absent` is the acceptance assertion worth building on**, not
+  Rwp. Measured: an oversized cell scores Le Bail Rwp 0.379 against a correct
+  0.216 — a gap smaller than the spread between specimens — while
+  `predicted_but_absent` is 117/153 against 0/28. A real-data suite that asserts on
+  Rwp is asserting on the weakest of the three detectors.
+- **Validation costs ~0.6 s per candidate and ambiguity ~0.5 s**, on the top-3-plus-
+  consensus subset (`consensus.checked_indices`). Budget a real-data acceptance
+  accordingly and give it `@pytest.mark.slow`; the module fixture group name to
+  follow is `indexing-consensus`'s.
+
 From **WP-1023**: if its spike returned no-go and engine C was dropped, the
 `found_by == all engines` assertions here are against two engines, not three.
 

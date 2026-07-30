@@ -99,6 +99,37 @@ From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `IndexingResult.candidates` is always a list — the frontend must not synthesise
 a "the answer is" view from `candidates[0]`.
 
+**From WP-1024 (landed 2026-07-30) — the answer is designed to be rendered, and the
+design will fight a conventional results panel.** Five things:
+
+- **`best_or_none()` returning `None` is the *expected* first outcome**, not an
+  error state, and on real lab data with no measured shift it is currently the
+  *only* outcome (`shift_allowance_assumed` caps every candidate at `medium`). A UI
+  whose happy path is "here is your cell" will look broken most of the time. Design
+  the candidate list as the primary view and the singleton as a badge on it.
+- **`CellCandidate.confidence_caveats` is a closed vocabulary**
+  (`IndexCaveat`), so it renders as chips rather than free text, and
+  `INDEX_REFUTING_CAVEATS` is the split that decides which chips are red: five
+  caveats refute a cell, the rest merely cap it. Getting that colouring from the
+  constant rather than from a hand-written list is what keeps the UI honest when the
+  vocabulary grows.
+- **Per-candidate diagnostics live on the candidate**
+  (`candidates[i].diagnostics`), result-level ones on the result. They are
+  deliberately not duplicated, so a panel that renders only
+  `result.diagnostics` silently drops the most actionable messages
+  (`INDEX_PREDICTED_BUT_ABSENT`, `INDEX_GEOMETRIC_AMBIGUITY`).
+- **`AmbiguityPartner.discriminating_two_theta` is a plot annotation waiting to
+  happen** — and note that those angles are now *outside* the measured range (a
+  partner whose in-range extras were absent is refuted, so what survives is
+  separated only further out). The natural rendering is a marker beyond the right
+  edge of the pattern with "collect to here", which is the actionable half of an
+  ambiguity report.
+- **Progress and cancellation are already wired.** `index_pattern(..., events=,
+  cancel=)` emits `index_start`/`index_end` (`EVENT_SCHEMA_VERSION` is now `"2"`)
+  with per-engine `stage_start`/`stage_end` carrying `engine`, `system`, `index`
+  and `n_stages` — so "engine 2 of 2, orthorhombic" needs no new event kind, and
+  `CancelToken` works unchanged.
+
 From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
 `"edited"`; surface it, because a hand-placed peak and a fitted one carry
 different weight and the user should see which is which.
