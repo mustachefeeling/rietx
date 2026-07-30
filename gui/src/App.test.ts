@@ -17,6 +17,7 @@
  * a table that renders beautifully while PATCHing the wrong body is the bug this
  * file exists to catch.
  */
+import { diagnosticCount } from "@codemirror/lint";
 import { EditorView } from "@codemirror/view";
 import { mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1159,11 +1160,48 @@ describe("the text pane", () => {
     expect(host.textContent).toContain("1 problem(s)");
     expect(host.textContent).toContain("unknown mode 'nonsense'");
     expect(host.textContent).toContain("line 3");
+    // the squiggle and the list are two views of one answer — asserted through
+    // CM's own lint state, because reading `textContent` sees only the list and
+    // that is exactly how the defect below hid
+    expect(diagnosticCount(editorView().state)).toBe(1);
     // the highlighter said nothing about any of this: only the server can
     expect(host.querySelector(".cm-content [class*='tok-']")).not.toBeNull();
 
     await typeInto(TEXTDOC);
     expect(host.textContent).not.toContain("unknown mode");
+    expect(diagnosticCount(editorView().state)).toBe(0);
+  });
+
+  it("keeps the squiggle when the head moves underneath an invalid buffer", async () => {
+    // Found in a browser, invisible to a `textContent` assertion: `load` cleared
+    // the editor's diagnostics unconditionally, so a checkout — or a form edit,
+    // or an applied suggestion — wiped the squiggle and the gutter marker while
+    // the problem list below still named the line. Both now derive from `sync`.
+    let moved = false;
+    await openText({
+      "/api/textdoc": (call: Call) => ({
+        status: call.method === "GET" ? 200 : 400,
+        body: call.method === "GET"
+          ? { text: moved ? TEXTDOC_MOVED : TEXTDOC, revision: moved ? "r2" : "r1",
+              format_version: "1" }
+          : { error: { code: "TEXTDOC_INVALID", message: "1 problem(s)", where: ["mode"],
+                       details: [{ line: 3, message: "unknown mode 'nonsense'",
+                                   where: "mode", text: "mode nonsense" }] } },
+      }),
+      "/api/events": () => ({ body: { events: [], next: 0, oldest: 1, ...IDLE_RUN,
+                                      head: moved ? "n0009" : "n0000" } }),
+    });
+    await typeInto(TEXTDOC.replace("rietveld", "nonsense"));
+    await settle();
+    expect(diagnosticCount(editorView().state)).toBe(1);
+
+    moved = true;
+    await new Promise((resolve) => setTimeout(resolve, 800));  // one poll interval
+    await flush();
+
+    expect(host.textContent).toContain("stale");
+    expect(host.textContent).toContain("unknown mode 'nonsense'");  // the list
+    expect(diagnosticCount(editorView().state)).toBe(1);            // …and the squiggle
   });
 
   it("is read-only in the way that matters while a run is in flight", async () => {

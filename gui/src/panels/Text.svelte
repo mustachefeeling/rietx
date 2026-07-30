@@ -49,7 +49,9 @@
 
   let sync = $state(initial());
   let host = $state<HTMLDivElement | null>(null);
-  let editor: EditorHandle | null = null;
+  /** `$state` rather than a plain `let`, so the two effects below can *derive*
+   *  the editor's document and diagnostics from `sync` once it exists. */
+  let editor = $state<EditorHandle | null>(null);
   let bootError = $state("");
   let timer: ReturnType<typeof setTimeout> | null = null;
   /** the document has never been fetched, so the empty buffer is not "clean" */
@@ -72,8 +74,6 @@
       const payload = await api.textdoc();
       dispatch({ kind: "rendered", text: payload.text, revision: payload.revision, force });
       loaded = true;
-      editor?.setDoc(sync.buffer);
-      editor?.setProblems([]);
     } catch (error) {
       if (error instanceof ApiError && error.empty) return; // no project yet
       bootError = (error as Error).message;
@@ -111,8 +111,6 @@
       for (const call of payload.applied ?? []) say(call);
       dispatch({ kind: "applied", text: payload.text, revision: payload.revision,
                  verbs: payload.applied ?? [] });
-      editor?.setDoc(sync.buffer);
-      editor?.setProblems([]);
       // the verbs committed history nodes, so the head moved and every other
       // panel is now looking at the previous state
       if ((payload.applied ?? []).length) onmoved();
@@ -130,8 +128,22 @@
     }
     dispatch({ kind: "refused", seq, code: error.code, message: error.message,
                problems: error.details.filter((d) => d.line !== undefined) as Problem[] });
-    editor?.setProblems(sync.problems);
   }
+
+  // The editor's document and its squiggles are **derived** from `sync`, not
+  // pushed at it from the four places that change it.  Pushing is what a browser
+  // caught: `load` cleared the diagnostics unconditionally, so a head moving
+  // underneath an invalid buffer — a checkout, a form edit, an applied
+  // suggestion — wiped the squiggle and the gutter marker while the problem list
+  // below still named the line.  Two views of one answer that could disagree.
+  // `setDoc` is a no-op when the text already matches (`minimalChange` returns
+  // null), so this also runs harmlessly on every keystroke.
+  $effect(() => {
+    editor?.setDoc(sync.buffer);
+  });
+  $effect(() => {
+    editor?.setProblems(sync.problems);
+  });
 
   // re-read when the working state moved (WP-1005: the head *is* the working
   // state).  Only once the pane has been opened: a text document nobody is
@@ -160,13 +172,14 @@
     try {
       // dynamic, so `vendor-cm.js` is fetched on first use rather than at boot
       const module: { createEditor: typeof createEditor } = await import("../lib/editor");
+      // no `setProblems` here: the effect above adopts them the moment `editor`
+      // is assigned, which is the point of deriving them
       editor = module.createEditor({
         parent,
         doc: sync.buffer,
         onChange: edited,
         onApply: apply,
       });
-      editor.setProblems(sync.problems);
     } catch (error) {
       bootError = `the editor did not load: ${(error as Error).message}`;
     }
