@@ -436,6 +436,12 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     inside the box.  The same contact therefore appears twice — once leaving
     each partner — which is what makes both atoms look correctly coordinated.
 
+    Deduplication is therefore on the **endpoints**, not on the atom pair: two
+    segments that leave in opposite directions are two different sticks and both
+    are wanted, while the same stick reached twice (once as a home-cell pair and
+    once as a translation onto that pair's own boundary duplicate) is one.  A
+    count of segments is only honest if the second case is collapsed.
+
     ``metal`` suppresses metal–metal sticks (see :func:`bonds_between_metals`);
     ``None`` draws them, which is the alloy case.
     """
@@ -448,6 +454,7 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
     shifts = np.array([[i - 1, j - 1, k - 1] for i in range(3) for j in range(3)
                        for k in range(3)], dtype=np.float64) @ basis.T
     out: list[dict] = []
+    seen: set[tuple] = set()
     for shift in shifts:
         home = not shift.any()
         delta = (positions[None, :, :] + shift) - positions[:, None, :]
@@ -456,8 +463,11 @@ def _bonds(positions: np.ndarray, radii: np.ndarray, basis: np.ndarray,
         if home:
             hit &= np.triu(np.ones_like(hit, dtype=bool), 1)  # each pair once
         for i, j in zip(*np.nonzero(hit)):
-            out.append({"i": int(i), "j": int(j),
-                        "a": positions[i].tolist(),
-                        "b": (positions[j] + shift).tolist(),
+            a, b = positions[i], positions[j] + shift
+            key = tuple(sorted((tuple(np.round(a, 6)), tuple(np.round(b, 6)))))
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"i": int(i), "j": int(j), "a": a.tolist(), "b": b.tolist(),
                         "d": float(dist[i, j])})
     return out
