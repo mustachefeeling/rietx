@@ -265,6 +265,11 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       `stephens-brucite` and `qpa-sample1` groups, both several times longer,
       so this does not move it. Re-price if a row is added outside
       `xdist_group("indexing-acceptance")`.
+      **Superseded 2026-07-30 (fourth session): that group had since become the
+      critical path** (~550-590 s against `stephens-brucite`'s 533), so the LaB6
+      rows went into their own group and it is back to 501 s. Re-price by reading
+      `--durations`, not by re-reading this bullet — and give each new dataset its
+      own group.
 
 ## Acceptance
 
@@ -707,17 +712,34 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   `test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival` says in
   place that the fix is to delete it.
 
-  **Cost, re-priced.** `test_acceptance_indexing.py` is now **5-6 min serial**
-  (was 3:30): cpd-1a 106-127 s, corundum 50-63 s twice, LaB6 **20-67 s** and the
-  calibrated row 4-5 s. That LaB6 spread is one fixture measured three ways on one
-  machine and is the CLAUDE.md rule in miniature — quote the range. All three new
-  `slow` rows are inside `xdist_group("indexing-acceptance")`, so the weekly job's
-  billed 45 min does not move (it is set by `stephens-brucite` and `qpa-sample1`).
-  Four of the seven rows are **fast** — they need only the picked list (~1 s) or
-  no data at all — and they are the ones carrying the census and the isospectral
-  arithmetic, which is the right way round: the findings are cheap to re-check.
-  Fast suite **1400 passed / 66 skipped in 1:52** (+39 on the previous entry: 4
-  new fast rows and 7 new matrix claims × their per-claim checks).
+  **7. Cost, re-priced — and the previous entry's pricing had silently expired.**
+  That entry concluded the acceptance rows "do not move the billed 45 minutes,
+  because the weekly job's wall clock is set by the `stephens-brucite` and
+  `qpa-sample1` groups, both several times longer". Checked with `--durations` on
+  a green full run rather than inherited: `indexing-acceptance` had reached
+  **~550-590 s** against `stephens-brucite`'s **533** and `qpa-sample1`'s **485**.
+  It *was* the critical path, so the next known-cell row — and this WP has four
+  more planned — would have been billed in full.
+
+  The fix cost nothing, because nothing in that group shared a fixture with
+  anything else in it: the LaB6 rows moved to `xdist_group("indexing-acceptance-
+  lab6")`. Re-measured in one run afterwards: `indexing-acceptance` **501 s**,
+  `stephens-brucite` **537 s**, LaB6 **~60 s** in parallel, full suite **9:22**.
+  **One dataset, one group** — take that as the rule for NAC, FAP and the qarr
+  phases rather than extending the shared group, and **re-read `--durations`
+  rather than the last session's sentence about it**: a group ordering is a
+  measurement with a shelf life, and this one expired without failing anything.
+
+  Raw numbers: `test_acceptance_indexing.py` **5-6 min serial** (was 3:30) —
+  cpd-1a 106-127 s, corundum 50-63 s twice, LaB6 **20-67 s**, the calibrated row
+  4-5 s. That LaB6 spread is one fixture measured three ways on one machine in one
+  afternoon, which is the CLAUDE.md range rule in miniature. Four of the seven
+  rows are **fast** — they need only the picked list (~1 s) or no data at all — and
+  they are the ones carrying the census and the isospectral arithmetic, which is
+  the right way round: the findings are the cheap ones to re-check. Full suite
+  **1488 passed / 71 skipped in 9:22-11:57**, fast **1400 / 66 in 1:52** (+39 on
+  the previous entry: 4 new fast rows and 7 new matrix claims × their per-claim
+  checks).
 
   **Next, unchanged except for what landed:** NAC / FAP / six-qarr known cells
   (take Fm-3m fluorite next, per item 1), the `hl2_peaks` abstention row, check-D.

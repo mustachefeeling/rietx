@@ -238,6 +238,18 @@ def qpa_mixture_index():
 # ----------------------------------------------------------------------
 # SRM 660c LaB6 — the *absolute* anchor, and the one bundled phase whose space
 # group has no extinctions at all
+#
+# **These rows are a separate xdist group, and the split is the point.**  The
+# rule in CLAUDE.md is that runtime is set by the longest *group*, so sharing one
+# is only free while that group is not the critical path.  It no longer is:
+# measured 2026-07-30 with ``--durations`` on a green full run,
+# ``indexing-acceptance`` totalled ~550-590 s against ``stephens-brucite``'s 533
+# and ``qpa-sample1``'s 485 — i.e. the claim inherited from the previous session,
+# that the indexing rows are "several times shorter" than the groups that set the
+# wall clock, had stopped being true.  Nothing here shares a fixture with the
+# corundum or cpd-1a rows, so putting LaB6 in its own group costs nothing and
+# takes it off the critical path.  **Any further known-cell row should get its own
+# group for the same reason** — one dataset, one group.
 # ----------------------------------------------------------------------
 def _lab6_inputs():
     """(pattern, instrument) for the NIST certification measurement.
@@ -736,7 +748,7 @@ def test_a_three_phase_mixture_abstains(qpa_mixture_index):
 # no enumeration of derivative lattices can reach
 # ----------------------------------------------------------------------
 @pytest.mark.slow
-@pytest.mark.xdist_group("indexing-acceptance")
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_index):
     """SRM 660c LaB6, indexed end to end — and the control for the corundum row.
 
@@ -790,6 +802,7 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
     assert res.best_or_none() is None
 
 
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_the_unflagged_tail_components_escape_for_three_different_reasons(
         lab6_peaks):
     """Six components survive the ``not_separable`` screen, and no one knob explains it.
@@ -845,6 +858,7 @@ def test_the_unflagged_tail_components_escape_for_three_different_reasons(
         "re-measure the census before trusting the docstring above")
 
 
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
     """They are not lines, and the *side* they are on says which aberration.
 
@@ -882,6 +896,7 @@ def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
         f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
 
 
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_the_shift_screen_survives_the_tail_components_but_the_search_cannot(
         lab6_peaks):
     """Why the corundum protocol's second step does nothing here, in one number.
@@ -1015,7 +1030,7 @@ def test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival():
 
 
 @pytest.mark.slow
-@pytest.mark.xdist_group("indexing-acceptance")
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_the_isospectral_rival_is_ranked_beside_the_truth(lab6_index):
     """And on the real pattern both are in the list, with neither promoted.
 
@@ -1053,7 +1068,7 @@ def test_the_isospectral_rival_is_ranked_beside_the_truth(lab6_index):
 
 
 @pytest.mark.slow
-@pytest.mark.xdist_group("indexing-acceptance")
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_what_the_unflagged_tail_components_cost_the_certified_cell(
         lab6_calibrated, lab6_peaks):
     """The whole protocol, with every piece of evidence supplied — and ``high``.

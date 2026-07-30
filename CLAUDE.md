@@ -39,6 +39,26 @@ refinements, and the corundum row became two searches): full **1446 passed /
 **3:30 serial** — cpd-1a 106 s, corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
 the billed 45 min, because the weekly job's wall clock is set by the
 `stephens-brucite` and `qpa-sample1` groups, both several times longer.
+After the fourth session added the SRM 660c rows: full **1488 passed / 71
+skipped in 9:22-11:57**, fast **1400 / 66 in 1:52**, and
+`test_acceptance_indexing.py` **5-6 min serial** (cpd-1a 106-127 s, corundum
+50-63 s twice, LaB6 20-67 s, the calibrated row 4-5 s).  Four of the seven new
+rows are **fast** — they need the picked list (~1 s) or no data at all — which
+is the right way round: the findings they carry are the cheap ones to re-check.
+Note the LaB6 fixture's own 20-67 s spread, one fixture on one machine in one
+afternoon, and see the range rule below.
+
+**And the claim above that indexing does not set the wall clock expired without
+anyone noticing, which is the lesson worth keeping.** Measured with
+`--durations` on a green full run (2026-07-30): `indexing-acceptance` had reached
+**~550-590 s** against `stephens-brucite`'s 533 and `qpa-sample1`'s 485 — it *was*
+the critical path, so every further row would have been billed in full rather than
+hidden behind a longer group.  The fix was free, because nothing in that group
+shared a fixture with anything else in it: the LaB6 rows went into their own
+`indexing-acceptance-lab6`, and the same run then measured `indexing-acceptance`
+501 s, `stephens-brucite` 537 s, LaB6 ~60 s in parallel, full suite 9:22.  **One
+dataset, one group**, and re-read the `--durations` list rather than the last
+session's sentence about it — a group ordering is a measurement with a shelf life.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
@@ -501,7 +521,46 @@ extinction, and on a real phase that is not a corner case.** It counts against t
 (WP-1026, measured). It is the blind spot `predicted_seen_fraction` already states,
 promoted into a refuting caveat. Read a firing as "this cell predicts lines the
 pattern lacks", never as "this cell is too big"; the two are separable only by
-running the extinction screen, which the gate does not do.
+running the extinction screen, which the gate does not do. **The control exists
+and confirms it**: NIST SRM 660c LaB6 is P m -3 m, which extinguishes nothing, and
+indexes with `predicted_but_absent` **0 of 30** and `predicted_seen_fraction`
+**1.000** against corundum's 11-12 and 0.86. Which is also how to choose the next
+acceptance dataset — **by its space group, not by its convenience**: pairing a
+phase that has absences with one that has none is what turned this from an
+argument into a measurement.
+
+**`high` confidence is reachable on real data, and what it costs is a peak list.**
+Same LaB6 pattern, indexed as picked: a is **−127 ppm** out and the grade is `low`.
+Remove the five picked components no certified position explains and declare the
+systematic as *measured* rather than assumed, and it is **a = 4.156772 Å, −2 ppm**
+from the certification CIF, M₂₀ 1113, **zero caveats**, with `best_or_none()`
+returning a cell for the first time. The five are **axial-divergence tails** (they
+sit low below 90° 2θ and high above it, a sign reversal nothing else in a
+Bragg-Brentano pattern has) plus one Kα2 residual, and they escape `not_separable`
+for **three different reasons**, so no single threshold reaches them. Two general
+lessons sit under that. **An assumed allowance is not free even when it is
+generous enough**: `DEFAULT_UNKNOWN_SHIFT_DEG` is added *in quadrature to every
+line's σ*, which is flat, so a 100× precision contrast between real lines and
+phantoms becomes 1.005 — `fit_shift_model`, which weights by each line's own σ,
+recovers the displacement (+0.0367 ± 0.0015° against a parameter-free +0.0415°
+from the recorded −0.07877 mm at R = 217.5 mm) while the *search* on the identical
+list fits +0.009 ± 0.016°. And **`sigma_sys_deg` means two different things**: the
+screen reports the scatter a template *leaves* (0.0078°), the search needs the
+window the *uncorrected* positions span (0.037°, since `refine_with_shift` runs
+only after a candidate survives), so declaring the measured one silently returns
+no candidate at all.
+
+**Geometrical ambiguity has a class the derivative-lattice enumeration cannot
+reach.** `ambiguity_partners` walks *sublattices* of index 2-4 — supercells — so a
+rival of **smaller** volume is not in the enumeration. One exists for the
+commonest lattice there is: tetragonal P at (a/√2, a) is **exactly** isospectral
+with cubic P *a*, because 2(h²+k²)+l² represents precisely the integers h²+k²+l²
+does (both miss 4ⁿ(8m+7)). Measured: 0 partners from the cubic side, while from
+the tetragonal side the cubic is found at index 2 with **zero** discriminating
+reflections, and both engines find the rival on the real pattern. It matters
+because the gate refuses `high` to a candidate with a partner — so whichever of an
+isospectral pair happens to be the larger cell can be promoted while its equal
+cannot.
 
 `determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
 is the next step and keeps the same rule one rank down: it ranks the **extinction
