@@ -16,7 +16,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (85: jsdom mount, fnmatch parity, panel logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (139: jsdom mount, fnmatch parity, panel + text-sync logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -34,13 +34,15 @@ a busier one (2026-07-30), and 12:40 later the same day on a machine
 simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1215 passed / 116 skipped and the fast suite
-1145 passed / 107 skipped (1250 of 1329 collected). Installing `[jax,torch]`
-converts most of those skips into passes, so a bare "N tests" figure means nothing
-without the venv it was measured in. (WP-1012 added twelve tests and **both**
-counts moved by exactly twelve, which is the bookkeeping check worth doing: the
-same two figures a day earlier disagreed by one, and a session that cannot say
-which of its numbers moved cannot tell a new skip from a new pass.)
+`[dev]`** venv, the full suite is 1218 passed / 116 skipped (1332 collected, 6:22)
+and the fast suite 1148 passed / 107 skipped (1253 of 1332 collected). Installing
+`[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
+means nothing without the venv it was measured in. (WP-1012 added twelve tests and
+**both** counts moved by exactly twelve; WP-1013 added three and both moved by
+three with the skips unchanged. That is the bookkeeping check worth doing: the same
+two figures a day earlier disagreed by one, and a session that cannot say which of
+its numbers moved cannot tell a new skip from a new pass. The frontend's own suite
+is counted separately and moved 85 → 139.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -258,6 +260,32 @@ diagnoses (an observed peak with no reflection is an impurity; a calculated peak
 with no intensity is what a *mispositioned* model produces at every peak — 15 of
 them read as "unindexed" once), and `Plot`'s window fetch must stay guarded because
 a `checkout` clears the result server-side while the component still holds it.
+
+The **text pane** (WP-1013, `gui/src/panels/Text.svelte`, `gui/src/lib/`) is the
+`.pxt` document in CodeMirror 6, and it is a **mode over the whole window rather
+than a sixth tab** — five tabs already fill the sidebar, and this is the one panel
+whose content is line-oriented, the format's columns being aligned precisely so a
+rectangular selection can hit one field. It stays mounted while hidden (a typed
+buffer survives a look at the parameter table) and builds its editor on first
+entry. Four rules. **The head is the reload signal** — no third SSE frame type was
+added, because the head already moves for every writer and the parameter table
+already reloads on it. **There is no merge and no force-apply**: a stale buffer
+re-reads and re-applies, which is also what the server's 409 `STALE_REVISION`
+says, and the reason is sharper than "merging is hard" — the loser's document
+carries the winner's *old* values for every row it did not touch, so applying it
+would silently revert them. **Only the server decides validity**: `lib/pxt.ts` has
+no `error` token to emit (asserted from both sides, with the shared vocabulary
+pinned to `textdoc._KEYWORDS` and `StageSpec.model_fields` by
+`test_the_highlighter_quotes_the_parsers_words`), and *indentation is the parser's
+own dispatch*, so an indented `plan` is a parameter named `plan`. And **a response
+carrying an older `seq` is dropped** — a 300 ms debounce puts two validations in
+flight across one pause and they can land out of order. CodeMirror is a separate
+committed chunk (`assets/vendor-cm.js`, 328 kB) imported *dynamically*, so
+`app.js` stays 114 kB and boot-to-interactive stays 81 ms; `tests/test_gui_dist.py`
+asserts the split, because a stray static import would inline the library and no
+byte count would say so. The editor's document and its diagnostics are `$effect`s
+over the sync state, never pushed — pushing let a head move wipe a squiggle while
+the problem list still named the line.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

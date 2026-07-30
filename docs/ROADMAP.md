@@ -121,6 +121,64 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1013](wp/1013-text-pane-sync.md) landed 2026-07-30 — the whole project is one
+editable document.** A CodeMirror 6 pane over WP-1009's `.pxt` rendering, with
+rectangular selection down the aligned columns, continuous server-side validation,
+and an explicit Cmd-Enter apply that lands as the same history nodes a form would
+have committed.
+
+Its founding decision answers the question WP-1012 handed it: **the pane is a mode
+over the whole window, not a sixth tab.** Five tabs already fill a
+`clamp(340px, 38%, 560px)` sidebar, and this is the one panel whose content is
+line-oriented — the format aligns its columns *so that a rectangular selection can
+hit one field*, which a 340 px column undoes. Measured in the browser: an `⌥`-drag
+drew **7 selection rectangles** on the vary column, which is the format's entire
+reason for existing, working.
+
+**Three duplications were refused, and the third is the interesting one.** There
+is no second parser (`lib/pxt.ts` is a per-line scanner with **no `error` token**,
+so only the server can call a document wrong — asserted from both sides, with the
+shared vocabulary pinned to `textdoc._KEYWORDS` and `StageSpec.model_fields` from
+Python). There is **no third SSE frame type**: the charter asked for a render
+pushed over SSE on every model change, and the head already moves for every writer
+— a run, a checkout, an applied suggestion, a form edit — so the pane re-reads on
+`head` exactly as the parameter table does, and WP-1008's "the run state is not an
+event" is the precedent for treating a new frame type as a decision. And **there is
+no merge and no force-apply**, where the usual reason ("merging generated text is
+merging one authority with itself") turns out to be the weaker one: the loser's
+document also carries the winner's *old* values for every row it did not touch, so
+applying it anyway would silently revert them. That is now the sharpest of the
+Python tests — two writers racing over HTTP, the second refused whole.
+
+**CodeMirror is split out *and* off the boot path, which serves WP-1010's
+one-chunk decision rather than reversing it.** A committed dist has to diff
+reviewably, and ~330 kB of minified third-party bytes inside `app.js` would sit in
+the middle of every application diff; and the pane imports the adapter dynamically,
+so the page still loads `app.js` and nothing else. Measured: `app.js` 104.7 →
+**114.2 kB** (40.4 kB gzip), `vendor-cm.js` **328 kB** (106 kB gzip) fetched on
+first open, **boot-to-interactive 81 ms** with zero editor requests before the pane
+is opened, and **132 ms** from the click to a mounted editor. The split is
+asserted rather than trusted — a stray static import would inline the library and
+no byte count would say so. It also produced the milestone's first *licensing*
+finding: the wheel has been redistributing Svelte's runtime since WP-1010 and
+nothing said so, which `ATTRIBUTION.md` now does and WP-1003 has been told to act
+on at publication.
+
+**The defect took a browser, again.** `load` cleared the editor's diagnostics
+unconditionally, so a head moving underneath an *invalid* buffer wiped the squiggle
+and the gutter marker while the problem list below still named the line — two views
+of one answer, able to disagree. jsdom could not see it, because the vitest
+assertions read `textContent`, which is the list. The fix is structural rather than
+a fifth call site: the editor's document *and* its diagnostics are now `$effect`s
+over the sync state, so nothing pushes and nothing can forget to. Measured before
+and after on a head move: gutter 1 → 0 and underline 1 → 0, now 1 → 1.
+
+Verified end to end in Chrome for Testing, in order: boot → open → nine token
+classes painted → rectangular selection → edit → one debounced validate → Cmd-Enter
+→ `limits 3.5 22` applied and still there after a reload → `mode nonsense` → one
+problem at line 4 in the parser's own words → a `PATCH /api/params` from outside →
+**stale**, the edit intact and Apply disabled → Re-read → in sync. vitest 85 → 139.
+
 **[1012](wp/1012-history-report-panel.md) landed 2026-07-30 — the GUI now
 *answers back*.** A git-like history worktree (lanes, Rwp badges, tags, HEAD,
 checkout / branch / tag / annotate, and a two-node parameter diff) and the first
@@ -1156,7 +1214,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
-| [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |
+| [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
