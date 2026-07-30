@@ -60,11 +60,17 @@ export const api = {
   project: () => call("GET", "/api/project"),
   openProject: (path: string) => call("POST", "/api/project/open", { path }),
   patchProject: (settings: Record<string, unknown>) => call("POST", "/api/project", settings),
+  /** A flush a client may call and never must: every settings verb already
+   *  saved and the model was on disk the moment its node was appended. */
+  save: () => call("POST", "/api/project/save"),
 
   params: () => call("GET", "/api/params"),
   patchParams: (delta: { values?: Record<string, number>; vary?: Record<string, boolean> }) =>
     call("PATCH", "/api/params", delta),
   plan: () => call("GET", "/api/plan"),
+  /** Either `{preset: name}` or `{plan: spec}` — a preset is stored *expanded
+   *  through the mode*, so what comes back is what will actually run. */
+  putPlan: (body: { preset?: string; plan?: unknown }) => call("PUT", "/api/plan", body),
   plans: () => call("GET", "/api/plans"),
 
   run: (body: Record<string, unknown> = { kind: "fit" }) => call("POST", "/api/run", body),

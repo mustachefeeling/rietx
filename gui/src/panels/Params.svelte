@@ -1,0 +1,449 @@
+<script lang="ts">
+  /**
+   * The parameter table: every row the θ vector has, grouped, filtered, editable.
+   *
+   * Three rules come from the API rather than from taste.  A row that cannot be
+   * freed has **no vary checkbox at all** — the three reasons are distinct
+   * (`locked`, `tied`, `mode_fixed`) and `held_because` is the tooltip, already
+   * written server-side, so nothing here re-derives why (WP-1004).  A bulk
+   * free/fix sends the **glob**, because `set_vary` takes one and records one
+   * history node for it.  And value edits accumulate until Apply, because
+   * `set_values` takes a dict and a node per keystroke would bury the log.
+   *
+   * The list is virtualized against `lib/table.ts`: a Pawley fit has thousands
+   * of rows, and the DOM for all of them is the difference between a table and a
+   * stall.
+   */
+  import { ApiError, api } from "../api";
+  import {
+    asGlob,
+    editState,
+    flatten,
+    formatEsd,
+    formatValue,
+    heldKind,
+    normalize,
+    selection,
+    validateEdit,
+    windowSlice,
+    type ParamRow,
+  } from "../lib/table";
+
+  let {
+    head = null,
+    busy = false,
+    simple = true,
+    say = (_line: string) => {},
+  }: {
+    head?: string | null;
+    busy?: boolean;
+    simple?: boolean;
+    say?: (line: string) => void;
+  } = $props();
+
+  const ROW_HEIGHT = 22;
+
+  let rows = $state<ParamRow[]>([]);
+  let nFree = $state(0);
+  let mode = $state("");
+  let query = $state("");
+  let error = $state("");
+  let loading = $state(false);
+  let collapsed = $state(new Set<string>());
+  let edits = $state(new Map<string, string>());
+  let varyEdits = $state(new Map<string, boolean>());
+  let scrollTop = $state(0);
+  let viewport = $state(400);
+
+  const glob = $derived(asGlob(query));
+  const view = $derived(flatten(rows, { glob, collapsed, simple }));
+  const picked = $derived(selection(rows, glob));
+  const slice = $derived(windowSlice(view.items.length, scrollTop, viewport, ROW_HEIGHT));
+  const pending = $derived(editState(rows, edits, varyEdits.size));
+
+  async function load() {
+    loading = true;
+    try {
+      const payload = await api.params();
+      rows = normalize(payload.parameters);
+      nFree = payload.n_free;
+      mode = payload.mode;
+      error = "";
+    } catch (exc) {
+      rows = [];
+      // NO_PROJECT is the shell's empty state, not this panel's error
+      error = exc instanceof ApiError && exc.empty ? "" : (exc as Error).message;
+    } finally {
+      loading = false;
+    }
+  }
+
+  // reload when the working state moved: a run, a checkout, an edit elsewhere.
+  // `head` is the history node the project stands at, which is the one signal
+  // that covers all three (WP-1005: the head *is* the working state).
+  $effect(() => {
+    void head;
+    load();
+  });
+
+  function absorb(payload: any) {
+    rows = normalize(payload.parameters);
+    nFree = payload.n_free;
+    mode = payload.mode;
+    edits = new Map();
+    varyEdits = new Map();
+    error = "";
+  }
+
+  async function patch(body: { values?: Record<string, number>; vary?: Record<string, boolean> }) {
+    try {
+      absorb(await api.patchParams(body));
+    } catch (exc) {
+      // a refusal is the useful answer: a tied path names the source to set
+      // instead, a bound violation prints the interval, a 409 says a run owns
+      // the table.  Every one of them is the verb's own words.
+      error = exc instanceof ApiError && exc.busy
+        ? "a run is in flight — the table is read-only until it ends"
+        : (exc as Error).message;
+    }
+  }
+
+  async function bulk(vary: boolean) {
+    say(`ref.set_vary(${JSON.stringify(glob)}, ${vary ? "True" : "False"})`);
+    await patch({ vary: { [glob]: vary } });
+  }
+
+  async function apply() {
+    const { values } = pending;
+    const vary = Object.fromEntries(varyEdits);
+    if (Object.keys(values).length) say(`ref.set_values(${JSON.stringify(values)})`);
+    for (const [path, flag] of varyEdits) {
+      say(`ref.set_vary(${JSON.stringify(path)}, ${flag ? "True" : "False"})`);
+    }
+    await patch({ values, vary });
+  }
+
+  function revert() {
+    edits = new Map();
+    varyEdits = new Map();
+    error = "";
+  }
+
+  function toggleGroup(key: string) {
+    const next = new Set(collapsed);
+    if (!next.delete(key)) next.add(key);
+    collapsed = next;
+  }
+
+  function edit(path: string, text: string) {
+    const next = new Map(edits);
+    next.set(path, text);
+    edits = next;
+  }
+
+  function toggleVary(row: ParamRow, checked: boolean) {
+    const next = new Map(varyEdits);
+    if (checked === row.vary) next.delete(row.path);
+    else next.set(row.path, checked);
+    varyEdits = next;
+  }
+
+  function shownValue(row: ParamRow): string {
+    const pending = edits.get(row.path);
+    return pending !== undefined ? pending : formatValue(row.value, row.esd);
+  }
+
+  function varyOf(row: ParamRow): boolean {
+    return varyEdits.get(row.path) ?? row.vary;
+  }
+
+  export function focusFilter() {
+    document.querySelector<HTMLInputElement>("#param-filter")?.focus();
+  }
+
+  export const freeSelection = () => bulk(true);
+  export const fixSelection = () => bulk(false);
+</script>
+
+<section>
+  <header>
+    <input
+      id="param-filter"
+      class="mono"
+      placeholder="filter — a word, or a glob like phases.*.cell.*"
+      bind:value={query}
+      disabled={!rows.length} />
+    <span class="muted mono small" title="the glob that will be sent">{glob}</span>
+  </header>
+
+  <div class="bar small">
+    <span class="muted">
+      {view.shown} of {rows.length} rows · <strong>{nFree}</strong> free
+      {#if mode}· <span class="mono">{mode}</span>{/if}
+      {#if view.hidden}
+        · <span class="muted" title="locked, tied or mode-fixed rows; Advanced shows them">
+          {view.hidden} held hidden</span>
+      {/if}
+    </span>
+    <span class="spacer"></span>
+    <button class="ghost small" disabled={busy || !picked.toFree} onclick={() => bulk(true)}
+      title="one set_vary call on the glob above — one history node">
+      Free {picked.toFree}
+    </button>
+    <button class="ghost small" disabled={busy || !picked.toFix} onclick={() => bulk(false)}>
+      Fix {picked.toFix}
+    </button>
+  </div>
+
+  {#if error}
+    <p class="bad small">{error}</p>
+  {/if}
+
+  <div
+    class="scroller"
+    bind:clientHeight={viewport}
+    onscroll={(event) => (scrollTop = (event.currentTarget as HTMLElement).scrollTop)}>
+    {#if loading && !rows.length}
+      <p class="muted small pad">loading the table…</p>
+    {:else if !rows.length}
+      <p class="muted small pad">No parameters — open a project.</p>
+    {:else if !view.items.length}
+      <p class="muted small pad">Nothing matches <span class="mono">{glob}</span>.</p>
+    {:else}
+      <div style:height="{slice.padTop}px"></div>
+      {#each view.items.slice(slice.start, slice.end) as item (item.key)}
+        {#if item.kind === "group"}
+          <button class="group mono" onclick={() => toggleGroup(item.key)}>
+            <span class="caret">{collapsed.has(item.key) ? "▸" : "▾"}</span>
+            {item.label}
+            <span class="muted">{item.free}/{item.n}</span>
+          </button>
+        {:else}
+          {@const row = item.row}
+          {@const held = heldKind(row)}
+          {@const bad = edits.has(row.path) ? validateEdit(row, edits.get(row.path)!) : ""}
+          <div class="row" class:held={held !== ""} data-held={held}>
+            <span class="path mono" title={row.held_because || row.path}>
+              {row.path.slice(row.path.lastIndexOf(".") + 1)}
+            </span>
+            {#if row.tie}
+              <span class="value mono muted" title={row.held_because}>
+                {formatValue(row.value, row.esd)}
+              </span>
+            {:else}
+              <input
+                class="value mono tabular"
+                class:bad={bad !== ""}
+                class:edited={edits.has(row.path)}
+                value={shownValue(row)}
+                title={bad || row.held_because}
+                disabled={busy}
+                oninput={(event) => edit(row.path, (event.currentTarget as HTMLInputElement).value)} />
+            {/if}
+            <span class="esd mono muted tabular">{formatEsd(row.value, row.esd)}</span>
+            {#if !simple}
+              <span class="bounds mono muted" title="bounds and transform">
+                {row.lo > -Infinity || row.hi < Infinity
+                  ? `[${row.lo}, ${row.hi}]`
+                  : ""}{row.transform === "identity" ? "" : ` ${row.transform}`}
+              </span>
+            {/if}
+            {#if row.refinable}
+              <input
+                type="checkbox"
+                class="vary"
+                checked={varyOf(row)}
+                disabled={busy}
+                title="free this parameter"
+                onchange={(event) =>
+                  toggleVary(row, (event.currentTarget as HTMLInputElement).checked)} />
+            {:else}
+              <!-- no checkbox at all: a control that errors on click is worse
+                   than an absent one, and `held_because` says which of the
+                   three reasons holds it -->
+              <span class="vary muted" title={row.held_because}>
+                {held === "locked" ? "🔒" : held === "tied" ? "=" : "·"}
+              </span>
+            {/if}
+          </div>
+        {/if}
+      {/each}
+      <div style:height="{slice.padBottom}px"></div>
+    {/if}
+  </div>
+
+  {#if pending.touched}
+    <footer class="small">
+      <span>
+        {pending.touched} pending {pending.touched === 1 ? "edit" : "edits"}
+        {#if pending.invalid.length}
+          <span class="why">· {pending.invalid[0].path.split(".").pop()}: {pending.invalid[0].why}</span>
+        {/if}
+      </span>
+      <span class="spacer"></span>
+      <button class="ghost small" onclick={revert}>Revert</button>
+      <!-- an invalid cell blocks Apply rather than being dropped silently: the
+           whole point of carrying bounds on the row is to say so before the
+           round trip, and a partial apply is a worse answer than none -->
+      <button class="small" disabled={busy || pending.invalid.length > 0} onclick={apply}>
+        Apply
+      </button>
+    </footer>
+  {/if}
+</section>
+
+<style>
+  section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  header {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 8px 4px;
+  }
+
+  header input {
+    flex: 1 1 auto;
+    min-width: 0;
+    font: var(--mono);
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--fg);
+  }
+
+  .bar,
+  footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px 4px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 5px;
+  }
+
+  .spacer {
+    flex: 1 1 auto;
+  }
+
+  .small {
+    font-size: 11.5px;
+  }
+
+  button.small {
+    padding: 2px 7px;
+    font-size: 11.5px;
+  }
+
+  .scroller {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    border-top: 1px solid var(--line);
+    min-height: 120px;
+  }
+
+  .pad {
+    padding: 10px;
+  }
+
+  .group,
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+
+  .group {
+    width: 100%;
+    background: color-mix(in srgb, var(--panel) 60%, var(--bg));
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    color: var(--fg);
+    font-weight: 600;
+    text-align: left;
+    padding-left: 6px;
+  }
+
+  .caret {
+    color: var(--muted);
+    width: 10px;
+  }
+
+  .row.held {
+    color: var(--muted);
+  }
+
+  .path {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .value {
+    flex: 0 0 92px;
+    text-align: right;
+  }
+
+  input.value {
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    padding: 1px 3px;
+    border-radius: 3px;
+  }
+
+  input.value:focus {
+    border-color: var(--accent);
+    background: var(--bg);
+    outline: none;
+  }
+
+  input.value.edited {
+    border-color: var(--warn);
+  }
+
+  input.value.bad {
+    border-color: var(--bad);
+    color: var(--bad);
+  }
+
+  .esd {
+    flex: 0 0 46px;
+  }
+
+  .bounds {
+    flex: 0 0 120px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .vary {
+    flex: 0 0 18px;
+    text-align: center;
+    margin: 0;
+  }
+
+  .bad {
+    color: var(--bad);
+    padding: 0 8px;
+    margin: 2px 0;
+  }
+
+  .why {
+    color: var(--bad);
+  }
+</style>

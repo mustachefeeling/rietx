@@ -39,6 +39,33 @@ export interface ParamRow {
 
 import { fnmatch } from "./fnmatch";
 
+/**
+ * Read a numeric field that may have crossed the wire as `"Infinity"`.
+ *
+ * Nearly every row has an infinite bound, and JSON has no way to spell one — so
+ * this package spells it as a string (`ser_json_inf_nan="strings"`, the schemas'
+ * rule since v0.2) and the GUI server follows suit, because the alternative,
+ * Python's bare `Infinity` token, is not JSON at all and `JSON.parse` refuses
+ * the whole response.  `Number("Infinity")` is the inverse, and `Number(null)`
+ * is 0, so a genuine null is kept as `null` rather than silently becoming zero.
+ */
+export function num(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return Number(value);
+  return NaN;
+}
+
+/** A `/api/params` payload's rows, with their numeric fields made numeric. */
+export function normalize(rows: readonly any[]): ParamRow[] {
+  return rows.map((row) => ({
+    ...row,
+    value: num(row.value),
+    lo: num(row.lo),
+    hi: num(row.hi),
+    esd: row.esd == null ? null : num(row.esd),
+  }));
+}
+
 /** Which of the three reasons holds this row, as a class name — or "" if free.
  *
  * Read off the row's own flags in `ParameterRow.held_because`'s order, and kept
@@ -200,20 +227,47 @@ export function validateEdit(row: ParamRow, text: string): string {
   return "";
 }
 
-/** The `{path: value}` body of one `set_values` call, dropping unchanged text. */
-export function pendingValues(
+export interface EditState {
+  /** the `{path: value}` body of one `set_values` call */
+  values: Record<string, number>;
+  /** paths whose typed text cannot be sent, with the reason */
+  invalid: Array<{ path: string; why: string }>;
+  /** how many cells the user has touched — invalid ones included, so the
+   *  Revert affordance exists for the edit that most needs it */
+  touched: number;
+}
+
+/**
+ * What the grid's pending edits amount to.
+ *
+ * A cell counts as changed when its text differs from the **rendered** value,
+ * not from the stored float — WP-1009's rule for the text document, and for the
+ * same reason: values are displayed at the precision their esd justifies, so
+ * comparing against the full float would turn "the user clicked into a cell and
+ * clicked out again" into a `set_values` that quietly truncates the parameter.
+ */
+export function editState(
   rows: readonly ParamRow[],
   edits: ReadonlyMap<string, string>,
-): Record<string, number> {
+  varyCount = 0,
+): EditState {
   const byPath = new Map(rows.map((row) => [row.path, row]));
-  const out: Record<string, number> = {};
+  const values: Record<string, number> = {};
+  const invalid: Array<{ path: string; why: string }> = [];
+  let touched = varyCount;
   for (const [path, text] of edits) {
     const row = byPath.get(path);
-    if (!row || validateEdit(row, text)) continue;
-    const value = Number(text);
-    if (value !== row.value) out[path] = value;
+    if (!row) continue;
+    const why = validateEdit(row, text);
+    if (why) {
+      invalid.push({ path, why });
+      touched += 1;
+    } else if (text.trim() !== formatValue(row.value, row.esd)) {
+      values[path] = Number(text);
+      touched += 1;
+    }
   }
-  return out;
+  return { values, invalid, touched };
 }
 
 /** A value with its esd, at the precision the esd justifies.

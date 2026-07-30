@@ -41,5 +41,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // one file, for the browser APIs jsdom lacks — see its own comment for the
+    // rule about which ones may go in it
+    setupFiles: ["src/test-setup.ts"],
   },
 });

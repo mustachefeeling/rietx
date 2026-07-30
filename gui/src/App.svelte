@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * The shell: one header of run controls and statistics, the plot, the console.
+   * The shell: one header of run controls and statistics, the plot, the panels.
    *
    * State lives in runes here and is passed down; there is no store library
    * because there is one session and one project, and a second source of truth
@@ -8,13 +8,24 @@
    * prevent. The `state` frame from the event stream is that truth — every
    * control's disabled attribute derives from it rather than from what the last
    * click hoped.
+   *
+   * Two things landed here in WP-1011 rather than in a panel.  The **command
+   * palette** is the shell's, because its entries are every verb the app has and
+   * each one echoes the Python call it makes — the palette is the API's index,
+   * not a menu.  And **Simple/Advanced** is one flag persisted to
+   * `ProjectDoc.ui`, whose keys the frontend owns (WP-1005): it is a property of
+   * the project a user comes back to, not of this browser tab.
    */
   import { onMount } from "svelte";
 
   import { ApiError, api } from "./api";
   import Console from "./panels/Console.svelte";
+  import Palette from "./panels/Palette.svelte";
+  import Params from "./panels/Params.svelte";
+  import Plan from "./panels/Plan.svelte";
   import Plot from "./panels/Plot.svelte";
   import Stubs from "./panels/Stubs.svelte";
+  import { isShortcutTarget, type Command } from "./lib/palette";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
 
   let version = $state<any>(null);
@@ -30,9 +41,18 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
+  let tab = $state<"params" | "plan" | "build">("params");
+  let simple = $state(true);
+  let paletteOpen = $state(false);
+  let paramsPanel = $state<any>(null);
+  let planPanel = $state<any>(null);
+
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
   const gof = $derived(result?.statistics?.gof ?? run?.run?.gof ?? null);
+  // the head is the working state (WP-1005), so it is the one signal that says
+  // "the table moved" whether a run, a checkout or an edit moved it
+  const head = $derived(run?.head ?? project?.head ?? null);
 
   function say(line: string) {
     lines = [...lines.slice(-400), line];
@@ -41,6 +61,7 @@
   async function loadProject() {
     try {
       project = await api.project();
+      simple = project.doc?.ui?.simple ?? true;
       openError = "";
     } catch (error) {
       project = null;
@@ -68,6 +89,7 @@
   async function open(path: string) {
     try {
       project = await api.openProject(path);
+      simple = project.doc?.ui?.simple ?? true;
       openError = "";
       await loadResult();
       say(`project.open(${path})`);
@@ -86,12 +108,75 @@
     }
   }
 
+  async function runStage(stage: any) {
+    try {
+      run = await api.run({ kind: "stage", stage });
+    } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
   async function cancel() {
     try {
       run = await api.cancel();
       say("token.cancel()");
     } catch (error) {
       say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  /** Persist the disclosure level on the verb, not on a later save (WP-1008). */
+  async function setSimple(next: boolean) {
+    simple = next;
+    if (!project) return;
+    try {
+      project = await api.patchProject({ ui: { simple: next } });
+      say(`project.doc.ui["simple"] = ${next ? "True" : "False"}`);
+    } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  const commands = $derived<Command[]>([
+    { id: "run", label: "Run the fit", echo: "ref.fit(data, plan=…)", key: "r",
+      disabled: busy || !project, run: start },
+    { id: "stage", label: `Run one stage${planPanel?.selectedName() ? ` — ${planPanel.selectedName()}` : ""}`,
+      echo: "ref.run_stage(stage)", key: ".", disabled: busy || !project,
+      run: () => { tab = "plan"; planPanel?.runStage(); } },
+    { id: "cancel", label: "Cancel the run", echo: "token.cancel()", key: "Esc",
+      disabled: !busy, run: cancel },
+    { id: "free", label: "Free the filtered parameters", echo: 'ref.set_vary(glob, True)',
+      key: "f", disabled: busy || !project,
+      run: () => { tab = "params"; paramsPanel?.freeSelection(); } },
+    { id: "fix", label: "Fix the filtered parameters", echo: 'ref.set_vary(glob, False)',
+      key: "x", disabled: busy || !project,
+      run: () => { tab = "params"; paramsPanel?.fixSelection(); } },
+    { id: "filter", label: "Filter parameters", echo: "ref.parameters()", key: "/",
+      disabled: !project, run: () => { tab = "params"; setTimeout(() => paramsPanel?.focusFilter(), 0); } },
+    { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
+      echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
+    { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
+      run: async () => { await api.save(); say("project.save()"); } },
+  ]);
+
+  function keydown(event: KeyboardEvent) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      paletteOpen = !paletteOpen;
+      return;
+    }
+    // while the palette is open it owns the keyboard — Esc closes it there, and
+    // `r` would otherwise start a fit from inside a search box
+    if (paletteOpen) return;
+    if (event.key === "Escape" && busy) {
+      cancel();
+      return;
+    }
+    if (!isShortcutTarget(event)) return;
+    const command = commands.find((entry) => entry.key === event.key);
+    if (command && !command.disabled) {
+      event.preventDefault();
+      command.run();
     }
   }
 
@@ -123,6 +208,8 @@
   });
 </script>
 
+<svelte:window onkeydown={keydown} />
+
 <header>
   <div class="title">
     <strong>pxrdref</strong>
@@ -146,6 +233,14 @@
   </div>
 
   <div class="controls">
+    {#if project}
+      <div class="segmented" role="group" aria-label="disclosure">
+        <button class:on={simple} onclick={() => setSimple(true)}
+          title="hide bounds, transforms and stage seeds">Simple</button>
+        <button class:on={!simple} onclick={() => setSimple(false)}
+          title="show every field a stage and a parameter carry">Advanced</button>
+      </div>
+    {/if}
     <span class="pill" data-state={run?.state ?? "idle"}>
       {#if busy}
         {run?.run.stage ?? "starting"}
@@ -156,6 +251,9 @@
     </span>
     <button onclick={start} disabled={busy || !project}>Run</button>
     <button class="ghost" onclick={cancel} disabled={!busy}>Cancel</button>
+    <button class="ghost" onclick={() => (paletteOpen = true)} title="every command, with the call it makes">
+      <kbd>⌘K</kbd>
+    </button>
   </div>
 </header>
 
@@ -183,12 +281,32 @@
     <div class="panes">
       <Plot {result} {plotKey} error={resultError} />
       <div class="side">
-        <Stubs {capabilities} {project} />
+        <nav class="tabs">
+          <button class:on={tab === "params"} onclick={() => (tab = "params")}>Parameters</button>
+          <button class:on={tab === "plan"} onclick={() => (tab = "plan")}>Plan</button>
+          <button class:on={tab === "build"} onclick={() => (tab = "build")}>Build</button>
+        </nav>
+        <!-- all three stay mounted: switching tabs must not throw away a filter,
+             a pending edit or an unsaved stage list -->
+        <div class="panel" class:hidden={tab !== "params"}>
+          <Params bind:this={paramsPanel} {head} {busy} {simple} {say} />
+        </div>
+        <div class="panel" class:hidden={tab !== "plan"}>
+          <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
+            onrun={runStage} />
+        </div>
+        <div class="panel" class:hidden={tab !== "build"}>
+          <Stubs {capabilities} {project} />
+        </div>
         <Console {lines} {dropped} />
       </div>
     </div>
   {/if}
 </main>
+
+{#if paletteOpen}
+  <Palette {commands} onclose={() => (paletteOpen = false)} />
+{/if}
 
 <style>
   header {
@@ -223,6 +341,28 @@
     gap: 8px;
   }
 
+  .segmented {
+    display: flex;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .segmented button {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 400;
+    padding: 3px 9px;
+    font-size: 11.5px;
+  }
+
+  .segmented button.on {
+    background: var(--accent);
+    color: #fff;
+  }
+
   .pill {
     font: var(--mono);
     padding: 2px 8px;
@@ -252,11 +392,45 @@
   }
 
   .side {
-    flex: 0 0 clamp(280px, 30%, 460px);
+    flex: 0 0 clamp(340px, 38%, 560px);
     border-left: 1px solid var(--line);
     display: flex;
     flex-direction: column;
     min-width: 0;
+  }
+
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    flex: 0 0 auto;
+  }
+
+  .tabs button {
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 400;
+    padding: 5px 4px;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tabs button.on {
+    color: var(--fg);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .panel.hidden {
+    display: none;
   }
 
   .empty {

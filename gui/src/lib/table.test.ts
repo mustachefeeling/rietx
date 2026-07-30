@@ -13,12 +13,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   asGlob,
+  editState,
   flatten,
   formatEsd,
   formatValue,
   groupOf,
   heldKind,
-  pendingValues,
+  normalize,
+  num,
   selection,
   validateEdit,
   windowSlice,
@@ -193,14 +195,54 @@ describe("pending edits", () => {
     expect(validateEdit(bounded, "")).toBe("not a number");
   });
 
-  it("batches into one set_values body, dropping unchanged and invalid text", () => {
+  it("batches into one set_values body, dropping unchanged text", () => {
     const rows = [bounded, row("phases.0.cell.a", { value: 4.1568 })];
     const edits = new Map([
       ["instrument.profile.w", "0.004"],        // unchanged
       ["phases.0.cell.a", "4.157"],             // changed
       ["nope", "1"],                            // not a row
     ]);
-    expect(pendingValues(rows, edits)).toEqual({ "phases.0.cell.a": 4.157 });
+    const state = editState(rows, edits);
+    expect(state.values).toEqual({ "phases.0.cell.a": 4.157 });
+    expect(state.touched).toBe(1);
+    expect(state.invalid).toEqual([]);
+  });
+
+  it("compares typed text against the *rendered* value, not the stored float", () => {
+    // the cell shows 4.1568 for a value of 4.156783(19); clicking in and out
+    // again must not send 4.1568 and truncate the parameter (WP-1009's rule)
+    const rows = [row("phases.0.cell.a", { value: 4.156783, esd: 0.00019 })];
+    const untouched = editState(rows, new Map([["phases.0.cell.a", "4.1568"]]));
+    expect(untouched.values).toEqual({});
+    expect(untouched.touched).toBe(0);
+  });
+
+  it("counts an invalid cell as touched, so Revert exists for it", () => {
+    const state = editState([bounded], new Map([["instrument.profile.w", "2"]]), 1);
+    expect(state.values).toEqual({});
+    expect(state.invalid).toEqual([{ path: "instrument.profile.w", why: "above the upper bound 1" }]);
+    expect(state.touched).toBe(2);              // the bad cell, plus one vary toggle
+  });
+});
+
+describe("the wire's spelling of an infinite bound", () => {
+  it("reads Infinity back from the string JSON can carry", () => {
+    // the server sends "Infinity" because Python's bare `Infinity` token is not
+    // JSON and `JSON.parse` rejects the whole response — nearly every row here
+    // has an unbounded side, so this is not an edge case
+    expect(num("Infinity")).toBe(Infinity);
+    expect(num("-Infinity")).toBe(-Infinity);
+    expect(num(0.1)).toBe(0.1);
+  });
+
+  it("normalizes a payload's rows so bounds compare as numbers", () => {
+    const [row] = normalize([
+      { path: "phases.0.cell.a", value: 4.1, lo: 0.1, hi: "Infinity", esd: null },
+    ]);
+    expect(row.hi).toBe(Infinity);
+    expect(row.esd).toBeNull();                 // a genuine null is not 0
+    expect(validateEdit(row, "1e9")).toBe("");
+    expect(validateEdit(row, "0.05")).toContain("lower bound");
   });
 });
 

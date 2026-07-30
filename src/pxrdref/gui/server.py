@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import math
 import socket
 import threading
 import time
@@ -58,6 +59,48 @@ _CONTENT_TYPES = {
     ".woff2": "font/woff2",
     ".map": "application/json; charset=utf-8",
 }
+
+
+# ----------------------------------------------------------------------
+# serialisation
+# ----------------------------------------------------------------------
+def _finite(obj: Any) -> Any:
+    """Replace every non-finite float with its string spelling, in place of nothing.
+
+    ``json.dumps`` writes bare ``Infinity``/``NaN`` tokens, which are a Python
+    extension: **JavaScript's ``JSON.parse`` rejects them outright**, so a single
+    ``hi: inf`` bound turns a whole response into a parse error in the browser.
+    Every parameter row has one, which is why this was invisible until a client
+    read ``/api/params`` (WP-1011) rather than the curves.
+
+    The spelling is not invented here — it is the one the schemas already chose
+    (``ser_json_inf_nan="strings"``, CLAUDE.md: "±inf bounds must survive JSON
+    round-trip"), so ``"Infinity"`` reads back as ``Number("Infinity")`` in JS and
+    as ``float("Infinity")`` in Python.  The GUI server was the one place in this
+    package re-serialising already-dumped dicts with stdlib ``json``, and so the
+    one place that convention was being lost.
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else repr(obj).replace("nan", "NaN").replace(
+            "inf", "Infinity")
+    if isinstance(obj, dict):
+        return {k: _finite(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_finite(v) for v in obj]
+    return obj
+
+
+def _dumps(payload: Any) -> str:
+    """``json.dumps`` that a browser can parse.
+
+    The scan is a substring test on the *output*, so the common response — no
+    non-finite value anywhere — pays one C-level search rather than a recursive
+    walk of a 4000-point curve payload.
+    """
+    text = json.dumps(payload, default=str)
+    if "Infinity" in text or "NaN" in text:
+        text = json.dumps(_finite(payload), default=str)
+    return text
 
 
 # ----------------------------------------------------------------------
@@ -193,7 +236,7 @@ def _handler(session: GuiSession, holder: dict):
                 self.wfile.write(body)
 
         def _json(self, payload: Any, code: int = 200) -> None:
-            self._send(json.dumps(payload, default=str).encode("utf-8"),
+            self._send(_dumps(payload).encode("utf-8"),
                        "application/json; charset=utf-8", code)
 
         def _error(self, exc: GuiError) -> None:
@@ -351,7 +394,10 @@ def _handler(session: GuiSession, holder: dict):
 
         def _frame(self, name: str, payload: dict, seq: int | None = None) -> None:
             chunk = "" if seq is None else f"id: {seq}\n"
-            chunk += f"event: {name}\ndata: {json.dumps(payload, default=str)}\n\n"
+            # the same encoder the JSON routes use: an event's `data` is an open
+            # dict, so a non-finite value in it would break `JSON.parse` in the
+            # stream's listener exactly as it would in a response body
+            chunk += f"event: {name}\ndata: {_dumps(payload)}\n\n"
             self.wfile.write(chunk.encode("utf-8"))
             self.wfile.flush()
 

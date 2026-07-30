@@ -381,6 +381,43 @@ def test_params_exposes_why_each_held_row_is_held(fitted):
     assert any(r["esd"] for r in rows.values())
 
 
+def test_every_response_is_json_a_browser_can_parse(fitted):
+    """WP-1011: ``JSON.parse`` rejects Python's bare ``Infinity``/``NaN``.
+
+    ``json.dumps`` emits them by default, and a parameter row carries an infinite
+    bound almost always — so the whole of ``/api/params`` was unparseable in a
+    browser while every Python test read it back happily, because ``json.loads``
+    accepts the extension its own dumper writes.  The bytes are therefore checked
+    with ``parse_constant`` wired to raise, which is what "strict JSON" means, and
+    the round trip is checked too: the spelling has to be the schemas'
+    (``ser_json_inf_nan="strings"``), not ``null``, or ±inf stop being
+    distinguishable.
+    """
+    _, client, _ = fitted
+
+    def strict(raw: bytes) -> object:
+        def reject(token):
+            raise AssertionError(f"bare {token!r} is not JSON; JSON.parse would refuse it")
+
+        return json.loads(raw.decode("utf-8"), parse_constant=reject)
+
+    for path in ("/api/params", "/api/result", "/api/result/window?max_points=200",
+                 "/api/plan", "/api/report", "/api/history", "/api/capabilities"):
+        conn = HTTPConnection("127.0.0.1", client.port, timeout=60)
+        try:
+            conn.request("GET", path, headers={"Host": f"127.0.0.1:{client.port}"})
+            payload = strict(conn.getresponse().read())
+        finally:
+            conn.close()
+        assert payload, path
+
+    rows = client.get("/api/params")[1]["parameters"]
+    unbounded = [r for r in rows if r["hi"] == "Infinity"]
+    assert unbounded, "no row had an infinite bound; this test would prove nothing"
+    assert float(unbounded[0]["hi"]) == float("inf")
+    assert any(r["lo"] == "-Infinity" for r in rows)   # the sign survives
+
+
 def test_editing_a_tied_path_is_refused_by_naming_its_sources(fitted):
     """WP-1004's rule, now over HTTP: ``b`` follows ``a`` on a cubic cell."""
     _, client, _ = fitted
@@ -416,6 +453,46 @@ def test_values_and_vary_commit_their_own_history_nodes(blank, tmp_path,
     reopened = pr.Project.open(project.path)
     assert len(reopened.history) == len(project.history)
     assert reopened.refinement.structure.phases[0].cell.a.value == pytest.approx(4.163)
+
+
+def test_a_bulk_glob_is_one_round_trip_and_one_history_node(blank, tmp_path,
+                                                            pattern_file):
+    """WP-1011: the table sends the *glob*, not the paths it previewed.
+
+    That is what keeps a "free every cell parameter" click to one node instead of
+    one per parameter — and it is why the client-side matcher can only ever be a
+    preview: this call is where the matching that counts happens.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "bulk.pxrd", pattern_file)
+    before = len(project.history)
+
+    status, payload = client.patch("/api/params", {"vary": {"instrument.profile.*": True}})
+    assert status == 200, payload
+    freed = payload["changed"]["vary"]["instrument.profile.*"]
+    assert len(freed) > 1 and all(p.startswith("instrument.profile.") for p in freed)
+    assert len(project.history) == before + 1          # one glob, one node
+
+    # a locked or tied entry never matches, however broad the glob — which is
+    # exactly what the table's `freeable` count promises the user.  On this cubic
+    # cell that leaves `a` alone out of six paths
+    status, payload = client.patch("/api/params", {"vary": {"phases.*.cell.*": True}})
+    assert status == 200
+    assert payload["changed"]["vary"]["phases.*.cell.*"] == ["phases.0.cell.a"]
+    rows = {r["path"]: r for r in payload["parameters"]}
+    assert rows["phases.0.cell.b"]["vary"] is False      # tied to a
+    assert rows["phases.0.cell.alpha"]["vary"] is False  # locked by symmetry
+    assert len(project.history) == before + 2
+
+    # …and the same glob back off is another single node
+    status, payload = client.patch("/api/params", {"vary": {"instrument.profile.*": False}})
+    assert status == 200 and payload["changed"]["vary"]["instrument.profile.*"] == freed
+    assert len(project.history) == before + 3
+
+    # a glob nobody matches is not an error: it changed nothing, and says so
+    status, payload = client.patch("/api/params", {"vary": {"nothing.at.all": True}})
+    assert status == 200 and payload["changed"]["vary"]["nothing.at.all"] == []
+    assert len(project.history) == before + 4   # …but it is still a recorded move
 
 
 def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file):
