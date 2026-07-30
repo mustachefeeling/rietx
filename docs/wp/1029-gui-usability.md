@@ -1,6 +1,7 @@
 # WP-1029 — GUI usability: legibility, layout, colour, theming
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: 🔄 landed 2026-07-30, **reopened** the same day
+(items p, q, r — see the handover log; two are regressions from the first pass)
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal
@@ -314,6 +315,23 @@ independently, or the two will disagree.
       the splitter's *behaviour* is testable and its *effect* is not — the
       screenshot is the check.
 
+### Second pass (reopened 2026-07-30)
+
+- [ ] **(p) The 3D scene.** `lightposition` is inert on plotly.js 3.7.0
+      (measured, six pairs pixel-identical), so item (a)'s camera light does
+      nothing and only its `LIGHTING` change is visible — shadow-side luminance
+      85 → 48. Find a depth cue that works, correct the three places that claim
+      the light follows the camera, and judge by screenshot on NAC.
+- [ ] **(q) Repaint both plots on a theme change** — the theme is in neither
+      draw effect's dependencies, so `getComputedStyle` colours sampled at draw
+      time go stale and the text ends up light grey on white. While there, take
+      `Plot.svelte`'s five fixed hex curve colours onto the custom properties.
+- [ ] **(r) `RefinementResult` curves.** Nothing is persisted already; the cost
+      is 9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB. Decide
+      between the cheap win (array-backed fields) and the fuller one (`y_calc`
+      by `replay` for any node but the live one), knowing the as-optimised /
+      as-replayed gap. Field types are a WP-1003 freeze question.
+
 ## Acceptance
 
 ```sh
@@ -454,3 +472,114 @@ the screenshot that prompted it, taken again.
 
   **Next**: nothing on this WP. [1017](1017-gui-manual-onboarding.md) has been
   told what changed under it.
+
+- **2026-07-30 (reopened, same evening) — three items from the user driving the
+  landed build. Two are regressions from the work above; nothing is started.**
+
+  Same provenance as the WP itself: found by *use*, not by reading. Everything
+  below is measured, so the next session should not re-measure it.
+
+  **(p) `lightposition` does nothing, so item (a)'s mechanism is inert and its
+  side effect is the whole visible change.** Reported as "3D colours not
+  rendering properly, desaturated/dark and flat", and that is exactly right.
+
+  Measured three ways:
+
+  - In the app, with the camera light against the old fixed `(1e5, 1e5, 1e5)`:
+    **pixel-identical** renders (mean |Δ| = 0.000 over the plot area).
+  - In isolation — one `mesh3d` sphere, one camera down −y, `Plotly.newPlot`
+    fresh each time so nothing can be blamed on `restyle` — four light
+    positions spanning ±x at two magnitudes (1e5 and 3 scene units) are **all
+    six pairs pixel-identical**. A light from the left and a light from the
+    right light a sphere the same way, which no working renderer does.
+  - The light *is* computed and *is* on the trace: read off the shipped build,
+    `lightposition = (11543, 63418, 76452)`, which matches the hand arithmetic
+    for `camera.eye = (1.35, 1.35, 0.95)` to four figures. So `lightPosition()`
+    is correct and ignored.
+
+  What therefore changed the picture is only `LIGHTING`, and it changed it for
+  the worse in the direction reported. Measured on the NAC scene, WP-1015's
+  `ambient 0.75 / diffuse 0.55` against WP-1029's `0.42 / 0.88`:
+
+  | | mean L | 5th pct | 95th pct | contrast | saturation |
+  |---|---|---|---|---|---|
+  | WP-1015 | 233.7 | **85** | 251 | 166 | 0.090 |
+  | WP-1029 | 229.3 | **48** | 251 | 203 | 0.089 |
+
+  The shadow side dropped 85 → 48 (−44 %, exactly the ambient ratio) while the
+  lit side did not move, so "dark" is confirmed and "desaturated" follows from
+  it — HSV saturation is unchanged to three decimals, and a darker colour of the
+  same saturation simply reads as less saturated. "Flat" is the one the numbers
+  seem to contradict (contrast went *up*), and the explanation is the inert
+  light: after any rotation the scene is still lit from wherever it was lit
+  before, so the shading stops corresponding to the view.
+
+  **Do not just restore the old constants.** That returns the WP-1015 trade
+  (never-black bought with no depth cue) and leaves the docstrings this WP
+  committed asserting a mechanism that does not work. The honest options, in the
+  order worth trying: find whether plotly.js exposes any working light control
+  for `mesh3d` (`flatshading`, vertex colours per face, or a second dimmed mesh
+  as a rim); if not, **get the depth cue from something other than the light** —
+  per-vertex `intensity` with a colorscale is a real option, since a viewer can
+  shade by depth along the view axis itself, which is a cue that *does* follow
+  the camera. Whatever lands, the ROADMAP paragraph, CLAUDE.md's bullet and
+  `lib/structure3d.ts`'s `LIGHTING` docstring all currently claim the camera
+  light works and must be corrected in the same change.
+
+  **(q) The plots do not repaint on a theme change**, so their text keeps the
+  old theme's colour — light grey on white, invisible, which is what was
+  reported. Diagnosed by reading, no browser needed: `Plot.svelte`'s draw
+  `$effect` depends on `plotKey`, `zoom`, `kind` and `scale`, and
+  `Structure3D.svelte`'s on `geo`, `mode`, `hidden`, `showBoundary`,
+  `exaggeration` and `view` — **the theme is in neither**, while both sample
+  `getComputedStyle(...).color` (and the viewer, `--accent` for the cell frame)
+  *at draw time*. Before this WP the theme could only change by the OS changing
+  it mid-session, so the staleness was unreachable; the toggle made it a
+  one-click bug. The fix is to make the resolved theme a prop of both panels and
+  a dependency of both draw effects — the same shape as `Text.svelte`'s
+  `setTheme` `$effect`, which was done correctly. Note the second half while
+  there: `Plot.svelte`'s `COLORS` are five fixed hexes (`obs: "#8a8a8a"`) rather
+  than custom properties, so even a correct repaint leaves the *curves* off the
+  palette; `--fg`/`--muted`/`--accent` are what everything else reads.
+
+  **(r) Should `y_calc` be recomputed rather than stored?** — the user's
+  question, and the measurements say the premise is half true already.
+
+  - **Nothing is persisted.** A `RefinementResult` never reaches disk: the
+    `.pxrd/` directory is `project.json` + the pattern file + `history.jsonl` +
+    `live/events.jsonl`, and history nodes have stored **state, not curves**
+    since v0.2 for exactly this reason (a node is ~10 kB; embedding `y_calc`
+    would make it ~1.24 MB). Measured on the NAC project: 3.5 MB on disk, of
+    which the 59 498-point pattern file is nearly all.
+  - **The cost is memory, and it is worse than array-sized.** The five fields
+    are `list[float]`, not arrays: for 59 498 points that is **9.6 MB**, against
+    2.38 MB for the same numbers as numpy fp64 — a 4× overhead paid in Python
+    float objects. *That* is the cheapest win available and it needs no
+    recomputation at all.
+  - **Two of the five are already duplicates**: `two_theta`, `y_obs` and `sigma`
+    are the pattern file, which the project stores byte-for-byte anyway.
+    `y_calc` and `y_background` are the only ones that are genuinely derived —
+    and `refine.replay` already recomputes a node evaluate-only, so the
+    machinery exists.
+  - **The known trap, already documented**: cached metrics are *as-optimised*,
+    frozen at the values each stage **started** from, while `replay` recompiles
+    at the values it **ended** on — so a recomputed curve can differ marginally
+    from the stored one. CLAUDE.md calls that gap "a staleness signal, not a
+    bug", which is fine for a diagnostic and is *not* fine if a plot silently
+    swaps one for the other.
+
+    So the shape of the answer: keep the result's curves for the session that
+    computed them, store nothing, and make `y_calc` for *any other* node a
+    `replay` — which is a `/api/result/window?node=` route, not a schema change.
+    `RefinementResult`'s field types are a **WP-1003 freeze question** (`list[float]`
+    → `ndarray` changes the JSON contract), so 1003 has been told.
+
+  **And a documented fact that is wrong, found on the way.** CLAUDE.md, the
+  ROADMAP and this file all say browser behaviour was "measured against the
+  bundled plotly (6.9.0)". **6.9.0 is the Python `plotly` package; the library
+  in the browser is plotly.js 3.7.0** (`window.Plotly.version`, on the bundle
+  `/plotly.js` serves). Both numbers are real and they version independently, so
+  every claim about *rendering* — WP-1015's `plotly_relayout` finding, the
+  `uirevision` behaviour, and (p) above — is a claim about **plotly.js 3.7.0**.
+  Corrected in place; worth knowing before anyone reads a plotly changelog to
+  explain a rendering result.

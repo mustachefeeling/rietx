@@ -46,6 +46,30 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**Next session starts at [1029](wp/1029-gui-usability.md), which was reopened
+on 2026-07-30 within hours of landing.** Three items, all from the user driving
+the built thing, and **two are regressions from 1029's own first pass** — so
+they belong to it rather than to a new WP. Everything is measured in that file's
+handover log; do not re-measure it. The sharpest is **(p)**: `lightposition` is
+**inert** on plotly.js 3.7.0 (six pairs of light directions render
+pixel-identical), so item (a)'s camera-following light does nothing and the only
+visible effect of that change was its `LIGHTING` constants, which dropped the
+shadow side from 85 to 48 luminance — "desaturated/dark and flat", exactly as
+reported. That also means three places currently claim a mechanism that does not
+work, and a fix has to correct them. **(q)** neither plot has the theme in its
+draw effect's dependencies, so colours sampled at draw time go stale and the text
+ends up light grey on white. **(r)** is a design question rather than a defect —
+whether `y_calc` should be recomputed rather than stored — and the measurements
+say the premise is already half true: nothing is persisted, and the real cost is
+9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB.
+
+*Method note carried from that session, because it cost two wrong claims:*
+playwright's viewport option is `newContext({ viewport })`, **not**
+`viewportSize`, which is silently ignored; and a WebGL canvas cannot be read back
+with `drawImage` unless `preserveDrawingBuffer` is set — screenshot the element
+and analyse the PNG instead. **When a browser check disagrees with a unit test,
+suspect the harness before the code.**
+
 **v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
 measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
 milestone's headline is that three of its four deliverables are *decisions
@@ -200,7 +224,8 @@ glance where the parameter table shows it as six ordinary numbers.** Python
 the geometry.** Reopened on the report that the viewer was "a bit janky", which
 turned out to be a precise complaint: the geometry was right and every *default*
 around it was plotly's rather than crystallography's. Read against VESTA, Jmol
-and 3Dmol.js, and measured against the bundled plotly (6.9.0) rather than its
+and 3Dmol.js, and measured against the bundled **plotly.js 3.7.0** (6.9.0 is
+the Python `plotly` package; the two version independently) rather than its
 documentation. Parallel projection, because perspective converges a cubic cell's
 far edges. No Cartesian axis box — nothing in the picture happens in x, y, z —
 with the cell's own edges labelled a, b, c instead, at a clearance in Å set by
@@ -1481,7 +1506,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
-| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ | 1010–1015 |
+| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | 🔄 | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027, 1029 |
 

@@ -355,7 +355,9 @@ string, never in `ProjectDoc`.
 
 Its **second pass** (2026-07-30) changed no geometry and every default, because
 the scene was plotly's rather than crystallography's — read against VESTA, Jmol
-and 3Dmol.js, and measured against the bundled plotly (6.9.0) rather than its
+and 3Dmol.js, and measured against the bundled **plotly.js 3.7.0** (which is
+what `/plotly.js` serves; 6.9.0 is the Python `plotly` package, and the two
+version independently) rather than its
 docs. **Parallel projection** (perspective converges a cubic cell's far edges),
 **no Cartesian axis box** (`axisTrace` labels the cell's own a/b/c edges instead,
 at a clearance in Å set by the largest ball — a percentage of the edge put every

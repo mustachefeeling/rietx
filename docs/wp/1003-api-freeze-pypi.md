@@ -473,6 +473,20 @@ From **WP-1029** (GUI usability, landed 2026-07-30):
   that a client must not re-derive a number the package owns. They are the same
   shape as `capabilities()`'s registry-quoting arms, so the meta-test style
   there applies.
+- **`RefinementResult`'s curve fields are five `list[float]`**, and whether they
+  stay that way is a freeze decision because it is the JSON contract. Measured
+  on a 59 498-point pattern: **9.6 MB** in memory against **2.38 MB** for the
+  same numbers as numpy fp64 — a 4× overhead in Python float objects, for arrays
+  that are *never persisted* (a `.pxrd/` holds the pattern file and
+  `history.jsonl`; nodes have stored state-not-curves since v0.2). Three of the
+  five (`two_theta`, `y_obs`, `sigma`) duplicate the pattern file the project
+  already stores byte-for-byte, and the other two are derivable — `refine.replay`
+  recomputes a node evaluate-only today. So the freeze question is narrow:
+  **does the frozen surface promise `list[float]`, or arrays?** WP-1029's
+  handover log has the full measurement and the trap (as-optimised metrics vs
+  as-replayed curves can differ marginally, which is fine for a diagnostic and
+  not fine if a plot silently swaps one for the other).
+
 - **`ProjectDoc.ui` gained four keys** (`theme`, `side_width`, `model_columns`,
   on top of `simple`/`console_height`). It is an open dict on purpose; if the
   freeze wants to say anything about it, the sentence is that the *frontend*

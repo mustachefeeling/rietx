@@ -278,7 +278,8 @@ npm --prefix gui test && npm --prefix gui run check
   crystallography's, and that is a different kind of bug — nothing was
   incorrect, everything was slightly unlike the picture a crystallographer
   expects. Read against how VESTA, Jmol and 3Dmol.js draw the same thing, and
-  measured against the bundled plotly (6.9.0, which is what `/plotly.js` serves)
+  measured against the bundled plotly.js **3.7.0** (which is what `/plotly.js`
+  serves — 6.9.0 is the *Python* `plotly` package, corrected 2026-07-30)
   rather than against its documentation.
 
   **Four defaults were plotly's.** *Perspective*, under which parallel cell
