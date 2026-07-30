@@ -325,7 +325,8 @@ class Refinement:
         stage = Stage(node.action.name or "cherry-pick",
                       list(node.action.turn_on),
                       max_iter=node.action.max_iter or 100,
-                      lebail_cycles=node.action.lebail_cycles or 3)
+                      lebail_cycles=node.action.lebail_cycles or 3,
+                      seed=node.action.seed, strain_seed=node.action.strain_seed)
         return self.run_stage(data, stage)
 
     # ------------------------------------------------------------------
@@ -493,6 +494,7 @@ class Refinement:
                 self._record(tree, NodeAction(
                     kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
+                    seed=stage.seed, strain_seed=stage.strain_seed,
                 ), model, table, outcome, stage_diagnostics)
 
         assert model is not None and outcome is not None
@@ -559,6 +561,7 @@ class Refinement:
             self._record(tree, NodeAction(
                 kind="stage", name=stage.name, turn_on=list(stage.turn_on),
                 max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
+                seed=stage.seed, strain_seed=stage.strain_seed,
             ), model, table, outcome, diagnostics)
 
         self.result_ = _build_result(
