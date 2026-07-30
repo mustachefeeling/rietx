@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-11 min (1396 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1313 tests, ~2-2.5 min)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~9-11 min (1426 tests), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1340 tests, ~1.5-2.5 min)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -27,7 +27,9 @@ and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
 group rather than by total work — fast suite 60-80 s over three runs.
 Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
 fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
-are ~85-105 s each on their own.
+are ~85-105 s each on their own.  With the extinction screen (WP-1025) added the
+same day: **1355 passed / 71 skipped in 8:55-9:16**, fast **1274 / 66 in 1:24**;
+the screen itself is 9 s for 29 tests, four of them real-data.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
