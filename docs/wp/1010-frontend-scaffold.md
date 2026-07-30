@@ -165,14 +165,20 @@ Report in the handover (don't gate): first-load JS size, boot-to-interactive.
   1498 of 4200 points with 17 LaB6 ticks — i.e. exactly what the plot panel
   consumes.
 
+  **Visually confirmed by the user, 2026-07-30**, on the served demo project at
+  `http://127.0.0.1:8731/` — the page renders and works. That closes the half of
+  the acceptance line this session could not reach; what is still unmeasured is
+  the *number* (boot-to-interactive), not whether the app functions.
+
   **Measured, reported not gated** (per the WP): first-load **52.8 kB in three
   requests** (`/`, `app.js`, `app.css`) against a ≤250 kB gz budget; server-side
   response times on localhost 0.5–0.8 ms for every JSON route, 11.9 ms for a
   4000-point window (350 kB of JSON), 6.6 ms for plotly's 4.85 MB. **Boot-to-
   interactive was not measured**: no browser automation was available in this
   session, and a number invented from payload sizes would not be a measurement.
-  That is the one acceptance line left open, and it needs someone to open
-  `pxrdref gui` and look.
+  The page itself was confirmed by the user (above); the timing figure is the one
+  acceptance item still owed, and it wants a devtools trace rather than another
+  round of arithmetic.
 
   **Four decisions that changed the WP's plan:**
 

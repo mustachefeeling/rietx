@@ -141,10 +141,12 @@ silently: the repo-wide `*.html` ignore rule matched `static/index.html` — a d
 whose freshness test is green on the machine that built it and whose entry point
 is missing from every fresh clone — and the wheel's contents are now asserted,
 because "installing the wheel never needs node" is the premise the whole design
-rests on. One acceptance line is left open and named: **boot-to-interactive was
-not measured**, because no browser was available in the session; a jsdom mount
-test stands in for the screenshot and rules out the blank-page failure, but it
-cannot say how the page looks.
+rests on. The page was **confirmed working by the user the same day**; what is still
+unmeasured is the *number* — **boot-to-interactive**, because no browser
+automation was available in the session, and a figure derived from payload sizes
+would not be a measurement. A jsdom mount test stands in for the screenshot and
+rules out the blank-page failure, which is what made shipping it defensible
+before anyone looked.
 
 **[1009](wp/1009-textdoc-format.md) landed 2026-07-30** — the project as text
 (`.pxt`), one parser, server-side only. Its founding decision was not in the
