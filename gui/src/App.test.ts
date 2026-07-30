@@ -547,6 +547,54 @@ describe("disclosure and the command palette", () => {
     expect(cancel?.disabled).toBe(true);
   });
 
+  it("gives the console a fixed height it can be dragged out of", async () => {
+    const stub = server(boot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    // sized, not flexible: sharing the sidebar with `flex: 1 1 auto` gave the
+    // log half the column, which is the wrong split for a panel read in glances
+    const panel = host.querySelector<HTMLElement>("section.console")!;
+    expect(panel.style.flex).toBe("0 0 150px");
+
+    // `.grip` is also the plan editor's drag handle, and `.caret` is a group
+    // header's — scope to the console or the query finds a hidden panel's
+    const grip = host.querySelector<HTMLElement>("section.console .grip")!;
+    grip.dispatchEvent(new MouseEvent("pointerdown", { clientY: 400, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("pointermove", { clientY: 340, bubbles: true }));
+    await flush();
+    expect(panel.style.flex).toBe("0 0 210px");            // dragging up grows it
+
+    window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    await flush();
+    // one write per drag, not one per pixel — and it lands in the project's ui
+    const writes = stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].body).toEqual({ ui: { console_height: 210 } });
+  });
+
+  it("collapses to its header and remembers the height to come back to", async () => {
+    const tall = { ...PROJECT, doc: { ...PROJECT.doc, ui: { console_height: 260 } } };
+    const stub = server(boot(tall));
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const panel = host.querySelector<HTMLElement>("section.console")!;
+    expect(panel.style.flex).toBe("0 0 260px");            // restored from the project
+
+    const caret = host.querySelector<HTMLButtonElement>("section.console .caret")!;
+    caret.click();
+    await flush();
+    expect(panel.style.flex).toBe("0 0 26px");             // header only
+    expect(panel.classList.contains("shut")).toBe(true);
+
+    caret.click();
+    await flush();
+    expect(panel.style.flex).toBe("0 0 260px");            // …and back to where it was
+  });
+
   it("runs the fit on `r`, but not while a filter box has focus", async () => {
     const stub = server(boot());
     vi.stubGlobal("fetch", stub.fetcher);

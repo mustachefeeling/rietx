@@ -43,6 +43,7 @@
 
   let tab = $state<"params" | "plan" | "build">("params");
   let simple = $state(true);
+  let consoleHeight = $state(150);
   let paletteOpen = $state(false);
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
@@ -58,10 +59,27 @@
     lines = [...lines.slice(-400), line];
   }
 
+  /** The `ui` keys this frontend owns, read back off the document it saved them
+   *  to — one place, so a new key cannot be persisted and then never restored. */
+  function readUi() {
+    simple = project?.doc?.ui?.simple ?? true;
+    consoleHeight = project?.doc?.ui?.console_height ?? 150;
+  }
+
+  /** Persist a `ui` key on the verb, not on a later save (WP-1005/1008). */
+  async function setUi(patch: Record<string, unknown>) {
+    if (!project) return;
+    try {
+      project = await api.patchProject({ ui: patch });
+    } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
   async function loadProject() {
     try {
       project = await api.project();
-      simple = project.doc?.ui?.simple ?? true;
+      readUi();
       openError = "";
     } catch (error) {
       project = null;
@@ -89,7 +107,7 @@
   async function open(path: string) {
     try {
       project = await api.openProject(path);
-      simple = project.doc?.ui?.simple ?? true;
+      readUi();
       openError = "";
       await loadResult();
       say(`project.open(${path})`);
@@ -125,16 +143,15 @@
     }
   }
 
-  /** Persist the disclosure level on the verb, not on a later save (WP-1008). */
   async function setSimple(next: boolean) {
     simple = next;
-    if (!project) return;
-    try {
-      project = await api.patchProject({ ui: { simple: next } });
-      say(`project.doc.ui["simple"] = ${next ? "True" : "False"}`);
-    } catch (error) {
-      say(`refused: ${(error as Error).message}`);
-    }
+    await setUi({ simple: next });
+    say(`project.doc.ui["simple"] = ${next ? "True" : "False"}`);
+  }
+
+  async function setConsoleHeight(next: number) {
+    consoleHeight = next;
+    await setUi({ console_height: next });
   }
 
   const commands = $derived<Command[]>([
@@ -298,7 +315,7 @@
         <div class="panel" class:hidden={tab !== "build"}>
           <Stubs {capabilities} {project} />
         </div>
-        <Console {lines} {dropped} />
+        <Console {lines} {dropped} height={consoleHeight} onresize={setConsoleHeight} />
       </div>
     </div>
   {/if}
