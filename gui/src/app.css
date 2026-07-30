@@ -84,3 +84,77 @@ kbd {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* The `.pxt` highlighter (WP-1013).  Global rather than scoped to the panel
+   because CodeMirror renders its document outside Svelte's component tree, so a
+   `<style>` block's scoping hash never reaches these spans.  The names are
+   `lib/pxt.ts`'s token names, bound to lezer tags in `lib/editor.ts`; the colours
+   are the same custom properties every other surface uses, so the pane follows
+   the system theme with everything else. */
+.tok-keyword {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tok-vary {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.tok-number {
+  color: var(--fg);
+}
+
+.tok-string {
+  color: var(--warn);
+}
+
+.tok-comment {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tok-annotation {
+  color: var(--muted);
+}
+
+.tok-flag {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tok-operator {
+  color: var(--muted);
+}
+
+.tok-path {
+  color: var(--fg);
+}
+
+/* CodeMirror's own chrome, tinted to the app's palette rather than restyled. */
+.cm-editor {
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-gutters {
+  background: var(--panel);
+  color: var(--muted);
+  border-right: 1px solid var(--line);
+}
+
+.cm-activeLine,
+.cm-activeLineGutter {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cm-selectionBackground,
+.cm-editor .cm-selectionBackground,
+.cm-content ::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}

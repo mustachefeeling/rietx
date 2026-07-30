@@ -17,17 +17,26 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     target: "es2022",
-    // one chunk: the app is ~1500 lines and code splitting would trade a
+    // one CSS file: the styles are ~700 lines and splitting them would trade a
     // reviewable dist for a load time nobody can measure on localhost
     cssCodeSplit: false,
-    // one chunk, no dynamic-import splitting: see the note above.  Vite 8.1
-    // asks for this key in place of rollup's `inlineDynamicImports` but has not
-    // added it to BuildEnvironmentOptions yet, hence the cast.
-    ...({ codeSplitting: false } as Record<string, unknown>),
     rollupOptions: {
       output: {
         entryFileNames: "assets/app.js",
         chunkFileNames: "assets/[name].js",
+        // Application code is still one chunk.  CodeMirror — the app's one real
+        // dependency (WP-1013) — is not, and splitting it *serves* the
+        // one-chunk decision rather than reversing it: a committed dist has to
+        // diff reviewably, and ~350 kB of minified third-party bytes inside
+        // `app.js` would sit in the middle of every application diff, while a
+        // separate `vendor-cm.js` changes only when the lockfile pin does.
+        // `panels/Text.svelte` imports it dynamically, so this is also what
+        // keeps the boot path at the size WP-1010 measured — the editor is
+        // fetched the first time someone opens the text pane, not before the
+        // first paint.
+        manualChunks: (id: string) =>
+          /node_modules[\\/](@codemirror|@lezer|crelt|style-mod|w3c-keyname)[\\/]/
+            .test(id) ? "vendor-cm" : undefined,
         assetFileNames: (info) =>
           info.names?.[0]?.endsWith(".css") ? "assets/app.css" : "assets/[name][extname]",
       },

@@ -27,6 +27,7 @@
   import Plot from "./panels/Plot.svelte";
   import Report from "./panels/Report.svelte";
   import Stubs from "./panels/Stubs.svelte";
+  import Text from "./panels/Text.svelte";
   import { isShortcutTarget, type Command } from "./lib/palette";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
 
@@ -44,6 +45,11 @@
   let plotKey = $state(0);
 
   let tab = $state<"params" | "plan" | "history" | "report" | "build">("params");
+  /** The text pane is a **mode**, not a sixth tab (WP-1013).  The strip is
+   *  already five wide inside a 340–560 px sidebar, and this is the one panel
+   *  whose content is line-oriented: the `.pxt` columns are aligned so a
+   *  rectangular selection can hit one field, which a narrow column undoes. */
+  let textMode = $state(false);
   let simple = $state(true);
   let consoleHeight = $state(150);
   let paletteOpen = $state(false);
@@ -211,6 +217,9 @@
       disabled: !project, run: () => (tab = "report") },
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
       disabled: !project, run: () => (tab = "history") },
+    { id: "text", label: textMode ? "Leave the text document" : "Edit the project as text",
+      echo: "print(pxrdref.gui.textdoc.render(project))", key: "t", disabled: !project,
+      run: () => (textMode = !textMode) },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
     { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
@@ -300,6 +309,8 @@
 
   <div class="controls">
     {#if project}
+      <button class="ghost" class:on={textMode} onclick={() => (textMode = !textMode)}
+        title="the whole project as one editable document">Text</button>
       <div class="segmented" role="group" aria-label="disclosure">
         <button class:on={simple} onclick={() => setSimple(true)}
           title="hide bounds, transforms and stage seeds">Simple</button>
@@ -344,7 +355,14 @@
       {/if}
     </section>
   {:else}
-    <div class="panes">
+    <!-- the text pane stays mounted while hidden, exactly as the tabs do: a
+         buffer with unedited-but-typed changes has to survive a look at the
+         parameter table.  Its editor is built on first entry, not on boot. -->
+    <div class="textmode" class:hidden={!textMode}>
+      <Text {head} {busy} active={textMode} {say} onmoved={moved}
+        onclose={() => (textMode = false)} />
+    </div>
+    <div class="panes" class:hidden={textMode}>
       <Plot {result} {plotKey} {zoom} error={resultError} />
       <div class="side">
         <nav class="tabs">
@@ -466,6 +484,21 @@
   .panes {
     display: flex;
     height: 100%;
+  }
+
+  .textmode {
+    height: 100%;
+  }
+
+  .panes.hidden,
+  .textmode.hidden {
+    display: none;
+  }
+
+  .controls button.on {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
   }
 
   .side {

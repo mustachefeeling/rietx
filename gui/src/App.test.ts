@@ -17,6 +17,7 @@
  * a table that renders beautifully while PATCHing the wrong body is the bug this
  * file exists to catch.
  */
+import { EditorView } from "@codemirror/view";
 import { mount, unmount } from "svelte";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -348,7 +349,7 @@ describe("the shell", () => {
     expect(host.textContent).toContain("4200 pts");
     expect(host.textContent).toContain("σ from file");     // which weights the fit used
     expect(host.textContent).toContain("No fitted curves yet");
-    expect(host.textContent).toContain("WP-1013");         // the panels still owed
+    expect(host.textContent).toContain("WP-1014");         // the panels still owed
     expect(button("Run")?.disabled).toBe(false);
   });
 
@@ -977,5 +978,214 @@ describe("disclosure and the command palette", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
     await flush();
     expect(stub.calls.some((call) => call.path === "/api/run")).toBe(true);
+  });
+});
+
+/**
+ * The text pane (WP-1013), driven through the real CodeMirror view.
+ *
+ * `EditorView.findFromDOM` is what makes these end-to-end rather than a test of
+ * `lib/sync.ts` twice: a dispatch on the live view is exactly what a keystroke
+ * produces, so the debounce, the transport and the state machine are all in the
+ * path. The two assertions worth having are the two the WP names as risks — a
+ * concurrent model change may not eat an edit, and a conflict has one exit.
+ */
+const TEXTDOC = 'pxt 1\nproject "lab6"\nmode rietveld\nlimits none\n';
+const TEXTDOC_MOVED = 'pxt 1\nproject "lab6"\nmode rietveld\nlimits 3 60\n';
+
+/** Mount, then enter the text mode (a mode, not a tab — the strip stays five wide). */
+async function openText(extra: Record<string, any> = {}, project: any = PROJECT) {
+  const stub = server({
+    "/api/textdoc": () => ({ body: { text: TEXTDOC, revision: "r1", format_version: "1" } }),
+    ...boot(project),
+    ...extra,
+  });
+  vi.stubGlobal("fetch", stub.fetcher);
+  app = mount(App, { target: host });
+  await flush();
+  button("Text")!.click();
+  await waitForEditor();
+  return stub;
+}
+
+/** The editor arrives on a dynamic `import()` — a real await, not a microtask.
+ *
+ * That is the design working rather than a test smell: `vendor-cm.js` is a
+ * separate chunk fetched the first time the pane is opened, so the boot path
+ * keeps the size WP-1010 measured. A `flush()` of microtasks cannot see the end
+ * of a module load, so this polls for the mounted editor. */
+async function waitForEditor(timeout = 4000) {
+  const deadline = Date.now() + timeout;
+  while (!host.querySelector(".cm-content") && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  await flush();
+}
+
+/** The live editor, and a dispatch on it is a keystroke. */
+function editorView(): EditorView {
+  return EditorView.findFromDOM(host.querySelector(".cm-content") as HTMLElement)!;
+}
+
+async function typeInto(text: string) {
+  const view = editorView();
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+  await flush();
+}
+
+/** Past the 300 ms validate debounce — real timers, because `flush` uses one. */
+const settle = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 360));
+  await flush();
+};
+
+describe("the text pane", () => {
+  it("costs nothing until it is opened, then renders the document", async () => {
+    const stub = server({
+      "/api/textdoc": () => ({ body: { text: TEXTDOC, revision: "r1", format_version: "1" } }),
+      ...boot(),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    // the boot path is what WP-1010 measured; a document nobody asked for would
+    // both re-render every parameter row and pull in the editor chunk
+    expect(stub.calls.some((call) => call.path === "/api/textdoc")).toBe(false);
+    expect(host.querySelector(".cm-content")).toBeNull();
+
+    button("Text")!.click();
+    await waitForEditor();
+    expect(stub.calls.some((call) => call.path === "/api/textdoc")).toBe(true);
+    expect(host.querySelector(".cm-content")?.textContent).toContain("mode rietveld");
+    expect(host.textContent).toContain("in sync");
+  });
+
+  it("validates a debounced edit without applying it", async () => {
+    const stub = await openText({
+      "/api/textdoc": (call: Call) => ({
+        body: call.method === "GET"
+          ? { text: TEXTDOC, revision: "r1", format_version: "1" }
+          : { valid: true, applied: [], delta: {}, revision: "r1", would_change: true },
+      }),
+    });
+    await typeInto(TEXTDOC_MOVED);
+    expect(host.textContent).toContain("edited");
+    expect(stub.calls.some((call) => call.method === "PUT")).toBe(false);  // still debouncing
+
+    await settle();
+    const put = stub.calls.find((call) => call.method === "PUT")!;
+    expect(put.body).toEqual({ text: TEXTDOC_MOVED, base_revision: "r1", validate_only: true });
+    expect(host.textContent).toContain("ready to apply");
+  });
+
+  it("applies explicitly, echoes the verbs, and adopts the re-render", async () => {
+    const stub = await openText({
+      "/api/textdoc": (call: Call) => ({
+        body: call.method === "GET"
+          ? { text: TEXTDOC, revision: "r1", format_version: "1" }
+          : call.body.validate_only
+            ? { valid: true, applied: [], delta: {}, revision: "r1", would_change: true }
+            : { valid: true, applied: ['project.set_two_theta_limits(3.0, 60.0)'],
+                delta: {}, text: TEXTDOC_MOVED, revision: "r2" },
+      }),
+    });
+    await typeInto(TEXTDOC_MOVED);
+    await settle();
+    button("Apply ⌘⏎")!.click();
+    await flush();
+
+    const applied = stub.calls.filter((c) => c.method === "PUT" && !c.body.validate_only);
+    expect(applied).toHaveLength(1);
+    expect(applied[0].body.base_revision).toBe("r1");
+    // the same verbs a form calls, so the console reads the same either way
+    expect(host.textContent).toContain("project.set_two_theta_limits(3.0, 60.0)");
+    expect(host.textContent).toContain("applied 1 change(s)");
+    // the response carried the re-render: canonical output normalises glob lines
+    // away, so the buffer is replaced rather than patched — and needs no 2nd GET
+    expect(editorView().state.doc.toString()).toBe(TEXTDOC_MOVED);
+    expect((button("Apply ⌘⏎") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("never lets a model change underneath overwrite an edit", async () => {
+    let moved = false;
+    const stub = await openText({
+      "/api/textdoc": (call: Call) => ({
+        body: call.method === "GET"
+          ? { text: moved ? TEXTDOC_MOVED : TEXTDOC, revision: moved ? "r2" : "r1",
+              format_version: "1" }
+          : { valid: true, applied: [], delta: {}, revision: "r1", would_change: true },
+      }),
+      // a checkout from the history panel, an applied suggestion, a form edit:
+      // every one of them moves the head, which is this pane's reload signal
+      "/api/events": () => ({ body: { events: [], next: 0, oldest: 1, ...IDLE_RUN,
+                                      head: moved ? "n0009" : "n0000" } }),
+    });
+    const mine = TEXTDOC + "excluded 7.5 8\n";
+    await typeInto(mine);
+    moved = true;
+    await new Promise((resolve) => setTimeout(resolve, 800));  // one poll interval
+    await flush();
+
+    expect(editorView().state.doc.toString()).toBe(mine);       // the edit survives
+    expect(host.textContent).toContain("stale");
+    expect(host.textContent).toContain("There is no merge");
+    expect((button("Apply ⌘⏎") as HTMLButtonElement).disabled).toBe(true);
+
+    // one exit, and it is the same one the server's 409 recommends
+    button("Re-read")!.click();
+    await flush();
+    expect(editorView().state.doc.toString()).toBe(TEXTDOC_MOVED);
+    expect(host.textContent).toContain("in sync");
+    expect(stub.calls.filter((c) => c.path === "/api/textdoc" && c.method === "GET").length)
+      .toBeGreaterThan(1);
+  });
+
+  it("shows a refusal at its line, and clears it when the line is retyped", async () => {
+    await openText({
+      "/api/textdoc": (call: Call) => ({
+        status: call.method === "GET" ? 200 : 400,
+        body: call.method === "GET"
+          ? { text: TEXTDOC, revision: "r1", format_version: "1" }
+          : { error: { code: "TEXTDOC_INVALID",
+                       message: "1 problem(s) in the document; nothing was applied",
+                       where: ["mode"],
+                       details: [{ line: 3, message: "unknown mode 'nonsense'",
+                                   where: "mode", text: "mode nonsense" }] } },
+      }),
+    });
+    await typeInto(TEXTDOC.replace("rietveld", "nonsense"));
+    await settle();
+
+    expect(host.textContent).toContain("1 problem(s)");
+    expect(host.textContent).toContain("unknown mode 'nonsense'");
+    expect(host.textContent).toContain("line 3");
+    // the highlighter said nothing about any of this: only the server can
+    expect(host.querySelector(".cm-content [class*='tok-']")).not.toBeNull();
+
+    await typeInto(TEXTDOC);
+    expect(host.textContent).not.toContain("unknown mode");
+  });
+
+  it("is read-only in the way that matters while a run is in flight", async () => {
+    const running = { ...IDLE_RUN, state: "running",
+                      run: { ...IDLE_RUN.run, kind: "fit", stage: "cell" } };
+    const stub = await openText({
+      "/api/run/state": () => ({ body: running }),
+      "/api/events": () => ({ body: { events: [], next: 0, oldest: 1, ...running } }),
+    });
+    await typeInto(TEXTDOC_MOVED);
+    await settle();
+
+    // no validate is even attempted: the server would answer RUN_IN_FLIGHT, and
+    // the state refusal outranking a parse complaint is only useful if the pane
+    // does not ask a question it knows the answer to
+    expect(stub.calls.some((call) => call.method === "PUT")).toBe(false);
+    expect((button("Apply ⌘⏎") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("warns that comments will not survive before Apply replaces the buffer", async () => {
+    await openText();
+    await typeInto(TEXTDOC + "# checked against the certificate 2026-07-30\n");
+    expect(host.textContent).toContain("will not survive the next render");
   });
 });
