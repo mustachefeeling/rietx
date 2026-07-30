@@ -288,7 +288,9 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
     only one of them counts: a **symmetry** image is a member of the orbit, so
     the number of non-``boundary`` atoms on a site *is* its multiplicity, while
     a **boundary** duplicate is the same atom seen at the opposite face and is
-    there so a corner atom appears at all eight corners.
+    there so a corner atom appears at all eight corners.  :func:`_partners` adds
+    a third kind under the same flag — a bonded neighbour just outside the cell —
+    for the same reason: it is an image, not a cell member.
     """
     sites: list[dict] = []
     atoms: list[dict] = []

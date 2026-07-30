@@ -1,6 +1,6 @@
 # WP-1015 — Structure viewer, zero new dependencies
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: WP-1010 (WP-1014 soft — the viewer is richer once editing exists)
 
 ## Goal
@@ -93,14 +93,15 @@ bytes in a dist that is reviewed as a diff.
 
 ## Tasks
 
-- [ ] `src/pxrdref/gui/structure3d.py`: payload builder (expanded
+- [x] `src/pxrdref/gui/structure3d.py`: payload builder (expanded
       positions, cell edges, bonds by radius-sum cutoff, ellipsoid
       transforms at a probability level; NPD tensors flagged).
-- [ ] `GET /api/structure3d` on the session (current model state, so edits
+- [x] `GET /api/structure3d` on the session (current model state, so edits
       reflect immediately).
-- [ ] Structure panel: Scatter3d + Mesh3d rendering, probability selector,
-      species legend from gemmi colours.
-- [ ] `tests/test_structure3d.py`: cubic and monoclinic phases give the
+- [x] Structure panel: Scatter3d + Mesh3d rendering, probability selector,
+      species legend — **not** from gemmi colours, which do not exist; see
+      the handover log.
+- [x] `tests/test_structure3d.py`: cubic and monoclinic phases give the
       right atom multiplicity and 12 cell edges; a known aniso CIF's
       ellipsoid axes match `principal_values`; a non-positive-definite
       tensor is flagged in the payload rather than producing NaN geometry.
@@ -108,8 +109,8 @@ bytes in a dist that is reviewed as a diff.
 ## Acceptance
 
 ```sh
-.venv/bin/python -m pytest tests/test_structure3d.py -q
-npm --prefix gui test
+.venv/bin/python -m pytest tests/test_structure3d.py tests/test_gui_server.py -q
+npm --prefix gui test && npm --prefix gui run check
 .venv/bin/python -m ruff check src tests examples
 ```
 
@@ -122,3 +123,103 @@ npm --prefix gui test
 
 - **2026-07-29** — created from the v1.0 GUI plan. All cited server-side
   helpers verified present (exact names/lines) the same day.
+
+- **2026-07-30 — landed.** All four tasks done; `GET /api/structure3d` is live
+  and out of `RESERVED_ROUTES`. Acceptance above is green: 27 new Python tests
+  (1164 → 1192 fast-suite passes, skips unchanged at 107) and vitest 184 → 206;
+  ruff and `svelte-check` clean; `app.js` 151.6 → 161.5 kB (55.1 kB gzip).
+
+  **Done.** `src/pxrdref/gui/structure3d.py` builds the payload — the symmetry
+  orbit *with each image's rotation*, bonds over the 27 nearest lattice
+  translations, eight cell corners and twelve index pairs, per-atom ellipsoid
+  transforms, NPD flagged. `gui/src/lib/structure3d.ts` turns it into plotly
+  traces, `gui/src/panels/Structure3D.svelte` is the panel — a **third column of
+  the model pane** (the Inherited note's suggestion, taken), toggled by a `3D`
+  button in that pane's header. `gui/src/lib/plotly.ts` is the runtime loader,
+  now shared with `Plot.svelte`. One new crystallography verb,
+  `symmetry.expand_orbit`, with `expand_positions` delegating to it.
+
+  **Four things the WP could not have known, all measured:**
+
+  1. **gemmi has no colour table.** It has `covalent_r`, `vdw_r` and `is_metal`,
+     which is what the bond rule and the balls use; there is no `color`. Colours
+     are the CPK *convention* (cited) with hex values chosen here for contrast on
+     both themes, plus a golden-angle-in-Z fallback for everything the convention
+     does not name — so nothing is transcribed from Jmol/VESTA/PyMOL, all of
+     which are unsuitable to copy into an MIT core. `ATTRIBUTION.md` now records
+     this under Data tables.
+  2. **A plain radius-sum bond rule draws LaB6's twelve cell edges as La–La
+     sticks** (gemmi's covalent radius for La is 2.07 Å against a = 4.158 Å) and
+     the boron framework disappears into a cage. The fix is chemical rather than
+     geometric and is a predicate over the *phase*: bond metals to metals only
+     when the phase has no non-metal in it, so an alloy still bonds and an
+     intermetallic never needs a special case (`bonds_between_metals`).
+  3. **A non-positive-definite tensor draws its non-positive axes at zero**, not
+     at `√(negative)`: one NaN vertex loses the whole `mesh3d`, not one atom. The
+     ellipsoid collapses to a disc or a needle — visibly degenerate — and the
+     payload says so in `note` and per atom in `npd`.
+  4. **`expand_orbit` had to exist.** A displacement ellipsoid *transforms*
+     (U\* → R·U\*·Rᵀ) rather than merely moving, and `expand_positions` discards
+     the operation. An image drawn with its parent's tensor looks right on a
+     cubic site and is wrong on every other one — asserted by
+     `test_every_symmetry_image_rotates_its_tensor_and_keeps_its_size`, whose
+     shape is the useful part: a rotation preserves eigenvalues, so every image
+     must share its site's semi-axis *lengths* while differing in orientation.
+
+  **The browser found four more, three of which jsdom structurally cannot see**
+  (Chrome for Testing via `playwright-core`, installed outside the workspace).
+  This is the fifth session running to find one, and the second (after WP-1013)
+  where the defect belonged to a *library's* view of the page rather than to the
+  DOM the component renders:
+
+  - **plotly's canvas overhung its box and swallowed the legend's clicks.**
+    `responsive: true` listens for **window** resizes only, and this plot's box
+    shrinks without one — the legend, the knobs and the caption all render
+    *below* it as soon as the first payload lands. Playwright reported it exactly
+    (`<canvas 1018×1526> … intercepts pointer events`); a human would have read
+    it as "the legend is broken". Fixed with a `ResizeObserver` →
+    `Plotly.Plots.resize`, which is the general truth rather than a workaround.
+  - **The cell frame was invisible**: `--line` is a hairline *border* colour and
+    disappears into the page in a 3D scene. The frame is the picture's frame, so
+    it takes `--accent`. Nothing in the payload was wrong; the first screenshot
+    is what said so.
+  - **Every bond ended in mid-air.** A bond drawn to a translated image is
+    correct and *reads* as broken. Each out-of-cell endpoint now gets its atom
+    drawn (`_partners`), flagged `boundary` so multiplicity counting is
+    untouched, and **exactly one level deep** — completing those atoms' bonds in
+    turn is a packing diagram, this WP's declared non-goal.
+  - **The chosen ellipsoid probability was reset by every reload**, because the
+    payload carries the server's default and a reload replaced the whole object.
+    The level now lives in the component and meets the geometry in one function
+    (`at`), which is the same shape as WP-1013's "two facts must not share one
+    field" one rank over.
+
+  **Measured** (M4, Chrome for Testing, Apple Metal): boot-to-interactive
+  **65–99 ms**, unchanged from WP-1013's 81 ms — the viewer costs nothing before
+  the model pane is opened, since plotly and the scene are both inside it — and
+  click-to-a-drawn-scene **605–1447 ms**, mostly the 4.8 MB plotly fetch and
+  parse (1414–1669 ms under software WebGL, so the GPU is not the bottleneck).
+  Camera survives a redraw (`uirevision`); a probability change is a client
+  multiply with **zero** refetches; the bond slider is a server round trip
+  because the server owns the bond rule. On NAC read with its aniso loop: 84
+  atoms in the cell, ellipsoids at 90 %, each symmetry image visibly rotated, and
+  Na1's balloon (Biso 2.16 Å² against Al's 0.59) obvious at a glance where the
+  parameter table shows it as six ordinary numbers. That last is the WP's whole
+  claim, working.
+
+  **Decisions worth keeping.** A ball and an ellipsoid are the **same code path**
+  — `pos + T·v` over one unit sphere, with `T = f·r·I` or `k(p)·T` — because
+  plotly's `scatter3d` markers are sized in *pixels* and a ball-and-stick that
+  does not scale with the cell cannot be compared with it. Probability levels are
+  served as a **table** of k(p) = √χ²₃(p) rather than one number, which is what
+  makes the selector a client multiply. `bond_tolerance` and `probability` ride
+  on the **query string** and are never persisted: they are drawing thresholds,
+  and storing one would make a picture the project's opinion.
+
+  **Not done, deliberately.** No coordination polyhedra, no packing view, no
+  measurement tools — the WP's own non-goals, and the 3Dmol.js escalation note
+  above still stands if any of them is later wanted. The Wyckoff *letter* is
+  still absent: the Inherited note said this route would be the place for it
+  since it is computed on demand, and it remains true, but nothing in the panel
+  needed it. `MAX_ATOMS` is 400 and `MAX_BONDS` 4000; both report in `note` when
+  they bite.

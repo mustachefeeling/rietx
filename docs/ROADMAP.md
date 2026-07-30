@@ -121,6 +121,66 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1015](wp/1015-structure-viewer.md) landed 2026-07-30 — you can see the
+structure.** A rotatable cell with atoms, bonds, symmetry images and thermal
+ellipsoids, drawn by the plotly already on the page: **zero new dependencies**,
+and a third column of the model pane rather than a sixth tab.
+
+**Its founding decision is that everything hard stays on the server.** `GET
+/api/structure3d` returns Cartesian points, 3×3 matrices and index pairs; the
+browser's whole job is `pos + T·v` over one unit sphere. That is WP-1010's
+no-client-side-decimator refusal one rank up, and it is what earns the route its
+place beside `/api/structure` on WP-1008's test — the orbit, the bonds and the
+cell frame are three things a `Structure` dump cannot say. It also forced the
+milestone's one new crystallography verb: **`expand_orbit` returns the operation
+as well as the position**, because a displacement ellipsoid *transforms*
+(U\* → R·U\*·Rᵀ) rather than merely moving, and an image drawn with its parent's
+tensor looks right on a cubic site and is wrong on every other one.
+
+**Three things the WP's own charter asserted turned out to be false, and each
+correction is a decision.** gemmi has **no colour table** (it has radii and a
+metal flag, which the bond rule uses); colours are the CPK *convention* with hex
+values chosen here for contrast on both themes plus a golden-angle-in-Z fallback,
+so nothing is transcribed from Jmol/VESTA/PyMOL — all unsuitable to copy into an
+MIT core, and `ATTRIBUTION.md` now says so. A **plain radius-sum bond rule draws
+LaB6's twelve cell edges as La–La sticks** (gemmi's covalent radius for lanthanum
+is 2.07 Å against a = 4.158 Å) and the boron framework vanishes into a cage; the
+fix is chemical rather than geometric and is a predicate over the *phase* — bond
+metals to metals only when the phase has no non-metal in it, so an alloy still
+bonds and an intermetallic never needs a special case. And a **non-positive-
+definite tensor draws its non-positive axes at zero**, not at `√(negative)`: one
+NaN vertex loses the whole mesh, not one atom, so the ellipsoid collapses to a
+visible disc and the payload says why.
+
+**A real browser found four more, for the fifth session running — and this time
+one of them was reported by the *test runner* in the defect's own words.**
+plotly's `responsive: true` listens for **window** resizes only, so when the
+legend and caption rendered below the plot the box shrank under an already-sized
+canvas, which then overhung and **swallowed every click beneath it**; playwright
+said `<canvas 1018×1526> … intercepts pointer events` where a human would have
+said "the legend is broken". The cell frame was **invisible**, because `--line` is
+a hairline border colour that disappears into the page in a 3D scene. **Every bond
+ended in mid-air** — a bond drawn to a translated image is correct and *reads* as
+broken — so each out-of-cell endpoint now gets its atom drawn, flagged so
+multiplicity counting is untouched and exactly one level deep, which is the line
+between completing a coordination and drawing the packing diagram this WP
+declined. And the chosen **ellipsoid probability was reset by every reload**,
+because the payload carries the server's default: WP-1013's "two facts must not
+share one field" wearing a fourth costume.
+
+Measured on an M4 in Chrome for Testing: boot-to-interactive **65–99 ms**,
+unchanged from WP-1013's 81 ms — the viewer costs nothing before the model pane is
+opened — and **605–1447 ms** from clicking *Model* to a drawn scene, almost all of
+it fetching and parsing plotly (1414–1669 ms under software WebGL, so the GPU is
+not the bottleneck). The camera survives a redraw, a probability change is a
+client multiply with **zero** refetches, and the bond slider is a server round trip
+because the server owns the bond rule. The picture the WP exists for, on NAC read
+with its aniso loop: 84 atoms, ellipsoids at 90 %, every symmetry image visibly
+rotated, and **Na1's balloon — Biso 2.16 Å² against Al's 0.59 — obvious at a
+glance where the parameter table shows it as six ordinary numbers.** Python
+1164 → 1192 fast-suite passes with the skips unchanged at 107; vitest 184 → 206;
+`app.js` 151.6 → 161.5 kB (55.1 kB gzip).
+
 **[1014](wp/1014-import-structure-editing.md) landed 2026-07-30 — data gets *in*,
 and the model can be edited.** Upload endpoints with content-sniffed validated
 previews, an import wizard that *is* the empty state, an atom table over the
@@ -1278,7 +1338,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
-| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
+| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027 |

@@ -57,6 +57,27 @@ chain runs (CLAUDE.md, Weights). And an upload's **token is session-scoped** —
 `UploadStore` is emptied by `GuiSession.close`, so a panel must commit its uploads
 within the session that staged them, not persist tokens anywhere.
 
+From **WP-1015** (structure viewer, landed 2026-07-30): **there is now one plotly
+loader, and one trap every panel that plots must avoid.**
+
+`gui/src/lib/plotly.ts` is the shared runtime loader (`loadPlotly()`, a
+deduplicating promise around the `<script src="/plotly.js">` injection that
+WP-1010 kept out of the dist). A trajectory plot should call it rather than copy
+the injection a third time.
+
+The trap is measured, not theoretical: **plotly's `responsive: true` listens for
+*window* resizes only.** If a panel puts controls or a caption *below* its plot,
+those render after the first payload arrives, the plot's box shrinks under an
+already-sized canvas, and the canvas then overhangs and **swallows the clicks** of
+everything beneath it — in a real browser the controls look live and are not.
+A jsdom mount cannot see this at all (no layout). `Structure3D.svelte` fixes it
+with a `ResizeObserver` → `Plotly.Plots.resize`; do the same, or put every control
+*above* the plot.
+
+Also worth knowing: this WP did **not** add a sixth tab — the viewer is a third
+column inside the model pane, which leaves the sixth-tab question below exactly
+where WP-1013 left it.
+
 From **WP-1013** (landed 2026-07-30): **the tab strip is still five wide, and a
 `Series` tab would be the sixth.** WP-1012 warned that six labelled tabs stop
 fitting a `clamp(340px, 38%, 560px)` sidebar and handed the question to 1013,

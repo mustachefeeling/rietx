@@ -87,6 +87,24 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1015** (structure viewer, landed 2026-07-30): **the plotly loader is now
+shared, and a plot with controls under it has a measured trap.**
+
+`gui/src/lib/plotly.ts` (`loadPlotly()`) is the one place the runtime
+`<script src="/plotly.js">` is injected — use it. And plotly's `responsive: true`
+listens for **window** resizes only, so a plot whose box shrinks when a caption or
+a control row renders below it keeps an oversized canvas that **intercepts the
+clicks** of everything beneath. Found in Chrome and invisible to jsdom, which has
+no layout; the fix is a `ResizeObserver` → `Plotly.Plots.resize` on the plot div,
+as in `panels/Structure3D.svelte`. A peak picker whose picks are made *by clicking
+the plot* has the sharper version of this problem: an oversized canvas maps a
+click to the wrong 2θ, silently.
+
+**A cell that has just been indexed can be looked at.** `GET /api/structure3d`
+draws the current model — orbit, bonds, ellipsoids, cell frame — so an adopted
+candidate cell is one route away from a picture, which is a cheap sanity check on
+an indexing result that no figure of merit provides.
+
 From **WP-1014** (import & in-GUI editing, landed 2026-07-30): three things this
 panel can reuse rather than rebuild.
 

@@ -8,15 +8,15 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1350 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1271 collected, ~20-65 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1378 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1299 collected, ~20-65 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (184: jsdom mount, fnmatch parity, panel/text-sync/model-edit logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (206: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -34,16 +34,17 @@ a busier one (2026-07-30), and 12:40 later the same day on a machine
 simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1234 passed / 116 skipped (1350 collected, 10:27)
-and the fast suite 1164 passed / 107 skipped (1271 of 1350 collected). Installing
+`[dev]`** venv, the full suite is 1262 passed / 116 skipped (1378 collected, 10:27)
+and the fast suite 1192 passed / 107 skipped (1299 of 1378 collected). Installing
 `[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
 means nothing without the venv it was measured in. (WP-1012 added twelve tests and
 **both** counts moved by exactly twelve; WP-1013 added three and both moved by
-three; WP-1014 added sixteen and both moved by sixteen — every time with the skips
-unchanged. That is the bookkeeping check worth doing: the same two figures a day
-earlier disagreed by one, and a session that cannot say which of its numbers moved
-cannot tell a new skip from a new pass. The frontend's own suite is counted
-separately and moved 85 → 139 → 184.)
+three; WP-1014 added sixteen and both moved by sixteen; WP-1015 added twenty-eight
+and both moved by twenty-eight — every time with the skips unchanged. That is the
+bookkeeping check worth doing: the same two figures a day earlier disagreed by
+one, and a session that cannot say which of its numbers moved cannot tell a new
+skip from a new pass. The frontend's own suite is counted separately and moved
+85 → 139 → 184 → 206.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -315,6 +316,35 @@ code: `structuredClone` **throws on a Svelte 5 `$state` proxy** (use
 one field** (the reload after a failed apply wiped it), and `axialWarning` stays
 silent on the S/L = H/L pair that is 0-and-held, because that is the shipped
 default and a warning on every fresh lab instrument is a warning nobody reads.
+
+The **structure viewer** (WP-1015, `src/pxrdref/gui/structure3d.py`,
+`gui/src/panels/Structure3D.svelte`, `gui/src/lib/structure3d.ts`) is the model as
+drawable geometry, served by `GET /api/structure3d` and rendered by the plotly
+already on the page — **zero new dependencies**, and a third column of the model
+pane rather than a sixth tab. Its founding rule is that **everything hard stays on
+the server**: the payload is Cartesian points, 3×3 matrices and index pairs, and
+the browser's whole job is `pos + T·v` over one unit sphere (which is also why a
+ball and an ellipsoid are one code path — plotly's markers are sized in *pixels*,
+so a ball-and-stick drawn with them cannot be compared with the cell around it).
+That forced the one new crystallography verb: **`symmetry.expand_orbit` returns
+the operation as well as the position**, because U\* → R·U\*·Rᵀ means an image
+drawn with its parent's tensor is right on a cubic site and wrong on every other
+one; `expand_positions` now delegates to it. Four rules. **gemmi has no colour
+table** — it supplies radii and `is_metal`, and the colours are the CPK convention
+with values chosen here (ATTRIBUTION.md), never transcribed. **A radius-sum bond
+rule needs one chemical predicate**: bond metals to metals only when the phase has
+no non-metal in it, or LaB6's twelve cell edges become La–La sticks (covalent
+radius 2.07 Å against a = 4.158 Å). **A non-positive-definite tensor draws its
+non-positive axes at zero**, because `√(negative)` is a NaN and one NaN vertex
+loses the whole mesh, not one atom. And **bond segments complete their partners
+exactly one level** — a bond to a translated image is correct and *reads* as
+broken — which is the line between a coordination and the packing diagram this WP
+declined. `probability` and `bond_tolerance` are drawing thresholds on the query
+string, never in `ProjectDoc`. Two browser-only traps: plotly's `responsive: true`
+listens for **window** resizes only, so a plot with controls below it keeps an
+oversized canvas that swallows their clicks (`ResizeObserver` → `Plots.resize`;
+`gui/src/lib/plotly.ts` is now the one runtime loader, shared with `Plot.svelte`),
+and `--line` is invisible in a 3D scene, so the cell frame takes `--accent`.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

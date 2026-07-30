@@ -169,5 +169,16 @@ they were built from.
   gemmi is already a dependency — its f″ is sound (and is used as a test
   oracle) but its f′ disagrees with every published tabulation for several
   lanthanides and actinides.
+- Element **colours** in `src/pxrdref/gui/structure3d.py` (`_CPK`) — the
+  *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
+  24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,
+  nitrogen blue, oxygen red, sulfur yellow, halogens green, and so on. The hex
+  values are **chosen here** for contrast against both a light and a dark page —
+  pure white and pure black each vanish into one of them — so no table is
+  transcribed from another implementation (Jmol, VESTA and PyMOL all publish one,
+  and all are GPL or otherwise unsuitable to copy into an MIT core). Elements the
+  convention does not name get a colour *derived* from the atomic number rather
+  than looked up. Element **radii** and the metal flag come from gemmi, which is
+  already a dependency.
 - Test patterns under `tests/data/` — see `tests/data/README.md` for per-file
   provenance (NIST / APS 11-BM public data are works of the U.S. Government).

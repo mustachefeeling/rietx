@@ -39,6 +39,34 @@ real UI.
 
 ### Inherited
 
+From **WP-1015** (structure viewer, landed 2026-07-30): **there is a 3D view, and
+its two knobs are the part a manual has to explain.**
+
+It is a **third column of the model pane** (not a tab, not a window), toggled by a
+`3D` button in that pane's header and on by default. Two modes: *balls* (spheres
+at 0.32× the covalent radius — the shape of the structure) and *ellipsoids*
+(displacement ellipsoids at a selectable probability, default 50 %). Everything
+geometric is computed server-side by `GET /api/structure3d`; the client draws.
+
+What the manual owes it is the two things a user will otherwise misread.
+**The bond threshold is a drawing threshold, not chemistry**: a bond is drawn at
+d ≤ tol·(rᵢ+rⱼ) on covalent radii, no fixed value is right for both a large cation
+and an organic (LaB6 at 1.15 draws every La–B contact and looks like a cage; at
+1.05 only the B₆ framework survives), and metal–metal contacts are suppressed
+unless the phase is all-metal. **The ellipsoids are a diagnostic, not
+decoration**: their axes are refined quantities, so an over-flexible background —
+which improves Rwp while inflating ADPs (CLAUDE.md's block projection R²) —
+arrives here as balloons, and a non-positive-definite tensor arrives as a flat
+disc with the reason in its hover. Measured on NAC: Na1's Biso of 2.16 Å² against
+Al's 0.59 is obvious in the picture and is six ordinary-looking numbers in the
+parameter table. That contrast is the best onboarding argument the GUI has for
+why the view exists at all.
+
+Costs, measured on an M4: nothing at boot (65–99 ms, unchanged), and 605–1447 ms
+from clicking *Model* to a drawn scene — almost all of it fetching and parsing
+plotly. Worth a sentence, because a first-time user clicks *Model* and waits a
+second.
+
 From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the onboarding
 path now exists and is the empty state.** With no project open the app renders the
 import wizard itself (`panels/Model.svelte`, the same component that is the model

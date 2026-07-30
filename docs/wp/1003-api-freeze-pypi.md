@@ -431,6 +431,26 @@ finally consumed the report mechanically:
   may propose a structurally impossible action is a contract question, not a
   rendering one.
 
+From **WP-1015** (structure viewer, landed 2026-07-30) — one new public
+crystallography function and one route promoted.
+
+- **`crystallography.symmetry.expand_orbit(sg, xyz, *, tol)`** is new and public:
+  the orbit as `(position, rotation)` pairs, with `expand_positions` now a
+  one-liner over it. It exists because a displacement ellipsoid *transforms*
+  (U\* → R·U\*·Rᵀ) rather than merely moving, so any caller drawing or comparing a
+  per-image tensor needs the operation and not only the site. Freeze it alongside
+  `expand_positions` — it is the more general of the two and the other is derived
+  from it.
+- **`GET /api/structure3d` is live**, so `RESERVED_ROUTES` is down to the ten
+  WP-1024/1027 paths. Its two query parameters (`probability`, `bond_tolerance`)
+  are *drawing thresholds* and deliberately not in `ProjectDoc`; if the freeze
+  covers the HTTP surface, that distinction is the thing to state, not the
+  numbers.
+- **The GUI now redistributes nothing new.** plotly.js is still served from the
+  installed Python package rather than bundled, and the element colours are this
+  repo's own values (see `ATTRIBUTION.md` → Data tables), so the publication
+  checklist gains no row from this WP.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting
