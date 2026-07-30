@@ -554,6 +554,12 @@ def test_every_instrument_preset_argument_is_the_constructors_own():
     Same rule as every other registry here: an argument added to
     ``Instrument.bragg_brentano`` either reaches the import form or fails this,
     never sits silently unreachable.
+
+    The same list is written out for the *frontend* to be held to, exactly as
+    WP-1011's glob corpus is: the wizard renders one input per argument, and a
+    field it offers that the constructor does not take is a control whose only
+    outcome is a 400.  Committed, because vitest runs on machines that never
+    installed this package.
     """
     import inspect
 
@@ -564,6 +570,17 @@ def test_every_instrument_preset_argument_is_the_constructors_own():
         signature = inspect.signature(getattr(Instrument, name))
         expected = tuple(p for p in signature.parameters if p != "cls")
         assert set(declared) == set(expected), name
+
+    fixture = Path(__file__).parent / "data" / "gui" / "instrument_presets.json"
+    text = json.dumps({name: sorted(args)
+                       for name, args in sorted(INSTRUMENT_PRESETS.items())},
+                      indent=2) + "\n"
+    if not fixture.is_file() or fixture.read_text(encoding="utf-8") != text:
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        fixture.write_text(text, encoding="utf-8")
+        raise AssertionError(
+            f"{fixture.relative_to(Path(__file__).parent.parent)} was stale and "
+            "has been regenerated; re-run `npm --prefix gui test` and commit it")
 
 
 def test_an_unknown_scattering_species_is_refused_where_it_is_typed(blank, tmp_path,
@@ -604,6 +621,47 @@ def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
     for row in payload["sites"]:
         assert set(row["dof_paths"]) <= free
         assert set(row["adp_paths"]) <= free
+
+
+def test_the_aniso_toggle_seeds_and_unseeds_through_the_metric(blank, tmp_path,
+                                                               pattern_file):
+    """Both directions are physics, which is why the client does not compute them."""
+    import math
+
+    session, client = blank
+    _open(session, tmp_path / "aniso.pxrd", pattern_file)
+    before = client.get("/api/params")[1]["parameters"]
+    assert not [r for r in before if r["path"].startswith("phases.0.atoms.0.adp")]
+
+    status, payload = client.post("/api/structure/aniso",
+                                  {"path": "phases.0.atoms.0", "on": True})
+    assert status == 200, payload
+    assert payload["changed"] is True
+    atom = payload["structure"]["phases"][0]["atoms"][0]
+    uiso = 0.5 / (8.0 * math.pi ** 2)                 # the seed Biso, as Uiso
+    assert atom["aniso"]["u11"]["value"] == pytest.approx(uiso)
+    assert atom["aniso"]["u12"]["value"] == pytest.approx(0.0)   # cubic: no shear
+    site = next(s for s in payload["sites"] if s["path"] == "phases.0.atoms.0")
+    assert site["adp_paths"] == ["phases.0.atoms.0.adp.0"]       # m-3m: one pattern
+
+    # the table's shape moved with it: the DOF exists and biso is now locked
+    rows = {r["path"]: r for r in client.get("/api/params")[1]["parameters"]}
+    assert "phases.0.atoms.0.adp.0" in rows
+    assert rows["phases.0.atoms.0.biso"]["locked"] is True
+    assert session.project.history[payload["node_id"]].action.kind == "edit_model"
+
+    # …and back, with biso restored from U_eq rather than from memory
+    payload = client.post("/api/structure/aniso",
+                          {"path": "phases.0.atoms.0", "on": False})[1]
+    atom = payload["structure"]["phases"][0]["atoms"][0]
+    assert atom["aniso"] is None
+    assert atom["biso"]["value"] == pytest.approx(0.5)
+    # a second toggle in the same direction is a no-op, not a node
+    assert client.post("/api/structure/aniso",
+                       {"path": "phases.0.atoms.0", "on": False})[1]["changed"] is False
+    assert client.post("/api/structure/aniso", {"path": "phases.0"})[0] == 400
+    assert client.post("/api/structure/aniso",
+                       {"path": "phases.0.atoms.9"})[0] == 404
 
 
 def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,

@@ -172,6 +172,7 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/plans"): lambda s, q, b: s.plans(),
     ("GET", "/api/structure"): lambda s, q, b: s.structure(),
     ("PATCH", "/api/structure"): lambda s, q, b: s.structure_patch(b),
+    ("POST", "/api/structure/aniso"): lambda s, q, b: s.structure_aniso(b),
     ("GET", "/api/instrument"): lambda s, q, b: s.instrument(),
     ("PATCH", "/api/instrument"): lambda s, q, b: s.instrument_patch(b),
 

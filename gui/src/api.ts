@@ -52,10 +52,50 @@ async function call(method: string, path: string, body?: unknown): Promise<any> 
   return payload;
 }
 
+/**
+ * The upload routes, which are the only ones whose body is not JSON.
+ *
+ * A `File` goes up as its own bytes with the filename and the reader options in
+ * the query string (WP-1014); `token` re-reads a file the server already holds,
+ * which is what flipping the aniso checkbox or picking another pdCIF block does.
+ * Base64 in a JSON envelope would inflate the body by a third and change
+ * nothing else.
+ */
+async function upload(kind: string, file: File | null,
+                      options: Record<string, string> = {},
+                      token?: string): Promise<any> {
+  const query = new URLSearchParams(options);
+  if (file) query.set("filename", file.name);
+  if (token) query.set("upload", token);
+  const response = await fetch(`/api/upload/${kind}?${query}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: file ?? new Blob([]),
+  });
+  const text = await response.text();
+  let payload: any = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { error: { code: "BAD_RESPONSE", message: text.slice(0, 200) } };
+  }
+  if (!response.ok) throw new ApiError(response.status, payload);
+  return payload;
+}
+
 export const api = {
   capabilities: () => call("GET", "/api/capabilities"),
   version: () => call("GET", "/api/version"),
   recent: () => call("GET", "/api/recent"),
+
+  /** Stage a file and get it back described — phase one of an import. */
+  uploadFile: (kind: string, file: File, options: Record<string, string> = {}) =>
+    upload(kind, file, options),
+  /** Re-read a staged file with different reader options — no second upload. */
+  restage: (kind: string, token: string, options: Record<string, string> = {}) =>
+    upload(kind, null, options, token),
+  /** Phase two: tokens become a project.  Nothing exists on disk until this. */
+  newProject: (body: Record<string, unknown>) => call("POST", "/api/project/new", body),
 
   project: () => call("GET", "/api/project"),
   openProject: (path: string) => call("POST", "/api/project/open", { path }),
@@ -72,6 +112,23 @@ export const api = {
    *  through the mode*, so what comes back is what will actually run. */
   putPlan: (body: { preset?: string; plan?: unknown }) => call("PUT", "/api/plan", body),
   plans: () => call("GET", "/api/plans"),
+
+  /** The structure **plus** the `sites` arm: which `…dof.k` moves each atom, and
+   *  which have none at all (a fully fixed special position). */
+  structure: () => call("GET", "/api/structure"),
+  instrument: () => call("GET", "/api/instrument"),
+  /** A whole validated model, not a field patch — adding a phase or an ADP block
+   *  changes what the parameter table *contains* (WP-1008).  One history node. */
+  patchStructure: (structure: unknown, label?: string) =>
+    call("PATCH", "/api/structure", { structure, label }),
+  patchInstrument: (instrument: unknown, label?: string) =>
+    call("PATCH", "/api/instrument", { instrument, label }),
+  /** Opt one atom into anisotropic ADPs.  Its own verb because both directions
+   *  are physics (the isotropic tensor is not Uiso·δ, and U_eq weights by the
+   *  metric) and a client that computed either would get non-orthogonal cells
+   *  wrong. */
+  aniso: (path: string, on: boolean) =>
+    call("POST", "/api/structure/aniso", { path, on }),
 
   run: (body: Record<string, unknown> = { kind: "fit" }) => call("POST", "/api/run", body),
   cancel: () => call("POST", "/api/cancel"),

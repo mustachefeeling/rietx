@@ -21,6 +21,7 @@
   import { ApiError, api } from "./api";
   import Console from "./panels/Console.svelte";
   import History from "./panels/History.svelte";
+  import Model from "./panels/Model.svelte";
   import Palette from "./panels/Palette.svelte";
   import Params from "./panels/Params.svelte";
   import Plan from "./panels/Plan.svelte";
@@ -45,16 +46,26 @@
   let plotKey = $state(0);
 
   let tab = $state<"params" | "plan" | "history" | "report" | "build">("params");
-  /** The text pane is a **mode**, not a sixth tab (WP-1013).  The strip is
-   *  already five wide inside a 340–560 px sidebar, and this is the one panel
-   *  whose content is line-oriented: the `.pxt` columns are aligned so a
-   *  rectangular selection can hit one field, which a narrow column undoes. */
-  let textMode = $state(false);
+  /** Two panes are **modes** over the whole window rather than tabs.
+   *
+   *  The text pane (WP-1013) is one because its content is line-oriented — the
+   *  `.pxt` columns are aligned so a rectangular selection can hit one field,
+   *  which a 340–560 px sidebar undoes.  The model pane (WP-1014) is one for two
+   *  reasons: an atom table is eight columns wide, and it is the only pane that
+   *  must work with **no project open at all**, which no tab can. */
+  let mode = $state<"panes" | "text" | "model">("panes");
+  const textMode = $derived(mode === "text");
+  const modelMode = $derived(mode === "model");
+
+  function toggleMode(which: "text" | "model") {
+    mode = mode === which ? "panes" : which;
+  }
   let simple = $state(true);
   let consoleHeight = $state(150);
   let paletteOpen = $state(false);
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
+  let modelPanel = $state<any>(null);
   /** a 2θ window the report panel asked the plot to show, or null for all of it */
   let zoom = $state<[number, number] | null>(null);
   /** the last applied suggestion, until it is undone — carries the node to check
@@ -116,6 +127,22 @@
       // curves, and a `checkout` throws the last fit's away on purpose.
       resultError = error instanceof ApiError && error.empty ? "" : (error as Error).message;
     }
+  }
+
+  /** The import wizard created one: adopt it without a reload (WP-1014).
+   *
+   * `project_new` answers with the same document `GET /api/project` would, so
+   * there is nothing to refetch — and the panels below all key off `head`, which
+   * the new project's root node supplies.
+   */
+  async function opened(doc: any) {
+    project = doc;
+    readUi();
+    openError = "";
+    mode = "panes";
+    say(`# project: ${doc.path}`);
+    run = await api.runState();
+    await loadResult();
   }
 
   async function open(path: string) {
@@ -219,7 +246,12 @@
       disabled: !project, run: () => (tab = "history") },
     { id: "text", label: textMode ? "Leave the text document" : "Edit the project as text",
       echo: "print(pxrdref.gui.textdoc.render(project))", key: "t", disabled: !project,
-      run: () => (textMode = !textMode) },
+      run: () => toggleMode("text") },
+    { id: "model", label: modelMode ? "Leave the model editor" : "Edit the structure and instrument",
+      echo: "ref.edit(structure=…, instrument=…)", key: "m", disabled: !project,
+      run: () => toggleMode("model") },
+    { id: "import", label: "Import a new project", echo: "Project.create(path, …)",
+      run: () => { mode = "model"; modelPanel?.startImport(); } },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
     { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
@@ -309,7 +341,9 @@
 
   <div class="controls">
     {#if project}
-      <button class="ghost" class:on={textMode} onclick={() => (textMode = !textMode)}
+      <button class="ghost" class:on={modelMode} onclick={() => toggleMode("model")}
+        title="atoms, site-symmetry DOFs and the instrument">Model</button>
+      <button class="ghost" class:on={textMode} onclick={() => toggleMode("text")}
         title="the whole project as one editable document">Text</button>
       <div class="segmented" role="group" aria-label="disclosure">
         <button class:on={simple} onclick={() => setSimple(true)}
@@ -336,23 +370,20 @@
 
 <main>
   {#if !project}
+    <!-- the empty state *is* the import wizard (WP-1014): one component, so
+         "make a project" and "look at the model" cannot drift apart -->
     <section class="empty">
-      <h1>No project open</h1>
       {#if openError}<p class="bad">{openError}</p>{/if}
       {#if recent.length}
-        <p class="muted">Recently opened:</p>
-        <ul>
+        <p class="muted small">Recently opened:</p>
+        <ul class="recent">
           {#each recent as entry (entry.path)}
             <li><button class="ghost" onclick={() => open(entry.path)}>{entry.name}</button>
               <span class="muted mono">{entry.path}</span></li>
           {/each}
         </ul>
-      {:else}
-        <p class="muted">
-          Start one from the API or the CLI — <code>pxrdref gui my_sample.pxrd</code>.
-          Creating a project in the browser needs the import flow (WP-1014).
-        </p>
       {/if}
+      <Model bind:this={modelPanel} {capabilities} {busy} {say} onopened={opened} />
     </section>
   {:else}
     <!-- the text pane stays mounted while hidden, exactly as the tabs do: a
@@ -360,9 +391,17 @@
          parameter table.  Its editor is built on first entry, not on boot. -->
     <div class="textmode" class:hidden={!textMode}>
       <Text {head} {busy} active={textMode} {say} onmoved={moved}
-        onclose={() => (textMode = false)} />
+        onclose={() => (mode = "panes")} />
     </div>
-    <div class="panes" class:hidden={textMode}>
+    <!-- mounted while hidden, as the tabs are: a typed species or a half-filled
+         wizard has to survive a look at the plot.  `active` is what keeps it from
+         refetching three routes on every head move it is not showing. -->
+    <div class="textmode" class:hidden={!modelMode}>
+      <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
+        {say} active={modelMode} onopened={opened} onmoved={moved}
+        onclose={() => (mode = "panes")} />
+    </div>
+    <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} error={resultError} />
       <div class="side">
         <nav class="tabs">
@@ -544,12 +583,16 @@
   }
 
   .empty {
-    padding: 3rem clamp(1rem, 6vw, 5rem);
-    max-width: 70ch;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
   }
 
-  .empty h1 {
-    font-size: 1.1rem;
+  .empty ul.recent {
+    margin: 0.6rem 0 0;
+    padding: 0 1.2rem;
+    list-style: none;
   }
 
   .empty li {

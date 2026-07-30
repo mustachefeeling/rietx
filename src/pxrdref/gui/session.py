@@ -605,6 +605,58 @@ class GuiSession:
             label=body.get("label") or "instrument edited")
         return {"node_id": node, **self.instrument()}
 
+    def structure_aniso(self, body: dict) -> dict:
+        """Turn one atom's anisotropic ADP block on or off (WP-1014).
+
+        A verb of its own rather than a field of the structure patch, because
+        both directions are **physics the client must not compute**.  On seeds
+        ``AnisoU.isotropic`` — U^ij = Uiso·G*ᵢⱼ/(a*ᵢa*ⱼ), which is *not*
+        Uiso·δᵢⱼ except for orthogonal reciprocal axes, so a TypeScript version
+        would get every hexagonal cell wrong.  Off restores ``biso`` from U_eq,
+        which weights by the metric.  Both live in ``crystallography.adp``, and
+        this is what reaches them.
+
+        Recorded as one ``edit_model`` node, like every other model change: it
+        changes what the parameter table *contains* (six tied components and
+        their ``…adp.k`` DOFs appear, ``biso`` becomes locked), which is the
+        definition of a shape change here.
+        """
+        import math
+
+        self._require_idle()
+        p = self._need_project()
+        path = str(_need(body, "path"))
+        on = bool(body.get("on", True))
+        match = re.fullmatch(r"phases\.(\d+)\.atoms\.(\d+)", path)
+        if match is None:
+            raise GuiError(f"{path!r} is not an atom path (phases.I.atoms.J)",
+                           where=["path"])
+        i, j = int(match.group(1)), int(match.group(2))
+        structure = p.refinement.structure.model_copy(deep=True)
+        try:
+            phase = structure.phases[i]
+            atom = phase.atoms[j]
+        except IndexError:
+            raise GuiError(f"no atom at {path!r}", code="NOT_FOUND",
+                           status=404, where=["path"]) from None
+        if on and atom.aniso is None:
+            from ..schemas.structure import AnisoU
+
+            atom.aniso = AnisoU.isotropic(atom.biso.value / (8.0 * math.pi ** 2),
+                                          phase.cell)
+        elif not on and atom.aniso is not None:
+            from ..crystallography.adp import u_equivalent
+
+            u_eq = u_equivalent(atom.aniso.values(), phase.cell.lengths_angles())
+            biso = 8.0 * math.pi ** 2 * float(u_eq)
+            atom.biso.value = min(max(biso, atom.biso.min), atom.biso.max)
+            atom.aniso = None
+        else:
+            return {"node_id": None, "changed": False, **self.structure()}
+        node = self._edit(structure=structure,
+                          label=f"{atom.label}: aniso {'on' if on else 'off'}")
+        return {"node_id": node, "changed": True, **self.structure()}
+
     def _edit(self, *, structure: Structure | None = None,
               instrument: Instrument | None = None, label: str = "") -> str | None:
         self._require_idle()

@@ -117,6 +117,49 @@ const PLANS = {
   ],
 };
 
+/** LaB6: La on a fully fixed 1a site, B on 6f with one DOF along x. */
+const STRUCTURE = {
+  phases: [{
+    name: "LaB6", space_group: "P m -3 m",
+    cell: { a: { value: 4.15678, vary: true }, b: { value: 4.15678, vary: false },
+            c: { value: 4.15678, vary: false }, alpha: { value: 90, vary: false },
+            beta: { value: 90, vary: false }, gamma: { value: 90, vary: false } },
+    scale: { value: 1.02, vary: true },
+    atoms: [
+      { label: "La", species: "La", x: { value: 0 }, y: { value: 0 }, z: { value: 0 },
+        occ: { value: 1 }, biso: { value: 0.5 }, aniso: null },
+      { label: "B", species: "B", x: { value: 0.1993 }, y: { value: 0.5 },
+        z: { value: 0.5 }, occ: { value: 1 }, biso: { value: 0.4 }, aniso: null },
+    ],
+  }],
+};
+
+const SITES = [
+  { path: "phases.0.atoms.0", phase: 0, atom: 0, site_symmetry_order: 48,
+    special: true, dof_paths: [], dof_directions: [], adp_paths: [],
+    adp_patterns: [[1, 1, 1, 0, 0, 0]], aniso: false },
+  { path: "phases.0.atoms.1", phase: 0, atom: 1, site_symmetry_order: 8,
+    special: true, dof_paths: ["phases.0.atoms.1.dof.0"], dof_directions: [[1, 0, 0]],
+    adp_paths: [], adp_patterns: [], aniso: false },
+];
+
+const INSTRUMENT = {
+  zero_shift: { value: 0.01, vary: false },
+  source: { polarization: { value: 0.99, vary: false },
+            lines: [{ wavelength: 0.413909, weight: { value: 1, vary: false } }],
+            dispersion: { table: "cromer_liberman", overrides: {} } },
+  profile: { shape: "tchz_pv", u: { value: 0.002, vary: false },
+             v: { value: 0, vary: false }, w: { value: 0.004, vary: true },
+             x: { value: 0, vary: false }, y: { value: 0, vary: false } },
+  geometry: { kind: "debye_scherrer", goniometer_radius_mm: null,
+              sample_displacement: { value: 0, vary: false },
+              sample_transparency: { value: 0, vary: false },
+              axial_sl: { value: 0.002, vary: false },
+              axial_hl: { value: 0.002, vary: false },
+              mu_r: null, capillary_radius_mm: null, packing_fraction: 0.6 },
+  background: { kind: "chebyshev", coefficients: [{ value: 1 }, { value: 0 }, { value: 0 }] },
+};
+
 /** A history with a fork: n0003 ran from n0001, which already had n0002. */
 const HISTORY = {
   tree_id: "t1",
@@ -225,6 +268,7 @@ interface Call {
   /** the path *with* its query — the report panel's zoom is a query, not a body */
   url: string;
   body: any;
+  blob?: Blob | null;
 }
 
 /** A stub server that also records what was asked of it. */
@@ -237,7 +281,10 @@ function server(routes: Record<string, (call: Call) => { status?: number; body: 
       method: init.method ?? "GET",
       path,
       url,
-      body: init.body ? JSON.parse(init.body) : null,
+      // an upload's body is bytes, not JSON — the only route family in the
+      // surface whose body is not a JSON object (WP-1014)
+      body: typeof init.body === "string" ? JSON.parse(init.body) : null,
+      blob: init.body instanceof Blob ? init.body : null,
     };
     calls.push(call);
     const handler = routes[path];
@@ -268,6 +315,8 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN) {
     "/api/plans": () => ({ body: PLANS }),
     "/api/history": () => ({ body: HISTORY }),
     "/api/report": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
+    "/api/structure": () => ({ body: { structure: STRUCTURE, sites: SITES } }),
+    "/api/instrument": () => ({ body: { instrument: INSTRUMENT } }),
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
 }
 
@@ -327,7 +376,7 @@ afterEach(() => {
 });
 
 describe("the shell", () => {
-  it("renders the no-project state with its recent list", async () => {
+  it("renders the no-project state as the import wizard, with its recent list", async () => {
     vi.stubGlobal("fetch", server({
       ...boot(null),
       "/api/recent": () => ({ body: { recent: [{ path: "/tmp/a.pxrd", name: "a.pxrd" }] } }),
@@ -335,8 +384,11 @@ describe("the shell", () => {
     app = mount(App, { target: host });
     await flush();
 
-    expect(host.textContent).toContain("No project open");
+    // the empty state *is* the wizard (WP-1014) rather than a note about it
+    expect(host.textContent).toContain("New project");
+    expect(host.textContent).toContain("Choose a data file");
     expect(host.textContent).toContain("a.pxrd");
+    expect(button("Create project")?.disabled).toBe(true);
     // Run is disabled without a project — the control follows the state, not hope
     expect(button("Run")?.disabled).toBe(true);
   });
@@ -350,7 +402,7 @@ describe("the shell", () => {
     expect(host.textContent).toContain("4200 pts");
     expect(host.textContent).toContain("σ from file");     // which weights the fit used
     expect(host.textContent).toContain("No fitted curves yet");
-    expect(host.textContent).toContain("WP-1014");         // the panels still owed
+    expect(host.textContent).toContain("WP-1015");         // the panels still owed
     expect(button("Run")?.disabled).toBe(false);
   });
 
@@ -1225,5 +1277,261 @@ describe("the text pane", () => {
     await openText();
     await typeInto(TEXTDOC + "# checked against the certificate 2026-07-30\n");
     expect(host.textContent).toContain("will not survive the next render");
+  });
+});
+
+// ----------------------------------------------------------------------
+// the import wizard and the model editors (WP-1014)
+// ----------------------------------------------------------------------
+/** A `File` on a file input, which jsdom will not let you assign directly. */
+function chooseFile(input: HTMLInputElement, name: string, text = "data") {
+  const file = new File([text], name, { type: "application/octet-stream" });
+  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+const PATTERN_PREVIEW = {
+  upload: "p1", kind: "pattern", filename: "nac.fxye", bytes: 12, sha256: "aa",
+  format: { name: "gsas", title: "GSAS raw powder data (FXYE / ESD / STD)",
+            sniff: "a BANK record in the first 4 kB — by content, not by suffix",
+            sigma: "the third column (FXYE)", options: [] },
+  block: null, n_points: 4200, two_theta_range: [3, 24], step: 0.005,
+  has_sigma: true, metadata: {},
+  curve: { two_theta: [3, 10, 24], intensity: [1, 9, 2], n_returned: 3 },
+  suggested_project: "/work/nac.pxrd",
+};
+
+const CIF_PREVIEW = {
+  upload: "c1", kind: "cif", filename: "lab6.cif", bytes: 40, sha256: "bb",
+  structure: STRUCTURE, aniso: false, aniso_available: false, aniso_error: "",
+  phases: [{ name: "LaB6", space_group: "P m -3 m",
+             cell: [4.1566, 4.1566, 4.1566, 90, 90, 90], n_atoms: 2,
+             species: ["B", "La"], n_aniso: 0 }],
+  unknown_species: [],
+};
+
+describe("the import wizard", () => {
+  it("stages each file, then commits tokens — nothing exists until Create", async () => {
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/upload/pattern": () => ({ body: PATTERN_PREVIEW }),
+      "/api/upload/cif": () => ({ body: CIF_PREVIEW }),
+      "/api/project/new": () => ({ body: PROJECT }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const files = [...host.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+    chooseFile(files[0], "nac.fxye");
+    await flush();
+    // the reader that claimed it, in its own words — not the extension
+    expect(host.textContent).toContain("GSAS raw powder data");
+    expect(host.textContent).toContain("BANK record");
+    expect(host.textContent).toContain("σ from the file");
+    // …and the filename went in the query, while the bytes went in the body
+    const staged = stub.calls.find((c) => c.path === "/api/upload/pattern")!;
+    expect(staged.url).toContain("filename=nac.fxye");
+    expect(staged.body).toBeNull();
+    expect(staged.blob).toBeInstanceOf(Blob);
+
+    chooseFile(files[1], "lab6.cif");
+    await flush();
+    expect(host.textContent).toContain("P m -3 m");
+    // the aniso checkbox is offered *disabled* when the file has no loop
+    const aniso = host.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(aniso.disabled).toBe(true);
+    expect(host.textContent).toContain("no aniso loop in this file");
+
+    // the project path was suggested by the pattern step, and the anode by the preset
+    expect(button("Create project")?.disabled).toBe(false);
+    button("Create project")!.click();
+    await flush();
+
+    const created = stub.calls.find((c) => c.path === "/api/project/new")!;
+    expect(created.body.pattern).toEqual({ upload: "p1" });
+    expect(created.body.structure).toEqual({ upload: "c1", aniso: false });
+    expect(created.body.instrument).toEqual({ preset: "bragg_brentano", radiation: "CuKa" });
+    expect(created.body.path).toBe("/work/nac.pxrd");
+    // and the shell adopted it without a second GET /api/project
+    expect(host.textContent).toContain("synth.xye");
+  });
+
+  it("shows the reader's refusal and stages nothing", async () => {
+    const stub = server({
+      ...boot(null),
+      "/api/recent": () => ({ body: { recent: [] } }),
+      "/api/upload/cif": () => ({ status: 400, body: { error: { code: "UPLOAD_INVALID",
+        message: "could not read a structure from notes.cif: ValueError: "
+                 + "notes.cif:1:0(0): expected block header (data_)" } } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const files = [...host.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+    chooseFile(files[1], "notes.cif");
+    await flush();
+
+    expect(host.textContent).toContain("expected block header");
+    expect(button("Create project")?.disabled).toBe(true);
+  });
+});
+
+/** The parameter rows the model editor needs on top of the table's own fixture:
+ *  the coordinate DOF that moves B, and the two atom rows it types through. */
+const MODEL_PARAMS = {
+  ...PARAMS,
+  parameters: [
+    ...PARAMS.parameters,
+    param("phases.0.atoms.1.dof.0", { value: 0 }),
+    param("phases.0.atoms.0.occ", { value: 1 }),
+    param("phases.0.atoms.1.occ", { value: 1 }),
+    param("phases.0.atoms.1.biso", { value: 0.4 }),
+    param("instrument.zero_shift", { value: 0.01 }),
+  ],
+};
+
+describe("the model editor", () => {
+  async function openModel(extra: Record<string, any> = {}) {
+    const stub = server({ ...boot(), "/api/params": () => ({ body: MODEL_PARAMS }),
+                          ...extra });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Model")!.click();
+    await flush();
+    return stub;
+  }
+
+  function field(path: string): HTMLInputElement {
+    return host.querySelector<HTMLInputElement>(`[data-field="${path}"]`)!;
+  }
+
+  it("gives a fully fixed special position no coordinate control, with the reason", async () => {
+    await openModel();
+    expect(field("phases.0.name").value).toBe("LaB6");
+    expect(host.textContent).toContain("fully fixed special position");
+    expect(host.textContent).toContain("48");
+    // …while the 6f site gets the one DOF its symmetry allows, and says which way
+    expect(field("phases.0.atoms.1.dof.0")).toBeTruthy();
+    expect(host.textContent).toContain("[1 0 0]");
+    expect(field("phases.0.atoms.0.dof.0")).toBeFalsy();
+  });
+
+  it("sends a value the parameter table owns through set_values", async () => {
+    const stub = await openModel();
+    field("phases.0.cell.a").value = "4.2";
+    field("phases.0.cell.a").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    const patch = stub.calls.find((c) => c.method === "PATCH" && c.path === "/api/params")!;
+    expect(patch.body).toEqual({ values: { "phases.0.cell.a": 4.2 } });
+    // …and nothing was sent as a whole model: a cell edge is not a shape change
+    expect(stub.calls.some((c) => c.path === "/api/structure" && c.method === "PATCH"))
+      .toBe(false);
+  });
+
+  it("sends a species as a whole model, built on a freshly read one", async () => {
+    const stub = await openModel();
+    field("phases.0.atoms.1.species").value = "B";
+    field("phases.0.atoms.1.species").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    field("phases.0.atoms.0.species").value = "La3+";
+    field("phases.0.atoms.0.species").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    const reads = stub.calls.filter((c) => c.path === "/api/structure" && c.method === "GET");
+    const patch = stub.calls.find((c) => c.path === "/api/structure" && c.method === "PATCH")!;
+    // the model patched is the one read *after* the edit was made, not the one
+    // rendered — a stale whole-model PATCH reverts every field it did not touch
+    expect(reads.length).toBeGreaterThan(1);
+    expect(patch.body.structure.phases[0].atoms[0].species).toBe("La3+");
+    // the unchanged one is untouched, and typing a value back to what it was is
+    // not an edit at all
+    expect(patch.body.structure.phases[0].atoms[1].species).toBe("B");
+    expect(stub.calls.some((c) => c.method === "PATCH" && c.path === "/api/params"))
+      .toBe(false);
+  });
+
+  it("offers µR to a capillary and never both absorption fields", async () => {
+    await openModel();
+    expect(field("geometry.mu_r")).toBeTruthy();
+    expect(field("geometry.mu_t")).toBeFalsy();
+    // an absent optional renders empty, because µt = 0 is a specimen of zero
+    // thickness and µR = 0 is simply off — the two "off"s disagree
+    expect(field("geometry.mu_r").value).toBe("");
+  });
+
+  it("surfaces the FCJ corner rather than defaulting it away", async () => {
+    await openModel();
+    expect(host.textContent).toContain("S/L = H/L");
+    expect(host.textContent).toContain("ρ = +1.000");
+  });
+
+  it("adds an atom to the model the shell is holding, not to a copy of it", async () => {
+    // Regression, found in Chrome and not in jsdom until this existed: the model
+    // lives in a `$state` rune, which is a **Proxy**, and `structuredClone`
+    // throws `#<Object> could not be cloned` on one. The click did nothing and
+    // the page logged an uncaught error.
+    const stub = await openModel();
+    const add = [...host.querySelectorAll<HTMLInputElement>(".add input")];
+    const fill = (input: HTMLInputElement, value: string) => {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    fill(add[0], "O1");
+    fill(add[1], "O");
+    fill(add[2], "0.25");
+    await flush();
+    button("Add atom")!.click();
+    await flush();
+
+    const patch = stub.calls.find((c) => c.path === "/api/structure" && c.method === "PATCH")!;
+    const atoms = patch.body.structure.phases[0].atoms;
+    expect(atoms).toHaveLength(3);
+    expect(atoms[2].label).toBe("O1");
+    expect(atoms[2].x.value).toBe(0.25);
+  });
+
+  it("keeps a refusal on screen through the reload that follows it", async () => {
+    // Also a browser finding: `apply` reloads after a failure, because a partial
+    // apply leaves the server half-ahead — and `load` was clearing the same
+    // variable the refusal had just been written to, so an unknown species was
+    // refused and the message vanished. Two facts, two fields (WP-1013's rule).
+    await openModel({
+      "/api/structure": (call: Call) => call.method === "PATCH"
+        ? { status: 400, body: { error: { code: "UNKNOWN_SPECIES",
+            message: "1 atom(s) carry a scattering species this build has no form "
+                     + "factor for: La (Xx).",
+            where: ["phases.0.atoms.0.species"] } } }
+        : { body: { structure: STRUCTURE, sites: SITES } },
+    });
+    field("phases.0.atoms.0.species").value = "Xx";
+    field("phases.0.atoms.0.species").dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Apply")!.click();
+    await flush();
+
+    expect(host.textContent).toContain("no form factor for: La (Xx)");
+  });
+
+  it("toggles one atom's ADPs through the verb that knows the metric", async () => {
+    const stub = await openModel({
+      "/api/structure/aniso": () => ({ body: { node_id: "n0004", changed: true,
+                                               structure: STRUCTURE, sites: SITES } }),
+    });
+    const checkbox = [...host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')][0];
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+
+    const call = stub.calls.find((c) => c.path === "/api/structure/aniso")!;
+    expect(call.body).toEqual({ path: "phases.0.atoms.0", on: true });
   });
 });
