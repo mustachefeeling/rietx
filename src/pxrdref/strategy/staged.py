@@ -245,6 +245,31 @@ PLAN_PRESETS = {
 }
 
 
+def resolve_plan(plan: "RefinementPlan | str", mode: Mode) -> RefinementPlan:
+    """A preset name (or a plan) as a concrete plan, mapped through ``mode``.
+
+    ``"mccusker_default"`` is the name every caller passes without thinking, and
+    it means something different per mode: Le Bail has no structure to refine so
+    it becomes ``profile_only``, and Pawley refines its intensities off-table so
+    it becomes ``pawley_default``.  That mapping decides what actually ran, so it
+    lives here beside the registry rather than in each caller — four now want it
+    (``Refinement.fit``, ``sequential``, ``agent``, and the GUI, which must show
+    a user the stages that a run *will* have before it starts).
+    """
+    if not isinstance(plan, str):
+        return plan
+    name = plan
+    if name == "mccusker_default" and mode == "lebail":
+        name = "profile_only"
+    elif name == "mccusker_default" and mode == "pawley":
+        name = "pawley_default"
+    try:
+        return PLAN_PRESETS[name]()
+    except KeyError:
+        raise ValueError(f"unknown plan preset {plan!r}; "
+                         f"available: {sorted(PLAN_PRESETS)}") from None
+
+
 @dataclass(frozen=True)
 class PlanInfo:
     """What a preset is for, in the words a chooser needs.

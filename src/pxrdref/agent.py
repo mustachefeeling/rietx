@@ -299,12 +299,12 @@ def _validation_failure(exc: ValidationError) -> dict:
 
 
 def _dispatch(req: AgentRequest) -> AgentSuccess:
-    # sequential._resolve_plan applies the same preset→mode mapping fit() uses
+    # staged.resolve_plan applies the same preset→mode mapping fit() uses
     # (mccusker_default becomes profile_only under lebail, pawley_default under
     # pawley), so the plan the veto sees is the plan that actually ran
-    from .sequential import _resolve_plan
+    from .strategy.staged import resolve_plan
 
-    plan = _resolve_plan(
+    plan = resolve_plan(
         req.plan if isinstance(req.plan, str) else req.plan.to_plan(),
         getattr(req, "mode", "rietveld"))
 

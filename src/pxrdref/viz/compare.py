@@ -728,7 +728,7 @@ def run(standard_key: str, variant_key: str, *,
     delta = (y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)
     cumulative = np.cumsum(delta ** 2)
 
-    idx = _decimation_index(tt, [y_obs, y_calc, delta], max_points)
+    idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
     stats = result.statistics
     return RunRecord(
         standard=standard_key, variant=variant_key, status=result.status,
@@ -748,8 +748,8 @@ def run(standard_key: str, variant_key: str, *,
     )
 
 
-def _decimation_index(tt: np.ndarray, curves: list[np.ndarray],
-                      max_points: int) -> np.ndarray:
+def decimation_index(tt: np.ndarray, curves: list[np.ndarray],
+                     max_points: int) -> np.ndarray:
     """Indices keeping each bucket's min AND max of every curve.
 
     Never plain striding: at 4000 points from a 40 000-point pattern, striding
@@ -757,6 +757,11 @@ def _decimation_index(tt: np.ndarray, curves: list[np.ndarray],
     by which variant happened to be sampled at a maximum.  The cumulative-χ²
     curve is monotone, so sampling it on the same index set is exact at those
     points and loses only the within-bucket path.
+
+    Public because a second consumer arrived: the GUI's ``/api/result/window``
+    route (WP-1008) sends a 2θ window to a browser under the same budget, and a
+    second implementation would be a second answer to "which points survive" —
+    the one question a plot must not disagree with the comparison UI about.
     """
     n = len(tt)
     if n <= max_points:

@@ -50,7 +50,13 @@ from .schemas.results import (
     StageResult,
 )
 from .schemas.structure import Structure
-from .strategy.staged import PLAN_PRESETS, RefinementPlan, Stage, check_guards
+from .strategy.staged import (
+    PLAN_PRESETS,
+    RefinementPlan,
+    Stage,
+    check_guards,
+    resolve_plan,
+)
 
 try:
     _VERSION = version("pxrd-refine")
@@ -627,17 +633,7 @@ class Refinement:
         :class:`~pxrdref.optimize.cancel.RefinementCancelled` is raised carrying
         the stages that *did* complete and the node the working state stands at.
         """
-        if isinstance(plan, str):
-            if plan == "mccusker_default" and mode == "lebail":
-                plan = "profile_only"
-            elif plan == "mccusker_default" and mode == "pawley":
-                plan = "pawley_default"
-            try:
-                plan = PLAN_PRESETS[plan]()
-            except KeyError:
-                raise ValueError(
-                    f"unknown plan preset {plan!r}; available: {sorted(PLAN_PRESETS)}"
-                ) from None
+        plan = resolve_plan(plan, mode)
 
         self._mode = mode
         self._two_theta_limits = two_theta_limits
