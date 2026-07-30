@@ -46,6 +46,8 @@
   let metrics = $state<any[]>([]);
   let query = $state("");
   let name = $state("");
+  /** true once the user has picked a row, which stops the selection following HEAD */
+  let pinned = $state(false);
 
   const graph = $derived(layout(nodes));
   const byId = $derived(new Map(nodes.map((n) => [n.id, n])));
@@ -57,7 +59,10 @@
     try {
       const payload = await api.history();
       nodes = payload.nodes;
-      if (!byId.has(selected)) selected = payload.head ?? "";
+      // follow HEAD until the user picks a row, then stay put: a run must not
+      // move a deliberate selection, and before there is one the interesting
+      // node is the one the working state stands at
+      if (!pinned || !byId.has(selected)) selected = payload.head ?? selected;
       error = "";
     } catch (exc) {
       nodes = [];
@@ -142,9 +147,18 @@
     }
   }
 
+  /** Select a node, keeping any open comparison pointed at the new pair. */
+  function select(id: string) {
+    selected = id;
+    pinned = true;
+    if (against && against !== id) compare(id, against);
+    else diff = null;
+  }
+
   function pickAgainst(id: string) {
+    if (id === selected) return;   // a node compared with itself is an empty diff
     against = against === id ? "" : id;
-    if (against && selected && against !== selected) compare(selected, against);
+    if (against) compare(selected, against);
     else diff = null;
   }
 
@@ -205,7 +219,7 @@
           {@const n = placed.node}
           {@const delta = rwpDelta(n, byId)}
           <div class="node" class:on={n.id === selected} class:other={n.id === against}>
-            <button class="pick" onclick={() => (selected = n.id)}
+            <button class="pick" onclick={() => select(n.id)}
               title={n.api_call}>
               <span class="id mono muted">{n.id}</span>
               <span class="what">{nodeLabel(n)}</span>
