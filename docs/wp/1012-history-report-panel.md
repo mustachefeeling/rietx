@@ -75,6 +75,28 @@ button to launch an indexing run through the WP-1006 run state machine (it is
 long-running, unlike every other applicable action). No `ActionKind` change is
 involved, so `THRESHOLDS_VERSION` does not bump.
 
+From **WP-1008** (GUI server, landed 2026-07-30):
+
+- `GET /api/history` returns the shape, not the states: per node `id`, `parents`,
+  `children`, `kind`, `action`, **`api_call`** (the node's equivalent public-API
+  line — the "show me the code" affordance for free), `label`, `tags`, `rwp`,
+  `gof`, `n_free`, `status`, `n_iterations`, `diagnostics`, `scores`, `notes`.
+  A node's ~10 kB `state` is deliberately **not** in the payload; if a panel
+  needs one node's parameter values, `GET /api/history/diff?a=&b=` answers the
+  question it actually has.
+- `POST /api/history/branch` is **checkout + tag**, not a new ref: this DAG has
+  only `head` and tags, and a fork appears when you run from a node that already
+  has a child. Label lanes from `tags`; do not draw a branch that does not exist.
+- **A `checkout` clears the result.** `/api/result`, `/api/report` and every
+  export answer `NO_RESULT` (409) afterwards until the next run — so "select a
+  node" cannot repaint the report panel from a result, and the panel needs that
+  empty state. Re-running or `replay` is the only way back to curves.
+- `GET /api/report[?plan=preset]` is **idle-only** (Layers 1-2 read the compiled
+  model a stage would be rewriting) and 409s with `RUN_IN_FLIGHT` mid-run; it
+  defaults the Layer-2 veto to the project's own effective plan, so a panel need
+  not pass one. `POST /api/report/apply` is reserved for this WP and 404s naming
+  it.
+
 ## Non-goals
 
 - No new Layer-2 statistics or thresholds — render and apply what the

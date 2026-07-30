@@ -14,6 +14,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
+.venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -139,6 +140,26 @@ purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
 corrupt project. `excluded_regions` live in the document because they are
 protocol that is in neither the file nor `RefinementState` — a node cannot say
 what was excluded when it ran.
+
+The **GUI** (WP-1008, `gui/`) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+`http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.
+`gui/session.py` holds `GuiSession`, where **every verb is a plain method and
+nothing knows about HTTP**; `gui/server.py` parses a path, calls one, serialises
+the answer, and is the layer a Tauri host would replace. Its route table plus
+`RESERVED_ROUTES` (paths settled here, behaviour owed by a later WP, 404 naming
+it) are the complete wire surface, held disjoint by test. Four rules: mutating
+verbs return **409 while a run is in flight** — frozen-per-stage discreteness
+enforced structurally rather than by discipline, and that refusal outranks body
+validation; **settings persist on the verb**, not on `save`, which is what keeps
+WP-1005's "nothing to warn about on close" true; the **run state is not an
+event** (a failed fit emits no `fit_end`, and `EventKind` is closed) so it
+travels beside them as its own SSE frame type while `live/events.jsonl` stays the
+one stream `watch` tails; and `/api/result` omits the curves, which
+`/api/result/window` serves per 2θ window through the *same*
+`viz.compare.decimation_index` the comparison UI uses — where `max_points` is a
+budget, not a ceiling. `strategy.staged.resolve_plan` (preset name + mode → plan)
+is likewise one function, previously inline in `fit` and duplicated in
+`sequential`.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

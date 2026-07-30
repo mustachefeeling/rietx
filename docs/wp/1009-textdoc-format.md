@@ -105,6 +105,26 @@ peaks 20                              # pick_peaks(min_sigma=5.0, shape=tchz)
    1    10.7743   0.0011   0.0834      3310   impurity
 ```
 
+From **WP-1008** (GUI server, landed 2026-07-30): `GET/PUT /api/textdoc` are
+**already reserved** in `gui.session.RESERVED_ROUTES` and answer 404 naming this
+WP, so filling them in is adding two entries to `gui.server.ROUTES` and two
+methods to `GuiSession` — no routing work. Three things that shape the format:
+
+- **The preset a project chose is not stored.** `ProjectDoc.plan` is an expanded
+  `PlanSpec` with no name, so `GET /api/plan` *derives* `preset` by comparing the
+  stored spec against all seven registry presets (`gui.session._matching_preset`,
+  `null` for an edited plan). If the text document wants to render `plan:
+  mccusker_default` rather than eight stage blocks, quote that helper — do not
+  add a name field to the document, which would be a second authority that can
+  disagree with the stages beside it.
+- **Selecting a preset expands it through the mode**, because `Project.fit`
+  passes `doc.plan` verbatim: `mccusker_default` under `lebail` stores
+  `profile_only`'s stages. A text document round-trip must not "helpfully"
+  re-collapse that back to the name the user typed.
+- **Settings persist on the verb, not on Save** (the GUI writes `project.json`
+  on every settings mutation), so a text-document edit that changes settings
+  should behave the same way rather than waiting for a save the UI never shows.
+
 ## Non-goals
 
 - No editor, no CodeMirror, no sync engine (WP-1013).

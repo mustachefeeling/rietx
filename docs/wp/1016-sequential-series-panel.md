@@ -48,6 +48,23 @@ patterns *outside* the project's single-pattern model, referenced by the
 series run, one history tree each). If this feels awkward in practice,
 record it for WP-1003 rather than growing the project schema mid-WP.
 
+From **WP-1008** (GUI server, landed 2026-07-30): **no series routes were
+reserved**, deliberately — the shapes in WP-1008's charter came from the GUI plan
+and the indexing plan, and a series does not fit the session model as it stands.
+Two things to settle here rather than discover:
+
+- **`GuiSession` is one project, and a project is one pattern.**
+  `ProjectDoc.patterns` is a list but `Project.open` *refuses* more than one, so
+  a series panel either drives N projects (and the session needs a second
+  container verb) or runs outside the project container. That decision is this
+  WP's, and it is the same seam multi-histogram (WP-0308) will want.
+- **The run state machine is single-slot** (`idle | running | cancelling`, one
+  worker, one `CancelToken`). A `refine_sequential` run fits it as *one* long run
+  — which is right, since `SequentialRefinement` already emits per-pattern
+  events and takes `events=`/`cancel=` — so prefer adding a `kind: "series"` to
+  `GuiSession.run` over a second machine. The per-pattern progress a panel needs
+  is already expressible in the event `data` dict without a new `EventKind`.
+
 ## Non-goals
 
 - No multi-histogram (joint residual) UI — different machinery

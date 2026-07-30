@@ -48,6 +48,14 @@ permissive, clears the licensing invariant, needs an ATTRIBUTION.md entry)
 as an opt-in vendored asset. **Not v1**; recorded so the next person doesn't
 re-derive the licence answer.
 
+From **WP-1008** (GUI server, landed 2026-07-30): `GET /api/structure3d` is
+**reserved** and 404s naming this WP, so the route is settled — decide its
+payload here. `GET /api/structure` already serves the whole validated
+`Structure` dump, so the 3D route only earns its place by returning something
+the model does not already say (expanded symmetry images, bonds, a cell frame);
+if it would only reshape `Structure`, do it in the frontend and leave the route
+reserved rather than shipping a second view of the same fact.
+
 ## Non-goals
 
 - No coordination polyhedra, no supercell packing view, no measurement

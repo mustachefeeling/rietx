@@ -285,6 +285,27 @@ round-trip is validated for **single-phase only** — a full multi-phase
 structure re-read was never a v0.3 commitment. Whatever guarantee the frozen
 API states about CIF round-tripping has to say that, or narrow the claim.
 
+From **WP-1008** (GUI server, landed 2026-07-30): three additions to the public
+surface, and one thing that is explicitly *not* frozen.
+
+- New top-level module `pxrdref.gui` exporting `GuiSession`, `GuiError`,
+  `serve`, `build_server`, `main`, `ROUTES`, `RESERVED_ROUTES`, `DEFAULT_PORT`,
+  `EVENT_RING`, `RunState`. `GuiSession`'s **methods** are the surface a Tauri or
+  notebook driver would use, so they are worth freezing; `gui.server` is
+  transport and can be replaced wholesale.
+- Two helpers were promoted from private to public because a fourth and a second
+  consumer arrived: `strategy.staged.resolve_plan` (preset name + mode → plan;
+  was inline in `Refinement.fit` *and* duplicated as `sequential._resolve_plan`)
+  and `viz.compare.decimation_index`. Both are freeze-worthy and neither is
+  re-exported from the package root — decide whether they should be.
+- **The HTTP wire surface stays provisional at v1.0**, as the note above from the
+  GUI plan already says. The freeze covers the schemas the routes carry (all
+  existing pydantic models) and `GuiSession`'s method names, not the paths.
+- New CLI subcommand `pxrdref gui`, and a new env var `PXRDREF_STATE_DIR`
+  (recent-projects store, default `~/.pxrdref`) — the first user-level state this
+  package has ever written outside a project directory. Worth a README line and a
+  decision on whether it should be XDG-aware before it is frozen.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

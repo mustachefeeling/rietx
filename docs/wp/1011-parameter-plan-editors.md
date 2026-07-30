@@ -62,6 +62,30 @@ per-keystroke nodes would bury the log. Bounds and transform are on the row too,
 so the value editor can validate before the round trip (`set_values` refuses an
 out-of-bounds value).
 
+From **WP-1008** (GUI server, landed 2026-07-30) — the routes this WP edits
+through are live:
+
+- `GET /api/params` returns every row with `refinable` and `held_because`
+  **added** to the `ParameterRow` dump (they are properties, so `model_dump`
+  drops them), plus `n_free`, `mode`, `head` and `live`. Render the three held
+  reasons from `held_because`; do not re-derive them from `locked`/`tie`/
+  `mode_fixed`, which is the same rule spelled twice.
+- `PATCH /api/params {"values": {...}, "vary": {"glob": bool}}` applies **values
+  first, then vary in object order**, and each commits its own history node — so
+  one editor "apply" is two or three nodes, and the history panel will show them.
+- **A refused edit is the useful answer.** A tied path comes back 400 with the
+  verb's own message naming its sources (`'phases.0.cell.b' follows
+  'phases.0.cell.a' as an affine tie; set that instead`) and `where` = the path
+  edited. Show the message; the GUI is the only place it is ever read.
+- `GET /api/plan` gives the expanded stages plus a **derived** `preset` name
+  (`null` when edited) and `selected`. `PUT /api/plan` takes either
+  `{"preset": name}` or `{"plan": spec}`; a preset is stored **expanded through
+  the mode** (`mccusker_default` + `lebail` → `profile_only`'s stages), so the
+  editor shows exactly what will run. An empty stage list is refused.
+- Every one of these 409s with `RUN_IN_FLIGHT` during a run, and the state
+  refusal deliberately outranks body validation — disable the editor off the
+  `state` SSE frame rather than letting a user retype a value into a 409.
+
 ## Non-goals
 
 - No structure/instrument *object* editing (WP-1014) — this WP edits θ-table

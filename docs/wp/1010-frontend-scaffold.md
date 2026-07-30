@@ -68,6 +68,45 @@ proves flaky cross-OS (minifier nondeterminism), downgrade `gui.yml` to
 comparing `build-info.json` only and record the measurement in the handover
 log — pre-authorised fallback, not a new decision.
 
+From **WP-1008** (GUI server, landed 2026-07-30) — the surface this scaffold
+consumes now exists and runs; `pxrdref gui --no-open` serves it today, with a
+placeholder page from `gui/server.py:_PLACEHOLDER` until `static/index.html`
+exists. Six facts that change the frontend's design:
+
+- **`/api/events` multiplexes two frame types.** SSE frames arrive as
+  `event: event` (an engine event dict, `id:` = its seq) and `event: state`
+  (the session's coarse run state). The state frame exists because a *failed*
+  fit emits no `fit_end`, so an event-only follower hangs on exactly the case it
+  most needs. `?poll=1` returns both (`events` + `state`/`run`) in one JSON
+  object. Read event `data` with optional-chaining only — its fields are additive
+  by contract and a fixed shape will break.
+- **`?since=` is a real cursor, and `oldest` tells you when it failed.** The ring
+  is 4096 events (`EVENT_RING`); a staged fit emits one `eval` per residual
+  evaluation and can exceed it. If `since + 1 < oldest`, frames were genuinely
+  dropped — say so rather than renumbering.
+- **Do not port the decimator.** `GET /api/result/window?lo=&hi=&max_points=`
+  already returns decimated `two_theta/y_obs/y_calc/y_background/delta` plus
+  in-window ticks, using the same `viz.compare.decimation_index` the comparison
+  UI uses. A `lib/decimate.ts` (this WP's task list says "port of
+  `_minmax_decimate`" — the helper is now public as `decimation_index`) would be
+  a second answer to "which points survive". Fetch a window on zoom, which the
+  task list already plans.
+- **`max_points` is a budget, not a ceiling** — three curves' per-bucket extrema
+  over `max_points // 2` buckets, measured at 4132 returned for a 4200-point
+  pattern at 4000. Size arrays from `n_returned`.
+- **409 is a normal answer, not an error state.** Every mutating verb returns
+  `{"error": {"code": "RUN_IN_FLIGHT"}}` while a run is in flight; the UI should
+  disable those controls off the `state` frame rather than surfacing a toast.
+  `GET /api/params` still works and returns `live: true`, meaning the values may
+  straddle two iterations.
+- **A `checkout` discards the fitted curves.** `/api/result`, `/api/report` and
+  the exports answer `NO_RESULT` (409) until the next run, by design. The panels
+  need an empty state for "history moved, nothing computed here yet".
+
+Panel layout and disclosure level belong in `ProjectDoc.ui` via
+`POST /api/project {"ui": {...}}` (shallow-merged; a `null` value drops a key) —
+persisted immediately, no save step.
+
 ## Non-goals
 
 - No parameter editor, history panel, text pane, structure viewer, series

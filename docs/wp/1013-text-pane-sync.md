@@ -43,6 +43,15 @@ decided — single server-side parser, CAS revisions, explicit apply,
 all-or-nothing deltas — do not relitigate them; test the state machine
 instead.
 
+From **WP-1008** (GUI server, landed 2026-07-30): the text pane's transport is
+`GET/PUT /api/textdoc`, **reserved and 404-ing** until WP-1009 fills it in, so
+this WP inherits routing for free. Two constraints from the session model: the
+PUT is a mutating verb and must 409 with `RUN_IN_FLIGHT` during a run like every
+other (the state refusal outranks a parse complaint — tell the user the fit is
+running, not that their text is invalid), and a text edit that changes *settings*
+persists immediately (`project.json` is written by the verb, not by Save), which
+is what keeps "nothing to confirm on close" true.
+
 ## Non-goals
 
 - No lezer grammar, no client-side parsing beyond the regex highlighter.

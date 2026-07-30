@@ -103,6 +103,22 @@ From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
 `"edited"`; surface it, because a hand-placed peak and a fitted one carry
 different weight and the user should see which is which.
 
+From **WP-1008** (GUI server, landed 2026-07-30): every route this WP asked to
+have reserved **is** reserved and 404s naming it — `GET/POST /api/peaks`,
+`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
+`GET /api/index/result`, `POST /api/index/adopt` (see
+`gui.session.RESERVED_ROUTES`, held disjoint from `ROUTES` by a test). Filling
+one in is a `ROUTES` entry plus a `GuiSession` method.
+
+For the long-running half: `GuiSession.run(body)` is the machinery — it takes
+`kind`, builds a `CancelToken` and an `EventStream(path=live/events.jsonl,
+callback=…)`, starts one worker, and 409s every mutating verb while busy. Wiring
+`/api/index` to it means adding a `kind: "index"` branch there, and the run
+record's fields (`status`, `stage`, `node_id`, `completed_stages`, `error`) are
+generic enough to carry an indexing run without new keys. Remember WP-1006's
+note carried into WP-1024: a **new** `EventKind` is a schema-version bump where
+an added `data` field is not.
+
 ## Non-goals
 
 - No new indexing capability — this WP is a surface over WP-1018-1025.

@@ -58,6 +58,27 @@ list, and inert because `_run_stage` force-fixes `.atoms.` in lebail mode. The
 structure editor should make that atom's status legible (it is a placeholder,
 not a site), which is the same note left in WP-1004 for the parameter surface.
 
+From **WP-1008** (GUI server, landed 2026-07-30):
+
+- `POST /api/upload/{pattern,cif,instrument}` are **reserved** and 404 naming
+  this WP; adding them is entries in `gui.server.ROUTES` plus methods on
+  `GuiSession`. Note they are the only routes in the surface that will not take
+  JSON, so the body-reading helper (`Handler._body`) needs a sibling for
+  multipart or raw bytes.
+- `GuiSession.project_new` already takes **server-side paths** — `pattern` a
+  path, `structure` either an inline dict or `{"cif": path, "aniso": …,
+  "phase_name": …}`, `instrument` an inline dict. `_as_structure` /
+  `_as_instrument` are the two places sniffing plugs into.
+- **`instrument` is required and refusing it is deliberate**: `Instrument()` does
+  not validate (no default `source`), and defaulting an anode would put a
+  wavelength nobody chose into every refined cell. An import flow must ask.
+  Reading a CIF passes `aniso=False` unless asked, for the CLAUDE.md reason —
+  reading a file must not silently change what a plan frees.
+- Whole-model `PATCH /api/structure` / `PATCH /api/instrument` already exist and
+  record an `edit_model` node with an optional `label`; they replace a validated
+  model rather than merging fields, so in-GUI editing can build on them without
+  a field-patch protocol.
+
 ## Non-goals
 
 - **Space-group editing — hard fence.** Re-import a CIF instead.

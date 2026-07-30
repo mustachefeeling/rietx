@@ -1,6 +1,6 @@
 # WP-1008 — GUI server, session model, `pxrdref gui`
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: WP-1004, WP-1005, WP-1006, WP-1007
 
 ## Goal
@@ -127,16 +127,18 @@ same machinery as a refinement run even though it is not one.
 
 ## Tasks
 
-- [ ] `src/pxrdref/gui/{__init__,session}.py`: `GuiSession` — verbs, lock,
+- [x] `src/pxrdref/gui/{__init__,session}.py`: `GuiSession` — verbs, lock,
       state machine, ring buffer + `Condition`, worker thread, 409 rule.
-- [ ] `src/pxrdref/gui/server.py`: route table → session verbs; SSE with
+- [x] `src/pxrdref/gui/server.py`: route table → session verbs; SSE with
       `?since=` replay and `?poll=1` fallback; Host-header check;
       `/plotly.js` from the installed package; `POST /api/shutdown`.
-- [ ] `cli.py`: `gui` subcommand (`--port/--no-open/--machine`, port-0
+- [x] `cli.py`: `gui` subcommand (`--port/--no-open/--machine`, port-0
       fallback); tee run events to `live/events.jsonl`.
-- [ ] `tests/test_gui_server.py`: real server on port 0 — project create →
+- [x] `tests/test_gui_server.py`: real server on port 0 — project create →
       params PATCH → run → SSE events → result → history checkout → export;
       409 while running; cancel honoured; Host-header rejection.
+- [x] *(added)* `strategy.staged.resolve_plan` and `viz.compare.decimation_index`
+      made public — the two seams this WP would otherwise have restated.
 
 ## Acceptance
 
@@ -151,6 +153,79 @@ same machinery as a refinement run even though it is not one.
   `server` fixture (`:211`) — the port-0 live-server test recipe to copy.
 
 ## Handover log
+
+- **2026-07-30 — complete.** 30 tests in `tests/test_gui_server.py` (2.6 s
+  serial), fast suite 1097 passed / 107 skipped in 30 s on a numpy-only
+  `[dev]` venv, ruff clean, and the real CLI exercised by hand: `pxrdref gui
+  --machine --no-open` prints `{"url": …, "port": 8731, "project": null, "pid":
+  …}`, `/` serves the placeholder, `/plotly.js` 4.85 MB out of the installed
+  package, `/api/peaks` 404s naming WP-1027, `Host: evil.test` 403s, and
+  `POST /api/shutdown` stops the process.
+
+  **Done:** `gui/session.py` (35 verbs, lock, `idle|running|cancelling`,
+  4096-event ring + `Condition`, one worker thread), `gui/server.py` (route table
+  as data, SSE + `?since=` replay + `?poll=1`, Host/Origin check, static +
+  `/plotly.js`, port-0 fallback, `--machine`), `cli.py gui`, and the two seams
+  (`resolve_plan`, `decimation_index`).
+
+  **Five decisions that were not in the charter:**
+
+  1. **The run state is not an event.** A *failed* fit emits no `fit_end` (only
+     success and cancel do), so a follower watching engine events alone hangs on
+     the one case it most needs to see. `EventKind` is closed and WP-1006
+     declined to add a kind for a guess, so the state travels beside the events:
+     SSE frame type `state` vs `event`, a `state`/`run` key in the poll payload,
+     and nothing extra written to `live/events.jsonl`. That keeps "the GUI and
+     `pxrdref watch` are two views of one stream" literally true.
+  2. **Settings persist on the verb, not on Save.** WP-1005 made "there is
+     nothing to warn about on close" true for the model; a settings route that
+     deferred to `Project.save` would have made it false again for the plan and
+     the excluded regions. `POST /api/project/save` stays as an honest flush.
+  3. **A state refusal outranks a body complaint.** Found by the test: with a run
+     in flight, `PATCH /api/structure` with an invalid structure returned 400
+     "structure has no phases" — true, and useless, because the real problem was
+     the running fit. `_require_idle()` now runs before validation in both model
+     patches.
+  4. **`/api/history/branch` names a fork point.** This DAG has no moving refs,
+     only `head` and tags, and a fork appears when you run from a node that
+     already has a child — so a `branch` route that created something would be
+     lying, and one that only checked out would be a second spelling of
+     `checkout`. It is checkout + `tree.tag`, documented as such.
+  5. **The preset a project chose is not recoverable from its document** —
+     `ProjectDoc.plan` is an expanded `PlanSpec` with no name. `GET /api/plan`
+     therefore *derives* `preset` by comparing the stored spec against all seven
+     registry presets (`null` for an edited plan), the same
+     derived-predicate style as `capabilities().features`. Selecting a preset
+     stores it expanded **through the mode**, because `Project.fit` passes
+     `doc.plan` verbatim: picking `mccusker_default` in Le Bail mode has to store
+     `profile_only`'s stages, and doing it in the editor makes the mapping
+     visible instead of surprising.
+
+  **Two measured facts the frontend needs:**
+
+  - `max_points` on `/api/result/window` is a **budget, not a ceiling** — the
+    index set is three curves' per-bucket extrema over `max_points // 2` buckets,
+    so it can overshoot (measured: 4132 for a 4200-point pattern at 4000).
+    `n_returned` is the length to trust.
+  - **A `checkout` discards the fitted curves** (`Refinement.checkout` clears
+    `result_`/`_model`, correctly — they described values it just replaced), so
+    `/api/result`, `/api/report` and every export answer `NO_RESULT` until the
+    next run. A history panel must expect that, and it is asserted rather than
+    left to be discovered.
+
+  **Gotchas.** (a) `Project.create` and a subsequent `Project.open` of the same
+  directory are two objects over one set of files; a test asserting against the
+  created one passes by accident until they disagree (cost one debugging round —
+  `_open()` in the test module returns `session.project` for that reason).
+  (b) `ThreadingHTTPServer.serve_forever` polls at 0.5 s, which is pure teardown
+  cost in a module with ~15 server fixtures: 14 s → 2.6 s with
+  `poll_interval=0.02`. (c) SSE stays on `protocol_version = "HTTP/1.0"` so a
+  streaming body needs neither `Content-Length` nor chunked framing; EventSource
+  reconnects on close, which `?since=` then replays.
+
+  **Not done, deliberately:** nothing. The frontend is WP-1010 and the reserved
+  routes are listed in `session.RESERVED_ROUTES`, which
+  `test_no_route_is_declared_twice` holds disjoint from `ROUTES`.
 
 - **2026-07-29** — created from the v1.0 GUI plan. Precedents verified: the
   `_State` pattern, the `/plotly.js` trick, port ownership (compare 8730,

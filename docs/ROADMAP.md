@@ -121,9 +121,32 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
+**[1008](wp/1008-gui-server.md) landed 2026-07-30** — `pxrdref gui` serves a
+localhost app over stdlib `http.server`: 35 live routes and 17 reserved ones, and
+**every verb a plain method on `GuiSession` with nothing about HTTP in it**, which
+is the Tauri seam and also what made the WP testable (the state machine against a
+stubbed refinement, the physics against one real fit driven over HTTP). Its
+decisions are mostly about what *not* to build. The **run state is not an event**:
+a failed fit emits no `fit_end`, `EventKind` is closed (WP-1006 declined to add a
+kind for a guess), so the state travels beside the events as its own SSE frame
+type and `live/events.jsonl` stays the one stream `pxrdref watch` tails.
+**`/api/history/branch` names a fork point rather than creating a ref**, because
+this DAG has only `head` and tags and a fork appears when you run from a node that
+already has a child — a route that created something would lie, one that only
+checked out would be a second spelling. And **the preset a project chose is not
+stored**, so `GET /api/plan` *derives* it by comparing the expanded spec against
+all seven presets — the `features` flag style one level up. The test found the one
+ordering bug that mattered: with a run in flight, an invalid `PATCH
+/api/structure` answered "structure has no phases", which is true and useless, so
+a state refusal now outranks body validation. Two facts the frontend needs are
+recorded rather than left to be met: `max_points` on `/api/result/window` is a
+budget, not a ceiling (4132 points for a 4200-point pattern at 4000), and a
+`checkout` discards the fitted curves, so result/report/export answer `NO_RESULT`
+until the next run.
+
 **The backend-API group is complete: [1004](wp/1004-parameter-plan-api.md),
 [1005](wp/1005-project-container.md), [1006](wp/1006-run-control.md) and
-[1007](wp/1007-capabilities-guards.md) all landed 2026-07-30**, which unblocks
+[1007](wp/1007-capabilities-guards.md) all landed 2026-07-30**, which unblocked
 the server row [1008](wp/1008-gui-server.md). Four WPs framed as plumbing; four
 latent defects the framing had hidden, and the pattern is worth naming because it
 is the milestone's argument made concrete — **the GUI is not being served by these
@@ -966,7 +989,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ✅ 2026-07-30 | 1004 |
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
-| [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ⬜ | 1004–1007 |
+| [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ✅ 2026-07-30 | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
