@@ -46,17 +46,67 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
-**Indexing: 1018, 1019 and 1020 are done (2026-07-30); the three engines are
-next, and they are independent of each other.** Everything an engine shares now
-exists and is tested — a fitted peak list with *calibrated* per-line σ (1018), a
-gate that abstains rather than searching data that cannot support a search
-(1019), and the Q-space core: the quadratic form, the derived metric subspaces,
-weighted candidate refinement, reduction, two-opinion Bravais, the figure-of-merit
-panel and geometrical ambiguity (1020). [1021](wp/1021-engine-dichotomy.md),
-[1022](wp/1022-engine-trial-error.md) and [1023](wp/1023-engine-montecarlo.md) can
-be taken in any order or in parallel; each has a fresh `### Inherited` note naming
-the five things about the shared surface that are not obvious from the names. The
-per-WP narratives are in the indexing sub-table below.
+**Indexing: the three engine rows are closed (2026-07-30) — two built, one a
+measured no-go — and [1024](wp/1024-indexing-consensus.md) (consensus,
+`index_pattern`, the confidence gate) is next.** Both landed engines recover cubic
+through monoclinic from synthetic lists with the truth **ranked first** and
+`search_complete` true: [1021](wp/1021-engine-dichotomy.md) exhaustive
+branch-and-bound over the metric domain (0.02-0.8 s, monoclinic 103 s over a
+declared d ∈ [6,18] Å) and [1022](wp/1022-engine-trial-error.md) the exact n×n solve
+from assumed base-line indices (0.04-5.3 s, monoclinic 91 s). They share
+`indexing/engines.py` — one `SearchSpec`, one answer shape, the live registry 1024's
+agent schema will quote, and the reflection-ceiling crash guard.
+[1023](wp/1023-engine-montecarlo.md) is a **recorded no-go**: its Task-0 spike shows
+tier-1 cannot rank (details below), so the confidence gate is a **two-engine
+consensus** and 1024's `### Inherited` already says so.
+
+**The milestone's method result so far is that every one of the three rows was
+decided by a measurement that contradicted its own plan.** 1021's plan had volume
+shells and a bisection from one domain; measured, shells cost eight grid passes with
+the answer's shell last, and a single depth-first stack explored 11.9 M boxes without
+once visiting the cell holding the answer — the structure that works is a complete
+breadth-first grid pass, then dichotomy inside the survivors. 1022's plan promised
+"seconds where 1021 takes minutes"; measured, dichotomy is *faster* on every system,
+and what the two engines actually buy is different **failure modes**, which is all
+the confidence gate needs. 1023's plan assumed the open question was `compile_model`
+cost; measured, tier 2 is affordable (13-15 ms/state) and *discriminating* (Rwp 1.29
+for the certified cell against 7.25 for one 1 % off) while **tier 1 is the part that
+fails**, and it fails in a way no tuning fixes: the true cell scores exactly zero.
+
+**The session's largest finding is not about any engine — it is that a fitted
+per-line σ is the wrong tolerance for real data, and it was found by accident.**
+Chasing engine C's tier-1 zero meant running the two landed engines on the bundled
+qarr corundum pattern, whose cell is certified, and **neither indexed it**. Fitted
+σ(2θ) has a median of 0.0056° there, while the pattern's lines sit a median 0.060°
+from the certified positions — a cos θ specimen displacement of −0.065°, an **11σ**
+systematic — so at 3σ the true cell indexes *no lines at all*. The per-line σ that
+WP-1018 worked so hard to measure is exactly right for *weighting* and exactly wrong
+as a *matching window*, because it knows nothing about the systematic the pattern
+carries; that is why every indexing program in the literature ships a global ~0.03°
+tolerance. Both engines now add `DEFAULT_UNKNOWN_SHIFT_DEG` (0.05°) in quadrature
+when no shift has been **measured**, report it with `INDEX_SHIFT_ALLOWANCE` (an
+assumed precision must never look like a measured one), and consume
+`SearchSpec.shift_template` through `refine_with_shift`, which corrects a *surviving*
+candidate rather than the search. **That is not yet enough** — at 0.05° trial and
+error still finds nothing and dichotomy ranks a wrong 618 Å³ cell first; at 0.08° the
+cell comes back +1400 ppm with the shift absorbed — and the gap is handed to
+[1026](wp/1026-indexing-acceptance.md) with the numbers rather than closed by raising
+a constant against one dataset.
+
+**Four defects in already-landed WP-1020 code were found by building on it**, each
+of which had been ranking a wrong cell above the truth: `borda_scores` gave *tied*
+candidates distinct ranks in input order (up to N−1 points of noise per tied member,
+and two of five panel members saturate at 1.0, so most candidates tie);
+`predicted_lines` counted symmetry orbits rather than lines, so cubic 333 and 511 —
+both 27A, one 2θ — were two "possible lines" (fixing it is also 380× faster, which is
+what had made ranking the bottleneck); `m20`/`f_n` used a plain mean discrepancy, so
+one tolerated-unindexed line wrecked the score of the cell the search was right to
+keep (13.2 against 62.5 for an a√5 supercell covering the impurity); and both engines
+read "index all but `n_unindexed` of `n_search_lines`" as *anywhere in the pattern*,
+which on a 75-line list kept 17 607 candidates. `match_lines` also built an
+(observed × predicted) distance matrix where a binary search is exact, and
+`dedup_candidates` re-reduced both cells on every pairwise comparison — together
+worth 221 s → 10.5 s on one monoclinic search.
 
 **v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
 measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
