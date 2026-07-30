@@ -1,4 +1,5 @@
-"""Indexing schemas — the fitted peak list an indexer consumes.
+"""Indexing schemas — the fitted peak list an indexer consumes, and the answer
+it is allowed to give.
 
 The contract this module exists to establish is **per-line σ instead of a
 global tolerance knob**.  Every indexing program in the literature takes a
@@ -10,6 +11,13 @@ move the refinement side made with the file's esd column (CLAUDE.md, Weights).
 Thresholds are pinned here and versioned by
 :data:`INDEXING_THRESHOLDS_VERSION`, following ``report/schemas.py``: an agent
 reading a peak list can reproduce the decisions that produced it.
+
+**The answer's shape is a rule, not a convenience** (WP-1024).
+:class:`IndexingResult` has no ``.cell`` and no ``.best``; the only way to a
+singleton is :meth:`IndexingResult.best_or_none`, gated on
+:data:`Confidence` reaching ``"high"``.  The FitReport's
+never-a-confident-wrong-singleton rule, one rank up — and here the type enforces
+it rather than a docstring asking for it.
 
 **Q, not d, and not 2θ.**  ``Q = 1/d²`` is linear in the reciprocal metric
 (:func:`pxrdref.crystallography.inv_d_squared`), which is what makes cell
@@ -24,7 +32,7 @@ from typing import Literal
 import numpy as np
 from pydantic import Field, model_validator
 
-from .common import Base, Diagnostic
+from .common import Base, Diagnostic, Provenance
 
 #: 1.0 (WP-1018): first release of the peak-list contract.
 INDEXING_THRESHOLDS_VERSION = "1.0"
@@ -189,6 +197,73 @@ SHIFT_TEMPLATES: tuple[str, ...] = ("constant", "cos_theta", "sin_2theta")
 #: **triclinic** at N = 20: 13.39·d₂₀³.  Kept as the two published constants
 #: rather than the product, because the formula is used at other N.
 SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
+
+# ----------------------------------------------------------------------
+# Consensus and the confidence gate (WP-1024)
+# ----------------------------------------------------------------------
+#: Share of the **whole usable line list** a candidate must index before it can
+#: be called ``"high"`` confidence.  Note the denominator: the search is driven
+#: by the first :data:`~pxrdref.indexing.engines.DEFAULT_SEARCH_LINES` lines and
+#: may leave ``n_unindexed`` of *those* unexplained, so a cell can pass the
+#: search having said nothing at all about lines 21 onwards — the first of the
+#: three blind spots Le Bail validation exists for.  This bar is what makes the
+#: whole list count.
+#:
+#: 0.9 rather than a count derived from ``n_unindexed``, and the difference is
+#: the point: on a 75-line list ``n_unindexed = 2`` would demand 97 %, which no
+#: real pattern with an impurity or an undetected weak line can meet, while on a
+#: 20-line list it would demand only 90 % anyway.  A fixed fraction lets a couple
+#: of foreign lines through on a long list and still refuses a cell that explains
+#: only the low-angle half.
+INDEX_MIN_INDEXED_FRACTION = 0.9
+#: Confidence in one candidate cell.  Three levels, and the top one is
+#: **agreement between independent engines** rather than any statistic: the same
+#: device as ``sequential.py``'s ``direction="both"`` and the cross-backend
+#: Jacobian matrix.  Two agreeing engines is the ceiling (the whole-profile Monte
+#: Carlo is a measured no-go, WP-1023), not a shortfall.
+Confidence = Literal["high", "medium", "low"]
+#: Closed vocabulary of the reasons a candidate is *not* ``"high"``.  Closed for
+#: the same reason ``report/schemas.py``'s ``ActionKind`` is: a consumer branches
+#: on these, and a free-text reason cannot be branched on.  The human detail
+#: belongs in the accompanying ``INDEX_*`` diagnostic, not here.
+#:
+#: ``engines_disagree`` — fewer than every engine run found this lattice.
+#: ``geometric_ambiguity`` — a distinct lattice fits the positions as well
+#: (Mighell & Santoro 1975); the partner carries the reflections that would
+#: break the tie.  ``fom_panel_disagrees`` — the panel's members put different
+#: candidates first, so at least one blind spot is active.  ``not_validated`` —
+#: no pattern was supplied, so nothing tested the candidate against the whole
+#: profile.  ``predicted_but_absent`` — the Le Bail fit found reflections where
+#: the pattern has no intensity, the classic oversized-cell false positive M₂₀
+#: cannot see.  ``indexed_fraction_low`` — below
+#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines.  ``search_incomplete``
+#: — a budget expired, so a *negative* result elsewhere in the domain means
+#: nothing.  ``shift_allowance_assumed`` — the matching window was widened by an
+#: *assumed* systematic (``INDEX_SHIFT_ALLOWANCE``), and a cell found inside a
+#: widened window absorbs the shift.  ``bravais_ambiguous`` — the lattice
+#: symmetry appears only at a loose tolerance, or the two methods disagree.
+#: ``volume_unphysical`` — outside the volume the data can support.
+IndexCaveat = Literal[
+    "engines_disagree",
+    "geometric_ambiguity",
+    "fom_panel_disagrees",
+    "not_validated",
+    "predicted_but_absent",
+    "indexed_fraction_low",
+    "search_incomplete",
+    "shift_allowance_assumed",
+    "bravais_ambiguous",
+    "volume_unphysical",
+]
+#: Caveats that **refute** a candidate rather than merely qualifying it: each is
+#: positive evidence against the cell, or evidence that the data cannot choose,
+#: so any one of them puts the candidate at ``"low"``.  The others cap it at
+#: ``"medium"``.  The split is the whole content of the gate, so it is one
+#: constant read by :func:`pxrdref.indexing.consensus.confidence_for` rather than
+#: a chain of conditions.
+INDEX_REFUTING_CAVEATS: frozenset[str] = frozenset({
+    "geometric_ambiguity", "fom_panel_disagrees", "predicted_but_absent",
+    "indexed_fraction_low", "volume_unphysical"})
 
 #: σ(2θ) in degrees assumed by :meth:`PeakList.from_positions`, which receives
 #: bare positions from a publication or another program.  A typical
@@ -434,6 +509,81 @@ class AmbiguityPartner(Base):
     discriminating_two_theta: list[float] = Field(default_factory=list)
 
 
+class BravaisOpinion(Base):
+    """What gemmi and spglib each say about a candidate's lattice symmetry.
+
+    The serialisable face of :class:`pxrdref.indexing.reduce.BravaisScreen`, and
+    it keeps the two opinions **apart** on purpose: gemmi's tolerance is a Le Page
+    obliquity in *degrees* and spglib's is a ``symprec`` in *Å*, so a
+    disagreement between them is information about the cell rather than a bug in
+    either — it is what genuine pseudosymmetry looks like.  ``system`` is the
+    symmetry that survives the whole tolerance sweep; ``system_loosest`` is the
+    highest any tolerance reported, and the two differing is
+    ``INDEX_BRAVAIS_AMBIGUOUS``.
+    """
+
+    system: str
+    system_loosest: str
+    system_gemmi: str
+    system_spglib: str
+    ambiguous: bool = False
+    methods_disagree: bool = False
+    #: the Niggli-reduced cell the screen was run on, so a consumer can see which
+    #: setting the symbols refer to
+    reduced_cell: tuple[float, float, float, float, float, float] = (0.0,) * 6
+
+
+class LeBailValidation(Base):
+    """A candidate cell tested against the **whole pattern** by a Le Bail fit.
+
+    Why this is mandatory rather than optional: the figure-of-merit panel is
+    computed on ≤20 lines and is structurally blind to three things the whole
+    profile sees — lines beyond the panel, reflections *predicted where there is
+    no intensity*, and impurity content.  The middle one is the classic
+    doubled-cell false positive and M₂₀ cannot see it at all (Oishi-Tomiyasu
+    2013): its ``N_poss`` denominator penalises an oversized cell only weakly.
+    Layer 0's strong-negative-residual detector sees it directly, and
+    :attr:`predicted_but_absent` is that count.
+
+    ``rwp`` is the figure the literature calls **lebail_rwp**.  It is
+    deliberately *not* a member of the ranking panel: the panel ranks every
+    candidate and this costs a refinement, so it is computed for the shortlist
+    only and used to *validate* rather than to order.  Reading it as a rank would
+    also reintroduce the blind spot it exists to close — a bigger cell fits
+    better.
+
+    The fit is **single-phase**, and that is a measured constraint rather than a
+    simplification (WP-1028): ``CompiledModel.lebail_update`` partitions
+    ``max(y_obs − y_bkg, 0)`` per phase with nothing to arbitrate two phases
+    claiming the same channel, so two phases inflate one another without bound
+    (measured Rwp 742–9 281 % against 7.5–24.8 % for one).  A candidate is
+    therefore never validated against a multi-phase hypothesis.
+    """
+
+    rwp: float
+    gof: float
+    #: the **absence-free lattice** group the fit used — not a space group, which
+    #: is not known yet (WP-1025).  An absence-carrying group would hide exactly
+    #: the reflections whose absence is not yet established.
+    space_group: str
+    n_reflections: int
+    #: reflections the lattice predicts where the pattern has no intensity, from
+    #: Layer 0's ``unmatched_calc``
+    predicted_but_absent: int = 0
+    #: observed peaks with no calculated reflection nearby — impurity content, or
+    #: a wrong cell.  Layer 0's ``unmatched_obs``
+    unmatched_observed: int = 0
+    #: ° 2θ of each, so the report is actionable rather than a count
+    predicted_but_absent_two_theta: list[float] = Field(default_factory=list)
+    unmatched_observed_two_theta: list[float] = Field(default_factory=list)
+    #: the underlying refinement's status; ``"failed"`` when the Le Bail fit
+    #: raised, which is itself evidence against the candidate but is reported as
+    #: a failure rather than converted into a score
+    status: str = "converged"
+    n_stages: int = 0
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
 class CellCandidate(Base):
     """One candidate lattice, with everything needed to rank or reject it.
 
@@ -465,6 +615,18 @@ class CellCandidate(Base):
     fom: list[FigureOfMerit] = Field(default_factory=list)
     found_by: list[str] = Field(default_factory=list)
     ambiguity: list[AmbiguityPartner] = Field(default_factory=list)
+    #: the two independent opinions on the lattice symmetry (WP-1020's screen)
+    bravais: BravaisOpinion | None = None
+    #: the whole-profile test; ``None`` means no pattern was supplied, which caps
+    #: every candidate at ``"medium"`` rather than being silently ignored
+    lebail: LeBailValidation | None = None
+    #: filled by the consensus gate.  Still deliberately **not** an "is correct"
+    #: field: ``"high"`` means the engines agreed and nothing refuted it, which is
+    #: a statement about the evidence and not about the crystal.
+    confidence: Confidence = "low"
+    #: every reason this candidate is not ``"high"``, from the closed
+    #: :data:`IndexCaveat` vocabulary
+    confidence_caveats: list[IndexCaveat] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
     def fom_value(self, name: str) -> float | None:
@@ -583,3 +745,77 @@ class DataQualityReport(Base):
     abstained_reason: str | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class IndexingResult(Base):
+    """What :func:`pxrdref.index_pattern` returns — and what it *cannot* return.
+
+    **The founding rule is enforced by the type.**  There is no ``.cell``, no
+    ``.best`` and no ``.solution`` attribute; :attr:`candidates` is always a list,
+    and the only singleton accessor is :meth:`best_or_none`, which returns a cell
+    only when the confidence gate is fully satisfied.  That is the same species of
+    guard as ``Geometry.mu_r`` being a plain ``float`` so the type forbids
+    refining it: the *shape* of the API holds the rule, not a caller's discipline.
+    An indexer that hands back one cell confidently is the failure this whole
+    milestone exists to prevent, and this repo has already met it on its own data
+    (the withdrawn multiphase claim recorded at the tag ``guillemot-study``).
+
+    **A restricted search is not a verdict.**  :attr:`systems_searched` is beside
+    :attr:`search_complete` because the two answer different questions: the first
+    is what was *tried*, the second whether the domain was *exhausted*.  Failure
+    is reported as "no cell found in the systems searched"
+    (``INDEX_SYSTEMS_NOT_COVERED``), never as "this pattern is multiphase" —
+    measured, a restricted engine's coverage bands overlap between single-phase
+    low-symmetry patterns and genuine mixtures, and a claim built on that
+    ambiguity was withdrawn.
+    """
+
+    candidates: list[CellCandidate] = Field(default_factory=list)
+    #: engines that actually ran, from the live registry.  This is the
+    #: denominator of the agreement gate, so it must be what ran and not what was
+    #: requested.
+    engines_run: list[str] = Field(default_factory=list)
+    #: systems any engine covered, merged across engines
+    systems_searched: list[str] = Field(default_factory=list)
+    #: per system: did *every* engine that searched it exhaust its domain?  An
+    #: exhaustive engine that finished and found nothing has said "no such cell
+    #: within these bounds"; the same engine stopped by its budget has said
+    #: nothing, and the two must not be one field.
+    search_complete: dict[str, bool] = Field(default_factory=dict)
+    #: per-engine counters, prefixed ``<engine>.`` so two engines' numbers never
+    #: collide
+    engine_stats: dict[str, float] = Field(default_factory=dict)
+    #: do the panel's members put different candidates first?  A *result*-level
+    #: fact (it is a statement about the comparison, not about one cell) that caps
+    #: every candidate's confidence
+    fom_panel_disagrees: bool = False
+    quality: DataQualityReport | None = None
+    #: was a pattern supplied, i.e. did Le Bail validation run at all?  ``False``
+    #: caps every candidate at ``"medium"`` and fires ``INDEX_NOT_VALIDATED`` —
+    #: the *result* abstains rather than one field being quietly downgraded
+    validated: bool = False
+    wavelength: float = 0.0
+    n_usable_lines: int = 0
+    provenance: Provenance
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def best_or_none(self) -> CellCandidate | None:
+        """The single candidate, or None.
+
+        Returns a cell only when exactly one candidate has
+        ``confidence == "high"`` and no ambiguity partners.  Every other
+        situation — nothing found, two cells that both explain the pattern, a
+        geometrically ambiguous winner, an unvalidated search, an assumed
+        tolerance — returns ``None``, and the reason is in
+        :attr:`diagnostics` and in each candidate's ``confidence_caveats``.
+
+        The ambiguity re-check is redundant with the gate (which already refuses
+        ``"high"`` to a candidate with partners) and is kept anyway: this method
+        is the single place the rule is *guaranteed*, so it does not delegate the
+        guarantee to whoever filled the field.
+        """
+        high = [c for c in self.candidates if c.confidence == "high"]
+        if len(high) != 1:
+            return None
+        return None if high[0].ambiguity else high[0]
