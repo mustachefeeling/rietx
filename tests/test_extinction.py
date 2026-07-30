@@ -522,5 +522,5 @@ def test_extinction_correlates_with_scale_and_biso_and_the_guard_fires():
     # the guard fires on the genuinely degenerate ext↔scale pair (ρ ≈ 0.97 sits
     # below the default 0.98 bar; at the lenient 0.8 threshold it is flagged)
     guard = check_guards(table, outcome, threshold=0.8)
-    assert any("extinction" in c and "scale" in c
+    assert any({"phases.0.extinction", "phases.0.scale"} == set(c.paths)
                for c in guard.high_correlations), guard.high_correlations
