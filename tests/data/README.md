@@ -393,3 +393,28 @@ Its value is that **the compound is unknown and stays unknown**.  An acceptance
 suite made only of datasets whose answer is known measures one half of an
 indexer; this measures the other, where `best_or_none()` must return `None`
 rather than the best of a bad list.
+
+### `nist_srm660c_100a.cif` read a second way — the anchor, *indexed*
+
+No new file: `test_acceptance_indexing.py` builds this pattern through
+`test_acceptance_srm660c.build_srm_inputs()` so the two suites cannot disagree
+about the protocol, then throws the `Structure` away.  Three things make it the
+right second known-cell dataset after SRM 676a corundum, and each is a property
+of the *specimen* rather than a convenience:
+
+* **P m -3 m has no systematic absences at all.**  That makes it the control for
+  `predicted_but_absent`, the refuting caveat corundum's R-3c c-glide sets off
+  (measured: 0 of 30 here against 11-12 there, and `predicted_seen_fraction`
+  1.000 against 0.86).  A caveat that fired on both would not mean what its name
+  says.
+* **The specimen displacement is recorded in the CIF** (−0.07877 mm) and so is
+  the goniometer radius (217.5 mm), so the `cos_theta` template's amplitude is
+  *predicted* — +0.0415° — rather than merely fitted.  Corundum's −0.065° had to
+  be measured against its own certificate first (WP-1023).
+* **The cell is certified in the same file the pattern is in**, at this data
+  block's own temperature (4.156780 Å at 20.85 °C — not the certificate's
+  4.156826(8) Å at 22.5 °C, which is the wrong comparison here).
+
+Its 2θ range, 20.3-150.9° in 24 stitched regions, is also what makes it
+demanding: axial divergence reverses the sign of its tail at 90°, and both signs
+appear in the picked list.

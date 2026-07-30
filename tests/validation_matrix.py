@@ -814,6 +814,142 @@ CLAIMS: tuple[Claim, ...] = (
                   "one of lower symmetry",
         measured="best_or_none() is None; no candidate reaches high",
     ),
+    # ---- SRM 660c indexed: the absolute anchor, and the phase with no
+    # extinctions that turns the corundum caveat into a control ------------
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat",
+        "srm660c", ("certificate", "characterisation"),
+        "the absolute lab anchor is indexed from the pattern alone, and the "
+        "refuting caveat that fires on correct cells is silent on the one "
+        "bundled phase whose space group has no absences",
+        reference="P m -3 m extinguishes nothing, so if predicted_but_absent "
+                  "means what WP-1026 read it to mean -- space-group "
+                  "extinctions counted against the LATTICE group, the only "
+                  "model that exists before determine_extinction_symbol runs "
+                  "-- it must be silent here and is 11-12 on R-3c corundum.  "
+                  "The cell bar is 200 ppm and is set by a defect this same "
+                  "file measures, not by the data: a tighter one would assert "
+                  "the tail components below do not exist",
+        measured="cubic P ranked first, a -127 ppm against the CIF's "
+                 "4.156780 A; predicted_but_absent 0 of 30 and "
+                 "predicted_seen_fraction 1.000 against corundum's 0.86.  "
+                 "Still low, on shift_allowance_assumed and engines_disagree; "
+                 "best_or_none() returns None",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_unflagged_tail_components_escape_for_three_different_reasons",
+        "srm660c", ("characterisation",),
+        "the not_separable screen misses six components on this pattern, and "
+        "the census -- not any one threshold -- is what is pinned",
+        reference="The screen asks three questions (re-seeded, inside the "
+                  "neighbour's profile at <=25 % of its area, group still "
+                  "refuted).  Thirteen components face them here; the six "
+                  "survivors fail three DIFFERENT conditions, so widening "
+                  "PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a "
+                  "knob rather than a measurement",
+        measured="4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection "
+                 "seed slid into the tail and the new component took the real "
+                 "line), 1 on a group whose fit is not refuted (chi2_red 1.38)",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_surviving_components_sit_on_the_axial_divergence_side",
+        "srm660c", ("characterisation",),
+        "the surviving components are aberration shape rather than lines, and "
+        "the side they sit on names which aberration",
+        reference="Axial divergence puts a tail on the low-2theta side below "
+                  "90 deg and the high side above it; nothing else in a "
+                  "Bragg-Brentano pattern changes sign there.  The single "
+                  "exception is asserted to be exactly one and to sit on its "
+                  "group-mate's Kalpha2 maximum -- an alias the detection "
+                  "screen drops (PEAK_KALPHA2_ALIAS, 23 dropped) and the group "
+                  "fit re-creates at 3 % of the parent's area",
+        measured="5 axial-divergence tails, 1 Kalpha2 residual, 0 lines of "
+                 "LaB6; the sign flips at 90 deg on every one of them",
+        diagnostics=("PEAK_KALPHA2_ALIAS",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_shift_screen_survives_the_tail_components_but_the_search_cannot",
+        "srm660c", ("certificate", "characterisation"),
+        "an assumed matching allowance costs the relative weighting the peak "
+        "fitter measured, which is why declaring a shift template recovers "
+        "corundum's certificate and not this one's",
+        reference="The displacement is PREDICTED, parameter-free, from NIST's "
+                  "own recorded -0.07877 mm at R = 217.5 mm through "
+                  "model.corrections.displacement_shift_deg: +0.0415 deg cos "
+                  "theta.  fit_shift_model weights by each line's own sigma; "
+                  "the search adds DEFAULT_UNKNOWN_SHIFT_DEG = 0.05 deg in "
+                  "quadrature to every sigma, which is flat",
+        measured="tail components carry sigma ~0.005 deg against the real "
+                 "lines' ~0.0005; after the quadrature allowance that 100x "
+                 "contrast is 1.005.  Screen: +0.0367 +- 0.0015 (0.88 of the "
+                 "predicted 0.0415, the rest being the aberrations SRM 660c's "
+                 "own docstring names).  Search: +0.009 +- 0.016, consistent "
+                 "with none",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival",
+        "srm660c", ("identity", "characterisation"),
+        "a geometrical ambiguity that is exact rather than approximate, and "
+        "that the derivative-lattice enumeration cannot reach from one side",
+        reference="Tetragonal P at (a/sqrt2, a) gives Q = (2h2+2k2+l2)/a2, and "
+                  "2(h2+k2)+l2 represents exactly the integers h2+k2+l2 does "
+                  "-- both miss precisely 4^n(8m+7).  So the two lattices are "
+                  "isospectral everywhere, not within a tolerance.  "
+                  "ambiguity_partners enumerates SUBlattices of index 2-4, "
+                  "i.e. supercells, and this rival has half the volume",
+        measured="represented sets identical to N=400; predicted Q identical "
+                 "to 3e-16 relative (the round-off of sqrt2, not a "
+                 "difference).  0 partners from the cubic side; from the "
+                 "tetragonal side the cubic is found at index 2 with ZERO "
+                 "discriminating reflections",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_isospectral_rival_is_ranked_beside_the_truth",
+        "srm660c", ("characterisation",),
+        "both engines find the isospectral rival on the measured pattern, and "
+        "neither it nor the truth carries the caveat that should hold the pair",
+        reference="The WP's 'a geometrical-ambiguity case where NEITHER "
+                  "partner reaches high' row, answered on certified data "
+                  "rather than synthetically -- and a stronger case, because "
+                  "this partner is exactly isospectral rather than isospectral "
+                  "within a tolerance.  Nothing is promoted here for an "
+                  "unrelated reason (the allowance was assumed), so what is "
+                  "pinned is the missing geometric_ambiguity caveat",
+        measured="the half-volume tetragonal cell is ranked in the same list, "
+                 "found_by both engines; neither partner reaches high and "
+                 "neither carries geometric_ambiguity",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_what_the_unflagged_tail_components_cost_the_certified_cell",
+        "srm660c", ("certificate", "characterisation"),
+        "with every piece of evidence supplied the gate reaches high for the "
+        "first time on real data, and the cell lands 2 ppm from a certified "
+        "value",
+        reference="An attribution probe, not a protocol: the off-lattice "
+                  "components are identified USING the certificate, which no "
+                  "user of an unknown phase can do.  What it establishes is "
+                  "that the pipeline's arithmetic is sound to the ppm and that "
+                  "what stands between it and a blind certified answer is a "
+                  "peak list.  Three things are supplied -- the five "
+                  "off-lattice components removed, the systematic measured "
+                  "rather than assumed, the cos_theta template declared",
+        measured="a = 4.156772 A, -2 ppm, M20 1113, ZERO caveats, confidence "
+                 "high and best_or_none() non-None -- both firsts on real "
+                 "data, against -127 ppm with none of the three.  Also "
+                 "measured: declaring the screen's own sigma_sys (0.0078, the "
+                 "residual the template LEAVES) returns no candidate at all, "
+                 "because the search matches uncorrected positions and needs "
+                 "the shift's amplitude (0.037) instead -- 4.3x apart",
+        diagnostics=("!INDEX_SHIFT_ALLOWANCE",),
+    ),
 )
 
 
