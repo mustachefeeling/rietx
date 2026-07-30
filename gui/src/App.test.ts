@@ -312,7 +312,10 @@ interface Call {
 }
 
 /** A stub server that also records what was asked of it. */
-function server(routes: Record<string, (call: Call) => { status?: number; body: unknown }>) {
+/** A handler may return a `gate` to hold its answer open — which is the only
+ *  way to put two requests in flight at once and choose the order they land in. */
+function server(routes: Record<string, (call: Call) =>
+                { status?: number; body: unknown; gate?: Promise<void> }>) {
   const calls: Call[] = [];
   const fetcher = vi.fn(async (input: any, init: any = {}) => {
     const url = String(input);
@@ -328,9 +331,11 @@ function server(routes: Record<string, (call: Call) => { status?: number; body: 
     };
     calls.push(call);
     const handler = routes[path];
-    const { status = 200, body } = handler
+    const { status = 200, body, gate } = handler
       ? handler(call)
-      : { status: 404, body: { error: { code: "NOT_FOUND", message: path } } };
+      : { status: 404, body: { error: { code: "NOT_FOUND", message: path } },
+          gate: undefined };
+    if (gate) await gate;
     return { ok: status < 400, status, text: async () => JSON.stringify(body) } as any;
   });
   return { fetcher, calls };
@@ -443,7 +448,9 @@ describe("the shell", () => {
     expect(host.textContent).toContain("4200 pts");
     expect(host.textContent).toContain("σ from file");     // which weights the fit used
     expect(host.textContent).toContain("No fitted curves yet");
-    expect(host.textContent).toContain("WP-1015");         // the panels still owed
+    // the panels still owed — and the viewer WP-1015 shipped is not one of them
+    expect(host.textContent).toContain("WP-1016");
+    expect(host.textContent).not.toContain("WP-1015");
     expect(button("Run")?.disabled).toBe(false);
   });
 
@@ -1711,6 +1718,62 @@ describe("the structure viewer", () => {
     await flush();
     const last = stub.calls.filter((c) => c.path === "/api/structure3d").pop()!;
     expect(last.url).toContain("bond_tolerance=1.05");
+  });
+
+  /** A promise plus the button that resolves it. */
+  function gate(): { promise: Promise<void>; open: () => void } {
+    let open = () => {};
+    const promise = new Promise<void>((resolve) => { open = () => resolve(); });
+    return { promise, open };
+  }
+
+  it("drops an answer a later request has already overtaken", async () => {
+    // WP-1013's rule, one panel over: two quick releases of the bond slider put
+    // two requests in flight, and the picture must agree with the control that
+    // asked for it rather than with whichever answer landed last
+    const held: Array<() => void> = [];
+    recorder();
+    await openViewer({
+      "/api/structure3d": (call: Call) => {
+        const asked = new URL(call.url, "http://x").searchParams
+          .get("bond_tolerance");
+        const body = { ...GEOMETRY, bond_tolerance: Number(asked) };
+        if (asked === "1.15") return { body };      // the opening load
+        const g = gate();
+        held.push(g.open);
+        return { body, gate: g.promise };
+      },
+    });
+    const slider = host.querySelector<HTMLInputElement>('input[type="range"]')!;
+    for (const value of ["1.05", "1.25"]) {
+      slider.value = value;
+      slider.dispatchEvent(new Event("change", { bubbles: true }));
+      await flush();
+    }
+    expect(held.length).toBe(2);
+    held[1]();                 // the newer answer lands first…
+    await flush();
+    held[0]();                 // …and the older one is dropped rather than drawn
+    await flush();
+    // the caption quotes the payload's own echo, so this is what the server said
+    expect(host.textContent).toContain("at 1.25×");
+    expect(host.textContent).not.toContain("at 1.05×");
+  });
+
+  it("says it is loading until the first answer settles", async () => {
+    // "no structure yet" was a false statement for the whole 605–1447 ms the
+    // first paint takes — one `geo === null` cannot say both "not fetched" and
+    // "fetched, and there is nothing here"
+    recorder();
+    const g = gate();
+    await openViewer({
+      "/api/structure3d": () => ({ body: GEOMETRY, gate: g.promise }),
+    });
+    expect(host.textContent).toContain("loading the structure");
+    expect(host.textContent).not.toContain("no structure yet");
+    g.open();
+    await flush();
+    expect(host.textContent).not.toContain("loading the structure");
   });
 
   it("switches a species off from the legend without a round trip", async () => {

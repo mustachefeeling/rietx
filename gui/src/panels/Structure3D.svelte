@@ -53,6 +53,9 @@
   let camera: Camera = DEFAULT_CAMERA;
   let geo = $state<Geometry | null>(null);
   let error = $state("");
+  /** Has a first load *settled*? — see `load`. */
+  let ready = $state(false);
+  let seq = 0;
   let mode = $state<Mode>("ball");
   let phase = $state(0);
   let tolerance = $state(1.15);
@@ -99,13 +102,32 @@
     draw();
   });
 
+  /**
+   * Fetch, at the level this component holds.
+   *
+   * `seq` is WP-1013's rule one panel over: two quick releases of the bond
+   * slider put two requests in flight and they can land out of order, which
+   * would leave the picture disagreeing with the control that asked for it.
+   * The older answer is dropped rather than merged, for the same reason.
+   *
+   * `ready` separates "not fetched yet" from "fetched, and there is nothing" —
+   * one `geo === null` cannot say both, and the first paint waits on the
+   * payload *and* on parsing plotly (measured 605–1447 ms), so the panel spent
+   * all of it saying "no structure yet" about a structure that was on its way.
+   */
   async function load() {
+    const mine = ++seq;
     try {
-      geo = at(await api.structure3d(phase, tolerance), level);
+      const payload = await api.structure3d(phase, tolerance);
+      if (mine !== seq) return;
+      geo = at(payload, level);
       error = "";
     } catch (exc) {
+      if (mine !== seq) return;
       if (exc instanceof ApiError && exc.empty) geo = null;
       else error = (exc as Error).message;
+    } finally {
+      if (mine === seq) ready = true;
     }
   }
 
@@ -257,7 +279,7 @@
   {#if error}
     <p class="bad tiny">{error}</p>
   {:else if !geo}
-    <p class="muted tiny">no structure yet</p>
+    <p class="muted tiny">{ready ? "no structure yet" : "loading the structure…"}</p>
   {:else}
     <div class="legend">
       {#each entries as entry (entry.species)}
@@ -341,7 +363,7 @@
 
   .plot {
     flex: 1 1 auto;
-    min-height: 260px;
+    min-height: 300px;
   }
 
   .modes button.on {

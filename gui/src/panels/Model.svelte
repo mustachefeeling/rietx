@@ -976,6 +976,10 @@
     display: flex;
     flex-direction: column;
     padding-bottom: 6px;
+    /* a quarter wider than the two form columns, because this is the only one
+       whose content is two-dimensional: a form reads fine in a narrow column
+       and a cell drawn in one is a cell drawn small */
+    flex: 1.25 1 0;
   }
 
   button.on {
