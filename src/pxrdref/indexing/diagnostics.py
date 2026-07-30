@@ -1,11 +1,18 @@
-"""``PEAK_*`` diagnostics — the peak list's flags translated into the package's
-one structured-message grammar.
+"""``PEAK_*`` and ``INDEX_*`` diagnostics — a peak list's flags and a
+data-quality verdict translated into the package's one structured-message
+grammar.
 
 Same shape as ``refine._guard_diagnostics``: the fitter records *facts* on each
 line (``at_bound``, ``asymmetry_t``, a flag) and this module alone decides what
 level they are and what to suggest.  Keeping the two apart is what lets a
 threshold move without touching the fitter, and what stops a level being
 implied by where the code happens to live.
+
+The two translators stay separate (:func:`peak_diagnostics`,
+:func:`quality_diagnostics`) because a peak list's flags and a verdict on whether
+the list can be indexed are different statements about the same lines: an agent
+that re-picks peaks in response to the first would be answering the wrong
+question for the second.
 
 Every message names a concrete call in its ``suggestion``, and ``where`` carries
 the 2θ the statement is about — a peak list has no dot-paths (peak parameters
@@ -19,11 +26,24 @@ import numpy as np
 
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
+    MAX_RELATIVE_SIGMA_Q,
     PEAK_MIN_USABLE_LINES,
     PEAK_WIDTH_CENSUS_N,
+    DataQualityReport,
     PeakList,
 )
 from .peaks import Detection
+
+#: Physical cause of each shift template, for the messages.  The template names
+#: themselves come from ``report/layer2.py``'s ``_POSITION_ACTIONS`` — one
+#: physical cause, one name, package-wide.
+SHIFT_CAUSE: dict[str, str] = {
+    "constant": "a detector zero-point error (instrument.zero_shift)",
+    "cos_theta": ("specimen displacement from the focusing circle "
+                  "(instrument.geometry.sample_displacement)"),
+    "sin_2theta": ("specimen transparency — the beam penetrating a weakly "
+                   "absorbing specimen (instrument.geometry.sample_transparency)"),
+}
 
 #: Ratio of measured to instrument-predicted FWHM above which the declared
 #: instrument is reported as inconsistent with the data rather than merely
@@ -156,6 +176,90 @@ def _width_diagnostics(det: Detection) -> list[Diagnostic]:
     return out
 
 
+def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
+                        ) -> list[Diagnostic]:
+    """Translate a :class:`DataQualityReport` into the ``INDEX_*`` messages.
+
+    Separate from :func:`peak_diagnostics` on purpose: a peak list's flags and a
+    data-quality *verdict* are different statements about the same lines, and an
+    agent that re-picks peaks in response to the first would be answering the
+    wrong question for the second.  The peak-level messages are not repeated
+    here — a caller that wants both calls both.
+    """
+    out: list[Diagnostic] = []
+    where_range = [f"2θ {report.two_theta_min:.2f}-{report.two_theta_max:.2f}°"]
+
+    if report.abstained_reason is not None:
+        out.append(Diagnostic(
+            level="error", code="INDEX_DATA_INSUFFICIENT",
+            message=report.abstained_reason,
+            where=where_range,
+            suggestion=("abstention is the result here — extend the 2θ range, "
+                        "count longer, or re-pick with a lower "
+                        "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
+                        "returns a rank order with nothing behind it")))
+
+    if np.isfinite(report.relative_sigma_q_median):
+        level = ("warning" if report.relative_sigma_q_median
+                 > 0.3 * MAX_RELATIVE_SIGMA_Q else "info")
+        out.append(Diagnostic(
+            level=level, code="PEAK_POSITION_PRECISION",
+            message=(f"median σ(2θ) {report.sigma_two_theta_median:.4f}°, worst "
+                     f"{report.sigma_two_theta_worst:.4f}°; median σ(Q)/Q = "
+                     f"{report.relative_sigma_q_median:.2e} and σ(Q) is "
+                     f"{report.sigma_over_spacing:.3f} of the mean line spacing"
+                     + ("  (σ was ASSUMED, not measured)"
+                        if report.source == "positions" else "")),
+            where=where_range,
+            suggestion=("read this as the resolving power of the list: it is "
+                        "what decides whether two candidate cells can be told "
+                        "apart at all, and it bounds every tolerance downstream"
+                        + (".  Re-pick from the pattern with "
+                           "pxrdref.pick_peaks to replace the assumed σ with a "
+                           "fitted one" if report.source == "positions" else ""))))
+
+    shift = report.shift
+    if shift is not None and shift.source == "measured" and shift.best:
+        best = next(t for t in shift.templates if t.name == shift.best)
+        if shift.separable:
+            out.append(Diagnostic(
+                level="warning", code="INDEX_SHIFT_DETECTED",
+                message=(f"a systematic 2θ shift of {best.coefficient:+.4f}° "
+                         f"± {best.stderr:.4f} follows the {shift.best} "
+                         f"template, i.e. {SHIFT_CAUSE.get(shift.best, shift.best)}"
+                         f"; the runner-up leaves "
+                         f"{shift.separability_ratio:.1f}× more unexplained"),
+                where=where_range,
+                suggestion=("carry this template — not a constant zeropoint — "
+                            "into the candidate refinement, and correct the "
+                            "instrument rather than the cell: the three causes "
+                            "differ in angular dependence, so absorbing one "
+                            "into another biases the cell systematically")))
+        else:
+            out.append(Diagnostic(
+                level="warning", code="INDEX_SHIFT_MODEL_AMBIGUOUS",
+                message=(f"a shift is present ({shift.best} fits at "
+                         f"{best.coefficient:+.4f}°) but the templates are not "
+                         f"separable over this range: the runner-up leaves only "
+                         f"{shift.separability_ratio:.2f}× more unexplained and "
+                         f"the largest template collinearity is "
+                         f"{shift.max_collinearity:.3f}.  The cause is not "
+                         f"claimed; the templates that fit comparably disagree "
+                         f"by up to {shift.prediction_spread_deg:.4f}° over the "
+                         "angles sampled, which is what choosing the wrong one "
+                         "would cost"),
+                where=where_range,
+                suggestion=("extend the 2θ range: cos θ and sin 2θ separate "
+                            "from a constant only when high-angle lines are "
+                            "measured.  Meanwhile the *cell* is safe to the "
+                            f"{shift.prediction_spread_deg:.4f}° above — carry "
+                            "that as a systematic on every position — but the "
+                            "instrument fault is not identified, so do not "
+                            "correct one from this data")))
+
+    return out
+
+
 def significant(values: np.ndarray, threshold: float) -> np.ndarray:
     """``|values| >= threshold`` with non-finite entries counted as False.
 
@@ -166,4 +270,5 @@ def significant(values: np.ndarray, threshold: float) -> np.ndarray:
     return np.isfinite(v) & (np.abs(v) >= threshold)
 
 
-__all__ = ["WIDTH_MISMATCH_RATIO", "peak_diagnostics", "significant"]
+__all__ = ["SHIFT_CAUSE", "WIDTH_MISMATCH_RATIO", "peak_diagnostics",
+           "quality_diagnostics", "significant"]

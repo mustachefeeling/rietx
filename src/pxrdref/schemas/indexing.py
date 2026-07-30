@@ -151,6 +151,45 @@ PEAK_ASYMMETRY_MIN_SIGMA = 4.0
 #: N = 20, so a shorter list cannot be scored by the figures of merit the
 #: engines rank on.
 PEAK_MIN_USABLE_LINES = 20
+# ----------------------------------------------------------------------
+# Data quality (WP-1019)
+# ----------------------------------------------------------------------
+#: Metric degrees of freedom of the quadratic form Q(hkl) per crystal system —
+#: the number of independent entries of {A..F} in
+#: ``Q = Ah² + Bk² + Cl² + Dkl + Ehl + Fhk``.  A search cannot be better
+#: determined than this: with fewer *usable* lines than DOF the cell is not
+#: over-determined at all, and any figure of merit computed on it is fitting
+#: noise exactly.  The names are the seven ``sg.crystal_system_str()`` values
+#: ``params.vector`` already ties cells by, so the vocabulary is not new.
+METRIC_DOF: dict[str, int] = {
+    "cubic": 1, "tetragonal": 2, "hexagonal": 2, "trigonal": 2,
+    "orthorhombic": 3, "monoclinic": 4, "triclinic": 6,
+}
+#: Usable lines per metric degree of freedom below which the data are reported
+#: as unable to support a search *in that system*.  Five is not a statistical
+#: threshold; it is the smallest ratio at which a wrong cell is unlikely to
+#: match every line by accident, and it is what makes the abstention system-
+#: dependent: 20 lines is 20× over-determined for cubic and 3.3× for triclinic,
+#: which is why "enough lines" is not a single number.
+MIN_LINES_PER_DOF = 5.0
+#: Median σ(Q)/Q above which the position precision is reported as too poor to
+#: separate candidate cells.  Read it as a *resolving power*: at 1e-3 two cells
+#: differing by 0.1 % in a lattice parameter are indistinguishable, which is the
+#: scale at which derivative-lattice ambiguity (Mighell & Santoro 1975) lives.
+MAX_RELATIVE_SIGMA_Q = 1e-3
+#: The three physical causes of a systematic 2θ shift, in the *same* names
+#: ``report/layer2.py``'s ``_POSITION_ACTIONS`` uses, so one physical cause has
+#: one name package-wide.  ``tan_theta`` is deliberately **absent**: a tanθ
+#: deviation is a *cell* error, not an instrument shift, and offering it here
+#: would let the screen "explain" a shift by changing the very answer indexing
+#: is about to produce.  WP-1020 refines the cell and the chosen shift together,
+#: where the tanθ direction belongs to the cell by construction.
+SHIFT_TEMPLATES: tuple[str, ...] = ("constant", "cos_theta", "sin_2theta")
+#: Smith (1977) volume envelope, ``V ≈ 0.6·d_N³/(1/N − 0.0052)``, evaluated for
+#: **triclinic** at N = 20: 13.39·d₂₀³.  Kept as the two published constants
+#: rather than the product, because the formula is used at other N.
+SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
+
 #: σ(2θ) in degrees assumed by :meth:`PeakList.from_positions`, which receives
 #: bare positions from a publication or another program.  A typical
 #: well-aligned laboratory position precision — but the number is not the point:
@@ -348,3 +387,112 @@ class PeakList(Base):
         return cls(peaks=peaks, wavelength=wavelength,
                    two_theta_min=float(tt.min()), two_theta_max=float(tt.max()),
                    source="positions")
+
+
+class ShiftTemplateFit(Base):
+    """One systematic-shift template fitted **alone** to the deviations.
+
+    ``coefficient`` is in degrees 2θ and means the template's own amplitude:
+    δ(θ) = z (``constant``), s·cos θ (``cos_theta``), t·sin 2θ
+    (``sin_2theta``).  ``residual_ss`` is the weighted residual sum of squares,
+    which is what the separability ratio is computed on — not R², because every
+    template scores R² ≈ 0.99 against a clean trend
+    (``report/schemas.py``'s ``SEPARABILITY_MIN_SS_RATIO``).
+    """
+
+    name: str
+    coefficient: float
+    stderr: float
+    r2: float
+    residual_ss: float
+
+
+class ShiftScreen(Base):
+    """Which physical cause a systematic 2θ shift has — or that it has no
+    nameable one over the range measured.
+
+    ``best`` always names the template that fits best; ``separable`` says
+    whether that name means anything.  The asymmetry is the point: when the
+    templates are collinear over the sampled angles the *magnitude* is still
+    well determined (all three remove the same amount at those angles, so a cell
+    refined against any of them lands in the same place) while the *cause* is
+    not, and reporting the cause anyway is the confident-wrong-singleton failure
+    one rank up from the FitReport's.
+    """
+
+    n_lines: int
+    templates: list[ShiftTemplateFit] = Field(default_factory=list)
+    best: str | None = None
+    separable: bool = False
+    separability_ratio: float = 0.0
+    max_collinearity: float = 0.0
+    #: residual scatter (°2θ) after removing the best template — the σ_sys floor
+    #: WP-1020's tolerance model adds in quadrature to each line's own σ
+    sigma_sys_deg: float = 0.0
+    #: largest disagreement (°2θ), over the angles actually sampled, between the
+    #: corrections the **competitive** templates predict — competitive meaning
+    #: within ``SEPARABILITY_MIN_SS_RATIO`` of the best residual sum of squares.
+    #: It is the cost of choosing the wrong cause, reported rather than argued,
+    #: and the qualifier is load-bearing.  Measured (WP-1019) on a 0.10° cos θ
+    #: displacement sampled over 10-25° 2θ, where the screen correctly refuses to
+    #: name a cause: over **all three** templates the predictions differ by
+    #: 0.046°, nearly half the shift — but ``sin_2theta`` is not competitive
+    #: there (it fits worse by more than the ratio bar), and over the two that
+    #: are, the spread is **0.0011°**, about 1 % of the shift.  So the plan's
+    #: conclusion holds — the *cell* stands while the *cause* does not — but only
+    #: with "competitive" in it: a template the data rejects is not a candidate
+    #: cause, and averaging it in overstates the risk forty-fold.  Read this field
+    #: rather than inferring the risk from ``separable``.
+    prediction_spread_deg: float = 0.0
+    #: ``"measured"`` when reference positions were supplied and the templates
+    #: were fitted; ``"unavailable"`` when there was nothing to fit against,
+    #: which is the *normal* state at index time — see
+    #: :func:`pxrdref.indexing.quality.assess_peak_list`.
+    source: Literal["measured", "unavailable"] = "unavailable"
+
+
+class DataQualityReport(Base):
+    """Is this peak list fit to index, and what does it already say?
+
+    ``supports_indexing`` is read by ``index_pattern`` before any budget is
+    spent, and **abstention is a result**: a list that cannot support a search
+    comes back with ``supports_indexing = False`` and a reason, never as an
+    exception and never as a ranked list of cells with nothing behind it.
+
+    Every threshold this verdict rests on is a module constant in
+    ``schemas/indexing.py`` with its reasoning, and ``thresholds_version``
+    records which set produced it.
+    """
+
+    n_usable: int
+    n_total: int
+    two_theta_min: float
+    two_theta_max: float
+    source: Literal["fitted", "positions"]
+    #: median and worst σ(2θ) over the usable lines, ° 2θ
+    sigma_two_theta_median: float
+    sigma_two_theta_worst: float
+    #: median σ(Q)/Q — a dimensionless resolving power, see
+    #: :data:`MAX_RELATIVE_SIGMA_Q`
+    relative_sigma_q_median: float
+    #: median σ(Q) over the mean spacing between neighbouring Q values.  Above
+    #: ~1 the lines are not individually resolved in Q and no tolerance can
+    #: separate a right cell from a wrong one.
+    sigma_over_spacing: float
+    #: usable lines ÷ metric DOF, per system — the system-dependent half of
+    #: "enough lines" (:data:`MIN_LINES_PER_DOF`)
+    lines_per_dof: dict[str, float] = Field(default_factory=dict)
+    #: systems this list can support a search in at all
+    systems_supported: list[str] = Field(default_factory=list)
+    #: Smith (1977) envelope on the unit-cell volume, Å³, from d at the N-th
+    #: line — the default ``max_volume`` for a search, **per system** because the
+    #: bound differs by up to 96× across them (a cubic F lattice shows ~96× fewer
+    #: distinct lines than a primitive triclinic one of the same volume, so the
+    #: same N lines admit a correspondingly larger cell).  One number would
+    #: therefore either exclude the true cubic cell or be useless for triclinic.
+    volume_envelope: dict[str, float] = Field(default_factory=dict)
+    shift: ShiftScreen | None = None
+    supports_indexing: bool = True
+    abstained_reason: str | None = None
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
