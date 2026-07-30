@@ -220,17 +220,58 @@ def test_short_list_abstains():
     assert d.level == "error"
 
 
+def _fitted(tt: np.ndarray, esd: float) -> PeakList:
+    """The same list, but declaring its σ **measured** — which is what makes the
+    σ(Q)/Q abstention applicable at all (see the next test)."""
+    pl = _peak_list(tt, esd=esd)
+    return pl.model_copy(update={
+        "source": "fitted",
+        "peaks": [p.model_copy(update={
+            "flags": [f for f in p.flags if f != "sigma_assumed"]})
+            for p in pl.peaks]})
+
+
 def test_imprecise_list_abstains_even_when_it_is_long():
     """Enough lines is not enough: an inflated σ makes candidate cells
     indistinguishable, and no tolerance can recover that."""
-    coarse = _peak_list(np.linspace(15.0, 130.0, 40), esd=0.5)
+    coarse = _fitted(np.linspace(15.0, 130.0, 40), esd=0.5)
     report = assess_peak_list(coarse)
     assert report.relative_sigma_q_median > MAX_RELATIVE_SIGMA_Q
     assert not report.supports_indexing
     assert "σ(Q)/Q" in report.abstained_reason
 
-    fine = _peak_list(np.linspace(15.0, 130.0, 40), esd=0.005)
+    fine = _fitted(np.linspace(15.0, 130.0, 40), esd=0.005)
     assert assess_peak_list(fine).supports_indexing
+
+
+def test_an_assumed_sigma_may_not_refuse_to_index():
+    """WP-1026: the precision abstention is a statement about *measured* data.
+
+    ``MAX_RELATIVE_SIGMA_Q`` says these lines are too imprecise to tell nearby
+    cells apart.  On a ``from_positions`` list there is nothing to say that from:
+    every σ is :data:`PEAK_ASSUMED_ESD_DEG`, chosen by this package, so refusing
+    on it quotes an assumed precision as a measured one — the inverse of the
+    mistake the whole module is built to avoid.
+
+    The pair below is the same 2θ list twice, differing **only** in whether its σ
+    is declared measured.  It is not a hypothetical: at 4.9° 2θ the assumed 0.02°
+    is 0.8 % of the angle, so all ten sets of the published bethanechol benchmark
+    failed this test — including the synchrotron set whose published M(20) is 197.
+    """
+    tt = np.linspace(15.0, 130.0, 40)
+    assumed = _peak_list(tt, esd=0.5)
+    assert assumed.source == "positions"
+    report = assess_peak_list(assumed)
+
+    assert report.relative_sigma_q_median > MAX_RELATIVE_SIGMA_Q  # still reported
+    assert report.supports_indexing                               # but has no vote
+    # the caller is still told: the figure has its own diagnostic, and every line
+    # carries the flag that says where its σ came from
+    assert "PEAK_POSITION_PRECISION" in {d.code for d in report.diagnostics}
+    assert all("sigma_assumed" in p.flags for p in assumed.peaks)
+
+    # …and the identical list with a *measured* σ of the same size does abstain
+    assert not assess_peak_list(_fitted(tt, esd=0.5)).supports_indexing
 
 
 def test_single_line_list_abstains_without_dividing_by_zero():

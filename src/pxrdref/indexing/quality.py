@@ -265,6 +265,24 @@ def assess_peak_list(peaks: PeakList, *,
     ``sigma_sys_deg`` declares a systematic floor from outside (a calibration),
     and is recorded as such — an *assumed* precision must never be quoted as a
     measured one, the same rule ``PeakList.from_positions`` follows.
+
+    **The σ(Q)/Q abstention runs only on a list whose σ was measured**, and that
+    qualifier is load-bearing rather than defensive.  ``MAX_RELATIVE_SIGMA_Q`` is
+    a statement about the *data*: these lines are too imprecise to tell nearby
+    cells apart.  On a ``source="positions"`` list there is no measurement to make
+    that statement from — every σ is :data:`PEAK_ASSUMED_ESD_DEG`, chosen here —
+    so refusing on it would be quoting an assumed precision as a measured one,
+    which is the very thing this module exists to prevent, inverted.
+
+    It is not hypothetical.  All **ten** sets of the published bethanechol
+    benchmark (Bergmann *et al.* 2004) arrive as bare positions and all ten failed
+    this test: median σ(Q)/Q reads 4.4e-3 on the synchrotron set, four times the
+    bar, because at 4.9° 2θ a 0.02° assumed σ is 0.8 % of the angle.  That set has
+    a published M(20) of **197**.  The package would have abstained on the whole
+    benchmark every indexing program in the field is graded against, on the
+    strength of a number nobody measured.  ``PEAK_SIGMA_ASSUMED`` still fires and
+    ``relative_sigma_q_median`` is still reported, so the caller sees the figure —
+    it simply does not get a vote.
     """
     from .diagnostics import quality_diagnostics
 
@@ -323,7 +341,7 @@ def assess_peak_list(peaks: PeakList, *,
     elif not supported:
         reason = (f"{n} usable lines is fewer than {MIN_LINES_PER_DOF:g} per "
                   "metric degree of freedom in every crystal system")
-    elif rel_sigma > MAX_RELATIVE_SIGMA_Q:
+    elif rel_sigma > MAX_RELATIVE_SIGMA_Q and peaks.source == "fitted":
         reason = (f"median σ(Q)/Q = {rel_sigma:.2e}, above "
                   f"{MAX_RELATIVE_SIGMA_Q:.0e}: cells differing by 0.1 % in a "
                   "lattice parameter are not distinguishable at this precision")
