@@ -362,6 +362,30 @@ def test_every_wrong_class_is_refuted_by_a_named_reflection(mono_screen):
         assert all(lo <= t <= hi for t in cand.forbidden_two_theta)
 
 
+def test_a_cancelled_screen_abstains_and_says_which_classes_it_reached():
+    """WP-1006's token works here unchanged, and the granularity is one class.
+
+    It is deliberately *not* threaded into the individual fits: a
+    ``RefinementCancelled`` raised inside one would be indistinguishable from a
+    class whose physics failed, and a cancelled run would come back looking like
+    a refutation. Each class fit is ~0.1 s, so between-class is granular enough.
+    """
+    from pxrdref.optimize.cancel import CancelToken
+
+    structure, instrument = _mono_models()
+    data = _pattern(structure, instrument)
+    token = CancelToken()
+    token.cancel()
+    screen = determine_extinction_symbol(
+        data, _candidate(MONO_CELL, "monoclinic"), instrument,
+        two_theta_limits=MONO_RANGE, cancel=token)
+    assert screen.status == "cancelled"
+    assert screen.n_classes and screen.n_screened == 0
+    assert screen.best_or_none() is None
+    assert all(not c.refuted for c in screen.candidates), (
+        "a cancelled screen has refuted nothing — it asked nothing")
+
+
 def test_a_screen_that_cannot_run_reports_rather_than_raises():
     """A cell with no reflections in range fails *every* class identically, so it
     is a statement about the input — reported as a failed screen with a reason,

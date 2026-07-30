@@ -895,6 +895,11 @@ class ExtinctionCandidate(Base):
     #: absence evidence already refuted it (no fit can rescue a forbidden
     #: position that carries intensity) or when ``max_classes`` truncated
     screened: bool = False
+    #: **One-sided by construction.** A class asserts *absences*, so intensity at
+    #: a position it forbids contradicts it — while a class claiming too *few*
+    #: absences asserts nothing the data can falsify and is outranked rather than
+    #: refuted.  The one other way in is a Le Bail fit that raised, which
+    #: :attr:`refuted_reason` names as such: with no χ² it cannot be the answer.
     refuted: bool = False
     refuted_reason: str | None = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
