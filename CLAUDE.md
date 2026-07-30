@@ -34,9 +34,9 @@ a busier one (2026-07-30), and 12:40 later the same day on a machine
 simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1263 passed / 116 skipped (10:27 and 8:47 on
-two runs the same day) and the fast suite 1198 passed / 108 skipped (78 s,
-re-measured 2026-07-30 after WP-1029).
+`[dev]`** venv, the full suite is 1268 passed / 117 skipped (6:52, measured
+2026-07-30 after WP-1029; 1263 / 116 in 10:27 and 8:47 before it) and the fast
+suite 1198 passed / 108 skipped (78 s, same day).
 Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
 two selections, two short of passed+skipped in both** — a gap that predates this
 line (the "1378 collected" it used to carry was the sum, not a measurement) and
