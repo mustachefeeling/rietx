@@ -1,6 +1,6 @@
 # WP-1023 — Engine C: whole-profile Monte Carlo (spike, then decide)
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: 🛑 **no-go, recorded 2026-07-30** (Task 0 complete; engine not built)
 Depends on: 1020
 
 ## Goal
@@ -174,24 +174,25 @@ need its own scoring stack.
 
 ## Tasks
 
-- [ ] **Task 0 — the spike.** Measure, on synthetic patterns of known cells and
+- [x] **Task 0 — the spike.** Done 2026-07-30; numbers and the decision are in the
+      handover log. **Outcome: no-go.** The tasks below are therefore *not* done and
+      are not to be started without new evidence.
+- [ ] ~~**Task 0 — the spike.**~~ Measure, on synthetic patterns of known cells and
       on one real lab pattern: tier-1 throughput (trials/s), whether tier-1
       rank correlates with tier-2 Rwp well enough that the true cell reaches
       the top 200, and tier-2 cost per state. Write the numbers into this
       WP's handover log **and decide**: build, or no-go with engine C dropped
       from the confidence gate. Do not proceed to the tasks below before this
       is recorded.
-- [ ] `indexing/montecarlo.py`: seeded RNG, A..F moves in the symmetry
-      subspace, Metropolis with a geometric schedule, restarts.
-- [ ] Tier-1 scorer; bounds + predicted-reflection ceiling.
-- [ ] Tier-2 Le Bail scorer over `compile_model` + `lebail_update`
-      (`history=False` on any full refine).
-- [ ] Registry entry; time budget; `search_complete`; seed into `Provenance`.
-- [ ] `tests/test_indexing_engines.py::montecarlo`: recover known cells;
-      **the impurity test that justifies the engine** — a peak list with
-      impurity lines left in, on which WP-1021/1022 need their mitigations and
-      this engine does not; **determinism** (same seed ⇒ bit-identical reduced
-      cells); the reflection ceiling triggers instead of allocating.
+- [ ] ~~`indexing/montecarlo.py`: seeded RNG, A..F moves in the symmetry
+      subspace, Metropolis with a geometric schedule, restarts.~~ **not built**
+- [ ] ~~Tier-1 scorer; bounds + predicted-reflection ceiling.~~ **not built**
+- [ ] ~~Tier-2 Le Bail scorer over `compile_model` + `lebail_update`.~~ **not
+      built** — though it was measured and it works (13-15 ms/state, and it
+      discriminates); see the handover log, because a *re-scorer* built on it is
+      the one thing this no-go leaves on the table.
+- [ ] ~~Registry entry; time budget; `search_complete`; seed into `Provenance`.~~
+- [ ] ~~`tests/test_indexing_engines.py::montecarlo`.~~
 
 ## Acceptance
 
@@ -230,3 +231,74 @@ in `docs/milestones/`.
   spike-first: the cost of `compile_model` per trial is the open question the
   whole engine rests on, and WP-0605 established that measuring it before
   building is the house response.
+- **2026-07-30** — **Task 0 complete. Decision: NO-GO.** Engine C is not built and
+  is **dropped from the confidence gate**; WP-1024's gate becomes a two-engine
+  consensus (its `### Inherited` says so). The spike script measured on the bundled
+  qarr corundum pattern (Cu Kα, certified cell 4.7593 / 12.9917 Å, R-3c) plus a
+  32-line fitted peak list from `pick_peaks`.
+
+  **The three numbers the WP asked for.**
+
+  | quantity | measured |
+  |---|---|
+  | tier-1 throughput | **~25 000 trials/s** (single thread, 32 lines, index ≤ 12 trial set) |
+  | tier-1 rank of the true cell | **29 053 of 200 001** — *not* in the top 200 |
+  | tier-2 cost per state | **13-15 ms** (10-12 ms `compile_model` + 3 ms `lebail_update` + `evaluate`) |
+
+  Tier 2 is affordable (200 states ≈ 3 s) and it *discriminates*: Rwp 1.29 for the
+  certified cell against 7.25 for one 1 % off. **The engine fails on tier 1, and
+  the failure is not a tuning problem.**
+
+  **What tier-1 actually does, measured.** With the peak list's own fitted σ
+  (median 0.0056° 2θ) the true cell scores **exactly 0.0000** and ranks 29 053rd,
+  while random large cells score up to 0.33. The cause is not the score's shape but
+  the data: the pattern's lines sit a median **0.060°** from the certified cell's
+  positions — a cos θ specimen displacement of −0.065°, an **11σ** systematic — so at
+  3σ the true cell indexes *no lines at all*. Opening the window walks into the
+  opposite failure:
+
+  | σ_sys added | truth's score / rank | best random cell |
+  |---|---|---|
+  | 0.00° | 0.0000 / 29 053 | 0.329 |
+  | 0.01° | 0.0094 / 36 007 | 0.530 |
+  | 0.02° | 0.5098 / **13** | 0.710 |
+  | 0.05° | 0.8960 / **4** | 0.969 |
+
+  So tier-1's discriminating power is **bracketed**: too tight and the truth scores
+  zero; too loose and coincidence-rich large cells outrank it — the same failure the
+  FoM panel exists to prevent, except now inside the *proposal* mechanism where no
+  panel can see it. There is a usable window near 0.02°, and its width depends on a
+  quantity indexing does not know (the shift). A Metropolis walk needs a landscape
+  whose maxima are near the answer; measured, the answer is a **zero** in a landscape
+  whose maxima are large cells.
+
+  **The bracket is the whole argument, and it closes both escapes.** The fix for the
+  ranking is to refine each proposal before scoring it — which is precisely what
+  makes 10⁵-10⁶ trials unaffordable, since a refinement is not a 40 µs score. The
+  fix for the throughput is to score raw proposals — which is what makes the ranking
+  fail. And the WP's own named fallback (run engine C only on WP-1021/1022's
+  candidates) is forbidden here for the reason the WP states: it destroys the
+  independence the consensus argument is built on. A re-scorer is a legitimate thing
+  to want, but it is not an engine and must not count toward `found_by`.
+
+  **What the spike found that outlives it, and it is bigger than engine C.**
+  Chasing the tier-1 zero led to running the two *landed* engines on the same real
+  pattern, and **neither indexed it**: dichotomy 0 candidates, trial-and-error 0
+  candidates, on a pattern whose answer is certified. Same cause — their tolerance
+  was the fitted per-line σ, which is 11× too tight for the systematic the data
+  carries. Both engines now take `engines.DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ) in
+  quadrature when no shift has been *measured*, report it with
+  `INDEX_SHIFT_ALLOWANCE`, and consume `SearchSpec.shift_template` through
+  `engines.refine_with_shift` so an accepted candidate is corrected rather than left
+  carrying the shift in its cell. That is **not** yet enough to index corundum — at
+  0.05 trial-and-error still finds nothing and dichotomy ranks a wrong 618 Å³ cell
+  first; at 0.08 trial-and-error recovers a = 4.7659 Å against 4.7593 (+1400 ppm,
+  the shift absorbed). The gap is recorded in the constant's docstring and handed to
+  **WP-1026** with the measurement, because real-data acceptance is that WP.
+
+  **If anyone reopens this**, the two things that would change the answer are (a) a
+  tier-1 score that is *shift-invariant* — scoring Q *ratios* or differences rather
+  than absolute Q would sidestep the whole 11σ problem and is not something the
+  plan considered; and (b) a proposal mechanism that is not random, at which point it
+  is not a Monte Carlo engine any more. Neither is a small change, and both need
+  their own spike.

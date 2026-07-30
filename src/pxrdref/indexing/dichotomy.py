@@ -65,11 +65,14 @@ from .engines import (
     SearchSpec,
     assign_lines,
     dedup_candidates,
+    effective_sigma_sys,
     incomplete_diagnostic,
     indexes_the_search_lines,
     rank_candidates,
+    refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    shift_allowance_diagnostic,
     trial_hkl,
 )
 from .qspace import (
@@ -456,9 +459,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys = spec.sigma_sys_deg
-    if quality is not None and quality.shift is not None and not sigma_sys:
-        sigma_sys = float(quality.shift.sigma_sys_deg)
+    sigma_sys, assumed = effective_sigma_sys(spec, quality)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
     tt_max = float(peaks.two_theta_max)
 
@@ -492,7 +493,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
             found, (boxes, rows), done = _search_one(
                 basis, system, centring, spec, budget, q_all, sigma, q_search,
                 tol_search, peaks.wavelength, tt_max, spec.min_volume, vol_max,
-                search)
+                search, tt_all)
             raw.extend(found)
             n_boxes += boxes
             n_rows += rows
@@ -510,6 +511,9 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
                                         n_unindexed=spec.n_unindexed,
                                         max_candidates=spec.max_candidates)
     result.stats["candidates.raw"] = float(len(raw))
+    result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
+    if assumed:
+        result.diagnostics.append(shift_allowance_diagnostic(sigma_sys))
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("dichotomy", incomplete, spec.budget_seconds))
@@ -532,7 +536,7 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
                 budget: Budget, q_all: np.ndarray, sigma: np.ndarray,
                 q_search: np.ndarray, tol_search: np.ndarray, wavelength: float,
                 tt_max: float, vol_min: float, vol_max: float,
-                search_lines: np.ndarray,
+                search_lines: np.ndarray, tt_all: np.ndarray,
                 ) -> tuple[list[EngineCandidate], tuple[int, int], bool]:
     """One (system, centring, volume shell): **the grid pass, then dichotomy.**
 
@@ -663,7 +667,7 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             seen.add(key)
             cand = _accept(basis, system, centring, spec, theta,
                            hkl_all, dm_all, q_all, sigma, wavelength, tt_max,
-                           vol_min, vol_max, width, search_lines)
+                           vol_min, vol_max, width, search_lines, tt_all)
             if cand is not None:
                 found.append(cand)
             continue
@@ -732,7 +736,8 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             theta: np.ndarray, hkl: np.ndarray, dm: np.ndarray,
             q_all: np.ndarray, sigma: np.ndarray, wavelength: float,
             tt_max: float, vol_min: float, vol_max: float,
-            width: float, search_lines: np.ndarray) -> EngineCandidate | None:
+            width: float, search_lines: np.ndarray,
+            two_theta: np.ndarray) -> EngineCandidate | None:
     """Turn a converged box into a refined candidate, or reject it.
 
     Assign, refine, repeat — with the match window **annealed** from the box's own
@@ -796,6 +801,8 @@ def _accept(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         return None
     if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
         return None
+    fit = refine_with_shift(fit, spec, system, q_all, sigma, two_theta,
+                            wavelength, line_index, assigned)
     return EngineCandidate(fit=fit, system=system, centring=centring,
                            engine="dichotomy", hkl=assigned,
                            line_index=line_index, n_lines=len(q_all))

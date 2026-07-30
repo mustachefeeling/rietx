@@ -76,6 +76,34 @@ consumer — but **measure with `--durations` first**: a peak list is seconds, a
 a module-scoped fixture is right when only one module uses it. Over-sharing
 fails silently (a second worker rebuilds it).
 
+**From WP-1023 (2026-07-30) — the real-data obstruction is measured, and it is
+yours to close.** Running the two landed engines on the bundled qarr corundum
+pattern (Cu Kα, certified 4.7593 / 12.9917 Å, R-3c, 32 fitted lines) recovered
+**nothing** from either. The cause is not the search:
+
+- fitted per-line σ has a median of **0.0056° 2θ**, while the pattern's lines sit a
+  median **0.060°** from the certified cell's positions — a cos θ specimen
+  displacement of −0.065°, i.e. an **11σ** systematic. At 3σ the certified cell
+  indexes *zero* lines;
+- both engines now add `engines.DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05° in quadrature
+  when no shift has been **measured** (the normal state at index time), report it
+  with `INDEX_SHIFT_ALLOWANCE`, and consume `SearchSpec.shift_template` via
+  `engines.refine_with_shift` to correct an accepted candidate;
+- **at 0.05° that is still not enough**: trial-and-error finds nothing and dichotomy
+  ranks a wrong 618 Å³ cell first. At 0.08° trial-and-error recovers a = 4.7659 Å
+  against the certified 4.7593 (+1400 ppm — the shift absorbed into the cell, which
+  is exactly why the template must be fitted afterwards).
+
+So the acceptance suite's first job is not a benchmark score, it is this: **make a
+certified pattern index, and record what it took.** Two routes are open and neither
+has been tried — a shift-invariant matching criterion (Q *ratios* or differences
+rather than absolute Q sidesteps the systematic entirely), or a two-pass search that
+fits a shift from the best partial candidate and re-searches with it. Do not close it
+by raising the constant until a second real pattern says the same number; one
+dataset is not a calibration. The engines' synthetic recovery is solid (cubic
+through monoclinic, truth ranked first, both engines) so a failure here is about the
+data, not the search.
+
 ## Non-goals
 
 - No new engine, no new diagnostic — this WP only measures.

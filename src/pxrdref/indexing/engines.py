@@ -44,7 +44,7 @@ from ..schemas.indexing import (
     PeakList,
 )
 from .fom import MATCH_SIGMA, fom_panel, lattice_group, match_lines
-from .qspace import CandidateFit, design_matrix, trial_hkl
+from .qspace import CandidateFit, design_matrix, refine_candidate, trial_hkl
 
 #: Systems in decreasing lattice-point-group order — the order every engine
 #: searches in.  Highest symmetry first is not a preference, it is a cost
@@ -108,6 +108,33 @@ DEFAULT_SEARCH_LINES = 20
 #: coincidence a wrong metric is allowed to have, so 2 is a default and 4 is a
 #: statement about the specimen, not a knob to turn when nothing is found.
 DEFAULT_N_UNINDEXED = 2
+#: Systematic 2θ allowance (degrees) added in quadrature to every line's fitted σ
+#: when **no shift has been measured** — which is the normal state at index time,
+#: because a shift is only identifiable against a reference and there is no cell
+#: yet (``quality.py``).
+#:
+#: **Why it exists is measured; its value is a policy, and the gap between the two
+#: is recorded rather than hidden.**  Fitted per-line σ on the bundled qarr corundum
+#: pattern has a median of 0.0056° 2θ, while the pattern's lines sit a median
+#: **0.060°** from the certified cell's positions — a cos θ specimen displacement of
+#: −0.065°, i.e. an **11σ** systematic.  At σ_eff = fitted σ the certified cell
+#: therefore indexes *zero* lines and both engines return nothing, measured on a
+#: pattern whose answer is known.  That is the whole reason a global "position
+#: tolerance" of ~0.03° 2θ is the literature's default, and 0.05 is that number with
+#: margin.
+#:
+#: **It is not enough to index that pattern, and that is an open result, not a
+#: solved one.**  At 0.05 the trial-and-error engine still finds nothing and
+#: dichotomy ranks a wrong 618 Å³ cell first; at 0.08 trial-and-error recovers
+#: a = 4.7659 Å against the certified 4.7593 (+1400 ppm, the shift absorbed into the
+#: cell).  Widening further costs specificity in both directions, so the remedy is
+#: not a bigger number: it is fitting the shift template, which
+#: :func:`refine_with_shift` does *after* a candidate survives — because a shift is
+#: only identifiable against reference positions and a candidate cell is what
+#: supplies them.  Closing the loop on real data is WP-1026's acceptance work; every
+#: result records which allowance it used and says so with
+#: ``INDEX_SHIFT_ALLOWANCE``.
+DEFAULT_UNKNOWN_SHIFT_DEG = 0.05
 #: Wall-clock seconds a single system may consume before the engine gives up on
 #: it and reports ``search_complete[system] = False``.
 DEFAULT_BUDGET_SECONDS = 30.0
@@ -367,6 +394,75 @@ def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
     return np.flatnonzero(hit), hkl_in[order][idx[hit]]
 
 
+def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
+    """The systematic allowance to use, and whether it was **assumed**.
+
+    Three cases, in priority order: the caller declared one; the data-quality
+    report *measured* one (``shift.source == "measured"``, which needs reference
+    positions and so is unusual at index time); or neither, in which case
+    :data:`DEFAULT_UNKNOWN_SHIFT_DEG` is assumed and the second return value says
+    so.  An assumed precision must never be reported as a measured one — the same
+    rule ``PeakList.from_positions`` follows.
+    """
+    if spec.sigma_sys_deg > 0.0:
+        return float(spec.sigma_sys_deg), False
+    if (quality is not None and quality.shift is not None
+            and quality.shift.source == "measured"
+            and quality.shift.sigma_sys_deg > 0.0):
+        return float(quality.shift.sigma_sys_deg), False
+    return DEFAULT_UNKNOWN_SHIFT_DEG, True
+
+
+def shift_allowance_diagnostic(sigma_sys: float) -> Diagnostic:
+    """``INDEX_SHIFT_ALLOWANCE`` — the search widened its own tolerance, and by how
+    much.  Reported because it is the difference between a cell and no cell, and
+    because it biases the cell it finds."""
+    return Diagnostic(
+        level="info", code="INDEX_SHIFT_ALLOWANCE",
+        message=(f"no systematic 2θ shift has been measured, so {sigma_sys:.3f}° "
+                 "was added in quadrature to every line's fitted σ.  Measured on "
+                 "a certified pattern, the fitted σ alone is ~11× too tight: the "
+                 "true cell indexed no lines at all and the search returned "
+                 "nothing"),
+        where=[f"σ_sys = {sigma_sys:.3f}° 2θ (assumed)"],
+        suggestion=("the cell a widened search finds absorbs the shift, so refine "
+                    "the winner with a shift template "
+                    "(refine_candidate(..., shift_template=...), or pass "
+                    "shift_template in the SearchSpec) and quote *that* cell; "
+                    "supply reference positions to assess_peak_list if you have "
+                    "an internal standard"))
+
+
+def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
+                      sigma: np.ndarray, two_theta: np.ndarray,
+                      wavelength: float, line_index: np.ndarray,
+                      hkl: np.ndarray):
+    """Re-fit an accepted candidate with a shift column, if one was asked for.
+
+    **This is what stops a widened search from reporting a biased cell.**  The
+    search has to open its tolerance to cover an unmeasured systematic
+    (:data:`DEFAULT_UNKNOWN_SHIFT_DEG`), and a cell fitted inside that window
+    absorbs the shift: measured on the qarr corundum pattern, the trial-and-error
+    engine returned a = 4.7659 Å against a certified 4.7593 (+1400 ppm) with the
+    shift left in.  Fitting the template *after* the candidate survives is the order
+    WP-1020 prescribes — a shift is only identifiable against reference positions,
+    and a candidate cell is what supplies them.
+
+    Returns the original fit unchanged when no template was requested, or when the
+    shifted fit is worse (a template that does not help must not be forced on).
+    """
+    if spec.shift_template is None:
+        return fit
+    try:
+        shifted = refine_candidate(
+            q_all[line_index], sigma[line_index], hkl, system=system,
+            two_theta=two_theta[line_index], wavelength=wavelength,
+            shift_template=spec.shift_template)
+    except (ValueError, np.linalg.LinAlgError):
+        return fit
+    return shifted if shifted.chi2_red <= fit.chi2_red else fit
+
+
 def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
                              n_unindexed: int) -> bool:
     """Did this candidate index the lines the search was **driven by**?
@@ -577,8 +673,10 @@ __all__ = ["CENTRINGS", "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
            "MAX_PREDICTED_REFLECTIONS", "SYSTEM_ORDER", "Budget",
            "EngineCandidate", "EngineResult", "SearchSpec", "assign_lines",
-           "dedup_candidates", "engine_descriptions", "engine_names",
-           "indexes_the_search_lines",
+           "DEFAULT_UNKNOWN_SHIFT_DEG", "dedup_candidates",
+           "effective_sigma_sys", "engine_descriptions", "engine_names",
+           "indexes_the_search_lines", "refine_with_shift",
+           "shift_allowance_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",
            "trial_hkl"]

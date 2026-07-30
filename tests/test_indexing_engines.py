@@ -89,9 +89,20 @@ def synthetic_peaks(system: str, *, esd_deg: float = 0.005,
 
 
 def spec_for(system: str, **overrides) -> SearchSpec:
+    """A search spec for a synthetic list, with **σ_sys declared as zero**.
+
+    Not inherited: these peak lists carry *exact* positions, so the systematic
+    allowance an engine assumes for real data
+    (``engines.DEFAULT_UNKNOWN_SHIFT_DEG``, 0.05° 2θ) is pure looseness here and it
+    changes what the tests measure — with it on, the dominant-row case below finds a
+    22 Å junk cell instead of correctly finding nothing.  Declaring the physics
+    rather than riding a default is the rule
+    (``DESIGN.md`` §Testing & validation policy); the real-data behaviour of that
+    default is measured in its own test.
+    """
     _sg, _cell, _tt, (min_d, max_d), vol = CASES[system]
     kwargs = dict(systems=(system,), min_d_axis=min_d, max_d_axis=max_d,
-                  max_volume=vol, budget_seconds=180.0)
+                  max_volume=vol, budget_seconds=180.0, sigma_sys_deg=1e-9)
     kwargs.update(overrides)
     return SearchSpec(**kwargs)
 
@@ -543,7 +554,8 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
     peaks = PeakList.from_positions(tt[tt >= 28.0], LAM, two_theta_esd=0.005)
     spec = SearchSpec(systems=("tetragonal",), max_d_axis=30.0,
-                      max_volume=1500.0, budget_seconds=30.0)
+                      max_volume=1500.0, budget_seconds=30.0,
+                      sigma_sys_deg=1e-9)
 
     result = search_trial_error(peaks, spec=spec)
     assert not result.candidates, "the base table should not reach these indices"
@@ -574,6 +586,74 @@ def test_the_two_engines_agree_on_the_same_list():
         assert_same_lattice(b.candidates[0].cell, cell)
         assert a.candidates[0].engine == "dichotomy"
         assert b.candidates[0].engine == "trial_error"
+
+
+def test_the_shift_allowance_is_assumed_declared_and_reported():
+    """An assumed precision must never look like a measured one.
+
+    ``effective_sigma_sys`` has three cases in priority order — declared by the
+    caller, *measured* by the data-quality screen, or assumed — and only the third
+    sets the "assumed" flag that puts ``INDEX_SHIFT_ALLOWANCE`` in the result.  This
+    is the same rule ``PeakList.from_positions`` follows for σ(2θ), one level up.
+    """
+    from pxrdref.indexing.engines import (
+        DEFAULT_UNKNOWN_SHIFT_DEG,
+        effective_sigma_sys,
+        shift_allowance_diagnostic,
+    )
+    from pxrdref.schemas.indexing import ShiftScreen
+
+    plain = SearchSpec()
+    assert effective_sigma_sys(plain) == (DEFAULT_UNKNOWN_SHIFT_DEG, True)
+    assert effective_sigma_sys(SearchSpec(sigma_sys_deg=0.02)) == (0.02, False)
+
+    class _Q:
+        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, source="measured")
+    assert effective_sigma_sys(plain, _Q()) == (0.011, False)
+
+    # an *unavailable* screen is not a measurement, even when it carries a number
+    class _Unavailable:
+        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, source="unavailable")
+    assert effective_sigma_sys(plain, _Unavailable()) == (
+        DEFAULT_UNKNOWN_SHIFT_DEG, True)
+
+    diag = shift_allowance_diagnostic(DEFAULT_UNKNOWN_SHIFT_DEG)
+    assert diag.code == "INDEX_SHIFT_ALLOWANCE"
+    assert "assumed" in diag.where[0]
+    assert "shift_template" in (diag.suggestion or "")
+
+
+def test_a_shift_template_is_fitted_only_after_a_candidate_survives():
+    """``refine_with_shift`` corrects an accepted candidate, never the search.
+
+    With a template it re-fits the surviving lines including the shift column and
+    keeps the result only if χ² improved — a template the data does not want must
+    not be forced on.  Without one it is the identity.
+    """
+    from pxrdref.indexing.engines import refine_with_shift
+    from pxrdref.indexing.qspace import refine_candidate, sigma_effective
+    from pxrdref.indexing.quality import shift_template_basis
+    from pxrdref.schemas.indexing import q_of_two_theta
+
+    _sg, cell, tt_max, _b, _v = CASES["orthorhombic"]
+    refl = generate_reflections("P m m m", cell, LAM, tt_max)
+    hkl = np.asarray(refl.hkl)
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d))))
+    shifted = tt + 0.06 * shift_template_basis(tt)["cos_theta"]
+    q = q_of_two_theta(shifted, LAM)
+    sigma = sigma_effective(np.full_like(q, 1e-5), shifted, LAM, 0.0)
+    lines = np.arange(len(q))
+
+    naive = refine_candidate(q, sigma, hkl, system="orthorhombic")
+    assert refine_with_shift(naive, SearchSpec(), "orthorhombic", q, sigma,
+                             shifted, LAM, lines, hkl) is naive
+
+    fixed = refine_with_shift(naive, SearchSpec(shift_template="cos_theta"),
+                              "orthorhombic", q, sigma, shifted, LAM, lines, hkl)
+    assert fixed is not naive
+    assert fixed.shift_coefficient == pytest.approx(0.06, rel=5e-3)
+    assert np.allclose(fixed.cell, cell, atol=2e-4)
+    assert max(abs(np.asarray(naive.cell[:3]) - np.asarray(cell[:3]))) > 1e-3
 
 
 def test_systems_are_searched_highest_symmetry_first():

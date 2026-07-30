@@ -47,11 +47,14 @@ from .engines import (
     SearchSpec,
     assign_lines,
     dedup_candidates,
+    effective_sigma_sys,
     incomplete_diagnostic,
     indexes_the_search_lines,
     rank_candidates,
+    refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    shift_allowance_diagnostic,
     trial_hkl,
 )
 from .qspace import (
@@ -248,9 +251,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys = spec.sigma_sys_deg
-    if quality is not None and quality.shift is not None and not sigma_sys:
-        sigma_sys = float(quality.shift.sigma_sys_deg)
+    sigma_sys, assumed = effective_sigma_sys(spec, quality)
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
     tt_max = float(peaks.two_theta_max)
 
@@ -274,7 +275,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
             if quality is not None and system in quality.volume_envelope
             else 8000.0)
         found, stats, complete = _search_system(
-            peaks, system, basis, spec, budget, q_all, sigma, tt_max, vol_max)
+            peaks, system, basis, spec, budget, q_all, sigma, tt_all, tt_max,
+            vol_max)
         raw.extend(found)
         result.search_complete[system] = complete
         for key, value in stats.items():
@@ -286,12 +288,15 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
                                         n_unindexed=spec.n_unindexed,
                                         max_candidates=spec.max_candidates)
     result.stats["candidates.raw"] = float(len(raw))
+    result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
+    if assumed:
+        result.diagnostics.append(shift_allowance_diagnostic(sigma_sys))
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("trial_error", incomplete, spec.budget_seconds))
     if not result.candidates:
-        probe = _dominant_zone_probe(peaks, spec, q_all, sigma, tt_max, systems,
-                                     quality, cancel)
+        probe = _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all, tt_max,
+                                     systems, quality, cancel)
         if probe is not None:
             result.diagnostics.append(probe)
     return result
@@ -299,7 +304,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
 
 def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                    spec: SearchSpec, budget: Budget, q_all: np.ndarray,
-                   sigma: np.ndarray, tt_max: float, vol_max: float, *,
+                   sigma: np.ndarray, tt_all: np.ndarray, tt_max: float,
+                   vol_max: float, *,
                    index_max: int = BASE_INDEX_MAX,
                    ) -> tuple[list[EngineCandidate], dict[str, float], bool]:
     n_dof = basis.shape[0]
@@ -346,7 +352,7 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                 seen.add(key)
                 cand = _score(basis, system, centring, spec, af, hkl_full,
                               dm_full, q_all, sigma, peaks.wavelength, tt_max,
-                              vol_max, hkl_tab[combo], search_lines)
+                              vol_max, hkl_tab[combo], search_lines, tt_all)
                 if cand is not None:
                     found.append(cand)
             if len(found) > 2000:
@@ -375,8 +381,8 @@ def _solution_key(af: np.ndarray) -> tuple[int, ...]:
 def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
            af: np.ndarray, hkl: np.ndarray, dm: np.ndarray, q_all: np.ndarray,
            sigma: np.ndarray, wavelength: float, tt_max: float, vol_max: float,
-           base_hkl: np.ndarray,
-           search_lines: np.ndarray) -> EngineCandidate | None:
+           base_hkl: np.ndarray, search_lines: np.ndarray,
+           two_theta: np.ndarray) -> EngineCandidate | None:
     """Check one exact solution against **every** usable line, then refine.
 
     The exact solve used n lines and no tolerance; this is where the tolerance is
@@ -412,6 +418,8 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         return None
     if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
         return None
+    fit = refine_with_shift(fit, spec, system, q_all, sigma, two_theta,
+                            wavelength, line_index, assigned)
     if not (spec.min_volume <= fit.volume <= vol_max):
         return None
     cand = EngineCandidate(fit=fit, system=system, centring=centring,
@@ -422,7 +430,7 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
 
 
 def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
-                         sigma: np.ndarray, tt_max: float,
+                         sigma: np.ndarray, tt_all: np.ndarray, tt_max: float,
                          systems: list[str], quality, cancel
                          ) -> Diagnostic | None:
     """Was the *index table* the binding constraint?  Measure it, don't infer it.
@@ -450,8 +458,8 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
         for wider in DOMINANT_ZONE_PROBE_LADDER:
             budget = Budget(min(spec.budget_seconds, 10.0), cancel)
             found, _stats, _complete = _search_system(
-                peaks, system, basis, spec, budget, q_all, sigma, tt_max, vol_max,
-                index_max=wider)
+                peaks, system, basis, spec, budget, q_all, sigma, tt_all, tt_max,
+                vol_max, index_max=wider)
             if found:
                 return Diagnostic(
                     level="warning", code="INDEX_DOMINANT_ZONE",

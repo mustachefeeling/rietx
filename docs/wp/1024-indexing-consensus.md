@@ -120,6 +120,34 @@ confidence gate and `high` requires the two remaining engines — make that
 change here, in the same commit, rather than leaving a gate that silently
 counts a re-scorer as an independent opinion.
 
+**It did (2026-07-30). The gate is a two-engine consensus.** Measured: tier-1
+throughput is fine (~25 000 trials/s) and tier-2 is both affordable (13-15 ms per
+state) and discriminating (Rwp 1.29 for the certified cell against 7.25 for one 1 %
+off), but tier-1 **cannot rank**: on the certified qarr corundum pattern the true
+cell scores 0.0000 and ranks 29 053 of 200 001, because the pattern's 0.060° cos θ
+displacement is 11σ of the fitted per-line σ. Widening the window puts the truth at
+rank 4 and simultaneously lets coincidence-rich large cells outscore it (0.969
+against 0.896) — the failure the FoM panel exists to prevent, moved inside the
+proposal mechanism where no panel can see it. So `high` confidence means *both*
+landed engines agree; two agreeing engines is the ceiling, not a shortfall to
+apologise for, and `found_by` must never contain a re-scorer. A Le Bail *re-scorer*
+built on the measured tier-2 is still worth having — as validation, which this WP
+already owns — but it is not an engine and does not count toward agreement.
+
+From **WP-1023** (2026-07-30), and this one is a live hazard for your gate:
+**both landed engines currently fail on real lab data**, and the cause is measured.
+Their tolerance is the fitted per-line σ, which on the bundled corundum pattern is
+11× too tight for the systematic the data carries; both now add
+`engines.DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ) when no shift has been *measured* and
+say so with `INDEX_SHIFT_ALLOWANCE`, and both consume `SearchSpec.shift_template`
+through `engines.refine_with_shift` so an accepted cell is corrected rather than
+left carrying the shift. That is **not yet sufficient** — see WP-1026, which owns
+closing it. Two consequences for the gate: `INDEX_SHIFT_ALLOWANCE` being present
+means the tolerance was *assumed*, which should cap confidence on its own; and a
+cell found under a widened window but never refined with a shift template is biased
+by roughly the shift (+1400 ppm measured), so quoting it without the template is the
+kind of confident wrong answer the gate exists to stop.
+
 From **WP-1020**: `reduce.py`'s χ² cell-equality is the dedup primitive;
 `ambiguity.py` supplies partners; the FoM panel supplies the Borda ranking.
 
