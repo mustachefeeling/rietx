@@ -286,7 +286,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
 
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
-                                        max_candidates=spec.max_candidates)
+                                        max_candidates=spec.max_candidates,
+                                        q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
     result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
     if assumed:

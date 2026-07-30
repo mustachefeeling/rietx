@@ -65,10 +65,12 @@ from .engines import (
     EngineResult,
     SearchSpec,
     dedup_groups,
+    effective_sigma_sys,
     rank_candidates,
     to_cell_candidate,
 )
 from .fom import fom_panel_disagrees
+from .qspace import sigma_effective
 
 #: Candidates that get the **expensive** per-candidate checks — geometrical
 #: ambiguity (which enumerates 55 derivative lattices and predicts reflections for
@@ -195,10 +197,17 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     """
     spec = spec or SearchSpec()
     merged = merge_engine_candidates(results)
+    # the same window the engines assigned with, re-derived from the same two
+    # inputs — ranking candidates in a *tighter* one judges them by a criterion
+    # they were never selected under (``fom.fom_panel``)
+    sigma_sys, _assumed = effective_sigma_sys(spec, quality)
+    q_match = sigma_effective(peaks.q_esd(), peaks.two_theta(),
+                              peaks.wavelength, sigma_sys)
     ranked = rank_candidates(merged, peaks, k_sigma=spec.k_sigma,
                              n_unindexed=spec.n_unindexed,
                              max_candidates=spec.max_candidates
-                             or DEFAULT_MAX_CANDIDATES)
+                             or DEFAULT_MAX_CANDIDATES,
+                             q_match=q_match)
     out = ConsensusOutcome(
         engines_run=[r.engine for r in results],
         fom_panel_disagrees=fom_panel_disagrees([c.fom for c in ranked
@@ -230,7 +239,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
 
     out.candidates = [
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
-                          n_unindexed=spec.n_unindexed) for c in ranked]
+                          n_unindexed=spec.n_unindexed, q_match=q_match)
+        for c in ranked]
     checked = set(checked_indices(out.candidates, out.engines_run, top=top))
     for i, cand in enumerate(out.candidates):
         cand.bravais = bravais_opinion(cand.cell, cand.centring,

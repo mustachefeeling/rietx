@@ -368,25 +368,44 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
               two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
               cell: tuple[float, ...], system: str, centring: str,
               wavelength: float, *, k_sigma: float = MATCH_SIGMA,
-              n_unindexed: int = 0) -> list[FigureOfMerit]:
+              n_unindexed: int = 0,
+              q_match: np.ndarray | None = None) -> list[FigureOfMerit]:
     """Every figure of merit for one candidate, in one pass over the predictions.
 
     ``n_unindexed`` must be the same count the *search* was allowed — see
     :func:`trimmed_mean` for the measurement that makes them one number.
+
+    **``q_match`` is the matching window and ``q_esd`` is the measurement, and the
+    panel needs both** — CLAUDE.md's rule that a fitted σ is the right weight and
+    the wrong matching window, one rank up from the engines.  The three coverage
+    members ask *is this the same line*, which is a question about the systematic
+    a search had to open its window for; M₂₀ and F_N use σ only to **floor** their
+    mean discrepancy, which is a question about what the measurement can resolve
+    and must never be answered with an assumed allowance.  So a caller widening the
+    window widens the coverage members alone.
+
+    Defaulting ``q_match`` to ``q_esd`` is the identity, and that default is what
+    every published-figure comparison uses.  Measured on the certified corundum
+    pattern, where the two differ by 11× (fitted σ 0.0045° against a 0.05°
+    allowance): ``indexed_fraction`` reads **0.11-0.20** on candidates the search's
+    own assignment indexed at **0.65-0.89**, so every candidate was refuted by
+    ``indexed_fraction_low`` whatever its merit, and the Borda order was decided
+    among cells that had all matched almost nothing.
     """
     tt_max = float(np.max(two_theta_obs)) if len(two_theta_obs) else 0.0
     _hkl, q_pred = predicted_lines(cell, system, centring, wavelength,
                                    max(tt_max, 1.0))
     tt_pred = np.degrees(2.0 * np.arcsin(np.clip(
         wavelength * np.sqrt(q_pred) / 2.0, -1.0, 1.0)))
+    match = q_esd if q_match is None else q_match
     return [
         m20(q_obs, q_esd, q_pred, k_sigma=k_sigma, n_unindexed=n_unindexed),
         f_n(two_theta_obs, two_theta_esd, tt_pred, k_sigma=k_sigma,
             n_unindexed=n_unindexed),
-        indexed_fraction(q_obs, q_esd, q_pred, k_sigma=k_sigma),
-        indexed_fraction(q_obs, q_esd, q_pred, intensity=intensity,
+        indexed_fraction(q_obs, match, q_pred, k_sigma=k_sigma),
+        indexed_fraction(q_obs, match, q_pred, intensity=intensity,
                          k_sigma=k_sigma),
-        predicted_seen_fraction(q_obs, q_esd, q_pred, k_sigma=k_sigma),
+        predicted_seen_fraction(q_obs, match, q_pred, k_sigma=k_sigma),
     ]
 
 

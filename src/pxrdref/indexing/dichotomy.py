@@ -509,7 +509,8 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
 
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
-                                        max_candidates=spec.max_candidates)
+                                        max_candidates=spec.max_candidates,
+                                        q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
     result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
     if assumed:
@@ -701,10 +702,40 @@ _SAME_BOX_RTOL = 1e-3
 
 
 def _box_key(af: np.ndarray) -> tuple[int, ...]:
-    scale = float(np.max(np.abs(af)))
-    if not np.isfinite(scale) or scale <= 0.0:
-        return (0,) * len(af)
-    return tuple(np.round(af / (scale * _SAME_BOX_RTOL)).astype(np.int64))
+    """A converged box's identity, **on each component's own scale**.
+
+    The grid has to be relative *per component*, not relative to the largest one,
+    and dividing every component by ``max|af|`` — which this did before WP-1026 —
+    is a silent precision loss on exactly the axis a powder pattern determines
+    least well.  A = 1/a\\*² for a long axis is an order of magnitude below A for a
+    short one, so a grid 0.1 % of the largest component is a **1 %** grid on the
+    smallest, and two leaves whose long axis differs by 0.5 % hash the same.  The
+    first is refined and the second is skipped — not merged, *skipped*, before any
+    fit exists to merge.
+
+    Measured on the certified corundum pattern (SRM 676a, a = 4.7594, c = 12.9923):
+    the whole trigonal-R domain converged to **11 leaves, 3 of them skipped**, and
+    one of the three was the leaf holding the certified c.  The leaf that was
+    refined instead sat 0.4 % away in c and gave the answer the acceptance suite
+    had recorded as "what an uncalibrated lab pattern costs" — c **+2799 ppm**,
+    with a right to −64 ppm because a is where the grid was fine.  It was neither
+    an absorbed shift nor the tolerance: it was this hash.
+
+    So each diagonal component gets a **logarithmic** bin of fixed ratio (a
+    relative grid is what "the same cell" means), and each off-diagonal a linear
+    bin scaled by the geometric mean of its Cauchy-Schwarz partners
+    (:data:`_OFFDIAG_PARTNERS`) — the same scale ``_inside_domain`` bounds it by,
+    and the only one available for a component that is legitimately zero.
+    """
+    a = np.asarray(af, dtype=np.float64)
+    if not np.all(np.isfinite(a)) or np.any(a[:3] <= 0.0):
+        return (0,) * len(a)
+    step = float(np.log1p(_SAME_BOX_RTOL))
+    key = [int(np.floor(np.log(v) / step)) for v in a[:3]]
+    for p, (i, j) in _OFFDIAG_PARTNERS.items():
+        scale = float(np.sqrt(a[i] * a[j])) * _SAME_BOX_RTOL
+        key.append(int(np.floor(a[p] / scale)) if scale > 0.0 else 0)
+    return tuple(key)
 
 
 def _inside_domain(af: np.ndarray, spec: SearchSpec) -> bool:

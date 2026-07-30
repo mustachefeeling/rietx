@@ -44,7 +44,7 @@ from ..schemas.indexing import (
     PeakList,
 )
 from .fom import MATCH_SIGMA, fom_panel, lattice_group, match_lines
-from .qspace import CandidateFit, design_matrix, refine_candidate, trial_hkl
+from .qspace import CandidateFit, design_matrix, metric_basis, refine_candidate, trial_hkl
 
 #: Systems in decreasing lattice-point-group order — the order every engine
 #: searches in.  Highest symmetry first is not a preference, it is a cost
@@ -464,10 +464,31 @@ def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
     WP-1020 prescribes — a shift is only identifiable against reference positions,
     and a candidate cell is what supplies them.
 
-    Returns the original fit unchanged when no template was requested, or when the
-    shifted fit is worse (a template that does not help must not be forced on).
+    **A declared template is the caller's physics, not a hypothesis for a fit
+    statistic to adjudicate**, so the only thing that can refuse it is
+    identifiability.  Until WP-1026 this kept the shifted fit only when χ²_red
+    improved, and that rule is backwards in a way that is easy to state and was
+    measured: the correction always costs a degree of freedom, while a cell that has
+    *already absorbed* the shift into its axes cannot gain much χ² from it — so the
+    test refused the correction precisely on the candidates that needed it and
+    accepted it on the ones that needed it least.  Traced on the corundum run,
+    ``refine_with_shift`` was called 17 times and declined 9, the ranked-first
+    candidate among them (χ²_red 1.5829 → 1.5945).  It is v0.5's method result and
+    WP-1026's own ΔBIC lesson one rank up: a declared correction ships with a record
+    of what it changed, never with a fit statistic as its gatekeeper —
+    ``Geometry.mu_t`` is the precedent.
+
+    So the fit is returned shifted unless there is no shift to be had: no template
+    asked for, the solve failed numerically, or the assigned lines cannot support
+    one more parameter.  ``shift_coefficient`` and ``shift_esd`` travel on the
+    candidate, so a shift consistent with zero is *reported* as such rather than
+    being silently declined.
     """
     if spec.shift_template is None:
+        return fit
+    # one column more than the metric, and one row spare to fit it with: below
+    # that the shift is exactly determined by the lines and means nothing
+    if len(line_index) < len(metric_basis(system)) + 2:
         return fit
     try:
         shifted = refine_candidate(
@@ -476,7 +497,10 @@ def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
             shift_template=spec.shift_template)
     except (ValueError, np.linalg.LinAlgError):
         return fit
-    return shifted if shifted.chi2_red <= fit.chi2_red else fit
+    if not (np.all(np.isfinite(shifted.cell)) and shifted.volume > 0.0
+            and np.isfinite(shifted.shift_coefficient)):
+        return fit
+    return shifted
 
 
 def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
@@ -497,9 +521,43 @@ def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
     return hit >= len(search) - n_unindexed
 
 
+def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
+    """(Q, 2θ) a candidate is **scored against** — corrected by its own shift.
+
+    A candidate that carries a fitted shift template claims that the lines
+    *corrected* by s·t(θ) are the ones its lattice explains, so scoring it against
+    the raw positions marks it down for the very correction it declared.  Measured
+    on the certified corundum pattern: with the shift applied to every candidate
+    and the panel left on raw positions, the certified lattice — fitted shift
+    −0.0606°, the largest in the list — fell out of the top six while candidates
+    whose fitted shift was under 0.03° were untouched, i.e. the panel was ranking
+    on *how little a candidate had been corrected*.
+
+    Refining one shift per candidate is the field's practice (DICVOL, ITO and
+    TREOR all refine a zero-point per trial cell) and it carries the blind spot
+    ``f_n`` already states: a refined shift can manufacture a large F_N.  What it
+    must not also do is score two candidates against two different claims.
+    """
+    tt = peaks.two_theta()
+    template = getattr(fit, "shift_template", None)
+    coeff = float(getattr(fit, "shift_coefficient", 0.0) or 0.0)
+    if template is None or coeff == 0.0:
+        return peaks.q(), tt
+    from ..schemas.indexing import q_of_two_theta
+    from .quality import shift_template_basis
+    basis = shift_template_basis(tt)
+    if template not in basis:
+        return peaks.q(), tt
+    corrected = tt - coeff * basis[template]
+    if not np.all(np.isfinite(corrected)) or np.any(corrected <= 0.0):
+        return peaks.q(), tt
+    return q_of_two_theta(corrected, peaks.wavelength), corrected
+
+
 def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
                       k_sigma: float = MATCH_SIGMA, n_unindexed: int = 0,
                       diagnostics: Sequence[Diagnostic] = (),
+                      q_match: np.ndarray | None = None,
                       ) -> CellCandidate:
     """Score a candidate with the whole FoM panel and pack it for reporting.
 
@@ -510,15 +568,16 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
     reflection ceiling is checked one last time: ``fom_panel`` enumerates.
     """
     fit = cand.fit
-    tt, tt_esd = peaks.two_theta(), peaks.two_theta_esd()
-    q, q_esd = peaks.q(), peaks.q_esd()
+    tt_esd = peaks.two_theta_esd()
+    q_esd = peaks.q_esd()
+    q, tt = scored_positions(peaks, fit)
     inten = peaks.intensity()
     tt_max = float(np.max(tt)) if len(tt) else 90.0
     panel = cand.fom
     if not panel and reflection_ceiling_ok(fit.cell, peaks.wavelength, tt_max):
         panel = fom_panel(q, q_esd, inten, tt, tt_esd, fit.cell, cand.system,
                           cand.centring, peaks.wavelength, k_sigma=k_sigma,
-                          n_unindexed=n_unindexed)
+                          n_unindexed=n_unindexed, q_match=q_match)
     esd = np.asarray(fit.cell_esd, dtype=np.float64)
     vol_esd = _volume_esd(fit)
     return CellCandidate(
@@ -630,6 +689,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
                     n_unindexed: int = 0,
                     max_candidates: int = DEFAULT_MAX_CANDIDATES,
                     shortlist: int = 4,
+                    q_match: np.ndarray | None = None,
                     ) -> list[EngineCandidate]:
     """Dedup, score with the FoM panel, and rank by Borda over the whole panel.
 
@@ -645,6 +705,10 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     order is conservative in the direction that matters — a supercell can tie the
     truth on lines indexed but never beat it, and it is larger by construction,
     so the truth cannot be shortlisted out by its own supercell.
+
+    ``q_match`` is the σ(Q) the *search* matched with — pass the same array the
+    engine assigned lines with, or the panel judges these candidates by a window
+    they were never selected under (:func:`~pxrdref.indexing.fom.fom_panel`).
     """
     kept = dedup_candidates(cands)
     kept.sort(key=lambda c: (-c.n_indexed, c.volume))
@@ -652,7 +716,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     if not kept:
         return []
     for cand in kept:
-        cand.fom = _panel_for(cand, peaks, k_sigma, n_unindexed)
+        cand.fom = _panel_for(cand, peaks, k_sigma, n_unindexed, q_match)
     scored = [c for c in kept if c.fom]
     unscored = [c for c in kept if not c.fom]
     if scored:
@@ -664,15 +728,17 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
 
 
 def _panel_for(cand: EngineCandidate, peaks: PeakList, k_sigma: float,
-               n_unindexed: int = 0):
-    tt, tt_esd = peaks.two_theta(), peaks.two_theta_esd()
+               n_unindexed: int = 0, q_match: np.ndarray | None = None):
+    tt_esd = peaks.two_theta_esd()
+    q, tt = scored_positions(peaks, cand.fit)
     tt_max = float(np.max(tt)) if len(tt) else 90.0
     if not reflection_ceiling_ok(cand.cell, peaks.wavelength, tt_max):
         return []
     try:
-        return fom_panel(peaks.q(), peaks.q_esd(), peaks.intensity(), tt, tt_esd,
+        return fom_panel(q, peaks.q_esd(), peaks.intensity(), tt, tt_esd,
                          cand.cell, cand.system, cand.centring, peaks.wavelength,
-                         k_sigma=k_sigma, n_unindexed=n_unindexed)
+                         k_sigma=k_sigma, n_unindexed=n_unindexed,
+                         q_match=q_match)
     except (ValueError, RuntimeError):
         return []
 
@@ -707,7 +773,7 @@ __all__ = ["CENTRINGS", "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_UNKNOWN_SHIFT_DEG", "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "indexes_the_search_lines", "refine_with_shift",
-           "shift_allowance_diagnostic",
+           "scored_positions", "shift_allowance_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",
            "trial_hkl"]

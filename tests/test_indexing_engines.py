@@ -275,6 +275,51 @@ def test_dichotomy_q_bounds_are_attained_at_the_box_corners():
         assert np.allclose(q_corners.max(axis=0), q_max, atol=1e-12), system
 
 
+def test_the_duplicate_leaf_hash_resolves_every_axis_equally():
+    """A leaf's identity must be relative **per component**, not to the largest one.
+
+    WP-1026: ``_box_key`` divided A..F by ``max|af|``, so on a cell with a long axis
+    — where C = 1/c\\*² is an order of magnitude below A — a 0.1 % grid on the
+    largest component was a ~1 % grid on the smallest.  Two leaves whose c differed
+    by 0.4 % hashed the same and the second was **skipped before being refined**.
+    Measured on the certified corundum pattern that skipped leaf was the one holding
+    the certificate's c, and the leaf refined in its place gave c +2799 ppm.
+
+    The property is the one the anisotropy broke: perturbing *any* component by
+    several grid steps **on that component's own scale** must change the key,
+    whatever the other components' magnitudes.  For a diagonal that scale is the
+    component itself; for an off-diagonal — which is legitimately zero here, and
+    has no relative scale of its own — it is the Cauchy-Schwarz bound its partners
+    set, the same scale ``_inside_domain`` measures it against.
+    """
+    from pxrdref.indexing.dichotomy import (_OFFDIAG_PARTNERS, _SAME_BOX_RTOL,
+                                            _box_key)
+
+    # a long-axis cell: A/C ≈ 10, the regime that made the old key anisotropic
+    af = np.asarray(af_from_cell(
+        (4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0)), dtype=np.float64)
+    assert af[0] / af[2] > 5.0, "this cell no longer exercises the anisotropy"
+    assert _box_key(af) == _box_key(af), "the key is not a function"
+    for p in range(6):
+        moved = af.copy()
+        if p < 3:
+            moved[p] *= 1.0 + 20.0 * _SAME_BOX_RTOL
+        else:
+            i, j = _OFFDIAG_PARTNERS[p]
+            moved[p] += 20.0 * _SAME_BOX_RTOL * np.sqrt(af[i] * af[j])
+        assert _box_key(moved) != _box_key(af), (
+            f"component {p} moved 20 grid steps and hashed the same")
+    # the certified c and the cell 0.4 % away from it are different leaves
+    cert = af_from_cell((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0))
+    other = af_from_cell((4.759355, 4.759355, 12.99231 * 1.004, 90.0, 90.0, 120.0))
+    assert _box_key(cert) != _box_key(other)
+    # and the grid stays *crude*: a cell a tenth of a step away is the same leaf
+    # or the neighbouring one (a straddle refines twice and merges later, which
+    # is the right failure for a performance filter) — never further
+    near = np.asarray(af, dtype=np.float64) * (1.0 + 0.1 * _SAME_BOX_RTOL)
+    assert max(abs(a - b) for a, b in zip(_box_key(near), _box_key(af))) <= 1
+
+
 def test_dichotomy_only_reports_cells_inside_the_domain_it_searched():
     """A refined cell may wander out of the domain, and one did — β = 174° with a
     49 Å axis.  Reporting it would carry none of the exhaustiveness the engine
@@ -647,9 +692,8 @@ def test_the_shift_allowance_is_assumed_declared_and_reported():
 def test_a_shift_template_is_fitted_only_after_a_candidate_survives():
     """``refine_with_shift`` corrects an accepted candidate, never the search.
 
-    With a template it re-fits the surviving lines including the shift column and
-    keeps the result only if χ² improved — a template the data does not want must
-    not be forced on.  Without one it is the identity.
+    With a template it re-fits the surviving lines including the shift column;
+    without one it is the identity.
     """
     from pxrdref.indexing.engines import refine_with_shift
     from pxrdref.indexing.qspace import refine_candidate, sigma_effective
@@ -675,6 +719,48 @@ def test_a_shift_template_is_fitted_only_after_a_candidate_survives():
     assert fixed.shift_coefficient == pytest.approx(0.06, rel=5e-3)
     assert np.allclose(fixed.cell, cell, atol=2e-4)
     assert max(abs(np.asarray(naive.cell[:3]) - np.asarray(cell[:3]))) > 1e-3
+
+
+def test_a_declared_shift_template_is_not_adjudicated_by_chi_squared():
+    """A declared template is the caller's physics — only identifiability refuses it.
+
+    WP-1026: the accept rule was ``keep it if χ²_red improved``, which is backwards.
+    The column always costs a degree of freedom while a cell that has *already*
+    absorbed the shift into its axes cannot gain much χ² from it, so the test
+    refused the correction exactly where it was needed.  Two consequences are
+    asserted here.  On data with **no** shift the template is still fitted and comes
+    back consistent with zero — reported, not silently declined — even though the
+    extra column makes χ²_red slightly worse.  And when the assigned lines cannot
+    support one more parameter the original fit is returned unchanged, because that
+    is a statement about the design matrix rather than about the fit.
+    """
+    from pxrdref.indexing.engines import refine_with_shift
+    from pxrdref.indexing.qspace import refine_candidate, sigma_effective
+    from pxrdref.schemas.indexing import q_of_two_theta
+
+    _sg, cell, tt_max, _b, _v = CASES["orthorhombic"]
+    refl = generate_reflections("P m m m", cell, LAM, tt_max)
+    hkl = np.asarray(refl.hkl)
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d))))
+    q = q_of_two_theta(tt, LAM)
+    sigma = sigma_effective(np.full_like(q, 1e-5), tt, LAM, 0.0)
+    lines = np.arange(len(q))
+    spec = SearchSpec(shift_template="cos_theta")
+
+    clean = refine_candidate(q, sigma, hkl, system="orthorhombic")
+    out = refine_with_shift(clean, spec, "orthorhombic", q, sigma, tt, LAM,
+                            lines, hkl)
+    assert out is not clean, "a declared template was declined on a statistic"
+    assert out.shift_template == "cos_theta"
+    assert abs(out.shift_coefficient) < 3.0 * max(out.shift_esd, 1e-9) + 1e-4
+    assert np.allclose(out.cell, cell, atol=2e-4)
+
+    # too few lines for the metric plus the shift column: not refusable on the
+    # fit, refusable on the design
+    n_free = metric_basis("orthorhombic").shape[0]
+    few = np.arange(n_free + 1)
+    assert refine_with_shift(clean, spec, "orthorhombic", q, sigma, tt, LAM,
+                             few, hkl[few]) is clean
 
 
 def test_systems_are_searched_highest_symmetry_first():

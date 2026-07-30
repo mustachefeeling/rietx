@@ -314,6 +314,42 @@ def test_a_big_cell_indexes_everything_and_the_panel_says_so():
     assert fom_panel_disagrees(panels)
 
 
+def test_the_matching_window_and_the_measurement_are_separate_inputs():
+    """``q_match`` widens the coverage members and must not touch M₂₀ or F_N.
+
+    WP-1026: the panel matched at the *fitted* σ while the engines that produced
+    the candidates matched at σ ⊕ the systematic allowance, so on a pattern with an
+    uncorrected displacement every candidate scored near zero coverage and was
+    refuted by ``indexed_fraction_low`` whatever its merit.  The split is
+    CLAUDE.md's rule one rank up: a fitted σ is the right *weight* and the wrong
+    *matching window*.  M₂₀ and F_N use σ only to floor their mean discrepancy —
+    a statement about what the measurement resolves — so an assumed allowance must
+    never reach them.
+    """
+    q, q_esd, tt, esd_tt, cell = _panel_inputs(esd_deg=0.002)
+    # every line displaced by 0.05° 2θ, which is 11 × the fitted σ: the corundum
+    # regime, where the truth indexes nothing inside its own error bars
+    tt_off = tt + 0.05
+    q_off = q_of_two_theta(tt_off, LAM)
+    inten = np.ones_like(q_off)
+    q_match = sigma_effective(q_esd, tt_off, LAM, 0.05)
+
+    tight = fom_panel(q_off, q_esd, inten, tt_off, esd_tt, cell, "cubic", "P", LAM)
+    wide = fom_panel(q_off, q_esd, inten, tt_off, esd_tt, cell, "cubic", "P", LAM,
+                     q_match=q_match)
+    by_name = {f.name: f.value for f in tight}, {f.name: f.value for f in wide}
+    assert by_name[0]["indexed_fraction"] < 0.1, by_name[0]["indexed_fraction"]
+    assert by_name[1]["indexed_fraction"] > 0.9, by_name[1]["indexed_fraction"]
+    assert by_name[1]["predicted_seen_fraction"] > by_name[0]["predicted_seen_fraction"]
+    # the two classical figures are untouched: they never saw the window
+    assert by_name[1]["m20"] == pytest.approx(by_name[0]["m20"])
+    assert by_name[1]["f_n"] == pytest.approx(by_name[0]["f_n"])
+    # and the default is the identity, which is what every published comparison uses
+    assert [f.value for f in fom_panel(q_off, q_esd, inten, tt_off, esd_tt, cell,
+                                       "cubic", "P", LAM, q_match=q_esd)] == \
+        [f.value for f in tight]
+
+
 def test_every_figure_of_merit_carries_its_blind_spot():
     q, q_esd, tt, esd_tt, cell = _panel_inputs()
     panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
