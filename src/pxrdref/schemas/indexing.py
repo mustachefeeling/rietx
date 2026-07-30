@@ -389,6 +389,93 @@ class PeakList(Base):
                    source="positions")
 
 
+class FigureOfMerit(Base):
+    """One figure of merit, and **what it cannot see**.
+
+    ``blind_spot`` is not documentation, it is a field: the panel exists because
+    every published figure of merit has a failure mode, and a consumer that reads
+    a value without its blind spot is one step from the confident wrong singleton
+    the FitReport gates exist to prevent.  ``k_sigma`` records the matching window
+    the value was computed at, in units of each line's own σ — so a number is
+    reproducible from the peak list that produced it.
+    """
+
+    name: str
+    value: float
+    n_lines: int
+    n_possible: int
+    k_sigma: float
+    #: mean |Δ| of the matched lines, in the FoM's own units (Å⁻² for M₂₀, ° for
+    #: F_N); −1 when nothing matched, which is *not* zero discrepancy
+    mean_discrepancy: float = -1.0
+    blind_spot: str = ""
+
+
+class AmbiguityPartner(Base):
+    """A distinct lattice whose calculated line *positions* match this one's.
+
+    Mighell & Santoro (1975): a powder pattern carries only the **length** of the
+    reciprocal vector, so distinct lattices can be indistinguishable in it.  This
+    is reported, never resolved — and ``discriminating_reflections`` is what makes
+    it actionable rather than merely honest: the hkl that would break the tie, with
+    the 2θ where a line would have to appear (or be absent) to do so.  The
+    structural twin of Layer 2's "extend the fit range".
+    """
+
+    cell: tuple[float, float, float, float, float, float]
+    #: integer transformation from this candidate's basis to the partner's
+    transformation: list[list[int]]
+    index: int                      # |det| of the transformation
+    system: str
+    volume: float
+    #: hkl of the partner (or of this cell) whose position differs, and where
+    discriminating_reflections: list[tuple[int, int, int]] = Field(
+        default_factory=list)
+    discriminating_two_theta: list[float] = Field(default_factory=list)
+
+
+class CellCandidate(Base):
+    """One candidate lattice, with everything needed to rank or reject it.
+
+    Deliberately *not* named "solution" and deliberately carrying no "is correct"
+    field.  ``found_by`` is the engines that produced it — agreement between
+    independent engines is the confidence, the same device as the cross-backend
+    Jacobian matrix and ``direction="both"`` — and ``ambiguity`` is populated
+    whenever a geometrically indistinguishable partner exists.
+    """
+
+    cell: tuple[float, float, float, float, float, float]
+    cell_esd: tuple[float, float, float, float, float, float]
+    system: str
+    centring: str = "P"
+    #: absence-free space-group symbol of the *lattice* (holohedry + centring) —
+    #: what the FoM denominators count, and the starting point for WP-1025's
+    #: extinction-symbol screen.  Not a space group: that is not known yet.
+    lattice_group: str = ""
+    volume: float = 0.0
+    volume_esd: float = 0.0
+    #: (A..F), the quadratic-form parameters actually fitted
+    af: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    n_indexed: int = 0
+    n_lines: int = 0
+    chi2_red: float = 0.0
+    shift_template: str | None = None
+    shift_coefficient: float = 0.0
+    shift_esd: float = 0.0
+    fom: list[FigureOfMerit] = Field(default_factory=list)
+    found_by: list[str] = Field(default_factory=list)
+    ambiguity: list[AmbiguityPartner] = Field(default_factory=list)
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def fom_value(self, name: str) -> float | None:
+        """One panel member by name, or None — never a KeyError, because which
+        members exist depends on what could be computed."""
+        for f in self.fom:
+            if f.name == name:
+                return f.value
+        return None
+
+
 class ShiftTemplateFit(Base):
     """One systematic-shift template fitted **alone** to the deviations.
 
