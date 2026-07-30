@@ -70,8 +70,10 @@ non-importing source symbol, or any `-W` build warning.
 an insert would send provenance ordering backwards; precedent: 0603→0408).
 The "GUI/notebook widgets" v2+ line is half un-fenced — the **human GUI**
 moves into v1.0 as fourteen WPs
-([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md));
-notebook widgets stay fenced. Grounds recorded in
+([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md)),
+now fifteen with [1029](wp/1029-gui-usability.md) filed 2026-07-30 from *using*
+the shipped thing rather than reading it — twelve usability items that land
+before 1017 documents controls they change; notebook widgets stay fenced. Grounds recorded in
 [DESIGN.md](DESIGN.md#locked-decisions): API-first paid off, but the package
 is currently unusable by the audience it is for, and the GUI **forces the
 missing API into existence** — parameters-as-data, `set_vary`/`set_value`
@@ -219,6 +221,25 @@ reading that is a reading of the view is the scene's own `getCamera()`. Also
 fixed: three things the panel said that were not true, including its own shell
 still listing it under "panels still owed". vitest 207 → 221, Python 1192 → 1193
 with skips unchanged; `app.js` 161.5 → 164.3 kB (56.2 kB gzip).
+
+**[1029](wp/1029-gui-usability.md) filed 2026-07-30 — the GUI as one program
+rather than eleven correct panels.** Like 1028, it came from *use*: a session
+driving the shipped GUI produced twelve items, none of them a correctness bug
+and none findable by reading the code. Panes that cannot be resized (the Model
+pane's third column is 309 px at a 1000 px window, and there is no way to make
+it wider); element colours that are not distinguishable inside a phase — F
+`#48d860` against Ca `#40c060`, *both in NAC*, plus two more greens, two
+purples, and a fallback grey exactly equal to titanium; a structure view lit so
+flatly that overlapping atoms merge, which is the direct cost of the trade
+WP-1015's scene pass made and is now cheap to undo, since that pass also made
+the live camera readable at draw time; a plot with 2.5 px points and exactly one
+kind of residual; a dark mode that stops at CodeMirror's gutter; two different
+controls for one choice of pane; and a unit cell laid out down a column instead
+of across a row. One item resolved itself on measurement — "the NAC refinement
+doesn't refine" is a mismatched scratchpad project (NAC structure, synthetic
+LaB6 pattern), though the run it produced does report `converged` at Rwp 96.3 %,
+which is 1028's finding again and stays 1028's to fix. Lands before 1017, which
+would otherwise document controls that are about to change.
 
 **[1014](wp/1014-import-structure-editing.md) landed 2026-07-30 — data gets *in*,
 and the model can be edited.** Upload endpoints with content-sniffed validated
@@ -1379,8 +1400,9 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
-| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027 |
+| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ⬜ | 1010–1015 |
+| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027, 1029 |
 
 ### v1.0 — indexing (added 2026-07-29)
 
