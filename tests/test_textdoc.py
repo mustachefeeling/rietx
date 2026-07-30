@@ -380,6 +380,28 @@ def test_a_document_with_errors_applies_none_of_itself(session, project):
     assert project.refinement.structure.phases[0].cell.a.value != 4.15678
 
 
+def test_a_refusal_raised_by_the_verb_still_gets_a_line_number(session, project):
+    """The apply-time half of "every error carries a line".
+
+    ``changes`` catches what it can see (a locked or tied row, an unknown path),
+    but a bound violation only ``set_values`` knows about — and its message names
+    the **full** path while the line carries the *local* one, so the line is found
+    by matching a trailing dot-component. Without that, the one refusal a user is
+    most likely to hit came back with ``line: 0``.
+    """
+    doc = session.textdoc()
+    bad = _edit(doc["text"], "atoms.0.biso", "  atoms.0.biso   @ 999  min 0  max 25")
+    with pytest.raises(pr.gui.GuiError) as excinfo:
+        session.textdoc_put({"text": bad})
+    detail = excinfo.value.details[0]
+    assert "lies outside its bounds" in detail["message"]
+    assert detail["where"] == "phases.0.atoms.0.biso"
+    assert detail["line"] >= 1
+    assert bad.splitlines()[detail["line"] - 1].strip().startswith("atoms.0.biso")
+    # nothing was applied: set_values validates every path before writing one
+    assert project.refinement.structure.phases[0].atoms[0].biso.value != 999.0
+
+
 def test_textdoc_is_refused_while_a_run_is_in_flight(session, project,
                                                      monkeypatch):
     import threading

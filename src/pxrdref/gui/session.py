@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -1041,15 +1042,25 @@ def _parse_utc(stamp: str) -> float:
 def _locate(message: str, text: str) -> dict:
     """Attach a line number to a verb's refusal by finding the path it names.
 
-    The verbs raise in their own words (``'phases.0.cell.b' follows … as an
-    affine tie``) and a text editor needs a line, so the path in the message is
-    matched against the document rather than the message being rewritten here.
+    The verbs raise in their own words — ``'phases.0.cell.b' follows … as an
+    affine tie``, ``phases.0.atoms.0.biso=999.0 lies outside its bounds`` — and a
+    text editor needs a line, so the **path** is extracted from the message and
+    matched against the document instead of the message being rewritten here.
+
+    A row line carries its *local* path (``atoms.0.biso`` inside ``phase 0``), so
+    the match is on a trailing dot-component of a full path, and the longest
+    candidate wins: a tie message names both the refused path and its source, and
+    the refused one is the one to point at.
     """
-    for n, line in enumerate(text.splitlines(), start=1):
-        head = line.split("#", 1)[0].split()
-        if head and head[0] and f"{head[0]}'" in message:
-            return {"line": n, "message": message, "where": head[0],
-                    "text": line.rstrip()}
+    candidates = sorted(re.findall(r"[A-Za-z_][\w*?]*(?:\.[\w*?]+)+", message),
+                        key=len, reverse=True)
+    for path in candidates:
+        for n, line in enumerate(text.splitlines(), start=1):
+            head = line.split("#", 1)[0].split()
+            token = head[0] if head else ""
+            if token and (token == path or path.endswith(f".{token}")):
+                return {"line": n, "message": message, "where": path,
+                        "text": line.rstrip()}
     return {"line": 0, "message": message, "where": "", "text": ""}
 
 
