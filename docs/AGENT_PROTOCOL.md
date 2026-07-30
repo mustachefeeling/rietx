@@ -30,7 +30,7 @@ Preconditions, all of which must hold before `fit()` is meaningful:
 | Requirement | How to satisfy it | If you cannot |
 |---|---|---|
 | Every crystalline phase present is in the model | `Structure.from_cif` per phase | An unmodelled phase's peaks land in the residual; Layer 0's `unmatched_obs` list is how you find them |
-| The starting cell is within ~1 % | from the CIF | The peaks are outside their frozen evaluation windows and the refinement cannot walk there; Layer 2 says so with `reindex_or_recheck_cell` rather than reporting a small shift (§6) |
+| The starting cell is within ~1 % | from the CIF, or from `index_pattern` when the phase is unknown (§7d) | The peaks are outside their frozen evaluation windows and the refinement cannot walk there; Layer 2 says so with `reindex_or_recheck_cell` rather than reporting a small shift (§6) |
 | The wavelength is right | from the beamline `.prm`, the file header, or `Instrument.bragg_brentano(radiation=...)` — `"CrKa"`, `"FeKa"`, `"CoKa"`, `"CuKa"`, `"MoKa"`, `"AgKa"`, or any of them suffixed `1` for a Kα1-only monochromated beam | Every cell you report is wrong by the same scale factor and *nothing in the fit will tell you*. Do not hand-enter a wavelength from a textbook to "match" one of these: the table is one scale end to end (§8.11) and mixing scales is a ~100 ppm cell error |
 | The geometry is right | `Instrument.debye_scherrer` vs `.bragg_brentano` | The aberration model is wrong; displacement/transparency/roughness/absorption are geometry-gated and silently absent |
 | The intensities are un-manipulated counts, with esds if available | `read_pattern` reads the file's esd column when present | Weights are wrong ⇒ every esd and every χ² is wrong |
@@ -235,6 +235,12 @@ propagate it, do not paper over it.
 | `ADP_NOT_POSITIVE_DEFINITE` | The tensor is not an ellipsoid; its Debye-Waller factor diverges at high Q | Revert the site to isotropic `biso` |
 | `ROUGHNESS_UNCONSTRAINED` | The refined correction depresses no modelled reflection by >1 % | Drop the block. The value it refined to is arbitrary |
 | `SEQUENTIAL_PATH_DEPENDENT` | A parameter's trajectory differs between the forward and backward chains by more than their esds allow | That trajectory is an artefact of the refinement order, not a measurement. Hold the parameter, restrain it, or quote the forward/backward spread as its uncertainty |
+| `IndexingResult.best_or_none()` returns `None` | No candidate cell reached the confidence gate | **This is the most likely outcome of a first indexing run, and it is not a failure.** Read each candidate's `confidence_caveats` and act on the *refuting* ones first (§7c). Never take `candidates[0]` because it is ranked first — the ranking orders the hypotheses, the gate judges them, and the two are different questions |
+| `INDEX_ABSTAINED` | The result declined to name a cell, and says why | Propagate the abstention. The candidates are there so you can see what was considered, not so you can pick one |
+| `INDEX_GEOMETRIC_AMBIGUITY` | Two distinct lattices explain the positions equally well (Mighell & Santoro 1975) | Do not pick one. The information is **absent from the measurement**, not buried in noise — collect to the 2θ in `discriminating_two_theta` and look for the reflections named there |
+| `INDEX_MULTIPLE_SOLUTIONS` | More than one candidate satisfies the whole gate | Compare the panels and each `lebail.rwp`, and extend the 2θ range: two cells that both explain a range this wide are usually separated by one high-angle reflection |
+| `INDEX_SEARCH_INCOMPLETE` | A budget expired before the domain did | Do not read "no cell found" as "no cell exists". Only a *completed* exhaustive search says that, and `search_complete[system]` says which systems finished |
+| `INDEX_SYSTEMS_NOT_COVERED` | Systems were not searched | Read a failure as "no cell in the systems searched", never as a statement about the specimen — and in particular never as "this is multiphase" (§8.15) |
 
 `Layer 1`'s gates, for reference, are: resolvability on the **scale-normalised**
 Gram matrix, a 0.4·FWHM validity radius (a peak 5 FWHM off must trigger
@@ -307,9 +313,76 @@ are read on the peak list, not on a `RefinementResult`.
 | `INDEX_DOMINANT_ZONE` | Conclude the pattern cannot be indexed. The exact-solve engine found nothing at its base-line index table but found a cell with a wider one, which means one axis is long enough (or short enough) that the lowest observed lines carry large indices. Use the dichotomy engine, which bounds the metric instead of assuming indices |
 | `INDEX_SHIFT_ALLOWANCE` | (info) Quote the winning cell without fitting a shift template. The search *assumed* a systematic allowance (no shift had been measured), and a cell found inside a widened window absorbs the shift — measured, +1400 ppm on a certified pattern. Re-fit with `shift_template` and quote that cell |
 
+### 7c. The answer's own diagnostics (`IndexingResult.diagnostics`, and each
+candidate's)
+
+These arrive from `pxrdref.index_pattern`. **Statements about one candidate live
+on that candidate** (`result.candidates[i].diagnostics`); statements about the
+result live on the result. `INDEX_ABSTAINED` names the top candidate's caveats,
+which is the pointer from one level to the other — so read both, and start at the
+result.
+
+| Code | What it means you must not do |
+|---|---|
+| `INDEX_PREDICTED_BUT_ABSENT` | Keep this candidate. The lattice needs reflections the pattern does not have — the oversized-cell signature, and the one M₂₀ cannot see. Prefer the smaller cell that indexes the same lines: a cell whose extra reflections are systematically absent has a translation it is not using, so the lattice is the sublattice. **Do not check this with Rwp** — measured, an oversized cell scores 0.379 against a correct 0.216, a gap smaller than the spread between specimens |
+| `INDEX_IMPURITY_LINES` | Read it as one thing. A handful of unexplained lines is an impurity; most of the pattern is a wrong metric (measured, 95 of them when the metric was 1 % off). And note the fence: this package does **not** index multi-phase patterns, so a second phase means subtracting the solved one first |
+| `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. The stated system is the conservative one; refine there and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug — their tolerances are different kinds of number (a Le Page obliquity in degrees against a `symprec` in Å) and disagreement is what genuine pseudosymmetry looks like |
+| `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. It is outside what these data can support — below a single atom's exclusion volume, or clear of Smith's (1977) envelope for the number of lines observed |
+| `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
+| `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
+
 ---
 
-## 8. Fourteen things that will surprise you, all measured
+## 7d. The closed loop: from a pattern of an unknown phase to a refinement
+
+Indexing is the step that used to be missing. Before it, this package could
+refine a structure against a pattern but could not find the cell, so an unknown
+phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
+loop between them closes:
+
+```python
+peaks  = pxrdref.pick_peaks(data, instrument)           # fitted positions + σ
+report = pxrdref.indexing.assess_peak_list(peaks)       # fit to index at all?
+if not report.supports_indexing:
+    ...                        # abstention. Do not spend a budget (§6)
+
+idx  = pxrdref.index_pattern(peaks, data=data, instrument=instrument)
+cell = idx.best_or_none()
+if cell is None:
+    ...                        # read confidence_caveats; do NOT take candidates[0]
+
+phase = pxrdref.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
+result = pxrdref.refine(data, phase, instrument, mode="lebail",
+                        plan="profile_only")
+```
+
+Four things about that sequence are load-bearing:
+
+1. **Pass the pattern, not only the peaks.** It is what turns whole-profile
+   validation on, and validation is what catches the oversized cell no figure of
+   merit sees. Without it every candidate caps at `medium` and the *result*
+   abstains.
+2. **`best_or_none()` returning `None` is the normal first outcome.** With no
+   measured systematic shift it is currently unreachable to get `high` on real
+   lab data at all — both engines widen their matching window by an *assumed*
+   allowance and say so — and the fix is evidence (an internal standard, a
+   calibrated `sigma_sys_deg`), not a bigger constant.
+3. **Go through `structure_from_candidate`.** It supplies the mandatory dummy
+   atom and, more importantly, defaults the space group to the **absence-free
+   lattice group**. A plausible-looking space group would hide exactly the
+   reflections whose absence is not yet established.
+4. **The next question is the space group, and this package does not answer it
+   yet.** A Le Bail refinement of the lattice group is the right next step and is
+   as far as the closed loop goes today.
+
+The reverse direction closes too. When a refinement's Layer 2 emits
+`reindex_or_recheck_cell` — peak offsets beyond the linearisation radius, i.e. the
+cell is wrong rather than slightly off — that action now has something to call:
+pick peaks and run `index_pattern` on the same data.
+
+---
+
+## 8. Sixteen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -491,6 +564,35 @@ parameter whose model divides by it, set a real floor rather than trusting the
 transform — and read `RuntimeWarning: divide by zero` as a fit-stopping error,
 not noise.**
 
+**8.15 A coverage score cannot tell a mixture from a low-symmetry single phase,
+and this project already published that mistake and withdrew it.** Measured on
+third-party data with an engine restricted to two metric parameters: it indexed
+47–60 % of the lines of *single-phase* orthorhombic and monoclinic patterns,
+82–100 % of genuinely tetragonal or hexagonal ones, and 69 % of a real
+two-phase mixture. **The bands overlap.** A "this pattern contains at least two
+phases" claim built on the 69 % had to be retracted, because the same number is
+what a single-phase pattern of symmetry the engine could not reach produces.
+`IndexingResult` therefore carries `systems_searched` beside `search_complete`
+and reports failure as *"no cell found in the systems searched"*; no diagnostic
+code in the indexing vocabulary asserts a phase count at all, and a test pins
+that. **Corollary: partial coverage is a statement about your search, not about
+the specimen. Widen the systems before you conclude anything about the sample.**
+
+**8.16 An indexer's tolerance is not its precision, and the gap is 11σ on real
+data.** The peak list carries a *fitted* σ(2θ) per line — median 0.0056° on the
+bundled corundum pattern, whose cell is certified — and that σ is exactly right
+for **weighting** and exactly wrong as a **matching window**: the same pattern's
+lines sit a median 0.060° from the certified positions, a cos θ specimen
+displacement of −0.065°. At 3σ the true cell indexes *zero* lines and both
+engines return nothing, on a pattern whose answer is known. That is why every
+indexing program in the literature ships a global ~0.03° tolerance, and why the
+engines here add an assumed 0.05° in quadrature and say so with
+`INDEX_SHIFT_ALLOWANCE`. **Corollary for the agent: a cell found under a widened
+window has absorbed the shift (+1400 ppm measured), so re-fit it with
+`shift_template` before quoting it — and the way to earn `high` confidence is to
+supply a measured `sigma_sys_deg` from an internal standard, not to widen
+further.**
+
 ---
 
 ## 9. Using the history DAG as a search structure
@@ -587,16 +689,24 @@ there than excluding the scales.
 
 ## 9c. One JSON call from a tool loop
 
-`pxrdref.agent.refine_json(dict) → dict` wraps the three entry points for a
+`pxrdref.agent.refine_json(dict) → dict` wraps the four entry points for a
 tool-calling agent, and `pxrdref.agent.tool_definition()` returns a
-ready-to-register tool whose schema quotes the backend/solver/plan
-vocabularies from the live registries.  Three tasks: `"refine"` (one pattern →
+ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
+vocabularies from the live registries.  Four tasks: `"refine"` (one pattern →
 `result` + the FitReport), `"refine_multi"` (one joint residual — its
 `node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG),
 `"refine_sequential"` (a warm-started series → `series` of per-pattern
-summaries; history ids live per entry, never per run).
+summaries; history ids live per entry, never per run), and `"index"` (a peak list
+or a pattern → `indexing`, an `IndexingResult`).
 
-The envelope never raises: `{"ok": true, "result"|"series": …, "report": …}`
+`"index"` answers in its own arm because its answer is a different *shape*: there
+is no cell in it.  Read `indexing.candidates` and each one's
+`confidence_caveats`; `best_or_none()` is the only singleton and it is null far
+more often than not (§7d).  Its `search` object mirrors the one option surface
+every engine reads — set `max_volume` and `n_unindexed` once and both engines mean
+the same thing, which is what makes their agreement evidence.
+
+The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …, "report": …}`
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),
