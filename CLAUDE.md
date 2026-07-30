@@ -8,15 +8,15 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1377 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1298 collected, ~20-65 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1383 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1304 collected, ~20-80 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (206: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (255: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -35,8 +35,9 @@ simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
 `[dev]`** venv, the full suite is 1263 passed / 116 skipped (10:27 and 8:47 on
-two runs the same day) and the fast suite 1193 passed / 107 skipped (63 s).
-Those are run outcomes; **`--collect-only` reports 1377 and 1298 for the same
+two runs the same day) and the fast suite 1198 passed / 108 skipped (78 s,
+re-measured 2026-07-30 after WP-1029).
+Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
 two selections, two short of passed+skipped in both** — a gap that predates this
 line (the "1378 collected" it used to carry was the sum, not a measurement) and
 is worth resolving before anyone quotes a collected figure again. Installing
@@ -45,12 +46,15 @@ means nothing without the venv it was measured in. (WP-1012 added twelve tests a
 **both** counts moved by exactly twelve; WP-1013 added three and both moved by
 three; WP-1014 added sixteen and both moved by sixteen; WP-1015 added twenty-eight
 and both moved by twenty-eight, then one more on its second pass — every time
-with the skips unchanged. That is the bookkeeping check worth doing: the same two
+with the skips unchanged. WP-1029 added six and both moved by six, of which
+**one is a new skip** (a pdCIF its per-CIF colour test cannot read as a
+structure), so 1193/107 → 1198/108: five passes and one skip, which is the
+version of this check that actually earns its keep. That is the bookkeeping check worth doing: the same two
 figures a day earlier disagreed by one, and a session that cannot say which of
 its numbers moved cannot tell a new skip from a new pass. The frontend's own
-suite is counted separately and moved 85 → 139 → 184 → 207 → 221 — where that
-**207 was quoted as 206** until the next session re-ran it, which is the same
-lesson one suite over.)
+suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 — where
+that **207 was quoted as 206** until the next session re-ran it, which is the
+same lesson one suite over.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -383,6 +387,37 @@ reading of the view is `gd._fullLayout.scene._scene.getCamera()`, read back
 immediately before each `react`. Method note behind all three: compare
 screenshots, never a sha256 of one (a WebGL re-render differs by a pixel), and
 when a claim is about an event, count the events.
+
+**Usability** (WP-1029, `gui/src/lib/{resize,theme,plot}.ts`,
+`panels/Splitter.svelte`, `gui/structure3d.py`) is the pass that made the eleven
+correct panels one program, and its findings are rules rather than repairs.
+**A stored size is not a settled size**: a drag clamps against the extent it
+happens in, and nothing clamps a width that outlives its window — so
+`fitColumns` re-clamps at *render* (widths chosen at 1500 px reopened at 1000 px
+left the 3D column 24 px wide). The splitter itself carries `Console.svelte`'s
+rule generalised — **report a size, never write one**, `onsize(size, done)`,
+persisted to `ProjectDoc.ui` on the verb — with an `inline` flow because an
+absolute grip inside `overflow: auto` scrolls away from the edge it is meant to
+be. **Distinguishability is a property of the set being drawn**: `_CPK` is an
+element table, `phase_palette` decides what a *picture* uses, anchoring the
+famous CPK assignments and rotating the rest in **OKLab** hue at constant L and
+C — sRGB has no distance, and F `#48d860` against Ca `#40c060` (both in NAC) is
+0.070 apart against a 0.13 floor. Placement is anchors → table → derived, so the
+hue nobody chose is the one that moves. **An exaggeration is not a
+probability** — k(p) = √χ²₃(p) diverges as p → 1, so `caption()` states the
+level and the multiplier separately or the picture claims a surface it is not
+drawing — and **a stick knows which mode it is drawn in**: `stickRadius` returns
+half the smallest semi-axis in ellipsoid mode (0.080 Å ball → 0.065 at p = 0.5 →
+0.032 at p = 0.1, where the fixed stick had been *wider than the atom*), which
+turns `unitCylinder`'s uncapped justification into a proof. The theme is
+three-way and resolved **once**, stamped as `data-theme` on the root, because
+"follow the system" is a choice and not the absence of one; CodeMirror's chrome
+must be an `EditorView.theme` rather than a stylesheet rule, since CM injects
+its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` sends
+**three** residuals and a `weighted` flag: two are derivable in a client and
+`cumulative_chi2` is not, because it must be accumulated over every point and
+decimated afterwards. And plotly's `responsive: true` window-only listener bit a
+**second** panel — any control row under a plot needs the `ResizeObserver`.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

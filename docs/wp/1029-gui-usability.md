@@ -1,6 +1,6 @@
 # WP-1029 — GUI usability: legibility, layout, colour, theming
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal
@@ -274,42 +274,42 @@ independently, or the two will disagree.
 
 ## Tasks
 
-- [ ] **Splitter.** Extract `Console.svelte`'s drag-resize into one component
+- [x] **Splitter.** Extract `Console.svelte`'s drag-resize into one component
       (report-a-size, never write-a-size); apply to the plot/sidebar split and
       the Model pane's three columns; persist in `ProjectDoc.ui`. (d)
-- [ ] **Theme.** Three-way system/light/dark in `ProjectDoc.ui`, driven entirely
+- [x] **Theme.** Three-way system/light/dark in `ProjectDoc.ui`, driven entirely
       by the custom properties; theme CodeMirror's gutter/selection/cursor from
       the same variables. (h), (i)
-- [ ] **One selector.** `[ plot | model | text ]` as a single segmented control;
+- [x] **One selector.** `[ plot | model | text ]` as a single segmented control;
       settle the button registers in `app.css` and apply them across the header
       and panel headers. (j), (k)
-- [ ] **Alignment pass** over `Model.svelte` (cell on one row of six, atoms
+- [x] **Alignment pass** over `Model.svelte` (cell on one row of six, atoms
       table that does not truncate, ADP basis rows that do not wrap into a
       jumble), then `Params.svelte`/`Plan.svelte`. (e), (l)
-- [ ] **Plot.** Point size; residual selector (Δ, Δ/σ, cumulative χ²) with the
+- [x] **Plot.** Point size; residual selector (Δ, Δ/σ, cumulative χ²) with the
       σ the weighted form needs added to `/api/result/window`; pattern y-scaling
       (linear / √ / log) — reusing `viz/`'s choices rather than inventing a
       second set. (f), (g)
-- [ ] **Colour.** A per-phase separation pass over the element colours, anchors
+- [x] **Colour.** A per-phase separation pass over the element colours, anchors
       kept, fallback grey no longer equal to titanium; a test that asserts a
       minimum perceptual distance across the species of every phase in
       `tests/data`. (b)
-- [ ] **Shading.** `lightposition` from the live camera at each draw, diffuse
+- [x] **Shading.** `lightposition` from the live camera at each draw, diffuse
       and specular restored, and whatever second cue survives a screenshot
       comparison on NAC at a 1000 px column. (a)
-- [ ] **Viewer controls.** A disclosure menu holding the drawing thresholds and
+- [x] **Viewer controls.** A disclosure menu holding the drawing thresholds and
       the new ball/stick/quality knobs, with mode and the view buttons left in
       the open; the server/client ownership split written down where the knobs
       are declared; the bond slider's label following `oninput` while its fetch
       stays on `onchange`. (m), (n)
-- [ ] **Ellipsoid size.** An exaggeration factor that is named one and never
+- [x] **Ellipsoid size.** An exaggeration factor that is named one and never
       folded into the probability label (`caption()` states both), and a stick
       radius that knows which mode it is drawn in — with `unitCylinder`'s
       docstring corrected, since its justification for going uncapped holds only
       in ball mode. (o)
-- [ ] **One honest signal** that a fit is hopeless — Layer 0 already computes
+- [x] **One honest signal** that a fit is hopeless — Layer 0 already computes
       it — without touching the `status` vocabulary WP-1028 owns. (c)
-- [ ] Tests: vitest for every pure function added; a jsdom mount test per
+- [x] Tests: vitest for every pure function added; a jsdom mount test per
       control; the colour-distance test above. Note that jsdom has no layout, so
       the splitter's *behaviour* is testable and its *effect* is not — the
       screenshot is the check.
@@ -355,3 +355,102 @@ the screenshot that prompted it, taken again.
   worth doing deliberately: (m)'s server/client ownership split for the drawing
   knobs, and (o)'s insistence that an exaggeration factor is not a probability —
   get that one wrong and the picture claims a surface it is not drawing.
+
+- **2026-07-30 (later) — landed. All fifteen items, in the suggested order.**
+
+  **Done.** Ten commits, one per task-list row plus a browser pass:
+
+  - `lib/resize.ts` + `panels/Splitter.svelte` — Console's drag extracted, not
+    reinvented, carrying its rule generalised (**report a size, never write
+    one**; `onsize(size, done)` is what keeps a drag from POSTing per pixel).
+    Applied to the plot/sidebar split and the Model pane's columns. (d)
+  - `lib/theme.ts` — three-way system/light/dark in `ProjectDoc.ui`, resolved
+    once and stamped as `data-theme` on the root; CodeMirror's chrome moved
+    into `editorTheme()` behind a `Compartment`. (h, i)
+  - One segmented `[ Plot | Model | Text ]`, the in-pane `Close` buttons
+    deleted, and five control registers settled in `app.css`. (j, k)
+  - Alignment pass: cell on one row of six with α β γ, atoms table that does
+    not truncate, DOF/ADP patterns as grids, a stage's four knobs as four
+    columns. (e, l)
+  - `lib/plot.ts` + a server half — points 2.5 → 4 px, three residuals,
+    three intensity scalings. (f, g)
+  - `phase_palette` in OKLab. (b)
+  - `lightPosition` from the live camera; boundary images dimmed. (a)
+  - Drawing knobs behind a disclosure; the bond slider's label on `oninput`
+    and its fetch still on `onchange`. (m, n)
+  - `stickRadius(geometry, mode, exaggeration)` and an exaggeration factor that
+    is named one. (o)
+  - `GET /api/result` → a `maturity` arm quoting `MATURITY_MAX_RWP`. (c)
+
+  **Four decisions worth carrying, none of them in the charter.**
+
+  1. **A stored size must be clamped where it is *rendered*, not only where it
+     was dragged.** A drag clamps against the extent it happens in; nothing
+     clamps a width that outlives its window. Found in Chrome: widths chosen at
+     1500 px reopened at 1000 px left the 3D column **24 px** wide. The sidebar
+     covers this with a CSS `max-width`; a row of N sized columns cannot express
+     that, so `fitColumns` is the guard as arithmetic, shrinking proportionally
+     because the *relative* choice is what is still worth keeping.
+  2. **Distinguishability is a property of the set being drawn.** `_CPK` stays
+     an element table; `phase_palette` decides what a *picture* uses, anchoring
+     the famous assignments and rotating the rest in OKLab hue. Placement order
+     (anchors → table → derived) is what decides which of a colliding pair
+     moves, and it should be the hue nobody chose.
+  3. **An exaggeration is not a probability.** k(p) = √χ²₃(p) diverges as p → 1,
+     so there is no "150 % ellipsoid"; the caption states both figures and names
+     the second one. Get this wrong and the picture claims a surface it is not
+     drawing.
+  4. **The report already owns the judgement "this is not a fit."** Item (c)
+     added no vocabulary: `maturity` quotes `MATURITY_MAX_RWP`, and `status`
+     still reads `converged` at Rwp 96 %, which stays WP-1028's.
+
+  **Measured, in Chrome for Testing against a real project** — COD 1000236
+  (NAC, aniso) + `11BM_NAC.fxye`, which refines to **Rwp 13.374 %, GoF 3.749**:
+
+  | | |
+  |---|---|
+  | boot-to-interactive | 198–385 ms over six sessions |
+  | model columns, 1500 px | 627 / 393 / 470 (dragged), 455 / 285 / 250 at 1000 px |
+  | CodeMirror gutter | `#ffffff` light, `#1e1e1e` dark |
+  | NAC's four species | Ca `#00c4b8`, Al `#bc5c70`, Na `#8040e0`, F `#48d860` |
+  | stick radius | 0.080 Å ball · 0.065 Å at p = 0.5 · **0.032 Å at p = 0.1** |
+  | colour separation | F/Ca 0.070 → 0.141, Si/Cl 0.078 → 0.132, Na/La 0.099 → 0.131 |
+
+  Python fast suite 1193 → **1198 passed / 108 skipped** (77.96 s), collected
+  1298 → 1304 — **both figures moved by exactly six**, and the one new skip is
+  the pdCIF the new per-CIF colour test cannot read as a structure. vitest
+  221 → **255**. `app.js` 164.3 → 174.0 kB (59.2 kB gzip).
+
+  **A real browser found four more, for the sixth session running, and two were
+  mine.** The plot's canvas swallowed the clicks of the knobs this WP put under
+  it — WP-1015's `responsive: true` finding in a new place, and playwright
+  reported it in the defect's own words (`<rect class="sdrag drag"> … intercepts
+  pointer events`). The stored-column bug above. Plus two that predate this WP:
+  the parameter table listed five rows called `0`, `1`, `2`, `3` and `occ`
+  (a bare-index leaf says nothing), and the shared 2θ axis was anchored to the
+  upper subplot so its title was drawn *inside* the residual plot — invisible
+  against a flat Δ and unmissable across a cumulative χ².
+
+  **Method note, and it cost two wrong measurements.** Playwright's viewport
+  option is `newContext({ viewport })`, **not** `viewportSize` — which is
+  silently ignored, so a run that claims 1500 px and 1000 px is a run at the
+  default 1280 px twice. Every column width quoted above was re-measured after
+  that was found. Second: the drive script waited for a stage-name regex that
+  did not include `zero`, so it raced a still-running fit and its theme change
+  was 409'd; the screenshots said "dark mode is broken" when the page was
+  correctly light. **When a browser check disagrees with a unit test, suspect
+  the harness before the code.**
+
+  **Not done, deliberately — one finding, recorded rather than fixed.** While a
+  run is in flight, changing the theme applies locally and is **refused
+  persistence with a 409** (measured), because `POST /api/project` is a mutating
+  verb under WP-1008's blanket rule. Two things are wrong with that and neither
+  is this WP's to settle unilaterally: a `ui` key is not model state, and the
+  refusal message says "this verb would change the model a compiled stage was
+  built from", which is untrue of a theme. The fix is a rule — *a `ui`-only
+  patch is not model state* — and it changes what a settled route refuses, so it
+  is filed in [1003](1003-api-freeze-pypi.md)'s `### Inherited` as a freeze
+  question rather than taken here.
+
+  **Next**: nothing on this WP. [1017](1017-gui-manual-onboarding.md) has been
+  told what changed under it.

@@ -87,6 +87,24 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1029** (GUI usability, landed 2026-07-30): **that trap fired again, in
+the main pattern plot, and the fix is now in both.** `panels/Plot.svelte` had
+nothing below it until this WP put a residual selector and a scaling selector
+there; the canvas then swallowed their clicks, and playwright reported it in the
+defect's own words — `<rect class="sdrag drag"> … intercepts pointer events`. It
+now carries the same `ResizeObserver` → `Plotly.Plots.resize` the structure
+viewer has. **Take it as given rather than re-deriving it**: any new control row
+under a plotly plot needs the observer on the plot div.
+
+Two more things a peak picker will want. `lib/plot.ts` owns *which* residual and
+*which* intensity scaling are drawn (`residual`, `scaleValues`, `sqrtTicks`), and
+`/api/result/window` now sends `delta`, `delta_raw`, `cumulative_chi2` and a
+`weighted` flag — a picker working on √-scaled intensities must map a click back
+through `scaleValues`, since √ is applied to the **data** (plotly has no such
+axis type) with only the tick *labels* mapped back to intensity. And the shared
+2θ axis is anchored to the lower subplot (`xaxis.anchor: "y2"`), so a pixel→2θ
+mapping read off the upper plot's geometry will be wrong.
+
 From **WP-1015** (structure viewer, landed 2026-07-30): **the plotly loader is now
 shared, and a plot with controls under it has a measured trap.**
 

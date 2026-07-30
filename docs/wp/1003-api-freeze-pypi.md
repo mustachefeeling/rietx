@@ -451,6 +451,33 @@ crystallography function and one route promoted.
   repo's own values (see `ATTRIBUTION.md` → Data tables), so the publication
   checklist gains no row from this WP.
 
+From **WP-1029** (GUI usability, landed 2026-07-30):
+
+- **A freeze question, measured and deliberately not settled there.** Changing a
+  `ProjectDoc.ui` key while a run is in flight is **refused with a 409**, because
+  WP-1008 made every mutating verb refuse and `POST /api/project` is one. Two
+  things are wrong with that for a `ui` key and neither was WP-1029's to decide
+  unilaterally: **a `ui` key is not model state** — no compiled stage was built
+  from the theme — and the refusal the client shows is the generic one, *"this
+  verb would change the model a compiled stage was built from
+  (frozen-per-stage discreteness)"*, which is simply untrue of a theme or a pane
+  width. Measured in Chrome: the theme applies locally, the POST 409s, and the
+  console prints that sentence. If the freeze covers the HTTP surface, the rule
+  worth writing is **a `ui`-only patch is not a mutating verb** — which is a
+  change to what a settled route refuses, hence a freeze decision rather than a
+  usability repair.
+- **Two more contracts are now quoted rather than copied, and both are cheap to
+  freeze.** `GET /api/result` carries a `maturity` arm whose `max_rwp` is
+  `report.schemas.MATURITY_MAX_RWP` verbatim, and `GET /api/result/window`
+  carries `weighted` plus three residual curves — the point in both cases being
+  that a client must not re-derive a number the package owns. They are the same
+  shape as `capabilities()`'s registry-quoting arms, so the meta-test style
+  there applies.
+- **`ProjectDoc.ui` gained four keys** (`theme`, `side_width`, `model_columns`,
+  on top of `simple`/`console_height`). It is an open dict on purpose; if the
+  freeze wants to say anything about it, the sentence is that the *frontend*
+  owns those keys and the schema deliberately does not enumerate them.
+
 ## Tasks
 
 - [ ] Expand this stub into a full WP before starting

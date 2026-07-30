@@ -71,9 +71,10 @@ an insert would send provenance ordering backwards; precedent: 0603→0408).
 The "GUI/notebook widgets" v2+ line is half un-fenced — the **human GUI**
 moves into v1.0 as fourteen WPs
 ([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md)),
-now fifteen with [1029](wp/1029-gui-usability.md) filed 2026-07-30 from *using*
-the shipped thing rather than reading it — twelve usability items that land
-before 1017 documents controls they change; notebook widgets stay fenced. Grounds recorded in
+now fifteen with [1029](wp/1029-gui-usability.md), filed and landed 2026-07-30
+from *using* the shipped thing rather than reading it — fifteen usability items
+that landed before 1017 documents controls they change; notebook widgets stay
+fenced. Grounds recorded in
 [DESIGN.md](DESIGN.md#locked-decisions): API-first paid off, but the package
 is currently unusable by the audience it is for, and the GUI **forces the
 missing API into existence** — parameters-as-data, `set_vary`/`set_value`
@@ -222,8 +223,81 @@ fixed: three things the panel said that were not true, including its own shell
 still listing it under "panels still owed". vitest 207 → 221, Python 1192 → 1193
 with skips unchanged; `app.js` 161.5 → 164.3 kB (56.2 kB gzip).
 
-**[1029](wp/1029-gui-usability.md) filed 2026-07-30 — the GUI as one program
-rather than eleven correct panels.** Like 1028, it came from *use*: a session
+**[1029](wp/1029-gui-usability.md) landed 2026-07-30 — the GUI is one program
+now.** All fifteen items, in ten commits, ending in the browser check the WP
+made its own bar: *look at it, in both themes, at 1500 px and at 1000 px*.
+
+**Its founding decision is that a stored size is not a settled size.** The
+splitter itself was an extraction rather than an invention — `Console.svelte`
+had the whole rule inline, and it moves to `panels/Splitter.svelte` over
+`lib/resize.ts` carrying that rule generalised: **the component reports a size
+and never writes one**, and `onsize(size, done)` is what keeps a drag from
+POSTing per pixel. What was *not* in the charter is the half a browser found:
+a drag clamps against the extent it happens in, and **nothing clamps a width
+that outlives its window** — widths chosen at 1500 px reopened at 1000 px left
+the 3D column **24 px** wide. The sidebar covers that case with a CSS
+`max-width`; a row of N sized columns cannot express one, so `fitColumns` is
+that guard as arithmetic, shrinking proportionally because the user's
+*relative* choice is the part still worth keeping.
+
+**Three more decisions, each of which could have been a wrong default instead.**
+*Distinguishability is a property of the set being drawn* — `_CPK` stays an
+element table and `phase_palette` decides what a *picture* uses, anchoring the
+famous assignments and rotating everything else in **OKLab** hue, because sRGB
+has no distance and the two greens that started this (F `#48d860` against Ca
+`#40c060`, both in NAC) differ by 8 and 24 in two channels. Measured: the three
+reported pairs sit at 0.070, 0.078 and 0.099 apart and clear a 0.13 floor at
+0.141, 0.132 and 0.131 once drawn together, and the new test collects every
+`*.cif` in `tests/data` so a file added later is covered without anyone
+remembering. *An exaggeration is not a probability* — k(p) = √χ²₃(p) diverges as
+p → 1, so "bigger so I can see it" is a drawing scale, stated beside the
+probability and never folded into it, or the picture claims a surface it is not
+drawing. And *the report already owns the judgement "this is not a fit"*: item
+(c) added no vocabulary, `GET /api/result` simply quotes `MATURITY_MAX_RWP`, and
+`status` still reads `converged` at Rwp 96 % because that is WP-1028's.
+
+**Half of the "ellipsoids are too small" complaint turned out to be a docstring.**
+`unitCylinder` justified going uncapped with "the far end is buried inside its
+own atom, whose ball is larger than the stick for every element there is" —
+true in ball mode, an overclaim in ellipsoid mode, where an atom's size is
+√U·k(p) and not a covalent radius. Measured on the refined NAC: 0.080 Å in ball
+mode, 0.065 Å at p = 0.5, and **0.032 Å at p = 0.1**, where the shipped stick
+had been *wider than the atom*. `stickRadius` now takes the mode and returns
+half the smallest semi-axis drawn, which turns the burial into a proof — a rim
+at r ≤ ½·min semi-axis lies inside the ellipsoid's inscribed sphere.
+
+**A real browser found four more, for the sixth session running, and two of them
+were this WP's own.** The plot's canvas swallowed the clicks of the knobs the WP
+had just put under it — WP-1015's `responsive: true` finding in a new place, and
+playwright again reported it in the defect's own words (`<rect class="sdrag
+drag"> … intercepts pointer events`). The stored-column bug above. Plus two that
+predate it: the parameter table listed five rows called `0`, `1`, `2`, `3` and
+`occ`, because a bare-index leaf says nothing, and the shared 2θ axis was
+anchored to the upper subplot so its title was drawn *inside* the residual plot
+— invisible against a flat Δ and unmissable across a cumulative χ².
+
+**And a method note that cost two wrong measurements**, which is the running
+lesson one layer out from the code: playwright's viewport option is
+`newContext({ viewport })`, **not** `viewportSize`, which is silently ignored —
+so a run claiming 1500 px and 1000 px was a run at the default 1280 px twice,
+and every column width had to be re-measured. A second harness bug (a
+stage-name regex that missed `zero`) raced a still-running fit whose theme
+change was then correctly 409'd, and the screenshots said "dark mode is broken"
+about a page that was correctly light. **When a browser check disagrees with a
+unit test, suspect the harness before the code.**
+
+Verified end to end in Chrome for Testing against a *real* project — COD 1000236
+(NAC, with its aniso loop) against `11BM_NAC.fxye` — which refines to **Rwp
+13.374 %, GoF 3.749**: boot-to-interactive **198–385 ms**, CodeMirror's gutter
+`#ffffff` light and `#1e1e1e` dark, NAC's four species in four distinguishable
+colours, and the caption stating 50 % and ×2.50 separately. Python fast suite
+1193 → **1198 passed / 108 skipped** (78 s) with collected 1298 → 1304 — both
+figures moved by exactly six and the one new skip is accounted for; vitest
+221 → **255**; `app.js` 164.3 → 174.0 kB (59.2 kB gzip). One finding was
+recorded rather than fixed: a `ui`-key change is 409'd during a run, under a
+rule WP-1008 settled for the whole route, so it is a WP-1003 freeze question.
+
+**What it was filed for**, 2026-07-30: like 1028, it came from *use*: a session
 driving the shipped GUI produced fifteen items, almost none of them a
 correctness bug and none findable by reading the code. Panes that cannot be resized (the Model
 pane's third column is 309 px at a 1000 px window, and there is no way to make
@@ -1407,7 +1481,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
-| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ⬜ | 1010–1015 |
+| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027, 1029 |
 

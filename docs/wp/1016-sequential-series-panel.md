@@ -42,6 +42,31 @@ warning and per-pattern drill-down into each pattern's own history tree.
 
 ### Inherited
 
+From **WP-1029** (GUI usability, landed 2026-07-30): **the splitter you were told
+to expect exists — use it, do not build a second one.**
+`panels/Splitter.svelte` over `lib/resize.ts`, carrying `Console.svelte`'s rule
+generalised: the component **reports a size and never writes one**, emitting
+`onsize(size, done)` where `done` is false on every pointer move and true once on
+release, so a drag renders live and persists once. Two flows: `overlay` (an
+absolute grip on a pane's own edge, needing a positioned ancestor) and `inline`
+(a flex item *between* two panes) — a scrolling pane needs `inline`, because an
+absolute edge inside `overflow: auto` scrolls away from the edge it is meant to
+be. A series panel splitting a trajectory list from a per-pattern plot wants the
+inline form.
+
+Two rules that came with it and are not optional. **Widths persist in
+`ProjectDoc.ui`**, owned by the shell rather than by the panel (the panel takes a
+`columns`-style prop and an `oncolumns` callback; see `panels/Model.svelte`). And
+**a stored size must be re-clamped at render, not only at drag** — `fitColumns`
+in `lib/resize.ts` — because a drag clamps against the extent it happens in and
+nothing clamps a width that outlives its window. Measured: widths chosen at
+1500 px reopened at 1000 px left a column **24 px** wide before that landed.
+
+Also: the plot's residual and scaling knobs are `lib/plot.ts`, and a series panel
+drawing per-pattern residuals should reuse `residual()` rather than re-deciding
+what Δ/σ means — `/api/result/window` sends all three curves plus a `weighted`
+flag precisely so no client has to.
+
 From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload
 machinery is how N patterns get in.** `POST /api/upload/pattern` stages one file
 and answers with the reader that claimed it, the point count, the 2θ range,

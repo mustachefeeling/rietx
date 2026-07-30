@@ -39,6 +39,52 @@ real UI.
 
 ### Inherited
 
+From **WP-1029** (GUI usability, landed 2026-07-30): **the controls this chapter
+was going to document have changed, which is why 1029 landed first.** Read the
+list below *before* the WP-1015 note underneath it — several of that note's
+sentences describe controls that have moved.
+
+- **One top-level selector**, `[ Plot | Model | Text ]`, a segmented control in
+  the header. The old pair of toggle buttons is gone, and so is the `Close`
+  inside each pane: there is now exactly one control for that choice, and every
+  option is named for where it lands you. The five-wide strip
+  (Parameters/Plan/Report/History/Build) is unchanged and is the sidebar's tabs
+  *within* plot mode — a distinction worth one sentence, since both look like
+  tab strips.
+- **Panes are draggable and the widths persist** (`ProjectDoc.ui`): the
+  plot/sidebar split and the Model pane's first two columns. Until dragged they
+  are responsive defaults, which is the behaviour to describe — a manual should
+  not print a pixel width. One caveat a user will hit: a drag is refused while a
+  run is in flight (see WP-1003's `### Inherited`).
+- **A three-way theme** — system / light / dark, in the header as ◐ ☀ ☾. Worth
+  a sentence on *why* three: "system" keeps following the machine at dusk, and
+  an explicit choice keeps overriding it.
+- **The plot has two new knobs.** A residual selector (Δ, Δ/σ, **Σχ²**) and an
+  intensity scaling (lin, √, log). Two of these need explaining rather than
+  listing. **Σχ² is the one to teach**: a flat stretch contributed nothing and a
+  step is where the misfit is, which answers "where is my fit bad?" better than
+  any Rwp. And **√ is drawn on the data with the axis relabelled in intensity**,
+  so it is the same numbers seen differently, not a different dataset.
+- **The 3D drawing knobs are behind a `drawing` disclosure**; only the mode
+  buttons and *view down a/b/c* stay in the open. The WP-1015 note below
+  describes the bond threshold as if it were on screen — it is one click away
+  now, and it is still the one control a first-time user needs.
+- **Ellipsoids gained an exaggeration factor, and the manual must not call it a
+  probability.** k(p) = √χ²₃(p) diverges as p → 1, so there is no ellipsoid
+  above 100 %; "× size" is a drawing scale, the caption prints both figures, and
+  a figure exported at a multiplier ≠ 1 is **not** an ORTEP-quotable surface.
+  That last clause is the sentence worth writing, because an ORTEP figure's
+  quoted probability is the whole reason the number is on the plot.
+- **A hopeless fit now says so.** Past `MATURITY_MAX_RWP` (0.35) the header
+  shows `⚠ not a fit yet` beside Rwp and links to the Report; the pill still
+  reads `converged`, because that vocabulary is WP-1028's. If both are on
+  screen at once the manual should say which to believe and why.
+- **Element colours are decided per phase**, not per element, so *the same
+  element can be drawn in different colours in two different phases* — the
+  anchors (H C N O S P F Cl Fe) never move, the rest are separated in OKLab
+  against whatever else is in that phase. Worth one sentence, because a reader
+  comparing two phase views will otherwise think something is wrong.
+
 From **WP-1015** (structure viewer, landed 2026-07-30): **there is a 3D view, and
 its two knobs are the part a manual has to explain.**
 
