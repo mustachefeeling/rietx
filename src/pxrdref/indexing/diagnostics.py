@@ -101,6 +101,22 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
             suggestion=("keep them — their σ already carries the penalty — but "
                         "do not quote one of a pair as an independent line")))
 
+    repair = [p for p in peaks.peaks if "not_separable" in p.flags]
+    if repair:
+        out.append(Diagnostic(
+            level="warning", code="PEAK_NOT_SEPARABLE",
+            message=(f"{len(repair)} component(s) are profile-shape repair "
+                     "rather than lines: a re-seed pass added each one inside a "
+                     "much stronger neighbour's own profile, in a group whose "
+                     "fit is still refuted — so the ΔBIC gain that bought it "
+                     "cannot be told from the neighbour's shape being wrong"),
+            where=[f"{p.two_theta:.4f}°" for p in repair],
+            suggestion=("they are kept in peaks and excluded from usable(), "
+                        "because removing one from the *model* displaces the "
+                        "real line it sits on.  If many fire, suspect the "
+                        "declared instrument profile rather than the specimen — "
+                        "undeclared axial divergence reproduces this exactly")))
+
     ghosts = [p for p in peaks.peaks
               if {"ghost_kbeta", "ghost_tungsten"} & set(p.flags)]
     if ghosts:

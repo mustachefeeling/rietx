@@ -770,6 +770,34 @@ def test_the_refutation_condition_is_what_separates_shape_from_line():
     assert not _not_separable(_fit(bar + 0.5), 0)
 
 
+def test_shape_repair_reports_itself_rather_than_going_quiet():
+    """A flag that removes lines from ``usable()`` must say so out loud.
+
+    Every sibling flag in this module has a diagnostic — ``PEAK_UNRESOLVED_SHOULDER``,
+    ``PEAK_CONTAMINATION_LINE``, ``PEAK_ASYMMETRY_UNMODELLED`` — and a new one
+    that silently shrank the list would be exactly the behaviour the peak list is
+    built to avoid.  Its suggestion names the *usual cause* rather than the
+    symptom, because that is the actionable half: the third condition is that the
+    group's fit is refuted, so a pattern full of these is normally a pattern whose
+    instrument profile is mis-declared.
+    """
+    truth_ins = _instrument(axial=(0.04, 0.02))
+    y_true, grid, _ = _forward(truth_ins, tt_lo=20.0, tt_hi=60.0)
+    peaks = pick_peaks(_noisy(y_true, grid, 4242), _instrument(axial=(0.0, 0.0)))
+
+    codes = {d.code for d in peaks.diagnostics}
+    assert "PEAK_NOT_SEPARABLE" in codes
+    d = next(x for x in peaks.diagnostics if x.code == "PEAK_NOT_SEPARABLE")
+    assert d.level == "warning"
+    assert d.where, "the flagged positions must travel with the count"
+    assert "instrument profile" in d.suggestion
+
+    # and it stays silent when nothing is flagged
+    clean = pick_peaks(_noisy(*_forward(_instrument(), tt_lo=20.0, tt_hi=60.0)[:2],
+                              seed=7), _instrument())
+    assert "PEAK_NOT_SEPARABLE" not in {x.code for x in clean.diagnostics}
+
+
 def test_not_separable_is_unusable_and_the_flag_set_says_so():
     """Flag semantics, pinned where the set is defined rather than inferred."""
     assert "not_separable" in PEAK_UNUSABLE_FLAGS

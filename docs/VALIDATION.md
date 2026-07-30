@@ -488,6 +488,16 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Measured:** 10 sets x 20 lines, all ascending
 
+#### `test_table_5_reconstruction_sums_to_the_published_globals`
+
+`identity` `cross_code` · dataset `bethanechol`
+
+**Claims:** the transcribed per-program scores sum to the Global column the paper prints beside them, which is what makes the bar itself trustworthy
+
+**Referenced to:** Table 5 is a 20-column grid of +-1 with subscripted zeros and does not survive conversion intact -- the copy this was read from had a row of 21 values where there are 20.  Each graded row's twenty independently-read cells must reproduce its printed total
+
+**Measured:** First 4 sums to +9 and Best of all to +12, both exact; the four programs the +9 is the best of scored -14, -8, -4 and +5 individually
+
 #### `test_the_zeroshift_correction_is_exactly_the_paper_s`
 
 `identity` `cross_code` · dataset `bethanechol`

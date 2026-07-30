@@ -269,6 +269,40 @@ def test_the_published_cell_reproduces_the_paper_s_impurity_counts(
     assert 20 - explained == n_unexplained
 
 
+def test_table_5_reconstruction_sums_to_the_published_globals(bench):
+    """The *scores* were transcribed too, and they get the same treatment.
+
+    Table 5 is a 20-column grid of ±1 with subscripted zeros, and it does not
+    survive conversion to plain text intact — the copy this was typed from had a
+    row of 21 values where there are 20.  So the per-set scores are not trusted
+    because they were read carefully either: each of the two rows this package is
+    graded against is summed and checked against the **Global** column the paper
+    prints beside it.  Getting +9 and +12 out of twenty independently-read cells
+    is not something a misread row does.
+
+    The bar itself is the "First 4" row — the best of ITO13, DICVOL91, TREOR90
+    and McMaille run outside Crysfire — and it is quoted here so a future session
+    reads the target off the fixture rather than off a commit message.
+    """
+    published = bench["scoring"]["published"]
+    for key in ("first_4", "best_of_all"):
+        row = published[key]
+        per_set = row["per_set"]
+        assert len(per_set) == 10, key
+        assert set(per_set) == set(bench["sets"]), key
+        for name, modes in per_set.items():
+            assert len(modes) == 2, (key, name)      # default and manual
+            assert all(v in (-1, 0, 1) for v in modes), (key, name)
+        assert sum(sum(v) for v in per_set.values()) == row["global"], key
+
+    assert published["first_4"]["global"] == 9
+    assert published["best_of_all"]["global"] == 12
+    # …and the individual programs, so "+9" is legible as a bar rather than a
+    # number: the four it is the best of scored -14, -8, -4 and +5 alone
+    assert published["individual_globals"]["ITO13"] == -14
+    assert published["individual_globals"]["McMaille"] == 5
+
+
 # ----------------------------------------------------------------------
 # What the benchmark says without any search being run
 # ----------------------------------------------------------------------

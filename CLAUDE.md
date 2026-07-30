@@ -29,7 +29,10 @@ Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
 fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
 are ~85-105 s each on their own.  With the extinction screen (WP-1025) added the
 same day: **1355 passed / 71 skipped in 8:55-9:16**, fast **1274 / 66 in 1:24**;
-the screen itself is 9 s for 29 tests, four of them real-data.
+the screen itself is 9 s for 29 tests, four of them real-data.  With WP-1026's
+acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
+`test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
+(corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
@@ -537,7 +540,33 @@ never look like a measured one) and `refine_with_shift`, which fits the shift te
 to a candidate **after** it survives — a shift is identifiable only against reference
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
-Closing this on real data is WP-1026.
+
+**But the tolerance was never why the certified pattern failed to index, and the
+correction is the more useful lesson (WP-1026).** The obstruction was **our own peak
+list**: `detect_peaks` proposed 41 groups with one seed each and `fit_group` returned
+**63** components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its
+area with a small esd. With those flagged both engines rank the certified cell first,
+at the same allowance. The gate could not have refused them, and not because
+`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` is wrong: **ΔBIC asks whether the data prefer n+1
+components to n, which is the same question as "is there a line here" only while the
+n-component model is capable of fitting.** On the corundum 104 line χ²_red is 17.4 at
+n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins. Hence
+`_not_separable` (`indexing/pick.py`), whose third and load-bearing condition is that
+the group's own fit is still refuted, at `PEAK_REFUTED_SIGMA` × σ(χ²_red) above 1
+rather than a flat bar because groups differ 5× in size across one pattern. The
+component **stays in the model** (removing it displaces the real line by 0.010°) and
+is barred only from `usable()`. General, not a corundum quirk: satellites were 4-21 %
+of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
+nothing indicts its input before its tolerance.**
+
+**And an assumed precision may never refuse to index.** `assess_peak_list`'s
+`MAX_RELATIVE_SIGMA_Q` abstention is a statement about *measured* data, so it runs
+only when `PeakList.source == "fitted"`. On a `from_positions` list every σ is
+`PEAK_ASSUMED_ESD_DEG` — chosen here — and refusing on it quotes an assumed precision
+as a measured one, the inverse of the rule above. Measured: all **ten** sets of the
+published bethanechol benchmark failed it, including the synchrotron set whose
+published M(20) is 197. The figure is still computed and reported
+(`PEAK_POSITION_PRECISION`); it simply has no vote.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
 the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU
