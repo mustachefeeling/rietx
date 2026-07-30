@@ -24,6 +24,7 @@ import time
 from http.client import HTTPConnection
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import pxrdref as pr
@@ -953,6 +954,38 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
 
     empty = client.get("/api/result/window?lo=200&hi=210")[1]
     assert empty["n_returned"] == 0 and empty["two_theta"] == []
+
+
+def test_the_window_carries_three_residuals_and_one_is_not_derivable(fitted):
+    """WP-1029: Δ, Δ/σ and cumulative χ² — the third accumulated before decimation."""
+    _, client, project = fitted
+    result = project.refinement.result_
+
+    window = client.get("/api/result/window")[1]
+    n = window["n_returned"]
+    assert len(window["delta"]) == len(window["delta_raw"]) == n
+    assert len(window["cumulative_chi2"]) == n
+    # this project's pattern brings σ, so Δ/σ is a different curve from Δ, and
+    # the flag is what lets a client label its axis without guessing
+    assert window["weighted"] is True
+    assert window["delta"] != window["delta_raw"]
+
+    # the whole point of accumulating server-side: the last value is the
+    # window's *true* χ², over every point, not over the decimated subset
+    sigma = np.asarray(result.sigma)
+    delta = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / np.where(
+        sigma > 0.0, sigma, 1.0)
+    assert window["cumulative_chi2"][-1] == pytest.approx(float((delta**2).sum()))
+    # …and summing what came back would understate it, which is the mistake
+    # this field exists to prevent
+    assert sum(d**2 for d in window["delta"]) < window["cumulative_chi2"][-1]
+    # monotone, so no bucket can miss a peak of it
+    assert all(b >= a for a, b in zip(window["cumulative_chi2"],
+                                      window["cumulative_chi2"][1:]))
+
+    # a zoom's cumulative starts from that window rather than from the pattern
+    zoom = client.get("/api/result/window?lo=8&hi=12&max_points=200")[1]
+    assert zoom["cumulative_chi2"][-1] < window["cumulative_chi2"][-1]
 
 
 def test_report_and_history_read_the_fitted_session(fitted):

@@ -929,6 +929,22 @@ class GuiSession:
         it can come back larger (measured: 4132 points for a 4200-point pattern
         at a budget of 4000).  ``n_returned`` is therefore the length to trust,
         and a client sizing an array from ``max_points`` would be wrong.
+
+        **Three residuals, and one of them cannot be derived from the others**
+        (WP-1029).  ``delta_raw`` is obs − calc and ``delta`` is that over σ —
+        either could be recomputed in a client from ``y_obs``/``y_calc``, but
+        what a residual *is* belongs on the side that knows whether the file
+        brought an esd column, which ``weighted`` now says rather than leaving a
+        panel to label the axis ``(obs−calc)/σ`` on a Poisson fit.
+        ``cumulative_chi2`` is the one that is genuinely not derivable: it is
+        Σ(Δ/σ)² accumulated over **every** point of the window and decimated
+        afterwards, so it still ends at the window's true χ².  Summing the
+        decimated subset instead would understate it by whatever the dropped
+        points contributed, which on a wide view is most of them.
+
+        The index set is deliberately computed from the same three curves as
+        before, so adding these did not change which points come back: a
+        cumulative curve is monotone, so it has no peak a bucket could miss.
         """
         import numpy as np
 
@@ -944,15 +960,18 @@ class GuiSession:
             mask &= tt <= hi
         if not mask.any():
             return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
-                    "delta": [], "ticks": {}, "n_total": 0, "n_returned": 0,
-                    "max_points": max_points}
+                    "delta": [], "delta_raw": [], "cumulative_chi2": [],
+                    "weighted": bool(res.sigma), "ticks": {}, "n_total": 0,
+                    "n_returned": 0, "max_points": max_points}
         y_obs = np.asarray(res.y_obs)[mask]
         y_calc = np.asarray(res.y_calc)[mask]
         y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
         sigma = np.asarray(res.sigma)[mask] if res.sigma else None
         tt = tt[mask]
-        delta = ((y_obs - y_calc) / np.where(sigma > 0.0, sigma, 1.0)
-                 if sigma is not None else y_obs - y_calc)
+        raw = y_obs - y_calc
+        delta = (raw / np.where(sigma > 0.0, sigma, 1.0) if sigma is not None else raw)
+        # accumulated over every point, then decimated — see the docstring
+        cumulative = np.cumsum(delta**2)
         idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
         window = (float(tt[0]), float(tt[-1]))
         return {
@@ -961,6 +980,11 @@ class GuiSession:
             "y_calc": y_calc[idx].tolist(),
             "y_background": [] if y_bkg is None else y_bkg[idx].tolist(),
             "delta": delta[idx].tolist(),
+            "delta_raw": raw[idx].tolist(),
+            "cumulative_chi2": cumulative[idx].tolist(),
+            # whether σ was the file's or a Poisson fallback is the *server's*
+            # fact: a client labelling its axis without it can only guess
+            "weighted": sigma is not None,
             # every emission line's ticks, not just the primary — Layer 0 flags
             # each Kα2 peak as an impurity otherwise (CLAUDE.md)
             "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]
