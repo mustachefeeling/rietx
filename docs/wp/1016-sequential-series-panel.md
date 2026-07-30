@@ -74,6 +74,12 @@ A jsdom mount cannot see this at all (no layout). `Structure3D.svelte` fixes it
 with a `ResizeObserver` → `Plotly.Plots.resize`; do the same, or put every control
 *above* the plot.
 
+One method note that cost this WP a wrong claim, and applies to any plotly panel:
+**reading `gd.layout` back is not a reading of the view.** It reports whatever was
+last passed *in*, so a check written that way says a user's zoom or rotation was
+preserved when it has been thrown away. Compare screenshots — but not their
+hashes, since a re-render differs by a pixel.
+
 Also worth knowing: this WP did **not** add a sixth tab — the viewer is a third
 column inside the model pane, which leaves the sixth-tab question below exactly
 where WP-1013 left it.

@@ -152,7 +152,7 @@ definite tensor draws its non-positive axes at zero**, not at `√(negative)`: o
 NaN vertex loses the whole mesh, not one atom, so the ellipsoid collapses to a
 visible disc and the payload says why.
 
-**A real browser found four more, for the fifth session running — and this time
+**A real browser found five more, for the fifth session running — and this time
 one of them was reported by the *test runner* in the defect's own words.**
 plotly's `responsive: true` listens for **window** resizes only, so when the
 legend and caption rendered below the plot the box shrank under an already-sized
@@ -164,17 +164,28 @@ ended in mid-air** — a bond drawn to a translated image is correct and *reads*
 broken — so each out-of-cell endpoint now gets its atom drawn, flagged so
 multiplicity counting is untouched and exactly one level deep, which is the line
 between completing a coordination and drawing the packing diagram this WP
-declined. And the chosen **ellipsoid probability was reset by every reload**,
+declined. The chosen **ellipsoid probability was reset by every reload**,
 because the payload carries the server's default: WP-1013's "two facts must not
 share one field" wearing a fourth costume.
+
+**And the fifth is the one this session got wrong first, which is why it is worth
+the most.** The rotation was thrown away by every redraw, and the log initially
+claimed the opposite — because the claim was measured by reading
+`_fullLayout.scene.camera` back, and that reports whatever was last passed *in*.
+It says the view was kept while the picture has visibly snapped home; only a
+screenshot comparison exposed it. Isolated in the browser, `react` with the
+*same* trace objects keeps the camera and `react` with **fresh** ones does not —
+replacing a `mesh3d` rebuilds the gl3d scene from the layout, which `uirevision`
+does not cover — and every redraw here builds fresh traces. The camera is now the
+component's, captured from `plotly_relayout` and handed back on each draw.
 
 Measured on an M4 in Chrome for Testing: boot-to-interactive **65–99 ms**,
 unchanged from WP-1013's 81 ms — the viewer costs nothing before the model pane is
 opened — and **605–1447 ms** from clicking *Model* to a drawn scene, almost all of
 it fetching and parsing plotly (1414–1669 ms under software WebGL, so the GPU is
-not the bottleneck). The camera survives a redraw, a probability change is a
-client multiply with **zero** refetches, and the bond slider is a server round trip
-because the server owns the bond rule. The picture the WP exists for, on NAC read
+not the bottleneck). A probability change is a client multiply with **zero**
+refetches, the bond slider is a server round trip because the server owns the bond
+rule, and the camera survives both. The picture the WP exists for, on NAC read
 with its aniso loop: 84 atoms, ellipsoids at 90 %, every symmetry image visibly
 rotated, and **Na1's balloon — Biso 2.16 Å² against Al's 0.59 — obvious at a
 glance where the parameter table shows it as six ordinary numbers.** Python

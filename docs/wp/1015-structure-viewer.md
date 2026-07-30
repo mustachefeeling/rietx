@@ -166,7 +166,7 @@ npm --prefix gui test && npm --prefix gui run check
      shape is the useful part: a rotation preserves eigenvalues, so every image
      must share its site's semi-axis *lengths* while differing in orientation.
 
-  **The browser found four more, three of which jsdom structurally cannot see**
+  **The browser found five more, four of which jsdom structurally cannot see**
   (Chrome for Testing via `playwright-core`, installed outside the workspace).
   This is the fifth session running to find one, and the second (after WP-1013)
   where the defect belonged to a *library's* view of the page rather than to the
@@ -193,15 +193,37 @@ npm --prefix gui test && npm --prefix gui run check
     The level now lives in the component and meets the geometry in one function
     (`at`), which is the same shape as WP-1013's "two facts must not share one
     field" one rank over.
+  - **The rotation was thrown away by every redraw** — and this one is worth the
+    most, because the *first* version of this log claimed the opposite. "The
+    camera survives a redraw (`uirevision`)" was measured by reading
+    `_fullLayout.scene.camera` back, which reports whatever was last passed
+    **in**: it says the view was kept while the picture has visibly snapped home.
+    A screenshot comparison is what exposed it. Isolated in the browser:
+    `Plots.resize` keeps the view, `react` with the *same* trace objects keeps
+    it, and `react` with **fresh trace objects** does not — replacing a `mesh3d`
+    tears the gl3d scene down and rebuilds it from the layout, which
+    `uirevision` does not cover. Every redraw here builds fresh traces (a bond
+    refetch, a mode switch, a model edit), so the rotation was lost on all three.
+    The camera is now the component's: captured from `plotly_relayout` into a
+    plain variable (not `$state` — nothing renders it, and reactivity would
+    redraw on every drag) and supplied to `layout()` on every draw. Verified by
+    screenshot across a server refetch *and* a ball→ellipsoid→ball round trip:
+    eye 1.613, 0.434, 1.326 unchanged, pictures identical.
+
+    Two method notes for the next person. **A sha256 of a WebGL screenshot is too
+    strict** — a re-render differs by a pixel, so an equality test on the hash
+    reports "view lost" for every redraw and hides the real answer. And
+    `layout.scene.camera` is not a reading of the view.
 
   **Measured** (M4, Chrome for Testing, Apple Metal): boot-to-interactive
   **65–99 ms**, unchanged from WP-1013's 81 ms — the viewer costs nothing before
   the model pane is opened, since plotly and the scene are both inside it — and
   click-to-a-drawn-scene **605–1447 ms**, mostly the 4.8 MB plotly fetch and
   parse (1414–1669 ms under software WebGL, so the GPU is not the bottleneck).
-  Camera survives a redraw (`uirevision`); a probability change is a client
-  multiply with **zero** refetches; the bond slider is a server round trip
-  because the server owns the bond rule. On NAC read with its aniso loop: 84
+  A probability change is a client multiply with **zero** refetches; the bond
+  slider is a server round trip because the server owns the bond rule; the
+  camera survives both (see the fifth browser defect below for how that was
+  first got wrong). On NAC read with its aniso loop: 84
   atoms in the cell, ellipsoids at 90 %, each symmetry image visibly rotated, and
   Na1's balloon (Biso 2.16 Å² against Al's 0.59) obvious at a glance where the
   parameter table shows it as six ordinary numbers. That last is the WP's whole

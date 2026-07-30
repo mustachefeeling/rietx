@@ -100,6 +100,11 @@ as in `panels/Structure3D.svelte`. A peak picker whose picks are made *by clicki
 the plot* has the sharper version of this problem: an oversized canvas maps a
 click to the wrong 2θ, silently.
 
+And one method note that cost this WP a wrong claim: **reading `gd.layout` back is
+not a reading of the view.** It reports whatever was last passed *in*, so a check
+written that way reports a preserved zoom or rotation that has in fact been reset.
+Compare screenshots — but not their hashes, since a re-render differs by a pixel.
+
 **A cell that has just been indexed can be looked at.** `GET /api/structure3d`
 draws the current model — orbit, bonds, ellipsoids, cell frame — so an adopted
 candidate cell is one route away from a picture, which is a cheap sanity check on

@@ -340,11 +340,18 @@ loses the whole mesh, not one atom. And **bond segments complete their partners
 exactly one level** — a bond to a translated image is correct and *reads* as
 broken — which is the line between a coordination and the packing diagram this WP
 declined. `probability` and `bond_tolerance` are drawing thresholds on the query
-string, never in `ProjectDoc`. Two browser-only traps: plotly's `responsive: true`
+string, never in `ProjectDoc`. Three browser-only traps: plotly's `responsive: true`
 listens for **window** resizes only, so a plot with controls below it keeps an
 oversized canvas that swallows their clicks (`ResizeObserver` → `Plots.resize`;
-`gui/src/lib/plotly.ts` is now the one runtime loader, shared with `Plot.svelte`),
-and `--line` is invisible in a 3D scene, so the cell frame takes `--accent`.
+`gui/src/lib/plotly.ts` is now the one runtime loader, shared with `Plot.svelte`);
+`--line` is invisible in a 3D scene, so the cell frame takes `--accent`; and
+**`react` with fresh trace objects resets the gl3d camera** (replacing a `mesh3d`
+rebuilds the scene from the layout, which `uirevision` does not cover), so the
+component owns the camera, captured from `plotly_relayout`. That last one was
+claimed the other way round first, and the method note is the durable part:
+`layout.scene.camera` reports whatever was passed *in*, so it says a rotation was
+kept when it was not — compare screenshots, and never a sha256 of one, since a
+WebGL re-render differs by a pixel.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
