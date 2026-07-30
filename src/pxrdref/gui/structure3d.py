@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Sequence
 from typing import Any
 
 import gemmi
@@ -134,6 +135,33 @@ def element_symbol(species: str) -> str:
     return symbol if gemmi.Element(symbol).atomic_number else "X"
 
 
+#: The colour for a species no form-factor grammar resolves to an element.
+#:
+#: Deliberately not a grey.  It was ``#909090``, which is *exactly* titanium's
+#: entry above — so an unparseable species was drawn as titanium, silently, and
+#: a picture of a typo looked like a picture of a structure.  An unknown is now
+#: a colour no element convention claims, so it reads as the question it is.
+UNKNOWN_COLOR = "#d040b0"
+
+#: Elements whose colour is famous enough that moving it would be worse than a
+#: collision: the CPK assignments people recognise without a legend.  Everything
+#: else may be nudged by :func:`phase_palette` — including entries of ``_CPK``,
+#: because distinguishability is a property of the *set being drawn* and not of
+#: the table.  ``X`` is anchored so an unknown always looks like one.
+ANCHORS = frozenset({"H", "C", "N", "O", "S", "P", "F", "Cl", "Fe", "X"})
+
+#: The smallest OKLab distance two colours in one phase may sit at.
+#:
+#: Measured against the three collisions a user reported (WP-1029): F ``#48d860``
+#: against Ca ``#40c060`` — *both in NAC* — is **0.070**, Si against Cl 0.078,
+#: Na against La 0.099.  0.13 clears all three, while staying small enough that
+#: a phase of many elements does not have to spread its hues past the point
+#: where the CPK families stop being recognisable.  For scale, the fixed
+#: fallback against titanium (the fourth collision, which was *exact*) is 0.218
+#: once :data:`UNKNOWN_COLOR` replaces the grey.
+MIN_SEPARATION = 0.13
+
+
 def element_color(element: str) -> str:
     """A stable colour for an element: CPK where the convention names one.
 
@@ -142,14 +170,90 @@ def element_color(element: str) -> str:
     on both themes.  A derived fallback is the same device ``capabilities()``
     uses for its ``features`` flags: it cannot go stale, and a new element is
     never an unrendered atom.
+
+    This is the colour of an element *considered alone*.  What a picture
+    actually draws comes from :func:`phase_palette`, which is the one that knows
+    what else is on screen.
     """
     if element in _CPK:
         return _CPK[element]
     z = gemmi.Element(element).atomic_number
     if not z:
-        return "#909090"
+        return UNKNOWN_COLOR
     hue = (z * 137.508) % 360.0
     return _hsl_hex(hue, 0.42, 0.55)
+
+
+def phase_palette(elements: Sequence[str]) -> dict[str, str]:
+    """Colours for one phase's elements, separated so they can be told apart.
+
+    **Distinguishability is a property of the set being drawn, not of the
+    element table.**  A global table can only avoid the collisions someone
+    noticed; the phase in front of you is what decides whether two colours are
+    the same colour.  Three real ones were reported at once (WP-1029): F against
+    Ca — *both in NAC* — Si against Cl, and Na against La, plus a fallback grey
+    identical to titanium (now :data:`UNKNOWN_COLOR`).
+
+    So the anchors of :data:`ANCHORS` keep their colours and everything else is
+    rotated in hue until it clears :data:`MIN_SEPARATION` from every colour
+    already placed.  Hue only: lightness and chroma carry the "reads on both
+    themes" property the table was built for, and rotating hue at constant
+    OKLCh keeps it.
+
+    Placement order decides *which* of a colliding pair moves, and it is
+    **anchors, then the table, then the derived**: a ``_CPK`` entry was chosen
+    for an element, a golden-angle hue was chosen for nobody, so Na keeps its
+    purple and La is the one that shifts.  Within each tier the order is by
+    symbol, so the same phase always gets the same palette — a picture that
+    re-coloured itself on reload would be worse than one with a collision in it.
+
+    sRGB has no perceptual distance, so the whole comparison happens in OKLab
+    (Ottosson 2020), where a Euclidean distance is approximately perceptual.
+    """
+    seen: list[str] = []
+    for element in elements:                     # dedupe, keeping first order
+        if element not in seen:
+            seen.append(element)
+    palette: dict[str, str] = {}
+    placed: list[tuple[float, float, float]] = []
+
+    def place(element: str, colour: str) -> None:
+        palette[element] = colour
+        placed.append(_oklab(colour))
+
+    rest = [e for e in seen if e not in ANCHORS]
+    for element in seen:
+        if element in ANCHORS:
+            place(element, element_color(element))
+    for tier in (sorted(e for e in rest if e in _CPK),
+                 sorted(e for e in rest if e not in _CPK)):
+        for element in tier:
+            place(element, _separated(element_color(element), placed))
+    return palette
+
+
+def _separated(colour: str, placed: Sequence[tuple[float, float, float]]) -> str:
+    """The nearest hue rotation of ``colour`` that clears every placed colour.
+
+    Sweeps a full turn in 5° steps and takes the *first* that clears, so a
+    colour that already does is returned unchanged and one that does not moves
+    as little as it can.  If nothing clears — many elements in one phase — the
+    rotation with the largest minimum distance wins, because a crowded picture
+    should still be as separated as it can be rather than falling back to the
+    collision it started with.
+    """
+    if not placed:
+        return colour
+    best, best_gap = colour, -1.0
+    for step in range(0, 360, 5):
+        candidate = colour if step == 0 else _rotate_hue(colour, float(step))
+        lab = _oklab(candidate)
+        gap = min(_oklab_distance(lab, other) for other in placed)
+        if gap >= MIN_SEPARATION:
+            return candidate
+        if gap > best_gap:
+            best, best_gap = candidate, gap
+    return best
 
 
 def _hsl_hex(hue: float, sat: float, light: float) -> str:
@@ -159,6 +263,58 @@ def _hsl_hex(hue: float, sat: float, light: float) -> str:
         return round(255 * (light - a * max(-1.0, min(k - 3.0, 9.0 - k, 1.0))))
 
     return "#{:02x}{:02x}{:02x}".format(channel(0), channel(8), channel(4))
+
+
+# --- OKLab (Ottosson 2020, https://bottosson.github.io/posts/oklab/) --------
+#
+# The one colour space in this file, and it is here because sRGB does not have
+# a distance: `#48d860` and `#40c060` differ by 8 and 24 in two channels and are
+# indistinguishable on a screen, which is the whole complaint.
+
+_M1 = np.array([[0.4122214708, 0.5363325363, 0.0514459929],
+                [0.2119034982, 0.6806995451, 0.1073969566],
+                [0.0883024619, 0.2817188376, 0.6299787005]])
+_M2 = np.array([[0.2104542553, 0.7936177850, -0.0040720468],
+                [1.9779984951, -2.4285922050, 0.4505937099],
+                [0.0259040371, 0.7827717662, -0.8086757660]])
+
+
+def _oklab(colour: str) -> tuple[float, float, float]:
+    """``#rrggbb`` → OKLab ``(L, a, b)``."""
+    srgb = np.array([int(colour[i:i + 2], 16) / 255.0 for i in (1, 3, 5)])
+    linear = np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
+    lms = np.cbrt(_M1 @ linear)
+    return tuple(float(v) for v in _M2 @ lms)  # type: ignore[return-value]
+
+
+def _oklab_hex(lab: tuple[float, float, float]) -> str:
+    """OKLab ``(L, a, b)`` → ``#rrggbb``, clipped to the sRGB cube."""
+    lms = np.linalg.solve(_M2, np.asarray(lab, dtype=np.float64)) ** 3
+    linear = np.linalg.solve(_M1, lms)
+    srgb = np.where(linear <= 0.0031308, linear * 12.92,
+                    1.055 * np.abs(linear) ** (1 / 2.4) - 0.055)
+    channels = np.clip(np.round(srgb * 255.0), 0, 255).astype(int)
+    return "#{:02x}{:02x}{:02x}".format(*channels)
+
+
+def _oklab_distance(one: tuple[float, float, float],
+                    two: tuple[float, float, float]) -> float:
+    """Euclidean distance in OKLab — approximately perceptual, which is the point."""
+    return float(math.dist(one, two))
+
+
+def _rotate_hue(colour: str, degrees: float) -> str:
+    """Turn a colour's hue, keeping its lightness and chroma.
+
+    Constant L and C is what preserves the property the table was built for:
+    every value reads against both a light and a dark page, and a rotation that
+    changed lightness would quietly undo that for one element.
+    """
+    lightness, a, b = _oklab(colour)
+    angle = math.radians(degrees)
+    return _oklab_hex((lightness,
+                       a * math.cos(angle) - b * math.sin(angle),
+                       a * math.sin(angle) + b * math.cos(angle)))
 
 
 def element_radius(element: str) -> float:
@@ -228,6 +384,12 @@ def build(structure, phase: int = 0, *, probability: float = DEFAULT_PROBABILITY
     sg = get_spacegroup(ph.space_group)
 
     sites, atoms, notes = _expand(ph, phase, sg, basis, astar, max_atoms)
+    # the colours are decided *here*, over the phase's own element list, because
+    # two of them being the same colour is a fact about this picture and not
+    # about the element table (WP-1029)
+    palette = phase_palette([s["element"] for s in sites])
+    for site in sites:
+        site["color"] = palette[site["element"]]
     positions = np.array([a["pos"] for a in atoms], dtype=np.float64).reshape(-1, 3)
     radii = np.array([sites[a["site"]]["radius"] for a in atoms], dtype=np.float64)
     metal = np.array([sites[a["site"]]["metal"] for a in atoms], dtype=bool)
@@ -317,6 +479,8 @@ def _expand(ph, phase: int, sg, basis: np.ndarray, astar: np.ndarray,
             "label": atom.label,
             "species": atom.species,
             "element": element,
+            # replaced by `phase_palette` once every site is known — the colour
+            # depends on what else is in the phase, which this loop cannot say
             "color": element_color(element),
             "radius": element_radius(element),
             "metal": is_metal(element),

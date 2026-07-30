@@ -316,7 +316,66 @@ def test_colours_are_cpk_where_the_convention_names_one_and_derived_elsewhere():
     assert derived == s3.element_color("La")
     assert derived.startswith("#") and len(derived) == 7
     assert derived != s3.element_color("Ce")
-    assert s3.element_color("X") == "#909090"
+    # WP-1029: it was `#909090`, which is *exactly* titanium's entry — so an
+    # unparseable species was drawn as titanium and a picture of a typo looked
+    # like a picture of a structure
+    assert s3.element_color("X") == s3.UNKNOWN_COLOR
+    assert s3.UNKNOWN_COLOR not in s3._CPK.values()
+
+
+def test_colours_are_separated_within_the_phase_being_drawn():
+    """WP-1029: distinguishability is a property of the *set*, not of the table.
+
+    The three pairs a user reported are the fixture, with the distances that
+    made them collisions measured rather than asserted as "too close".
+    """
+    for one, two, before in [("F", "Ca", 0.070), ("Si", "Cl", 0.078),
+                             ("Na", "La", 0.099)]:
+        alone = s3._oklab_distance(s3._oklab(s3.element_color(one)),
+                                   s3._oklab(s3.element_color(two)))
+        assert alone == pytest.approx(before, abs=5e-4)
+        assert alone < s3.MIN_SEPARATION            # …which is why they collide
+
+        palette = s3.phase_palette([one, two])
+        together = s3._oklab_distance(s3._oklab(palette[one]),
+                                      s3._oklab(palette[two]))
+        assert together >= s3.MIN_SEPARATION
+
+    # a chosen colour outranks a derived one when something must move: Na keeps
+    # its purple and lanthanum, whose hue was chosen for nobody, is what shifts
+    palette = s3.phase_palette(["Na", "La"])
+    assert palette["Na"] == s3._CPK["Na"]
+    assert palette["La"] != s3.element_color("La")
+
+    # anchors never move, whatever else is in the phase
+    for element, colour in s3.phase_palette(["O", "N", "C", "S", "F", "Cl"]).items():
+        assert colour == s3.element_color(element)
+
+    # and the palette is a function of the phase, not of when it was asked for
+    assert s3.phase_palette(["Na", "Ca", "Al", "F"]) == s3.phase_palette(["F", "Al", "Ca", "Na"])
+
+
+@pytest.mark.parametrize("cif", sorted(p.name for p in DATA.glob("*.cif")))
+def test_every_bundled_phase_is_drawn_in_colours_that_can_be_told_apart(cif):
+    """The bar the WP set: no two species of one real phase within MIN_SEPARATION.
+
+    Collected from ``tests/data`` rather than from a hand-written element list,
+    because the collision that prompted this — F against Ca, both in NAC — was
+    found by *looking at* a structure and not by reading the table.  A CIF added
+    to the data directory is covered without anyone remembering to add it.
+    """
+    try:
+        structure = structure_from_cif(str(DATA / cif))
+    except RuntimeError as exc:                 # a pdCIF, not a structure CIF
+        pytest.skip(f"{cif} is not a single-block structure file: {exc}")
+    payload = s3.build(structure, phase=0)
+    colours = {site["element"]: site["color"] for site in payload["sites"]}
+    labs = {element: s3._oklab(colour) for element, colour in colours.items()}
+    elements = sorted(labs)
+    for i, one in enumerate(elements):
+        for two in elements[i + 1:]:
+            gap = s3._oklab_distance(labs[one], labs[two])
+            assert gap >= s3.MIN_SEPARATION, f"{cif}: {one} {colours[one]} vs {two} {colours[two]}"
 
 
 def test_the_payload_carries_the_paths_the_parameter_table_owns(lab6):

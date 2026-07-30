@@ -180,5 +180,15 @@ they were built from.
   convention does not name get a colour *derived* from the atomic number rather
   than looked up. Element **radii** and the metal flag come from gemmi, which is
   already a dependency.
+- The **OKLab** colour space in the same module (WP-1029) — Björn Ottosson,
+  "A perceptual color space for image processing" (2020),
+  https://bottosson.github.io/posts/oklab/, whose reference implementation is
+  released as public domain / MIT at the author's option. What is used here is
+  the *published transform*: two 3×3 matrices and a cube root, transcribed from
+  the paper's own statement of them, which is the same standing as the
+  Cromer-Liberman tabulation above — a published numerical definition, not
+  someone's implementation of one. It exists because sRGB has no perceptual
+  distance, and the whole question the palette pass answers is "are these two
+  colours the same colour to a person".
 - Test patterns under `tests/data/` — see `tests/data/README.md` for per-file
   provenance (NIST / APS 11-BM public data are works of the U.S. Government).
