@@ -44,16 +44,31 @@ its two knobs are the part a manual has to explain.**
 
 It is a **third column of the model pane** (not a tab, not a window), toggled by a
 `3D` button in that pane's header and on by default. Two modes: *balls* (spheres
-at 0.32× the covalent radius — the shape of the structure) and *ellipsoids*
+at 0.40× the covalent radius — the shape of the structure) and *ellipsoids*
 (displacement ellipsoids at a selectable probability, default 50 %). Everything
 geometric is computed server-side by `GET /api/structure3d`; the client draws.
+
+Three things the second pass (2026-07-30) added that a manual should name, all of
+them conventions rather than features. The projection is **parallel**, not
+perspective, and there is **no Cartesian axis box** — the cell's own edges are
+labelled a, b, c, and they are the picture's frame of reference. Rotation is a
+free trackball (Jmol's and VESTA's, not plotly's z-locked turntable), with **view
+down a / b / c** buttons that snap to the three projections a structure is
+normally drawn in, and *reset* for the opening view. And a bond is drawn as two
+half-cylinders **coloured by the atoms at each end**, which is worth one sentence
+because it is how a reader tells which two species a stick joins without hovering
+— and because switching a species off in the legend takes its half-sticks with
+it.
 
 What the manual owes it is the two things a user will otherwise misread.
 **The bond threshold is a drawing threshold, not chemistry**: a bond is drawn at
 d ≤ tol·(rᵢ+rⱼ) on covalent radii, no fixed value is right for both a large cation
 and an organic (LaB6 at 1.15 draws every La–B contact and looks like a cage; at
 1.05 only the B₆ framework survives), and metal–metal contacts are suppressed
-unless the phase is all-metal. **The ellipsoids are a diagnostic, not
+unless the phase is all-metal. It is also the one control a first-time user
+*needs*: LaB6 at the default 1.15 draws 210 stick segments and 109 out-of-cell
+neighbours, and one turn of the slider to 1.05 turns that into the B₆ octahedron
+in a cell. **The ellipsoids are a diagnostic, not
 decoration**: their axes are refined quantities, so an over-flexible background —
 which improves Rwp while inflating ADPs (CLAUDE.md's block projection R²) —
 arrives here as balloons, and a non-positive-definite tensor arrives as a flat

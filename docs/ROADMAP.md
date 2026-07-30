@@ -177,7 +177,8 @@ screenshot comparison exposed it. Isolated in the browser, `react` with the
 *same* trace objects keeps the camera and `react` with **fresh** ones does not —
 replacing a `mesh3d` rebuilds the gl3d scene from the layout, which `uirevision`
 does not cover — and every redraw here builds fresh traces. The camera is now the
-component's, captured from `plotly_relayout` and handed back on each draw.
+component's, captured from `plotly_relayout` and handed back on each draw. *(That
+fix was also wrong; see the second pass below.)*
 
 Measured on an M4 in Chrome for Testing: boot-to-interactive **65–99 ms**,
 unchanged from WP-1013's 81 ms — the viewer costs nothing before the model pane is
@@ -189,8 +190,35 @@ rule, and the camera survives both. The picture the WP exists for, on NAC read
 with its aniso loop: 84 atoms, ellipsoids at 90 %, every symmetry image visibly
 rotated, and **Na1's balloon — Biso 2.16 Å² against Al's 0.59 — obvious at a
 glance where the parameter table shows it as six ordinary numbers.** Python
-1164 → 1192 fast-suite passes with the skips unchanged at 107; vitest 184 → 206;
+1164 → 1192 fast-suite passes with the skips unchanged at 107; vitest 184 → 207;
 `app.js` 151.6 → 161.5 kB (55.1 kB gzip).
+
+**[1015](wp/1015-structure-viewer.md) second pass, 2026-07-30 — the scene, not
+the geometry.** Reopened on the report that the viewer was "a bit janky", which
+turned out to be a precise complaint: the geometry was right and every *default*
+around it was plotly's rather than crystallography's. Read against VESTA, Jmol
+and 3Dmol.js, and measured against the bundled plotly (6.9.0) rather than its
+documentation. Parallel projection, because perspective converges a cubic cell's
+far edges. No Cartesian axis box — nothing in the picture happens in x, y, z —
+with the cell's own edges labelled a, b, c instead, at a clearance in Å set by
+the largest ball, since a percentage of the edge put every letter *inside* a
+corner atom. Bonds as two-tone cylinders in Å, which is the module's own argument
+about pixel-sized markers applied to sticks, and which settles a legend rule the
+old trace did not have: **a half belongs to its atom**. `BALL_FRACTION` 0.32 →
+0.40 with the 0.08 Å stick as its pinned lower bound. And free-trackball rotation
+with **view down a / b / c** buttons — one decision, not two, because turntable
+pins `up` to +z while `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
+orthogonal cell and "down c" would have drawn nothing.
+
+Its own contribution to the running lesson: the camera fix above **was also
+wrong**. `plotly_relayout` does not fire for a gl3d camera drag at all — zero
+events, measured, and true of the shipped build too, so the listener that
+replaced the first wrong answer had been receiving nothing. Two wrong claims in a
+row on one question, both because the check was cheaper than the claim. The
+reading that is a reading of the view is the scene's own `getCamera()`. Also
+fixed: three things the panel said that were not true, including its own shell
+still listing it under "panels still owed". vitest 207 → 221, Python 1192 → 1193
+with skips unchanged; `app.js` 161.5 → 164.3 kB (56.2 kB gzip).
 
 **[1014](wp/1014-import-structure-editing.md) landed 2026-07-30 — data gets *in*,
 and the model can be edited.** Upload endpoints with content-sniffed validated
@@ -1349,7 +1377,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
-| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 | 1010 (1014 soft) |
+| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027 |

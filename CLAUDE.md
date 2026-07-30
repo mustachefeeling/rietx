@@ -40,11 +40,13 @@ and the fast suite 1192 passed / 107 skipped (1299 of 1378 collected). Installin
 means nothing without the venv it was measured in. (WP-1012 added twelve tests and
 **both** counts moved by exactly twelve; WP-1013 added three and both moved by
 three; WP-1014 added sixteen and both moved by sixteen; WP-1015 added twenty-eight
-and both moved by twenty-eight — every time with the skips unchanged. That is the
-bookkeeping check worth doing: the same two figures a day earlier disagreed by
-one, and a session that cannot say which of its numbers moved cannot tell a new
-skip from a new pass. The frontend's own suite is counted separately and moved
-85 → 139 → 184 → 206.)
+and both moved by twenty-eight, then one more on its second pass — every time
+with the skips unchanged. That is the bookkeeping check worth doing: the same two
+figures a day earlier disagreed by one, and a session that cannot say which of
+its numbers moved cannot tell a new skip from a new pass. The frontend's own
+suite is counted separately and moved 85 → 139 → 184 → 207 → 221 — where that
+**207 was quoted as 206** until the next session re-ran it, which is the same
+lesson one suite over.)
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -283,9 +285,10 @@ own dispatch*, so an indented `plan` is a parameter named `plan`. And **a respon
 carrying an older `seq` is dropped** — a 300 ms debounce puts two validations in
 flight across one pause and they can land out of order. CodeMirror is a separate
 committed chunk (`assets/vendor-cm.js`, 328 kB) imported *dynamically*, so
-`app.js` stays 114 kB and boot-to-interactive stays 81 ms; `tests/test_gui_dist.py`
-asserts the split, because a stray static import would inline the library and no
-byte count would say so. The editor's document and its diagnostics are `$effect`s
+`app.js` stays well under it — 114 kB when this was written, 164 kB after
+WP-1015's two passes — and boot-to-interactive stays under ~120 ms;
+`tests/test_gui_dist.py` asserts the split, because a stray static import would
+inline the library and no byte count would say so. The editor's document and its diagnostics are `$effect`s
 over the sync state, never pushed — pushing let a head move wipe a squiggle while
 the problem list still named the line.
 
@@ -340,18 +343,42 @@ loses the whole mesh, not one atom. And **bond segments complete their partners
 exactly one level** — a bond to a translated image is correct and *reads* as
 broken — which is the line between a coordination and the packing diagram this WP
 declined. `probability` and `bond_tolerance` are drawing thresholds on the query
-string, never in `ProjectDoc`. Three browser-only traps: plotly's `responsive: true`
+string, never in `ProjectDoc`.
+
+Its **second pass** (2026-07-30) changed no geometry and every default, because
+the scene was plotly's rather than crystallography's — read against VESTA, Jmol
+and 3Dmol.js, and measured against the bundled plotly (6.9.0) rather than its
+docs. **Parallel projection** (perspective converges a cubic cell's far edges),
+**no Cartesian axis box** (`axisTrace` labels the cell's own a/b/c edges instead,
+at a clearance in Å set by the largest ball — a percentage of the edge put every
+letter inside a corner atom), and **bonds as two-tone cylinders in Å**, which is
+the marker argument above applied to sticks and which settles the legend rule *a
+half belongs to its atom*. `STICK_RADIUS` = 0.08 Å is a lower bound on
+`BALL_FRACTION` = 0.40 (VESTA's fraction, on covalent rather than atomic radii),
+pinned by test so hydrogen cannot become a lump on a rod. **`dragmode: "orbit"`
+is load-bearing**: turntable pins `camera.up` to +z and rewrites any camera that
+disagrees, and `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
+orthogonal cell and `axisCamera`'s "view down c" would draw nothing — the free
+trackball and the a/b/c buttons are one decision. `axisCamera` also depends on a
+second job `aspectmode: "data"` does: the data→scene map is a *uniform* scale, so
+a direction in Å is a direction in camera coordinates.
+
+Browser-only traps, and the last is the durable one: plotly's `responsive: true`
 listens for **window** resizes only, so a plot with controls below it keeps an
 oversized canvas that swallows their clicks (`ResizeObserver` → `Plots.resize`;
-`gui/src/lib/plotly.ts` is now the one runtime loader, shared with `Plot.svelte`);
+`gui/src/lib/plotly.ts` is the one runtime loader, shared with `Plot.svelte`);
 `--line` is invisible in a 3D scene, so the cell frame takes `--accent`; and
 **`react` with fresh trace objects resets the gl3d camera** (replacing a `mesh3d`
 rebuilds the scene from the layout, which `uirevision` does not cover), so the
-component owns the camera, captured from `plotly_relayout`. That last one was
-claimed the other way round first, and the method note is the durable part:
-`layout.scene.camera` reports whatever was passed *in*, so it says a rotation was
-kept when it was not — compare screenshots, and never a sha256 of one, since a
-WebGL re-render differs by a pixel.
+view must be handed back on every draw. *Where it is read from* took three
+attempts and two wrong claims in the log: `layout.scene.camera` reports whatever
+was passed **in**, and `plotly_relayout` **never fires for a gl3d camera drag at
+all** — measured, zero events, and true of the shipped build too, so the listener
+that replaced the first wrong answer was silently receiving nothing. The only
+reading of the view is `gd._fullLayout.scene._scene.getCamera()`, read back
+immediately before each `react`. Method note behind all three: compare
+screenshots, never a sha256 of one (a WebGL re-render differs by a pixel), and
+when a claim is about an event, count the events.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in

@@ -106,6 +106,25 @@ bytes in a dist that is reviewed as a diff.
       ellipsoid axes match `principal_values`; a non-positive-definite
       tensor is flagged in the payload rather than producing NaN geometry.
 
+### Second pass — the scene, not the geometry (2026-07-30)
+
+Reopened after a session on the shipped panel: the geometry was right and the
+*scene it was drawn in* was plotly's defaults rather than crystallography's.
+Measured against how VESTA, Jmol and 3Dmol.js draw the same picture.
+
+- [x] Orthographic projection, no Cartesian x/y/z box, a/b/c letters on the
+      cell's own edges, solid frame, `dragmode: "orbit"`, modebar trimmed.
+- [x] Bonds as two-tone cylinders in Å (`unitCylinder`/`stickTransform`)
+      rather than a `scatter3d` polyline of pixel width — the objection the
+      module already made about markers, applied to sticks.
+- [x] `BALL_FRACTION` 0.32 → 0.40, `unitSphere` 8×16 → 12×24, one shared
+      `LIGHTING`/`LIGHT_POSITION` with no black far side.
+- [x] `axisCamera` + view-down-a/b/c and reset buttons.
+- [x] The panel's own truthfulness: a loading state, a `seq` guard on
+      `load()`, and the shell no longer lists this viewer as still owed.
+- [x] The camera read from the scene rather than from an event that never
+      fires — see the 2026-07-30 (second pass) handover entry.
+
 ## Acceptance
 
 ```sh
@@ -210,6 +229,13 @@ npm --prefix gui test && npm --prefix gui run check
     screenshot across a server refetch *and* a ball→ellipsoid→ball round trip:
     eye 1.613, 0.434, 1.326 unchanged, pictures identical.
 
+    > **Withdrawn 2026-07-30 (second pass).** The diagnosis above is right and
+    > the fix is not: `plotly_relayout` **never fires for a gl3d camera drag**,
+    > so the capture received nothing and the view was lost anyway. Measured
+    > against this very build — see the second-pass entry below. The "verified by
+    > screenshot, eye 1.613, 0.434, 1.326 unchanged" sentence is wrong; treat the
+    > eye figures as unmeasured.
+
     Two method notes for the next person. **A sha256 of a WebGL screenshot is too
     strict** — a re-render differs by a pixel, so an equality test on the hash
     reports "view lost" for every redraw and hides the real answer. And
@@ -222,8 +248,8 @@ npm --prefix gui test && npm --prefix gui run check
   parse (1414–1669 ms under software WebGL, so the GPU is not the bottleneck).
   A probability change is a client multiply with **zero** refetches; the bond
   slider is a server round trip because the server owns the bond rule; the
-  camera survives both (see the fifth browser defect below for how that was
-  first got wrong). On NAC read with its aniso loop: 84
+  camera was *claimed* to survive both, and did not — see the fifth browser
+  defect above and the second-pass entry below. On NAC read with its aniso loop: 84
   atoms in the cell, ellipsoids at 90 %, each symmetry image visibly rotated, and
   Na1's balloon (Biso 2.16 Å² against Al's 0.59) obvious at a glance where the
   parameter table shows it as six ordinary numbers. That last is the WP's whole
@@ -245,3 +271,108 @@ npm --prefix gui test && npm --prefix gui run check
   since it is computed on demand, and it remains true, but nothing in the panel
   needed it. `MAX_ATOMS` is 400 and `MAX_BONDS` 4000; both report in `note` when
   they bite.
+
+- **2026-07-30 (second pass) — the scene, not the geometry.** Reopened on the
+  report that the viewer "is a bit janky". The geometry was right; what was
+  wrong was that the *scene* it was drawn in was plotly's defaults rather than
+  crystallography's, and that is a different kind of bug — nothing was
+  incorrect, everything was slightly unlike the picture a crystallographer
+  expects. Read against how VESTA, Jmol and 3Dmol.js draw the same thing, and
+  measured against the bundled plotly (6.9.0, which is what `/plotly.js` serves)
+  rather than against its documentation.
+
+  **Four defaults were plotly's.** *Perspective*, under which parallel cell
+  edges converge and a cubic cell does not look cubic; every crystallographic
+  figure is a parallel projection, so `DEFAULT_CAMERA` is orthographic now. *A
+  Cartesian x/y/z box*, whose grid, background and tick labels churn on every
+  frame of a drag and describe a frame of reference nothing in the picture uses
+  — gone, with `axisTrace` putting a, b, c on the cell's own edges instead. *A
+  4 px bond polyline*, which is exactly the objection `lib/structure3d.ts`
+  already made about why an atom is a `mesh3d` and not a marker: a pixel-width
+  primitive does not scale with zoom. And *a faceted sphere* at sixteen
+  segments, with a specular that made four hundred identical balls read as
+  plastic.
+
+  **What the bond change forced.** Cylinders are `unitCylinder` pushed through
+  `stickTransform`, whose columns are the axes — `atomTransform`'s own
+  convention — so a tube and a sphere go through the same `transform()`. Two
+  consequences worth keeping. Splitting each bond at its midpoint and colouring
+  the halves by their own atoms settled a rule the old trace did not have: it
+  ignored `hidden` entirely, so a species switched off left its bonds behind; **a
+  half belongs to its atom**. And the stick radius (0.08 Å) is now a *lower*
+  bound on the ball: `BALL_FRACTION` went 0.32 → 0.40 (VESTA's ball-and-stick
+  fraction — comparable only because both ends are stated: VESTA scales *atomic*
+  radii, these are covalent), and the pair is pinned by a test, because at 0.32
+  hydrogen would have been a lump on a rod.
+
+  **`dragmode: "orbit"` is load-bearing.** Turntable is what gl3d picks when no
+  `camera.up` is supplied, i.e. what this scene had been, and it pins `up` to +z
+  and *rewrites* any camera that disagrees. `cartesian_basis` is an
+  upper-triangular Cholesky factor, so **c ∥ ẑ for every orthogonal cell** — the
+  new "view down c" button would have put the eye exactly on the up axis and
+  drawn nothing. The two are one decision, not two. (The modebar is trimmed to
+  `toImage` for the same reason: `tableRotation` sets turntable from the UI.)
+  `axisCamera` also depends on a second job `aspectmode: "data"` turns out to be
+  doing — it makes the data→scene map a *uniform* scale, so a direction in Å is
+  the same direction in camera coordinates.
+
+  **The correction, and it is the important part of this entry.**
+  `plotly_relayout` **does not fire for a gl3d camera drag at all.** The
+  component had listened for it since the first pass, and had never received
+  one: zero events across a drag that moved the eye from (1.35, 1.35, 0.95) to
+  (−0.62, −1.41, −1.47), after which the next redraw put the scene back to the
+  opening view. This is *not* a regression from the orbit/orthographic change —
+  the same probe against the first pass's own committed `static/` says the same
+  thing, which is how it was ruled out. So the fifth browser defect above was
+  diagnosed correctly and fixed wrongly, twice in a row on the same question,
+  and the pattern in both failures is the same: **the check was cheaper than the
+  claim.** The first pass read `_fullLayout.scene.camera` (which reports what was
+  passed *in*); the second read a screenshot after a redraw that happened to be a
+  `Plots.resize`. What settles it is counting the events.
+
+  The reading that *is* a reading of the view is the scene object's
+  `getCamera()` — live `up`/`center`/`eye`/`projection`, read back immediately
+  before each `react`. It is private API, and the honest defence of that is only
+  that the two public alternatives are a signal that never arrives and a field
+  that lies; when it is absent the last known camera stands, which is exactly the
+  behaviour it replaces. A camera a *button* chose travels in its own slot
+  (`pending`), so `down c` outranks what is on screen while a drag is not
+  overwritten by it.
+
+  **The other thing a browser found**: the a/b/c letters were drawn *inside* the
+  corner atoms. A percentage of the cell edge is the wrong shape for the problem
+  — a corner site is drawn at all eight corners, so a letter has to clear a
+  *ball* — and 8 % of LaB6's 4.16 Å edge is 0.33 Å against a lanthanum drawn at
+  0.83. The clearance is in Å and set by the largest ball in the phase.
+
+  **Three things the panel said that were not true**, all cheap: "no structure
+  yet" during the whole 605–1447 ms first paint (one `geo === null` cannot say
+  both "not fetched" and "nothing here"); no request ordering, so two quick
+  releases of the bond slider left the picture disagreeing with the slider —
+  WP-1013's `seq` rule, and confirmed by removing the guard and watching the
+  caption read 1.05× under a slider at 1.25; and the shell still listing this
+  viewer under "panels still owed".
+
+  **Measured** (M4, Chrome for Testing, Apple Metal, LaB6 and NAC projects):
+  boot-to-interactive 77–122 ms and click-to-drawn-scene 1.9–2.3 s, both
+  unchanged in character from the first pass — the added mesh work is nothing
+  against the plotly fetch. At `MAX_ATOMS`/`MAX_BONDS` the scene is ~202 k
+  vertices; LaB6 at the default tolerance is 36 k. Verified by screenshot: a
+  drag survives a bond-threshold refetch *and* a ball→ellipsoid switch; view
+  down c on a cubic phase draws a square rather than nothing; sticks keep their
+  thickness through a full zoom; nothing goes black after half a turn; and Na1's
+  balloon at 90 % is still the obvious thing in the picture.
+
+  **Left alone, deliberately.** The bond rule and its 1.15 default: LaB6 at 1.15
+  is still 210 segments and 109 out-of-cell partners, which reads as a hairball,
+  but the La–B contact at 3.058 Å is real twelve-coordination and every standard
+  rule (including Jmol's additive r+r+0.45) draws it — the honest answer is the
+  slider that already exists, and one turn of it to 1.05 gives the picture in the
+  screenshots. Balls do not clip against sticks in ellipsoid mode when a tensor is
+  very small; ORTEP clips, and that is not worth the code here. And the WP's own
+  non-goals stand: no polyhedra, no packing view, no measurement tools.
+
+  Counts: vitest 207 → 221 (fourteen tests, no deletions); Python fast suite
+  1192 → 1193 passed with skips unchanged at 107 (one test, both figures moved
+  by one). Note for the record that CLAUDE.md's "206" for vitest was one short of
+  what the suite actually reported at this WP's landing commit.

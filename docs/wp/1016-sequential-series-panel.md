@@ -74,11 +74,21 @@ A jsdom mount cannot see this at all (no layout). `Structure3D.svelte` fixes it
 with a `ResizeObserver` → `Plotly.Plots.resize`; do the same, or put every control
 *above* the plot.
 
-One method note that cost this WP a wrong claim, and applies to any plotly panel:
-**reading `gd.layout` back is not a reading of the view.** It reports whatever was
-last passed *in*, so a check written that way says a user's zoom or rotation was
-preserved when it has been thrown away. Compare screenshots — but not their
-hashes, since a re-render differs by a pixel.
+One method note that cost this WP two wrong claims in a row, and applies to any
+plotly panel: **reading `gd.layout` back is not a reading of the view.** It
+reports whatever was last passed *in*, so a check written that way says a user's
+zoom or rotation was preserved when it has been thrown away. Compare screenshots
+— but not their hashes, since a re-render differs by a pixel.
+
+The consequence for a 3D panel specifically (measured against plotly 6.9.0,
+2026-07-30): **`plotly_relayout` does not fire for a gl3d camera drag at all**,
+so a listener for it is not a fallback — it receives nothing, silently. If a
+panel needs to preserve a camera across a redraw that replaces traces, read
+`gd._fullLayout.scene._scene.getCamera()` immediately before the redraw and hand
+it back in; that is private API and it is the only reading of the view there is.
+A 2D plot has the same question with a different answer: its zoom lives in
+`xaxis.range`, which `uirevision` does keep as long as the trace *count* is
+stable.
 
 Also worth knowing: this WP did **not** add a sixth tab — the viewer is a third
 column inside the model pane, which leaves the sixth-tab question below exactly
