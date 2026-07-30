@@ -34,32 +34,33 @@ and the reason is structural rather than a threshold: Le Bail extraction sets ea
 reflection's intensity from ``max(y_obs − y_bkg, 0)``, so a reflection predicted
 where there is nothing is assigned ~nothing and produces **no negative residual
 to detect**.  What the detector then finds is 5σ noise excursions that happen to
-sit near a tick.  Measured on a synthetic LaB₆ pattern (4250 points, 15-100° 2θ,
-Poisson noise), ``unmatched_calc`` was **11 of 17** for the *certified* cell and
-44 of 87 for a doubled one — it does not separate them at all.
-:func:`absent_reflections` asks the question directly instead — is there net
+sit near a tick.  Measured on a synthetic LaB₆ pattern (Poisson noise, 15-145° 2θ
+at 0.02°, the protocol ``tests/test_indexing_consensus.py`` pins),
+``unmatched_calc`` fired on **17 of the certified cell's own 28 reflections** and
+on 94 of a doubled cell's 153 — 61 % either way, so it does not separate them at
+all.  :func:`absent_reflections` asks the question directly instead — is there net
 intensity above the *fitted* background at this position? — and separates them
-cleanly: **0 of 17 for the truth, 67 of 87 for the doubled cell.**
+cleanly: 0 of 28 against 117 of 153.
 
 **The two detectors and ``lebail_rwp`` catch different failures, which is why all
-three are reported.**  Same measurement, same four cells:
+three are reported.**  Same measurement, four cells:
 
 | candidate | Rwp | predicted_but_absent | unmatched_observed |
 |---|---|---|---|
-| truth | 0.200 | 0/17 | 0 |
-| doubled cell | 0.389 | **67/87** | 0 |
-| a·√5 supercell | 1.097 | 9/117 | 3 |
-| metric 1 % off | 1.137 | 0/17 | **87** |
+| truth | 0.216 | 0/28 | 0 |
+| doubled cell | 0.379 | **117/153** | 0 |
+| a·√5 supercell | 0.957 | 27/204 | 4 |
+| metric 1 % off | 0.984 | 0/30 | **95** |
 
-Read the table by column.  Rwp is decisive on a *wrong metric* (1.1 against 0.2)
-and nearly silent on an *oversized* one (0.389 — barely twice the truth's, and
-on real data that gap is inside the spread between specimens); the oversized cell
-is caught only by column three.  A wrong metric is caught from the other side by
-column four, where 87 observed peaks have no calculated reflection.  The a·√5
+Read the table by column.  Rwp is decisive on a *wrong metric* (0.98 against 0.22)
+and nearly silent on an *oversized* one (0.379 — well under twice the truth's, and
+on real data a gap that size is inside the spread between specimens); the oversized
+cell is caught only by column three.  A wrong metric is caught from the other side
+by column four, where 95 observed peaks have no calculated reflection.  The a·√5
 row is the useful reminder that these overlap: its fit is already refuted by Rwp,
-so its low absent count costs nothing — a badly-fitted background is what makes
-that count unreliable, and a badly-fitted background comes with an Rwp that says
-so.
+so its low absent *fraction* costs nothing — a badly-fitted background is what
+makes that count unreliable, and a badly-fitted background comes with an Rwp that
+says so.
 
 ``lebail_rwp`` is the figure the literature names; it is **not** a member of the
 ranking panel.  The panel ranks every candidate and this costs a refinement, so
