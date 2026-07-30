@@ -39,11 +39,22 @@ different hypotheses about *this* cell, and both are enumerated.
    allowed neighbours wins on parsimony alone — ΔBIC = −n·ln N with no
    measurement behind it — which is exactly the confident wrong singleton this
    milestone exists to prevent.
-3. *Direct absence evidence refutes; the fit only ranks.*  A forbidden position
-   carrying net intensity above the fitted background refutes its class outright,
-   and no fit can rescue it, so a refuted class is **not** fitted at all.  That
-   is both the epistemics and the cost control: an orthorhombic P screen
-   enumerates 71 classes and refutes most of them from one reference fit.
+3. *Direct absence evidence refutes; the fit only ranks — but it must be read
+   against the right null model, and the plan's was wrong.*  The question is
+   "does this forbidden position carry intensity nothing else explains?", and
+   WP-1024's :func:`~pxrdref.indexing.workflow.absent_reflections` asks it
+   against the fitted **background**.  That works for a lattice's phantom
+   reflection, which sits in a gap; it fails here, because a forbidden position
+   sits *inside* a dense predicted pattern.  Measured on the FAP lab pattern,
+   whose space group is P 6₃/m: the forbidden 003 sits **0.89 FWHM** from the
+   allowed (3,-1,2), which is ten times stronger, so its tail fills the window to
+   **+27.6 σ** and the background test refutes the true class.  Asked against the
+   class's own ``y_calc`` — background *plus every reflection the class still
+   allows* — the same position reads **−3.9 σ**.  So the same function is called
+   with ``y_calc`` in place of ``y_background``: one detector, one window, one
+   threshold, referenced to the model that has to explain the data.  Where
+   nothing is predicted nearby the two are the same test, which is why this is a
+   generalisation rather than a second opinion.
 
 **Scoring is a nested model comparison, not lowest Rwp.**  A class with fewer
 absences has more reflections and always fits at least as well, so Rwp ranks the
@@ -68,8 +79,16 @@ from dataclasses import dataclass, field
 import gemmi
 import numpy as np
 
-from ..schemas.indexing import CellCandidate
-from .fom import lattice_group
+from ..schemas.indexing import (
+    CellCandidate,
+    ExtinctionCandidate,
+    ExtinctionScreen,
+    PeakList,
+)
+from ..schemas.instrument import Instrument
+from ..schemas.pattern import PatternData
+from .fom import LINE_COINCIDENCE_RTOL, lattice_group
+from .workflow import ABSENT_SIGMA, absent_reflections, structure_from_candidate
 
 #: ΔBIC below which two classes are **not** separated.  Kass & Raftery (1995),
 #: *J. Am. Stat. Assoc.* **90**, 773, call a difference above 10 "very strong"
@@ -438,5 +457,327 @@ def _hkl_in_range(cell, wavelength: float, two_theta_max: float,
     return hkl[keep]
 
 
+# ----------------------------------------------------------------------
+# lines, and which of them a class forbids
+# ----------------------------------------------------------------------
+def line_index(two_theta: np.ndarray) -> tuple[np.ndarray, int]:
+    """Label each reflection with the **line** it belongs to, coincidences merged.
+
+    Two orbits at one 2θ are one line: one observation, one Le Bail intensity, one
+    thing a figure of merit may count (WP-1020's ``predicted_lines``).  The
+    tolerance is :data:`~pxrdref.indexing.fom.LINE_COINCIDENCE_RTOL`, nine orders
+    below any measurement precision, so it merges exact coincidences and nothing
+    else — reflections that merely *overlap* are a different question, answered by
+    :func:`testable_mask`.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    order = np.argsort(tt, kind="stable")
+    labels = np.empty(len(tt), dtype=np.int64)
+    n, anchor = -1, None
+    for i in order:
+        if anchor is None or tt[i] - anchor > LINE_COINCIDENCE_RTOL * max(
+                abs(tt[i]), 1e-12):
+            n += 1
+            anchor = tt[i]
+        labels[i] = n
+    return labels, n + 1
+
+
+def _orbit_absences(sg: gemmi.SpaceGroup, orbits: list[np.ndarray]) -> np.ndarray:
+    """Is *every* member of each orbit systematically absent under ``sg``?
+
+    Asking the orbit rather than its representative is not pedantry.  The orbits
+    come from the **holohedry**, and a class need not have holohedral symmetry:
+    under ``P a -3`` the reflections 012 and 021 sit in one m-3m orbit at one 2θ,
+    and one of them is extinguished while the other is not.  The *line* is present.
+    """
+    flat = np.vstack(orbits)
+    absent = np.asarray(sg.operations().systematic_absences(flat), dtype=bool)
+    offsets = np.cumsum([0] + [len(o) for o in orbits[:-1]])
+    return np.logical_and.reduceat(absent, offsets) if len(flat) else absent
+
+
+def testable_mask(forbidden_tt: np.ndarray, allowed_tt: np.ndarray,
+                  fwhm_forbidden: np.ndarray, fwhm_allowed: np.ndarray,
+                  data_tt: np.ndarray) -> np.ndarray:
+    """Which forbidden positions the data can actually check.
+
+    A forbidden position is testable when it is **covered** — the fitted pattern
+    has channels within ±½ FWHM of it, so an interior exclusion or the end of the
+    scan does not read as an absence — and **separable**: it shares no
+    ``model.forward._overlap_groups`` group with a line the class still allows.
+    The overlap criterion is imported rather than restated so "overlapped" means
+    one thing package-wide, and the allowed set includes **every emission line**,
+    because a Kα2 image sitting on a forbidden Kα1 position would otherwise be
+    read as intensity the class forbids.
+    """
+    from ..model.forward import _overlap_groups
+
+    tt = np.concatenate([np.asarray(forbidden_tt, dtype=np.float64),
+                         np.asarray(allowed_tt, dtype=np.float64)])
+    width = np.concatenate([np.asarray(fwhm_forbidden, dtype=np.float64),
+                            np.asarray(fwhm_allowed, dtype=np.float64)])
+    is_forbidden = np.zeros(len(tt), dtype=bool)
+    is_forbidden[:len(forbidden_tt)] = True
+    order = np.argsort(tt, kind="stable")
+    blocked = np.zeros(len(tt), dtype=bool)
+    for group in _overlap_groups(tt[order], width[order]):
+        idx = order[group]
+        if not is_forbidden[idx].all():
+            blocked[idx] = True
+
+    data = np.asarray(data_tt, dtype=np.float64)
+    covered = np.array([
+        bool(np.any(np.abs(data - p) <= 0.5 * max(float(w), 1e-6)))
+        for p, w in zip(forbidden_tt, fwhm_forbidden)], dtype=bool)
+    return covered & ~blocked[:len(forbidden_tt)]
+
+
+# ----------------------------------------------------------------------
+# the screen
+# ----------------------------------------------------------------------
+def _screen_plan():
+    """The one stage every class is fitted with: the background, and nothing else.
+
+    The profile is **frozen** at the shared pre-fit's values, and that is what
+    makes the comparison nested: two classes then differ only in their reflection
+    set, where refitting the widths per class would let a restricted class buy
+    back a missing reflection by broadening its neighbour.  The background stays
+    free because removing reflections genuinely changes what the background must
+    carry, and holding it would charge that difference to the class.
+    """
+    from ..strategy.staged import RefinementPlan, Stage
+
+    return RefinementPlan(stages=[Stage("bkg", ["instrument.background.*"])])
+
+
+def _fit_class(candidate: CellCandidate, data: PatternData, instrument: Instrument,
+               symbol: str, two_theta_limits):
+    from ..refine import Refinement
+
+    ref = Refinement(structure_from_candidate(candidate, space_group=symbol),
+                     instrument, history=False)
+    result = ref.fit(data, mode="lebail", plan=_screen_plan(),
+                     two_theta_limits=two_theta_limits)
+    return ref, result
+
+
+def _chi2_absolute(stats) -> float:
+    """The weighted residual sum of squares ``delta_bic`` wants.
+
+    ``Statistics.chi2`` is the *reduced* χ² (Σwd²/(N−P)), and the two models being
+    compared have different P, so dividing by their own dof first would fold a
+    second, unwanted ratio into the comparison.
+    """
+    return float(stats.chi2) * max(stats.n_points - stats.n_free_parameters, 1)
+
+
+def determine_extinction_symbol(data: PatternData, candidate: CellCandidate,
+                                instrument: Instrument, *,
+                                peaks: PeakList | None = None,
+                                two_theta_limits: tuple[float, float] | None = None,
+                                k_sigma: float = ABSENT_SIGMA,
+                                max_classes: int | None = None,
+                                cancel=None) -> ExtinctionScreen:
+    """Rank the extinction classes compatible with an indexed lattice.
+
+    The pipeline, and the reason for each step:
+
+    1. **one shared profile fit** of the absence-free lattice group
+       (``workflow.validation_plan``: background, one shift parameter, then the
+       widths) — every class is then fitted with that instrument frozen, so no
+       class can compensate a missing reflection with a wider peak;
+    2. **the reference fit**: the absence-free class under the same one-stage
+       protocol as every other class, which is what makes the χ² values
+       comparable;
+    3. **one Le Bail fit per class**, weakest claim first, scored by ΔBIC and
+       Hamilton against the reference (see the module docstring);
+    4. **the absence test** at each class's own testable forbidden positions,
+       read against **that class's own calculated pattern** — one position
+       carrying intensity the class cannot account for refutes it, with the hkl
+       named.
+
+    ``candidate.system`` is taken as given, deliberately: when the Bravais screen
+    reported ``INDEX_BRAVAIS_AMBIGUOUS`` its ``system`` is the *conservative*
+    reading, and a screen run in the higher symmetry would enumerate classes the
+    lattice may not have.
+
+    Cost is one refinement per surviving class (~0.1 s each on a 3750-point
+    pattern, after a ~2 s profile fit).  ``max_classes`` caps it; the classes left
+    unfitted are reported with ``screened=False`` and, because an unasked question
+    must not read as a clean answer, :meth:`ExtinctionScreen.best_or_none` then
+    abstains.
+    """
+    from ..crystallography.symmetry import reflection_orbits
+    from ..report.layer2 import delta_bic, hamilton_justified
+    from .peaks import predicted_fwhm
+    from .workflow import seed_widths, validation_plan
+
+    symbol = candidate.lattice_group or lattice_group(candidate.system,
+                                                      candidate.centring)
+    wavelength = float(instrument.source.lines[0].wavelength)
+    screen = ExtinctionScreen(
+        lattice_group=symbol, cell=candidate.cell, system=candidate.system,
+        centring=candidate.centring, wavelength=wavelength)
+
+    ins = instrument
+    if peaks is not None:
+        ins, _seeded = seed_widths(ins, peaks)
+    from ..refine import Refinement
+
+    pre = Refinement(structure_from_candidate(candidate, space_group=symbol),
+                     ins, history=False)
+    profile = pre.fit(data, mode="lebail",
+                      plan=validation_plan(candidate, ins),
+                      two_theta_limits=two_theta_limits)
+    screen.profile_rwp = float(profile.statistics.rwp)
+    frozen = pre.fitted_instrument
+
+    # 2 — the reference model: the same class, the same protocol as the rest
+    ref_fit, ref_result = _fit_class(candidate, data, frozen, symbol,
+                                     two_theta_limits)
+    rows = ref_fit.reflection_table()
+    primary = [r for r in rows if r.line == 0]
+    if not primary:
+        screen.status = "failed"
+        return screen
+    tt_ref = np.array([r.two_theta for r in primary], dtype=np.float64)
+    hkl_ref = np.array([(r.h, r.k, r.l) for r in primary], dtype=np.int64)
+    labels, n_lines = line_index(tt_ref)
+    orbits = reflection_orbits(symbol, hkl_ref)
+    fwhm_ref = predicted_fwhm(tt_ref, frozen)
+    tt_all = np.array([r.two_theta for r in rows], dtype=np.float64)
+    line_of_row = _row_line_labels(rows, primary, labels)
+    # one representative reflection per line, and the reduction offsets the
+    # per-line "is every orbit here absent?" test uses
+    by_line = np.argsort(labels, kind="stable")
+    starts = np.flatnonzero(np.concatenate(
+        [[True], np.diff(labels[by_line]) > 0]))
+    first_row_of_line = by_line[starts]
+    fwhm_all = predicted_fwhm(tt_all, frozen)
+    tt_data = np.asarray(ref_result.two_theta, dtype=np.float64)
+
+    screen.two_theta_range = (float(tt_data.min()), float(tt_data.max()))
+    screen.reference_rwp = float(ref_result.statistics.rwp)
+    screen.reference_chi2 = _chi2_absolute(ref_result.statistics)
+    screen.reference_lines = int(n_lines)
+    screen.n_points = int(ref_result.statistics.n_points)
+
+    classes = absence_classes(candidate, wavelength, screen.two_theta_range[1],
+                              screen.two_theta_range[0])
+    screen.n_classes = len(classes)
+
+    # 3a — what each class forbids, and which of those the data can test.  No
+    # fit yet: this is what orders the screen and what ``n_added`` counts.
+    entries: list[ExtinctionCandidate] = []
+    evidence: list[dict] = []
+    for cls in classes:
+        sg = gemmi.find_spacegroup_by_name(cls.representative)
+        orbit_absent = _orbit_absences(sg, orbits)
+        absent_line = np.logical_and.reduceat(orbit_absent[by_line], starts)
+        forbidden = np.flatnonzero(absent_line)
+        entry = ExtinctionCandidate(
+            symbol=cls.symbol, representative=cls.representative,
+            space_groups=list(cls.space_groups), conditions=list(cls.conditions),
+            conditions_complete=cls.conditions_complete,
+            n_lines=int(n_lines - len(forbidden)), n_absent=int(len(forbidden)))
+        first_of_line = first_row_of_line[forbidden]
+        tt_forbidden = tt_ref[first_of_line]
+        fwhm_forbidden = fwhm_ref[first_of_line]
+        keep = np.zeros(len(forbidden), dtype=bool)
+        if len(forbidden):
+            is_forbidden_row = np.isin(line_of_row, forbidden)
+            keep = testable_mask(tt_forbidden, tt_all[~is_forbidden_row],
+                                 fwhm_forbidden, fwhm_all[~is_forbidden_row],
+                                 tt_data)
+            entry.n_testable = int(keep.sum())
+        entries.append(entry)
+        evidence.append({"keep": keep, "tt": tt_forbidden, "fwhm": fwhm_forbidden,
+                         "first": first_of_line})
+
+    # 3b — one Le Bail fit per class, weakest claim first, and the absence test
+    # read against **that class's own** calculated pattern
+    budget = len(entries) if max_classes is None else max(int(max_classes), 1)
+    order = sorted(range(len(entries)),
+                   key=lambda i: (entries[i].n_absent, entries[i].symbol))
+    for rank, i in enumerate(order):
+        entry, ev = entries[i], evidence[i]
+        if rank >= budget or (cancel is not None and bool(cancel)):
+            continue                       # left unscreened, and it says so
+        if entry.n_absent == 0:                       # the reference itself
+            result = ref_result
+        else:
+            try:
+                _fit, result = _fit_class(candidate, data, frozen,
+                                          entry.representative,
+                                          two_theta_limits)
+            except Exception as exc:                  # noqa: BLE001
+                entry.screened = True
+                entry.refuted = True
+                entry.refuted_reason = (
+                    f"the Le Bail fit of {entry.representative} raised "
+                    f"{type(exc).__name__}: {exc}")
+                continue
+        entry.screened = True
+        entry.rwp = float(result.statistics.rwp)
+        entry.gof = float(result.statistics.gof)
+        entry.chi2 = _chi2_absolute(result.statistics)
+        entry.delta_bic = delta_bic(entry.chi2, screen.reference_chi2,
+                                    screen.n_points, entry.n_testable)
+        entry.absences_rejected = hamilton_justified(
+            entry.chi2, screen.reference_chi2, screen.n_points,
+            entry.n_lines + int(result.statistics.n_free_parameters),
+            entry.n_testable)
+
+        if not entry.n_testable:
+            continue
+        # the absence test, against **this class's own** calculated pattern: the
+        # null model has to contain the neighbours, and y_calc is what does
+        keep = ev["keep"]
+        pos = ev["tt"][keep]
+        absent_tt, _ratio = absent_reflections(
+            tt_data, np.asarray(result.y_obs), np.asarray(result.y_calc),
+            np.asarray(result.sigma), pos, ev["fwhm"][keep], k_sigma=k_sigma)
+        # each position either came back absent or did not; those that did not
+        # carry intensity this class forbids, and no fit can explain them away
+        quiet = set(absent_tt)
+        loud = [j for j, p in enumerate(pos) if float(p) not in quiet]
+        entry.n_present = len(loud)
+        idx = np.flatnonzero(keep)[loud]
+        entry.forbidden_two_theta = [round(float(ev["tt"][j]), 4) for j in idx]
+        entry.forbidden_hkl = [tuple(int(v) for v in hkl_ref[ev["first"][j]])
+                               for j in idx]
+        if entry.n_present:
+            entry.refuted = True
+            entry.refuted_reason = (
+                f"{entry.n_present} of {entry.n_testable} testable forbidden "
+                f"position(s) carry intensity this class cannot account for, "
+                f"first {entry.forbidden_hkl[0]} at "
+                f"{entry.forbidden_two_theta[0]:.3f}°")
+
+    screen.n_screened = sum(1 for e in entries if e.screened)
+    if cancel is not None and bool(cancel):
+        screen.status = "cancelled"
+    screen.candidates = sorted(
+        entries, key=lambda e: (e.refuted, not e.screened, e.delta_bic,
+                                e.n_absent))
+    return screen
+
+
+def _row_line_labels(rows, primary, labels) -> np.ndarray:
+    """The line label of every (emission line, reflection) row.
+
+    A Kα2 row inherits its reflection's line, which is what lets the overlap test
+    see a second-emission-line image sitting on a forbidden Kα1 position.
+    """
+    by_hkl: dict[tuple[int, int, int], int] = {}
+    for j, r in enumerate(primary):
+        by_hkl[(r.h, r.k, r.l)] = int(labels[j])
+    return np.array([by_hkl.get((r.h, r.k, r.l), -1) for r in rows],
+                    dtype=np.int64)
+
+
 __all__ = ["DECISIVE_DELTA_BIC", "AbsenceClass", "absence_classes",
-           "compatible_groups", "extinction_symbol", "reflection_conditions"]
+           "compatible_groups", "determine_extinction_symbol",
+           "extinction_symbol", "line_index", "reflection_conditions",
+           "testable_mask"]
