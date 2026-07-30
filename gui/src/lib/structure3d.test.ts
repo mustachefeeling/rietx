@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_CAMERA,
   atomLabel,
   atomTransform,
   atomTraces,
@@ -216,12 +217,23 @@ describe("the caption and the layout", () => {
     expect(atomLabel(geo, geo.atoms[2], "ball")).not.toContain("positive");
   });
 
-  it("keeps one Å the same length on all three axes, and the camera on redraw", () => {
+  it("keeps one Å the same length on all three axes", () => {
     // without `aspectmode: "data"` plotly stretches the box to a cube, which
     // draws a monoclinic cell as an orthogonal one — the whole content of the
     // picture for a low-symmetry phase
-    const scene = layout("#111", "#ccc").scene;
-    expect(scene.aspectmode).toBe("data");
+    expect(layout("#111", "#ccc").scene.aspectmode).toBe("data");
     expect(layout("#111", "#ccc").uirevision).toBe("structure3d");
+  });
+
+  it("takes the camera from its caller, defaulting to the opening view", () => {
+    // The caller owns it because plotly does not keep it: every redraw here
+    // builds new trace objects, and replacing a `mesh3d` rebuilds the gl3d
+    // scene from the layout.  Isolated in a browser and measured by comparing
+    // screenshots — reading `layout.scene.camera` back reports whatever was
+    // last passed *in*, so it says a rotation was preserved when it was not.
+    expect(layout("#111", "#ccc").scene.camera).toEqual(DEFAULT_CAMERA);
+    const held = { eye: { x: 0.2, y: 2.1, z: 0.4 } };
+    expect(layout("#111", "#ccc", held).scene.camera).toBe(held);
+    expect(layout("#111", "#ccc").scene.uirevision).toBe("structure3d");
   });
 });

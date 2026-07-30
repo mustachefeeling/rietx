@@ -1616,6 +1616,10 @@ describe("the structure viewer", () => {
     expect(traces[3].name).toBe("B");
     // one Å is one Å on every axis, or a monoclinic cell is drawn orthogonal
     expect(layout.scene.aspectmode).toBe("data");
+    // …and every draw supplies the *same* camera under a scene revision, which
+    // is what plotly needs to keep a rotation the user made (see `lib/layout`)
+    expect(layout.scene.uirevision).toBe("structure3d");
+    for (const d of drawn) expect(d.layout.scene.camera).toEqual(layout.scene.camera);
   });
 
   it("says what it drew and at which thresholds", async () => {

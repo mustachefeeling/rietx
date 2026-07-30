@@ -24,6 +24,7 @@
   import { ApiError, api } from "../api";
   import { loadPlotly } from "../lib/plotly";
   import {
+    DEFAULT_CAMERA,
     caption,
     layout,
     legend,
@@ -45,6 +46,8 @@
   let node: HTMLDivElement | undefined = $state();
   let plotly: any = $state(null);
   let observer: ResizeObserver | null = null;
+  /** The live camera — see `follow`.  Deliberately not `$state`. */
+  let camera: any = DEFAULT_CAMERA;
   let geo = $state<Geometry | null>(null);
   let error = $state("");
   let mode = $state<Mode>("ball");
@@ -131,9 +134,34 @@
       node,
       traces(geometry, mode, sphere, { cell, bond: muted }, hidden,
              showBoundary),
-      layout(style.color, line),
+      layout(style.color, line, camera),
       { responsive: true, displaylogo: false });
+    follow();
     watch();
+  }
+
+  /**
+   * Hold on to the camera the user set, because plotly will not.
+   *
+   * Every redraw here builds **new trace objects**, and replacing a `mesh3d`
+   * tears the gl3d scene down and rebuilds it from the layout — so `uirevision`
+   * does not survive it, and a rotation was silently thrown away by the next
+   * bond-threshold change or mode switch.  Reading plotly back does not detect
+   * this: `layout.scene.camera` reports whatever was last passed *in*, so it
+   * says the view was kept when it was not, which is why this was found by
+   * comparing screenshots rather than state.  `plotly_relayout` is the public
+   * signal, and the camera is a plain variable rather than `$state` on purpose:
+   * nothing renders it, and making it reactive would redraw on every drag.
+   */
+  function follow() {
+    const plotNode = node as HTMLDivElement & {
+      removeAllListeners?: (name: string) => void;
+      on?: (name: string, handler: (ev: any) => void) => void;
+    };
+    plotNode.removeAllListeners?.("plotly_relayout");
+    plotNode.on?.("plotly_relayout", (ev: any) => {
+      if (ev?.["scene.camera"]) camera = ev["scene.camera"];
+    });
   }
 
   /**

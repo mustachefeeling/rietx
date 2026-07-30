@@ -272,18 +272,32 @@ export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
           ...atomTraces(geometry, mode, sphere, hidden, showBoundary)];
 }
 
+/** The opening view — down the body diagonal, so no axis is edge-on. */
+export const DEFAULT_CAMERA = { eye: { x: 1.35, y: 1.35, z: 0.95 } };
+
 /**
  * The scene layout.
  *
- * Two settings are load-bearing.  `aspectmode: "data"` keeps one Å the same
- * length on all three axes — without it plotly stretches the box to a cube and
- * a monoclinic cell is drawn as an orthogonal one, which is the whole
- * *content* of the picture for a low-symmetry phase.  And `uirevision` is what
- * lets a redraw keep the camera: the payload is refetched on every head move,
- * so without it the view would snap back to the default angle every time a
- * parameter changed.
+ * `aspectmode: "data"` keeps one Å the same length on all three axes — without
+ * it plotly stretches the box to a cube and a monoclinic cell is drawn as an
+ * orthogonal one, which is the whole *content* of the picture for a
+ * low-symmetry phase.
+ *
+ * **The caller supplies the camera, and must supply the live one.**  This is the
+ * part that took a screenshot comparison to establish, because plotly's stored
+ * `layout.scene.camera` keeps saying whatever was *passed in* while the view is
+ * somewhere else entirely — read it back and it reports a rotation as preserved
+ * when it has been thrown away.  Isolated in the browser, three cases:
+ * `Plots.resize` keeps the view; `react` with the *same* trace objects and a
+ * fresh layout keeps it; `react` with **fresh trace objects** does not, because
+ * replacing a `mesh3d` tears the gl3d scene down and rebuilds it from the layout.
+ * Every redraw here builds new traces, so `uirevision` cannot save it and the
+ * only durable answer is for the component to own the camera — captured from
+ * `plotly_relayout` and handed back in — which is what
+ * `panels/Structure3D.svelte` does.
  */
-export function layout(fg: string, muted: string): any {
+export function layout(fg: string, muted: string,
+                       camera: any = DEFAULT_CAMERA): any {
   const axis = {
     showspikes: false, showbackground: false,
     gridcolor: muted, zerolinecolor: muted,
@@ -299,7 +313,8 @@ export function layout(fg: string, muted: string): any {
       xaxis: { ...axis, title: { text: "x (Å)" } },
       yaxis: { ...axis, title: { text: "y (Å)" } },
       zaxis: { ...axis, title: { text: "z (Å)" } },
-      camera: { eye: { x: 1.35, y: 1.35, z: 0.95 } },
+      camera,
+      uirevision: "structure3d",
     },
     uirevision: "structure3d",
   };
