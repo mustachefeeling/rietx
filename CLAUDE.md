@@ -34,9 +34,9 @@ acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
 `test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
 (corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
 After WP-1026's third session (the `_box_key` fix costs the dichotomy more
-refinements, and the corundum row became two searches): full **8:24**, fast
-**1361 / 66 in 1:11-1:21**, and that file **3:30 serial** — cpd-1a 106 s,
-corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
+refinements, and the corundum row became two searches): full **1446 passed /
+71 skipped in 8:24-9:51**, fast **1361 / 66 in 1:11-1:21**, and that file
+**3:30 serial** — cpd-1a 106 s, corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
 the billed 45 min, because the weekly job's wall clock is set by the
 `stephens-brucite` and `qpa-sample1` groups, both several times longer.
 **Quote wall clock as a range, never as a figure**: the same green tree

@@ -592,8 +592,8 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   **3:30 serial** (cpd-1a 106 s, corundum 52 s twice), up from ~120 s, all of it
   inside `xdist_group("indexing-acceptance")`. It does **not** move the weekly job's
   billed 45 minutes, because that job's wall clock is set by the longest group and
-  `stephens-brucite` and `qpa-sample1` are several times longer. Full suite **8:24**,
-  fast **1361 passed / 66 skipped in 1:11-1:21**.
+  `stephens-brucite` and `qpa-sample1` are several times longer. Full suite
+  **1446 passed / 71 skipped in 8:24-9:51**, fast **1361 / 66 in 1:11-1:21**.
 
   **Still not started:** LaB6/NAC/FAP/six-qarr known cells, the `hl2_peaks` and
   geometrical-ambiguity abstention rows, check-D. The bethanechol global score
