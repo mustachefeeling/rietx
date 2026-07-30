@@ -906,7 +906,20 @@ class GuiSession:
         points of.  So the arrays are excluded here and served per window, and
         what is left is the whole of the rest: statistics, refined values with
         esds, per-stage outcomes, diagnostics, QPA, absorption, provenance.
+
+        ``maturity`` is WP-1029's one honest signal that a fit is hopeless, and
+        it is deliberately **not** a new word.  It quotes the FitReport's own
+        `MATURITY_MAX_RWP` — the Rwp past which Layer 1 refuses to say anything
+        about individual parameters — so a client can stop rendering such a fit
+        in the same register as a good one without inventing a judgement, and
+        without touching the ``status`` vocabulary (a run that reaches this
+        state still reports ``converged``, which is WP-1028's to fix and not
+        this route's).  Served here rather than derived in the client for the
+        reason ``held_because`` travels on a parameter row: a threshold the
+        package owns must not have a second copy in TypeScript.
         """
+        from ..report.schemas import MATURITY_MAX_RWP
+
         res = self._need_result()
         payload = res.model_dump(mode="json", exclude={
             "two_theta", "y_obs", "y_calc", "y_background", "sigma"})
@@ -914,6 +927,19 @@ class GuiSession:
             "n_points": len(res.two_theta),
             "two_theta_range": ([res.two_theta[0], res.two_theta[-1]]
                                 if res.two_theta else None)}
+        rwp = float(res.statistics.rwp)
+        payload["maturity"] = {
+            "immature": rwp > MATURITY_MAX_RWP,
+            "max_rwp": MATURITY_MAX_RWP,
+            "message": (
+                f"Rwp {rwp:.1%} is past the point where the report will speak "
+                f"about individual parameters (Layer 1 abstains above "
+                f"{MATURITY_MAX_RWP:.0%}). At this level the usual cause is not "
+                f"a parameter but a premise: check that the structure and the "
+                f"pattern are of the same specimen, and read Layer 0's "
+                f"unmatched peaks before changing anything."
+                if rwp > MATURITY_MAX_RWP else ""),
+        }
         return {"result": payload}
 
     def result_window(self, lo: float | None = None, hi: float | None = None,

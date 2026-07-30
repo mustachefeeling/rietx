@@ -478,6 +478,44 @@ describe("the shell", () => {
     expect(button("Cancel")?.disabled).toBe(false);
   });
 
+  it("does not present a hopeless fit in the register of a good one", async () => {
+    // WP-1029 item (c). The judgement is the *report's* — `maturity` quotes
+    // MATURITY_MAX_RWP, the Rwp past which Layer 1 refuses to speak about
+    // individual parameters — and `status` still says `converged`, because
+    // that vocabulary is WP-1028's and two owners would disagree.
+    const hopeless = {
+      ...RESULT,
+      status: "converged",
+      statistics: { rwp: 0.963, gof: 18.4 },
+      maturity: { immature: true, max_rwp: 0.35,
+                  message: "Rwp 96.3% is past the point where the report will "
+                    + "speak about individual parameters … the structure and the "
+                    + "pattern are of the same specimen" },
+    };
+    vi.stubGlobal("fetch", server({
+      ...boot(),
+      "/api/result": () => ({ body: { result: hopeless } }),
+      "/api/result/window": () => ({ body: { two_theta: [3, 4], y_obs: [1, 2],
+        y_calc: [1, 2], y_background: [], delta: [0, 0], delta_raw: [0, 0],
+        cumulative_chi2: [0, 0], weighted: true, ticks: {}, window: [3, 4],
+        n_total: 2, n_returned: 2, max_points: 4000 } }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(host.querySelector(".stats")?.classList.contains("immature")).toBe(true);
+    const flag = button("⚠ not a fit yet")!;
+    expect(flag).toBeTruthy();
+    expect(flag.title).toContain("same specimen");
+    // the calm pill is still there and still says `converged` — untouched
+    expect(host.querySelector(".pill")?.textContent?.trim()).toBe("idle");
+
+    // …and it is a route to the panel that explains it, not just a badge
+    flag.click();
+    await flush();
+    expect(host.textContent).toContain("No fit to report on yet");
+  });
+
   it("surfaces an open refusal verbatim rather than 'could not open'", async () => {
     const message =
       "file has changed since the project was created (sha256 1a2b3c4d, recorded 9f8e7d6c)";

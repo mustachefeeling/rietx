@@ -128,6 +128,9 @@
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
   const gof = $derived(result?.statistics?.gof ?? run?.run?.gof ?? null);
+  /** The report's own maturity gate, quoted rather than re-derived — see the
+   *  header below and `GuiSession.result`. */
+  const immature = $derived(Boolean(result?.maturity?.immature));
   // the head is the working state (WP-1005), so it is the one signal that says
   // "the table moved" whether a run, a checkout or an edit moved it
   const head = $derived(run?.head ?? project?.head ?? null);
@@ -423,10 +426,22 @@
     </div>
   {/if}
 
-  <div class="stats tabular mono">
+  <!-- A hopeless fit must not be presented in the register of a good one
+       (WP-1029 item c).  The judgement is the *report's* — `maturity` quotes
+       `MATURITY_MAX_RWP`, the Rwp past which Layer 1 refuses to speak about
+       individual parameters — so nothing here decides anything, and the
+       `status` vocabulary (which still says `converged` at Rwp 96 %) is left
+       alone: that is WP-1028's, and two owners would disagree. -->
+  <div class="stats tabular mono" class:immature={immature}>
     {#if rwp !== null}
       Rwp <strong>{(rwp * 100).toFixed(3)}%</strong>
       {#if gof !== null}<span class="muted">GoF {gof.toFixed(3)}</span>{/if}
+      {#if immature}
+        <button class="ghost tiny warn" title={result.maturity.message}
+          onclick={() => { mode = "panes"; tab = "report"; }}>
+          ⚠ not a fit yet
+        </button>
+      {/if}
     {/if}
   </div>
 
@@ -569,6 +584,19 @@
 
   .stats {
     margin-left: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .stats.immature strong {
+    color: var(--warn);
+  }
+
+  .stats button.warn {
+    color: var(--warn);
+    border-color: var(--warn);
+    border-style: dashed;
   }
 
   .controls {

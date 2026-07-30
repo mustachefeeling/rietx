@@ -956,6 +956,30 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
     assert empty["n_returned"] == 0 and empty["two_theta"] == []
 
 
+def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):
+    """WP-1029 item (c): one honest signal, in the report's own vocabulary."""
+    from pxrdref.report.schemas import MATURITY_MAX_RWP
+
+    session, client, project = fitted
+    maturity = client.get("/api/result")[1]["result"]["maturity"]
+    # the threshold is *quoted*, not copied: a client comparing against its own
+    # 0.35 would be a second authority on a number the report owns
+    assert maturity["max_rwp"] == MATURITY_MAX_RWP
+    # this fixture converges, so it is not immature and says nothing
+    assert maturity["immature"] is False
+    assert maturity["message"] == ""
+
+    # …and a hopeless one says so, without touching `status`, which still reads
+    # `converged` — that vocabulary is WP-1028's, and two owners would disagree
+    result = project.refinement.result_
+    result.statistics.rwp = 0.963
+    hopeless = client.get("/api/result")[1]["result"]
+    assert hopeless["maturity"]["immature"] is True
+    assert "96.3%" in hopeless["maturity"]["message"]
+    assert "same specimen" in hopeless["maturity"]["message"]
+    assert hopeless["status"] == "converged"
+
+
 def test_the_window_carries_three_residuals_and_one_is_not_derivable(fitted):
     """WP-1029: Δ, Δ/σ and cumulative χ² — the third accumulated before decimation."""
     _, client, project = fitted
