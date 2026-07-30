@@ -297,8 +297,13 @@ the 390-line impostor once `predicted_seen_fraction` is in the panel.
 - **2026-07-30 — CLOSED.** `indexing/{qspace,reduce,fom,ambiguity}.py`,
   `FigureOfMerit`/`AmbiguityPartner`/`CellCandidate` in `schemas/indexing.py`,
   `docs/manual/indexing.md`, and `tests/test_indexing_{core,reduce}.py` (40 tests,
-  ~7 s). Fast suite 1175 passed / 66 skipped in 40 s, ruff clean, manual `-W`
-  clean with its five guards green. **No engine and no diagnostics** — this WP has
+  ~7 s). Fast suite 1175 passed / 66 skipped in 40 s; **full suite including the
+  `slow` real-data acceptance 1251 passed / 70 skipped / 0 failed** (this
+  worktree's venv is `[dev,jax]`, so the torch rows self-skip); ruff clean; manual
+  `-W` clean with its five guards green. One environment note for whoever quotes
+  numbers next: pytest's final count line does not survive this shell's background
+  capture — the counts above are derived from the progress characters, and the
+  authoritative signal is the exit code. **No engine and no diagnostics** — this WP has
   no answer to qualify, so `INDEX_BRAVAIS_AMBIGUOUS` and the rest go to 1024 where
   a `CellCandidate` exists to attach them to.
 

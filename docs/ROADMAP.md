@@ -1046,7 +1046,8 @@ and its symmetry-allowed subspaces, weighted candidate refinement with an option
 shift column, Niggli/Delaunay reduction with two-opinion Bravais determination over
 a tolerance sweep, the figure-of-merit **panel** scored in both directions, and
 HNF derivative-lattice ambiguity with the reflections that would break each tie.
-1021-1023 now have everything they share.
+1021-1023 now have everything they share.  Full suite after all three WPs: 1251
+passed / 70 skipped / 0 failed, including the `slow` real-data acceptance.
 
 **Its lesson is about tests, not about crystallography: three of its four defects
 passed the test that should have caught them.**
