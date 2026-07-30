@@ -14,6 +14,7 @@ applied would be worse than no text pane at all.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,7 @@ from hypothesis import strategies as st
 import pxrdref as pr
 from pxrdref.gui import GuiSession
 from pxrdref.gui import textdoc as td
+from pxrdref.schemas.plan import StageSpec
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -461,3 +463,44 @@ def test_the_rendered_document_is_readable_at_a_glance(project):
         for column in at_columns:
             assert {line[column] for line in rows} <= {"@", " "}, rows
     assert np.all([len(line) < 120 for line in text.splitlines()])
+
+
+def test_the_highlighter_quotes_the_parsers_words():
+    """The frontend's one duplication of this grammar, pinned from this side.
+
+    WP-1013 gives the text pane a regex highlighter and no parser, so the drift a
+    second implementation would cause is bounded: a divergence here is a word in
+    the wrong colour, never a wrong edit — the bargain ``lib/fnmatch.ts`` makes
+    with ``fnmatch.fnmatchcase`` one level down. Bounded is not free, though, and
+    the vocabulary is the part that will actually move: adding a block name or a
+    stage key here without restating it there leaves the new word rendering as a
+    parameter path.
+
+    Read as source text rather than executed, because the ordinary suite has no
+    node — the same reason ``tests/test_gui_dist.py`` recomputes the dist digest
+    in Python.
+    """
+    source = (Path(__file__).resolve().parent.parent / "gui" / "src" / "lib"
+              / "pxt.ts")
+    if not source.is_file():
+        pytest.skip(f"{source} is missing — the gui workspace is not in this checkout")
+    text = source.read_text(encoding="utf-8")
+
+    def words(name: str) -> list[str]:
+        match = re.search(rf"export const {name} = \[(.*?)\];", text, re.S)
+        assert match, f"{name} is no longer a plain array in {source.name}"
+        return re.findall(r'"([^"]+)"', match.group(1))
+
+    assert set(words("KEYWORDS")) == set(td._KEYWORDS)
+    assert set(words("FLAGS")) == set(td._FLAG_WORDS)
+    assert set(words("PAIRS")) == set(td._PAIR_WORDS)
+    # a stage line's keys are `StageSpec`'s own fields, minus the two that are
+    # positional (`stage <name>  free <globs>`), plus the `free` that introduces them
+    stage_keys = set(StageSpec.model_fields) - {"name", "turn_on"}
+    assert set(words("STAGE_WORDS")) == stage_keys | {"free"}
+
+    # …and the negative half: the scanner may not have grown a way to say "wrong",
+    # because only the server can know that (this is asserted from the JS side too,
+    # and from both because it is the property the whole design rests on)
+    tokens = words("TOKENS")
+    assert tokens and "error" not in tokens

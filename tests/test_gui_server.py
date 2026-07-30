@@ -599,6 +599,72 @@ def test_report_and_history_read_the_fitted_session(fitted):
     assert client.get("/api/history/diff?a=n0000&b=nope")[0] == 404
 
 
+def test_two_text_writers_race_and_the_second_is_refused_whole(
+        blank, tmp_path, pattern_file):
+    """The text pane's conflict story, over the wire and with two *writers*.
+
+    WP-1013's sync engine treats a 409 ``STALE_REVISION`` and a re-render arriving
+    mid-edit as the same event, because they are: the buffer descends from a
+    rendering the project has moved past. What the session tests could not show is
+    the case that actually produces it — two clients holding the same revision,
+    which is one browser tab and one `pxrdref` REPL, or two tabs. The second writer
+    must be refused **whole**: not a merge, not a partial apply, and not a refusal
+    that leaves half the delta in.
+
+    The 409 is also the only reason the pane's re-read button exists, so the
+    recovery is asserted here too: re-read, re-apply, and the second edit lands.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "race.pxrd", pattern_file)
+
+    status, doc = client.get("/api/textdoc")
+    assert status == 200
+    revision = doc["revision"]
+
+    def edit(text: str, path: str, replacement: str) -> str:
+        out = [replacement if line.strip().startswith(path) else line
+               for line in text.splitlines()]
+        assert replacement in out, f"no line starts with {path!r}"
+        return "\n".join(out) + "\n"
+
+    # both writers rendered the same document and both are editing a different row
+    first = edit(doc["text"], "cell.a", "  cell.a        @ 4.15678  min 0.1")
+    second = edit(doc["text"], "scale", "  scale         @ 0.00123  min 0  softplus")
+
+    status, applied = client.put("/api/textdoc",
+                                 {"text": first, "base_revision": revision})
+    assert status == 200, applied
+    assert applied["applied"] and applied["revision"] != revision
+    assert project.refinement.structure.phases[0].cell.a.value == 4.15678
+
+    status, refused = client.put("/api/textdoc",
+                                 {"text": second, "base_revision": revision})
+    assert status == 409
+    assert refused["error"]["code"] == "STALE_REVISION"
+    # the *whole* second document was refused — including the row it shares with
+    # the winner, which is what "all-or-nothing" has to mean when the loser's
+    # text also carries the winner's old values
+    assert project.refinement.structure.phases[0].cell.a.value == 4.15678
+    assert project.refinement.structure.phases[0].scale.value != 0.00123
+    # and a validate_only call is refused on the same grounds, before it parses:
+    # a pane that keeps validating against a dead revision would report a stale
+    # document as valid right up until Apply
+    assert client.put("/api/textdoc", {"text": second, "base_revision": revision,
+                                       "validate_only": True})[0] == 409
+
+    # the recovery the refusal names: re-read, re-apply.  There is no merge —
+    # the document is regenerated from state, so re-applying the *old* text would
+    # be re-asserting the values the winner just replaced
+    fresh = client.get("/api/textdoc")[1]
+    assert fresh["revision"] == applied["revision"]
+    again = edit(fresh["text"], "scale", "  scale         @ 0.00123  min 0  softplus")
+    status, out = client.put("/api/textdoc",
+                             {"text": again, "base_revision": fresh["revision"]})
+    assert status == 200, out
+    assert project.refinement.structure.phases[0].scale.value == 0.00123
+    assert project.refinement.structure.phases[0].cell.a.value == 4.15678
+
+
 def test_checkout_moves_the_working_state_and_branch_names_the_fork(
         blank, tmp_path, pattern_file):
     """Its own project, because a checkout discards the result — see below."""

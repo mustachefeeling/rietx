@@ -92,12 +92,51 @@ def test_the_page_references_no_external_asset():
     """
     html = (DIST / "index.html").read_text(encoding="utf-8")
     js = (DIST / "assets" / "app.js").read_text(encoding="utf-8")
-    for name, text in (("index.html", html), ("app.js", js)):
-        remote = re.findall(r"""["'(](https?:)?//[^"')\s]+""", text)
+    # every built script, not just the entry: WP-1013 added chunks, and a
+    # vendored library is exactly where a CDN fallback or a sourcemap URL hides
+    built = [("index.html", html)] + [(p.name, p.read_text(encoding="utf-8"))
+                                      for p in sorted((DIST / "assets").glob("*.js"))]
+    for name, text in built:
+        remote = re.findall(r"""["'(]((?:https?:)?//[^"')\s]+)""", text)
+        # An XML namespace is an *identifier*, not an address: CodeMirror passes
+        # `http://www.w3.org/2000/svg` to `createElementNS`, which no browser
+        # ever fetches. Nothing else on that host is a legitimate asset either,
+        # so the exemption is the host rather than the exact strings.
+        remote = [url for url in remote if "//www.w3.org/" not in url]
         # a comment may mention a URL; an *asset reference* may not exist
         assert not remote, f"{name} references remote assets: {remote[:3]}"
     assert "/plotly.js" in js  # …and it does load plotly, from us
     assert 'src="/assets/app.js"' in html
+
+
+def test_codemirror_is_split_out_and_off_the_boot_path():
+    """"The editor is fetched when the text pane opens" is a claim, so measure it.
+
+    CodeMirror is the app's one real dependency (WP-1013) and it is a *separate*
+    chunk for two reasons that both stop being true silently. A committed dist
+    has to diff reviewably, and ~330 kB of minified third-party bytes folded into
+    `app.js` would sit in the middle of every application diff. And the boot path
+    is the number WP-1010/1012 measured — the page loads `app.js` and nothing
+    else, so the editor may not be reachable from it except through a dynamic
+    import. A stray static import in a panel would inline the whole library and
+    neither symptom would show up in a test that only counts bytes.
+    """
+    html = (DIST / "index.html").read_text(encoding="utf-8")
+    app = (DIST / "assets" / "app.js").read_text(encoding="utf-8")
+    vendor = DIST / "assets" / "vendor-cm.js"
+
+    assert vendor.is_file(), REBUILD
+    # the library is in the vendor chunk and not in the entry
+    assert "@codemirror" not in app or "vendor-cm" in app
+    assert "rectangularSelection" not in app, (
+        "CodeMirror was inlined into app.js — check that panels/Text.svelte "
+        "still imports lib/editor.ts dynamically")
+    assert len(app.encode()) < len(vendor.read_bytes())
+
+    # the page pulls the entry only; the chunk is named by the entry, on demand
+    assert "vendor-cm" not in html
+    assert "/assets/app.js" in html
+    assert "vendor-cm.js" in app or "editor.js" in app
 
 
 def test_the_sources_the_digest_covers_are_the_ones_that_matter(build_info):
@@ -129,8 +168,8 @@ def test_nothing_gitignores_the_dist():
     """
     import subprocess
 
-    files = [DIST / "index.html", DIST / "assets" / "app.js",
-             DIST / "assets" / "app.css", DIST / "build-info.json"]
+    files = [DIST / "index.html", DIST / "build-info.json",
+             DIST / "assets" / "app.css", *sorted((DIST / "assets").glob("*.js"))]
     result = subprocess.run(
         ["git", "check-ignore", "-v", *[str(f) for f in files]],
         cwd=ROOT, capture_output=True, text=True)
@@ -160,9 +199,13 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     assert build.returncode == 0, build.stderr[-2000:]
     wheel = glob.glob(str(tmp_path / "*.whl"))[0]
     inside = set(zipfile.ZipFile(wheel).namelist())
-    for name in ("pxrdref/gui/static/index.html", "pxrdref/gui/static/assets/app.js",
-                 "pxrdref/gui/static/assets/app.css",
-                 "pxrdref/gui/static/build-info.json"):
+    wanted = ["pxrdref/gui/static/index.html", "pxrdref/gui/static/assets/app.css",
+              "pxrdref/gui/static/build-info.json"]
+    # every chunk, so a new one cannot ship as a 404 at the moment the pane that
+    # needs it is opened
+    wanted += [f"pxrdref/gui/static/assets/{p.name}"
+               for p in sorted((DIST / "assets").glob("*.js"))]
+    for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"
 
 
