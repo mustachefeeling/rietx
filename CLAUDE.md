@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1378 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1299 collected, ~20-65 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1377 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1298 collected, ~20-65 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -34,8 +34,12 @@ a busier one (2026-07-30), and 12:40 later the same day on a machine
 simultaneously running a headless browser, three vite builds and a second pytest
 — machine state moves it further than most changes do. Compare runs, not records.
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1262 passed / 116 skipped (1378 collected, 10:27)
-and the fast suite 1192 passed / 107 skipped (1299 of 1378 collected). Installing
+`[dev]`** venv, the full suite is 1263 passed / 116 skipped (10:27 and 8:47 on
+two runs the same day) and the fast suite 1193 passed / 107 skipped (63 s).
+Those are run outcomes; **`--collect-only` reports 1377 and 1298 for the same
+two selections, two short of passed+skipped in both** — a gap that predates this
+line (the "1378 collected" it used to carry was the sum, not a measurement) and
+is worth resolving before anyone quotes a collected figure again. Installing
 `[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
 means nothing without the venv it was measured in. (WP-1012 added twelve tests and
 **both** counts moved by exactly twelve; WP-1013 added three and both moved by

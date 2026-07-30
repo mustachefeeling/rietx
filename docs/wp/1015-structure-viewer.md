@@ -376,3 +376,11 @@ npm --prefix gui test && npm --prefix gui run check
   1192 → 1193 passed with skips unchanged at 107 (one test, both figures moved
   by one). Note for the record that CLAUDE.md's "206" for vitest was one short of
   what the suite actually reported at this WP's landing commit.
+
+  One loose end handed on rather than fixed: the fast suite reports 1193 passed
+  + 107 skipped while `pytest -m "not slow" --collect-only` reports **1298**, and
+  the full suite 1263 + 116 against 1377 — two short in both selections. The gap
+  predates this session (CLAUDE.md's "1378 collected" was passed+skipped added
+  up, not a measurement), and both the pass and skip counts move by exactly the
+  number of tests added, so the bookkeeping rule still works; but a collected
+  figure should be measured before it is quoted again.
