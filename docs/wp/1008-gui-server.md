@@ -79,6 +79,35 @@ carries `status="cancelled"` and **no** `rwp`/`gof` — read the event payload
 with `.get`, never by unpacking a fixed shape, because that rule is what makes
 event fields addable without a schema version bump.
 
+From **WP-1005** (project container, landed 2026-07-30) — the session's project
+half is done, and four of its decisions are load-bearing for the routes:
+
+- `Project.create/open/save` + `project.fit(**kw)` / `project.run_stage(stage,
+  **kw)`, which already supply the data *and* the document's plan/mode/limits —
+  so `POST /api/run` should go through them rather than calling
+  `Refinement.fit(project.data, …)` itself and re-deriving the settings.
+  `project.live_dir` is where the `live/events.jsonl` tee belongs, and
+  `project.exports_dir` where the export routes should write by default.
+- **`GET/POST /api/project` is a *settings* endpoint, not a state endpoint.**
+  `project.json` holds patterns/plan/mode/limits/`excluded_regions`/`ui`;
+  `history.jsonl` holds the model, and its head is the working state. So
+  `/api/params` and `/api/structure` read the refinement (whose every edit
+  auto-commits a node), and `POST /api/project/save` persists only the document.
+  Consequence for the UI: **there is nothing to warn about on close** — no
+  unsaved model state exists — and a "save" button is honest only about
+  settings. `ProjectDoc.ui` is the untyped dict the frontend owns; use it for
+  disclosure level and panel layout rather than inventing a parallel store.
+- **`Project.open` takes `backend`/`solver` as arguments** (they are not
+  document fields, so a jax-saved project still opens where jax is absent). The
+  session, not the document, decides them — a `--backend` flag or a `ui` key
+  the boot path reads, and it must survive a reopen the same way.
+- `Project.open` refuses — with distinct messages — a missing pattern, changed
+  bytes, a same-bytes/different-numbers reader change, a history tree recorded
+  against another pattern, a missing log, a future format major, and a
+  multi-pattern document. **Surface the message; do not collapse them into "could
+  not open project"**, because each names a different remedy and the GUI is the
+  only place a user will ever read it.
+
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): **reserve these
 routes now** (404 until WP-1027 fills them) so the shape is settled before the
 frontend scaffold lands — `GET/POST /api/peaks`,

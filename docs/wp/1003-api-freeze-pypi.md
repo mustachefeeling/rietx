@@ -44,6 +44,34 @@ the freeze must cover, and four decisions parked here deliberately:
   v1.0** — schemas frozen, wire/text surfaces not. State this in the release
   notes (WP-1017's `gui-power.md` states it user-facing; this WP states it
   normatively).
+
+From **WP-1005** (project container, landed 2026-07-30) — three freeze
+decisions and one new surface:
+
+- **New freeze surface, now concrete**: `schemas/project.py`
+  (`DataRef`/`ProjectDoc`, both top-level exports along with `Project`),
+  `PROJECT_FORMAT_VERSION` (currently `"1"`, and `Project.open` refuses a
+  different *major* by name rather than letting `extra="forbid"` report an
+  unknown field), and `io.readers.PATTERN_FORMATS` / `identify_format` — the
+  reader dispatch is now a registry two other things quote, so freezing
+  `capabilities()`'s reader arm freezes the registry's field names by proxy.
+  `read_pattern` also gained a `block=` keyword (additive).
+- **Decide whether `RefinementState` grows `excluded_regions`.** It does not
+  carry them today, so **a history node cannot say what was excluded when it
+  ran** — and excluding a region does not change the pattern fingerprint, so
+  nothing refuses a replay against a differently-masked residual. WP-1005 works
+  around it by recording the regions in `project.json`, which covers a project
+  and covers nothing else (a bare `Refinement` + `PatternData` still has no
+  record). The field is additive with an empty default; what is *not* free is
+  deciding whether `replay` then honours the node's regions over the caller's
+  data. Excluded regions are protocol (CLAUDE.md: mirror them or do not compare
+  Rwp), which is the argument for settling this before the freeze rather than
+  after.
+- **A project's `backend`/`solver` are arguments to `Project.open`, not fields of
+  `ProjectDoc`** — deliberately, because a project saved with `backend="jax"`
+  would otherwise be unopenable where jax is absent (`Refinement.__init__` fails
+  fast by design). If the freeze wants them persisted, it needs a stated
+  fallback policy, not just a field.
 - **`RefinementResult.history` is a dead field** — declared at
   `schemas/results.py:291` (`list[IterationRecord]`), never populated by any
   writer (verified 2026-07-29; `IterationRecord` has no other consumer).

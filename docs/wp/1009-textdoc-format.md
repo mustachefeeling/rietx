@@ -64,6 +64,30 @@ CodeMirror.
 From **WP-1004**: locked/tied refusal messages come from the verbs — quote
 them, don't restate them, so the two surfaces cannot disagree.
 
+From **WP-1005** (project container, landed 2026-07-30) — the sketch above is
+missing one line and mis-sources two others:
+
+- **`excluded 7.5 8.0 / 24.0 25.2` (or equivalent) must be in the format.**
+  Excluded regions are protocol — CLAUDE.md's rule is to mirror another code's
+  excluded regions or not compare Rwp at all — and they are in **neither** the
+  pattern file **nor** `RefinementState`, so a history node cannot say what was
+  excluded when it ran and the fingerprint does not change when they do. The
+  project document is the only record (`ProjectDoc.excluded_regions`), which
+  makes the text view the only place a human will ever *see* them. Apply through
+  `Project.set_excluded_regions`, which is one verb precisely so the document and
+  the `PatternData` cannot disagree. (Whether `RefinementState` should carry them
+  is parked in WP-1003's `### Inherited`; the text document needs them either
+  way.)
+- The `pattern` comment should quote `DataRef`, which already has every field the
+  sketch invents: `sha256`, `n_points`, `two_theta_range`, plus **`has_sigma`** —
+  worth rendering, since "weights from the file's esd column" vs "Poisson
+  fallback" is a correctness property of the fit that is otherwise invisible. And
+  a pdCIF's **`block`** must render (it is in `DataRef.options`): the same file
+  reads as a different pattern without it.
+- `mode`, `limits` and `plan` come from `ProjectDoc` (the *next* run's settings),
+  not from the head node (what a *past* run used). The two legitimately differ,
+  and rendering the wrong one would show a user a plan they did not select.
+
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): **reserve a
 `peaks` block in `FORMAT_VERSION` now**, so WP-1027 fills it in without a
 format bump. Two properties settle its design. Peaks are **not refinable

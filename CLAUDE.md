@@ -104,6 +104,27 @@ mandatory dummy atom from looking editable. There is exactly **one**
 title/description/modes/when-to-use per preset, in bijection with
 `PLAN_PRESETS` by meta-test.
 
+A **project** (WP-1005) is a `.pxrd/` **directory** — `project.json`, the pattern
+file copied byte-for-byte, `history.jsonl`, `live/`, `exports/` — opened and
+saved through `Project.create/open/save` (`project.py`, `schemas/project.py`). A
+directory, not an archive: the log's crash safety is append-only writes by one
+writer, and rewrite-on-save would lose it. **One authority per fact.**
+`project.json` holds the *settings* — selected plan/mode/limits, excluded
+regions, the GUI's own `ui` keys — while `history.jsonl` holds the model state
+and its head *is* the working state, so no parameter value is duplicated
+between them and **saving is about settings, not durability** (the tree exists
+from `create`, so every `set_vary`/`set_value` is already on disk). Two things
+follow from the pattern being a file rather than a `PatternData`: the bytes are
+the contract (the readers' esd column is never overridden), and the **reader
+call** is part of the reference — `DataRef` records which
+`io.readers.PATTERN_FORMATS` entry claimed the file plus its options, because a
+pdCIF with a `_meas` and a `_calc` block is a different pattern depending on
+`block`. It carries sha256 of the bytes *and* the parsed-array fingerprint on
+purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
+corrupt project. `excluded_regions` live in the document because they are
+protocol that is in neither the file nor `RefinementState` — a node cannot say
+what was excluded when it ran.
+
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as
