@@ -190,6 +190,29 @@ favourable regime and is blind to the calibration; a regression here needs an
 [1029](1029-engine-scaling-low-symmetry.md); the guard-and-default aspect is
 yours if 1029 does not reach it first.
 
+**From WP-1026 (2026-07-30, third session) — a refuting caveat that fires on
+correct cells, which is a robustness statement rather than an indexing one.**
+`predicted_but_absent` is one of the five `INDEX_REFUTING_CAVEATS`, and it is
+counted against the candidate's **lattice** group, because that is the only model
+that exists before `determine_extinction_symbol` runs. So every phase whose space
+group has extinctions beyond its centring refutes its own correct cell. Measured
+end to end on the certified SRM 676a corundum pattern: the cell is recovered to
++101 ppm in a and +16 ppm in c, ranked first with the right centring, and carries
+`predicted_but_absent = 12` — the R-3c c-glide, seen through the lattice R-3m.
+The candidate is graded `low` and `best_or_none()` returns None.
+
+Three things before touching it. It is exactly the blind spot
+`fom.predicted_seen_fraction`'s docstring already states ("legitimately absent
+reflections count against a *correct* cell"), promoted to a caveat that refutes —
+so the fix is not new knowledge, it is making the gate act on knowledge the panel
+already carries. The screen that *can* separate the two cases exists
+(`indexing/extinction.py`, WP-1025) and costs ~2 s plus ~0.1 s per class, but
+`index_pattern` does not run it, so this is an integration decision with a price,
+not a new measurement. And the honest interim behaviour is arguably what happens
+now — abstaining on a cell the package cannot yet distinguish from an oversized
+one — so if you leave it, say so in the caveat's own text rather than in a
+handover log.
+
 ## Non-goals
 
 - No new *physics*. Every item is a guard, a bound, a default or a message.

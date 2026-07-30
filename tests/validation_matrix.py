@@ -751,17 +751,40 @@ CLAIMS: tuple[Claim, ...] = (
         "test_a_certified_lab_pattern_indexes_and_is_graded_honestly",
         "srm676a", ("certificate", "characterisation"),
         "a raw certified pattern is picked and indexed end to end, the "
-        "certified lattice is ranked first, and the gate refuses to promote it "
-        "because one axis is genuinely wrong",
+        "certified lattice is ranked first with the right centring, and the "
+        "gate still refuses to promote it -- naming four reasons, all real",
         reference="NIST SRM 676a a = 4.759355(80), c = 12.99231(15) A (k = 2). "
-                  "The a bar is 300 ppm -- lab-realistic, not certificate "
-                  "grade.  c is asserted as a RANGE (1000-5000 ppm) because "
-                  "the row characterises what an uncalibrated lab pattern "
-                  "costs: with no measured shift both engines widen their "
-                  "window by DEFAULT_UNKNOWN_SHIFT_DEG and each absorbs the "
-                  "specimen displacement differently",
-        measured="ranked first, trigonal R, a -64 ppm and c +2799 ppm; "
-                  "confidence low; best_or_none() returns None",
+                  "Both axes are asserted at 150 ppm.  An earlier version of "
+                  "this row asserted c as a RANGE of 1000-5000 ppm and called "
+                  "it 'what an uncalibrated lab pattern costs'; it was not, it "
+                  "was dichotomy's duplicate-leaf hash skipping the leaf that "
+                  "held the certificate's c (WP-1026, _box_key)",
+        measured="ranked first, trigonal R, a +101 ppm and c +16 ppm, 49 of 55 "
+                  "lines, chi2_red 0.84.  Confidence low on four caveats: "
+                  "engines_disagree, predicted_but_absent (12 -- the R-3c "
+                  "c-glide, not an oversized cell), indexed_fraction_low "
+                  "(49/55 = 0.891 against a 0.9 bar) and "
+                  "shift_allowance_assumed.  best_or_none() returns None",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_declaring_the_shift_template_is_what_recovers_the_certificate",
+        "srm676a", ("certificate", "characterisation"),
+        "declaring a shift template recovers a specimen displacement the "
+        "package was never told about, and moves the cell to the certificate "
+        "while it does so",
+        reference="The displacement was measured independently against the "
+                  "certificate as a -0.065 deg cos(theta) term (WP-1023).  "
+                  "This row never supplies it: the search fits the template "
+                  "after each candidate survives, from the pattern alone.  The "
+                  "cell and the figures of merit are asserted TOGETHER, "
+                  "because f_n's stated blind spot is that a refined shift can "
+                  "manufacture a large figure of merit on its own",
+        measured="fitted shift -0.0606 +/- 0.0138 deg; a -73 ppm, c -126 ppm; "
+                  "M20 22.1 -> 76.6 and F_N 15.8 -> 59.5; indexed_fraction "
+                  "0.891 -> 0.927 so indexed_fraction_low clears.  Still low, "
+                  "because the allowance was assumed either way",
         diagnostics=("INDEX_SHIFT_ALLOWANCE",),
     ),
     Claim(

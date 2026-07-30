@@ -482,6 +482,16 @@ template. And on real data with no measured shift, `high` is currently
 *unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
 bigger constant, and it is WP-1026's.
 
+**`predicted_but_absent` cannot tell an oversized cell from a space-group
+extinction, and on a real phase that is not a corner case.** It counts against the
+*lattice* group, which is the only model available before
+`determine_extinction_symbol` runs — so the certified corundum cell, correct to
+~100 ppm, is refuted by 12 reflections R-3m allows and the R-3c c-glide forbids
+(WP-1026, measured). It is the blind spot `predicted_seen_fraction` already states,
+promoted into a refuting caveat. Read a firing as "this cell predicts lines the
+pattern lacks", never as "this cell is too big"; the two are separable only by
+running the extinction screen, which the gate does not do.
+
 `determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
 is the next step and keeps the same rule one rank down: it ranks the **extinction
 classes** the lattice admits, each listing its space groups, because the powder
@@ -526,7 +536,14 @@ in A..F (corner-exact, because Q is linear in the metric) and its silence is evi
 indices of a few base lines and solves the metric exactly, so a bad base line poisons
 it where a wide domain poisons the other. Both rank on the FoM **panel** via
 `rank_candidates`, never on a member — supercells index every observed line exactly
-and lose only on `predicted_seen_fraction`.
+and lose only on `predicted_seen_fraction`. Two things the panel needs from its
+caller, both learned the same way (WP-1026): the **matching window** is an argument
+(`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
+members must ask the same "is this the same line" question the *search* asked while
+M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
+candidate carrying a fitted shift is scored on `engines.scored_positions`, the
+**corrected** lines it actually claims, or the panel marks it down for its own
+correction.
 
 **The tolerance an engine searches with is not the per-line σ, and this is the one
 thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and
@@ -559,6 +576,21 @@ is barred only from `usable()`. General, not a corundum quirk: satellites were 4
 of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
 nothing indicts its input before its tolerance.**
 
+**That certified pattern was blocked twice, and the second cause is the one to
+carry into any engine work: a leaf that is never refined is invisible.** With the
+peak list fixed the search returned the right lattice type with **c +2799 ppm**, and
+one session recorded that as what an uncalibrated lab pattern costs. It was
+`_box_key`, dichotomy's duplicate-leaf hash, which divided A..F by `max|af|` — so a
+0.1 % grid on the largest component was a ~1 % grid on the smallest, and for a long
+axis C = 1/c\*² **is** the smallest. The whole trigonal-R domain converges to
+**eleven** leaves; three hashed onto a sibling and were skipped *before* being
+refined, and one of the three held the certificate's c. Per-component binning (log
+for the diagonals, partner-scaled for the off-diagonals) recovers a = +101 ppm,
+c = +16 ppm ranked first, and with the shift template declared −73 / −126 ppm at a
+fitted −0.0606 ± 0.0138° against an independently measured −0.065° displacement.
+**A performance filter's failure mode is a wrong answer, not a slow one**, and its
+cost was 11 refinements against 8.
+
 **Three measured facts from checking the source papers against the code
 (2026-07-30), each of which contradicts something the tree asserted.** All three
 are recorded in WP-1026's handover and WP-1029; only the first is fixed.
@@ -573,14 +605,16 @@ are recorded in WP-1026's handover and WP-1029; only the first is fixed.
   `test_niggli_reduction_is_unimodular_invariant`). Since `same_lattice` dedups
   on reduced A..F, a non-canonical reduction splits one lattice into two
   candidates and denies the gate its agreement.
-- **`refine_with_shift` refuses its own correction on exactly the candidates that
-  need it**, because the accept test is χ²_red and the extra column costs a
-  degree of freedom. Measured on corundum: 9 of 17 calls declined, the *ranked
-  first* candidate among them (χ²_red 1.5829 → 1.5945) keeping c +2799 ppm out,
-  while a sibling that kept its −0.0606° shift lands −126 ppm from the
-  certificate. A declared shift template is the caller's physics, like `mu_t` —
-  not a hypothesis for a fit statistic to adjudicate. **The +2799 ppm in the
-  corundum acceptance row is this artifact, not a property of lab data.**
+- **`refine_with_shift` refused its own correction on exactly the candidates that
+  needed it**, because the accept test was χ²_red and the extra column costs a
+  degree of freedom, so a cell that has *already absorbed* the shift cannot gain
+  enough χ² to pay for it. **Fixed**: a declared template is the caller's physics,
+  like `mu_t`, and only *identifiability* refuses it now (no template, a numerical
+  failure, or fewer assigned lines than metric parameters + 2). That change needs
+  `engines.scored_positions` beside it — a candidate carrying a shift claims the
+  **corrected** lines, so scoring it against the raw ones marks it down for its own
+  correction, and applying the template everywhere with the panel left on raw
+  positions dropped the certified corundum lattice out of the top six.
 - **`volume_envelope` is a mean line, not an envelope.** Smith (1977) is
   triclinic-only, publishes **no** per-system factors (so the derived Laue/centring
   scalings here have nothing to check against), and quotes −29 % to +32 % about a

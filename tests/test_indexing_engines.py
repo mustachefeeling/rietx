@@ -292,8 +292,7 @@ def test_the_duplicate_leaf_hash_resolves_every_axis_equally():
     has no relative scale of its own — it is the Cauchy-Schwarz bound its partners
     set, the same scale ``_inside_domain`` measures it against.
     """
-    from pxrdref.indexing.dichotomy import (_OFFDIAG_PARTNERS, _SAME_BOX_RTOL,
-                                            _box_key)
+    from pxrdref.indexing.dichotomy import _OFFDIAG_PARTNERS, _SAME_BOX_RTOL, _box_key
 
     # a long-axis cell: A/C ≈ 10, the regime that made the old key anisotropic
     af = np.asarray(af_from_cell(

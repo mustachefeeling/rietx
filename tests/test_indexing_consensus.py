@@ -439,11 +439,19 @@ def test_index_pattern_recovers_the_cell_and_refutes_its_supercells(lab6_pattern
     assert result.provenance.notes["engines"] == ", ".join(engine_names())
 
     # the supercells that index every observed line are refuted by the pattern,
-    # not by the panel — this is the blind spot validation exists to close
+    # not by the panel — this is the blind spot validation exists to close.
+    # Only the checked subset carries a verdict: validation costs a refinement
+    # each, so the rest must say **not_validated** rather than look clean, and
+    # that half of the claim is the one a widening candidate list can break.
     supercells = [c for c in result.candidates if c.volume > 2 * best.volume]
     assert supercells, "the F/I supercells should be proposed and then refuted"
+    tested = [c for c in supercells if c.lebail is not None]
+    assert tested, "no supercell reached validation at all"
     for cand in supercells:
         assert cand.confidence == "low"
+        if cand.lebail is None:
+            assert "not_validated" in cand.confidence_caveats
+            continue
         assert "predicted_but_absent" in cand.confidence_caveats
         assert any(d.code == "INDEX_PREDICTED_BUT_ABSENT"
                    for d in cand.diagnostics)

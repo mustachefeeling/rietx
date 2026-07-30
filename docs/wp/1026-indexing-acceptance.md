@@ -480,3 +480,88 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   **Next:** unchanged from the previous entry (LaB6/NAC/FAP/qarr known cells, the
   two abstention rows, check-D, CI pricing), plus: decide the `refine_with_shift`
   accept rule, then rewrite the corundum assertion around it.
+
+- **2026-07-30 (third session) — the accept rule was decided, and it was not what
+  had been costing the corundum row its accuracy.** Three defects, each measured on
+  the certified pattern, each now fixed; the row is rewritten around the corrected
+  answer and a second row added. Branch `worktree-indexer`.
+
+  **1. The +2799 ppm was a hash, not a shift, and the previous entry's diagnosis is
+  withdrawn.** The whole trigonal-R domain on this pattern converges to **eleven
+  leaves**. `_box_key` — the crude pre-filter that stops one cell being refined once
+  per sibling leaf — divided A..F by `max|af|`, so a 0.1 % grid on the largest
+  component was a **~1 %** grid on the smallest, and for a long axis C = 1/c\*² *is*
+  the smallest. Three of the eleven hashed onto a sibling and were **skipped before
+  being refined**, and one of the three held the certificate's c. The leaf refined
+  in its place is the +2799 ppm answer, with a to −64 ppm because a is where the
+  grid was fine. Binned per component now (log for the diagonals, partner-scaled by
+  the Cauchy-Schwarz partners for the off-diagonals). Cost: 11 refinements against
+  8, and the four-system corundum run 33 s → 47 s.
+
+  **It took a leaf-by-leaf trace to find, and that is the transferable part**: a
+  skipped leaf leaves no trace anywhere — no candidate, no diagnostic, nothing in
+  `stats`. The probe that found it logged `_box_key` and `_accept` in one stream and
+  looked for a key with no refinement after it. Three earlier probes (box prunes,
+  `_accept`'s reject reasons, the assign-refine trajectory) all came back clean,
+  because the box containing the truth *did* survive every prune.
+
+  **2. The FoM panel ranked in a window the search never used.** `rank_candidates`
+  and `to_cell_candidate` matched at the *fitted* σ while the engines that produced
+  those candidates matched at σ ⊕ the systematic allowance — 0.0045° against
+  0.0502° here. So `indexed_fraction` read **0.11-0.20** on candidates the search's
+  own assignment indexed at **0.65-0.89**; every candidate on this pattern was
+  refuted by `indexed_fraction_low` whatever its merit, and the Borda order was
+  decided among cells that had all matched almost nothing. `fom_panel` now takes
+  `q_match` separately: the three coverage members widen, M₂₀ and F_N keep the
+  measured σ for their discrepancy floor (an *assumed* allowance must never become
+  the resolution limit), and the default is the identity every published comparison
+  uses. This is CLAUDE.md's headline indexing rule one rank up, and it had been
+  broken in the ranking the whole time.
+
+  **3. The accept rule, decided: only identifiability refuses a declared template.**
+  χ²_red was the wrong test for the reason the previous entry gives, and that
+  reasoning stands. What does *not* stand is that it was losing the accurate cell —
+  with the hash fixed, the χ²-gated rule and the always-apply rule return the **same
+  answer** on this pattern, differing only among the also-rans. So the change ships
+  on principle with a measurement showing it is inert, which is the honest way round.
+  It also needs `engines.scored_positions`: a candidate carrying a shift claims the
+  *corrected* lines, and scoring it against the raw ones marks it down for its own
+  correction — measured, applying the template everywhere with the panel left on raw
+  positions dropped the certified lattice **out of the top six** while candidates
+  with sub-0.03° shifts were untouched, i.e. the panel was ranking on how little a
+  candidate had been corrected.
+
+  **The corundum row now asserts a two-call protocol, and the contrast is the
+  deliverable.** Step 1, nothing declared: trigonal **R** ranked first, a **+101 ppm**,
+  c **+16 ppm**, 49 of 55 lines, χ²_red 0.84, M₂₀ 22.1. Step 2, `shift_template=
+  "cos_theta"`: a **−73 ppm**, c **−126 ppm**, fitted shift **−0.0606 ± 0.0138°**
+  against the −0.065° displacement WP-1023 measured independently against the
+  certificate, M₂₀ **76.6**, F_N 15.8 → 59.5, `indexed_fraction` 0.891 → 0.927 so one
+  refuting caveat clears. The row asserts the cell and the figures of merit
+  *together*, because `f_n`'s stated blind spot is that a refined shift manufactures
+  a figure of merit on its own — a shift that bought M₂₀ without moving the cell is
+  the failure that pairing catches.
+
+  **4. A refuting caveat fires on correct cells, and it is not a corner case.**
+  Both steps carry `predicted_but_absent = 11-12`: the R-3c c-glide, counted against
+  the *lattice* R-3m, which is the only model that exists before
+  `determine_extinction_symbol` runs. So any phase with space-group extinctions
+  refutes its own correct cell, and `high` is unreachable for a second structural
+  reason on top of `shift_allowance_assumed`. It is exactly the blind spot
+  `predicted_seen_fraction`'s docstring already states, promoted into a caveat that
+  refutes. Filed to [1028](1028-robustness-external-data.md) with the three things
+  to know first; **not** fixed here, because the fix is running WP-1025's screen
+  inside the gate, which is an integration decision with a price.
+
+  **Also measured, not landed:** the third protocol step (measure σ_sys against the
+  certificate, re-index, watch `shift_allowance_assumed` clear) works — it does clear,
+  and the cell holds at −73 / −130 ppm — but the σ_sys it feeds on came from a
+  hand-rolled assignment whose `fit_shift_model` output is not trustworthy (all three
+  templates reported r² = 1.0000 with zero stderr and a **positive** coefficient
+  against a fitted −0.06). Either `fit_shift_model` mis-handles that input or the
+  probe fed it garbage; it was not worth chasing to land a row that adds a third
+  50-second search. **Do not quote the 0.0445° σ_sys from that run.**
+
+  **Still not started:** LaB6/NAC/FAP/six-qarr known cells, the `hl2_peaks` and
+  geometrical-ambiguity abstention rows, check-D, CI pricing. The bethanechol global
+  score remains blocked on [1029](1029-engine-scaling-low-symmetry.md).

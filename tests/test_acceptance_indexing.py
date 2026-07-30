@@ -181,15 +181,27 @@ def corundum_peaks():
     return pick_peaks(data, ins)
 
 
-@pytest.fixture(scope="module")
-def corundum_index(corundum_peaks):
+def _index_corundum(peaks, **spec_kw):
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _qarr("corundum.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
-                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(corundum_peaks, data=data, instrument=ins, spec=spec)
-    return res, A_SRM676A, C_SRM676A
+                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED,
+                      **spec_kw)
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+
+
+@pytest.fixture(scope="module")
+def corundum_index(corundum_peaks):
+    """Step 1 of the protocol: index with nothing declared. ~45-50 s."""
+    return _index_corundum(corundum_peaks), A_SRM676A, C_SRM676A
+
+
+@pytest.fixture(scope="module")
+def corundum_index_with_shift(corundum_peaks):
+    """Step 2: the same search with the shift template declared. ~45-50 s."""
+    return (_index_corundum(corundum_peaks, shift_template="cos_theta"),
+            A_SRM676A, C_SRM676A)
 
 
 @pytest.fixture(scope="module")
@@ -429,20 +441,29 @@ def test_a_bare_position_list_says_its_sigma_was_assumed(bench):
 def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     """SRM 676a corundum, picked and indexed by this package end to end.
 
-    This is the row the indexing milestone was blocked on, and it was blocked for
-    a reason nobody had looked for: ``pick_peaks`` was reporting one phantom line
-    per strong peak (``not_separable``, WP-1026), so 19 % of the lines handed to
-    the search were not lines.  With those barred from ``usable()`` the certified
-    lattice comes back **ranked first** by ``index_pattern`` on a raw pattern —
-    peaks picked by the package, no cell supplied, no shift measured.
+    This is the row the indexing milestone was blocked on, and it was blocked
+    twice, by two different things that produced the same symptom.  First
+    ``pick_peaks`` was reporting one phantom line per strong peak
+    (``not_separable``, WP-1026), so 19 % of the lines handed to the search were
+    not lines.  Then, with the certified lattice reachable at last, it came back
+    with **c +2799 ppm** — recorded here for one session as "what an uncalibrated
+    lab pattern costs", which it was not.  The whole trigonal-R domain converges
+    to eleven leaves; ``_box_key`` hashed three of them onto a sibling and skipped
+    them *before refining*, and one of the three held the certificate's c.
 
-    Two halves, and the second is the point.  The cell is found; it is graded
-    ``low``, and that grade is *correct*.  ``a`` lands within 100 ppm of the
-    certificate while ``c`` is out by ~2800 ppm, because with no measured shift
-    both engines widen their window by ``DEFAULT_UNKNOWN_SHIFT_DEG`` and each
-    absorbs the specimen displacement differently — which is exactly what
-    ``engines_disagree`` reports.  A gate that called this ``high`` would be
-    quoting a c-axis that is wrong in the fourth digit.
+    So this row asserts the corrected answer: peaks picked by the package, no cell
+    supplied, no shift measured, and the certified lattice **ranked first with the
+    right centring**, both axes inside 150 ppm.
+
+    The second half is still the point, and it is that ``low`` is the honest grade
+    for a cell this accurate.  Four caveats stand, and each names something real:
+    only one engine found it (``engines_disagree``); the Le Bail fit sees ~12
+    reflections the *lattice* R-3m allows where the pattern has no intensity, which
+    is the R-3c c-glide and not an oversized cell (``predicted_but_absent`` cannot
+    tell those apart — WP-1025's extinction screen is what can); 49 of 55 lines are
+    indexed against a 0.9 bar (``indexed_fraction_low``); and the matching window
+    was widened by an assumed allowance (``shift_allowance_assumed``).  Declaring
+    the shift template clears the third and sharpens the cell — the next test.
     """
     res, a_cert, c_cert = corundum_index
 
@@ -453,19 +474,75 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
         f"ranked first: {best.system} {best.centring}")
 
     da = best.cell[0] / a_cert - 1.0
-    assert abs(da) < 3e-4, f"a = {best.cell[0]:.5f} against {a_cert} ({da*1e6:+.0f} ppm)"
-    # c is the axis the absorbed shift lands on, and it is out by ~2800 ppm.
-    # Asserted as a *range* rather than a bound: this is a characterisation of
-    # what an uncalibrated lab pattern costs, and a version of it that silently
-    # got better would mean the protocol changed.
     dc = best.cell[2] / c_cert - 1.0
-    assert 1e-3 < dc < 5e-3, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
+    assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
+    assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
+    assert best.n_indexed >= 49, f"{best.n_indexed} of {best.n_lines} lines"
+    assert best.chi2_red < 1.5, best.chi2_red
 
-    # the gate refuses to promote it, and names why
+    # the gate refuses to promote it, and every caveat names something real
     assert best.confidence == "low"
-    assert "shift_allowance_assumed" in best.confidence_caveats
+    assert set(best.confidence_caveats) >= {
+        "shift_allowance_assumed", "indexed_fraction_low", "predicted_but_absent"}
+    assert best.lebail is not None and best.lebail.predicted_but_absent > 0
     assert res.best_or_none() is None, (
-        "a cell whose c-axis is 2800 ppm out was returned as the answer")
+        "a cell was returned as the answer with four caveats standing")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance")
+def test_declaring_the_shift_template_is_what_recovers_the_certificate(
+        corundum_index, corundum_index_with_shift):
+    """The other half of the protocol: declare the systematic, and see it fitted.
+
+    A user with a standard cannot measure a specimen displacement before there is
+    a cell to measure it against, so the sequence is: index under the assumed
+    allowance, then declare the template and index again.  This row is that second
+    call, and it is the first end-to-end evidence that ``refine_with_shift`` does
+    what it exists for on real data.
+
+    The fitted coefficient is **−0.061 ± 0.014°**, against a specimen displacement
+    of −0.065° measured independently against the certificate (WP-1023) — so the
+    package recovers a systematic it was never told about, from the pattern alone.
+    Both axes land inside 150 ppm and ``indexed_fraction`` crosses its bar, so one
+    refuting caveat clears.
+
+    **The figures of merit are the striking part and they are not free.**  M₂₀ goes
+    22 → 77 and F_N 16 → 60, because ``engines.scored_positions`` scores a
+    shift-carrying candidate against the positions it actually claims.  That is the
+    blind spot ``f_n`` has always stated — a refined shift can manufacture a large
+    F_N — so the number to read here is not the size of the jump but that the
+    *cell* moved to the certificate at the same time.  A shift that bought figures
+    of merit without moving the cell would be the failure this row would catch.
+    """
+    plain, _a, _c = corundum_index
+    res, a_cert, c_cert = corundum_index_with_shift
+
+    best = res.candidates[0]
+    assert best.system == "trigonal" and best.centring == "R"
+    assert best.shift_template == "cos_theta"
+    # the displacement, recovered from the pattern rather than from the certificate
+    assert best.shift_coefficient == pytest.approx(-0.061, abs=0.02)
+    assert abs(best.shift_coefficient) > 3.0 * best.shift_esd, (
+        f"{best.shift_coefficient:+.4f} ± {best.shift_esd:.4f} is consistent "
+        "with no shift at all")
+
+    da = best.cell[0] / a_cert - 1.0
+    dc = best.cell[2] / c_cert - 1.0
+    assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
+    assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
+
+    # the cell moved *and* the figures of merit did — neither alone is evidence
+    before, after = plain.candidates[0], best
+    assert after.chi2_red < before.chi2_red
+    assert after.fom_value("m20") > 3.0 * before.fom_value("m20")
+    assert after.fom_value("indexed_fraction") >= 0.9 > \
+        before.fom_value("indexed_fraction")
+    assert "indexed_fraction_low" not in after.confidence_caveats
+    # and it is still not promoted: the allowance was assumed either way
+    assert after.confidence == "low"
+    assert "shift_allowance_assumed" in after.confidence_caveats
+    assert res.best_or_none() is None
 
 
 @pytest.mark.slow

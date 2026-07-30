@@ -231,9 +231,10 @@ documented blind spot — space-group extinctions penalise a *correct* cell unde
 
 **From the 2026-07-30 assessment session** (papers read, nothing implemented):
 `refine_with_shift` declines its own correction on exactly the candidates that
-need it — see WP-1026's handover of the same date. That is 1026's to fix, but it
-interacts here: the shift allowance widens every box's `hit` matrix and so
-multiplies items 1, 4 and 5. DICVOL's posture is the opposite of ours — it
+need it — see WP-1026's handover of the same date. **Fixed in WP-1026's third
+session the same day**, along with the panel's matching window and
+`engines.scored_positions`; the interaction below stands unchanged. The shift
+allowance widens every box's `hit` matrix and so multiplies items 1, 4 and 5. DICVOL's posture is the opposite of ours — it
 *estimates and removes* the shift before the search (Dong, Wu & Chen 1999
 reflection pairs, then a zero-offset variable in the final least squares) and
 searches at a 0.02–0.03° window, where we search at ~0.05°. That method needs
@@ -241,6 +242,25 @@ only the peak list, so it belongs in `indexing/quality.py`, and it would let
 `assess_peak_list` report a **measured** `shift.source` — which is also what
 unblocks the `shift_allowance_assumed` caveat 1026 records as the reason `high`
 is unreachable on real lab data. One technique, two problems.
+
+**From WP-1026 (2026-07-30, third session) — every cost item here touches the leaf
+machinery, and one of its filters was silently deciding answers.** `_box_key`
+hashes a converged box so a cell is not refined once per sibling leaf; it divided
+A..F by `max|af|`, which is a ~1 % grid on a component an order of magnitude below
+the largest — and for a long axis C = 1/c\*² *is* that component. On the certified
+corundum pattern the trigonal-R domain converges to **eleven** leaves, three were
+skipped as duplicates, and one of the three held the certificate's c; the leaf
+refined in its place gave c +2799 ppm. It is now binned per component (log for the
+diagonals, partner-scaled for the off-diagonals) and pinned by
+`test_the_duplicate_leaf_hash_resolves_every_axis_equally`. Two consequences here.
+**Cost**: the corundum four-system run went 33 s → 47 s for 11 refinements against
+8, so any item that multiplies leaves multiplies that too — measure `_accept` calls,
+not just boxes. **Method**: this is the second time a *performance* filter has
+decided a *correctness* question in this engine (the first was `_push_children`'s
+ordering), so when items 1-3 re-stage the grid, the question to ask of each new
+prune is not "is it sound" but "what does it do when two leaves are nearly the
+same cell". A skipped leaf leaves no trace at all — no candidate, no diagnostic,
+nothing in `stats` — which is why this took a leaf-by-leaf trace to find.
 
 ## Non-goals
 
