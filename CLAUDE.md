@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-8 min (1251 tests), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1172 tests, ~45-55 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~5-8 min (1312 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1234 collected, ~20-55 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -31,6 +31,11 @@ group rather than by total work — fast suite 60-80 s over three runs.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
+**Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
+`[dev]`** venv, the full suite is 1196 passed / 116 skipped in 5:02 and the fast
+suite 1127 passed / 107 skipped in 20-25 s. Installing `[jax,torch]` converts
+most of those skips into passes, so a bare "N tests" figure means nothing without
+the venv it was measured in.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative

@@ -157,8 +157,9 @@ Report in the handover (don't gate): first-load JS size, boot-to-interactive.
 
 - **2026-07-30 — complete.** `npm --prefix gui run build` → 48.7 kB JS
   (19.1 kB gzip) + 3.4 kB CSS; 11 vitest tests; svelte-check 0 errors over 315
-  files; `tests/test_gui_dist.py` 8 tests; fast suite 1126 passed / 107 skipped
-  in ~18 s. Driven end to end against the real server on a synthetic LaB6
+  files; `tests/test_gui_dist.py` 8 tests; fast suite 1127 passed / 107 skipped
+  in 20-25 s, and the **full** suite including real-data acceptance 1196 passed /
+  116 skipped in 5:02 (numpy-only `[dev]` venv). Driven end to end against the real server on a synthetic LaB6
   project: boot payloads served, `POST /api/run` → converged **Rwp 0.04153, GoF
   0.792** over five stages, and `/api/result/window?max_points=800` returning
   1498 of 4200 points with 17 LaB6 ticks — i.e. exactly what the plot panel
