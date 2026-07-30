@@ -19,7 +19,7 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
 import { lintGutter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
-import { EditorState, type Extension } from "@codemirror/state";
+import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import {
   EditorView,
   crosshairCursor,
@@ -62,6 +62,59 @@ const HIGHLIGHT = HighlightStyle.define([
   { tag: tags.operator, class: "tok-operator" },
   { tag: tags.variableName, class: "tok-path" },
 ]);
+
+/**
+ * CodeMirror's own chrome, from the app's custom properties (WP-1029).
+ *
+ * The gutter, the caret, the selection and the active line are CM's, not ours,
+ * and they came out **bright white on a dark page**.  Not because nothing
+ * styled them — `app.css` has had `.cm-gutters { background: var(--panel) }`
+ * since WP-1013 — but because CM's own base theme is injected as `.ͼ1
+ * .cm-gutters`, two classes against one, so it wins on specificity every time.
+ * A theme extension is generated the same way and so competes on equal terms,
+ * which is why these rules live here rather than in the stylesheet with the
+ * token colours.
+ *
+ * `dark` is a real flag rather than a colour: CM branches on it internally (the
+ * default selection layer, the drop cursor, `filter: invert` on special
+ * characters), so a dark palette without it leaves a page that is *nearly*
+ * right and wrong in the details a reader notices last.
+ *
+ * The values are still `var(--…)`, so the one authority on a colour stays
+ * `app.css` and no component learns a hex.
+ */
+export function editorTheme(dark: boolean): Extension {
+  return EditorView.theme(
+    {
+      "&": { height: "100%", fontSize: "12px", backgroundColor: "var(--bg)", color: "var(--fg)" },
+      ".cm-scroller": { fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" },
+      ".cm-gutters": {
+        backgroundColor: "var(--panel)",
+        color: "var(--muted)",
+        border: "none",
+        borderRight: "1px solid var(--line)",
+      },
+      ".cm-activeLineGutter": {
+        backgroundColor: "color-mix(in srgb, var(--accent) 10%, transparent)",
+        color: "var(--fg)",
+      },
+      ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--accent) 8%, transparent)" },
+      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--fg)" },
+      "&.cm-focused .cm-cursor": { borderLeftColor: "var(--fg)" },
+      ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
+        backgroundColor: "color-mix(in srgb, var(--accent) 25%, transparent)",
+      },
+      ".cm-panels": { backgroundColor: "var(--panel)", color: "var(--fg)" },
+      ".cm-tooltip": {
+        backgroundColor: "var(--panel)",
+        color: "var(--fg)",
+        border: "1px solid var(--line)",
+      },
+      ".cm-lineNumbers .cm-gutterElement": { color: "var(--muted)" },
+    },
+    { dark },
+  );
+}
 
 interface StreamState {
   spans: Span[];
@@ -112,6 +165,9 @@ export interface EditorHandle {
   goToLine(line: number): void;
   /** Re-measure after the container was hidden and shown again. */
   refresh(): void;
+  /** Repaint the chrome for a theme change, keeping the document and its undo
+   *  history — a rebuilt editor would lose both to a click on a toggle. */
+  setTheme(dark: boolean): void;
   text(): string;
   focus(): void;
   destroy(): void;
@@ -125,11 +181,13 @@ export interface EditorOptions {
   /** Cmd/Ctrl-Enter */
   onApply: () => void;
   readOnly?: boolean;
+  dark?: boolean;
 }
 
 export function createEditor(options: EditorOptions): EditorHandle {
   /** true while `setDoc` is writing, so its own transaction is not an edit */
   let echoing = false;
+  const theme = new Compartment();
   const extensions: Extension[] = [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -157,10 +215,7 @@ export function createEditor(options: EditorOptions): EditorHandle {
       if (update.docChanged && !echoing) options.onChange(update.state.doc.toString());
     }),
     EditorState.readOnly.of(options.readOnly ?? false),
-    EditorView.theme({
-      "&": { height: "100%", fontSize: "12px" },
-      ".cm-scroller": { fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace" },
-    }),
+    theme.of(editorTheme(options.dark ?? false)),
   ];
 
   const view = new EditorView({
@@ -201,6 +256,9 @@ export function createEditor(options: EditorOptions): EditorHandle {
     },
     refresh() {
       view.requestMeasure();
+    },
+    setTheme(dark: boolean) {
+      view.dispatch({ effects: theme.reconfigure(editorTheme(dark)) });
     },
     text: () => view.state.doc.toString(),
     focus: () => view.focus(),

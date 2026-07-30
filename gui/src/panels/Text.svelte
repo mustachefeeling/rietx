@@ -31,6 +31,7 @@
     head = null,
     busy = false,
     active = false,
+    dark = false,
     say = (_line: string) => {},
     onmoved = () => {},
     onclose = () => {},
@@ -38,6 +39,9 @@
     head?: string | null;
     busy?: boolean;
     active?: boolean;
+    /** the *resolved* theme, not the choice — `lib/theme.ts` owns the resolving,
+     *  and CodeMirror's chrome needs the flag rather than the colours */
+    dark?: boolean;
     say?: (line: string) => void;
     onmoved?: () => void;
     onclose?: () => void;
@@ -144,6 +148,12 @@
   $effect(() => {
     editor?.setProblems(sync.problems);
   });
+  // …and so is the chrome, for the same reason: a theme toggle is a fifth thing
+  // that changes underneath a mounted editor, and a rebuild would take the
+  // buffer and its undo history with it
+  $effect(() => {
+    editor?.setTheme(dark);
+  });
 
   // re-read when the working state moved (WP-1005: the head *is* the working
   // state).  Only once the pane has been opened: a text document nobody is
@@ -179,6 +189,7 @@
         doc: sync.buffer,
         onChange: edited,
         onApply: apply,
+        dark,
       });
     } catch (error) {
       // released only on failure: on success `editor` is set and the effect

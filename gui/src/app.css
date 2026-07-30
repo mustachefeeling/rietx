@@ -1,6 +1,15 @@
-/* Theming by CSS custom properties, light and dark, following the system —
-   the same approach `pxrdref compare` uses, so the three browser surfaces this
-   package ships look like one program. */
+/* Theming by CSS custom properties, light and dark — the same approach
+   `pxrdref compare` uses, so the three browser surfaces this package ships look
+   like one program.
+
+   Since WP-1029 the *choice* is three-way (system / light / dark, in
+   `ProjectDoc.ui`) and `lib/theme.ts` stamps the resolved answer on the root as
+   `data-theme`.  The dark palette is therefore declared twice, on purpose: the
+   `@media` block is what paints correctly before the app has booted and while
+   nobody has chosen, and the attribute block is what an explicit choice sets —
+   which has to beat the system in *both* directions, and one media query cannot
+   say that.  Nothing else in the app learns a hex value it could read from a
+   custom property here. */
 :root {
   color-scheme: light dark;
   --fg: #1b1b1b;
@@ -16,7 +25,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --fg: #e6e6e2;
     --bg: #151515;
     --panel: #1e1e1e;
@@ -27,6 +36,18 @@
     --warn: #e0955c;
     --bad: #e8776a;
   }
+}
+
+:root[data-theme="dark"] {
+  --fg: #e6e6e2;
+  --bg: #151515;
+  --panel: #1e1e1e;
+  --line: #333333;
+  --muted: #9a9a94;
+  --accent: #7fb2ea;
+  --ok: #6cc08b;
+  --warn: #e0955c;
+  --bad: #e8776a;
 }
 
 * {
@@ -131,30 +152,14 @@ kbd {
   color: var(--fg);
 }
 
-/* CodeMirror's own chrome, tinted to the app's palette rather than restyled. */
-.cm-editor {
-  height: 100%;
-  background: var(--bg);
-  color: var(--fg);
-}
-
+/* CodeMirror's *chrome* — gutter, caret, selection, active line — is not here.
+   It moved into `lib/editor.ts`'s `editorTheme()` in WP-1029, because CM injects
+   its own base theme as `.ͼ1 .cm-gutters`: two classes against one, so a plain
+   `.cm-gutters` rule in this file loses on specificity and the library's light
+   gutter survived onto a dark page.  A generated theme competes on equal terms
+   *and* carries the `dark` flag CM branches on internally.  The token colours
+   above stay here, because those are classes the highlight style asks for by
+   name and nothing generates a competing rule for them. */
 .cm-editor.cm-focused {
   outline: none;
-}
-
-.cm-gutters {
-  background: var(--panel);
-  color: var(--muted);
-  border-right: 1px solid var(--line);
-}
-
-.cm-activeLine,
-.cm-activeLineGutter {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.cm-selectionBackground,
-.cm-editor .cm-selectionBackground,
-.cm-content ::selection {
-  background: color-mix(in srgb, var(--accent) 25%, transparent) !important;
 }

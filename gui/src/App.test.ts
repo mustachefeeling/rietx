@@ -1044,6 +1044,26 @@ describe("disclosure and the command palette", () => {
     expect(writes[0].body).toEqual({ ui: { console_height: 210 } });
   });
 
+  it("stamps an explicit theme on the root and persists the choice", async () => {
+    const stub = server(boot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    // no choice stored → "system", and jsdom's matchMedia stub reports light
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    const dark = [...host.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "dark");
+    dark!.click();
+    await flush();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    // …and `color-scheme` with it, which is what the unstyled native controls read
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+
+    const post = stub.calls.find((call) => call.method === "POST" && call.path === "/api/project");
+    expect(post?.body).toEqual({ ui: { theme: "dark" } });
+  });
+
   it("drags the panel column wider and persists the width once", async () => {
     // the sidebar starts on the CSS clamp — `null`, so a fresh project is
     // responsive rather than frozen at the first window it was opened in

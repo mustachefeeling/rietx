@@ -32,6 +32,14 @@
   import Text from "./panels/Text.svelte";
   import { isShortcutTarget, type Command } from "./lib/palette";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
+  import {
+    THEME_CHOICES,
+    applyTheme,
+    readChoice,
+    resolveTheme,
+    type Theme,
+    type ThemeChoice,
+  } from "./lib/theme";
 
   let version = $state<any>(null);
   let capabilities = $state<any>(null);
@@ -74,6 +82,22 @@
   /** The Model pane's first two column widths; its third takes the rest. */
   let modelColumns = $state<number[] | null>(null);
   let mainEl: HTMLElement | undefined = $state();
+
+  /** The theme *choice* — three-way, because "follow the system" is a decision
+   *  and not the absence of one (lib/theme.ts). */
+  let themeChoice = $state<ThemeChoice>("system");
+  let systemDark = $state(false);
+  const theme = $derived<Theme>(resolveTheme(themeChoice, systemDark));
+  const GLYPH: Record<ThemeChoice, string> = { system: "◐", light: "☀", dark: "☾" };
+  const THEME_TITLE: Record<ThemeChoice, string> = {
+    system: "follow the system, and keep following it when it changes",
+    light: "light, whatever the system does",
+    dark: "dark, whatever the system does",
+  };
+
+  // one authority on the resolved theme, stamped where CSS and CodeMirror both
+  // read it — no component derives it a second time from `matchMedia`
+  $effect(() => applyTheme(theme, document.documentElement));
   let paletteOpen = $state(false);
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
@@ -103,6 +127,7 @@
     consoleHeight = project?.doc?.ui?.console_height ?? 150;
     sideWidth = project?.doc?.ui?.side_width ?? null;
     modelColumns = project?.doc?.ui?.model_columns ?? null;
+    themeChoice = readChoice(project?.doc?.ui?.theme);
   }
 
   /** Persist a `ui` key on the verb, not on a later save (WP-1005/1008). */
@@ -238,6 +263,16 @@
     await setUi({ console_height: next });
   }
 
+  function nextTheme(): ThemeChoice {
+    return THEME_CHOICES[(THEME_CHOICES.indexOf(themeChoice) + 1) % THEME_CHOICES.length];
+  }
+
+  async function setTheme(next: ThemeChoice) {
+    themeChoice = next;
+    await setUi({ theme: next });
+    say(`project.doc.ui["theme"] = ${JSON.stringify(next)}`);
+  }
+
   /** Every splitter reports live and persists once — `done` is the round trip. */
   function sideSized(next: number, done: boolean) {
     sideWidth = next;
@@ -279,6 +314,9 @@
       run: () => { mode = "model"; modelPanel?.startImport(); } },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
+    { id: "theme", label: `Theme: ${themeChoice} — switch to ${nextTheme()}`,
+      echo: 'project.doc.ui["theme"]', disabled: !project,
+      run: () => setTheme(nextTheme()) },
     { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
       run: async () => { await api.save(); say("project.save()"); } },
   ]);
@@ -303,6 +341,18 @@
       command.run();
     }
   }
+
+  // "system" has to keep meaning system: a machine that switches at dusk must
+  // take the app with it, which is only true if the query is *listened* to
+  // rather than read once at boot
+  onMount(() => {
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    systemDark = query.matches;
+    const listen = () => (systemDark = query.matches);
+    query.addEventListener?.("change", listen);
+    return () => query.removeEventListener?.("change", listen);
+  });
 
   onMount(() => {
     (async () => {
@@ -376,6 +426,12 @@
         <button class:on={!simple} onclick={() => setSimple(false)}
           title="show every field a stage and a parameter carry">Advanced</button>
       </div>
+      <div class="segmented theme" role="group" aria-label="theme">
+        {#each THEME_CHOICES as choice (choice)}
+          <button class:on={themeChoice === choice} onclick={() => setTheme(choice)}
+            aria-label={choice} title={THEME_TITLE[choice]}>{GLYPH[choice]}</button>
+        {/each}
+      </div>
     {/if}
     <span class="pill" data-state={run?.state ?? "idle"}>
       {#if busy}
@@ -415,7 +471,7 @@
          buffer with unedited-but-typed changes has to survive a look at the
          parameter table.  Its editor is built on first entry, not on boot. -->
     <div class="textmode" class:hidden={!textMode}>
-      <Text {head} {busy} active={textMode} {say} onmoved={moved}
+      <Text {head} {busy} active={textMode} dark={theme === "dark"} {say} onmoved={moved}
         onclose={() => (mode = "panes")} />
     </div>
     <!-- mounted while hidden, as the tabs are: a typed species or a half-filled
@@ -524,6 +580,12 @@
   .segmented button.on {
     background: var(--accent);
     color: #fff;
+  }
+
+  .segmented.theme button {
+    padding: 3px 7px;
+    font-size: 12px;
+    line-height: 1.1;
   }
 
   .pill {
