@@ -1677,6 +1677,31 @@ describe("the structure viewer", () => {
     expect(trace(drawn, "La").z[0]).toBeCloseTo(0.08 * 2.5003, 6);
   });
 
+  it("looks down a lattice vector without asking the server anything", async () => {
+    const drawn = recorder();
+    const stub = await openViewer();
+    const before = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    const opening = drawn[drawn.length - 1].layout.scene.camera;
+
+    button("c")!.click();
+    await flush();
+    const down = drawn[drawn.length - 1].layout.scene.camera;
+    // LaB6 is cubic, so c is exactly ẑ — the case turntable would have made a
+    // degenerate lookAt, and the reason `dragmode` is "orbit"
+    expect(down.eye.x).toBeCloseTo(0, 12);
+    expect(down.eye.y).toBeCloseTo(0, 12);
+    expect(down.up).toEqual({ x: 0, y: 1, z: 0 });     // b is up
+    // …and the zoom the user had is kept
+    expect(Math.hypot(down.eye.x, down.eye.y, down.eye.z))
+      .toBeCloseTo(Math.hypot(opening.eye.x, opening.eye.y, opening.eye.z), 12);
+
+    button("reset")!.click();
+    await flush();
+    expect(drawn[drawn.length - 1].layout.scene.camera).toEqual(opening);
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length)
+      .toBe(before);
+  });
+
   it("refetches when the bond threshold moves, because the server owns the rule", async () => {
     recorder();
     const stub = await openViewer();

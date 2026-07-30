@@ -458,6 +458,47 @@ export const DEFAULT_CAMERA: Camera = {
 };
 
 /**
+ * The camera looking straight down one lattice vector.
+ *
+ * `eye` is in the scene's coordinates rather than in Å — but under
+ * `aspectmode: "data"` plotly's data→scene map is a *uniform* scale, so a
+ * direction in Å is the same direction there.  That is the second job that
+ * setting does, and it is what makes this function legal at all.
+ *
+ * `up` is the lattice vector two steps on cyclically: down **a** puts **c** up
+ * and **b** right, down **b** puts **a** up and **c** right, down **c** puts
+ * **b** up and **a** right, since `right = cross(−n, up)` on a right-handed
+ * a, b, c.  Those are the three projections a crystallographer draws.  It is
+ * Gram-Schmidted against the view direction because in a triclinic cell no two
+ * lattice vectors are perpendicular, and an `up` parallel to the eye is a
+ * singular `lookAt` — which is also why `layout` sets `dragmode: "orbit"`:
+ * turntable would overwrite this `up` with +z, and c ∥ ẑ for every orthogonal
+ * cell.
+ *
+ * The distance comes from the camera passed in, so choosing a projection keeps
+ * whatever zoom the user had.
+ */
+export function axisCamera(geometry: Geometry, axis: number,
+                           camera: Camera = DEFAULT_CAMERA): Camera {
+  const unit = (v: number[]) => {
+    const n = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / n, v[1] / n, v[2] / n];
+  };
+  const n = unit(geometry.lattice[axis]);
+  const raw = geometry.lattice[(axis + 2) % 3];
+  const along = raw[0] * n[0] + raw[1] * n[1] + raw[2] * n[2];
+  const up = unit([raw[0] - along * n[0], raw[1] - along * n[1],
+                   raw[2] - along * n[2]]);
+  const r = Math.hypot(camera.eye.x, camera.eye.y, camera.eye.z) || 2.06;
+  return {
+    eye: { x: n[0] * r, y: n[1] * r, z: n[2] * r },
+    up: { x: up[0], y: up[1], z: up[2] },
+    center: { x: 0, y: 0, z: 0 },
+    projection: DEFAULT_CAMERA.projection,
+  };
+}
+
+/**
  * The scene layout.
  *
  * `aspectmode: "data"` keeps one Å the same length on all three axes — without

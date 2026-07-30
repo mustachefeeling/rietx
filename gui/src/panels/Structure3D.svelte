@@ -25,6 +25,7 @@
   import { loadPlotly } from "../lib/plotly";
   import {
     DEFAULT_CAMERA,
+    axisCamera,
     caption,
     layout,
     legend,
@@ -61,6 +62,9 @@
   let level = $state("0.5");
   let hidden = $state(new Set<string>());
   let showBoundary = $state(true);
+  /** Bumped by the view buttons.  The camera itself is not `$state` — nothing
+   *  renders it — so this is what asks the draw effect for one more frame. */
+  let view = $state(0);
 
   const sphere = unitSphere();
   const cylinder = unitCylinder();
@@ -91,6 +95,7 @@
     void mode;
     void hidden;
     void showBoundary;
+    void view;
     draw();
   });
 
@@ -203,6 +208,19 @@
     hidden = next;
   }
 
+  /** Look straight down a lattice vector — the projections a crystallographer
+   *  draws, and the cure for the roll that free rotation allows. */
+  function look(axis: number) {
+    if (!geo) return;
+    camera = axisCamera(geo, axis, camera);
+    view += 1;
+  }
+
+  function home() {
+    camera = DEFAULT_CAMERA;
+    view += 1;
+  }
+
   function setProbability(key: string) {
     level = key;
     if (!geo) return;
@@ -253,6 +271,14 @@
     </div>
 
     <div class="knobs">
+      <span class="inline tiny" title="look straight down a lattice vector: down a
+        puts c up and b right, and so round — the projections a structure is
+        normally drawn in">view down
+        <button class="tiny" onclick={() => look(0)}>a</button>
+        <button class="tiny" onclick={() => look(1)}>b</button>
+        <button class="tiny" onclick={() => look(2)}>c</button>
+        <button class="tiny" onclick={home}>reset</button>
+      </span>
       {#if mode === "ellipsoid"}
         <label class="inline tiny">probability
           <select class="tiny" value={String(geo.probability)}

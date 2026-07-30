@@ -17,6 +17,7 @@ import {
   atomLabel,
   atomTransform,
   atomTraces,
+  axisCamera,
   axisTrace,
   bondTraces,
   caption,
@@ -322,6 +323,34 @@ describe("the caption and the layout", () => {
     for (const key of ["xaxis", "yaxis", "zaxis"]) {
       expect(scene[key].visible).toBe(false);
     }
+  });
+
+  it("looks down a lattice vector with the next one but one up", () => {
+    // down a puts c up and b right, and so round: the three projections a
+    // structure is normally drawn in
+    const geo = geometry({
+      // monoclinic, β = 110°, so `up` is genuinely not a lattice vector
+      lattice: [[5, 0, 0], [0, 9, 0], [7 * Math.cos((110 * Math.PI) / 180), 0,
+                                       7 * Math.sin((110 * Math.PI) / 180)]],
+    });
+    const down = axisCamera(geo, 0);
+    expect(down.eye.y).toBeCloseTo(0, 12);
+    expect(down.eye.z).toBeCloseTo(0, 12);
+    expect(down.eye.x).toBeGreaterThan(0);
+    // up is c, with the part along a taken out — an up parallel to the eye is a
+    // singular lookAt, and in a triclinic cell no two axes are perpendicular
+    const up = down.up!;
+    expect(up.x * down.eye.x + up.y * down.eye.y + up.z * down.eye.z)
+      .toBeCloseTo(0, 12);
+    expect(Math.hypot(up.x, up.y, up.z)).toBeCloseTo(1, 12);
+    expect(up.z).toBeGreaterThan(0);            // c's own side of the plane
+
+    // the projection follows, and the distance is the caller's — so choosing a
+    // view keeps whatever zoom the user had
+    expect(down.projection).toEqual(DEFAULT_CAMERA.projection);
+    const held = { eye: { x: 0, y: 0, z: 4 } };
+    const eye = axisCamera(geo, 2, held).eye;
+    expect(Math.hypot(eye.x, eye.y, eye.z)).toBeCloseTo(4, 12);
   });
 
   it("takes the camera from its caller, defaulting to the opening view", () => {
