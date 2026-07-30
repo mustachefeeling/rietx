@@ -1,6 +1,6 @@
 # WP-1018 — Peak picking: detection + full per-peak profile fitting
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: 🔄 in flight — code complete, **tests outstanding** (2026-07-30)
 Depends on: —
 
 ## Goal
@@ -112,35 +112,35 @@ will be wrong on lab data by an order of magnitude.
 
 ## Tasks
 
-- [ ] `crystallography/lattice.py`: extract `inv_d_squared(hkl, *cell)` from
+- [x] `crystallography/lattice.py`: extract `inv_d_squared(hkl, *cell)` from
       inside `d_spacings` (the einsum is already there, `lattice.py:49`);
       `d_spacings` delegates. **Pure move — arithmetic order unchanged**, so
       the bit-identity goldens stay green (`GOLDEN_PLATFORM` darwin/arm64,
       `tests/test_backend_shim.py`). Call sites: `io/exporters.py:120`,
       `crystallography/symmetry.py:105,158,197`.
-- [ ] `background/`: export `background_envelope` from `__init__.py`; refactor
+- [x] `background/`: export `background_envelope` from `__init__.py`; refactor
       `_contamination_flags` into a public
       `contamination_flags_from_peaks(two_theta, intensity, esd, wavelength,
       *, tol_deg=…)` that the existing index-based version calls — one
       implementation of the ghost logic, matching on
       `k·√(σ_ghost²+σ_parent²)` and on *integrated* intensity rather than net
       height.
-- [ ] `schemas/indexing.py`: `PeakFlag`, `ObservedPeak`, `PeakList`
+- [x] `schemas/indexing.py`: `PeakFlag`, `ObservedPeak`, `PeakList`
       (`from_positions`, `usable`), `INDEXING_THRESHOLDS_VERSION` and the
       pinned thresholds as module constants with `#:` docstrings stating the
       physics — the `report/schemas.py` pattern.
-- [ ] `indexing/peaks.py`: detection, instrument-derived separation floor,
+- [x] `indexing/peaks.py`: detection, instrument-derived separation floor,
       second-derivative shoulder *seeds*, grouping via `_overlap_groups`' rule.
-- [ ] `indexing/peakfit.py`: the per-group model, analytic Jacobian (profile
+- [x] `indexing/peakfit.py`: the per-group model, analytic Jacobian (profile
       derivs chained through `tch_gamma_eta`, plus the emission-line chain
       `d(2θ_l)/d(2θ₀) = (λ_l/λ₀)·cosθ₀/cosθ_l`), softplus width bounds,
       position bounded to ±0.5·FWHM of its seed (the analogue of Layer 1's
       `VALIDITY_RADIUS_FWHM = 0.4` — a fit wanting to move further is a
       detection failure, not a small offset).
-- [ ] Factor the esd helper (`Cov = χ²_red·pinv(JᵀJ)`) out of
+- [x] Factor the esd helper (`Cov = χ²_red·pinv(JᵀJ)`) out of
       `optimize/least_squares.py` into one shared function so the two surfaces
       cannot disagree about pinv guarding.
-- [ ] `pick_peaks` public entry + `pxrdref/__init__.py` export; ghost flagging;
+- [x] `pick_peaks` public entry + `pxrdref/__init__.py` export; ghost flagging;
       `PEAK_*` diagnostics (`PEAK_LIST_TOO_SHORT`, `PEAK_SIGMA_ASSUMED`,
       `PEAK_UNRESOLVED_SHOULDER`, `PEAK_CONTAMINATION_LINE`,
       `PEAK_ASYMMETRY_UNMODELLED`) via a translator in `indexing/diagnostics.py`
@@ -187,6 +187,99 @@ The σ pull calibration must pass, and the darwin/arm64 goldens must be
   `profiles/caglioti.py`; `model/forward.py:1273` `_overlap_groups`.
 
 ## Handover log
+
+- **2026-07-30** — **seven of eight checklist items landed; the test suite is
+  the one outstanding item, and it is the important one.** Merged to `main` at
+  the user's instruction in this state, so read this entry before touching
+  anything here.
+
+  *Done.* `inv_d_squared` extracted (goldens bit-identical, 15 passed no skips);
+  `background_envelope` exported and the ghost rule refactored into
+  `contamination_flags_from_peaks`; `schemas/indexing.py` complete;
+  `indexing/{peaks,peakfit,pick,diagnostics}.py` complete;
+  `statistics.normal_covariance` factored out and shared with
+  `covariance_estimates`; `pxrdref.pick_peaks` exported. Fast suite
+  **1158 passed / 4 skipped in 64 s**, ruff clean.
+
+  *In flight / next.* `tests/test_peak_picking.py` does not exist yet. The
+  **σ pull calibration is the gate the whole downstream tolerance model rests
+  on** — 200 synthetic groups from the package's own forward model + Poisson
+  noise, `|mean| < 0.15`, `std ∈ [0.85, 1.20]` — and until it runs, the per-line
+  σ this WP exists to produce is *unvalidated*. Everything WP-1019 and WP-1020
+  do with σ(2θ) and σ(Q) is provisional until then. Also outstanding: the
+  doublet-position property test (fitted position is the **Kα1** position), the
+  `from_positions` hypothesis round-trip, and the per-group PNG overlays to
+  `tests/output/`. A scratch FD harness that exercised five configurations is
+  *not* in the tree; it is worth rewriting as the first test rather than
+  recovering.
+
+  *Measured so far.* The analytic group Jacobian agrees with central
+  differences to **2.5e-07** relative on every column, over five configurations
+  (synchrotron single line; lab doublet; symmetric FCJ; asymmetric FCJ
+  S/L ≠ H/L; overlapping pair) — this covers the FCJ node-FD path and the
+  emission-line chain. Injected positions recovered to **0.0005°** at 1-2σ on
+  three-peak and resolved-doublet synthetics.
+
+  *Four defects, all found by running it and none visible by reading it.* Each
+  is written up in the module that fixes it; the shortest form:
+
+  1. **A resolved Kα1/Kα2 doublet manufactured one spurious line per
+     reflection.** Once Δ2θ = 2·tanθ·Δλ/λ exceeds half a FWHM the Kα2 maximum is
+     its own detection, gets its own group, and — because each group is fitted
+     *independently, with its own full doublet* — comes back as a real line with
+     real intensity. `_drop_kalpha2_aliases` recognises it (stripping is not the
+     alternative), and it must also be forbidden to the curvature seeder or it
+     returns as a "shoulder". **This is structural to per-group fitting, so any
+     future change to grouping or windowing has to keep it.**
+  2. **The first curvature seeder was useless.** Differentiating twice amplifies
+     white noise by ~1/step², so a threshold written against the per-channel σ
+     passed essentially every noise dip — hundreds of seeds on a three-peak
+     pattern. It is now a Savitzky-Golay second derivative whose noise is
+     propagated *exactly* through the filter's own coefficient norm, ‖c‖₂·σ.
+  3. **A shoulder seed landing far from any maximum forms a singleton group, and
+     the ΔBIC gate only ever judged components a re-seed pass had added** — so a
+     curvature false positive became a reported line with an esd and no
+     evidence. `_prune_shoulders` now makes every shoulder-seeded component earn
+     its parameters against its own absence; for a singleton, against there
+     being no peak at all (`_null_chi2`). Watch the index bug that cost an hour:
+     candidacy is keyed by seed 2θ, not by index, because dropping a component
+     renumbers the rest.
+  4. **`background_envelope` is a rolling *low* quantile, so "net = 0" is not
+     the background.** For flat Poisson counts it sits ≈1.28σ low, which turns a
+     nominal 5σ threshold into ≈3.7σ — one spurious line at 116.46° on a
+     two-peak synthetic. `_debiased_envelope` recovers the offset as the median
+     of the residual and adds it back to the *envelope*, so the fitter's
+     additively-held background is unbiased too.
+
+  *Three deliberate deviations from this WP's plan, each with its reason.*
+  (a) Widths use **native trust-region bounds, not softplus** — the only thing
+  softplus bought here was Γ > 0, and native bounds keep the analytic Jacobian
+  in physical units with no chain factor. `PEAK_WIDTH_BOUND_FACTORS`' lower
+  entry is therefore a *positivity floor* (1e-4), not a physical constraint: a
+  genuinely Lorentzian line has Γ_G → 0 and a Gaussian one Γ_L → 0, so a floor
+  at 0.2 would forbid both limits. (b) The width Jacobian **finite-differences
+  the two-scalar (Γ_G, Γ_L) → (w₁, w₂) map** instead of hand-writing the TCH
+  quintic's derivative. That is `derivative_bases`' own idiom (exact per-point,
+  FD on cheap scalars) and it keeps the fitter shape-agnostic — the true-Voigt
+  map is differenced by the same two lines, where a hand-written chain would
+  have needed a second one. (c) `contamination_flags_from_peaks` names
+  `two_theta_esd` and `intensity_esd` explicitly rather than the plan's bare
+  `esd`, which sat next to `intensity` and read as its esd while meaning the
+  position's.
+
+  *Constants and codes this WP added beyond the plan* (all in
+  `schemas/indexing.py` with `#:` reasoning): `PEAK_SHOULDER_MIN_SIGMA`,
+  `PEAK_ALIAS_TOL_FWHM_FRAC`, `PEAK_ALIAS_RATIO_RANGE`, `PEAK_WINDOW_FWHM_MULT`,
+  `PEAK_WIDTH_SCALE_BOUNDS`; and three diagnostic codes past the plan's five —
+  `PEAK_KALPHA2_ALIAS`, `PEAK_WIDTH_LAW_MISMATCH`, `PEAK_SHOULDER_SEEDED`.
+
+  *Gotcha about this branch's history, not about the code.* A concurrent session
+  working WP-1004/WP-1006 in the same working directory ran `git add -A` while
+  these files were uncommitted, so `indexing/peaks.py`, `peakfit.py`, `pick.py`,
+  `diagnostics.py` and most of `schemas/indexing.py` were committed inside
+  `f63556c`, `e46ead2` and `62d6a76`, whose messages say WP-1004 / WP-1006.
+  Content is intact and the tree is green; only the attribution is wrong.
+  `git log -- src/pxrdref/indexing/` will mislead you — start from `068149e`.
 
 - **2026-07-29** — created from the indexing plan. Prototype prior art is
   pinned at the tag `guillemot-study`, **read without merging** (see
