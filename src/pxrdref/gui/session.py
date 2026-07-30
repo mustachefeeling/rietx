@@ -810,9 +810,11 @@ class GuiSession:
         must not be two answers.
         """
         report = self._report_object(plan)
+        # both hoisted: ``_held`` rebuilds a ParameterTable and ``_indexing`` probes
+        # every optional dependency's import, and a report carries a dozen actions
+        held, indexing = self._held(), _indexing()
         return {"report": report.model_dump(mode="json"),
-                "apply": [describe_action(a, held=self._held(),
-                                          indexing=_indexing())
+                "apply": [describe_action(a, held=held, indexing=indexing)
                           for a in report.suggested_actions]}
 
     def _held(self) -> dict[str, str]:
