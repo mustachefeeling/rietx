@@ -215,6 +215,11 @@ class EngineCandidate:
     #: from: a solution whose base indices sit at the table's edge is one the table
     #: nearly excluded.
     base_hkl: np.ndarray | None = None
+    #: every engine that produced **this lattice**, filled by WP-1024's consensus
+    #: merge from :func:`dedup_groups`.  Empty means "not merged yet", and
+    #: :func:`to_cell_candidate` then reports ``[engine]`` — so a single-engine run
+    #: needs no merge step and the field can never disagree with ``engine``.
+    found_by: list[str] = field(default_factory=list)
 
     @property
     def n_indexed(self) -> int:
@@ -517,7 +522,8 @@ def to_cell_candidate(cand: EngineCandidate, peaks: PeakList, *,
         shift_template=fit.shift_template,
         shift_coefficient=float(fit.shift_coefficient),
         shift_esd=float(fit.shift_esd),
-        fom=panel, found_by=[cand.engine], diagnostics=list(diagnostics))
+        fom=panel, found_by=list(cand.found_by) or [cand.engine],
+        diagnostics=list(diagnostics))
 
 
 def _volume_esd(fit: CandidateFit) -> float:
@@ -543,15 +549,20 @@ def _volume_esd(fit: CandidateFit) -> float:
     return float(np.sqrt(max(grad @ np.asarray(fit.cov_af) @ grad, 0.0)))
 
 
-def dedup_candidates(cands: Sequence[EngineCandidate],
-                     ) -> list[EngineCandidate]:
-    """Merge candidates that are the same lattice, keeping the best-fitting one.
+def dedup_groups(cands: Sequence[EngineCandidate],
+                 ) -> list[list[EngineCandidate]]:
+    """Group candidates that are the same lattice, best-fitting member first.
 
     WP-1020's χ² equality on the **Niggli-reduced** A..F, so a setting change is
     equality rather than an ambiguity — but keyed within a centring, because the
     same metric with two different centrings is two different *lattices* (one
     predicts half the lines of the other) and merging them would silently drop a
     hypothesis the figures of merit are there to choose between.
+
+    The *groups*, not just the survivors, because WP-1024's consensus needs to
+    know **which engines** produced one lattice: agreement is the confidence, so
+    the membership is the answer and not a by-product.  :func:`dedup_candidates`
+    is this function's first column.
     """
     from .reduce import equal_reduced, reduced_af
 
@@ -564,15 +575,16 @@ def dedup_candidates(cands: Sequence[EngineCandidate],
             continue
         prepared.append((cand, red, _reduced_volume(red)))
 
-    kept: list[tuple[EngineCandidate, np.ndarray, float]] = []
+    kept: list[tuple[list[EngineCandidate], np.ndarray, float]] = []
     for cand, red, volume in prepared:
-        for other, other_red, other_volume in kept:
+        for group, other_red, other_volume in kept:
             # volume gate first: two lattices whose reduced volumes differ by more
             # than a per-cent cannot pass a χ² test on their metrics, and this is
             # what keeps the pass from being N² pinv solves as well as N² reductions
             if abs(volume - other_volume) > DEDUP_VOLUME_RTOL * max(volume,
                                                                     other_volume):
                 continue
+            other = group[0]
             if other.centring != cand.centring or other.system != cand.system:
                 continue
             try:
@@ -582,10 +594,18 @@ def dedup_candidates(cands: Sequence[EngineCandidate],
             except (ValueError, np.linalg.LinAlgError):
                 same = False
             if same:
+                group.append(cand)
                 break
         else:
-            kept.append((cand, red, volume))
-    return [cand for cand, _red, _vol in kept]
+            kept.append(([cand], red, volume))
+    return [group for group, _red, _vol in kept]
+
+
+def dedup_candidates(cands: Sequence[EngineCandidate],
+                     ) -> list[EngineCandidate]:
+    """The best-fitting member of each distinct lattice — :func:`dedup_groups`
+    with the membership dropped."""
+    return [group[0] for group in dedup_groups(cands)]
 
 
 def _reduced_volume(red: np.ndarray) -> float:
@@ -673,7 +693,7 @@ __all__ = ["CENTRINGS", "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
            "MAX_PREDICTED_REFLECTIONS", "SYSTEM_ORDER", "Budget",
            "EngineCandidate", "EngineResult", "SearchSpec", "assign_lines",
-           "DEFAULT_UNKNOWN_SHIFT_DEG", "dedup_candidates",
+           "DEFAULT_UNKNOWN_SHIFT_DEG", "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "indexes_the_search_lines", "refine_with_shift",
            "shift_allowance_diagnostic",

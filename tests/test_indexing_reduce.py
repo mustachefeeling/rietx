@@ -20,8 +20,8 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from pxrdref.crystallography.lattice import cell_volume
-from pxrdref.crystallography.symmetry import generate_reflections
 from pxrdref.indexing.ambiguity import (
+    AMBIGUITY_EXTEND_FACTOR,
     MAX_AMBIGUITY_INDEX,
     ambiguity_partners,
     derivative_cells,
@@ -270,30 +270,74 @@ def test_derivative_cells_drop_the_parent_in_a_new_setting():
         assert not equal
 
 
-def test_ambiguity_partners_are_reported_with_a_way_to_break_the_tie():
-    """A supercell explains every observed line, so it cannot be excluded by the
-    positions alone — which is exactly what must be *reported*.
+def _lines(cell, system="cubic", centring="P", two_theta_max=90.0,
+           esd_deg=0.01):
+    """Every line ``cell`` predicts in range, with a declared σ.
 
-    The entry earns its place through ``discriminating_reflections``: the lines the
-    partner predicts and the parent does not, lowest angle first, which is what a
-    caller goes and looks for.
+    Via ``fom.predicted_lines`` rather than ``generate_reflections`` because the
+    cells here are deliberately *not* in the setting a space-group symbol implies
+    (a derivative of a cubic cell is tetragonal or worse), and the symbol-based
+    generator returns NaN d-spacings for a cell its symmetry forbids.
+    """
+    from pxrdref.indexing.fom import predicted_lines
+
+    _hkl, q = predicted_lines(cell, system, centring, LAM, two_theta_max)
+    tt = np.degrees(2.0 * np.arcsin(LAM * np.sqrt(q) / 2.0))
+    return q, q_esd_of_two_theta(tt, np.full_like(tt, esd_deg), LAM)
+
+
+def test_a_supercell_is_excluded_by_the_lines_it_predicts_and_the_data_lacks():
+    """A supercell is **not** an ambiguity: the data refute it (WP-1024).
+
+    This test asserted the opposite until WP-1024, on the reasoning that a
+    supercell indexes every observed line and so "cannot be excluded by the
+    positions alone".  That reads only the observed positions and ignores the
+    absences, which is exactly ``indexed_fraction``'s measured blind spot one
+    module over — a doubled cubic cell needs lines at half the parent's
+    d-spacings and they are not there.  Measured, the un-excluded screen reported
+    **28 partners for this certified cubic cell**, which would have made WP-1024's
+    confidence gate permanently ``low``: the indexer could never have answered.
+
+    The crystallography agrees with the arithmetic: a 2a cell whose odd
+    reflections are identically zero has the a-translation, so the *lattice* is
+    the a-lattice and the supercell is a cell choice, not a rival hypothesis.
     """
     cell = (4.1566,) * 3 + (90.0,) * 3
-    refl = generate_reflections("P m -3 m", cell, LAM, 90.0)
-    q = np.sort(1.0 / np.asarray(refl.d) ** 2)
-    tt = np.degrees(2.0 * np.arcsin(LAM * np.sqrt(q) / 2.0))
-    esd = q_esd_of_two_theta(tt, np.full_like(tt, 0.01), LAM)
+    q, esd = _lines(cell)
+    assert ambiguity_partners(cell, "cubic", "P", q, esd, LAM, 90.0,
+                              max_index=2) == []
 
-    partners = ambiguity_partners(cell, "cubic", "P", q, esd, LAM, 90.0,
+
+def test_a_surviving_partner_says_where_to_measure_to_break_the_tie():
+    """When the extra lines *are* all present, the partner survives — and its
+    discriminating reflections are then necessarily **outside** the measured
+    range.
+
+    That is a consequence of the exclusion rather than a separate rule: a partner
+    whose in-range extras were absent is gone, and one whose in-range extras are
+    present is not discriminated by them.  So the report is literally "collect
+    further and look", which is why the partner's lines are predicted out to
+    ``AMBIGUITY_EXTEND_FACTOR``·2θ_max.
+    """
+    parent = (4.1566,) * 3 + (90.0,) * 3
+    child = transform_cell(parent, np.diag([1, 1, 2]))
+    tt_max = 90.0
+    # observe the *child's* lines: every extra the child needs is then present,
+    # and the parent explains a subset of them
+    q, esd = _lines(child, "triclinic", "P", tt_max)
+    partners = ambiguity_partners(parent, "cubic", "P", q, esd, LAM, tt_max,
                                   max_index=2)
-    assert partners, "a doubled cell indexes every line and must be reported"
-    assert all(p.index == 2 for p in partners)
-    assert all(p.volume > float(cell_volume(*cell)) for p in partners)
+    assert partners, "a partner whose extra lines are all present must survive"
     with_refl = [p for p in partners if p.discriminating_reflections]
     assert with_refl, "no partner said what would break the tie"
     p = with_refl[0]
+    assert p.volume > float(cell_volume(*parent))
     assert len(p.discriminating_reflections) == len(p.discriminating_two_theta)
-    assert all(0.0 < t <= 90.0 for t in p.discriminating_two_theta)
+    assert all(t > tt_max for t in p.discriminating_two_theta), (
+        "an in-range extra is either absent (excluding the partner) or present "
+        "(not discriminating), so the tie-breakers lie outside the range")
+    assert all(t <= AMBIGUITY_EXTEND_FACTOR * tt_max
+               for t in p.discriminating_two_theta)
     assert p.transformation and abs(round(float(np.linalg.det(
         np.array(p.transformation))))) == p.index
 

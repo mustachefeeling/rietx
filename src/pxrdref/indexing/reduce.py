@@ -22,6 +22,16 @@ only *add* symmetry, so the stable answer is the tightest tolerance's answer and
 the ambiguity is whether the loosest one says something higher.  It is asserted
 rather than assumed (``tests/test_indexing_reduce.py``).
 
+**Both opinions must be asked about the same lattice, and that is easy to get
+wrong in exactly one place.**  Niggli reduction of a *centred* cell returns the
+reduced **primitive** cell — the centring is consumed by the reduction — so
+:attr:`ReducedCell.centring` is provenance about the input and must not be handed
+back to anything that applies a centring.  Doing so (WP-1020, fixed in WP-1024)
+made gemmi report a cubic I lattice as **trigonal**, six lattice rotations instead
+of twenty-four, so the two methods disagreed on every centred candidate and the
+disagreement — which is supposed to mean pseudosymmetry — meant "one of us was
+asked the wrong question".
+
 **Dedup is a χ² test, not a percentage.**  Two candidates are the same lattice
 when their Niggli-reduced A..F vectors agree under χ² = ΔᵀΣ⁻¹Δ against χ²₆(0.99),
 using their joint covariance.  A fixed percentage merges distinct synchrotron
@@ -82,6 +92,14 @@ class ReducedCell:
 
     cell: tuple[float, float, float, float, float, float]
     change_of_basis: str            # gemmi triplet, e.g. "y,z,x"
+    #: centring of the **input** cell, kept for provenance.  :attr:`cell` itself is
+    #: always **primitive**: ``gemmi.GruberVector(uc, centring)`` reduces the
+    #: primitive cell of the centred lattice, so the centring has already been
+    #: consumed by the reduction (measured: the reduced form of a cubic I cell with
+    #: a = 5.8783 Å is (5.0908, 5.0908, 5.0908, 109.4712°, …) at exactly half the
+    #: conventional volume, and the change of basis is the I → P transformation).
+    #: **Do not pass this back to a routine that applies a centring** — see
+    #: :func:`bravais_screen`, where doing so was a live bug.
     centring: str
     kind: str                       # "niggli" or "delaunay"
     #: gemmi's own ``is_niggli`` / ``is_buerger`` predicate, evaluated on the
@@ -175,7 +193,16 @@ def bravais_screen(cell: tuple[float, ...], centring: str = "P", *,
     uc = gemmi.UnitCell(*reduced.cell)
     by_obliquity = {}
     for tol in obliquities:
-        ops = gemmi.find_lattice_symmetry(uc, reduced.centring, tol)
+        # "P", not ``reduced.centring``: the reduction already consumed the
+        # centring and returned the *primitive* cell, so passing the input
+        # centring back centres it a second time.  Measured, that is not a
+        # subtlety — a cubic I cell came back **trigonal** from gemmi (6 lattice
+        # rotations instead of 24) while spglib, which is handed the bare lattice,
+        # correctly said Im-3m.  The two then "disagreed" on every centred
+        # candidate, which set ``methods_disagree`` and ``ambiguous`` and so
+        # capped every centred lattice's confidence at medium for good — about
+        # half of all real structures.
+        ops = gemmi.find_lattice_symmetry(uc, "P", tol)
         by_obliquity[tol] = _SYSTEM_BY_SYM_OPS.get(len(ops.sym_ops), "triclinic")
 
     esd = float(np.max(np.atleast_1d(np.asarray(cell_esd, dtype=np.float64))[:3]))
