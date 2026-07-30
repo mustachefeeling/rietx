@@ -144,7 +144,17 @@ if a registry member is missing from the schema.
   (`optimize.statistics.background_absorption`) — pairwise ρ misses it
   entirely (~0.2 per coefficient while the block absorbs ~46 %).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters
-  for non-cubic orbit/multiplicity counting (see symmetry.py comment).
+  for non-cubic orbit/multiplicity counting (see symmetry.py comment). **This is
+  about hkl, and applying it to a *tensor* is the opposite mistake**: a quantity
+  that contracts with h twice — G\*, or the U\* form of an ADP — is invariant
+  under U → R·U·Rᵀ with R **untransposed**, because (Rᵀh)ᵀU(Rᵀh) = hᵀ(RURᵀ)h. So
+  `wyckoff.adp_basis` takes untransposed rotations for a metric or an ADP basis.
+  The trap is that the transposed set is a group too, so the *dimension* of the
+  invariant subspace is identical in every crystal system and a
+  degrees-of-freedom test passes: WP-1020 built the whole indexing metric
+  subspace from Rᵀ, reproduced 1/2/2/2/3/4/6 exactly, and had F = −A for
+  hexagonal (the *direct* metric's cos γ) where the reciprocal metric has F = +A.
+  Only asserting that the true metric lies in the span catches it.
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).

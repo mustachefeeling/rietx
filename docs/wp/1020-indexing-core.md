@@ -28,8 +28,14 @@ compared — no engine yet.
   table.** The allowed G* patterns span `∩ker(A(R) − I)` under
   `A(R)[U] = R U Rᵀ` — which is *exactly*
   `crystallography.wyckoff.adp_basis(rotations)`, already implemented over
-  exact `Fraction` arithmetic via `_nullspace_int`. Call it with the
-  **transposed** rotations (CLAUDE.md: reciprocal-space symmetry action is Rᵀ).
+  exact `Fraction` arithmetic via `_nullspace_int`. ~~Call it with the
+  **transposed** rotations (CLAUDE.md: reciprocal-space symmetry action is Rᵀ).~~
+  **Corrected on measurement (2026-07-30): call it with the rotations
+  UNTRANSPOSED.** The Rᵀ rule is about *hkl*; a tensor contracting with h twice is
+  invariant under U → R·U·Rᵀ, and G\* is such a tensor. The transposed call returns
+  the *direct* metric's invariants — the same dimension in every system, so the
+  criterion below is satisfied by the wrong subspace (hexagonal came out F = −A
+  where the reciprocal metric has F = +A). See the handover log.
   Dimensions must come out 1/2/2/2/3/4/6 for cubic / tetragonal / hexagonal /
   trigonal / orthorhombic / monoclinic / triclinic — assert that against
   `params.vector._CELL_TIES` and `_FIXED_ANGLES`, i.e. the derived answer must
@@ -55,8 +61,10 @@ compared — no engine yet.
   Different parameterisations of the same question, so run both and sweep the
   tolerance (obliquity 0.5/1/2/3°; symprec from the propagated cell esds).
   Report the highest symmetry **stable across the sweep**; symmetry that
-  appears only at the loosest tolerance is `INDEX_BRAVAIS_AMBIGUOUS`, not an
-  answer. Same device as `direction="both"` in `sequential.py`.
+  appears only at the loosest tolerance is ambiguous, not an answer. Same device
+  as `direction="both"` in `sequential.py`. (The *diagnostic*
+  `INDEX_BRAVAIS_AMBIGUOUS` went to WP-1024: this WP emits none, having no answer
+  to qualify. `BravaisScreen.ambiguous` and `.methods_disagree` carry the verdict.)
 - **What must still be hand-written**: the tolerance-aware cell-equality
   metric, the derivative-lattice enumeration, and conventional-cell selection
   when metric symmetry exceeds the reduced primitive cell's.
