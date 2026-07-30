@@ -243,11 +243,15 @@ Confidence = Literal["high", "medium", "low"]
 #: widened window absorbs the shift.  ``bravais_ambiguous`` — the lattice
 #: symmetry appears only at a loose tolerance, or the two methods disagree.
 #: ``volume_unphysical`` — outside the volume the data can support.
+#: ``validation_failed`` — the Le Bail fit raised or diverged, which is evidence
+#: about the candidate and is kept distinct from ``not_validated`` (no fit was
+#: attempted): absence of a test and a failed test are not the same statement.
 IndexCaveat = Literal[
     "engines_disagree",
     "geometric_ambiguity",
     "fom_panel_disagrees",
     "not_validated",
+    "validation_failed",
     "predicted_but_absent",
     "indexed_fraction_low",
     "search_incomplete",
@@ -263,7 +267,7 @@ IndexCaveat = Literal[
 #: a chain of conditions.
 INDEX_REFUTING_CAVEATS: frozenset[str] = frozenset({
     "geometric_ambiguity", "fom_panel_disagrees", "predicted_but_absent",
-    "indexed_fraction_low", "volume_unphysical"})
+    "indexed_fraction_low", "volume_unphysical", "validation_failed"})
 
 #: σ(2θ) in degrees assumed by :meth:`PeakList.from_positions`, which receives
 #: bare positions from a publication or another program.  A typical
