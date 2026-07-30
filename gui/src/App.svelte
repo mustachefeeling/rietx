@@ -27,6 +27,7 @@
   import Plan from "./panels/Plan.svelte";
   import Plot from "./panels/Plot.svelte";
   import Report from "./panels/Report.svelte";
+  import Splitter from "./panels/Splitter.svelte";
   import Stubs from "./panels/Stubs.svelte";
   import Text from "./panels/Text.svelte";
   import { isShortcutTarget, type Command } from "./lib/palette";
@@ -62,6 +63,17 @@
   }
   let simple = $state(true);
   let consoleHeight = $state(150);
+  /** The panel column's width in px, or `null` for "nobody has said".
+   *
+   * `null` is not laziness: while it holds, the CSS `clamp(340px, 38%, 560px)`
+   * supplies the width, so a fresh project is responsive rather than frozen at
+   * whatever the first window this project was ever opened in happened to be.
+   * The first drag replaces it with a number, which is the user having said. */
+  let sideWidth = $state<number | null>(null);
+  let sideMeasured = $state(0);
+  /** The Model pane's first two column widths; its third takes the rest. */
+  let modelColumns = $state<number[] | null>(null);
+  let mainEl: HTMLElement | undefined = $state();
   let paletteOpen = $state(false);
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
@@ -89,6 +101,8 @@
   function readUi() {
     simple = project?.doc?.ui?.simple ?? true;
     consoleHeight = project?.doc?.ui?.console_height ?? 150;
+    sideWidth = project?.doc?.ui?.side_width ?? null;
+    modelColumns = project?.doc?.ui?.model_columns ?? null;
   }
 
   /** Persist a `ui` key on the verb, not on a later save (WP-1005/1008). */
@@ -222,6 +236,17 @@
   async function setConsoleHeight(next: number) {
     consoleHeight = next;
     await setUi({ console_height: next });
+  }
+
+  /** Every splitter reports live and persists once — `done` is the round trip. */
+  function sideSized(next: number, done: boolean) {
+    sideWidth = next;
+    if (done) setUi({ side_width: next });
+  }
+
+  function modelSized(next: number[], done: boolean) {
+    modelColumns = next;
+    if (done) setUi({ model_columns: next });
   }
 
   const commands = $derived<Command[]>([
@@ -368,7 +393,7 @@
   </div>
 </header>
 
-<main>
+<main bind:this={mainEl}>
   {#if !project}
     <!-- the empty state *is* the import wizard (WP-1014): one component, so
          "make a project" and "look at the model" cannot drift apart -->
@@ -398,12 +423,16 @@
          refetching three routes on every head move it is not showing. -->
     <div class="textmode" class:hidden={!modelMode}>
       <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
-        {say} active={modelMode} onopened={opened} onmoved={moved}
-        onclose={() => (mode = "panes")} />
+        {say} active={modelMode} columns={modelColumns} oncolumns={modelSized}
+        onopened={opened} onmoved={moved} onclose={() => (mode = "panes")} />
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} error={resultError} />
-      <div class="side">
+      <div class="side" bind:clientWidth={sideMeasured}
+        style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
+        <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
+          extent={() => mainEl?.clientWidth ?? 0} onsize={sideSized}
+          title="drag to resize the panel column" />
         <nav class="tabs">
           <button class:on={tab === "params"} onclick={() => (tab = "params")}>Parameters</button>
           <button class:on={tab === "plan"} onclick={() => (tab = "plan")}>Plan</button>
@@ -546,6 +575,11 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    /* a stored width outliving the window it was chosen in must not hide the
+       plot; the drag clamps against the live extent, this clamps against a
+       *resize*, which no drag is present for */
+    max-width: 72%;
+    position: relative;
   }
 
   .tabs {

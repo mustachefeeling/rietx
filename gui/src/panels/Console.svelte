@@ -15,7 +15,13 @@
    * draggable from the top edge, and persisted through `ProjectDoc.ui` — the
    * owner of that key is the shell, as it is for the disclosure flag, so this
    * component reports a new height and never writes one.
+   *
+   * The drag itself is `Splitter.svelte`'s since WP-1029, which is where that
+   * last rule now lives for all three splits in the app.
    */
+  import { clampSize } from "../lib/resize";
+  import Splitter from "./Splitter.svelte";
+
   let {
     lines,
     dropped,
@@ -59,31 +65,16 @@
     pinned = node.scrollHeight - node.scrollTop - node.clientHeight < 24;
   }
 
+  /** never drag the panel above out of existence */
   function clamp(value: number): number {
-    const available = section?.parentElement?.clientHeight ?? 0;
-    // never drag the panel above out of existence; with no measurable parent
-    // (jsdom, or before layout) fall back to the floor alone
-    const ceiling = available > KEEP + SHUT ? available - KEEP : Number.POSITIVE_INFINITY;
-    return Math.round(Math.min(Math.max(value, SHUT), ceiling));
+    return clampSize(value, SHUT, KEEP, section?.parentElement?.clientHeight ?? 0);
   }
 
-  function grab(event: PointerEvent) {
-    const startY = event.clientY;
-    const startSize = size;
-    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-    event.preventDefault();
-
-    const move = (moved: PointerEvent) => {
-      local = clamp(startSize - (moved.clientY - startY));   // drag up to grow
-    };
-    const drop = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", drop);
-      if (size > SHUT) restore = size;
-      onresize(size);            // one write per drag, not one per pixel
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", drop);
+  function sized(next: number, done: boolean) {
+    local = next;
+    if (!done) return;
+    if (next > SHUT) restore = next;
+    onresize(next);
   }
 
   function toggle() {
@@ -95,8 +86,8 @@
 
 <section class="console" bind:this={section} style:flex="0 0 {size}px"
   class:shut={size <= SHUT}>
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="grip" onpointerdown={grab} title="drag to resize"></div>
+  <Splitter {size} grow="up" min={SHUT} keep={KEEP} onsize={sized}
+    extent={() => section?.parentElement?.clientHeight ?? 0} />
   <h2>
     <button class="caret ghost" onclick={toggle} title={size > SHUT ? "collapse" : "expand"}>
       {size > SHUT ? "▾" : "▸"} Console
@@ -120,20 +111,6 @@
     min-height: 0;
     border-top: 1px solid var(--line);
     position: relative;
-  }
-
-  .grip {
-    position: absolute;
-    top: -3px;
-    left: 0;
-    right: 0;
-    height: 7px;
-    cursor: ns-resize;
-    z-index: 2;
-  }
-
-  .grip:hover {
-    background: color-mix(in srgb, var(--accent) 35%, transparent);
   }
 
   h2 {

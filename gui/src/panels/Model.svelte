@@ -57,6 +57,7 @@
     seedPreset,
     structureSummary,
   } from "../lib/wizard";
+  import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
 
   let {
@@ -66,8 +67,10 @@
     busy = false,
     simple = true,
     active = true,
+    columns = null,
     say = (_line: string) => {},
     onopened = (_doc: any) => {},
+    oncolumns = (_widths: number[], _done: boolean) => {},
     onmoved = () => {},
     onclose = () => {},
   }: {
@@ -77,11 +80,35 @@
     busy?: boolean;
     simple?: boolean;
     active?: boolean;
+    /** the first two columns' widths in px, or `null` while the flex defaults
+     *  hold — the shell owns the `ui` key, this pane only reports drags */
+    columns?: number[] | null;
     say?: (line: string) => void;
     onopened?: (doc: any) => void;
+    oncolumns?: (widths: number[], done: boolean) => void;
     onmoved?: () => void;
     onclose?: () => void;
   } = $props();
+
+  // -- the three columns ---------------------------------------------
+  /** what the drag has set, ahead of the round trip that persists it */
+  let colLocal = $state<number[] | null>(null);
+  let colMeasured = $state([0, 0]);
+  let editorsEl: HTMLElement | undefined = $state();
+  const cols = $derived(colLocal ?? columns);
+
+  /** The rendered width of column `i`, in px — its stored value if it has one,
+   *  else whatever the flex default is currently producing. */
+  function colWidth(i: number): number {
+    return cols?.[i] ?? colMeasured[i] ?? 0;
+  }
+
+  function dragColumn(i: number, next: number, done: boolean) {
+    const widths = [colWidth(0), colWidth(1)];
+    widths[i] = next;
+    colLocal = widths;
+    oncolumns(widths, done);
+  }
 
   // -- the wizard ----------------------------------------------------
   let wiz = $state(emptyWizard());
@@ -596,8 +623,9 @@
     </div>
   {:else if structure && instrument}
     <!-- ---------------------------------------------------------- -->
-    <div class="editors">
-      <div class="column">
+    <div class="editors" bind:this={editorsEl}>
+      <div class="column" bind:clientWidth={colMeasured[0]}
+        style:flex={cols ? `0 0 ${cols[0]}px` : null}>
         <h2>Structure
           <label class="file inline-file">
             <input type="file" accept=".cif" onchange={(e) => replaceFrom("cif", e)} />
@@ -738,7 +766,13 @@
         </p>
       </div>
 
-      <div class="column">
+      <Splitter size={colWidth(0)} grow="right" min={220} keep={360} flow="inline"
+        extent={() => editorsEl?.clientWidth ?? 0}
+        onsize={(next, done) => dragColumn(0, next, done)}
+        title="drag to resize the structure column" />
+
+      <div class="column" bind:clientWidth={colMeasured[1]}
+        style:flex={cols ? `0 0 ${cols[1]}px` : null}>
         <h2>Instrument
           <label class="file inline-file">
             <input type="file" onchange={(e) => replaceFrom("instrument", e)} />
@@ -799,6 +833,10 @@
       </div>
 
       {#if viewer}
+        <Splitter size={colWidth(1)} grow="right" min={200} keep={280} flow="inline"
+          extent={() => editorsEl?.clientWidth ?? 0}
+          onsize={(next, done) => dragColumn(1, next, done)}
+          title="drag to resize the instrument column" />
         <div class="column view">
           <Structure3D {stamp} {say} />
         </div>
@@ -963,8 +1001,11 @@
     min-width: 0;
     overflow: auto;
     padding: 4px 12px 16px;
+    position: relative;
   }
 
+  /* only where no splitter sits between them — the grip carries the rule
+     itself, so a column next to one must not draw a second */
   .column + .column {
     border-left: 1px solid var(--line);
   }

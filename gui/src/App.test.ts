@@ -1044,6 +1044,59 @@ describe("disclosure and the command palette", () => {
     expect(writes[0].body).toEqual({ ui: { console_height: 210 } });
   });
 
+  it("drags the panel column wider and persists the width once", async () => {
+    // the sidebar starts on the CSS clamp — `null`, so a fresh project is
+    // responsive rather than frozen at the first window it was opened in
+    const sized = { ...PROJECT, doc: { ...PROJECT.doc, ui: { side_width: 420 } } };
+    const stub = server(boot(sized));
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const side = host.querySelector<HTMLElement>(".side")!;
+    expect(side.style.flex).toBe("0 0 420px");
+
+    const grip = side.querySelector<HTMLElement>(':scope > .grip[data-grow="left"]')!;
+    grip.dispatchEvent(new MouseEvent("pointerdown", { clientX: 900, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 820, bubbles: true }));
+    await flush();
+    expect(side.style.flex).toBe("0 0 500px");              // dragging left grows it
+
+    window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    await flush();
+    const writes = stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project");
+    expect(writes).toHaveLength(1);
+    expect(writes[0].body).toEqual({ ui: { side_width: 500 } });
+  });
+
+  it("drags a model column and persists both widths together", async () => {
+    const stub = server(boot({ ...PROJECT,
+      doc: { ...PROJECT.doc, ui: { model_columns: [400, 380] } } }));
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Model")!.click();
+    await flush();
+
+    const columns = [...host.querySelectorAll<HTMLElement>(".column")];
+    expect(columns[0].style.flex).toBe("0 0 400px");
+    expect(columns[1].style.flex).toBe("0 0 380px");
+
+    // the grips are flex items *between* the columns, not absolute children of
+    // them: a column scrolls, and an absolute edge inside `overflow: auto`
+    // scrolls away from the edge it is supposed to be
+    const grip = host.querySelector<HTMLElement>('.editors > .grip[data-flow="inline"]')!;
+    grip.dispatchEvent(new MouseEvent("pointerdown", { clientX: 400, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 460, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    await flush();
+
+    expect(columns[0].style.flex).toBe("0 0 460px");
+    expect(columns[1].style.flex).toBe("0 0 380px");        // untouched, not reset
+    const writes = stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project");
+    expect(writes.at(-1)!.body).toEqual({ ui: { model_columns: [460, 380] } });
+  });
+
   it("collapses to its header and remembers the height to come back to", async () => {
     const tall = { ...PROJECT, doc: { ...PROJECT.doc, ui: { console_height: 260 } } };
     const stub = server(boot(tall));
