@@ -20,12 +20,19 @@ subsets, FCJ node counts or window ranges *within* a least-squares run.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import Field
 
 from .common import SCHEMA_VERSION, Base, Diagnostic, Mode
 from .instrument import Instrument
+
+# ``StageSpec``/``PlanSpec`` used to be *defined* here, in parallel with a second
+# copy in ``agent.py`` that had a ``strain_seed`` field this one lacked — so a
+# Stephens stage lost its seed on the way through a history tree.  One schema
+# now lives in ``schemas/plan.py``; this import keeps the historical
+# ``schemas.history.StageSpec`` path working (WP-1004).
+from .plan import PlanSpec, StageSpec  # noqa: F401
 from .results import Statistics
 from .structure import Structure
 
@@ -33,54 +40,18 @@ NodeKind = Literal["root", "stage", "set_vary", "set_value", "edit_model",
                    "lebail_update", "merge"]
 
 
-class StageSpec(Base):
-    """Serializable mirror of :class:`strategy.staged.Stage`.
-
-    A mirror rather than a conversion: ``Stage`` is a dataclass constructed
-    positionally (``Stage("cell", ["phases.*.cell.*"])``) across the tests and
-    examples, and pydantic models have no positional constructor.
-    """
-
-    name: str
-    turn_on: list[str] = Field(default_factory=list)
-    max_iter: int = 100
-    lebail_cycles: int = 3
-    seed: float = 0.0
-
-    @classmethod
-    def from_stage(cls, stage: Any) -> "StageSpec":
-        return cls(name=stage.name, turn_on=list(stage.turn_on),
-                   max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
-                   seed=getattr(stage, "seed", 0.0))
-
-    def to_stage(self) -> Any:
-        from ..strategy.staged import Stage
-
-        return Stage(name=self.name, turn_on=list(self.turn_on),
-                     max_iter=self.max_iter, lebail_cycles=self.lebail_cycles,
-                     seed=self.seed)
-
-
-class PlanSpec(Base):
-    """Serializable mirror of :class:`strategy.staged.RefinementPlan`."""
-
-    stages: list[StageSpec] = Field(default_factory=list)
-    correlation_guard: float = 0.98
-
-    @classmethod
-    def from_plan(cls, plan: Any) -> "PlanSpec":
-        return cls(stages=[StageSpec.from_stage(s) for s in plan.stages],
-                   correlation_guard=plan.correlation_guard)
-
-    def to_plan(self) -> Any:
-        from ..strategy.staged import RefinementPlan
-
-        return RefinementPlan(stages=[s.to_stage() for s in self.stages],
-                              correlation_guard=self.correlation_guard)
-
-
 class NodeAction(Base):
-    """The edge operation that produced a node from its parent(s)."""
+    """The edge operation that produced a node from its parent(s).
+
+    For a ``"stage"`` action the fields are the stage's *own* arguments, because
+    ``Refinement.cherry_pick`` reconstructs a ``Stage`` from them and re-runs it
+    elsewhere — so a field missing here is a stage that replays differently from
+    the one recorded.  ``seed``/``strain_seed`` were added in WP-1004 for exactly
+    that reason: without them a cherry-picked extinction stage left its softplus
+    coefficient on the dead-gradient floor, and a Stephens stage started from the
+    all-zero block the seed exists to avoid.  Both are additive with a 0.0
+    default, which is the no-seed behaviour, so pre-v1.0 nodes replay unchanged.
+    """
 
     kind: NodeKind
     name: str = ""
@@ -89,6 +60,8 @@ class NodeAction(Base):
     values: dict[str, float] = Field(default_factory=dict)
     max_iter: int = 100
     lebail_cycles: int = 3
+    seed: float = 0.0
+    strain_seed: float = 0.0
 
     def api_call(self) -> str:
         """The equivalent public-API call, so a log doubles as a session script.
@@ -99,8 +72,11 @@ class NodeAction(Base):
         if self.kind == "root":
             return "pr.Refinement(structure, instrument)"
         if self.kind == "stage":
+            seeds = "".join(f", {n}={v!r}" for n, v in
+                            (("seed", self.seed), ("strain_seed", self.strain_seed))
+                            if v)
             return (f"ref.run_stage(data, pr.Stage({self.name!r}, {self.turn_on!r}, "
-                    f"max_iter={self.max_iter}))")
+                    f"max_iter={self.max_iter}{seeds}))")
         if self.kind == "set_vary":
             parts = []
             if self.turn_on:
