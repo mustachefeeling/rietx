@@ -20,6 +20,24 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   data, and the reason the answer here is an *extinction symbol* rather than a
   space group. Method reference only: the screen in `indexing/extinction.py`
   scores classes by ΔBIC and direct absence evidence, not by their posterior.
+- Bergmann, J., Le Bail, A., Shirley, R. & Zlokazov, V. (2004).
+  *Z. Kristallogr.* 219, 783–790 — review of powder-indexing programs, and the
+  **bethanechol chloride benchmarks**. Two distinct uses, both paper-only:
+  the article's conclusions about data quality and whole-profile confirmation are
+  cited in `indexing/quality.py` and `indexing/workflow.py`, and its **Table 6**
+  (ten sets of twenty 2θ positions) and **Table 5** (every program's score) are
+  transcribed as the test fixture `tests/data/bethanechol_indexing.json`.
+  Published tables, transcribed with attribution. **No program named in that
+  paper was run and none of their code was consulted** — several (ITO, DICVOL,
+  TREOR, McMaille, Crysfire, EFLECH/INDEX) are variously closed, GPL or of
+  unstated licence, and this package's grading against them uses only their
+  *printed scores*.
+- de Wolff, P. M. (1968). *J. Appl. Cryst.* 1, 108–113 — the M₂₀ figure of merit.
+- Smith, G. S. & Snyder, R. L. (1979). *J. Appl. Cryst.* 12, 60–65 — the F_N
+  figure of merit. (`indexing/fom.py` implements both, with a per-line-σ floor on
+  ⟨Δ⟩ that is this package's addition and is documented as such, because it is
+  what makes the two figures divergence-free on synthetic data — and what makes
+  them non-comparable with a published value computed without it.)
 - Popa, N. C. (1998). *J. Appl. Cryst.* 31, 176–180 — the equivalent
   strain-tensor formulation of the same anisotropy (concept reference; the
   phenomenological parameterisation is what is implemented).

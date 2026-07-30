@@ -1,0 +1,157 @@
+{
+  "_": "Indexing benchmark: bethanechol chloride. Transcribed from the PUBLISHED TABLES of Bergmann et al. (2004); no program output is used. See tests/data/README.md.",
+  "source": {
+    "citation": "Bergmann, J., Le Bail, A., Shirley, R. & Zlokazov, V. (2004). Renewed interest in powder diffraction data indexing. Z. Kristallogr. 219, 783-790.",
+    "tables": "Table 6 (the ten 20-line position sets) and Table 5 (the per-program scores).",
+    "transcription": "Positions typed from the printed Table 6, which is laid out row-major with ten columns; they are reproduced here column-wise as ten named sets. Intensities are NOT in the paper's table (it points at the UPPW web site for them) and are not carried: every set is positions only, which is exactly what PeakList.from_positions is for.",
+    "verified_by": "Three checks in tests/test_acceptance_indexing.py, each against a statement the paper makes but does not tabulate. (1) C = A - 0.100 and D = B - 0.100 on all 80 values, the zeroshift correction the text describes. (2) Every B line inside A's 2theta range is bit-identical to an A line, B being the I>=5% subset of the same measurement. (3) The published cell leaves exactly 3 of the 20 lines unexplained in every 46-1964 set, against the text's '3 impurity lines among the first 35', and 7 of the first 20 in 43-1748, against '8 impurity lines among the first 26'."
+  },
+  "answer": {
+    "_": "The paper's Table-5 caption and closing paragraph. The cell is the one refined against set F, which is why F's deviations are ~0 by construction and the other nine sets are an independent test of it.",
+    "a": 8.875,
+    "b": 16.408,
+    "c": 7.137,
+    "alpha": 90.0,
+    "beta": 93.84,
+    "gamma": 90.0,
+    "volume": 1036.9,
+    "system": "monoclinic",
+    "centring": "P",
+    "space_group": "P 21/n",
+    "published_m20": 197.0,
+    "published_f20": 1080.0,
+    "published_f20_mean_delta_two_theta": 0.0006,
+    "published_f20_n_possible": 32,
+    "published_fom_set": "F",
+    "structure_solved_in": "Le Bail, A. & Stephens, P. W., cited as 'to be published' in reference [20]; the paper states this is the one UPPW case where the cell was confirmed by a complete structure determination."
+  },
+  "scoring": {
+    "_": "The paper's own rule, from the text preceding Table 5.",
+    "found_first": 1,
+    "found_in_top_ten": 0,
+    "not_found": -1,
+    "range": "+/-20 (ten sets x two modes: default and manual)",
+    "published": {
+      "first_4": {
+        "global": 9,
+        "what": "Best of ITO13, DICVOL91, TREOR90 and McMaille run outside Crysfire — the bar this package is graded against.",
+        "per_set": {
+          "Aa": [-1, 0], "Ab": [1, 1], "Ba": [1, 1], "Bb": [1, 1],
+          "Ca": [-1, -1], "Cb": [-1, 1], "Da": [-1, 1], "Db": [1, 1],
+          "E": [1, 1], "F": [1, 1]
+        }
+      },
+      "best_of_all": {
+        "global": 12,
+        "what": "Best result from every program in Table 5, including the Crysfire suite.",
+        "per_set": {
+          "Aa": [-1, 1], "Ab": [1, 1], "Ba": [1, 1], "Bb": [1, 1],
+          "Ca": [-1, 1], "Cb": [-1, 1], "Da": [-1, 1], "Db": [1, 1],
+          "E": [1, 1], "F": [1, 1]
+        }
+      },
+      "individual_globals": {
+        "_": "Table 5's Global column, for the programs run outside Crysfire.",
+        "ITO13": -14, "DICVOL91": -8, "TREOR90": -4, "McMaille": 5,
+        "Crysfire_2003": 6
+      }
+    }
+  },
+  "manual_mode": {
+    "_": "The paper's own manual-mode conditions, quoted from the 'Special conditions' section, adopted wholesale rather than invented (CLAUDE.md: adopt the protocol, do not borrow the numbers). Every classic program was allowed these.",
+    "systems": ["monoclinic"],
+    "min_volume": 800.0,
+    "max_volume": 1200.0,
+    "min_d_axis": 5.0,
+    "max_d_axis": 20.0,
+    "n_unindexed": 8,
+    "quoted_from": "McMaille manual mode: '8 unindexed lines are tolerated, successive runs are made, the solution being found in a monoclinic run with volume range 800-1200 A^3, and 5-20 A cell parameters.'"
+  },
+  "default_mode": {
+    "_": "The paper's stated default bar: 'The programs' default values should preferably be applied in all crystal symmetries, or at least with maximum cell parameters of 20 A and Vmax = 2000 A^3 in monoclinic symmetry.'",
+    "max_d_axis": 20.0,
+    "max_volume": 2000.0
+  },
+  "sets": {
+    "Aa": {
+      "test": "A", "specimen": "ICDD PDF 43-1748", "wavelength": 1.5418,
+      "treatment": "raw positions",
+      "two_theta": [6.238, 6.712, 9.403, 13.171, 13.584, 14.483, 14.882, 15.498,
+                    16.528, 17.430, 18.534, 18.928, 19.808, 20.148, 20.852,
+                    21.852, 22.331, 22.539, 23.252, 23.680]
+    },
+    "Ab": {
+      "test": "A", "specimen": "ICDD PDF 46-1964", "wavelength": 1.5418,
+      "treatment": "raw positions",
+      "two_theta": [6.690, 9.417, 10.849, 13.135, 13.601, 14.757, 15.492,
+                    16.463, 17.419, 18.925, 19.730, 20.131, 20.841, 21.722,
+                    22.508, 23.224, 23.614, 23.979, 25.085, 25.650]
+    },
+    "Ba": {
+      "test": "B", "specimen": "ICDD PDF 43-1748", "wavelength": 1.5418,
+      "treatment": "lines with I >= 5% of Imax",
+      "two_theta": [6.712, 13.171, 13.584, 14.882, 15.498, 16.528, 17.430,
+                    18.928, 19.808, 20.148, 20.852, 22.539, 23.680, 23.982,
+                    25.088, 25.844, 26.556, 27.412, 28.272, 29.786]
+    },
+    "Bb": {
+      "test": "B", "specimen": "ICDD PDF 46-1964", "wavelength": 1.5418,
+      "treatment": "lines with I >= 5% of Imax",
+      "two_theta": [13.601, 14.757, 15.492, 16.463, 17.419, 18.925, 19.730,
+                    20.131, 20.841, 22.508, 23.224, 23.614, 23.979, 25.085,
+                    25.650, 26.796, 27.407, 28.262, 29.724, 31.220]
+    },
+    "Ca": {
+      "test": "C", "specimen": "ICDD PDF 43-1748", "wavelength": 1.5418,
+      "treatment": "corrected for zeroshift (A minus 0.100 deg)",
+      "two_theta": [6.138, 6.612, 9.303, 13.071, 13.484, 14.383, 14.782, 15.398,
+                    16.428, 17.330, 18.434, 18.828, 19.708, 20.048, 20.752,
+                    21.752, 22.231, 22.439, 23.152, 23.580]
+    },
+    "Cb": {
+      "test": "C", "specimen": "ICDD PDF 46-1964", "wavelength": 1.5418,
+      "treatment": "corrected for zeroshift (A minus 0.100 deg)",
+      "two_theta": [6.590, 9.317, 10.749, 13.035, 13.501, 14.657, 15.392,
+                    16.363, 17.319, 18.825, 19.630, 20.031, 20.741, 21.622,
+                    22.408, 23.124, 23.514, 23.879, 24.985, 25.550]
+    },
+    "Da": {
+      "test": "D", "specimen": "ICDD PDF 43-1748", "wavelength": 1.5418,
+      "treatment": "zeroshift corrected and I >= 5% (B minus 0.100 deg)",
+      "two_theta": [6.612, 13.071, 13.484, 14.782, 15.398, 16.428, 17.330,
+                    18.828, 19.708, 20.048, 20.752, 22.439, 23.580, 23.882,
+                    24.988, 25.744, 26.456, 27.312, 28.172, 29.686]
+    },
+    "Db": {
+      "test": "D", "specimen": "ICDD PDF 46-1964", "wavelength": 1.5418,
+      "treatment": "zeroshift corrected and I >= 5% (B minus 0.100 deg)",
+      "two_theta": [13.501, 14.657, 15.392, 16.363, 17.319, 18.825, 19.630,
+                    20.031, 20.741, 22.408, 23.124, 23.514, 23.879, 24.985,
+                    25.550, 26.696, 27.307, 28.162, 29.624, 31.120]
+    },
+    "E": {
+      "test": "E", "specimen": "laboratory X-ray diffractometer", "wavelength": 1.54056,
+      "treatment": "new measurement, no correction applied",
+      "two_theta": [10.765, 13.522, 14.690, 15.398, 16.336, 16.453, 17.312,
+                    18.828, 19.699, 20.031, 20.752, 21.641, 22.414, 22.788,
+                    23.152, 23.528, 23.872, 24.970, 25.365, 25.549]
+    },
+    "F": {
+      "test": "F", "specimen": "synchrotron (NSLS SUNY X3)", "wavelength": 0.6995,
+      "treatment": "new measurement, no correction applied",
+      "two_theta": [4.887, 6.139, 6.664, 6.989, 7.403, 7.460, 7.850, 8.531,
+                    8.921, 9.062, 9.251, 9.386, 9.781, 10.136, 10.300, 10.468,
+                    10.634, 10.783, 11.280, 11.450]
+    }
+  },
+  "impurity_statement": {
+    "_": "The paper's own count, in the text: the benchmark's difficulty is these lines, not the zeroshift.",
+    "43-1748": "8 impurity lines among the first 26 lines",
+    "46-1964": "3 impurity lines among the first 35 lines"
+  },
+  "zeroshift_statement": {
+    "_": "The paper's own words. Its cause is a HYPOTHESIS the paper could not test — see tests/test_acceptance_indexing.py, which tests it.",
+    "text": "both patterns have a surprisingly large zeropoint error that is close to 0.10 (2theta) deg",
+    "hypothesis": "The fact that the two ICDD Grant-in-Aid entries of the same compound, bethanechol chloride, came to present similar large zeroshifts would be consistent with a systematic specimen-displacement error of this kind."
+  }
+}

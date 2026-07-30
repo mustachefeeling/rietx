@@ -16,6 +16,8 @@
 | `qarr/cpd-2.prn` | **Sample 2** = sample-1 phases + brucite Mg(OH)₂ (strongly platy → preferred-orientation test) | same | same |
 | `qarr/cpd-4.prn` | **Sample 4** = corundum / coarse magnetite (Fe₃O₄) / zircon (ZrSiO₄) — microabsorption test | same | same |
 | `qarr/corundum.prn`, `qarr/fluorite.prn`, `qarr/zincite.prn`, `qarr/brucite.prn`, `qarr/magnetit.prn`, `qarr/zircon.prn` | Pure single-phase patterns of the round-robin component phases, same instrument/conditions — component references for the mixtures and the SRM 676a corundum comparison | same | same |
+| `bethanechol_indexing.json` | The **indexing benchmark**: ten sets of twenty 2θ positions for bethanechol chloride (C₇H₁₇ClN₂O₂), the known answer (monoclinic P2₁/n, a = 8.875, b = 16.408, c = 7.137 Å, β = 93.84°, V = 1036.9 Å³), the published M(20) = 197 / F(20) = 1080, and Table 5's scores — v1.0 indexing acceptance (`test_acceptance_indexing.py`) | Bergmann, Le Bail, Shirley & Zlokazov (2004), *Z. Kristallogr.* **219**, 783-790, Tables 5 and 6 | Published tables, transcribed with attribution; **no program output and no code** — see the section below |
+| `hl2_peaks.txt` | 74 peak positions (2θ, d, I_rel) from a **genuinely unindexed** laboratory pattern, Cu Kα1 — the abstention fixture, whose correct answer is "we do not know" | Our own derived product: peaks picked from `HL2-1_2.xy` in the `examples/` folder of datalab-org/guillemot (MIT), which is *not* vendored here | Derived table, carried with attribution |
 | `absorption_cylinder_rouse.dat` | Cylinder **transmission** factor A (not A\* = 1/A) vs µR and sin²θ, 4 dp — 80 values: the full sin²θ = 0 column (µR 0.00–0.50 step 0.01) plus four complete µR = 0.50 / 1.00 rows. Ground truth for the WP-0501 capillary absorption correction (`test_absorption.py`) | Rouse, Cooper, York & Chakera (1970), *Acta Cryst.* **A26**, 682-691, Table 1(a)/(b) | Published table, transcribed with attribution; no code involved |
 
 Note — the Rouse fixture carries only the blocks that could be read
@@ -313,3 +315,81 @@ naming **only** the states that genuinely changed, and say so in the commit
 message.  The state names are required rather than optional on purpose: capturing
 every state at once quietly rebases baselines that were meant to be fixed points,
 which is the one failure mode these files cannot detect themselves.
+
+## v1.0 indexing acceptance data (WP-1026)
+
+### `bethanechol_indexing.json` — the only *published, scored* benchmark this package has
+
+Bergmann, Le Bail, Shirley & Zlokazov (2004) ran eleven indexing programs over
+one compound presented at six levels of difficulty, and printed both the data
+(Table 6) and every program's score (Table 5).  That combination is what makes
+indexing gradeable here rather than merely demonstrable: the bar is not a
+tolerance somebody chose, it is what ITO, DICVOL91, TREOR90 and McMaille
+actually achieved on these exact numbers.
+
+**Ten sets, not six.**  The paper's A/B/C/D are *treatments* and each was applied
+to **two** ICDD entries, so Table 6 has ten columns: `Aa Ab Ba Bb Ca Cb Da Db E F`,
+where `a` = PDF 43-1748 and `b` = PDF 46-1964 (both λ = 1.5418 Å).  A is raw,
+B keeps only lines with I ≥ 5 % I_max, C is A corrected for zeroshift, D is both;
+E is a new laboratory measurement (λ = 1.54056 Å) and F a synchrotron one
+(λ = 0.6995 Å).  Scoring is per set **per mode** — default and manual — so the
+global runs over twenty numbers in ±20.  (The WP file described six sets; that
+was a misreading of the table and is corrected here.)
+
+**Only the printed tables are used.**  No program was run, no output parsed, and
+none of the eleven programs' code was consulted — the CLAUDE.md licensing fence.
+Intensities are not carried at all: the paper's table is positions only (it
+points at the UPPW web site for intensities), which is exactly the input
+`PeakList.from_positions` exists for, and which is why every set raises
+`PEAK_SIGMA_ASSUMED`.
+
+**The transcription is verified against three statements the paper makes but does
+not tabulate**, so a typo cannot pass silently (`test_acceptance_indexing.py`):
+
+1. **C = A − 0.100 and D = B − 0.100**, on all 80 values, to the last printed
+   digit — the zeroshift correction the text describes.
+2. **Every B line inside A's 2θ range is bit-identical to an A line** (13 of 13
+   for `a`, 15 of 15 for `b`) — B being the I ≥ 5 % subset of the same
+   measurement.  B reaches further in 2θ precisely because dropping weak lines
+   from the first 26/35 lets twenty survivors extend past A's last line.
+3. **The published cell reproduces the paper's own impurity counts.**  Against
+   the P2₁/n cell, 3 of the 20 lines are unexplained in *every* 46-1964 set —
+   the text's "3 impurity lines among the first 35" — and 7 of the first 20 in
+   43-1748, consistent with "8 impurity lines among the first 26".
+
+Reference values and what they are referenced to:
+
+- **The cell** is `cross_code`, not a certificate: it is another study's
+  published solution, adopted with its protocol (same wavelengths, same twenty
+  lines, same volume/axis caps in manual mode).  The paper reports it was later
+  confirmed by a full structure determination, which is why this benchmark has an
+  answer at all — the other ten UPPW cases do not.
+- **M(20) = 197 and F(20) = 1080 (0.0006, 32)** are quoted for set F.  This
+  package's `m20`/`f_n` **floor ⟨Δ⟩ at the median σ**, and for a
+  `from_positions` list that σ is the *assumed* `PEAK_ASSUMED_ESD_DEG` = 0.02°,
+  which is thirty times the paper's ⟨|Δ2θ|⟩ — so the floored figures are 5.8 and
+  32.3 where the paper prints 197 and 1080, and **the published figures are not
+  reproducible from a bare position list, by construction**.  Unfloored, the same
+  transcription gives M = 116 and F = 654 with ⟨|Δ2θ|⟩ = 0.00099° and
+  N_poss = 31 against the paper's 0.0006° and 32.  The residual gap is the
+  *cell's* rounding, not the data's: a, b, c are printed to 3 decimals and β to
+  2, which alone moves predicted positions by ~0.001°.  The test therefore asserts
+  the **unfloored** figures against the paper and records the floored ones, rather
+  than pretending the package's ranking statistic is de Wolff's.
+
+### `hl2_peaks.txt` — the fixture whose correct answer is "we do not know"
+
+74 peaks picked by this package from `HL2-1_2.xy`, an unidentified laboratory
+pattern in the `examples/` folder of **datalab-org/guillemot** (MIT).  The
+pattern itself is *not* vendored; this table is our own derived product and is
+carried with attribution.  It arrives here from the pinned tag
+`guillemot-study` (not merged into `main`), which is the only artifact the
+indexing work packages take from that study — everything else there is read in
+place:
+
+    git show guillemot-study:studies/guillemot/out/HL2-1_peaks.txt
+
+Its value is that **the compound is unknown and stays unknown**.  An acceptance
+suite made only of datasets whose answer is known measures one half of an
+indexer; this measures the other, where `best_or_none()` must return `None`
+rather than the best of a bad list.

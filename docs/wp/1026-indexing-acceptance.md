@@ -13,22 +13,30 @@ tests whose correct answer is *"we do not know"*.
 
 - **The bethanechol chloride benchmark is a published benchmark with published
   scores**, which no other feature in this package has had. Bergmann *et al.*
-  (2004) Table 6 gives six sets of twenty 2θ values, Table 5 gives every
-  program's score, and the answer is known: monoclinic **P2₁/n, a = 8.875,
-  b = 16.408, c = 7.137 Å, β = 93.84°, V = 1036.9 Å³**, with M(20) = 197 and
-  F(20) = 1080 on the synchrotron set.
+  (2004) Table 6 gives the position sets, Table 5 gives every program's score,
+  and the answer is known: monoclinic **P2₁/n, a = 8.875, b = 16.408,
+  c = 7.137 Å, β = 93.84°, V = 1036.9 Å³**, with M(20) = 197 and F(20) = 1080 on
+  the synchrotron set.
+
+  **Corrected 2026-07-30 against the paper itself: there are TEN sets, not six.**
+  A/B/C/D are *treatments*, and each was applied to **both** ICDD entries, so
+  Table 6 has ten columns and the global score runs over twenty numbers
+  (ten sets × two modes), in ±20:
 
   | set | data | difficulty |
   |---|---|---|
-  | A | ICDD 43-1748 raw, λ = 1.5418 | ~0.10° zeropoint; 8 impurity lines among the first 26 |
-  | B | ICDD 46-1964 raw, λ = 1.5418 | ~0.10° zeropoint; 3 impurity lines among the first 35 |
-  | C, D | the same two, zero-corrected | impurities only |
+  | A^a, A^b | ICDD 43-1748 / 46-1964, raw, λ = 1.5418 | ~0.10° zeropoint claimed; 8 impurity lines among the first 26 (a), 3 among the first 35 (b) |
+  | B^a, B^b | the same two, lines with I ≥ 5 % I_max | zeropoint; fewer impurities, but the 20 survivors reach further in 2θ |
+  | C^a, C^b | the same two, zero-corrected (A − 0.100°) | impurities only |
+  | D^a, D^b | zero-corrected **and** I ≥ 5 % (B − 0.100°) | easiest of the eight |
   | E | laboratory X-ray, λ = 1.54056 | easy |
-  | F | synchrotron, λ = 0.6995 | easiest |
+  | F | synchrotron, λ = 0.6995 | easiest; the cell was refined from this set |
 
   Scoring is the paper's own: **+1** correct cell ranked first, **0** in the
-  top ten, **−1** not found. The paper's "First 4" row (the best of ITO,
+  top ten, **−1** not found. The paper's "First 4" row (the best of ITO13,
   DICVOL91, TREOR90, McMaille) scores **+9**; "Best of all" scores **+12**.
+  Individual globals for scale: ITO13 −14, DICVOL91 −8, TREOR90 −4,
+  McMaille +5, Crysfire 2003 +6.
 - **The 2θ values are transcribed from the published table**, with provenance
   in `tests/data/README.md` and the paper cited in ATTRIBUTION.md — **never
   code provenance** (CLAUDE.md fence). No program output is used.
@@ -162,11 +170,11 @@ data, not the search.
 
 ## Tasks
 
-- [ ] `tests/data/bethanechol_indexing.json`: the six 20-line sets, the known
-      answer, published M(20)/F(20), and a `source`/`provenance` block naming
+- [x] `tests/data/bethanechol_indexing.json`: the **ten** 20-line sets, the known
+      answer, published M(20)/F(20), Table 5's scores, and a `source` block naming
       the paper and stating the transcription. `tests/data/README.md`
       paragraph; ATTRIBUTION.md paper citation.
-- [ ] `tests/data/hl2_peaks.txt` — the abstention fixture: 74 measured peaks
+- [x] `tests/data/hl2_peaks.txt` — the abstention fixture: 74 measured peaks
       from a genuinely unidentified pattern. Extract it from the pinned study
       commit; **the study branch is not merged into `main` and must not be**:
 
