@@ -939,18 +939,44 @@ shared core (1020), then the three engines (1021–1023, independent of each
 other), then consensus (1024), space groups (1025), acceptance (1026), GUI
 (1027).
 
-**[1018](wp/1018-peak-picking.md) is the first row and is on `main` in a
-partial state — code complete, tests outstanding.** `pxrdref.pick_peaks` works
-and the fast suite is green (1158 passed / 4 skipped), but
-`tests/test_peak_picking.py` does not exist, and the missing piece is the one
-that matters: **the σ pull calibration is the gate the whole downstream
-tolerance model rests on**, so until it runs, the per-line σ this WP exists to
-produce is of unvalidated scale. 1019 and 1020 both consume that σ; their
-`### Inherited` sections say not to tune a tolerance model against it yet. The
-new glyph 🔄 means exactly this — landed but not finished — and 1018 is the only
-row that has ever carried it.
+**[1018](wp/1018-peak-picking.md) closed 2026-07-30**, and the row that had
+carried the 🔄 glyph ("landed but not finished") is the only one that ever has.
+What closed it is the **σ pull calibration** — the gate the whole downstream
+tolerance model rests on, because every indexing tolerance is a multiple of the
+σ(2θ) `pick_peaks` reports, and Rwp, χ² and eyeball overlays cannot see a σ that
+is uniformly 40 % too small. Measured over ~1300 fitted lines per configuration,
+from 100 fixed-seed Poisson realisations of a forward-model LaB₆ pattern:
+`(2θ_fit − 2θ_true)/σ_fit` has **mean +0.032 / std 0.971** on a synchrotron
+single line and **−0.083 / 0.980** on a lab Cu Kα doublet, against `|mean| <
+0.15` and `std ∈ [0.85, 1.20]` written before the measurement. So the reported σ
+is the right scale, and 1019/1020 may now tune against it.
 
-Its per-WP value is already banked, though, and it is the v0.5 method result in
+The gate found **two more defects** — six in total for this WP, and *not one of
+the six was visible by reading the code*. Both new ones are doublet physics. A
+marginally resolved Kα2 has **no maximum**, so the alias filter cannot see it,
+but it does have a curvature shoulder: it cleared the 5σ seeder, sat outside the
+half-FWHM grouping gap, formed a **singleton group**, and came back as a line
+with an esd — and the ΔBIC prune cannot refuse it, because a singleton is judged
+against "no peak at all" and there genuinely is intensity there. That was one
+spurious line per pattern and a **−21 mean σ pull** on the LaB₆ 110 reflection.
+And the doublet amplitude ratio is not `weight`: each line diffracts at its own
+Bragg angle, so it carries its own **Lorentz-polarisation** factor, and holding
+the bare weight dragged the fitted Kα1 position down by 2e-4° (mean pull −0.26 →
+−0.19).
+
+Two results outlast the WP. **Sizing rule: 200 groups is enough for a `std` bar
+and not for a `mean` bar** — at pull std 1 the standard error of the mean over
+200 groups is 0.07, half the 0.15 bar, and a 200-group subsample of this very
+ensemble read −0.15 where the converged value is −0.08; the test now asserts
+`3·SE < bar` before asserting the bar, so an undersized ensemble fails loudly
+instead of passing by luck. And **the remaining −0.08σ doublet bias is a
+measurement, not a to-do**: 2e-5°, a fortieth of a channel, with four candidate
+mechanisms excluded by substitution (exact background, isolated reflection,
+per-line widths, model-σ weights) and the estimator shown unbiased to ±0.02 in
+isolation — so what is left is in the detection-seeded window, two orders below
+the systematic-error scale 1019 exists to model.
+
+Its earlier value was already banked, and it is the v0.5 method result in
 a new costume: **four defects, none of them visible by reading the code.** A
 resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
 group is fitted independently *with its own full doublet*, so the Kα2 maximum
@@ -980,7 +1006,7 @@ per concurrent session, or only one session commits.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | 🔄 code 2026-07-30, **tests outstanding** | — |
+| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ✅ 2026-07-30 | — |
 | [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ⬜ | 1018 |
 | [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
 | [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |

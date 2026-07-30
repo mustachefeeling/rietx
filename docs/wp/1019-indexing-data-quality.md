@@ -91,18 +91,33 @@ Landed 2026-07-30, and four things sharpen what this WP has to do:
   ends up looking like a serial-correlation term, do not reach for BL per peak;
   ~150 independent inflations compounded into the tolerance model is the failure
   mode being avoided.
-- **σ is measured but not yet *calibrated*.** WP-1018 merged with its σ pull
-  calibration outstanding (see its handover log). This WP's whole premise is
-  that per-line σ can be trusted enough to abstain on, so **run or write that
-  test before tuning anything here** — the `SEPARABILITY_MIN_SS_RATIO` screen
-  and the σ census both read σ as if its scale were known.
-
-One measured fact worth having before the shift screen is written: on clean
-synthetics the fitter recovers injected positions to **0.0005°** with reported
-σ(2θ) of 0.0003-0.0006°, i.e. 1-2σ. So the ~0.10° bethanechol shift this WP
-exists to model is **two to three orders of magnitude above** the per-line
-precision — the shift is richly determined, and the difficulty is entirely in
-*attributing* it to the right template, never in detecting it.
+- **σ is now calibrated — the premise of this WP holds.** WP-1018 closed
+  2026-07-30 with the pull ensemble measured: `(2θ_fit − 2θ_true)/σ_fit` has mean
+  +0.032 / std 0.971 on a synchrotron single line and mean −0.083 / std 0.980 on
+  a lab Cu Kα doublet, over ~1300 fitted lines each, against bars `|mean| < 0.15`
+  and `std ∈ [0.85, 1.20]` written before the measurement. So the σ census and
+  the `SEPARABILITY_MIN_SS_RATIO` screen may read σ as a known scale: it is
+  unbiased to ~0.1σ and correctly scaled to ~3 %.
+- **Size any ensemble this WP builds by the standard error, not by the sample
+  count.** WP-1018's own plan asked for 200 groups; 200 is ample for a `std` bar
+  and **not** for a `mean` one (SE 0.07 against a 0.15 bar), and a 200-group
+  subsample read −0.15 where the converged value was −0.08. Its test now asserts
+  `3·SE < bar` before asserting the bar. Any σ_sys or separability threshold
+  validated by simulation here wants the same guard.
+- **The one thing σ does not cover is exactly this WP's subject.** Per-line
+  σ(2θ) is 2e-4 to 2e-3° on strong lines; the bethanechol shift is ~0.10°. That
+  is two to three orders of magnitude, so the shift is *richly* determined and
+  the difficulty is entirely in **attributing** it to the right template, never
+  in detecting it. It also means a downstream tolerance built from σ alone
+  rejects the true cell on real data — σ_sys is not a refinement, it is what
+  makes the tolerance usable.
+- **A residual −0.08σ position bias survives on doublet data**, localised to the
+  detection-seeded window rather than the estimator (four other mechanisms were
+  measured and excluded; 1018's handover log). 2e-5° in degrees, i.e. nothing
+  next to the shifts here — but it is a *bias*, so a statistic that averages
+  positions over many lines does not average it away. The shift screen fits
+  coefficients from many lines at once: `constant` would absorb it as a −2e-5°
+  zero point, four orders below anything reportable.
 
 ## Non-goals
 

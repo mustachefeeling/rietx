@@ -128,12 +128,33 @@ A `PeakList` validator re-derives every peak's `q` from its `two_theta` and the
 list wavelength and raises on disagreement, so hand-building an `ObservedPeak`
 with a stale `q` fails loudly rather than mis-indexing quietly.
 
-**One caveat that bounds what 1020 can claim.** WP-1018 merged with its σ pull
-calibration *not yet run* (see its handover log). Until that gate passes, every
-σ(Q) this WP consumes is of unvalidated scale — the *shape* of the propagation
-is checked, the *calibration* of σ(2θ) itself is not. Do not tune a tolerance
-model against these σ before that test is green, or the tuning absorbs the
-fitter's error.
+**The caveat that used to sit here is discharged: σ(2θ) is now calibrated, so a
+tolerance model may be tuned against it.** WP-1018 closed 2026-07-30 with the
+pull ensemble measured — `(2θ_fit − 2θ_true)/σ_fit` has mean +0.032 / std 0.971
+on a synchrotron single line and mean −0.083 / std 0.980 on a lab Cu Kα doublet,
+over ~1300 fitted lines each. Three consequences for this WP:
+
+- **σ(2θ) is unbiased to ~0.1σ and correctly scaled to ~3 %.** A "3σ(Q)" window
+  here really admits ~99.7 % of correctly-indexed lines; it is not secretly a 2σ
+  or 5σ window. Tolerance constants may be written as multiples of σ_eff.
+- **What σ does *not* cover is the systematic shift**, and the ratio is the
+  reason WP-1019 exists: per-line σ(2θ) is 2e-4 to 2e-3° on strong lines, while
+  the bethanechol shift is ~0.10° — two to three orders larger. So σ_eff without
+  a σ_sys floor will reject the *true* cell on real data. Do not soften the
+  σ-scaling to compensate; add the floor (1019) or, if 1019 has not landed, fit
+  `constant` here and keep σ_sys explicit rather than folded into a fudged
+  tolerance.
+- **A residual −0.08σ bias exists on doublet data** and is localised to the
+  detection-seeded window, not the estimator (four other mechanisms were
+  measured and excluded — see 1018's handover). In degrees it is 2e-5°, so it is
+  irrelevant to any Q window this WP will set; it matters only if some future
+  statistic averages positions over many lines, where a bias does not average
+  down.
+
+Also worth carrying: **rank-then-measure applies to any census this WP takes.**
+The width census that sets the fitter's windows reads ~10 % wide on a doublet
+because it measures the *composite* FWHM; a Q-space census that ranks by
+intensity and then measures inherits the same trap in a new costume.
 
 From **WP-1019** (soft): `DataQualityReport.shift_template` names which
 template `refine_candidate` should carry as its one nonlinear column, and
