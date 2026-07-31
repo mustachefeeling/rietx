@@ -12,7 +12,7 @@ from .background import auto_background, diagnose
 from .capabilities import capabilities
 from .crystallography.cif import format_su
 from .history import RefinementTree
-from .indexing import pick_peaks
+from .indexing import determine_extinction_symbol, index_pattern, pick_peaks
 from .io.exporters import (
     ReflectionRow,
     reflection_table,
@@ -41,6 +41,14 @@ from .schemas import (
     Structure,
 )
 from .schemas.history import HistoryNode, NodeAction, RefinementState
+from .schemas.indexing import (
+    CellCandidate,
+    ExtinctionCandidate,
+    ExtinctionScreen,
+    IndexingResult,
+    LeBailValidation,
+    PeakList,
+)
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
@@ -61,18 +69,24 @@ __all__ = [
     "agent",
     "CancelToken",
     "Cell",
+    "CellCandidate",
     "DataRef",
     "FitReport",
     "GuardFinding",
     "HistoryNode",
     "Instrument",
+    "ExtinctionCandidate",
+    "ExtinctionScreen",
+    "IndexingResult",
     "MultiHistogramRefinement",
     "NodeAction",
     "PLAN_INFO",
     "PLAN_PRESETS",
+    "LeBailValidation",
     "Parameter",
     "ParameterRow",
     "PatternData",
+    "PeakList",
     "Phase",
     "PlanInfo",
     "PlanSpec",
@@ -102,6 +116,8 @@ __all__ = [
     "capabilities",
     "diagnose",
     "format_su",
+    "determine_extinction_symbol",
+    "index_pattern",
     "load_instrument_profile",
     "pick_peaks",
     "read_pattern",

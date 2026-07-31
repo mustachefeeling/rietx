@@ -8,8 +8,8 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~6-12 min (1383 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1304 collected, ~20-80 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-15 min (1772 collected), incl. real-data acceptance
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1675 collected, ~20-80 s)
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -28,6 +28,56 @@ on one worker (see the Tests bullet below); plain `--dist load` ignores them
 and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
 7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
 group rather than by total work — fast suite 60-80 s over three runs.
+Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
+fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
+are ~85-105 s each on their own.  With the extinction screen (WP-1025) added the
+same day: **1355 passed / 71 skipped in 8:55-9:16**, fast **1274 / 66 in 1:24**;
+the screen itself is 9 s for 29 tests, four of them real-data.  With WP-1026's
+acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
+`test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
+(corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
+After WP-1026's third session (the `_box_key` fix costs the dichotomy more
+refinements, and the corundum row became two searches): full **1446 passed /
+71 skipped in 8:24-9:51**, fast **1361 / 66 in 1:11-1:21**, and that file
+**3:30 serial** — cpd-1a 106 s, corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
+the billed 45 min, because the weekly job's wall clock is set by the
+`stephens-brucite` and `qpa-sample1` groups, both several times longer.
+After the fourth session added the SRM 660c rows: full **1488 passed / 71
+skipped in 9:22-11:57**, fast **1400 / 66 in 1:52**, and
+`test_acceptance_indexing.py` **5-6 min serial** (cpd-1a 106-127 s, corundum
+50-63 s twice, LaB6 20-67 s, the calibrated row 4-5 s).  Four of the seven new
+rows are **fast** — they need the picked list (~1 s) or no data at all — which
+is the right way round: the findings they carry are the cheap ones to re-check.
+Note the LaB6 fixture's own 20-67 s spread, one fixture on one machine in one
+afternoon, and see the range rule below.
+
+With WP-1026's closing rows (2026-07-31): full **1524 passed / 71 skipped in
+8:09-15:33**, and that spread is one change measured three ways rather than
+machine noise — see the budget/scope note below.  **Merged with the GUI line the
+same day** (WP-1005…1015, 1029): **1772 collected**, green, and the critical path
+is still `stephens-brucite` (418 s) with `indexing-acceptance-qarr` (363 s) next.
+
+**And the claim above that indexing does not set the wall clock expired without
+anyone noticing, which is the lesson worth keeping.** Measured with
+`--durations` on a green full run (2026-07-30): `indexing-acceptance` had reached
+**~550-590 s** against `stephens-brucite`'s 533 and `qpa-sample1`'s 485 — it *was*
+the critical path, so every further row would have been billed in full rather than
+hidden behind a longer group.  The fix was free, because nothing in that group
+shared a fixture with anything else in it: the LaB6 rows went into their own
+`indexing-acceptance-lab6`, and the same run then measured `indexing-acceptance`
+501 s, `stephens-brucite` 537 s, LaB6 ~60 s in parallel, full suite 9:22.  **One
+dataset, one group**, and re-read the `--durations` list rather than the last
+session's sentence about it — a group ordering is a measurement with a shelf life.
+
+**And the honest-budget rule and the CI budget pull against each other, so
+expect to pay in scope.** Raising a real-data search's `budget_seconds` from 60
+to 300 (so it could not truncate under load, above) let one search run to
+*completion* at **850 s**, which made its group the longest in the tree and took
+the full suite to 15:33. The budget could not go back, so the **scope** moved:
+each pure phase is now searched over the systems its answer lives in, a declared
+restriction `systems_searched` carries. Re-measured, the same tree is **8:09**.
+When a budget fix makes something slow, narrowing what is searched is the lever
+— never the budget, and never a silent cap.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), 11:52 on
 a busier one (2026-07-30), and 12:40 later the same day on a machine
@@ -36,9 +86,10 @@ simultaneously running a headless browser, three vite builds and a second pytest
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
 `[dev]`** venv, the full suite is 1268 passed / 117 skipped (6:52, measured
 2026-07-30 after WP-1029; 1263 / 116 in 10:27 and 8:47 before it) and the fast
-suite 1203 passed / 108 skipped (17–18 s on an idle M4, 2026-07-31, twice;
-78 s on the same machine a day earlier while it was busy — the range rule
-in miniature; 1198/108 was the 2026-07-30 figure).
+suite **1557 passed / 108 skipped in 29 s** (2026-07-31, the GUI and indexing
+lines merged, idle M4 — the same numpy-only venv measured 1203/108 in 17–18 s
+before the indexing tests arrived, and 78 s for less work a day earlier while
+the machine was busy: the range rule in miniature).
 Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
 two selections, two short of passed+skipped in both** — a gap that predates this
 line (the "1378 collected" it used to carry was the sum, not a measurement) and
@@ -58,6 +109,33 @@ suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255
 → 261 — where
 that **207 was quoted as 206** until the next session re-ran it, which is the
 same lesson one suite over.)
+
+**A wall-clock budget inside a test is a runaway guard, never a timer**, and
+WP-1024 learned it by breaking WP-1021's tests without touching them. The engine
+recovery tests assert `search_complete[system]` — a statement about the metric
+*domain* being exhausted — while declaring `budget_seconds=180`, which against an
+~85-105 s search is barely a 2× margin. Adding one more test module was enough:
+both monoclinic rows failed under `-n auto` and passed serially, reporting
+themselves incomplete *correctly* for a reason that had nothing to do with the
+domain. `BUDGET_SECONDS` in `tests/test_indexing_engines.py` now declares a
+generous per-system budget. Any test whose serial time is a large fraction of its
+declared budget is a load sensor pretending to be an assertion. **And the budget a
+test depends on may be one rank down, in the library** — WP-1026 hit the same
+failure through `trial_error`'s dominant-zone probe, which capped each ladder rung
+at a hard-coded 10 s against a 4.3 s serial cost, so under `-n auto` the test
+asserted the *absence* of `INDEX_DOMINANT_ZONE` for a reason unrelated to the index
+table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s). **A fourth instance (WP-1026,
+2026-07-31) gives the check to run rather than the story**: a real-data indexing
+row passed serially and failed under `-n auto`, reporting a *different centring*
+ranked first, because its search costs **73 s serial and 258 s under load**
+against a declared 60 s budget. The test to apply before landing any row with a
+budget: **compare its serial time with its declared budget, and if the budget is
+not several times larger, the assertion is a load sensor**
+(`REAL_DATA_BUDGET_SECONDS`, now 300 s, costs nothing because these searches
+finish early when they finish at all). The same audit applies to assertions
+*about* completion: "some system did not finish" is a statement about machine
+load, not about the data, and belongs as "every system searched reports whether
+its domain was exhausted".
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -467,11 +545,14 @@ an off-table θ block — `model.forward.PawleyBlock`, appended in
 `run_least_squares`; overlapped groups get equal-split restraints and come back
 flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
 tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602):
-one call covering refine/refine_multi/refine_sequential behind a strict task
-union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
+one call covering refine/refine_multi/refine_sequential/**index** behind a strict
+task union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
 traceback), and `agent.tool_definition()` exporting the JSON Schema with the
-backend/solver/plan names quoted from the live registries — a meta-test fails
-if a registry member is missing from the schema.
+backend/solver/plan/**engine** names quoted from the live registries — a meta-test
+fails if a registry member is missing from the schema. The four answers live in
+separate arms (`result` / `series` / `indexing`) because they are different
+*shapes*, and for indexing the shape is the rule: the serialized answer carries no
+`cell` key either.
 
 ## Invariants (do not break)
 
@@ -500,7 +581,17 @@ if a registry member is missing from the schema.
   (`optimize.statistics.background_absorption`) — pairwise ρ misses it
   entirely (~0.2 per coefficient while the block absorbs ~46 %).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters
-  for non-cubic orbit/multiplicity counting (see symmetry.py comment).
+  for non-cubic orbit/multiplicity counting (see symmetry.py comment). **This is
+  about hkl, and applying it to a *tensor* is the opposite mistake**: a quantity
+  that contracts with h twice — G\*, or the U\* form of an ADP — is invariant
+  under U → R·U·Rᵀ with R **untransposed**, because (Rᵀh)ᵀU(Rᵀh) = hᵀ(RURᵀ)h. So
+  `wyckoff.adp_basis` takes untransposed rotations for a metric or an ADP basis.
+  The trap is that the transposed set is a group too, so the *dimension* of the
+  invariant subspace is identical in every crystal system and a
+  degrees-of-freedom test passes: WP-1020 built the whole indexing metric
+  subspace from Rᵀ, reproduced 1/2/2/2/3/4/6 exactly, and had F = −A for
+  hexagonal (the *direct* metric's cos γ) where the reciprocal metric has F = +A.
+  Only asserting that the true metric lies in the span catches it.
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).
@@ -689,7 +780,8 @@ if a registry member is missing from the schema.
   consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
   second worker rebuilds the whole fixture and the sharing costs more than it
   saved. Same rule one scope down: a module fixture several tests share pins
-  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`, …). The
+  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`,
+  `indexing-consensus`, …). The
   failure is silent, so the check is a `--durations` scan for the same setup
   appearing twice. Because runtime is set by the longest *group*, not by total
   work, splitting a group is the only way to go faster — and un-sharing a
@@ -766,7 +858,7 @@ last one shipped, because that string is stamped into every
 expanded into v1.0 on 2026-07-29) lands *before* the freeze (WP-1003) so the
 freeze covers an exercised surface; stack decision in DESIGN.md §Outputs.
 **Indexing** (WP-1018…1027, added the same day) lands before the freeze for the
-same reason — `index()` is a peer of `refine()`, and until it exists the
+same reason — `index_pattern()` is a peer of `refine()`, and until it exists the
 package cannot touch a phase whose cell is unknown. Its governing rule is the
 FitReport's one rank up: an indexer must never hand back one cell confidently,
 so `IndexingResult` has **no** `.cell`/`.best` attribute, only a gated
@@ -775,9 +867,244 @@ with the reflections that would break the tie rather than silently resolved;
 coverage is scored in *both* directions because ranking on
 share-of-observed-intensity alone demonstrably puts a 390-line wrong phase
 above the truth; and a restricted search reports `systems_searched` rather than
-concluding anything about the sample. Three engines (dichotomy, index
-heuristic, whole-profile Monte Carlo) supply the confidence by agreeing, the
-same device as `direction="both"` and the cross-backend matrix.
+concluding anything about the sample. Engines supply the confidence by
+**agreeing**, the same device as `direction="both"` and the cross-backend matrix —
+**two** of them, not three: the whole-profile Monte Carlo is a measured no-go
+(WP-1023), so `high` confidence means both landed engines agree and that is the
+ceiling rather than a shortfall. The same rule runs one step further into the
+workflow: the **extinction symbol**, not the space group, is what a powder measures,
+so `determine_extinction_symbol` answers with a ranked list of classes and every
+class carries a *list* of space groups — the one place in the package where the
+singleton is not merely unsupported but unmeasurable.
+
+`index_pattern(peaks | data+instrument)` (`indexing/workflow.py`) runs that
+pipeline: quality gate → engines → `indexing/consensus.py` (merge on the reduced
+cell, `found_by` union, Borda over the panel, two-opinion Bravais, ambiguity) →
+Le Bail validation → the gate. Three rules there are load-bearing. **`high`
+requires zero caveats**, and `IndexCaveat`/`INDEX_REFUTING_CAVEATS`
+(`schemas/indexing.py`) are the whole gate: five caveats refute a cell and drop it
+to `low`, the rest cap it at `medium`, and *count* deliberately does not separate
+medium from low. **Whole-profile validation is mandatory** — the FoM panel sees ≤20
+lines and cannot see reflections predicted where there is no intensity, so
+`validate_by_lebail` reports `predicted_but_absent`, which is what catches an
+oversized cell (measured: 117 of 153 reflections for a doubled cell, 0 of 28 for the
+truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
+serve as that detector and the plan was wrong to name it: Le Bail extraction assigns
+~nothing to a phantom reflection, so there is no negative residual, and the detector
+fires on 61 % of the reflections either way. **The validation fit holds the cell**
+and frees exactly one peak-position parameter, chosen from the candidate's own shift
+template. And on real data with no measured shift, `high` is currently
+*unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
+bigger constant, and it is WP-1026's.
+
+**`predicted_but_absent` cannot tell an oversized cell from a space-group
+extinction, and on a real phase that is not a corner case.** It counts against the
+*lattice* group, which is the only model available before
+`determine_extinction_symbol` runs — so the certified corundum cell, correct to
+~100 ppm, is refuted by 12 reflections R-3m allows and the R-3c c-glide forbids
+(WP-1026, measured). It is the blind spot `predicted_seen_fraction` already states,
+promoted into a refuting caveat. Read a firing as "this cell predicts lines the
+pattern lacks", never as "this cell is too big"; the two are separable only by
+running the extinction screen, which the gate does not do. **The control exists
+and confirms it**: NIST SRM 660c LaB6 is P m -3 m, which extinguishes nothing, and
+indexes with `predicted_but_absent` **0 of 30** and `predicted_seen_fraction`
+**1.000** against corundum's 11-12 and 0.86. Which is also how to choose the next
+acceptance dataset — **by its space group, not by its convenience**: pairing a
+phase that has absences with one that has none is what turned this from an
+argument into a measurement.
+
+**`high` confidence is reachable on real data, and what it costs is a peak list.**
+Same LaB6 pattern, indexed as picked: a is **−127 ppm** out and the grade is `low`.
+Remove the five picked components no certified position explains and declare the
+systematic as *measured* rather than assumed, and it is **a = 4.156772 Å, −2 ppm**
+from the certification CIF, M₂₀ 1113, **zero caveats**, with `best_or_none()`
+returning a cell for the first time. The five are **axial-divergence tails** (they
+sit low below 90° 2θ and high above it, a sign reversal nothing else in a
+Bragg-Brentano pattern has) plus one Kα2 residual, and they escape `not_separable`
+for **three different reasons**, so no single threshold reaches them. Two general
+lessons sit under that. **An assumed allowance is not free even when it is
+generous enough**: `DEFAULT_UNKNOWN_SHIFT_DEG` is added *in quadrature to every
+line's σ*, which is flat, so a 100× precision contrast between real lines and
+phantoms becomes 1.005 — `fit_shift_model`, which weights by each line's own σ,
+recovers the displacement (+0.0367 ± 0.0015° against a parameter-free +0.0415°
+from the recorded −0.07877 mm at R = 217.5 mm) while the *search* on the identical
+list fits +0.009 ± 0.016°. And **`sigma_sys_deg` means two different things**: the
+screen reports the scatter a template *leaves* (0.0078°), the search needs the
+window the *uncorrected* positions span (0.037°, since `refine_with_shift` runs
+only after a candidate survives), so declaring the measured one silently returns
+no candidate at all.
+
+**The measured scoreboard, and it is the honest shape of this feature (WP-1026,
+closed 2026-07-31).** Across eight known-cell datasets, **five** put the right
+lattice first (SRM 676a corundum, SRM 660c LaB6, zincite, zircon, and FAP where
+the right cell is present and second), **one** is refused for having too few
+lines (fluorite: 18 usable against `PEAK_MIN_USABLE_LINES` = 20 — high symmetry
+makes a pattern easy to index right up until it makes it too sparse to index at
+all), and **two** fail (brucite and magnetite rank a supercell above the truth;
+NAC cannot be searched at its own d_min). **Every one of the eight abstains** —
+`best_or_none()` is None on every real dataset, including the five that are
+right. Read that as *never wrong, and silent more often than right*, and do not
+let a summary round it up. Three lessons transfer. **A literature cell is not a
+specimen's cell**: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
+Rothbauer's, 30× the goniometer floor, so a mineral's published cell grades
+lattice type and centring and nothing in ppm. **An indexed cell has no
+displacement parameter**, so it absorbs what a refinement models — 127 ppm
+measured on SRM 660c — which is why an indexing bar is looser than the same
+dataset's refinement bar (FAP: 500 ppm against ±300). And **M₂₀ can invert the
+ranking**: on FAP the cell both engines agree on indexes 181 of 185 lines and
+sits *below* one 1218 ppm out that indexes 167, because a wrong metric matching a
+subset tightly is what a plain mean of ⟨ΔQ⟩ rewards.
+
+**Geometrical ambiguity has a class the derivative-lattice enumeration cannot
+reach.** `ambiguity_partners` walks *sublattices* of index 2-4 — supercells — so a
+rival of **smaller** volume is not in the enumeration. One exists for the
+commonest lattice there is: tetragonal P at (a/√2, a) is **exactly** isospectral
+with cubic P *a*, because 2(h²+k²)+l² represents precisely the integers h²+k²+l²
+does (both miss 4ⁿ(8m+7)). Measured: 0 partners from the cubic side, while from
+the tetragonal side the cubic is found at index 2 with **zero** discriminating
+reflections, and both engines find the rival on the real pattern. It matters
+because the gate refuses `high` to a candidate with a partner — so whichever of an
+isospectral pair happens to be the larger cell can be promoted while its equal
+cannot.
+
+`determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
+is the next step and keeps the same rule one rank down: it ranks the **extinction
+classes** the lattice admits, each listing its space groups, because the powder
+observable is the extinction symbol and groups sharing an absence set produce
+identical patterns *by construction*. Classes are derived — every gemmi setting
+whose **lattice** (not crystal system: a hexagonal metric carries the trigonal-P
+groups) matches, grouped by identical absences over the hkl in range — never
+transcribed from IT A Table 3.2, which cannot speak about a non-standard setting the
+indexed axes may be in. Each class is fitted by Le Bail with the profile frozen at
+one shared pre-fit and scored by `report.layer2`'s ΔBIC against the absence-free
+lattice; **Rwp cannot be the score** (fewer absences ⇒ more reflections ⇒ never a
+worse fit; measured, the true monoclinic class and its screw-free partner differ by
+1e-5 in Rwp and 24 in ΔBIC). Three counts are decisions: `n_added` counts only
+**testable** absences — in range and separable from every line the class still
+allows — or a class whose absences all hide under neighbours wins on parsimony with
+no measurement behind it; a *line*'s absence is asked of the whole orbit (`P a -3`
+extinguishes 012 but not 021, one 2θ); and **the absence test's null model is the
+class's own `y_calc`, not the fitted background** — the same
+`workflow.absent_reflections`, called with `y_calc` in the `y_background` slot,
+because a forbidden position sits inside a dense predicted pattern where a phantom
+reflection sits in a gap (measured on FAP: the forbidden 003 reads +27.6 σ against
+the background and −3.9 σ against the model, its allowed neighbour 0.89 FWHM away).
+
+Two invariants inherited from fixing WP-1020 while building on it. **An ambiguity
+partner must be refuted by the lines it needs and the data lack** — a superlattice
+indexes every observed line by construction, so without that exclusion every
+derivative lattice is reported (28 for a certified cubic cell) and the gate can never
+promote anything; the test is asymmetric (the partner's *extra* predictions, never the
+parent's own absent ones) and a surviving partner's discriminating reflections are
+therefore *outside* the measured range. **A Niggli-reduced cell is primitive**, so
+`ReducedCell.centring` is provenance about the input and must never be handed back to
+anything that applies a centring — doing so made gemmi call a cubic I lattice
+trigonal.
+
+Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
+`EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
+that needs `cov_af`), the live registry the agent schema quotes, `Budget`, and the
+`reflection_ceiling_ok` crash guard that stands in front of every
+`generate_reflections` call a search reaches. `search_dichotomy` bounds Q over boxes
+in A..F (corner-exact, because Q is linear in the metric) and its silence is evidence
+*only when* `search_complete[system]` is true; `search_trial_error` assumes the
+indices of a few base lines and solves the metric exactly, so a bad base line poisons
+it where a wide domain poisons the other. Both rank on the FoM **panel** via
+`rank_candidates`, never on a member — supercells index every observed line exactly
+and lose only on `predicted_seen_fraction`. Two things the panel needs from its
+caller, both learned the same way (WP-1026): the **matching window** is an argument
+(`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
+members must ask the same "is this the same line" question the *search* asked while
+M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
+candidate carrying a fitted shift is scored on `engines.scored_positions`, the
+**corrected** lines it actually claims, or the panel marks it down for its own
+correction.
+
+**The tolerance an engine searches with is not the per-line σ, and this is the one
+thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and
+the wrong *matching window*: measured on the bundled qarr corundum pattern, whose
+cell is certified, the lines sit a median 0.060° from the true positions (a cos θ
+displacement) against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the
+true cell indexes **zero** lines and both engines return nothing. Hence
+`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, added in quadrature whenever no shift has been
+*measured*, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
+never look like a measured one) and `refine_with_shift`, which fits the shift template
+to a candidate **after** it survives — a shift is identifiable only against reference
+positions, and a candidate cell is what supplies them. A cell found under a widened
+window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
+
+**But the tolerance was never why the certified pattern failed to index, and the
+correction is the more useful lesson (WP-1026).** The obstruction was **our own peak
+list**: `detect_peaks` proposed 41 groups with one seed each and `fit_group` returned
+**63** components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its
+area with a small esd. With those flagged both engines rank the certified cell first,
+at the same allowance. The gate could not have refused them, and not because
+`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` is wrong: **ΔBIC asks whether the data prefer n+1
+components to n, which is the same question as "is there a line here" only while the
+n-component model is capable of fitting.** On the corundum 104 line χ²_red is 17.4 at
+n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins. Hence
+`_not_separable` (`indexing/pick.py`), whose third and load-bearing condition is that
+the group's own fit is still refuted, at `PEAK_REFUTED_SIGMA` × σ(χ²_red) above 1
+rather than a flat bar because groups differ 5× in size across one pattern. The
+component **stays in the model** (removing it displaces the real line by 0.010°) and
+is barred only from `usable()`. General, not a corundum quirk: satellites were 4-21 %
+of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
+nothing indicts its input before its tolerance.**
+
+**That certified pattern was blocked twice, and the second cause is the one to
+carry into any engine work: a leaf that is never refined is invisible.** With the
+peak list fixed the search returned the right lattice type with **c +2799 ppm**, and
+one session recorded that as what an uncalibrated lab pattern costs. It was
+`_box_key`, dichotomy's duplicate-leaf hash, which divided A..F by `max|af|` — so a
+0.1 % grid on the largest component was a ~1 % grid on the smallest, and for a long
+axis C = 1/c\*² **is** the smallest. The whole trigonal-R domain converges to
+**eleven** leaves; three hashed onto a sibling and were skipped *before* being
+refined, and one of the three held the certificate's c. Per-component binning (log
+for the diagonals, partner-scaled for the off-diagonals) recovers a = +101 ppm,
+c = +16 ppm ranked first, and with the shift template declared −73 / −126 ppm at a
+fitted −0.0606 ± 0.0138° against an independently measured −0.065° displacement.
+**A performance filter's failure mode is a wrong answer, not a slow one**, and its
+cost was 11 refinements against 8.
+
+**Three measured facts from checking the source papers against the code
+(2026-07-30), each of which contradicts something the tree asserted.** All three
+are recorded in WP-1026's handover and WP-1030; only the first is fixed.
+
+- **Niggli reduction is not canonical in floating point without a *relative*
+  tolerance.** Křivý-Gruber decides its normalisation on exact equalities — with
+  b = c the tie breaks on |η| ≤ |ζ| — and gemmi defaults to an *absolute* 1e-9,
+  under which two settings of one lattice came back with β and γ **swapped**
+  while gemmi's own `is_niggli` called both True. `NIGGLI_EPS_RELATIVE` = 1e-5,
+  as ε = 1e-5·V^(1/3), used in the reduction **and** in the predicate
+  (Grosse-Kunstleve *et al.* 2004, whose Test 3 *is*
+  `test_niggli_reduction_is_unimodular_invariant`). Since `same_lattice` dedups
+  on reduced A..F, a non-canonical reduction splits one lattice into two
+  candidates and denies the gate its agreement.
+- **`refine_with_shift` refused its own correction on exactly the candidates that
+  needed it**, because the accept test was χ²_red and the extra column costs a
+  degree of freedom, so a cell that has *already absorbed* the shift cannot gain
+  enough χ² to pay for it. **Fixed**: a declared template is the caller's physics,
+  like `mu_t`, and only *identifiability* refuses it now (no template, a numerical
+  failure, or fewer assigned lines than metric parameters + 2). That change needs
+  `engines.scored_positions` beside it — a candidate carrying a shift claims the
+  **corrected** lines, so scoring it against the raw ones marks it down for its own
+  correction, and applying the template everywhere with the panel left on raw
+  positions dropped the certified corundum lattice out of the top six.
+- **`volume_envelope` is a mean line, not an envelope.** Smith (1977) is
+  triclinic-only, publishes **no** per-system factors (so the derived Laue/centring
+  scalings here have nothing to check against), and quotes −29 % to +32 % about a
+  10.6 % average. Used as a hard search ceiling it excludes the true cell below a
+  detection fraction of 0.713 — which is that same −29 %. `VOLUME_ENVELOPE_SLACK`
+  exists but guards only the *flagging* path, not the ceiling.
+
+**And an assumed precision may never refuse to index.** `assess_peak_list`'s
+`MAX_RELATIVE_SIGMA_Q` abstention is a statement about *measured* data, so it runs
+only when `PeakList.source == "fitted"`. On a `from_positions` list every σ is
+`PEAK_ASSUMED_ESD_DEG` — chosen here — and refusing on it quotes an assumed precision
+as a measured one, the inverse of the rule above. Measured: all **ten** sets of the
+published bethanechol benchmark failed it, including the synchrotron set whose
+published M(20) is 197. The figure is still computed and reported
+(`PEAK_POSITION_PRECISION`); it simply has no vote.
 
 **v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
 the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU

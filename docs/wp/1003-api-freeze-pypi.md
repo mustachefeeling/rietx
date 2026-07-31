@@ -2,13 +2,45 @@
 
 Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
-the milestone's last row, so the freeze covers a surface the GUI exercised)
+the milestone's last row, so the freeze covers a surface the GUI exercised),
+WP-1018…WP-1030 (indexing)
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
 ## Inherited
+
+**From the 2026-07-30 assessment session — your dependency list grew by one, and
+one frozen constant is on a decision.** [1030](1030-engine-scaling-low-symmetry.md)
+was added to the indexing group (engine cost at low symmetry, plus the two
+Oishi-Tomiyasu figures of merit), so this row now depends on 1004–1030 rather
+than 1004–1027. Two consequences for the freeze itself. `SearchSpec` gains or
+changes fields there — at minimum `MAX_ANGLE_COSINE` is explicitly filed as a
+*costed choice* to be decided on measurement (150° today against DICVOL04's
+130°), and the volume-envelope slack may become a `SearchSpec` field rather than
+a `consensus` constant — so **do not freeze `SearchSpec` before 1030 closes.**
+And `fom.FomPanel` is expected to gain two members (`M^Rev`, `M^Sym`), which is a
+schema addition on a type that already travels on every `CellCandidate`; if 1030
+slips, freeze the panel as *extensible* rather than fixed, since the two figures
+are published and their absence is a recorded gap rather than a design choice.
+(These three references said "1029" when written; that WP was renumbered to
+[1030](1030-engine-scaling-low-symmetry.md) the same day — 1029 is the GUI
+usability WP, closed — and the stale number would have read as "already
+satisfied".)
+
+**From WP-1025 (landed 2026-07-30) — new frozen surface, and one decision left
+open on purpose.** `determine_extinction_symbol` is exported from `pxrdref` as a
+peer of `index_pattern`, with `ExtinctionCandidate`/`ExtinctionScreen` in
+`schemas/indexing.py`; `ExtinctionScreen.best_or_none()` is the singleton
+accessor and the freeze should cover the *absence* of a `.symbol`/`.space_group`
+attribute as deliberately as it covers what is there. The open decision: **the
+agent JSON surface has four task arms and the extinction screen is not one of
+them.** WP-0602's union is strict and `agent.tool_definition()` quotes live
+registries, so adding a fifth arm is a schema change that ought to happen before
+the freeze rather than after — or be declined on the record. Note its answer is a
+third *shape* (a ranked list of classes, each with a list of groups), so it would
+need its own arm the way `indexing` did, not a field on an existing one.
 
 From **WP-1014** (import & in-GUI editing, landed 2026-07-30) — **one question,
 and some new public surface.**
@@ -319,6 +351,11 @@ intact:
   property "since everyone writes `candidates[0]` anyway"; the answer is no,
   and the reason is that the module exists to be able to say "the data cannot
   distinguish these". WP-1026 ships an API-shape test asserting this; keep it.
+  *(Amended by WP-1024, 2026-07-30: the API-shape test landed **here**, not in
+  1026 — `tests/test_indexing_consensus.py`, asserting on
+  `IndexingResult.model_fields` and on the class itself, plus a second one on the
+  **serialized** agent answer, since the envelope is where a convenience
+  singleton is easiest to reintroduce.)*
 - **`report/schemas.py`'s `ActionKind` does not change** — indexing gives the
   already-declared `reindex_or_recheck_cell` something to call, nothing more —
   so `THRESHOLDS_VERSION` should **not** bump for it. Check this before
@@ -329,6 +366,29 @@ intact:
 - **This WP's `Depends on` becomes `1001, 1002, 1004-1027`**, and the freeze is
   still the milestone's last row: the point of landing indexing before it is
   that the frozen surface has been exercised.
+
+**From WP-1024 (landed 2026-07-30) — three additions to that freeze list, and one
+version that already moved.**
+
+- **Two closed vocabularies join the frozen surface**: `IndexCaveat` (the reasons a
+  candidate is not `high`) and `INDEX_REFUTING_CAVEATS` (which of them refute rather
+  than cap). They are closed for the same reason `ActionKind` is — consumers branch
+  on them, and a GUI colours chips from the split — so adding a member is a
+  compatibility event, not a detail. Also `Confidence`
+  (`"high" | "medium" | "low"`) and `INDEX_MIN_INDEXED_FRACTION`.
+- **`EVENT_SCHEMA_VERSION` is now `"2"`.** WP-1024 added the
+  `index_start`/`index_end` kinds WP-1006 deferred, which is what that constant is
+  *for*; the per-engine progress deliberately reuses `stage_start`/`stage_end` with
+  extra `data` keys, which is additive. So the freeze inherits `"2"` and the
+  additivity rule written down in `history/events.py` — check it before bumping
+  reflexively, in both directions.
+- **`AgentSuccess` has a third arm, `indexing`**, and the docstring's "exactly one
+  of result/series" became "exactly one of result/series/indexing". A consumer
+  branching on which arm is set is the intended contract and is now three-way.
+- **`report/schemas.py`'s `ActionKind` did not change and `THRESHOLDS_VERSION` did
+  not bump**, exactly as the note above predicted: `reindex_or_recheck_cell` and
+  `add_impurity_phase` got new *rationale text* naming `index_pattern`, nothing
+  more. Confirmed rather than assumed.
 
 From **WP-0309** (exporters, landed 2026-07-24): `write_refinement_cif`'s
 round-trip is validated for **single-phase only** — a full multi-phase

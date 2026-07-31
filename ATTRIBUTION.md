@@ -15,6 +15,81 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   term counts of its Table 1. The allowed subspace here is *derived* from the
   space-group operators (`crystallography/stephens.py`), not transcribed from the
   table — the table is the independent check.
+- Markvardsen, A. J., David, W. I. F., Johnston, J. C. & Shankland, K. (2001).
+  *Acta Cryst.* A57, 47–54 — probabilistic space-group determination from powder
+  data, and the reason the answer here is an *extinction symbol* rather than a
+  space group. Method reference only: the screen in `indexing/extinction.py`
+  scores classes by ΔBIC and direct absence evidence, not by their posterior.
+- Bergmann, J., Le Bail, A., Shirley, R. & Zlokazov, V. (2004).
+  *Z. Kristallogr.* 219, 783–790 — review of powder-indexing programs, and the
+  **bethanechol chloride benchmarks**. Two distinct uses, both paper-only:
+  the article's conclusions about data quality and whole-profile confirmation are
+  cited in `indexing/quality.py` and `indexing/workflow.py`, and its **Table 6**
+  (ten sets of twenty 2θ positions) and **Table 5** (every program's score) are
+  transcribed as the test fixture `tests/data/bethanechol_indexing.json`.
+  Published tables, transcribed with attribution. **No program named in that
+  paper was run and none of their code was consulted** — several (ITO, DICVOL,
+  TREOR, McMaille, Crysfire, EFLECH/INDEX) are variously closed, GPL or of
+  unstated licence, and this package's grading against them uses only their
+  *printed scores*.
+- Louër, D. & Louër, M. (1972). *J. Appl. Cryst.* 5, 271–275; Boultif, A. &
+  Louër, D. (1991). *ibid.* 24, 987–993 and (2004). *ibid.* 37, 724–731 — the
+  **successive-dichotomy** method behind `indexing/dichotomy.py` (the DICVOL
+  lineage). Papers only; **no DICVOL code has been read or ported** — it is
+  closed source. Two departures are deliberate and documented in that module:
+  the search is over the reciprocal metric components (A…F) rather than direct
+  cell parameters, which makes the per-domain Q bounds corner-exact by linearity
+  in *every* system and so removes the 1991 paper's eight-case analysis for
+  hl < 0 (the 1991 paper reaches the same linear form for its own triclinic
+  case, for the same reason); and the tolerance is a per-line σ rather than one
+  global absolute window. Louër & Louër's Table 1 (data-derived minimum
+  parameter limits, and the non-collinearity condition on d₁/d₂) is **not yet
+  implemented** — WP-1029.
+- Werner, P.-E. (1964). *Z. Kristallogr.* 120, 375–387; Werner, P.-E., Eriksson,
+  L. & Westdahl, M. (1985). *J. Appl. Cryst.* 18, 367–370 — the semi-exhaustive
+  **trial-and-error** index-space search behind `indexing/trial_error.py` (the
+  TREOR lineage). Papers only; TREOR is GPL and no code has been read. Its
+  Table 1 corroborates `BASE_INDEX_MAX = 2` for the low-symmetry base lines,
+  independently of how that constant was chosen here.
+- Visser, J. W. (1969). *J. Appl. Cryst.* 2, 89–95 — the ITO **zone-indexing**
+  method. Read and assessed (WP-1029), **not implemented**: recorded here
+  because the assessment is cited in the roadmap, not because code derives
+  from it.
+- Křivý, I. & Gruber, B. (1976). *Acta Cryst.* A32, 297–298 — the unified
+  Niggli-reduction algorithm, whose step A2 tie-break on |η| ≤ |ζ| is what makes
+  the reduction canonical when two reduced axes are equal. The reduction itself
+  is `gemmi.GruberVector`; what is taken from the paper is the normalisation
+  condition the tolerance has to preserve.
+- Grosse-Kunstleve, R. W., Sauter, N. K. & Adams, P. D. (2004). *Acta Cryst.*
+  A60, 1–6 — the relative tolerance ε = ε_rel·V^(1/3) with ε_rel = 10⁻⁵ that
+  makes that algorithm numerically stable, and the requirement that the same ε
+  be used in the reduction and in the predicate checking it. Their Test 3 is
+  `tests/test_indexing_reduce.py::test_niggli_reduction_is_unimodular_invariant`;
+  method reference only (cctbx is permissively licensed but no code was ported).
+- de Wolff, P. M. (1968). *J. Appl. Cryst.* 1, 108–113 — the M₂₀ figure of merit.
+- Oishi-Tomiyasu, R. (2013). *J. Appl. Cryst.* 46, 1277–1282 — the **reversed**
+  and symmetric de Wolff figures of merit, and the roundoff-stable line count
+  N^cal. Cited in `indexing/fom.py`'s argument that coverage must be scored in
+  both directions; the two figures themselves are **not yet implemented**
+  (WP-1029), and until they are, this is a concept reference.
+- Smith, G. S. & Kahara, E. (1975). *J. Appl. Cryst.* 8, 681–683 — the "020
+  detector" relation 2Q(020) + Q(h10) = Q(h30). Concept reference only; not
+  implemented (WP-1029).
+- Smith, G. S. (1977). *J. Appl. Cryst.* 10, 252–255 — estimating the unit-cell
+  volume from one line, `indexing/quality.volume_envelope`. Its two constants
+  (0.60 and 0.0052) are the paper's own and reproduce its printed 13.39 / 17.24 /
+  21.32. Two things it does **not** contain, checked against the paper on
+  2026-07-30: it is **triclinic-only** and publishes no per-system factors, so
+  the Laue-orbit and centring scalings here are this package's derivation with
+  nothing published to check them against; and the relation is a least-squares
+  **mean line** (average discrepancy 10.6 %, −29 % to +32 %), not an upper
+  envelope, so any use of it as a search ceiling needs slack this package
+  supplies.
+- Smith, G. S. & Snyder, R. L. (1979). *J. Appl. Cryst.* 12, 60–65 — the F_N
+  figure of merit. (`indexing/fom.py` implements both, with a per-line-σ floor on
+  ⟨Δ⟩ that is this package's addition and is documented as such, because it is
+  what makes the two figures divergence-free on synthetic data — and what makes
+  them non-comparable with a published value computed without it.)
 - Popa, N. C. (1998). *J. Appl. Cryst.* 31, 176–180 — the equivalent
   strain-tensor formulation of the same anisotropy (concept reference; the
   phenomenological parameterisation is what is implemented).

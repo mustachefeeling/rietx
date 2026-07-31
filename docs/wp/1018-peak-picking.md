@@ -1,6 +1,6 @@
 # WP-1018 — Peak picking: detection + full per-peak profile fitting
 
-Milestone: v1.0 · Status: 🔄 in flight — code complete, **tests outstanding** (2026-07-30)
+Milestone: v1.0 · Status: ✅ complete 2026-07-30 (σ pull calibration measured)
 Depends on: —
 
 ## Goal
@@ -145,13 +145,15 @@ will be wrong on lab data by an order of magnitude.
       `PEAK_UNRESOLVED_SHOULDER`, `PEAK_CONTAMINATION_LINE`,
       `PEAK_ASYMMETRY_UNMODELLED`) via a translator in `indexing/diagnostics.py`
       in the `refine._guard_diagnostics` style.
-- [ ] Tests (`tests/test_peak_picking.py`) + per-group fit overlays to
+- [x] Tests (`tests/test_peak_picking.py`) + per-group fit overlays to
       `tests/output/`: **σ pull calibration** (fixed-seed ensemble of 200
       synthetic groups from the package's own forward model + Poisson noise;
       pull `(2θ_fit−2θ_true)/σ_fit` needs `|mean| < 0.15`, `std ∈ [0.85,1.20]`)
       — this is the gate the whole tolerance model rests on; doublet-position
       property (fitted position is the **Kα1** position); hypothesis round-trip
-      on `from_positions`.
+      on `from_positions`. **Landed at 1300 groups per configuration, not 200:
+      200 is enough for the std bar and not for the mean one** (see the handover
+      log's 2026-07-30 second entry).
 
 ## Acceptance
 
@@ -187,6 +189,104 @@ The σ pull calibration must pass, and the darwin/arm64 goldens must be
   `profiles/caglioti.py`; `model/forward.py:1273` `_overlap_groups`.
 
 ## Handover log
+
+- **2026-07-30 (second session) — CLOSED.** `tests/test_peak_picking.py` is in:
+  26 tests, ~6 s, ruff clean, fast suite 1052 passed / 107 skipped in 33 s (this
+  worktree's venv is `[dev]` only, so the jax/torch agreement rows self-skip —
+  the earlier 1158/4 was a `[dev,jax,torch]` checkout). darwin/arm64 goldens
+  unchanged.
+
+  **The gate is measured**: pull `(2θ_fit − 2θ_true)/σ_fit` over 100 fixed-seed
+  Poisson realisations of a forward-model LaB6 pattern —
+
+  | configuration | mean | std | n |
+  |---|---|---|---|
+  | synchrotron, single line | +0.032 | 0.971 | 1309 |
+  | lab Cu Kα doublet | −0.083 | 0.980 | 1312 |
+
+  against the bars `|mean| < 0.15`, `std ∈ [0.85, 1.20]` written before the
+  measurement. So **the σ this package reports is the right scale** and WP-1019
+  and WP-1020 may now tune a tolerance model against it.
+
+  *Two more defects, and again neither was visible by reading the code.* They
+  are numbers 5 and 6 of this WP's six.
+
+  5. **The unresolved half of defect 1, and it is worse.** Where the Kα1/Kα2
+     split is close to a FWHM the Kα2 has *no maximum*, so
+     `_drop_kalpha2_aliases` — which matches maxima and their height ratio —
+     cannot see it. But it does have a curvature shoulder: it cleared the 5σ
+     seeder, sat *outside* the half-FWHM grouping gap (0.0775° against 0.041°),
+     formed a **singleton group of its own**, and came back as a line with an
+     esd. The ΔBIC prune cannot refuse it — a singleton is judged against "no
+     peak at all", and there genuinely *is* intensity there. On the LaB6 110 line
+     at 30.387° that was one spurious line per pattern at 30.46° and a **−21
+     mean σ pull** on that reflection, which is what dragged the whole ensemble
+     to −2.6. Fix: a curvature seed within `PEAK_ALIAS_TOL_FWHM_FRAC` of *any*
+     claimed maximum's Bragg-predicted Kα2 position is suppressed and **reported**
+     through the same `PEAK_KALPHA2_ALIAS` diagnostic. The Bragg transform is now
+     one helper, `peaks._secondary_line_two_theta` (2-D, NaN past the sphere
+     limit, so a caller keeps the line↔weight pairing), used by both the
+     maximum filter and the seeder.
+  6. **The doublet amplitude ratio is not `weight`; it is `weight × Lp ratio`.**
+     Each emission line diffracts at its own Bragg angle, so it carries its own
+     Lorentz-polarisation factor — exactly what `CompiledModel._peak_terms` does
+     per line. Holding the bare weight put 0.43 % too much intensity in the Kα2
+     of the 30.4° line and dragged the fitted **Kα1** position down by 2e-4°:
+     mean pull −0.26 → −0.19. It is frozen at the seed position in
+     `_GroupModel.freeze` (renamed from `freeze_nodes`, which now freezes both),
+     the same trade the FCJ node counts make: the ratio varies by ~5 %/° while
+     the fit moves the position by ~1e-3°, so freezing costs ~1e-4 relative and
+     keeps the residual exactly differentiable with no new chain factor.
+
+  *What is left, and what it is not.* The doublet's residual −0.083 ± 0.027 is
+  2e-5° — a fortieth of a channel, 1/4000 of a FWHM. Four candidate mechanisms
+  were measured and **excluded**, each by substitution:
+
+  - the rolling-quantile background — handing the fit the *exact* background
+    moves the mean pull by 0.02;
+  - the neighbours' unmodelled tails — cropping to one isolated reflection
+    *keeps* the bias (−0.095 ± 0.072);
+  - the per-line Caglioti width the fitter shares — generating truth with
+    per-line widths changes nothing (the docstring's <0.3 % claim holds);
+  - the Poisson weight taken from the noisy data rather than the model (the
+    Neyman-χ² bias) — σ from the model changes nothing, at four peak heights
+    spanning 3.6e3 to 3.4e5 counts.
+
+  In isolation — exact background, exact seed, no detection — the same doublet
+  fit is unbiased to ±0.02 over 400 realisations at both 30° and 88°. So what
+  remains is in the **detection-seeded window** (the seed is the composite
+  maximum, and the census FWHM that sets the window is ~10 % wide on a doublet),
+  not in the estimator. Left as a measurement rather than chased: it is two
+  orders below the systematic-error scale WP-1019 exists to model.
+
+  *A sizing rule for every future pull ensemble.* **200 groups is enough for the
+  `std` bar and not for the `mean` bar.** At a pull std of 1 the standard error
+  of the mean over 200 groups is 0.07 — half the 0.15 bar — and a 200-group
+  subsample of this very ensemble reads −0.15 where the converged value is
+  −0.08. The test therefore asserts `3·SE < bar` before asserting the bar, so an
+  ensemble that is too small fails loudly instead of passing by luck. The
+  30/60/100-pattern sequence is −0.146 / −0.090 / −0.083.
+
+  *One deliberate non-change, decided by measurement.* `_debiased_envelope` adds
+  a single global `median(y − env)`, and the envelope's bias is proportional to
+  the *local* σ, so a σ-scaled correction (`median((y−env)/σ)·σ`) is the more
+  principled form. Measured on the pull ensemble it changes the mean pull by
+  0.001-0.02 in the wrong direction and costs 0.05 lines per pattern. Not made.
+  Worth re-measuring only on a pattern with a steeply varying background, which
+  is what would make the two forms differ.
+
+  *What the file covers beyond the gate*: the analytic group Jacobian against
+  central differences over **six** configurations (synchrotron single line, lab
+  doublet, symmetric FCJ, asymmetric FCJ S/L ≠ H/L, overlapping pair, true
+  Voigt — worst column 5e-5 relative, so the scratch harness the first session
+  left out of the tree is now a test, with `shape="voigt"` added); the
+  Kα1-not-centroid doublet property (the centroid is 0.026° away, ~40σ, so it is
+  a property and not a tolerance); one regression test per defect 1-6; σ(Q)'s
+  π/90 against a central difference; a hypothesis round-trip on
+  `from_positions` including JSON; `PEAK_LIST_TOO_SHORT` /
+  `PEAK_WIDTH_LAW_MISMATCH` / `PEAK_CONTAMINATION_LINE` /
+  `PEAK_ASYMMETRY_UNMODELLED` each fired from a pattern built to fire it; and
+  per-group + whole-pattern overlays to `tests/output/`.
 
 - **2026-07-30** — **seven of eight checklist items landed; the test suite is
   the one outstanding item, and it is the important one.** Merged to `main` at

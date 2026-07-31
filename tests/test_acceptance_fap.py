@@ -67,8 +67,15 @@ _ATOMS = [
 ]
 
 
-@pytest.fixture(scope="module")
-def fap_inputs():
+def build_fap_inputs():
+    """(data, structure, instrument) for the GSAS-II tutorial protocol.
+
+    Plain function as well as fixture, for the reason ``build_srm_inputs`` is
+    one: ``test_acceptance_indexing`` rebuilds this exact state — in particular
+    the tutorial's own 1.5405/1.5443 Å doublet rather than our NIST/Hölzer
+    preset, a 60 ppm difference that would land straight on any cell compared
+    against GSAS's.
+    """
     path = DATA / "FAP.XRA"
     if not path.exists():
         pytest.skip("GSAS-II LabData tutorial dataset not present")
@@ -117,6 +124,11 @@ def fap_inputs():
     instrument.geometry.axial_hl.value = 0.02
     instrument.background = BackgroundChebyshev.with_terms(6)
     return data, structure, instrument
+
+
+@pytest.fixture(scope="module")
+def fap_inputs():
+    return build_fap_inputs()
 
 
 def _gsas_protocol_plan() -> pr.RefinementPlan:

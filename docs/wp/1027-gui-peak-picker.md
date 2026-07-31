@@ -87,6 +87,50 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+**From WP-1026 (landed 2026-07-30) — a picked line now has a third state, and the
+picker UI is where it becomes visible or invisible.** `pick_peaks` emits
+components flagged **`not_separable`**: profile-shape repair that the fitter
+believes in as *shape* and disbelieves as a *line*. They stay in `PeakList.peaks`
+and are **excluded from `usable()`**, exactly like the Kβ/W ghosts. Three
+consequences for this WP:
+
+- **`len(peaks.peaks) != len(peaks.usable())` is now the normal case on real lab
+  data**, not an edge case — 8 of 63 on the bundled corundum pattern, and 4-21 %
+  of components across the eight bundled real datasets before the fix (0-7 %
+  after). A panel that renders `peaks` will show lines the indexer never saw, and
+  one that renders only `usable()` will hide the fitter's own explanation of a
+  strong peak's shape. Render both, distinguished.
+- **It is the flag a user will most want to overrule**, because it is a judgement
+  about a real component rather than a detection. The `excluded` flag is the
+  existing route for a caller's own decision; treating a `not_separable` line as a
+  line is a *different* act and should look different.
+- **Its cause is worth surfacing when it fires a lot**: the third condition is
+  that the group's fit is still refuted (χ²_red above 3σ of its own scatter), so a
+  pattern full of `not_separable` lines is usually a pattern whose *instrument
+  profile is mis-declared* — undeclared axial divergence reproduced the whole
+  effect synthetically. That is an actionable message, not a peak-picking one.
+
+**Also from WP-1026: an assumed σ no longer refuses to index.** A
+`from_positions` list (which is what a GUI "paste peak positions" box produces)
+used to fail `assess_peak_list`'s σ(Q)/Q gate on the strength of
+`PEAK_ASSUMED_ESD_DEG`. It no longer does, but the figure is still reported and
+every line still carries `sigma_assumed` — so the panel must show "precision
+assumed", not "precision measured", and must not present the σ(Q)/Q number as a
+property of the data.
+
+**From WP-1025 (landed 2026-07-30) — there is a second answer to render, and it
+has the same shape rule.** `determine_extinction_symbol(data, candidate, instrument)`
+returns a ranked `ExtinctionScreen` whose every row lists its space groups, so the
+panel that follows "adopt this cell" is another **table**, not a symbol: a row per
+extinction class with `symbol`, `space_groups` (all of them), `delta_bic`,
+`n_absent`/`n_testable`, and the refuting hkl for a refuted row. A UI that renders
+one space group re-introduces exactly what the API forbids — and here the singleton
+is not merely unsupported but *unmeasurable*, since the groups in a class produce
+identical patterns. `EXTINCTION_GROUPS_NOT_SEPARABLE` is an `info` that must be
+shown rather than filtered as noise; it is the explanation of why the row has three
+names in it. Cost for a progress affordance: one shared profile fit (~2 s) then
+~0.1 s per class, 7 classes for a hexagonal lattice and 71 for orthorhombic P.
+
 From **WP-1029** (GUI usability, landed 2026-07-30): **that trap fired again, in
 the main pattern plot, and the fix is now in both.** `panels/Plot.svelte` had
 nothing below it until this WP put a residual selector and a scaling selector
@@ -185,6 +229,37 @@ fills it in without a format bump.
 From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `IndexingResult.candidates` is always a list — the frontend must not synthesise
 a "the answer is" view from `candidates[0]`.
+
+**From WP-1024 (landed 2026-07-30) — the answer is designed to be rendered, and the
+design will fight a conventional results panel.** Five things:
+
+- **`best_or_none()` returning `None` is the *expected* first outcome**, not an
+  error state, and on real lab data with no measured shift it is currently the
+  *only* outcome (`shift_allowance_assumed` caps every candidate at `medium`). A UI
+  whose happy path is "here is your cell" will look broken most of the time. Design
+  the candidate list as the primary view and the singleton as a badge on it.
+- **`CellCandidate.confidence_caveats` is a closed vocabulary**
+  (`IndexCaveat`), so it renders as chips rather than free text, and
+  `INDEX_REFUTING_CAVEATS` is the split that decides which chips are red: five
+  caveats refute a cell, the rest merely cap it. Getting that colouring from the
+  constant rather than from a hand-written list is what keeps the UI honest when the
+  vocabulary grows.
+- **Per-candidate diagnostics live on the candidate**
+  (`candidates[i].diagnostics`), result-level ones on the result. They are
+  deliberately not duplicated, so a panel that renders only
+  `result.diagnostics` silently drops the most actionable messages
+  (`INDEX_PREDICTED_BUT_ABSENT`, `INDEX_GEOMETRIC_AMBIGUITY`).
+- **`AmbiguityPartner.discriminating_two_theta` is a plot annotation waiting to
+  happen** — and note that those angles are now *outside* the measured range (a
+  partner whose in-range extras were absent is refuted, so what survives is
+  separated only further out). The natural rendering is a marker beyond the right
+  edge of the pattern with "collect to here", which is the actionable half of an
+  ambiguity report.
+- **Progress and cancellation are already wired.** `index_pattern(..., events=,
+  cancel=)` emits `index_start`/`index_end` (`EVENT_SCHEMA_VERSION` is now `"2"`)
+  with per-engine `stage_start`/`stage_end` carrying `engine`, `system`, `index`
+  and `n_stages` — so "engine 2 of 2, orthorhombic" needs no new event kind, and
+  `CancelToken` works unchanged.
 
 From **WP-1012** (landed 2026-07-30) — three reusable pieces and one measured trap:
 

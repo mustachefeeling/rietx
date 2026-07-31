@@ -58,15 +58,488 @@ mid-drag included; the camera-derived light arithmetic is deleted. The full
 refutation, the three measured z-regimes and the constants chosen are in the
 WP's 2026-07-31 handover entry — quote it, do not re-measure it.
 
-**Next session starts at [1018](wp/1018-peak-picking.md)** — code landed
-2026-07-30 with **tests outstanding**, and it is the root of the whole
-indexing chain (1019–1027). After that the open v1.0 fronts are the indexing
-chain itself, [1016](wp/1016-sequential-series-panel.md) (series panel),
-[1028](wp/1028-robustness-external-data.md) (robustness, owns the `converged`
-vocabulary), [1017](wp/1017-gui-manual-onboarding.md) (manual; its GUI
-prerequisites 1011–1015 + 1029 are now all landed), and
+---
+
+**[1026](wp/1026-indexing-acceptance.md) is closed, and it closes *against* its
+criteria rather than meeting them — which is the result (2026-07-31).** Eight
+known-cell datasets, thirty-four rows, `docs/VALIDATION.md` at 58 claims. The
+scoreboard: **five** datasets put the right lattice first (SRM 676a corundum,
+SRM 660c LaB6, zincite, zircon, and FAP where the right cell is present and
+second), **one** is refused for having too few lines (fluorite, 18 < 20), and
+**two** fail (brucite and magnetite rank a supercell above the truth; NAC cannot
+be searched at its own d_min). **All eight abstain** — `best_or_none()` is None
+on every dataset in the file, including the five that are right.
+
+That is the governing rule holding, and it is also the honest shape of the
+feature: **never wrong, and silent more often than right.** A future milestone
+note should not round that up.
+
+**Three things generalise beyond this WP.** *A literature cell is not a
+specimen's cell*: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
+Rothbauer, 30× the goniometer floor, so the round-robin rows assert lattice type
+and centring and nothing in ppm. *An indexed cell has no displacement parameter*,
+so it absorbs what a refinement models — measured at 127 ppm on SRM 660c, which
+is why FAP is graded at 500 ppm rather than the refinement suite's ±300. And
+*the peak list is the obstruction, for the third time in three sessions*: NAC's
+true cell explains **6 of the first 20** picked lines (its CaF₂ impurity, none),
+so the engines solve for a metric fitted to low-angle artifact — after corundum's
+satellites and LaB6's axial tails, this is a pattern, not a coincidence.
+
+**FAP is the case the design exists for.** The GSAS cell is reachable, is what
+both engines agree on, indexes 181 of 185 lines — and is ranked *below* a cell
+1218 ppm out that indexes 167 and scores a higher M₂₀. The gate declines the
+leader anyway. A ranking that is wrong while the promise holds is exactly what
+the promise is for; the row therefore asserts membership and refusal, never rank.
+
+---
+
+**A second certified pattern indexes, this one to −2 ppm and at `high` — the
+first time the gate has returned a cell at all on real data (2026-07-30, fourth
+session).** [1026](wp/1026-indexing-acceptance.md) is still in flight; SRM 660c
+LaB6 landed as its second known-cell row, seven rows and seven matrix claims,
+and it was the right dataset to pick for a reason worth reusing: **choose the
+next known cell by its space group, not by its convenience.**
+
+**Because P m -3 m extinguishes nothing, LaB6 is the control the previous session
+owed itself.** That session found `predicted_but_absent` refuting corundum's
+*correct* cell on 11-12 reflections and argued they were the R-3c c-glide seen
+through the lattice R-3m. Argued, not measured — there was no phase without
+extinctions to check against. There is now: **0 of 30**, with
+`predicted_seen_fraction` **1.000** against corundum's 0.86. The caveat means
+what its name says, and reading a firing as "this cell is too big" remains the
+one wrong reading.
+
+**As picked the cell is −127 ppm out, and it is our own peak list again — the
+third time, and each time a different mechanism.** Thirteen weak components face
+the `not_separable` screen here; seven are flagged and six survive by failing
+**three different conditions** (four simply too far at 1.73-2.99 FWHM against a
+1.5 bar; one whose detection seed slid into the tail so the *new* component took
+the real line and the slot labels inverted; one on a group whose fit is not
+refuted, which the screen keeps on purpose). **So there is no knob** — widening
+1.5 reaches four of six. What they are was settled by looking: **five are
+axial-divergence tails**, sitting low below 90° 2θ and high above it, a sign
+reversal nothing else in a Bragg-Brentano pattern has; **one is a Kα2 residual**
+on a group-mate's resolved second line, i.e. an alias `detect_peaks` correctly
+dropped and `fit_group` re-created.
+
+**But the mechanism that makes them fatal is about the allowance, not the peaks,
+and it generalises.** `fit_shift_model` weights by each line's **own** σ, so the
+tail components (σ ≈ 0.005° against the real lines' 0.0005°) are down-weighted a
+hundredfold and it recovers the displacement anyway: **+0.0367 ± 0.0015°**
+against a *parameter-free* +0.0415° predicted from the CIF's own −0.07877 mm at
+R = 217.5 mm. The **search** cannot, because `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05°
+is added *in quadrature to every σ* — flat — which takes that 100× contrast to
+**1.005**. Its fitted shift is +0.009 ± 0.016°, consistent with none. **An
+assumed allowance is not free even when it is generous enough**: it buys a
+matching window at the cost of the weighting the peak fitter measured.
+
+**Supply what is missing and the gate reaches `high`: a = 4.156772 Å, −2 ppm,
+M₂₀ 1113, zero caveats, `best_or_none()` returning a cell.** It is an
+attribution probe rather than a protocol — the off-lattice components are
+identified *using* the certificate — and its value is exactly that: the
+pipeline's arithmetic is sound to the part per million, and **what stands between
+it and a blind certified answer is a peak list**.
+
+**Two gaps fell out, both filed to [1028](wp/1028-robustness-external-data.md).**
+`SearchSpec.sigma_sys_deg` and `ShiftScreen.sigma_sys_deg` are 4.3× apart and
+share a name: the screen reports the scatter a template *leaves* (0.0078°), the
+search needs the window the *uncorrected* positions span (0.037°), since
+`refine_with_shift` runs only after a candidate survives — so declaring the
+measured one silently finds nothing. And **a geometrical ambiguity the
+enumeration cannot see from one side**: tetragonal P at (a/√2, a) is *exactly*
+isospectral with cubic P, since 2(h²+k²)+l² and h²+k²+l² represent the same
+integers (both miss 4ⁿ(8m+7)). Both engines find it. `ambiguity_partners`
+enumerates *sublattices* of index 2-4 — supercells — so a half-volume rival is
+not in the enumeration: 0 partners from the cubic side, while from the tetragonal
+side the cubic is found with **zero** discriminating reflections. The gate
+refuses `high` to a candidate with a partner, so whichever of an isospectral pair
+is the larger cell can be promoted while its equal cannot.
+
+---
+
+**A certified pattern now indexes to its certificate, and the thing that had been
+costing it 2800 ppm was a performance filter (2026-07-30, third session).**
+[1026](wp/1026-indexing-acceptance.md) is still in flight. The corundum acceptance
+row asserted that an uncalibrated lab pattern costs ~2800 ppm on c; it does not,
+and neither of the two explanations the tree had offered for it — the matching
+tolerance, then the `refine_with_shift` accept rule — was the cause.
+
+**`_box_key` was.** Dichotomy hashes a converged box so one cell is not refined once
+per sibling leaf, and it divided A..F by `max|af|` — a 0.1 % grid on the largest
+component is a **~1 %** grid on the smallest, and for a long axis C = 1/c\*² *is* the
+smallest. The whole trigonal-R domain on this pattern converges to **eleven leaves**;
+three hashed onto a sibling and were **skipped before being refined**, and one of the
+three held the certificate's c. Binned per component now, and the row asserts the
+protocol a user with a standard would run: nothing declared gives trigonal R ranked
+first at a **+101 ppm**, c **+16 ppm**; declaring `shift_template="cos_theta"` gives
+**−73 / −126 ppm** with a fitted **−0.0606 ± 0.0138°** shift against the −0.065°
+displacement [1023](wp/1023-engine-montecarlo.md) measured independently. **A
+performance filter's failure mode is a wrong answer, not a slow one** — and a skipped
+leaf leaves no trace at all: no candidate, no diagnostic, nothing in `stats`, which
+is why three earlier probes came back clean before a leaf-by-leaf trace found it.
+
+**Two more defects fell out of chasing it.** The FoM panel *ranked* candidates in a
+window the search never used — the fitted σ (0.0045°) rather than σ ⊕ the allowance
+(0.0502°) — so `indexed_fraction` read 0.11-0.20 on candidates the search itself had
+indexed at 0.65-0.89, every candidate was refuted by `indexed_fraction_low` whatever
+its merit, and the Borda order was decided among cells that had all matched almost
+nothing. `fom_panel` now takes the matching window separately from the measurement:
+coverage members widen, M₂₀ and F_N keep the measured σ for their discrepancy floor.
+And a candidate carrying a shift is scored on the **corrected** positions it claims
+(`engines.scored_positions`) — without that, applying a declared template everywhere
+dropped the certified lattice out of the top six, because the panel was effectively
+ranking on how little a candidate had been corrected.
+
+**The accept rule was decided, and the honest framing is that it changed nothing
+here.** χ²_red is the wrong gatekeeper for a declared template — the column always
+costs a degree of freedom while a cell that has already absorbed the shift cannot gain
+enough χ² to pay for it — so only identifiability refuses one now. But the previous
+session's claim that this was *losing the accurate cell* was itself an artifact of the
+hash: with `_box_key` fixed, both rules return the same answer on corundum.
+
+**And a refuting caveat fires on correct cells.** `predicted_but_absent` counts 11-12
+reflections the *lattice* R-3m allows and the R-3c c-glide forbids, because the lattice
+group is the only model that exists before `determine_extinction_symbol` runs. So any
+phase with space-group extinctions refutes its own correct cell, and `high` is
+unreachable for a second structural reason. It is the blind spot
+`predicted_seen_fraction` already documents, promoted into a caveat that refutes;
+filed to [1028](wp/1028-robustness-external-data.md), not fixed, because the fix is
+running [1025](wp/1025-extinction-symbol.md)'s screen inside the gate.
+
+---
+
+**Seven source papers were read against the tree and three of its claims did not
+survive (2026-07-30, second session of the day).** No acceptance rows were added;
+the deliverable is the audit, and it is filed in
+[1026](wp/1026-indexing-acceptance.md)'s handover and the new
+[1030](wp/1030-engine-scaling-low-symmetry.md). One defect was **fixed**, two were
+recorded with the behaviour deliberately unchanged — and the second of the three has
+since been superseded by the session above.
+
+**Fixed — the fast suite was red and nobody had seen it.**
+`test_niggli_reduction_is_unimodular_invariant` was failing on a hypothesis
+example earlier runs had not generated, and `.hypothesis/` is gitignored so CI
+would not have replayed it either: the tree was green by luck. The reduced cell
+of (3, 3, 3, 66°, 110°, 65°) has **b = c exactly**, so Křivý-Gruber step A2 must
+break the tie on |η| ≤ |ζ|, and at gemmi's default the two settings came back
+with β and γ **swapped** — while gemmi's own `is_niggli` called both True.
+gemmi's ε is an *absolute* 1e-9; Grosse-Kunstleve *et al.* (2004) prescribe a
+*relative* ε = 1e-5·V^(1/3) in the reduction **and** in the predicate, and report
+their Test 3 — which *is* our test — failing at 1e-10 and passing at 1e-5. Since
+`same_lattice` dedups on the reduced A..F, the failure mode was one lattice
+counted as two and the gate denied its agreement. **1353 passed / 66 skipped.**
+
+**Superseded the same day — `refine_with_shift` refuses its own correction on
+exactly the candidates that need it.** The reasoning held and the rule was changed
+(see the session above); the *diagnosis of the corundum row* did not. Traced on
+corundum, the template reached both engines, was called 17 times in dichotomy and
+**declined 9**, every decline on the χ²_red comparison, with the ranked-first
+candidate among them keeping c +2799 ppm out. That candidate turned out to be a
+different, worse lattice — 35 of 55 lines against the certified cell's 49 — which
+ranked first only because `_box_key` had skipped the leaf holding the true c. So
+"the accurate cell was in the candidate list all along" was true, and "the
++2799 ppm is an artifact of the accept rule" was not.
+
+**Not fixed, and the one that can lose a right answer: `volume_envelope` is a
+mean line, not an envelope.** Smith (1977) turns out to be **triclinic-only** and
+to publish **no per-system factors at all**, so WP-1019's open item closes as
+*there is nothing to check the derived scalings against* rather than *checked and
+agree*. Our two constants are exactly the paper's. What is wrong is the status:
+Smith quotes an average discrepancy of 10.6 % with deviations **−29 % to +32 %**,
+the low side being the ordinary case since it is what missing weak lines produce
+— and we call it a "bound" and feed it to the engines as a hard ceiling. With p
+the detected fraction of possible lines the ratio to truth is 1.4025·p, so it
+**excludes the true cell below p = 0.713**, which is that same −29 %: no margin
+against the worst pattern in the paper's own calibration set. Worse,
+`VOLUME_ENVELOPE_SLACK = 1.5` exists but guards only the *flagging* path while
+the fatal one takes the raw envelope, and the test that validates it feeds a
+*complete* line list (p = 1.0), the most favourable regime there is. Docstrings
+and the manual now say "estimate" with the numbers; the behaviour is
+[1030](wp/1030-engine-scaling-low-symmetry.md)'s and
+[1028](wp/1028-robustness-external-data.md)'s.
+
+**And the monoclinic no-go now has a measured cause, which is not what either
+hypothesis said.** On the published bethanechol cell's *own twenty exact lines*,
+V ∈ [800, 1200] Å³, `n_unindexed = 0`: **0 candidates, budget expiry at 300 s,
+5.74 M boxes** (12 Å) and 5.82 M (16 Å) at ~15 rows/box. So it is not the
+tolerance, not the peak list, and **not** a `MAX_GRID_CELLS` frontier overflow —
+the cost is the number of boxes generated and tested, ~52 µs each. The cause:
+`_det_interval` over the domain is [−4.80e-5, 6.40e-5], **det_lo negative**, so
+the "cell too small" half of the volume test can never fire, and it is still
+negative one grid cell down — a declared V ∈ [800, 1200] window prunes
+essentially **nothing** until the last of four dimensions is cut. The first
+hypothesis (that the A..F reparameterisation loses the prune to interval
+inflation) was **refuted**: 1.1–3.2× at grid-cell scale, 93 % of the prune
+survives. The real difference is structural — DICVOL's `V = A·B·C/sin β` is a
+monotone separable product, so the volume shell is a **loop bound**; ours is a
+**test**. `det G* = B·(A·C − E²/4)` is monotone in C at fixed A, B, E, so cutting
+E before C restores it. With Louër & Louër (1972) Table 1 now in hand (the
+data-derived parameter floors, transcribed into 1030 — and its non-collinearity
+footnote on d₁/d₂ is exactly what a guess would have got wrong), plus the
+redundant per-centring pass, the ranked items are worth ~6.5× on monoclinic.
+
+**On the third engine: ITO is buildable and is *not* a fix for the shift
+problem.** Visser (1969) reduces the continuously-searched dimension to **one at
+every stage in every system** — monoclinic becomes three sequential 1-D
+coincidence searches instead of a 4-D box, at ~4×10⁴ scalar operations. But the
+hoped-for zero-point immunity is refuted by its own algebra: under Q → Q + δ the
+four (m,n) branches of `R` shift by −1.00, −2.00 and −1.75 δ, so a constant
+offset **splits** the coincidence peak rather than translating it — worse than
+shifting, since the acceptance test is a count — and errors amplify 3×. It also
+carries no exhaustiveness claim, so it can never contribute to `search_complete`.
+TREOR's short-axis test is the same dimensionality reduction for a fraction of
+the work, inside the engine we already have. **Do the cost items first and
+re-measure**; if monoclinic becomes affordable, a third engine buys confidence
+rather than capability, which is a weaker argument for it.
+
+**Finally, one grading correction.** 1026's criterion 1 ("global score ≥ +9") is
+mis-set: `first_4` is an **oracle over four programs**, and no entry in Table 5
+reaches +9 — the individual globals are ITO13 −14, DICVOL91 −8, TREOR90 −4,
+McMaille +5, Crysfire 2003 +6, and Crysfire is itself a suite. Restated in the WP
+to grade against individual globals, and blocked on 1030 regardless.
+
+Also landed: ATTRIBUTION.md now records the DICVOL, TREOR, ITO, Křivý-Gruber,
+Grosse-Kunstleve, Smith 1977, Smith & Kahara and Oishi-Tomiyasu sources, which
+were previously cited only in module docstrings or not at all — both engines
+implement published algorithms and neither was in that file.
+
+---
+
+**A certified pattern indexes, and the thing that had stopped it was our own peak
+list (2026-07-30).** [1026](wp/1026-indexing-acceptance.md) is in flight and its
+first result inverts [1023](wp/1023-engine-montecarlo.md)'s diagnosis. Corundum's
+failure was recorded as too tight a matching window; the numbers 1023 measured
+stand, the attribution does not. `detect_peaks` was right all along — 41 groups,
+**one seed each**, the real lines — and `fit_group` then returned **63**
+components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its area
+with a small esd, so 19 % of what the search was offered were not lines. With
+those flagged `not_separable` **both engines rank the certified cell first**, at
+the same shift allowance, which was never touched.
+
+**The gate could not have refused them, and the reason is a limit of ΔBIC rather
+than a bad threshold in it.** ΔBIC asks whether the data prefer n+1 components to
+n. That is the same question as "is there a line here" *only while the
+n-component model is capable of fitting*. On the corundum 104 line χ²_red is 17.4
+at n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins by a mile.
+Hence the third condition of `_not_separable`: the group's own fit must still be
+refuted, at 3σ of χ²_red's *own* scatter rather than a flat bar, since groups
+differ 5× in size across one pattern. The component stays in the model (removing
+it displaces the real line by 0.010°) and is barred only from `usable()`. Three
+mechanisms were excluded by measurement first: axial asymmetry (declaring
+apertures gives 63 → 56 and takes χ²_red 2.9 → 10.7), the width bounds, the
+background envelope. General, not a corundum quirk: satellites were **4-21 %** of
+picked lines on all eight bundled real datasets, now 0-7 %.
+
+**A second latent defect fell out of the same session, and it is the sharper one:
+a precision nobody measured was refusing to index.** `assess_peak_list` abstained
+on median σ(Q)/Q without asking where σ came from, so all **ten** sets of the
+published bethanechol benchmark were refused — including the synchrotron set whose
+published M(20) is **197** — on the strength of `PEAK_ASSUMED_ESD_DEG`, a number
+this package chose. That is the module's founding rule inverted: an assumed
+precision must never be quoted as a measured one, and refusing on it is quoting
+it. The test now runs only on `source == "fitted"`; the figure is still computed
+and reported, it simply has no vote.
+
+**The benchmark itself is landed and verified, and the global score is a measured
+no-go.** Bergmann *et al.* (2004) Tables 5 and 6 are transcribed
+(`tests/data/bethanechol_indexing.json`) — **ten** sets, not the six the WP
+assumed, since A/B/C/D are treatments applied to *both* ICDD entries. Nothing is
+trusted because it was typed carefully: three statements the paper makes in prose
+and never tabulates are asserted (the zeroshift arithmetic on 80 values, the
+I ≥ 5 % subsetting bit-for-bit, and its own impurity counts recovered from the
+published cell — 3 of 20 in every 46-1964 set, 7 in 43-1748). But the score cannot
+be reported: the paper's own monoclinic domain (V 800-1200 Å³, axes 5-20 Å) never
+finishes, returning 0 candidates and `complete=False` at 240 s and at **900 s**
+on the *easiest* set, and the tolerance was excluded as the cause. Adopting a
+protocol means adopting it whole, so a score over a narrower domain is not
+comparable with Table 5. That is engine-scaling work, not acceptance work.
+
+**And the 2004 paper's own open question now has an answer, which is "you cannot
+tell".** It hypothesised the two entries' large zeroshift was a specimen
+displacement and had no way to check, every program of the day fitting one
+constant zeropoint. Asked properly with three nested single-template fits, the
+answer is `separable = False` on all ten sets at collinearity **1.0000** — over
+6-31° 2θ, cos θ ≈ 1 and sin 2θ ≈ 2θ. The *magnitude* is determined and disagrees
+with the paper: 43-1748 carries +0.062° and 46-1964 +0.058°, not the quoted 0.10°,
+so subtracting 0.100 overshoots — which is why Table 5 does not show C as
+uniformly easier than A.
+
+**The workflow now reaches the space group — as a *class*, which is what a powder
+measures (2026-07-30).** [1025](wp/1025-extinction-symbol.md) landed:
+`determine_extinction_symbol(data, candidate, instrument)` enumerates every gemmi
+setting whose **lattice** is the indexed one, groups them by identical absence sets
+over the hkl in range, fits each class by Le Bail with the profile frozen at one
+shared pre-fit, and scores them by ΔBIC against the absence-free lattice. Measured
+on fluorapatite, whose group the GSAS-II tutorial refines as P 6₃/m, the answer is
+`P 63 - -` listing {P 6₃, P 6₃/m, P 6₃22} — the truth is *inside* the answer and is
+not the answer, because those three produce identical patterns by construction. On
+NAC the answer is the absence-free I class, which is also correct and for a sharper
+reason: I 2₁3's screw axes are invisible **in principle**, since I-centring already
+extinguishes the very reflections the 2₁ would.
+
+**Its method result is that a detector's null model has to contain the competing
+hypothesis's own predictions.** The plan said to reuse WP-1024's
+`absent_reflections` against the fitted background; measured, that refutes the true
+class. FAP's forbidden 003 sits **0.89 FWHM** from an allowed neighbour ten times
+stronger, whose tail fills the ±½ FWHM window to **+27.6 σ**. Against the class's
+own `y_calc` — background plus every reflection the class still allows — the same
+window reads **−3.9 σ**. The fix keeps one detector: the same function, called with
+`y_calc` in the `y_background` slot, which reduces to WP-1024's test exactly where
+nothing is predicted nearby. WP-1024's version was right for what it did, because a
+phantom reflection sits in a gap. Two counts carry the rest of the epistemics:
+`n_added` counts only the **testable** absences (in range, and separable from every
+line the class still allows), without which a class whose absences all hide under
+neighbours wins on parsimony alone; and the absence of a *line* is asked of the
+whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
+
+Next, and there are **two** live threads because two worktrees ran in parallel:
+the GUI one continues at [1029](wp/1029-gui-usability.md) (reopened — see the
+block below, which came in with the merge), and the indexing one continues at
+[1027](wp/1027-gui-peak-picker.md), the peak-picker panel that joins them.
+[1030](wp/1030-engine-scaling-low-symmetry.md) holds everything the acceptance
+suite measured and could not fix.
+
+**A merge hazard the parallel worktrees produced, recorded because it will
+recur.** Both branches created a WP numbered **1029** — GUI usability on `main`,
+indexing engine scaling here — and neither could see the other. The GUI one
+merged first, so the indexing one was renumbered **1030** on 2026-07-31; a banner
+in that file says so, and anything written before that date saying "1029" and
+meaning *engine scaling* means 1030. A number is claimed by merging the file, not
+by writing it.
+[1026](wp/1026-indexing-acceptance.md) is **closed** — see Current focus for the
+scoreboard it closed against. Its one unmet criterion, the bethanechol global
+score, is blocked on [1030](wp/1030-engine-scaling-low-symmetry.md) and moves
+there with the WP; three failures it measured (brucite/magnetite supercell
+ranking, NAC's search-line selection, FAP's M₂₀ inversion) are 1030's, and the
+peak-list and gate defects are [1028](wp/1028-robustness-external-data.md)'s.
+
+**Indexing works end to end (2026-07-30).**
+[1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of
+`refine()`: a raw pattern goes in, peaks are picked, both engines search, their
+candidates are merged as reduced cells, ranked on the whole figure-of-merit panel,
+screened for geometrical ambiguity, validated against the **whole profile** by a Le
+Bail fit, and gated on **agreement**. Measured on a synthetic LaB₆ pattern picking
+its own peaks, `best_or_none()` returns a = 4.15659 Å against a true 4.1566 — 2 ppm
+— at `high` confidence, while the cubic F and I supercells that index *every*
+observed line and tie the truth on every forward-looking figure come back `low`,
+refuted by `predicted_but_absent`. `pxrdref index <file> --wavelength λ` does the
+same from a shell and carries the verdict in its exit status; `task="index"` is the
+agent surface's fourth branch, answering in its own arm because its answer has no
+cell in it.
+
+**The gate's ceiling is a result, not a shortfall — and on real lab data it is
+currently unreachable, deliberately.** `high` means every engine that ran found the
+same lattice and *nothing* qualifies it; two engines is the ceiling because
+[1023](wp/1023-engine-montecarlo.md) is a measured no-go. But both engines widen
+their matching window by an **assumed** systematic allowance whenever no shift has
+been measured — which is the normal state at index time — and a cell found inside a
+widened window absorbs the shift (+1400 ppm measured). That raises
+`shift_allowance_assumed`, which caps confidence on its own. So a real pattern with
+no internal standard tops out at `medium`, and the way to clear it is *evidence* — a
+calibrated `sigma_sys_deg`, or reference positions — never a bigger constant. Same
+posture as Layer 1's abstention, one rank up; 1026 owns closing it.
+
+**Two of the three engine rows' plans were contradicted by measurement, and so was
+1024's.** Its context section named Layer 0's `unmatched_calc` as the
+predicted-but-absent detector. It cannot work, structurally: Le Bail extraction
+assigns each reflection `max(y_obs − y_bkg, 0)`, so a reflection predicted where
+there is nothing gets nothing and **produces no negative residual at all** — what
+the detector finds instead is 5σ noise excursions near a tick. Measured, it fired on
+**17 of a certified cell's own 28 reflections** and 94 of a doubled cell's 153, 61 %
+either way. Asking the question directly against the *fitted* background separates
+them cleanly (0/28 against 117/153). The general form is worth carrying: **a detector
+built for a Rietveld residual does not transfer to a Le Bail one**, because Le Bail
+cannot over-predict — it fits whatever is there.
+
+**And the three detectors that do work catch different failures, which is why none
+of them is the score.** Same four cells, same pattern: Rwp is decisive on a wrong
+*metric* (0.98 against a correct 0.22) and nearly silent on an *oversized* one
+(0.379 — a gap smaller than the spread between specimens), where only
+`predicted_but_absent` sees it; the wrong metric is caught from the other side by
+`unmatched_observed` (95 observed peaks with nothing calculated). This is v0.5's
+method result in a new costume: **judge a step by what it makes visible, not by
+Δ Rwp.**
+
+**Two more WP-1020 defects surfaced, and both were invisible until a consumer needed
+a *yes*.** Every earlier WP consumed 1020 to *rank*; 1024 is the first to consume it
+to *promote*. `ambiguity.py` never implemented the exclusion its own docstring
+states, so every derivative superlattice was reported as an ambiguity partner — **28
+for a certified cubic cell** — and since the gate refuses `high` to any candidate
+with a partner, the indexer could never have answered at all. And
+`bravais_screen` handed a Niggli-reduced cell's *input* centring back to
+`find_lattice_symmetry`, but the reduction already consumed it: gemmi called a cubic
+I lattice **trigonal** (6 lattice rotations instead of 24) while spglib correctly
+said `Im-3m`, so the two "disagreed" on every centred candidate and capped half of
+all real structures at `medium` for good. The ambiguity defect had a *passing test
+asserting the wrong behaviour*, with reasoning that read only the observed positions
+and ignored the absences — `indexed_fraction`'s measured blind spot, one module
+over, written into a test.
+
+**The milestone's method result so far is that every one of the engine rows was
+decided by a measurement that contradicted its own plan.** 1021's plan had volume
+shells and a bisection from one domain; measured, shells cost eight grid passes with
+the answer's shell last, and a single depth-first stack explored 11.9 M boxes without
+once visiting the cell holding the answer — the structure that works is a complete
+breadth-first grid pass, then dichotomy inside the survivors. 1022's plan promised
+"seconds where 1021 takes minutes"; measured, dichotomy is *faster* on every system,
+and what the two engines actually buy is different **failure modes**, which is all
+the confidence gate needs. 1023's plan assumed the open question was `compile_model`
+cost; measured, tier 2 is affordable (13-15 ms/state) and *discriminating* (Rwp 1.29
+for the certified cell against 7.25 for one 1 % off) while **tier 1 is the part that
+fails**, and it fails in a way no tuning fixes: the true cell scores exactly zero.
+
+**The session's largest finding is not about any engine — it is that a fitted
+per-line σ is the wrong tolerance for real data, and it was found by accident.**
+Chasing engine C's tier-1 zero meant running the two landed engines on the bundled
+qarr corundum pattern, whose cell is certified, and **neither indexed it**. Fitted
+σ(2θ) has a median of 0.0056° there, while the pattern's lines sit a median 0.060°
+from the certified positions — a cos θ specimen displacement of −0.065°, an **11σ**
+systematic — so at 3σ the true cell indexes *no lines at all*. The per-line σ that
+WP-1018 worked so hard to measure is exactly right for *weighting* and exactly wrong
+as a *matching window*, because it knows nothing about the systematic the pattern
+carries; that is why every indexing program in the literature ships a global ~0.03°
+tolerance. Both engines now add `DEFAULT_UNKNOWN_SHIFT_DEG` (0.05°) in quadrature
+when no shift has been **measured**, report it with `INDEX_SHIFT_ALLOWANCE` (an
+assumed precision must never look like a measured one), and consume
+`SearchSpec.shift_template` through `refine_with_shift`, which corrects a *surviving*
+candidate rather than the search. **That is not yet enough** — at 0.05° trial and
+error still finds nothing and dichotomy ranks a wrong 618 Å³ cell first; at 0.08° the
+cell comes back +1400 ppm with the shift absorbed — and the gap is handed to
+[1026](wp/1026-indexing-acceptance.md) with the numbers rather than closed by raising
+a constant against one dataset.
+
+**Four earlier defects in already-landed WP-1020 code were found by building on it**
+(the two above are a fifth and sixth), each of which had been ranking a wrong cell
+above the truth: `borda_scores` gave *tied*
+candidates distinct ranks in input order (up to N−1 points of noise per tied member,
+and two of five panel members saturate at 1.0, so most candidates tie);
+`predicted_lines` counted symmetry orbits rather than lines, so cubic 333 and 511 —
+both 27A, one 2θ — were two "possible lines" (fixing it is also 380× faster, which is
+what had made ranking the bottleneck); `m20`/`f_n` used a plain mean discrepancy, so
+one tolerated-unindexed line wrecked the score of the cell the search was right to
+keep (13.2 against 62.5 for an a√5 supercell covering the impurity); and both engines
+read "index all but `n_unindexed` of `n_search_lines`" as *anywhere in the pattern*,
+which on a 75-line list kept 17 607 candidates. `match_lines` also built an
+(observed × predicted) distance matrix where a binary search is exact, and
+`dedup_candidates` re-reduced both cells on every pairwise comparison — together
+worth 221 s → 10.5 s on one monoclinic search.
+
+---
+
+
+**Next session starts at [1028](wp/1028-robustness-external-data.md)** — it
+now holds the two gaps 1026 just filed with their numbers (the
+`sigma_sys_deg` name collision and the isospectral-pair enumeration gap) on
+top of the `converged` vocabulary it already owned. The other open v1.0
+fronts, with both 1029 and the indexing chain 1018–1026 landed on
+2026-07-31: [1027](wp/1027-gui-peak-picker.md) (GUI peak picker — its
+dependencies are now all landed), [1030](wp/1030-engine-scaling-low-symmetry.md)
+(engine scaling at low symmetry), [1016](wp/1016-sequential-series-panel.md)
+(series panel), [1017](wp/1017-gui-manual-onboarding.md) (manual; its GUI
+prerequisites 1011–1015 + 1029 are all landed), and
 [1003](wp/1003-api-freeze-pypi.md) last (its `### Inherited` has been growing
-freeze questions — the `ui`-patch 409, `RefinementResult` field typing).
+freeze questions — the `ui`-patch 409, `RefinementResult` field typing,
+`SearchSpec` waiting on 1030).
 
 *Method notes carried forward, each having cost a wrong claim:* playwright's
 viewport option is `newContext({ viewport })`, **not** `viewportSize` (silently
@@ -1515,7 +1988,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027, 1029 |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1030 |
 
 ### v1.0 — indexing (added 2026-07-29)
 
@@ -1529,20 +2002,158 @@ declared long ago — `report/layer2.py` has emitted the
 Order: peaks and quality first (1018–1019, useful on their own), then the
 shared core (1020), then the three engines (1021–1023, independent of each
 other), then consensus (1024), space groups (1025), acceptance (1026), GUI
-(1027).
+(1027). [1030](wp/1030-engine-scaling-low-symmetry.md) was added 2026-07-30 and
+sits between 1026 and its own grade: the benchmark cannot be scored until a
+monoclinic search finishes.
 
-**[1018](wp/1018-peak-picking.md) is the first row and is on `main` in a
-partial state — code complete, tests outstanding.** `pxrdref.pick_peaks` works
-and the fast suite is green (1158 passed / 4 skipped), but
-`tests/test_peak_picking.py` does not exist, and the missing piece is the one
-that matters: **the σ pull calibration is the gate the whole downstream
-tolerance model rests on**, so until it runs, the per-line σ this WP exists to
-produce is of unvalidated scale. 1019 and 1020 both consume that σ; their
-`### Inherited` sections say not to tune a tolerance model against it yet. The
-new glyph 🔄 means exactly this — landed but not finished — and 1018 is the only
-row that has ever carried it.
+**[1018](wp/1018-peak-picking.md) closed 2026-07-30**, and the row that had
+carried the 🔄 glyph ("landed but not finished") is the only one that ever has.
+What closed it is the **σ pull calibration** — the gate the whole downstream
+tolerance model rests on, because every indexing tolerance is a multiple of the
+σ(2θ) `pick_peaks` reports, and Rwp, χ² and eyeball overlays cannot see a σ that
+is uniformly 40 % too small. Measured over ~1300 fitted lines per configuration,
+from 100 fixed-seed Poisson realisations of a forward-model LaB₆ pattern:
+`(2θ_fit − 2θ_true)/σ_fit` has **mean +0.032 / std 0.971** on a synchrotron
+single line and **−0.083 / 0.980** on a lab Cu Kα doublet, against `|mean| <
+0.15` and `std ∈ [0.85, 1.20]` written before the measurement. So the reported σ
+is the right scale, and 1019/1020 may now tune against it.
 
-Its per-WP value is already banked, though, and it is the v0.5 method result in
+The gate found **two more defects** — six in total for this WP, and *not one of
+the six was visible by reading the code*. Both new ones are doublet physics. A
+marginally resolved Kα2 has **no maximum**, so the alias filter cannot see it,
+but it does have a curvature shoulder: it cleared the 5σ seeder, sat outside the
+half-FWHM grouping gap, formed a **singleton group**, and came back as a line
+with an esd — and the ΔBIC prune cannot refuse it, because a singleton is judged
+against "no peak at all" and there genuinely is intensity there. That was one
+spurious line per pattern and a **−21 mean σ pull** on the LaB₆ 110 reflection.
+And the doublet amplitude ratio is not `weight`: each line diffracts at its own
+Bragg angle, so it carries its own **Lorentz-polarisation** factor, and holding
+the bare weight dragged the fitted Kα1 position down by 2e-4° (mean pull −0.26 →
+−0.19).
+
+Two results outlast the WP. **Sizing rule: 200 groups is enough for a `std` bar
+and not for a `mean` bar** — at pull std 1 the standard error of the mean over
+200 groups is 0.07, half the 0.15 bar, and a 200-group subsample of this very
+ensemble read −0.15 where the converged value is −0.08; the test now asserts
+`3·SE < bar` before asserting the bar, so an undersized ensemble fails loudly
+instead of passing by luck. And **the remaining −0.08σ doublet bias is a
+measurement, not a to-do**: 2e-5°, a fortieth of a channel, with four candidate
+mechanisms excluded by substitution (exact background, isolated reflection,
+per-line widths, model-σ weights) and the estimator shown unbiased to ±0.02 in
+isolation — so what is left is in the detection-seeded window, two orders below
+the systematic-error scale 1019 exists to model.
+
+**[1019](wp/1019-indexing-data-quality.md) closed the same day**, and its
+deliverable is a *gate*: `assess_peak_list` judges a peak list fit to index or
+**abstains with a reason**, and `fit_shift_model` attributes a systematic 2θ shift
+to a zero-point error, a displaced specimen or a transparent one — or declines to,
+which is the half that matters, since every program the 2004 benchmark paper
+surveys fits one constant "zeropoint" instead.
+
+Its founding question was one the plan had not resolved: **what is knowable from a
+peak list alone.** Everything except the shift is a property of the list. The
+shift is not — with no cell there is nothing to deviate from — so the screen is
+*conditional* on reference positions, and with none the report says
+`shift.source == "unavailable"` rather than reporting a zero shift it never
+measured. What *is* computable with no data at all is the separability geometry of
+the three templates over the angles sampled: a statement about the experiment
+rather than the specimen, readable before a specimen is loaded.
+
+Four measurements, and two of them overturned something:
+
+- **"The cell stands when the cause is ambiguous" is true only with the word
+  *competitive* in it.** Over 10-25° 2θ with a 0.10° cos θ displacement, all three
+  templates' predicted corrections differ by 0.046° — nearly half the shift, a
+  0.2 % cell error if the wrong one is applied. But the template that disagrees is
+  the one the data *rejects*, and over the two that fit comparably the spread is
+  0.0011°. The plan's conclusion survives; its reasoning is narrowed, and
+  `prediction_spread_deg` now reports the number instead of a docstring asserting
+  the claim.
+- **A measured no-go: dominant zone and dominant row are not detectable from a
+  census.** Neither is a summary statistic — a dominant zone is the statement that
+  the low-angle lines satisfy a *two-dimensional* quadratic form, a dominant row an
+  arithmetic progression k²B among the low Q values. Each is a search. The obvious
+  census (Ito's most-repeated Q difference) was written, measured and removed: it
+  scores dominant-zone cells at +0.9σ and +0.8σ against a permutation null while
+  scoring a *general* monoclinic cell at +3.3σ, and against a uniform null a
+  **cubic** list scores +15.6σ — it detects commensurability, not zones. A test
+  asserts the diagnostic code's absence so it cannot creep back, and the engines
+  (1021/1022) have been told they own the detection.
+- **Smith's volume envelope needed two scalings, and the second was found by the
+  envelope excluding the right answer**: with the Laue orbit factor alone,
+  corundum's bound came out at 125 Å³ against a true 255 Å³, because R-centring
+  extinguishes two thirds of hkl. Centring is part of the answer (1025's extinction
+  symbol), so the default is the worst case each system allows — the one failure a
+  search bound may not have is excluding the true cell — and the envelope is
+  reported per system, since they span 96×.
+- **`constant` and `cos θ` stay 0.96 collinear even over 10-140°**, so
+  separability is decided on the residual-SS ratio against real data and never on
+  the geometry alone.
+
+One item was left open for the user rather than a session: the per-system envelope
+scaling is *derived* here, not published, and a clean copy of Smith (1977) would
+let the derived factors be checked against the paper's — the WP-0501 b₂
+transposition being the precedent for why that check is worth asking for.
+
+**Closed 2026-07-30, and the answer was that the question had a false premise.**
+The paper arrived and is **triclinic-only**: it publishes *no* per-system factors,
+so there is nothing to check the derived scalings against, and its own closing
+paragraph names systematic absences as the obstacle to extending the method to
+monoclinic and orthorhombic and leaves it unsolved. Our two constants (0.60,
+0.0052) are exactly the paper's and reproduce its printed 13.39/17.24/21.32. What
+the check *did* find is a defect nobody was looking for — the relation is a
+least-squares **mean line** (−29 % to +32 % about a 10.6 % average), not the
+upper envelope this package calls it, and used as a hard search ceiling it
+excludes the true cell below a detection fraction of 0.713, which is that same
+−29 %. See "Current focus" and [1030](wp/1030-engine-scaling-low-symmetry.md).
+The precedent held, in other words, but not in the direction it was invoked for:
+asking for the paper was right, and the thing it caught was a status claim rather
+than a transposed coefficient.
+
+**[1020](wp/1020-indexing-core.md) closed the same day** — five modules, 40
+tests, an eleventh manual chapter, and **no engine**: the Q-space quadratic form
+and its symmetry-allowed subspaces, weighted candidate refinement with an optional
+shift column, Niggli/Delaunay reduction with two-opinion Bravais determination over
+a tolerance sweep, the figure-of-merit **panel** scored in both directions, and
+HNF derivative-lattice ambiguity with the reflections that would break each tie.
+1021-1023 now have everything they share.  Full suite after all three WPs: 1251
+passed / 70 skipped / 0 failed, including the `slow` real-data acceptance.
+
+**Its lesson is about tests, not about crystallography: three of its four defects
+passed the test that should have caught them.**
+
+- The metric subspace was derived from the **transposed** rotations, and the
+  dimension test passed. CLAUDE.md's "reciprocal-space action is Rᵀ" is about
+  *hkl*; a tensor contracting with h twice is invariant under U → R·U·Rᵀ, and G\*
+  is one. The transposed call returns the *direct* metric's invariants — the same
+  dimension in every system, because the transposed set is a group too, so the
+  WP's own acceptance criterion (1/2/2/2/3/4/6) was satisfied by the wrong
+  subspace, with F = −A for hexagonal where the reciprocal metric has F = +A. What
+  catches it is asserting the **true** metric lies in the span.
+- A Gauss-Newton sign error that is locally correct: flipping only the θ block
+  still solves for θ, and leaves the shift column with the wrong relative sign —
+  s = −11.65 for an injected +0.05°.
+- **M₂₀ was not invariant under a unimodular setting change, by 5 %**, because
+  N_poss counts predictions up to the N-th observed line and that line *is* a
+  prediction, so a strict comparison depends on fp rounding (N_poss 20 vs 19,
+  M₂₀ 76.43 vs 80.45).
+- And a perfect cell scored **M₂₀ = 0**: the figure divides by ⟨ΔQ⟩, which → 0 when
+  a candidate fits within fp noise, so the obvious zero-guard ranked the right
+  answer last. The mean is now floored at the median σ — a meaning rather than an
+  epsilon, since a discrepancy below the measurement precision is not knowable, and
+  per-line σ is what this package has and 1968 did not.
+
+Two things it declined to do. **Four published figures of merit are not
+implemented** — the Oishi-Tomiyasu reversed/symmetric de Wolff pair, WRIP20 and
+McM₂₀ — because their formulas cannot be written from memory with correct
+attribution, and guessing one while citing its paper is the WP-0501 b₂ failure in a
+new costume; the panel's *argument* (coverage in both directions) is fully
+implemented, which is what the measured §D result demands. And **1020 emits no
+diagnostics at all**, deliberately: it has no answer to qualify, so
+`INDEX_BRAVAIS_AMBIGUOUS` belongs to 1024 where a `CellCandidate` exists to carry
+it.
+
+1018's earlier value was already banked, and it is the v0.5 method result in
 a new costume: **four defects, none of them visible by reading the code.** A
 resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
 group is fitted independently *with its own full doublet*, so the Kα2 maximum
@@ -1572,16 +2183,17 @@ per concurrent session, or only one session commits.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | 🔄 code 2026-07-30, **tests outstanding** | — |
-| [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ⬜ | 1018 |
-| [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ⬜ | 1018 (1019 soft) |
-| [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ⬜ | 1020 |
-| [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ⬜ | 1020 |
-| [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | ⬜ | 1020 |
-| [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ⬜ | 1021–1023 |
-| [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ⬜ | 1024 |
-| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ⬜ | 1024 (1025 soft) |
+| [1018](wp/1018-peak-picking.md) | Peak picking: detection + full per-peak profile fitting | ✅ 2026-07-30 | — |
+| [1019](wp/1019-indexing-data-quality.md) | Data-quality gate and the systematic-error model | ✅ 2026-07-30 | 1018 |
+| [1020](wp/1020-indexing-core.md) | Indexing core: Q-space, reduction, Bravais, FoM panel, ambiguity | ✅ 2026-07-30 | 1018 (1019 soft) |
+| [1021](wp/1021-engine-dichotomy.md) | Engine A — successive dichotomy | ✅ 2026-07-30 | — |
+| [1022](wp/1022-engine-trial-error.md) | Engine B — index-heuristic trial and error | ✅ 2026-07-30 | — |
+| [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
+| [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
+| [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
+| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
+| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

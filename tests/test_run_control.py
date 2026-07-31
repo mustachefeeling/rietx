@@ -9,7 +9,11 @@ from __future__ import annotations
 import pytest
 
 import pxrdref as pr
-from pxrdref.history.events import EVENT_SCHEMA_VERSION, read_events
+from pxrdref.history.events import (
+    EVENT_SCHEMA_VERSION,
+    EventKind,
+    read_events,
+)
 from pxrdref.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -79,13 +83,38 @@ def test_progress_fields_are_additive_not_a_version_bump(ref, pattern):
     A reader that knows only the pre-WP-1006 fields must still parse every
     line — which is what makes an added field compatible and a bumped version
     unnecessary.
+
+    The version is asserted against the live constant rather than a literal.  It
+    pinned ``"1"`` until WP-1024, which is what a *correct* bump looks like from
+    this test's side: the constant moved because ``index_start``/``index_end`` are
+    new **kinds** (see :func:`test_a_new_kind_is_what_the_version_is_for`), and
+    this test's own subject — added fields on ``stage_start`` — never moved it.
+    A literal here would fail on every legitimate bump and so would train the
+    next session to edit the assertion rather than to ask which rule applied.
     """
     seen: list[dict] = []
     ref.run_stage(pattern, PLAN.stages[0], events=seen.append)
-    assert all(e["v"] == "1" for e in seen)
+    assert all(e["v"] == EVENT_SCHEMA_VERSION for e in seen)
     old_reader_keys = {"stage", "turn_on", "freed", "n_free", "n_points"}
     start = collect(seen)["stage_start"][0]
     assert old_reader_keys <= set(start)  # nothing it knew about was removed
+
+
+def test_a_new_kind_is_what_the_version_is_for():
+    """The other side of the same rule: the kind set and the version move together.
+
+    ``EventKind`` is a closed Literal, and WP-1006 deliberately did *not* add an
+    ``"index"`` kind in advance — a kind nothing emits is an untested guess about
+    a loop that does not exist.  WP-1024 built the loop (``index_pattern``) and
+    added the pair, so the constant is ``"2"``.  Pinning both here means a future
+    session cannot add a kind without deciding about the version, which is the
+    failure the note in ``history/events.py`` was written against.
+    """
+    from typing import get_args
+
+    kinds = set(get_args(EventKind))
+    assert {"index_start", "index_end"} <= kinds
+    assert EVENT_SCHEMA_VERSION == "2"
 
 
 def test_readers_validate_the_envelope_not_the_payload(tmp_path):
