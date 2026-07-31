@@ -16,7 +16,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (261: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (276: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -49,14 +49,18 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
+Measured 2026-07-31 (WP-1027 session), darwin/arm64 M4, numpy-only `[dev]`
+worktree venv:
 
-- full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
-  path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
-- fast suite: numpy-only `[dev]` fast is 1567 passed / 108 skipped in
-  23–29 s (idle machine; includes WP-1031's +10), full 1268 passed / 117
-  skipped (6:52, before the +10).
-- frontend (vitest): 261.
+- fast suite: **1575 passed / 108 skipped**, 55–79 s over two runs (loaded
+  machine) — moved by exactly WP-1027's +8 (6 `test_gui_peaks` + 2 textdoc
+  peaks-block tests) from the 1567/108 baseline; no new skips.
+- full suite: **1661 passed / 117 skipped**, 14:19 (one run, loaded
+  machine); passed+skipped 1778 = the fast selection's 1683 + 95
+  slow-marked. The `[dev,jax,torch]` figures (1772 collected pre-1027,
+  8:09–15:33 over three runs) were **not** re-measured this session — that
+  venv is the main checkout's; expect +8 collected there too.
+- frontend (vitest): **276** (was 261: +11 `lib/peaks` + 4 peaks-tab mount).
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
   numbers.

@@ -1,6 +1,6 @@
 # WP-1027 — GUI peak picker and indexing panel
 
-Milestone: v1.0 · Status: 🔄 2026-07-31
+Milestone: v1.0 · Status: 🔄 2026-07-31 — checklist all landed and green; open: a real-browser pass over the pointer layer, and the extinction-screen decision
 Depends on: 1010, 1011, 1018-1024 (1009 touched)
 
 ## Goal
@@ -215,5 +215,50 @@ server with the console echo matching the API call that would reproduce it; the
   precedent this follows.
 
 ## Handover log
+
+- **2026-07-31** — the whole checklist landed in one session; 🔄 only for what
+  a browser must confirm. **Done** (six commits): the indexing-side seams
+  (`fit_group_at`, `group_profile`, `pick_peaks_with_state`, `peaks_of_group`,
+  `flag_ghosts(only=)`, and `ObservedPeak.origin` — added *here*, the old
+  WP-1018 attribution was stale); `gui/peaks.py` (peaks.json keyed by
+  `data_fingerprint` and refused against the wrong pattern; every edit refits
+  exactly one group through the picker's own solver and flag translation;
+  human-owned facts — `origin`, `excluded` — carry across refits; ghost
+  recompute scoped to the spliced components); the ten routes live
+  (`RESERVED_ROUTES` now empty) with `/api/index` as a third `kind` on the one
+  run machine (`_work` takes a per-kind `summarize`; a cancelled search
+  *returns*, so its status reads the token); `index_adopt` re-asks
+  `best_or_none()` server-side (`ADOPT_GATED`), lands one `edit_model` node,
+  and flips the mode to lebail; the `.pxt` peaks block (2theta/flags editable,
+  count/esd/fwhm/I refused as derived, omitted row = no opinion, flags
+  vocabulary quoted from `PeakFlag` and pinned into `pxt.ts` as the parity
+  test's fifth list); the frontend (Peaks tab, plot peak layer with σ error
+  bars / hollow-unusable / diamond-manual markers, group profiles and
+  per-group residual strips, raw-pattern drawing when no result exists, the
+  four pointer gestures gated on the tab being active, candidate table with
+  served-constant chip colouring and the server-driven Adopt).
+  **Measured**: fast suite 1575 passed / 108 skipped (numpy-only `[dev]`
+  worktree venv; +8 = 6 `test_gui_peaks` + 2 textdoc peaks tests over the
+  1567/108 baseline); vitest 276 (was 261); svelte-check 0/0; ruff clean;
+  dist rebuilt (app.js 192 kB, under vendor-cm's 328 kB split).
+  **Next**: (1) drive the four pointer gestures in a real Chrome
+  (playwright-core is cached per the memory note; jsdom cannot see the
+  pixel→2θ mapping, the capture-phase marker drag, or an oversized canvas —
+  the exact class every previous plot feature shipped a bug in) on a dataset
+  that indexes end-to-end (qarr corundum), screenshots compared not hashed;
+  (2) decide the extinction-screen table (WP-1025 context in this file):
+  `adopt` takes `space_group=` but nothing serves
+  `determine_extinction_symbol` yet — a `/api/index/extinction` route + a
+  table in the adopt flow, or an explicit deferral note here; (3) the
+  index-from-nothing wizard branch stays recorded as follow-on in Context.
+  **Gotchas**: the session caches one `PeakEditor` keyed on
+  (instrument dump, limits, exclusions) — the first peaks GET after a reopen
+  pays one `detect_peaks`; a move beyond its group's window is remove+add and
+  `excluded` does not survive the crossing (documented on the verb); textdoc
+  peak applies re-locate each peak *by position* between edits because a
+  refit re-sorts the list; `GET /api/peaks` is deliberately not idle-gated
+  but every mutating peak verb is; on the clean synthetic pattern
+  `refit_group(n_components=N)` can refuse with "the residual proposes no
+  position" — that is designed, not a bug.
 
 - **2026-07-29** — created from the indexing plan.

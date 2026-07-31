@@ -11,6 +11,19 @@ WP-1018…WP-1030 (indexing)
 
 ### Inherited
 
+**From WP-1027 (peak picker + indexing panel, 2026-07-31) — new public surface
+for the freeze to cover.** `ObservedPeak` gained `origin`
+(`"fitted"|"manual"|"edited"`, default `"fitted"` — provenance a reader weighs,
+no gate branches on it); `indexing.pick` now exports `pick_peaks_with_state`,
+`peaks_of_group` and `flag_ghosts(only=)`; `indexing.peakfit` exports
+`fit_group_at` and `group_profile`. The GUI wire surface grew the whole
+peak/index route family and `RESERVED_ROUTES` is now empty. One versioning
+question is deliberately left to you: `peaks.json` (the `.pxrd/` container's
+peak-list artifact, `gui/peaks.py`) carries its own internal
+`format_version "1"` and is *not* one of the five contracts `capabilities()`
+quotes — decide at freeze time whether it becomes the sixth or stays a GUI
+internal.
+
 **From the 2026-07-30 assessment session — your dependency list grew by one, and
 one frozen constant is on a decision.** [1030](1030-engine-scaling-low-symmetry.md)
 was added to the indexing group (engine cost at low symmetry, plus the two

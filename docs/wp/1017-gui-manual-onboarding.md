@@ -39,6 +39,21 @@ real UI.
 
 ### Inherited
 
+From **WP-1027** (peak picker + indexing panel, 2026-07-31): **the GUI grew its
+indexing surface, and it is gesture-driven — the manual must name the
+gestures.** The Peaks tab plus four plot interactions (click empty = add a
+peak, drag a marker = move, shift-click = exclude/overrule, right-click = refit
+the group), each with a non-pointer route that the docs should surface for
+accessibility: a typed add-at-2θ box in the panel, and the `.pxt` peaks block
+whose only editable columns are `2theta` and `flags` (everything else derived
+and refused). Three reading rules worth a paragraph each: `not_separable` lines
+render distinct rather than hidden (the fitter's own explanation of a strong
+peak's shape) and the use-for-indexing checkbox is the overrule; a pasted
+position list is badged "σ assumed" and its σ(Q)/Q is not a property of the
+data; and the candidate table is abstention-first — `best_or_none()` is a badge
+on a ranked list, never a headline, with Adopt driven by the server's per-row
+verdict and adoption landing as a Le Bail scaffold that flips the mode.
+
 From **WP-1029** (GUI usability, landed 2026-07-30): **the controls this chapter
 was going to document have changed, which is why 1029 landed first.** Read the
 list below *before* the WP-1015 note underneath it — several of that note's
