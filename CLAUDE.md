@@ -567,6 +567,17 @@ constants in `indexing/`:
   cost is 0.0 s), and **a candidate cell is a lattice, not a tuple**: the
   bethanechol truth returns as its `c + a` setting at β = 139.7°, so compare
   with `reduce.same_lattice`, never with sorted axes.
+- **Removing a redundant search must not remove its prunes, and only real data
+  will tell you that you did.** The centred passes are redundant *as searches*
+  (a centred trial set is a subset of the primitive one) but not as *filters*:
+  the first shared pass accepted every leaf under every centring and put a
+  pseudo-cubic trigonal R description of the certified LaB6 lattice above the
+  cubic truth, because a lower-symmetry description indexes the off-lattice
+  tail components. The prunes are monotone under bisection, so replaying one at
+  the leaf is equivalent to the whole pass. **115 fast indexing tests were green
+  across every commit carrying that defect** — run
+  `tests/test_acceptance_indexing.py` before closing anything that touches an
+  engine.
 
 - Read a `predicted_but_absent` firing as "this cell predicts lines the
   pattern lacks", **never** "this cell is too big": it counts against the

@@ -349,6 +349,8 @@ are **still open** and have been pushed on to the WPs that own them
 - [x] Drop the redundant per-centring grid pass; the subset property is
       `test_every_centring_is_a_subset_of_the_primitive_trial_set`, asserted as
       set equality against the direct enumeration rather than as a count.
+      **The obvious version of this is wrong, and only the real-data suite
+      caught it** — see the note below.
 - [x] ~~Louër & Louër Table 1 parameter floors~~ — **declined, twice over, and
       both halves are tests.** *Unsound where it is needed*: the paper prints
       no monoclinic or triclinic column because those forms are not diagonal,
@@ -394,6 +396,37 @@ are **still open** and have been pushed on to the WPs that own them
 - [x] `docs/manual/engines.md`, registered in the toctree, with the
       DICVOL/TREOR/ITO citations moved into `references.bib` and cited there.
       Builds `-W` clean.
+
+### The one defect this WP introduced, and what found it
+
+**Dropping the centred *pass* also dropped the centred *pruning*, and the
+fast suite was green through all of it.** The first version of the shared grid
+pass tried every leaf under every admissible centring. That is one prune short:
+a leaf the *union* set reached has not shown that the *centred* trial set can
+reach these lines, which is precisely what the separate pass used to establish.
+
+It surfaced as two SRM 660c rows failing with a **trigonal R cell ranked above
+the certified cubic LaB6 lattice**. The cell is 4.1563·√2 by 4.1563·√3 — the
+rhombohedral description of that very lattice, 570 ppm off — and it wins
+`indexed_fraction` 0.967 to 0.933 because a lower-symmetry description mops up
+the off-lattice tail components this pattern is documented as carrying. gemmi
+calls it cubic and spglib trigonal, so it arrives with `bravais_ambiguous` and
+`best_or_none()` was `None` either way: what was lost was the *ranking*, which
+is exactly what those rows assert and what no gate would have caught.
+
+The fix replays that one prune at the leaf, and **one box is enough** — every
+prune in `_test_box` is monotone under bisection, so a box that survives
+implies every ancestor survived, and leaf survival is exactly "the centred
+search would have reached here". It costs nothing measurable (both bethanechol
+domains unchanged at 234 227 and 639 134 boxes).
+
+Two things to carry forward. **The obvious suspect was wrong**: with the panel
+cut back to its five pre-1030 members the ranking is *identical*, so the new
+figures were not the cause — they favour the truth (`m_rev` 105.5 against
+92.9). An A/B through the real pipeline settled in two minutes what reading the
+diff had not. And **`git bisect` over the session's own commits** is what
+localised it to the shared-pass commit; the fast suite (115 indexing tests) was
+green at every one of them.
 
 ## Acceptance
 
@@ -506,6 +539,14 @@ fixture does not.
   members were briefly blamed for a 23 → 46 s regression that was entirely a
   background job, and timing `rank_candidates` directly put its true cost at
   0.0 s of a 40 s search.
+
+  **And the third, which is this WP's own contribution to the file's running
+  theme**: every prune added here is sound, and the one that went wrong went
+  wrong by being *removed* somewhere it was not noticed — see "The one defect
+  this WP introduced" above. `tests/test_acceptance_indexing.py` earned its
+  runtime: 115 fast indexing tests were green across every commit that carried
+  the defect, and a real certified pattern was what said otherwise. Run it
+  before closing anything that touches an engine.
 
   **Not done, and pushed rather than dropped.** The three ranking failures
   1026 handed over need *its* real-data rows to verify (brucite, magnetite,
