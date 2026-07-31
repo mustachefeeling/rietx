@@ -487,6 +487,15 @@ From **WP-1029** (GUI usability, landed 2026-07-30):
   as-replayed curves can differ marginally, which is fine for a diagnostic and
   not fine if a plot silently swaps one for the other).
 
+- **The weighted residual is now defined twice**, and the freeze is the natural
+  place to say which one is normative. `viz/plots.py` (strategy branch) and
+  `gui/session.py`'s `/api/result/window` (GUI branch) both landed on `main` on
+  2026-07-30 and both compute `(y_obs − y_calc)/σ` with a `weighted` flag. They
+  agree; nothing pins them. They differ in the no-σ fallback — viz uses Poisson
+  `√max(y,1)`, the route reports `weighted: false` and returns raw Δ — so a PNG
+  and the GUI can already draw different residuals for a project with no esd
+  column. Tracked as WP-1029 item (s).
+
 - **`ProjectDoc.ui` gained four keys** (`theme`, `side_width`, `model_columns`,
   on top of `simple`/`console_height`). It is an open dict on purpose; if the
   freeze wants to say anything about it, the sentence is that the *frontend*

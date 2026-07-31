@@ -326,6 +326,27 @@ independently, or the two will disagree.
       draw effect's dependencies, so `getComputedStyle` colours sampled at draw
       time go stale and the text ends up light grey on white. While there, take
       `Plot.svelte`'s five fixed hex curve colours onto the custom properties.
+- [ ] **(s) Two authorities on the weighted residual.** `viz/plots.py` (from the
+      strategy branch) and `gui/session.py` (from this one) each define it, and
+      both landed on `main` on 2026-07-30 within hours of each other. **They
+      agree today** — both are `(y_obs − y_calc)/σ` with a `weighted` flag — and
+      nothing holds them together, which is exactly the "second authority on the
+      same picture" CLAUDE.md's conventions forbid. One known difference: the
+      viz path falls back to Poisson `√max(y,1)` when `result.sigma` is empty,
+      while `result_window` reports `weighted: False` and returns raw Δ. Unify,
+      or pin by a test that the two produce the same curve for the same result.
+      *This WP's own charter told it to check `viz/` first and it did not.*
+- [ ] **(t) One unidentified test flake, seen once and never reproduced.**
+      Fast suite (`-n auto --dist loadgroup`) reported `1 failed, 1198 passed,
+      108 skipped in 45.08s` on 2026-07-30; the immediate re-run gave `1199
+      passed, 108 skipped` — the same 1199 non-skipped tests, so one of them is
+      order- or timing-dependent. **The identity is lost**: the run was piped
+      through a `grep` that kept only the summary line and discarded the
+      `FAILED` line. Five consecutive runs of `tests/test_gui_server.py` (the
+      threaded suite, the obvious suspect) are clean, the full suite is green at
+      1268/117, and Linux CI is green — so it is unreproduced, **not
+      explained**. If it recurs, capture the whole output before filtering.
+
 - [ ] **(r) `RefinementResult` curves.** Nothing is persisted already; the cost
       is 9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB. Decide
       between the cheap win (array-backed fields) and the fuller one (`y_calc`
