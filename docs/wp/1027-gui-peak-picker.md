@@ -177,10 +177,10 @@ not this WP's checklist.
 
 ## Tasks
 
-- [ ] `GuiSession` verbs above, each with its console-pane API echo.
-- [ ] Fill in the WP-1008 routes; `/api/index` on the run state machine with
+- [x] `GuiSession` verbs above, each with its console-pane API echo.
+- [x] Fill in the WP-1008 routes; `/api/index` on the run state machine with
       SSE progress and cancel.
-- [ ] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
+- [x] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
       `adopt_candidate` through `Refinement.edit`.
 - [ ] Frontend: peak layer (markers, σ error bars, fitted group profile,
       residual strip), the four interactions, the diagnostics strip.

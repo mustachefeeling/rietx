@@ -200,6 +200,18 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/textdoc"): lambda s, q, b: s.textdoc(),
     ("PUT", "/api/textdoc"): lambda s, q, b: s.textdoc_put(b),
 
+    ("GET", "/api/peaks"): lambda s, q, b: s.peaks(),
+    ("POST", "/api/peaks"): lambda s, q, b: s.peaks_pick(b),
+    ("POST", "/api/peaks/add"): lambda s, q, b: s.peaks_add(b),
+    ("POST", "/api/peaks/remove"): lambda s, q, b: s.peaks_remove(b),
+    ("POST", "/api/peaks/move"): lambda s, q, b: s.peaks_move(b),
+    ("POST", "/api/peaks/flag"): lambda s, q, b: s.peaks_flag(b),
+    ("POST", "/api/peaks/refit"): lambda s, q, b: s.peaks_refit(b),
+    # /api/index rides the one run state machine: same worker, same 409
+    ("POST", "/api/index"): lambda s, q, b: s.run({**b, "kind": "index"}),
+    ("GET", "/api/index/result"): lambda s, q, b: s.index_result(),
+    ("POST", "/api/index/adopt"): lambda s, q, b: s.index_adopt(b),
+
     ("GET", "/api/history"): lambda s, q, b: s.history(),
     ("GET", "/api/history/diff"): _diff,
     ("GET", "/api/history/compare"): _compare,

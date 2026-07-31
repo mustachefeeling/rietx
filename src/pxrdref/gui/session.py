@@ -95,19 +95,9 @@ _MAX_RECENT = 12
 #: work package.  Declared rather than omitted so the frontend scaffold can be
 #: written against the final path set, and answered with the WP that will fill
 #: them in — a 404 saying "not yet, here is who" is a design document a client
-#: can read at runtime.
-RESERVED_ROUTES: dict[tuple[str, str], str] = {
-    ("GET", "/api/peaks"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks/add"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks/remove"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks/move"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks/flag"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/peaks/refit"): "WP-1027 (GUI peak picker)",
-    ("POST", "/api/index"): "WP-1024/1027 (indexing consensus, GUI panel)",
-    ("GET", "/api/index/result"): "WP-1024/1027 (indexing consensus, GUI panel)",
-    ("POST", "/api/index/adopt"): "WP-1024/1027 (indexing consensus, GUI panel)",
-}
+#: can read at runtime.  Empty since WP-1027 filled in the peak/index family;
+#: the mechanism stays for the next reserved surface.
+RESERVED_ROUTES: dict[tuple[str, str], str] = {}
 
 _EXPORT_DEFAULTS = {
     "cif": "refinement.cif",
@@ -179,6 +169,13 @@ class GuiSession:
         self._seq = 0
         self._n_eval = 0
         self._run: dict = _idle_run()
+        #: the last completed indexing run's answer.  Session-scoped like
+        #: ``refinement.result_``: peaks.json is the durable artifact, an
+        #: IndexingResult is a computation over it.
+        self._index_result = None
+        #: ``(cache key, PeakEditor)`` — the editor holds the lazily built
+        #: Detection; the key is everything a detection depends on
+        self._peak_ed: tuple[tuple, Any] | None = None
         if project is not None:
             self._remember(project.path)
 
@@ -697,20 +694,31 @@ class GuiSession:
     # run control
     # ------------------------------------------------------------------
     def run(self, body: dict) -> dict:
-        """Start a fit (``kind="fit"``) or one stage (``kind="stage"``).
+        """Start a fit (``kind="fit"``), one stage (``"stage"``) or an
+        indexing run (``"index"``).
 
         Returns immediately with the run state; everything else about the run
-        arrives as events.  The call goes through ``Project.fit`` /
+        arrives as events.  The refinement kinds go through ``Project.fit`` /
         ``Project.run_stage`` rather than ``Refinement.fit`` so the document's
         mode and limits are the ones that apply — the project is the authority
         on the settings, and re-deriving them here would be the second copy
         WP-1005 exists to prevent.
+
+        ``"index"`` (WP-1027) runs :func:`pxrdref.index_pattern` on the stored
+        peak list (or lets it pick its own when none is stored) through the
+        same machinery: one worker, the same 409 for every mutating verb, the
+        engine's own ``index_start``/``stage_start``/``stage_end``/``index_end``
+        events on the same stream.  What differs is only how the run record is
+        summarised — an ``IndexingResult`` has no Rwp and commits no node, and a
+        *cancelled* search returns what it has rather than raising, so its
+        status is read off the token.
         """
         p = self._need_project()
         kind = body.get("kind", "fit")
-        if kind not in ("fit", "stage"):
-            raise GuiError(f"unknown run kind {kind!r}; expected 'fit' or 'stage'",
-                           where=["kind"])
+        if kind not in ("fit", "stage", "index"):
+            raise GuiError(f"unknown run kind {kind!r}; expected 'fit', "
+                           "'stage' or 'index'", where=["kind"])
+        summarize = _summarize_refinement
         if kind == "stage":
             stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")
             stage = stage_spec.to_stage()
@@ -720,6 +728,28 @@ class GuiSession:
 
             label = stage_spec.name
             n_stages = 1
+        elif kind == "index":
+            from ..indexing.engines import engine_names
+
+            peak_doc = self._load_peaks(p)  # a wrong-pattern list refuses here
+            peak_list = None if peak_doc is None else peak_doc.peaks
+            limits = (tuple(p.doc.two_theta_limits)
+                      if p.doc.two_theta_limits else None)
+
+            def call(stream, token):
+                from ..indexing.workflow import index_pattern
+
+                result = index_pattern(
+                    peak_list, data=p.data,
+                    instrument=p.refinement.instrument,
+                    two_theta_limits=limits, events=stream, cancel=token)
+                with self._cond:
+                    self._index_result = result
+                return result
+
+            summarize = _summarize_index
+            label = "index"
+            n_stages = len(engine_names())
         else:
             plan = self._effective_plan(body.get("plan"))
 
@@ -745,8 +775,8 @@ class GuiSession:
                          "elapsed": None, "rwp": None, "gof": None,
                          "node_id": None, "completed_stages": [], "error": None}
             self._worker = threading.Thread(
-                target=self._work, args=(call, stream), name="pxrdref-gui-run",
-                daemon=True)
+                target=self._work, args=(call, stream, summarize),
+                name="pxrdref-gui-run", daemon=True)
             self._worker.start()
             self._cond.notify_all()
         return self.state_frame()
@@ -831,22 +861,22 @@ class GuiSession:
         self.uploads.close()  # staged bytes outlive nothing
 
     # -- the worker ----------------------------------------------------
-    def _work(self, call, stream: EventStream) -> None:
-        """Run one fit or stage on this thread and record how it ended.
+    def _work(self, call, stream: EventStream, summarize) -> None:
+        """Run one fit, stage or indexing search and record how it ended.
 
         Three endings, and the difference between them is the WP-1006 result: a
-        cancelled run **raises** rather than returning a partial result, and what
-        it leaves behind is on the exception — the stages that did complete and
-        the node the working state now stands at, which is what a "resume" button
-        checks out.
+        cancelled *refinement* **raises** rather than returning a partial
+        result, and what it leaves behind is on the exception — the stages that
+        did complete and the node the working state now stands at, which is
+        what a "resume" button checks out.  (A cancelled indexing search
+        returns instead — it has nothing to abandon — which is why
+        ``summarize`` reads the token.)
         """
         started = time.monotonic()
         token = self._cancel
         try:
             result = call(stream, token)
-            finish = {"status": result.status, "rwp": result.statistics.rwp,
-                      "gof": result.statistics.gof, "node_id": result.node_id,
-                      "completed_stages": [s.name for s in result.stages]}
+            finish = summarize(result, token)
         except RefinementCancelled as exc:
             finish = {"status": "cancelled", "stage": exc.stage,
                       "node_id": exc.node_id,
@@ -894,6 +924,304 @@ class GuiSession:
 
     def _elapsed(self) -> float:
         return max(0.0, time.time() - _parse_utc(self._run["started_utc"]))
+
+    # ------------------------------------------------------------------
+    # peaks (WP-1027)
+    # ------------------------------------------------------------------
+    def peaks(self) -> dict:
+        """The stored peak list — or, before any pick, just the raw pattern.
+
+        The pattern rides on every answer because the peak panel is the one
+        surface that must draw *before a fit exists*: an indexing project has
+        no ``/api/result/window`` to plot until a candidate is adopted and
+        Le-Bail-fitted, and picking peaks by eye needs the counts on screen.
+        Not idle-gated: it reads a project artifact and the pattern.
+        """
+        p = self._need_project()
+        doc = self._load_peaks(p)
+        if doc is None:
+            return self._peaks_payload(None)
+        return self._peaks_payload(doc, editor=self._peak_editor())
+
+    def peaks_pick(self, body: dict) -> dict:
+        """Run the picker and store the list — replacing any previous one,
+        edits included, which is what "pick" has to mean."""
+        self._require_idle()
+        p = self._need_project()
+        editor = self._peak_editor()
+        shoulders = bool(body.get("shoulders", True))
+        doc = editor.pick(shoulders=shoulders)
+        self._save_peaks(p, doc)
+        return self._peaks_payload(
+            doc, editor=editor,
+            api_call=f"session.pick_peaks(shoulders={shoulders})")
+
+    def peaks_add(self, body: dict) -> dict:
+        tt = self._peak_number(body, "two_theta")
+        return self._peak_edit(
+            lambda ed, doc: ed.add(doc, tt),
+            api_call=f"session.add_peak({tt:g})", where=["two_theta"])
+
+    def peaks_move(self, body: dict) -> dict:
+        index = self._peak_index(body)
+        tt = self._peak_number(body, "two_theta")
+        return self._peak_edit(
+            lambda ed, doc: ed.move(doc, index, tt),
+            api_call=f"session.move_peak({index}, {tt:g})",
+            where=["index", "two_theta"])
+
+    def peaks_remove(self, body: dict) -> dict:
+        index = self._peak_index(body)
+        return self._peak_edit(
+            lambda ed, doc: ed.remove(doc, index),
+            api_call=f"session.remove_peak({index})", where=["index"])
+
+    def peaks_flag(self, body: dict) -> dict:
+        index = self._peak_index(body)
+        use = body.get("use_for_indexing")
+        flags = body.get("flags")
+        if flags is not None and not isinstance(flags, list):
+            raise GuiError("'flags' must be a list of flag words",
+                           where=["flags"])
+        args = (f"use_for_indexing={bool(use)}" if use is not None
+                else f"flags={flags!r}")
+        return self._peak_edit(
+            lambda ed, doc: ed.flag(
+                doc, index,
+                use_for_indexing=None if use is None else bool(use),
+                flags=flags),
+            api_call=f"session.set_peak_flags({index}, {args})",
+            where=["index", "flags"])
+
+    def peaks_refit(self, body: dict) -> dict:
+        group = self._peak_number(body, "group", int)
+        n = body.get("n_components")
+        n = None if n is None else int(n)
+        args = f"{group}" if n is None else f"{group}, n_components={n}"
+        return self._peak_edit(
+            lambda ed, doc: ed.refit(doc, group, n_components=n),
+            api_call=f"session.refit_group({args})",
+            where=["group", "n_components"])
+
+    def _peak_edit(self, edit, *, api_call: str, where: list[str]) -> dict:
+        """One stored-list edit: load, apply, save, answer — with the echo.
+
+        Every editing verb funnels through here so the rules hold once: idle
+        only (an edit refits against the instrument a running stage is
+        writing), the stored list is required (there is nothing to edit before
+        a pick), a refused edit names its field, and the echo is the verb's own
+        equivalent API line — the console transcript stays a script.
+        """
+        self._require_idle()
+        p = self._need_project()
+        editor = self._peak_editor()
+        doc = self._need_peaks(p)
+        try:
+            doc = edit(editor, doc)
+        except IndexError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=where) from None
+        except ValueError as exc:
+            raise GuiError(str(exc), where=where) from None
+        self._save_peaks(p, doc)
+        return self._peaks_payload(doc, editor=editor, api_call=api_call)
+
+    def _peaks_payload(self, doc, *, editor=None, api_call: str = "") -> dict:
+        from typing import get_args as _get_args
+
+        from ..schemas.indexing import PEAK_UNUSABLE_FLAGS, PeakFlag
+
+        out: dict[str, Any] = {
+            "pattern": self._peaks_pattern(),
+            # the split is the server's fact (usable() reads it); a client
+            # re-deriving it from a hand-copied list would drift when the
+            # vocabulary grows — the held_because rule again
+            "flag_vocabulary": list(_get_args(PeakFlag)),
+            "unusable_flags": sorted(PEAK_UNUSABLE_FLAGS),
+        }
+        if api_call:
+            out["api_call"] = api_call
+        if doc is None:
+            out["peaks"] = None
+            return out
+        rows = []
+        for i, peak in enumerate(doc.peaks.peaks):
+            row = peak.model_dump(mode="json")
+            row["index"] = i
+            row["usable"] = peak.usable
+            row["d"] = peak.d
+            rows.append(row)
+        out.update({
+            "peaks": rows,
+            "n_total": len(rows),
+            "n_usable": sum(1 for r in rows if r["usable"]),
+            "wavelength": doc.peaks.wavelength,
+            "two_theta_min": doc.peaks.two_theta_min,
+            "two_theta_max": doc.peaks.two_theta_max,
+            "source": doc.peaks.source,
+            "diagnostics": [d.model_dump(mode="json")
+                            for d in doc.peaks.diagnostics],
+            "pick_options": dict(doc.pick_options),
+            "created_utc": doc.created_utc,
+            "groups": [] if editor is None else editor.curves(doc),
+        })
+        return out
+
+    def _peaks_pattern(self, max_points: int = 4000) -> dict:
+        """The measured pattern, masked and decimated, for the peak plot."""
+        p = self._need_project()
+        data = p.data
+        mask = data.in_range_mask()
+        tt, y = data.tt()[mask], data.y()[mask]
+        limits = p.doc.two_theta_limits
+        if limits is not None:
+            keep = (tt >= limits[0]) & (tt <= limits[1])
+            tt, y = tt[keep], y[keep]
+        if not len(tt):
+            return {"two_theta": [], "y_obs": [], "n_total": 0}
+        idx = decimation_index(tt, [y], max_points)
+        return {"two_theta": tt[idx].tolist(), "y_obs": y[idx].tolist(),
+                "n_total": int(len(tt))}
+
+    def _peak_editor(self):
+        from . import peaks as store
+
+        p = self._need_project()
+        instrument = p.refinement.instrument
+        key = (instrument.model_dump_json(), str(p.doc.two_theta_limits),
+               str(p.doc.excluded_regions))
+        if self._peak_ed is not None and self._peak_ed[0] == key:
+            return self._peak_ed[1]
+        limits = tuple(p.doc.two_theta_limits) if p.doc.two_theta_limits else None
+        editor = store.PeakEditor(p.data, instrument, two_theta_range=limits)
+        self._peak_ed = (key, editor)
+        return editor
+
+    def _load_peaks(self, p):
+        from . import peaks as store
+
+        try:
+            return store.load(p)
+        except ValueError as exc:
+            raise GuiError(str(exc), code="PEAKS_WRONG_PATTERN",
+                           status=409) from None
+
+    def _need_peaks(self, p):
+        doc = self._load_peaks(p)
+        if doc is None:
+            raise GuiError("no peak list yet; POST /api/peaks to pick one",
+                           code="NO_PEAKS", status=409)
+        return doc
+
+    def _save_peaks(self, p, doc) -> None:
+        from . import peaks as store
+
+        store.save(p, doc)
+
+    @staticmethod
+    def _peak_number(body: dict, key: str, cast=float):
+        value = _need(body, key)
+        try:
+            return cast(value)
+        except (TypeError, ValueError):
+            raise GuiError(f"{key}={value!r} is not a number",
+                           where=[key]) from None
+
+    @classmethod
+    def _peak_index(cls, body: dict) -> int:
+        if body.get("index") is None:
+            raise GuiError("'index' is required", where=["index"])
+        return cls._peak_number(body, "index", int)
+
+    # ------------------------------------------------------------------
+    # indexing (WP-1027)
+    # ------------------------------------------------------------------
+    def index_result(self) -> dict:
+        """The last indexing answer, with the adopt gate answered per row.
+
+        ``adopt`` runs parallel to ``result.candidates`` and is the server
+        saying whether :meth:`index_adopt` would act — the button's
+        enabled-ness and the route's willingness must not be two answers
+        (the ``report.apply`` rule).  ``refuting_caveats`` is served so the
+        client colours chips from the constant rather than a hand-written list.
+        """
+        from ..schemas.indexing import INDEX_REFUTING_CAVEATS
+
+        self._need_project()
+        with self._cond:
+            result = self._index_result
+            busy = self._state != "idle" and self._run.get("kind") == "index"
+        if result is None:
+            raise GuiError(
+                "an indexing run is in flight; follow /api/events" if busy
+                else "no indexing run has completed in this session yet; "
+                     "POST /api/index", code="NO_INDEX_RESULT", status=409)
+        best = result.best_or_none()
+        adopt = []
+        for cand in result.candidates:
+            allowed = best is not None and cand is best
+            adopt.append({"allowed": allowed,
+                          "why": "" if allowed else _adopt_refusal(cand, best)})
+        return {"result": result.model_dump(mode="json"),
+                "adopt": adopt,
+                "refuting_caveats": sorted(INDEX_REFUTING_CAVEATS),
+                "running": busy}
+
+    def index_adopt(self, body: dict) -> dict:
+        """Adopt one candidate cell as the model — through the gate, or not at
+        all.
+
+        The gate is re-asked here rather than trusted from the panel: only the
+        candidate ``best_or_none()`` would return can be adopted, so no UI path
+        can hand back a cell the API itself refuses to single out.  Adoption is
+        a model edit (``Refinement.edit`` → one ``edit_model`` node, no new
+        NodeKind): the structure becomes WP-1024's single-phase Le Bail scaffold
+        (absence-free lattice group unless a ``space_group`` from the extinction
+        screen is given, one dummy atom), and the document's mode follows to
+        ``lebail`` — a Rietveld fit over a dummy atom is not a thing to offer.
+        """
+        self._require_idle()
+        p = self._need_project()
+        with self._cond:
+            result = self._index_result
+        if result is None:
+            raise GuiError("no indexing result to adopt from; POST /api/index",
+                           code="NO_INDEX_RESULT", status=409)
+        if body.get("candidate") is None:
+            raise GuiError("'candidate' is required", where=["candidate"])
+        index = self._peak_number(body, "candidate", int)
+        if not 0 <= index < len(result.candidates):
+            raise GuiError(
+                f"no candidate {index}; the result has "
+                f"{len(result.candidates)}", code="NOT_FOUND", status=404,
+                where=["candidate"])
+        candidate = result.candidates[index]
+        best = result.best_or_none()
+        if best is None or candidate is not best:
+            raise GuiError(
+                f"candidate {index} cannot be adopted: "
+                f"{_adopt_refusal(candidate, best)}",
+                code="ADOPT_GATED", status=409, where=["candidate"])
+        from ..indexing.workflow import structure_from_candidate
+
+        space_group = body.get("space_group") or None
+        try:
+            structure = structure_from_candidate(
+                candidate, space_group=space_group,
+                name=str(body.get("name") or "indexed"))
+        except (ValueError, RuntimeError) as exc:
+            raise GuiError(str(exc), where=["space_group"]) from None
+        a, b, c = candidate.cell[:3]
+        label = (f"adopted indexed cell {a:.4f} {b:.4f} {c:.4f} Å "
+                 f"({candidate.system}, {space_group or candidate.lattice_group})")
+        node = p.refinement.edit(structure=structure, label=label)
+        if p.doc.mode != "lebail":
+            p.doc.mode = "lebail"
+            p.save()
+        sg = f", space_group={space_group!r}" if space_group else ""
+        return {"node_id": node, "mode": p.doc.mode,
+                "api_call": f"session.adopt_candidate({index}{sg})",
+                **self.structure()}
 
     # ------------------------------------------------------------------
     # results
@@ -1281,6 +1609,8 @@ class GuiSession:
             self._seq = 0
             self._n_eval = 0
             self._run = _idle_run()
+            self._index_result = None
+            self._peak_ed = None
             self._cond.notify_all()
         self._remember(project.path)
 
@@ -1333,6 +1663,41 @@ class GuiSession:
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
+def _summarize_refinement(result, _token) -> dict:
+    """The run-record fields a finished fit or stage supplies."""
+    return {"status": result.status, "rwp": result.statistics.rwp,
+            "gof": result.statistics.gof, "node_id": result.node_id,
+            "completed_stages": [s.name for s in result.stages]}
+
+
+def _summarize_index(result, token) -> dict:
+    """The run-record fields a finished indexing search supplies.
+
+    No Rwp, no node — an ``IndexingResult`` is not a refinement.  The status is
+    read off the token because a cancelled search *returns* what it has rather
+    than raising (it has no seeded stage to abandon).
+    """
+    cancelled = token is not None and bool(token)
+    return {"status": "cancelled" if cancelled else "completed",
+            "completed_stages": [f"engine:{name}"
+                                 for name in result.engines_run]}
+
+
+def _adopt_refusal(candidate, best) -> str:
+    """Why ``best_or_none()`` would not return this candidate, in one line."""
+    if candidate.confidence != "high":
+        caveats = ", ".join(candidate.confidence_caveats)
+        return (f"confidence is {candidate.confidence!r}"
+                + (f" ({caveats})" if caveats else "")
+                + "; only the one candidate best_or_none() returns can be "
+                  "adopted")
+    if candidate.ambiguity:
+        return ("a geometrically indistinguishable lattice exists; the "
+                "discriminating reflections are listed on the candidate")
+    return ("more than one candidate reached 'high'; the result cannot "
+            "single one out")
+
+
 def _idle_run() -> dict:
     return {"kind": None, "name": "", "status": None, "stage": None,
             "stage_index": None, "n_stages": None, "started_utc": None,
