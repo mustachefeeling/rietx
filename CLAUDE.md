@@ -264,6 +264,11 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   global maturity); collinear angular templates are compared as *nested single
   fits* and reported non-separable rather than resolved. Confidence weights
   importance (share of χ²), not just statistical significance.
+- **A new correction ships with a record field or a diagnostic that states
+  what it changed — never an Rwp comparison as its evidence.** v0.5's
+  measured method result: of eight corrections, two provably cannot move
+  Rwp, one moves it the wrong way when it is right, and the two largest
+  accuracy wins are invisible in it (`docs/milestones/v0.5.md`).
 - **Licensing**: port code only from permissive sources with ATTRIBUTION.md
   updates. BGMN/Profex/xrayutilities are GPL — concepts only, never code.
   TOPAS/FullProf are closed — papers only.
@@ -419,67 +424,41 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
 - Comparing against another code means **adopting its protocol**, not just
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
+- The **theory manual** (`docs/manual/`) is guarded against drift by
+  `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
+  constants are MyST substitutions injected from the live package in
+  `docs/manual/conf.py`, every displayed equation carries a `*Source:*` line
+  whose symbol must import, and every bib entry must be cited. Renaming a
+  physics symbol or retuning a fenced constant means touching the manual in
+  the same change.
 
 ## Roadmap & how to work on it
 
 Planning docs are split so a session loads only what it needs — do not read
 them all:
 
-- `docs/ROADMAP.md` — thin index: milestone table, work-package (WP) index,
-  "Current focus", and the session protocol.
+- `docs/ROADMAP.md` — the index: session protocol, a ≤40-line "Current
+  focus", milestone table, WP index.
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-
   sized checklist, acceptance command, handover log).
 - `docs/DESIGN.md` — design record; read only the section a WP links.
-- `docs/milestones/vX.Y.md` — shipped records with measured acceptance blocks.
+- `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance
+  at ship, plus (while in flight) the running "How vX.Y is getting here"
+  narrative and the dated appendices. `v1.0.md` is the live one.
+- `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
+  a diagnostic code or a correction adds its row there.
+- `gui/CLAUDE.md`, `tests/CLAUDE.md` — subsystem rulebooks; they load with
+  their subtrees, so nothing here restates them.
 
-**Protocol**: to work on the roadmap, read the active WP file (named under
-"Current focus" in ROADMAP.md) and nothing else. Commit per checklist item,
-prefixed `WP-NNNN:`. Before ending any session that touched a WP — or when
-interruption threatens — append a dated handover-log entry (done / in flight /
-next / gotchas) and sync its Status glyph into ROADMAP.md's index. When a
-milestone ships, record measured acceptance in `docs/milestones/` and flip
-the ROADMAP.md row.
+**Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority. In
+short: read the active WP file and nothing else; commit per checklist item
+prefixed `WP-NNNN:`; end every session that touched a WP with
+`/wp-handover`; a CLAUDE.md takes **rules, not findings**.
+`tests/test_docs_consistency.py` enforces the mechanical parts.
 
-Because sessions never read other WP files, **a handover log only reaches your
-own successor on the same WP**. Anything you learned that changes work in a
-not-yet-started WP — a constant now exported for reuse, a design bullet there
-that has gone stale, a deferral into it, a gotcha that would mislead it — goes
-in *that* WP's `### Inherited` section, naming yours as the source
-(ROADMAP.md step 3b; slot defined in `docs/wp/TEMPLATE.md`).
-
-Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
-Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
-history DAG, live viz), **v0.3** (2026-07-24: coordinate refinement, anisotropic
-ADPs, QPA weight fractions, Brindley microabsorption, Pawley whole-pattern mode,
-March-Dollase preferred orientation, multi-histogram, exporters — WP-0301…0310,
-measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
-(+30 ppm) plus the IUCr QPA round robin with participant-spread-referenced
-tolerances), **v0.4** (2026-07-27: differentiable backends — WP-0401…0408,
-measured acceptance in `docs/milestones/v0.4.md`).
-
-**v0.5 — corrections & microstructure** (2026-07-28: capillary absorption 0501,
-surface roughness 0502, Stephens anisotropic strain 0503, anomalous f′/f″ 0504,
-sequential series 0505, secondary extinction 0506, anode wavelengths 0507,
-flat-plate absorption + the real-data capillary acceptance 0508; measured
-acceptance in `docs/milestones/v0.5.md`). Its method result is worth carrying
-into any future correction: **not one of the eight is well judged by Δ Rwp** —
-two provably cannot move it, one moves it the *wrong way* when it is right, and
-the two largest accuracy wins are invisible in it. So a new correction ships
-with a record field or a diagnostic that states what it changed, never with an
-Rwp comparison as its evidence.
-
-**v0.6 — solver, performance & agents** (2026-07-29: batched-peak-loop no-go
-with the FCJ node memo shipped instead 0605, bounded LM with the Stephens cone
-as a linear inequality 0601, agent JSON surface 0602, Sphinx + MyST theory
-manual 0604; measured acceptance in `docs/milestones/v0.6.md`). The **theory
-manual** lives in `docs/manual/` and is guarded against drifting from the code
-by `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
-constants are MyST substitutions injected from the live package in
-`docs/manual/conf.py` (a new fenced constant needs a line there *and* a use in
-a chapter), every displayed equation carries a `*Source:*` line whose symbol
-must import, and every bib entry must be cited. Consequence: renaming a
-physics symbol or retuning a fenced constant means touching the manual in the
-same change.
+Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the
+milestone table in ROADMAP carries the acceptance one-liners — neither is
+restated here).
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the
@@ -527,110 +506,6 @@ template. And on real data with no measured shift, `high` is currently
 *unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
 bigger constant, and it is WP-1026's.
 
-**`predicted_but_absent` cannot tell an oversized cell from a space-group
-extinction, and on a real phase that is not a corner case.** It counts against the
-*lattice* group, which is the only model available before
-`determine_extinction_symbol` runs — so the certified corundum cell, correct to
-~100 ppm, is refuted by 12 reflections R-3m allows and the R-3c c-glide forbids
-(WP-1026, measured). It is the blind spot `predicted_seen_fraction` already states,
-promoted into a refuting caveat. Read a firing as "this cell predicts lines the
-pattern lacks", never as "this cell is too big"; the two are separable only by
-running the extinction screen, which the gate does not do. **The control exists
-and confirms it**: NIST SRM 660c LaB6 is P m -3 m, which extinguishes nothing, and
-indexes with `predicted_but_absent` **0 of 30** and `predicted_seen_fraction`
-**1.000** against corundum's 11-12 and 0.86. Which is also how to choose the next
-acceptance dataset — **by its space group, not by its convenience**: pairing a
-phase that has absences with one that has none is what turned this from an
-argument into a measurement.
-
-**`high` confidence is reachable on real data, and what it costs is a peak list.**
-Same LaB6 pattern, indexed as picked: a is **−127 ppm** out and the grade is `low`.
-Remove the five picked components no certified position explains and declare the
-systematic as *measured* rather than assumed, and it is **a = 4.156772 Å, −2 ppm**
-from the certification CIF, M₂₀ 1113, **zero caveats**, with `best_or_none()`
-returning a cell for the first time. The five are **axial-divergence tails** (they
-sit low below 90° 2θ and high above it, a sign reversal nothing else in a
-Bragg-Brentano pattern has) plus one Kα2 residual, and they escape `not_separable`
-for **three different reasons**, so no single threshold reaches them. Two general
-lessons sit under that. **An assumed allowance is not free even when it is
-generous enough**: `DEFAULT_UNKNOWN_SHIFT_DEG` is added *in quadrature to every
-line's σ*, which is flat, so a 100× precision contrast between real lines and
-phantoms becomes 1.005 — `fit_shift_model`, which weights by each line's own σ,
-recovers the displacement (+0.0367 ± 0.0015° against a parameter-free +0.0415°
-from the recorded −0.07877 mm at R = 217.5 mm) while the *search* on the identical
-list fits +0.009 ± 0.016°. And **`sigma_sys_deg` means two different things**: the
-screen reports the scatter a template *leaves* (0.0078°), the search needs the
-window the *uncorrected* positions span (0.037°, since `refine_with_shift` runs
-only after a candidate survives), so declaring the measured one silently returns
-no candidate at all.
-
-**The measured scoreboard, and it is the honest shape of this feature (WP-1026,
-closed 2026-07-31).** Across eight known-cell datasets, **five** put the right
-lattice first (SRM 676a corundum, SRM 660c LaB6, zincite, zircon, and FAP where
-the right cell is present and second), **one** is refused for having too few
-lines (fluorite: 18 usable against `PEAK_MIN_USABLE_LINES` = 20 — high symmetry
-makes a pattern easy to index right up until it makes it too sparse to index at
-all), and **two** fail (brucite and magnetite rank a supercell above the truth;
-NAC cannot be searched at its own d_min). **Every one of the eight abstains** —
-`best_or_none()` is None on every real dataset, including the five that are
-right. Read that as *never wrong, and silent more often than right*, and do not
-let a summary round it up. Three lessons transfer. **A literature cell is not a
-specimen's cell**: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
-Rothbauer's, 30× the goniometer floor, so a mineral's published cell grades
-lattice type and centring and nothing in ppm. **An indexed cell has no
-displacement parameter**, so it absorbs what a refinement models — 127 ppm
-measured on SRM 660c — which is why an indexing bar is looser than the same
-dataset's refinement bar (FAP: 500 ppm against ±300). And **M₂₀ can invert the
-ranking**: on FAP the cell both engines agree on indexes 181 of 185 lines and
-sits *below* one 1218 ppm out that indexes 167, because a wrong metric matching a
-subset tightly is what a plain mean of ⟨ΔQ⟩ rewards.
-
-**Geometrical ambiguity has a class the derivative-lattice enumeration cannot
-reach.** `ambiguity_partners` walks *sublattices* of index 2-4 — supercells — so a
-rival of **smaller** volume is not in the enumeration. One exists for the
-commonest lattice there is: tetragonal P at (a/√2, a) is **exactly** isospectral
-with cubic P *a*, because 2(h²+k²)+l² represents precisely the integers h²+k²+l²
-does (both miss 4ⁿ(8m+7)). Measured: 0 partners from the cubic side, while from
-the tetragonal side the cubic is found at index 2 with **zero** discriminating
-reflections, and both engines find the rival on the real pattern. It matters
-because the gate refuses `high` to a candidate with a partner — so whichever of an
-isospectral pair happens to be the larger cell can be promoted while its equal
-cannot.
-
-`determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
-is the next step and keeps the same rule one rank down: it ranks the **extinction
-classes** the lattice admits, each listing its space groups, because the powder
-observable is the extinction symbol and groups sharing an absence set produce
-identical patterns *by construction*. Classes are derived — every gemmi setting
-whose **lattice** (not crystal system: a hexagonal metric carries the trigonal-P
-groups) matches, grouped by identical absences over the hkl in range — never
-transcribed from IT A Table 3.2, which cannot speak about a non-standard setting the
-indexed axes may be in. Each class is fitted by Le Bail with the profile frozen at
-one shared pre-fit and scored by `report.layer2`'s ΔBIC against the absence-free
-lattice; **Rwp cannot be the score** (fewer absences ⇒ more reflections ⇒ never a
-worse fit; measured, the true monoclinic class and its screw-free partner differ by
-1e-5 in Rwp and 24 in ΔBIC). Three counts are decisions: `n_added` counts only
-**testable** absences — in range and separable from every line the class still
-allows — or a class whose absences all hide under neighbours wins on parsimony with
-no measurement behind it; a *line*'s absence is asked of the whole orbit (`P a -3`
-extinguishes 012 but not 021, one 2θ); and **the absence test's null model is the
-class's own `y_calc`, not the fitted background** — the same
-`workflow.absent_reflections`, called with `y_calc` in the `y_background` slot,
-because a forbidden position sits inside a dense predicted pattern where a phantom
-reflection sits in a gap (measured on FAP: the forbidden 003 reads +27.6 σ against
-the background and −3.9 σ against the model, its allowed neighbour 0.89 FWHM away).
-
-Two invariants inherited from fixing WP-1020 while building on it. **An ambiguity
-partner must be refuted by the lines it needs and the data lack** — a superlattice
-indexes every observed line by construction, so without that exclusion every
-derivative lattice is reported (28 for a certified cubic cell) and the gate can never
-promote anything; the test is asymmetric (the partner's *extra* predictions, never the
-parent's own absent ones) and a surviving partner's discriminating reflections are
-therefore *outside* the measured range. **A Niggli-reduced cell is primitive**, so
-`ReducedCell.centring` is provenance about the input and must never be handed back to
-anything that applies a centring — doing so made gemmi call a cubic I lattice
-trigonal.
-
 Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
 `EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
 that needs `cov_af`), the live registry the agent schema quotes, `Budget`, and the
@@ -663,97 +538,51 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-**But the tolerance was never why the certified pattern failed to index, and the
-correction is the more useful lesson (WP-1026).** The obstruction was **our own peak
-list**: `detect_peaks` proposed 41 groups with one seed each and `fit_group` returned
-**63** components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its
-area with a small esd. With those flagged both engines rank the certified cell first,
-at the same allowance. The gate could not have refused them, and not because
-`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` is wrong: **ΔBIC asks whether the data prefer n+1
-components to n, which is the same question as "is there a line here" only while the
-n-component model is capable of fitting.** On the corundum 104 line χ²_red is 17.4 at
-n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins. Hence
-`_not_separable` (`indexing/pick.py`), whose third and load-bearing condition is that
-the group's own fit is still refuted, at `PEAK_REFUTED_SIGMA` × σ(χ²_red) above 1
-rather than a flat bar because groups differ 5× in size across one pattern. The
-component **stays in the model** (removing it displaces the real line by 0.010°) and
-is barred only from `usable()`. General, not a corundum quirk: satellites were 4-21 %
-of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
-nothing indicts its input before its tolerance.**
+Six more indexing rules, each learned the hard way — the measured stories
+are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
+constants in `indexing/`:
 
-**That certified pattern was blocked twice, and the second cause is the one to
-carry into any engine work: a leaf that is never refined is invisible.** With the
-peak list fixed the search returned the right lattice type with **c +2799 ppm**, and
-one session recorded that as what an uncalibrated lab pattern costs. It was
-`_box_key`, dichotomy's duplicate-leaf hash, which divided A..F by `max|af|` — so a
-0.1 % grid on the largest component was a ~1 % grid on the smallest, and for a long
-axis C = 1/c\*² **is** the smallest. The whole trigonal-R domain converges to
-**eleven** leaves; three hashed onto a sibling and were skipped *before* being
-refined, and one of the three held the certificate's c. Per-component binning (log
-for the diagonals, partner-scaled for the off-diagonals) recovers a = +101 ppm,
-c = +16 ppm ranked first, and with the shift template declared −73 / −126 ppm at a
-fitted −0.0606 ± 0.0138° against an independently measured −0.065° displacement.
-**A performance filter's failure mode is a wrong answer, not a slow one**, and its
-cost was 11 refinements against 8.
+- Read a `predicted_but_absent` firing as "this cell predicts lines the
+  pattern lacks", **never** "this cell is too big": it counts against the
+  *lattice* group, so a space-group extinction (corundum's R-3c c-glide, 12
+  reflections) refutes a correct cell, and only the extinction screen
+  separates the two. Choose acceptance datasets **by space group** — SRM
+  660c (P m -3 m, extinguishes nothing) is the control that proved it.
+- The scoreboard across eight known-cell datasets is *never wrong, and
+  silent more often than right* — five right, one refused, two fail, all
+  eight abstain. Do not let a summary round it up.
+- **An ambiguity partner must be refuted by the lines it needs and the data
+  lack** (asymmetric: the partner's extra predictions, never the parent's
+  own absences), or every derivative lattice is reported and the gate can
+  never promote. And `ambiguity_partners` walks sublattices only, so a
+  *smaller*-volume isospectral rival is invisible — tetragonal P (a/√2, a)
+  vs cubic P a is exact, and both engines find it on real data.
+- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is
+  provenance about the input, never to be handed to anything that applies a
+  centring. Reduction needs the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one
+  lattice splits into two candidates and denies the gate its agreement.
+- **A search that finds nothing indicts its input before its tolerance**:
+  the peak list blocked the certified pattern twice (fitted satellites, then
+  `_box_key` skipping unrefined leaves — a performance filter's failure mode
+  is a wrong answer, not a slow one).
+- **An assumed precision may never refuse to index** (`from_positions` lists
+  get no `MAX_RELATIVE_SIGMA_Q` vote), and an assumed shift allowance is
+  reported as `INDEX_SHIFT_ALLOWANCE` because it must never look measured.
+  Open items from the source-paper audit (`volume_envelope` is a mean line,
+  not an envelope) are WP-1030's, recorded in its file.
 
-**Three measured facts from checking the source papers against the code
-(2026-07-30), each of which contradicts something the tree asserted.** All three
-are recorded in WP-1026's handover and WP-1030; only the first is fixed.
-
-- **Niggli reduction is not canonical in floating point without a *relative*
-  tolerance.** Křivý-Gruber decides its normalisation on exact equalities — with
-  b = c the tie breaks on |η| ≤ |ζ| — and gemmi defaults to an *absolute* 1e-9,
-  under which two settings of one lattice came back with β and γ **swapped**
-  while gemmi's own `is_niggli` called both True. `NIGGLI_EPS_RELATIVE` = 1e-5,
-  as ε = 1e-5·V^(1/3), used in the reduction **and** in the predicate
-  (Grosse-Kunstleve *et al.* 2004, whose Test 3 *is*
-  `test_niggli_reduction_is_unimodular_invariant`). Since `same_lattice` dedups
-  on reduced A..F, a non-canonical reduction splits one lattice into two
-  candidates and denies the gate its agreement.
-- **`refine_with_shift` refused its own correction on exactly the candidates that
-  needed it**, because the accept test was χ²_red and the extra column costs a
-  degree of freedom, so a cell that has *already absorbed* the shift cannot gain
-  enough χ² to pay for it. **Fixed**: a declared template is the caller's physics,
-  like `mu_t`, and only *identifiability* refuses it now (no template, a numerical
-  failure, or fewer assigned lines than metric parameters + 2). That change needs
-  `engines.scored_positions` beside it — a candidate carrying a shift claims the
-  **corrected** lines, so scoring it against the raw ones marks it down for its own
-  correction, and applying the template everywhere with the panel left on raw
-  positions dropped the certified corundum lattice out of the top six.
-- **`volume_envelope` is a mean line, not an envelope.** Smith (1977) is
-  triclinic-only, publishes **no** per-system factors (so the derived Laue/centring
-  scalings here have nothing to check against), and quotes −29 % to +32 % about a
-  10.6 % average. Used as a hard search ceiling it excludes the true cell below a
-  detection fraction of 0.713 — which is that same −29 %. `VOLUME_ENVELOPE_SLACK`
-  exists but guards only the *flagging* path, not the ceiling.
-
-**And an assumed precision may never refuse to index.** `assess_peak_list`'s
-`MAX_RELATIVE_SIGMA_Q` abstention is a statement about *measured* data, so it runs
-only when `PeakList.source == "fitted"`. On a `from_positions` list every σ is
-`PEAK_ASSUMED_ESD_DEG` — chosen here — and refusing on it quotes an assumed precision
-as a measured one, the inverse of the rule above. Measured: all **ten** sets of the
-published bethanechol benchmark failed it, including the synchrotron set whose
-published M(20) is 197. The figure is still computed and reported
-(`PEAK_POSITION_PRECISION`); it simply has no vote.
-
-**v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
-the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU
-fp64) / `"torch-mps"` (Apple GPU, necessarily fp32) — never installed by
-default, kept as an independent opinion in the agreement matrix and as the
-route to using the forward model as a differentiable layer (DESIGN.md, "What
-the differentiable core unlocks"). Every backend is held to per-column
-agreement with the analytic Jacobian in `tests/test_cross_backend.py` — whose
-configs must grow whenever a *new derivative path* does, or no backend row
-covers it. Also landed: true Voigt
-(`Instrument.profile.shape="voigt"`, one shared Weideman Faddeeva `w(z)`, TCHZ
-still the default), soft bond/angle/value restraints (extra residual rows below
-the data, Rietveld and single-histogram only), and the Bérar-Lelann esd fix
-(reported esds now carry the inflation; the correlation matrix is a true Pearson
-matrix and the 0.98 guard is live). Apple-GPU execution is *slower* than numpy
-(46-182×, launch-latency-bound) — `torch-mps` buys precision validation, not
-speed; the measured break-even (≈65 k elements per kernel) and ceiling (≈2.5×)
-are in the v0.4 record. v2 fence:
-FPA, neutron/TOF, spherical-harmonics texture, MCP server.
+**Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
+one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /
+`"torch-mps"` (Apple GPU, necessarily fp32) — never installed by default,
+kept as an independent opinion in the agreement matrix. Every backend is
+held to per-column agreement with the analytic Jacobian in
+`tests/test_cross_backend.py` — **whose configs must grow whenever a new
+derivative path does**, or no backend row covers it. Apple-GPU execution is
+*slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
+precision validation, not speed (break-even and ceiling: the v0.4 record).
+Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default), soft
+restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
+spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

@@ -41,12 +41,14 @@ _STATUS_RE = re.compile(
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
-# achieved it.  None = not yet pinned (skips, visibly).
+# achieved it (WP-1031, 2026-07-31: CLAUDE.md landed at 601 lines, ROADMAP at
+# 494).  Raising a cap is a decision about every future session's fixed cost —
+# make it in a commit that says so, not as a side effect.
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": None,
-    "docs/ROADMAP.md": None,
+    "CLAUDE.md": 700,
+    "docs/ROADMAP.md": 650,
 }
-CURRENT_FOCUS_CAP: int | None = None  # lines within ROADMAP's Current focus
+CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (landed at 33)
 
 
 def _wp_files() -> list[Path]:
