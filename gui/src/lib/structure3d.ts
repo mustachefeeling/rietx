@@ -83,82 +83,47 @@ export type Mode = "ball" | "ellipsoid";
  * One surface for every solid in the scene — balls, ellipsoids and sticks — so
  * the three cannot drift apart.
  *
- * WP-1015's second pass set this to `ambient 0.75, diffuse 0.55, specular 0.08`
- * for a stated reason: plotly's `lightposition` is a fixed point in **data**
- * space rather than a light that follows the camera, and this component does
- * not redraw during a drag — so a light over the opening view's shoulder ends
- * up behind the scene after a half turn, and the far side goes black. Raising
- * ambient bought "never black" and paid for it with every depth cue, which is
- * why overlapping same-coloured atoms merged into one blob.
- *
- * That trade is avoidable now, and the thing that makes it avoidable landed in
- * the same pass: the panel reads the **live camera** before every redraw
- * (`Structure3D.svelte:liveCamera`, added when `plotly_relayout` turned out
- * never to fire for a gl3d drag). So `lightPosition` is recomputed from that
- * camera at each `react` and the key light is always over the viewer's
- * shoulder. It still does not follow a *drag* — but a drag is precisely the
- * interaction that supplies its own depth cue by moving, and every redraw after
- * it is lit correctly.
- *
- * Specular stays modest: 400 identical spheres at a high specular read as a
- * tray of plastic beads, which is WP-1015's observation and still true.
+ * The ambient term is the shadow floor: an unlit face renders at ambient × the
+ * species colour, so 0.58 keeps the dark side of a mid-green at ~74 luminance
+ * (measured) against the 48 that was reported as "dark", while the diffuse
+ * range above it — up to full colour where the surface faces the key — is the
+ * depth cue that separates overlapping same-coloured spheres.  Specular stays
+ * modest: 400 identical spheres at a high specular read as a tray of plastic
+ * beads, which is WP-1015's observation and still true.
  */
 export const LIGHTING = {
-  ambient: 0.42, diffuse: 0.88, specular: 0.12, roughness: 0.45, fresnel: 0.15,
+  ambient: 0.58, diffuse: 0.72, specular: 0.12, roughness: 0.45, fresnel: 0.05,
 };
 
-/** Far enough that the light is effectively directional at any cell size. */
-const LIGHT_DISTANCE = 1e5;
-
-/** The opening view's shoulder — the fallback, and what the scene looked like
- *  before the light could follow anything. */
-export const LIGHT_POSITION = { x: LIGHT_DISTANCE, y: LIGHT_DISTANCE, z: LIGHT_DISTANCE };
-
 /**
- * A key light over the viewer's shoulder, up and to the left.
+ * The key light, up and to the left **of the screen** — `lightposition` is
+ * not in data coordinates.
  *
- * `lightposition` is in **data** coordinates while `camera.eye` is in the
- * scene's, and the one line that makes this legal is a fact WP-1015's second
- * pass established for a different reason: `aspectmode: "data"` makes the
- * data→scene map a *uniform* scale, so a direction in Å is a direction in
- * camera coordinates. (It is the same premise `axisCamera` rests on.) Only the
- * direction is used — the magnitude is large enough that the light is
- * directional and the scene's own offset from the origin does not matter.
+ * Measured on plotly.js 3.7.0 (WP-1029's reopened log; the probe pages are
+ * quoted there): the renderer pushes the trace attribute through the inverse
+ * of the full projection·view·model transform, so the frame it is read in is
+ * the *projection's* — screen-relative, not scene-relative — and a fixed value
+ * therefore rides the camera by construction, **during a drag included**.
+ * Three sign facts are load-bearing, all measured:
  *
- * Up-and-to-the-left rather than straight down the eye: a light *at* the eye
- * flattens everything it lights, because nothing it can see is in shadow. The
- * three-quarter key is the oldest fix there is.
+ * - **z > 0 is behind the scene.**  The visible side renders ambient-flat —
+ *   which is exactly what both earlier passes shipped without knowing it:
+ *   WP-1015's fixed `(1e5, 1e5, 1e5)` and WP-1029's camera-derived light were
+ *   both z-dominant, so the scene was never lit by its diffuse term at all,
+ *   and "desaturated, dark and flat" was the ambient constant rendered alone.
+ * - **z < 0 is a headlight**: lit everywhere, and the lateral components stop
+ *   mattering (measured pixel-identical from |z| = 3e1 to 1e5) — shape comes
+ *   only from the radial falloff.
+ * - **z = 0 keeps the key lateral**, which is where the modelling comes from;
+ *   the on-screen direction wobbles with an oblique view matrix but never
+ *   leaves the viewer's side.
+ *
+ * The magnitude is irrelevant (scale-invariant, measured), and the previous
+ * pass's `lightPosition(camera)` arithmetic is deleted with its premise: a
+ * *data*-space light would need to follow the camera; a screen-space light
+ * already does.
  */
-export function lightPosition(camera: Camera): { x: number; y: number; z: number } {
-  const eye = norm([camera.eye.x, camera.eye.y, camera.eye.z]);
-  if (!eye) return LIGHT_POSITION;
-  const rawUp = camera.up ?? { x: 0, y: 0, z: 1 };
-  // the part of `up` across the line of sight; a camera looking straight down
-  // its own up vector leaves nothing, and then any perpendicular will do
-  const along = rawUp.x * eye[0] + rawUp.y * eye[1] + rawUp.z * eye[2];
-  const up = norm([rawUp.x - along * eye[0], rawUp.y - along * eye[1],
-                   rawUp.z - along * eye[2]]) ?? perpendicular(eye);
-  const right = [eye[1] * up[2] - eye[2] * up[1],
-                 eye[2] * up[0] - eye[0] * up[2],
-                 eye[0] * up[1] - eye[1] * up[0]];
-  const dir = norm([eye[0] + 0.55 * up[0] - 0.45 * right[0],
-                    eye[1] + 0.55 * up[1] - 0.45 * right[1],
-                    eye[2] + 0.55 * up[2] - 0.45 * right[2]]) ?? eye;
-  return { x: dir[0] * LIGHT_DISTANCE, y: dir[1] * LIGHT_DISTANCE,
-           z: dir[2] * LIGHT_DISTANCE };
-}
-
-function norm(v: number[]): number[] | null {
-  const n = Math.hypot(v[0], v[1], v[2]);
-  return n > 1e-12 ? [v[0] / n, v[1] / n, v[2] / n] : null;
-}
-
-function perpendicular(v: number[]): number[] {
-  const axis = Math.abs(v[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
-  return norm([axis[1] * v[2] - axis[2] * v[1],
-               axis[2] * v[0] - axis[0] * v[2],
-               axis[0] * v[1] - axis[1] * v[0]]) ?? [0, 0, 1];
-}
+export const LIGHT_POSITION = { x: -1e5, y: 1e5, z: 0 };
 
 /**
  * A colour scaled toward black — the second depth cue, for images outside the
@@ -370,7 +335,6 @@ export function legend(geometry: Geometry): Array<{ species: string; color: stri
 export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
                            hidden: ReadonlySet<string> = new Set(),
                            showBoundary = true,
-                           light = LIGHT_POSITION,
                            exaggeration = 1): any[] {
   const traces: any[] = [];
   for (const entry of legend(geometry)) {
@@ -408,7 +372,7 @@ export function atomTraces(geometry: Geometry, mode: Mode, sphere: Mesh,
         type: "mesh3d", name: entry.species, x, y, z, i, j, k, text,
         color: outside ? dim(entry.color) : entry.color,
         flatshading: false, showlegend: false,
-        lighting: LIGHTING, lightposition: light,
+        lighting: LIGHTING, lightposition: LIGHT_POSITION,
         hovertemplate: "%{text}<extra></extra>",
       });
     }
@@ -471,7 +435,6 @@ export function stickRadius(geometry: Geometry, mode: Mode, exaggeration = 1): n
  */
 export function bondTraces(geometry: Geometry, cylinder: Mesh,
                            hidden: ReadonlySet<string> = new Set(),
-                           light = LIGHT_POSITION,
                            mode: Mode = "ball", exaggeration = 1): any[] {
   const radius = stickRadius(geometry, mode, exaggeration);
   const buckets = new Map<string, any>();
@@ -489,7 +452,7 @@ export function bondTraces(geometry: Geometry, cylinder: Mesh,
           type: "mesh3d", name: `bonds:${site.species}`,
           x: [], y: [], z: [], i: [], j: [], k: [], text: [],
           color: site.color, flatshading: false, showlegend: false,
-          lighting: LIGHTING, lightposition: light,
+          lighting: LIGHTING, lightposition: LIGHT_POSITION,
           hovertemplate: "%{text}<extra></extra>",
         };
         buckets.set(site.species, bucket);
@@ -567,14 +530,10 @@ export function traces(geometry: Geometry, mode: Mode, sphere: Mesh,
                        cylinder: Mesh, cell: string,
                        hidden: ReadonlySet<string> = new Set(),
                        showBoundary = true,
-                       camera: Camera = DEFAULT_CAMERA,
                        exaggeration = 1): any[] {
-  // one light for the whole scene, from the camera this draw is using — the
-  // sticks and the balls must not disagree about where it is
-  const light = lightPosition(camera);
   return [cellTrace(geometry, cell), axisTrace(geometry, cell),
-          ...bondTraces(geometry, cylinder, hidden, light, mode, exaggeration),
-          ...atomTraces(geometry, mode, sphere, hidden, showBoundary, light,
+          ...bondTraces(geometry, cylinder, hidden, mode, exaggeration),
+          ...atomTraces(geometry, mode, sphere, hidden, showBoundary,
                         exaggeration)];
 }
 

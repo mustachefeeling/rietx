@@ -191,14 +191,15 @@
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
     // the camera for this draw: what a button chose, else what the user has
-    // rotated to, else the last one handed over
+    // rotated to, else the last one handed over.  The key light is *not*
+    // computed from it — `lightposition` is screen-relative (measured, see
+    // `lib/structure3d.ts:LIGHT_POSITION`), so the fixed key already follows
+    // every rotation, mid-drag included.
     camera = pending ?? liveCamera() ?? camera;
     pending = null;
     await plotly.react(
       node,
-      // the camera is handed to `traces` as well as to `layout`: the key light
-      // is computed from it, so it must be the *same* camera this draw uses
-      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary, camera,
+      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary,
              exaggeration),
       layout(style.color, camera),
       // the default gl3d modebar floats over a panel this small, and one of its
