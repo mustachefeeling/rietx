@@ -534,6 +534,8 @@ def _reversed_pair(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray,
                    if np.isfinite(delta_fwd) and max(delta_fwd, floor) > 0.0
                    else 0.0)
 
+    # the float is what both values divided by; ``n_possible`` is an int on the
+    # schema, so the reported count is rounded and the computation is not
     n_poss = int(round(count))
     return (
         FigureOfMerit(
