@@ -270,55 +270,6 @@ Fig. 1 decides a supercell family that `M̃₂₀` gets wrong. It also confirms 
 documented blind spot — space-group extinctions penalise a *correct* cell under
 `M^Rev`, as they do under our forward member.
 
-### Inherited — consumed 2026-07-31
-
-The mailbox is emptied here rather than deleted, because three of its entries
-are **still open** and have been pushed on to the WPs that own them
-([1026](1026-indexing-acceptance.md) and
-[1027](1027-gui-peak-picker.md)); what follows records what happened to each.
-
-- *A supercell outranks the truth on clean single-phase patterns* (qarr
-  brucite, magnetite) — **partly addressed, not verified on those datasets.**
-  `M^Rev` is the member built for exactly this failure and it separates a
-  synthetic doubled axis 64-74× where M₂₀ separates it 1.8×. Neither brucite
-  nor magnetite is a landed row (95 s and 218 s), so this session did not
-  re-measure them; that belongs with the row, in 1026.
-- *`DEFAULT_SEARCH_LINES` takes the first twenty lines in 2θ order, and on a
-  synchrotron pattern that is the wrong twenty* — **untouched, and pushed to
-  1026.** It is a peak-list selection question, not a search-cost one, and it
-  is the third dataset in three sessions where the peak list rather than the
-  search was the obstruction.
-- *M₂₀ inverts the ranking on FAP* — **the tool now exists; the measurement
-  does not.** `M^Rev`/`M^Sym` are the figures the entry names as "the obvious
-  thing to test against it", and they are in the panel. Whether they turn that
-  ranking round is a claim about `fap_index`, a 95 s slow row that belongs to
-  1026's acceptance table.
-- *NAC cannot be searched at its own d_min, and truncating 2θ does not fix it*
-  — **still true and now better posed.** The obstruction is
-  `reflection_ceiling_ok` at d_min = 0.43 Å, which is a *reflection-count*
-  limit and not a domain-size one, so none of this WP's prunes touch it. The
-  entry's own instruction — state the scope in terms of d_min rather than 2θ —
-  stands, and it is a peak-list/scope decision for 1026.
-- *`refine_with_shift` declines its own correction* — fixed in WP-1026's third
-  session; the note that a shift allowance widens every `hit` matrix and so
-  multiplies the box count stands and is unchanged by anything here.
-- *DICVOL estimates and removes the shift before searching (Dong, Wu & Chen
-  1999), which would let `assess_peak_list` report a measured `shift.source`* —
-  **not attempted; the paper is still not held.** It remains the unblock for
-  the `shift_allowance_assumed` caveat that makes `high` unreachable on real
-  lab data, and it is `indexing/quality.py` work rather than engine work.
-- *`_box_key` was silently deciding answers, so ask of each new prune not "is
-  it sound" but "what does it do when two leaves are nearly the same cell"* —
-  **applied.** Every prune added here refuses boxes on a *necessary* condition
-  (Hall's condition; a determinant interval that must contain every lattice in
-  the box), never on a tie-break between near-identical cells, and both carry a
-  soundness test rather than a recovery test. `_accept` call counts were
-  watched alongside box counts as instructed: `candidates.raw` is unchanged at
-  126 on d ∈ [5, 20].
-- *The bethanechol global score cannot be graded until the monoclinic domain
-  finishes* — **unblocked.** It finishes, in both the paper's modes. The score
-  is 1026's and is pushed back there.
-
 ## Non-goals
 
 - **Not the bethanechol global score** — that is [1026](1026-indexing-acceptance.md)'s
@@ -556,13 +507,42 @@ fixture does not.
   the defect, and a real certified pattern was what said otherwise. Run it
   before closing anything that touches an engine.
 
-  **Not done, and pushed rather than dropped.** The three ranking failures
-  1026 handed over need *its* real-data rows to verify (brucite, magnetite,
-  FAP); `DEFAULT_SEARCH_LINES` picking the wrong twenty lines on a synchrotron
-  pattern is a peak-list question, untouched; NAC's `reflection_ceiling_ok`
-  block is a reflection-count limit no prune here reaches; and Dong, Wu & Chen
-  (1999) is still not held. All are in the consumed Inherited section above and
-  have been forwarded to 1026 and 1027.
+  **The inherited mailbox, consumed entry by entry** (the section itself is
+  deleted, per protocol step 5; everything still open is now in the `###
+  Inherited` of the WP that owns it):
+
+  - *A supercell outranks the truth on clean single-phase patterns* (qarr
+    brucite, magnetite) — **partly addressed, not verified there.** `M^Rev` is
+    the member built for it and separates a synthetic doubled axis 64-74×.
+    Neither dataset is a landed row (95 s, 218 s), so this session did not
+    re-measure them. → **1026**.
+  - *`DEFAULT_SEARCH_LINES` takes the wrong twenty lines on a synchrotron
+    pattern* — **untouched.** A peak-list selection question, not a search-cost
+    one. → **1026**.
+  - *M₂₀ inverts the ranking on FAP* — **the tool exists, the measurement does
+    not.** `M^Rev`/`M^Sym` are in the panel; whether they turn that ranking
+    round is a claim about `fap_index`, a 95 s row. → **1026**.
+  - *NAC cannot be searched at its own d_min* — **still true, better posed.**
+    The obstruction is `reflection_ceiling_ok` at d_min = 0.43 Å, a
+    *reflection-count* limit, so no prune added here touches it. → **1026**.
+  - *`refine_with_shift` declines its own correction* — fixed in WP-1026's
+    third session; the note that a shift allowance widens every `hit` matrix
+    and so multiplies the box count stands, unchanged by anything here.
+  - *Dong, Wu & Chen (1999) would give a measured `shift.source`* — **not
+    attempted, paper still not held.** It remains the unblock for
+    `shift_allowance_assumed`, and it is `quality.py` work, not engine work.
+    → **1026**.
+  - *Ask of each new prune not "is it sound" but "what does it do when two
+    leaves are nearly the same cell"* — **applied, and it was the right
+    question**: every prune added here refuses on a *necessary* condition and
+    carries a soundness test, and the one defect this WP introduced was a prune
+    wrongly *removed* rather than wrongly added.
+  - *The bethanechol global score is blocked* — **unblocked**; it finishes in
+    both of the paper's modes. → **1026**.
+  - Also forwarded to **1027**: the panel is seven members now and `m_sym` runs
+    four to five orders above the rest, so a shared axis across members will be
+    unreadable; and a monoclinic search over the default 2 Å bound is now
+    affordable (~32 s), so the panel need not force a narrow `min_d_axis`.
 
 - **2026-07-30** — created from an assessment session that read seven supplied
   papers against the tree. Nothing implemented here. Every number in Context is

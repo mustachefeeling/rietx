@@ -560,26 +560,21 @@ Seven more indexing rules, each learned the hard way — the measured stories
 are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
 
-- **A search prune is a claim about boxes, so measure boxes — and profile
-  before ranking causes.** Every cost item WP-1030 reasoned from the
-  algorithm's structure was mis-ranked: 97.6 % of the work is in the
-  *bisection*, not the grid every item addressed; the line-matching prune
-  refuses 0.0 % of boxes and the Hall's-condition test ranked last refuses
-  89.9 %. Two corollaries that keep costing time if forgotten — **wall clock is
-  worthless while a second search shares the machine** (two panel members were
-  briefly blamed for a 2× regression that was a background job; their measured
-  cost is 0.0 s), and **a candidate cell is a lattice, not a tuple**: the
-  bethanechol truth returns as its `c + a` setting at β = 139.7°, so compare
-  with `reduce.same_lattice`, never with sorted axes.
-- **Removing a redundant search must not remove its prunes, and only real data
-  will tell you that you did.** The centred passes are redundant *as searches*
-  (a centred trial set is a subset of the primitive one) but not as *filters*:
-  the first shared pass accepted every leaf under every centring and put a
+- **Profile an engine before ranking what to fix in it: a cost model reasoned
+  from the algorithm's structure is not a profile.** WP-1030's ranking came out
+  nearly inverted — the phase holding 97.6 % of the boxes had no item against
+  it, and the prune ranked last was the one worth 89.9 %. Two corollaries:
+  **wall clock is worthless while a second search shares the machine**, and **a
+  candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice`, never with sorted axes, or a correct answer in another
+  setting reads as a miss.
+- **Removing a redundant search must not remove its prunes**, and only real
+  data will say that you did: the centred passes are redundant *as searches*
+  (each centred trial set is a subset of the primitive one) and not as
+  *filters*. Because the prunes are monotone under bisection, replaying one at
+  the leaf is equivalent to the whole pass. WP-1030 skipped that and put a
   pseudo-cubic trigonal R description of the certified LaB6 lattice above the
-  cubic truth, because a lower-symmetry description indexes the off-lattice
-  tail components. The prunes are monotone under bisection, so replaying one at
-  the leaf is equivalent to the whole pass. **115 fast indexing tests were green
-  across every commit carrying that defect** — run
+  cubic truth with **115 fast indexing tests green** — so run
   `tests/test_acceptance_indexing.py` before closing anything that touches an
   engine.
 
