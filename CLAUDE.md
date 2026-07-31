@@ -16,7 +16,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (259: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (261: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -55,7 +55,7 @@ version of this check that actually earns its keep. That is the bookkeeping chec
 figures a day earlier disagreed by one, and a session that cannot say which of
 its numbers moved cannot tell a new skip from a new pass. The frontend's own
 suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 → 256
-→ 259 — where
+→ 261 — where
 that **207 was quoted as 206** until the next session re-ran it, which is the
 same lesson one suite over.)
 

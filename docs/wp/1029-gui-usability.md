@@ -762,3 +762,17 @@ the screenshot that prompted it, taken again.
   side on". The legend chips and view-down buttons wear the same filled look
   in that panel and were left alone — they are actions and toggles, not
   one-of-N choices, so if their register is wrong it is a different sentence.
+
+  *Same day, from reviewing the PR*: two survivors of the pass above, both
+  in what a change made newly reachable rather than in what it touched. A
+  checkout purges the plot but left `held` (the knob-repaint payload) alive,
+  so the theme buttons — always in the header — could redraw the discarded
+  curves onto the purged canvas; the held window now dies with the result,
+  pinned by a mount test that was verified **red without the fix** before it
+  was trusted. And the ui-PATCH reload fix had traded object identity for a
+  boolean, which cannot tell a project *switch* from a ui write — and the
+  head cannot either, because node ids are sequential (`tree.py`:
+  `n{len:04d}`), so two fresh projects share `n0000`. The reload key is now
+  the project *path*; today `App.opened()` forces panes mode so `active`
+  launders every switch, and the key is what keeps the effect correct the
+  day that side effect changes. vitest 259 → **261**.
