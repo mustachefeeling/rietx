@@ -1,6 +1,6 @@
 # WP-0303 — Anisotropic ADPs
 
-Milestone: v0.3 · Status: ✅ complete (2026-07-23)
+Milestone: v0.3 · Status: ✅ 2026-07-23
 Depends on: WP-0301
 
 ## Goal

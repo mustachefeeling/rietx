@@ -1,6 +1,6 @@
 # WP-0604 — Sphinx + MyST theory manual
 
-Milestone: v0.6 · Status: ✅ shipped 2026-07-29
+Milestone: v0.6 · Status: ✅ 2026-07-29
 Depends on: —
 
 ## Goal

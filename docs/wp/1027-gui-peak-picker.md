@@ -1,6 +1,6 @@
 # WP-1027 — GUI peak picker and indexing panel
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ⬜
 Depends on: 1010, 1011, 1018-1024 (1009 touched)
 
 ## Goal

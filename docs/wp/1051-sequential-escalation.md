@@ -1,6 +1,6 @@
 # WP-1051 — Sequential escalation ladder + chain hygiene
 
-Milestone: v1.0 (proposed 2026-07-30) · Status: ⬜ not started
+Milestone: v1.0 (proposed 2026-07-30) · Status: ⬜
 Depends on: —
 
 ## Goal

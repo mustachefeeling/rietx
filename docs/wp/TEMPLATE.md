@@ -1,11 +1,14 @@
 # WP-NNNN — <title>
 
-Milestone: v0.X · Status: ⬜ not started
+Milestone: v0.X · Status: ⬜
 Depends on: WP-MMMM (or —)
 
 <!--
-Status values: ⬜ not started · 🔶 in progress · ✅ shipped.
-Keep the Status line here and the WP's row in ../ROADMAP.md in sync.
+Status values: ⬜ not started · 🔄 in progress · ✅ shipped · 🛑 no-go.
+Format: "Status: <glyph> <YYYY-MM-DD> — <free text>". The date is required
+for every glyph except ⬜; the free text is optional and may wrap.
+Keep the Status line here and the WP's row in ../ROADMAP.md in sync
+(tests/test_docs_consistency.py asserts both).
 A WP file must be self-contained: a session that reads ONLY this file
 (plus the auto-loaded CLAUDE.md) can start work. Link specific DESIGN.md
 sections instead of restating them, but restate anything short and

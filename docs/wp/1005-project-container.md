@@ -1,6 +1,6 @@
 # WP-1005 — Project container
 
-Milestone: v1.0 · Status: ✅ complete 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1004
 
 ## Goal

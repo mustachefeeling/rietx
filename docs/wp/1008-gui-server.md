@@ -1,6 +1,6 @@
 # WP-1008 — GUI server, session model, `pxrdref gui`
 
-Milestone: v1.0 · Status: ✅ complete 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1004, WP-1005, WP-1006, WP-1007
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1023 — Engine C: whole-profile Monte Carlo (spike, then decide)
 
-Milestone: v1.0 · Status: 🛑 **no-go, recorded 2026-07-30** (Task 0 complete; engine not built)
+Milestone: v1.0 · Status: 🛑 2026-07-30 — **no-go**; task 0 complete, engine not built
 Depends on: 1020
 
 ## Goal

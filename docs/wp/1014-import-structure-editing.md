@@ -1,6 +1,6 @@
 # WP-1014 — Import & in-GUI structure/instrument editing
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1008, WP-1010
 
 ## Goal

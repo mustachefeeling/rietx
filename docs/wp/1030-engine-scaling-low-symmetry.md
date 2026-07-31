@@ -1,6 +1,6 @@
 # WP-1030 — Indexing at low symmetry: search cost, and the figures that rank it
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ⬜
 Depends on: 1020–1022 (all landed); 1026 soft (it owns the benchmark that grades this)
 
 > **Renumbered 1029 → 1030 on 2026-07-31.** This WP was created as 1029 on the

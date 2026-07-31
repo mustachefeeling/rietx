@@ -1,6 +1,6 @@
 # WP-0404 — Cross-backend Jacobian-agreement CI
 
-Milestone: v0.4 · Status: ✅ landed 2026-07-24
+Milestone: v0.4 · Status: ✅ 2026-07-24
 Depends on: WP-0402
 
 ## Goal

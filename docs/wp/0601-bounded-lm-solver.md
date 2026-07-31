@@ -1,6 +1,6 @@
 # WP-0601 — TOPAS-style bounded LM solver
 
-Milestone: v0.6 · Status: ✅ shipped 2026-07-28
+Milestone: v0.6 · Status: ✅ 2026-07-28
 Depends on: —
 
 ## Goal
@@ -154,7 +154,7 @@ hand (MinerU markdown conversions on this machine, `mdfind -name "bound
 constrained conjugate"` / `mdfind -name "Optimum Levenberg"`); no TOPAS code
 was consulted and none may be.
 
-## Inherited
+### Inherited
 
 From **WP-0605** (batched peak loop, closed 2026-07-28 as a measured no-go) —
 three things a solver benchmark must know.

@@ -1,6 +1,6 @@
 # WP-1018 — Peak picking: detection + full per-peak profile fitting
 
-Milestone: v1.0 · Status: ✅ complete 2026-07-30 (σ pull calibration measured)
+Milestone: v1.0 · Status: ✅ 2026-07-30 — σ pull calibration measured
 Depends on: —
 
 ## Goal

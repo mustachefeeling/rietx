@@ -1,6 +1,6 @@
 # WP-1006 — Run control: streaming, progress, cancellation
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: —
 
 ## Goal

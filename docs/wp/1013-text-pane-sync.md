@@ -1,6 +1,6 @@
 # WP-1013 — Text pane (CodeMirror 6) + two-way sync
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1009, WP-1010
 
 ## Goal

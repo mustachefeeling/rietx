@@ -1,6 +1,6 @@
 # WP-1028 — Robustness on data and CIFs we did not author
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ⬜
 Depends on: — (1007 soft: it restructures guard *reporting*, this adds guards)
 
 <!--

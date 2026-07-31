@@ -1,6 +1,6 @@
 # WP-0602 — Agent JSON surface hardened
 
-Milestone: v0.6 · Status: ✅ shipped 2026-07-29
+Milestone: v0.6 · Status: ✅ 2026-07-29
 Depends on: —
 
 ## Goal
@@ -92,7 +92,7 @@ vocabularies drawn from the live registries rather than restated literals.
 - No `SharingMap` beyond the two glob lists it already is.
 - No FitReport for multi-histogram responses (see Decisions).
 
-## Inherited
+### Inherited
 
 From **WP-0508** (flat-plate absorption, landed 2026-07-28) — new surface to
 cover, and one enum that is no longer binary.

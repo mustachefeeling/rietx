@@ -1,6 +1,6 @@
 # WP-0408 — torch backend (MPS fp32 forward)
 
-Milestone: v0.4 · Status: ✅ shipped 2026-07-27
+Milestone: v0.4 · Status: ✅ 2026-07-27
 Depends on: WP-0401, WP-0402, WP-0404 (also consumes WP-0403's policy and
 WP-0405's `w(z)`)
 

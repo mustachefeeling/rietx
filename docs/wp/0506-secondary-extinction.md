@@ -1,6 +1,6 @@
 # WP-0506 — Secondary extinction (Sabine model)
 
-Milestone: v0.5 · Status: ✅ complete (2026-07-23)
+Milestone: v0.5 · Status: ✅ 2026-07-23
 Depends on: —
 
 ## Goal

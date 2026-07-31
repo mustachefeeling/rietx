@@ -1,6 +1,6 @@
 # WP-0507 — Additional anode wavelengths (Co/Cr/Fe/Mo/Ag)
 
-Milestone: v0.5 · Status: ✅ shipped 2026-07-28
+Milestone: v0.5 · Status: ✅ 2026-07-28
 Depends on: —
 
 ## Goal
