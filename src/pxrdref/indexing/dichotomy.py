@@ -725,10 +725,14 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # first written this way
     per_centring = {c: (hkl_all[mask[union]], dm_all[mask[union]])
                     for c, mask in masks.items()}
+    centring_rows = {c: mask[union] for c, mask in masks.items()}
     m_all = dm_all @ basis.T
     root_min, _root_max = _q_bounds(m_all, lo0, hi0)
     search_set = np.flatnonzero(root_min <= q_hi_search)
     m_full = m_all[search_set]
+    # each centring's own view of the *recursion* set, for the leaf-level replay
+    # of the pass it no longer gets — see the loop in phase 2
+    m_search = {c: m_full[rows[search_set]] for c, rows in centring_rows.items()}
     q_hi = q_hi_search
 
     det_band = (1.0 / max(vol_max, 1e-6) ** 2, 1.0 / max(vol_min, 1e-6) ** 2)
@@ -819,6 +823,23 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
                 continue
             seen.add(key)
             for centring, (hkl_c, dm_c) in per_centring.items():
+                # **The centred pass is replayed here, and one box is enough.**
+                # Dropping the per-centring *search* must not also drop its
+                # per-centring *pruning*: a leaf reached by the union set has
+                # not shown that the centred trial set can reach these lines.
+                # Measured on SRM 660c, skipping this put a pseudo-cubic
+                # trigonal R description of the LaB6 lattice **above** the
+                # certified cubic cell — a lower-symmetry description indexes
+                # two more lines because the off-lattice tail components fit
+                # it.  Testing the leaf alone is *equivalent* to having run the
+                # whole centred search: every prune in :func:`_test_box` is
+                # monotone under bisection, so a box that survives implies
+                # every ancestor survived, and leaf survival is exactly "the
+                # centred search would have reached here".
+                if _test_box(m_search[centring], lo, hi, basis, q_hi, det_band,
+                             swaps, lo_search, hi_search,
+                             spec.n_unindexed) is None:
+                    continue
                 cand = _accept(basis, system, centring, spec, theta,
                                hkl_c, dm_c, q_all, sigma,
                                wavelength, tt_max, vol_min, vol_max, width,
