@@ -188,10 +188,12 @@ not this WP's checklist.
       sub-rows, and the gated Adopt button.
 - [x] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
       the fixed-point property test.
-- [ ] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
+- [x] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
       a peak list keyed to one pattern is refused against another; `.pxt`
-      fixed point; **Adopt is disabled for a `medium` candidate** (the gate
-      does not leak into the UI).
+      fixed point (in `test_textdoc.py`, beside the other fixed-point
+      properties); **Adopt is disabled for a `medium` candidate** (the gate
+      does not leak into the UI — asserted server-side there and from the
+      JS side in `App.test.ts`).
 
 ## Acceptance
 
