@@ -87,6 +87,24 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+**From WP-1030, closed 2026-07-31 — two things the indexing panel has to render
+that changed under it.**
+
+- **The figure-of-merit panel is now seven members, not five**: `m_rev` and
+  `m_sym` (Oishi-Tomiyasu 2013) joined M₂₀, F_N and the three coverage
+  fractions. Anything laying out the panel by a fixed count, or assuming the
+  members are comparable in scale, needs re-reading — **`m_sym` is a product of
+  two ratios and runs four to five orders above the rest** (~2×10⁵ against
+  M₂₀'s ~10²), so a shared axis or a bar chart across members will be
+  unreadable. Every member still carries its own `blind_spot` string, which is
+  the thing worth surfacing next to a value.
+- **A search over the package's *default* short-axis bound is now affordable at
+  low symmetry** — a monoclinic search over d ∈ [2, 20] Å with a declared
+  volume window completes in ~32 s where it previously did not finish at all.
+  So a panel offering "search monoclinic" no longer has to insist the user
+  declare a narrow `min_d_axis` first. It is still ~30 s, so it wants the
+  streaming/cancellation path rather than a blocking call.
+
 **From WP-1026 (landed 2026-07-30) — a picked line now has a third state, and the
 picker UI is where it becomes visible or invisible.** `pick_peaks` emits
 components flagged **`not_separable`**: profile-shape repair that the fitter

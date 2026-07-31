@@ -53,9 +53,14 @@ Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
 
 - full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
   path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
+  Predates WP-1030's +7 and was measured in the main checkout.
 - fast suite: numpy-only `[dev]` fast is 1567 passed / 108 skipped in
   23–29 s (idle machine; includes WP-1031's +10), full 1268 passed / 117
   skipped (6:52, before the +10).
+- fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
+  with **no torch**: 1626 passed / 67 skipped in 1:01–1:50, after WP-1030's
+  +7 (1619/67 before). A worktree needs its own venv and its own count —
+  the extras differ, so these do not compare with the rows above.
 - frontend (vitest): 261.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
@@ -518,8 +523,15 @@ in A..F (corner-exact, because Q is linear in the metric) and its silence is evi
 indices of a few base lines and solves the metric exactly, so a bad base line poisons
 it where a wide domain poisons the other. Both rank on the FoM **panel** via
 `rank_candidates`, never on a member — supercells index every observed line exactly
-and lose only on `predicted_seen_fraction`. Two things the panel needs from its
-caller, both learned the same way (WP-1026): the **matching window** is an argument
+and lose only on the reversed members. There are **seven**: M₂₀, F_N, three
+coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
+content is that the reversed direction is a *ratio* where ours is a windowed
+fraction — measured on a doubled axis, `m_rev` separates truth from supercell 64-74×
+where M₂₀ separates them 1.8×. Its `N^cal` is Σ 1/m over centring-allowed triples
+and is **never rounded**: Σ 1/m over a complete orbit is exactly 1, so an integer
+result is the *self-check* that the multiplicity is right, while a hexagonal orbit
+cut by the enumeration box legitimately contributes a fraction. Two things the panel
+needs from its caller, both learned the same way (WP-1026): the **matching window** is an argument
 (`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
 members must ask the same "is this the same line" question the *search* asked while
 M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
@@ -540,9 +552,21 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-Six more indexing rules, each learned the hard way — the measured stories
+Seven more indexing rules, each learned the hard way — the measured stories
 are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
+
+- **A search prune is a claim about boxes, so measure boxes — and profile
+  before ranking causes.** Every cost item WP-1030 reasoned from the
+  algorithm's structure was mis-ranked: 97.6 % of the work is in the
+  *bisection*, not the grid every item addressed; the line-matching prune
+  refuses 0.0 % of boxes and the Hall's-condition test ranked last refuses
+  89.9 %. Two corollaries that keep costing time if forgotten — **wall clock is
+  worthless while a second search shares the machine** (two panel members were
+  briefly blamed for a 2× regression that was a background job; their measured
+  cost is 0.0 s), and **a candidate cell is a lattice, not a tuple**: the
+  bethanechol truth returns as its `c + a` setting at β = 139.7°, so compare
+  with `reduce.same_lattice`, never with sorted axes.
 
 - Read a `predicted_but_absent` firing as "this cell predicts lines the
   pattern lacks", **never** "this cell is too big": it counts against the
