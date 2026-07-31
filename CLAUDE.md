@@ -53,14 +53,18 @@ Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
 
 - full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
   path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
-  Predates WP-1030's +7 and was measured in the main checkout.
+  Predates WP-1030's +8 and was measured in the main checkout.
 - fast suite: numpy-only `[dev]` fast is 1567 passed / 108 skipped in
   23–29 s (idle machine; includes WP-1031's +10), full 1268 passed / 117
   skipped (6:52, before the +10).
 - fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
-  with **no torch**: 1626 passed / 67 skipped in 1:01–1:50, after WP-1030's
-  +7 (1619/67 before). A worktree needs its own venv and its own count —
-  the extras differ, so these do not compare with the rows above.
+  with **no torch**: 1627 passed / 67 skipped in 1:01–2:57 (`-n auto` to
+  `-n 4`), after WP-1030's +8 (1619/67 before). A worktree needs its own venv
+  and its own count — the extras differ, so these do not compare with the rows
+  above.
+- `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
+  **Run it before closing anything that touches an engine** — WP-1030's one
+  regression was invisible to all 115 fast indexing tests.
 - frontend (vitest): 261.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting

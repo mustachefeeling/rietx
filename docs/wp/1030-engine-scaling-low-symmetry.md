@@ -509,7 +509,8 @@ fixture does not.
   vectorised `laue_multiplicity` (`79caa44`); `docs/manual/engines.md` plus six
   bib entries, and the ITO and Louër-floor no-goes (`462d575`); the determinant
   bound through the correlation form, intersected with the expansion
-  (`1ef07e7`). Seven tests added across `test_indexing_engines.py` and
+  (`1ef07e7`), and the centred prune replayed at the leaf (`4fa8b94`).
+  Eight tests added across `test_indexing_engines.py` and
   `test_indexing_core.py`, all of them soundness or definition checks rather
   than recovery checks.
 
