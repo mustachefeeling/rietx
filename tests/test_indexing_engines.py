@@ -369,6 +369,55 @@ def test_dichotomy_q_bounds_are_attained_at_the_box_corners():
         assert np.allclose(q_corners.max(axis=0), q_max, atol=1e-12), system
 
 
+def test_the_volume_prune_contains_every_lattice_in_the_box():
+    """The determinant bound may be loose; it may **never** exclude the answer.
+
+    ``_det_interval`` intersects two valid bounds — interval arithmetic on the
+    expanded determinant, and A·B·C·det R with every correlation clipped to the
+    domain's obliquity — because neither dominates: the correlation form carries
+    the diagonal spread twice, so it is looser on a box already narrow in its
+    off-diagonals, and the expansion is the one that goes useless when the
+    off-diagonals are wide.  An intersection is only sound if *both* are, so
+    every sampled interior point's det G* must land inside.
+
+    Points violating the cone are excluded from the check on purpose: they are
+    excluded from the *search* too (``_initial_box``, ``_stage_edges`` and
+    ``_inside_domain`` all enforce it), so a bound that cuts them cuts nothing
+    reportable.
+    """
+    from pxrdref.indexing.dichotomy import (
+        MAX_ANGLE_COSINE,
+        _af_interval,
+        _det_interval,
+    )
+    from pxrdref.indexing.qspace import gstar_from_af
+
+    rng = np.random.default_rng(1030)
+    for system in ("orthorhombic", "monoclinic", "triclinic"):
+        basis = metric_basis(system)
+        n = basis.shape[0]
+        for _case in range(40):
+            lo = rng.uniform(0.004, 0.05, size=n)
+            hi = lo + rng.uniform(1e-4, 0.03, size=n)
+            af_lo, af_hi = _af_interval(basis, lo, hi)
+            if np.any(af_hi[:3] <= 0.0):
+                continue
+            det_lo, det_hi = _det_interval(af_lo, af_hi)
+            for _trial in range(40):
+                theta = lo + rng.uniform(size=n) * (hi - lo)
+                af = basis.T @ theta
+                if np.any(af[:3] <= 0.0):
+                    continue
+                cone = [abs(af[p]) <= 2.0 * MAX_ANGLE_COSINE
+                        * np.sqrt(af[i] * af[j])
+                        for p, (i, j) in ((3, (1, 2)), (4, (0, 2)), (5, (0, 1)))]
+                if not all(cone):
+                    continue
+                det = float(np.linalg.det(gstar_from_af(af)))
+                assert det_lo - 1e-15 <= det <= det_hi + 1e-15, (
+                    system, det, (det_lo, det_hi))
+
+
 def test_the_duplicate_leaf_hash_resolves_every_axis_equally():
     """A leaf's identity must be relative **per component**, not to the largest one.
 

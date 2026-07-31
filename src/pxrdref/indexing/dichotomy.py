@@ -463,29 +463,93 @@ def _imul(x: tuple[float, float], y: tuple[float, float]) -> tuple[float, float]
     return min(p), max(p)
 
 
+def _isq(x: tuple[float, float]) -> tuple[float, float]:
+    """[lo, hi]² as an interval — **0 is the minimum when it straddles zero**.
+
+    ``_imul(x, x)`` treats the two factors as independent and returns a negative
+    lower bound for an interval containing 0, which is not a square of anything.
+    """
+    lo, hi = x
+    if lo <= 0.0 <= hi:
+        return 0.0, max(lo * lo, hi * hi)
+    return min(lo * lo, hi * hi), max(lo * lo, hi * hi)
+
+
+def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
+                  z: tuple[float, float]) -> tuple[float, float]:
+    """The off-diagonal as a **correlation**, clipped to the domain's obliquity."""
+    c = float(MAX_ANGLE_COSINE)
+    if y[0] <= 0.0 or z[0] <= 0.0:
+        return -c, c
+    small = 2.0 * np.sqrt(y[0] * z[0])       # smallest denominator → largest |ρ|
+    big = 2.0 * np.sqrt(y[1] * z[1])
+    lo = x_lo / small if x_lo < 0.0 else x_lo / big
+    hi = x_hi / small if x_hi > 0.0 else x_hi / big
+    return max(lo, -c), min(hi, c)
+
+
 def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
                   ) -> tuple[float, float]:
     """Interval bound on det G* over the box, for the volume prune.
 
-    Interval arithmetic on the symmetric 3×3 expansion — conservative (the terms
-    are treated as independent when they are not), which is the right direction:
-    a volume prune that is too wide costs search time, one that is too tight
-    excludes the answer.  V = (det G*)^(−1/2), so a volume band [V_min, V_max]
-    is the det band [1/V_max², 1/V_min²].
+    V = (det G*)^(−1/2), so a volume band [V_min, V_max] is the det band
+    [1/V_max², 1/V_min²], and the bound must be conservative in the direction
+    that costs search time rather than the one that excludes the answer.
+
+    **It is bounded through the correlation form, not the expanded determinant,
+    and that is what makes the volume window prune at all.**  Writing
+    G* = D^½ R D^½ with D the diagonal gives det G* = A·B·C·det R, so the
+    off-diagonals enter only as ρᵢⱼ = G*ᵢⱼ/√(G*ᵢᵢG*ⱼⱼ) — which the search domain
+    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``
+    and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
+    nothing this search may report).  Interval arithmetic on the *expanded*
+    determinant throws that coupling away: it evaluates −B·(E/2)² with E at the
+    **domain's** maximum while A and C are at this **box's**, and the term then
+    swamps A·B·C.  Measured over the bethanechol monoclinic domain (d ∈ [5, 20],
+    V ∈ [800, 1200]) the expanded form gives det ∈ [−4.80e−5, 6.40e−5] against a
+    band of [6.94e−7, 1.56e−6] — det_lo < 0, so "this cell is too small" could
+    never fire at any grid stage, which is the whole of WP-1030's opening
+    diagnosis.  The correlation form gives [3.91e−9, 6.40e−5] on the same box and
+    ABC·[1 − cos²ϑ, 1] on a monoclinic one, and it fires.
+
+    Note this is a *tightening*, not a reordering: the coupling is available
+    whether or not the off-diagonals have been cut yet, so the grid keeps the
+    staging that lets ``_stage_edges`` narrow the off-diagonal axis from 18 slabs
+    to 1-3 using the same Cauchy-Schwarz bound.
+
+    **Both forms are computed and intersected, because neither dominates.**  The
+    correlation form carries the diagonal spread twice — once in A·B·C and again
+    in ρ's denominator — so on a box narrow in the off-diagonals but not yet in
+    the diagonals it is *looser* than the expansion, and using it alone was
+    measured to take the bethanechol grid from 298 k boxes to 441 k even while
+    cutting the top-stage grid.  The expansion is tight there and useless where
+    the cone matters; the intersection of two valid bounds is valid and is at
+    least as tight as either.
     """
-    g = [(float(af_lo[i]), float(af_hi[i])) for i in range(3)]
+    a = (float(af_lo[0]), float(af_hi[0]))
+    b = (float(af_lo[1]), float(af_hi[1]))
+    c = (float(af_lo[2]), float(af_hi[2]))
     # off-diagonals: A..F carries 2·G*, so halve
     d23 = (0.5 * float(af_lo[3]), 0.5 * float(af_hi[3]))
     d13 = (0.5 * float(af_lo[4]), 0.5 * float(af_hi[4]))
     d12 = (0.5 * float(af_lo[5]), 0.5 * float(af_hi[5]))
-    t1 = _imul(_imul(g[0], g[1]), g[2])
-    t2 = _imul(_imul(d12, d13), d23)
-    t3 = _imul(g[0], _imul(d23, d23))
-    t4 = _imul(g[1], _imul(d13, d13))
-    t5 = _imul(g[2], _imul(d12, d12))
-    lo = t1[0] + 2.0 * t2[0] - t3[1] - t4[1] - t5[1]
-    hi = t1[1] + 2.0 * t2[1] - t3[0] - t4[0] - t5[0]
-    return lo, hi
+    diag = _imul(_imul(a, b), c)
+    cross_d = _imul(_imul(d12, d13), d23)
+    t3, t4, t5 = (_imul(a, _isq(d23)), _imul(b, _isq(d13)), _imul(c, _isq(d12)))
+    lo = diag[0] + 2.0 * cross_d[0] - t3[1] - t4[1] - t5[1]
+    hi = diag[1] + 2.0 * cross_d[1] - t3[0] - t4[0] - t5[0]
+
+    # the same determinant through det G* = A·B·C·det R, where the domain's
+    # obliquity bound clips every ρ
+    r23 = _rho_interval(float(af_lo[3]), float(af_hi[3]), b, c)
+    r13 = _rho_interval(float(af_lo[4]), float(af_hi[4]), a, c)
+    r12 = _rho_interval(float(af_lo[5]), float(af_hi[5]), a, b)
+    s23, s13, s12 = _isq(r23), _isq(r13), _isq(r12)
+    cross_r = _imul(_imul(r12, r13), r23)
+    det_r = (1.0 + 2.0 * cross_r[0] - s23[1] - s13[1] - s12[1],
+             1.0 + 2.0 * cross_r[1] - s23[0] - s13[0] - s12[0])
+    c_lo, c_hi = _imul(diag, det_r)
+    return max(lo, c_lo), min(hi, c_hi)
 
 
 def _max_index(spec: SearchSpec, q_max: float) -> int:
