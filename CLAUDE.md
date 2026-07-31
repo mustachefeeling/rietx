@@ -53,8 +53,9 @@ Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
 
 - full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
   path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
-- fast suite: 1675 collected; numpy-only `[dev]` fast is 1557 passed / 108
-  skipped in 29 s (idle machine), full 1268 passed / 117 skipped (6:52).
+- fast suite: numpy-only `[dev]` fast is 1567 passed / 108 skipped in
+  23–29 s (idle machine; includes WP-1031's +10), full 1268 passed / 117
+  skipped (6:52, before the +10).
 - frontend (vitest): 261.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting

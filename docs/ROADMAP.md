@@ -52,19 +52,12 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight: [1031](wp/1031-docs-consolidation.md)** — planning-doc
-consolidation and handoff mechanization: the protocol above gains mechanical
-enforcement (`tests/test_docs_consistency.py`, `/wp-handover`), and the
-rolling narrative this section used to hold now lives in the in-flight
-milestone record.
-
-**The narrative moved.** Everything this section accumulated between
-2026-07-29 and 2026-07-31 — the GUI line (1004…1015, 1029), the indexing
-line (1018…1026), the dispersion default decision (1001) — is in
-[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here",
-reverse-chronological, verbatim. A closed WP's own file is the deep record;
-the milestone file is the running story; this section names only what is
-active and what is next.
+**Nothing is in flight.** [1031](wp/1031-docs-consolidation.md) closed
+2026-07-31: the planning docs are consolidated (root CLAUDE.md ~600 lines,
+this file ~500, the rolling narrative in
+[milestones/v1.0.md](milestones/v1.0.md)), the protocol above has mechanical
+enforcement (`tests/test_docs_consistency.py`, `docs.yml`), and every WP
+session ends with `/wp-handover`.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -186,7 +179,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
-| [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | 🔄 2026-07-31 | — |
+| [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1030 |
 
 ### v1.0 — indexing (added 2026-07-29)

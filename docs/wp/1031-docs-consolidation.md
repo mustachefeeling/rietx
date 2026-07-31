@@ -1,6 +1,6 @@
 # WP-1031 — Planning-doc consolidation & handoff mechanization
 
-Milestone: v1.0 · Status: 🔄 2026-07-31 — in flight
+Milestone: v1.0 · Status: ✅ 2026-07-31 — closed the session it opened; measured shrink in the handover log
 Depends on: — (touches CLAUDE.md/ROADMAP.md; land while no other WP is in flight)
 
 ## Goal
@@ -69,29 +69,29 @@ Design rules that bound the work:
 
 - [x] Merge origin/main into the working branch; verify no WP in flight;
       re-anchor all surveyed line refs by grep.
-- [ ] Create this WP file + ROADMAP index row.
-- [ ] Normalize conventions (content-preserving): TEMPLATE.md status
+- [x] Create this WP file + ROADMAP index row.
+- [x] Normalize conventions (content-preserving): TEMPLATE.md status
       vocabulary → `⬜ 🔄 ✅ 🛑` with format `glyph date — free text`; the
       three H2 `## Inherited` → H3; Status-line prefixes across docs/wp/.
-- [ ] Land `tests/test_docs_consistency.py` (vocabulary, WP↔ROADMAP bijection
+- [x] Land `tests/test_docs_consistency.py` (vocabulary, WP↔ROADMAP bijection
       + glyph equality, Inherited placement, link resolution, milestone
       records; size caps deferred to the final pass) + `.github/workflows/docs.yml`.
-- [ ] Create `docs/milestones/v1.0.md`; MOVE the Current-focus diary into it;
+- [x] Create `docs/milestones/v1.0.md`; MOVE the Current-focus diary into it;
       rewrite Current focus ≤40 lines.
-- [ ] MOVE the three `<details>` blocks + 05xx tail into v0.6/v0.5/v0.4
+- [x] MOVE the three `<details>` blocks + 05xx tail into v0.6/v0.5/v0.4
       appendices.
-- [ ] Create `tests/CLAUDE.md`; shrink root `## Commands` (headline rules +
+- [x] Create `tests/CLAUDE.md`; shrink root `## Commands` (headline rules +
       `### Current numbers`, replace-only).
-- [ ] Create `gui/CLAUDE.md` + `src/pxrdref/gui/CLAUDE.md` pointer stub;
+- [x] Create `gui/CLAUDE.md` + `src/pxrdref/gui/CLAUDE.md` pointer stub;
       shrink root `## Data flow`; promote `sig()` to Invariants.
-- [ ] Root CLAUDE.md final pass (Roadmap section → pointer, indexing dossier
+- [x] Root CLAUDE.md final pass (Roadmap section → pointer, indexing dossier
       distilled, recaps deleted, `###` headings); measure; enable size caps.
-- [ ] Replace `## Session protocol` (Inherited-prune-on-arrival, /wp-handover,
+- [x] Replace `## Session protocol` (Inherited-prune-on-arrival, /wp-handover,
       CLAUDE.md-takes-rules, demote-at-WP-close).
-- [ ] Commit `.claude/commands/wp-handover.md` + `.gitignore` entries for
+- [x] Commit `.claude/commands/wp-handover.md` + `.gitignore` entries for
       `.claude/worktrees/` and `.claude/settings.local.json`.
-- [ ] Resolve or file the `--collect-only` two-short discrepancy (timeboxed).
-- [ ] Close out via `/wp-handover` itself; final sentinel sweep; before/after
+- [x] Resolve or file the `--collect-only` two-short discrepancy (timeboxed).
+- [x] Close out via `/wp-handover` itself; final sentinel sweep; before/after
       sizes recorded here and in v1.0.md; memory-note maintenance; PR to main.
 
 ### Sentinel ledger
@@ -141,5 +141,25 @@ meta-test pattern.
 Append-only, newest first. An entry is REQUIRED before ending any session
 that touched this WP — done / in flight / next / gotchas.
 
+- **2026-07-31 (close)** — all thirteen tasks landed in one session, eleven
+  commits. **Measured**: CLAUDE.md 1142 → 601 lines, ROADMAP 2301 → 500 —
+  the always-read pair 3443 → 1101 lines against the ~1000 in Acceptance
+  (the excess is the deliberately fuller protocol section and the new
+  Current-numbers block; the enforced contract is the caps, 700/650/60).
+  Session fixed reading drops ≈65–75k → ≈30k tokens including one WP file.
+  New on-demand files: gui/CLAUDE.md 278 lines, tests/CLAUDE.md 124,
+  milestones/v1.0.md 1667 (three appendices: focus diary, timing diary,
+  indexing dossier). **Counts**: this WP added 10 tests
+  (test_docs_consistency); fast selection 1557/108 → 1567 passed / 108
+  skipped — passed moved by exactly ten, skips unchanged — and the
+  `--collect-only` gap is **resolved** (one run-summary skip and zero
+  collected items per module-level importorskip that fires; two fire on a
+  `[dev]` venv, which is the whole historical gap). Sentinel sweep 16/16 at
+  close. **Gotchas**: this worktree's venv is numpy-only `[dev]` — quote
+  extras with counts; nested CLAUDE.md files load per subtree, so rules
+  governing cross-subtree behaviour (quoting numbers) must stay in root;
+  the meta-test's Inherited check keys on the Status-line date (closed
+  after 2026-07-31 ⇒ no `### Inherited`). **Next**: nothing in flight —
+  the queue is in Current focus, 1027 first.
 - **2026-07-31** — created, with the survey findings in Context and the
   sentinel ledger seeded from the live tree.
