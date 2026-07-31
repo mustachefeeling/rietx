@@ -12,6 +12,19 @@ htmlcov/
 *.png
 *.html
 !docs/**/*.html
+# The GUI's built frontend is COMMITTED (WP-1010) so installing the wheel never
+# needs node — and `*.html` above would have quietly dropped its entry point,
+# leaving a dist whose freshness test passes on this machine while a fresh clone
+# serves the placeholder page instead of the app.
+!src/pxrdref/gui/static/**
+# ...and the same rule swallowed the *source* entry too, which is worse: the
+# dist above is committed, so a fresh clone still serves the app — but without
+# `gui/index.html` vite has no entry module and the frontend cannot be rebuilt
+# at all.  Found by CI on the first clean-clone build (PR #17), never locally,
+# because the file exists on every machine that has ever run the build.
+!gui/index.html
+gui/node_modules/
+gui/.vite/
 # every test refinement writes obs/calc/diff plots and exported tables here,
 # for visual inspection (Rwp hides locally-bad fits).  The *.png rule above
 # used to cover this by accident; WP-0505 added a CSV export and it was

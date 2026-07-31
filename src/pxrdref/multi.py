@@ -48,6 +48,7 @@ from .schemas.structure import Structure
 from .strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
     PLAN_PRESETS,
+    GuardFinding,
     GuardReport,
     RefinementPlan,
     check_adp_positive_definite,
@@ -214,7 +215,7 @@ class MultiHistogramRefinement:
         # per-histogram slices ---------------------------------------------------
         per_values, per_ycalc, per_ybkg = [], [], []
         histograms: list[HistogramResult] = []
-        top_bg: list[str] = []
+        top_bg: list[GuardFinding] = []
         for h in range(n):
             table = mt.tables[h]
             model = models[h]
@@ -242,9 +243,15 @@ class MultiHistogramRefinement:
                 for path, r2 in sorted(background_absorption(jh, table.free_paths).items(),
                                        key=lambda kv: -kv[1]):
                     if r2 > BACKGROUND_ABSORPTION_GUARD:
-                        top_bg.append(f"hist.{h}.{path} (R²={r2:.2f})")
-                        diags.extend(_guard_diagnostics(GuardReport(
-                            background_correlations=[f"hist.{h}.{path} (R²={r2:.2f})"])))
+                        # ``hist.h.<path>`` is this surface's own addressing —
+                        # the same prefix ``RefinedParameter.path`` uses for a
+                        # per-histogram parameter — so the finding's paths stay
+                        # resolvable against the result a client is holding.
+                        finding = GuardFinding.background_absorption(
+                            f"hist.{h}.{path}", r2)
+                        top_bg.append(finding)
+                        diags.extend(_guard_diagnostics(
+                            GuardReport(background_correlations=[finding])))
             if qpa is not None:
                 diags.extend(microabsorption_diagnostics(qpa))
             # specimen absorption, per histogram — each may sit at its own
@@ -345,7 +352,7 @@ class MultiHistogramRefinement:
                 for j in range(i + 1, len(free)):
                     if abs(c[i, j]) > correlation_guard:
                         report.high_correlations.append(
-                            f"{free[i]} ~ {free[j]} (ρ={c[i, j]:+.3f})")
+                            GuardFinding.correlation(free[i], free[j], c[i, j]))
         lo, hi = mt.bounds()
         for k, path in enumerate(free):
             t = outcome.theta[k]
@@ -353,7 +360,7 @@ class MultiHistogramRefinement:
             tol = 1e-8 * (span if np.isfinite(span) else 1.0)
             if ((np.isfinite(lo[k]) and t - lo[k] <= tol)
                     or (np.isfinite(hi[k]) and hi[k] - t <= tol)):
-                report.at_bounds.append(path)
+                report.at_bounds.append(GuardFinding.at_bound(path))
         return _guard_diagnostics(report)
 
 

@@ -1,0 +1,24 @@
+{
+  "bragg_brentano": [
+    "goniometer_radius_mm",
+    "ka2_ratio",
+    "monochromator_two_theta",
+    "mu_t",
+    "radiation",
+    "thickness_mm"
+  ],
+  "debye_scherrer": [
+    "capillary_radius_mm",
+    "mu_r",
+    "packing_fraction",
+    "polarization",
+    "wavelength"
+  ],
+  "flat_plate_transmission": [
+    "ka2_ratio",
+    "mu_t",
+    "packing_fraction",
+    "radiation",
+    "thickness_mm"
+  ]
+}

@@ -39,6 +39,179 @@ real UI.
 
 ### Inherited
 
+From **WP-1029** (GUI usability, landed 2026-07-30): **the controls this chapter
+was going to document have changed, which is why 1029 landed first.** Read the
+list below *before* the WP-1015 note underneath it — several of that note's
+sentences describe controls that have moved.
+
+- **One top-level selector**, `[ Plot | Model | Text ]`, a segmented control in
+  the header. The old pair of toggle buttons is gone, and so is the `Close`
+  inside each pane: there is now exactly one control for that choice, and every
+  option is named for where it lands you. The five-wide strip
+  (Parameters/Plan/Report/History/Build) is unchanged and is the sidebar's tabs
+  *within* plot mode — a distinction worth one sentence, since both look like
+  tab strips.
+- **Panes are draggable and the widths persist** (`ProjectDoc.ui`): the
+  plot/sidebar split and the Model pane's first two columns. Until dragged they
+  are responsive defaults, which is the behaviour to describe — a manual should
+  not print a pixel width. One caveat a user will hit: a drag is refused while a
+  run is in flight (see WP-1003's `### Inherited`).
+- **A three-way theme** — system / light / dark, in the header as ◐ ☀ ☾. Worth
+  a sentence on *why* three: "system" keeps following the machine at dusk, and
+  an explicit choice keeps overriding it.
+- **The plot has two new knobs.** A residual selector (Δ, Δ/σ, **Σχ²**) and an
+  intensity scaling (lin, √, log). Two of these need explaining rather than
+  listing. **Σχ² is the one to teach**: a flat stretch contributed nothing and a
+  step is where the misfit is, which answers "where is my fit bad?" better than
+  any Rwp. And **√ is drawn on the data with the axis relabelled in intensity**,
+  so it is the same numbers seen differently, not a different dataset.
+- **The 3D drawing knobs are behind a `drawing` disclosure**; only the mode
+  buttons and *view down a/b/c* stay in the open. The WP-1015 note below
+  describes the bond threshold as if it were on screen — it is one click away
+  now, and it is still the one control a first-time user needs.
+- **Ellipsoids gained an exaggeration factor, and the manual must not call it a
+  probability.** k(p) = √χ²₃(p) diverges as p → 1, so there is no ellipsoid
+  above 100 %; "× size" is a drawing scale, the caption prints both figures, and
+  a figure exported at a multiplier ≠ 1 is **not** an ORTEP-quotable surface.
+  That last clause is the sentence worth writing, because an ORTEP figure's
+  quoted probability is the whole reason the number is on the plot.
+- **A hopeless fit now says so.** Past `MATURITY_MAX_RWP` (0.35) the header
+  shows `⚠ not a fit yet` beside Rwp and links to the Report; the pill still
+  reads `converged`, because that vocabulary is WP-1028's. If both are on
+  screen at once the manual should say which to believe and why.
+- **Element colours are decided per phase**, not per element, so *the same
+  element can be drawn in different colours in two different phases* — the
+  anchors (H C N O S P F Cl Fe) never move, the rest are separated in OKLab
+  against whatever else is in that phase. Worth one sentence, because a reader
+  comparing two phase views will otherwise think something is wrong.
+
+From **WP-1015** (structure viewer, landed 2026-07-30): **there is a 3D view, and
+its two knobs are the part a manual has to explain.**
+
+It is a **third column of the model pane** (not a tab, not a window), toggled by a
+`3D` button in that pane's header and on by default. Two modes: *balls* (spheres
+at 0.40× the covalent radius — the shape of the structure) and *ellipsoids*
+(displacement ellipsoids at a selectable probability, default 50 %). Everything
+geometric is computed server-side by `GET /api/structure3d`; the client draws.
+
+Three things the second pass (2026-07-30) added that a manual should name, all of
+them conventions rather than features. The projection is **parallel**, not
+perspective, and there is **no Cartesian axis box** — the cell's own edges are
+labelled a, b, c, and they are the picture's frame of reference. Rotation is a
+free trackball (Jmol's and VESTA's, not plotly's z-locked turntable), with **view
+down a / b / c** buttons that snap to the three projections a structure is
+normally drawn in, and *reset* for the opening view. And a bond is drawn as two
+half-cylinders **coloured by the atoms at each end**, which is worth one sentence
+because it is how a reader tells which two species a stick joins without hovering
+— and because switching a species off in the legend takes its half-sticks with
+it.
+
+What the manual owes it is the two things a user will otherwise misread.
+**The bond threshold is a drawing threshold, not chemistry**: a bond is drawn at
+d ≤ tol·(rᵢ+rⱼ) on covalent radii, no fixed value is right for both a large cation
+and an organic (LaB6 at 1.15 draws every La–B contact and looks like a cage; at
+1.05 only the B₆ framework survives), and metal–metal contacts are suppressed
+unless the phase is all-metal. It is also the one control a first-time user
+*needs*: LaB6 at the default 1.15 draws 210 stick segments and 109 out-of-cell
+neighbours, and one turn of the slider to 1.05 turns that into the B₆ octahedron
+in a cell. **The ellipsoids are a diagnostic, not
+decoration**: their axes are refined quantities, so an over-flexible background —
+which improves Rwp while inflating ADPs (CLAUDE.md's block projection R²) —
+arrives here as balloons, and a non-positive-definite tensor arrives as a flat
+disc with the reason in its hover. Measured on NAC: Na1's Biso of 2.16 Å² against
+Al's 0.59 is obvious in the picture and is six ordinary-looking numbers in the
+parameter table. That contrast is the best onboarding argument the GUI has for
+why the view exists at all.
+
+Costs, measured on an M4: nothing at boot (65–99 ms, unchanged), and 605–1447 ms
+from clicking *Model* to a drawn scene — almost all of it fetching and parsing
+plotly. Worth a sentence, because a first-time user clicks *Model* and waits a
+second.
+
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the onboarding
+path now exists and is the empty state.** With no project open the app renders the
+import wizard itself (`panels/Model.svelte`, the same component that is the model
+editor when a project *is* open), so "how do I start?" is answered by the screen
+rather than by a manual page. What the manual owes it is the part the wizard
+cannot say in a form: why the instrument step refuses to default (an anode nobody
+chose becomes a wavelength in every refined cell), what the aniso opt-in actually
+changes (which parameters a plan frees), and why the pattern step names a
+*reader* rather than a file type.
+
+Also: the wizard's own copy is deliberately terse and every step already carries
+its "why" as a `title` or a muted line — if the manual repeats those sentences
+they become two authorities. Link to them instead, or move them.
+
+From **WP-1013** (landed 2026-07-30): the **text pane** is the surface this manual
+has the most to explain, and three of its facts are not discoverable from the UI.
+It is a *mode*, not a tab — the header's `Text` button and the palette's `t` — so a
+chapter that walks the tabs will miss it entirely. `⌥`-drag is a **rectangular
+selection**, which is the entire reason the `.pxt` format aligns its columns, and
+the pane's footer says so in one line that a manual should expand rather than
+repeat. And **a re-render discards the user's own comments**: the pane warns when
+the buffer has gained comment lines, but the flow ("apply, then re-read") wants
+stating once, properly.
+
+`textdoc.FORMAT_VERSION` is still owed to this WP as a **fenced constant**
+(WP-1009's own note says a bump that misses the manual must fail the docs build),
+and the `.pxt` grammar chapter should quote `gui/src/lib/pxt.ts`'s token
+vocabulary rather than restating it — that array is already pinned to
+`textdoc._KEYWORDS` by `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`,
+so a manual that quotes it inherits the guard.
+
+One sentence is worth carrying verbatim into the conflict/undo chapter, because it
+is the pane's whole safety story: **there is no merge and no force-apply** — a
+document regenerated from state has one authority, so a stale buffer re-reads and
+re-applies. The reason is sharper than "merging is hard": the loser's document also
+carries the winner's *old* values for every row it did not touch, so applying it
+anyway would silently revert them.
+
+From **WP-1011** (landed 2026-07-30): **the command palette is already the
+manual's index, and it is executable.** Cmd-K lists every command with the Python
+call it makes (`ref.set_vary(glob, True)`, `ref.run_stage(stage)`,
+`project.doc.ui["simple"]`), and the console echoes the same string when a control
+is clicked — so the chapter that teaches "the GUI is a front for the API" should
+quote the palette rather than restate it, and any command added later appears
+without the manual being edited. The shortcut set to document is `r` run, `.` run
+the selected stage, `Esc` cancel, `f`/`x` free/fix the filtered selection, `/`
+focus the filter, Cmd-K palette.
+
+Two things the onboarding path must say plainly, because both are surprising and
+both are deliberate. **The filter box is the selection** — a bulk free acts on the
+glob, not on ticked rows, because one glob is one history node. And **Simple mode
+hides the rows nothing can free** (locked, tied, mode-fixed) along with bounds and
+transforms; it reports the count it hid, and Advanced brings them back.
+
+From **WP-1012** (history/report panels, landed 2026-07-30): the palette gained
+`?` (report) and `h` (history), and there are now **five things the report panel
+says that a user will misread unless the manual says them first** — every one is
+the FitReport's own design showing through, so this chapter is where they get
+explained rather than in tooltips:
+
+- **A suggestion with no Apply button is not a broken button.** Four `ActionKind`s
+  are advice (`report/apply.py`'s `RECIPES`), and the note beside them *is* the
+  action. The two background-flexibility ones are the interesting case: they are
+  advice because a more flexible background lowers Rwp *while* biasing ADPs up and
+  scales down, and the statistic that catches it (`BACKGROUND_ABSORPTION`) is not
+  in the report — so there is no honest one-click version.
+- **A greyed suggestion with "vetoed:" is the engine agreeing with you and having
+  already handled it.** Worth a sentence, because it looks like a refusal.
+- **"could not rule out" is the headline, not a footnote.** Measured on the WP's own
+  fixture: applying `refine_zero_shift` on a fit whose *cell* was wrong improves Rwp
+  from 21.6 % to 9.3 % by putting the error in the wrong parameter, and the report
+  said so in advance (confidence capped at 0.5, both templates listed,
+  `separable=false`). This is the best worked example in the repo of why the
+  never-a-confident-wrong-singleton rule earns its keep — use it.
+- **The predicted Δχ² is one number for the whole report**, not per suggestion, and
+  it is not a bound (16.19 predicted, 16.33 observed for a cell correction). The
+  panel prints it once and says so; the manual should explain why it cannot rank.
+- **Undo is a checkout**, and a checkout throws the fitted curves away because they
+  described the values it replaced. Users will read the empty plot as a crash.
+
+One onboarding fact: **boot-to-interactive is 104–200 ms** measured in Chrome for
+Testing (load → the parameter table's first row), so "it feels instant" is a claim
+this chapter may make.
+
 From the **v1.0 GUI plan** (2026-07-29): `gui-power.md` is where the
 provisional status of the HTTP routes and `.pxt` format is stated
 user-facing (schemas frozen at v1.0, wire/text surfaces provisional) —
@@ -53,6 +226,25 @@ rather than gloss is that **a candidate list with no high-confidence entry is a
 result, not a failure** — the whole module is built so that "the data cannot
 distinguish these" is sayable, and a user who reads that as a bug will go
 looking for a setting to force an answer.
+
+From **WP-1009** (text document, landed 2026-07-30): `gui.textdoc.FORMAT_VERSION`
+is the fenced constant this WP was asked to inject into the manual (the `pxt 1`
+header line), and `gui.textdoc.VALUE_DIGITS` is worth injecting beside it — the
+manual has to state that the text view renders **12 significant digits and is
+lossy**, and why that is safe (a typed number is compared against the rendered
+current value, so an unedited apply is a no-op). Two more things a manual chapter
+should say because they are decisions, not accidents: comments in the text pane
+do **not** survive a re-render, and a glob line like `profile.* @` is bulk sugar
+that the next render expands into one line per parameter.
+
+From **WP-1010** (frontend scaffold, landed 2026-07-30): the app's help text has a
+home — `panels/Stubs.svelte` is where "this build can do X" is rendered from
+`capabilities().features`, whose flags are derived predicates, so an in-app
+capability list cannot drift from the package. Two constants worth injecting into
+the manual beside the textdoc ones: the dist is **committed** (a manual chapter
+should say `npm --prefix gui run build` is only for contributors, never for users)
+and plotly is served from the installed package rather than bundled, which is why
+`[gui]` is a plotly-only extra.
 
 ## Non-goals
 

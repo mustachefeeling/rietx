@@ -87,6 +87,93 @@ in a number. This panel exists for that, not for convenience.
 
 ### Inherited
 
+From **WP-1029** (GUI usability, landed 2026-07-30): **that trap fired again, in
+the main pattern plot, and the fix is now in both.** `panels/Plot.svelte` had
+nothing below it until this WP put a residual selector and a scaling selector
+there; the canvas then swallowed their clicks, and playwright reported it in the
+defect's own words — `<rect class="sdrag drag"> … intercepts pointer events`. It
+now carries the same `ResizeObserver` → `Plotly.Plots.resize` the structure
+viewer has. **Take it as given rather than re-deriving it**: any new control row
+under a plotly plot needs the observer on the plot div.
+
+Two more things a peak picker will want. `lib/plot.ts` owns *which* residual and
+*which* intensity scaling are drawn (`residual`, `scaleValues`, `sqrtTicks`), and
+`/api/result/window` now sends `delta`, `delta_raw`, `cumulative_chi2` and a
+`weighted` flag — a picker working on √-scaled intensities must map a click back
+through `scaleValues`, since √ is applied to the **data** (plotly has no such
+axis type) with only the tick *labels* mapped back to intensity. And the shared
+2θ axis is anchored to the lower subplot (`xaxis.anchor: "y2"`), so a pixel→2θ
+mapping read off the upper plot's geometry will be wrong.
+
+From **WP-1015** (structure viewer, landed 2026-07-30): **the plotly loader is now
+shared, and a plot with controls under it has a measured trap.**
+
+`gui/src/lib/plotly.ts` (`loadPlotly()`) is the one place the runtime
+`<script src="/plotly.js">` is injected — use it. And plotly's `responsive: true`
+listens for **window** resizes only, so a plot whose box shrinks when a caption or
+a control row renders below it keeps an oversized canvas that **intercepts the
+clicks** of everything beneath. Found in Chrome and invisible to jsdom, which has
+no layout; the fix is a `ResizeObserver` → `Plotly.Plots.resize` on the plot div,
+as in `panels/Structure3D.svelte`. A peak picker whose picks are made *by clicking
+the plot* has the sharper version of this problem: an oversized canvas maps a
+click to the wrong 2θ, silently.
+
+And one method note that cost this WP a wrong claim: **reading `gd.layout` back is
+not a reading of the view.** It reports whatever was last passed *in*, so a check
+written that way reports a preserved zoom or rotation that has in fact been reset.
+Compare screenshots — but not their hashes, since a re-render differs by a pixel.
+
+**A cell that has just been indexed can be looked at.** `GET /api/structure3d`
+draws the current model — orbit, bonds, ellipsoids, cell frame — so an adopted
+candidate cell is one route away from a picture, which is a cheap sanity check on
+an indexing result that no figure of merit provides.
+
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): three things this
+panel can reuse rather than rebuild.
+
+**The upload flow** (`POST /api/upload/pattern` → token → commit) is how a pattern
+with no known phase gets into a project at all, which is the case indexing exists
+for — and the wizard's structure step is currently *required*. An
+index-from-nothing flow needs a way past that, and the honest shape is a wizard
+branch that creates the project with the indexed candidate (or a Le Bail
+placeholder) rather than a fourth ingest path.
+
+**A full-window mode is an available shape.** `panels/Model.svelte` is toggled
+from the header beside Text; a peak list plus an FoM panel plus a plot has the same
+width problem the atom table did, and the sidebar is `clamp(340px, 38%, 560px)`.
+
+**`GET /api/structure`'s `sites` arm** and `POST /api/structure/aniso` exist, so an
+adopted cell's atoms render with their site-symmetry DOFs immediately — nothing
+about adoption needs a new read.
+
+From **WP-1013** (landed 2026-07-30): the `peaks` keyword **already highlights** in
+the text pane — `gui/src/lib/pxt.ts`'s `KEYWORDS` quotes `textdoc._KEYWORDS`,
+reserved blocks included — so a picked-peaks block will be coloured the day the
+parser stops refusing it, with no frontend change. Two things follow.
+
+`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words` compares the four
+word lists in `pxt.ts` against `textdoc._KEYWORDS`, `_FLAG_WORDS`, `_PAIR_WORDS`
+and `StageSpec.model_fields`; **a new annotation word in the peaks block is a
+failing test until it is restated there**, which is deliberate — that is the guard
+that keeps the frontend's second reading of the grammar from drifting. A new
+*block* name needs nothing, since `peaks` is already in the list.
+
+And the peaks block's own sketch (in `textdoc.RESERVED_BLOCKS`) says it carries
+**no `@` markers**, because peaks are not refinable parameters. The scanner colours
+`@` as its own `vary` token in green, so that absence will read visually as well as
+grammatically — worth keeping when the block is designed, rather than adding a mark
+that means something else.
+
+From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs
+stay mounted** — `Peaks` is a tab, and a picker holding an unsaved edit survives a
+visit elsewhere. Reuse `lib/table.ts` for the peak list (grouping, the virtual
+window, esd-aware value formatting) rather than writing a second table; a
+thousand-peak list is exactly the case its virtualization exists for. Two
+contract facts: non-finite floats cross the wire as **strings** (`"Infinity"`),
+because `JSON.parse` rejects Python's bare token — read them with `num()`; and
+`gui/src/test-setup.ts` stubs the browser APIs jsdom lacks (`ResizeObserver`;
+`DragEvent` is also absent, which matters for a drag-to-move peak marker).
+
 From **WP-1008**: routes `GET/POST /api/peaks`,
 `POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
 `GET /api/index/result`, `POST /api/index/adopt` were reserved (404 until this
@@ -99,9 +186,56 @@ From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `IndexingResult.candidates` is always a list — the frontend must not synthesise
 a "the answer is" view from `candidates[0]`.
 
+From **WP-1012** (landed 2026-07-30) — three reusable pieces and one measured trap:
+
+- **The plot takes a `zoom` prop** (`[lo, hi] | null`) and refetches
+  `/api/result/window` when it changes, so pointing at a 2θ range from a panel is
+  one line and arrives at full point budget (measured: 4129 points over 3–24°
+  becomes 54 over 17.060–17.325°). A peak picker wants exactly this, plus the
+  reverse direction — clicking the plot to *add* a peak needs a click handler on
+  the plotly node, which nothing has registered yet.
+- **`gui/src/test-setup.ts` now stubs `Plotly`** as well as `ResizeObserver`,
+  because jsdom does not fetch `<script src>` and the runtime plotly loader
+  therefore never resolves — without it, no component test can reach the line that
+  fetches plot data at all. Any picker test that asserts on plot interaction
+  depends on that stub.
+- **`lib/report.ts`'s `worstRegions` ranks by χ² share, not local Rwp**, and the
+  reason applies to a peak list too: a region can have a dreadful local Rwp over
+  four counts of noise. The candidate list should not be ranked on a normalised
+  quantity alone.
+- The trap: **`Plot.draw`'s fetch must stay guarded.** A checkout clears the result
+  server-side while the component still holds the old one, and the unguarded fetch
+  escaped as an unhandled page error — invisible to jsdom, found in Chrome. A
+  picker that fetches peaks on a head change has the same shape.
+
 From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
 `"edited"`; surface it, because a hand-placed peak and a fitted one carry
 different weight and the user should see which is which.
+
+From **WP-1008** (GUI server, landed 2026-07-30): every route this WP asked to
+have reserved **is** reserved and 404s naming it — `GET/POST /api/peaks`,
+`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
+`GET /api/index/result`, `POST /api/index/adopt` (see
+`gui.session.RESERVED_ROUTES`, held disjoint from `ROUTES` by a test). Filling
+one in is a `ROUTES` entry plus a `GuiSession` method.
+
+For the long-running half: `GuiSession.run(body)` is the machinery — it takes
+`kind`, builds a `CancelToken` and an `EventStream(path=live/events.jsonl,
+callback=…)`, starts one worker, and 409s every mutating verb while busy. Wiring
+`/api/index` to it means adding a `kind: "index"` branch there, and the run
+record's fields (`status`, `stage`, `node_id`, `completed_stages`, `error`) are
+generic enough to carry an indexing run without new keys. Remember WP-1006's
+note carried into WP-1024: a **new** `EventKind` is a schema-version bump where
+an added `data` field is not.
+
+From **WP-1009** (text document, landed 2026-07-30): the **`peaks` block name is
+reserved in `pxt 1`**, so filling it in needs no format bump —
+`gui.textdoc.RESERVED_BLOCKS` maps it to this WP and the parser refuses it with
+that owner rather than as an unknown keyword. The intended layout (and the two
+editable columns, `2theta` and `flags`) is recorded in that module's docstring.
+Two grammar rules to follow when implementing it: an annotation containing spaces
+must render **last** on its line, and column widths are computed **per block** —
+a fixed width is what made the renderer emit output its own parser refused.
 
 ## Non-goals
 

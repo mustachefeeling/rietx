@@ -164,11 +164,57 @@ Rietveld ties intensities to atoms and has no such freedom.
   its strongest peak the whole pedestal goes to the Bragg reflections on cycle
   one.
 
+### Inherited
+
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload route
+is now the front door for files nobody here authored**, which makes it this WP's
+most interesting surface. `imports.preview_pattern` catches
+`ValueError/OSError/RuntimeError/KeyError/IndexError` from the reader and turns
+them into a 400 quoting the parser (with the staging path scrubbed out); anything
+outside that set becomes a 500 with a type name, which is the shape of failure
+worth hunting here. Two known-good behaviours to keep: a filename is reduced to its
+leaf (`../../../etc/lab6.cif` stages as `lab6.cif`), and the size cap is checked
+against the *declared* `Content-Length` before a byte is read.
+
+Also relevant: `_as_structure` now refuses an atom species with no
+Waasmaier-Kirfel entry, naming the atom. Real CIFs carry `D`, `Wat`, `OH` and
+worse, so **how often that fires on external files is a measurement this WP can
+make** — and if it fires on files that ought to work, the fix is a species-mapping
+step at import, not removing the check (it only moves the failure from stage
+compile to the field it was typed in).
+
+From **WP-1007** (landed 2026-07-30) — **`GuardFinding` now exists, so the codes
+this WP adds have a home**, and the note that asked for an open vocabulary was
+honoured: `GuardFinding(code, paths, value, message)` in `strategy/staged.py`,
+`code` a plain `str` and not a `Literal` closed over the original six. Three
+practical consequences:
+
+- Add a guard by adding a **constructor classmethod** to `GuardFinding` (that is
+  where the format string belongs — the same text used to be written at three
+  call sites) and a branch in `refine._guard_diagnostics`. `paths` is a tuple and
+  it *must* be populated: `Diagnostic.where` is now built from it, and this WP's
+  own findings (an hkl-range refusal, a non-positive ΣS·ZMV) are exactly the kind
+  a client wants to click through to a parameter.
+- **`str(finding)` is a published surface.** `tests/test_capabilities.py` pins the
+  rendered strings as *literals*; a new constructor wants a row in its
+  `RENDERINGS` table.
+- `MODEL_FAR_FROM_DATA` and the surfaced `max_iter` outcome are the two that are
+  not per-parameter — decide whether they are `GuardFinding`s with an empty
+  `paths` or `Diagnostic`s emitted directly from `_build_result`, and say which in
+  the handover. `value` is `None`-able precisely for the numberless case (a
+  parameter at its bound uses it that way).
+
+Also from **WP-1007**: `PreferredOrientation` is now exported from
+`pxrdref.__init__` — that half of this WP's note is done, so its task list is
+only the `r` floor. And `capabilities().features` carries `preferred_orientation`
+derived from `Phase.model_fields`, so nothing there needs editing when you touch
+the block.
+
 ## Non-goals
 
 - No new *physics*. Every item is a guard, a bound, a default or a message.
-- Not `GuardReport` → `GuardFinding` restructuring (WP-1007), though the codes
-  added here should land in that vocabulary once it exists.
+- Not `GuardReport` → `GuardFinding` restructuring — **done in WP-1007**
+  (2026-07-30); the codes added here land in that vocabulary, see `### Inherited`.
 - Not the QPA texture bias (see the Inherited note in WP-1004/1007 chain and
   the spherical-harmonics v2 fence) — that is accuracy, not robustness.
 

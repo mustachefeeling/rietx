@@ -1,6 +1,6 @@
 # WP-1011 — Parameter editor, plan editor, run controls, disclosure
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ landed 2026-07-30
 Depends on: WP-1010
 
 ## Goal
@@ -62,6 +62,63 @@ per-keystroke nodes would bury the log. Bounds and transform are on the row too,
 so the value editor can validate before the round trip (`set_values` refuses an
 out-of-bounds value).
 
+From **WP-1008** (GUI server, landed 2026-07-30) — the routes this WP edits
+through are live:
+
+- `GET /api/params` returns every row with `refinable` and `held_because`
+  **added** to the `ParameterRow` dump (they are properties, so `model_dump`
+  drops them), plus `n_free`, `mode`, `head` and `live`. Render the three held
+  reasons from `held_because`; do not re-derive them from `locked`/`tie`/
+  `mode_fixed`, which is the same rule spelled twice.
+- `PATCH /api/params {"values": {...}, "vary": {"glob": bool}}` applies **values
+  first, then vary in object order**, and each commits its own history node — so
+  one editor "apply" is two or three nodes, and the history panel will show them.
+- **A refused edit is the useful answer.** A tied path comes back 400 with the
+  verb's own message naming its sources (`'phases.0.cell.b' follows
+  'phases.0.cell.a' as an affine tie; set that instead`) and `where` = the path
+  edited. Show the message; the GUI is the only place it is ever read.
+- `GET /api/plan` gives the expanded stages plus a **derived** `preset` name
+  (`null` when edited) and `selected`. `PUT /api/plan` takes either
+  `{"preset": name}` or `{"plan": spec}`; a preset is stored **expanded through
+  the mode** (`mccusker_default` + `lebail` → `profile_only`'s stages), so the
+  editor shows exactly what will run. An empty stage list is refused.
+- Every one of these 409s with `RUN_IN_FLIGHT` during a run, and the state
+  refusal deliberately outranks body validation — disable the editor off the
+  `state` SSE frame rather than letting a user retype a value into a 409.
+
+From **WP-1009** (text document, landed 2026-07-30): use **`Project.parameters()`**
+(or `GET /api/params`, which now does), not `Refinement.parameters()` directly.
+The refinement's carried mode is what its last stage *ran* in — `"rietveld"`
+before the first run — while the document says what the next run will use, so
+calling the refinement directly reported `mode_fixed=False` on a Le Bail
+project's `.atoms.` rows and would have rendered the mandatory dummy atom's
+`biso` as editable. `Refinement.parameters(mode=…)` takes the override;
+`Project.parameters()` supplies `doc.mode`. Also: `PlanSpec.preset_name()` is now
+a schema method (was a private in the session), so the plan editor's "custom"
+label and the text document's `plan` line cannot disagree.
+
+From **WP-1010** (frontend scaffold, landed 2026-07-30) — the workspace exists and
+`npm --prefix gui run build` writes the committed dist. What a panel author needs:
+
+- **Add a panel, then delete its row.** `gui/src/panels/Stubs.svelte` lists every
+  owed panel by name and WP; a landing panel replaces its row rather than a
+  placeholder component, so you start from an empty file.
+- `gui/src/api.ts` is the only place a route is named, and `ApiError` carries
+  `code`/`where`/`details` with `.busy` (`RUN_IN_FLIGHT`) and `.empty`
+  (`NO_RESULT`/`NO_PROJECT`) already spelled out — **branch on those, not on
+  status codes or message text.**
+- Controls derive `disabled` from the **`state` frame** the stream pushes
+  (`App.svelte` holds it in one rune), never from what the last click hoped. A
+  parameter table is the panel where that matters most: a PATCH during a run is a
+  409 by design.
+- `gui/src/App.test.ts` is a **jsdom mount test** against a stubbed `fetch`; copy
+  its shape. It exists because no browser automation was available, and it catches
+  the failure a Python test cannot: a mount-time error rendering a blank page.
+  Note `resolve.conditions: ["browser"]` in `vite.config.ts` — without it
+  `mount()` comes from svelte's server build and throws.
+- Rebuild the dist in the same commit as any `gui/src/**` change, or
+  `tests/test_gui_dist.py` fails with "run `npm --prefix gui run build`".
+
 ## Non-goals
 
 - No structure/instrument *object* editing (WP-1014) — this WP edits θ-table
@@ -73,19 +130,19 @@ out-of-bounds value).
 
 ## Tasks
 
-- [ ] Virtualized grouped parameter table: value edit, vary checkbox, esd,
+- [x] Virtualized grouped parameter table: value edit, vary checkbox, esd,
       locked/tied greyed + tooltip; glob filter; bulk free/fix via PATCH
       globs.
-- [ ] fnmatch parity fixture: pytest writes
+- [x] fnmatch parity fixture: pytest writes
       `tests/data/gui/fnmatch_cases.json`; vitest consumes it against
       `lib/fnmatch.ts`.
-- [ ] Plan editor: `PLAN_INFO` preset picker, stage list, drag-reorder,
+- [x] Plan editor: `PLAN_INFO` preset picker, stage list, drag-reorder,
       disclosure for advanced stage fields.
-- [ ] Run / Run-stage / Cancel with optimistic status; 409 surfaced as
+- [x] Run / Run-stage / Cancel with optimistic status; 409 surfaced as
       state, not failure.
-- [ ] Simple/Advanced toggle persisted to `ProjectDoc.ui`; command palette +
+- [x] Simple/Advanced toggle persisted to `ProjectDoc.ui`; command palette +
       shortcut keys with API echo.
-- [ ] Server-side: params PATCH (incl. bulk glob) rows in
+- [x] Server-side: params PATCH (incl. bulk glob) rows in
       `tests/test_gui_server.py`; vitest for table selection logic and
       fnmatch parity.
 
@@ -102,6 +159,132 @@ npm --prefix gui test
 - WP-1004's `ParameterRow` / verbs; CLAUDE.md path conventions (fnmatch, no
   brackets in paths).
 
+## What landed
+
+- `gui/src/lib/table.ts` — grouping, filtering, the virtual window, pending
+  edits, esd-aware formatting; `lib/fnmatch.ts` — Python's `fnmatchcase`,
+  ported; `lib/palette.ts` — command ranking and the shortcut-target rule.
+  All four asserted in vitest without a DOM.
+- `gui/src/panels/Params.svelte`, `Plan.svelte`, `Palette.svelte`; the shell
+  grew a three-tab sidebar (Parameters / Plan / Build), a Simple↔Advanced
+  segmented control and a keyboard layer.
+- `tests/test_gui_fnmatch.py` writes the committed
+  `tests/data/gui/fnmatch_cases.json`; `tests/test_gui_server.py` gained the
+  bulk-glob row and the strict-JSON row.
+- `src/pxrdref/gui/server.py` — `_finite`/`_dumps`, the defect below.
+- `gui/src/test-setup.ts` — a `ResizeObserver` stub, with the rule for what
+  may go in it. Every future component test inherits it.
+
+## The defect this WP found
+
+**`JSON.parse` rejects a bare `Infinity`, and every parameter row has one.**
+`json.dumps` emits `Infinity`/`NaN` as bare tokens — a Python extension, not
+JSON — and `json.loads` accepts them back, so the whole of `/api/params` was
+unparseable in a browser while every Python test that read it passed. WP-1010
+shipped because it only ever fetched the curves. The fix spells a non-finite
+float the way the schemas already do (`ser_json_inf_nan="strings"`, CLAUDE.md's
+"±inf bounds must survive JSON round-trip"): the GUI server was the one place
+in the package re-serialising already-dumped dicts with stdlib `json`, and so
+the one place that convention was being lost. It applies to the SSE frames too,
+since an event's `data` is an open dict. The scan is a substring test on the
+*output*, so an ordinary response pays one C-level search rather than a
+recursive walk of a 4000-point payload. Pinned by `parse_constant` wired to
+raise, over seven routes.
+
+## Decisions worth carrying
+
+- **The filter box *is* the selection.** There is no per-row multi-select,
+  because `set_vary` takes one glob and records one node for it — N ticked rows
+  would be N globs and N nodes. `asGlob` wraps a bare word as `*word*` so the
+  string previewed and the string sent are the same one, and `selection()`
+  counts only rows `set_vary` could actually move (locked and tied excluded,
+  `mode_fixed` included, since that one *is* freeable and merely dropped again
+  when a stage runs).
+- **A typed number is compared to the rendered value**, not the stored float —
+  WP-1009's rule, needed here for the same reason: values display at the
+  precision their esd justifies (`4.1568(2)`), so comparing against 4.156783
+  would turn "clicked into a cell and out again" into a `set_values` that
+  truncates the parameter.
+- **An invalid cell blocks Apply** rather than being dropped from the body. The
+  point of carrying bounds on the row is to refuse before the round trip; a
+  partial apply is a worse answer than none. Revert stays offered — an invalid
+  edit is *counted* as pending precisely so it can be undone.
+- **Simple mode hides held rows and the bounds/transform columns**, and says how
+  many it hid. The charter also asked it to hide "Pawley/Stephens/ADP blocks
+  unless the structure declares them" — those rows *only exist* when declared
+  (`microstrain.dof.k`, `adp.k` are absent from the table otherwise), so no
+  filter was written for a predicate the parameter table already enforces.
+- **Group = the path minus its leaf, minus one more when the leaf is a bare
+  index.** That is what puts an atom's coordinate DOFs, ADP components and
+  `biso` under one heading instead of scattering one atom across three called
+  `dof`, `adp` and the atom.
+
+## Acceptance (measured 2026-07-30)
+
+```
+.venv/bin/python -m pytest tests/test_gui_server.py -q   →  33 passed
+.venv/bin/python -m pytest tests/test_gui_fnmatch.py -q  →   4 passed
+npm --prefix gui test                                    →  51 passed (4 files)
+npm --prefix gui run check                               →  0 errors, 324 files
+.venv/bin/python -m ruff check src tests examples        →  clean
+fast suite (numpy-only [dev] venv)     → 1133 passed / 107 skipped in 63.6 s
+full suite (same venv, busy machine)   → 1203 passed / 116 skipped in 11:52
+dist: 76.8 kB JS (28.8 kB gzip), 8.9 kB CSS — was 48.7/19.1 at WP-1010
+```
+
+The fast count moved by exactly the six tests this WP added; the full count moved
+by seven against the figure recorded the day before, on identical skip counts.
+That one test is a gap between two sessions' runs rather than anything reproduced
+here — both trees were green — and chasing it costs a 12-minute suite to settle a
+number that changes no decision. Recorded rather than quietly rounded.
+
+Driven end to end against a real server (`GuiSession` + `build_server` on an
+ephemeral port), in the order the GUI performs them: 38 rows with 11 locked and
+3 tied; `instrument.profile.*` freeing 5 parameters in **one** history node;
+`phases.*.cell.*` freeing exactly `a` on a cubic cell; a tied edit refused with
+`'phases.0.cell.b' follows 'phases.0.cell.a' as an affine tie; set that
+instead`; `set_values` on `a` carrying `c` with it; one stage run through
+`POST /api/run {kind:"stage"}` to Rwp 0.596, then the full plan to **Rwp
+0.04153** (WP-1010's figure, unchanged); 13 rows coming back with esds; and
+`ui.simple` surviving a `Project.open`.
+
 ## Handover log
 
 - **2026-07-29** — created from the v1.0 GUI plan.
+- **2026-07-30** — **landed.** Done: all six checklist items, in two commits
+  (`0c2eec3` the logic + glob fixture, `6882e87` the components + the JSON
+  fix). In flight: nothing. Next: WP-1012 (history worktree, report panel),
+  which plugs into the sidebar's tab strip.
+
+  Gotchas for whoever touches this next:
+
+  * **Rebuild the dist in the same commit** as any `gui/src/**` change or
+    `tests/test_gui_dist.py` fails. Still true, still the most likely trip.
+  * **jsdom lacks browser APIs the panels use.** `bind:clientHeight` compiles to
+    a `ResizeObserver`, and its absence throws *during mount* — the blank-page
+    failure. `gui/src/test-setup.ts` stubs it; `DragEvent` is also absent, so
+    the plan editor's reorder test dispatches a plain `Event` of the same type.
+    Add to the setup file only what a real browser always has.
+  * **jsdom reports every measurement as 0**, so the virtual window renders only
+    its overscan there. That is why `windowSlice` must stay correct at
+    `viewport = 0` — a test asserting "all rows are in the DOM" would be
+    asserting a coincidence.
+  * The client-side matcher is a **preview only**. If a glob shape ever
+    disagrees with Python, add the case to `tests/test_gui_fnmatch.py`'s
+    `_EDITOR_GLOBS` and let the parity test locate it. Python *repairs* an
+    inverted range (`[z-a]`) and the port does not; the corpus says so in its
+    own `_comment`, and no path in this package contains a bracket.
+  * `Refinement.parameters()` is answered for the **document's** mode via
+    `Project.parameters()` — do not call the refinement directly (WP-1009).
+
+  **Not yet visually confirmed.** WP-1010's page was looked at by the user the
+  same day; these panels have been driven by a jsdom mount test (20 cases,
+  including the three held states, the PATCH bodies, drag-reorder and the
+  palette) and end to end over real HTTP, but **nobody has looked at them in a
+  browser.** No browser automation was available in this session either, so the
+  gap is the same one WP-1010 recorded and closed by asking: what jsdom cannot
+  catch is layout — a sidebar too narrow for the table's five columns, a
+  virtualized list whose row height disagrees with the CSS (`ROW_HEIGHT = 22`
+  must equal the `.row`/`.group` height, or the scroll drifts), or a palette
+  that opens off-screen. Run `pxrdref gui` on any `.pxrd` and look before
+  building anything on top.

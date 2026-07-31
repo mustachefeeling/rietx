@@ -41,8 +41,13 @@ TREES = ("src", "tests", "examples")
 #: Calls that open a text stream and therefore need an explicit encoding.
 _TEXT_IO = {"read_text", "write_text", "open"}
 
-#: ``webbrowser.open`` / ``webbrowser.open_new_tab`` are not file I/O.
-_NOT_FILE_IO = ("webbrowser", "urllib", "request")
+#: Receivers whose ``.open`` is not a text stream: ``webbrowser.open`` /
+#: ``webbrowser.open_new_tab``, and ``Project.open`` — which opens a *directory*
+#: (WP-1005) and does its own reading through calls this guard checks
+#: individually.  The match is on the receiver's source text, so it is a name
+#: list and will go stale; it goes stale in the safe direction, since a new
+#: non-file ``.open`` fails this test until someone adds the row.
+_NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project")
 
 
 def _python_files() -> list[Path]:

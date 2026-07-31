@@ -1,0 +1,229 @@
+/* Theming by CSS custom properties, light and dark — the same approach
+   `pxrdref compare` uses, so the three browser surfaces this package ships look
+   like one program.
+
+   Since WP-1029 the *choice* is three-way (system / light / dark, in
+   `ProjectDoc.ui`) and `lib/theme.ts` stamps the resolved answer on the root as
+   `data-theme`.  The dark palette is therefore declared twice, on purpose: the
+   `@media` block is what paints correctly before the app has booted and while
+   nobody has chosen, and the attribute block is what an explicit choice sets —
+   which has to beat the system in *both* directions, and one media query cannot
+   say that.  Nothing else in the app learns a hex value it could read from a
+   custom property here. */
+:root {
+  color-scheme: light dark;
+  --fg: #1b1b1b;
+  --bg: #fbfbfa;
+  --panel: #ffffff;
+  --line: #dcdcd6;
+  --muted: #6b6b66;
+  --accent: #1f5fa8;
+  --ok: #2e8b57;
+  --warn: #b3541e;
+  --bad: #c23b22;
+  --mono: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fg: #e6e6e2;
+    --bg: #151515;
+    --panel: #1e1e1e;
+    --line: #333333;
+    --muted: #9a9a94;
+    --accent: #7fb2ea;
+    --ok: #6cc08b;
+    --warn: #e0955c;
+    --bad: #e8776a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --fg: #e6e6e2;
+  --bg: #151515;
+  --panel: #1e1e1e;
+  --line: #333333;
+  --muted: #9a9a94;
+  --accent: #7fb2ea;
+  --ok: #6cc08b;
+  --warn: #e0955c;
+  --bad: #e8776a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ------------------------------------------------------------------
+   Control registers (WP-1029).
+
+   One header row used to hold six visual registers — two toggle buttons, a
+   segmented pair, a status pill, a primary Run, a secondary Cancel and a ⌘K
+   chip — each styled where it happened to be written.  There are now five, they
+   live here, and a panel that wants a sixth should be changing one of these
+   instead.  `.small`/`.tiny` are *sizes*, not registers: they scale a register
+   down without changing what it means.
+
+   - `button`          primary — the one action a view exists for
+   - `button.ghost`    secondary — everything else that acts
+   - `button.on`       a toggle that is engaged
+   - `.segmented`      one choice among N, where the options are the control
+   - `.pill`           a *state*.  Never a control: it does not respond to a
+                       click, so it must not look like something that would.
+   ------------------------------------------------------------------ */
+button {
+  font: inherit;
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.small {
+  padding: 2px 7px;
+  font-size: 11.5px;
+}
+
+button.tiny {
+  padding: 0 5px;
+  font-size: 11px;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 400;
+  padding: 3px 9px;
+  font-size: 11.5px;
+}
+
+.segmented button.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.pill {
+  font: var(--mono);
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+code,
+kbd {
+  font: var(--mono);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font: var(--mono);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The `.pxt` highlighter (WP-1013).  Global rather than scoped to the panel
+   because CodeMirror renders its document outside Svelte's component tree, so a
+   `<style>` block's scoping hash never reaches these spans.  The names are
+   `lib/pxt.ts`'s token names, bound to lezer tags in `lib/editor.ts`; the colours
+   are the same custom properties every other surface uses, so the pane follows
+   the system theme with everything else. */
+.tok-keyword {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tok-vary {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.tok-number {
+  color: var(--fg);
+}
+
+.tok-string {
+  color: var(--warn);
+}
+
+.tok-comment {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tok-annotation {
+  color: var(--muted);
+}
+
+.tok-flag {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tok-operator {
+  color: var(--muted);
+}
+
+.tok-path {
+  color: var(--fg);
+}
+
+/* CodeMirror's *chrome* — gutter, caret, selection, active line — is not here.
+   It moved into `lib/editor.ts`'s `editorTheme()` in WP-1029, because CM injects
+   its own base theme as `.ͼ1 .cm-gutters`: two classes against one, so a plain
+   `.cm-gutters` rule in this file loses on specificity and the library's light
+   gutter survived onto a dark page.  A generated theme competes on equal terms
+   *and* carries the `dark` flag CM branches on internally.  The token colours
+   above stay here, because those are classes the highlight style asks for by
+   name and nothing generates a competing rule for them. */
+.cm-editor.cm-focused {
+  outline: none;
+}

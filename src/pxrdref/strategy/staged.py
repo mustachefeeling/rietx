@@ -245,6 +245,31 @@ PLAN_PRESETS = {
 }
 
 
+def resolve_plan(plan: "RefinementPlan | str", mode: Mode) -> RefinementPlan:
+    """A preset name (or a plan) as a concrete plan, mapped through ``mode``.
+
+    ``"mccusker_default"`` is the name every caller passes without thinking, and
+    it means something different per mode: Le Bail has no structure to refine so
+    it becomes ``profile_only``, and Pawley refines its intensities off-table so
+    it becomes ``pawley_default``.  That mapping decides what actually ran, so it
+    lives here beside the registry rather than in each caller — four now want it
+    (``Refinement.fit``, ``sequential``, ``agent``, and the GUI, which must show
+    a user the stages that a run *will* have before it starts).
+    """
+    if not isinstance(plan, str):
+        return plan
+    name = plan
+    if name == "mccusker_default" and mode == "lebail":
+        name = "profile_only"
+    elif name == "mccusker_default" and mode == "pawley":
+        name = "pawley_default"
+    try:
+        return PLAN_PRESETS[name]()
+    except KeyError:
+        raise ValueError(f"unknown plan preset {plan!r}; "
+                         f"available: {sorted(PLAN_PRESETS)}") from None
+
+
 @dataclass(frozen=True)
 class PlanInfo:
     """What a preset is for, in the words a chooser needs.
@@ -357,22 +382,104 @@ PLAN_INFO: dict[str, PlanInfo] = {
 }
 
 
+@dataclass(frozen=True)
+class GuardFinding:
+    """One guard hit, as data: which parameters, which number, which code.
+
+    Until v1.0 these were formatted strings, and every consumer that needed a
+    part of one had to take it apart again — ``refine._guard_diagnostics`` did
+    ``msg.split(" ")[0]`` to recover a path, which silently produced *nothing*
+    for a correlation (two paths, no leading one) and so left
+    ``Diagnostic.where`` empty on the one finding a client most wants to click.
+    A GUI panel reads :attr:`paths` and :attr:`value`; nobody regexes prose.
+
+    ``__str__`` is today's formatted text, byte for byte, because the rendered
+    string is what the diagnostics' messages are built from and those are a
+    published surface.  Every format string that used to be written at three
+    different call sites now lives in one constructor here.
+
+    ``code`` is an **open** vocabulary of strings, deliberately not a ``Literal``
+    closed over today's six: WP-1028 adds guards (a stage returning ``converged``
+    at Rwp = 7225 %, a ``max_iter`` outcome, an hkl-range refusal), and a closed
+    type would have to be reopened for each.  It is the *same* vocabulary as
+    ``Diagnostic.code`` rather than a second one — the finding now carries the
+    code, so the mapping from guard to diagnostic is data instead of six
+    hand-written loops.
+    """
+
+    code: str
+    paths: tuple[str, ...]
+    #: the headline number — ρ, block R², a min eigenvalue, the worst σ²(M).
+    #: ``None`` where the finding has no number (a parameter at its bound).
+    value: float | None
+    #: rendered form, identical to the pre-v1.0 list entry
+    message: str
+
+    def __str__(self) -> str:
+        return self.message
+
+    # -- constructors: one place per format string ----------------------
+    @classmethod
+    def correlation(cls, a: str, b: str, rho: float) -> "GuardFinding":
+        return cls("HIGH_CORRELATION", (a, b), float(rho),
+                   f"{a} ~ {b} (ρ={rho:+.3f})")
+
+    @classmethod
+    def at_bound(cls, path: str) -> "GuardFinding":
+        return cls("BOUND_HIT", (path,), None, path)
+
+    @classmethod
+    def background_absorption(cls, path: str, r2: float) -> "GuardFinding":
+        return cls("BACKGROUND_ABSORPTION", (path,), float(r2),
+                   f"{path} (R²={r2:.2f})")
+
+    @classmethod
+    def roughness_absorption(cls, path: str, r2: float) -> "GuardFinding":
+        return cls("ROUGHNESS_ABSORPTION", (path,), float(r2),
+                   f"{path} (R²={r2:.2f})")
+
+    @classmethod
+    def nonpositive_adp(cls, site: str, min_eigenvalue: float) -> "GuardFinding":
+        return cls("ADP_NOT_POSITIVE_DEFINITE", (site,), float(min_eigenvalue),
+                   f"{site} (min eigenvalue {min_eigenvalue:+.2e} Å²)")
+
+    @classmethod
+    def nonpositive_strain(cls, path: str, n_bad: int, n_total: int,
+                           worst: float, hkl: tuple[int, int, int]) -> "GuardFinding":
+        return cls("STEPHENS_STRAIN_NOT_POSITIVE", (path,), float(worst),
+                   f"{path} ({n_bad} of {n_total} reflections, "
+                   f"worst σ²(M) {worst:+.2e} at {hkl})")
+
+
 @dataclass
 class GuardReport:
-    high_correlations: list[str] = field(default_factory=list)
-    at_bounds: list[str] = field(default_factory=list)
+    """The guards a stage tripped, grouped by kind — see :class:`GuardFinding`.
+
+    The six field names are unchanged from v0.2; what they hold is findings
+    rather than strings.  ``str(finding)`` is the old entry, so a consumer that
+    only ever printed them needs no change.
+    """
+
+    high_correlations: list[GuardFinding] = field(default_factory=list)
+    at_bounds: list[GuardFinding] = field(default_factory=list)
     # structural parameters the background block could largely reproduce —
     # the background-eats-the-structure failure mode, measured as a multiple
     # correlation R² rather than a pairwise ρ (see check_guards)
-    background_correlations: list[str] = field(default_factory=list)
+    background_correlations: list[GuardFinding] = field(default_factory=list)
     # anisotropic displacement tensors that are no longer ellipsoids
-    nonpositive_adps: list[str] = field(default_factory=list)
+    nonpositive_adps: list[GuardFinding] = field(default_factory=list)
     # phases whose Stephens strain coefficients have left the physical cone
-    nonpositive_strain: list[str] = field(default_factory=list)
+    nonpositive_strain: list[GuardFinding] = field(default_factory=list)
     # two-way surface-roughness degeneracy (WP-0502): either roughness is not
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
-    roughness_correlations: list[str] = field(default_factory=list)
+    roughness_correlations: list[GuardFinding] = field(default_factory=list)
+
+    def findings(self) -> list[GuardFinding]:
+        """Every finding, in the order the diagnostics are emitted in."""
+        return [*self.high_correlations, *self.at_bounds, *self.nonpositive_adps,
+                *self.nonpositive_strain, *self.background_correlations,
+                *self.roughness_correlations]
 
 
 #: R² beyond which the background block is reported as able to imitate a
@@ -399,7 +506,7 @@ BACKGROUND_ABSORPTION_GUARD = 0.25
 ROUGHNESS_ABSORPTION_GUARD = 0.9
 
 
-def check_adp_positive_definite(table) -> list[str]:
+def check_adp_positive_definite(table) -> list[GuardFinding]:
     """Anisotropic sites whose U tensor is not positive definite.
 
     An unconstrained U can leave the physical cone, and the resulting
@@ -424,7 +531,7 @@ def check_adp_positive_definite(table) -> list[str]:
     out = []
     for base, u6 in sorted(sites.items()):
         if not np.isnan(u6).any() and min_eigenvalue(u6) <= 0.0:
-            out.append(f"{base} (min eigenvalue {min_eigenvalue(u6):+.2e} Å²)")
+            out.append(GuardFinding.nonpositive_adp(base, min_eigenvalue(u6)))
     return out
 
 
@@ -440,7 +547,7 @@ def check_adp_positive_definite(table) -> list[str]:
 STEPHENS_CONE_TOL = 1e-9
 
 
-def check_stephens_positive(table, model) -> list[str]:
+def check_stephens_positive(table, model) -> list[GuardFinding]:
     """Phases whose Stephens σ²(M) is **negative** on some fitted reflection.
 
     σ² is a variance, so a negative value is not a large anisotropy but an
@@ -470,7 +577,7 @@ def check_stephens_positive(table, model) -> list[str]:
     if model is None:
         return []
     values = {e.path: e.value for e in table.entries}
-    out: list[str] = []
+    out: list[GuardFinding] = []
     for ip, cp in enumerate(model.phases):
         if cp.strain_monomials is None:
             continue
@@ -482,8 +589,8 @@ def check_stephens_positive(table, model) -> list[str]:
         if bad.any():
             k = int(np.argmin(sigma2))
             hkl = tuple(int(v) for v in cp.reflections.hkl[k])
-            out.append(f"{base} ({int(bad.sum())} of {len(sigma2)} reflections, "
-                       f"worst σ²(M) {sigma2[k]:+.2e} at {hkl})")
+            out.append(GuardFinding.nonpositive_strain(
+                base, int(bad.sum()), len(sigma2), float(sigma2[k]), hkl))
     return out
 
 
@@ -508,17 +615,19 @@ def check_guards(table, outcome, threshold: float,
             for j in range(i + 1, len(free)):
                 if abs(corr[i, j]) > threshold:
                     report.high_correlations.append(
-                        f"{free[i]} ~ {free[j]} (ρ={corr[i, j]:+.3f})")
+                        GuardFinding.correlation(free[i], free[j], corr[i, j]))
 
     if outcome.jac is not None and len(free) > 1:
         for path, r2 in sorted(background_absorption(outcome.jac, free).items(),
                                key=lambda kv: -kv[1]):
             if r2 > background_threshold:
-                report.background_correlations.append(f"{path} (R²={r2:.2f})")
+                report.background_correlations.append(
+                    GuardFinding.background_absorption(path, r2))
         for path, r2 in sorted(roughness_absorption(outcome.jac, free).items(),
                                key=lambda kv: -kv[1]):
             if r2 > roughness_threshold:
-                report.roughness_correlations.append(f"{path} (R²={r2:.2f})")
+                report.roughness_correlations.append(
+                    GuardFinding.roughness_absorption(path, r2))
 
     lo, hi = table.bounds()
     for k, path in enumerate(free):
@@ -526,5 +635,5 @@ def check_guards(table, outcome, threshold: float,
         span = hi[k] - lo[k]
         tol = 1e-8 * (span if np.isfinite(span) else 1.0)
         if (np.isfinite(lo[k]) and t - lo[k] <= tol) or (np.isfinite(hi[k]) and hi[k] - t <= tol):
-            report.at_bounds.append(path)
+            report.at_bounds.append(GuardFinding.at_bound(path))
     return report

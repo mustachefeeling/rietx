@@ -10,6 +10,7 @@ and the pinned thresholds, and docs/DESIGN.md for the design rationale.
 from __future__ import annotations
 
 from ..schemas.results import RefinementResult
+from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
 from .layer0 import build_layer0
 from .layer1 import analyse_trends, attribute_regions, maturity_gate
 from .layer2 import (
@@ -40,9 +41,11 @@ from .strain import analyse_strain
 from .texture import analyse_texture
 
 __all__ = [
+    "RECIPES",
     "THRESHOLDS_VERSION",
     "BasisCoefficient",
     "FitReport",
+    "Recipe",
     "Region",
     "RegionAttribution",
     "StrainAnalysis",
@@ -60,11 +63,14 @@ __all__ = [
     "build_layer0",
     "build_report",
     "delta_bic",
+    "describe_action",
     "estimate_delta_chi2",
     "hamilton_justified",
     "layer0_actions",
     "maturity_gate",
     "predict_then_verify",
+    "recipe",
+    "stage_for",
     "suggest_actions",
     "texture_actions",
 ]

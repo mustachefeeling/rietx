@@ -680,6 +680,8 @@ def test_guard_report_carries_roughness_and_the_diagnostic_is_actionable():
     outcome = SimpleNamespace(correlation=None, jac=jac, theta=table.x0())
     guard = check_guards(table, outcome, threshold=0.98)
     assert guard.roughness_correlations, "the degenerate case must be reported"
+    assert all(c.code == "ROUGHNESS_ABSORPTION" and c.value is not None
+               for c in guard.roughness_correlations)
 
     diags = _guard_diagnostics(guard)
     rough = [d for d in diags if d.code == "ROUGHNESS_ABSORPTION"]

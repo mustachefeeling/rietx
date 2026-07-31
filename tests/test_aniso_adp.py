@@ -515,8 +515,10 @@ def test_guard_flags_a_non_ellipsoidal_tensor():
     table.commit(theta)
 
     flagged = check_adp_positive_definite(table)
-    assert len(flagged) == 1 and flagged[0].startswith("phases.0.atoms.0")
-    assert "min eigenvalue -" in flagged[0]
+    assert len(flagged) == 1
+    assert flagged[0].paths == ("phases.0.atoms.0",)
+    assert flagged[0].value is not None and flagged[0].value < 0.0
+    assert "min eigenvalue -" in str(flagged[0])
 
 
 def test_guard_diagnostic_is_structured_and_actionable():
