@@ -27,6 +27,8 @@ impostor first.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 
 from ..schemas.indexing import FigureOfMerit, q_of_two_theta
@@ -99,6 +101,32 @@ def predicted_lines(cell: tuple[float, ...], system: str, centring: str,
     (:func:`~pxrdref.indexing.qspace.centring_allows`), so no space-group
     machinery is needed to enumerate one.
     """
+    hkl, q, _m = lattice_reflections(cell, system, centring, wavelength,
+                                     two_theta_max, two_theta_min)
+    if len(q) > 1:
+        distinct = np.ones(len(q), dtype=bool)
+        distinct[1:] = np.diff(q) > LINE_COINCIDENCE_RTOL * q[1:]
+        hkl, q = hkl[distinct], q[distinct]
+    return hkl, q
+
+
+def lattice_reflections(cell: tuple[float, ...], system: str, centring: str,
+                        wavelength: float, two_theta_max: float,
+                        two_theta_min: float = 0.0, *,
+                        multiplicity: bool = False):
+    """(hkl, Q, m) the lattice allows in range — **unmerged**, one per Friedel pair.
+
+    :func:`predicted_lines` is this, merged into distinct *lines*.  The merge is
+    exactly what the Oishi-Tomiyasu figures must not have: their denominator
+    ``N^cal`` counts Laue **orbits** via Σ 1/m, which already gives an exact
+    coincidence its own weight, so merging first would double-remove it — and the
+    merge is a float comparison at :data:`LINE_COINCIDENCE_RTOL`, which on a
+    pseudo-symmetric candidate (what an indexer actually produces) is the
+    threshold rather than the symmetry deciding the count.
+
+    ``m`` is ``None`` unless ``multiplicity`` is asked for: it costs an orbit
+    expansion over the whole enumeration and only ``N^cal`` needs it.
+    """
     from .qspace import af_from_cell, design_matrix, trial_hkl
 
     lattice_group(system, centring)          # validates the system name
@@ -116,11 +144,84 @@ def predicted_lines(cell: tuple[float, ...], system: str, centring: str,
     hkl, q = hkl[keep], q[keep]
     order = np.argsort(q)
     hkl, q = hkl[order], q[order]
-    if len(q) > 1:
-        distinct = np.ones(len(q), dtype=bool)
-        distinct[1:] = np.diff(q) > LINE_COINCIDENCE_RTOL * q[1:]
-        hkl, q = hkl[distinct], q[distinct]
-    return hkl, q
+    m = laue_multiplicity(hkl, system, centring) if multiplicity else None
+    return hkl, q, m
+
+
+def n_cal(q: np.ndarray, m: np.ndarray, lo: float, hi: float) -> float:
+    """``N^cal(a, b)`` — Oishi-Tomiyasu's count of Laue orbits in a Q window.
+
+    *Source*: Oishi-Tomiyasu, R. (2013), *J. Appl. Cryst.* **46**, 1277-1282,
+    eq. (5).  Defined as Σ 1/m(hkl) over centring-allowed triples with
+    ``a ≤ q(hkl) ≤ b``, including 000 exactly when ``a ≤ 0``.
+
+    Two conventions of this package meet here and both would silently halve or
+    double the answer if ignored.  ``trial_hkl`` keeps **one hkl per Friedel
+    pair**, while ``m`` is the full orbit including −h; a Laue group contains the
+    inversion, so each orbit is closed under negation and exactly half its
+    members survive the "first non-zero component positive" rule — Σ 1/m over the
+    half-sphere is therefore exactly ``N^cal/2``, and the factor of two here is
+    that identity rather than a fudge.
+
+    **The result is legitimately fractional and is never rounded.**  Σ 1/m over a
+    complete orbit is 1, so an orbit-closed enumeration gives an integer — but the
+    enumeration box is a cube in hkl while a hexagonal or trigonal orbit does not
+    preserve ``max|h|`` ((110) → (-120)), so an orbit can be cut by the box and
+    contribute a fraction.  Rounding would turn that into a silent miscount of the
+    denominator both new figures divide by.
+    """
+    if not len(q):
+        return 1.0 if lo <= 0.0 else 0.0
+    sel = (q >= lo * (1.0 - _BOUNDARY_RTOL)) & (q <= hi * (1.0 + _BOUNDARY_RTOL))
+    total = 2.0 * float(np.sum(1.0 / np.asarray(m, dtype=np.float64)[sel]))
+    return total + (1.0 if lo <= 0.0 else 0.0)
+
+
+@lru_cache(maxsize=32)
+def _laue_rotations(symbol: str) -> np.ndarray:
+    """The lattice group's reciprocal-space rotations, deduplicated.
+
+    ``Rᵀ`` because the action on *hkl* is the transposed rotation (CLAUDE.md,
+    and the comment in ``crystallography.symmetry.generate_reflections``), and
+    deduplicated because a centred group's operation list repeats every rotation
+    once per centring vector.
+    """
+    from ..crystallography.symmetry import get_spacegroup, rotation_matrices
+
+    rots = rotation_matrices(get_spacegroup(symbol))
+    rot_int = np.rint(np.transpose(rots, (0, 2, 1))).astype(np.int64)
+    uniq = {tuple(int(v) for v in r.ravel()) for r in rot_int}
+    return np.array(sorted(uniq), dtype=np.int64).reshape(-1, 3, 3)
+
+
+def laue_multiplicity(hkl: np.ndarray, system: str, centring: str = "P"
+                      ) -> np.ndarray:
+    """``m(hkl)`` — the **full** Laue orbit size, Friedel mates included.
+
+    ``crystallography.symmetry.reflection_orbits`` answers the same question and
+    is the definition this is checked against, but it is a python loop with a set
+    of tuples per reflection — the cost profile :func:`predicted_lines` exists to
+    escape (683 ms against 1.8 ms on a 17 Å cubic cell), and ``N^cal`` needs one
+    multiplicity per reflection over the whole enumeration, per candidate.  So the
+    orbit images are formed for every reflection at once and counted by sorting an
+    integer encoding of each image, which is exact rather than approximate: the
+    encoding is a bijection on the index range in play.
+    """
+    h = np.atleast_2d(np.asarray(hkl, dtype=np.int64))
+    if not len(h):
+        return np.zeros(0, dtype=np.int64)
+    rot = _laue_rotations(lattice_group(system, centring))
+    # (N, R, 3) images, then their Friedel mates — a Laue group contains the
+    # inversion, so the mates are usually already present; the stack costs one
+    # concatenation and removes the "usually" from that sentence
+    images = np.einsum("rij,nj->nri", rot, h)
+    images = np.concatenate([images, -images], axis=1)
+    base = 2 * int(np.abs(images).max()) + 1
+    key = ((images[:, :, 0] * base) + images[:, :, 1]) * base + images[:, :, 2]
+    key.sort(axis=1)
+    distinct = np.ones_like(key, dtype=bool)
+    distinct[:, 1:] = np.diff(key, axis=1) != 0
+    return distinct.sum(axis=1).astype(np.int64)
 
 
 def match_lines(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray, *,
@@ -364,6 +465,90 @@ def predicted_seen_fraction(q_obs: np.ndarray, q_esd: np.ndarray,
         blind_spot=_BLIND["predicted_seen_fraction"])
 
 
+def _reversed_pair(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray,
+                   m_pred: np.ndarray, *, n: int = FOM_N,
+                   k_sigma: float = MATCH_SIGMA,
+                   n_unindexed: int = 0) -> tuple[FigureOfMerit, FigureOfMerit]:
+    """``M^Rev`` and ``M^Sym`` — the de Wolff figure run backwards, and the product.
+
+    *Source*: Oishi-Tomiyasu, R. (2013), *J. Appl. Cryst.* **46**, 1277-1282,
+    eqs. (4), (7), (9)-(11).
+
+    M₂₀ asks how far each *observed* line is from its nearest prediction.  A
+    wrong metric that matches a subset tightly is rewarded by that question, and
+    the reversed figure asks the other one: how far is each *predicted* line from
+    its nearest observation, averaged with weight ``1/m(hkl)`` so an orbit counts
+    once however many triples generate it.  ``predicted_seen_fraction`` reaches
+    the same failure from the other side and the two are complementary rather than
+    redundant — ours is a windowed fraction, this is an unbounded continuous
+    ratio, so it separates candidates that both score 1.0 on coverage.
+
+    **The scale is not M₂₀'s and importing a threshold from de Wolff would reject
+    nearly every correct cell.**  In the paper's own tables ``M^Rev`` for correct
+    solutions runs ~1.7-15.8 where ``M̃₂₀`` reaches 556; its screen is ``M̃ₙ ≥ 3``,
+    ``M^Rev ≥ 1``, ``12 ≤ N^cal ≤ 120``.  Nothing here thresholds them — they
+    enter the panel as Borda members, where only the ordering matters.
+
+    The vanishing-δ floor is **this package's, not the paper's**, which does not
+    address it: on synthetic or fp-exact data ``δ_rev`` vanishes exactly as
+    ``δ_fwd`` does in :func:`m20`, and the same median-σ floor is applied for the
+    same reason and recorded in ``blind_spot``.
+    """
+    order = np.argsort(np.asarray(q_obs, dtype=np.float64))[:n]
+    obs = np.asarray(q_obs, dtype=np.float64)[order]
+    pred = np.asarray(q_pred, dtype=np.float64)
+    blind_rev = _blind("m_rev", n_unindexed)
+    blind_sym = _blind("m_sym", n_unindexed)
+    if len(obs) < 2 or not len(pred):
+        empty = dict(n_lines=len(obs), n_possible=0, k_sigma=k_sigma)
+        return (FigureOfMerit(name="m_rev", value=0.0, blind_spot=blind_rev,
+                              **empty),
+                FigureOfMerit(name="m_sym", value=0.0, blind_spot=blind_sym,
+                              **empty))
+    esd = np.asarray(q_esd, dtype=np.float64)[order]
+    floor = float(np.median(esd))
+
+    # the window is the *computed* pair bracketing the observed range, not the
+    # observed values themselves — eq. (7)'s qI and qN
+    q_i = float(pred[np.argmin(np.abs(pred - obs[0]))])
+    q_n = float(pred[np.argmin(np.abs(pred - obs[-1]))])
+    lo, hi = (q_i, q_n) if q_i <= q_n else (q_n, q_i)
+    count = n_cal(pred, m_pred, lo, hi)
+
+    inside = (pred >= lo * (1.0 - _BOUNDARY_RTOL)) & (pred <= hi *
+                                                      (1.0 + _BOUNDARY_RTOL))
+    weight = 1.0 / np.asarray(m_pred, dtype=np.float64)[inside]
+    gap = nearest_discrepancy(pred[inside], obs)
+    delta_rev = (2.0 * float(np.sum(gap * weight)) / count
+                 if count > 0.0 and inside.any() else np.inf)
+    eps_rev = float(obs[-1] - obs[0]) / (2.0 * len(obs))
+    value_rev = (eps_rev / max(delta_rev, floor)
+                 if np.isfinite(delta_rev) and max(delta_rev, floor) > 0.0
+                 else 0.0)
+
+    # M̃ₙ — the forward figure on the *same* window and denominator, which is what
+    # makes the product M^Sym a symmetric statement rather than two scales mixed
+    delta_fwd = trimmed_mean(nearest_discrepancy(obs, pred), n_unindexed)
+    eps_fwd = (q_n - q_i) / (2.0 * count) if count > 0.0 else 0.0
+    value_tilde = (eps_fwd / max(delta_fwd, floor)
+                   if np.isfinite(delta_fwd) and max(delta_fwd, floor) > 0.0
+                   else 0.0)
+
+    n_poss = int(round(count))
+    return (
+        FigureOfMerit(
+            name="m_rev", value=float(value_rev), n_lines=len(obs),
+            n_possible=n_poss, k_sigma=k_sigma,
+            mean_discrepancy=delta_rev if np.isfinite(delta_rev) else -1.0,
+            blind_spot=blind_rev),
+        FigureOfMerit(
+            name="m_sym", value=float(value_tilde * value_rev),
+            n_lines=len(obs), n_possible=n_poss, k_sigma=k_sigma,
+            mean_discrepancy=delta_rev if np.isfinite(delta_rev) else -1.0,
+            blind_spot=blind_sym),
+    )
+
+
 def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
               two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
               cell: tuple[float, ...], system: str, centring: str,
@@ -393,11 +578,21 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
     among cells that had all matched almost nothing.
     """
     tt_max = float(np.max(two_theta_obs)) if len(two_theta_obs) else 0.0
-    _hkl, q_pred = predicted_lines(cell, system, centring, wavelength,
-                                   max(tt_max, 1.0))
+    # one enumeration serves both halves of the panel: the classical members want
+    # distinct *lines*, N^cal wants unmerged orbits with their multiplicities
+    _hkl, q_raw, m_raw = lattice_reflections(cell, system, centring, wavelength,
+                                             max(tt_max, 1.0),
+                                             multiplicity=True)
+    q_pred = q_raw
+    if len(q_raw) > 1:
+        distinct = np.ones(len(q_raw), dtype=bool)
+        distinct[1:] = np.diff(q_raw) > LINE_COINCIDENCE_RTOL * q_raw[1:]
+        q_pred = q_raw[distinct]
     tt_pred = np.degrees(2.0 * np.arcsin(np.clip(
         wavelength * np.sqrt(q_pred) / 2.0, -1.0, 1.0)))
     match = q_esd if q_match is None else q_match
+    m_rev, m_sym = _reversed_pair(q_obs, q_esd, q_raw, m_raw, k_sigma=k_sigma,
+                                  n_unindexed=n_unindexed)
     return [
         m20(q_obs, q_esd, q_pred, k_sigma=k_sigma, n_unindexed=n_unindexed),
         f_n(two_theta_obs, two_theta_esd, tt_pred, k_sigma=k_sigma,
@@ -406,6 +601,8 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
         indexed_fraction(q_obs, match, q_pred, intensity=intensity,
                          k_sigma=k_sigma),
         predicted_seen_fraction(q_obs, match, q_pred, k_sigma=k_sigma),
+        m_rev,
+        m_sym,
     ]
 
 
@@ -475,6 +672,18 @@ _BLIND: dict[str, str] = {
                                 "correct cell: space-group extinctions (unknown "
                                 "until the extinction symbol is determined) and "
                                 "reflections too weak to detect"),
+    "m_rev": ("penalises a correct cell for space-group extinctions, the same "
+              "blind spot as predicted_seen_fraction and confirmed by the paper "
+              "that defines it; its δ is floored at the median σ(Q), which is "
+              "this package's addition and not Oishi-Tomiyasu's, because δ_rev "
+              "vanishes on fp-exact data exactly as M₂₀'s ⟨ΔQ⟩ does; and its "
+              "scale is not M₂₀'s — correct cells score ~1.7-15.8 where M̃₂₀ "
+              "reaches 556, so a de Wolff threshold would reject almost all of "
+              "them"),
+    "m_sym": ("the product of the forward and reversed figures over one window, "
+              "so it inherits both their blind spots and is not independent "
+              "evidence from m_rev; a candidate can reach it by being mediocre "
+              "in both directions rather than good in either"),
 }
 
 def _blind(name: str, n_unindexed: int) -> str:
@@ -489,6 +698,6 @@ def _blind(name: str, n_unindexed: int) -> str:
 
 __all__ = ["FOM_N", "MATCH_SIGMA", "borda_scores", "f_n",
            "fom_panel", "fom_panel_disagrees", "indexed_fraction",
-           "lattice_group", "m20", "match_lines", "nearest_discrepancy",
-           "predicted_lines",
+           "lattice_group", "lattice_reflections", "laue_multiplicity", "m20",
+           "match_lines", "n_cal", "nearest_discrepancy", "predicted_lines",
            "predicted_seen_fraction", "q_of_two_theta", "trimmed_mean"]

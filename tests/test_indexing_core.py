@@ -354,7 +354,9 @@ def test_every_figure_of_merit_carries_its_blind_spot():
     q, q_esd, tt, esd_tt, cell = _panel_inputs()
     panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
                       LAM)
-    assert len(panel) == 5
+    assert [f.name for f in panel] == [
+        "m20", "f_n", "indexed_fraction", "indexed_intensity_fraction",
+        "predicted_seen_fraction", "m_rev", "m_sym"]
     for f in panel:
         assert isinstance(f, FigureOfMerit)
         assert f.blind_spot, f.name
@@ -362,6 +364,96 @@ def test_every_figure_of_merit_carries_its_blind_spot():
     round_tripped = [FigureOfMerit.model_validate_json(f.model_dump_json())
                      for f in panel]
     assert [f.blind_spot for f in round_tripped] == [f.blind_spot for f in panel]
+
+
+def test_the_laue_multiplicity_is_the_orbit_it_claims_to_count():
+    """``laue_multiplicity`` is a fast rewrite of an existing definition, so it is
+    checked **against that definition** and not against a table.
+
+    ``crystallography.symmetry.reflection_orbits`` builds the orbit explicitly,
+    one python set per reflection; this builds every orbit at once and counts by
+    sorting an integer encoding.  A wrong encoding, a missed Friedel mate or a
+    duplicated centring copy would all show up as a disagreement here — and each
+    of them silently halves or doubles ``N^cal``, which both new figures divide
+    by.
+    """
+    from pxrdref.crystallography.symmetry import reflection_orbits
+    from pxrdref.indexing.fom import laue_multiplicity
+    from pxrdref.indexing.qspace import trial_hkl
+
+    rng = np.random.default_rng(1030)
+    for system, centring in (("cubic", "P"), ("cubic", "F"), ("hexagonal", "P"),
+                             ("trigonal", "R"), ("tetragonal", "I"),
+                             ("orthorhombic", "C"), ("monoclinic", "P"),
+                             ("triclinic", "P")):
+        hkl = trial_hkl(4, centring)
+        sub = hkl[rng.choice(len(hkl), size=min(60, len(hkl)), replace=False)]
+        mine = laue_multiplicity(sub, system, centring)
+        theirs = np.array([len(o) for o in reflection_orbits(
+            lattice_group(system, centring), sub)])
+        assert np.array_equal(mine, theirs), (system, centring)
+
+
+def test_n_cal_counts_orbits_and_is_not_rounded():
+    """Σ 1/m over a complete orbit is exactly 1, so ``N^cal`` over an orbit-closed
+    enumeration is an **integer** — which is the self-check that catches a wrong
+    multiplicity, since a halved or doubled m makes it fractional.
+
+    It is stored and used as a float anyway, because the enumeration box is a cube
+    in hkl and a hexagonal orbit does not preserve max|h| ((110) → (-120)), so a
+    box can cut an orbit and a fraction is then the honest answer.
+    """
+    from pxrdref.indexing.fom import lattice_reflections, n_cal
+
+    cell = (8.875, 16.408, 7.137, 90.0, 93.84, 90.0)
+    _hkl, q, m = lattice_reflections(cell, "monoclinic", "P", LAM, 40.0,
+                                     multiplicity=True)
+    count = n_cal(q, m, 0.0, float(q.max()))
+    # 000 is included exactly when the window reaches down to zero
+    assert count == pytest.approx(round(count), abs=1e-9)
+    assert n_cal(q, m, 0.0, float(q.max())) - n_cal(
+        q, m, 1e-12, float(q.max())) == pytest.approx(1.0, abs=1e-9)
+    # and it really is the orbit count: every reflection of one orbit shares a Q
+    assert round(count) == len(np.unique(np.round(q, 12))) + 1
+
+
+def test_the_reversed_figure_separates_a_supercell_far_harder_than_m20():
+    """The reason Oishi-Tomiyasu (2013) is worth implementing at all.
+
+    A supercell indexes every observed line, so the forward figures can only
+    punish it through the *density* of lines it allows — and M₂₀ does that
+    weakly.  ``M^Rev`` averages each **predicted** line's distance to the nearest
+    observation with weight 1/m, so a cell predicting a forest of lines nobody
+    saw is penalised in the numerator rather than the denominator.
+
+    Measured here on a doubled orthorhombic axis: M₂₀ separates the truth from the
+    supercell by **1.7-1.9×** and ``predicted_seen_fraction`` by 1.8-1.9×, while
+    ``M^Rev`` separates them by **64-74×**.  The assertion is deliberately on the
+    *ratio of margins*, not on the values, so it survives a change to either
+    figure's floor.
+    """
+    truth = (7.0, 8.0, 9.0, 90.0, 90.0, 90.0)
+    refl = generate_reflections("P m m m", truth, LAM, 45.0)
+    tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
+    q = q_of_two_theta(tt, LAM)
+    q_esd = np.full(len(q), 1e-5)
+
+    def panel(cell):
+        return {f.name: f.value for f in
+                fom_panel(q, q_esd, np.ones_like(q), tt, np.full(len(tt), 0.001),
+                          cell, "orthorhombic", "P", LAM)}
+
+    good = panel(truth)
+    for label, super_cell in (("c×2", (7.0, 8.0, 18.0, 90.0, 90.0, 90.0)),
+                              ("a×2", (14.0, 8.0, 9.0, 90.0, 90.0, 90.0))):
+        bad = panel(super_cell)
+        # the supercell really does index everything — that is the trap
+        assert bad["indexed_fraction"] == pytest.approx(1.0), label
+        m20_margin = good["m20"] / bad["m20"]
+        rev_margin = good["m_rev"] / bad["m_rev"]
+        assert 1.5 < m20_margin < 2.5, (label, m20_margin)
+        assert rev_margin > 20.0 * m20_margin, (label, rev_margin, m20_margin)
+        assert good["m_sym"] > bad["m_sym"], label
 
 
 def test_lattice_group_is_absence_free_and_carries_the_centring():
