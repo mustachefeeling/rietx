@@ -1,0 +1,42 @@
+---
+description: End-of-session WP handover — record everything, verify, report ready for /clear
+---
+
+Run the end-of-WP-session checklist (docs/ROADMAP.md § Session protocol,
+steps 3–5). Work through every item; do not skip one silently — if an item
+does not apply, say why in one line.
+
+1. **Identify the active WP** from this session's `git log` (`WP-NNNN:`
+   prefixes). If more than one WP was touched, confirm with the user before
+   proceeding.
+2. **Tick landed tasks** in the WP file's checklist — every commit that
+   landed should correspond to a checked item.
+3. **Prepend the dated handover entry** to the WP's `## Handover log`
+   (newest first): done / in flight / next / gotchas. Write it for a
+   successor who has read only this WP file and CLAUDE.md.
+4. **Sync the Status line** (`glyph date — free text`, vocabulary in
+   `docs/wp/TEMPLATE.md`) and mirror the glyph in the WP's ROADMAP index
+   row.
+5. **Push forward references**: anything learned that changes work in a WP
+   that is not closed and not this one goes into *that* WP's `### Inherited`
+   section, naming this WP as the source.
+6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`): every
+   added line must be a standing rule (protocol rule 4 — evidence compressed
+   to a clause plus a pointer), never a dated finding. Refresh
+   `### Current numbers` by **replacement** if any count or timing moved,
+   and run the count check: passed+skipped moved by exactly the tests this
+   session added, in both the fast and full selections, and any new skip is
+   named as a skip, not a pass.
+7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
+   section, rewrite ROADMAP's "Current focus" for the successor (≤40 lines),
+   and MOVE the outgoing focus narrative to the in-flight milestone record
+   (`docs/milestones/v1.0.md` § "How v1.0 is getting here").
+8. **Sweep session memory notes**: anything in the assistant memory
+   directory that corrects or extends the repo record gets ported into the
+   repo now — a memory note is not a channel to the next session's repo
+   state.
+9. **Verify and report**: run
+   `.venv/bin/python -m pytest tests/test_docs_consistency.py -q` and
+   `.venv/bin/python -m ruff check src tests examples`; confirm the working
+   tree is clean and pushed (or say what deliberately is not). Only when all
+   of that is green, end with exactly: **ready for /clear**.

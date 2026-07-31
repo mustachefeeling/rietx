@@ -39,3 +39,8 @@ tests/.jax_cache/
 # un-ignore above would otherwise commit every built page.
 docs/manual/_build/
 .DS_Store
+
+# .claude/ is committed selectively: commands/ is shared tooling, while
+# worktrees/ holds live checkouts and settings.local.json is per-machine.
+.claude/worktrees/
+.claude/settings.local.json
