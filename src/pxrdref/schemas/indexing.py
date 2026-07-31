@@ -411,6 +411,13 @@ class ObservedPeak(Base):
     n_in_group: int                # components fitted simultaneously with it
     chi2_red: float                # reduced χ² of that group's fit
     flags: list[PeakFlag] = Field(default_factory=list)
+    #: Provenance, not a judgement: ``"fitted"`` — detection proposed it;
+    #: ``"manual"`` — a human placed it (its position was still *fitted*, but a
+    #: human decided a line exists here); ``"edited"`` — a human moved a fitted
+    #: line and its group was refitted.  A reader weighs these differently
+    #: (WP-1027's panel shows which is which); no gate in this package branches
+    #: on it, because a human's decision is input, not evidence to discount.
+    origin: Literal["fitted", "manual", "edited"] = "fitted"
 
     @property
     def d(self) -> float:

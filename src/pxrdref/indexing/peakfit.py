@@ -401,6 +401,44 @@ def _solve(m: _GroupModel, pos: np.ndarray) -> tuple[np.ndarray, object]:
     return res.x, res
 
 
+def fit_group_at(det: Detection, group: PeakGroup, instrument: Instrument,
+                 positions: np.ndarray) -> GroupFit:
+    """One solve with **exactly** these components — the editing entry point.
+
+    :func:`fit_group` owns the judgement calls (shoulder pruning, ΔBIC
+    re-seeding); this deliberately makes none of them, because its caller is a
+    human who has already said where the components are (WP-1027's
+    ``add_peak``/``move_peak``/``refit_group``).  The count is frozen, the
+    positions are seeds for the same bounded solve detection's seeds get, and
+    ``from_reseed`` stays ``None`` — a component a human placed is not a
+    residual's proposal, so :func:`~pxrdref.indexing.pick._not_separable` never
+    fires on it by condition 1 alone.
+    """
+    pos = np.sort(np.asarray(positions, dtype=np.float64))
+    if pos.ndim != 1 or len(pos) == 0:
+        raise ValueError("fit_group_at needs at least one component position")
+    return _fit_at(det, group, instrument, pos)
+
+
+def group_profile(det: Detection, group: PeakGroup, instrument: Instrument,
+                  fit: GroupFit) -> np.ndarray:
+    """The fitted model of one group, evaluated on its own frozen window.
+
+    Drawing, not fitting: WP-1027's panel shows the fitted group profile over
+    the data, and the profile is reconstructable from a :class:`GroupFit`'s
+    ``(gamma_g, gamma_l, two_theta, intensity)`` without re-solving anything.
+    The FCJ node counts and per-line gains are frozen at the *fitted* positions
+    here rather than the seeds — a ~1e-4 relative difference (the ratio moves
+    ~5 %/° while a fit moves positions ~1e-3°), invisible at plot resolution.
+
+    Returns the peak model only (no background); add ``det.envelope`` over the
+    same window to draw it against the measured counts.
+    """
+    m = _GroupModel(det, group, instrument, fit.n, group.seed_fwhm)
+    m.freeze(fit.two_theta)
+    return m.model(m.pack(fit.gamma_g, fit.gamma_l, fit.two_theta, fit.intensity))
+
+
 def fit_group(det: Detection, group: PeakGroup, instrument: Instrument, *,
               max_reseed: int = PEAK_MAX_RESEED_PASSES) -> GroupFit:
     """Fit one group: solve, prune shoulder seeds, then re-seed if asked.
