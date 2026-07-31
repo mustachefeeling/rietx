@@ -23,6 +23,9 @@ from ..background import contamination_flags_from_peaks
 from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC
 from ..schemas.indexing import (
     PEAK_ASYMMETRY_MIN_SIGMA,
+    PEAK_REFUTED_SIGMA,
+    PEAK_SATELLITE_MAX_RATIO,
+    PEAK_SATELLITE_NEAR_FWHM,
     ObservedPeak,
     PeakFlag,
     PeakList,
@@ -102,10 +105,60 @@ def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
         flags.append("position_at_bound")
     if _unresolved(fit, j):
         flags.append("unresolved_shoulder")
+    if _not_separable(fit, j):
+        flags.append("not_separable")
     t = fit.asymmetry_t[j]
     if np.isfinite(t) and abs(t) >= PEAK_ASYMMETRY_MIN_SIGMA:
         flags.append("asymmetry_unmodelled")
     return flags
+
+
+def _not_separable(fit: GroupFit, j: int) -> bool:
+    """Is component ``j`` a *shape* the fit believes in and a *line* it does not?
+
+    Three conditions, and all three are needed because each alone is ordinary:
+
+    1. **a re-seed pass put it there** — detection proposed the group's other
+       components against a σ-normalised height test on the data, this one was
+       proposed by a residual;
+    2. **it is a satellite** — inside a group-mate's own profile
+       (:data:`~pxrdref.schemas.indexing.PEAK_SATELLITE_NEAR_FWHM`) and small
+       enough relative to it
+       (:data:`~pxrdref.schemas.indexing.PEAK_SATELLITE_MAX_RATIO`) that the
+       neighbour's shape error could account for it;
+    3. **the group's fit is still refuted with it in** — χ²_red more than
+       :data:`~pxrdref.schemas.indexing.PEAK_REFUTED_SIGMA` of its own σ(χ²_red)
+       above 1 — so the ΔBIC gain that bought it cannot be attributed to a new
+       line rather than to the shape of the old one.
+
+    The third is the load-bearing one and the reason this is not simply a tighter
+    ΔBIC.  ΔBIC asks whether the data prefer n+1 components to n; that is the
+    same question as "is there a line here" only while the n-component model is
+    capable of fitting.  Against a refuted model *any* extra component wins, and
+    on real laboratory data the model is refuted at every strong peak — measured
+    on qarr corundum, χ²_red 17.4 at n = 1 and 4.6 at n = 2 on the 104 line, with
+    the component bought landing 1 FWHM below it at 10 % of its area.
+
+    Note what this does **not** do: the component stays in the model and in
+    ``peaks``.  It earns its place as shape — removing it would push the real
+    line's fitted position (measured: 0.010° on that same line) — and it is only
+    barred from ``usable()``, i.e. from being offered as evidence of a lattice.
+    """
+    if fit.n < 2 or not bool(fit.reseeded()[j]):
+        return False
+    # ν = points − (two shared widths + two parameters per component)
+    dof = max(fit.n_points - 2 - 2 * fit.n, 1)
+    refuted = 1.0 + PEAK_REFUTED_SIGMA * np.sqrt(2.0 / dof)
+    if not (np.isfinite(fit.chi2_red) and fit.chi2_red > refuted):
+        return False
+    near = np.abs(fit.two_theta - fit.two_theta[j]) < PEAK_SATELLITE_NEAR_FWHM * fit.fwhm
+    near[j] = False
+    if not near.any():
+        return False
+    strongest = float(np.max(fit.intensity[near]))
+    if strongest <= 0.0:
+        return False
+    return bool(fit.intensity[j] < PEAK_SATELLITE_MAX_RATIO * strongest)
 
 
 def _unresolved(fit: GroupFit, j: int) -> bool:

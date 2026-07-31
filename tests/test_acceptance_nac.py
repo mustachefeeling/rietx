@@ -22,8 +22,15 @@ LIMITS = (2.0, 24.0)
 pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("nac")]
 
 
-@pytest.fixture(scope="module")
-def nac_inputs():
+def build_nac_inputs():
+    """(data, structure, instrument) for the 11-BM NAC protocol.
+
+    A plain function, not only a fixture, for the same reason
+    ``test_acceptance_srm660c.build_srm_inputs`` is one: another suite
+    (``test_acceptance_indexing``) needs to rebuild *this* state rather than a
+    plausible imitation of it, so that when the two disagree about a number the
+    protocol is not one of the candidate explanations.
+    """
     if not (DATA / "11BM_NAC.fxye").exists():
         pytest.skip("11-BM NAC dataset not present")
     data = pr.read_pattern(DATA / "11BM_NAC.fxye")
@@ -40,6 +47,11 @@ def nac_inputs():
     # not a licence to leave the setting implicit.
     instrument.source.dispersion = None
     return data, structure, instrument
+
+
+@pytest.fixture(scope="module")
+def nac_inputs():
+    return build_nac_inputs()
 
 
 def _caf2_phase() -> pr.Phase:

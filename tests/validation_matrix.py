@@ -145,6 +145,12 @@ DATASETS: dict[str, Dataset] = {
         "GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged "
         "fit and supplies both the reference values and the protocol",
         "cross_code"),
+    "hl2": Dataset(
+        "hl2_peaks.txt",
+        "74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own "
+        "derived product from datalab-org/guillemot's MIT examples, carried "
+        "with attribution; the compound is unknown and stays unknown",
+        "characterisation"),
     "qarr": Dataset(
         "qarr",
         "IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 and six pure "
@@ -155,6 +161,13 @@ DATASETS: dict[str, Dataset] = {
         "APS 11-BM SRM 660a LaB6 in the beamline's documented 0.81 mm Kapton "
         "bore; lambda was calibrated against this very standard",
         "consistency"),
+    "bethanechol": Dataset(
+        "bethanechol_indexing.json",
+        "Bergmann et al. (2004) Tables 5 and 6: ten sets of twenty 2theta "
+        "positions for bethanechol chloride, the known P21/n cell, and every "
+        "program's published score -- the only externally graded benchmark any "
+        "feature in this package has",
+        "cross_code"),
 }
 
 
@@ -614,6 +627,450 @@ CLAIMS: tuple[Claim, ...] = (
         starts=4,
         diagnostics=("STEPHENS_STRAIN_NOT_POSITIVE",),
     ),
+    # ---- WP-1026: indexing, the first externally graded feature ----------
+    # Four rows verify the transcription itself.  Two hundred numbers were typed
+    # from a printed table, and each of these checks a statement the paper makes
+    # in PROSE and never tabulates, so a typo breaks at least one of them.
+    Claim(
+        "test_acceptance_indexing", "test_every_set_is_twenty_ascending_lines",
+        "bethanechol", ("identity",),
+        "the fixture has the shape the paper's Table 6 has: ten sets, twenty "
+        "strictly ascending positions each",
+        reference="Table 6's ten columns -- A/B/C/D are treatments and each was "
+                  "applied to BOTH ICDD entries, which is why the global score "
+                  "runs over twenty numbers and not ten",
+        measured="10 sets x 20 lines, all ascending",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_table_5_reconstruction_sums_to_the_published_globals",
+        "bethanechol", ("identity", "cross_code"),
+        "the transcribed per-program scores sum to the Global column the paper "
+        "prints beside them, which is what makes the bar itself trustworthy",
+        reference="Table 5 is a 20-column grid of +-1 with subscripted zeros and "
+                  "does not survive conversion intact -- the copy this was read "
+                  "from had a row of 21 values where there are 20.  Each graded "
+                  "row's twenty independently-read cells must reproduce its "
+                  "printed total",
+        measured="First 4 sums to +9 and Best of all to +12, both exact; the "
+                 "four programs the +9 is the best of scored -14, -8, -4 and +5 "
+                 "individually",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_zeroshift_correction_is_exactly_the_paper_s",
+        "bethanechol", ("identity", "cross_code"),
+        "the zero-corrected columns are exactly the raw ones less the paper's "
+        "stated zeropoint",
+        reference="the text says only that the entries carry 'a surprisingly "
+                  "large zeropoint error that is close to 0.10 (2theta) deg' "
+                  "and prints both columns; the arithmetic linking them is "
+                  "never stated, and eighty values have to agree",
+        measured="C = A - 0.100 and D = B - 0.100 to 5e-13 on all four pairs",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_intensity_cut_is_a_subset_of_the_same_measurement",
+        "bethanechol", ("identity", "cross_code"),
+        "the I >= 5 % sets are subsets of the raw sets of the same specimen, "
+        "and reach further in 2theta for the stated reason",
+        reference="B is 'the first 20 lines with I >= 5 % I_max' of the same "
+                  "pattern as A, so every B line inside A's range must be one "
+                  "of A's bit-for-bit -- and dropping the weak lines is what "
+                  "lets twenty survivors extend past A's last line",
+        measured="13 of 13 and 15 of 15 common lines identical to 1e-12; both "
+                 "B sets reach beyond their A set's maximum",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_published_cell_reproduces_the_paper_s_impurity_counts",
+        "bethanechol", ("cross_code", "characterisation"),
+        "the published cell accounts for exactly as many of each entry's first "
+        "twenty lines as the paper's own impurity statement implies",
+        reference="'8 impurity lines among the first 26 lines' in PDF 43-1748 "
+                  "and '3 impurity lines among the first 35' in 46-1964.  "
+                  "Nothing is fitted: the cell is the paper's and the offset is "
+                  "a one-parameter scan, so this uses the ANSWER to check the "
+                  "data and no typo in either survives it",
+        measured="3 unexplained of 20 in every 46-1964 set, 7 in 43-1748, 0 in "
+                 "both new measurements",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_bare_position_list_says_its_sigma_was_assumed",
+        "bethanechol", ("characterisation",),
+        "the benchmark's input form is carried honestly: every line says its "
+        "sigma was assumed, and the quality gate lets it through anyway",
+        reference="the sets are positions only, so sigma is "
+                  "PEAK_ASSUMED_ESD_DEG -- chosen by this package.  A precision "
+                  "nobody measured may not be grounds for refusing to index, "
+                  "which is the inverse of the mistake indexing/quality.py "
+                  "exists to prevent.  All ten sets failed the sigma(Q)/Q "
+                  "abstention before WP-1026, including the one whose published "
+                  "M(20) is 197",
+        measured="source == 'positions' and sigma_assumed on every line of all "
+                 "ten sets; supports_indexing True on all ten; shift.source "
+                 "'unavailable'",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_published_figures_of_merit_are_reproduced_unfloored",
+        "bethanechol", ("cross_code", "characterisation"),
+        "the published M(20) and F(20) are reproduced from the transcription "
+        "with the de Wolff / Smith-Snyder definitions, and are shown NOT to be "
+        "reproducible from this package's own floored versions",
+        reference="M(20) = 197 and F(20) = 1080 (0.0006, 32) on the "
+                  "synchrotron set.  m20/f_n floor <delta> at the median sigma, "
+                  "which on a from_positions list is the ASSUMED 0.02 deg -- "
+                  "thirty times the paper's <|d2theta|> -- so the floored "
+                  "figures are not comparable with a published value computed "
+                  "without the floor, and the row says so rather than quietly "
+                  "comparing them",
+        measured="unfloored M = 116, F = 654 with <|d2theta|> = 0.00099 deg "
+                 "and N_poss = 31 against the published 0.0006 and 32; the "
+                 "residual gap is the printed cell's own rounding (3 dp on the "
+                 "axes, 2 on beta).  Floored, the same data give 5.8 and 32.3",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_2004_zeroshift_hypothesis_cannot_be_tested_on_these_data",
+        "bethanechol", ("characterisation", "prediction"),
+        "the paper's own hypothesis about the cause of the zeroshift is tested "
+        "for the first time and comes back UNANSWERABLE, with the reason "
+        "quantified -- and the magnitude it does determine disagrees with the "
+        "paper's round number",
+        reference="Bergmann et al. wrote the shift 'would be consistent with a "
+                  "systematic specimen-displacement error' and had no way to "
+                  "check, every program of the day fitting one constant "
+                  "zeropoint.  fit_shift_model fits three physical causes as "
+                  "nested single fits.  The prediction written down before the "
+                  "measurement is quality.py's: over a short low-angle range "
+                  "the templates are collinear and no cause is attributable",
+        measured="max_collinearity 1.0000 and separable=False on all ten sets "
+                 "over their 6-31 deg span.  Magnitude: PDF 43-1748 carries "
+                 "+0.062 deg and 46-1964 +0.058, not the quoted 0.10 -- so "
+                 "subtracting 0.100 overshoots to -0.039 and -0.043, which is "
+                 "why Table 5 does not show C as uniformly easier than A",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_certified_lab_pattern_indexes_and_is_graded_honestly",
+        "srm676a", ("certificate", "characterisation"),
+        "a raw certified pattern is picked and indexed end to end, the "
+        "certified lattice is ranked first with the right centring, and the "
+        "gate still refuses to promote it -- naming four reasons, all real",
+        reference="NIST SRM 676a a = 4.759355(80), c = 12.99231(15) A (k = 2). "
+                  "Both axes are asserted at 150 ppm.  An earlier version of "
+                  "this row asserted c as a RANGE of 1000-5000 ppm and called "
+                  "it 'what an uncalibrated lab pattern costs'; it was not, it "
+                  "was dichotomy's duplicate-leaf hash skipping the leaf that "
+                  "held the certificate's c (WP-1026, _box_key)",
+        measured="ranked first, trigonal R, a +101 ppm and c +16 ppm, 49 of 55 "
+                  "lines, chi2_red 0.84.  Confidence low on four caveats: "
+                  "engines_disagree, predicted_but_absent (12 -- the R-3c "
+                  "c-glide, not an oversized cell), indexed_fraction_low "
+                  "(49/55 = 0.891 against a 0.9 bar) and "
+                  "shift_allowance_assumed.  best_or_none() returns None",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_declaring_the_shift_template_is_what_recovers_the_certificate",
+        "srm676a", ("certificate", "characterisation"),
+        "declaring a shift template recovers a specimen displacement the "
+        "package was never told about, and moves the cell to the certificate "
+        "while it does so",
+        reference="The displacement was measured independently against the "
+                  "certificate as a -0.065 deg cos(theta) term (WP-1023).  "
+                  "This row never supplies it: the search fits the template "
+                  "after each candidate survives, from the pattern alone.  The "
+                  "cell and the figures of merit are asserted TOGETHER, "
+                  "because f_n's stated blind spot is that a refined shift can "
+                  "manufacture a large figure of merit on its own",
+        measured="fitted shift -0.0606 +/- 0.0138 deg; a -73 ppm, c -126 ppm; "
+                  "M20 22.1 -> 76.6 and F_N 15.8 -> 59.5; indexed_fraction "
+                  "0.891 -> 0.927 so indexed_fraction_low clears.  Still low, "
+                  "because the allowance was assumed either way",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing", "test_the_phantom_lines_are_what_had_blocked_it",
+        "srm676a", ("characterisation",),
+        "the peak list this package produces from a real lab pattern contains "
+        "components that are profile-shape repair rather than lines, and they "
+        "are flagged rather than reported",
+        reference="detect_peaks proposes 41 groups with ONE seed each; the "
+                  "fitter returns 63 components.  The row asserts the flagged "
+                  "ones are weak satellites of much stronger lines -- the "
+                  "geometry no dBIC can refuse, because dBIC judges two models "
+                  "that both fail (chi2_red 17.4 at n=1, 4.6 at n=2)",
+        measured="8 of 63 flagged not_separable, >=50 usable; before the fix "
+                  "neither engine could index this certified pattern at all",
+    ),
+    Claim(
+        "test_acceptance_indexing", "test_a_three_phase_mixture_abstains",
+        "qarr", ("characterisation",),
+        "a three-phase mixture returns no cell rather than the best of a bad "
+        "list, and reports which systems were searched instead of concluding "
+        "about the specimen",
+        reference="qarr/cpd-1a.prn is corundum + zincite + fluorite.  The "
+                  "failure this guards against is the one the prior art at the "
+                  "guillemot-study tag retracted a claim over: a coverage "
+                  "score cannot tell a multiphase pattern from a single-phase "
+                  "one of lower symmetry",
+        measured="best_or_none() is None; no candidate reaches high",
+    ),
+    # ---- SRM 660c indexed: the absolute anchor, and the phase with no
+    # extinctions that turns the corundum caveat into a control ------------
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat",
+        "srm660c", ("certificate", "characterisation"),
+        "the absolute lab anchor is indexed from the pattern alone, and the "
+        "refuting caveat that fires on correct cells is silent on the one "
+        "bundled phase whose space group has no absences",
+        reference="P m -3 m extinguishes nothing, so if predicted_but_absent "
+                  "means what WP-1026 read it to mean -- space-group "
+                  "extinctions counted against the LATTICE group, the only "
+                  "model that exists before determine_extinction_symbol runs "
+                  "-- it must be silent here and is 11-12 on R-3c corundum.  "
+                  "The cell bar is 200 ppm and is set by a defect this same "
+                  "file measures, not by the data: a tighter one would assert "
+                  "the tail components below do not exist",
+        measured="cubic P ranked first, a -127 ppm against the CIF's "
+                 "4.156780 A; predicted_but_absent 0 of 30 and "
+                 "predicted_seen_fraction 1.000 against corundum's 0.86.  "
+                 "Still low, on shift_allowance_assumed and engines_disagree; "
+                 "best_or_none() returns None",
+        diagnostics=("INDEX_SHIFT_ALLOWANCE",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_unflagged_tail_components_escape_for_three_different_reasons",
+        "srm660c", ("characterisation",),
+        "the not_separable screen misses six components on this pattern, and "
+        "the census -- not any one threshold -- is what is pinned",
+        reference="The screen asks three questions (re-seeded, inside the "
+                  "neighbour's profile at <=25 % of its area, group still "
+                  "refuted).  Thirteen components face them here; the six "
+                  "survivors fail three DIFFERENT conditions, so widening "
+                  "PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a "
+                  "knob rather than a measurement",
+        measured="4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection "
+                 "seed slid into the tail and the new component took the real "
+                 "line), 1 on a group whose fit is not refuted (chi2_red 1.38)",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_surviving_components_sit_on_the_axial_divergence_side",
+        "srm660c", ("characterisation",),
+        "the surviving components are aberration shape rather than lines, and "
+        "the side they sit on names which aberration",
+        reference="Axial divergence puts a tail on the low-2theta side below "
+                  "90 deg and the high side above it; nothing else in a "
+                  "Bragg-Brentano pattern changes sign there.  The single "
+                  "exception is asserted to be exactly one and to sit on its "
+                  "group-mate's Kalpha2 maximum -- an alias the detection "
+                  "screen drops (PEAK_KALPHA2_ALIAS, 23 dropped) and the group "
+                  "fit re-creates at 3 % of the parent's area",
+        measured="5 axial-divergence tails, 1 Kalpha2 residual, 0 lines of "
+                 "LaB6; the sign flips at 90 deg on every one of them",
+        diagnostics=("PEAK_KALPHA2_ALIAS",),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_shift_screen_survives_the_tail_components_but_the_search_cannot",
+        "srm660c", ("certificate", "characterisation"),
+        "an assumed matching allowance costs the relative weighting the peak "
+        "fitter measured, which is why declaring a shift template recovers "
+        "corundum's certificate and not this one's",
+        reference="The displacement is PREDICTED, parameter-free, from NIST's "
+                  "own recorded -0.07877 mm at R = 217.5 mm through "
+                  "model.corrections.displacement_shift_deg: +0.0415 deg cos "
+                  "theta.  fit_shift_model weights by each line's own sigma; "
+                  "the search adds DEFAULT_UNKNOWN_SHIFT_DEG = 0.05 deg in "
+                  "quadrature to every sigma, which is flat",
+        measured="tail components carry sigma ~0.005 deg against the real "
+                 "lines' ~0.0005; after the quadrature allowance that 100x "
+                 "contrast is 1.005.  Screen: +0.0367 +- 0.0015 (0.88 of the "
+                 "predicted 0.0415, the rest being the aberrations SRM 660c's "
+                 "own docstring names).  Search: +0.009 +- 0.016, consistent "
+                 "with none",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival",
+        "srm660c", ("identity", "characterisation"),
+        "a geometrical ambiguity that is exact rather than approximate, and "
+        "that the derivative-lattice enumeration cannot reach from one side",
+        reference="Tetragonal P at (a/sqrt2, a) gives Q = (2h2+2k2+l2)/a2, and "
+                  "2(h2+k2)+l2 represents exactly the integers h2+k2+l2 does "
+                  "-- both miss precisely 4^n(8m+7).  So the two lattices are "
+                  "isospectral everywhere, not within a tolerance.  "
+                  "ambiguity_partners enumerates SUBlattices of index 2-4, "
+                  "i.e. supercells, and this rival has half the volume",
+        measured="represented sets identical to N=400; predicted Q identical "
+                 "to 3e-16 relative (the round-off of sqrt2, not a "
+                 "difference).  0 partners from the cubic side; from the "
+                 "tetragonal side the cubic is found at index 2 with ZERO "
+                 "discriminating reflections",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_isospectral_rival_is_ranked_beside_the_truth",
+        "srm660c", ("characterisation",),
+        "both engines find the isospectral rival on the measured pattern, and "
+        "neither it nor the truth carries the caveat that should hold the pair",
+        reference="The WP's 'a geometrical-ambiguity case where NEITHER "
+                  "partner reaches high' row, answered on certified data "
+                  "rather than synthetically -- and a stronger case, because "
+                  "this partner is exactly isospectral rather than isospectral "
+                  "within a tolerance.  Nothing is promoted here for an "
+                  "unrelated reason (the allowance was assumed), so what is "
+                  "pinned is the missing geometric_ambiguity caveat",
+        measured="the half-volume tetragonal cell is ranked in the same list, "
+                 "found_by both engines; neither partner reaches high and "
+                 "neither carries geometric_ambiguity",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_what_the_unflagged_tail_components_cost_the_certified_cell",
+        "srm660c", ("certificate", "characterisation"),
+        "with every piece of evidence supplied the gate reaches high for the "
+        "first time on real data, and the cell lands 2 ppm from a certified "
+        "value",
+        reference="An attribution probe, not a protocol: the off-lattice "
+                  "components are identified USING the certificate, which no "
+                  "user of an unknown phase can do.  What it establishes is "
+                  "that the pipeline's arithmetic is sound to the ppm and that "
+                  "what stands between it and a blind certified answer is a "
+                  "peak list.  Three things are supplied -- the five "
+                  "off-lattice components removed, the systematic measured "
+                  "rather than assumed, the cos_theta template declared",
+        measured="a = 4.156772 A, -2 ppm, M20 1113, ZERO caveats, confidence "
+                 "high and best_or_none() non-None -- both firsts on real "
+                 "data, against -127 ppm with none of the three.  Also "
+                 "measured: declaring the screen's own sigma_sys (0.0078, the "
+                 "residual the template LEAVES) returns no candidate at all, "
+                 "because the search matches uncorrected positions and needs "
+                 "the shift's amplitude (0.037) instead -- 4.3x apart",
+        diagnostics=("!INDEX_SHIFT_ALLOWANCE",),
+    ),
+    # ---- the round-robin pure phases, NAC, FAP and the unknown ----------
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern",
+        "qarr", ("characterisation",),
+        "a pattern with too few lines is refused before any engine starts, and "
+        "the bar is where the figures of merit are defined rather than chosen",
+        reference="CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka "
+                  "that lattice yields only 18 usable lines against "
+                  "PEAK_MIN_USABLE_LINES = 20.  The bar is not arbitrary: M20, "
+                  "F20 and Smith's volume envelope are all DEFINED on twenty "
+                  "lines, so below it the package would be quoting figures "
+                  "outside their own definitions.  The counterintuitive "
+                  "direction -- high symmetry makes a pattern easy to index "
+                  "until it makes it too sparse to index at all",
+        measured="18 usable; supports_indexing False; systems_searched EMPTY; "
+                 "0 candidates in 0.1 s; INDEX_DATA_INSUFFICIENT and "
+                 "INDEX_ABSTAINED both raised",
+        diagnostics=("INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_hexagonal_lab_pattern_recovers_its_lattice",
+        "qarr", ("characterisation",),
+        "a hexagonal lab pattern recovers its lattice, both engines agreeing, "
+        "and supplies the third point of the extinction-caveat table",
+        reference="Kihara & Donnay (1985) for ZnO wurtzite.  A LITERATURE cell "
+                  "for the mineral, never a certificate for this specimen -- "
+                  "brucite in the same series sits +1750 ppm from its own "
+                  "literature cell, 30x the goniometer-radius floor, which is "
+                  "why these rows assert lattice type and centring at a lab "
+                  "d-scale level and not a ppm number",
+        measured="a -217 ppm, c -186 ppm; ALL 27 usable lines indexed; M20 902; "
+                 "both engines.  predicted_but_absent = 4 (the 6_3 screw and "
+                 "c-glide of P 6_3 m c, invisible to the lattice hexagonal P), "
+                 "so graded low and best_or_none() is None",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_centred_tetragonal_lattice_is_recovered_with_its_centring",
+        "qarr", ("characterisation",),
+        "the only row that recovers a CENTRING, and it shows which figure of "
+        "merit does the choosing",
+        reference="Hazen & Finger (1979) for ZrSiO4.  Two centrings of one "
+                  "metric are deliberately NOT merged (engines.dedup_groups) "
+                  "because they predict different numbers of lines; the panel "
+                  "chooses.  The primitive twin indexes exactly as many "
+                  "OBSERVED lines, so forward coverage cannot separate them -- "
+                  "only coverage scored in the other direction can",
+        measured="tetragonal I ranked first, a +207 ppm and c +1906 ppm, 66 of "
+                 "68 lines; the P twin ties on n_indexed and loses on "
+                 "predicted_seen_fraction 0.59 against 0.31.  "
+                 "predicted_but_absent = 7 (4_1 screw and glides on top of the "
+                 "centring); low, best_or_none() None",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed",
+        "nac", ("characterisation",),
+        "a short-wavelength pattern cannot be indexed as measured, and the "
+        "null result says 'incomplete' rather than 'nothing exists'",
+        reference="lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which "
+                  "a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok "
+                  "-- the crash guard in front of every generate_reflections "
+                  "call.  The row pins the SHAPE of the failure, because a "
+                  "null that distinguishes 'we did not finish' from 'there is "
+                  "nothing' is the whole design",
+        measured="zero boxes explored, 0.15 s, no candidate, "
+                 "search_complete[cubic] False.  Truncating 2theta was measured "
+                 "and does NOT rescue it: 2-18/25/32 deg give 215 boxes but "
+                 "a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth "
+                 "is I, at 300-620 s each.  Underneath, the true cell explains "
+                 "6 of the first 20 picked lines (CaF2 none) though 268 of 285 "
+                 "overall -- a search-line selection question, filed to WP-1030",
+        diagnostics=("INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_cross_code_cell_is_found_but_not_ranked_first",
+        "fap", ("cross_code", "characterisation"),
+        "the cross-code cell is reachable and both engines agree on it, the "
+        "ranking does not lead with it, and the gate declines the leader",
+        reference="GSAS's own converged FAP.EXP cell for this exact pattern.  "
+                  "The band is 500 ppm, NOT the refinement suite's +-300: an "
+                  "indexed cell has no displacement parameter and absorbs the "
+                  "displacement instead, worth a measured 127 ppm on SRM 660c "
+                  "and ~180 on SRM 676a.  The row asserts MEMBERSHIP and "
+                  "REFUSAL rather than rank, because writing it as 'rank 0 is "
+                  "the answer' would mean tuning the panel on a dataset whose "
+                  "reference is another code's fit",
+        measured="a +232 ppm, c +363 ppm, found by BOTH engines, 181 of 185 "
+                 "lines.  Ranked below a cell 1218 ppm out that indexes 167 and "
+                 "scores a higher M20.  best_or_none() None and nothing reaches "
+                 "high -- the promise kept while the ranking is wrong, which is "
+                 "the case the promise exists for",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_an_unidentified_pattern_stays_unidentified",
+        "hl2", ("characterisation",),
+        "the only fixture whose compound is genuinely unknown stays unknown, "
+        "and is refused on merit rather than on coverage",
+        reference="Every other real-data row has a known answer and measures "
+                  "whether it is found; this measures the opposite half, which "
+                  "no benchmark can.  The trap it guards is that forward "
+                  "coverage READS like a solution -- the leaders index 73 of 74 "
+                  "lines.  What refuses them is M20 an order below anything "
+                  "publishable (de Wolff's own guidance is M20 > 10; the "
+                  "bethanechol synchrotron set reaches 197 in this same file)",
+        measured="12 candidates, all low, M20 ~4.6, none validated, "
+                 "best_or_none() None; systems_searched reported and "
+                 "search_complete False on two of the four, so the null is not "
+                 "dressed up as an exhausted domain",
+        diagnostics=("INDEX_ABSTAINED", "INDEX_SEARCH_INCOMPLETE"),
+    ),
 )
 
 
@@ -764,6 +1221,13 @@ GAPS: tuple[tuple[str, str], ...] = (
 #: Suite-level narrative, keyed by module.  The per-row prose is in the
 #: ``Claim`` objects; this is the sentence that says what the *dataset* is for.
 SUITE_INTROS: dict[str, str] = {
+    "test_acceptance_indexing":
+        "The only externally *graded* feature in the package. Bergmann et al. "
+        "(2004) published both the data and every program's score, so the bar "
+        "here is what ITO13, DICVOL91, TREOR90 and McMaille actually achieved "
+        "rather than a tolerance chosen in this repo. The fixture is checked "
+        "against three statements that paper makes in prose and never "
+        "tabulates before anything is graded against it.",
     "test_acceptance_srm660c":
         "The absolute lab anchor. NIST's own SRM 660c certification "
         "measurement, refined against the cell recomputed for this dataset's "

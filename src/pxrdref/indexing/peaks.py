@@ -148,8 +148,14 @@ def _debiased_envelope(tt: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
-                    fwhm: np.ndarray, found: np.ndarray) -> np.ndarray:
+                    fwhm: np.ndarray, found: np.ndarray,
+                    alias_positions: np.ndarray,
+                    ) -> tuple[np.ndarray, np.ndarray]:
     """Curvature seeds for peaks that never reach a local maximum.
+
+    Returns ``(seeds, suppressed_as_alias)``: the second array is the seeds
+    dropped because they sit at a claimed line's Bragg-predicted Kα2 position,
+    reported for the same reason a dropped alias *maximum* is.
 
     A shoulder on a strong line has no maximum, so ``find_peaks`` cannot see
     it — but it does have a curvature minimum, and the amplitude that curvature
@@ -172,14 +178,16 @@ def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
     to be generous, and being generous is why that gate exists.
     """
     out: list[int] = []
+    alias: list[int] = []
+    empty = np.array([], dtype=np.int64)
     step = float(np.median(np.diff(tt)))
     if len(tt) < 9 or step <= 0.0:
-        return np.array(out, dtype=np.int64)
+        return empty, empty
     width = max(int(float(np.median(fwhm)) / step), 5)
     width = min(width | 1, (len(tt) - 1) | 1)   # odd, and inside the pattern
     poly = min(4, width - 1)
     if poly < 3:                                # deriv=2 needs order ≥ 3
-        return np.array(out, dtype=np.int64)
+        return empty, empty
     curv = savgol_filter(net, width, poly, deriv=2, delta=step, mode="interp")
     coef_norm = float(np.linalg.norm(
         savgol_coeffs(width, poly, deriv=2, delta=step)))
@@ -198,8 +206,46 @@ def _shoulder_seeds(tt: np.ndarray, net: np.ndarray, sigma: np.ndarray,
         gap = PAWLEY_OVERLAP_FWHM_FRAC * fwhm[i]
         if len(found) and np.min(np.abs(tt[found] - tt[i])) < gap:
             continue
+        # …and neither is a dip sitting on a claimed line's *predicted* Kα2
+        # position, however far away that is: a marginally resolved doublet has
+        # no second maximum for :func:`_drop_kalpha2_aliases` to catch, but it
+        # does have a curvature shoulder — and the parent's own doublet already
+        # models exactly that intensity.  Measured (WP-1018 σ pull calibration,
+        # lab Cu Kα LaB6): the 110 line at 30.387° splits by 0.0775° against a
+        # 0.082° FWHM, so the Kα2 shoulder cleared both the 5σ curvature test
+        # and the half-FWHM gap above, formed a *singleton* group of its own,
+        # and came back as a line at 30.46° with real intensity — which the
+        # ΔBIC prune cannot refuse, because against "no peak at all" there
+        # genuinely is intensity there.
+        if len(alias_positions) and np.min(
+                np.abs(alias_positions - tt[i])) < (PEAK_ALIAS_TOL_FWHM_FRAC
+                                                    * fwhm[i]):
+            alias.append(int(i))
+            continue
         out.append(int(i))
-    return np.array(sorted(out), dtype=np.int64)
+    return (np.array(sorted(out), dtype=np.int64),
+            np.array(sorted(alias), dtype=np.int64))
+
+
+def _secondary_line_two_theta(tt_primary: np.ndarray, instrument: Instrument
+                              ) -> np.ndarray:
+    """Where every non-primary emission line of ``tt_primary`` would sit.
+
+    Same d, different λ — Bragg's law, which is literally the ghost transform in
+    ``background.diagnostics``: sin θ_l = (λ_l/λ₀)·sin θ₀.  Shape
+    ``(len(source.lines) - 1, len(tt_primary))``, so a caller that needs the
+    line's ``weight`` keeps the pairing; **NaN** past the sphere limit rather
+    than clipped, because a clipped alias position is a real position that is
+    wrong, and a NaN one compares false in every test here.
+    """
+    lines = instrument.source.lines
+    tt0 = np.asarray(tt_primary, dtype=np.float64).ravel()
+    if len(lines) < 2 or not len(tt0):
+        return np.zeros((max(len(lines) - 1, 0), len(tt0)))
+    ratios = np.array([ln.wavelength / lines[0].wavelength
+                       for ln in lines[1:]], dtype=np.float64)
+    s = ratios[:, None] * np.sin(np.radians(0.5 * tt0))[None, :]
+    return 2.0 * np.degrees(np.arcsin(np.where(np.abs(s) <= 1.0, s, np.nan)))
 
 
 def _drop_kalpha2_aliases(tt: np.ndarray, idx: np.ndarray, height: np.ndarray,
@@ -223,16 +269,15 @@ def _drop_kalpha2_aliases(tt: np.ndarray, idx: np.ndarray, height: np.ndarray,
         return idx, np.array([], dtype=np.int64)
     lo_r, hi_r = PEAK_ALIAS_RATIO_RANGE
     alias: set[int] = set()
+    predicted_all = _secondary_line_two_theta(tt[idx], instrument)
     order = np.argsort(height)[::-1]            # strongest parent first
     for a in order:
         if int(idx[a]) in alias:
             continue                            # an alias cannot parent one
         for il in range(1, len(lines)):
-            ratio = lines[il].wavelength / lines[0].wavelength
-            s = ratio * np.sin(np.radians(0.5 * tt[idx[a]]))
-            if not (-1.0 <= s <= 1.0):
+            predicted = float(predicted_all[il - 1, a])
+            if not np.isfinite(predicted):
                 continue
-            predicted = 2.0 * np.degrees(np.arcsin(s))
             w = lines[il].weight.value
             for b in range(len(idx)):
                 if b == a or int(idx[b]) in alias:
@@ -300,10 +345,20 @@ def detect_peaks(data: PatternData, instrument: Instrument, *,
         tt, idx, net[idx], fwhm_seed_curve, instrument)
 
     # a dropped alias is a strong real maximum, so it must be forbidden to the
-    # curvature seeder too — otherwise it comes straight back as a "shoulder"
+    # curvature seeder too — otherwise it comes straight back as a "shoulder".
+    # The *predicted* alias positions of every claimed maximum are forbidden as
+    # well, which is the unresolved half of the same defect: see
+    # :func:`_shoulder_seeds`.
     claimed = np.concatenate([idx, alias_idx]).astype(np.int64)
-    shoulder_idx = (_shoulder_seeds(tt, net, sigma, fwhm_seed_curve, claimed)
-                    if shoulders else np.array([], dtype=np.int64))
+    if shoulders:
+        pred = _secondary_line_two_theta(tt[idx], instrument).ravel()
+        shoulder_idx, shoulder_alias = _shoulder_seeds(
+            tt, net, sigma, fwhm_seed_curve, claimed, pred[np.isfinite(pred)])
+        alias_idx = np.array(sorted(set(alias_idx.tolist())
+                                    | set(shoulder_alias.tolist())),
+                             dtype=np.int64)
+    else:
+        shoulder_idx = np.array([], dtype=np.int64)
     all_idx = np.concatenate([idx, shoulder_idx]).astype(np.int64)
     if not len(all_idx):
         return Detection(tt, y, sigma, env, [], fwhm_meas,

@@ -189,7 +189,11 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
         rationale=(f"{len(strong)} observed peak(s) have no calculated "
                    f"reflection nearby and are not accounted for by a peak-"
                    f"position error, the strongest at {worst.two_theta:.3f}° "
-                   f"at {worst.height_over_sigma:.0f}σ"),
+                   f"at {worst.height_over_sigma:.0f}σ.  If the extra lines are "
+                   f"an unknown phase rather than a wrong cell, index_pattern "
+                   f"finds its lattice — but one phase at a time: subtract or "
+                   f"model the solved phase first (WP-1028 measured that a Le "
+                   f"Bail partition of two phases inflates both without bound)"),
         alternatives=["reindex_or_recheck_cell"],
         two_theta_range=(worst.two_theta, worst.two_theta))]
 
@@ -310,11 +314,19 @@ def suggest_actions(attributions: list[RegionAttribution],
     far = [a for a in attributions
            if any("validity_radius" in f for f in a.gate_failures)]
     if far and rwp > 0.2:
+        # The action kind has existed since v0.2 with nothing behind it; WP-1024
+        # gave it something to call, so only the rationale changes — no new
+        # ``ActionKind``, and therefore **no THRESHOLDS_VERSION bump**.
         actions.append(SuggestedAction(
             kind="reindex_or_recheck_cell", confidence=0.4,
             rationale=(f"{len(far)} region(s) have peak offsets beyond the "
                        "linearisation radius — the cell or indexing is wrong "
-                       "enough that shift-based corrections do not apply"),
+                       "enough that shift-based corrections do not apply.  "
+                       "Re-determine the cell from the data: pick_peaks(data, "
+                       "instrument) then index_pattern(peaks, data=data, "
+                       "instrument=instrument), and read best_or_none() — it "
+                       "returns None rather than a cell whenever the evidence "
+                       "does not choose one (AGENT_PROTOCOL §7d)"),
             parameter_paths=["phases.*.cell.*"]))
 
     actions.sort(key=lambda a: -a.confidence)

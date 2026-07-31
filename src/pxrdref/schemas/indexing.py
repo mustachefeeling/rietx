@@ -1,4 +1,5 @@
-"""Indexing schemas — the fitted peak list an indexer consumes.
+"""Indexing schemas — the fitted peak list an indexer consumes, and the answer
+it is allowed to give.
 
 The contract this module exists to establish is **per-line σ instead of a
 global tolerance knob**.  Every indexing program in the literature takes a
@@ -10,6 +11,13 @@ move the refinement side made with the file's esd column (CLAUDE.md, Weights).
 Thresholds are pinned here and versioned by
 :data:`INDEXING_THRESHOLDS_VERSION`, following ``report/schemas.py``: an agent
 reading a peak list can reproduce the decisions that produced it.
+
+**The answer's shape is a rule, not a convenience** (WP-1024).
+:class:`IndexingResult` has no ``.cell`` and no ``.best``; the only way to a
+singleton is :meth:`IndexingResult.best_or_none`, gated on
+:data:`Confidence` reaching ``"high"``.  The FitReport's
+never-a-confident-wrong-singleton rule, one rank up — and here the type enforces
+it rather than a docstring asking for it.
 
 **Q, not d, and not 2θ.**  ``Q = 1/d²`` is linear in the reciprocal metric
 (:func:`pxrdref.crystallography.inv_d_squared`), which is what makes cell
@@ -24,7 +32,7 @@ from typing import Literal
 import numpy as np
 from pydantic import Field, model_validator
 
-from .common import Base, Diagnostic
+from .common import Base, Diagnostic, Provenance
 
 #: 1.0 (WP-1018): first release of the peak-list contract.
 INDEXING_THRESHOLDS_VERSION = "1.0"
@@ -151,6 +159,116 @@ PEAK_ASYMMETRY_MIN_SIGMA = 4.0
 #: N = 20, so a shorter list cannot be scored by the figures of merit the
 #: engines rank on.
 PEAK_MIN_USABLE_LINES = 20
+# ----------------------------------------------------------------------
+# Data quality (WP-1019)
+# ----------------------------------------------------------------------
+#: Metric degrees of freedom of the quadratic form Q(hkl) per crystal system —
+#: the number of independent entries of {A..F} in
+#: ``Q = Ah² + Bk² + Cl² + Dkl + Ehl + Fhk``.  A search cannot be better
+#: determined than this: with fewer *usable* lines than DOF the cell is not
+#: over-determined at all, and any figure of merit computed on it is fitting
+#: noise exactly.  The names are the seven ``sg.crystal_system_str()`` values
+#: ``params.vector`` already ties cells by, so the vocabulary is not new.
+METRIC_DOF: dict[str, int] = {
+    "cubic": 1, "tetragonal": 2, "hexagonal": 2, "trigonal": 2,
+    "orthorhombic": 3, "monoclinic": 4, "triclinic": 6,
+}
+#: Usable lines per metric degree of freedom below which the data are reported
+#: as unable to support a search *in that system*.  Five is not a statistical
+#: threshold; it is the smallest ratio at which a wrong cell is unlikely to
+#: match every line by accident, and it is what makes the abstention system-
+#: dependent: 20 lines is 20× over-determined for cubic and 3.3× for triclinic,
+#: which is why "enough lines" is not a single number.
+MIN_LINES_PER_DOF = 5.0
+#: Median σ(Q)/Q above which the position precision is reported as too poor to
+#: separate candidate cells.  Read it as a *resolving power*: at 1e-3 two cells
+#: differing by 0.1 % in a lattice parameter are indistinguishable, which is the
+#: scale at which derivative-lattice ambiguity (Mighell & Santoro 1975) lives.
+MAX_RELATIVE_SIGMA_Q = 1e-3
+#: The three physical causes of a systematic 2θ shift, in the *same* names
+#: ``report/layer2.py``'s ``_POSITION_ACTIONS`` uses, so one physical cause has
+#: one name package-wide.  ``tan_theta`` is deliberately **absent**: a tanθ
+#: deviation is a *cell* error, not an instrument shift, and offering it here
+#: would let the screen "explain" a shift by changing the very answer indexing
+#: is about to produce.  WP-1020 refines the cell and the chosen shift together,
+#: where the tanθ direction belongs to the cell by construction.
+SHIFT_TEMPLATES: tuple[str, ...] = ("constant", "cos_theta", "sin_2theta")
+#: Smith (1977) volume envelope, ``V ≈ 0.6·d_N³/(1/N − 0.0052)``, evaluated for
+#: **triclinic** at N = 20: 13.39·d₂₀³.  Kept as the two published constants
+#: rather than the product, because the formula is used at other N.
+SMITH_VOLUME_C1, SMITH_VOLUME_C2 = 0.6, 0.0052
+
+# ----------------------------------------------------------------------
+# Consensus and the confidence gate (WP-1024)
+# ----------------------------------------------------------------------
+#: Share of the **whole usable line list** a candidate must index before it can
+#: be called ``"high"`` confidence.  Note the denominator: the search is driven
+#: by the first :data:`~pxrdref.indexing.engines.DEFAULT_SEARCH_LINES` lines and
+#: may leave ``n_unindexed`` of *those* unexplained, so a cell can pass the
+#: search having said nothing at all about lines 21 onwards — the first of the
+#: three blind spots Le Bail validation exists for.  This bar is what makes the
+#: whole list count.
+#:
+#: 0.9 rather than a count derived from ``n_unindexed``, and the difference is
+#: the point: on a 75-line list ``n_unindexed = 2`` would demand 97 %, which no
+#: real pattern with an impurity or an undetected weak line can meet, while on a
+#: 20-line list it would demand only 90 % anyway.  A fixed fraction lets a couple
+#: of foreign lines through on a long list and still refuses a cell that explains
+#: only the low-angle half.
+INDEX_MIN_INDEXED_FRACTION = 0.9
+#: Confidence in one candidate cell.  Three levels, and the top one is
+#: **agreement between independent engines** rather than any statistic: the same
+#: device as ``sequential.py``'s ``direction="both"`` and the cross-backend
+#: Jacobian matrix.  Two agreeing engines is the ceiling (the whole-profile Monte
+#: Carlo is a measured no-go, WP-1023), not a shortfall.
+Confidence = Literal["high", "medium", "low"]
+#: Closed vocabulary of the reasons a candidate is *not* ``"high"``.  Closed for
+#: the same reason ``report/schemas.py``'s ``ActionKind`` is: a consumer branches
+#: on these, and a free-text reason cannot be branched on.  The human detail
+#: belongs in the accompanying ``INDEX_*`` diagnostic, not here.
+#:
+#: ``engines_disagree`` — fewer than every engine run found this lattice.
+#: ``geometric_ambiguity`` — a distinct lattice fits the positions as well
+#: (Mighell & Santoro 1975); the partner carries the reflections that would
+#: break the tie.  ``fom_panel_disagrees`` — the panel's members put different
+#: candidates first, so at least one blind spot is active.  ``not_validated`` —
+#: no pattern was supplied, so nothing tested the candidate against the whole
+#: profile.  ``predicted_but_absent`` — the Le Bail fit found reflections where
+#: the pattern has no intensity, the classic oversized-cell false positive M₂₀
+#: cannot see.  ``indexed_fraction_low`` — below
+#: :data:`INDEX_MIN_INDEXED_FRACTION` of the usable lines.  ``search_incomplete``
+#: — a budget expired, so a *negative* result elsewhere in the domain means
+#: nothing.  ``shift_allowance_assumed`` — the matching window was widened by an
+#: *assumed* systematic (``INDEX_SHIFT_ALLOWANCE``), and a cell found inside a
+#: widened window absorbs the shift.  ``bravais_ambiguous`` — the lattice
+#: symmetry appears only at a loose tolerance, or the two methods disagree.
+#: ``volume_unphysical`` — outside the volume the data can support.
+#: ``validation_failed`` — the Le Bail fit raised or diverged, which is evidence
+#: about the candidate and is kept distinct from ``not_validated`` (no fit was
+#: attempted): absence of a test and a failed test are not the same statement.
+IndexCaveat = Literal[
+    "engines_disagree",
+    "geometric_ambiguity",
+    "fom_panel_disagrees",
+    "not_validated",
+    "validation_failed",
+    "predicted_but_absent",
+    "indexed_fraction_low",
+    "search_incomplete",
+    "shift_allowance_assumed",
+    "bravais_ambiguous",
+    "volume_unphysical",
+]
+#: Caveats that **refute** a candidate rather than merely qualifying it: each is
+#: positive evidence against the cell, or evidence that the data cannot choose,
+#: so any one of them puts the candidate at ``"low"``.  The others cap it at
+#: ``"medium"``.  The split is the whole content of the gate, so it is one
+#: constant read by :func:`pxrdref.indexing.consensus.confidence_for` rather than
+#: a chain of conditions.
+INDEX_REFUTING_CAVEATS: frozenset[str] = frozenset({
+    "geometric_ambiguity", "fom_panel_disagrees", "predicted_but_absent",
+    "indexed_fraction_low", "volume_unphysical", "validation_failed"})
+
 #: σ(2θ) in degrees assumed by :meth:`PeakList.from_positions`, which receives
 #: bare positions from a publication or another program.  A typical
 #: well-aligned laboratory position precision — but the number is not the point:
@@ -179,14 +297,70 @@ PeakFlag = Literal[
     "unresolved_shoulder",
     "position_at_bound",
     "asymmetry_unmodelled",
+    "not_separable",
 ]
 
 #: Flags that take a line out of :meth:`PeakList.usable`.  ``sigma_assumed``
 #: and ``unresolved_shoulder`` are deliberately absent: those lines are still
 #: evidence, just less precise evidence, and their σ already says so.  Dropping
 #: them would discard the input the bethanechol benchmark arrives as.
+#:
+#: ``not_separable`` **is** here, and it is the one flag that marks a component
+#: the fitter believes in as a *shape* and disbelieves as a *line* — see
+#: :data:`PEAK_SEPARABLE_MAX_CHI2`.  It stays in ``peaks`` (a report must be able
+#: to say why a line went, and the component genuinely improves the group's fit,
+#: so removing it from the *model* would bias the position of the line it sits
+#: on) while never being offered as evidence of a lattice.
 PEAK_UNUSABLE_FLAGS: frozenset[str] = frozenset(
-    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed"})
+    {"ghost_kbeta", "ghost_tungsten", "excluded", "fit_failed", "not_separable"})
+
+#: Standard deviations above χ²_red = 1 at which a group's fit is **refuted**, and
+#: therefore above which a ΔBIC verdict on adding one more component to it cannot
+#: be read as evidence of a line.
+#:
+#: Not a flat χ²_red bar, because the groups differ in size by 5× across one
+#: pattern and χ²_red's own scatter is ν-dependent: for ν degrees of freedom
+#: σ(χ²_red) = √(2/ν), so the bar is ``1 + 3·√(2/ν)`` — 1.48 on an 83-point
+#: window, 1.27 on a 300-point one.  Three σ, the same 99.7 % convention
+#: :data:`~pxrdref.indexing.fom.MATCH_SIGMA` uses on positions, so one number
+#: means one thing across the package.
+#:
+#: This is the constant that closes WP-1026's real-data obstruction, and the
+#: reason it is needed is a limit of ΔBIC rather than a bad threshold in it.
+#: :data:`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` asks "does the data prefer n+1
+#: components to n?", which is only the same question as "is there a line here?"
+#: when the n-component model is *capable of fitting*.  Measured on the bundled
+#: qarr corundum pattern (Cu Kα, lab Bragg-Brentano): the strong 104 line at
+#: 35.09° fits with χ²_red = **17.4** at n = 1 and **4.6** at n = 2, so both
+#: models are refuted, the ΔBIC gain is enormous, and the component bought sits
+#: 0.17° (≈ 1 FWHM) below the real line at 10 % of its area — carrying a small
+#: esd, so it reads downstream as a well-measured line.  Detection never proposed
+#: it: ``detect_peaks`` returned 41 groups with **one seed each**, and the fitter
+#: returned 63 components.
+#:
+#: **The consequence was total, not marginal.**  With those satellites in the
+#: list neither engine could index a pattern whose cell is certified; with them
+#: out, both do (a = 4.7583/4.7626 Å against the certified 4.759355).  That is
+#: also why the earlier diagnosis of the same failure — that the matching
+#: tolerance was too tight — was wrong; see
+#: :data:`pxrdref.indexing.engines.DEFAULT_UNKNOWN_SHIFT_DEG`.
+#:
+#: **It is a "the model is refuted" bar, not a goodness bar**, and its failure
+#: mode is stated rather than eliminated: on a *well*-fitted group a weak close
+#: neighbour is kept, and on a badly-fitted one a genuine weak neighbour is
+#: demoted to ``not_separable``.  The second is the deliberate direction — a line
+#: the fitter cannot separate from its neighbour's shape is not evidence, and the
+#: flag says exactly that rather than deleting the component.
+PEAK_REFUTED_SIGMA = 3.0
+#: Distance, in the group's fitted FWHM, within which a component lies *inside* a
+#: neighbour's own profile rather than beside it.  Paired with
+#: :data:`PEAK_SATELLITE_MAX_RATIO`: both must hold, plus the component must have
+#: come from a re-seed pass rather than from a detected maximum.
+PEAK_SATELLITE_NEAR_FWHM = 1.5
+#: Area ratio below which a component is a *satellite* of a group-mate — small
+#: enough that the stronger line's shape error can account for it.  Measured
+#: satellite ratios on the qarr lab patterns are 0.08-0.14.
+PEAK_SATELLITE_MAX_RATIO = 0.25
 
 
 def q_of_two_theta(two_theta_deg: np.ndarray, wavelength: float) -> np.ndarray:
@@ -348,3 +522,508 @@ class PeakList(Base):
         return cls(peaks=peaks, wavelength=wavelength,
                    two_theta_min=float(tt.min()), two_theta_max=float(tt.max()),
                    source="positions")
+
+
+class FigureOfMerit(Base):
+    """One figure of merit, and **what it cannot see**.
+
+    ``blind_spot`` is not documentation, it is a field: the panel exists because
+    every published figure of merit has a failure mode, and a consumer that reads
+    a value without its blind spot is one step from the confident wrong singleton
+    the FitReport gates exist to prevent.  ``k_sigma`` records the matching window
+    the value was computed at, in units of each line's own σ — so a number is
+    reproducible from the peak list that produced it.
+    """
+
+    name: str
+    value: float
+    n_lines: int
+    n_possible: int
+    k_sigma: float
+    #: mean |Δ| of the matched lines, in the FoM's own units (Å⁻² for M₂₀, ° for
+    #: F_N); −1 when nothing matched, which is *not* zero discrepancy
+    mean_discrepancy: float = -1.0
+    blind_spot: str = ""
+
+
+class AmbiguityPartner(Base):
+    """A distinct lattice whose calculated line *positions* match this one's.
+
+    Mighell & Santoro (1975): a powder pattern carries only the **length** of the
+    reciprocal vector, so distinct lattices can be indistinguishable in it.  This
+    is reported, never resolved — and ``discriminating_reflections`` is what makes
+    it actionable rather than merely honest: the hkl that would break the tie, with
+    the 2θ where a line would have to appear (or be absent) to do so.  The
+    structural twin of Layer 2's "extend the fit range".
+    """
+
+    cell: tuple[float, float, float, float, float, float]
+    #: integer transformation from this candidate's basis to the partner's
+    transformation: list[list[int]]
+    index: int                      # |det| of the transformation
+    system: str
+    volume: float
+    #: hkl of the partner (or of this cell) whose position differs, and where
+    discriminating_reflections: list[tuple[int, int, int]] = Field(
+        default_factory=list)
+    discriminating_two_theta: list[float] = Field(default_factory=list)
+
+
+class BravaisOpinion(Base):
+    """What gemmi and spglib each say about a candidate's lattice symmetry.
+
+    The serialisable face of :class:`pxrdref.indexing.reduce.BravaisScreen`, and
+    it keeps the two opinions **apart** on purpose: gemmi's tolerance is a Le Page
+    obliquity in *degrees* and spglib's is a ``symprec`` in *Å*, so a
+    disagreement between them is information about the cell rather than a bug in
+    either — it is what genuine pseudosymmetry looks like.  ``system`` is the
+    symmetry that survives the whole tolerance sweep; ``system_loosest`` is the
+    highest any tolerance reported, and the two differing is
+    ``INDEX_BRAVAIS_AMBIGUOUS``.
+    """
+
+    system: str
+    system_loosest: str
+    system_gemmi: str
+    system_spglib: str
+    ambiguous: bool = False
+    methods_disagree: bool = False
+    #: the Niggli-reduced cell the screen was run on, so a consumer can see which
+    #: setting the symbols refer to
+    reduced_cell: tuple[float, float, float, float, float, float] = (0.0,) * 6
+
+
+class LeBailValidation(Base):
+    """A candidate cell tested against the **whole pattern** by a Le Bail fit.
+
+    Why this is mandatory rather than optional: the figure-of-merit panel is
+    computed on ≤20 lines and is structurally blind to three things the whole
+    profile sees — lines beyond the panel, reflections *predicted where there is
+    no intensity*, and impurity content.  The middle one is the classic
+    doubled-cell false positive and M₂₀ cannot see it at all (Oishi-Tomiyasu
+    2013): its ``N_poss`` denominator penalises an oversized cell only weakly.
+    Layer 0's strong-negative-residual detector sees it directly, and
+    :attr:`predicted_but_absent` is that count.
+
+    ``rwp`` is the figure the literature calls **lebail_rwp**.  It is
+    deliberately *not* a member of the ranking panel: the panel ranks every
+    candidate and this costs a refinement, so it is computed for the shortlist
+    only and used to *validate* rather than to order.  Reading it as a rank would
+    also reintroduce the blind spot it exists to close — a bigger cell fits
+    better.
+
+    The fit is **single-phase**, and that is a measured constraint rather than a
+    simplification (WP-1028): ``CompiledModel.lebail_update`` partitions
+    ``max(y_obs − y_bkg, 0)`` per phase with nothing to arbitrate two phases
+    claiming the same channel, so two phases inflate one another without bound
+    (measured Rwp 742–9 281 % against 7.5–24.8 % for one).  A candidate is
+    therefore never validated against a multi-phase hypothesis.
+    """
+
+    rwp: float
+    gof: float
+    #: the **absence-free lattice** group the fit used — not a space group, which
+    #: is not known yet (WP-1025).  An absence-carrying group would hide exactly
+    #: the reflections whose absence is not yet established.
+    space_group: str
+    n_reflections: int
+    #: reflections the lattice predicts where the pattern has no intensity, from
+    #: Layer 0's ``unmatched_calc``
+    predicted_but_absent: int = 0
+    #: observed peaks with no calculated reflection nearby — impurity content, or
+    #: a wrong cell.  Layer 0's ``unmatched_obs``
+    unmatched_observed: int = 0
+    #: ° 2θ of each, so the report is actionable rather than a count
+    predicted_but_absent_two_theta: list[float] = Field(default_factory=list)
+    unmatched_observed_two_theta: list[float] = Field(default_factory=list)
+    #: the underlying refinement's status; ``"failed"`` when the Le Bail fit
+    #: raised, which is itself evidence against the candidate but is reported as
+    #: a failure rather than converted into a score
+    status: str = "converged"
+    n_stages: int = 0
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class CellCandidate(Base):
+    """One candidate lattice, with everything needed to rank or reject it.
+
+    Deliberately *not* named "solution" and deliberately carrying no "is correct"
+    field.  ``found_by`` is the engines that produced it — agreement between
+    independent engines is the confidence, the same device as the cross-backend
+    Jacobian matrix and ``direction="both"`` — and ``ambiguity`` is populated
+    whenever a geometrically indistinguishable partner exists.
+    """
+
+    cell: tuple[float, float, float, float, float, float]
+    cell_esd: tuple[float, float, float, float, float, float]
+    system: str
+    centring: str = "P"
+    #: absence-free space-group symbol of the *lattice* (holohedry + centring) —
+    #: what the FoM denominators count, and the starting point for WP-1025's
+    #: extinction-symbol screen.  Not a space group: that is not known yet.
+    lattice_group: str = ""
+    volume: float = 0.0
+    volume_esd: float = 0.0
+    #: (A..F), the quadratic-form parameters actually fitted
+    af: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    n_indexed: int = 0
+    n_lines: int = 0
+    chi2_red: float = 0.0
+    shift_template: str | None = None
+    shift_coefficient: float = 0.0
+    shift_esd: float = 0.0
+    fom: list[FigureOfMerit] = Field(default_factory=list)
+    found_by: list[str] = Field(default_factory=list)
+    ambiguity: list[AmbiguityPartner] = Field(default_factory=list)
+    #: the two independent opinions on the lattice symmetry (WP-1020's screen)
+    bravais: BravaisOpinion | None = None
+    #: the whole-profile test; ``None`` means no pattern was supplied, which caps
+    #: every candidate at ``"medium"`` rather than being silently ignored
+    lebail: LeBailValidation | None = None
+    #: filled by the consensus gate.  Still deliberately **not** an "is correct"
+    #: field: ``"high"`` means the engines agreed and nothing refuted it, which is
+    #: a statement about the evidence and not about the crystal.
+    confidence: Confidence = "low"
+    #: every reason this candidate is not ``"high"``, from the closed
+    #: :data:`IndexCaveat` vocabulary
+    confidence_caveats: list[IndexCaveat] = Field(default_factory=list)
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def fom_value(self, name: str) -> float | None:
+        """One panel member by name, or None — never a KeyError, because which
+        members exist depends on what could be computed."""
+        for f in self.fom:
+            if f.name == name:
+                return f.value
+        return None
+
+
+class ShiftTemplateFit(Base):
+    """One systematic-shift template fitted **alone** to the deviations.
+
+    ``coefficient`` is in degrees 2θ and means the template's own amplitude:
+    δ(θ) = z (``constant``), s·cos θ (``cos_theta``), t·sin 2θ
+    (``sin_2theta``).  ``residual_ss`` is the weighted residual sum of squares,
+    which is what the separability ratio is computed on — not R², because every
+    template scores R² ≈ 0.99 against a clean trend
+    (``report/schemas.py``'s ``SEPARABILITY_MIN_SS_RATIO``).
+    """
+
+    name: str
+    coefficient: float
+    stderr: float
+    r2: float
+    residual_ss: float
+
+
+class ShiftScreen(Base):
+    """Which physical cause a systematic 2θ shift has — or that it has no
+    nameable one over the range measured.
+
+    ``best`` always names the template that fits best; ``separable`` says
+    whether that name means anything.  The asymmetry is the point: when the
+    templates are collinear over the sampled angles the *magnitude* is still
+    well determined (all three remove the same amount at those angles, so a cell
+    refined against any of them lands in the same place) while the *cause* is
+    not, and reporting the cause anyway is the confident-wrong-singleton failure
+    one rank up from the FitReport's.
+    """
+
+    n_lines: int
+    templates: list[ShiftTemplateFit] = Field(default_factory=list)
+    best: str | None = None
+    separable: bool = False
+    separability_ratio: float = 0.0
+    max_collinearity: float = 0.0
+    #: residual scatter (°2θ) after removing the best template — the σ_sys floor
+    #: WP-1020's tolerance model adds in quadrature to each line's own σ
+    sigma_sys_deg: float = 0.0
+    #: largest disagreement (°2θ), over the angles actually sampled, between the
+    #: corrections the **competitive** templates predict — competitive meaning
+    #: within ``SEPARABILITY_MIN_SS_RATIO`` of the best residual sum of squares.
+    #: It is the cost of choosing the wrong cause, reported rather than argued,
+    #: and the qualifier is load-bearing.  Measured (WP-1019) on a 0.10° cos θ
+    #: displacement sampled over 10-25° 2θ, where the screen correctly refuses to
+    #: name a cause: over **all three** templates the predictions differ by
+    #: 0.046°, nearly half the shift — but ``sin_2theta`` is not competitive
+    #: there (it fits worse by more than the ratio bar), and over the two that
+    #: are, the spread is **0.0011°**, about 1 % of the shift.  So the plan's
+    #: conclusion holds — the *cell* stands while the *cause* does not — but only
+    #: with "competitive" in it: a template the data rejects is not a candidate
+    #: cause, and averaging it in overstates the risk forty-fold.  Read this field
+    #: rather than inferring the risk from ``separable``.
+    prediction_spread_deg: float = 0.0
+    #: ``"measured"`` when reference positions were supplied and the templates
+    #: were fitted; ``"unavailable"`` when there was nothing to fit against,
+    #: which is the *normal* state at index time — see
+    #: :func:`pxrdref.indexing.quality.assess_peak_list`.
+    source: Literal["measured", "unavailable"] = "unavailable"
+
+
+class DataQualityReport(Base):
+    """Is this peak list fit to index, and what does it already say?
+
+    ``supports_indexing`` is read by ``index_pattern`` before any budget is
+    spent, and **abstention is a result**: a list that cannot support a search
+    comes back with ``supports_indexing = False`` and a reason, never as an
+    exception and never as a ranked list of cells with nothing behind it.
+
+    Every threshold this verdict rests on is a module constant in
+    ``schemas/indexing.py`` with its reasoning, and ``thresholds_version``
+    records which set produced it.
+    """
+
+    n_usable: int
+    n_total: int
+    two_theta_min: float
+    two_theta_max: float
+    source: Literal["fitted", "positions"]
+    #: median and worst σ(2θ) over the usable lines, ° 2θ
+    sigma_two_theta_median: float
+    sigma_two_theta_worst: float
+    #: median σ(Q)/Q — a dimensionless resolving power, see
+    #: :data:`MAX_RELATIVE_SIGMA_Q`
+    relative_sigma_q_median: float
+    #: median σ(Q) over the mean spacing between neighbouring Q values.  Above
+    #: ~1 the lines are not individually resolved in Q and no tolerance can
+    #: separate a right cell from a wrong one.
+    sigma_over_spacing: float
+    #: usable lines ÷ metric DOF, per system — the system-dependent half of
+    #: "enough lines" (:data:`MIN_LINES_PER_DOF`)
+    lines_per_dof: dict[str, float] = Field(default_factory=dict)
+    #: systems this list can support a search in at all
+    systems_supported: list[str] = Field(default_factory=list)
+    #: Smith (1977) envelope on the unit-cell volume, Å³, from d at the N-th
+    #: line — the default ``max_volume`` for a search, **per system** because the
+    #: bound differs by up to 96× across them (a cubic F lattice shows ~96× fewer
+    #: distinct lines than a primitive triclinic one of the same volume, so the
+    #: same N lines admit a correspondingly larger cell).  One number would
+    #: therefore either exclude the true cubic cell or be useless for triclinic.
+    volume_envelope: dict[str, float] = Field(default_factory=dict)
+    shift: ShiftScreen | None = None
+    supports_indexing: bool = True
+    abstained_reason: str | None = None
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class IndexingResult(Base):
+    """What :func:`pxrdref.index_pattern` returns — and what it *cannot* return.
+
+    **The founding rule is enforced by the type.**  There is no ``.cell``, no
+    ``.best`` and no ``.solution`` attribute; :attr:`candidates` is always a list,
+    and the only singleton accessor is :meth:`best_or_none`, which returns a cell
+    only when the confidence gate is fully satisfied.  That is the same species of
+    guard as ``Geometry.mu_r`` being a plain ``float`` so the type forbids
+    refining it: the *shape* of the API holds the rule, not a caller's discipline.
+    An indexer that hands back one cell confidently is the failure this whole
+    milestone exists to prevent, and this repo has already met it on its own data
+    (the withdrawn multiphase claim recorded at the tag ``guillemot-study``).
+
+    **A restricted search is not a verdict.**  :attr:`systems_searched` is beside
+    :attr:`search_complete` because the two answer different questions: the first
+    is what was *tried*, the second whether the domain was *exhausted*.  Failure
+    is reported as "no cell found in the systems searched"
+    (``INDEX_SYSTEMS_NOT_COVERED``), never as "this pattern is multiphase" —
+    measured, a restricted engine's coverage bands overlap between single-phase
+    low-symmetry patterns and genuine mixtures, and a claim built on that
+    ambiguity was withdrawn.
+    """
+
+    candidates: list[CellCandidate] = Field(default_factory=list)
+    #: engines that actually ran, from the live registry.  This is the
+    #: denominator of the agreement gate, so it must be what ran and not what was
+    #: requested.
+    engines_run: list[str] = Field(default_factory=list)
+    #: systems any engine covered, merged across engines
+    systems_searched: list[str] = Field(default_factory=list)
+    #: per system: did *every* engine that searched it exhaust its domain?  An
+    #: exhaustive engine that finished and found nothing has said "no such cell
+    #: within these bounds"; the same engine stopped by its budget has said
+    #: nothing, and the two must not be one field.
+    search_complete: dict[str, bool] = Field(default_factory=dict)
+    #: per-engine counters, prefixed ``<engine>.`` so two engines' numbers never
+    #: collide
+    engine_stats: dict[str, float] = Field(default_factory=dict)
+    #: do the panel's members put different candidates first?  A *result*-level
+    #: fact (it is a statement about the comparison, not about one cell) that caps
+    #: every candidate's confidence
+    fom_panel_disagrees: bool = False
+    quality: DataQualityReport | None = None
+    #: was a pattern supplied, i.e. did Le Bail validation run at all?  ``False``
+    #: caps every candidate at ``"medium"`` and fires ``INDEX_NOT_VALIDATED`` —
+    #: the *result* abstains rather than one field being quietly downgraded
+    validated: bool = False
+    wavelength: float = 0.0
+    n_usable_lines: int = 0
+    provenance: Provenance
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def best_or_none(self) -> CellCandidate | None:
+        """The single candidate, or None.
+
+        Returns a cell only when exactly one candidate has
+        ``confidence == "high"`` and no ambiguity partners.  Every other
+        situation — nothing found, two cells that both explain the pattern, a
+        geometrically ambiguous winner, an unvalidated search, an assumed
+        tolerance — returns ``None``, and the reason is in
+        :attr:`diagnostics` and in each candidate's ``confidence_caveats``.
+
+        The ambiguity re-check is redundant with the gate (which already refuses
+        ``"high"`` to a candidate with partners) and is kept anyway: this method
+        is the single place the rule is *guaranteed*, so it does not delegate the
+        guarantee to whoever filled the field.
+        """
+        high = [c for c in self.candidates if c.confidence == "high"]
+        if len(high) != 1:
+            return None
+        return None if high[0].ambiguity else high[0]
+
+
+class ExtinctionCandidate(Base):
+    """One **extinction class**: the space groups that share an absence set.
+
+    The observable is the extinction symbol, never the space group.  Groups in
+    one class differ only by symmetry elements a powder pattern cannot see —
+    centrosymmetric/non-centrosymmetric pairs, enantiomorphs, the mirror that
+    turns ``P 63`` into ``P 63/m`` — so they produce **identical** patterns by
+    construction, not for want of counting time.  That is why
+    :attr:`space_groups` is a list and why
+    ``EXTINCTION_GROUPS_NOT_SEPARABLE`` fires whenever it holds more than one:
+    the cleanest instance in the package of "never a confident wrong singleton",
+    since here the singleton is not merely unsupported but *unmeasurable*.
+
+    Two counts carry the evidence and they answer different questions.
+    :attr:`n_absent` is how many lines of the absence-free lattice this class
+    forbids; :attr:`n_testable` is how many of those the data could actually
+    check — the rest either fall outside the fitted range or coincide with a line
+    the class still allows, and an absence hiding under a neighbour is not an
+    observation.  :attr:`n_present` is the refutation: a forbidden position that
+    carries intensity.
+    """
+
+    #: IT-style extinction symbol, **derived** from the class members rather than
+    #: transcribed (see :func:`pxrdref.indexing.extinction.extinction_symbol`).
+    #: A label, not a key: two classes can in principle carry the same string,
+    #: and :attr:`representative` is what identifies the class.
+    symbol: str
+    #: the H-M symbol whose reflections were generated for this class
+    representative: str
+    #: **every** space group in the class, in IT number order.  A list because
+    #: the data cannot choose between them — see the class docstring.
+    space_groups: list[str] = Field(default_factory=list)
+    #: derived reflection conditions ("0kl: k = 2n"), for a human to check
+    conditions: list[str] = Field(default_factory=list)
+    #: False when the derivation left some absences unnamed; the absence set
+    #: itself is authoritative either way (measured: 1 of 550 gemmi settings)
+    conditions_complete: bool = True
+    #: distinct lines (not orbits) this class predicts in the fitted range
+    n_lines: int = 0
+    #: lattice lines this class forbids
+    n_absent: int = 0
+    #: of those, the ones the data can test — inside the range and separable from
+    #: every line the class still allows.  This is ``n_added`` in the nested
+    #: comparison: a forbidden line coinciding with an allowed one never was an
+    #: independently determined intensity, so removing it costs no parameter.
+    n_testable: int = 0
+    #: testable forbidden positions carrying net intensity above the fitted
+    #: background — each one refutes the class
+    n_present: int = 0
+    #: the refuting reflections, so the refutation can be checked in the pattern
+    forbidden_hkl: list[tuple[int, int, int]] = Field(default_factory=list)
+    forbidden_two_theta: list[float] = Field(default_factory=list)
+    #: whole-pattern Le Bail fit of this class; ``rwp`` is ``inf`` when the class
+    #: was refuted before it was fitted (:attr:`screened`)
+    rwp: float = float("inf")
+    gof: float = float("inf")
+    chi2: float = float("inf")
+    #: BIC(this class) − BIC(the absence-free lattice), from
+    #: ``report.layer2.delta_bic``: **negative favours this class**.  Differences
+    #: between two classes' values are themselves a ΔBIC, because both are taken
+    #: against the same reference.
+    delta_bic: float = 0.0
+    #: Hamilton's (1965) R-factor ratio test in the same direction: True when
+    #: restoring the forbidden reflections is *justified*, i.e. the class's
+    #: absences are contradicted by the fit
+    absences_rejected: bool = False
+    #: was the Le Bail screen actually run for this class?  False when direct
+    #: absence evidence already refuted it (no fit can rescue a forbidden
+    #: position that carries intensity) or when ``max_classes`` truncated
+    screened: bool = False
+    #: **One-sided by construction.** A class asserts *absences*, so intensity at
+    #: a position it forbids contradicts it — while a class claiming too *few*
+    #: absences asserts nothing the data can falsify and is outranked rather than
+    #: refuted.  The one other way in is a Le Bail fit that raised, which
+    #: :attr:`refuted_reason` names as such: with no χ² it cannot be the answer.
+    refuted: bool = False
+    refuted_reason: str | None = None
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class ExtinctionScreen(Base):
+    """What :func:`pxrdref.determine_extinction_symbol` returns.
+
+    Same shape rule as :class:`IndexingResult` one rank down: no ``.symbol`` and
+    no ``.space_group`` on the screen itself, only a ranked :attr:`candidates`
+    list and :meth:`best_or_none`.  And even ``best_or_none()`` returns a *class*
+    — which lists its space groups — so the API cannot express "the space group
+    is P2₁/c" where the powder can only say "the extinction symbol is P 1 21/c 1".
+
+    The ranking is by :attr:`ExtinctionCandidate.delta_bic` with refuted classes
+    last, and ties broken toward **fewer** absences: an absence you cannot see is
+    not an absence you may claim.
+    """
+
+    candidates: list[ExtinctionCandidate] = Field(default_factory=list)
+    #: the absence-free lattice group every class is compared against
+    lattice_group: str = ""
+    cell: tuple[float, float, float, float, float, float] = (0.0,) * 6
+    system: str = ""
+    centring: str = "P"
+    wavelength: float = 0.0
+    #: fitted 2θ range the classes were enumerated and judged over.  It is part
+    #: of the answer: two classes differing only outside it are one class here.
+    two_theta_range: tuple[float, float] = (0.0, 0.0)
+    #: classes enumerated / classes whose Le Bail fit was run
+    n_classes: int = 0
+    n_screened: int = 0
+    #: the absence-free class's own screen fit — the reference model
+    reference_rwp: float = float("inf")
+    reference_chi2: float = float("inf")
+    reference_lines: int = 0
+    n_points: int = 0
+    #: Rwp of the shared profile fit that produced the frozen instrument every
+    #: class is then fitted with
+    profile_rwp: float = float("inf")
+    status: str = "converged"
+    thresholds_version: str = INDEXING_THRESHOLDS_VERSION
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+    def best_or_none(self) -> ExtinctionCandidate | None:
+        """The one extinction class, or None.
+
+        Returns a class only when it was fitted, is not refuted, rests on at
+        least one absence the data could **test** (or is the absence-free class
+        itself, whose claim is that there is nothing to see), is separated from
+        the next surviving class by a decisive ΔBIC margin, and **no unrefuted
+        class was left unfitted** — a ``max_classes`` cap or a cancelled run
+        leaves an unasked question, which must not read as a clean answer.  Every
+        other situation returns None with the reason in :attr:`diagnostics`.
+
+        A returned class still lists every space group it contains.  There is no
+        accessor anywhere in this module that yields one space group.
+        """
+        from ..indexing.extinction import DECISIVE_DELTA_BIC
+
+        if any(not c.refuted and not c.screened for c in self.candidates):
+            return None                 # an unasked question, not a clean answer
+        alive = [c for c in self.candidates if not c.refuted]
+        if not alive:
+            return None
+        top = alive[0]
+        if top.n_absent and not top.n_testable:
+            return None
+        if len(alive) > 1 and alive[1].delta_bic - top.delta_bic < DECISIVE_DELTA_BIC:
+            return None
+        return top

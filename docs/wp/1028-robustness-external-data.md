@@ -166,6 +166,134 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From the 2026-07-30 assessment session — a bound that can exclude the right
+answer, which is this WP's shape exactly ("a guard, a bound, a default").**
+`indexing.quality.volume_envelope` is documented and used as an **upper envelope**
+on the cell volume and is fed straight into the engines as a hard search ceiling
+(`dichotomy.py:487`, `trial_error.py:274,455`). Checked against Smith (1977): it
+is a least-squares **mean line**, average discrepancy 10.6 %, deviations −29 % to
++32 %, and the low side is the ordinary case because it is what missing weak
+lines produce. With p the fraction of possible lines detected the bound stands in
+ratio 1.4025·p to the truth, so it **excludes the true cell below p = 0.713** —
+and 28.7 % is Smith's own quoted worst case, so there is no margin at all against
+the worst pattern in his calibration set.
+
+Three things to know before fixing it. `VOLUME_ENVELOPE_SLACK = 1.5` already
+exists but is applied only in `consensus.py:302` to *flag* an already-found
+candidate — the fatal use has no slack, which is inverted. The test that guards
+it (`test_volume_envelope_contains_the_true_volume`) feeds `generate_reflections`,
+a complete line list at p = 1.0, so it validates the geometry in the most
+favourable regime and is blind to the calibration; a regression here needs an
+*incomplete* line list. And the docstrings and manual were corrected on
+2026-07-30 to say "estimate" with the numbers, so the false claim is gone but the
+**behaviour is unchanged** — the fix is still owed. Search-scope aspects are in
+[1030](1030-engine-scaling-low-symmetry.md); the guard-and-default aspect is
+yours if 1030 does not reach it first.
+
+**From WP-1026 (2026-07-30, third session) — a refuting caveat that fires on
+correct cells, which is a robustness statement rather than an indexing one.**
+`predicted_but_absent` is one of the five `INDEX_REFUTING_CAVEATS`, and it is
+counted against the candidate's **lattice** group, because that is the only model
+that exists before `determine_extinction_symbol` runs. So every phase whose space
+group has extinctions beyond its centring refutes its own correct cell. Measured
+end to end on the certified SRM 676a corundum pattern: the cell is recovered to
++101 ppm in a and +16 ppm in c, ranked first with the right centring, and carries
+`predicted_but_absent = 12` — the R-3c c-glide, seen through the lattice R-3m.
+The candidate is graded `low` and `best_or_none()` returns None.
+
+Three things before touching it. It is exactly the blind spot
+`fom.predicted_seen_fraction`'s docstring already states ("legitimately absent
+reflections count against a *correct* cell"), promoted to a caveat that refutes —
+so the fix is not new knowledge, it is making the gate act on knowledge the panel
+already carries. The screen that *can* separate the two cases exists
+(`indexing/extinction.py`, WP-1025) and costs ~2 s plus ~0.1 s per class, but
+`index_pattern` does not run it, so this is an integration decision with a price,
+not a new measurement. And the honest interim behaviour is arguably what happens
+now — abstaining on a cell the package cannot yet distinguish from an oversized
+one — so if you leave it, say so in the caveat's own text rather than in a
+handover log.
+
+**That caveat now has its control, and it means what its name says (WP-1026,
+2026-07-30, fourth session).** NIST SRM 660c LaB6 is **P m -3 m**, which
+extinguishes nothing, and indexed end to end it carries `predicted_but_absent`
+**0 of 30** with `predicted_seen_fraction` **1.000**, against corundum's 11-12
+and 0.86. So the entry above is confirmed rather than merely argued: the caveat
+tracks space-group absences seen through the lattice group, and reading a firing
+as "this cell is too big" is the mistake. `test_a_certified_cubic_cell_is_
+recovered_with_no_extinction_caveat` is that control and will fail if a fix
+changes the meaning rather than the coverage.
+
+**Three more from the same session, all measured on that pattern, all of the
+shape this WP owns — a guard, a bound, a default.**
+
+- **`indexing/pick.py`'s `not_separable` screen misses six components, and no one
+  knob reaches them.** Thirteen weak components share a group with a strong one
+  here; seven are flagged and six survive, failing **three different** conditions:
+  four are simply *too far* (1.73-2.99 fitted FWHM, against
+  `PEAK_SATELLITE_NEAR_FWHM` = 1.5); one fails `reseeded()` because the detection
+  seed slid into the tail and the *new* component took the real line, so the slot
+  labels are the wrong way round; and one sits on a group whose fit is **not
+  refuted** (χ²_red 1.38), which the screen's own docstring calls a deliberate
+  keep. Widening 1.5 would reach four of six and is a knob, not a measurement.
+  What the survivors *are* is settled: five are axial-divergence tails — the sign
+  flips at 90° 2θ, which nothing else in a Bragg-Brentano pattern does — and one
+  is a Kα2 residual on a mate's resolved second line, i.e. an alias
+  `detect_peaks` dropped (`PEAK_KALPHA2_ALIAS`, 23 dropped here) that `fit_group`
+  re-created at 3 % of the parent's area. Cost, measured: **125 ppm on a
+  certified cell** (−127 with them in, −2 with them out) and a shift fit
+  consistent with zero where the truth is +0.037°. The census is pinned by
+  `test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
+  fix has a table to move rather than a threshold to guess at.
+- **An assumed allowance destroys the weighting the peak fitter measured, and
+  that is a second cost nobody had priced.** `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05°
+  is added *in quadrature to every line's σ*, so on this pattern the real lines
+  (σ ≈ 0.0005°) and the tail components (σ ≈ 0.005°) go from a **100×** precision
+  contrast to **1.005**. That is why `fit_shift_model`, which weights by each
+  line's own σ, recovers the displacement anyway (+0.0367 ± 0.0015° against a
+  parameter-free geometric prediction of +0.0415°) while the *search*, on the
+  identical list, fits +0.009 ± 0.016°. If the allowance is ever revisited, the
+  question is not only whether 0.05° is the right size but whether a flat
+  quadrature addition is the right *shape* — a multiplicative widening would
+  preserve the ordering.
+- **`sigma_sys_deg` means two different things to the screen and to the search,
+  and only one of them indexes.** `ShiftScreen.sigma_sys_deg` is the scatter the
+  winning template *leaves* (0.0078° here). Declare that as `SearchSpec.
+  sigma_sys_deg` and the search returns **no candidate at all**, because it
+  matches against **uncorrected** positions — `refine_with_shift` fits the
+  template only after a candidate survives — so the window still has to span the
+  shift itself (+0.037°). The two differ by 4.3×, the docstrings do not
+  distinguish them, and the obvious protocol ("measure the systematic on a
+  standard, declare it") therefore fails silently by finding nothing. Either
+  rename one, or let a declared template *correct* the observed positions before
+  matching. Pinned in `test_what_the_unflagged_tail_components_cost_the_
+  certified_cell`.
+
+**And the payoff, so the size of the prize is on record: with those three
+handled the gate reaches `high`.** Same pattern, off-lattice components removed
+and the systematic measured rather than assumed: **a = 4.156772 Å, −2 ppm** from
+the certification CIF, M₂₀ = 1113, **zero caveats**, and `best_or_none()`
+returning a cell — the first time either has happened on real data. The
+pipeline's arithmetic is sound to the part per million; what stands between it
+and a *blind* certified answer is a peak list.
+
+**A geometrical ambiguity the enumeration cannot reach from one side (WP-1026,
+same session).** `ambiguity.ambiguity_partners` enumerates **derivative**
+lattices — sublattices of index 2-4, i.e. supercells — so a rival with *smaller*
+volume is not in the enumeration at all. One exists for the commonest lattice
+there is: tetragonal P at (a/√2, a) gives Q = (2h² + 2k² + l²)/a², and
+2(h²+k²)+l² represents **exactly** the integers h²+k²+l² does (both miss
+precisely 4ⁿ(8m+7)), so it is isospectral with cubic P *everywhere* — not within
+a tolerance. Measured: 0 partners reported from the cubic side, while from the
+tetragonal side the cubic **is** found (index 2, **zero** discriminating
+reflections, the report correctly saying nothing in range separates them). Both
+engines find the rival on the real pattern. Why it matters here rather than only
+being untidy: the gate refuses `high` to a candidate with an ambiguity partner,
+so whichever of an isospectral pair happens to be the larger cell can be
+promoted while its equal cannot — a confident singleton produced by the
+enumeration's direction rather than by the data. Two rows pin it
+(`test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival` asserts the
+0 partners *and* says in place that the fix is to delete that assertion).
+
 From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload route
 is now the front door for files nobody here authored**, which makes it this WP's
 most interesting surface. `imports.preview_pattern` catches

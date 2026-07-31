@@ -15,6 +15,7 @@ import pytest
 import pxrdref.agent as ag
 from pxrdref import Instrument
 from pxrdref.backend.api import BACKEND_NAMES
+from pxrdref.indexing import SYSTEM_ORDER, engine_descriptions, engine_names
 from pxrdref.optimize.least_squares import SOLVERS
 from pxrdref.strategy.staged import PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -239,31 +240,151 @@ def test_backend_unavailable_is_its_own_code(request_parts, monkeypatch):
 
 
 # ----------------------------------------------------------------------
+# task="index" (WP-1024)
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def cubic_peaks_json():
+    """A 23-line cubic peak list as plain JSON — enough lines to pass the gate.
+
+    The σ is *declared*, and ``sigma_sys_deg`` is declared too in the request
+    below: exact synthetic positions carry no systematic, so inheriting the
+    engines' assumed allowance would test looseness rather than the surface (the
+    declare-your-physics rule, DESIGN.md §Testing & validation policy).
+    """
+    import numpy as np
+
+    from pxrdref import PeakList
+    from pxrdref.crystallography.symmetry import generate_reflections
+
+    lam = 1.5405929
+    refl = generate_reflections("P m -3 m", (4.1566,) * 3 + (90.0,) * 3, lam,
+                                140.0)
+    tt = np.degrees(2.0 * np.arcsin(lam / (2.0 * np.asarray(refl.d))))
+    return PeakList.from_positions(np.sort(tt), lam,
+                                   two_theta_esd=0.005).model_dump(mode="json")
+
+
+@pytest.fixture(scope="module")
+def indexed(cubic_peaks_json):
+    out = ag.refine_json({
+        "task": "index", "peaks": cubic_peaks_json,
+        "search": {"systems": ["cubic"], "max_d_axis": 12.0,
+                   "max_volume": 1500.0, "sigma_sys_deg": 1e-9,
+                   "budget_seconds": 60.0}})
+    assert out["ok"] is True, out.get("error")
+    return out
+
+
+def test_index_answers_in_its_own_arm(indexed):
+    """Three answer arms, and which one is set says what ran.
+
+    ``indexing`` rather than ``result`` because an ``IndexingResult`` is a
+    different kind of answer — most importantly it has **no single cell**, and
+    coercing it into the refinement arm would have to invent one.
+    """
+    assert indexed["result"] is None and indexed["series"] is None
+    idx = indexed["indexing"]
+    assert idx["engines_run"] == list(engine_names())
+    assert idx["systems_searched"] == ["cubic"]
+    assert idx["candidates"], "the cubic truth should be found"
+
+
+def test_index_answer_carries_no_singleton_field(indexed):
+    """The API-shape rule survives serialisation: there is no ``cell`` key.
+
+    The envelope is where a confident wrong singleton would be easiest to
+    reintroduce — a convenience field for the agent's benefit — so it is asserted
+    on the JSON rather than only on the python object.
+    """
+    idx = indexed["indexing"]
+    for forbidden in ("cell", "best", "solution"):
+        assert forbidden not in idx
+
+
+def test_index_reports_the_truth_ranked_first_and_qualified(indexed):
+    top = indexed["indexing"]["candidates"][0]
+    assert top["system"] == "cubic" and top["centring"] == "P"
+    assert top["cell"][0] == pytest.approx(4.1566, abs=2e-3)
+    # both engines agree, but no pattern was supplied, so the whole-profile test
+    # did not run and the answer caps at medium *by declaration*
+    assert sorted(top["found_by"]) == sorted(engine_names())
+    assert top["confidence"] == "medium"
+    assert top["confidence_caveats"] == ["not_validated"]
+    codes = {d["code"] for d in indexed["indexing"]["diagnostics"]}
+    assert {"INDEX_NOT_VALIDATED", "INDEX_SYSTEMS_NOT_COVERED"} <= codes
+
+
+def test_unknown_engine_quotes_the_live_registry(cubic_peaks_json):
+    out = ag.refine_json({"task": "index", "peaks": cubic_peaks_json,
+                          "engines": ["montecarlo"]})
+    assert out["error"]["code"] == "INVALID_REQUEST"
+    detail = next(d for d in out["error"]["details"]
+                  if d["where"].startswith("engines"))
+    for name in engine_names():
+        assert name in detail["message"]
+
+
+def test_index_without_peaks_or_a_pattern_is_an_invalid_request():
+    out = ag.refine_json({"task": "index"})
+    assert out["error"]["code"] == "INVALID_REQUEST"
+    assert any("pattern + instrument" in d["message"]
+               for d in out["error"]["details"])
+
+
+def test_unknown_crystal_system_quotes_the_live_order(cubic_peaks_json):
+    out = ag.refine_json({"task": "index", "peaks": cubic_peaks_json,
+                          "search": {"systems": ["rhombic"]}})
+    assert out["error"]["code"] == "INVALID_REQUEST"
+    detail = next(d for d in out["error"]["details"]
+                  if d["where"].startswith("search.systems"))
+    for name in SYSTEM_ORDER:
+        assert name in detail["message"]
+
+
+# ----------------------------------------------------------------------
 # schema export for tool-calling
 # ----------------------------------------------------------------------
 def test_request_schema_is_a_discriminated_union():
     schema = ag.request_schema()
     assert schema["discriminator"]["propertyName"] == "task"
-    assert len(schema["oneOf"]) == 3
+    assert len(schema["oneOf"]) == len(ag._TASK_TAGS) == 4
 
 
 def test_schemas_quote_every_live_registry_member():
-    """A new backend/solver/plan cannot ship invisible to the tool schema.
+    """A new backend/solver/plan/**engine** cannot ship invisible to the tool
+    schema.
 
     The descriptions are built from the registries at import, so this is the
     meta-test that keeps them honest (the WP-0408 lesson: the fourth backend
-    name arrived two days after the third).
+    name arrived two days after the third).  The indexing engines joined in
+    WP-1024, and for them it is not only a documentation question: ``high``
+    confidence *means* every engine that ran agreed, so an engine an agent cannot
+    see is one it cannot ask for and therefore a confidence ceiling it cannot
+    reach.
     """
     text = json.dumps(ag.request_schema())
-    for name in (*BACKEND_NAMES, *SOLVERS, *PLAN_PRESETS):
+    for name in (*BACKEND_NAMES, *SOLVERS, *PLAN_PRESETS, *engine_names(),
+                 *SYSTEM_ORDER):
         assert name in text, f"{name!r} missing from the exported schema"
 
 
-def test_response_schema_covers_both_envelopes():
+def test_every_engine_description_reaches_the_schema():
+    """Registration carries a one-line description precisely so the schema can
+    quote it; a name without its purpose is not usable by a chooser."""
+    text = json.dumps(ag.request_schema())
+    for name, desc in engine_descriptions().items():
+        assert name in text
+        # the first clause is enough: the full sentence is re-wrapped in the
+        # description string, so pinning it verbatim would pin the formatting
+        assert desc.split(",")[0].split(";")[0] in text, name
+
+
+def test_response_schema_covers_every_answer_arm():
     text = json.dumps(ag.response_schema())
     for code in ag.ERROR_CODES:
         assert code in text
-    assert "SeriesResult" in text and "RefinementResult" in text
+    for arm in ("SeriesResult", "RefinementResult", "IndexingResult"):
+        assert arm in text, arm
 
 
 def test_tool_definition_shape():
