@@ -85,10 +85,17 @@ and never a silent cap.
   version of this check that earns its keep). The vitest suite is counted
   separately — its 207 was once quoted as 206 until the next session re-ran
   it, the same lesson one suite over.
-- **Known bookkeeping defect** (unowned, found 2026-07-30): `--collect-only`
-  reports two short of passed+skipped in both selections — the "1378
-  collected" the docs once carried was a sum, not a measurement. Worth
-  resolving before anyone quotes a collected figure again.
+- **`--collect-only` undercounts by one per module-level `importorskip` that
+  fires** (resolved 2026-07-31, WP-1031, by diffing junitxml nodeids against
+  the collection list): a module skipped at import is **one skipped test**
+  in the run summary and **zero items** under `--collect-only`. Three
+  modules can fire (`test_backend_jax`, `test_backend_torch`,
+  `test_manual`'s sphinx), so on a numpy-only `[dev]` venv the historical
+  figures were two short of passed+skipped in both selections
+  (1385 vs 1383, 1306 vs 1304) and on `[dev,jax,torch]` the gap is zero. So
+  `collected = passed + skipped − (module-level skips that fired)` — quote
+  whichever you measured, and say which. (The "1378 collected" the docs
+  once carried was a sum, not a measurement — that part stands.)
 
 ## CI
 

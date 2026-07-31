@@ -56,8 +56,9 @@ Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
 - fast suite: 1675 collected; numpy-only `[dev]` fast is 1557 passed / 108
   skipped in 29 s (idle machine), full 1268 passed / 117 skipped (6:52).
 - frontend (vitest): 261.
-- known defect: `--collect-only` reports two short of passed+skipped in both
-  selections (`tests/CLAUDE.md` § Quoting numbers).
+- `--collect-only` undercounts by one per module-level `importorskip` that
+  fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
+  numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
