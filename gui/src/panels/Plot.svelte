@@ -213,8 +213,17 @@
     // *server* fetch, not an axis range, so a region the report sent us to comes
     // back at full point budget rather than as the decimated overview stretched
     const window = zoom;
-    if (result) draw(window?.[0], window?.[1]);
-    else if (plotly && node) plotly.purge(node);
+    if (result) {
+      draw(window?.[0], window?.[1]);
+    } else {
+      // the curves are gone server-side (a checkout): drop the held copy too,
+      // or the theme/knob repaint below would redraw a state the project is no
+      // longer in onto the purged canvas — WP-1012's rule, applied to the copy
+      // in hand and not only to the fetch
+      held = null;
+      shown = null;
+      if (plotly && node) plotly.purge(node);
+    }
   });
 
   // a knob repaints what is already in hand.  Separate from the effect above so
@@ -222,8 +231,8 @@
   // theme is a knob too — the same numbers under new colours — and it *must* be
   // a dependency here: `getComputedStyle` is sampled at paint time, so a theme
   // change that repaints nothing leaves light-grey text on a white page
-  // (WP-1029 q; the shell's `applyTheme` effect is created before this
-  // component mounts, so the root attribute is stamped before this reruns).
+  // (WP-1029 q; the ordering against the shell's `applyTheme` effect is
+  // settled inside `paint`, which defers one microtask before sampling).
   $effect(() => {
     void kind;
     void scale;

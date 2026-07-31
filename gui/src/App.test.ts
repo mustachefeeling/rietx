@@ -1175,6 +1175,51 @@ describe("disclosure and the command palette", () => {
     }
   });
 
+  it("does not repaint curves a checkout discarded when the theme changes", async () => {
+    // A checkout clears the result server-side and the plot purges — but the
+    // payload `held` for knob repaints survived, so the theme buttons (always
+    // in the header) could redraw a state the project is no longer in onto the
+    // purged canvas.  WP-1012's rule, applied to the copy in hand: when the
+    // result goes, the held window goes with it.
+    const drawn: any[] = [];
+    let purged = 0;
+    vi.stubGlobal("Plotly", {
+      react: async (_node: any, traces: any[], layout: any) => { drawn.push({ traces, layout }); },
+      purge: () => { purged += 1; },
+    });
+    let fitted = true;
+    const stub = server({
+      ...boot(),
+      ...FITTED,
+      "/api/result": () =>
+        fitted
+          ? { body: { result: { ...RESULT, statistics: { rwp: 0.216, gof: 1.41, chi2: 16.96 } } } }
+          : { status: 409, body: { error: { code: "NO_RESULT", message: "none" } } },
+      "/api/history/checkout": () => {
+        fitted = false;
+        return { body: { head: "n0002", parameters: [], n_free: 0 } };
+      },
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(drawn.length).toBeGreaterThan(0);   // the fitted curves were painted
+
+    button("History")!.click();
+    await flush();
+    [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+    await flush();
+    button("Checkout")!.click();
+    await flush();
+    expect(purged).toBeGreaterThan(0);          // the canvas was cleared
+
+    const painted = drawn.length;
+    [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+    await flush();
+    expect(drawn.length).toBe(painted);         // nothing to repaint, so no repaint
+  });
+
   it("drags the panel column wider and persists the width once", async () => {
     // the sidebar starts on the CSS clamp — `null`, so a fresh project is
     // responsive rather than frozen at the first window it was opened in

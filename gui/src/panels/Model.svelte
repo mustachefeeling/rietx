@@ -251,15 +251,19 @@
    *  shown: this panel is mounted whether or not it is the current mode, and
    *  three routes per head move for a pane nobody is looking at is waste.
    *
-   *  `hasProject`, not `project`: a `ui`-only PATCH (a theme, a pane width)
+   *  `projectKey`, not `project`: a `ui`-only PATCH (a theme, a pane width)
    *  replaces the project *object* without moving the head, and reading the
    *  object here made every such write reload three routes and refetch the 3D
-   *  geometry.  The boolean only changes when a project appears or goes away,
-   *  which is the fact this effect actually conditions on (WP-1029 q). */
-  const hasProject = $derived(Boolean(project));
+   *  geometry (WP-1029 q).  The *path* rather than a boolean, because the head
+   *  cannot tell two projects apart — node ids are sequential (`n0000`), so
+   *  two fresh projects share a head — and a switch must reload even when the
+   *  heads collide.  (Today `App.opened()` also forces `mode = "panes"`, so a
+   *  switch re-enters through `active` anyway; the key means this effect stays
+   *  correct the day that side effect changes.) */
+  const projectKey = $derived(project?.path ?? null);
   $effect(() => {
     void head;
-    if (hasProject && active) load();
+    if (projectKey !== null && active) load();
   });
 
   async function load() {
