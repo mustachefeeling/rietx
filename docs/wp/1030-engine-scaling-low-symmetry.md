@@ -464,6 +464,13 @@ now completes in **32 s**, ranking the truth first. That is the domain a caller
 who does not already know the answer will search, since 2 Å is the package
 default, and it is the one the benchmark's default mode specifies.
 
+Suites at close, this worktree's `[dev,jax]` venv (no torch): fast selection
+**1627 passed / 67 skipped** (1619/67 before this WP's +8);
+`tests/test_acceptance_indexing.py` **34 passed / 0 failed** in 365 s, read from
+`--junitxml` rather than the terminal summary — and that suite is the one that
+matters here, because it went 32/2 → 34/0 across the leaf-prune fix and no fast
+test ever moved.
+
 Per-system timings restated (whole-file `--durations`, uncontended):
 
 | row | before | after |
