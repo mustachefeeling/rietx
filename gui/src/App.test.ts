@@ -2088,6 +2088,21 @@ describe("the structure viewer", () => {
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
   });
 
+  it("offers the draw mode as one segmented control with one side on", async () => {
+    // two plain buttons wore the primary (filled) register, so both read as
+    // pressed — a control that answers no question (found by use, 2026-07-31)
+    recorder();
+    await openViewer();
+    const group = host.querySelector('.viewer .segmented[aria-label="draw mode"]')!;
+    const on = () => [...group.querySelectorAll("button.on")].map((b) => b.textContent!.trim());
+    expect([...group.querySelectorAll("button")].map((b) => b.textContent!.trim()))
+      .toEqual(["balls", "ellipsoids"]);
+    expect(on()).toEqual(["balls"]);
+    button("ellipsoids")!.click();
+    await flush();
+    expect(on()).toEqual(["ellipsoids"]);
+  });
+
   it("redraws on a theme change, without asking the server", async () => {
     // the cell frame samples `--accent` and the labels sample the body colour
     // at draw time, so the redraw is what lets a theme change reach the canvas

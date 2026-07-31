@@ -753,3 +753,12 @@ the screenshot that prompted it, taken again.
   **Next**: nothing on this WP — all fifteen items plus the five reopened ones
   are closed. [1017](1017-gui-manual-onboarding.md) was already told what
   changed under it; the light story adds nothing a manual needs.
+
+  *Same day, from the user driving the build*: the viewer's balls/ellipsoids
+  pair was two **plain** buttons, and the plain register is primary-filled —
+  so both always read as pressed, and the asymmetric `h2` margin put their
+  tops above the title. Now the segmented register ((k)'s own rule applied to
+  the panel that missed it), with a mount test pinning "one group, exactly one
+  side on". The legend chips and view-down buttons wear the same filled look
+  in that panel and were left alone — they are actions and toggles, not
+  one-of-N choices, so if their register is wrong it is a different sentence.

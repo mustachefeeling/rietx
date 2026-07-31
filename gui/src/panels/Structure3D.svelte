@@ -300,12 +300,15 @@
 <section class="viewer">
   <header>
     <h2>View</h2>
-    <div class="modes">
-      <button class:on={mode === "ball"} class="tiny"
+    <!-- one choice among two, so it wears the app's segmented register — two
+         plain buttons here wore the primary (filled) style and both read as
+         pressed, which is a control that answers no question -->
+    <div class="segmented" role="group" aria-label="draw mode">
+      <button class:on={mode === "ball"}
         onclick={() => (mode = "ball")}
         title="spheres at a fraction of the covalent radius — the shape of the
                structure, not of its displacement">balls</button>
-      <button class:on={mode === "ellipsoid"} class="tiny"
+      <button class:on={mode === "ellipsoid"}
         onclick={() => (mode = "ellipsoid")}
         title="displacement ellipsoids: refined quantities, so an inflated ADP
                is visible here and nowhere else">ellipsoids</button>
@@ -418,6 +421,7 @@
     align-items: center;
     gap: 6px;
     flex: 0 0 auto;
+    margin: 8px 0 4px;
   }
 
   h2 {
@@ -425,7 +429,9 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--muted);
-    margin: 10px 0 4px;
+    /* the row centers its items; a margin here would push the title off the
+       buttons' centerline (its tops sat above the title once) */
+    margin: 0;
     font-weight: 600;
   }
 
