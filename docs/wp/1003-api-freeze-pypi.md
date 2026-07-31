@@ -3,7 +3,7 @@
 Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
 the milestone's last row, so the freeze covers a surface the GUI exercised),
-WP-1018…WP-1029 (indexing)
+WP-1018…WP-1030 (indexing)
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
@@ -12,7 +12,7 @@ WP-1018…WP-1029 (indexing)
 ## Inherited
 
 **From the 2026-07-30 assessment session — your dependency list grew by one, and
-one frozen constant is on a decision.** [1029](1029-engine-scaling-low-symmetry.md)
+one frozen constant is on a decision.** [1030](1030-engine-scaling-low-symmetry.md)
 was added to the indexing group (engine cost at low symmetry, plus the two
 Oishi-Tomiyasu figures of merit), so this row now depends on 1004–1029 rather
 than 1004–1027. Two consequences for the freeze itself. `SearchSpec` gains or

@@ -187,8 +187,8 @@ favourable regime and is blind to the calibration; a regression here needs an
 *incomplete* line list. And the docstrings and manual were corrected on
 2026-07-30 to say "estimate" with the numbers, so the false claim is gone but the
 **behaviour is unchanged** — the fix is still owed. Search-scope aspects are in
-[1029](1029-engine-scaling-low-symmetry.md); the guard-and-default aspect is
-yours if 1029 does not reach it first.
+[1030](1030-engine-scaling-low-symmetry.md); the guard-and-default aspect is
+yours if 1030 does not reach it first.
 
 **From WP-1026 (2026-07-30, third session) — a refuting caveat that fires on
 correct cells, which is a robustness statement rather than an indexing one.**

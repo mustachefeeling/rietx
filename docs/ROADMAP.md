@@ -198,7 +198,7 @@ running [1025](wp/1025-extinction-symbol.md)'s screen inside the gate.
 survive (2026-07-30, second session of the day).** No acceptance rows were added;
 the deliverable is the audit, and it is filed in
 [1026](wp/1026-indexing-acceptance.md)'s handover and the new
-[1029](wp/1029-engine-scaling-low-symmetry.md). One defect was **fixed**, two were
+[1030](wp/1030-engine-scaling-low-symmetry.md). One defect was **fixed**, two were
 recorded with the behaviour deliberately unchanged — and the second of the three has
 since been superseded by the session above.
 
@@ -241,7 +241,7 @@ against the worst pattern in the paper's own calibration set. Worse,
 the fatal one takes the raw envelope, and the test that validates it feeds a
 *complete* line list (p = 1.0), the most favourable regime there is. Docstrings
 and the manual now say "estimate" with the numbers; the behaviour is
-[1029](wp/1029-engine-scaling-low-symmetry.md)'s and
+[1030](wp/1030-engine-scaling-low-symmetry.md)'s and
 [1028](wp/1028-robustness-external-data.md)'s.
 
 **And the monoclinic no-go now has a measured cause, which is not what either
@@ -260,7 +260,7 @@ survives. The real difference is structural — DICVOL's `V = A·B·C/sin β` is
 monotone separable product, so the volume shell is a **loop bound**; ours is a
 **test**. `det G* = B·(A·C − E²/4)` is monotone in C at fixed A, B, E, so cutting
 E before C restores it. With Louër & Louër (1972) Table 1 now in hand (the
-data-derived parameter floors, transcribed into 1029 — and its non-collinearity
+data-derived parameter floors, transcribed into 1030 — and its non-collinearity
 footnote on d₁/d₂ is exactly what a guess would have got wrong), plus the
 redundant per-centring pass, the ranked items are worth ~6.5× on monoclinic.
 
@@ -282,7 +282,7 @@ rather than capability, which is a weaker argument for it.
 mis-set: `first_4` is an **oracle over four programs**, and no entry in Table 5
 reaches +9 — the individual globals are ITO13 −14, DICVOL91 −8, TREOR90 −4,
 McMaille +5, Crysfire 2003 +6, and Crysfire is itself a suite. Restated in the WP
-to grade against individual globals, and blocked on 1029 regardless.
+to grade against individual globals, and blocked on 1030 regardless.
 
 Also landed: ATTRIBUTION.md now records the DICVOL, TREOR, ITO, Křivý-Gruber,
 Grosse-Kunstleve, Smith 1977, Smith & Kahara and Oishi-Tomiyasu sources, which
@@ -381,9 +381,9 @@ whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 Next: [1027](wp/1027-gui-peak-picker.md) (GUI peak picker).
 [1026](wp/1026-indexing-acceptance.md) is **closed** — see Current focus for the
 scoreboard it closed against. Its one unmet criterion, the bethanechol global
-score, is blocked on [1029](wp/1029-engine-scaling-low-symmetry.md) and moves
+score, is blocked on [1030](wp/1030-engine-scaling-low-symmetry.md) and moves
 there with the WP; three failures it measured (brucite/magnetite supercell
-ranking, NAC's search-line selection, FAP's M₂₀ inversion) are 1029's, and the
+ranking, NAC's search-line selection, FAP's M₂₀ inversion) are 1030's, and the
 peak-list and gate defects are [1028](wp/1028-robustness-external-data.md)'s.
 
 **Indexing works end to end (2026-07-30).**
@@ -1374,7 +1374,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1029 |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1030 |
 
 ### v1.0 — indexing (added 2026-07-29)
 
@@ -1388,7 +1388,7 @@ declared long ago — `report/layer2.py` has emitted the
 Order: peaks and quality first (1018–1019, useful on their own), then the
 shared core (1020), then the three engines (1021–1023, independent of each
 other), then consensus (1024), space groups (1025), acceptance (1026), GUI
-(1027). [1029](wp/1029-engine-scaling-low-symmetry.md) was added 2026-07-30 and
+(1027). [1030](wp/1030-engine-scaling-low-symmetry.md) was added 2026-07-30 and
 sits between 1026 and its own grade: the benchmark cannot be scored until a
 monoclinic search finishes.
 
@@ -1491,7 +1491,7 @@ the check *did* find is a defect nobody was looking for — the relation is a
 least-squares **mean line** (−29 % to +32 % about a 10.6 % average), not the
 upper envelope this package calls it, and used as a hard search ceiling it
 excludes the true cell below a detection fraction of 0.713, which is that same
-−29 %. See "Current focus" and [1029](wp/1029-engine-scaling-low-symmetry.md).
+−29 %. See "Current focus" and [1030](wp/1030-engine-scaling-low-symmetry.md).
 The precedent held, in other words, but not in the direction it was invoked for:
 asking for the paper was right, and the thing it caught was a status claim rather
 than a transposed coefficient.
@@ -1579,7 +1579,7 @@ per concurrent session, or only one session commits.
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
-| [1029](wp/1029-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
+| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

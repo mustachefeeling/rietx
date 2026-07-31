@@ -1029,7 +1029,7 @@ CLAIMS: tuple[Claim, ...] = (
                  "a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth "
                  "is I, at 300-620 s each.  Underneath, the true cell explains "
                  "6 of the first 20 picked lines (CaF2 none) though 268 of 285 "
-                 "overall -- a search-line selection question, filed to WP-1029",
+                 "overall -- a search-line selection question, filed to WP-1030",
         diagnostics=("INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"),
     ),
     Claim(

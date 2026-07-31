@@ -1065,7 +1065,7 @@ def test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed(nac_in
     the engines are solving for a metric that fits them.  Over the whole list the
     true cell does fine: 268 of 285.  A search-line selection that ranked on
     something other than 2θ order would change this row's outcome, which makes it
-    an engine question (WP-1029) rather than an acceptance one.
+    an engine question (WP-1030) rather than an acceptance one.
     """
     peaks, res = nac_index
 

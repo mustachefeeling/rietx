@@ -234,7 +234,7 @@ def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
     therefore carries no margin against the worst pattern in its own calibration
     set.  :data:`~pxrdref.indexing.consensus.VOLUME_ENVELOPE_SLACK` exists for
     this and is currently applied only when *flagging* a found candidate, not at
-    the search ceiling in the engines — see WP-1029.
+    the search ceiling in the engines — see WP-1030.
 
     The paper is **triclinic-only and publishes no per-system factors**; the two
     scalings below are this package's derivation, and there is nothing in Smith

@@ -719,7 +719,7 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call.  The row pins the SHAPE of the failure, because a null that distinguishes 'we did not finish' from 'there is nothing' is the whole design
 
-**Measured:** zero boxes explored, 0.15 s, no candidate, search_complete[cubic] False.  Truncating 2theta was measured and does NOT rescue it: 2-18/25/32 deg give 215 boxes but a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth is I, at 300-620 s each.  Underneath, the true cell explains 6 of the first 20 picked lines (CaF2 none) though 268 of 285 overall -- a search-line selection question, filed to WP-1029
+**Measured:** zero boxes explored, 0.15 s, no candidate, search_complete[cubic] False.  Truncating 2theta was measured and does NOT rescue it: 2-18/25/32 deg give 215 boxes but a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth is I, at 300-620 s each.  Underneath, the true cell explains 6 of the first 20 picked lines (CaF2 none) though 268 of 285 overall -- a search-line selection question, filed to WP-1030
 
 **Diagnostics:** `INDEX_SEARCH_INCOMPLETE`, `INDEX_ABSTAINED`
 

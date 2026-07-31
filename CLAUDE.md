@@ -709,7 +709,7 @@ cost was 11 refinements against 8.
 
 **Three measured facts from checking the source papers against the code
 (2026-07-30), each of which contradicts something the tree asserted.** All three
-are recorded in WP-1026's handover and WP-1029; only the first is fixed.
+are recorded in WP-1026's handover and WP-1030; only the first is fixed.
 
 - **Niggli reduction is not canonical in floating point without a *relative*
   tolerance.** Křivý-Gruber decides its normalisation on exact equalities — with

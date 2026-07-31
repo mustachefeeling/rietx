@@ -1,7 +1,17 @@
-# WP-1029 — Indexing at low symmetry: search cost, and the figures that rank it
+# WP-1030 — Indexing at low symmetry: search cost, and the figures that rank it
 
 Milestone: v1.0 · Status: ⬜ not started
 Depends on: 1020–1022 (all landed); 1026 soft (it owns the benchmark that grades this)
+
+> **Renumbered 1029 → 1030 on 2026-07-31.** This WP was created as 1029 on the
+> `worktree-indexer` branch on 2026-07-30, while `docs/wp/1029-gui-usability.md`
+> was created and merged to `main` from the GUI worktree — two concurrent
+> worktrees took the same free number, and neither could see the other. The GUI
+> one was merged first, so this one moved. **Anything written before that date
+> that says "1029" and means *indexing engine scaling* means this file**;
+> WP-1026's earlier handover entries are the main place that happens. The
+> mechanism worth fixing is upstream of both: a number is claimed by writing the
+> file, and a branch that has not been merged has not claimed anything.
 
 ## Goal
 

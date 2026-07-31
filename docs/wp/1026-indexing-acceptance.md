@@ -1,6 +1,6 @@
 # WP-1026 — Indexing acceptance: the bethanechol benchmark and known cells
 
-Milestone: v1.0 · Status: ✅ closed 2026-07-31 (criterion 1 deferred to 1029)
+Milestone: v1.0 · Status: ✅ closed 2026-07-31 (criterion 1 deferred to 1030)
 Depends on: 1024 (1025 soft)
 
 ## Goal
@@ -241,7 +241,7 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       M₂₀ = 4, cubic P where the truth is I, 300-620 s each). The planned
       `INDEX_IMPURITY_LINES` assertion is moot: the true cell explains **6 of the
       first 20** picked lines and CaF₂ **none**, so the impurity is not what
-      defeats it — the low-angle end of the pattern is. Filed to 1029.
+      defeats it — the low-angle end of the pattern is. Filed to 1030.
       **FAP done**: the GSAS cell is reachable at a +232 / c +363 ppm, found by
       **both** engines, 181 of 185 lines — and ranked *below* a cell 1218 ppm out
       with a higher M₂₀. The row asserts membership and refusal rather than rank.
@@ -311,7 +311,7 @@ Criteria, all measured and recorded in `docs/milestones/v1.0.md`:
    program's score — no entry in Table 5 reaches +9, the individual globals being
    ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5 and Crysfire 2003 +6 (itself a
    suite). Grade against the individual globals; keep `first_4` and `best_of_all`
-   as context. **Blocked on [1029](1029-engine-scaling-low-symmetry.md)** — the
+   as context. **Blocked on [1030](1030-engine-scaling-low-symmetry.md)** — the
    paper's own monoclinic domain does not finish, and adopting a protocol means
    adopting it whole.
 2. Every known-cell dataset recovers its cell — lab data within the ±85 ppm
@@ -517,7 +517,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
 
   Docstrings and the manual are corrected to say "estimate" with the numbers;
   **the behaviour is not changed** — applying the slack at the ceiling is a
-  decision about search scope and is filed as [1029](1029-engine-scaling-low-symmetry.md).
+  decision about search scope and is filed as [1030](1030-engine-scaling-low-symmetry.md).
 
   **3. Fixed: the fast suite was red, and the paper prescribed the fix exactly.**
   `test_niggli_reduction_is_unimodular_invariant` was failing (1352 passed / 1
@@ -532,7 +532,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   1e-5. `NIGGLI_EPS_RELATIVE` in `reduce.py`. Suite now **1353 passed / 66 skipped**.
 
   **What the papers changed elsewhere**, all filed in
-  [1029](1029-engine-scaling-low-symmetry.md) rather than here: the monoclinic
+  [1030](1030-engine-scaling-low-symmetry.md) rather than here: the monoclinic
   benchmark score is confirmed as engine work with the cause now *measured* (the
   volume window prunes nothing until the last of four dimensions is cut; 5.7 M
   boxes, budget expiry, not the frontier cap); Louër & Louër's Table 1 is
@@ -548,7 +548,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   running several programs. So as written the criterion asks a two-engine package
   to beat a four-program oracle when the best single entry manages +6. Restate it
   against the individual globals, keep `first_4`/`best_of_all` as context, and
-  grade only once 1029 lands.
+  grade only once 1030 lands.
 
   **Next:** unchanged from the previous entry (LaB6/NAC/FAP/qarr known cells, the
   two abstention rows, check-D, CI pricing), plus: decide the `refine_with_shift`
@@ -656,7 +656,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
 
   **Still not started:** LaB6/NAC/FAP/six-qarr known cells, the `hl2_peaks` and
   geometrical-ambiguity abstention rows, check-D. The bethanechol global score
-  remains blocked on [1029](1029-engine-scaling-low-symmetry.md). **Read the
+  remains blocked on [1030](1030-engine-scaling-low-symmetry.md). **Read the
   corundum row before adding another known-cell row** — the two-call shape it
   landed (index, then declare the systematic and index again) is what the others
   should copy, and `predicted_but_absent` will cap every one of them at `low` for
@@ -787,7 +787,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   **Next, unchanged except for what landed:** NAC / FAP / six-qarr known cells
   (take Fm-3m fluorite next, per item 1), the `hl2_peaks` abstention row, check-D.
   The bethanechol global score remains blocked on
-  [1029](1029-engine-scaling-low-symmetry.md).
+  [1030](1030-engine-scaling-low-symmetry.md).
 
 - **2026-07-31 — the remaining rows landed and the WP closes.** Six new rows
   (NAC, FAP, fluorite, zincite, zircon, HL2-1) plus check-D resolved on bundled
@@ -832,7 +832,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   engines — the true cell explains **six** and CaF₂ **none**. The planned
   `INDEX_IMPURITY_LINES` assertion is therefore moot; the impurity is not what
   defeats this pattern. A search-line selection that ranked on anything but 2θ
-  order would change the outcome → [1029](1029-engine-scaling-low-symmetry.md).
+  order would change the outcome → [1030](1030-engine-scaling-low-symmetry.md).
 
   **4. FAP is the case the whole design exists for.** The GSAS cell is reachable
   (a +232, c +363 ppm), is what **both** engines agree on, and indexes 181 of 185
@@ -862,7 +862,7 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   cubic **F** truth, carrying `volume_unphysical`. Both abstain correctly. They
   were left out for cost (313 s between them) and because their claim — "the
   ranking prefers a supercell and the gate refuses it" — is already carried by
-  brucite's sibling measurements and by cpd-1a. Both belong to 1029.
+  brucite's sibling measurements and by cpd-1a. Both belong to 1030.
 
   **7. A fourth load-sensitive budget, caught by the full suite and not by any
   serial run.** `test_a_centred_tetragonal_lattice_is_recovered_with_its_centring`
