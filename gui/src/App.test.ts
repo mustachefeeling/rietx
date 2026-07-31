@@ -1129,6 +1129,52 @@ describe("disclosure and the command palette", () => {
     expect(post?.body).toEqual({ ui: { theme: "dark" } });
   });
 
+  it("repaints the plot on a theme change — new ink, no refetch", async () => {
+    // The canvas keeps whatever colours it was painted with, so a draw effect
+    // that does not depend on the theme leaves the old theme's text on the new
+    // theme's page — light grey on white, found by use within hours of the
+    // toggle landing (WP-1029 q).  The colours themselves come from the
+    // `--plot-*` custom properties, sampled at *paint* time; jsdom loads no
+    // stylesheet, so the un-set ones are the fallbacks and a set one is ours.
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_node: any, traces: any[], layout: any) => {
+        drawn.push({ traces, layout });
+      },
+      purge: () => {},
+    });
+    document.body.style.setProperty("--plot-obs", "#112233");
+    try {
+      const stub = server({ ...boot(), ...FITTED });
+      vi.stubGlobal("fetch", stub.fetcher);
+      app = mount(App, { target: host });
+      await flush();
+
+      const first = drawn.at(-1)!;
+      expect(first.traces.find((t: any) => t.name === "observed").marker.color)
+        .toBe("#112233");
+      expect(first.traces.find((t: any) => t.name === "Δ/σ").line.color).toBe("#1f5fa8");
+      expect(first.layout.yaxis2.zerolinecolor).toBe("#88888888");
+
+      const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+      const painted = drawn.length;
+      // what the dark stylesheet does in a browser, done by hand here
+      document.body.style.setProperty("--plot-obs", "#445566");
+      [...host.querySelectorAll("button")]
+        .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+      await flush();
+
+      // a repaint with the new colours — and *not* a refetch: the numbers did
+      // not move, only the ink did
+      expect(drawn.length).toBeGreaterThan(painted);
+      expect(drawn.at(-1)!.traces.find((t: any) => t.name === "observed").marker.color)
+        .toBe("#445566");
+      expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+    } finally {
+      document.body.style.removeProperty("--plot-obs");
+    }
+  });
+
   it("drags the panel column wider and persists the width once", async () => {
     // the sidebar starts on the CSS clamp — `null`, so a fresh project is
     // responsive rather than frozen at the first window it was opened in
@@ -2040,6 +2086,22 @@ describe("the structure viewer", () => {
     expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
       .toEqual(["cell", "axes", "bonds:B", "B"]);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+  });
+
+  it("redraws on a theme change, without asking the server", async () => {
+    // the cell frame samples `--accent` and the labels sample the body colour
+    // at draw time, so the redraw is what lets a theme change reach the canvas
+    // at all (WP-1029 q) — and the geometry did not move, so refetching it
+    // would be a round trip for numbers already in hand
+    const drawn = recorder();
+    const stub = await openViewer();
+    const fetched = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    const painted = drawn.length;
+    [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+    await flush();
+    expect(drawn.length).toBeGreaterThan(painted);
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(fetched);
   });
 
   it("redraws as soon as the pane around it re-reads, not one frame later", async () => {

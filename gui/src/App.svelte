@@ -511,11 +511,11 @@
          refetching three routes on every head move it is not showing. -->
     <div class="textmode" class:hidden={!modelMode}>
       <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
-        {say} active={modelMode} columns={modelColumns} oncolumns={modelSized}
+        {theme} {say} active={modelMode} columns={modelColumns} oncolumns={modelSized}
         onopened={opened} onmoved={moved} />
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
-      <Plot {result} {plotKey} {zoom} error={resultError} />
+      <Plot {result} {plotKey} {zoom} {theme} error={resultError} />
       <div class="side" bind:clientWidth={sideMeasured}
         style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
         <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}

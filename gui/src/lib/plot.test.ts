@@ -1,7 +1,7 @@
 /** The pattern plot's two new choices (WP-1029). */
 import { describe, expect, it } from "vitest";
 
-import { residual, scaleValues, sqrtTicks, type Window } from "./plot";
+import { curveColors, residual, scaleValues, sqrtTicks, type Window } from "./plot";
 
 const WEIGHTED: Window = {
   two_theta: [1, 2, 3],
@@ -60,5 +60,22 @@ describe("scaling the intensity axis", () => {
     expect(ticks.ticktext).toEqual(["0", "300", "600", "900"]);
     expect(ticks.tickvals[3]).toBeCloseTo(30, 12);
     expect(sqrtTicks(0)).toBeNull();
+  });
+});
+
+describe("the curve colours (WP-1029 q)", () => {
+  it("reads each custom property and falls back per property, trimmed", () => {
+    const set: Record<string, string> = {
+      "--plot-obs": " #112233 ", // getPropertyValue keeps the leading space
+      "--plot-diff": "#abc",
+    };
+    const colors = curveColors((name) => set[name] ?? "");
+    expect(colors.obs).toBe("#112233");
+    expect(colors.diff).toBe("#abc");
+    // the un-set ones fall back to the light values — a page with no
+    // stylesheet still draws the shipped plot
+    expect(colors.calc).toBe("#c23b22");
+    expect(colors.bkg).toBe("#6b7280");
+    expect(colors.zero).toBe("#88888888");
   });
 });

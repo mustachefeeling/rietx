@@ -20,18 +20,21 @@
   import {
     RESIDUAL_KINDS,
     SCALES,
+    curveColors,
     residual,
     scaleValues,
     sqrtTicks,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
+  import type { Theme } from "../lib/theme";
 
   let {
     result,
     plotKey,
     zoom = null,
     error,
+    theme = "light",
   }: {
     result: any;
     plotKey: number;
@@ -39,6 +42,10 @@
      *  null means the whole pattern */
     zoom?: [number, number] | null;
     error: string;
+    /** the resolved theme, and a *dependency of the repaint effect*: the canvas
+     *  keeps the colours it was painted with, so a theme change that only
+     *  restyles the page leaves last theme's text on this plot (WP-1029 q) */
+    theme?: Theme;
   } = $props();
 
   let node: HTMLDivElement | undefined = $state();
@@ -54,11 +61,8 @@
   /** the payload the last draw used, so a knob redraws without a refetch */
   let held: any = $state(null);
 
-  const COLORS = { obs: "#8a8a8a", calc: "#c23b22", bkg: "#6b7280", diff: "#1f5fa8" };
-
-  function layout(w: any): any {
-    const style = getComputedStyle(document.body);
-    const fg = style.color;
+  function layout(w: any, colors: ReturnType<typeof curveColors>): any {
+    const fg = getComputedStyle(document.body).color;
     const res = residual(kind, w);
     const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
     return {
@@ -80,7 +84,7 @@
         ...(ticks ? { tickmode: "array", ...ticks } : {}),
       },
       yaxis2: { title: { text: res.title }, domain: [0, 0.22],
-                zeroline: res.zeroline, zerolinecolor: "#8888" },
+                zeroline: res.zeroline, zerolinecolor: colors.zero },
       hovermode: "x unified",
     };
   }
@@ -116,24 +120,28 @@
    *  choice about the same numbers, so it must not cost a round trip. */
   async function paint(w: any) {
     if (!node || !plotly) return;
+    // sampled per paint, never held: these are what make a repaint on a theme
+    // change actually change anything
+    const colors = curveColors((name) =>
+      getComputedStyle(document.body).getPropertyValue(name));
     const res = residual(kind, w);
     const traces: any[] = [
       { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
         type: "scattergl", customdata: w.y_obs,
-        marker: { size: 4, color: COLORS.obs },
+        marker: { size: 4, color: colors.obs },
         hovertemplate: "%{customdata:.6g}<extra>observed</extra>" },
       { x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated", mode: "lines",
-        type: "scattergl", customdata: w.y_calc, line: { width: 1.2, color: COLORS.calc },
+        type: "scattergl", customdata: w.y_calc, line: { width: 1.2, color: colors.calc },
         hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" },
     ];
     if (w.y_background?.length) {
       traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
         mode: "lines", type: "scattergl", customdata: w.y_background,
-        line: { width: 1, dash: "dot", color: COLORS.bkg },
+        line: { width: 1, dash: "dot", color: colors.bkg },
         hovertemplate: "%{customdata:.6g}<extra>background</extra>" });
     }
     traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-      type: "scattergl", yaxis: "y2", line: { width: 1, color: COLORS.diff } });
+      type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
 
     // every emission line's ticks, not just the primary: the Kα2 positions are
     // in here too, which is what stops a doublet reading as an impurity
@@ -147,7 +155,8 @@
       row += 1;
     }
 
-    await plotly.react(node, traces, layout(w), { responsive: true, displaylogo: false });
+    await plotly.react(node, traces, layout(w, colors),
+                       { responsive: true, displaylogo: false });
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
     const plotNode = node as HTMLDivElement & {
@@ -197,10 +206,16 @@
   });
 
   // a knob repaints what is already in hand.  Separate from the effect above so
-  // that choosing Δ over Δ/σ is not a reason to ask the server anything.
+  // that choosing Δ over Δ/σ is not a reason to ask the server anything.  The
+  // theme is a knob too — the same numbers under new colours — and it *must* be
+  // a dependency here: `getComputedStyle` is sampled at paint time, so a theme
+  // change that repaints nothing leaves light-grey text on a white page
+  // (WP-1029 q; the shell's `applyTheme` effect is created before this
+  // component mounts, so the root attribute is stamped before this reruns).
   $effect(() => {
     void kind;
     void scale;
+    void theme;
     if (held) paint(held);
   });
 </script>

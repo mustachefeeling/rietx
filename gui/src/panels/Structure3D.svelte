@@ -37,12 +37,20 @@
     type Mode,
   } from "../lib/structure3d";
 
+  import type { Theme } from "../lib/theme";
+
   let {
     stamp = 0,
+    theme = "light",
     say = (_line: string) => {},
   }: {
     /** bumped by the model pane every time it re-reads — see the effect below */
     stamp?: number;
+    /** the resolved theme, and a dependency of the draw effect: this panel
+     *  samples `--accent` and the body colour at draw time, so a theme change
+     *  that does not redraw leaves the old theme's frame and labels on the
+     *  canvas (WP-1029 q) */
+    theme?: Theme;
     say?: (line: string) => void;
   } = $props();
 
@@ -121,6 +129,7 @@
     void showBoundary;
     void exaggeration;
     void view;
+    void theme; // the frame/label colours are sampled at draw time (WP-1029 q)
     draw();
   });
 
