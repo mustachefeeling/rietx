@@ -58,6 +58,7 @@
     structureSummary,
   } from "../lib/wizard";
   import { fitColumns } from "../lib/resize";
+  import type { Theme } from "../lib/theme";
   import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
 
@@ -69,6 +70,7 @@
     simple = true,
     active = true,
     columns = null,
+    theme = "light",
     say = (_line: string) => {},
     onopened = (_doc: any) => {},
     oncolumns = (_widths: number[], _done: boolean) => {},
@@ -83,6 +85,8 @@
     /** the first two columns' widths in px, or `null` while the flex defaults
      *  hold — the shell owns the `ui` key, this pane only reports drags */
     columns?: number[] | null;
+    /** passed through to the 3D viewer, whose draw effect depends on it */
+    theme?: Theme;
     say?: (line: string) => void;
     onopened?: (doc: any) => void;
     oncolumns?: (widths: number[], done: boolean) => void;
@@ -245,10 +249,21 @@
   /** Reload on every head move — the head *is* the working state (WP-1005), and
    *  a run, a checkout, a text apply and a form edit all move it.  Only while
    *  shown: this panel is mounted whether or not it is the current mode, and
-   *  three routes per head move for a pane nobody is looking at is waste. */
+   *  three routes per head move for a pane nobody is looking at is waste.
+   *
+   *  `projectKey`, not `project`: a `ui`-only PATCH (a theme, a pane width)
+   *  replaces the project *object* without moving the head, and reading the
+   *  object here made every such write reload three routes and refetch the 3D
+   *  geometry (WP-1029 q).  The *path* rather than a boolean, because the head
+   *  cannot tell two projects apart — node ids are sequential (`n0000`), so
+   *  two fresh projects share a head — and a switch must reload even when the
+   *  heads collide.  (Today `App.opened()` also forces `mode = "panes"`, so a
+   *  switch re-enters through `active` anyway; the key means this effect stays
+   *  correct the day that side effect changes.) */
+  const projectKey = $derived(project?.path ?? null);
   $effect(() => {
     void head;
-    if (project && active) load();
+    if (projectKey !== null && active) load();
   });
 
   async function load() {
@@ -861,7 +876,7 @@
           onsize={(next, done) => dragColumn(1, next, done)}
           title="drag to resize the instrument column" />
         <div class="column view">
-          <Structure3D {stamp} {say} />
+          <Structure3D {stamp} {theme} {say} />
         </div>
       {/if}
     </div>

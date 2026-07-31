@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_CAMERA,
+  LIGHTING,
   LIGHT_POSITION,
   STICK_FLOOR,
   STICK_RADIUS,
@@ -27,7 +28,6 @@ import {
   cellTrace,
   dim,
   layout,
-  lightPosition,
   legend,
   stickRadius,
   stickTransform,
@@ -215,30 +215,26 @@ describe("the traces", () => {
     expect(inner[0].x.length).toBe(sphere.vertices.length);   // one La, not two
   });
 
-  it("puts the key light over the viewer's shoulder, wherever the viewer is", () => {
-    // WP-1029: the light is recomputed from the *live* camera at each draw, so
-    // the far side of the scene is never the unlit side.  That is only legal
-    // because `aspectmode: "data"` makes the data→scene map a uniform scale —
-    // a direction in Å is a direction in camera coordinates.
-    for (const eye of [{ x: 1.4, y: 1.4, z: 1.0 }, { x: -2, y: 0, z: 0 },
-                       { x: 0, y: 0, z: 3 }, { x: -0.6, y: -1.4, z: -1.5 }]) {
-      const light = lightPosition({ eye, up: { x: 0, y: 0, z: 1 } });
-      const eyeLen = Math.hypot(eye.x, eye.y, eye.z);
-      const lightLen = Math.hypot(light.x, light.y, light.z);
-      const cos = (light.x * eye.x + light.y * eye.y + light.z * eye.z)
-        / (eyeLen * lightLen);
-      // in front of the scene from the viewer's side…
-      expect(cos).toBeGreaterThan(0.5);
-      // …and off-axis, because a light *at* the eye casts no shadow at all and
-      // flattens every sphere it lights, which is the bug being fixed
-      expect(cos).toBeLessThan(0.95);
+  it("lights every mesh with the one fixed screen-space key", () => {
+    // plotly's `lightposition` is read in the *projection's* frame, not the
+    // data's (measured on plotly.js 3.7.0 — WP-1029's reopened log), so a
+    // fixed value follows the camera by construction and there is nothing to
+    // recompute per draw.  Two facts are worth pinning because each was
+    // shipped wrong once: z must not be positive — a z-dominant light sits
+    // behind the scene and the whole visible side renders ambient-flat, which
+    // is what "desaturated, dark and flat" was — and the ambient floor is what
+    // keeps the unlit side of a sphere readable rather than near-black.
+    expect(LIGHT_POSITION.z).toBeLessThanOrEqual(0);
+    expect(LIGHTING.ambient).toBeGreaterThanOrEqual(0.5);
+    const geo = geometry();
+    const meshes = [...atomTraces(geo, "ball", unitSphere(4, 6)),
+                    ...bondTraces(geo, unitCylinder(6))];
+    for (const mesh of meshes) {
+      // the same key and the same surface on every solid — the sticks and the
+      // balls must not disagree about where the light is
+      expect(mesh.lightposition).toEqual(LIGHT_POSITION);
+      expect(mesh.lighting).toEqual(LIGHTING);
     }
-    // a degenerate camera falls back rather than emitting NaNs
-    expect(lightPosition({ eye: { x: 0, y: 0, z: 0 } })).toEqual(LIGHT_POSITION);
-    // …including one whose up vector is its own line of sight
-    const edge = lightPosition({ eye: { x: 0, y: 0, z: 2 }, up: { x: 0, y: 0, z: 1 } });
-    expect(Number.isFinite(edge.x) && Number.isFinite(edge.y) && Number.isFinite(edge.z))
-      .toBe(true);
   });
 
   it("sizes the stick for the mode it is drawn in", () => {

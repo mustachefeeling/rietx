@@ -13,6 +13,30 @@
 export type ResidualKind = "delta" | "weighted" | "cumulative";
 export type Scale = "linear" | "sqrt" | "log";
 
+/**
+ * The five curve colours, read from the custom properties `app.css` themes.
+ *
+ * The plot samples these at *draw* time — a theme change restyles the page by
+ * CSS alone, but a canvas keeps whatever colours it was painted with, which is
+ * why the panel repaints on the resolved theme (WP-1029 q) and why no hex may
+ * live in the component: a fixed `#1f5fa8` difference curve was near-invisible
+ * on the dark surface, and correct repainting cannot fix a colour that never
+ * changes.  The fallbacks are the light values, for a page with no stylesheet
+ * (jsdom); `read` is injected so this stays a pure function.
+ */
+export function curveColors(read: (name: string) => string): {
+  obs: string; calc: string; bkg: string; diff: string; zero: string;
+} {
+  const pick = (name: string, fallback: string) => read(name).trim() || fallback;
+  return {
+    obs: pick("--plot-obs", "#8a8a8a"),
+    calc: pick("--plot-calc", "#c23b22"),
+    bkg: pick("--plot-bkg", "#6b7280"),
+    diff: pick("--plot-diff", "#1f5fa8"),
+    zero: pick("--plot-zero", "#88888888"),
+  };
+}
+
 export interface Window {
   two_theta: number[];
   y_obs: number[];

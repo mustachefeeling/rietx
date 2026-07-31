@@ -1129,6 +1129,97 @@ describe("disclosure and the command palette", () => {
     expect(post?.body).toEqual({ ui: { theme: "dark" } });
   });
 
+  it("repaints the plot on a theme change — new ink, no refetch", async () => {
+    // The canvas keeps whatever colours it was painted with, so a draw effect
+    // that does not depend on the theme leaves the old theme's text on the new
+    // theme's page — light grey on white, found by use within hours of the
+    // toggle landing (WP-1029 q).  The colours themselves come from the
+    // `--plot-*` custom properties, sampled at *paint* time; jsdom loads no
+    // stylesheet, so the un-set ones are the fallbacks and a set one is ours.
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_node: any, traces: any[], layout: any) => {
+        drawn.push({ traces, layout });
+      },
+      purge: () => {},
+    });
+    document.body.style.setProperty("--plot-obs", "#112233");
+    try {
+      const stub = server({ ...boot(), ...FITTED });
+      vi.stubGlobal("fetch", stub.fetcher);
+      app = mount(App, { target: host });
+      await flush();
+
+      const first = drawn.at(-1)!;
+      expect(first.traces.find((t: any) => t.name === "observed").marker.color)
+        .toBe("#112233");
+      expect(first.traces.find((t: any) => t.name === "Δ/σ").line.color).toBe("#1f5fa8");
+      expect(first.layout.yaxis2.zerolinecolor).toBe("#88888888");
+
+      const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+      const painted = drawn.length;
+      // what the dark stylesheet does in a browser, done by hand here
+      document.body.style.setProperty("--plot-obs", "#445566");
+      [...host.querySelectorAll("button")]
+        .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+      await flush();
+
+      // a repaint with the new colours — and *not* a refetch: the numbers did
+      // not move, only the ink did
+      expect(drawn.length).toBeGreaterThan(painted);
+      expect(drawn.at(-1)!.traces.find((t: any) => t.name === "observed").marker.color)
+        .toBe("#445566");
+      expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+    } finally {
+      document.body.style.removeProperty("--plot-obs");
+    }
+  });
+
+  it("does not repaint curves a checkout discarded when the theme changes", async () => {
+    // A checkout clears the result server-side and the plot purges — but the
+    // payload `held` for knob repaints survived, so the theme buttons (always
+    // in the header) could redraw a state the project is no longer in onto the
+    // purged canvas.  WP-1012's rule, applied to the copy in hand: when the
+    // result goes, the held window goes with it.
+    const drawn: any[] = [];
+    let purged = 0;
+    vi.stubGlobal("Plotly", {
+      react: async (_node: any, traces: any[], layout: any) => { drawn.push({ traces, layout }); },
+      purge: () => { purged += 1; },
+    });
+    let fitted = true;
+    const stub = server({
+      ...boot(),
+      ...FITTED,
+      "/api/result": () =>
+        fitted
+          ? { body: { result: { ...RESULT, statistics: { rwp: 0.216, gof: 1.41, chi2: 16.96 } } } }
+          : { status: 409, body: { error: { code: "NO_RESULT", message: "none" } } },
+      "/api/history/checkout": () => {
+        fitted = false;
+        return { body: { head: "n0002", parameters: [], n_free: 0 } };
+      },
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(drawn.length).toBeGreaterThan(0);   // the fitted curves were painted
+
+    button("History")!.click();
+    await flush();
+    [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")][2].click();
+    await flush();
+    button("Checkout")!.click();
+    await flush();
+    expect(purged).toBeGreaterThan(0);          // the canvas was cleared
+
+    const painted = drawn.length;
+    [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+    await flush();
+    expect(drawn.length).toBe(painted);         // nothing to repaint, so no repaint
+  });
+
   it("drags the panel column wider and persists the width once", async () => {
     // the sidebar starts on the CSS clamp — `null`, so a fresh project is
     // responsive rather than frozen at the first window it was opened in
@@ -2040,6 +2131,37 @@ describe("the structure viewer", () => {
     expect(drawn[drawn.length - 1].traces.map((t: any) => t.name))
       .toEqual(["cell", "axes", "bonds:B", "B"]);
     expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(before);
+  });
+
+  it("offers the draw mode as one segmented control with one side on", async () => {
+    // two plain buttons wore the primary (filled) register, so both read as
+    // pressed — a control that answers no question (found by use, 2026-07-31)
+    recorder();
+    await openViewer();
+    const group = host.querySelector('.viewer .segmented[aria-label="draw mode"]')!;
+    const on = () => [...group.querySelectorAll("button.on")].map((b) => b.textContent!.trim());
+    expect([...group.querySelectorAll("button")].map((b) => b.textContent!.trim()))
+      .toEqual(["balls", "ellipsoids"]);
+    expect(on()).toEqual(["balls"]);
+    button("ellipsoids")!.click();
+    await flush();
+    expect(on()).toEqual(["ellipsoids"]);
+  });
+
+  it("redraws on a theme change, without asking the server", async () => {
+    // the cell frame samples `--accent` and the labels sample the body colour
+    // at draw time, so the redraw is what lets a theme change reach the canvas
+    // at all (WP-1029 q) — and the geometry did not move, so refetching it
+    // would be a round trip for numbers already in hand
+    const drawn = recorder();
+    const stub = await openViewer();
+    const fetched = stub.calls.filter((c) => c.path === "/api/structure3d").length;
+    const painted = drawn.length;
+    [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark")!.click();
+    await flush();
+    expect(drawn.length).toBeGreaterThan(painted);
+    expect(stub.calls.filter((c) => c.path === "/api/structure3d").length).toBe(fetched);
   });
 
   it("redraws as soon as the pane around it re-reads, not one frame later", async () => {

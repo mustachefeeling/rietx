@@ -21,6 +21,16 @@
   --ok: #2e8b57;
   --warn: #b3541e;
   --bad: #c23b22;
+  /* The pattern plot's curves (WP-1029 q) — the Rietveld convention: recessive
+     grey observations and background, red calculated, blue difference.  The
+     greys are *meant* to sit below the chroma floor a categorical palette would
+     demand; identity there is carried by the mark (points / dotted line).  Each
+     theme's set is validated against its own surface, not flipped. */
+  --plot-obs: #8a8a8a;
+  --plot-calc: #c23b22;
+  --plot-bkg: #6b7280;
+  --plot-diff: #1f5fa8;
+  --plot-zero: #88888888;
   --mono: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
 }
 
@@ -35,6 +45,11 @@
     --ok: #6cc08b;
     --warn: #e0955c;
     --bad: #e8776a;
+    --plot-obs: #909090;
+    --plot-calc: #e56a52;
+    --plot-bkg: #6e6e66;
+    --plot-diff: #5897dd;
+    --plot-zero: #88888888;
   }
 }
 
@@ -48,6 +63,11 @@
   --ok: #6cc08b;
   --warn: #e0955c;
   --bad: #e8776a;
+  --plot-obs: #909090;
+  --plot-calc: #e56a52;
+  --plot-bkg: #6e6e66;
+  --plot-diff: #5897dd;
+  --plot-zero: #88888888;
 }
 
 * {

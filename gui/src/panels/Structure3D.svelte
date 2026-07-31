@@ -37,12 +37,20 @@
     type Mode,
   } from "../lib/structure3d";
 
+  import type { Theme } from "../lib/theme";
+
   let {
     stamp = 0,
+    theme = "light",
     say = (_line: string) => {},
   }: {
     /** bumped by the model pane every time it re-reads — see the effect below */
     stamp?: number;
+    /** the resolved theme, and a dependency of the draw effect: this panel
+     *  samples `--accent` and the body colour at draw time, so a theme change
+     *  that does not redraw leaves the old theme's frame and labels on the
+     *  canvas (WP-1029 q) */
+    theme?: Theme;
     say?: (line: string) => void;
   } = $props();
 
@@ -121,6 +129,7 @@
     void showBoundary;
     void exaggeration;
     void view;
+    void theme; // the frame/label colours are sampled at draw time (WP-1029 q)
     draw();
   });
 
@@ -182,14 +191,15 @@
     // letters take the same colour, so frame and labels read as one object.
     const cell = style.getPropertyValue("--accent").trim() || "#1f5fa8";
     // the camera for this draw: what a button chose, else what the user has
-    // rotated to, else the last one handed over
+    // rotated to, else the last one handed over.  The key light is *not*
+    // computed from it — `lightposition` is screen-relative (measured, see
+    // `lib/structure3d.ts:LIGHT_POSITION`), so the fixed key already follows
+    // every rotation, mid-drag included.
     camera = pending ?? liveCamera() ?? camera;
     pending = null;
     await plotly.react(
       node,
-      // the camera is handed to `traces` as well as to `layout`: the key light
-      // is computed from it, so it must be the *same* camera this draw uses
-      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary, camera,
+      traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary,
              exaggeration),
       layout(style.color, camera),
       // the default gl3d modebar floats over a panel this small, and one of its
@@ -290,12 +300,15 @@
 <section class="viewer">
   <header>
     <h2>View</h2>
-    <div class="modes">
-      <button class:on={mode === "ball"} class="tiny"
+    <!-- one choice among two, so it wears the app's segmented register — two
+         plain buttons here wore the primary (filled) style and both read as
+         pressed, which is a control that answers no question -->
+    <div class="segmented" role="group" aria-label="draw mode">
+      <button class:on={mode === "ball"}
         onclick={() => (mode = "ball")}
         title="spheres at a fraction of the covalent radius — the shape of the
                structure, not of its displacement">balls</button>
-      <button class:on={mode === "ellipsoid"} class="tiny"
+      <button class:on={mode === "ellipsoid"}
         onclick={() => (mode = "ellipsoid")}
         title="displacement ellipsoids: refined quantities, so an inflated ADP
                is visible here and nowhere else">ellipsoids</button>
@@ -408,6 +421,7 @@
     align-items: center;
     gap: 6px;
     flex: 0 0 auto;
+    margin: 8px 0 4px;
   }
 
   h2 {
@@ -415,7 +429,9 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--muted);
-    margin: 10px 0 4px;
+    /* the row centers its items; a margin here would push the title off the
+       buttons' centerline (its tops sat above the title once) */
+    margin: 0;
     font-weight: 600;
   }
 
