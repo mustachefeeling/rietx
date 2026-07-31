@@ -157,7 +157,8 @@ def test_collinear_zero_displacement_trips_the_correlation_guard():
     assert abs(corr[0, 1]) > 0.98
 
     guard = check_guards(table, outcome, threshold=0.98)   # the default threshold
-    assert any("zero_shift" in c and "sample_displacement" in c
+    assert any({"instrument.zero_shift",
+                "instrument.geometry.sample_displacement"} == set(c.paths)
                for c in guard.high_correlations), guard.high_correlations
 
 

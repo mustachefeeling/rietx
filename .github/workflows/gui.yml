@@ -1,0 +1,69 @@
+name: GUI frontend
+
+# The only workflow that needs node, and the only one that can go stale in a way
+# the Python suite cannot see: the built frontend under
+# `src/pxrdref/gui/static/` is **committed** (so installing the wheel never needs
+# node), which means a source edit that nobody rebuilt is a real defect.
+#
+# Priced, per the WP-1002 rule — GitHub Free gives a private repo 2000 Actions
+# minutes/month, billed rounded UP per job:
+#
+#   node setup + npm ci + build + git diff + vitest   ~1.5 min -> 3 billed min
+#
+# It triggers only on paths that can invalidate the dist, so a physics-only or
+# docs-only push pays nothing.  At an aggressive 40 GUI-touching pushes a month
+# that is ~120 minutes against a scheduled spend of ~303 (ci/weekly/monthly).
+# The per-push `ci.yml` is unchanged: `tests/test_gui_dist.py` recomputes the
+# source digest in **stdlib Python**, needs no node, and runs in milliseconds —
+# which is the point of defining the digest in
+# `gui/scripts/build_info.py` rather than in JavaScript.
+#
+# Goes to zero when the repo goes public (see docs/wp/1003-api-freeze-pypi.md).
+
+on:
+  push:
+    branches: [main]
+    paths: &gui_paths
+      - 'gui/**'
+      - 'src/pxrdref/gui/**'
+      - '.github/workflows/gui.yml'
+  pull_request:
+    paths: *gui_paths
+  workflow_dispatch:
+
+concurrency:
+  group: gui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build, diff, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+      - run: npm --prefix gui ci
+
+      - name: Build the frontend
+        run: npm --prefix gui run build
+
+      # The freshness gate. A dirty tree here means the committed dist was built
+      # from different sources — or that this runner's toolchain produces
+      # different bytes, which is the failure mode the WP pre-authorised a
+      # fallback for: if this proves flaky cross-OS (minifier nondeterminism),
+      # narrow the comparison to build-info.json and record the measurement.
+      - name: The committed dist is current
+        run: |
+          git diff --exit-code --stat src/pxrdref/gui/static \
+            || { echo "::error::the committed dist does not match a fresh build"; exit 1; }
+
+      - name: Unit tests (vitest)
+        run: npm --prefix gui test
+
+      - name: Type check
+        run: npm --prefix gui run check

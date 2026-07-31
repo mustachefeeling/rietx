@@ -378,7 +378,20 @@ line the class still allows), without which a class whose absences all hide unde
 neighbours wins on parsimony alone; and the absence of a *line* is asked of the
 whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
-Next: [1027](wp/1027-gui-peak-picker.md) (GUI peak picker).
+Next, and there are **two** live threads because two worktrees ran in parallel:
+the GUI one continues at [1029](wp/1029-gui-usability.md) (reopened — see the
+block below, which came in with the merge), and the indexing one continues at
+[1027](wp/1027-gui-peak-picker.md), the peak-picker panel that joins them.
+[1030](wp/1030-engine-scaling-low-symmetry.md) holds everything the acceptance
+suite measured and could not fix.
+
+**A merge hazard the parallel worktrees produced, recorded because it will
+recur.** Both branches created a WP numbered **1029** — GUI usability on `main`,
+indexing engine scaling here — and neither could see the other. The GUI one
+merged first, so the indexing one was renumbered **1030** on 2026-07-31; a banner
+in that file says so, and anything written before that date saying "1029" and
+meaning *engine scaling* means 1030. A number is claimed by merging the file, not
+by writing it.
 [1026](wp/1026-indexing-acceptance.md) is **closed** — see Current focus for the
 scoreboard it closed against. Its one unmet criterion, the bethanechol global
 score, is blocked on [1030](wp/1030-engine-scaling-low-symmetry.md) and moves
@@ -497,6 +510,37 @@ which on a 75-line list kept 17 607 candidates. `match_lines` also built an
 `dedup_candidates` re-reduced both cells on every pairwise comparison — together
 worth 221 s → 10.5 s on one monoclinic search.
 
+---
+
+**Next session starts at [1029](wp/1029-gui-usability.md), which was reopened
+on 2026-07-30 within hours of landing.** Five items, all from the user driving
+the built thing, and **two are regressions from 1029's own first pass** — so
+they belong to it rather than to a new WP. Everything is measured in that file's
+handover log; do not re-measure it. **(s) is done (2026-07-31)**: the weighted
+residual had *five* definitions rather than the two the item claimed, now one
+`RefinementResult.sig()` — and the divergence the item was written about turned
+out to be unreachable, while the live bug was the `weighted` flag beside it,
+constant-true since it asked whether the result predated v0.2. **p, q, r and t
+remain.** The sharpest is **(p)**: `lightposition` is
+**inert** on plotly.js 3.7.0 (six pairs of light directions render
+pixel-identical), so item (a)'s camera-following light does nothing and the only
+visible effect of that change was its `LIGHTING` constants, which dropped the
+shadow side from 85 to 48 luminance — "desaturated/dark and flat", exactly as
+reported. That also means three places currently claim a mechanism that does not
+work, and a fix has to correct them. **(q)** neither plot has the theme in its
+draw effect's dependencies, so colours sampled at draw time go stale and the text
+ends up light grey on white. **(r)** is a design question rather than a defect —
+whether `y_calc` should be recomputed rather than stored — and the measurements
+say the premise is already half true: nothing is persisted, and the real cost is
+9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB.
+
+*Method note carried from that session, because it cost two wrong claims:*
+playwright's viewport option is `newContext({ viewport })`, **not**
+`viewportSize`, which is silently ignored; and a WebGL canvas cannot be read back
+with `drawImage` unless `preserveDrawingBuffer` is set — screenshot the element
+and analyse the PNG instead. **When a browser check disagrees with a unit test,
+suspect the harness before the code.**
+
 **v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
 measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
 milestone's headline is that three of its four deliverables are *decisions
@@ -521,8 +565,11 @@ non-importing source symbol, or any `-W` build warning.
 an insert would send provenance ordering backwards; precedent: 0603→0408).
 The "GUI/notebook widgets" v2+ line is half un-fenced — the **human GUI**
 moves into v1.0 as fourteen WPs
-([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md));
-notebook widgets stay fenced. Grounds recorded in
+([1004](wp/1004-parameter-plan-api.md)…[1017](wp/1017-gui-manual-onboarding.md)),
+now fifteen with [1029](wp/1029-gui-usability.md), filed and landed 2026-07-30
+from *using* the shipped thing rather than reading it — fifteen usability items
+that landed before 1017 documents controls they change; notebook widgets stay
+fenced. Grounds recorded in
 [DESIGN.md](DESIGN.md#locked-decisions): API-first paid off, but the package
 is currently unusable by the audience it is for, and the GUI **forces the
 missing API into existence** — parameters-as-data, `set_vary`/`set_value`
@@ -572,10 +619,567 @@ that is genuinely needed (`out/HL2-1_peaks.txt`, the abstention fixture) is
 extracted into `tests/data/` by WP-1026 with its provenance. The tag exists so
 that deleting or renaming the branch cannot silently strand ten WPs' citations.
 
-**[1004](wp/1004-parameter-plan-api.md) and [1006](wp/1006-run-control.md)
-landed 2026-07-30** on branch `v1-gui-backend-api` — the two zero-dependency
-rows of the backend-API group, which unblocks 1005 and 1007. Both were framed as
-plumbing and both turned up a latent defect the framing had hidden.
+**[1015](wp/1015-structure-viewer.md) landed 2026-07-30 — you can see the
+structure.** A rotatable cell with atoms, bonds, symmetry images and thermal
+ellipsoids, drawn by the plotly already on the page: **zero new dependencies**,
+and a third column of the model pane rather than a sixth tab.
+
+**Its founding decision is that everything hard stays on the server.** `GET
+/api/structure3d` returns Cartesian points, 3×3 matrices and index pairs; the
+browser's whole job is `pos + T·v` over one unit sphere. That is WP-1010's
+no-client-side-decimator refusal one rank up, and it is what earns the route its
+place beside `/api/structure` on WP-1008's test — the orbit, the bonds and the
+cell frame are three things a `Structure` dump cannot say. It also forced the
+milestone's one new crystallography verb: **`expand_orbit` returns the operation
+as well as the position**, because a displacement ellipsoid *transforms*
+(U\* → R·U\*·Rᵀ) rather than merely moving, and an image drawn with its parent's
+tensor looks right on a cubic site and is wrong on every other one.
+
+**Three things the WP's own charter asserted turned out to be false, and each
+correction is a decision.** gemmi has **no colour table** (it has radii and a
+metal flag, which the bond rule uses); colours are the CPK *convention* with hex
+values chosen here for contrast on both themes plus a golden-angle-in-Z fallback,
+so nothing is transcribed from Jmol/VESTA/PyMOL — all unsuitable to copy into an
+MIT core, and `ATTRIBUTION.md` now says so. A **plain radius-sum bond rule draws
+LaB6's twelve cell edges as La–La sticks** (gemmi's covalent radius for lanthanum
+is 2.07 Å against a = 4.158 Å) and the boron framework vanishes into a cage; the
+fix is chemical rather than geometric and is a predicate over the *phase* — bond
+metals to metals only when the phase has no non-metal in it, so an alloy still
+bonds and an intermetallic never needs a special case. And a **non-positive-
+definite tensor draws its non-positive axes at zero**, not at `√(negative)`: one
+NaN vertex loses the whole mesh, not one atom, so the ellipsoid collapses to a
+visible disc and the payload says why.
+
+**A real browser found five more, for the fifth session running — and this time
+one of them was reported by the *test runner* in the defect's own words.**
+plotly's `responsive: true` listens for **window** resizes only, so when the
+legend and caption rendered below the plot the box shrank under an already-sized
+canvas, which then overhung and **swallowed every click beneath it**; playwright
+said `<canvas 1018×1526> … intercepts pointer events` where a human would have
+said "the legend is broken". The cell frame was **invisible**, because `--line` is
+a hairline border colour that disappears into the page in a 3D scene. **Every bond
+ended in mid-air** — a bond drawn to a translated image is correct and *reads* as
+broken — so each out-of-cell endpoint now gets its atom drawn, flagged so
+multiplicity counting is untouched and exactly one level deep, which is the line
+between completing a coordination and drawing the packing diagram this WP
+declined. The chosen **ellipsoid probability was reset by every reload**,
+because the payload carries the server's default: WP-1013's "two facts must not
+share one field" wearing a fourth costume.
+
+**And the fifth is the one this session got wrong first, which is why it is worth
+the most.** The rotation was thrown away by every redraw, and the log initially
+claimed the opposite — because the claim was measured by reading
+`_fullLayout.scene.camera` back, and that reports whatever was last passed *in*.
+It says the view was kept while the picture has visibly snapped home; only a
+screenshot comparison exposed it. Isolated in the browser, `react` with the
+*same* trace objects keeps the camera and `react` with **fresh** ones does not —
+replacing a `mesh3d` rebuilds the gl3d scene from the layout, which `uirevision`
+does not cover — and every redraw here builds fresh traces. The camera is now the
+component's, captured from `plotly_relayout` and handed back on each draw. *(That
+fix was also wrong; see the second pass below.)*
+
+Measured on an M4 in Chrome for Testing: boot-to-interactive **65–99 ms**,
+unchanged from WP-1013's 81 ms — the viewer costs nothing before the model pane is
+opened — and **605–1447 ms** from clicking *Model* to a drawn scene, almost all of
+it fetching and parsing plotly (1414–1669 ms under software WebGL, so the GPU is
+not the bottleneck). A probability change is a client multiply with **zero**
+refetches, the bond slider is a server round trip because the server owns the bond
+rule, and the camera survives both. The picture the WP exists for, on NAC read
+with its aniso loop: 84 atoms, ellipsoids at 90 %, every symmetry image visibly
+rotated, and **Na1's balloon — Biso 2.16 Å² against Al's 0.59 — obvious at a
+glance where the parameter table shows it as six ordinary numbers.** Python
+1164 → 1192 fast-suite passes with the skips unchanged at 107; vitest 184 → 207;
+`app.js` 151.6 → 161.5 kB (55.1 kB gzip).
+
+**[1015](wp/1015-structure-viewer.md) second pass, 2026-07-30 — the scene, not
+the geometry.** Reopened on the report that the viewer was "a bit janky", which
+turned out to be a precise complaint: the geometry was right and every *default*
+around it was plotly's rather than crystallography's. Read against VESTA, Jmol
+and 3Dmol.js, and measured against the bundled **plotly.js 3.7.0** (6.9.0 is
+the Python `plotly` package; the two version independently) rather than its
+documentation. Parallel projection, because perspective converges a cubic cell's
+far edges. No Cartesian axis box — nothing in the picture happens in x, y, z —
+with the cell's own edges labelled a, b, c instead, at a clearance in Å set by
+the largest ball, since a percentage of the edge put every letter *inside* a
+corner atom. Bonds as two-tone cylinders in Å, which is the module's own argument
+about pixel-sized markers applied to sticks, and which settles a legend rule the
+old trace did not have: **a half belongs to its atom**. `BALL_FRACTION` 0.32 →
+0.40 with the 0.08 Å stick as its pinned lower bound. And free-trackball rotation
+with **view down a / b / c** buttons — one decision, not two, because turntable
+pins `up` to +z while `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
+orthogonal cell and "down c" would have drawn nothing.
+
+Its own contribution to the running lesson: the camera fix above **was also
+wrong**. `plotly_relayout` does not fire for a gl3d camera drag at all — zero
+events, measured, and true of the shipped build too, so the listener that
+replaced the first wrong answer had been receiving nothing. Two wrong claims in a
+row on one question, both because the check was cheaper than the claim. The
+reading that is a reading of the view is the scene's own `getCamera()`. Also
+fixed: three things the panel said that were not true, including its own shell
+still listing it under "panels still owed". vitest 207 → 221, Python 1192 → 1193
+with skips unchanged; `app.js` 161.5 → 164.3 kB (56.2 kB gzip).
+
+**[1029](wp/1029-gui-usability.md) landed 2026-07-30 — the GUI is one program
+now.** All fifteen items, in ten commits, ending in the browser check the WP
+made its own bar: *look at it, in both themes, at 1500 px and at 1000 px*.
+
+**Its founding decision is that a stored size is not a settled size.** The
+splitter itself was an extraction rather than an invention — `Console.svelte`
+had the whole rule inline, and it moves to `panels/Splitter.svelte` over
+`lib/resize.ts` carrying that rule generalised: **the component reports a size
+and never writes one**, and `onsize(size, done)` is what keeps a drag from
+POSTing per pixel. What was *not* in the charter is the half a browser found:
+a drag clamps against the extent it happens in, and **nothing clamps a width
+that outlives its window** — widths chosen at 1500 px reopened at 1000 px left
+the 3D column **24 px** wide. The sidebar covers that case with a CSS
+`max-width`; a row of N sized columns cannot express one, so `fitColumns` is
+that guard as arithmetic, shrinking proportionally because the user's
+*relative* choice is the part still worth keeping.
+
+**Three more decisions, each of which could have been a wrong default instead.**
+*Distinguishability is a property of the set being drawn* — `_CPK` stays an
+element table and `phase_palette` decides what a *picture* uses, anchoring the
+famous assignments and rotating everything else in **OKLab** hue, because sRGB
+has no distance and the two greens that started this (F `#48d860` against Ca
+`#40c060`, both in NAC) differ by 8 and 24 in two channels. Measured: the three
+reported pairs sit at 0.070, 0.078 and 0.099 apart and clear a 0.13 floor at
+0.141, 0.132 and 0.131 once drawn together, and the new test collects every
+`*.cif` in `tests/data` so a file added later is covered without anyone
+remembering. *An exaggeration is not a probability* — k(p) = √χ²₃(p) diverges as
+p → 1, so "bigger so I can see it" is a drawing scale, stated beside the
+probability and never folded into it, or the picture claims a surface it is not
+drawing. And *the report already owns the judgement "this is not a fit"*: item
+(c) added no vocabulary, `GET /api/result` simply quotes `MATURITY_MAX_RWP`, and
+`status` still reads `converged` at Rwp 96 % because that is WP-1028's.
+
+**Half of the "ellipsoids are too small" complaint turned out to be a docstring.**
+`unitCylinder` justified going uncapped with "the far end is buried inside its
+own atom, whose ball is larger than the stick for every element there is" —
+true in ball mode, an overclaim in ellipsoid mode, where an atom's size is
+√U·k(p) and not a covalent radius. Measured on the refined NAC: 0.080 Å in ball
+mode, 0.065 Å at p = 0.5, and **0.032 Å at p = 0.1**, where the shipped stick
+had been *wider than the atom*. `stickRadius` now takes the mode and returns
+half the smallest semi-axis drawn, which turns the burial into a proof — a rim
+at r ≤ ½·min semi-axis lies inside the ellipsoid's inscribed sphere.
+
+**A real browser found four more, for the sixth session running, and two of them
+were this WP's own.** The plot's canvas swallowed the clicks of the knobs the WP
+had just put under it — WP-1015's `responsive: true` finding in a new place, and
+playwright again reported it in the defect's own words (`<rect class="sdrag
+drag"> … intercepts pointer events`). The stored-column bug above. Plus two that
+predate it: the parameter table listed five rows called `0`, `1`, `2`, `3` and
+`occ`, because a bare-index leaf says nothing, and the shared 2θ axis was
+anchored to the upper subplot so its title was drawn *inside* the residual plot
+— invisible against a flat Δ and unmissable across a cumulative χ².
+
+**And a method note that cost two wrong measurements**, which is the running
+lesson one layer out from the code: playwright's viewport option is
+`newContext({ viewport })`, **not** `viewportSize`, which is silently ignored —
+so a run claiming 1500 px and 1000 px was a run at the default 1280 px twice,
+and every column width had to be re-measured. A second harness bug (a
+stage-name regex that missed `zero`) raced a still-running fit whose theme
+change was then correctly 409'd, and the screenshots said "dark mode is broken"
+about a page that was correctly light. **When a browser check disagrees with a
+unit test, suspect the harness before the code.**
+
+Verified end to end in Chrome for Testing against a *real* project — COD 1000236
+(NAC, with its aniso loop) against `11BM_NAC.fxye` — which refines to **Rwp
+13.374 %, GoF 3.749**: boot-to-interactive **198–385 ms**, CodeMirror's gutter
+`#ffffff` light and `#1e1e1e` dark, NAC's four species in four distinguishable
+colours, and the caption stating 50 % and ×2.50 separately. Python fast suite
+1193 → **1198 passed / 108 skipped** (78 s) with collected 1298 → 1304 — both
+figures moved by exactly six and the one new skip is accounted for; vitest
+221 → **255**; `app.js` 164.3 → 174.0 kB (59.2 kB gzip). One finding was
+recorded rather than fixed: a `ui`-key change is 409'd during a run, under a
+rule WP-1008 settled for the whole route, so it is a WP-1003 freeze question.
+
+**What it was filed for**, 2026-07-30: like 1028, it came from *use*: a session
+driving the shipped GUI produced fifteen items, almost none of them a
+correctness bug and none findable by reading the code. Panes that cannot be resized (the Model
+pane's third column is 309 px at a 1000 px window, and there is no way to make
+it wider); element colours that are not distinguishable inside a phase — F
+`#48d860` against Ca `#40c060`, *both in NAC*, plus two more greens, two
+purples, and a fallback grey exactly equal to titanium; a structure view lit so
+flatly that overlapping atoms merge, which is the direct cost of the trade
+WP-1015's scene pass made and is now cheap to undo, since that pass also made
+the live camera readable at draw time; a plot with 2.5 px points and exactly one
+kind of residual; a dark mode that stops at CodeMirror's gutter; two different
+controls for one choice of pane; a unit cell laid out down a column instead of
+across a row; every 3D knob on screen at once under a 300 px plot; a bond slider
+whose number only moves after you let go; and displacement ellipsoids so small
+that the sticks are nearly as thick as the atoms — measured on NAC, the
+smallest semi-axis at 50 % is 0.130 Å against a 0.08 Å stick, and the shipped
+10 % level is *inside* it. That last one carries the only real design question
+in the WP: a probability cannot exceed 1 (k = √χ²₃(p) diverges there), so
+"bigger so I can see it" is an exaggeration factor and has to be labelled one,
+or the picture claims a surface it is not drawing. One item resolved itself on measurement — "the NAC refinement
+doesn't refine" is a mismatched scratchpad project (NAC structure, synthetic
+LaB6 pattern), though the run it produced does report `converged` at Rwp 96.3 %,
+which is 1028's finding again and stays 1028's to fix. Lands before 1017, which
+would otherwise document controls that are about to change.
+
+**[1014](wp/1014-import-structure-editing.md) landed 2026-07-30 — data gets *in*,
+and the model can be edited.** Upload endpoints with content-sniffed validated
+previews, an import wizard that *is* the empty state, an atom table over the
+Wyckoff DOFs, and instrument forms. `pxrdref gui` with no argument is now a
+usable program rather than a viewer for projects someone else made.
+
+**Its founding decision is a split, and it is the one to carry: if the parameter
+table has the path, the parameter table owns it.** A cell edge, an occupancy, a
+Biso, a profile term, a coordinate DOF are rows in `/api/params`, so the editor
+sends them through `PATCH /api/params` — where the tie, lock, mode-fixed and bound
+rules already live, and where a cubic `b` refuses by naming the `a` it follows.
+What is left for the whole-model routes is everything that is *not* a number in θ:
+a species, a label, an atom added or removed, a geometry declared, a wavelength, a
+background family — each of which changes what the parameter table *contains*.
+Without that line this panel would have become a second parameter table carrying
+its own copy of the crystal systems. Measured in Chrome: one cell edit produced
+exactly one `PATCH /api/params` and no model patch; one species edit exactly one
+`PATCH /api/structure` and no `set_values`.
+
+**Two phases, so a bad file never half-lands.** A file is staged and *read* before
+anything is created, and only a token crosses back — handing the browser a
+filesystem path and taking it back would make every commit verb a path-traversal
+surface. The preview is the decision rather than decoration: a pattern comes back
+with the reader that claimed it in that reader's own words (the same GSAS bytes
+sent as `11BM_NAC.fxye`, `mystery.dat` and `FAP.XRA` are all claimed by the `BANK`
+sniff), and a CIF comes back with **`aniso_available` measured, not assumed** — the
+file is read a second time with `aniso=True` and the answer is whether any site
+actually had a tensor, so the checkbox that mirrors "reading a file must not
+silently change what a plan frees" is offered only when there is something to opt
+into. The instrument step sends a *decision* — a geometry and an anode name — and
+the package supplies the wavelengths from its own NIST-scale table; a form that
+posted a whole `Instrument` would be a second copy of the physics kept in
+TypeScript, in the exact quantity a 100 ppm cell error hides in.
+
+**One new verb, and one refusal moved.** `POST /api/structure/aniso` exists because
+*both* of its directions are physics a client must not compute: on seeds
+`AnisoU.isotropic` (U^ij = Uiso·G\*ᵢⱼ/(a\*ᵢa\*ⱼ), **not** Uiso·δᵢⱼ off orthogonal
+reciprocal axes), off restores Biso from U_eq. And `_as_structure` now refuses an
+atom whose scattering species no form-factor table knows, naming it — such a
+structure validates fine and fails at *stage compile*, a long way from the field it
+was typed in. That makes the GUI stricter than the API it fronts, which is
+recorded as a WP-1003 freeze question rather than settled here.
+
+**A real browser found two defects for the third session running, and the second
+is a rule.** `structuredClone` **throws on a Svelte 5 `$state` proxy**, so *Add
+atom* silently did nothing in Chrome while passing under vitest — which hands the
+same functions plain objects. And an `UNKNOWN_SPECIES` refusal *flashed and
+vanished*, because `apply` reloads after a failure (a partial apply leaves the
+server half-ahead) and `load` cleared the same variable the refusal had just been
+written to. That is WP-1013's wiped-squiggle bug in a new costume, and the rule it
+yields is general: **two different facts must not share one field.** Both now have
+vitest guards; the clone one fails with `DataCloneError` if you put
+`structuredClone` back.
+
+Measured end to end in Chrome for Testing: boot → wizard interactive **145 ms**;
+a 59 498-point GSAS file, a cryolite CIF *with* its aniso loop opted into, a
+Bragg-Brentano Cu anode and a project created — then a cell edit, a species edit,
+a refused species, an ADP toggle (after which `biso` is locked, as it must be), an
+atom added and removed, leaving a history of `root · set_value · edit_model ×3`.
+Python 1148 → 1164 fast-suite passes with the skips unchanged; vitest 139 → 184;
+`app.js` 114.2 → 151.6 kB (51.3 kB gzip).
+
+**[1013](wp/1013-text-pane-sync.md) landed 2026-07-30 — the whole project is one
+editable document.** A CodeMirror 6 pane over WP-1009's `.pxt` rendering, with
+rectangular selection down the aligned columns, continuous server-side validation,
+and an explicit Cmd-Enter apply that lands as the same history nodes a form would
+have committed.
+
+Its founding decision answers the question WP-1012 handed it: **the pane is a mode
+over the whole window, not a sixth tab.** Five tabs already fill a
+`clamp(340px, 38%, 560px)` sidebar, and this is the one panel whose content is
+line-oriented — the format aligns its columns *so that a rectangular selection can
+hit one field*, which a 340 px column undoes. Measured in the browser: an `⌥`-drag
+drew **7 selection rectangles** on the vary column, which is the format's entire
+reason for existing, working.
+
+**Three duplications were refused, and the third is the interesting one.** There
+is no second parser (`lib/pxt.ts` is a per-line scanner with **no `error` token**,
+so only the server can call a document wrong — asserted from both sides, with the
+shared vocabulary pinned to `textdoc._KEYWORDS` and `StageSpec.model_fields` from
+Python). There is **no third SSE frame type**: the charter asked for a render
+pushed over SSE on every model change, and the head already moves for every writer
+— a run, a checkout, an applied suggestion, a form edit — so the pane re-reads on
+`head` exactly as the parameter table does, and WP-1008's "the run state is not an
+event" is the precedent for treating a new frame type as a decision. And **there is
+no merge and no force-apply**, where the usual reason ("merging generated text is
+merging one authority with itself") turns out to be the weaker one: the loser's
+document also carries the winner's *old* values for every row it did not touch, so
+applying it anyway would silently revert them. That is now the sharpest of the
+Python tests — two writers racing over HTTP, the second refused whole.
+
+**CodeMirror is split out *and* off the boot path, which serves WP-1010's
+one-chunk decision rather than reversing it.** A committed dist has to diff
+reviewably, and ~330 kB of minified third-party bytes inside `app.js` would sit in
+the middle of every application diff; and the pane imports the adapter dynamically,
+so the page still loads `app.js` and nothing else. Measured: `app.js` 104.7 →
+**114.2 kB** (40.4 kB gzip), `vendor-cm.js` **328 kB** (106 kB gzip) fetched on
+first open, **boot-to-interactive 81 ms** with zero editor requests before the pane
+is opened, and **132 ms** from the click to a mounted editor. The split is
+asserted rather than trusted — a stray static import would inline the library and
+no byte count would say so. It also produced the milestone's first *licensing*
+finding: the wheel has been redistributing Svelte's runtime since WP-1010 and
+nothing said so, which `ATTRIBUTION.md` now does and WP-1003 has been told to act
+on at publication.
+
+**The defect took a browser, again.** `load` cleared the editor's diagnostics
+unconditionally, so a head moving underneath an *invalid* buffer wiped the squiggle
+and the gutter marker while the problem list below still named the line — two views
+of one answer, able to disagree. jsdom could not see it, because the vitest
+assertions read `textContent`, which is the list. The fix is structural rather than
+a fifth call site: the editor's document *and* its diagnostics are now `$effect`s
+over the sync state, so nothing pushes and nothing can forget to. Measured before
+and after on a head move: gutter 1 → 0 and underline 1 → 0, now 1 → 1.
+
+Verified end to end in Chrome for Testing, in order: boot → open → nine token
+classes painted → rectangular selection → edit → one debounced validate → Cmd-Enter
+→ `limits 3.5 22` applied and still there after a reload → `mode nonsense` → one
+problem at line 4 in the parser's own words → a `PATCH /api/params` from outside →
+**stale**, the edit intact and Apply disabled → Re-read → in sync. vitest 85 → 139.
+
+**[1012](wp/1012-history-report-panel.md) landed 2026-07-30 — the GUI now
+*answers back*.** A git-like history worktree (lanes, Rwp badges, tags, HEAD,
+checkout / branch / tag / annotate, and a two-node parameter diff) and the first
+interactive FitReport anywhere: all three layers rendered, a worst region
+click-zooming the plot through the window route, and typed suggestions that apply
+in **one click**, land as a history node, and are undone by checkout.
+
+Its founding decision is that **an applicable suggestion is one stage.**
+`report/apply.py`'s `stage_for` returns a `StageSpec` and executes nothing, so
+applying a suggestion travels the path the per-stage Run button already travels —
+one `run_stage`, one node, the same 409 while a run is in flight, the same event
+stream — and *undo needs no inverse verb*, because the head before the apply is a
+node to check out. The mapping declares only **how** each of the sixteen
+`ActionKind`s is carried out (11 `stage`, 1 `index`, 4 `advice`, pinned complete
+against `get_args`); the globs are the action's own, because Layer 2 wrote them.
+The four advice notes *are* the deliverable rather than an apology, and the
+background-flexibility pair is the one worth reading: it is advice because it
+changes what the background can *absorb* rather than which parameters move, and
+the statistic that catches the cost — the block projection R² behind
+`BACKGROUND_ABSORPTION` — is not in the report, so a one-click version would be a
+button whose own evidence cannot see what it did. `reindex_or_recheck_cell` is
+declared applicable and refused by a *derived* predicate, so that button turns on
+by itself when `index()` lands (WP-1024 has been told, and told which assertion of
+ours will fail).
+
+**Three claims about the report were wrong and are corrected in place.**
+`expected_delta_chi2` is **one number per report, not per action** —
+`build_report` stamps the identical figure on every Layer-1-derived action
+(measured: 16.19 on all eight suggestions of a fit whose entire χ² is 16.96), so it
+ranks nothing and a per-row column would invent a prediction that does not exist.
+It is **not the "optimistic upper bound" two docstrings claimed**: it bounds the
+misfit attributed inside the *gated* regions, and the observed reduction came in
+0.8 % *above* it (16.19 → 16.33 observed) for a cell correction while being an
+over-estimate for a zero-shift one. And **Layer 2 proposes Bragg-Brentano
+aberrations whatever geometry was measured** — on the Debye-Scherrer fixture the
+highest-confidence suggestion in the whole report (confidence **1.000**,
+`refine_sample_transparency`) names a path `params/vector.py` force-fixes off
+`bragg_brentano`. Nothing had ever consumed the action list mechanically, so
+nothing had noticed; it is now unreachable-with-a-reason rather than a button that
+frees nothing, and whether a frozen report may propose a structurally impossible
+action is recorded as a WP-1003 question rather than patched in Layer 2.
+
+**A real browser was driven for the first time** (Chrome for Testing via
+`playwright-core`, installed outside the workspace so the dist digest is
+untouched), which settled WP-1010's one unmeasured number — **boot-to-interactive
+104–200 ms**, load to the parameter table's first row — and found two things a
+jsdom mount structurally could not. A single badge called **15 `unmatched_calc`
+peaks "unindexed"** beside a summary reading "0 unmatched observed peak(s)": the
+two kinds are opposite diagnoses, and all fifteen were what a *mispositioned* model
+produces at every peak, so the badge pointed at an impurity that was not there. And
+`Plot.draw`'s window fetch was **unguarded**, so a checkout — which clears the
+result server-side while the component still holds the old one — escaped as an
+unhandled page error; jsdom never reached the fetch, because it does not load the
+runtime plotly script. That script is now stubbed in `test-setup.ts`, which is also
+what makes the click-zoom assertable at all. A third defect was WP-1010's: the
+shell's end-of-run detection required having *seen* a non-idle state frame, so a
+stage that started and finished between two frames left the previous fit's curves
+and χ² on screen.
+
+Measured end to end in the browser, the loop the WP exists for: report → Apply
+`refine_cell` → predicted Δχ² 16.19, **observed 16.33** → Rwp 21.609 % →
+**4.155 %** → and the suggestion list is then empty, because there is nothing left
+to suggest. Applying the *other* half of a pair the report had declared
+non-separable (`refine_zero_shift`) instead reaches Rwp 9.3 % while putting the
+error in the wrong parameter — the best worked example in the repo of why the
+never-a-confident-wrong-singleton rule earns its keep, and why the strip shows
+"could not rule out" and caps confidence at 0.5.
+
+**[1011](wp/1011-parameter-plan-editors.md) landed 2026-07-30 — the GUI can now
+be *used*, not only watched.** A virtualized grouped parameter table, a plan
+editor over the stages a run will actually execute, per-stage Run, a Cmd-K
+command palette and a Simple↔Advanced flag persisted to `ProjectDoc.ui`. The
+editing logic is in `gui/src/lib/` as pure functions, which is what let it be
+asserted without a DOM — 51 vitest cases now, against 15.
+
+Its founding decision is that **the filter box is the selection.** A bulk
+free/fix sends the *glob*, not the paths the client matched, because
+`Refinement.set_vary` takes one glob and records **one** history node for it — N
+ticked rows would be N globs and N nodes, and a log buried under them is not a
+log. That is also what makes a TypeScript matcher safe to have at all: it only
+ever *previews*, so a divergence from Python is a wrong count and never the wrong
+parameters freed. It is still held to Python exactly, by a committed corpus
+`tests/test_gui_fnmatch.py` generates from `fnmatch.fnmatchcase` over a **live**
+parameter vocabulary — two models chosen to disagree, so the shapes a hand-written
+corpus omits (`adp.0`, `microstrain.dof.3`, `source.lines.1.weight`) are the ones
+it is built from — plus every glob the seven shipped presets free. Two further
+rules came from the API rather than from taste: a held row gets **no vary checkbox
+at all** (a control that errors on click is worse than an absent one), and a typed
+number is compared to the **rendered** value — WP-1009's rule, needed again
+because a cell showing `4.1568(2)` would otherwise truncate a parameter on a
+click-in/click-out.
+
+**And it found the milestone's sixth latent defect, one that would have made the
+whole panel unreachable: `JSON.parse` rejects a bare `Infinity`.** `json.dumps`
+writes `Infinity`/`NaN` as bare tokens — a Python extension, not JSON — and
+`json.loads` accepts them straight back, so `/api/params` was an *unparseable
+response in a browser* while every Python test that read it passed. Almost every
+parameter row carries an infinite bound, so this was not an edge case; WP-1010
+shipped only because it fetched the curves and never the table. The GUI server was
+the one place in the package re-serialising already-dumped dicts with stdlib
+`json`, and so the one place the schemas' own convention
+(`ser_json_inf_nan="strings"`) was being lost — it now spells non-finite floats as
+strings on responses *and* SSE frames, pinned by `parse_constant` wired to raise
+over seven routes. `null` was considered and refused: it cannot distinguish +∞
+from −∞.
+
+Measured end to end over real HTTP, in the order the GUI performs them: 38 rows
+with 11 locked and 3 tied, `instrument.profile.*` freeing five parameters in one
+node, `phases.*.cell.*` freeing exactly `a` on a cubic cell, a tied edit refused
+in the verb's own words, one stage run through the same machinery as a fit, then
+the full plan to **Rwp 0.04153** — WP-1010's figure, unchanged.
+
+**[1010](wp/1010-frontend-scaffold.md) landed 2026-07-30 — there is a GUI you can
+look at.** `pxrdref gui my_sample.pxrd` now serves a real app: a Svelte 5 + Vite
+workspace under `gui/`, built into a **committed** dist at
+`src/pxrdref/gui/static` so `pip install pxrd-refine[gui]` never needs node —
+48.7 kB of JS (19.1 kB gzip), 52.8 kB of first-load bytes in three requests. It
+carries the shell, the obs/calc/diff/ticks plot and the console; the panels
+WP-1011…1016 owe are listed by name in the sidebar rather than stubbed. Driven end
+to end against the real server it converges a synthetic LaB6 project to **Rwp
+0.04153** and the plot's window endpoint returns 1498 of 4200 points with 17
+ticks. Its decisions are mostly refusals to duplicate: **no client-side
+decimator** (the window route already decimates through the shared helper, so the
+GUI plot and `pxrdref compare` cannot disagree about which points survive), **no
+vendored plotly** (injected at runtime from `/plotly.js`, so the app still boots
+without it and says so), and the **freshness digest defined once in stdlib
+Python** rather than as a JS hasher plus a Python re-implementation. Two hazards
+were found by checking rather than assuming, and both would have shipped
+silently: the repo-wide `*.html` ignore rule matched `static/index.html` — a dist
+whose freshness test is green on the machine that built it and whose entry point
+is missing from every fresh clone — and the wheel's contents are now asserted,
+because "installing the wheel never needs node" is the premise the whole design
+rests on. The page was **confirmed working by the user the same day**; what is still
+unmeasured is the *number* — **boot-to-interactive**, because no browser
+automation was available in the session, and a figure derived from payload sizes
+would not be a measurement. A jsdom mount test stands in for the screenshot and
+rules out the blank-page failure, which is what made shipping it defensible
+before anyone looked.
+
+**[1009](wp/1009-textdoc-format.md) landed 2026-07-30** — the project as text
+(`.pxt`), one parser, server-side only. Its founding decision was not in the
+charter: **a delta is computed against the live project, never against the old
+text.** `parse` is pure syntax and `changes` diffs the parsed document against
+`Refinement.parameters()` and `ProjectDoc`, which is what buys three properties at
+once — an untouched document emits *no* verbs (so an editor pane is safe to leave
+open), a read-only field can be shown without inventing a "look, don't touch"
+syntax because it errors only when it actually differs, and values can render at a
+readable 12 significant digits without an apply perturbing anything, since a typed
+number is compared to the *rendered* current value. Its own round-trip test caught
+two renderer bugs before they shipped — a fixed value column collided with its
+first annotation (`polarization  0.99min 0`, which the parser then refused) and a
+tie rendered mid-line swallowed everything after it, because `= 0.1993 + 1·…`
+contains spaces. Two deliberate deviations from the sketch are recorded rather
+than quietly implemented: **comments do not round-trip** (keeping one would mean
+storing it, i.e. a second authority), and `guard` joined the plan section because
+`correlation_guard` is part of a plan and would otherwise reset itself whenever a
+stage line was edited. And it found the milestone's fifth latent defect: **a Le
+Bail project's atom rows reported `mode_fixed=False`**, because `Refinement._mode`
+is what the last stage *ran* in while the document says what the next run will
+use — so a client would have rendered the mandatory Le Bail dummy atom's `biso`
+as editable, the one trap that flag exists to close.
+
+**[1008](wp/1008-gui-server.md) landed 2026-07-30** — `pxrdref gui` serves a
+localhost app over stdlib `http.server`: 35 live routes and 17 reserved ones, and
+**every verb a plain method on `GuiSession` with nothing about HTTP in it**, which
+is the Tauri seam and also what made the WP testable (the state machine against a
+stubbed refinement, the physics against one real fit driven over HTTP). Its
+decisions are mostly about what *not* to build. The **run state is not an event**:
+a failed fit emits no `fit_end`, `EventKind` is closed (WP-1006 declined to add a
+kind for a guess), so the state travels beside the events as its own SSE frame
+type and `live/events.jsonl` stays the one stream `pxrdref watch` tails.
+**`/api/history/branch` names a fork point rather than creating a ref**, because
+this DAG has only `head` and tags and a fork appears when you run from a node that
+already has a child — a route that created something would lie, one that only
+checked out would be a second spelling. And **the preset a project chose is not
+stored**, so `GET /api/plan` *derives* it by comparing the expanded spec against
+all seven presets — the `features` flag style one level up. The test found the one
+ordering bug that mattered: with a run in flight, an invalid `PATCH
+/api/structure` answered "structure has no phases", which is true and useless, so
+a state refusal now outranks body validation. Two facts the frontend needs are
+recorded rather than left to be met: `max_points` on `/api/result/window` is a
+budget, not a ceiling (4132 points for a 4200-point pattern at 4000), and a
+`checkout` discards the fitted curves, so result/report/export answer `NO_RESULT`
+until the next run.
+
+**The backend-API group is complete: [1004](wp/1004-parameter-plan-api.md),
+[1005](wp/1005-project-container.md), [1006](wp/1006-run-control.md) and
+[1007](wp/1007-capabilities-guards.md) all landed 2026-07-30**, which unblocked
+the server row [1008](wp/1008-gui-server.md). Four WPs framed as plumbing; four
+latent defects the framing had hidden, and the pattern is worth naming because it
+is the milestone's argument made concrete — **the GUI is not being served by these
+APIs, it is auditing them.** Every one of the four defects sat on a path no
+script had ever taken and every one was found by *needing* the surface rather
+than by reading it.
+
+[1005](wp/1005-project-container.md) is a `.pxrd/` **directory** —
+`project.json`, the pattern file copied byte-for-byte, `history.jsonl`, `live/`,
+`exports/` — behind `Project.create/open/save`. Its charter asked where an
+*un-run* edit lives, and the answer was to delete the second authority rather than
+choose between two: **`project.json` holds the settings, `history.jsonl` holds the
+model state, and its head is the working state.** The tree therefore exists from
+`create`, every `set_vary`/`set_values` commits a node, not one parameter value is
+duplicated between the two files — and *saving is about settings, not durability*,
+which is a sentence a GUI author needs before designing a close-confirmation
+dialog that has nothing to confirm.
+
+Its defect was in the history layer and it made the WP's own third task
+impossible: **HEAD did not survive a reload**, twice over. `add()` advances HEAD
+in memory but appends no ref record, so a log written by an ordinary `fit`
+reloaded with `refs == {}` — `tree["head"]` raised. And `load()` applied every
+node before every annotation, discarding file order, so an old `checkout`
+overrode the three stages committed after it and HEAD came back **stale**
+(measured: n0001 where the live tree stood at n0003). Records now replay in file
+order, which is the in-memory semantics of an append-only log rather than a
+re-reading of it. Two findings outlast it: **the reader *call* is part of a data
+reference**, not just the path (a pdCIF with a `_meas` and a `_calc` block reads
+as a different pattern, so `DataRef` records the reader and its options —
+recording only the filename made an SRM-660c-shaped project *unopenable*), and
+**two digests answer different questions** — sha256 of the bytes catches an edit,
+the parsed-array fingerprint catches a *reader change*, and their disagreement is
+diagnostic rather than corruption.
+
+[1007](wp/1007-capabilities-guards.md) gives a client one call for what it would
+otherwise guess — `capabilities()`, every arm quoted from a live registry with a
+meta-test that fails on a member missing from its arm, and `available` per backend
+answering the question the registry cannot (does its optional dependency import
+*here*). Two design results worth carrying: **`features` flags are derived
+predicates, never literal booleans** — `features["indexing"]` is False today and
+flips by itself when `index()` lands — and **there are four versioned contracts,
+not three**, because an SSE consumer needs `event_schema_version` too. Its defect
+is the one the WP was named for, found in our own code: `GuardReport` held
+formatted prose and `_guard_diagnostics` recovered a path from it with
+`msg.split(" ")[0]`, which yields nothing usable for a *pair* — so
+**`Diagnostic.where` was empty on `HIGH_CORRELATION`**, the finding a GUI most
+wants to make clickable, and the only way to learn which two parameters were
+degenerate was to parse `"a ~ b (ρ=+0.994)"`. Guard hits are now
+`GuardFinding(code, paths, value, message)`; every rendered string is pinned
+byte-for-byte by literals captured before the change, and the measured
+before/after difference is exactly `where: [] → the two paths`.
+
+Landed first, and each with its own defect: **[1004](wp/1004-parameter-plan-api.md)
+and [1006](wp/1006-run-control.md)** on branch `v1-gui-backend-api`.
 
 1004's charter was "the spec twins are duplicated and one of them loses data",
 and the fix (one `StageSpec`/`PlanSpec` in `schemas/plan.py`) was the easy half.
@@ -1361,19 +1965,20 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1001](wp/1001-validation-matrix.md) | Validation matrix + tolerance policy | ✅ 2026-07-29 | — |
 | [1002](wp/1002-ci-matrix.md) | CI matrix | ✅ 2026-07-29 | — |
 | [1004](wp/1004-parameter-plan-api.md) | Parameter & plan API surface | ✅ 2026-07-30 | — |
-| [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ⬜ | 1004 |
+| [1005](wp/1005-project-container.md) | Project container (`.pxrd/`) | ✅ 2026-07-30 | 1004 |
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
-| [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ⬜ | 1004 |
-| [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ⬜ | 1004–1007 |
-| [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ⬜ | 1004, 1005 |
-| [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ⬜ | 1008 |
-| [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ⬜ | 1010 |
-| [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ⬜ | 1010 |
-| [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ⬜ | 1009, 1010 |
-| [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ⬜ | 1008, 1010 |
-| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ⬜ | 1010 (1014 soft) |
+| [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
+| [1008](wp/1008-gui-server.md) | GUI server, session model, `pxrdref gui` | ✅ 2026-07-30 | 1004–1007 |
+| [1009](wp/1009-textdoc-format.md) | Project text document (`.pxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
+| [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
+| [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
+| [1012](wp/1012-history-report-panel.md) | History worktree, report panel, one-click suggestions | ✅ 2026-07-30 | 1010 |
+| [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
+| [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
+| [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
-| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016 (soft) |
+| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | 🔄 | 1010–1015 |
+| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1030 |
 
 ### v1.0 — indexing (added 2026-07-29)
@@ -1633,6 +2238,24 @@ acceptance fixture whose correct answer is "we do not know".
 **It is not merged into `main` and does not need to be** — `git show
 guillemot-study:studies/guillemot/<file>` reads any of it without a checkout.
 The tag is what guarantees that stays true if the branch is ever pruned.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ⬜ | — (before 1003 if frozen) |
+| [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
+
+**1050/1051 came from a literature review** (2026-07-30, Toby 2024 *J. Appl.
+Cryst.* **57**, 175 and Tian 2013 *J. Appl. Cryst.* **46**, 255 — SrRietveld).
+1050 is Toby's worst-fit-parameter mechanism made strictly stronger by what
+this package has and GSAS-II lacks: reusable analytic Jacobian columns (his ±δ
+FD, per-type δ heuristics and sign test all collapse into one Gauss-Newton
+score gain), plus collinearity gates so his own stated failure mode comes back
+as an unresolved group, never a confident singleton. 1051 is the one part of
+SrRietveld not already superseded here: its diverge-then-escalate scheme,
+which our chain has only two leaky rungs of — including a measured hygiene
+defect where a doubly-diverged pattern still seeds its successor. The review's
+third adoption, weighted Δ/σ difference curves as the default Rietveld panel,
+was small enough to land directly (commit `732535d`).
 
 ## v2+ (seams pre-built, implementations fenced out)
 

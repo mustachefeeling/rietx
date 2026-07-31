@@ -1,0 +1,149 @@
+/** The event stream's bookkeeping, as pure functions so it can be unit-tested.
+ *
+ * `/api/events` multiplexes two SSE frame types over one connection:
+ *
+ *   * `event: event` — an engine event dict (`fit_start`, `stage_start`, `eval`,
+ *     `stage_end`, `fit_end`), carrying `seq` and an **open** `data` object;
+ *   * `event: state` — the session's run state, which exists because a *failed*
+ *     fit emits no `fit_end`: a follower watching engine events alone would hang
+ *     on exactly the case it most needs to report.
+ *
+ * Two rules are encoded here rather than left to each caller.  Event `data` is
+ * read field by field with `?.` — the contract says fields are additive, so
+ * destructuring a fixed shape is what breaks on the next release.  And the
+ * `seq` cursor can genuinely fall behind: the server's ring holds 4096 events
+ * and a staged fit emits one per residual evaluation, so `oldest` is compared
+ * against the cursor and a real gap is *reported*, never silently renumbered.
+ */
+
+export interface EngineEvent {
+  seq: number;
+  kind: string;
+  t: number;
+  data: Record<string, any>;
+}
+
+export interface RunState {
+  state: "idle" | "running" | "cancelling";
+  run: {
+    kind: string | null;
+    status: string | null;
+    stage: string | null;
+    stage_index: number | null;
+    n_stages: number | null;
+    rwp: number | null;
+    gof: number | null;
+    node_id: string | null;
+    completed_stages: string[];
+    error: { code: string; message: string } | null;
+    elapsed?: number | null;
+  };
+  project: string | null;
+  head: string | null;
+}
+
+/** One console line: what an event says, in the order a reader wants it. */
+export function consoleLine(event: EngineEvent): string {
+  const data = event.data ?? {};
+  const time = new Date((event.t ?? 0) * 1000).toLocaleTimeString();
+  const body = Object.entries(data)
+    .map(([key, value]) => `${key}=${format(value)}`)
+    .join(" ");
+  return `${time}  ${event.kind.padEnd(11)} ${body}`;
+}
+
+function format(value: unknown): string {
+  if (typeof value === "number") return String(Number(value.toPrecision(6)));
+  if (Array.isArray(value)) return `[${value.length}]`;
+  return JSON.stringify(value) ?? String(value);
+}
+
+/** Progress as a fraction, or `null` when the run has not said enough yet.
+ *
+ * Derived from `stage_start`'s **1-based** `index`/`n_stages` (WP-1006 put them
+ * there precisely so a client needs no bookkeeping), and deliberately coarse: a
+ * per-evaluation bar would be a lie, since a stage's evaluation count is not
+ * known until it ends. */
+export function stageProgress(state: RunState): number | null {
+  const { stage_index, n_stages } = state.run;
+  if (!stage_index || !n_stages) return null;
+  return Math.min(1, (stage_index - 1) / n_stages);
+}
+
+export interface Cursor {
+  seq: number;
+  dropped: number;
+}
+
+/** Advance a cursor over a batch, counting frames the ring dropped.
+ *
+ * `oldest` is the lowest seq the server still holds.  If it is more than one
+ * past our cursor, events vanished between polls and the count is surfaced —
+ * a console that silently skips 300 evaluations looks like a stalled fit. */
+export function advance(cursor: Cursor, batch: { events: EngineEvent[]; oldest?: number; next?: number }): Cursor {
+  const oldest = batch.oldest ?? cursor.seq + 1;
+  const gap = Math.max(0, oldest - (cursor.seq + 1));
+  const last = batch.events.length ? batch.events[batch.events.length - 1].seq : batch.next ?? cursor.seq;
+  return { seq: Math.max(cursor.seq, last), dropped: cursor.dropped + gap };
+}
+
+/** Follow the stream: SSE when it works, `?poll=1` when it does not.
+ *
+ * EventSource cannot be told "resume at seq N" once it reconnects on its own,
+ * so the query carries the cursor and a reconnect re-opens with the cursor we
+ * hold — which is why the server accepts `?since=` on the SSE route too. */
+export function follow(
+  onEvent: (event: EngineEvent) => void,
+  onState: (state: RunState) => void,
+  options: { since?: number; poll?: (since: number) => Promise<any> } = {},
+): () => void {
+  let cursor: Cursor = { seq: options.since ?? 0, dropped: 0 };
+  let stopped = false;
+  let source: EventSource | null = null;
+  let timer: number | null = null;
+
+  const openSse = () => {
+    if (stopped) return;
+    source = new EventSource(`/api/events?since=${cursor.seq}`);
+    source.addEventListener("event", (message) => {
+      const event = JSON.parse((message as MessageEvent).data) as EngineEvent;
+      cursor = { ...cursor, seq: Math.max(cursor.seq, event.seq) };
+      onEvent(event);
+    });
+    source.addEventListener("state", (message) => {
+      onState(JSON.parse((message as MessageEvent).data) as RunState);
+    });
+    source.onerror = () => {
+      // The server closes the connection per response (HTTP/1.0 semantics), so
+      // an error here is ordinary. EventSource reconnects by itself; we only
+      // fall back to polling if it is unavailable at all.
+      if (!source || source.readyState === EventSource.CLOSED) startPolling();
+    };
+  };
+
+  const startPolling = () => {
+    if (stopped || timer !== null || !options.poll) return;
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const batch = await options.poll!(cursor.seq);
+        for (const event of batch.events ?? []) onEvent(event);
+        cursor = advance(cursor, batch);
+        if (batch.state) onState(batch as RunState);
+      } catch {
+        /* the server is gone; the next tick will find out */
+      }
+      timer = window.setTimeout(tick, 700);
+    };
+    timer = window.setTimeout(tick, 0);
+  };
+
+  if (typeof EventSource === "undefined") startPolling();
+  else openSse();
+
+  return () => {
+    stopped = true;
+    source?.close();
+    if (timer !== null) window.clearTimeout(timer);
+  };
+}

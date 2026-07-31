@@ -187,7 +187,7 @@ def test_decimation_keeps_peak_tops_and_the_endpoints():
     peaks = np.zeros_like(tt)
     for centre in (20.0, 33.3, 47.7, 61.1):
         peaks += np.exp(-0.5 * ((tt - centre) / 0.02) ** 2)
-    idx = cmp._decimation_index(tt, [peaks], 2000)
+    idx = cmp.decimation_index(tt, [peaks], 2000)
 
     assert len(idx) <= 2200 and len(idx) > 100
     assert idx[0] == 0 and idx[-1] == len(tt) - 1
@@ -201,7 +201,7 @@ def test_decimation_keeps_peak_tops_and_the_endpoints():
 
 def test_decimation_is_the_identity_below_the_budget():
     tt = np.linspace(0.0, 1.0, 50)
-    assert np.array_equal(cmp._decimation_index(tt, [tt], 4000), np.arange(50))
+    assert np.array_equal(cmp.decimation_index(tt, [tt], 4000), np.arange(50))
 
 
 # ----------------------------------------------------------------------

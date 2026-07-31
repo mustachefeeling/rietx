@@ -1,6 +1,6 @@
 # WP-1007 — Capabilities, structured guards, background export
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ✅ complete 2026-07-30
 Depends on: WP-1004
 
 ## Goal
@@ -85,17 +85,25 @@ the same commit.
 
 ## Tasks
 
-- [ ] `src/pxrdref/capabilities.py` + registry meta-test
+- [x] `src/pxrdref/capabilities.py` + registry meta-test
       (`tests/test_capabilities.py`).
-- [ ] `GuardFinding` (code, paths, value, message); `GuardReport`'s six
+- [x] `GuardFinding` (code, paths, value, message); `GuardReport`'s six
       fields → `list[GuardFinding]` with `__str__` preserving today's text —
       test pins the rendered strings against the current output on a
       known-degenerate synthetic fit, so consumers provably see no change.
-- [ ] Export `auto_background` and `diagnose` from `pxrdref.__init__`
+      (Pinned as *literals captured from the pre-change output* — see the
+      handover; re-deriving them from the constructors would test nothing.)
+- [x] Export `auto_background` and `diagnose` from `pxrdref.__init__`
       (+ `__all__`), with a smoke test importing them from the top level.
-- [ ] Reader-formats arm of `capabilities()` states what `read_pattern`
+      `PreferredOrientation` (the WP-1028 note), `capabilities` and
+      `GuardFinding` went with them.
+- [x] Reader-formats arm of `capabilities()` states what `read_pattern`
       actually sniffs (xy/xye, GSAS `BANK` incl. FXYE/STD, pdCIF) — sourced
-      from `io/readers.py`, not restated by hand.
+      from `io/readers.py`, not restated by hand. The registry it quotes
+      (`PATTERN_FORMATS`) landed in WP-1005, which needed the same facts.
+- [x] Extra: the **four** versioned contracts in one place — schema, report
+      thresholds, **event schema** (an SSE consumer needs it) and project
+      format.
 
 ## Acceptance
 
@@ -103,6 +111,14 @@ the same commit.
 .venv/bin/python -m pytest tests/test_capabilities.py tests/test_refine_synthetic.py -q
 .venv/bin/python -m ruff check src tests examples
 ```
+
+Measured 2026-07-30: `tests/test_capabilities.py` 19 passed, fast suite 1067
+passed / 107 skipped in 15-33 s (the skips are the jax/torch rows — this
+worktree's venv is `[dev]` only), ruff clean. The guard change was verified by
+capturing `GuardReport` + `_guard_diagnostics` output on the collinear
+zero-shift/sample-displacement fit **before and after**: every rendered string
+and every diagnostic message byte-identical, the single difference being
+`HIGH_CORRELATION`'s `where` going from `[]` to its two paths.
 
 ## References
 
@@ -114,3 +130,71 @@ the same commit.
 - **2026-07-29** — created from the v1.0 GUI plan. GuardReport field names
   and the missing top-level background exports verified against the tree the
   same day.
+- **2026-07-30** — **complete.** All four tasks plus one addition; 19 tests.
+
+  *Done / decided:*
+
+  - **`capabilities()` returns a pydantic `Capabilities`, not a dict**, so
+    WP-1008 can serve it verbatim and a client gets a schema. Arms: backends
+    (name / available / experimental / requires / dtype), solvers, plans (the
+    four `PLAN_INFO` facts), modes, anodes, reader formats, features, and the
+    four contract versions.
+  - **`available` is the arm the registry cannot supply**, and it is the point of
+    the backends arm: `BACKEND_NAMES` says jax *exists*, `find_spec` says whether
+    it imports **here**. A backend menu needs the second.
+  - The plans arm iterates **`PLAN_INFO`**, not `PLAN_PRESETS` — following this
+    WP's inherited note from 1004: the bijection is already tested elsewhere, so
+    quoting the side that carries the chooser's four facts keeps the arm complete
+    without a second assertion about the same pair.
+  - `features` are **derived predicates**, not literal booleans: schema-field
+    presence for the corrections, top-level-export presence for the entry points.
+    The rule earns its keep immediately — `features["indexing"]` is False today
+    and flips on its own when `pxrdref.index` lands, so nobody has to remember.
+  - **Four versioned contracts, not three.** `event_schema_version` was not in
+    the charter and belongs: an SSE consumer is exactly the client that must know
+    whether a new event *kind* has appeared (a field is additive, a kind is a
+    bump — WP-1006's rule).
+  - `GuardFinding` is a **frozen** dataclass (hashable, so findings dedupe) with
+    an **open** `code` vocabulary, per the WP-1028 note. It is the same vocabulary
+    as `Diagnostic.code` rather than a second one, which turned six hand-written
+    loops into a mapping the finding carries itself.
+
+  *The finding, and it is the reason this WP existed:* the prose really was being
+  regexed — by *us*. `_guard_diagnostics` recovered a parameter path with
+  `msg.split(" ")[0]`, which happens to work for the five single-path findings and
+  yields **nothing usable for a correlation**, whose rendered form is
+  `"a ~ b (ρ=+0.994)"`. So `Diagnostic.where` was **empty on exactly the finding a
+  client most wants to make clickable**, and a GUI would have had to parse the
+  message to learn which two parameters were degenerate. Measured before/after on
+  the collinear zero-shift/sample-displacement fit: every message byte-identical,
+  `where` `[]` → `["instrument.zero_shift",
+  "instrument.geometry.sample_displacement"]`. AGENT_PROTOCOL §7 now says to read
+  `where` and never split the message.
+
+  *Gotchas for whoever touches this next:*
+
+  - **The rendered-string pin is a table of literals**, captured from the
+    pre-change output by running the degenerate fit. If you regenerate them from
+    the constructors the test becomes a tautology — the whole point is that
+    `str(finding)` is a *published* surface, since the diagnostics' messages are
+    built from it.
+  - Every format string that used to live at three call sites (`staged.py` twice,
+    `multi.py` once) is now one constructor. `multi.py`'s `hist.{h}.{path}`
+    prefix is kept deliberately: it is this surface's own addressing, the same one
+    `RefinedParameter.path` uses per histogram, so a finding's paths stay
+    resolvable against the result a client is holding.
+  - The anode/Kβ tables (`_RADIATIONS`, `_KA_DOUBLETS`, `_KBETA`) are imported
+    under their private names rather than being re-exported. Deliberate: the
+    meta-test fails loudly if a name moves, and this late in the milestone a new
+    public alias is new surface for WP-1003 to freeze for no gain.
+  - **Solvers are a bare `list[str]`.** There are two and the answer is almost
+    always `"trf"`, so there is no `SOLVER_INFO` to quote. If the GUI wants a
+    per-solver description, add it *beside `SOLVERS`* and have `agent.py`'s
+    `_SOLVER_DESC` quote it too — do not write a second copy in the frontend.
+  - No new guards and no threshold changes, as fenced. `GuardReport.findings()`
+    exists for a consumer that wants them all in emission order.
+
+  *Not done, deliberately:* the **indexing engines arm**. There is no engine
+  registry yet (`indexing/` holds peak picking only), and guessing its name would
+  produce an arm that passes its own meta-test while lying — precisely what this
+  WP's inherited note warns against. Told WP-1024 what to add.

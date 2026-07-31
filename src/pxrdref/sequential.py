@@ -59,7 +59,7 @@ from .schemas.pattern import PatternData
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesEntry, SeriesResult
 from .schemas.structure import Structure
-from .strategy.staged import PLAN_PRESETS, RefinementPlan, Stage
+from .strategy.staged import RefinementPlan, Stage, resolve_plan
 
 #: Rwp above this multiple of the accepted-so-far **median** triggers a cold
 #: refit.  A median rather than the previous value on purpose: one bad pattern
@@ -149,21 +149,6 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard)
-
-
-def _resolve_plan(plan: RefinementPlan | str, mode: Mode) -> RefinementPlan:
-    if not isinstance(plan, str):
-        return plan
-    name = plan
-    if name == "mccusker_default" and mode == "lebail":
-        name = "profile_only"
-    elif name == "mccusker_default" and mode == "pawley":
-        name = "pawley_default"
-    try:
-        return PLAN_PRESETS[name]()
-    except KeyError:
-        raise ValueError(f"unknown plan preset {plan!r}; "
-                         f"available: {sorted(PLAN_PRESETS)}") from None
 
 
 def _carry_into(structure: Structure, instrument: Instrument,
@@ -335,7 +320,7 @@ class SequentialRefinement:
         xs = [None] * len(patterns) if x is None else [float(v) for v in x]
         if x is not None and x_label == "index":
             x_label = "x"
-        base_plan = _resolve_plan(plan, mode)
+        base_plan = resolve_plan(plan, mode)
         warm_plan = base_plan if refit == "stages" else _collapse(base_plan)
 
         order = list(range(len(patterns)))

@@ -201,6 +201,22 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | BGMN / Profex | GPL | Studied (papers/docs only). **No code ported.** |
 | xrayutilities | GPL-2.0 | Studied (papers/docs only). **No code ported.** |
 
+## Bundled frontend code (redistributed in the wheel)
+
+Every other row above is either studied or installed by the user's own package
+manager. These are different in kind: the GUI's build output is **committed**
+under `src/pxrdref/gui/static` and ships inside the wheel, so this package
+redistributes their compiled bytes. All are MIT, and none is modified — the
+lockfile `gui/package-lock.json` is the version statement, and
+`tests/test_gui_dist.py` is what keeps the shipped bytes tied to the sources
+they were built from.
+
+| Project | License | Relationship |
+|---|---|---|
+| Svelte | MIT | **Bundled** (WP-1010) — the compiler is a build-time tool, but its runtime is part of `assets/app.js`. |
+| CodeMirror 6 (`@codemirror/*`, `@lezer/highlight`, `style-mod`, `w3c-keyname`, `crelt`) | MIT | **Bundled** (WP-1013) — the text pane's editor, in its own `assets/vendor-cm.js` chunk, fetched when the pane is first opened. Unmodified: the `.pxt` highlighting is a `StreamLanguage` defined in this repo (`gui/src/lib/pxt.ts`), not a patched grammar. |
+| plotly.js | MIT | **Not bundled** — served at runtime from the installed `plotly` Python package (`/plotly.js`), so the dist carries no copy. |
+
 ## Data tables
 
 - `src/pxrdref/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
@@ -228,5 +244,26 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   gemmi is already a dependency — its f″ is sound (and is used as a test
   oracle) but its f′ disagrees with every published tabulation for several
   lanthanides and actinides.
+- Element **colours** in `src/pxrdref/gui/structure3d.py` (`_CPK`) — the
+  *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
+  24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,
+  nitrogen blue, oxygen red, sulfur yellow, halogens green, and so on. The hex
+  values are **chosen here** for contrast against both a light and a dark page —
+  pure white and pure black each vanish into one of them — so no table is
+  transcribed from another implementation (Jmol, VESTA and PyMOL all publish one,
+  and all are GPL or otherwise unsuitable to copy into an MIT core). Elements the
+  convention does not name get a colour *derived* from the atomic number rather
+  than looked up. Element **radii** and the metal flag come from gemmi, which is
+  already a dependency.
+- The **OKLab** colour space in the same module (WP-1029) — Björn Ottosson,
+  "A perceptual color space for image processing" (2020),
+  https://bottosson.github.io/posts/oklab/, whose reference implementation is
+  released as public domain / MIT at the author's option. What is used here is
+  the *published transform*: two 3×3 matrices and a cube root, transcribed from
+  the paper's own statement of them, which is the same standing as the
+  Cromer-Liberman tabulation above — a published numerical definition, not
+  someone's implementation of one. It exists because sRGB has no perceptual
+  distance, and the whole question the palette pass answers is "are these two
+  colours the same colour to a person".
 - Test patterns under `tests/data/` — see `tests/data/README.md` for per-file
   provenance (NIST / APS 11-BM public data are works of the U.S. Government).

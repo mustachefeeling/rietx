@@ -376,7 +376,8 @@ def test_po_is_identifiable_from_scale_and_biso():
     worst = max(abs(corr[ir, j]) for j in range(len(free)) if j != ir)
     assert worst < 0.9, f"PO should be identifiable here, |ρ|max={worst:.2f}"
     guard = check_guards(table, outcome, threshold=0.9)
-    assert not any("preferred_orientation" in c for c in guard.high_correlations)
+    assert not any(any("preferred_orientation" in p for p in c.paths)
+                   for c in guard.high_correlations)
 
 
 # -- Layer-1 texture diagnostic ----------------------------------------

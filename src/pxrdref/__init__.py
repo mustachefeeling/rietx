@@ -1,6 +1,15 @@
 """pxrd-refine: API-first Rietveld refinement of powder X-ray diffraction data."""
 
 from . import agent
+
+# The background estimator and the model-free pattern diagnostics were reachable
+# only as ``pxrdref.background.auto_background`` — this module never imported
+# ``background`` at all — so the two calls a client makes *before* its first fit
+# were the two it had to go digging for (WP-1007).  Remember the invariant: an
+# estimated background is held additively or co-refined under a penalty, never
+# subtracted.
+from .background import auto_background, diagnose
+from .capabilities import capabilities
 from .crystallography.cif import format_su
 from .history import RefinementTree
 from .indexing import determine_extinction_symbol, index_pattern, pick_peaks
@@ -16,6 +25,7 @@ from .io.readers import read_pattern, read_pdcif
 from .multi import MultiHistogramRefinement, refine_multi
 from .optimize.cancel import CancelToken, RefinementCancelled
 from .params.multi import SharingMap
+from .project import Project
 from .refine import Refinement, estimate_mu_r, refine, replay
 from .report import FitReport, RegionAttribution, SuggestedAction, build_report
 from .schemas import (
@@ -26,6 +36,7 @@ from .schemas import (
     Parameter,
     PatternData,
     Phase,
+    PreferredOrientation,
     RefinementResult,
     Structure,
 )
@@ -40,11 +51,13 @@ from .schemas.indexing import (
 )
 from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
+from .schemas.project import DataRef, ProjectDoc
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
 from .sequential import SequentialRefinement, refine_sequential
 from .strategy.staged import (
     PLAN_INFO,
     PLAN_PRESETS,
+    GuardFinding,
     PlanInfo,
     RefinementPlan,
     Stage,
@@ -57,7 +70,9 @@ __all__ = [
     "CancelToken",
     "Cell",
     "CellCandidate",
+    "DataRef",
     "FitReport",
+    "GuardFinding",
     "HistoryNode",
     "Instrument",
     "ExtinctionCandidate",
@@ -75,6 +90,9 @@ __all__ = [
     "Phase",
     "PlanInfo",
     "PlanSpec",
+    "PreferredOrientation",
+    "Project",
+    "ProjectDoc",
     "Refinement",
     "RefinementCancelled",
     "RefinementPlan",
@@ -93,7 +111,10 @@ __all__ = [
     "TieSpec",
     "Trajectory",
     "SuggestedAction",
+    "auto_background",
     "build_report",
+    "capabilities",
+    "diagnose",
     "format_su",
     "determine_extinction_symbol",
     "index_pattern",

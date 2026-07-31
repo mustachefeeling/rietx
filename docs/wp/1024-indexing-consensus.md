@@ -96,6 +96,22 @@ ambiguities, validates the survivors by Le Bail fit, and gates confidence on
 
 ### Inherited
 
+From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **`structure_from_candidate`'s
+dummy atom must carry a species with a form factor.** `GuiSession._as_structure`
+now refuses a structure whose atom species is absent from the Waasmaier-Kirfel
+table (`crystallography.scattering.normalize_species`), naming the atom — a
+GUI-boundary judgement, because such a structure validates fine and fails at
+*stage compile* instead. So a placeholder species like `"Xx"` or `"?"` would make
+an adopted cell unloadable through the GUI while working from Python; pick a real
+element (the dummy exists only because `Phase._nonempty` refuses an empty atom
+list, and `_run_stage` force-fixes `.atoms.` in lebail mode, so its identity is
+inert either way). Related, already noted in WP-1004: the parameter surface should
+make that atom's *placeholder* status legible.
+
+Adopting a cell also has a route now: `PATCH /api/structure` takes a whole
+validated model and records one `edit_model` node, and the structure editor
+(WP-1014) is what a user will see the adopted phase in.
+
 From **WP-1006** (landed 2026-07-30): the `"index"` **run kind that WP's
 Inherited asked for was deliberately not added** — `EventKind` is a closed
 Literal and a kind nothing emits is an untested guess about a search loop that
@@ -110,10 +126,57 @@ it *is* a `EVENT_SCHEMA_VERSION` bump — a new kind bumps, an added field does
 not. That rule is now written down in `history/events.py`; read it before
 touching the constant.
 
+From **WP-1012** (landed 2026-07-30): **`reindex_or_recheck_cell` is already
+declared applicable and already wired to a refusal that expires by itself.**
+`report/apply.py` classifies it `how="index"`, and `GuiSession.report_apply` refuses
+it with `ACTION_NOT_APPLICABLE` naming WP-1024 *only while*
+`capabilities().features["indexing"]` is False — a derived predicate
+(`hasattr(pxrdref, "index")`), so the report panel's Apply button on that suggestion
+turns on the moment `index()` exists, with **no edit in `report/apply.py`, in the
+session, or in the frontend**. Two consequences for this WP:
+
+- `tests/test_report_apply.py::test_indexing_is_declared_applicable_and_refused_until_an_engine_exists`
+  asserts `pr.capabilities().features["indexing"] is False` with a message saying
+  the applicable branch is now the live one. **It will fail here, deliberately** —
+  flip that assertion in this WP's commit and add the positive case.
+- `report/apply.py`'s `refusal()` is the only place indexing-availability is
+  consulted, and it takes `indexing: bool` as an argument rather than importing
+  `capabilities` — so if `index()` needs a *precondition* beyond existing (a peak
+  list, say), that precondition belongs in the session's `_indexing()`, not spread
+  through the report module.
+
+Also: **applying an action is one `StageSpec` through `POST /api/report/apply`**,
+which is a stage-shaped verb. An indexing run is not a stage, so this WP has to
+decide whether the apply route grows a second shape or whether the report panel's
+button posts `/api/index` directly. The second is cleaner and needs nothing new;
+the first would make the panel's control uniform. `Recipe.how == "index"` exists to
+mark exactly this fork.
+
 From **WP-1021/1022/1023**: each engine registers itself; `engines_run`,
 `engine_stats` and `search_complete` come from the registry, and
 `agent.tool_definition()` must quote the **live** registry so a new engine
 cannot be absent from the exported schema (the WP-0602 meta-test pattern).
+
+From **WP-1007** (landed 2026-07-30): **`capabilities()` exists and has no
+indexing arm — adding it is this WP's commit.** It was left out deliberately
+rather than stubbed: there is no engine registry yet, and a hardcoded or
+wrongly-named lookup would pass its own meta-test *while lying*, which is the
+failure that note was written to prevent. What to do here, in one commit:
+
+- add an `indexing_engines` arm to `capabilities.py` quoting the live registry
+  (name / title / when-to-use / whether it is a re-scorer rather than an
+  independent opinion — the WP-1023 no-go case), and extend
+  `tests/test_capabilities.py`'s registry meta-tests with it, exactly as the
+  backend/solver/plan/anode/reader arms are;
+- nothing else: **`features["indexing"]` needs no edit.** It is
+  `hasattr(pxrdref, "index")`, a derived predicate, so it flips the moment
+  WP-1020 exports `index()`. Every flag there is derived for this reason; if you
+  find yourself writing a literal `True`, that is the smell.
+
+Also from **WP-1007**: guard hits are now `GuardFinding(code, paths, value,
+message)` with an **open** `code` vocabulary, so an indexing guard (an ambiguous
+cell, a restricted search) can be reported through the same channel without
+reopening a `Literal`, and `Diagnostic.where` is expected to carry paths.
 
 From **WP-1023**: if its spike returned **no-go**, engine C is dropped from the
 confidence gate and `high` requires the two remaining engines — make that

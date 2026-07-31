@@ -11,6 +11,8 @@ Poisson fallback (review finding M5).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -18,19 +20,59 @@ import numpy as np
 from ..schemas.pattern import PatternData
 
 
-def read_pattern(path: str | Path) -> PatternData:
+@dataclass(frozen=True)
+class PatternFormat:
+    """One format :func:`read_pattern` accepts, and how it is recognised.
+
+    A registry rather than a chain of ``if``s inside ``read_pattern`` because
+    three consumers need the *same* facts and each would otherwise restate them:
+    the dispatch itself, ``capabilities()`` (which must say what this package
+    can actually open — WP-1007), and a project's ``DataRef``, which records
+    *which reader claimed the file* so re-opening reproduces the reader call and
+    not merely the bytes (WP-1005).
+
+    ``options`` names the reader keywords a caller may have supplied, because
+    those have to be recorded and replayed too: a pdCIF holding both a ``_meas``
+    and a ``_calc`` block (the NIST SRM certification files do) reads as a
+    different pattern depending on ``block``.
+    """
+
+    name: str
+    title: str
+    #: conventional suffixes — informational except where ``sniff`` uses them
+    extensions: tuple[str, ...]
+    #: how the format is recognised, in words a UI can show
+    sniff: str
+    #: where per-point σ comes from, or how the Poisson fallback is reached
+    sigma: str
+    matches: Callable[[Path], bool]
+    read: Callable[..., PatternData]
+    options: tuple[str, ...] = field(default_factory=tuple)
+
+
+def read_pattern(path: str | Path, *, block: str | None = None) -> PatternData:
     """Read any supported pattern file, dispatching on *content* first.
 
     GSAS raw files are recognised by their ``BANK`` record rather than by
     suffix — the format is written with a zoo of extensions (``.fxye``,
     ``.gsas``, ``.gda``, ``.xra``, ``.raw``, …) and the record is unambiguous.
+
+    ``block`` is passed through to :func:`read_pdcif` and ignored by the other
+    formats, so a caller (or a project reopening its own pattern) can name the
+    data block without having to know which reader will claim the file.
     """
     p = Path(path)
-    if p.suffix.lower() == ".cif":
-        return read_pdcif(p)
-    if _looks_gsas(p):
-        return _read_gsas(p)
-    return _read_xy(p)
+    fmt = identify_format(p)
+    return fmt.read(p, block=block) if "block" in fmt.options else fmt.read(p)
+
+
+def identify_format(path: str | Path) -> PatternFormat:
+    """Which registered format claims ``path`` — the dispatch, written once."""
+    p = Path(path)
+    for fmt in PATTERN_FORMATS:
+        if fmt.matches(p):
+            return fmt
+    raise ValueError(f"no reader claims {p}")  # pragma: no cover - xy is total
 
 
 #: pdCIF tag alternatives, in preference order (IUCr pdCIF dictionary,
@@ -193,3 +235,40 @@ def _read_gsas(p: Path) -> PatternData:
         sigma = np.asarray(sigma)[good].tolist()
     return PatternData(two_theta=tt.tolist(), intensity=y.tolist(), sigma=sigma,
                        metadata={"source_file": p.name, "format": f"gsas-{type_flag.lower()}"})
+
+
+#: Every format ``read_pattern`` accepts, **in dispatch order** — the first
+#: whose ``matches`` returns True reads the file, and ``xy`` is the total
+#: fallback, so the order is part of the behaviour rather than presentation.
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (
+    PatternFormat(
+        name="pdcif",
+        title="Powder CIF (pdCIF)",
+        extensions=(".cif",),
+        sniff="the .cif suffix, then a recognised 2θ + intensity loop",
+        sigma=("an explicit …_su/…_esd loop, else _pd_proc_ls_weight read as "
+               "w = 1/σ², else the Poisson fallback"),
+        matches=lambda p: p.suffix.lower() == ".cif",
+        read=read_pdcif,
+        options=("block",),
+    ),
+    PatternFormat(
+        name="gsas",
+        title="GSAS raw powder data (FXYE / ESD / STD)",
+        extensions=(".fxye", ".gsas", ".gda", ".xra", ".raw"),
+        sniff="a BANK record in the first 4 kB — by content, not by suffix",
+        sigma=("the third column (FXYE) or second (ESD); an STD bank carries "
+               "counts only and takes the Poisson fallback"),
+        matches=_looks_gsas,
+        read=_read_gsas,
+    ),
+    PatternFormat(
+        name="xy",
+        title="Two/three-column ASCII (.xy / .xye)",
+        extensions=(".xy", ".xye", ".dat", ".prn", ".txt"),
+        sniff="anything else that parses as numeric rows",
+        sigma="the third column when present and positive, else the Poisson fallback",
+        matches=lambda p: True,
+        read=_read_xy,
+    ),
+)

@@ -449,7 +449,9 @@ def test_guard_flags_coefficients_outside_the_physical_cone():
     bad[_L4_ROW] = -50.0 * abs(good[_L4_ROW])
     model, table = _compiled(_strain_from_coef(bad, vary=False))
     flagged = check_stephens_positive(table, model)
-    assert len(flagged) == 1 and flagged[0].startswith("phases.0.microstrain")
+    assert len(flagged) == 1
+    assert flagged[0].paths == ("phases.0.microstrain",)
+    assert str(flagged[0]).startswith("phases.0.microstrain")
 
     diags = _guard_diagnostics(GuardReport(nonpositive_strain=flagged))
     assert [d.code for d in diags] == ["STEPHENS_STRAIN_NOT_POSITIVE"]

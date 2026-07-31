@@ -72,28 +72,37 @@ class RefinementTree:
     def load(cls, path: str | Path) -> "RefinementTree":
         """Rebuild a tree from its JSONL log.
 
-        Records are applied in file order — header, nodes, then annotations —
-        so later annotations overlay earlier nodes without any rewriting.
+        Records are applied **in file order**, replaying exactly what the
+        in-memory tree did as each was appended: a node record advances HEAD
+        (:meth:`add` does), an annotation's refs overlay whatever HEAD was when
+        it was written.  File order is the only thing that says which of the two
+        came last, and reading it wrongly cost both halves of "resume where the
+        session left off" (WP-1005): nodes-then-annotations put HEAD at the node
+        an old ``checkout`` had annotated rather than at the last node committed
+        after it, and a log written by a plain ``fit`` — which appends nodes and
+        no annotation at all — reloaded with **no HEAD**, so ``tree["head"]``
+        raised and there was nothing to resume from.
         """
         header: TreeHeader | None = None
-        nodes: list[HistoryNode] = []
-        annotations: list[Annotation] = []
+        pending: list[HistoryNode | Annotation] = []
         for rec in read_records(path):
             if rec.record == "header" and rec.header is not None:
                 header = rec.header
             elif rec.record == "node" and rec.node is not None:
-                nodes.append(rec.node)
+                pending.append(rec.node)
             elif rec.record == "annotation" and rec.annotation is not None:
-                annotations.append(rec.annotation)
+                pending.append(rec.annotation)
         if header is None:
             raise ValueError(f"{path}: no header record; not a history log")
 
         tree = cls(header, path=path)
-        for node in nodes:
-            tree.nodes[node.id] = node
-            tree.order.append(node.id)
-        for ann in annotations:
-            tree._apply_annotation(ann)
+        for item in pending:
+            if isinstance(item, HistoryNode):
+                tree.nodes[item.id] = item
+                tree.order.append(item.id)
+                tree.refs[HEAD] = item.id  # committing advanced HEAD, as in add()
+            else:
+                tree._apply_annotation(item)
         return tree
 
     # -- mutation -------------------------------------------------------

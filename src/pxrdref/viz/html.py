@@ -41,15 +41,24 @@ def _minmax_decimate(tt: np.ndarray, ys: list[np.ndarray], max_points: int
 
 def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
                        y_bkg: np.ndarray | None, ticks: dict[str, list[float]],
-                       *, title: str = "", max_points: int = 200_000):
-    """Build the plotly Figure (shared by the file writer and the live view)."""
+                       *, sigma: np.ndarray | None = None, title: str = "",
+                       max_points: int = 200_000):
+    """Build the plotly Figure (shared by the file writer and the live view).
+
+    With ``sigma`` the difference is drawn weighted (Δ/σ) in its own lower
+    panel with a ±3σ band — expectation 1 under a correct model, so the curve
+    reads on an absolute statistical scale (Toby, 2024, J. Appl. Cryst. 57,
+    175); it cannot share the intensity axis. Without ``sigma`` the classic
+    offset raw difference is drawn in the single panel.
+    """
     try:
         import plotly.graph_objects as go
     except ImportError as exc:  # pragma: no cover
         raise ImportError(
             "the HTML viewer needs plotly: pip install 'pxrd-refine[viz]'") from exc
 
-    diff = y_obs - y_calc
+    weighted = sigma is not None
+    diff = (y_obs - y_calc) / sigma if weighted else y_obs - y_calc
     curves = [y_obs, y_calc, diff] + ([y_bkg] if y_bkg is not None else [])
     tt_d, dec = _minmax_decimate(np.asarray(tt), [np.asarray(c) for c in curves],
                                  max_points)
@@ -57,9 +66,17 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
     y_bkg_d = dec[3] if y_bkg is not None else None
 
     span = float(np.max(y_obs_d) - min(float(np.min(y_obs_d)), 0.0)) or 1.0
-    offset = -0.15 * span
 
-    fig = go.Figure()
+    if weighted:
+        from plotly.subplots import make_subplots
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                            row_heights=[0.78, 0.22], vertical_spacing=0.03)
+        tick_base = -0.08 * span
+    else:
+        fig = go.Figure()
+        offset = -0.15 * span
+        tick_base = offset - 0.08 * span
+
     fig.add_trace(go.Scattergl(x=tt_d, y=y_obs_d, mode="markers",
                                marker={"size": 3, "color": "#1f5fa8"},
                                name="observed"))
@@ -71,11 +88,17 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
                                    line={"width": 1, "dash": "dash",
                                          "color": "#7a7a7a"},
                                    name="background"))
-    fig.add_trace(go.Scattergl(x=tt_d, y=diff_d + offset, mode="lines",
-                               line={"width": 1, "color": "#4a4a4a"},
-                               name="difference"))
+    if weighted:
+        fig.add_trace(go.Scattergl(x=tt_d, y=diff_d, mode="lines",
+                                   line={"width": 1, "color": "#4a4a4a"},
+                                   name="Δ/σ"), row=2, col=1)
+        fig.add_hrect(y0=-3, y1=3, row=2, col=1, line_width=0,
+                      fillcolor="#2a9d2a", opacity=0.15)
+    else:
+        fig.add_trace(go.Scattergl(x=tt_d, y=diff_d + offset, mode="lines",
+                                   line={"width": 1, "color": "#4a4a4a"},
+                                   name="difference"))
 
-    tick_base = offset - 0.08 * span
     palette = ("#2a9d2a", "#7a1fa8", "#b8860b", "#008b8b")
     for row, (name, positions) in enumerate(ticks.items()):
         y_row = tick_base - row * 0.05 * span
@@ -88,23 +111,30 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
 
     fig.update_layout(
         title=title, template="simple_white",
-        xaxis_title="2θ (deg)", yaxis_title="intensity",
         legend={"orientation": "h", "y": 1.02, "yanchor": "bottom"},
         margin={"l": 60, "r": 20, "t": 60, "b": 50},
     )
+    if weighted:
+        fig.update_xaxes(title_text="2θ (deg)", row=2, col=1)
+        fig.update_yaxes(title_text="intensity", row=1, col=1)
+        fig.update_yaxes(title_text="Δ/σ", row=2, col=1)
+    else:
+        fig.update_layout(xaxis_title="2θ (deg)", yaxis_title="intensity")
     return fig
 
 
 def write_html(result: RefinementResult, path: str, *,
-               include_plotlyjs: bool | str = True,
+               weighted: bool = True, include_plotlyjs: bool | str = True,
                max_points: int = 200_000) -> None:
     """Render a :class:`RefinementResult` to a self-contained HTML file."""
     s = result.statistics
+    y_obs = np.asarray(result.y_obs)
+    sigma = result.sig() if weighted else None
     fig = figure_from_arrays(
-        np.asarray(result.two_theta), np.asarray(result.y_obs),
+        np.asarray(result.two_theta), y_obs,
         np.asarray(result.y_calc),
         np.asarray(result.y_background) if result.y_background else None,
-        result.ticks,
+        result.ticks, sigma=sigma,
         title=f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}",
         max_points=max_points)
     fig.write_html(path, include_plotlyjs=include_plotlyjs,

@@ -52,10 +52,7 @@ def build_layer0(result: RefinementResult, *, top_n: int = 15,
     y_calc = np.asarray(result.y_calc)
     if len(tt) == 0:
         raise ValueError("result carries no pattern arrays")
-    if result.sigma:
-        sigma = np.asarray(result.sigma)
-    else:  # results recorded before v0.2 carried no σ — Poisson fallback
-        sigma = np.sqrt(np.maximum(y_obs, 1.0))
+    sigma = result.sig()   # esds, or the pre-v0.2 Poisson fallback
 
     w = 1.0 / sigma**2
     delta = y_obs - y_calc

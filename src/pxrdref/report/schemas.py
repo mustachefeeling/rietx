@@ -296,11 +296,20 @@ ActionKind = Literal[
 class SuggestedAction(Base):
     """An advisory, typed suggestion.  **The strategy engine holds the veto.**
 
-    ``expected_delta_chi2`` is the *predicted* χ² reduction from the linear
-    model — an optimistic upper bound, not a promise; ``predict_then_verify``
-    in :mod:`.layer2` measures the real one and rolls back if it disagrees.
-    ``vetoed_by`` is set when the staged plan already refines the parameter,
-    or when a guard forbids it.
+    ``expected_delta_chi2`` is the *predicted* χ² reduction from the linear model,
+    and two things about it are load-bearing for anyone rendering it (measured in
+    ``tests/test_report_apply.py``, WP-1012).  It is **one number per report, not
+    per action**: :func:`~pxrdref.report.build_report` computes
+    :func:`.layer2.estimate_delta_chi2` once and stamps it on every
+    Layer-1-derived action, so it cannot rank or distinguish suggestions — the
+    texture actions, whose evidence is per-reflection, carry ``None`` instead.
+    And it is **not a bound on what applying the action achieves**: it bounds the
+    misfit the linear model attributes inside the *gated* regions, while the
+    refinement also moves regions that failed a gate and stretches no region entry
+    covers (measured: 16.19 predicted against 16.33 observed for ``refine_cell``).
+    ``predict_then_verify`` in :mod:`.layer2` measures the real one and rolls back
+    if it disagrees.  ``vetoed_by`` is set when the staged plan already refines the
+    parameter, or when a guard forbids it.
     """
 
     kind: ActionKind

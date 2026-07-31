@@ -50,7 +50,13 @@ from .schemas.results import (
     StageResult,
 )
 from .schemas.structure import Structure
-from .strategy.staged import PLAN_PRESETS, RefinementPlan, Stage, check_guards
+from .strategy.staged import (
+    PLAN_PRESETS,
+    RefinementPlan,
+    Stage,
+    check_guards,
+    resolve_plan,
+)
 
 try:
     _VERSION = version("pxrd-refine")
@@ -272,16 +278,25 @@ class Refinement:
             return self._prepare_table(restore=True)
         return ParameterTable(self.structure, self.instrument)
 
-    def parameters(self) -> list[ParameterRow]:
+    def parameters(self, *, mode: Mode | None = None) -> list[ParameterRow]:
         """Every parameter as data — fixed, locked and tied rows included.
 
         The counterpart of ``result_.parameters`` (which lists only what a fit
         refined): this is the whole table, in θ order, with the most recent
         fit's esds merged in and each held row saying *why* it is held.  A cold
         path — pydantic here is fine, the no-pydantic rule binds the residual.
+
+        ``mode`` overrides which intensity mode ``mode_fixed`` is answered for.
+        It exists because this object's carried ``_mode`` is what the last stage
+        *ran* in, and before the first run that is the ``"rietveld"`` default —
+        so a caller that knows the mode the **next** run will use (a
+        :class:`~pxrdref.project.Project`, from its document) has to be able to
+        say so, or a Le Bail project's atom rows come back looking editable,
+        which is the one thing ``mode_fixed`` exists to prevent.
         """
         esd = ({p.path: p.stderr for p in self.result_.parameters}
                if self.result_ is not None else {})
+        mode = mode or self._mode
         rows = []
         for e in self._working_table().entries:
             rows.append(ParameterRow(
@@ -290,7 +305,7 @@ class Refinement:
                 tie=TieSpec.from_tie(e.tie) if e.tie is not None else None,
                 locked=e.locked,
                 esd=esd.get(e.path),
-                mode_fixed=mode_fixed_path(e.path, self._mode),
+                mode_fixed=mode_fixed_path(e.path, mode),
             ))
         return rows
 
@@ -627,17 +642,7 @@ class Refinement:
         :class:`~pxrdref.optimize.cancel.RefinementCancelled` is raised carrying
         the stages that *did* complete and the node the working state stands at.
         """
-        if isinstance(plan, str):
-            if plan == "mccusker_default" and mode == "lebail":
-                plan = "profile_only"
-            elif plan == "mccusker_default" and mode == "pawley":
-                plan = "pawley_default"
-            try:
-                plan = PLAN_PRESETS[plan]()
-            except KeyError:
-                raise ValueError(
-                    f"unknown plan preset {plan!r}; available: {sorted(PLAN_PRESETS)}"
-                ) from None
+        plan = resolve_plan(plan, mode)
 
         self._mode = mode
         self._two_theta_limits = two_theta_limits
@@ -896,22 +901,34 @@ class Refinement:
 # module-level helpers
 # ----------------------------------------------------------------------
 def _guard_diagnostics(guard) -> list[Diagnostic]:
+    """Guard findings as diagnostics — one prose message per :class:`GuardFinding`.
+
+    The paths come from ``finding.paths`` (WP-1007).  They used to come from
+    ``msg.split(" ")[0]``, which worked for the single-path findings and produced
+    *nothing* for a correlation, since its rendered form leads with no single
+    path — so ``where`` was empty on exactly the finding a client most wants to
+    make clickable.  Every ``message`` is unchanged, byte for byte: it is built
+    from ``str(finding)``, which is the old list entry.
+    """
     out: list[Diagnostic] = []
-    for msg in guard.high_correlations:
+    for finding in guard.high_correlations:
         out.append(Diagnostic(
-            level="warning", code="HIGH_CORRELATION", message=msg,
+            level="warning", code="HIGH_CORRELATION", message=str(finding),
+            where=list(finding.paths),
             suggestion="consider fixing one of the correlated parameters",
         ))
-    for path in guard.at_bounds:
+    for finding in guard.at_bounds:
+        path = str(finding)
         out.append(Diagnostic(
-            level="warning", code="BOUND_HIT", where=[path],
+            level="warning", code="BOUND_HIT", where=list(finding.paths),
             message=f"{path} refined to its bound",
             suggestion="widen the bound or fix the parameter",
         ))
-    for msg in guard.nonpositive_adps:
-        path = msg.split(" ")[0]
+    for finding in guard.nonpositive_adps:
+        msg = str(finding)
         out.append(Diagnostic(
-            level="warning", code="ADP_NOT_POSITIVE_DEFINITE", where=[path],
+            level="warning", code="ADP_NOT_POSITIVE_DEFINITE",
+            where=list(finding.paths),
             message=f"the anisotropic displacement tensor of {msg} is not "
                     "positive definite — it is not an ellipsoid, and its "
                     "Debye-Waller factor grows without bound at high Q",
@@ -921,10 +938,11 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "assignment, or extend the fit range; do not report "
                        "the tensor as measured",
         ))
-    for msg in guard.nonpositive_strain:
-        path = msg.split(" ")[0]
+    for finding in guard.nonpositive_strain:
+        msg = str(finding)
         out.append(Diagnostic(
-            level="warning", code="STEPHENS_STRAIN_NOT_POSITIVE", where=[path],
+            level="warning", code="STEPHENS_STRAIN_NOT_POSITIVE",
+            where=list(finding.paths),
             message=f"the Stephens strain coefficients of {msg} — σ²(M) is a "
                     "variance, so a negative value is not a large anisotropy "
                     "but coefficients outside the physical cone, and those "
@@ -935,10 +953,11 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "higher-symmetry Laue class has fewer), or extend the "
                        "fit range; do not report the S_HKL as measured",
         ))
-    for msg in guard.background_correlations:
-        path = msg.split(" ")[0]
+    for finding in guard.background_correlations:
+        msg = str(finding)
         out.append(Diagnostic(
-            level="warning", code="BACKGROUND_ABSORPTION", where=[path],
+            level="warning", code="BACKGROUND_ABSORPTION",
+            where=list(finding.paths),
             message=f"the background can reproduce most of {msg}",
             suggestion="stiffen the background (fewer Chebyshev terms, larger "
                        "P-spline lambda_smooth, coarser knots) or hold an "
@@ -946,11 +965,12 @@ def _guard_diagnostics(guard) -> list[Diagnostic]:
                        "fractions from this fit are biased even though Rwp "
                        "looks good",
         ))
-    for msg in guard.roughness_correlations:
-        path = msg.split(" ")[0]
-        rough = "surface_roughness" in path
+    for finding in guard.roughness_correlations:
+        msg = str(finding)
+        rough = any("surface_roughness" in p for p in finding.paths)
         out.append(Diagnostic(
-            level="warning", code="ROUGHNESS_ABSORPTION", where=[path],
+            level="warning", code="ROUGHNESS_ABSORPTION",
+            where=list(finding.paths),
             message=(f"surface roughness is not separable from the "
                      f"displacement/scale/background block here — {msg} of the "
                      f"roughness column is reproducible by it"

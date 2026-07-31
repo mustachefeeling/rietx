@@ -262,6 +262,38 @@ def test_save_rewrites_an_in_memory_tree(tmp_path, fitted):
     assert len(loaded) == len(ref.history)
 
 
+def test_head_survives_a_reload(tmp_path, pattern):
+    """A reloaded tree stands where the session left it (WP-1005).
+
+    Both halves were broken and each fails on its own: ``add`` advances HEAD in
+    memory but appends no ref record, so a log written by a plain ``fit``
+    reloaded with ``refs == {}`` — ``tree["head"]`` raised, and a project could
+    not resume.  And ``load`` applied every node before every annotation, so a
+    ``checkout`` earlier in the file overrode the nodes committed *after* it and
+    HEAD came back stale.  File order is what distinguishes the two.
+    """
+    structure, ins = perturbed_models()
+    plain = tmp_path / "plain.jsonl"
+    ref = pr.Refinement(structure, ins, history=str(plain))
+    ref.fit(pattern, plan=SHORT)
+    assert pr.RefinementTree.load(plain).head == ref.history.head == ref.history.order[-1]
+
+    # checkout (which annotates HEAD) then continue: the later node must win
+    branched = tmp_path / "branched.jsonl"
+    ref2 = pr.Refinement(*perturbed_models(), history=str(branched))
+    ref2.fit(pattern, plan=SHORT)
+    ref2.checkout(ref2.history.order[1])
+    ref2.run_stage(pattern, pr.Stage("zero", ["instrument.zero_shift"], max_iter=5))
+    loaded = pr.RefinementTree.load(branched)
+    assert loaded.head == ref2.history.head == ref2.history.order[-1]
+
+    # a tag names a node without moving HEAD, before or after a reload
+    ref2.history.tag(ref2.history.order[1], "rival")
+    reloaded = pr.RefinementTree.load(branched)
+    assert reloaded.refs["rival"] == ref2.history.order[1]
+    assert reloaded.head == ref2.history.order[-1]
+
+
 def test_replay_rejects_a_different_pattern(fitted):
     ref, _ = fitted
     other = synthesize(noise_seed=99)
