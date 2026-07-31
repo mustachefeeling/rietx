@@ -17,7 +17,7 @@
    */
   import { ApiError, api } from "../api";
   import { loadPlotly } from "../lib/plotly";
-  import { joinCurves, nearestPeak, type PeaksPayload } from "../lib/peaks";
+  import { grabToleranceDeg, joinCurves, nearestPeak, type PeaksPayload } from "../lib/peaks";
   import {
     RESIDUAL_KINDS,
     SCALES,
@@ -248,7 +248,13 @@
       name: "peaks",
       mode: "markers",
       type: "scattergl",
-      error_x: { type: "data", array: list.map((p) => p.two_theta_esd),
+      // the whisker is capped at 3×FWHM: a degenerate component reports σ in
+      // *tens of degrees* (measured: 111° after a move made its group's fit
+      // fail), and an uncapped bar owns the autorange and paints a line across
+      // the whole axis. The number stays honest in the panel's table; here the
+      // hollow `fit_failed` marker is what says "degenerate", not bar length.
+      error_x: { type: "data",
+                 array: list.map((p) => Math.min(p.two_theta_esd, 3 * p.fwhm)),
                  visible: true, color: accent, thickness: 1 },
       marker: {
         size: 9,
@@ -329,16 +335,24 @@
     return Math.abs(xa.range[1] - xa.range[0]) / xa._length;
   }
 
-  /** the gesture in flight: a marker drag (`index ≥ 0`) or a maybe-add click */
-  let gesture: { index: number; startX: number; moved: boolean } | null = null;
+  /** The gesture in flight. `move` is the hit inside the *readable* grab
+   *  radius (`grabToleranceDeg` — min(10 px, 1.5× median FWHM)); only that
+   *  hit captures the pointer from plotly, so at the survey view — where a
+   *  line is subpixel and 10 px spans two degrees — a drag stays plotly's
+   *  zoom instead of silently moving a line (measured: a zoom drag starting
+   *  0.9° from a marker moved it 11°).  `click` is the coarse 10-px hit that
+   *  the non-destructive gestures (shift-toggle) still aim with. */
+  let gesture: { move: number; click: number; startX: number; moved: boolean } | null = null;
 
   function down(ev: PointerEvent) {
     if (!peaksActive || !peaks?.peaks || ev.button !== 0) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
-    const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
-    gesture = { index: hit ?? -1, startX: ev.clientX, moved: false };
-    if (hit !== null) {
+    const perPx = degPerPx();
+    const move = nearestPeak(peaks.peaks, tt, grabToleranceDeg(peaks.peaks, perPx));
+    const click = nearestPeak(peaks.peaks, tt, 10 * perPx);
+    gesture = { move: move ?? -1, click: click ?? -1, startX: ev.clientX, moved: false };
+    if (move !== null) {
       // this gesture is a peak drag, not a zoom: keep it from plotly's drag
       // layer (capture phase — we run before the <rect class="drag"> does)
       ev.stopPropagation();
@@ -356,12 +370,15 @@
     if (!g || !peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
-    if (g.index >= 0) {
-      if (g.moved) onmovepeak(g.index, tt);
-      else if (ev.shiftKey) ontogglepeak(g.index);
-    } else if (!g.moved && !ev.shiftKey) {
-      // a plain click on empty space adds a line; a *drag* there is still
-      // plotly's zoom, which is why nothing was captured on the way down
+    if (g.moved) {
+      if (g.move >= 0) onmovepeak(g.move, tt);
+      // a drag that started merely *near* a marker was never captured, so
+      // plotly zoomed with it — nothing to do here
+    } else if (ev.shiftKey) {
+      if (g.click >= 0) ontogglepeak(g.click);
+    } else if (g.click < 0) {
+      // a plain click on empty space adds a line; near a marker it is
+      // ambiguous, and an ambiguous click must not edit anything
       onaddpeak(tt);
     }
   }

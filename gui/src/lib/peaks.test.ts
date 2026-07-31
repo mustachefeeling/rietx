@@ -14,6 +14,7 @@ import {
   flagTone,
   fomColumns,
   fomOf,
+  grabToleranceDeg,
   joinCurves,
   nearestPeak,
   type Candidate,
@@ -57,6 +58,30 @@ describe("nearestPeak", () => {
 
   it("can hit index 0 — the ?? -1 trap at the call site is real", () => {
     expect(nearestPeak(peaks, 10.0, 0.01)).toBe(0);
+  });
+});
+
+describe("grabToleranceDeg — the move gesture's radius is readable, not a screen constant", () => {
+  const lab = Array.from({ length: 5 }, (_, i) => ({ fwhm: 0.2 + 0.01 * i })); // median 0.22
+
+  it("caps the pixel radius at 1.5× the median FWHM at the survey view", () => {
+    // corundum's measured survey view: 0.19 °/px → 10 px would be 1.9°, and a
+    // zoom drag starting 0.9° from a line moved it 11°; the cap refuses that
+    expect(grabToleranceDeg(lab, 0.19)).toBeCloseTo(1.5 * 0.22, 12);
+  });
+
+  it("keeps the 10 px rule once zoomed in enough for the line to be visible", () => {
+    expect(grabToleranceDeg(lab, 0.01)).toBeCloseTo(0.1, 12);
+  });
+
+  it("scales with the pattern: a synchrotron list caps far tighter", () => {
+    const sharp = [{ fwhm: 0.01 }, { fwhm: 0.012 }, { fwhm: 0.014 }];
+    expect(grabToleranceDeg(sharp, 0.01)).toBeCloseTo(1.5 * 0.012, 12);
+  });
+
+  it("falls back to the pixel rule when no width is known", () => {
+    expect(grabToleranceDeg([], 0.05)).toBeCloseTo(0.5, 12);
+    expect(grabToleranceDeg([{ fwhm: 0 }], 0.05)).toBeCloseTo(0.5, 12);
   });
 });
 

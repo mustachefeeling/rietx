@@ -78,6 +78,34 @@ export function nearestPeak(
 }
 
 /**
+ * The grab radius for the *move* gesture, in ° 2θ: the smaller of the pixel
+ * radius and 1.5× the median fitted FWHM.
+ *
+ * A pixel radius alone is a screen constant applied to a physics axis, and at
+ * the survey view it is destructive: on the corundum pattern (0.19°/px, 64
+ * lines over 145°) 10 px is ±1.9°, the 9-px markers themselves tile ~75 % of
+ * the axis, and a measured zoom drag starting 0.9° from a line silently moved
+ * that line 11° instead of zooming. The FWHM cap says when a drag may *mean*
+ * "move this line": once 10 px covers more than ~a line width, the line is
+ * subpixel and precision-editing it is not what any drag can express — so the
+ * drag falls through to plotly's zoom, which is the survey view's gesture.
+ * The coarse pixel radius stays right for the non-destructive gestures
+ * (shift-toggle, right-click refit target a *labelled* thing) and for
+ * click-to-add, whose final position comes from the group refit, not the
+ * pixel.
+ */
+export function grabToleranceDeg(
+  peaks: readonly { fwhm: number }[],
+  degPerPx: number,
+  pxRadius = 10,
+): number {
+  const px = pxRadius * degPerPx;
+  const widths = peaks.map((p) => p.fwhm).filter((w) => w > 0).sort((a, b) => a - b);
+  if (!widths.length) return px;
+  return Math.min(px, 1.5 * widths[widths.length >> 1]);
+}
+
+/**
  * Group-curve arrays joined into one plotable trace, windows separated by null.
  *
  * One trace instead of one per group: sixty groups as sixty scattergl traces is
