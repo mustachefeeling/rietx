@@ -290,6 +290,39 @@ def test_a_box_is_refused_when_its_lines_cannot_take_distinct_reflections():
     assert _assignment_possible(hit, 9, hit.sum(axis=1), 4, n_unindexed=0)
 
 
+def test_the_largest_observed_d_is_not_a_bound_on_the_axes_at_low_symmetry():
+    """Why Louër & Louër's Table 1 parameter floors are **not** implemented.
+
+    Their "a ≥ d₁ − Δd₁" reads the largest observed spacing as a floor on the
+    largest axis, and the paper prints columns for cubic, tetragonal, hexagonal
+    and orthorhombic only.  The omission is not an oversight: those forms are
+    diagonal, so Q(hkl) ≥ min(A, B, C) and the largest spacing really is a
+    principal one.  Add a cross term and it stops being true — an oblique cell
+    inside this search's own obliquity bound puts its largest spacing on (101),
+    above *every* principal spacing, so the floor would exclude the true cell.
+
+    Adopting the rows the paper does print would be sound, and buys nothing:
+    the engine's line-matching test uses a complete trial set with corner-exact
+    bounds, which is strictly stronger, and measured on the bethanechol domain
+    it accounts for 0.0 % of box deaths.
+    """
+    from pxrdref.indexing.dichotomy import MAX_ANGLE_COSINE
+    from pxrdref.indexing.qspace import cell_from_af, design_matrix
+
+    af = np.array([1.0, 0.5, 1.0, 0.0, -1.7, 0.0])
+    # the cell is inside the domain the search declares, not a pathology
+    assert abs(af[4]) <= 2.0 * MAX_ANGLE_COSINE * np.sqrt(af[0] * af[2])
+    cell_from_af(af)                     # and it is a real lattice
+
+    hkl = trial_hkl(3, "P")
+    q = design_matrix(hkl) @ af
+    q = q[q > 1e-9]
+    d_largest = 1.0 / np.sqrt(q.min())
+    principal = [1.0 / np.sqrt(design_matrix(np.array([h])) @ af)[0]
+                 for h in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
+    assert d_largest > max(principal), (d_largest, principal)
+
+
 def test_budget_expires_and_a_cancel_token_short_circuits_it():
     from pxrdref.optimize.cancel import CancelToken
 

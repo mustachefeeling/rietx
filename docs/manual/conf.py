@@ -11,6 +11,7 @@ from importlib.metadata import version as _dist_version
 
 from pxrdref.crystallography.dispersion import NEAR_EDGE_EV
 from pxrdref.indexing.ambiguity import MAX_AMBIGUITY_INDEX
+from pxrdref.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
 from pxrdref.indexing.reduce import NIGGLI_EPS_RELATIVE
 from pxrdref.model.absorption import CYLINDER_MU_R_MAX
 from pxrdref.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
@@ -35,6 +36,8 @@ myst_substitutions = {
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
     "IMPURITY_SIGMA": IMPURITY_SIGMA,
+    "ANGLE_STEP_DEG": ANGLE_STEP_DEG,
+    "AXIS_STEP": AXIS_STEP,
     "MAX_AMBIGUITY_INDEX": MAX_AMBIGUITY_INDEX,
     "MAX_RELATIVE_SIGMA_Q": MAX_RELATIVE_SIGMA_Q,
     "MIN_LINES_PER_DOF": MIN_LINES_PER_DOF,
