@@ -182,9 +182,9 @@ not this WP's checklist.
       SSE progress and cancel.
 - [x] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
       `adopt_candidate` through `Refinement.edit`.
-- [ ] Frontend: peak layer (markers, σ error bars, fitted group profile,
+- [x] Frontend: peak layer (markers, σ error bars, fitted group profile,
       residual strip), the four interactions, the diagnostics strip.
-- [ ] Frontend: candidate table with the FoM columns, engine chips, ambiguity
+- [x] Frontend: candidate table with the FoM columns, engine chips, ambiguity
       sub-rows, and the gated Adopt button.
 - [x] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
       the fixed-point property test.

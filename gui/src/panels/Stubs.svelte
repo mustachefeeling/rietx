@@ -12,7 +12,6 @@
 
   const OWED: Array<[string, string]> = [
     ["Series", "WP-1016"],
-    ["Peaks / indexing", "WP-1027"],
   ];
 
   const features = $derived(
