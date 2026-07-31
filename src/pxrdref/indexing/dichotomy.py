@@ -699,10 +699,25 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
     # is what makes the single pass cover the centred ones.
     hkl_all = trial_hkl(_max_index(spec, q_hi_all), "P")
     masks = {c: centring_allows(hkl_all, c) for c in centrings}
+    # **A centring whose own set fits the cap keeps its search when the union
+    # does not.**  Sharing one pass means sharing one trial set, so the cap now
+    # applies to the union — and the union of an admissible "P" is every hkl.
+    # Dropping the whole system there would lose the centred searches that used
+    # to run in their own pass (a cubic F set is a quarter of P's, so there is a
+    # band of ``max_index`` where F fits and P does not), so the widest sets are
+    # dropped until the rest fit, and what is dropped is reported by returning
+    # ``complete = False`` exactly as an overflow always has.
+    complete_union = True
+    order = sorted(masks, key=lambda c: -int(masks[c].sum()))
+    while order and int(np.logical_or.reduce(
+            [masks[c] for c in order]).sum()) > MAX_TRIAL_HKL:
+        order.pop(0)
+        complete_union = False
+    if not order:
+        return [], (0, 0), False
+    masks = {c: masks[c] for c in order}
     union = np.logical_or.reduce(list(masks.values()))
     hkl_all = hkl_all[union]
-    if len(hkl_all) > MAX_TRIAL_HKL:
-        return [], (0, 0), False
     dm_all = design_matrix(hkl_all)
     # each centring's (hkl, design) pair is sliced **once**, not once per leaf:
     # the arrays are tens of thousands of rows and _accept is called per leaf per
@@ -826,7 +841,7 @@ def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
         right_lo[j] = mid
         _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, lo_search,
                        hi_search, spec.n_unindexed, depth + 1)
-    return found, (n_boxes, n_rows), complete
+    return found, (n_boxes, n_rows), complete and complete_union
 
 
 #: Relative grid on which a converged box's A..F is hashed to see whether that

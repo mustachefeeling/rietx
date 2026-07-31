@@ -256,6 +256,55 @@ def test_every_centring_is_a_subset_of_the_primitive_trial_set():
                               for h in primitive[allowed]}, (system, centring)
 
 
+def test_a_centring_that_fits_the_trial_cap_keeps_its_search():
+    """One shared pass means one shared trial set, and the cap now sees the union.
+
+    Since "P" admissible makes the union every hkl, a naive shared pass would
+    lose the *centred* searches that used to run in their own pass whenever the
+    primitive set overflows :data:`MAX_TRIAL_HKL` — a cubic F set is a quarter
+    of P's, so there is a band of ``max_index`` where F fits and P does not.
+    The widest sets are dropped until the rest fit, and the drop is reported as
+    an incomplete search rather than silently.
+    """
+    from pxrdref.indexing import dichotomy as D
+    from pxrdref.indexing.engines import effective_sigma_sys
+    from pxrdref.indexing.qspace import sigma_effective
+
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = spec_for("cubic")
+    # the trial set is sized on the whole pattern, exactly as _search_one does
+    sigma_sys, _assumed = effective_sigma_sys(spec, None)
+    sigma = sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
+                            sigma_sys)
+    n = D._max_index(spec, float(peaks.q().max() + spec.k_sigma * sigma.max()))
+    sizes = {c: int(len(trial_hkl(n, c))) for c in ("P", "I", "F")}
+    assert sizes["F"] < sizes["I"] < sizes["P"], sizes
+
+    original = D.MAX_TRIAL_HKL
+    try:
+        # a cap admitting I and F but not P: the primitive search is dropped
+        D.MAX_TRIAL_HKL = sizes["I"] + 1
+        kept = D.search_dichotomy(peaks, spec=spec)
+        # and one admitting nothing at all
+        D.MAX_TRIAL_HKL = sizes["F"] - 1
+        none_fit = D.search_dichotomy(peaks, spec=spec)
+    finally:
+        D.MAX_TRIAL_HKL = original
+
+    # dropping any centring means the domain was not covered, and it says so
+    assert kept.search_complete["cubic"] is False
+    assert none_fit.search_complete["cubic"] is False
+    # the centrings that fitted were still searched — the system does not go
+    # dark just because the primitive set overflowed
+    found = {c.centring for c in kept.candidates}
+    assert found and "P" not in found, found
+    assert not none_fit.candidates
+    # and with no cap in the way the primitive cell is the one ranked first
+    full = D.search_dichotomy(peaks, spec=spec)
+    assert full.search_complete["cubic"] is True
+    assert full.candidates[0].centring == "P"
+
+
 def test_a_box_is_refused_when_its_lines_cannot_take_distinct_reflections():
     """Hall's condition, which ``hit.any(axis=1)`` alone does not check.
 
