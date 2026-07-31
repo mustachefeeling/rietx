@@ -229,6 +229,67 @@ def test_trial_hkl_keeps_one_friedel_mate_and_obeys_the_centring():
         assert rule(sub).all(), centring
 
 
+def test_every_centring_is_a_subset_of_the_primitive_trial_set():
+    """The shortcut that lets one grid pass cover every centring of a system.
+
+    ``search_dichotomy`` searches the *union* of a system's admissible centrings
+    once and re-scores each leaf per centring, instead of running the whole grid
+    and dichotomy again per centring.  That is sound only because a centred trial
+    set is a strict **subset** of the primitive one: a centred box has fewer
+    reflections with which to reach the same lines, so its line-matching test is
+    strictly harder and every box surviving it survives the primitive test.
+    Asserted here rather than left as folklore in a docstring, because the whole
+    completeness claim of the engine rests on it.
+    """
+    from pxrdref.indexing.engines import CENTRINGS
+    from pxrdref.indexing.qspace import centring_allows
+
+    primitive = trial_hkl(6, "P")
+    assert centring_allows(primitive, "P").all()
+    for system, centrings in CENTRINGS.items():
+        for centring in centrings:
+            allowed = centring_allows(primitive, centring)
+            assert allowed.sum() <= len(primitive), (system, centring)
+            # a subset *of the same enumeration*, not merely a smaller count
+            direct = {tuple(int(v) for v in h) for h in trial_hkl(6, centring)}
+            assert direct == {tuple(int(v) for v in h)
+                              for h in primitive[allowed]}, (system, centring)
+
+
+def test_a_box_is_refused_when_its_lines_cannot_take_distinct_reflections():
+    """Hall's condition, which ``hit.any(axis=1)`` alone does not check.
+
+    Indexing maps lines to reflections **injectively** — one hkl has one Q — so a
+    box whose surviving trial set holds fewer reflections than there are lines to
+    explain cannot index the pattern, however happily each individual line finds
+    *something* to point at.  The weak test is satisfied by letting the lines
+    share, and measured on the bethanechol monoclinic domain it refused 342 boxes
+    of 692 294 (0.0 %) while this one refuses 89.9 % of what reaches it.
+    """
+    from pxrdref.indexing.dichotomy import _assignment_possible
+
+    # five lines, but only three reflections between them: every line finds
+    # something (the weak test is satisfied) and no injective map exists
+    hit = np.ones((5, 3), dtype=bool)
+    counts = hit.sum(axis=1)
+    assert hit.any(axis=1).all(), "the weak test must be happy with this box"
+    assert not _assignment_possible(hit, 3, counts, 5, n_unindexed=0)
+    # the same shortfall is tolerable when two lines may go unindexed
+    assert _assignment_possible(hit, 3, counts, 5, n_unindexed=2)
+
+    # forced singletons colliding is a violation at |S| = 2 even when the total
+    # reflection count is ample — DICVOL91's own rejection rule
+    hit = np.zeros((4, 9), dtype=bool)
+    hit[0, 0] = hit[1, 0] = True            # two lines, one forced reflection
+    hit[2, 1:5] = hit[3, 5:9] = True
+    counts = hit.sum(axis=1)
+    assert not _assignment_possible(hit, 9, counts, 4, n_unindexed=0)
+
+    # and a box that genuinely admits a matching is never refused
+    hit = np.eye(4, 9, dtype=bool)
+    assert _assignment_possible(hit, 9, hit.sum(axis=1), 4, n_unindexed=0)
+
+
 def test_budget_expires_and_a_cancel_token_short_circuits_it():
     from pxrdref.optimize.cancel import CancelToken
 
