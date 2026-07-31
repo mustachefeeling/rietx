@@ -29,18 +29,22 @@ Everything a fresh session needs and cannot get from CLAUDE.md alone:
 
 ### Inherited
 
-Facts an *already-landed* WP established that change the work here. The
+Facts another WP's session established that change the work here. The
 session protocol forbids reading other WP files, so a note left in some other
 WP's handover log is unreachable from this one — if it matters here, it has to
 be restated here, with the source WP named so it can be audited.
 
-Written by the **upstream** session as it signs off (protocol step 3b), not by
-whoever eventually starts this WP. Typical entries: a constant or helper now
-exported for reuse (import it, do not redeclare); a design bullet in this file
-that has since gone stale; a deliberate deferral *into* this WP; a measured
-gotcha that would silently mislead the work here.
+Written by the **other** session as it signs off (protocol step 3), not by
+whoever works this WP. Typical entries: a constant or helper now exported for
+reuse (import it, do not redeclare); a design bullet in this file that has
+since gone stale; a deliberate deferral *into* this WP; a measured gotcha
+that would silently mislead the work here.
 
-Delete this section only if the WP truly has no upstream dependencies.
+**This is a mailbox, not an archive**: every session on this WP prunes it on
+arrival (fold still-true entries into Context or Tasks, delete stale ones and
+say why in the handover entry), and closing the WP deletes the section —
+consumed. `tests/test_docs_consistency.py` asserts no WP closed after
+2026-07-31 still carries one.
 
 ## Non-goals
 

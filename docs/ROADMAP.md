@@ -19,30 +19,36 @@ a work session loads only what it needs:
 ## Session protocol
 
 1. **Start** from "Current focus" below (or the WP the user names). Read that
-   one WP file — it is self-contained on top of CLAUDE.md. Open DESIGN.md only
-   at sections the WP links; do not read other WP files.
-2. **During**: land tasks as small commits prefixed with the WP id
-   (`WP-0301: …`); check items off in the WP file as they land.
-3. **End** — or whenever interruption is a risk: append a dated entry to the
-   WP's handover log (done / in flight / next / gotchas), update its Status
-   line, and mirror the glyph in the WP index row below.
-3b. **Push forward-references downstream.** If this session learned anything
-   that changes work in a *not-yet-started* WP — a constant now exported for
-   reuse, a design bullet there that has gone stale, a deferral into it, a
-   gotcha that would mislead it — edit **that WP's `### Inherited` section**
-   (see `wp/TEMPLATE.md`) and name this WP as the source. Step 1 forbids
-   reading other WP files, so **a handover log is not a channel to anyone but
-   your own successor on the same WP**: a "next WP should…" note left only in
-   your own log, or only in "Current focus" below, will never be read. Current
-   focus is a rolling narrative and gets rewritten when the next WP lands.
-4. **Milestone ships**: record the measured acceptance block in
-   `milestones/vX.Y.md`, flip the milestone row here, and check the roadmap
-   claims in README.md.
+   one WP file — self-contained on top of CLAUDE.md. Open DESIGN.md only at
+   sections the WP links; do not read other WP files.
+   **On arrival at a WP, prune its `### Inherited` first**: fold still-true
+   entries into Context or Tasks, delete stale ones (say why in your handover
+   entry). The section is a mailbox, emptied on every visit and deleted —
+   fully consumed — when the WP closes.
+2. **During**: land tasks as small commits prefixed `WP-NNNN:`; check items
+   off in the WP file as they land.
+3. **End** — or whenever interruption threatens — run `/wp-handover`. The
+   checklist it carries: dated handover entry prepended (newest first: done /
+   in flight / next / gotchas), Status line and the index-row glyph below
+   synced, forward references pushed into the `### Inherited` of any affected
+   WP that is not closed and not yours (a handover log reaches only your own
+   successor on the same WP), rule 4 applied to anything this session wrote
+   into a CLAUDE.md, working tree clean and pushed.
+4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
+   (root, `gui/`, `tests/`) only as a standing rule a stranger needs in six
+   months — a few lines, evidence compressed to one clause plus a pointer to
+   the WP or milestone record that holds the measurement. Counts and timings
+   go only in Commands → "Current numbers", **replaced, never appended**.
+5. **WP closes** (✅/🛑): rewrite "Current focus" for the successor and MOVE
+   the outgoing narrative to the in-flight milestone record
+   (`milestones/v1.0.md` § "How v1.0 is getting here"). Current focus stays
+   under ~40 lines and repeats nothing a closed WP's own file already says.
+6. **Milestone ships**: finish `milestones/vX.Y.md` with the measured
+   acceptance block, flip the milestone row here, check README's claims.
 
-*Step 3b was added 2026-07-24 and applied retroactively the same day: the
-handover logs of all 14 then-landed WPs were swept for forward-references and
-the results written into 16 downstream WPs' `### Inherited` sections. That
-backlog is cleared — new sessions only need to keep up with their own.*
+`tests/test_docs_consistency.py` enforces the mechanical parts: status
+vocabulary and glyph sync, Inherited placement, link resolution, and the
+size caps on this file and CLAUDE.md.
 
 ## Current focus
 
