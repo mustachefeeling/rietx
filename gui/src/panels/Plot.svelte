@@ -62,7 +62,12 @@
   let held: any = $state(null);
 
   function layout(w: any, colors: ReturnType<typeof curveColors>): any {
-    const fg = getComputedStyle(document.body).color;
+    const style = getComputedStyle(document.body);
+    const fg = style.color;
+    // the panel border colour, for the grid: plotly's default grid is
+    // near-white, which is invisible noise on a light page and glare on a
+    // dark one — a themed page themes its grid too
+    const line = style.getPropertyValue("--line").trim() || "#dcdcd6";
     const res = residual(kind, w);
     const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
     return {
@@ -76,14 +81,15 @@
       // the residual rather than between the two — where the title landed
       // inside the residual plot, on top of a cumulative χ² curve
       xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
-               anchor: "y2" },
+               anchor: "y2", gridcolor: line },
       yaxis: {
         title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },
         domain: [0.28, 1],
         type: scale === "log" ? "log" : "linear",
+        gridcolor: line,
         ...(ticks ? { tickmode: "array", ...ticks } : {}),
       },
-      yaxis2: { title: { text: res.title }, domain: [0, 0.22],
+      yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
                 zeroline: res.zeroline, zerolinecolor: colors.zero },
       hovermode: "x unified",
     };
@@ -120,6 +126,12 @@
    *  choice about the same numbers, so it must not cost a round trip. */
   async function paint(w: any) {
     if (!node || !plotly) return;
+    // One microtask before sampling any style: on a theme change this effect
+    // and the shell's `applyTheme` effect wake in the same flush, and this one
+    // can run first — sampling here synchronously painted the dark page with
+    // the light page's ink (found in Chrome; the 3D panel never had the bug
+    // because its draw awaits the plotly loader before it samples).
+    await Promise.resolve();
     // sampled per paint, never held: these are what make a repaint on a theme
     // change actually change anything
     const colors = curveColors((name) =>
