@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import numpy as np
 from pydantic import Field
 
 from .common import Base, Diagnostic, Mode, Provenance
@@ -328,6 +329,41 @@ class RefinementResult(Base):
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then
     # the pooled combined number and ``two_theta``/``y_*`` mirror histogram 0.
     histograms: list[HistogramResult] = Field(default_factory=list)
+
+    # -- numpy views -------------------------------------------------------
+    def sig(self) -> np.ndarray:
+        """Per-point σ for this result — **the one authority** (WP-1029 (s)).
+
+        Every weighted residual in the package divides by this: the matplotlib
+        panel, the plotly export, the VLM montage, Layer 0 and the GUI's
+        ``/api/result/window``.  They each open-coded it once, with three
+        different policies, and agreed only because the disagreement lived in
+        branches a modern result never takes.
+
+        Normally this is a plain lookup rather than a computation, and that is
+        the point: ``CompiledModel.sigma`` *is* :meth:`PatternData.sig`, and
+        ``refine`` stores it here verbatim, so the esd-column/Poisson choice was
+        already made once at stage compile.  Two conditioning steps remain, both
+        for callers that are about to divide:
+
+        * results recorded before v0.2 carry no σ at all, and get the same
+          Poisson ``√max(y,1)`` fallback the fit itself would have used
+          (CLAUDE.md, Weights);
+        * non-positive entries are floored by :meth:`PatternData.sig`'s own
+          rule, so a zero esd is a small σ rather than an ``inf`` that loses
+          the whole trace.
+
+        Note this says nothing about *where* σ came from: by the time a result
+        exists, a file esd column and a Poisson estimate are the same array of
+        floats.  ``DataRef.has_sigma`` is the fact that survives, and it is what
+        the GUI and the text document both label the residual from.
+        """
+        if self.sigma:
+            s = np.asarray(self.sigma, dtype=np.float64)
+        else:
+            s = np.sqrt(np.maximum(np.asarray(self.y_obs, dtype=np.float64), 1.0))
+        floor = max(1e-3, float(np.median(s[s > 0])) * 1e-3) if np.any(s > 0) else 1.0
+        return np.maximum(s, floor)
 
     def for_histogram(self, h: int) -> "RefinementResult":
         """A single-histogram-shaped view of histogram ``h`` for reporting/plots.

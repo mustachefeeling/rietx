@@ -47,10 +47,15 @@ backlog is cleared — new sessions only need to keep up with their own.*
 ## Current focus
 
 **Next session starts at [1029](wp/1029-gui-usability.md), which was reopened
-on 2026-07-30 within hours of landing.** Three items, all from the user driving
+on 2026-07-30 within hours of landing.** Five items, all from the user driving
 the built thing, and **two are regressions from 1029's own first pass** — so
 they belong to it rather than to a new WP. Everything is measured in that file's
-handover log; do not re-measure it. The sharpest is **(p)**: `lightposition` is
+handover log; do not re-measure it. **(s) is done (2026-07-31)**: the weighted
+residual had *five* definitions rather than the two the item claimed, now one
+`RefinementResult.sig()` — and the divergence the item was written about turned
+out to be unreachable, while the live bug was the `weighted` flag beside it,
+constant-true since it asked whether the result predated v0.2. **p, q, r and t
+remain.** The sharpest is **(p)**: `lightposition` is
 **inert** on plotly.js 3.7.0 (six pairs of light directions render
 pixel-identical), so item (a)'s camera-following light does nothing and the only
 visible effect of that change was its `LIGHTING` constants, which dropped the

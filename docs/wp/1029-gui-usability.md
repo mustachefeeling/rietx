@@ -1,7 +1,8 @@
 # WP-1029 — GUI usability: legibility, layout, colour, theming
 
 Milestone: v1.0 · Status: 🔄 landed 2026-07-30, **reopened** the same day
-(items p, q, r — see the handover log; two are regressions from the first pass)
+(items p, q, r, then s and t — see the handover log; two are regressions from
+the first pass). **(s) done 2026-07-31**; p, q, r, t open.
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal
@@ -326,15 +327,34 @@ independently, or the two will disagree.
       draw effect's dependencies, so `getComputedStyle` colours sampled at draw
       time go stale and the text ends up light grey on white. While there, take
       `Plot.svelte`'s five fixed hex curve colours onto the custom properties.
-- [ ] **(s) Two authorities on the weighted residual.** `viz/plots.py` (from the
-      strategy branch) and `gui/session.py` (from this one) each define it, and
-      both landed on `main` on 2026-07-30 within hours of each other. **They
-      agree today** — both are `(y_obs − y_calc)/σ` with a `weighted` flag — and
-      nothing holds them together, which is exactly the "second authority on the
-      same picture" CLAUDE.md's conventions forbid. One known difference: the
-      viz path falls back to Poisson `√max(y,1)` when `result.sigma` is empty,
-      while `result_window` reports `weighted: False` and returns raw Δ. Unify,
-      or pin by a test that the two produce the same curve for the same result.
+- [x] **(s) Two authorities on the weighted residual — it was five.** Done
+      2026-07-31. `√max(y,1)` was open-coded in `viz/plots.py` **twice**
+      (`plot_result`, `plot_for_vlm`), `viz/html.py`, `report/layer0.py` and
+      `gui/session.py`, under **three** different policies: the four
+      result-readers took `result.sigma` raw with no zero guard, `result_window`
+      guarded σ ≤ 0 → 1.0 but had no fallback at all, and `PatternData.sig()` —
+      the one the *fit* uses — floors against a median-relative value. Unified on
+      a new **`RefinementResult.sig()`**, a peer of `PatternData.sig()`; all five
+      call it, so the three drawers agree by construction rather than by luck.
+      Pinned by `test_the_weighted_residual_has_exactly_one_authority`, which
+      compares what matplotlib **drew** and what plotly **drew** against what the
+      route **sent** (a test that recomputed the residual would pass while all
+      three were wrong).
+
+      **The fallback divergence this item was written about is not what was
+      wrong.** It is unreachable: `CompiledModel.sigma` *is* `PatternData.sig()`
+      and `refine` stores it verbatim, so `result.sigma` is never empty for
+      anything built since v0.2 — the branches disagreed only on legacy results.
+      The live bug was one line up. `weighted` was `bool(res.sigma)`, which asks
+      "is this a *pre-v0.2* result", so it was **pinned true**: the flag was a
+      constant, `lib/plot.ts`'s no-esd branch was dead code, and a Poisson fit
+      had its axis labelled `(obs−calc)/σ` with nothing saying the σ was an
+      assumption. `weighted` is now `DataRef.has_sigma` — the same fact the text
+      document already renders as "σ from file" — `delta` is *always* Δ/σ, and
+      the flag changes only the axis title (`(obs−calc)/σ (Poisson σ)`). That is
+      also the honest reading: the fit minimised Δ/σ_Poisson, so Δ/σ is exactly
+      the curve the Δ/σ button promises, and dropping to raw Δ there was the
+      wrong repair.
       *This WP's own charter told it to check `viz/` first and it did not.*
 - [ ] **(t) One unidentified test flake, seen once and never reproduced.**
       Fast suite (`-n auto --dist loadgroup`) reported `1 failed, 1198 passed,
@@ -604,3 +624,40 @@ the screenshot that prompted it, taken again.
   `uirevision` behaviour, and (p) above — is a claim about **plotly.js 3.7.0**.
   Corrected in place; worth knowing before anyone reads a plotly changelog to
   explain a rendering result.
+
+- **2026-07-31 — (s) done: the weighted residual now has one authority.**
+  Merged `origin/main` into `worktree-gui` first (clean; the GUI work was
+  already on main via PR #17, and main's tip is a byte-identical duplicate of
+  this branch's), which is what brought `viz/plots.py`'s half of the collision
+  into the same tree as `gui/session.py`'s.
+
+  **The item understated the count and misnamed the bug.** Not two definitions
+  but five — `plot_result`, `plot_for_vlm`, `write_html`, `layer0` and
+  `result_window` — under three σ policies. And the divergence the item names
+  (Poisson fallback against raw Δ) **cannot fire**: `CompiledModel.sigma` is
+  `PatternData.sig()` and `refine` stores it verbatim, so `result.sigma` is
+  only ever empty on a pre-v0.2 result. Chasing the documented symptom would
+  have found nothing wrong.
+
+  The live bug was the flag beside it. `weighted = bool(res.sigma)` asks "is
+  this a pre-v0.2 result", so it was **constant-true**, `lib/plot.ts`'s no-esd
+  branch had never once executed, and a Poisson project was labelled
+  `(obs−calc)/σ` as though its σ had been measured. Fixed by sourcing it from
+  `DataRef.has_sigma` and making the flag change the axis *title* only —
+  `delta` is always Δ/σ, because Δ/σ_Poisson is precisely what the fit
+  minimised, so the Δ/σ button's tooltip is now true on both kinds of project.
+
+  Method note worth keeping: the pin compares **what each renderer drew**
+  (`fig.axes[1].lines[0].get_ydata()`, the plotly trace's `y`) against **what
+  the route sent**, not three re-derivations of one formula — those agree with
+  each other while all being wrong. Equality is exact (`assert_array_equal`,
+  no tolerance): masking before or after an elementwise divide is bit-identical.
+
+  Measured, numpy-only `[dev]` venv: fast suite 1201 → **1203 passed / 108
+  skipped** (+2, the two new tests; skips unchanged), vitest 255 → **256**
+  (+1). Dist rebuilt — editing `lib/plot.ts` fails `test_gui_dist.py` until
+  `npm --prefix gui run build` reruns.
+
+  **Not done, and (s) does not cover it:** nobody has looked at a Poisson
+  project in a real browser. The changed pixels are one axis title, but this
+  WP's own bar is the screenshot. (p), (q), (r) and (t) are untouched.

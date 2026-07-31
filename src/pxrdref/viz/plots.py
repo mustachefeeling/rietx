@@ -76,9 +76,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     ax.legend(loc="upper right", fontsize=8, frameon=False)
 
     if weighted:
-        sigma = (np.asarray(result.sigma) if result.sigma
-                 else np.sqrt(np.maximum(y_obs, 1.0)))
-        axd.plot(tt, diff / sigma, "-", lw=0.6, color="#4a4a4a")
+        axd.plot(tt, diff / result.sig(), "-", lw=0.6, color="#4a4a4a")
         axd.axhspan(-3, 3, color="#2a9d2a", alpha=0.15, lw=0)
         axd.set_ylabel(r"$\Delta/\sigma$")
         axd.set_xlabel(r"2$\theta$ (deg)")
@@ -123,8 +121,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
     y_calc = np.asarray(result.y_calc)
-    sigma = (np.asarray(result.sigma) if result.sigma
-             else np.sqrt(np.maximum(y_obs, 1.0)))
+    sigma = result.sig()
     delta = y_obs - y_calc
 
     regions = sorted(report.regions, key=lambda r: -r.chi2_share)[:n_regions]

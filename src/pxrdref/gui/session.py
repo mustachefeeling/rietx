@@ -959,10 +959,9 @@ class GuiSession:
         **Three residuals, and one of them cannot be derived from the others**
         (WP-1029).  ``delta_raw`` is obs − calc and ``delta`` is that over σ —
         either could be recomputed in a client from ``y_obs``/``y_calc``, but
-        what a residual *is* belongs on the side that knows whether the file
-        brought an esd column, which ``weighted`` now says rather than leaving a
-        panel to label the axis ``(obs−calc)/σ`` on a Poisson fit.
-        ``cumulative_chi2`` is the one that is genuinely not derivable: it is
+        the σ is :meth:`RefinementResult.sig`, the same one the matplotlib and
+        plotly panels divide by, so the picture cannot depend on which of them
+        drew it.  ``cumulative_chi2`` is the one that is genuinely not derivable: it is
         Σ(Δ/σ)² accumulated over **every** point of the window and decimated
         afterwards, so it still ends at the window's true χ².  Summing the
         decimated subset instead would understate it by whatever the dropped
@@ -971,6 +970,19 @@ class GuiSession:
         The index set is deliberately computed from the same three curves as
         before, so adding these did not change which points come back: a
         cumulative curve is monotone, so it has no peak a bucket could miss.
+
+        ``weighted`` is **not** "is ``delta`` divided by something" — it always
+        is, because the fit always weighted by something.  It is whether that
+        something was *measured*: ``DataRef.has_sigma``, the file's esd column
+        against the Poisson ``√max(y,1)`` estimate, which is the same fact the
+        text document renders as "σ from file".  It cannot be read off the
+        result, whose ``sigma`` array has already collapsed the two into one
+        list of floats; reading ``bool(res.sigma)`` instead — as this did until
+        WP-1029 (s) — asked "is this a *pre-v0.2* result", a question whose
+        answer is always True for anything this GUI can produce.  So the flag
+        was a constant, the client's no-esd branch was unreachable, and a
+        Poisson fit got its axis labelled ``(obs−calc)/σ`` with nothing saying
+        the σ was an assumption.
         """
         import numpy as np
 
@@ -987,15 +999,19 @@ class GuiSession:
         if not mask.any():
             return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
                     "delta": [], "delta_raw": [], "cumulative_chi2": [],
-                    "weighted": bool(res.sigma), "ticks": {}, "n_total": 0,
+                    "weighted": self._need_project().data_ref.has_sigma,
+                    "ticks": {}, "n_total": 0,
                     "n_returned": 0, "max_points": max_points}
         y_obs = np.asarray(res.y_obs)[mask]
         y_calc = np.asarray(res.y_calc)[mask]
         y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
-        sigma = np.asarray(res.sigma)[mask] if res.sigma else None
+        # σ over the whole pattern, then masked: RefinementResult.sig() floors
+        # against the pattern's own median, and a window-local floor would make
+        # the residual depend on how far the user happened to be zoomed in
+        sigma = res.sig()[mask]
         tt = tt[mask]
         raw = y_obs - y_calc
-        delta = (raw / np.where(sigma > 0.0, sigma, 1.0) if sigma is not None else raw)
+        delta = raw / sigma
         # accumulated over every point, then decimated — see the docstring
         cumulative = np.cumsum(delta**2)
         idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
@@ -1010,7 +1026,7 @@ class GuiSession:
             "cumulative_chi2": cumulative[idx].tolist(),
             # whether σ was the file's or a Poisson fallback is the *server's*
             # fact: a client labelling its axis without it can only guess
-            "weighted": sigma is not None,
+            "weighted": self._need_project().data_ref.has_sigma,
             # every emission line's ticks, not just the primary — Layer 0 flags
             # each Kα2 peak as an impurity otherwise (CLAUDE.md)
             "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]

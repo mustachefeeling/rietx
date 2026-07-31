@@ -21,6 +21,7 @@ export interface Window {
   delta?: number[];
   delta_raw?: number[];
   cumulative_chi2?: number[];
+  /** σ was *measured* (the file's esd column), not the Poisson fallback */
   weighted?: boolean;
 }
 
@@ -49,15 +50,21 @@ export const SCALES: { id: Scale; label: string; title: string }[] = [
 ];
 
 /**
- * The chosen residual, or the nearest thing the payload can support.
+ * The chosen residual, and an axis title that says which σ it is over.
  *
- * A window from a project with no esd column carries `weighted: false`, and its
- * `delta` is already the unweighted difference — so asking for Δ/σ there gets Δ
- * with an axis that *says* Δ. The old plot labelled that axis `(obs−calc)/σ`
- * unconditionally, which was a lie on exactly those projects.
+ * `delta` is *always* Δ/σ: the fit always weighted by something, so there is
+ * always a weighted residual to draw (WP-1029 (s)). `weighted` does not say
+ * whether σ exists — it says whether σ was **measured**, i.e. whether the file
+ * brought an esd column or the server fell back to Poisson √max(y,1). That
+ * changes only the axis title, never which curve is plotted.
+ *
+ * This used to switch the *curve*, dropping to raw Δ when `weighted` was false.
+ * It never fired: the server derived the flag from the result rather than from
+ * the data reference, so it was pinned true and a Poisson fit was labelled
+ * `(obs−calc)/σ` as if its σ had been measured.
  */
 export function residual(kind: ResidualKind, w: Window): Residual {
-  const weighted = w.weighted !== false;
+  const measured = w.weighted !== false;
   if (kind === "cumulative") {
     return {
       values: w.cumulative_chi2 ?? [],
@@ -66,13 +73,18 @@ export function residual(kind: ResidualKind, w: Window): Residual {
       zeroline: false,
     };
   }
-  if (kind === "weighted" && weighted) {
-    return { values: w.delta ?? [], title: "(obs−calc)/σ", label: "Δ/σ", zeroline: true };
+  if (kind === "weighted") {
+    return {
+      values: w.delta ?? [],
+      // an assumed σ is still a σ, but the axis has to admit which one it is
+      title: measured ? "(obs−calc)/σ" : "(obs−calc)/σ (Poisson σ)",
+      label: "Δ/σ",
+      zeroline: true,
+    };
   }
-  // raw Δ — either because it was asked for, or because there is no σ to divide by
   return {
     values: w.delta_raw ?? w.delta ?? [],
-    title: weighted ? "obs−calc" : "obs−calc (no σ)",
+    title: "obs−calc",
     label: "Δ",
     zeroline: true,
   };
