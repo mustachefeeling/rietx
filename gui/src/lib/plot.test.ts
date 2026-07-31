@@ -21,13 +21,19 @@ describe("choosing a residual", () => {
     expect(residual("delta", WEIGHTED).values).toEqual([2, -5, 10]);
   });
 
-  it("says so when there is no σ, instead of labelling the axis /σ anyway", () => {
-    // the old plot's y2 read `(obs−calc)/σ` unconditionally, while the server
-    // sends the *unweighted* difference for a project with no esd column
+  it("names the σ as assumed when it was not measured, and still draws Δ/σ", () => {
+    // WP-1029 (s): the fit weighted by Poisson σ, so Δ/σ is exactly what it
+    // minimised and is the honest curve to draw — the axis says which σ it is
     const poisson = { ...WEIGHTED, weighted: false };
     const res = residual("weighted", poisson);
-    expect(res.title).toBe("obs−calc (no σ)");
-    expect(res.values).toEqual([2, -5, 10]);
+    expect(res.title).toBe("(obs−calc)/σ (Poisson σ)");
+    expect(res.values).toEqual(WEIGHTED.delta);
+  });
+
+  it("labels raw Δ the same either way — it is the same curve", () => {
+    const poisson = { ...WEIGHTED, weighted: false };
+    expect(residual("delta", poisson).title).toBe("obs−calc");
+    expect(residual("delta", poisson).values).toEqual([2, -5, 10]);
   });
 
   it("drops the zero line under a curve that only rises", () => {

@@ -421,6 +421,23 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` send
 decimated afterwards. And plotly's `responsive: true` window-only listener bit a
 **second** panel — any control row under a plot needs the `ResizeObserver`.
 
+**Every weighted residual in the package divides by
+`RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
+montage, Layer 0 and the GUI window — and it is a peer of `PatternData.sig()`,
+which is where the esd-column/Poisson choice was already made: `CompiledModel`
+stores `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
+result's σ is a *lookup*, never a re-derivation. Five call sites had open-coded
+`√max(y,1)` under three policies before WP-1029 (s) unified them. The lesson is
+in what that hid: the fallback branches disagreed only on pre-v0.2 results, so
+the visible bug was not there but in the flag beside them — `weighted` meant
+`bool(result.sigma)`, i.e. "is this a pre-v0.2 result", which is constant-true,
+so a Poisson fit was labelled `(obs−calc)/σ` as though its σ had been measured.
+**`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ *present* — the same
+fact `textdoc` renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is
+what the fit minimised either way, and the flag changes only the axis title. A
+test that recomputes a residual cannot catch this class of bug: the pin compares
+what each renderer **drew** against what the route **sent**.
+
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as

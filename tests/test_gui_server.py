@@ -48,6 +48,18 @@ def pattern_file(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
+def poisson_pattern_file(tmp_path_factory):
+    """The same synthetic pattern with its esd column withheld.
+
+    ``_write_xye``'s esds are 1.3× the Poisson fallback on purpose, so a fit of
+    this file is distinguishable from a fit of ``pattern_file`` rather than
+    merely differently labelled.
+    """
+    return _write_xye(tmp_path_factory.mktemp("gui-poisson") / "no_esd.xye",
+                      synthesize(), with_sigma=False)
+
+
+@pytest.fixture(scope="module")
 def state_dir(tmp_path_factory):
     """A recent-projects store that is never the user's real home."""
     return tmp_path_factory.mktemp("gui-state")
@@ -996,9 +1008,7 @@ def test_the_window_carries_three_residuals_and_one_is_not_derivable(fitted):
 
     # the whole point of accumulating server-side: the last value is the
     # window's *true* χ², over every point, not over the decimated subset
-    sigma = np.asarray(result.sigma)
-    delta = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / np.where(
-        sigma > 0.0, sigma, 1.0)
+    delta = (np.asarray(result.y_obs) - np.asarray(result.y_calc)) / result.sig()
     assert window["cumulative_chi2"][-1] == pytest.approx(float((delta**2).sum()))
     # …and summing what came back would understate it, which is the mistake
     # this field exists to prevent
@@ -1010,6 +1020,76 @@ def test_the_window_carries_three_residuals_and_one_is_not_derivable(fitted):
     # a zoom's cumulative starts from that window rather than from the pattern
     zoom = client.get("/api/result/window?lo=8&hi=12&max_points=200")[1]
     assert zoom["cumulative_chi2"][-1] < window["cumulative_chi2"][-1]
+
+
+def test_the_weighted_residual_has_exactly_one_authority(fitted):
+    """WP-1029 (s): the PNG and the GUI cannot draw different Δ/σ.
+
+    ``viz/plots.py`` and ``gui/session.py`` each open-coded σ and landed on main
+    hours apart.  They agreed only by luck — the divergence (a Poisson fallback
+    against a raw Δ) sat in a branch that fires solely on a pre-v0.2 result — and
+    nothing held them together, which is the second-authority-on-one-picture the
+    conventions forbid.  Both now divide by :meth:`RefinementResult.sig`.
+
+    This compares what matplotlib actually **drew** against what the route
+    actually **sent**, rather than two re-derivations of one formula: a test that
+    recomputes the residual itself would pass while both drawers were wrong.
+    """
+    import matplotlib.pyplot as plt
+
+    _, client, project = fitted
+    result = project.refinement.result_
+
+    fig = result.plot(weighted=True)
+    try:
+        # weighted mode puts Δ/σ alone on the lower axes; the ±3σ band is a patch
+        drawn = np.asarray(fig.axes[1].lines[0].get_ydata())
+    finally:
+        plt.close(fig)
+
+    window = client.get("/api/result/window")[1]
+    # the window is decimated and the PNG is not, so match on 2θ, not position
+    idx = np.searchsorted(np.asarray(result.two_theta),
+                          np.asarray(window["two_theta"]))
+    # elementwise ops on the same arrays: equal to the bit, not to a tolerance
+    np.testing.assert_array_equal(np.asarray(window["delta"]), drawn[idx])
+
+    # and the third drawer, the plotly export, divides by the same σ
+    from pxrdref.viz.html import figure_from_arrays
+    figure = figure_from_arrays(
+        np.asarray(result.two_theta), np.asarray(result.y_obs),
+        np.asarray(result.y_calc), None, result.ticks, sigma=result.sig(),
+        max_points=10 * len(result.two_theta))
+    trace = next(t for t in figure.data if t.name == "Δ/σ")
+    np.testing.assert_array_equal(np.asarray(trace.y), drawn)
+
+
+def test_a_poisson_project_still_gets_a_weighted_residual(
+        blank, tmp_path, poisson_pattern_file):
+    """WP-1029 (s): no esd column means an **assumed** σ, not no σ.
+
+    This is the branch the fix changed.  ``weighted`` used to be
+    ``bool(result.sigma)``, which is True for every result this GUI can make, so
+    the flag was a constant and the client's own no-esd path was unreachable —
+    a Poisson fit got the axis of a measured one.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "poisson.pxrd", poisson_pattern_file)
+    assert project.data_ref.has_sigma is False
+    client.post("/api/run", {"kind": "stage",
+                             "stage": {"name": "s", "turn_on": ["phases.*.scale"]}})
+    _wait_idle(client)
+
+    window = client.get("/api/result/window")[1]
+    assert window["weighted"] is False       # the σ was assumed, and says so
+    # …and is still divided through, because Δ/σ is what the fit minimised —
+    # the flag changes the axis title, never which curve is drawn
+    assert window["delta"] != window["delta_raw"]
+
+    # the assumption is Poisson exactly, not the file's absent 1.3× esds
+    result = project.refinement.result_
+    np.testing.assert_array_equal(
+        result.sig(), np.sqrt(np.maximum(np.asarray(result.y_obs), 1.0)))
 
 
 def test_report_and_history_read_the_fitted_session(fitted):

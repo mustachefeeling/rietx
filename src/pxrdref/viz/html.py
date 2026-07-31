@@ -129,8 +129,7 @@ def write_html(result: RefinementResult, path: str, *,
     """Render a :class:`RefinementResult` to a self-contained HTML file."""
     s = result.statistics
     y_obs = np.asarray(result.y_obs)
-    sigma = (np.asarray(result.sigma) if result.sigma
-             else np.sqrt(np.maximum(y_obs, 1.0))) if weighted else None
+    sigma = result.sig() if weighted else None
     fig = figure_from_arrays(
         np.asarray(result.two_theta), y_obs,
         np.asarray(result.y_calc),
