@@ -46,34 +46,36 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
-**Next session starts at [1029](wp/1029-gui-usability.md), which was reopened
-on 2026-07-30 within hours of landing.** Five items, all from the user driving
-the built thing, and **two are regressions from 1029's own first pass** — so
-they belong to it rather than to a new WP. Everything is measured in that file's
-handover log; do not re-measure it. **(s) is done (2026-07-31)**: the weighted
-residual had *five* definitions rather than the two the item claimed, now one
-`RefinementResult.sig()` — and the divergence the item was written about turned
-out to be unreachable, while the live bug was the `weighted` flag beside it,
-constant-true since it asked whether the result predated v0.2. **p, q, r and t
-remain.** The sharpest is **(p)**: `lightposition` is
-**inert** on plotly.js 3.7.0 (six pairs of light directions render
-pixel-identical), so item (a)'s camera-following light does nothing and the only
-visible effect of that change was its `LIGHTING` constants, which dropped the
-shadow side from 85 to 48 luminance — "desaturated/dark and flat", exactly as
-reported. That also means three places currently claim a mechanism that does not
-work, and a fix has to correct them. **(q)** neither plot has the theme in its
-draw effect's dependencies, so colours sampled at draw time go stale and the text
-ends up light grey on white. **(r)** is a design question rather than a defect —
-whether `y_calc` should be recomputed rather than stored — and the measurements
-say the premise is already half true: nothing is persisted, and the real cost is
-9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB.
+**[1029](wp/1029-gui-usability.md) is closed (2026-07-31): all fifteen items
+plus the five reopened ones.** The reopening's headline claim did not survive
+measurement: `lightposition` is **not** inert on plotly.js 3.7.0 — it is
+**screen-relative** (read through the inverse of the full projection
+transform), and a z-dominant value sits *behind* the scene, which both earlier
+passes had shipped without knowing it — the scene had never once been lit by
+its diffuse term, and "desaturated/dark/flat" was the ambient constant rendered
+alone. One fixed up-left key at z = 0 now follows the camera by construction,
+mid-drag included; the camera-derived light arithmetic is deleted. The full
+refutation, the three measured z-regimes and the constants chosen are in the
+WP's 2026-07-31 handover entry — quote it, do not re-measure it.
 
-*Method note carried from that session, because it cost two wrong claims:*
-playwright's viewport option is `newContext({ viewport })`, **not**
-`viewportSize`, which is silently ignored; and a WebGL canvas cannot be read back
-with `drawImage` unless `preserveDrawingBuffer` is set — screenshot the element
-and analyse the PNG instead. **When a browser check disagrees with a unit test,
-suspect the harness before the code.**
+**Next session starts at [1018](wp/1018-peak-picking.md)** — code landed
+2026-07-30 with **tests outstanding**, and it is the root of the whole
+indexing chain (1019–1027). After that the open v1.0 fronts are the indexing
+chain itself, [1016](wp/1016-sequential-series-panel.md) (series panel),
+[1028](wp/1028-robustness-external-data.md) (robustness, owns the `converged`
+vocabulary), [1017](wp/1017-gui-manual-onboarding.md) (manual; its GUI
+prerequisites 1011–1015 + 1029 are now all landed), and
+[1003](wp/1003-api-freeze-pypi.md) last (its `### Inherited` has been growing
+freeze questions — the `ui`-patch 409, `RefinementResult` field typing).
+
+*Method notes carried forward, each having cost a wrong claim:* playwright's
+viewport option is `newContext({ viewport })`, **not** `viewportSize` (silently
+ignored); a WebGL canvas cannot be read back without `preserveDrawingBuffer` —
+screenshot the element and analyse the PNG; a static grep of the served bundle
+for `version:"…"` finds a sub-dependency's string, so only `Plotly.version` at
+runtime is a version measurement; and **when a browser check disagrees with a
+unit test — or a probe with a probe — suspect the harness before the code, and
+trust the one whose files are quoted.**
 
 **v0.6 shipped 2026-07-29** — all four rows (0605, 0601, 0602, 0604) landed;
 measured acceptance in [milestones/v0.6.md](milestones/v0.6.md). The
@@ -1511,7 +1513,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
-| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | 🔄 | 1010–1015 |
+| [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1027, 1029 |
 

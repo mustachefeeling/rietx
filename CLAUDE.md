@@ -16,7 +16,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (255: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (259: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot logic) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -36,7 +36,9 @@ simultaneously running a headless browser, three vite builds and a second pytest
 **Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
 `[dev]`** venv, the full suite is 1268 passed / 117 skipped (6:52, measured
 2026-07-30 after WP-1029; 1263 / 116 in 10:27 and 8:47 before it) and the fast
-suite 1198 passed / 108 skipped (78 s, same day).
+suite 1203 passed / 108 skipped (17–18 s on an idle M4, 2026-07-31, twice;
+78 s on the same machine a day earlier while it was busy — the range rule
+in miniature; 1198/108 was the 2026-07-30 figure).
 Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
 two selections, two short of passed+skipped in both** — a gap that predates this
 line (the "1378 collected" it used to carry was the sum, not a measurement) and
@@ -52,7 +54,8 @@ structure), so 1193/107 → 1198/108: five passes and one skip, which is the
 version of this check that actually earns its keep. That is the bookkeeping check worth doing: the same two
 figures a day earlier disagreed by one, and a session that cannot say which of
 its numbers moved cannot tell a new skip from a new pass. The frontend's own
-suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 — where
+suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 → 256
+→ 259 — where
 that **207 was quoted as 206** until the next session re-ran it, which is the
 same lesson one suite over.)
 
@@ -420,6 +423,25 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` send
 `cumulative_chi2` is not, because it must be accumulated over every point and
 decimated afterwards. And plotly's `responsive: true` window-only listener bit a
 **second** panel — any control row under a plot needs the `ResizeObserver`.
+
+Its second pass (2026-07-31) added three browser facts. **plotly's
+`lightposition` is screen-relative, not a data-space point** — read through the
+inverse of the full projection transform, so z > 0 sits *behind* the scene and
+a z-dominant light renders the whole visible side ambient-flat, which is what
+"desaturated, dark and flat" was: both earlier passes had shipped one, and the
+scene had never been lit by its diffuse term at all. The viewer's key is one
+fixed `LIGHT_POSITION = (−1e5, 1e5, 0)` (z = 0 keeps it lateral; z < 0 is a
+headlight and the lateral part dies) that follows the camera by construction,
+mid-drag included — no camera arithmetic exists, and `Plotly.version` at
+runtime is the only version measurement (a static grep of the bundle finds a
+sub-dependency's `version:"…"` string). **A style sampled synchronously inside
+an effect races the shell's `applyTheme` effect in the same flush** —
+`Plot.svelte` awaits one microtask before `getComputedStyle`, or the first
+dark repaint wears light ink; the 3D panel never had the bug because its draw
+awaits the plotly loader first. And **an effect that reads the project
+*object* refires on every ui-only PATCH** — Model reloads on a boolean
+`$derived` (`hasProject`), or a theme click refetches three routes plus the 3D
+geometry with the head unmoved.
 
 **Every weighted residual in the package divides by
 `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM

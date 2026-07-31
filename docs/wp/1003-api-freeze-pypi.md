@@ -487,14 +487,24 @@ From **WP-1029** (GUI usability, landed 2026-07-30):
   as-replayed curves can differ marginally, which is fine for a diagnostic and
   not fine if a plot silently swaps one for the other).
 
-- **The weighted residual is now defined twice**, and the freeze is the natural
-  place to say which one is normative. `viz/plots.py` (strategy branch) and
-  `gui/session.py`'s `/api/result/window` (GUI branch) both landed on `main` on
-  2026-07-30 and both compute `(y_obs − y_calc)/σ` with a `weighted` flag. They
-  agree; nothing pins them. They differ in the no-σ fallback — viz uses Poisson
-  `√max(y,1)`, the route reports `weighted: false` and returns raw Δ — so a PNG
-  and the GUI can already draw different residuals for a project with no esd
-  column. Tracked as WP-1029 item (s).
+  *WP-1029 (r) settled its half on 2026-07-31, leaving only the field typing
+  here.* The decision: **curves stay in-session and nothing new is persisted**
+  — a result's five arrays belong to the session that computed them; `y_calc`
+  for any *other* node, if a client ever wants it, is a `refine.replay` behind
+  a `?node=` parameter on `/api/result/window`, not a schema change, and such
+  a response must say it is as-replayed rather than as-optimised (the trap
+  above). No route reservation was made — the query parameter does not exist
+  until someone builds it, and `RESERVED_ROUTES` is for paths, not options.
+  What this WP still owns is only the sentence above: `list[float]` or arrays
+  in the frozen contract.
+
+- ~~**The weighted residual is now defined twice**~~ — resolved by WP-1029 (s)
+  on 2026-07-31, before this WP starts: it was *five* definitions under three σ
+  policies, unified on `RefinementResult.sig()` (a peer of `PatternData.sig()`),
+  with `weighted` sourced from `DataRef.has_sigma` and pinned by
+  `test_the_weighted_residual_has_exactly_one_authority`. Nothing left to
+  freeze here beyond what that test already holds; the normative definition is
+  the method, so freezing `RefinementResult` freezes it.
 
 - **`ProjectDoc.ui` gained four keys** (`theme`, `side_width`, `model_columns`,
   on top of `simple`/`console_height`). It is an open dict on purpose; if the

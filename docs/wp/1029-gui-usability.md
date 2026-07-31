@@ -1,8 +1,8 @@
 # WP-1029 — GUI usability: legibility, layout, colour, theming
 
-Milestone: v1.0 · Status: 🔄 landed 2026-07-30, **reopened** the same day
-(items p, q, r, then s and t — see the handover log; two are regressions from
-the first pass). **(s) done 2026-07-31**; p, q, r, t open.
+Milestone: v1.0 · Status: ✅ landed 2026-07-30, reopened the same day (items
+p, q, r, s, t — two were regressions from the first pass), **second pass
+closed 2026-07-31**. Nothing open.
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal
@@ -318,15 +318,24 @@ independently, or the two will disagree.
 
 ### Second pass (reopened 2026-07-30)
 
-- [ ] **(p) The 3D scene.** `lightposition` is inert on plotly.js 3.7.0
-      (measured, six pairs pixel-identical), so item (a)'s camera light does
-      nothing and only its `LIGHTING` change is visible — shadow-side luminance
-      85 → 48. Find a depth cue that works, correct the three places that claim
-      the light follows the camera, and judge by screenshot on NAC.
-- [ ] **(q) Repaint both plots on a theme change** — the theme is in neither
-      draw effect's dependencies, so `getComputedStyle` colours sampled at draw
-      time go stale and the text ends up light grey on white. While there, take
-      `Plot.svelte`'s five fixed hex curve colours onto the custom properties.
+- [x] **(p) The 3D scene.** Done 2026-07-31, and the reopening's own claim did
+      not survive measurement: `lightposition` is **not** inert — it is
+      **screen-relative** (pushed through the inverse of the full projection
+      transform; z > 0 is behind the scene, and both earlier passes shipped a
+      z-dominant light, which is what "desaturated, dark and flat" was). One
+      fixed up-left key at z = 0 now follows the camera by construction,
+      mid-drag included; `lightPosition(camera)` deleted with its premise;
+      ambient floor 0.42 → 0.58. Judged on NAC at 1500 and 1000 px, both
+      themes, before and after a drag.
+- [x] **(q) Repaint both plots on a theme change** — done 2026-07-31: the
+      resolved theme is a prop and a dependency of both draw effects, the five
+      fixed hexes are `--plot-*` custom properties themed per surface, and the
+      browser pass found three more of the same family: a style sampled
+      synchronously races the shell's `applyTheme` effect in the same flush
+      (one awaited microtask settles it), plotly's default near-white grid
+      glares on dark (now `--line`), and Model's reload effect read the project
+      *object*, so every ui-only PATCH refetched three routes plus the 3D
+      geometry.
 - [x] **(s) Two authorities on the weighted residual — it was five.** Done
       2026-07-31. `√max(y,1)` was open-coded in `viz/plots.py` **twice**
       (`plot_result`, `plot_for_vlm`), `viz/html.py`, `report/layer0.py` and
@@ -356,7 +365,7 @@ independently, or the two will disagree.
       the curve the Δ/σ button promises, and dropping to raw Δ there was the
       wrong repair.
       *This WP's own charter told it to check `viz/` first and it did not.*
-- [ ] **(t) One unidentified test flake, seen once and never reproduced.**
+- [x] **(t) One unidentified test flake, seen once and never reproduced.**
       Fast suite (`-n auto --dist loadgroup`) reported `1 failed, 1198 passed,
       108 skipped in 45.08s` on 2026-07-30; the immediate re-run gave `1199
       passed, 108 skipped` — the same 1199 non-skipped tests, so one of them is
@@ -365,13 +374,19 @@ independently, or the two will disagree.
       `FAILED` line. Five consecutive runs of `tests/test_gui_server.py` (the
       threaded suite, the obvious suspect) are clean, the full suite is green at
       1268/117, and Linux CI is green — so it is unreproduced, **not
-      explained**. If it recurs, capture the whole output before filtering.
+      explained**. Closed 2026-07-31 after two further fully-captured clean
+      runs (logs kept whole, nothing filtered); the standing instruction —
+      capture the entire output before any grep — is now also in the handover
+      log, which is where a successor will look when it recurs.
 
-- [ ] **(r) `RefinementResult` curves.** Nothing is persisted already; the cost
-      is 9.6 MB of `list[float]` where numpy fp64 would be 2.38 MB. Decide
-      between the cheap win (array-backed fields) and the fuller one (`y_calc`
-      by `replay` for any node but the live one), knowing the as-optimised /
-      as-replayed gap. Field types are a WP-1003 freeze question.
+- [x] **(r) `RefinementResult` curves.** Decided 2026-07-31, recorded in
+      [1003](1003-api-freeze-pypi.md)'s `### Inherited`: curves stay
+      in-session, nothing new is persisted, and `y_calc` for any node but the
+      live one is a `refine.replay` behind a `?node=` parameter on
+      `/api/result/window` *if a client ever wants it* — labelled as-replayed,
+      never silently swapped for the as-optimised curve. The only open half is
+      the field typing (`list[float]` vs arrays), which is the JSON contract
+      and therefore 1003's.
 
 ## Acceptance
 
@@ -661,3 +676,80 @@ the screenshot that prompted it, taken again.
   **Not done, and (s) does not cover it:** nobody has looked at a Poisson
   project in a real browser. The changed pixels are one axis title, but this
   WP's own bar is the screenshot. (p), (q), (r) and (t) are untouched.
+
+- **2026-07-31 (later) — second pass closed: p, q, r, t done, and (p)'s
+  premise did not survive measurement.**
+
+  **(p) `lightposition` is not inert — it is screen-relative.** Re-probed in
+  isolation with the app's *exact* trace shape, layout and `LIGHTING` against
+  the same runtime (`Plotly.version` = 3.7.0): flipping the light ±x flips the
+  lit side (luminance asymmetry +6.19 → −6.19), `react` **with fresh trace
+  objects** honours a changed light bit-identically to a fresh `newPlot`
+  (mean |Δ| = 0.0), and react-on-empty-div behaves as newPlot. The bundle's
+  own draw code says why the inertness measurements read the way they did: the
+  attribute is pushed through the **inverse of the full projection transform**,
+  so its frame is the projection's, not the data's. Three regimes, all
+  measured on a cluster of overlapping same-colour spheres: **z > 0 is behind
+  the scene** — the whole visible side renders at ambient × colour, flat
+  (0.42 × a mid-green ≈ 54 ≈ the reported 48), and *both* earlier passes
+  shipped a z-dominant light without knowing it, WP-1015's fixed
+  `(1e5,1e5,1e5)` included, so the scene had **never** been lit by its diffuse
+  term; **z < 0 is a headlight**, scale-invariant, lateral components ignored
+  (pixel-identical from |z| = 3e1 to 1e5); **z = 0 keeps the key lateral**,
+  and the on-screen direction wobbles with an oblique view matrix but never
+  leaves the viewer's side. That also reconciles the "inert in the app"
+  measurement: comparing a camera-derived light to the old fixed one was
+  comparing two backlit configurations — two ambient-flat pictures. Landed:
+  `LIGHT_POSITION = (−1e5, 1e5, 0)` — one fixed up-left key that follows the
+  camera by construction, **mid-drag included** (which the deleted per-draw
+  recomputation could never do: no event fires when a gl3d drag ends) —
+  `lightPosition(camera)` deleted, `LIGHTING` ambient 0.42 → 0.58 / diffuse
+  0.72 (cluster shadow floor 48 → 74, chosen against candidates including
+  WP-1015's own 0.75/0.55 at 96-but-flat). Judged on NAC at 1500 and 1000 px,
+  both themes, before and after a drag.
+
+  **(q) landed as charted, plus three the browser found.** The resolved theme
+  is a prop of both panels and a dependency of both draw effects; the five
+  fixed hexes are `--plot-*` custom properties (dark set validated against
+  `#151515` with the dataviz checks — the two greys sit below the chroma floor
+  *deliberately*, recessive marks whose identity is the mark shape). Then the
+  browser pass: **a style sampled synchronously inside an effect races the
+  shell's `applyTheme` effect in the same flush** — the first dark repaint
+  painted dark pixels with light ink; one awaited microtask before sampling
+  settles it, and the 3D panel never had the bug because its draw awaits the
+  plotly loader first. Plotly's near-white default grid glares on dark → grid
+  and zero line read `--line`. And **Model's reload effect read the project
+  object**, so every ui-only PATCH (a theme, a pane width) reloaded three
+  routes and refetched the 3D geometry with the head unmoved — it now
+  conditions on a boolean `$derived`, which only moves when a project appears
+  or goes away.
+
+  **(s)'s leftover browser look is done**: a real Poisson project (corundum +
+  `qarr/corundum.prn`, `has_sigma = False`) fits to Rwp 14.8 % and the page
+  says `σ Poisson` in the header and `(obs−calc)/σ (Poisson σ)` on the
+  residual axis.
+
+  **(r)** decided and recorded in [1003](1003-api-freeze-pypi.md)'s
+  `### Inherited` (see the task above). **(t)** closed after two further
+  fully-captured clean runs (`1203 passed / 108 skipped`, exit 0, logs kept
+  whole); if it recurs, capture the entire output before any grep.
+
+  Measured: vitest 256 → **259** (+3: curve-colour unit test, plot
+  theme-repaint mount test, viewer theme-redraw mount test — the last of
+  which is what caught the ui-PATCH reload). Python fast suite unchanged at
+  **1203 / 108** (numpy-only `[dev]` venv; 17–18 s on an idle M4, against
+  45–80 s on busy ones — the range rule again). `app.js` 174.0 → 174.4 kB.
+
+  **Two environment traps for any successor.** A static grep of the served
+  bundle for `version:"…"` finds **3.8.2**, which is some sub-dependency's
+  string — `Plotly.version` at runtime says 3.7.0, and only that is a
+  measurement (this nearly became a wrong "the bundle moved underneath us"
+  correction). And the probe harness from the previous session concluded
+  "inert" from six pixel-identical pairs; this session's probes contradict it
+  with the same browser and bundle — *when a probe disagrees with a probe,
+  the one whose files are quoted wins*, so: probe pages live in the job
+  scratchpad (`probe*.html`), and the numbers above are the durable record.
+
+  **Next**: nothing on this WP — all fifteen items plus the five reopened ones
+  are closed. [1017](1017-gui-manual-onboarding.md) was already told what
+  changed under it; the light story adds nothing a manual needs.
