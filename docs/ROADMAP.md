@@ -52,25 +52,23 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing is in flight.** [1031](wp/1031-docs-consolidation.md) closed
-2026-07-31: the planning docs are consolidated (root CLAUDE.md ~600 lines,
-this file ~500, the rolling narrative in
-[milestones/v1.0.md](milestones/v1.0.md)), the protocol above has mechanical
-enforcement (`tests/test_docs_consistency.py`, `docs.yml`), and every WP
-session ends with `/wp-handover`.
+**In flight: [1027](wp/1027-gui-peak-picker.md)** (started 2026-07-31) — GUI
+peak picker + indexing panel; the indexing line meets the GUI line. Before it,
+[1031](wp/1031-docs-consolidation.md) closed 2026-07-31: planning docs
+consolidated, the protocol above mechanically enforced
+(`tests/test_docs_consistency.py`, `docs.yml`), every WP session ends with
+`/wp-handover`.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1027](wp/1027-gui-peak-picker.md) — GUI peak picker + indexing panel;
-   the indexing line meets the GUI line.
-2. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
+1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-3. [1030](wp/1030-engine-scaling-low-symmetry.md) — engine cost at low
+2. [1030](wp/1030-engine-scaling-low-symmetry.md) — engine cost at low
    symmetry; the bethanechol benchmark cannot be graded until a monoclinic
    search finishes.
-4. [1016](wp/1016-sequential-series-panel.md) then
+3. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels.
-5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+4. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
 **The bar** (milestone row below): full validation matrix green; GUI
@@ -384,7 +382,7 @@ per concurrent session, or only one session commits.
 | [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
-| [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
+| [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | 🔄 | 1010, 1011, 1018–1024 |
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
