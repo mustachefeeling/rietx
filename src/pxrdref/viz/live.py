@@ -52,7 +52,7 @@ class LiveSession(EventStream):
             ticks[f"phase {ip}"] = sorted(float(p) for p in pos if np.isfinite(p))
 
         fig = figure_from_arrays(
-            model.tt, model.y_obs, y_calc, y_bkg, ticks,
+            model.tt, model.y_obs, y_calc, y_bkg, ticks, sigma=model.sigma,
             title=f"after stage '{stage_name}':  Rwp={stats.rwp:.4f}  "
                   f"GoF={stats.gof:.2f}")
         tmp = self.dir / "fit.html.tmp"
