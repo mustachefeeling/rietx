@@ -48,6 +48,10 @@ is the right way round: the findings they carry are the cheap ones to re-check.
 Note the LaB6 fixture's own 20-67 s spread, one fixture on one machine in one
 afternoon, and see the range rule below.
 
+With WP-1026's closing rows (2026-07-31): full **1524 passed / 71 skipped in
+8:09-15:33**, and that spread is one change measured three ways rather than
+machine noise — see the budget/scope note below.
+
 **And the claim above that indexing does not set the wall clock expired without
 anyone noticing, which is the lesson worth keeping.** Measured with
 `--durations` on a green full run (2026-07-30): `indexing-acceptance` had reached
@@ -59,6 +63,16 @@ shared a fixture with anything else in it: the LaB6 rows went into their own
 501 s, `stephens-brucite` 537 s, LaB6 ~60 s in parallel, full suite 9:22.  **One
 dataset, one group**, and re-read the `--durations` list rather than the last
 session's sentence about it — a group ordering is a measurement with a shelf life.
+
+**And the honest-budget rule and the CI budget pull against each other, so
+expect to pay in scope.** Raising a real-data search's `budget_seconds` from 60
+to 300 (so it could not truncate under load, above) let one search run to
+*completion* at **850 s**, which made its group the longest in the tree and took
+the full suite to 15:33. The budget could not go back, so the **scope** moved:
+each pure phase is now searched over the systems its answer lives in, a declared
+restriction `systems_searched` carries. Re-measured, the same tree is **8:09**.
+When a budget fix makes something slow, narrowing what is searched is the lever
+— never the budget, and never a silent cap.
 **Quote wall clock as a range, never as a figure**: the same green tree
 measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), so machine
 state moves it further than most changes do. Compare runs, not records.
@@ -77,7 +91,18 @@ test depends on may be one rank down, in the library** — WP-1026 hit the same
 failure through `trial_error`'s dominant-zone probe, which capped each ladder rung
 at a hard-coded 10 s against a 4.3 s serial cost, so under `-n auto` the test
 asserted the *absence* of `INDEX_DOMINANT_ZONE` for a reason unrelated to the index
-table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s).
+table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s). **A fourth instance (WP-1026,
+2026-07-31) gives the check to run rather than the story**: a real-data indexing
+row passed serially and failed under `-n auto`, reporting a *different centring*
+ranked first, because its search costs **73 s serial and 258 s under load**
+against a declared 60 s budget. The test to apply before landing any row with a
+budget: **compare its serial time with its declared budget, and if the budget is
+not several times larger, the assertion is a load sensor**
+(`REAL_DATA_BUDGET_SECONDS`, now 300 s, costs nothing because these searches
+finish early when they finish at all). The same audit applies to assertions
+*about* completion: "some system did not finish" is a statement about machine
+load, not about the data, and belongs as "every system searched reports whether
+its domain was exhausted".
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -549,6 +574,27 @@ screen reports the scatter a template *leaves* (0.0078°), the search needs the
 window the *uncorrected* positions span (0.037°, since `refine_with_shift` runs
 only after a candidate survives), so declaring the measured one silently returns
 no candidate at all.
+
+**The measured scoreboard, and it is the honest shape of this feature (WP-1026,
+closed 2026-07-31).** Across eight known-cell datasets, **five** put the right
+lattice first (SRM 676a corundum, SRM 660c LaB6, zincite, zircon, and FAP where
+the right cell is present and second), **one** is refused for having too few
+lines (fluorite: 18 usable against `PEAK_MIN_USABLE_LINES` = 20 — high symmetry
+makes a pattern easy to index right up until it makes it too sparse to index at
+all), and **two** fail (brucite and magnetite rank a supercell above the truth;
+NAC cannot be searched at its own d_min). **Every one of the eight abstains** —
+`best_or_none()` is None on every real dataset, including the five that are
+right. Read that as *never wrong, and silent more often than right*, and do not
+let a summary round it up. Three lessons transfer. **A literature cell is not a
+specimen's cell**: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
+Rothbauer's, 30× the goniometer floor, so a mineral's published cell grades
+lattice type and centring and nothing in ppm. **An indexed cell has no
+displacement parameter**, so it absorbs what a refinement models — 127 ppm
+measured on SRM 660c — which is why an indexing bar is looser than the same
+dataset's refinement bar (FAP: 500 ppm against ±300). And **M₂₀ can invert the
+ranking**: on FAP the cell both engines agree on indexes 181 of 185 lines and
+sits *below* one 1218 ppm out that indexes 167, because a wrong metric matching a
+subset tightly is what a plain mean of ⟨ΔQ⟩ rewards.
 
 **Geometrical ambiguity has a class the derivative-lattice enumeration cannot
 reach.** `ambiguity_partners` walks *sublattices* of index 2-4 — supercells — so a

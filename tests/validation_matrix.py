@@ -145,6 +145,12 @@ DATASETS: dict[str, Dataset] = {
         "GSAS-II LabData tutorial fluorapatite; FAP.EXP is GSAS's converged "
         "fit and supplies both the reference values and the protocol",
         "cross_code"),
+    "hl2": Dataset(
+        "hl2_peaks.txt",
+        "74 peaks from a genuinely UNIDENTIFIED laboratory pattern -- our own "
+        "derived product from datalab-org/guillemot's MIT examples, carried "
+        "with attribution; the compound is unknown and stays unknown",
+        "characterisation"),
     "qarr": Dataset(
         "qarr",
         "IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 and six pure "
@@ -949,6 +955,121 @@ CLAIMS: tuple[Claim, ...] = (
                  "because the search matches uncorrected positions and needs "
                  "the shift's amplitude (0.037) instead -- 4.3x apart",
         diagnostics=("!INDEX_SHIFT_ALLOWANCE",),
+    ),
+    # ---- the round-robin pure phases, NAC, FAP and the unknown ----------
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern",
+        "qarr", ("characterisation",),
+        "a pattern with too few lines is refused before any engine starts, and "
+        "the bar is where the figures of merit are defined rather than chosen",
+        reference="CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka "
+                  "that lattice yields only 18 usable lines against "
+                  "PEAK_MIN_USABLE_LINES = 20.  The bar is not arbitrary: M20, "
+                  "F20 and Smith's volume envelope are all DEFINED on twenty "
+                  "lines, so below it the package would be quoting figures "
+                  "outside their own definitions.  The counterintuitive "
+                  "direction -- high symmetry makes a pattern easy to index "
+                  "until it makes it too sparse to index at all",
+        measured="18 usable; supports_indexing False; systems_searched EMPTY; "
+                 "0 candidates in 0.1 s; INDEX_DATA_INSUFFICIENT and "
+                 "INDEX_ABSTAINED both raised",
+        diagnostics=("INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_hexagonal_lab_pattern_recovers_its_lattice",
+        "qarr", ("characterisation",),
+        "a hexagonal lab pattern recovers its lattice, both engines agreeing, "
+        "and supplies the third point of the extinction-caveat table",
+        reference="Kihara & Donnay (1985) for ZnO wurtzite.  A LITERATURE cell "
+                  "for the mineral, never a certificate for this specimen -- "
+                  "brucite in the same series sits +1750 ppm from its own "
+                  "literature cell, 30x the goniometer-radius floor, which is "
+                  "why these rows assert lattice type and centring at a lab "
+                  "d-scale level and not a ppm number",
+        measured="a -217 ppm, c -186 ppm; ALL 27 usable lines indexed; M20 902; "
+                 "both engines.  predicted_but_absent = 4 (the 6_3 screw and "
+                 "c-glide of P 6_3 m c, invisible to the lattice hexagonal P), "
+                 "so graded low and best_or_none() is None",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_a_centred_tetragonal_lattice_is_recovered_with_its_centring",
+        "qarr", ("characterisation",),
+        "the only row that recovers a CENTRING, and it shows which figure of "
+        "merit does the choosing",
+        reference="Hazen & Finger (1979) for ZrSiO4.  Two centrings of one "
+                  "metric are deliberately NOT merged (engines.dedup_groups) "
+                  "because they predict different numbers of lines; the panel "
+                  "chooses.  The primitive twin indexes exactly as many "
+                  "OBSERVED lines, so forward coverage cannot separate them -- "
+                  "only coverage scored in the other direction can",
+        measured="tetragonal I ranked first, a +207 ppm and c +1906 ppm, 66 of "
+                 "68 lines; the P twin ties on n_indexed and loses on "
+                 "predicted_seen_fraction 0.59 against 0.31.  "
+                 "predicted_but_absent = 7 (4_1 screw and glides on top of the "
+                 "centring); low, best_or_none() None",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed",
+        "nac", ("characterisation",),
+        "a short-wavelength pattern cannot be indexed as measured, and the "
+        "null result says 'incomplete' rather than 'nothing exists'",
+        reference="lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which "
+                  "a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok "
+                  "-- the crash guard in front of every generate_reflections "
+                  "call.  The row pins the SHAPE of the failure, because a "
+                  "null that distinguishes 'we did not finish' from 'there is "
+                  "nothing' is the whole design",
+        measured="zero boxes explored, 0.15 s, no candidate, "
+                 "search_complete[cubic] False.  Truncating 2theta was measured "
+                 "and does NOT rescue it: 2-18/25/32 deg give 215 boxes but "
+                 "a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth "
+                 "is I, at 300-620 s each.  Underneath, the true cell explains "
+                 "6 of the first 20 picked lines (CaF2 none) though 268 of 285 "
+                 "overall -- a search-line selection question, filed to WP-1029",
+        diagnostics=("INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"),
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_cross_code_cell_is_found_but_not_ranked_first",
+        "fap", ("cross_code", "characterisation"),
+        "the cross-code cell is reachable and both engines agree on it, the "
+        "ranking does not lead with it, and the gate declines the leader",
+        reference="GSAS's own converged FAP.EXP cell for this exact pattern.  "
+                  "The band is 500 ppm, NOT the refinement suite's +-300: an "
+                  "indexed cell has no displacement parameter and absorbs the "
+                  "displacement instead, worth a measured 127 ppm on SRM 660c "
+                  "and ~180 on SRM 676a.  The row asserts MEMBERSHIP and "
+                  "REFUSAL rather than rank, because writing it as 'rank 0 is "
+                  "the answer' would mean tuning the panel on a dataset whose "
+                  "reference is another code's fit",
+        measured="a +232 ppm, c +363 ppm, found by BOTH engines, 181 of 185 "
+                 "lines.  Ranked below a cell 1218 ppm out that indexes 167 and "
+                 "scores a higher M20.  best_or_none() None and nothing reaches "
+                 "high -- the promise kept while the ranking is wrong, which is "
+                 "the case the promise exists for",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_an_unidentified_pattern_stays_unidentified",
+        "hl2", ("characterisation",),
+        "the only fixture whose compound is genuinely unknown stays unknown, "
+        "and is refused on merit rather than on coverage",
+        reference="Every other real-data row has a known answer and measures "
+                  "whether it is found; this measures the opposite half, which "
+                  "no benchmark can.  The trap it guards is that forward "
+                  "coverage READS like a solution -- the leaders index 73 of 74 "
+                  "lines.  What refuses them is M20 an order below anything "
+                  "publishable (de Wolff's own guidance is M20 > 10; the "
+                  "bethanechol synchrotron set reaches 197 in this same file)",
+        measured="12 candidates, all low, M20 ~4.6, none validated, "
+                 "best_or_none() None; systems_searched reported and "
+                 "search_complete False on two of the four, so the null is not "
+                 "dressed up as an exhausted domain",
+        diagnostics=("INDEX_ABSTAINED", "INDEX_SEARCH_INCOMPLETE"),
     ),
 )
 

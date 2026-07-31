@@ -229,6 +229,51 @@ documented blind spot — space-group extinctions penalise a *correct* cell unde
 
 ### Inherited
 
+**From WP-1026, closed 2026-07-31 — three measured ranking/search failures on
+real data, each with a passing test that pins the current behaviour, so a fix
+here has something concrete to turn round.** These are the reasons that WP closed
+against its criteria rather than meeting them, and all three are engine-side.
+
+- **A supercell outranks the truth on clean single-phase patterns.** `qarr`
+  brucite: all **twelve** candidates are supercells, the leader is c × 3.002 at
+  `predicted_seen_fraction` = **0.333** (exactly ⅓ — the signature), and the true
+  cell is in none of them; ranks 8 and 11 get c right (×1.001) and a wrong by
+  **√12**. `qarr` magnetite: a trigonal **R** subcell ranked above the cubic **F**
+  truth, carrying `volume_unphysical`. Both abstain correctly, so this costs
+  answers rather than producing wrong ones. Neither is landed as a row (cost: 95
+  and 218 s); reproduce with the four-system spec the other qarr rows use.
+- **`DEFAULT_SEARCH_LINES` takes the first twenty lines in 2θ order, and on a
+  synchrotron pattern that is the wrong twenty.** `11BM_NAC.fxye` starts at
+  **0.76° 2θ**; of its first twenty picked lines the true cell explains **six**
+  and its known CaF₂ impurity **none**, while over the whole list the true cell
+  indexes **268 of 285**. So the engines solve for a metric fitted to low-angle
+  artifact. A selection ranked on intensity, or on prominence, or simply excluding
+  the sub-degree region, would change this outcome — and it is the third dataset
+  in three sessions where the *peak list*, not the search, was the obstruction
+  (corundum's satellites, LaB6's axial tails, now this).
+- **M₂₀ inverts the ranking on FAP.** GSAS's own cell for that pattern is
+  reachable, is what **both** engines agree on, and indexes **181 of 185** lines —
+  and sits *below* a cell 1218 ppm out that indexes **167** with a higher M₂₀.
+  Oishi-Tomiyasu (2013)'s figures, already on this WP's list, are the obvious
+  thing to test against it: a wrong metric that matches a subset tightly is
+  precisely what M₂₀'s plain mean of ⟨ΔQ⟩ rewards.
+
+**Also inherited: NAC cannot be searched at its own d_min, and truncating 2θ does
+not fix it.** λ = 0.4139 Å to 57.4° gives d_min = 0.43 Å, at which a 10.25 Å cubic
+cell exceeds `reflection_ceiling_ok` — the dichotomy explores **zero boxes**.
+Truncating to 2-18/25/32° lets it through (215 boxes) and still returns
+−5967 / +8189 / +7997 ppm at M₂₀ = 4 and the wrong centring, for 300-620 s a run.
+**Measured; do not repeat it.** Short-wavelength data is a general case, not one
+file, so whatever this WP does about search scope should be stated in terms of
+d_min rather than 2θ.
+
+**And criterion 1 of WP-1026 moves here with it**: the bethanechol global score
+cannot be graded until the paper's own monoclinic domain finishes, which is this
+WP's subject. The fixture, the ten sets, the reconstructed Table 5 and the
+per-set scoring are all landed and tested in `tests/test_acceptance_indexing.py`
+— only the search is missing, so scoring it is a matter of running the harness
+that already exists.
+
 **From the 2026-07-30 assessment session** (papers read, nothing implemented):
 `refine_with_shift` declines its own correction on exactly the candidates that
 need it — see WP-1026's handover of the same date. **Fixed in WP-1026's third

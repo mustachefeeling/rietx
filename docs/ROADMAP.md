@@ -46,6 +46,39 @@ backlog is cleared — new sessions only need to keep up with their own.*
 
 ## Current focus
 
+**[1026](wp/1026-indexing-acceptance.md) is closed, and it closes *against* its
+criteria rather than meeting them — which is the result (2026-07-31).** Eight
+known-cell datasets, thirty-four rows, `docs/VALIDATION.md` at 58 claims. The
+scoreboard: **five** datasets put the right lattice first (SRM 676a corundum,
+SRM 660c LaB6, zincite, zircon, and FAP where the right cell is present and
+second), **one** is refused for having too few lines (fluorite, 18 < 20), and
+**two** fail (brucite and magnetite rank a supercell above the truth; NAC cannot
+be searched at its own d_min). **All eight abstain** — `best_or_none()` is None
+on every dataset in the file, including the five that are right.
+
+That is the governing rule holding, and it is also the honest shape of the
+feature: **never wrong, and silent more often than right.** A future milestone
+note should not round that up.
+
+**Three things generalise beyond this WP.** *A literature cell is not a
+specimen's cell*: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
+Rothbauer, 30× the goniometer floor, so the round-robin rows assert lattice type
+and centring and nothing in ppm. *An indexed cell has no displacement parameter*,
+so it absorbs what a refinement models — measured at 127 ppm on SRM 660c, which
+is why FAP is graded at 500 ppm rather than the refinement suite's ±300. And
+*the peak list is the obstruction, for the third time in three sessions*: NAC's
+true cell explains **6 of the first 20** picked lines (its CaF₂ impurity, none),
+so the engines solve for a metric fitted to low-angle artifact — after corundum's
+satellites and LaB6's axial tails, this is a pattern, not a coincidence.
+
+**FAP is the case the design exists for.** The GSAS cell is reachable, is what
+both engines agree on, indexes 181 of 185 lines — and is ranked *below* a cell
+1218 ppm out that indexes 167 and scores a higher M₂₀. The gate declines the
+leader anyway. A ranking that is wrong while the promise holds is exactly what
+the promise is for; the row therefore asserts membership and refusal, never rank.
+
+---
+
 **A second certified pattern indexes, this one to −2 ppm and at `high` — the
 first time the gate has returned a cell at all on real data (2026-07-30, fourth
 session).** [1026](wp/1026-indexing-acceptance.md) is still in flight; SRM 660c
@@ -345,12 +378,13 @@ line the class still allows), without which a class whose absences all hide unde
 neighbours wins on parsimony alone; and the absence of a *line* is asked of the
 whole orbit, since `P a -3` extinguishes 012 but not 021 and they share one 2θ.
 
-Next: finish [1026](wp/1026-indexing-acceptance.md) — NAC, FAP and the six qarr
-pure phases (take **Fm-3m fluorite** next, so the extinction control gets its
-second point), the `hl2_peaks` abstention row and check-D. Its benchmark score is
-blocked on [1029](wp/1029-engine-scaling-low-symmetry.md). Done and not to be
-redone: corundum in two calls, LaB6 in three, the geometrical-ambiguity row, and
-the CI pricing. Then [1027](wp/1027-gui-peak-picker.md) (GUI).
+Next: [1027](wp/1027-gui-peak-picker.md) (GUI peak picker).
+[1026](wp/1026-indexing-acceptance.md) is **closed** — see Current focus for the
+scoreboard it closed against. Its one unmet criterion, the bethanechol global
+score, is blocked on [1029](wp/1029-engine-scaling-low-symmetry.md) and moves
+there with the WP; three failures it measured (brucite/magnetite supercell
+ranking, NAC's search-line selection, FAP's M₂₀ inversion) are 1029's, and the
+peak-list and gate defects are [1028](wp/1028-robustness-external-data.md)'s.
 
 **Indexing works end to end (2026-07-30).**
 [1024](wp/1024-indexing-consensus.md) landed, so `index_pattern` is now a peer of
@@ -1543,7 +1577,7 @@ per concurrent session, or only one session commits.
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
 | [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
-| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | 🟡 | 1024 (1025 soft) |
+| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ⬜ | 1010, 1011, 1018–1024 |
 | [1029](wp/1029-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
 

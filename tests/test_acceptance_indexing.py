@@ -149,6 +149,18 @@ REAL_DATA_N_UNINDEXED = 3
 #: the result so the report says what was covered rather than concluding about
 #: the specimen.
 REAL_DATA_SYSTEMS = ("cubic", "tetragonal", "hexagonal", "trigonal")
+#: Per-system wall-clock budget for the real-data searches.  **Generous on
+#: purpose, and this is CLAUDE.md's rule paid for a fourth time.**  A budget
+#: inside a test is a runaway guard, never a timer: at 60 s the zircon row passed
+#: serially (73 s for all four systems) and **failed under ``-n auto``**, where
+#: the same work takes 258 s — the search truncated, and the row reported
+#: tetragonal *P* ranked first instead of *I*.  Nothing about the index table had
+#: changed; the machine was busy.  At 300 s the budget never binds on any dataset
+#: here, so it costs nothing when the search finishes early and only stops a
+#: runaway.  The rule to apply when adding a row: compare its **serial** time
+#: with its declared budget, and if the budget is not several times larger the
+#: assertion is a load sensor.
+REAL_DATA_BUDGET_SECONDS = 300.0
 
 A_SRM676A, C_SRM676A = 4.759355, 12.99231     # k = 2, 22.5 °C (certificate)
 
@@ -207,7 +219,7 @@ def _index_corundum(peaks, **spec_kw):
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _qarr("corundum.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
-                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED,
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED,
                       **spec_kw)
     return index_pattern(peaks, data=data, instrument=ins, spec=spec)
 
@@ -231,8 +243,169 @@ def qpa_mixture_index():
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _qarr("cpd-1a.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
-                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
     return index_pattern(data=data, instrument=ins, spec=spec)
+
+
+# ----------------------------------------------------------------------
+# The round-robin pure phases: four crystal systems and two centrings, and the
+# reference cells are **literature single-crystal cells for the mineral, not
+# certificates for these specimens**
+# ----------------------------------------------------------------------
+#: (file, space group, literature cell).  Every row is the same cell the QPA
+#: acceptance suite uses as its Rietveld starting model, quoted from the same
+#: papers, so the two suites cannot drift about what "the answer" is.
+#:
+#: **The tier is `consistency`, never `certificate`, and brucite is the proof
+#: it has to be**: its specimen's *a* sits **+1750 ppm** from Zigan &
+#: Rothbauer's cell, which is 30× the ±85 ppm goniometer-radius floor and far
+#: outside anything the measurement could resolve.  A literature cell is a cell
+#: for *the mineral*, and a real specimen has its own composition, its own
+#: solid solution and its own temperature.  So these rows assert the lattice
+#: **type**, the centring, and agreement at the level a lab d-scale supports —
+#: never a part-per-million number, which is what SRM 660c and SRM 676a are for.
+QARR_PHASES = {
+    "zincite": ("P 63 m c", (3.2499, 3.2499, 5.2066, 90.0, 90.0, 120.0)),
+    "zircon": ("I 41/a m d:2", (6.6042, 6.6042, 5.9796, 90.0, 90.0, 90.0)),
+}
+
+
+def _index_qarr_phase(name: str, systems: tuple[str, ...]):
+    """Index one pure phase over a **declared** subset of crystal systems.
+
+    The restriction is not a shortcut, it is the price of the honest budget.
+    With ``REAL_DATA_BUDGET_SECONDS`` raised so the search cannot truncate under
+    load, a four-system zincite pass runs to completion and costs **850 s**,
+    which made this the longest xdist group in the tree and put ~4 minutes on the
+    weekly job's billed wall clock — CLAUDE.md treats that as a design input, not
+    an afterthought.  Restricting to the systems each phase's answer actually
+    lives in keeps every claim these rows make while staying off the critical
+    path, and ``systems_searched`` travels on the result so the report says what
+    was covered instead of concluding about the specimen.
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
+    data, ins = _qarr(f"{name}.prn")
+    peaks = pick_peaks(data, ins)
+    spec = SearchSpec(systems=systems, max_volume=700.0,
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS,
+                      n_unindexed=REAL_DATA_N_UNINDEXED)
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+
+
+@pytest.fixture(scope="module")
+def zincite_index():
+    """Hexagonal P from a lab pattern.  Hexagonal + trigonal only."""
+    return _index_qarr_phase("zincite", ("hexagonal", "trigonal"))
+
+
+@pytest.fixture(scope="module")
+def zircon_index():
+    """Tetragonal **I** — the only row that recovers a centring.  Tetragonal
+    only, which is also where its I-against-P comparison lives."""
+    return _index_qarr_phase("zircon", ("tetragonal",))
+
+
+#: NAC (Na₂Ca₃Al₂F₁₄), the 11-BM synchrotron standard, cubic I2₁3 a = 10.2510.
+A_NAC = 10.2510
+
+
+@pytest.fixture(scope="module")
+def nac_index():
+    """The synchrotron pattern indexed over its **whole** range. ~1 s.
+
+    Fast, because nothing happens: the run abstains before exploring a single
+    box, for the reason the row explains.
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
+    from tests.test_acceptance_nac import build_nac_inputs
+    data, _structure, ins = build_nac_inputs()
+    peaks = pick_peaks(data, ins)
+    spec = SearchSpec(systems=("cubic",), max_volume=1200.0,
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS,
+                      n_unindexed=REAL_DATA_N_UNINDEXED)
+    return peaks, index_pattern(peaks, data=data, instrument=ins, spec=spec)
+
+
+#: GSAS's own converged cell for `FAP.XRA` (`FAP.EXP`), which is the reference
+#: this row is graded against — a **cross-code** number, not a certificate.
+A_FAP, C_FAP = 9.3717, 6.8859
+#: The band for that comparison, and it is **not** CLAUDE.md's ±300 ppm.  That
+#: figure is what a *refinement* of this dataset must meet, with a specimen
+#: displacement among its free parameters; an indexed cell has no such parameter
+#: and absorbs the displacement instead.  Measured on the two patterns in this
+#: file where the displacement is independently known, that absorption is worth
+#: 127 ppm (SRM 660c) and ~180 ppm (SRM 676a, the gap between the two protocol
+#: steps).  So the indexing band is 500 ppm: above the refinement's by about the
+#: size of the effect the refinement models and this does not.  Measured here:
+#: a +232 ppm, c +363 ppm.
+FAP_INDEXING_PPM = 5.0e-4
+
+
+@pytest.fixture(scope="module")
+def fap_index():
+    """The GSAS-II tutorial fluorapatite, indexed. ~95 s.
+
+    Hexagonal and trigonal only — a declared restriction, and ``systems_searched``
+    carries it — because the answer is known to be P6₃/m and an exhaustive pass
+    over the lower systems costs minutes for a row about *ranking*.
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
+    from tests.test_acceptance_fap import build_fap_inputs
+    data, _structure, ins = build_fap_inputs()
+    peaks = pick_peaks(data, ins)
+    spec = SearchSpec(systems=("hexagonal", "trigonal"), max_volume=600.0,
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+
+
+#: Budget for the unidentified-pattern search.  Deliberately small: the row
+#: asserts an *abstention*, and a search that runs out of budget abstains for a
+#: reason the result already carries (``search_complete``).  Measured, the
+#: verdict is identical at 15, 25 and 45 s — 12 candidates, M₂₀ ≈ 4.6, nothing
+#: promoted — so the larger budget buys no evidence and 100 s of CI.
+HL2_BUDGET_SECONDS = 15.0
+
+
+@pytest.fixture(scope="module")
+def hl2_index():
+    """The unidentified pattern, indexed. ~50 s."""
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    path = DATA / "hl2_peaks.txt"
+    if not path.exists():
+        pytest.skip("HL2-1 abstention fixture not present")
+    tt, _d, rel = np.loadtxt(path, unpack=True)
+    peaks = PeakList.from_positions(tt, wavelength=1.540596, intensity=rel)
+    spec = SearchSpec(systems=REAL_DATA_SYSTEMS,
+                      budget_seconds=HL2_BUDGET_SECONDS,
+                      n_unindexed=REAL_DATA_N_UNINDEXED)
+    return peaks, index_pattern(peaks, spec=spec)
+
+
+@pytest.fixture(scope="module")
+def qarr_fluorite():
+    """``(peaks, quality report, result)`` for CaF₂ — and it never searches.
+
+    Left **fast** and ungrouped on purpose: the whole row is that no engine
+    starts, so it costs a peak pick (~0.1 s) and nothing else.  A `slow` mark
+    here would be claiming a cost this row does not have.
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
+    from pxrdref.indexing.quality import assess_peak_list
+    data, ins = _qarr("fluorite.prn")
+    peaks = pick_peaks(data, ins)
+    spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=700.0,
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    return peaks, assess_peak_list(peaks), res
 
 
 # ----------------------------------------------------------------------
@@ -337,7 +510,7 @@ def lab6_index(lab6_peaks):
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
-                      budget_seconds=60.0, n_unindexed=REAL_DATA_N_UNINDEXED)
+                      budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
     return index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
 
 
@@ -360,7 +533,7 @@ def lab6_calibrated(lab6_peaks):
                              trimmed.two_theta_esd())
     amplitude = next(t.coefficient for t in screen.templates
                      if t.name == screen.best)
-    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=60.0,
+    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=abs(float(amplitude)))
@@ -741,6 +914,290 @@ def test_a_three_phase_mixture_abstains(qpa_mixture_index):
     assert res.systems_searched
     for cand in res.candidates:
         assert cand.confidence != "high"
+
+
+def test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern(qarr_fluorite):
+    """Fluorite abstains **before any engine starts**, and the reason is sound.
+
+    CaF₂ is Fm-3m with a = 5.4631 Å, and over this round robin's 5-150° Cu Kα
+    range that lattice simply does not produce many lines: ``pick_peaks`` finds
+    **18** usable, against ``PEAK_MIN_USABLE_LINES`` = 20.  So
+    ``assess_peak_list`` refuses, ``systems_searched`` is **empty**, and the run
+    costs 0.1 s rather than a minute of searching.
+
+    Two things make this worth a row rather than a footnote.  It is the
+    *counterintuitive* direction — high symmetry is what makes a pattern easy to
+    index right up until it makes the pattern too sparse to index at all — and
+    the bar is not arbitrary: M₂₀, F₂₀ and Smith's volume envelope are all
+    **defined** on twenty lines, so below that the package would be reporting
+    figures of merit outside their own definitions.  WP-1024's handover warned
+    that two spikes were debugged before someone checked ``quality.n_usable``
+    first; this row is that warning made executable.
+    """
+    peaks, report, res = qarr_fluorite
+    assert len(peaks.usable()) < 20
+    assert not report.supports_indexing
+    assert report.abstained_reason and "20" in report.abstained_reason
+
+    assert res.candidates == []
+    assert res.systems_searched == [], (
+        "an engine ran on a list the quality gate had already refused")
+    assert res.best_or_none() is None
+    codes = {d.code for d in res.diagnostics}
+    assert {"INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"} <= codes, sorted(codes)
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-qarr")
+def test_a_hexagonal_lab_pattern_recovers_its_lattice(zincite_index):
+    """ZnO wurtzite: the truth ranked first, by both engines, on lab data.
+
+    The cleanest of the round-robin recoveries and the one that shows the panel
+    working rather than being overridden — a = −217 ppm and c = −186 ppm from
+    Kihara & Donnay's cell, **all 27 usable lines indexed**, M₂₀ = 902, and both
+    engines agree.
+
+    It is graded ``low`` anyway, on three caveats that each name something real,
+    and the second is the point of this row.  ``predicted_but_absent`` is **4**:
+    P6₃mc has a 6₃ screw (00l absent for l odd) and a c-glide, neither of which
+    the *lattice* hexagonal P knows about — so this is the extinction blind spot
+    again, now measured on a third space group.  With LaB₆ (no absences, 0) and
+    corundum (a c-glide, 11-12) that makes a table rather than an anecdote.
+    """
+    res = zincite_index
+    a_ref, c_ref = QARR_PHASES["zincite"][1][0], QARR_PHASES["zincite"][1][2]
+    assert res.candidates
+    best = res.candidates[0]
+
+    assert best.system in ("hexagonal", "trigonal") and best.centring == "P"
+    assert abs(best.cell[0] / a_ref - 1.0) < 1e-3, best.cell[0]
+    assert abs(best.cell[2] / c_ref - 1.0) < 1e-3, best.cell[2]
+    assert best.n_indexed == best.n_lines, (
+        f"{best.n_indexed} of {best.n_lines} — the truth should index all of them")
+    assert best.fom_value("m20") > 300.0
+    assert set(best.found_by) == set(res.engines_run)
+
+    # the extinction blind spot, third data point: a 6_3 screw and a c-glide
+    assert best.lebail is not None and best.lebail.predicted_but_absent > 0
+    assert "predicted_but_absent" in best.confidence_caveats
+    assert best.confidence == "low"
+    assert res.best_or_none() is None
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-qarr")
+def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_index):
+    """ZrSiO₄: the only row where the answer includes a **centring**.
+
+    Everything else recovered here is primitive (LaB₆ cubic P, zincite hexagonal
+    P) or rhombohedral (corundum R), so this is the row that exercises the part
+    of the pipeline CLAUDE.md flags as deliberately un-merged: two centrings of
+    one metric stay *separate* candidates, because they predict different numbers
+    of lines, and the figure-of-merit panel is what chooses between them
+    (``engines.dedup_groups``).  Here it chooses correctly — tetragonal **I**,
+    a +207 ppm and c +1906 ppm from Hazen & Finger's cell, 66 of 68 lines.
+
+    Note which figure does the choosing.  The primitive twin of the same metric
+    is also in the list and indexes exactly as many observed lines; what
+    separates them is ``predicted_seen_fraction`` (0.59 for I against 0.31 for
+    P), because the P cell predicts twice as many reflections and half of them
+    are not there.  That is coverage scored *in both directions*, which is the
+    whole reason the panel is a panel.
+    """
+    res = zircon_index
+    a_ref, c_ref = QARR_PHASES["zircon"][1][0], QARR_PHASES["zircon"][1][2]
+    assert res.candidates
+    best = res.candidates[0]
+
+    assert best.system == "tetragonal" and best.centring == "I", (
+        f"ranked first: {best.system} {best.centring}")
+    assert abs(best.cell[0] / a_ref - 1.0) < 1e-3, best.cell[0]
+    assert abs(best.cell[2] / c_ref - 1.0) < 3e-3, best.cell[2]
+
+    # the primitive twin of the same metric, and what puts it below
+    twins = [c for c in res.candidates
+             if c.system == "tetragonal" and c.centring == "P"
+             and abs(c.cell[0] / best.cell[0] - 1.0) < 1e-3
+             and abs(c.cell[2] / best.cell[2] - 1.0) < 1e-3]
+    assert twins, "the primitive twin was merged away; dedup_groups must keep it"
+    twin = twins[0]
+    assert twin.n_indexed == best.n_indexed, (
+        "the twins should be indistinguishable on forward coverage")
+    assert (best.fom_value("predicted_seen_fraction")
+            > 1.5 * twin.fom_value("predicted_seen_fraction"))
+
+    # I 4_1/a m d has screw axes and glides on top of its centring
+    assert best.lebail is not None and best.lebail.predicted_but_absent > 0
+    assert best.confidence == "low"
+    assert res.best_or_none() is None
+
+
+def test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed(nac_index):
+    """The 11-BM synchrotron pattern cannot be indexed *as measured*, and says so.
+
+    λ = 0.4139 Å and the pattern runs to 57.4° 2θ, so d_min = **0.43 Å**.  A
+    10.25 Å cubic cell at that resolution predicts more reflections than
+    ``engines.reflection_ceiling_ok`` — the crash guard in front of every
+    ``generate_reflections`` call a search reaches — will allow, so the dichotomy
+    rejects its very first box and explores **zero**.  The run costs 0.15 s and
+    comes back with no candidate and ``search_complete[cubic] = False``.
+
+    That is the guard working, and the row exists to pin the *shape* of the
+    failure rather than the failure itself.  A null result that says "incomplete"
+    is a different statement from one that says "nothing exists", and every piece
+    of machinery here is built to keep those apart — ``INDEX_SEARCH_INCOMPLETE``
+    fires, ``INDEX_ABSTAINED`` says explicitly that it "is not the same statement
+    as none existing", and ``best_or_none()`` is None either way.
+
+    **Truncating 2θ is the obvious fix and it was measured, and it does not
+    work** — recorded so the next session does not spend the hour again.
+    Picking over 2-18°, 2-25° and 2-32° raises d_min enough that the guard lets
+    the dichotomy through (215 boxes each time), and the answers are still wrong:
+    a = −5967, +8189 and +7997 ppm, M₂₀ = 4 in all three, and cubic **P** where
+    the truth is **I**.  Each run costs 300-620 s.  So the ceiling is not what
+    stands between this package and this pattern; it is only what stands first.
+
+    The obstruction underneath is the peak list, again, and in a third form.
+    This pattern begins at **0.76° 2θ**, and of the first twenty picked lines —
+    which is what ``DEFAULT_SEARCH_LINES`` hands the engines — the true NAC cell
+    explains only **six**, while CaF₂, its known impurity, explains **none**.  So
+    the search is built from twenty lines that are mostly low-angle artifact, and
+    the engines are solving for a metric that fits them.  Over the whole list the
+    true cell does fine: 268 of 285.  A search-line selection that ranked on
+    something other than 2θ order would change this row's outcome, which makes it
+    an engine question (WP-1029) rather than an acceptance one.
+    """
+    peaks, res = nac_index
+
+    assert len(peaks.usable()) > 200, "the pattern should be line-rich"
+    assert res.candidates == []
+    assert res.best_or_none() is None
+
+    # the search declined rather than concluded, and the stats say how completely
+    assert res.search_complete.get("cubic") is False
+    assert res.engine_stats.get("dichotomy.cubic.boxes") == 0.0, (
+        "the dichotomy now explores boxes here — the reflection ceiling may have "
+        "moved, and this row's premise with it")
+    codes = {d.code for d in res.diagnostics}
+    assert {"INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"} <= codes, sorted(codes)
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-fap")
+def test_the_cross_code_cell_is_found_but_not_ranked_first(fap_index):
+    """Fluorapatite: the right cell is in the list, and the ranking does not lead with it.
+
+    This is the one dataset here whose reference is **another code's converged
+    result** — GSAS's own `FAP.EXP` for this exact pattern — so it grades
+    agreement rather than accuracy, at ``FAP_INDEXING_PPM`` — which is *not* the
+    refinement suite's ±300 ppm, for the reason that constant records.
+
+    The candidate that meets that band is present, is the one **both engines
+    agree on**, and indexes 181 of 185 lines: a = +232 ppm, c = +363 ppm.  It is
+    not ranked first.  Above it sits a cell 1218 ppm out that indexes *fewer*
+    lines (167) but scores a higher M₂₀ — the ordering M₂₀ produces when a
+    slightly wrong metric matches a subset of lines more tightly than the right
+    one matches all of them.
+
+    So the assertion is deliberately about *membership and refusal*, not about
+    rank: the correct cell is reachable, and the gate declines to hand back the
+    leader.  Writing this row as "rank 0 is the answer" would have meant tuning
+    the panel until it was, on a dataset whose own reference is another code's
+    fit.  What the package promises is that it never hands back a confident
+    wrong singleton, and here it keeps that promise while its ranking is wrong —
+    which is exactly the case the promise exists for.
+
+    The doublet is the sub-plot.  These are Cu Kα1/Kα2 data and the positions
+    that reproduce GSAS's cell are **Kα1** positions, so the constrained-pair fit
+    and the alias screen (``PEAK_KALPHA2_ALIAS`` fires on this pattern) are doing
+    their job — a list of raw maxima would carry every Kα2 as a line and no cell
+    would index it.
+    """
+    res = fap_index
+    assert res.candidates
+
+    band = [c for c in res.candidates
+            if abs(c.cell[0] / A_FAP - 1.0) < FAP_INDEXING_PPM
+            and abs(c.cell[2] / C_FAP - 1.0) < FAP_INDEXING_PPM]
+    assert band, (
+        "no candidate inside the indexing band: "
+        + repr([tuple(round(x, 4) for x in c.cell[:3]) for c in res.candidates[:6]]))
+    agreed = [c for c in band if set(c.found_by) == set(res.engines_run)]
+    assert agreed, "the in-band cell was found by only one engine"
+    best_in_band = agreed[0]
+    assert best_in_band.system in ("hexagonal", "trigonal")
+    assert best_in_band.centring == "P"
+    assert best_in_band.n_indexed >= 0.95 * best_in_band.n_lines
+
+    # …and the leader is not it, which is the honest half of the row
+    leader = res.candidates[0]
+    assert leader.fom_value("m20") > best_in_band.fom_value("m20")
+    assert leader.n_indexed < best_in_band.n_indexed, (
+        "the leader now indexes at least as many lines as the in-band cell, so "
+        "the ranking inversion this row documents has changed shape")
+
+    # the gate refuses to promote any of it
+    assert res.best_or_none() is None
+    for cand in res.candidates:
+        assert cand.confidence != "high"
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-hl2")
+def test_an_unidentified_pattern_stays_unidentified(hl2_index):
+    """The other half of an indexer, and the half a benchmark cannot measure.
+
+    Every other real-data row here has a known answer, so every one of them
+    measures whether the package finds it.  This one measures the opposite and
+    is the only fixture in the suite whose compound **is genuinely unknown** —
+    74 peaks picked from an unidentified laboratory pattern (``hl2_peaks.txt``,
+    provenance in ``tests/data/README.md``).  There is no answer to be graded
+    against, so what is asserted is the shape of the *refusal*.
+
+    It is not a refusal by silence.  Twelve candidates come back and the leading
+    ones index **73 of 74 lines** — which is exactly the trap, because forward
+    coverage alone reads like a solution.  What refuses them is that every M₂₀
+    is ≈ 4.6, an order below anything publishable (de Wolff's own guidance is
+    M₂₀ > 10, and the bethanechol benchmark's synchrotron set reaches 197 in this
+    same file), and that none survives Le Bail validation.
+
+    The result also says what it *did* rather than what the sample *is*: which
+    systems were searched, and — the honest part — whether each one's domain was
+    exhausted.  An incomplete search is not evidence of absence, and
+    ``search_complete`` carries that per system rather than letting a null result
+    imply it.  What is asserted is that the *statement exists* for every system
+    searched, not which way it came out: whether a given domain finishes inside
+    ``HL2_BUDGET_SECONDS`` depends on how busy the machine is, and an assertion
+    that depends on that is a load sensor rather than a claim (see
+    ``REAL_DATA_BUDGET_SECONDS`` for the row that learned this the hard way).
+    """
+    peaks, res = hl2_index
+
+    # the input is a bare position list, so its precision is assumed, not measured
+    assert peaks.source == "positions"
+    assert all("sigma_assumed" in p.flags for p in peaks.peaks)
+
+    # the verdict
+    assert res.best_or_none() is None
+    assert not res.validated
+    for cand in res.candidates:
+        assert cand.confidence == "low", (cand.system, cand.confidence)
+
+    # and it is refused on merit, not on coverage — the leaders index almost
+    # everything and are still nowhere near a credible figure of merit
+    assert res.candidates, "no candidate at all is a weaker result than a bad one"
+    leader = res.candidates[0]
+    assert leader.n_indexed >= 0.8 * leader.n_lines
+    assert max(c.fom_value("m20") for c in res.candidates) < 10.0, (
+        "a candidate reached a publishable M20 on a pattern nobody has solved")
+
+    # it reports coverage rather than concluding about the specimen
+    assert set(res.systems_searched) == set(REAL_DATA_SYSTEMS)
+    assert set(res.search_complete) == set(REAL_DATA_SYSTEMS), (
+        "a system was searched without reporting whether its domain was "
+        "exhausted, which is what stops a null being read as 'none exists'")
+    codes = {d.code for d in res.diagnostics}
+    assert "INDEX_ABSTAINED" in codes
 
 
 # ----------------------------------------------------------------------
@@ -1127,7 +1584,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     assert screen.sigma_sys_deg < 0.3 * abs(best.shift_coefficient)
-    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=60.0,
+    spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=float(screen.sigma_sys_deg))
