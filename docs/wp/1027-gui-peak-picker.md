@@ -186,7 +186,7 @@ not this WP's checklist.
       residual strip), the four interactions, the diagnostics strip.
 - [ ] Frontend: candidate table with the FoM columns, engine chips, ambiguity
       sub-rows, and the gated Adopt button.
-- [ ] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
+- [x] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
       the fixed-point property test.
 - [ ] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
       a peak list keyed to one pattern is refused against another; `.pxt`

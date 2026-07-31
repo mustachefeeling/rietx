@@ -78,6 +78,7 @@ from fnmatch import fnmatch
 from typing import Any, get_args
 
 from ..schemas.common import Mode
+from ..schemas.indexing import PeakFlag
 from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.project import ProjectDoc
 from ..strategy.staged import PLAN_PRESETS
@@ -93,23 +94,33 @@ VALUE_DIGITS = 12
 
 #: Blocks whose *name* is reserved so a later WP can fill them in without a
 #: format bump.  Recognised by the parser and refused with the owner, which is
-#: the difference between "not yet" and "you typed nonsense".
+#: the difference between "not yet" and "you typed nonsense".  Empty since
+#: WP-1027 filled in ``peaks``; the mechanism stays for the next reservation.
+RESERVED_BLOCKS: dict[str, str] = {}
+
+#: The ``peaks`` block (WP-1027): one row per picked peak, and deliberately
+#: **no ``@`` markers** — peaks are not refinable parameters, and that absence
+#: is the visual distinction from every other block.  Only two columns are
+#: editable on apply, ``2theta`` (a ``move_peak``: reseed + refit the group)
+#: and ``flags`` (a ``set_peak_flags``); the count, esd, fwhm and intensity are
+#: derived and regenerated on the next render, so an edit to them is refused
+#: rather than silently dropped.  A row omitted from the document is "no
+#: opinion", exactly as an omitted parameter row is — adding and removing peaks
+#: are the panel's verbs, not text edits::
 #:
-#: ``peaks`` (WP-1027) is already designed: one row per picked peak, and
-#: deliberately **no ``@`` markers** — peaks are not refinable parameters, and
-#: that absence is the visual distinction from every other block.  Only two
-#: columns are editable on apply, ``2theta`` (a move + group refit) and ``flags``;
-#: esd, fwhm and intensity are derived and regenerated on the next render, so an
-#: edit to them must be refused rather than silently dropped::
+#:     peaks 20                          # session.pick_peaks(shoulders=True)
+#:       #        2theta        esd     fwhm            I  flags
+#:        0     8.471200   0.000900   0.0812        10420
+#:        1    10.774300   0.001100   0.0834         3310  excluded
 #:
-#:     peaks 20                          # pick_peaks(min_sigma=5.0, shape=tchz)
-#:       #      2theta      esd     fwhm         I    flags
-#:        0     8.4712   0.0009   0.0812     10420
-#:        1    10.7743   0.0011   0.0834      3310   impurity
-RESERVED_BLOCKS = {"peaks": "WP-1027 (GUI peak picker)"}
+#: ``origin`` is deliberately not rendered: the panel shows it, and a word in
+#: the flags column that is not a flag would make the editable column carry two
+#: vocabularies.
+_PEAK_FLAG_WORDS: tuple[str, ...] = get_args(PeakFlag)
 
 _KEYWORDS = ("pxt", "project", "pattern", "mode", "limits", "excluded", "plan",
-             "guard", "stage", "phase", "instrument", *RESERVED_BLOCKS)
+             "guard", "stage", "phase", "instrument", "peaks",
+             *RESERVED_BLOCKS)
 
 _FLAG_WORDS = ("locked", "mode-fixed", "softplus", "logit")
 _PAIR_WORDS = ("min", "max", "esd")
@@ -161,6 +172,20 @@ class Row:
 
 
 @dataclass
+class PeakRow:
+    """One line of the ``peaks`` block, exactly as written."""
+
+    line: int
+    index: int
+    two_theta: float
+    esd: float
+    fwhm: float
+    intensity: float
+    flags: list[str]
+    text: str
+
+
+@dataclass
 class ParsedDocument:
     """Syntax only: what the text says, with no opinion about the project."""
 
@@ -181,6 +206,9 @@ class ParsedDocument:
     stage_lines: list[int] = field(default_factory=list)
     phases: dict[int, tuple[int, str | None]] = field(default_factory=dict)
     rows: list[Row] = field(default_factory=list)
+    has_peaks: bool = False
+    peaks_count: int | None = None
+    peak_rows: list[PeakRow] = field(default_factory=list)
     errors: list[TextError] = field(default_factory=list)
 
 
@@ -192,13 +220,20 @@ class Delta:
     vary: dict[str, bool] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
     plan: dict[str, Any] | None = None
+    #: peak index (as displayed at render time) → the typed 2θ / flag list;
+    #: applied through the same editor the panel's drag and chips call
+    peak_moves: dict[int, float] = field(default_factory=dict)
+    peak_flags: dict[int, list[str]] = field(default_factory=dict)
 
     def is_empty(self) -> bool:
-        return not (self.values or self.vary or self.settings or self.plan)
+        return not (self.values or self.vary or self.settings or self.plan
+                    or self.peak_moves or self.peak_flags)
 
     def as_dict(self) -> dict:
         return {"values": dict(self.values), "vary": dict(self.vary),
-                "settings": dict(self.settings), "plan": self.plan}
+                "settings": dict(self.settings), "plan": self.plan,
+                "peak_moves": dict(self.peak_moves),
+                "peak_flags": {k: list(v) for k, v in self.peak_flags.items()}}
 
 
 # ----------------------------------------------------------------------
@@ -292,7 +327,48 @@ def render(project) -> str:
         lines.extend(["", *_render_block(f'phase {index} "{phase.name}"',
                                          f"phases.{index}.", rows, phase)])
     lines.extend(["", *_render_block("instrument", "instrument.", rows, None)])
+    peaks = _render_peaks(project)
+    if peaks:
+        lines.extend(["", *peaks])
     return "\n".join(lines) + "\n"
+
+
+def _render_peaks(project) -> list[str]:
+    """The stored peak list as the ``peaks`` block, or nothing.
+
+    Widths are per block, like every other block.  No ``@`` anywhere: peaks are
+    not parameters, and that absence is the block's visual signature.  A store
+    that belongs to another pattern renders nothing — its refusal has its own
+    surface (``GET /api/peaks``), and a text view must not crash the document.
+    """
+    from . import peaks as store
+
+    try:
+        doc = store.load(project)
+    except ValueError:
+        return []
+    if doc is None or not doc.peaks.peaks:
+        return []
+    rows = [(str(i), f"{p.two_theta:.6f}", f"{p.two_theta_esd:.6f}",
+             f"{p.fwhm:.4f}", f"{p.intensity:.6g}", " ".join(p.flags))
+            for i, p in enumerate(doc.peaks.peaks)]
+    widths = [max(2, *(len(r[0]) for r in rows))] + [
+        max(len(name), *(len(r[k]) for r in rows))
+        for k, name in ((1, "2theta"), (2, "esd"), (3, "fwhm"), (4, "I"))]
+    shoulders = doc.pick_options.get("shoulders", True)
+    provenance = ("σ assumed, not measured" if doc.peaks.source == "positions"
+                  else f"session.pick_peaks(shoulders={shoulders})")
+    names = ("2theta", "esd", "fwhm", "I")
+    lines = [
+        f"peaks {len(rows)}".ljust(34) + f"# {provenance}",
+        "  # " + " " * widths[0] + "  "
+        + "  ".join(n.rjust(w) for n, w in zip(names, widths[1:])) + "  flags",
+    ]
+    for r in rows:
+        line = ("    " + r[0].rjust(widths[0]) + "  "
+                + "  ".join(v.rjust(w) for v, w in zip(r[1:5], widths[1:])))
+        lines.append(f"{line}  {r[5]}" if r[5] else line)
+    return lines
 
 
 def _render_plan(doc: ProjectDoc) -> list[str]:
@@ -388,6 +464,7 @@ def parse(text: str) -> ParsedDocument:
     doc = ParsedDocument()
     prefix: str | None = None
     phase_index: int | None = None
+    in_peaks = False
 
     def fail(n: int, message: str, raw: str, where: str = "") -> None:
         doc.errors.append(TextError(line=n, message=message, where=where,
@@ -398,6 +475,11 @@ def parse(text: str) -> ParsedDocument:
         if not body.strip():
             continue
         if body[0].isspace():
+            if in_peaks:
+                row = _parse_peak_row(n, body, raw, fail)
+                if row is not None:
+                    doc.peak_rows.append(row)
+                continue
             if prefix is None:
                 fail(n, "indented parameter line before any 'phase' or "
                         "'instrument' block", raw)
@@ -410,11 +492,22 @@ def parse(text: str) -> ParsedDocument:
         tokens = body.split()
         keyword = tokens[0]
         rest = tokens[1:]
+        in_peaks = False
         if keyword in RESERVED_BLOCKS:
             fail(n, f"the {keyword!r} block is reserved for "
                     f"{RESERVED_BLOCKS[keyword]}; this build does not read it yet",
                  raw, keyword)
             prefix = None
+            continue
+        if keyword == "peaks":
+            doc.lines.setdefault("peaks", n)
+            doc.has_peaks = True
+            in_peaks, prefix = True, None
+            if rest and _number(rest[0]) is not None:
+                doc.peaks_count = int(float(rest[0]))
+            elif rest:
+                fail(n, "peaks takes its row count (derived; the rows below "
+                        "are the content)", raw, "peaks")
             continue
         if keyword not in _KEYWORDS:
             fail(n, f"unknown keyword {keyword!r}; expected one of "
@@ -516,6 +609,28 @@ def _parse_row(n: int, body: str, prefix: str, raw: str, fail) -> Row | None:
                annotations=annotations, text=raw.rstrip())
 
 
+def _parse_peak_row(n: int, body: str, raw: str, fail) -> PeakRow | None:
+    """``index  2theta  esd  fwhm  I  [flags…]`` — five columns, then words."""
+    tokens = body.split()
+    if len(tokens) < 5:
+        fail(n, "a peaks row is 'index  2theta  esd  fwhm  I  [flags…]'", raw,
+             "peaks")
+        return None
+    numbers = [_number(t) for t in tokens[:5]]
+    if any(v is None for v in numbers):
+        bad = tokens[[i for i, v in enumerate(numbers) if v is None][0]]
+        fail(n, f"{bad!r} is not a number in a peaks row", raw, "peaks")
+        return None
+    index = numbers[0]
+    if index != int(index) or index < 0:
+        fail(n, f"peak index {tokens[0]!r} must be a non-negative integer",
+             raw, "peaks")
+        return None
+    return PeakRow(line=n, index=int(index), two_theta=numbers[1],
+                   esd=numbers[2], fwhm=numbers[3], intensity=numbers[4],
+                   flags=tokens[5:], text=raw.rstrip())
+
+
 def _parse_stage(n: int, rest: list[str], raw: str, fail) -> StageSpec | None:
     if not rest:
         fail(n, "stage takes a name, then 'free <globs>'", raw, "stage")
@@ -612,6 +727,7 @@ def changes(parsed: ParsedDocument, project) -> tuple[Delta, list[TextError]]:
                        "a phase is a model edit (PATCH /api/structure)",
                  f"phases.{index}.name")
     _row_changes(parsed, rows, delta, fail, orphaned)
+    _peak_changes(parsed, project, delta, fail)
     return delta, errors
 
 
@@ -734,6 +850,66 @@ def _glob_row(row: Row, rows: dict, delta: Delta, fail) -> None:
             delta.vary[path] = row.vary
 
 
+def _peak_changes(parsed: ParsedDocument, project, delta: Delta, fail) -> None:
+    """The peaks block against the stored list: two editable columns, no more.
+
+    Same rules as parameter rows.  A typed number is compared against the
+    *rendered* value (the same format :func:`_render_peaks` printed), an
+    omitted row is no opinion, and an edit to a derived column (the count, esd,
+    fwhm, intensity) is refused rather than silently regenerated away — the
+    user is looking at a number that will change under them otherwise.
+    """
+    if not parsed.has_peaks and not parsed.peak_rows:
+        return
+    from . import peaks as store
+
+    line = _line_of(parsed, "peaks")
+    try:
+        doc = store.load(project)
+    except ValueError as exc:
+        fail(line, str(exc), "peaks")
+        return
+    if doc is None:
+        fail(line, "this project has no stored peak list; pick peaks first "
+                   "(POST /api/peaks) — the block cannot create one", "peaks")
+        return
+    peaks = doc.peaks.peaks
+    if parsed.peaks_count is not None and parsed.peaks_count != len(peaks):
+        fail(line, f"the peaks count is derived ({len(peaks)} stored); adding "
+                   "and removing peaks are the panel's verbs, not text edits",
+             "peaks")
+    seen: set[int] = set()
+    for row in parsed.peak_rows:
+        if row.index >= len(peaks):
+            fail(row.line, f"no peak {row.index} (the list has {len(peaks)}); "
+                           "a new line is added in the panel, not typed here",
+                 "peaks", row.text)
+            continue
+        if row.index in seen:
+            fail(row.line, f"peak {row.index} appears twice", "peaks", row.text)
+            continue
+        seen.add(row.index)
+        peak = peaks[row.index]
+        for name, typed, rendered in (
+                ("esd", row.esd, f"{peak.two_theta_esd:.6f}"),
+                ("fwhm", row.fwhm, f"{peak.fwhm:.4f}"),
+                ("I", row.intensity, f"{peak.intensity:.6g}")):
+            if typed != float(rendered):
+                fail(row.line, f"{name} on peak {row.index} is derived from "
+                               "the group fit and cannot be edited; only "
+                               "2theta and flags apply", "peaks", row.text)
+        unknown = [f for f in row.flags if f not in _PEAK_FLAG_WORDS]
+        if unknown:
+            fail(row.line, f"unknown flag(s) {unknown} on peak {row.index}; "
+                           f"expected {', '.join(_PEAK_FLAG_WORDS)}",
+                 "peaks", row.text)
+            continue
+        if row.two_theta != float(f"{peak.two_theta:.6f}"):
+            delta.peak_moves[row.index] = row.two_theta
+        if set(row.flags) != set(peak.flags):
+            delta.peak_flags[row.index] = list(dict.fromkeys(row.flags))
+
+
 #: Why each annotation cannot be edited — the sentence a user needs instead of
 #: "read-only", since each one points at a different place to change it.
 _ANNOTATION_REASONS = {
@@ -775,7 +951,7 @@ def _check_annotations(row: Row, live, fail) -> None:
 # ----------------------------------------------------------------------
 # applying
 # ----------------------------------------------------------------------
-def apply(project, delta: Delta) -> list[str]:
+def apply(project, delta: Delta, peak_editor=None) -> list[str]:
     """Apply ``delta`` through the public verbs; returns the calls it made.
 
     ``set_values`` runs first *because* it is the one that can still refuse
@@ -783,6 +959,12 @@ def apply(project, delta: Delta) -> list[str]:
     anything — so a refusal here leaves the project untouched, which is what
     "all-or-nothing" has to mean for a caller.  The returned lines are the same
     API echo the console shows for a form edit.
+
+    Peak edits run last and go through the panel's own editor
+    (:class:`~pxrdref.gui.peaks.PeakEditor` — the session passes its cached one
+    so the detection is not rebuilt).  They were fully validated by
+    :func:`changes` (indices, vocabulary, editable columns), so what remains is
+    solving, which flags a failure on the peak rather than raising.
     """
     calls: list[str] = []
     if delta.values:
@@ -812,4 +994,44 @@ def apply(project, delta: Delta) -> list[str]:
         calls.append(f"project.set_excluded_regions({regions!r})")
     if settings or delta.plan is not None:
         project.save()  # settings persist on the verb, not on a Save button
+    calls.extend(_apply_peaks(project, delta, peak_editor))
+    return calls
+
+
+def _apply_peaks(project, delta: Delta, editor) -> list[str]:
+    """Peak moves and flag edits through the panel's editor, one at a time.
+
+    A move refits its group and the list re-sorts by 2θ, so the indices the
+    document was written against can shift under a batch.  Each edit therefore
+    re-locates its peak by position — the typed target for a peak this batch
+    already moved — rather than trusting the original index twice.
+    """
+    if not (delta.peak_moves or delta.peak_flags):
+        return []
+    from . import peaks as store
+
+    doc = store.load(project)
+    if editor is None:
+        limits = (tuple(project.doc.two_theta_limits)
+                  if project.doc.two_theta_limits else None)
+        editor = store.PeakEditor(project.data, project.refinement.instrument,
+                                  two_theta_range=limits)
+    where = {i: doc.peaks.peaks[i].two_theta
+             for i in set(delta.peak_moves) | set(delta.peak_flags)}
+
+    def locate(tt: float) -> int:
+        return min(range(len(doc.peaks.peaks)),
+                   key=lambda j: abs(doc.peaks.peaks[j].two_theta - tt))
+
+    calls: list[str] = []
+    for i, target in sorted(delta.peak_moves.items()):
+        j = locate(where[i])
+        doc = editor.move(doc, j, target)
+        calls.append(f"session.move_peak({j}, {target:g})")
+        where[i] = target
+    for i, flag_list in sorted(delta.peak_flags.items()):
+        j = locate(where[i])
+        doc = editor.flag(doc, j, flags=flag_list)
+        calls.append(f"session.set_peak_flags({j}, flags={flag_list!r})")
+    store.save(project, doc)
     return calls

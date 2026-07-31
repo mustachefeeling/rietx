@@ -539,8 +539,10 @@ class GuiSession:
             return {"valid": True, "applied": [], "delta": delta.as_dict(),
                     "revision": td.revision(current), "would_change":
                     not delta.is_empty()}
+        editor = (self._peak_editor()
+                  if (delta.peak_moves or delta.peak_flags) else None)
         try:
-            applied = td.apply(project, delta)
+            applied = td.apply(project, delta, peak_editor=editor)
         except ValueError as exc:
             # the verbs' own refusals (a tied path, a bound); ``set_values``
             # validates before writing, so nothing was applied

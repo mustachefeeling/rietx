@@ -124,6 +124,82 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert (errors, delta.is_empty()) == ([], True)
 
 
+def _picked(project):
+    """Pick and store a peak list, returning the session that did it."""
+    session = GuiSession(project, state_dir=project.path / "state")
+    session.peaks_pick({})
+    return session
+
+
+def test_the_fixed_point_holds_with_a_peaks_block(project):
+    """WP-1027: a stored peak list renders, parses, and is a no-op unedited."""
+    _picked(project)
+    text = td.render(project)
+    assert "\npeaks " in text
+    assert "@" not in text.split("\npeaks ")[1]  # peaks carry no vary marker
+    parsed = td.parse(text)
+    assert parsed.errors == []
+    assert len(parsed.peak_rows) == parsed.peaks_count > 0
+    delta, errors = td.changes(parsed, project)
+    assert errors == []
+    assert delta.is_empty(), delta.as_dict()
+    assert td.apply(project, delta) == []
+    assert td.render(project) == text
+
+
+def test_a_peaks_row_edits_two_columns_and_only_those(project):
+    session = _picked(project)
+    text = td.render(project)
+    parsed = td.parse(text)
+    row = parsed.peak_rows[0]
+
+    # a 2θ edit is a move (the group is refitted, so the landed position is
+    # near, not identical) and a flags edit is a set_peak_flags
+    line = row.text.replace(f"{row.two_theta:.6f}", f"{row.two_theta + 0.02:.6f}")
+    edited = text.replace(row.text, line + "  excluded")
+    delta, errors = td.changes(td.parse(edited), project)
+    assert errors == []
+    assert delta.peak_moves == {row.index: pytest.approx(row.two_theta + 0.02)}
+    assert delta.peak_flags == {row.index: ["excluded"]}
+    calls = td.apply(project, delta)
+    assert any("move_peak" in c for c in calls)
+    assert any("set_peak_flags" in c for c in calls)
+    after = session.peaks()
+    listed = [p for p in after["peaks"] if "excluded" in p["flags"]]
+    assert listed and listed[0]["origin"] == "edited"
+    # and the next render is a fixed point again
+    fresh = td.render(project)
+    delta, errors = td.changes(td.parse(fresh), project)
+    assert (errors, delta.is_empty()) == ([], True)
+
+    # every derived column refuses an edit rather than silently regenerating
+    text = fresh
+    row = td.parse(text).peak_rows[0]
+    for column, value in (("esd", row.esd), ("fwhm", row.fwhm),
+                          ("I", row.intensity)):
+        bad = text.replace(row.text,
+                           row.text.replace(_fmt_col(column, row),
+                                            _fmt_col(column, row, bump=True)))
+        _, errors = td.changes(td.parse(bad), project)
+        assert errors and "derived" in errors[0].message, column
+    # the count is derived too
+    bad = _edit(text, "peaks", "peaks 999")
+    _, errors = td.changes(td.parse(bad), project)
+    assert errors and "count is derived" in errors[0].message
+    # and an unknown flag word names the vocabulary
+    bad = text.replace(row.text, row.text + "  impurity")
+    _, errors = td.changes(td.parse(bad), project)
+    assert errors and "unknown flag" in errors[0].message
+
+
+def _fmt_col(column: str, row, *, bump: bool = False) -> str:
+    if column == "esd":
+        return f"{row.esd * (2 if bump else 1):.6f}"
+    if column == "fwhm":
+        return f"{row.fwhm * (2 if bump else 1):.4f}"
+    return f"{row.intensity * (2 if bump else 1):.6g}"
+
+
 @given(st.floats(min_value=-1e6, max_value=1e6, allow_nan=False,
                  allow_infinity=False))
 def test_a_rendered_number_reads_back_as_no_change(value):
@@ -283,14 +359,19 @@ def test_every_error_carries_a_line_number_and_a_path(project):
     assert "unknown keyword 'foo'" in by_where["foo"].message
 
 
-def test_a_wrong_format_version_and_a_reserved_block_say_so(project):
+def test_a_wrong_format_version_and_the_emptied_reservations_say_so(project):
     text = td.render(project)
     _, errors = _changes(_edit(text, "pxt", "pxt 99"), project)
     assert "reads pxt 1" in errors[0].message and errors[0].line == 1
 
-    _, errors = _changes(text + "peaks 20\n   0  8.4712\n", project)
-    assert "reserved for WP-1027" in errors[0].message
-    assert td.RESERVED_BLOCKS == {"peaks": "WP-1027 (GUI peak picker)"}
+    # WP-1027 filled in `peaks`, the last reserved block; the block now parses,
+    # and on a project with no stored list it is a semantic error naming the
+    # verb that creates one — not a syntax refusal
+    assert td.RESERVED_BLOCKS == {}
+    _, errors = _changes(text + "peaks 1\n   0  8.471200  0.000900  0.0812  10420\n",
+                         project)
+    assert "no stored peak list" in errors[0].message
+    assert "POST /api/peaks" in errors[0].message
 
 
 def test_read_only_identity_lines_are_errors_only_when_they_differ(project):
@@ -494,6 +575,9 @@ def test_the_highlighter_quotes_the_parsers_words():
     assert set(words("KEYWORDS")) == set(td._KEYWORDS)
     assert set(words("FLAGS")) == set(td._FLAG_WORDS)
     assert set(words("PAIRS")) == set(td._PAIR_WORDS)
+    # the peaks block's flag column quotes the schema's closed vocabulary
+    # (WP-1027); a new PeakFlag member fails here until pxt.ts restates it
+    assert set(words("PEAK_FLAGS")) == set(td._PEAK_FLAG_WORDS)
     # a stage line's keys are `StageSpec`'s own fields, minus the two that are
     # positional (`stage <name>  free <globs>`), plus the `free` that introduces them
     stage_keys = set(StageSpec.model_fields) - {"name", "turn_on"}
