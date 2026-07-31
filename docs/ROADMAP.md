@@ -1988,6 +1988,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029 (soft) |
+| [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | 🔄 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1030 |
 
 ### v1.0 — indexing (added 2026-07-29)
