@@ -1,0 +1,50 @@
+name: Docs
+
+# ci.yml deliberately `paths-ignore`s the planning docs (they are inert to the
+# code), which means a docs-only push gets no CI at all — and the planning
+# docs now carry a mechanical contract (tests/test_docs_consistency.py:
+# status vocabulary, ROADMAP glyph sync, link resolution, size caps).  This
+# workflow runs exactly that test file on exactly those pushes.
+#
+# Priced per the house rule (CLAUDE.md / DESIGN.md — free tier, 2000 min/mo,
+# billed rounded up): the test file is stdlib + pytest with no package
+# install, so the job is well under a minute -> 1 billed minute per docs
+# push.  At the observed ~30 docs pushes/month that is ~30 min/month, 1.5 %
+# of the budget.  On code pushes the same test runs inside ci.yml's fast
+# suite for free, so this workflow exists only for the docs-only blind spot.
+
+on:
+  push:
+    branches: [main]
+    paths: &planning_docs
+      - 'CLAUDE.md'
+      - 'gui/CLAUDE.md'
+      - 'tests/CLAUDE.md'
+      - 'src/pxrdref/gui/CLAUDE.md'
+      - 'docs/wp/**'
+      - 'docs/milestones/**'
+      - 'docs/ROADMAP.md'
+      - 'docs/DESIGN.md'
+      - 'docs/AGENT_PROTOCOL.md'
+      - 'tests/test_docs_consistency.py'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths: *planning_docs
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  consistency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: pip install pytest
+      # No package install: the test reads documentation files only.
+      - run: python -m pytest tests/test_docs_consistency.py -q

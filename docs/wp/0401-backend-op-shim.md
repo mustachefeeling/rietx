@@ -1,6 +1,6 @@
 # WP-0401 — Backend op shim (+ residual purity refactors)
 
-Milestone: v0.4 · Status: ✅ done 2026-07-24
+Milestone: v0.4 · Status: ✅ 2026-07-24
 Depends on: —
 
 ## Goal

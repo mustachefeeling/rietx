@@ -1,8 +1,8 @@
 # WP-1029 — GUI usability: legibility, layout, colour, theming
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30, reopened the same day (items
-p, q, r, s, t — two were regressions from the first pass), **second pass
-closed 2026-07-31**. Nothing open.
+Milestone: v1.0 · Status: ✅ 2026-07-31 — first pass 2026-07-30, reopened the
+same day (items p–t, two were regressions), second pass closed 2026-07-31;
+nothing open.
 Depends on: 1010–1015 (all landed) · soft: 1016, 1017
 
 ## Goal

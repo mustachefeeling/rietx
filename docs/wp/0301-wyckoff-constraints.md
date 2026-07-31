@@ -1,6 +1,6 @@
 # WP-0301 — Wyckoff / site-symmetry constraint derivation (affine constraints)
 
-Milestone: v0.3 · Status: ✅ done (2026-07-22)
+Milestone: v0.3 · Status: ✅ 2026-07-22
 Depends on: —
 
 ## Goal

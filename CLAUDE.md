@@ -24,118 +24,42 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (261: jsdom moun
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
 serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional
 either — it is what honours the `xdist_group` marks that keep a shared fixture
-on one worker (see the Tests bullet below); plain `--dist load` ignores them
-and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
-7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
-group rather than by total work — fast suite 60-80 s over three runs.
-Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
-fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
-are ~85-105 s each on their own.  With the extinction screen (WP-1025) added the
-same day: **1355 passed / 71 skipped in 8:55-9:16**, fast **1274 / 66 in 1:24**;
-the screen itself is 9 s for 29 tests, four of them real-data.  With WP-1026's
-acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
-`test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
-(corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
-After WP-1026's third session (the `_box_key` fix costs the dichotomy more
-refinements, and the corundum row became two searches): full **1446 passed /
-71 skipped in 8:24-9:51**, fast **1361 / 66 in 1:11-1:21**, and that file
-**3:30 serial** — cpd-1a 106 s, corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
-the billed 45 min, because the weekly job's wall clock is set by the
-`stephens-brucite` and `qpa-sample1` groups, both several times longer.
-After the fourth session added the SRM 660c rows: full **1488 passed / 71
-skipped in 9:22-11:57**, fast **1400 / 66 in 1:52**, and
-`test_acceptance_indexing.py` **5-6 min serial** (cpd-1a 106-127 s, corundum
-50-63 s twice, LaB6 20-67 s, the calibrated row 4-5 s).  Four of the seven new
-rows are **fast** — they need the picked list (~1 s) or no data at all — which
-is the right way round: the findings they carry are the cheap ones to re-check.
-Note the LaB6 fixture's own 20-67 s spread, one fixture on one machine in one
-afternoon, and see the range rule below.
+on one worker (see `tests/CLAUDE.md`); plain `--dist load` ignores them and
+silently refits.
 
-With WP-1026's closing rows (2026-07-31): full **1524 passed / 71 skipped in
-8:09-15:33**, and that spread is one change measured three ways rather than
-machine noise — see the budget/scope note below.  **Merged with the GUI line the
-same day** (WP-1005…1015, 1029): **1772 collected**, green, and the critical path
-is still `stephens-brucite` (418 s) with `indexing-acceptance-qarr` (363 s) next.
+Headline testing rules — operating detail and evidence in `tests/CLAUDE.md`,
+the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
-**And the claim above that indexing does not set the wall clock expired without
-anyone noticing, which is the lesson worth keeping.** Measured with
-`--durations` on a green full run (2026-07-30): `indexing-acceptance` had reached
-**~550-590 s** against `stephens-brucite`'s 533 and `qpa-sample1`'s 485 — it *was*
-the critical path, so every further row would have been billed in full rather than
-hidden behind a longer group.  The fix was free, because nothing in that group
-shared a fixture with anything else in it: the LaB6 rows went into their own
-`indexing-acceptance-lab6`, and the same run then measured `indexing-acceptance`
-501 s, `stephens-brucite` 537 s, LaB6 ~60 s in parallel, full suite 9:22.  **One
-dataset, one group**, and re-read the `--durations` list rather than the last
-session's sentence about it — a group ordering is a measurement with a shelf life.
+- **Quote wall clock as a range, never as a figure** — machine state moves it
+  further than most changes do; compare runs, not records. And **quote the
+  extras with any count**: a bare "N tests" means nothing without the venv it
+  was measured in.
+- **One dataset, one group**: runtime is set by the longest xdist group, and
+  a group ordering is a measurement with a shelf life — re-read `--durations`
+  rather than the last session's sentence about it.
+- **A wall-clock budget inside a test is a runaway guard, never a timer** —
+  if the declared budget is not several times the serial time, the assertion
+  is a load sensor. The budget a test depends on may be one rank down, in
+  the library.
+- **When a budget fix makes something slow, narrow the scope, never the
+  budget** — and never a silent cap.
+- **Say which numbers moved**: after adding N tests, passed+skipped moves by
+  exactly N in both selections, and a new skip is not a new pass.
 
-**And the honest-budget rule and the CI budget pull against each other, so
-expect to pay in scope.** Raising a real-data search's `budget_seconds` from 60
-to 300 (so it could not truncate under load, above) let one search run to
-*completion* at **850 s**, which made its group the longest in the tree and took
-the full suite to 15:33. The budget could not go back, so the **scope** moved:
-each pure phase is now searched over the systems its answer lives in, a declared
-restriction `systems_searched` carries. Re-measured, the same tree is **8:09**.
-When a budget fix makes something slow, narrowing what is searched is the lever
-— never the budget, and never a silent cap.
-**Quote wall clock as a range, never as a figure**: the same green tree
-measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), 11:52 on
-a busier one (2026-07-30), and 12:40 later the same day on a machine
-simultaneously running a headless browser, three vite builds and a second pytest
-— machine state moves it further than most changes do. Compare runs, not records.
-**Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1268 passed / 117 skipped (6:52, measured
-2026-07-30 after WP-1029; 1263 / 116 in 10:27 and 8:47 before it) and the fast
-suite **1557 passed / 108 skipped in 29 s** (2026-07-31, the GUI and indexing
-lines merged, idle M4 — the same numpy-only venv measured 1203/108 in 17–18 s
-before the indexing tests arrived, and 78 s for less work a day earlier while
-the machine was busy: the range rule in miniature).
-Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
-two selections, two short of passed+skipped in both** — a gap that predates this
-line (the "1378 collected" it used to carry was the sum, not a measurement) and
-is worth resolving before anyone quotes a collected figure again. Installing
-`[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
-means nothing without the venv it was measured in. (WP-1012 added twelve tests and
-**both** counts moved by exactly twelve; WP-1013 added three and both moved by
-three; WP-1014 added sixteen and both moved by sixteen; WP-1015 added twenty-eight
-and both moved by twenty-eight, then one more on its second pass — every time
-with the skips unchanged. WP-1029 added six and both moved by six, of which
-**one is a new skip** (a pdCIF its per-CIF colour test cannot read as a
-structure), so 1193/107 → 1198/108: five passes and one skip, which is the
-version of this check that actually earns its keep. That is the bookkeeping check worth doing: the same two
-figures a day earlier disagreed by one, and a session that cannot say which of
-its numbers moved cannot tell a new skip from a new pass. The frontend's own
-suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 → 256
-→ 261 — where
-that **207 was quoted as 206** until the next session re-ran it, which is the
-same lesson one suite over.)
+### Current numbers
 
-**A wall-clock budget inside a test is a runaway guard, never a timer**, and
-WP-1024 learned it by breaking WP-1021's tests without touching them. The engine
-recovery tests assert `search_complete[system]` — a statement about the metric
-*domain* being exhausted — while declaring `budget_seconds=180`, which against an
-~85-105 s search is barely a 2× margin. Adding one more test module was enough:
-both monoclinic rows failed under `-n auto` and passed serially, reporting
-themselves incomplete *correctly* for a reason that had nothing to do with the
-domain. `BUDGET_SECONDS` in `tests/test_indexing_engines.py` now declares a
-generous per-system budget. Any test whose serial time is a large fraction of its
-declared budget is a load sensor pretending to be an assertion. **And the budget a
-test depends on may be one rank down, in the library** — WP-1026 hit the same
-failure through `trial_error`'s dominant-zone probe, which capped each ladder rung
-at a hard-coded 10 s against a 4.3 s serial cost, so under `-n auto` the test
-asserted the *absence* of `INDEX_DOMINANT_ZONE` for a reason unrelated to the index
-table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s). **A fourth instance (WP-1026,
-2026-07-31) gives the check to run rather than the story**: a real-data indexing
-row passed serially and failed under `-n auto`, reporting a *different centring*
-ranked first, because its search costs **73 s serial and 258 s under load**
-against a declared 60 s budget. The test to apply before landing any row with a
-budget: **compare its serial time with its declared budget, and if the budget is
-not several times larger, the assertion is a load sensor**
-(`REAL_DATA_BUDGET_SECONDS`, now 300 s, costs nothing because these searches
-finish early when they finish at all). The same audit applies to assertions
-*about* completion: "some system did not finish" is a statement about machine
-load, not about the data, and belongs as "every system searched reports whether
-its domain was exhausted".
+Replaced at every handover, never appended (history: the v1.0 appendix).
+Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
+
+- full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
+  path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
+- fast suite: numpy-only `[dev]` fast is 1567 passed / 108 skipped in
+  23–29 s (idle machine; includes WP-1031's +10), full 1268 passed / 117
+  skipped (6:52, before the +10).
+- frontend (vitest): 261.
+- `--collect-only` undercounts by one per module-level `importorskip` that
+  fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
+  numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -251,293 +175,6 @@ corrupt project. `excluded_regions` live in the document because they are
 protocol that is in neither the file nor `RefinementState` — a node cannot say
 what was excluded when it ran.
 
-The **GUI** (WP-1008, `gui/`) is `pxrdref gui [PROJECT.pxrd]` — stdlib
-`http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.
-`gui/session.py` holds `GuiSession`, where **every verb is a plain method and
-nothing knows about HTTP**; `gui/server.py` parses a path, calls one, serialises
-the answer, and is the layer a Tauri host would replace. Its route table plus
-`RESERVED_ROUTES` (paths settled here, behaviour owed by a later WP, 404 naming
-it) are the complete wire surface, held disjoint by test. Four rules: mutating
-verbs return **409 while a run is in flight** — frozen-per-stage discreteness
-enforced structurally rather than by discipline, and that refusal outranks body
-validation; **settings persist on the verb**, not on `save`, which is what keeps
-WP-1005's "nothing to warn about on close" true; the **run state is not an
-event** (a failed fit emits no `fit_end`, and `EventKind` is closed) so it
-travels beside them as its own SSE frame type while `live/events.jsonl` stays the
-one stream `watch` tails; and `/api/result` omits the curves, which
-`/api/result/window` serves per 2θ window through the *same*
-`viz.compare.decimation_index` the comparison UI uses — where `max_points` is a
-budget, not a ceiling. `strategy.staged.resolve_plan` (preset name + mode → plan)
-is likewise one function, previously inline in `fit` and duplicated in
-`sequential`.
-
-The **text document** (WP-1009, `gui/textdoc.py`, `pxt 1`) is the line-oriented
-view of a project — settings, plan, and every parameter row, where `@` frees and a
-bare value holds. `render` → `parse` → `changes` → `apply`, and the rule that
-makes it safe is that **a delta is diffed against the live project, never against
-the old text**: an untouched document emits no verbs, a read-only field is an
-error only when it *differs* (so everything can be shown without a "look, don't
-touch" syntax), and a typed number is compared to the **rendered** value, which is
-what lets values render lossily at 12 significant digits. Everything applies
-through the same verbs a form calls — same history nodes — and every refusal is
-the verb's own words (`held_because`, `TieSpec.describe`) with a line number
-attached, never restated. Two grammar facts are load-bearing: a `tie` renders
-**last** on its line (it contains spaces, so `=` runs to end-of-line) and column
-widths are **per block** (a fixed width made the renderer emit
-`polarization 0.99min 0`, which its own parser refused). Comments parse but do not
-survive a re-render, on purpose: storing one would be a second authority.
-
-The **frontend** (WP-1010) is a Svelte 5 + Vite + TS workspace in `gui/` whose
-build output is **committed** under `src/pxrdref/gui/static`, so installing the
-wheel never needs node — and `tests/test_gui_dist.py` is what keeps that honest:
-the dist's digest is recomputed in the ordinary (node-free) suite, nothing may
-gitignore the dist (the repo-wide `*.html` rule matched its `index.html` once),
-the built files must be *in* the wheel, and no built file may name a remote host.
-The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
-build and the test; `build-info.json` deliberately carries no timestamp, because
-`git diff --exit-code src/pxrdref/gui/static` has to mean "stale", not "rebuilt".
-Two duplications were refused: the client does **not** decimate (`/api/result/window`
-does, through `viz.compare.decimation_index`, and zoom refetches the window) and
-plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
-and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
-`resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
-and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
-
-The **editors** (WP-1011) are the parameter table and the plan editor, and their
-logic is in `gui/src/lib/` as pure functions (`table.ts`, `fnmatch.ts`,
-`palette.ts`) so it can be asserted without a DOM. Four rules. **The filter box
-is the selection**: a bulk free/fix sends the *glob*, because `set_vary` takes one
-and records **one** history node for it — a per-row multi-select would be N globs
-and N nodes — and `asGlob` wraps a bare word as `*word*` so the string previewed
-and the string sent are the same one. **A held row gets no vary checkbox at all**,
-with `held_because` as its tooltip and the three reasons rendered as three
-(`mode_fixed` is not `locked`). **A typed number is compared to the *rendered*
-value**, WP-1009's rule reused, so a cell showing `4.1568(2)` cannot truncate a
-parameter on a click-in/click-out. And the client's matcher is a **preview only**
-— it is `fnmatch.fnmatchcase` ported, held to Python by a committed corpus
-(`tests/test_gui_fnmatch.py` writes `tests/data/gui/fnmatch_cases.json` from the
-live parameter vocabulary; `fnmatch.test.ts` replays it), so a divergence is a
-wrong count, never the wrong parameters freed. **`JSON.parse` rejects Python's
-bare `Infinity`**, which `json.dumps` writes by default and every parameter row
-carries: `gui/server.py` spells non-finite floats as the schemas do
-(`ser_json_inf_nan="strings"`) on responses *and* SSE frames, and the client reads
-them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
-`bind:clientHeight` compiles to, so its absence throws *during mount*) and
-`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled.
-
-The **history and report panels** (WP-1012) are the GUI's read-and-act half, and
-the module that carries them is `report/apply.py` — the *how* beside Layer 2's
-*what*, in a separate file because the two version differently (the vocabulary is
-a contract; the mapping onto verbs changes when a verb arrives). Four rules.
-**An applicable action is one stage**: `stage_for` returns a `StageSpec` and runs
-nothing, so applying a suggestion travels the path the per-stage Run button
-travels — one `run_stage`, one history node, the same 409 — and *undo is a
-`checkout`*, not an inverse verb. **The action's own `parameter_paths` are the
-globs**; `RECIPES` declares only how each of the sixteen `ActionKind`s is carried
-out (11 `stage`, 1 `index`, 4 `advice`, pinned complete against `get_args`), and
-the four advice notes *are* the deliverable — the background-flexibility pair is
-advice because it changes what the background can absorb rather than which
-parameters move, and the statistic that catches the cost (the block projection R²
-behind `BACKGROUND_ABSORPTION`) is not in the report. **Applicability and
-reachability are different questions**: `unreachable` separates a glob matching
-*nothing* (a `preferred_orientation` block not declared) from one whose every match
-is *held*, quoting `held_because`, and `GET /api/report` serves the answer as an
-`apply` arm **parallel to** `suggested_actions` — positional, because a kind is not
-unique — so a button's enabled-ness and the route's willingness to act are one
-answer. And **`expected_delta_chi2` is one number per report, not per action**:
-`build_report` stamps the same figure on every Layer-1-derived action and it bounds
-only the misfit attributed inside the *gated* regions (measured 16.19 predicted
-against 16.33 observed), so the panel prints it once and says what it is. Two
-traps a browser found and jsdom could not: the two `unmatched` kinds are opposite
-diagnoses (an observed peak with no reflection is an impurity; a calculated peak
-with no intensity is what a *mispositioned* model produces at every peak — 15 of
-them read as "unindexed" once), and `Plot`'s window fetch must stay guarded because
-a `checkout` clears the result server-side while the component still holds it.
-
-The **text pane** (WP-1013, `gui/src/panels/Text.svelte`, `gui/src/lib/`) is the
-`.pxt` document in CodeMirror 6, and it is a **mode over the whole window rather
-than a sixth tab** — five tabs already fill the sidebar, and this is the one panel
-whose content is line-oriented, the format's columns being aligned precisely so a
-rectangular selection can hit one field. It stays mounted while hidden (a typed
-buffer survives a look at the parameter table) and builds its editor on first
-entry. Four rules. **The head is the reload signal** — no third SSE frame type was
-added, because the head already moves for every writer and the parameter table
-already reloads on it. **There is no merge and no force-apply**: a stale buffer
-re-reads and re-applies, which is also what the server's 409 `STALE_REVISION`
-says, and the reason is sharper than "merging is hard" — the loser's document
-carries the winner's *old* values for every row it did not touch, so applying it
-would silently revert them. **Only the server decides validity**: `lib/pxt.ts` has
-no `error` token to emit (asserted from both sides, with the shared vocabulary
-pinned to `textdoc._KEYWORDS` and `StageSpec.model_fields` by
-`test_the_highlighter_quotes_the_parsers_words`), and *indentation is the parser's
-own dispatch*, so an indented `plan` is a parameter named `plan`. And **a response
-carrying an older `seq` is dropped** — a 300 ms debounce puts two validations in
-flight across one pause and they can land out of order. CodeMirror is a separate
-committed chunk (`assets/vendor-cm.js`, 328 kB) imported *dynamically*, so
-`app.js` stays well under it — 114 kB when this was written, 164 kB after
-WP-1015's two passes — and boot-to-interactive stays under ~120 ms;
-`tests/test_gui_dist.py` asserts the split, because a stray static import would
-inline the library and no byte count would say so. The editor's document and its diagnostics are `$effect`s
-over the sync state, never pushed — pushing let a head move wipe a squiggle while
-the problem list still named the line.
-
-**Import and model editing** (WP-1014, `src/pxrdref/gui/imports.py`,
-`gui/src/panels/Model.svelte`, `gui/src/lib/{model,wizard}.ts`) is how data gets
-*in* from a browser and how the model is edited once it is. Its founding rule is a
-split: **if the parameter table has the path, the parameter table owns it** — a
-cell edge, an occupancy, a Biso, a profile term, a coordinate DOF go through
-`PATCH /api/params`, where the tie/lock/mode/bound rules already live, while a
-species, a label, an atom added or removed, a geometry, a wavelength or a
-background family go as a whole validated model, because each changes what the
-table *contains*. Coordinates are therefore never typed as x/y/z (they are affine
-ties onto `…dof.k`); the editor offers the DOFs, so a site-symmetry violation is
-unrepresentable rather than refused, and a fully fixed special position gets no
-coordinate control at all — `GET /api/structure`'s **`sites` arm** is what says
-which is which, deliberately without the Wyckoff letter (spglib per atom on a
-route that refetches on every head move). Uploads are **two-phase** — a file is
-staged and read before anything is created, and only an opaque token crosses back,
-never a path — and they are the one route family whose body is not JSON (raw
-bytes; filename and reader options in the query string, `UPLOAD_ROUTES`). Two
-previews are judgements rather than descriptions: a pattern names the *reader*
-that claimed it in the reader's own words, and a CIF's `aniso_available` is
-**measured** by reading it a second time with `aniso=True`. `POST
-/api/structure/aniso` exists because both directions are physics
-(`AnisoU.isotropic` on, U_eq → Biso off). Three browser-only traps are recorded in
-code: `structuredClone` **throws on a Svelte 5 `$state` proxy** (use
-`lib/model.ts:clone`), a verb's refusal and a panel's load error **must not share
-one field** (the reload after a failed apply wiped it), and `axialWarning` stays
-silent on the S/L = H/L pair that is 0-and-held, because that is the shipped
-default and a warning on every fresh lab instrument is a warning nobody reads.
-
-The **structure viewer** (WP-1015, `src/pxrdref/gui/structure3d.py`,
-`gui/src/panels/Structure3D.svelte`, `gui/src/lib/structure3d.ts`) is the model as
-drawable geometry, served by `GET /api/structure3d` and rendered by the plotly
-already on the page — **zero new dependencies**, and a third column of the model
-pane rather than a sixth tab. Its founding rule is that **everything hard stays on
-the server**: the payload is Cartesian points, 3×3 matrices and index pairs, and
-the browser's whole job is `pos + T·v` over one unit sphere (which is also why a
-ball and an ellipsoid are one code path — plotly's markers are sized in *pixels*,
-so a ball-and-stick drawn with them cannot be compared with the cell around it).
-That forced the one new crystallography verb: **`symmetry.expand_orbit` returns
-the operation as well as the position**, because U\* → R·U\*·Rᵀ means an image
-drawn with its parent's tensor is right on a cubic site and wrong on every other
-one; `expand_positions` now delegates to it. Four rules. **gemmi has no colour
-table** — it supplies radii and `is_metal`, and the colours are the CPK convention
-with values chosen here (ATTRIBUTION.md), never transcribed. **A radius-sum bond
-rule needs one chemical predicate**: bond metals to metals only when the phase has
-no non-metal in it, or LaB6's twelve cell edges become La–La sticks (covalent
-radius 2.07 Å against a = 4.158 Å). **A non-positive-definite tensor draws its
-non-positive axes at zero**, because `√(negative)` is a NaN and one NaN vertex
-loses the whole mesh, not one atom. And **bond segments complete their partners
-exactly one level** — a bond to a translated image is correct and *reads* as
-broken — which is the line between a coordination and the packing diagram this WP
-declined. `probability` and `bond_tolerance` are drawing thresholds on the query
-string, never in `ProjectDoc`.
-
-Its **second pass** (2026-07-30) changed no geometry and every default, because
-the scene was plotly's rather than crystallography's — read against VESTA, Jmol
-and 3Dmol.js, and measured against the bundled **plotly.js 3.7.0** (which is
-what `/plotly.js` serves; 6.9.0 is the Python `plotly` package, and the two
-version independently) rather than its
-docs. **Parallel projection** (perspective converges a cubic cell's far edges),
-**no Cartesian axis box** (`axisTrace` labels the cell's own a/b/c edges instead,
-at a clearance in Å set by the largest ball — a percentage of the edge put every
-letter inside a corner atom), and **bonds as two-tone cylinders in Å**, which is
-the marker argument above applied to sticks and which settles the legend rule *a
-half belongs to its atom*. `STICK_RADIUS` = 0.08 Å is a lower bound on
-`BALL_FRACTION` = 0.40 (VESTA's fraction, on covalent rather than atomic radii),
-pinned by test so hydrogen cannot become a lump on a rod. **`dragmode: "orbit"`
-is load-bearing**: turntable pins `camera.up` to +z and rewrites any camera that
-disagrees, and `cartesian_basis` is upper-triangular, so c ∥ ẑ for every
-orthogonal cell and `axisCamera`'s "view down c" would draw nothing — the free
-trackball and the a/b/c buttons are one decision. `axisCamera` also depends on a
-second job `aspectmode: "data"` does: the data→scene map is a *uniform* scale, so
-a direction in Å is a direction in camera coordinates.
-
-Browser-only traps, and the last is the durable one: plotly's `responsive: true`
-listens for **window** resizes only, so a plot with controls below it keeps an
-oversized canvas that swallows their clicks (`ResizeObserver` → `Plots.resize`;
-`gui/src/lib/plotly.ts` is the one runtime loader, shared with `Plot.svelte`);
-`--line` is invisible in a 3D scene, so the cell frame takes `--accent`; and
-**`react` with fresh trace objects resets the gl3d camera** (replacing a `mesh3d`
-rebuilds the scene from the layout, which `uirevision` does not cover), so the
-view must be handed back on every draw. *Where it is read from* took three
-attempts and two wrong claims in the log: `layout.scene.camera` reports whatever
-was passed **in**, and `plotly_relayout` **never fires for a gl3d camera drag at
-all** — measured, zero events, and true of the shipped build too, so the listener
-that replaced the first wrong answer was silently receiving nothing. The only
-reading of the view is `gd._fullLayout.scene._scene.getCamera()`, read back
-immediately before each `react`. Method note behind all three: compare
-screenshots, never a sha256 of one (a WebGL re-render differs by a pixel), and
-when a claim is about an event, count the events.
-
-**Usability** (WP-1029, `gui/src/lib/{resize,theme,plot}.ts`,
-`panels/Splitter.svelte`, `gui/structure3d.py`) is the pass that made the eleven
-correct panels one program, and its findings are rules rather than repairs.
-**A stored size is not a settled size**: a drag clamps against the extent it
-happens in, and nothing clamps a width that outlives its window — so
-`fitColumns` re-clamps at *render* (widths chosen at 1500 px reopened at 1000 px
-left the 3D column 24 px wide). The splitter itself carries `Console.svelte`'s
-rule generalised — **report a size, never write one**, `onsize(size, done)`,
-persisted to `ProjectDoc.ui` on the verb — with an `inline` flow because an
-absolute grip inside `overflow: auto` scrolls away from the edge it is meant to
-be. **Distinguishability is a property of the set being drawn**: `_CPK` is an
-element table, `phase_palette` decides what a *picture* uses, anchoring the
-famous CPK assignments and rotating the rest in **OKLab** hue at constant L and
-C — sRGB has no distance, and F `#48d860` against Ca `#40c060` (both in NAC) is
-0.070 apart against a 0.13 floor. Placement is anchors → table → derived, so the
-hue nobody chose is the one that moves. **An exaggeration is not a
-probability** — k(p) = √χ²₃(p) diverges as p → 1, so `caption()` states the
-level and the multiplier separately or the picture claims a surface it is not
-drawing — and **a stick knows which mode it is drawn in**: `stickRadius` returns
-half the smallest semi-axis in ellipsoid mode (0.080 Å ball → 0.065 at p = 0.5 →
-0.032 at p = 0.1, where the fixed stick had been *wider than the atom*), which
-turns `unitCylinder`'s uncapped justification into a proof. The theme is
-three-way and resolved **once**, stamped as `data-theme` on the root, because
-"follow the system" is a choice and not the absence of one; CodeMirror's chrome
-must be an `EditorView.theme` rather than a stylesheet rule, since CM injects
-its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` sends
-**three** residuals and a `weighted` flag: two are derivable in a client and
-`cumulative_chi2` is not, because it must be accumulated over every point and
-decimated afterwards. And plotly's `responsive: true` window-only listener bit a
-**second** panel — any control row under a plot needs the `ResizeObserver`.
-
-Its second pass (2026-07-31) added three browser facts. **plotly's
-`lightposition` is screen-relative, not a data-space point** — read through the
-inverse of the full projection transform, so z > 0 sits *behind* the scene and
-a z-dominant light renders the whole visible side ambient-flat, which is what
-"desaturated, dark and flat" was: both earlier passes had shipped one, and the
-scene had never been lit by its diffuse term at all. The viewer's key is one
-fixed `LIGHT_POSITION = (−1e5, 1e5, 0)` (z = 0 keeps it lateral; z < 0 is a
-headlight and the lateral part dies) that follows the camera by construction,
-mid-drag included — no camera arithmetic exists, and `Plotly.version` at
-runtime is the only version measurement (a static grep of the bundle finds a
-sub-dependency's `version:"…"` string). **A style sampled synchronously inside
-an effect races the shell's `applyTheme` effect in the same flush** —
-`Plot.svelte` awaits one microtask before `getComputedStyle`, or the first
-dark repaint wears light ink; the 3D panel never had the bug because its draw
-awaits the plotly loader first. And **an effect that reads the project
-*object* refires on every ui-only PATCH** — Model reloads on a boolean
-`$derived` (`hasProject`), or a theme click refetches three routes plus the 3D
-geometry with the head unmoved.
-
-**Every weighted residual in the package divides by
-`RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
-montage, Layer 0 and the GUI window — and it is a peer of `PatternData.sig()`,
-which is where the esd-column/Poisson choice was already made: `CompiledModel`
-stores `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
-result's σ is a *lookup*, never a re-derivation. Five call sites had open-coded
-`√max(y,1)` under three policies before WP-1029 (s) unified them. The lesson is
-in what that hid: the fallback branches disagreed only on pre-v0.2 results, so
-the visible bug was not there but in the flag beside them — `weighted` meant
-`bool(result.sigma)`, i.e. "is this a pre-v0.2 result", which is constant-true,
-so a Poisson fit was labelled `(obs−calc)/σ` as though its σ had been measured.
-**`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ *present* — the same
-fact `textdoc` renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is
-what the fit minimised either way, and the flag changes only the axis title. A
-test that recomputes a residual cannot catch this class of bug: the pin compares
-what each renderer **drew** against what the route **sent**.
-
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
 `CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as
@@ -554,8 +191,20 @@ separate arms (`result` / `series` / `indexing`) because they are different
 *shapes*, and for indexing the shape is the rule: the serialized answer carries no
 `cell` key either.
 
-## Invariants (do not break)
+### GUI
 
+The **GUI** (WP-1008…1015, 1029) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+`http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
+holds every verb as a plain method and nothing there knows about HTTP;
+`gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
+server contract, `.pxt` text document, editors, panels, 3D viewer, theming —
+is `gui/CLAUDE.md` (loads when working under `gui/`; `src/pxrdref/gui/`
+carries a pointer stub). Two rules matter outside the GUI too: mutating verbs
+return **409 while a run is in flight** (frozen-per-stage discreteness
+enforced structurally), and the **run state is not an event** — `EventKind`
+is closed, and `live/events.jsonl` stays the one stream `watch` tails.
+
+## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
   quadrature node counts, and window index ranges are computed at stage
   compile and NEVER change during a least-squares run; regenerate only
@@ -574,6 +223,22 @@ separate arms (`result` / `series` / `indexing`) because they are different
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
+- **Every weighted residual in the package divides by
+  `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
+  montage, Layer 0 and the GUI window — and it is a peer of `PatternData.sig()`,
+  which is where the esd-column/Poisson choice was already made: `CompiledModel`
+  stores `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
+  result's σ is a *lookup*, never a re-derivation. Five call sites had open-coded
+  `√max(y,1)` under three policies before WP-1029 (s) unified them. The lesson is
+  in what that hid: the fallback branches disagreed only on pre-v0.2 results, so
+  the visible bug was not there but in the flag beside them — `weighted` meant
+  `bool(result.sigma)`, i.e. "is this a pre-v0.2 result", which is constant-true,
+  so a Poisson fit was labelled `(obs−calc)/σ` as though its σ had been measured.
+  **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ *present* — the same
+  fact `textdoc` renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is
+  what the fit minimised either way, and the flag changes only the axis title. A
+  test that recomputes a residual cannot catch this class of bug: the pin compares
+  what each renderer **drew** against what the route **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.**
   A background able to imitate the peaks biases ADPs up and scales (hence QPA
   fractions) down while Rwp *improves*. Measure it as the block projection
@@ -601,6 +266,11 @@ separate arms (`result` / `series` / `indexing`) because they are different
   global maturity); collinear angular templates are compared as *nested single
   fits* and reported non-separable rather than resolved. Confidence weights
   importance (share of χ²), not just statistical significance.
+- **A new correction ships with a record field or a diagnostic that states
+  what it changed — never an Rwp comparison as its evidence.** v0.5's
+  measured method result: of eight corrections, two provably cannot move
+  Rwp, one moves it the wrong way when it is right, and the two largest
+  accuracy wins are invisible in it (`docs/milestones/v0.5.md`).
 - **Licensing**: port code only from permissive sources with ATTRIBUTION.md
   updates. BGMN/Profex/xrayutilities are GPL — concepts only, never code.
   TOPAS/FullProf are closed — papers only.
@@ -751,105 +421,46 @@ separate arms (`result` / `series` / `indexing`) because they are different
 - `RefinementResult.ticks` carries **every emission line's** positions, not
   just the primary — otherwise Layer 0 flags each Kα2 peak as an unindexed
   impurity (this was a real bug, caught by the misfit-injection suite).
-- Tests: fast unit/property tests always; real-data acceptance marked
-  `@pytest.mark.slow` (`test_acceptance_nac.py`, `_srm660c.py`, `_fap.py`,
-  `_capillary.py`).
-  Reference values and data provenance in `tests/data/README.md`. Every test
-  refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
-  for visual inspection — Rwp hides locally-bad fits.
-- **CI runs the same commands** (`.github/`), on cadences set by a **free-tier
-  budget** — 2000 Actions minutes/month on a private repo, billed per job
-  rounded up, so an over-budget config buys a month with no CI rather than a
-  bill. Per push: ruff + the fast suite on 3.13, Linux, skipped entirely for
-  docs-only pushes (5 billed min). Weekly: the full suite plus 3.11/3.12/3.14
-  (55). Monthly: macOS and `[torch]` (66 — macOS bills at **10×**).
-  **Before adding a job, price it**: the first version of this matrix cost 21
-  minutes per push and 1350 a month, which did not fit. Two consequences for
-  local work. **The bit-identity goldens are pinned to `darwin/arm64`**
-  (`GOLDEN_PLATFORM` in `tests/test_backend_shim.py`) and *skip* elsewhere:
-  measured, Linux x86-64 diverges by 1 ulp to 1.7e-13 relative — a libm and
-  summation-order difference — so the gate is asserted where it was captured
-  rather than loosened to a tolerance it could never distinguish from a real
-  change. And **`tests/.jax_cache` is why the jax rows feel free locally** —
-  deleting it takes the two jax files from ~12 s to 107 s — but caching it in
-  CI was measured and does *not* help (8:18 warm against 8:12 cold): jax's
-  persistent cache holds only XLA compilations above a time threshold, while
-  per-process tracing and lowering are paid every run.
-- **A refinement that two suites both need is computed once, in
-  `tests/conftest.py`** (`sample1_results`, `srm660c_baseline`), and **every
-  consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
-  second worker rebuilds the whole fixture and the sharing costs more than it
-  saved. Same rule one scope down: a module fixture several tests share pins
-  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`,
-  `indexing-consensus`, …). The
-  failure is silent, so the check is a `--durations` scan for the same setup
-  appearing twice. Because runtime is set by the longest *group*, not by total
-  work, splitting a group is the only way to go faster — and un-sharing a
-  fixture to do it just moves the cost.
+- Tests, timing, budgets, CI: `tests/CLAUDE.md` (loads when working under
+  `tests/`); the headline rules are in Commands above.
 - Comparing against another code means **adopting its protocol**, not just
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
+- The **theory manual** (`docs/manual/`) is guarded against drift by
+  `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
+  constants are MyST substitutions injected from the live package in
+  `docs/manual/conf.py`, every displayed equation carries a `*Source:*` line
+  whose symbol must import, and every bib entry must be cited. Renaming a
+  physics symbol or retuning a fenced constant means touching the manual in
+  the same change.
 
 ## Roadmap & how to work on it
 
 Planning docs are split so a session loads only what it needs — do not read
 them all:
 
-- `docs/ROADMAP.md` — thin index: milestone table, work-package (WP) index,
-  "Current focus", and the session protocol.
+- `docs/ROADMAP.md` — the index: session protocol, a ≤40-line "Current
+  focus", milestone table, WP index.
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-
   sized checklist, acceptance command, handover log).
 - `docs/DESIGN.md` — design record; read only the section a WP links.
-- `docs/milestones/vX.Y.md` — shipped records with measured acceptance blocks.
+- `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance
+  at ship, plus (while in flight) the running "How vX.Y is getting here"
+  narrative and the dated appendices. `v1.0.md` is the live one.
+- `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
+  a diagnostic code or a correction adds its row there.
+- `gui/CLAUDE.md`, `tests/CLAUDE.md` — subsystem rulebooks; they load with
+  their subtrees, so nothing here restates them.
 
-**Protocol**: to work on the roadmap, read the active WP file (named under
-"Current focus" in ROADMAP.md) and nothing else. Commit per checklist item,
-prefixed `WP-NNNN:`. Before ending any session that touched a WP — or when
-interruption threatens — append a dated handover-log entry (done / in flight /
-next / gotchas) and sync its Status glyph into ROADMAP.md's index. When a
-milestone ships, record measured acceptance in `docs/milestones/` and flip
-the ROADMAP.md row.
+**Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority. In
+short: read the active WP file and nothing else; commit per checklist item
+prefixed `WP-NNNN:`; end every session that touched a WP with
+`/wp-handover`; a CLAUDE.md takes **rules, not findings**.
+`tests/test_docs_consistency.py` enforces the mechanical parts.
 
-Because sessions never read other WP files, **a handover log only reaches your
-own successor on the same WP**. Anything you learned that changes work in a
-not-yet-started WP — a constant now exported for reuse, a design bullet there
-that has gone stale, a deferral into it, a gotcha that would mislead it — goes
-in *that* WP's `### Inherited` section, naming yours as the source
-(ROADMAP.md step 3b; slot defined in `docs/wp/TEMPLATE.md`).
-
-Shipped: **v0.1** (synchrotron vertical slice), **v0.2** (2026-07-22: lab
-Bragg-Brentano, analytic Jacobian, background automation, FitReport L1-2,
-history DAG, live viz), **v0.3** (2026-07-24: coordinate refinement, anisotropic
-ADPs, QPA weight fractions, Brindley microabsorption, Pawley whole-pattern mode,
-March-Dollase preferred orientation, multi-histogram, exporters — WP-0301…0310,
-measured acceptance in `docs/milestones/v0.3.md`: SRM 676a cell anchor via c/a
-(+30 ppm) plus the IUCr QPA round robin with participant-spread-referenced
-tolerances), **v0.4** (2026-07-27: differentiable backends — WP-0401…0408,
-measured acceptance in `docs/milestones/v0.4.md`).
-
-**v0.5 — corrections & microstructure** (2026-07-28: capillary absorption 0501,
-surface roughness 0502, Stephens anisotropic strain 0503, anomalous f′/f″ 0504,
-sequential series 0505, secondary extinction 0506, anode wavelengths 0507,
-flat-plate absorption + the real-data capillary acceptance 0508; measured
-acceptance in `docs/milestones/v0.5.md`). Its method result is worth carrying
-into any future correction: **not one of the eight is well judged by Δ Rwp** —
-two provably cannot move it, one moves it the *wrong way* when it is right, and
-the two largest accuracy wins are invisible in it. So a new correction ships
-with a record field or a diagnostic that states what it changed, never with an
-Rwp comparison as its evidence.
-
-**v0.6 — solver, performance & agents** (2026-07-29: batched-peak-loop no-go
-with the FCJ node memo shipped instead 0605, bounded LM with the Stephens cone
-as a linear inequality 0601, agent JSON surface 0602, Sphinx + MyST theory
-manual 0604; measured acceptance in `docs/milestones/v0.6.md`). The **theory
-manual** lives in `docs/manual/` and is guarded against drifting from the code
-by `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
-constants are MyST substitutions injected from the live package in
-`docs/manual/conf.py` (a new fenced constant needs a line there *and* a use in
-a chapter), every displayed equation carries a `*Source:*` line whose symbol
-must import, and every bib entry must be cited. Consequence: renaming a
-physics symbol or retuning a fenced constant means touching the manual in the
-same change.
+Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the
+milestone table in ROADMAP carries the acceptance one-liners — neither is
+restated here).
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the
@@ -897,110 +508,6 @@ template. And on real data with no measured shift, `high` is currently
 *unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
 bigger constant, and it is WP-1026's.
 
-**`predicted_but_absent` cannot tell an oversized cell from a space-group
-extinction, and on a real phase that is not a corner case.** It counts against the
-*lattice* group, which is the only model available before
-`determine_extinction_symbol` runs — so the certified corundum cell, correct to
-~100 ppm, is refuted by 12 reflections R-3m allows and the R-3c c-glide forbids
-(WP-1026, measured). It is the blind spot `predicted_seen_fraction` already states,
-promoted into a refuting caveat. Read a firing as "this cell predicts lines the
-pattern lacks", never as "this cell is too big"; the two are separable only by
-running the extinction screen, which the gate does not do. **The control exists
-and confirms it**: NIST SRM 660c LaB6 is P m -3 m, which extinguishes nothing, and
-indexes with `predicted_but_absent` **0 of 30** and `predicted_seen_fraction`
-**1.000** against corundum's 11-12 and 0.86. Which is also how to choose the next
-acceptance dataset — **by its space group, not by its convenience**: pairing a
-phase that has absences with one that has none is what turned this from an
-argument into a measurement.
-
-**`high` confidence is reachable on real data, and what it costs is a peak list.**
-Same LaB6 pattern, indexed as picked: a is **−127 ppm** out and the grade is `low`.
-Remove the five picked components no certified position explains and declare the
-systematic as *measured* rather than assumed, and it is **a = 4.156772 Å, −2 ppm**
-from the certification CIF, M₂₀ 1113, **zero caveats**, with `best_or_none()`
-returning a cell for the first time. The five are **axial-divergence tails** (they
-sit low below 90° 2θ and high above it, a sign reversal nothing else in a
-Bragg-Brentano pattern has) plus one Kα2 residual, and they escape `not_separable`
-for **three different reasons**, so no single threshold reaches them. Two general
-lessons sit under that. **An assumed allowance is not free even when it is
-generous enough**: `DEFAULT_UNKNOWN_SHIFT_DEG` is added *in quadrature to every
-line's σ*, which is flat, so a 100× precision contrast between real lines and
-phantoms becomes 1.005 — `fit_shift_model`, which weights by each line's own σ,
-recovers the displacement (+0.0367 ± 0.0015° against a parameter-free +0.0415°
-from the recorded −0.07877 mm at R = 217.5 mm) while the *search* on the identical
-list fits +0.009 ± 0.016°. And **`sigma_sys_deg` means two different things**: the
-screen reports the scatter a template *leaves* (0.0078°), the search needs the
-window the *uncorrected* positions span (0.037°, since `refine_with_shift` runs
-only after a candidate survives), so declaring the measured one silently returns
-no candidate at all.
-
-**The measured scoreboard, and it is the honest shape of this feature (WP-1026,
-closed 2026-07-31).** Across eight known-cell datasets, **five** put the right
-lattice first (SRM 676a corundum, SRM 660c LaB6, zincite, zircon, and FAP where
-the right cell is present and second), **one** is refused for having too few
-lines (fluorite: 18 usable against `PEAK_MIN_USABLE_LINES` = 20 — high symmetry
-makes a pattern easy to index right up until it makes it too sparse to index at
-all), and **two** fail (brucite and magnetite rank a supercell above the truth;
-NAC cannot be searched at its own d_min). **Every one of the eight abstains** —
-`best_or_none()` is None on every real dataset, including the five that are
-right. Read that as *never wrong, and silent more often than right*, and do not
-let a summary round it up. Three lessons transfer. **A literature cell is not a
-specimen's cell**: brucite's round-robin specimen sits **+1750 ppm** from Zigan &
-Rothbauer's, 30× the goniometer floor, so a mineral's published cell grades
-lattice type and centring and nothing in ppm. **An indexed cell has no
-displacement parameter**, so it absorbs what a refinement models — 127 ppm
-measured on SRM 660c — which is why an indexing bar is looser than the same
-dataset's refinement bar (FAP: 500 ppm against ±300). And **M₂₀ can invert the
-ranking**: on FAP the cell both engines agree on indexes 181 of 185 lines and
-sits *below* one 1218 ppm out that indexes 167, because a wrong metric matching a
-subset tightly is what a plain mean of ⟨ΔQ⟩ rewards.
-
-**Geometrical ambiguity has a class the derivative-lattice enumeration cannot
-reach.** `ambiguity_partners` walks *sublattices* of index 2-4 — supercells — so a
-rival of **smaller** volume is not in the enumeration. One exists for the
-commonest lattice there is: tetragonal P at (a/√2, a) is **exactly** isospectral
-with cubic P *a*, because 2(h²+k²)+l² represents precisely the integers h²+k²+l²
-does (both miss 4ⁿ(8m+7)). Measured: 0 partners from the cubic side, while from
-the tetragonal side the cubic is found at index 2 with **zero** discriminating
-reflections, and both engines find the rival on the real pattern. It matters
-because the gate refuses `high` to a candidate with a partner — so whichever of an
-isospectral pair happens to be the larger cell can be promoted while its equal
-cannot.
-
-`determine_extinction_symbol(data, candidate, instrument)` (`indexing/extinction.py`)
-is the next step and keeps the same rule one rank down: it ranks the **extinction
-classes** the lattice admits, each listing its space groups, because the powder
-observable is the extinction symbol and groups sharing an absence set produce
-identical patterns *by construction*. Classes are derived — every gemmi setting
-whose **lattice** (not crystal system: a hexagonal metric carries the trigonal-P
-groups) matches, grouped by identical absences over the hkl in range — never
-transcribed from IT A Table 3.2, which cannot speak about a non-standard setting the
-indexed axes may be in. Each class is fitted by Le Bail with the profile frozen at
-one shared pre-fit and scored by `report.layer2`'s ΔBIC against the absence-free
-lattice; **Rwp cannot be the score** (fewer absences ⇒ more reflections ⇒ never a
-worse fit; measured, the true monoclinic class and its screw-free partner differ by
-1e-5 in Rwp and 24 in ΔBIC). Three counts are decisions: `n_added` counts only
-**testable** absences — in range and separable from every line the class still
-allows — or a class whose absences all hide under neighbours wins on parsimony with
-no measurement behind it; a *line*'s absence is asked of the whole orbit (`P a -3`
-extinguishes 012 but not 021, one 2θ); and **the absence test's null model is the
-class's own `y_calc`, not the fitted background** — the same
-`workflow.absent_reflections`, called with `y_calc` in the `y_background` slot,
-because a forbidden position sits inside a dense predicted pattern where a phantom
-reflection sits in a gap (measured on FAP: the forbidden 003 reads +27.6 σ against
-the background and −3.9 σ against the model, its allowed neighbour 0.89 FWHM away).
-
-Two invariants inherited from fixing WP-1020 while building on it. **An ambiguity
-partner must be refuted by the lines it needs and the data lack** — a superlattice
-indexes every observed line by construction, so without that exclusion every
-derivative lattice is reported (28 for a certified cubic cell) and the gate can never
-promote anything; the test is asymmetric (the partner's *extra* predictions, never the
-parent's own absent ones) and a surviving partner's discriminating reflections are
-therefore *outside* the measured range. **A Niggli-reduced cell is primitive**, so
-`ReducedCell.centring` is provenance about the input and must never be handed back to
-anything that applies a centring — doing so made gemmi call a cubic I lattice
-trigonal.
-
 Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
 `EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
 that needs `cov_af`), the live registry the agent schema quotes, `Budget`, and the
@@ -1033,97 +540,51 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-**But the tolerance was never why the certified pattern failed to index, and the
-correction is the more useful lesson (WP-1026).** The obstruction was **our own peak
-list**: `detect_peaks` proposed 41 groups with one seed each and `fit_group` returned
-**63** components, adding a phantom ~1 FWHM below every strong peak at ~10 % of its
-area with a small esd. With those flagged both engines rank the certified cell first,
-at the same allowance. The gate could not have refused them, and not because
-`PEAK_KEEP_COMPONENT_MIN_DELTA_BIC` is wrong: **ΔBIC asks whether the data prefer n+1
-components to n, which is the same question as "is there a line here" only while the
-n-component model is capable of fitting.** On the corundum 104 line χ²_red is 17.4 at
-n = 1 and 4.6 at n = 2 — both refuted — so any extra component wins. Hence
-`_not_separable` (`indexing/pick.py`), whose third and load-bearing condition is that
-the group's own fit is still refuted, at `PEAK_REFUTED_SIGMA` × σ(χ²_red) above 1
-rather than a flat bar because groups differ 5× in size across one pattern. The
-component **stays in the model** (removing it displaces the real line by 0.010°) and
-is barred only from `usable()`. General, not a corundum quirk: satellites were 4-21 %
-of picked lines on all eight bundled real datasets, now 0-7 %. **A search that finds
-nothing indicts its input before its tolerance.**
+Six more indexing rules, each learned the hard way — the measured stories
+are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
+constants in `indexing/`:
 
-**That certified pattern was blocked twice, and the second cause is the one to
-carry into any engine work: a leaf that is never refined is invisible.** With the
-peak list fixed the search returned the right lattice type with **c +2799 ppm**, and
-one session recorded that as what an uncalibrated lab pattern costs. It was
-`_box_key`, dichotomy's duplicate-leaf hash, which divided A..F by `max|af|` — so a
-0.1 % grid on the largest component was a ~1 % grid on the smallest, and for a long
-axis C = 1/c\*² **is** the smallest. The whole trigonal-R domain converges to
-**eleven** leaves; three hashed onto a sibling and were skipped *before* being
-refined, and one of the three held the certificate's c. Per-component binning (log
-for the diagonals, partner-scaled for the off-diagonals) recovers a = +101 ppm,
-c = +16 ppm ranked first, and with the shift template declared −73 / −126 ppm at a
-fitted −0.0606 ± 0.0138° against an independently measured −0.065° displacement.
-**A performance filter's failure mode is a wrong answer, not a slow one**, and its
-cost was 11 refinements against 8.
+- Read a `predicted_but_absent` firing as "this cell predicts lines the
+  pattern lacks", **never** "this cell is too big": it counts against the
+  *lattice* group, so a space-group extinction (corundum's R-3c c-glide, 12
+  reflections) refutes a correct cell, and only the extinction screen
+  separates the two. Choose acceptance datasets **by space group** — SRM
+  660c (P m -3 m, extinguishes nothing) is the control that proved it.
+- The scoreboard across eight known-cell datasets is *never wrong, and
+  silent more often than right* — five right, one refused, two fail, all
+  eight abstain. Do not let a summary round it up.
+- **An ambiguity partner must be refuted by the lines it needs and the data
+  lack** (asymmetric: the partner's extra predictions, never the parent's
+  own absences), or every derivative lattice is reported and the gate can
+  never promote. And `ambiguity_partners` walks sublattices only, so a
+  *smaller*-volume isospectral rival is invisible — tetragonal P (a/√2, a)
+  vs cubic P a is exact, and both engines find it on real data.
+- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is
+  provenance about the input, never to be handed to anything that applies a
+  centring. Reduction needs the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one
+  lattice splits into two candidates and denies the gate its agreement.
+- **A search that finds nothing indicts its input before its tolerance**:
+  the peak list blocked the certified pattern twice (fitted satellites, then
+  `_box_key` skipping unrefined leaves — a performance filter's failure mode
+  is a wrong answer, not a slow one).
+- **An assumed precision may never refuse to index** (`from_positions` lists
+  get no `MAX_RELATIVE_SIGMA_Q` vote), and an assumed shift allowance is
+  reported as `INDEX_SHIFT_ALLOWANCE` because it must never look measured.
+  Open items from the source-paper audit (`volume_envelope` is a mean line,
+  not an envelope) are WP-1030's, recorded in its file.
 
-**Three measured facts from checking the source papers against the code
-(2026-07-30), each of which contradicts something the tree asserted.** All three
-are recorded in WP-1026's handover and WP-1030; only the first is fixed.
-
-- **Niggli reduction is not canonical in floating point without a *relative*
-  tolerance.** Křivý-Gruber decides its normalisation on exact equalities — with
-  b = c the tie breaks on |η| ≤ |ζ| — and gemmi defaults to an *absolute* 1e-9,
-  under which two settings of one lattice came back with β and γ **swapped**
-  while gemmi's own `is_niggli` called both True. `NIGGLI_EPS_RELATIVE` = 1e-5,
-  as ε = 1e-5·V^(1/3), used in the reduction **and** in the predicate
-  (Grosse-Kunstleve *et al.* 2004, whose Test 3 *is*
-  `test_niggli_reduction_is_unimodular_invariant`). Since `same_lattice` dedups
-  on reduced A..F, a non-canonical reduction splits one lattice into two
-  candidates and denies the gate its agreement.
-- **`refine_with_shift` refused its own correction on exactly the candidates that
-  needed it**, because the accept test was χ²_red and the extra column costs a
-  degree of freedom, so a cell that has *already absorbed* the shift cannot gain
-  enough χ² to pay for it. **Fixed**: a declared template is the caller's physics,
-  like `mu_t`, and only *identifiability* refuses it now (no template, a numerical
-  failure, or fewer assigned lines than metric parameters + 2). That change needs
-  `engines.scored_positions` beside it — a candidate carrying a shift claims the
-  **corrected** lines, so scoring it against the raw ones marks it down for its own
-  correction, and applying the template everywhere with the panel left on raw
-  positions dropped the certified corundum lattice out of the top six.
-- **`volume_envelope` is a mean line, not an envelope.** Smith (1977) is
-  triclinic-only, publishes **no** per-system factors (so the derived Laue/centring
-  scalings here have nothing to check against), and quotes −29 % to +32 % about a
-  10.6 % average. Used as a hard search ceiling it excludes the true cell below a
-  detection fraction of 0.713 — which is that same −29 %. `VOLUME_ENVELOPE_SLACK`
-  exists but guards only the *flagging* path, not the ceiling.
-
-**And an assumed precision may never refuse to index.** `assess_peak_list`'s
-`MAX_RELATIVE_SIGMA_Q` abstention is a statement about *measured* data, so it runs
-only when `PeakList.source == "fitted"`. On a `from_positions` list every σ is
-`PEAK_ASSUMED_ESD_DEG` — chosen here — and refusing on it quotes an assumed precision
-as a measured one, the inverse of the rule above. Measured: all **ten** sets of the
-published bethanechol benchmark failed it, including the synchrotron set whose
-published M(20) is 197. The figure is still computed and reported
-(`PEAK_POSITION_PRECISION`); it simply has no vote.
-
-**v0.4 — differentiable backends.** `backend=` takes `"numpy"` (the default and
-the only one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU
-fp64) / `"torch-mps"` (Apple GPU, necessarily fp32) — never installed by
-default, kept as an independent opinion in the agreement matrix and as the
-route to using the forward model as a differentiable layer (DESIGN.md, "What
-the differentiable core unlocks"). Every backend is held to per-column
-agreement with the analytic Jacobian in `tests/test_cross_backend.py` — whose
-configs must grow whenever a *new derivative path* does, or no backend row
-covers it. Also landed: true Voigt
-(`Instrument.profile.shape="voigt"`, one shared Weideman Faddeeva `w(z)`, TCHZ
-still the default), soft bond/angle/value restraints (extra residual rows below
-the data, Rietveld and single-histogram only), and the Bérar-Lelann esd fix
-(reported esds now carry the inflation; the correlation matrix is a true Pearson
-matrix and the 0.98 guard is live). Apple-GPU execution is *slower* than numpy
-(46-182×, launch-latency-bound) — `torch-mps` buys precision validation, not
-speed; the measured break-even (≈65 k elements per kernel) and ceiling (≈2.5×)
-are in the v0.4 record. v2 fence:
-FPA, neutron/TOF, spherical-harmonics texture, MCP server.
+**Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
+one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /
+`"torch-mps"` (Apple GPU, necessarily fp32) — never installed by default,
+kept as an independent opinion in the agreement matrix. Every backend is
+held to per-column agreement with the analytic Jacobian in
+`tests/test_cross_backend.py` — **whose configs must grow whenever a new
+derivative path does**, or no backend row covers it. Apple-GPU execution is
+*slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
+precision validation, not speed (break-even and ceiling: the v0.4 record).
+Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default), soft
+restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
+spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

@@ -1,6 +1,6 @@
 # WP-1017 — GUI manual, in-app help, onboarding
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ⬜
 Depends on: WP-1011…WP-1016 (soft — chapters can land as their panels do)
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-0307 — March-Dollase preferred orientation
 
-Milestone: v0.3 · Status: ✅ done 2026-07-23
+Milestone: v0.3 · Status: ✅ 2026-07-23
 Depends on: —
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1021 — Engine A: successive dichotomy
 
-Milestone: v1.0 · Status: ✅ complete 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: 1020
 
 ## Goal

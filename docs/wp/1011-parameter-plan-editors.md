@@ -1,6 +1,6 @@
 # WP-1011 — Parameter editor, plan editor, run controls, disclosure
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1010
 
 ## Goal

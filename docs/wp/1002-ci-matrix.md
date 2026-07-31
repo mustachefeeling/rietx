@@ -1,6 +1,6 @@
 # WP-1002 — CI matrix
 
-Milestone: v1.0 · Status: ✅ shipped 2026-07-29
+Milestone: v1.0 · Status: ✅ 2026-07-29
 Depends on: —
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-0501 — Capillary (cylindrical) absorption
 
-Milestone: v0.5 · Status: ✅ shipped 2026-07-27
+Milestone: v0.5 · Status: ✅ 2026-07-27
 Depends on: —
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1050 — `Refinement.suggest()`: which parameter to free next
 
-Milestone: v1.0 (proposed 2026-07-30) · Status: ⬜ not started
+Milestone: v1.0 (proposed 2026-07-30) · Status: ⬜
 Depends on: — (1004 landed). Must land **before** 1003 if `suggest()` ships in
 the frozen API.
 

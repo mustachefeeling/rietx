@@ -1,6 +1,6 @@
 # WP-0508 — Flat-plate absorption + a real-data capillary acceptance
 
-Milestone: v0.5 · Status: ✅ shipped 2026-07-28
+Milestone: v0.5 · Status: ✅ 2026-07-28
 Depends on: 0501
 
 ## Goal

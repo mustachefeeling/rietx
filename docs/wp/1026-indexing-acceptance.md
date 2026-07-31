@@ -1,6 +1,6 @@
 # WP-1026 — Indexing acceptance: the bethanechol benchmark and known cells
 
-Milestone: v1.0 · Status: ✅ closed 2026-07-31 (criterion 1 deferred to 1030)
+Milestone: v1.0 · Status: ✅ 2026-07-31 — criterion 1 deferred to 1030
 Depends on: 1024 (1025 soft)
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-1012 — History worktree, report panel, one-click suggestions
 
-Milestone: v1.0 · Status: ✅ landed 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1010
 
 ## Goal

@@ -1,6 +1,6 @@
 # WP-0308 — Multi-histogram stacked residuals
 
-Milestone: v0.3 · Status: ✅ complete (2026-07-24)
+Milestone: v0.3 · Status: ✅ 2026-07-24
 Depends on: —
 
 ## Goal

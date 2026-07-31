@@ -1,6 +1,6 @@
 # WP-1016 — Sequential series panel
 
-Milestone: v1.0 · Status: ⬜ not started
+Milestone: v1.0 · Status: ⬜
 Depends on: WP-1008, WP-1010, WP-1011
 
 ## Goal

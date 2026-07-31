@@ -1,6 +1,6 @@
 # WP-1009 — Project text document: format + parser
 
-Milestone: v1.0 · Status: ✅ complete 2026-07-30
+Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1004, WP-1005
 
 ## Goal

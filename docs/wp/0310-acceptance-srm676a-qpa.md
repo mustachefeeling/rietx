@@ -1,6 +1,6 @@
 # WP-0310 — v0.3 acceptance: SRM 676a corundum + IUCr QPA round robin
 
-Milestone: v0.3 · Status: ✅ done 2026-07-24
+Milestone: v0.3 · Status: ✅ 2026-07-24
 Depends on: WP-0304, WP-0305
 
 ## Goal

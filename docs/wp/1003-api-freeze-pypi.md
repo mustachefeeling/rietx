@@ -1,6 +1,6 @@
 # WP-1003 — API freeze + PyPI release
 
-Milestone: v1.0 · Status: ⬜ not started (stub — expand before starting)
+Milestone: v1.0 · Status: ⬜ — stub, expand before starting
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
 the milestone's last row, so the freeze covers a surface the GUI exercised),
 WP-1018…WP-1030 (indexing)
@@ -9,7 +9,7 @@ WP-1018…WP-1030 (indexing)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
-## Inherited
+### Inherited
 
 **From the 2026-07-30 assessment session — your dependency list grew by one, and
 one frozen constant is on a decision.** [1030](1030-engine-scaling-low-symmetry.md)

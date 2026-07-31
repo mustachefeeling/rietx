@@ -1,7 +1,7 @@
 # WP-0605 — Batched peak loop (spike, then decide)
 
-Milestone: v0.6 · Status: ✅ complete 2026-07-28 (task 0 in production;
-batched rewrite: **no-go**, measured grounds in the answers + handover below)
+Milestone: v0.6 · Status: ✅ 2026-07-28 — task 0 in production; batched
+rewrite: **no-go**, measured grounds in the answers + handover below
 Depends on: — (informed by WP-0401, WP-0404, WP-0408)
 
 ## Goal
