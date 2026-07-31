@@ -24,118 +24,40 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (261: jsdom moun
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
 serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional
 either — it is what honours the `xdist_group` marks that keep a shared fixture
-on one worker (see the Tests bullet below); plain `--dist load` ignores them
-and silently refits. Measured on a 10-core M4 (4P+6E), 2026-07-28: full
-7:57 at `-n auto` and 7:24 at `-n 6`, both dominated by the single longest
-group rather than by total work — fast suite 60-80 s over three runs.
-Re-measured 2026-07-30 after the indexing engines landed: full **8:11-11:07**,
-fast **2:10**, and the growth is one module — the exhaustive monoclinic searches
-are ~85-105 s each on their own.  With the extinction screen (WP-1025) added the
-same day: **1355 passed / 71 skipped in 8:55-9:16**, fast **1274 / 66 in 1:24**;
-the screen itself is 9 s for 29 tests, four of them real-data.  With WP-1026's
-acceptance rows the same day: fast **1353 / 66 in 49-149 s**, and
-`test_acceptance_indexing.py` is ~120 s of which ~119 is two module fixtures
-(corundum 35 s, cpd-1a 84 s) sharing `xdist_group("indexing-acceptance")`.
-After WP-1026's third session (the `_box_key` fix costs the dichotomy more
-refinements, and the corundum row became two searches): full **1446 passed /
-71 skipped in 8:24-9:51**, fast **1361 / 66 in 1:11-1:21**, and that file
-**3:30 serial** — cpd-1a 106 s, corundum 52 s twice.  It stays weekly-only by its `slow` mark and does not move
-the billed 45 min, because the weekly job's wall clock is set by the
-`stephens-brucite` and `qpa-sample1` groups, both several times longer.
-After the fourth session added the SRM 660c rows: full **1488 passed / 71
-skipped in 9:22-11:57**, fast **1400 / 66 in 1:52**, and
-`test_acceptance_indexing.py` **5-6 min serial** (cpd-1a 106-127 s, corundum
-50-63 s twice, LaB6 20-67 s, the calibrated row 4-5 s).  Four of the seven new
-rows are **fast** — they need the picked list (~1 s) or no data at all — which
-is the right way round: the findings they carry are the cheap ones to re-check.
-Note the LaB6 fixture's own 20-67 s spread, one fixture on one machine in one
-afternoon, and see the range rule below.
+on one worker (see `tests/CLAUDE.md`); plain `--dist load` ignores them and
+silently refits.
 
-With WP-1026's closing rows (2026-07-31): full **1524 passed / 71 skipped in
-8:09-15:33**, and that spread is one change measured three ways rather than
-machine noise — see the budget/scope note below.  **Merged with the GUI line the
-same day** (WP-1005…1015, 1029): **1772 collected**, green, and the critical path
-is still `stephens-brucite` (418 s) with `indexing-acceptance-qarr` (363 s) next.
+Headline testing rules — operating detail and evidence in `tests/CLAUDE.md`,
+the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
-**And the claim above that indexing does not set the wall clock expired without
-anyone noticing, which is the lesson worth keeping.** Measured with
-`--durations` on a green full run (2026-07-30): `indexing-acceptance` had reached
-**~550-590 s** against `stephens-brucite`'s 533 and `qpa-sample1`'s 485 — it *was*
-the critical path, so every further row would have been billed in full rather than
-hidden behind a longer group.  The fix was free, because nothing in that group
-shared a fixture with anything else in it: the LaB6 rows went into their own
-`indexing-acceptance-lab6`, and the same run then measured `indexing-acceptance`
-501 s, `stephens-brucite` 537 s, LaB6 ~60 s in parallel, full suite 9:22.  **One
-dataset, one group**, and re-read the `--durations` list rather than the last
-session's sentence about it — a group ordering is a measurement with a shelf life.
+- **Quote wall clock as a range, never as a figure** — machine state moves it
+  further than most changes do; compare runs, not records. And **quote the
+  extras with any count**: a bare "N tests" means nothing without the venv it
+  was measured in.
+- **One dataset, one group**: runtime is set by the longest xdist group, and
+  a group ordering is a measurement with a shelf life — re-read `--durations`
+  rather than the last session's sentence about it.
+- **A wall-clock budget inside a test is a runaway guard, never a timer** —
+  if the declared budget is not several times the serial time, the assertion
+  is a load sensor. The budget a test depends on may be one rank down, in
+  the library.
+- **When a budget fix makes something slow, narrow the scope, never the
+  budget** — and never a silent cap.
+- **Say which numbers moved**: after adding N tests, passed+skipped moves by
+  exactly N in both selections, and a new skip is not a new pass.
 
-**And the honest-budget rule and the CI budget pull against each other, so
-expect to pay in scope.** Raising a real-data search's `budget_seconds` from 60
-to 300 (so it could not truncate under load, above) let one search run to
-*completion* at **850 s**, which made its group the longest in the tree and took
-the full suite to 15:33. The budget could not go back, so the **scope** moved:
-each pure phase is now searched over the systems its answer lives in, a declared
-restriction `systems_searched` carries. Re-measured, the same tree is **8:09**.
-When a budget fix makes something slow, narrowing what is searched is the lever
-— never the budget, and never a silent cap.
-**Quote wall clock as a range, never as a figure**: the same green tree
-measured 7:37 and 5:44 minutes apart on that machine (2026-07-29), 11:52 on
-a busier one (2026-07-30), and 12:40 later the same day on a machine
-simultaneously running a headless browser, three vite builds and a second pytest
-— machine state moves it further than most changes do. Compare runs, not records.
-**Quote the extras with any count**: measured 2026-07-30 on a **numpy-only
-`[dev]`** venv, the full suite is 1268 passed / 117 skipped (6:52, measured
-2026-07-30 after WP-1029; 1263 / 116 in 10:27 and 8:47 before it) and the fast
-suite **1557 passed / 108 skipped in 29 s** (2026-07-31, the GUI and indexing
-lines merged, idle M4 — the same numpy-only venv measured 1203/108 in 17–18 s
-before the indexing tests arrived, and 78 s for less work a day earlier while
-the machine was busy: the range rule in miniature).
-Those are run outcomes; **`--collect-only` reports 1383 and 1304 for the same
-two selections, two short of passed+skipped in both** — a gap that predates this
-line (the "1378 collected" it used to carry was the sum, not a measurement) and
-is worth resolving before anyone quotes a collected figure again. Installing
-`[jax,torch]` converts most of those skips into passes, so a bare "N tests" figure
-means nothing without the venv it was measured in. (WP-1012 added twelve tests and
-**both** counts moved by exactly twelve; WP-1013 added three and both moved by
-three; WP-1014 added sixteen and both moved by sixteen; WP-1015 added twenty-eight
-and both moved by twenty-eight, then one more on its second pass — every time
-with the skips unchanged. WP-1029 added six and both moved by six, of which
-**one is a new skip** (a pdCIF its per-CIF colour test cannot read as a
-structure), so 1193/107 → 1198/108: five passes and one skip, which is the
-version of this check that actually earns its keep. That is the bookkeeping check worth doing: the same two
-figures a day earlier disagreed by one, and a session that cannot say which of
-its numbers moved cannot tell a new skip from a new pass. The frontend's own
-suite is counted separately and moved 85 → 139 → 184 → 207 → 221 → 255 → 256
-→ 261 — where
-that **207 was quoted as 206** until the next session re-ran it, which is the
-same lesson one suite over.)
+### Current numbers
 
-**A wall-clock budget inside a test is a runaway guard, never a timer**, and
-WP-1024 learned it by breaking WP-1021's tests without touching them. The engine
-recovery tests assert `search_complete[system]` — a statement about the metric
-*domain* being exhausted — while declaring `budget_seconds=180`, which against an
-~85-105 s search is barely a 2× margin. Adding one more test module was enough:
-both monoclinic rows failed under `-n auto` and passed serially, reporting
-themselves incomplete *correctly* for a reason that had nothing to do with the
-domain. `BUDGET_SECONDS` in `tests/test_indexing_engines.py` now declares a
-generous per-system budget. Any test whose serial time is a large fraction of its
-declared budget is a load sensor pretending to be an assertion. **And the budget a
-test depends on may be one rank down, in the library** — WP-1026 hit the same
-failure through `trial_error`'s dominant-zone probe, which capped each ladder rung
-at a hard-coded 10 s against a 4.3 s serial cost, so under `-n auto` the test
-asserted the *absence* of `INDEX_DOMINANT_ZONE` for a reason unrelated to the index
-table (`DOMINANT_ZONE_PROBE_SECONDS`, now 30 s). **A fourth instance (WP-1026,
-2026-07-31) gives the check to run rather than the story**: a real-data indexing
-row passed serially and failed under `-n auto`, reporting a *different centring*
-ranked first, because its search costs **73 s serial and 258 s under load**
-against a declared 60 s budget. The test to apply before landing any row with a
-budget: **compare its serial time with its declared budget, and if the budget is
-not several times larger, the assertion is a load sensor**
-(`REAL_DATA_BUDGET_SECONDS`, now 300 s, costs nothing because these searches
-finish early when they finish at all). The same audit applies to assertions
-*about* completion: "some system did not finish" is a statement about machine
-load, not about the data, and belongs as "every system searched reports whether
-its domain was exhausted".
+Replaced at every handover, never appended (history: the v1.0 appendix).
+Measured 2026-07-31, darwin/arm64 M4, `[dev,jax,torch]` venv unless said:
+
+- full suite: **1772 collected**, green, 8:09–15:33 over three runs; critical
+  path `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
+- fast suite: 1675 collected; numpy-only `[dev]` fast is 1557 passed / 108
+  skipped in 29 s (idle machine), full 1268 passed / 117 skipped (6:52).
+- frontend (vitest): 261.
+- known defect: `--collect-only` reports two short of passed+skipped in both
+  selections (`tests/CLAUDE.md` § Quoting numbers).
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -751,41 +673,8 @@ separate arms (`result` / `series` / `indexing`) because they are different
 - `RefinementResult.ticks` carries **every emission line's** positions, not
   just the primary — otherwise Layer 0 flags each Kα2 peak as an unindexed
   impurity (this was a real bug, caught by the misfit-injection suite).
-- Tests: fast unit/property tests always; real-data acceptance marked
-  `@pytest.mark.slow` (`test_acceptance_nac.py`, `_srm660c.py`, `_fap.py`,
-  `_capillary.py`).
-  Reference values and data provenance in `tests/data/README.md`. Every test
-  refinement also writes obs/calc/diff PNGs to `tests/output/` (gitignored)
-  for visual inspection — Rwp hides locally-bad fits.
-- **CI runs the same commands** (`.github/`), on cadences set by a **free-tier
-  budget** — 2000 Actions minutes/month on a private repo, billed per job
-  rounded up, so an over-budget config buys a month with no CI rather than a
-  bill. Per push: ruff + the fast suite on 3.13, Linux, skipped entirely for
-  docs-only pushes (5 billed min). Weekly: the full suite plus 3.11/3.12/3.14
-  (55). Monthly: macOS and `[torch]` (66 — macOS bills at **10×**).
-  **Before adding a job, price it**: the first version of this matrix cost 21
-  minutes per push and 1350 a month, which did not fit. Two consequences for
-  local work. **The bit-identity goldens are pinned to `darwin/arm64`**
-  (`GOLDEN_PLATFORM` in `tests/test_backend_shim.py`) and *skip* elsewhere:
-  measured, Linux x86-64 diverges by 1 ulp to 1.7e-13 relative — a libm and
-  summation-order difference — so the gate is asserted where it was captured
-  rather than loosened to a tolerance it could never distinguish from a real
-  change. And **`tests/.jax_cache` is why the jax rows feel free locally** —
-  deleting it takes the two jax files from ~12 s to 107 s — but caching it in
-  CI was measured and does *not* help (8:18 warm against 8:12 cold): jax's
-  persistent cache holds only XLA compilations above a time threshold, while
-  per-process tracing and lowering are paid every run.
-- **A refinement that two suites both need is computed once, in
-  `tests/conftest.py`** (`sample1_results`, `srm660c_baseline`), and **every
-  consumer must carry the matching `@pytest.mark.xdist_group`** — otherwise a
-  second worker rebuilds the whole fixture and the sharing costs more than it
-  saved. Same rule one scope down: a module fixture several tests share pins
-  its module (`nac`, `capillary`, `srm660c`, `stephens-brucite`,
-  `indexing-consensus`, …). The
-  failure is silent, so the check is a `--durations` scan for the same setup
-  appearing twice. Because runtime is set by the longest *group*, not by total
-  work, splitting a group is the only way to go faster — and un-sharing a
-  fixture to do it just moves the cost.
+- Tests, timing, budgets, CI: `tests/CLAUDE.md` (loads when working under
+  `tests/`); the headline rules are in Commands above.
 - Comparing against another code means **adopting its protocol**, not just
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
