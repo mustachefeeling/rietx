@@ -56,6 +56,25 @@ def pick_peaks(data: PatternData, instrument: Instrument, *,
     short list comes back as a list carrying ``PEAK_LIST_TOO_SHORT`` rather than
     as an exception.
     """
+    return pick_peaks_with_state(data, instrument,
+                                 two_theta_range=two_theta_range,
+                                 shoulders=shoulders,
+                                 flag_contamination=flag_contamination)[0]
+
+
+def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
+                          two_theta_range: tuple[float, float] | None = None,
+                          shoulders: bool = True,
+                          flag_contamination: bool = True,
+                          ) -> tuple[PeakList, Detection, list[GroupFit]]:
+    """:func:`pick_peaks` plus the state it was derived from.
+
+    The :class:`Detection` and per-group :class:`GroupFit` are what an *editor*
+    needs and a consumer of the list does not: WP-1027's peak panel redraws each
+    group's fitted profile (:func:`~pxrdref.indexing.peakfit.group_profile`) and
+    refits a single group when a human corrects it, both of which want the frozen
+    windows and the fitted width pairs rather than the flattened list.
+    """
     det = detect_peaks(data, instrument, two_theta_range=two_theta_range,
                        shoulders=shoulders)
     lam0 = instrument.source.lines[0].wavelength
@@ -63,7 +82,7 @@ def pick_peaks(data: PatternData, instrument: Instrument, *,
     fits = [fit_group(det, g, instrument) for g in det.groups]
     peaks = _peaks_from_fits(fits, lam0)
     if flag_contamination and peaks:
-        _flag_ghosts(peaks, lam0, det)
+        flag_ghosts(peaks, lam0, det)
 
     pl = PeakList(
         peaks=peaks, wavelength=lam0,
@@ -71,7 +90,7 @@ def pick_peaks(data: PatternData, instrument: Instrument, *,
         two_theta_max=float(det.two_theta[-1]),
         source="fitted")
     return pl.model_copy(update={
-        "diagnostics": peak_diagnostics(pl, det)})
+        "diagnostics": peak_diagnostics(pl, det)}), det, fits
 
 
 def _peaks_from_fits(fits: list[GroupFit], wavelength: float
@@ -79,21 +98,29 @@ def _peaks_from_fits(fits: list[GroupFit], wavelength: float
     """Flatten the group fits into one 2θ-ordered list of lines."""
     out: list[ObservedPeak] = []
     for gi, fit in enumerate(fits):
-        for j in range(fit.n):
-            flags = _flags_for(fit, j)
-            tt = float(fit.two_theta[j])
-            esd = float(fit.two_theta_esd[j])
-            out.append(ObservedPeak(
-                two_theta=tt, two_theta_esd=esd,
-                intensity=float(fit.intensity[j]),
-                intensity_esd=float(fit.intensity_esd[j]),
-                q=float(q_of_two_theta(np.array(tt), wavelength)),
-                q_esd=float(q_esd_of_two_theta(np.array(tt), np.array(esd),
-                                               wavelength)),
-                fwhm=fit.fwhm, eta=fit.eta, group=gi, n_in_group=fit.n,
-                chi2_red=fit.chi2_red, flags=flags))
+        out.extend(peaks_of_group(fit, gi, wavelength))
     out.sort(key=lambda p: p.two_theta)
     return out
+
+
+def peaks_of_group(fit: GroupFit, group_index: int, wavelength: float
+                   ) -> list[ObservedPeak]:
+    """One group's components as :class:`ObservedPeak`\\ s, flags translated.
+
+    The per-group half of :func:`pick_peaks`, public because WP-1027's editor
+    refits *one* group and splices the result into a stored list — the flag
+    translation must be this one and not a second reading of it.
+    """
+    return [ObservedPeak(
+        two_theta=(tt := float(fit.two_theta[j])),
+        two_theta_esd=(esd := float(fit.two_theta_esd[j])),
+        intensity=float(fit.intensity[j]),
+        intensity_esd=float(fit.intensity_esd[j]),
+        q=float(q_of_two_theta(np.array(tt), wavelength)),
+        q_esd=float(q_esd_of_two_theta(np.array(tt), np.array(esd), wavelength)),
+        fwhm=fit.fwhm, eta=fit.eta, group=group_index, n_in_group=fit.n,
+        chi2_red=fit.chi2_red, flags=_flags_for(fit, j))
+        for j in range(fit.n)]
 
 
 def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
@@ -177,13 +204,18 @@ def _unresolved(fit: GroupFit, j: int) -> bool:
     return bool(np.min(np.abs(others - fit.two_theta[j])) < gap)
 
 
-def _flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
-                 det: Detection) -> None:
+def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
+                det: Detection, *, only: set[int] | None = None) -> None:
     """Mark Kβ / W Lα ghosts in place, using the shared background rule.
 
     Matching is on *integrated* intensity and on the fitted σ(2θ) — the two
     things a fitted list has and the raw channel census does not — via the one
     implementation in ``background.contamination_flags_from_peaks``.
+
+    ``only`` restricts which peaks may be *marked* (matching always sees the
+    whole list — a ghost's parent can be anywhere).  WP-1027's editor passes the
+    indices of the one group it refitted, so recomputing ghosts for the edited
+    components cannot resurrect a mark a user cleared on an untouched one.
     """
     tt = np.array([p.two_theta for p in peaks])
     inten = np.array([p.intensity for p in peaks])
@@ -194,9 +226,12 @@ def _flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
     by_kind = {"kbeta": "ghost_kbeta", "tungsten_la": "ghost_tungsten"}
     for f in flags:
         k = int(np.argmin(np.abs(tt - f.two_theta)))
+        if only is not None and k not in only:
+            continue
         name = by_kind[f.kind]
         if name not in peaks[k].flags:
             peaks[k].flags = [*peaks[k].flags, name]
 
 
-__all__ = ["pick_peaks"]
+__all__ = ["flag_ghosts", "peaks_of_group", "pick_peaks",
+           "pick_peaks_with_state"]

@@ -1,6 +1,6 @@
 # WP-1027 — GUI peak picker and indexing panel
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-01 — browser pass done (two measured pointer defects fixed), extinction screen served and rendered; the indexing line ends in pixels
 Depends on: 1010, 1011, 1018-1024 (1009 touched)
 
 ## Goal
@@ -43,7 +43,7 @@ in a number. This panel exists for that, not for convenience.
 - **The peak-list verbs are cheap and synchronous; `index()` is not.** It goes
   through WP-1006's run state machine — cancel token, SSE progress, the
   409-while-running rule. That means the run kind must not be refinement-only;
-  an `### Inherited` note was left in WP-1006 for exactly this.
+  an Inherited-mailbox note was left in WP-1006 for exactly this.
 - **Peak lists are a project artifact, not a history node.** They live in
   WP-1005's `.pxrd/` container as `peaks.json`, keyed by `data_fingerprint`, so
   a peak list can never be displayed against the wrong pattern — the same
@@ -85,232 +85,88 @@ in a number. This panel exists for that, not for convenience.
   format, and the existing hypothesis `render → parse → render` fixed-point
   test extends to cover it.
 
-### Inherited
+### What the landed neighbours settled (Inherited, pruned 2026-07-31)
 
-**From WP-1026 (landed 2026-07-30) — a picked line now has a third state, and the
-picker UI is where it becomes visible or invisible.** `pick_peaks` emits
-components flagged **`not_separable`**: profile-shape repair that the fitter
-believes in as *shape* and disbelieves as a *line*. They stay in `PeakList.peaks`
-and are **excluded from `usable()`**, exactly like the Kβ/W ghosts. Three
-consequences for this WP:
-
-- **`len(peaks.peaks) != len(peaks.usable())` is now the normal case on real lab
-  data**, not an edge case — 8 of 63 on the bundled corundum pattern, and 4-21 %
-  of components across the eight bundled real datasets before the fix (0-7 %
-  after). A panel that renders `peaks` will show lines the indexer never saw, and
-  one that renders only `usable()` will hide the fitter's own explanation of a
-  strong peak's shape. Render both, distinguished.
-- **It is the flag a user will most want to overrule**, because it is a judgement
-  about a real component rather than a detection. The `excluded` flag is the
-  existing route for a caller's own decision; treating a `not_separable` line as a
-  line is a *different* act and should look different.
-- **Its cause is worth surfacing when it fires a lot**: the third condition is
-  that the group's fit is still refuted (χ²_red above 3σ of its own scatter), so a
-  pattern full of `not_separable` lines is usually a pattern whose *instrument
-  profile is mis-declared* — undeclared axial divergence reproduced the whole
-  effect synthetically. That is an actionable message, not a peak-picking one.
-
-**Also from WP-1026: an assumed σ no longer refuses to index.** A
-`from_positions` list (which is what a GUI "paste peak positions" box produces)
-used to fail `assess_peak_list`'s σ(Q)/Q gate on the strength of
-`PEAK_ASSUMED_ESD_DEG`. It no longer does, but the figure is still reported and
-every line still carries `sigma_assumed` — so the panel must show "precision
-assumed", not "precision measured", and must not present the σ(Q)/Q number as a
+**Peak-list semantics (WP-1026).** `pick_peaks` emits components flagged
+`not_separable` — shape the fitter believes in, a line it does not — kept in
+`PeakList.peaks` but excluded from `usable()` like the Kβ/W ghosts. On real lab
+data `len(peaks.peaks) != len(peaks.usable())` is the *normal* case (8 of 63 on
+bundled corundum), so the panel renders both, distinguished. `not_separable` is
+the flag a user most wants to overrule; `excluded` is the existing route for a
+caller's own decision, and overruling `not_separable` is a *different* act that
+should look different. A pattern full of `not_separable` usually means a
+mis-declared instrument profile — an actionable message, not a peak-picking one.
+And a `from_positions` list indexes despite its assumed σ, but every line carries
+`sigma_assumed` — the panel must say "precision assumed", never quote σ(Q)/Q as a
 property of the data.
 
-**From WP-1025 (landed 2026-07-30) — there is a second answer to render, and it
-has the same shape rule.** `determine_extinction_symbol(data, candidate, instrument)`
-returns a ranked `ExtinctionScreen` whose every row lists its space groups, so the
-panel that follows "adopt this cell" is another **table**, not a symbol: a row per
-extinction class with `symbol`, `space_groups` (all of them), `delta_bic`,
-`n_absent`/`n_testable`, and the refuting hkl for a refuted row. A UI that renders
-one space group re-introduces exactly what the API forbids — and here the singleton
-is not merely unsupported but *unmeasurable*, since the groups in a class produce
-identical patterns. `EXTINCTION_GROUPS_NOT_SEPARABLE` is an `info` that must be
-shown rather than filtered as noise; it is the explanation of why the row has three
-names in it. Cost for a progress affordance: one shared profile fit (~2 s) then
-~0.1 s per class, 7 classes for a hexagonal lattice and 71 for orthorhombic P.
+**Correction (pruned): `ObservedPeak.origin` does not exist.** The note here
+attributing a `"fitted"`/`"manual"`/`"edited"` origin field to WP-1018 was wrong
+— no such field is in `schemas/indexing.py` and WP-1018's file never mentions
+it. The *need* is real (a hand-placed peak and a fitted one carry different
+weight), so **this WP adds the field** (default `"fitted"`, set by the GUI's
+add/move verbs) rather than pretending to inherit it.
 
-From **WP-1029** (GUI usability, landed 2026-07-30): **that trap fired again, in
-the main pattern plot, and the fix is now in both.** `panels/Plot.svelte` had
-nothing below it until this WP put a residual selector and a scaling selector
-there; the canvas then swallowed their clicks, and playwright reported it in the
-defect's own words — `<rect class="sdrag drag"> … intercepts pointer events`. It
-now carries the same `ResizeObserver` → `Plotly.Plots.resize` the structure
-viewer has. **Take it as given rather than re-deriving it**: any new control row
-under a plotly plot needs the observer on the plot div.
+**The candidate answer (WP-1024).** `best_or_none()` returning `None` is the
+*expected* first outcome (on real lab data with no measured shift,
+`shift_allowance_assumed` caps everything at `medium`), so the candidate list is
+the primary view and the singleton a badge on it. `confidence_caveats` is the
+closed `IndexCaveat` vocabulary → chips, coloured red from
+`INDEX_REFUTING_CAVEATS` (served, never hand-listed client-side). Per-candidate
+diagnostics live on `candidates[i].diagnostics` — rendering only
+`result.diagnostics` drops the most actionable messages.
+`AmbiguityPartner.discriminating_two_theta` now lies *outside* the measured
+range: render "collect to here" beyond the pattern's right edge. Progress and
+cancellation are wired (`index_start`/`index_end`, per-engine
+`stage_start`/`stage_end` with `engine`/`index`/`n_stages`;
+`EVENT_SCHEMA_VERSION` is `"2"`; a **new** EventKind is a bump, a new `data`
+field is not).
 
-Two more things a peak picker will want. `lib/plot.ts` owns *which* residual and
-*which* intensity scaling are drawn (`residual`, `scaleValues`, `sqrtTicks`), and
-`/api/result/window` now sends `delta`, `delta_raw`, `cumulative_chi2` and a
-`weighted` flag — a picker working on √-scaled intensities must map a click back
-through `scaleValues`, since √ is applied to the **data** (plotly has no such
-axis type) with only the tick *labels* mapped back to intensity. And the shared
-2θ axis is anchored to the lower subplot (`xaxis.anchor: "y2"`), so a pixel→2θ
-mapping read off the upper plot's geometry will be wrong.
+**Extinction (WP-1025).** The panel after "adopt this cell" is another table:
+`determine_extinction_symbol` → ranked `ExtinctionScreen`, one row per class
+with `symbol`, *all* its `space_groups`, `delta_bic`, `n_absent`/`n_testable`,
+refuting hkl. One space group rendered singly is unmeasurable, not merely
+unsupported; `EXTINCTION_GROUPS_NOT_SEPARABLE` is an `info` that must be shown.
+Cost: one shared profile fit (~2 s) then ~0.1 s per class (7 classes hexagonal,
+71 orthorhombic P).
 
-From **WP-1015** (structure viewer, landed 2026-07-30): **the plotly loader is now
-shared, and a plot with controls under it has a measured trap.**
+**Server machinery (WP-1008/1006).** The ten routes are reserved in
+`gui.session.RESERVED_ROUTES`; filling one in is a `ROUTES` entry plus a
+`GuiSession` method. `GuiSession.run(body)` is the long-running machinery —
+add a `kind: "index"` branch; the run record's fields are generic enough, no
+new keys. Mutating verbs 409 while busy.
 
-`gui/src/lib/plotly.ts` (`loadPlotly()`) is the one place the runtime
-`<script src="/plotly.js">` is injected — use it. And plotly's `responsive: true`
-listens for **window** resizes only, so a plot whose box shrinks when a caption or
-a control row renders below it keeps an oversized canvas that **intercepts the
-clicks** of everything beneath. Found in Chrome and invisible to jsdom, which has
-no layout; the fix is a `ResizeObserver` → `Plotly.Plots.resize` on the plot div,
-as in `panels/Structure3D.svelte`. A peak picker whose picks are made *by clicking
-the plot* has the sharper version of this problem: an oversized canvas maps a
-click to the wrong 2θ, silently.
+**Text document (WP-1009/1013).** The `peaks` block name is reserved in `pxt 1`
+(`textdoc.RESERVED_BLOCKS`) — filling it needs no format bump. Grammar rules: an
+annotation containing spaces renders last on its line; column widths are per
+block. No `@` markers — peaks are not parameters, and the scanner's green `@` is
+a vary token that must not appear here. The `peaks` keyword already highlights;
+`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words` pins the word
+lists in `gui/src/lib/pxt.ts` to the parser's, so new flag words in the peaks
+block are a failing test until restated there — deliberate.
 
-And one method note that cost this WP a wrong claim: **reading `gd.layout` back is
-not a reading of the view.** It reports whatever was last passed *in*, so a check
-written that way reports a preserved zoom or rotation that has in fact been reset.
-Compare screenshots — but not their hashes, since a re-render differs by a pixel.
-
-**A cell that has just been indexed can be looked at.** `GET /api/structure3d`
-draws the current model — orbit, bonds, ellipsoids, cell frame — so an adopted
-candidate cell is one route away from a picture, which is a cheap sanity check on
-an indexing result that no figure of merit provides.
-
-From **WP-1014** (import & in-GUI editing, landed 2026-07-30): three things this
-panel can reuse rather than rebuild.
-
-**The upload flow** (`POST /api/upload/pattern` → token → commit) is how a pattern
-with no known phase gets into a project at all, which is the case indexing exists
-for — and the wizard's structure step is currently *required*. An
-index-from-nothing flow needs a way past that, and the honest shape is a wizard
-branch that creates the project with the indexed candidate (or a Le Bail
-placeholder) rather than a fourth ingest path.
-
-**A full-window mode is an available shape.** `panels/Model.svelte` is toggled
-from the header beside Text; a peak list plus an FoM panel plus a plot has the same
-width problem the atom table did, and the sidebar is `clamp(340px, 38%, 560px)`.
-
-**`GET /api/structure`'s `sites` arm** and `POST /api/structure/aniso` exist, so an
-adopted cell's atoms render with their site-symmetry DOFs immediately — nothing
-about adoption needs a new read.
-
-From **WP-1013** (landed 2026-07-30): the `peaks` keyword **already highlights** in
-the text pane — `gui/src/lib/pxt.ts`'s `KEYWORDS` quotes `textdoc._KEYWORDS`,
-reserved blocks included — so a picked-peaks block will be coloured the day the
-parser stops refusing it, with no frontend change. Two things follow.
-
-`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words` compares the four
-word lists in `pxt.ts` against `textdoc._KEYWORDS`, `_FLAG_WORDS`, `_PAIR_WORDS`
-and `StageSpec.model_fields`; **a new annotation word in the peaks block is a
-failing test until it is restated there**, which is deliberate — that is the guard
-that keeps the frontend's second reading of the grammar from drifting. A new
-*block* name needs nothing, since `peaks` is already in the list.
-
-And the peaks block's own sketch (in `textdoc.RESERVED_BLOCKS`) says it carries
-**no `@` markers**, because peaks are not refinable parameters. The scanner colours
-`@` as its own `vary` token in green, so that absence will read visually as well as
-grammatically — worth keeping when the block is designed, rather than adding a mark
-that means something else.
-
-From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs
-stay mounted** — `Peaks` is a tab, and a picker holding an unsaved edit survives a
-visit elsewhere. Reuse `lib/table.ts` for the peak list (grouping, the virtual
-window, esd-aware value formatting) rather than writing a second table; a
-thousand-peak list is exactly the case its virtualization exists for. Two
-contract facts: non-finite floats cross the wire as **strings** (`"Infinity"`),
-because `JSON.parse` rejects Python's bare token — read them with `num()`; and
-`gui/src/test-setup.ts` stubs the browser APIs jsdom lacks (`ResizeObserver`;
-`DragEvent` is also absent, which matters for a drag-to-move peak marker).
-
-From **WP-1008**: routes `GET/POST /api/peaks`,
-`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
-`GET /api/index/result`, `POST /api/index/adopt` were reserved (404 until this
-WP), and `/api/index` was wired to the run state machine.
-
-From **WP-1009**: the `peaks` block is reserved in `FORMAT_VERSION`, so this WP
-fills it in without a format bump.
-
-From **WP-1024**: `best_or_none()` is the only singleton accessor and
-`IndexingResult.candidates` is always a list — the frontend must not synthesise
-a "the answer is" view from `candidates[0]`.
-
-**From WP-1024 (landed 2026-07-30) — the answer is designed to be rendered, and the
-design will fight a conventional results panel.** Five things:
-
-- **`best_or_none()` returning `None` is the *expected* first outcome**, not an
-  error state, and on real lab data with no measured shift it is currently the
-  *only* outcome (`shift_allowance_assumed` caps every candidate at `medium`). A UI
-  whose happy path is "here is your cell" will look broken most of the time. Design
-  the candidate list as the primary view and the singleton as a badge on it.
-- **`CellCandidate.confidence_caveats` is a closed vocabulary**
-  (`IndexCaveat`), so it renders as chips rather than free text, and
-  `INDEX_REFUTING_CAVEATS` is the split that decides which chips are red: five
-  caveats refute a cell, the rest merely cap it. Getting that colouring from the
-  constant rather than from a hand-written list is what keeps the UI honest when the
-  vocabulary grows.
-- **Per-candidate diagnostics live on the candidate**
-  (`candidates[i].diagnostics`), result-level ones on the result. They are
-  deliberately not duplicated, so a panel that renders only
-  `result.diagnostics` silently drops the most actionable messages
-  (`INDEX_PREDICTED_BUT_ABSENT`, `INDEX_GEOMETRIC_AMBIGUITY`).
-- **`AmbiguityPartner.discriminating_two_theta` is a plot annotation waiting to
-  happen** — and note that those angles are now *outside* the measured range (a
-  partner whose in-range extras were absent is refuted, so what survives is
-  separated only further out). The natural rendering is a marker beyond the right
-  edge of the pattern with "collect to here", which is the actionable half of an
-  ambiguity report.
-- **Progress and cancellation are already wired.** `index_pattern(..., events=,
-  cancel=)` emits `index_start`/`index_end` (`EVENT_SCHEMA_VERSION` is now `"2"`)
-  with per-engine `stage_start`/`stage_end` carrying `engine`, `system`, `index`
-  and `n_stages` — so "engine 2 of 2, orthorhombic" needs no new event kind, and
-  `CancelToken` works unchanged.
-
-From **WP-1012** (landed 2026-07-30) — three reusable pieces and one measured trap:
-
-- **The plot takes a `zoom` prop** (`[lo, hi] | null`) and refetches
-  `/api/result/window` when it changes, so pointing at a 2θ range from a panel is
-  one line and arrives at full point budget (measured: 4129 points over 3–24°
-  becomes 54 over 17.060–17.325°). A peak picker wants exactly this, plus the
-  reverse direction — clicking the plot to *add* a peak needs a click handler on
-  the plotly node, which nothing has registered yet.
-- **`gui/src/test-setup.ts` now stubs `Plotly`** as well as `ResizeObserver`,
-  because jsdom does not fetch `<script src>` and the runtime plotly loader
-  therefore never resolves — without it, no component test can reach the line that
-  fetches plot data at all. Any picker test that asserts on plot interaction
-  depends on that stub.
-- **`lib/report.ts`'s `worstRegions` ranks by χ² share, not local Rwp**, and the
-  reason applies to a peak list too: a region can have a dreadful local Rwp over
-  four counts of noise. The candidate list should not be ranked on a normalised
-  quantity alone.
-- The trap: **`Plot.draw`'s fetch must stay guarded.** A checkout clears the result
-  server-side while the component still holds the old one, and the unguarded fetch
-  escaped as an unhandled page error — invisible to jsdom, found in Chrome. A
-  picker that fetches peaks on a head change has the same shape.
-
-From **WP-1018**: `ObservedPeak.origin` distinguishes `"fitted"` / `"manual"` /
-`"edited"`; surface it, because a hand-placed peak and a fitted one carry
-different weight and the user should see which is which.
-
-From **WP-1008** (GUI server, landed 2026-07-30): every route this WP asked to
-have reserved **is** reserved and 404s naming it — `GET/POST /api/peaks`,
-`POST /api/peaks/{add,remove,move,flag,refit}`, `POST /api/index`,
-`GET /api/index/result`, `POST /api/index/adopt` (see
-`gui.session.RESERVED_ROUTES`, held disjoint from `ROUTES` by a test). Filling
-one in is a `ROUTES` entry plus a `GuiSession` method.
-
-For the long-running half: `GuiSession.run(body)` is the machinery — it takes
-`kind`, builds a `CancelToken` and an `EventStream(path=live/events.jsonl,
-callback=…)`, starts one worker, and 409s every mutating verb while busy. Wiring
-`/api/index` to it means adding a `kind: "index"` branch there, and the run
-record's fields (`status`, `stage`, `node_id`, `completed_stages`, `error`) are
-generic enough to carry an indexing run without new keys. Remember WP-1006's
-note carried into WP-1024: a **new** `EventKind` is a schema-version bump where
-an added `data` field is not.
-
-From **WP-1009** (text document, landed 2026-07-30): the **`peaks` block name is
-reserved in `pxt 1`**, so filling it in needs no format bump —
-`gui.textdoc.RESERVED_BLOCKS` maps it to this WP and the parser refuses it with
-that owner rather than as an unknown keyword. The intended layout (and the two
-editable columns, `2theta` and `flags`) is recorded in that module's docstring.
-Two grammar rules to follow when implementing it: an annotation containing spaces
-must render **last** on its line, and column widths are computed **per block** —
-a fixed width is what made the renderer emit output its own parser refused.
+**Frontend facts (WP-1010…1015, 1029).** `Peaks` is a sidebar tab; tabs stay
+mounted. Reuse `lib/table.ts` (virtual window, esd formatting, `num()` for
+`"Infinity"` strings). `lib/plotly.ts` `loadPlotly()` is the one runtime loader;
+**any plot with controls below it needs `ResizeObserver` → `Plotly.Plots.resize`
+on the plot div** (plotly's `responsive: true` is window-only; an oversized
+canvas swallows clicks and maps a picker's click to the wrong 2θ). The plot takes
+a `zoom` prop and refetches `/api/result/window`; clicking to *add* a peak needs
+a click handler nothing has registered yet; a click on √-scaled intensities maps
+back through `lib/plot.ts`'s `scaleValues` (√ is applied to the data, only tick
+labels map back); the shared 2θ axis is anchored to the lower subplot
+(`xaxis.anchor: "y2"`), so pixel→2θ off the upper plot's geometry is wrong.
+`Plot.draw`-style fetches stay guarded (a checkout clears the result server-side
+mid-flight); `test-setup.ts` stubs `Plotly`, `ResizeObserver` (jsdom also lacks
+`DragEvent`). `gd.layout` read back is not a reading of the view; compare
+screenshots, not hashes. `worstRegions` ranks by χ² share, not local Rwp — a
+candidate list should not rank on a normalised quantity alone.
+`GET /api/structure3d` draws an adopted cell immediately — a cheap sanity check
+no figure of merit provides. A full-window mode (like Model) is an available
+shape if the panel outgrows the sidebar; the wizard's structure step is
+currently *required*, so an index-from-nothing flow needs a wizard branch that
+creates the project with a Le Bail placeholder — recorded here as follow-on,
+not this WP's checklist.
 
 ## Non-goals
 
@@ -321,21 +177,30 @@ a fixed width is what made the renderer emit output its own parser refused.
 
 ## Tasks
 
-- [ ] `GuiSession` verbs above, each with its console-pane API echo.
-- [ ] Fill in the WP-1008 routes; `/api/index` on the run state machine with
+- [x] `GuiSession` verbs above, each with its console-pane API echo.
+- [x] Fill in the WP-1008 routes; `/api/index` on the run state machine with
       SSE progress and cancel.
-- [ ] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
+- [x] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
       `adopt_candidate` through `Refinement.edit`.
-- [ ] Frontend: peak layer (markers, σ error bars, fitted group profile,
+- [x] Frontend: peak layer (markers, σ error bars, fitted group profile,
       residual strip), the four interactions, the diagnostics strip.
-- [ ] Frontend: candidate table with the FoM columns, engine chips, ambiguity
+- [x] Frontend: candidate table with the FoM columns, engine chips, ambiguity
       sub-rows, and the gated Adopt button.
-- [ ] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
+- [x] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
       the fixed-point property test.
-- [ ] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
+- [x] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
       a peak list keyed to one pattern is refused against another; `.pxt`
-      fixed point; **Adopt is disabled for a `medium` candidate** (the gate
-      does not leak into the UI).
+      fixed point (in `test_textdoc.py`, beside the other fixed-point
+      properties); **Adopt is disabled for a `medium` candidate** (the gate
+      does not leak into the UI — asserted server-side there and from the
+      JS side in `App.test.ts`).
+- [x] Real-browser pass over the pointer layer (Chrome-for-Testing on the
+      qarr corundum project): all four gestures verified with sub-pixel
+      pixel→2θ mapping; two measured defects fixed (`grabToleranceDeg`,
+      the 3×FWHM whisker cap) plus the boot restore of a held answer.
+- [x] Extinction screen served: `/api/index/extinction` as a fourth run
+      kind + the ranked-classes table in the adopt flow, chips gated by
+      the server's adopt arm.
 
 ## Acceptance
 
@@ -357,5 +222,89 @@ server with the console echo matching the API call that would reproduce it; the
   precedent this follows.
 
 ## Handover log
+
+- **2026-08-01** — **closed.** The two open items, done. **(1) Browser pass**
+  (Chrome-for-Testing, qarr corundum project, screenshots in the job
+  scratchpad's `pass1…5/`): all four gestures verified with sub-pixel
+  pixel→2θ mapping (move echo 0.0 px off at survey and zoomed ranges); four
+  defects found, none visible to jsdom, all fixed with the measurement in the
+  commit: a 10 px grab radius is ±1.9° at the survey view and a zoom drag
+  starting 0.9° from a line *moved it 11°* → `grabToleranceDeg` =
+  min(10 px, 1.5× median fitted FWHM) for the move capture only (coarse
+  10 px stays for shift-toggle/add/refit); a degenerate component's σ(2θ) =
+  111° error bar owned the autorange (−88°…164°) → drawn whiskers cap at
+  3×FWHM, the table keeps the number; boot never asked
+  `/api/index/result`, so a reload after a 4-minute search showed an empty
+  panel → boot restores the answer and the screen; and three stacked
+  `.scroll` tables flex-shrank each other to a 70 px sliver → no shrink +
+  45vh cap. One false alarm: the round-1 "missing refit echo" was headless
+  playwright auto-dismissing `window.prompt` — register `page.on("dialog")`
+  before concluding anything about a prompt-gated verb. **(2) Extinction
+  decided for implementation**: `POST`/`GET /api/index/extinction`, a fourth
+  run kind on the one machine (cancel-aware; a cancelled screen *returns*,
+  unfitted classes stay `screened=False`, `best_or_none` abstains),
+  **ungated** — a screen is a read-only measurement and the adopt gate stays
+  on adopt — with the served `best` quoted from the screen's own gate, a
+  staleness rule (a new index run clears it; candidates renumbered), and the
+  panel table whose space-group chips act only when the adopt arm allows and
+  the class is unrefuted. Verified live: 8 monoclinic-P classes in 4 s and
+  71 orthorhombic-P in a later run, refuting hkl named, zero acting chips on
+  a `low` candidate. **Measured**: fast 1577/108 (+2 exactly), full
+  1663/117 (+2 exactly, 9:05 loaded), vitest 282 (+6: 4 `grabToleranceDeg`,
+  2 extinction mounts), svelte-check 0/0, ruff clean, dist rebuilt.
+  **Next**: nothing here — the index-from-nothing wizard branch stays
+  recorded as follow-on in Context, and the manual's share is in WP-1017's
+  Inherited. **Gotchas**: the extinction answer is session-scoped like the
+  index result (boot restores both, in that order — `loadIndexAnswer`
+  clears the screen it assumes stale); `_summarize_extinction` reads the
+  cancel token because the screen returns partial rather than raising; and
+  twice this session a playwright `waitForFunction` with an async predicate
+  resolved before the condition held — when a probe disagrees with the app,
+  re-probe with `curl` + a DOM read before touching the code.
+
+- **2026-07-31** — the whole checklist landed in one session; 🔄 only for what
+  a browser must confirm. **Done** (six commits): the indexing-side seams
+  (`fit_group_at`, `group_profile`, `pick_peaks_with_state`, `peaks_of_group`,
+  `flag_ghosts(only=)`, and `ObservedPeak.origin` — added *here*, the old
+  WP-1018 attribution was stale); `gui/peaks.py` (peaks.json keyed by
+  `data_fingerprint` and refused against the wrong pattern; every edit refits
+  exactly one group through the picker's own solver and flag translation;
+  human-owned facts — `origin`, `excluded` — carry across refits; ghost
+  recompute scoped to the spliced components); the ten routes live
+  (`RESERVED_ROUTES` now empty) with `/api/index` as a third `kind` on the one
+  run machine (`_work` takes a per-kind `summarize`; a cancelled search
+  *returns*, so its status reads the token); `index_adopt` re-asks
+  `best_or_none()` server-side (`ADOPT_GATED`), lands one `edit_model` node,
+  and flips the mode to lebail; the `.pxt` peaks block (2theta/flags editable,
+  count/esd/fwhm/I refused as derived, omitted row = no opinion, flags
+  vocabulary quoted from `PeakFlag` and pinned into `pxt.ts` as the parity
+  test's fifth list); the frontend (Peaks tab, plot peak layer with σ error
+  bars / hollow-unusable / diamond-manual markers, group profiles and
+  per-group residual strips, raw-pattern drawing when no result exists, the
+  four pointer gestures gated on the tab being active, candidate table with
+  served-constant chip colouring and the server-driven Adopt).
+  **Measured**: fast suite 1575 passed / 108 skipped (numpy-only `[dev]`
+  worktree venv; +8 = 6 `test_gui_peaks` + 2 textdoc peaks tests over the
+  1567/108 baseline); vitest 276 (was 261); svelte-check 0/0; ruff clean;
+  dist rebuilt (app.js 192 kB, under vendor-cm's 328 kB split).
+  **Next**: (1) drive the four pointer gestures in a real Chrome
+  (playwright-core is cached per the memory note; jsdom cannot see the
+  pixel→2θ mapping, the capture-phase marker drag, or an oversized canvas —
+  the exact class every previous plot feature shipped a bug in) on a dataset
+  that indexes end-to-end (qarr corundum), screenshots compared not hashed;
+  (2) decide the extinction-screen table (WP-1025 context in this file):
+  `adopt` takes `space_group=` but nothing serves
+  `determine_extinction_symbol` yet — a `/api/index/extinction` route + a
+  table in the adopt flow, or an explicit deferral note here; (3) the
+  index-from-nothing wizard branch stays recorded as follow-on in Context.
+  **Gotchas**: the session caches one `PeakEditor` keyed on
+  (instrument dump, limits, exclusions) — the first peaks GET after a reopen
+  pays one `detect_peaks`; a move beyond its group's window is remove+add and
+  `excluded` does not survive the crossing (documented on the verb); textdoc
+  peak applies re-locate each peak *by position* between edits because a
+  refit re-sorts the list; `GET /api/peaks` is deliberately not idle-gated
+  but every mutating peak verb is; on the clean synthetic pattern
+  `refit_group(n_components=N)` can refuse with "the residual proposes no
+  position" — that is designed, not a bug.
 
 - **2026-07-29** — created from the indexing plan.

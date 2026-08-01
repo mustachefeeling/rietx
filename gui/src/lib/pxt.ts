@@ -28,6 +28,14 @@ export const KEYWORDS = ["pxt", "project", "pattern", "mode", "limits", "exclude
 /** Words that describe a parameter rather than annotate it. `textdoc._FLAG_WORDS`. */
 export const FLAGS = ["locked", "mode-fixed", "softplus", "logit"];
 
+/** The peaks block's flag column (WP-1027). Mirrors `textdoc._PEAK_FLAG_WORDS`,
+ * which quotes the schema's closed `PeakFlag` vocabulary — a new flag word is a
+ * failing parity test until it is restated here, by design. */
+export const PEAK_FLAGS = ["ghost_kbeta", "ghost_tungsten", "excluded",
+                           "fit_failed", "sigma_assumed", "unresolved_shoulder",
+                           "position_at_bound", "asymmetry_unmodelled",
+                           "not_separable"];
+
 /** `name value` annotations on a parameter row. `textdoc._PAIR_WORDS`. */
 export const PAIRS = ["min", "max", "esd"];
 
@@ -120,7 +128,9 @@ export function spans(line: string): Span[] {
 
 function classify(word: string, opening: boolean): Token {
   if (opening && KEYWORDS.includes(word)) return "keyword";
-  if (FLAGS.includes(word)) return "flag";
+  // `excluded` is both a top-level keyword and a peak flag; `opening` has
+  // already separated them by the parser's own dispatch (indentation)
+  if (FLAGS.includes(word) || PEAK_FLAGS.includes(word)) return "flag";
   if (PAIRS.includes(word) || STAGE_WORDS.includes(word)) return "annotation";
   return "path";
 }

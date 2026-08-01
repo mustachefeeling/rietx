@@ -192,6 +192,34 @@ export const api = {
       validate_only: validateOnly,
     }),
 
+  /** The stored peak list plus the decimated raw pattern — the one payload the
+   *  plot can draw before any fit exists (WP-1027). */
+  peaks: () => call("GET", "/api/peaks"),
+  pickPeaks: (body: { shoulders?: boolean } = {}) => call("POST", "/api/peaks", body),
+  addPeak: (twoTheta: number) => call("POST", "/api/peaks/add", { two_theta: twoTheta }),
+  movePeak: (index: number, twoTheta: number) =>
+    call("POST", "/api/peaks/move", { index, two_theta: twoTheta }),
+  removePeak: (index: number) => call("POST", "/api/peaks/remove", { index }),
+  flagPeak: (index: number, body: { use_for_indexing?: boolean; flags?: string[] }) =>
+    call("POST", "/api/peaks/flag", { index, ...body }),
+  refitGroup: (group: number, nComponents?: number) =>
+    call("POST", "/api/peaks/refit",
+         nComponents === undefined ? { group } : { group, n_components: nComponents }),
+  /** An indexing run on the one run state machine: same worker, same 409, the
+   *  engines' own events on the same stream. */
+  index: () => call("POST", "/api/index"),
+  /** The last answer with the adopt gate answered per candidate — the button's
+   *  enabled-ness and the route's willingness are one answer, never two. */
+  indexResult: () => call("GET", "/api/index/result"),
+  adoptCandidate: (candidate: number, spaceGroup?: string) =>
+    call("POST", "/api/index/adopt",
+         spaceGroup ? { candidate, space_group: spaceGroup } : { candidate }),
+  /** Rank one candidate's extinction classes — the same run machine, and a
+   *  measurement any candidate may ask for (the gate stays on adopt). */
+  screenExtinctions: (candidate: number) =>
+    call("POST", "/api/index/extinction", { candidate }),
+  extinctionResult: () => call("GET", "/api/index/extinction"),
+
   export: (kind: string) => call("POST", `/api/export/${kind}`),
   events: (since: number) => call("GET", `/api/events?poll=1&since=${since}`),
 };
