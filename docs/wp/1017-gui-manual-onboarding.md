@@ -39,6 +39,20 @@ real UI.
 
 ### Inherited
 
+From **WP-1027** (closed 2026-08-01), extending the note below: the browser
+pass changed two behaviours the manual should state, and the extinction
+screen landed. **A drag only moves a line once you are zoomed in enough for
+the line to be visible** — the move grab radius is min(10 px, 1.5× the median
+FWHM), so at the survey view a drag is always plotly's zoom (tell users:
+zoom first, then correct); shift-click and right-click keep the coarse 10 px
+aim. **"Screen extinctions" lives in a candidate's expanded detail row** and
+serves WP-1025: one table, one row per extinction class, every space group in
+the class listed, ΔBIC against the absence-free reference, refuting hkl named
+— and the space-group chips become adopt buttons only when the candidate
+itself passes the adopt gate. The teaching point is the package's own: the
+extinction *symbol* is what a powder measures; a single space group is a
+convention the user chooses, never a measurement the table makes.
+
 From **WP-1027** (peak picker + indexing panel, 2026-07-31): **the GUI grew its
 indexing surface, and it is gesture-driven — the manual must name the
 gestures.** The Peaks tab plus four plot interactions (click empty = add a

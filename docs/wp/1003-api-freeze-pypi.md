@@ -17,7 +17,10 @@ for the freeze to cover.** `ObservedPeak` gained `origin`
 no gate branches on it); `indexing.pick` now exports `pick_peaks_with_state`,
 `peaks_of_group` and `flag_ghosts(only=)`; `indexing.peakfit` exports
 `fit_group_at` and `group_profile`. The GUI wire surface grew the whole
-peak/index route family and `RESERVED_ROUTES` is now empty. One versioning
+peak/index route family and `RESERVED_ROUTES` is now empty; on 2026-08-01 it
+grew two more — `POST`/`GET /api/index/extinction` (the WP-1025 screen as a
+fourth run kind, `"extinction"`, in `GuiSession.run`'s vocabulary) — so the
+run-kind set the freeze pins is `fit | stage | index | extinction`. One versioning
 question is deliberately left to you: `peaks.json` (the `.pxrd/` container's
 peak-list artifact, `gui/peaks.py`) carries its own internal
 `format_version "1"` and is *not* one of the five contracts `capabilities()`

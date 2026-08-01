@@ -1,6 +1,6 @@
 # WP-1027 — GUI peak picker and indexing panel
 
-Milestone: v1.0 · Status: 🔄 2026-07-31 — checklist all landed and green; open: a real-browser pass over the pointer layer, and the extinction-screen decision
+Milestone: v1.0 · Status: ✅ 2026-08-01 — browser pass done (two measured pointer defects fixed), extinction screen served and rendered; the indexing line ends in pixels
 Depends on: 1010, 1011, 1018-1024 (1009 touched)
 
 ## Goal
@@ -194,6 +194,13 @@ not this WP's checklist.
       properties); **Adopt is disabled for a `medium` candidate** (the gate
       does not leak into the UI — asserted server-side there and from the
       JS side in `App.test.ts`).
+- [x] Real-browser pass over the pointer layer (Chrome-for-Testing on the
+      qarr corundum project): all four gestures verified with sub-pixel
+      pixel→2θ mapping; two measured defects fixed (`grabToleranceDeg`,
+      the 3×FWHM whisker cap) plus the boot restore of a held answer.
+- [x] Extinction screen served: `/api/index/extinction` as a fourth run
+      kind + the ranked-classes table in the adopt flow, chips gated by
+      the server's adopt arm.
 
 ## Acceptance
 
@@ -215,6 +222,45 @@ server with the console echo matching the API call that would reproduce it; the
   precedent this follows.
 
 ## Handover log
+
+- **2026-08-01** — **closed.** The two open items, done. **(1) Browser pass**
+  (Chrome-for-Testing, qarr corundum project, screenshots in the job
+  scratchpad's `pass1…5/`): all four gestures verified with sub-pixel
+  pixel→2θ mapping (move echo 0.0 px off at survey and zoomed ranges); four
+  defects found, none visible to jsdom, all fixed with the measurement in the
+  commit: a 10 px grab radius is ±1.9° at the survey view and a zoom drag
+  starting 0.9° from a line *moved it 11°* → `grabToleranceDeg` =
+  min(10 px, 1.5× median fitted FWHM) for the move capture only (coarse
+  10 px stays for shift-toggle/add/refit); a degenerate component's σ(2θ) =
+  111° error bar owned the autorange (−88°…164°) → drawn whiskers cap at
+  3×FWHM, the table keeps the number; boot never asked
+  `/api/index/result`, so a reload after a 4-minute search showed an empty
+  panel → boot restores the answer and the screen; and three stacked
+  `.scroll` tables flex-shrank each other to a 70 px sliver → no shrink +
+  45vh cap. One false alarm: the round-1 "missing refit echo" was headless
+  playwright auto-dismissing `window.prompt` — register `page.on("dialog")`
+  before concluding anything about a prompt-gated verb. **(2) Extinction
+  decided for implementation**: `POST`/`GET /api/index/extinction`, a fourth
+  run kind on the one machine (cancel-aware; a cancelled screen *returns*,
+  unfitted classes stay `screened=False`, `best_or_none` abstains),
+  **ungated** — a screen is a read-only measurement and the adopt gate stays
+  on adopt — with the served `best` quoted from the screen's own gate, a
+  staleness rule (a new index run clears it; candidates renumbered), and the
+  panel table whose space-group chips act only when the adopt arm allows and
+  the class is unrefuted. Verified live: 8 monoclinic-P classes in 4 s and
+  71 orthorhombic-P in a later run, refuting hkl named, zero acting chips on
+  a `low` candidate. **Measured**: fast 1577/108 (+2 exactly), full
+  1663/117 (+2 exactly, 9:05 loaded), vitest 282 (+6: 4 `grabToleranceDeg`,
+  2 extinction mounts), svelte-check 0/0, ruff clean, dist rebuilt.
+  **Next**: nothing here — the index-from-nothing wizard branch stays
+  recorded as follow-on in Context, and the manual's share is in WP-1017's
+  Inherited. **Gotchas**: the extinction answer is session-scoped like the
+  index result (boot restores both, in that order — `loadIndexAnswer`
+  clears the screen it assumes stale); `_summarize_extinction` reads the
+  cancel token because the screen returns partial rather than raising; and
+  twice this session a playwright `waitForFunction` with an async predicate
+  resolved before the condition held — when a probe disagrees with the app,
+  re-probe with `curl` + a DOM read before touching the code.
 
 - **2026-07-31** — the whole checklist landed in one session; 🔄 only for what
   a browser must confirm. **Done** (six commits): the indexing-side seams

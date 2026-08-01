@@ -49,18 +49,20 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-07-31 (WP-1027 session), darwin/arm64 M4, numpy-only `[dev]`
-worktree venv:
+Measured 2026-08-01 (WP-1027 close session), darwin/arm64 M4, numpy-only
+`[dev]` worktree venv:
 
-- fast suite: **1575 passed / 108 skipped**, 55–79 s over two runs (loaded
-  machine) — moved by exactly WP-1027's +8 (6 `test_gui_peaks` + 2 textdoc
-  peaks-block tests) from the 1567/108 baseline; no new skips.
-- full suite: **1661 passed / 117 skipped**, 14:19 (one run, loaded
-  machine); passed+skipped 1778 = the fast selection's 1683 + 95
-  slow-marked. The `[dev,jax,torch]` figures (1772 collected pre-1027,
-  8:09–15:33 over three runs) were **not** re-measured this session — that
-  venv is the main checkout's; expect +8 collected there too.
-- frontend (vitest): **276** (was 261: +11 `lib/peaks` + 4 peaks-tab mount).
+- fast suite: **1577 passed / 108 skipped**, 33 s (one quiet run) — moved by
+  exactly the close session's +2 (`test_gui_peaks` extinction rows) from the
+  1575/108 baseline; no new skips.
+- full suite: **1663 passed / 117 skipped**, 9:05 (one run, while the machine
+  also drove a headless browser and an indexing search); passed+skipped
+  1780 = the fast selection's 1685 + 95 slow-marked. The `[dev,jax,torch]`
+  figures (1772 collected pre-1027, 8:09–15:33 over three runs) were again
+  **not** re-measured — that venv is the main checkout's; expect +10
+  collected there vs pre-1027.
+- frontend (vitest): **282** (was 276: +4 `grabToleranceDeg` + 2
+  extinction-table mounts).
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
   numbers.
