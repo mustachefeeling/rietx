@@ -456,9 +456,16 @@ convention, not a measurement"
     font-weight: 600;
   }
 
+  /* Each table gets a bounded window of its own rather than a share of the
+     section: as flex children with min-height 0, three stacked tables shrank
+     each other proportionally, and the 71-row extinction table came up as a
+     70 px sliver (measured). No shrink + a 45vh cap keeps a short table at
+     its content height, a long one at ~20 rows under its sticky header, and
+     the section's own scrollbar handles the rest. */
   .scroll {
     overflow: auto;
-    min-height: 0;
+    flex: 0 0 auto;
+    max-height: 45vh;
   }
 
   table {
