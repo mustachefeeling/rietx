@@ -258,6 +258,34 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` send
 decimated afterwards. And plotly's `responsive: true` window-only listener bit a
 **second** panel — any control row under a plot needs the `ResizeObserver`.
 
+The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
+`panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
+indexing line meets the GUI line. Peak lists are a **project artifact**
+(`peaks.json`, keyed by `data_fingerprint` and refused against the wrong
+pattern); every edit refits exactly one group through the picker's own solver,
+and the human-owned facts (`origin`, `excluded`) carry across refits. The plot
+is an editing surface **only while the Peaks tab is active**, and every pointer
+verb has a non-pointer route (typed 2θ, the `.pxt` peaks block — whose only
+editable columns are `2theta` and `flags`; everything else is derived and
+regenerated). Two pointer rules are measured, not aesthetic: the **move
+gesture's grab radius is `grabToleranceDeg` — min(10 px, 1.5× median fitted
+FWHM)** — because a pixel radius alone is ±1.9° at the survey view, where a
+zoom drag starting 0.9° from a marker silently moved a line 11° (the coarse
+10 px stays for shift-toggle and click-to-add, whose precision comes from the
+group refit); and a drawn **σ whisker is capped at 3×FWHM**, because a
+degenerate component reports σ in tens of degrees (111° measured) and an
+uncapped error bar owns the autorange. `/api/index` and
+`/api/index/extinction` are run *kinds* on the one machine — a cancelled
+search or screen **returns** what it has and its status is read off the token.
+The candidate table's Adopt follows the server's `adopt` arm (one answer with
+the route), the extinction table's badge follows the served `best` the same
+way, and the screen itself is **not** gated on the adopt verdict — it is a
+read-only measurement and `best_or_none() is None` is the normal real-data
+state — while adoption stays gated, and a space-group chip acts only when the
+adopt arm allows and its class is unrefuted. A right-click refit prompts via
+`window.prompt`, which a headless driver must answer (`page.on("dialog")`) or
+the verb silently never fires — round 1's false "missing echo".
+
 Its second pass (2026-07-31) added three browser facts. **plotly's
 `lightposition` is screen-relative, not a data-space point** — read through the
 inverse of the full projection transform, so z > 0 sits *behind* the scene and

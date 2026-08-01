@@ -462,7 +462,15 @@
       await loadProject();
       run = await api.runState();
       await loadResult();
-      if (project) await loadPeaks();
+      if (project) {
+        await loadPeaks();
+        // the session outlives this page: a reload must not lose an indexing
+        // answer (or its extinction screen) the server still holds — both
+        // loaders treat the 409 empty states as "nothing yet".  Order matters:
+        // loadIndexAnswer clears the screen it assumes stale.
+        await loadIndexAnswer();
+        await loadExtinction();
+      }
     })();
 
     // The run this shell has already reacted to, as (state, outcome, node).  Keyed
