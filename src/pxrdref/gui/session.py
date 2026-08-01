@@ -173,6 +173,11 @@ class GuiSession:
         #: ``refinement.result_``: peaks.json is the durable artifact, an
         #: IndexingResult is a computation over it.
         self._index_result = None
+        #: ``{"screen": ExtinctionScreen, "candidate": int}`` — the last
+        #: extinction screen, valid only against the ``_index_result`` it was
+        #: asked of (a new indexing run renumbers the candidates, so it clears
+        #: this).  WP-1025 through WP-1027's surface.
+        self._extinction = None
         #: ``(cache key, PeakEditor)`` — the editor holds the lazily built
         #: Detection; the key is everything a detection depends on
         self._peak_ed: tuple[tuple, Any] | None = None
@@ -717,9 +722,9 @@ class GuiSession:
         """
         p = self._need_project()
         kind = body.get("kind", "fit")
-        if kind not in ("fit", "stage", "index"):
+        if kind not in ("fit", "stage", "index", "extinction"):
             raise GuiError(f"unknown run kind {kind!r}; expected 'fit', "
-                           "'stage' or 'index'", where=["kind"])
+                           "'stage', 'index' or 'extinction'", where=["kind"])
         summarize = _summarize_refinement
         if kind == "stage":
             stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")
@@ -747,11 +752,48 @@ class GuiSession:
                     two_theta_limits=limits, events=stream, cancel=token)
                 with self._cond:
                     self._index_result = result
+                    # candidate indices just changed meaning: a screen kept
+                    # from the previous answer would be served against the
+                    # wrong cell
+                    self._extinction = None
                 return result
 
             summarize = _summarize_index
             label = "index"
             n_stages = len(engine_names())
+        elif kind == "extinction":
+            # WP-1025 served (WP-1027): rank the extinction classes of one
+            # candidate.  Deliberately *not* gated on the adopt verdict — on
+            # real data with no measured shift ``best_or_none()`` is None by
+            # design, and a screen is a read-only measurement ("IF this cell,
+            # THEN these classes"); the gate stays on ``index_adopt``, where
+            # the model is at stake.  It rides the run machine because it is
+            # seconds-long (one profile fit, then one Le Bail per class),
+            # takes ``cancel=``, and must hold the same one-worker discipline
+            # as every other computation over the project.
+            candidate = self._extinction_candidate(body)
+            peak_doc = self._load_peaks(p)
+            peak_list = None if peak_doc is None else peak_doc.peaks
+            limits = (tuple(p.doc.two_theta_limits)
+                      if p.doc.two_theta_limits else None)
+            index = int(body["candidate"])
+            max_classes = body.get("max_classes")
+            max_classes = None if max_classes is None else int(max_classes)
+
+            def call(stream, token):
+                from ..indexing.extinction import determine_extinction_symbol
+
+                screen = determine_extinction_symbol(
+                    p.data, candidate, p.refinement.instrument,
+                    peaks=peak_list, two_theta_limits=limits,
+                    max_classes=max_classes, cancel=token)
+                with self._cond:
+                    self._extinction = {"screen": screen, "candidate": index}
+                return screen
+
+            summarize = _summarize_extinction
+            label = "extinction"
+            n_stages = 1
         else:
             plan = self._effective_plan(body.get("plan"))
 
@@ -1167,6 +1209,51 @@ class GuiSession:
         return {"result": result.model_dump(mode="json"),
                 "adopt": adopt,
                 "refuting_caveats": sorted(INDEX_REFUTING_CAVEATS),
+                "running": busy}
+
+    def _extinction_candidate(self, body: dict):
+        """Validate and fetch the candidate an extinction screen is asked of."""
+        with self._cond:
+            result = self._index_result
+        if result is None:
+            raise GuiError("no indexing result to screen; POST /api/index "
+                           "first", code="NO_INDEX_RESULT", status=409)
+        if body.get("candidate") is None:
+            raise GuiError("'candidate' is required", where=["candidate"])
+        index = self._peak_number(body, "candidate", int)
+        if not 0 <= index < len(result.candidates):
+            raise GuiError(
+                f"no candidate {index}; the result has "
+                f"{len(result.candidates)}", code="NOT_FOUND", status=404,
+                where=["candidate"])
+        return result.candidates[index]
+
+    def index_extinction(self) -> dict:
+        """The last extinction screen — ranked classes, never one space group.
+
+        ``best`` is the index :meth:`ExtinctionScreen.best_or_none` points at
+        (or ``None``), served for the same reason ``adopt`` rides
+        ``index_result``: the panel's badge and the package's gate must be one
+        answer.  Even the best row lists *every* space group in its class —
+        the one place the singleton is unmeasurable rather than merely
+        unsupported (WP-1025).
+        """
+        self._need_project()
+        with self._cond:
+            entry = self._extinction
+            busy = (self._state != "idle"
+                    and self._run.get("kind") == "extinction")
+        if entry is None:
+            raise GuiError(
+                "an extinction screen is in flight; follow /api/events"
+                if busy else
+                "no extinction screen has run; POST /api/index/extinction",
+                code="NO_EXTINCTION_RESULT", status=409)
+        screen = entry["screen"]
+        best = screen.best_or_none()
+        return {"result": screen.model_dump(mode="json"),
+                "candidate": entry["candidate"],
+                "best": None if best is None else screen.candidates.index(best),
                 "running": busy}
 
     def index_adopt(self, body: dict) -> dict:
@@ -1612,6 +1699,7 @@ class GuiSession:
             self._n_eval = 0
             self._run = _idle_run()
             self._index_result = None
+            self._extinction = None
             self._peak_ed = None
             self._cond.notify_all()
         self._remember(project.path)
@@ -1683,6 +1771,19 @@ def _summarize_index(result, token) -> dict:
     return {"status": "cancelled" if cancelled else "completed",
             "completed_stages": [f"engine:{name}"
                                  for name in result.engines_run]}
+
+
+def _summarize_extinction(result, token) -> dict:
+    """The run-record fields a finished extinction screen supplies.
+
+    Like an indexing search, a cancelled screen *returns* what it has (the
+    unfitted classes stay ``screened=False`` and ``best_or_none`` abstains),
+    so the status is read off the token.
+    """
+    cancelled = token is not None and bool(token)
+    return {"status": "cancelled" if cancelled else "completed",
+            "completed_stages":
+                [f"classes:{result.n_screened}/{result.n_classes}"]}
 
 
 def _adopt_refusal(candidate, best) -> str:

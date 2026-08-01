@@ -131,6 +131,9 @@
   let peaksData = $state<PeaksPayload | null>(null);
   /** the last indexing answer, with the server's per-candidate adopt verdicts */
   let indexAnswer = $state<any>(null);
+  /** the last extinction screen — cleared whenever the candidates renumber,
+   *  which the server enforces too (a new index run 409s the stale GET) */
+  let extinction = $state<any>(null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -206,6 +209,7 @@
     openError = "";
     mode = "panes";
     indexAnswer = null;
+    extinction = null;
     say(`# project: ${doc.path}`);
     run = await api.runState();
     await loadResult();
@@ -218,6 +222,7 @@
       readUi();
       openError = "";
       indexAnswer = null;
+      extinction = null;
       await loadResult();
       await loadPeaks();
       say(`project.open(${path})`);
@@ -299,8 +304,18 @@
   async function loadIndexAnswer() {
     try {
       indexAnswer = await api.indexResult();
+      extinction = null; // new candidates, new numbering — the server 409s too
     } catch {
       // NO_INDEX_RESULT — nothing has run in this session; an empty state
+    }
+  }
+
+  async function loadExtinction() {
+    try {
+      extinction = await api.extinctionResult();
+    } catch {
+      // NO_EXTINCTION_RESULT — none run, or cleared by a new indexing run
+      extinction = null;
     }
   }
 
@@ -470,11 +485,16 @@
             // leaves is its answer, adopt verdicts included
             loadIndexAnswer();
             tab = "peaks";
+          } else if (frame.run.kind === "extinction") {
+            // same shape one rank down: the screen is the whole outcome
+            loadExtinction();
+            tab = "peaks";
           } else {
             loadResult();
           }
           if (frame.run.status === "failed") say(`FAILED  ${frame.run.error?.message ?? ""}`);
-          if (frame.run.status === "cancelled" && frame.run.kind !== "index")
+          if (frame.run.status === "cancelled"
+              && frame.run.kind !== "index" && frame.run.kind !== "extinction")
             say(`cancelled at stage ${frame.run.stage} — state stands at ${frame.run.node_id}`);
         }
         seen = key;
@@ -617,7 +637,7 @@
             onrun={runStage} />
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
-          <Peaks peaks={peaksData} {indexAnswer} {run} {busy} {say}
+          <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
             onpeaks={(p) => (peaksData = p)}
             onindexed={(a) => (indexAnswer = a)}
             onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />

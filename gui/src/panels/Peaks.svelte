@@ -32,6 +32,7 @@
   let {
     peaks,
     indexAnswer,
+    extinction = null,
     run,
     busy,
     say = () => {},
@@ -42,6 +43,7 @@
   }: {
     peaks: PeaksPayload | null;
     indexAnswer: any;
+    extinction?: any;
     run: RunState | null;
     busy: boolean;
     say?: (line: string) => void;
@@ -60,6 +62,7 @@
   const unusable = $derived(peaks?.unusable_flags ?? []);
   const diagnostics = $derived(peaks?.diagnostics ?? []);
   const indexing = $derived(busy && run?.run?.kind === "index");
+  const screening = $derived(busy && run?.run?.kind === "extinction");
   const candidates = $derived<Candidate[]>(indexAnswer?.result?.candidates ?? []);
   const refuting = $derived<string[]>(indexAnswer?.refuting_caveats ?? []);
   const verdicts = $derived<Array<{ allowed: boolean; why: string }>>(
@@ -67,6 +70,11 @@
   const columns = $derived(fomColumns(candidates));
   const best = $derived(verdicts.findIndex((v) => v.allowed));
   const quality = $derived(indexAnswer?.result?.quality ?? null);
+  const screen = $derived(extinction?.result ?? null);
+  /** may the screened candidate be adopted?  The server's verdict, reused —
+   *  it decides whether a space-group chip is a button or a fact */
+  const screenAdoptable = $derived(
+    extinction !== null && Boolean(verdicts[extinction.candidate]?.allowed));
 
   async function verb(work: () => Promise<PeaksPayload>) {
     failure = "";
@@ -105,12 +113,22 @@
     }
   }
 
-  async function adopt(index: number) {
+  async function adopt(index: number, spaceGroup?: string) {
     failure = "";
     try {
-      const answer = await api.adoptCandidate(index);
+      const answer = await api.adoptCandidate(index, spaceGroup);
       say(answer.api_call);
       onmoved(); // the head moved: the model is the adopted cell now
+    } catch (error) {
+      failure = (error as Error).message;
+    }
+  }
+
+  async function screenExtinctions(index: number) {
+    failure = "";
+    try {
+      await api.screenExtinctions(index);
+      say(`determine_extinction_symbol(data, result.candidates[${index}], instrument)`);
     } catch (error) {
       failure = (error as Error).message;
     }
@@ -302,6 +320,16 @@
                         to break the ambiguity — the discriminating lines are beyond
                         the measured range</p>
                     {/if}
+                    <p class="small">
+                      <button class="tiny" disabled={busy}
+                        title="rank the extinction classes this lattice allows: one shared
+profile fit, then one Le Bail per class — the answer is a ranked list of
+classes, and every class lists all its space groups (WP-1025)"
+                        onclick={() => screenExtinctions(i)}>Screen extinctions</button>
+                      {#if extinction?.candidate === i && screen}
+                        <span class="muted">screened — table below</span>
+                      {/if}
+                    </p>
                     <ul class="strip">
                       {#each c.diagnostics as d (d.code + d.message)}
                         <li class={d.level}><span class="mono">{d.code}</span> {d.message}</li>
@@ -314,6 +342,84 @@
           </tbody>
         </table>
       </div>
+    {/if}
+
+    {#if screening && !screen}
+      <p class="muted small">screening extinction classes…</p>
+    {/if}
+    {#if screen}
+      <h2>Extinction — candidate {extinction.candidate}</h2>
+      <p class="muted small tabular">
+        reference {screen.lattice_group} (absence-free) ·
+        {screen.n_screened} of {screen.n_classes} classes fitted ·
+        2θ {screen.two_theta_range[0].toFixed(1)}–{screen.two_theta_range[1].toFixed(1)}°
+      </p>
+      {#if extinction.best === null}
+        <p class="note muted" title="best_or_none() returned None — refuted
+          classes, an indecisive ΔBIC margin, or unfitted classes leave an
+          unasked question, which must not read as a clean answer">
+          No class is singled out; the list below is ranked, not chosen.
+        </p>
+      {/if}
+      <div class="scroll">
+        <table class="tabular">
+          <thead>
+            <tr>
+              <th>class</th>
+              <th title="BIC(class) − BIC(absence-free reference); negative favours the class">ΔBIC</th>
+              <th title="absences the data could test / absences the class asserts —
+an absence outside the range or under a neighbour is not an observation">testable</th>
+              <th title="testable forbidden positions carrying intensity; each one refutes the class">refuting</th>
+              <th title="every space group in the class — a powder cannot
+distinguish them, so a singleton here would be unmeasurable">space groups</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each screen.candidates as cls, k (cls.symbol + k)}
+              <tr class:out={cls.refuted} class:best={extinction.best === k}>
+                <td class="mono">{cls.symbol}
+                  {#if extinction.best === k}<span class="chip best">best_or_none()</span>{/if}
+                  {#if cls.refuted}
+                    <span class="chip bad" title={cls.refuted_reason ?? ""}>refuted</span>
+                  {:else if !cls.screened}
+                    <span class="chip warn" title="left unfitted (cap or cancel) —
+an unasked question, so the gate abstains">not screened</span>
+                  {/if}
+                </td>
+                <td>{cls.screened ? cls.delta_bic.toFixed(1) : "—"}</td>
+                <td>{cls.n_testable}/{cls.n_absent}</td>
+                <td>
+                  {#if cls.n_present}
+                    {cls.n_present}:
+                    {(cls.forbidden_hkl ?? []).slice(0, 3)
+                      .map((hkl: number[], j: number) =>
+                        `(${hkl.join("")}) ${cls.forbidden_two_theta?.[j]?.toFixed(2) ?? "?"}°`)
+                      .join(" ")}
+                  {:else}—{/if}
+                </td>
+                <td class="flags">
+                  {#each cls.space_groups as sg (sg)}
+                    {#if screenAdoptable && !cls.refuted}
+                      <button class="chip act" disabled={busy}
+                        title="adopt candidate {extinction.candidate} as a Le Bail scaffold
+in {sg} — the class cannot distinguish its members, so this choice is a
+convention, not a measurement"
+                        onclick={() => adopt(extinction.candidate, sg)}>{sg}</button>
+                    {:else}
+                      <span class="chip">{sg}</span>
+                    {/if}
+                  {/each}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <ul class="strip">
+        {#each screen.diagnostics ?? [] as d (d.code + d.message)}
+          <li class={d.level}><span class="mono">{d.code}</span> {d.message}</li>
+        {/each}
+      </ul>
     {/if}
   {/if}
 </section>
@@ -409,6 +515,10 @@
 
   .chip.out { color: var(--bad); border-color: var(--bad); }
   .chip.bad { color: var(--bad); border-color: var(--bad); }
+  /* a space-group chip that *acts* (adopt in this group) keeps the chip's
+     shape and gains a button's affordance */
+  button.chip.act { cursor: pointer; color: var(--accent); border-color: var(--accent); background: none; }
+  button.chip.act:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 12%, transparent); }
   .chip.warn { color: var(--warn); border-color: var(--warn); }
   .chip.origin { color: var(--accent); border-color: var(--accent); }
   .chip.conf.high { color: var(--ok); border-color: var(--ok); }

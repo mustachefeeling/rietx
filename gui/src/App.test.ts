@@ -2327,3 +2327,104 @@ describe("the peaks tab (WP-1027)", () => {
       .toEqual({ candidate: 0 });
   });
 });
+
+// ----------------------------------------------------------------------
+// WP-1027 — the extinction screen (WP-1025 served)
+// ----------------------------------------------------------------------
+const SCREEN_CLASS = (extra: Record<string, unknown> = {}) => ({
+  symbol: "P 63/m - -", representative: "P 63/m", space_groups: ["P 63", "P 63/m"],
+  conditions: ["00l: l = 2n"], conditions_complete: true, n_lines: 40,
+  n_absent: 6, n_testable: 4, n_present: 0, forbidden_hkl: [], forbidden_two_theta: [],
+  rwp: 0.09, gof: 1.2, chi2: 100, delta_bic: -14.2, absences_rejected: false,
+  screened: true, refuted: false, refuted_reason: null, diagnostics: [],
+  ...extra,
+});
+
+const EXTINCTION = (best: number | null) => ({
+  result: {
+    candidates: [
+      SCREEN_CLASS(),
+      SCREEN_CLASS({ symbol: "P - - -", representative: "P 6/m", n_absent: 0,
+                     n_testable: 0, space_groups: ["P 6/m", "P 6/m m m"], delta_bic: 0 }),
+      SCREEN_CLASS({ symbol: "P 63/m c m", representative: "P 63/m c m",
+                     space_groups: ["P 63 c m"], refuted: true, screened: false,
+                     refuted_reason: "intensity at 2 forbidden positions",
+                     n_present: 2, forbidden_hkl: [[0, 0, 1], [0, 0, 3]],
+                     forbidden_two_theta: [10.51, 31.72] }),
+      // unrefuted but never fitted (a max_classes cap): the unasked question
+      SCREEN_CLASS({ symbol: "P 63/m m c", representative: "P 63/m m c",
+                     space_groups: ["P 63 m c"], screened: false, delta_bic: 0 }),
+    ],
+    lattice_group: "P 6/m m m", cell: [3, 3, 5, 90, 90, 120], system: "hexagonal",
+    centring: "P", wavelength: 1.5406, two_theta_range: [5.0, 90.0],
+    n_classes: 4, n_screened: 2, status: "converged",
+    diagnostics: [{ level: "info", code: "EXTINCTION_GROUPS_NOT_SEPARABLE",
+                    message: "the class members produce identical patterns" }],
+  },
+  candidate: 0,
+  best,
+  running: false,
+});
+
+describe("the extinction screen table (WP-1027)", () => {
+  it("ranks classes, lists every space group, and keeps chips inert without the adopt verdict", async () => {
+    vi.stubGlobal("fetch", server({}).fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
+        adopt: [{ allowed: false, why: "confidence is 'medium'" }],
+        refuting_caveats: [], running: false,
+      },
+      extinction: EXTINCTION(null),
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    // the gate's abstention is the headline, not an error
+    expect(host.textContent).toContain("No class is singled out");
+    // every class row: the symbol, the refutation with its hkl, the unfitted cap
+    expect(host.textContent).toContain("P 63/m - -");
+    expect(host.textContent).toContain("refuted");
+    expect(host.textContent).toContain("(001) 10.51°");
+    expect(host.textContent).toContain("not screened");
+    // both members of the class render — the singleton is unmeasurable…
+    expect(host.textContent).toContain("P 63/m");
+    expect(host.textContent).toContain("P 63");
+    // …and with the candidate not adoptable, no space-group chip is a button
+    expect(button("P 63")).toBeFalsy();
+    // the not-separable info must be shown (it is information, not a footnote)
+    expect(host.textContent).toContain("EXTINCTION_GROUPS_NOT_SEPARABLE");
+  });
+
+  it("adopts in a chosen space group when the server's arm allows", async () => {
+    const stub = server({
+      "/api/index/adopt": (call: Call) => ({ body: { node_id: "n0009", mode: "lebail",
+        api_call: `session.adopt_candidate(${call.body.candidate}, space_group=${call.body.space_group})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [{ ...MEDIUM_CANDIDATE, confidence: "high",
+                                 confidence_caveats: [] }],
+                  diagnostics: [], quality: null },
+        adopt: [{ allowed: true, why: "" }],
+        refuting_caveats: [], running: false,
+      },
+      extinction: EXTINCTION(0),
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    expect(host.textContent).toContain("best_or_none()");
+    const chip = button("P 63/m")!;
+    expect(chip).toBeTruthy();
+    chip.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/index/adopt")?.body)
+      .toEqual({ candidate: 0, space_group: "P 63/m" });
+    // a refuted class's members never act, whatever the verdict
+    expect(button("P 63 c m")).toBeFalsy();
+  });
+});

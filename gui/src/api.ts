@@ -214,6 +214,11 @@ export const api = {
   adoptCandidate: (candidate: number, spaceGroup?: string) =>
     call("POST", "/api/index/adopt",
          spaceGroup ? { candidate, space_group: spaceGroup } : { candidate }),
+  /** Rank one candidate's extinction classes — the same run machine, and a
+   *  measurement any candidate may ask for (the gate stays on adopt). */
+  screenExtinctions: (candidate: number) =>
+    call("POST", "/api/index/extinction", { candidate }),
+  extinctionResult: () => call("GET", "/api/index/extinction"),
 
   export: (kind: string) => call("POST", `/api/export/${kind}`),
   events: (since: number) => call("GET", `/api/events?poll=1&since=${since}`),

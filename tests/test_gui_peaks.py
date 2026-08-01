@@ -326,3 +326,71 @@ def test_adopting_the_one_high_candidate_is_a_model_edit(served, client):
     node = project.history.nodes[adopted["node_id"]]
     assert node.action.kind == "edit_model"
     assert "adopted indexed cell" in (node.label or "")
+
+
+# ----------------------------------------------------------------------
+# the extinction screen (WP-1025 served)
+# ----------------------------------------------------------------------
+def test_extinction_screen_rides_the_run_machine_and_ranks_classes(
+        served, client):
+    """A real ``determine_extinction_symbol`` run over the wire.
+
+    The injected candidate is the synthetic pattern's **true** cell (LaB6,
+    cubic P), so the screen is meaningful and cheap: one profile fit, then one
+    Le Bail per cubic-P class.  Deliberately *not* gated on the adopt verdict
+    — a screen is how a ``medium`` candidate (the normal real-data outcome)
+    gets its space-group question answered before anything is at stake.
+    """
+    session, _, _ = served
+    with session._cond:
+        session._index_result = _answer(
+            _candidate("medium", ["shift_allowance_assumed"]))
+        session._extinction = None
+
+    # nothing has run yet — and the refusal says what to POST
+    status, refused = client.get("/api/index/extinction")
+    assert status == 409
+    assert refused["error"]["code"] == "NO_EXTINCTION_RESULT"
+
+    # a candidate the result does not have is addressed, not silently clamped
+    status, refused = client.post("/api/index/extinction", {"candidate": 7})
+    assert status == 404
+
+    status, frame = client.post("/api/index/extinction", {"candidate": 0})
+    assert status == 200 and frame["run"]["kind"] == "extinction"
+    frame = _wait_idle(client, timeout=180.0)
+    assert frame["run"]["status"] == "completed"
+    assert frame["run"]["node_id"] is None  # a screen commits nothing
+
+    status, answer = client.get("/api/index/extinction")
+    assert status == 200
+    assert answer["candidate"] == 0
+    screen = answer["result"]
+    assert screen["n_classes"] >= 2  # cubic P has more than one class
+    assert screen["n_screened"] >= 1
+    ranked = screen["candidates"]
+    assert ranked, "the screen must rank classes, not conclude nothing"
+    for cls in ranked:
+        # every class lists *all* its space groups — the shape rule: the
+        # extinction symbol is measurable, one space group is not
+        assert isinstance(cls["space_groups"], list) and cls["space_groups"]
+    # the served best is the package's own gate, or None — never a local pick
+    if answer["best"] is not None:
+        assert 0 <= answer["best"] < len(ranked)
+        assert not ranked[answer["best"]]["refuted"]
+
+
+def test_extinction_screen_is_cleared_when_the_candidates_renumber(
+        served, client):
+    """A new indexing run renumbers the candidates; a kept screen would be
+    served against the wrong cell — the same staleness rule as peaks.json."""
+    status, _ = client.get("/api/index/extinction")
+    assert status == 200  # the previous test's screen is still there
+
+    status, _ = client.post("/api/index", {})
+    assert status == 200
+    _wait_idle(client, timeout=120.0)
+
+    status, refused = client.get("/api/index/extinction")
+    assert status == 409
+    assert refused["error"]["code"] == "NO_EXTINCTION_RESULT"

@@ -211,6 +211,10 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/index"): lambda s, q, b: s.run({**b, "kind": "index"}),
     ("GET", "/api/index/result"): lambda s, q, b: s.index_result(),
     ("POST", "/api/index/adopt"): lambda s, q, b: s.index_adopt(b),
+    # the extinction screen rides the same machine (WP-1025 served)
+    ("POST", "/api/index/extinction"):
+        lambda s, q, b: s.run({**b, "kind": "extinction"}),
+    ("GET", "/api/index/extinction"): lambda s, q, b: s.index_extinction(),
 
     ("GET", "/api/history"): lambda s, q, b: s.history(),
     ("GET", "/api/history/diff"): _diff,
@@ -621,8 +625,12 @@ every route is a method on <code>pxrdref.gui.GuiSession</code>.</p>
  <li><span class="m">GET</span>/<span class="m">PUT</span> <code>/api/textdoc</code>
      — the project as text (<code>.pxt</code>), compare-and-set on a revision</li>
  <li><span class="m">POST</span> <code>/api/export/{cif,reflections,qpa,html,result_json}</code></li>
+ <li><span class="m">GET</span>/<span class="m">POST</span> <code>/api/peaks</code>
+     (+ <code>add/move/remove/flag/refit</code>) ·
+     <span class="m">POST</span> <code>/api/index</code> ·
+     <span class="m">GET</span> <code>/api/index/result</code> ·
+     <code>/api/index/extinction</code> · <span class="m">POST</span>
+     <code>/api/index/adopt</code></li>
 </ul>
-<p class="sub">Reserved paths answer 404 naming the work package that fills them
-(<code>/api/peaks</code>, <code>/api/index</code>, …).</p>
 </body></html>
 """
