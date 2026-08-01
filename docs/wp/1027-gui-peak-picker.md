@@ -43,7 +43,7 @@ in a number. This panel exists for that, not for convenience.
 - **The peak-list verbs are cheap and synchronous; `index()` is not.** It goes
   through WP-1006's run state machine — cancel token, SSE progress, the
   409-while-running rule. That means the run kind must not be refinement-only;
-  an `### Inherited` note was left in WP-1006 for exactly this.
+  an Inherited-mailbox note was left in WP-1006 for exactly this.
 - **Peak lists are a project artifact, not a history node.** They live in
   WP-1005's `.pxrd/` container as `peaks.json`, keyed by `data_fingerprint`, so
   a peak list can never be displayed against the wrong pattern — the same
