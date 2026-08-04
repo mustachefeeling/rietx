@@ -54,13 +54,24 @@ Measured 2026-08-01 (WP-1027 close session), darwin/arm64 M4, numpy-only
 
 - fast suite: **1577 passed / 108 skipped**, 33 s (one quiet run) — moved by
   exactly the close session's +2 (`test_gui_peaks` extinction rows) from the
-  1575/108 baseline; no new skips.
+  1575/108 baseline; no new skips. **Predates WP-1030's +8**, merged
+  2026-08-04 from `worktree-indexer`.
 - full suite: **1663 passed / 117 skipped**, 9:05 (one run, while the machine
   also drove a headless browser and an indexing search); passed+skipped
   1780 = the fast selection's 1685 + 95 slow-marked. The `[dev,jax,torch]`
   figures (1772 collected pre-1027, 8:09–15:33 over three runs) were again
   **not** re-measured — that venv is the main checkout's; expect +10
-  collected there vs pre-1027.
+  collected there vs pre-1027. Critical path at that measurement was
+  `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
+- fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
+  with **no torch**: 1627 passed / 67 skipped in 1:01–2:57 (`-n auto` to
+  `-n 4`), after WP-1030's +8 (1619/67 before). A worktree needs its own venv
+  and its own count — the extras differ, so these do not compare with the rows
+  above, and **none of the three rows here has been re-measured since the
+  merge**.
+- `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
+  **Run it before closing anything that touches an engine** — WP-1030's one
+  regression was invisible to all 115 fast indexing tests.
 - frontend (vitest): **282** (was 276: +4 `grabToleranceDeg` + 2
   extinction-table mounts).
 - `--collect-only` undercounts by one per module-level `importorskip` that
@@ -524,8 +535,15 @@ in A..F (corner-exact, because Q is linear in the metric) and its silence is evi
 indices of a few base lines and solves the metric exactly, so a bad base line poisons
 it where a wide domain poisons the other. Both rank on the FoM **panel** via
 `rank_candidates`, never on a member — supercells index every observed line exactly
-and lose only on `predicted_seen_fraction`. Two things the panel needs from its
-caller, both learned the same way (WP-1026): the **matching window** is an argument
+and lose only on the reversed members. There are **seven**: M₂₀, F_N, three
+coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
+content is that the reversed direction is a *ratio* where ours is a windowed
+fraction — measured on a doubled axis, `m_rev` separates truth from supercell 64-74×
+where M₂₀ separates them 1.8×. Its `N^cal` is Σ 1/m over centring-allowed triples
+and is **never rounded**: Σ 1/m over a complete orbit is exactly 1, so an integer
+result is the *self-check* that the multiplicity is right, while a hexagonal orbit
+cut by the enumeration box legitimately contributes a fraction. Two things the panel
+needs from its caller, both learned the same way (WP-1026): the **matching window** is an argument
 (`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
 members must ask the same "is this the same line" question the *search* asked while
 M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
@@ -546,9 +564,27 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-Six more indexing rules, each learned the hard way — the measured stories
+Seven more indexing rules, each learned the hard way — the measured stories
 are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
+
+- **Profile an engine before ranking what to fix in it: a cost model reasoned
+  from the algorithm's structure is not a profile.** WP-1030's ranking came out
+  nearly inverted — the phase holding 97.6 % of the boxes had no item against
+  it, and the prune ranked last was the one worth 89.9 %. Two corollaries:
+  **wall clock is worthless while a second search shares the machine**, and **a
+  candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice`, never with sorted axes, or a correct answer in another
+  setting reads as a miss.
+- **Removing a redundant search must not remove its prunes**, and only real
+  data will say that you did: the centred passes are redundant *as searches*
+  (each centred trial set is a subset of the primitive one) and not as
+  *filters*. Because the prunes are monotone under bisection, replaying one at
+  the leaf is equivalent to the whole pass. WP-1030 skipped that and put a
+  pseudo-cubic trigonal R description of the certified LaB6 lattice above the
+  cubic truth with **115 fast indexing tests green** — so run
+  `tests/test_acceptance_indexing.py` before closing anything that touches an
+  engine.
 
 - Read a `predicted_but_absent` firing as "this cell predicts lines the
   pattern lacks", **never** "this cell is too big": it counts against the

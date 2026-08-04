@@ -229,6 +229,149 @@ def test_trial_hkl_keeps_one_friedel_mate_and_obeys_the_centring():
         assert rule(sub).all(), centring
 
 
+def test_every_centring_is_a_subset_of_the_primitive_trial_set():
+    """The shortcut that lets one grid pass cover every centring of a system.
+
+    ``search_dichotomy`` searches the *union* of a system's admissible centrings
+    once and re-scores each leaf per centring, instead of running the whole grid
+    and dichotomy again per centring.  That is sound only because a centred trial
+    set is a strict **subset** of the primitive one: a centred box has fewer
+    reflections with which to reach the same lines, so its line-matching test is
+    strictly harder and every box surviving it survives the primitive test.
+    Asserted here rather than left as folklore in a docstring, because the whole
+    completeness claim of the engine rests on it.
+    """
+    from pxrdref.indexing.engines import CENTRINGS
+    from pxrdref.indexing.qspace import centring_allows
+
+    primitive = trial_hkl(6, "P")
+    assert centring_allows(primitive, "P").all()
+    for system, centrings in CENTRINGS.items():
+        for centring in centrings:
+            allowed = centring_allows(primitive, centring)
+            assert allowed.sum() <= len(primitive), (system, centring)
+            # a subset *of the same enumeration*, not merely a smaller count
+            direct = {tuple(int(v) for v in h) for h in trial_hkl(6, centring)}
+            assert direct == {tuple(int(v) for v in h)
+                              for h in primitive[allowed]}, (system, centring)
+
+
+def test_a_centring_that_fits_the_trial_cap_keeps_its_search():
+    """One shared pass means one shared trial set, and the cap now sees the union.
+
+    Since "P" admissible makes the union every hkl, a naive shared pass would
+    lose the *centred* searches that used to run in their own pass whenever the
+    primitive set overflows :data:`MAX_TRIAL_HKL` — a cubic F set is a quarter
+    of P's, so there is a band of ``max_index`` where F fits and P does not.
+    The widest sets are dropped until the rest fit, and the drop is reported as
+    an incomplete search rather than silently.
+    """
+    from pxrdref.indexing import dichotomy as D
+    from pxrdref.indexing.engines import effective_sigma_sys
+    from pxrdref.indexing.qspace import sigma_effective
+
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = spec_for("cubic")
+    # the trial set is sized on the whole pattern, exactly as _search_one does
+    sigma_sys, _assumed = effective_sigma_sys(spec, None)
+    sigma = sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
+                            sigma_sys)
+    n = D._max_index(spec, float(peaks.q().max() + spec.k_sigma * sigma.max()))
+    sizes = {c: int(len(trial_hkl(n, c))) for c in ("P", "I", "F")}
+    assert sizes["F"] < sizes["I"] < sizes["P"], sizes
+
+    original = D.MAX_TRIAL_HKL
+    try:
+        # a cap admitting I and F but not P: the primitive search is dropped
+        D.MAX_TRIAL_HKL = sizes["I"] + 1
+        kept = D.search_dichotomy(peaks, spec=spec)
+        # and one admitting nothing at all
+        D.MAX_TRIAL_HKL = sizes["F"] - 1
+        none_fit = D.search_dichotomy(peaks, spec=spec)
+    finally:
+        D.MAX_TRIAL_HKL = original
+
+    # dropping any centring means the domain was not covered, and it says so
+    assert kept.search_complete["cubic"] is False
+    assert none_fit.search_complete["cubic"] is False
+    # the centrings that fitted were still searched — the system does not go
+    # dark just because the primitive set overflowed
+    found = {c.centring for c in kept.candidates}
+    assert found and "P" not in found, found
+    assert not none_fit.candidates
+    # and with no cap in the way the primitive cell is the one ranked first
+    full = D.search_dichotomy(peaks, spec=spec)
+    assert full.search_complete["cubic"] is True
+    assert full.candidates[0].centring == "P"
+
+
+def test_a_box_is_refused_when_its_lines_cannot_take_distinct_reflections():
+    """Hall's condition, which ``hit.any(axis=1)`` alone does not check.
+
+    Indexing maps lines to reflections **injectively** — one hkl has one Q — so a
+    box whose surviving trial set holds fewer reflections than there are lines to
+    explain cannot index the pattern, however happily each individual line finds
+    *something* to point at.  The weak test is satisfied by letting the lines
+    share, and measured on the bethanechol monoclinic domain it refused 342 boxes
+    of 692 294 (0.0 %) while this one refuses 89.9 % of what reaches it.
+    """
+    from pxrdref.indexing.dichotomy import _assignment_possible
+
+    # five lines, but only three reflections between them: every line finds
+    # something (the weak test is satisfied) and no injective map exists
+    hit = np.ones((5, 3), dtype=bool)
+    counts = hit.sum(axis=1)
+    assert hit.any(axis=1).all(), "the weak test must be happy with this box"
+    assert not _assignment_possible(hit, 3, counts, 5, n_unindexed=0)
+    # the same shortfall is tolerable when two lines may go unindexed
+    assert _assignment_possible(hit, 3, counts, 5, n_unindexed=2)
+
+    # forced singletons colliding is a violation at |S| = 2 even when the total
+    # reflection count is ample — DICVOL91's own rejection rule
+    hit = np.zeros((4, 9), dtype=bool)
+    hit[0, 0] = hit[1, 0] = True            # two lines, one forced reflection
+    hit[2, 1:5] = hit[3, 5:9] = True
+    counts = hit.sum(axis=1)
+    assert not _assignment_possible(hit, 9, counts, 4, n_unindexed=0)
+
+    # and a box that genuinely admits a matching is never refused
+    hit = np.eye(4, 9, dtype=bool)
+    assert _assignment_possible(hit, 9, hit.sum(axis=1), 4, n_unindexed=0)
+
+
+def test_the_largest_observed_d_is_not_a_bound_on_the_axes_at_low_symmetry():
+    """Why Louër & Louër's Table 1 parameter floors are **not** implemented.
+
+    Their "a ≥ d₁ − Δd₁" reads the largest observed spacing as a floor on the
+    largest axis, and the paper prints columns for cubic, tetragonal, hexagonal
+    and orthorhombic only.  The omission is not an oversight: those forms are
+    diagonal, so Q(hkl) ≥ min(A, B, C) and the largest spacing really is a
+    principal one.  Add a cross term and it stops being true — an oblique cell
+    inside this search's own obliquity bound puts its largest spacing on (101),
+    above *every* principal spacing, so the floor would exclude the true cell.
+
+    Adopting the rows the paper does print would be sound, and buys nothing:
+    the engine's line-matching test uses a complete trial set with corner-exact
+    bounds, which is strictly stronger, and measured on the bethanechol domain
+    it accounts for 0.0 % of box deaths.
+    """
+    from pxrdref.indexing.dichotomy import MAX_ANGLE_COSINE
+    from pxrdref.indexing.qspace import cell_from_af, design_matrix
+
+    af = np.array([1.0, 0.5, 1.0, 0.0, -1.7, 0.0])
+    # the cell is inside the domain the search declares, not a pathology
+    assert abs(af[4]) <= 2.0 * MAX_ANGLE_COSINE * np.sqrt(af[0] * af[2])
+    cell_from_af(af)                     # and it is a real lattice
+
+    hkl = trial_hkl(3, "P")
+    q = design_matrix(hkl) @ af
+    q = q[q > 1e-9]
+    d_largest = 1.0 / np.sqrt(q.min())
+    principal = [1.0 / np.sqrt(design_matrix(np.array([h])) @ af)[0]
+                 for h in ((1, 0, 0), (0, 1, 0), (0, 0, 1))]
+    assert d_largest > max(principal), (d_largest, principal)
+
+
 def test_budget_expires_and_a_cancel_token_short_circuits_it():
     from pxrdref.optimize.cancel import CancelToken
 
@@ -273,6 +416,55 @@ def test_dichotomy_q_bounds_are_attained_at_the_box_corners():
         q_corners = corners @ m.T
         assert np.allclose(q_corners.min(axis=0), q_min, atol=1e-12), system
         assert np.allclose(q_corners.max(axis=0), q_max, atol=1e-12), system
+
+
+def test_the_volume_prune_contains_every_lattice_in_the_box():
+    """The determinant bound may be loose; it may **never** exclude the answer.
+
+    ``_det_interval`` intersects two valid bounds — interval arithmetic on the
+    expanded determinant, and A·B·C·det R with every correlation clipped to the
+    domain's obliquity — because neither dominates: the correlation form carries
+    the diagonal spread twice, so it is looser on a box already narrow in its
+    off-diagonals, and the expansion is the one that goes useless when the
+    off-diagonals are wide.  An intersection is only sound if *both* are, so
+    every sampled interior point's det G* must land inside.
+
+    Points violating the cone are excluded from the check on purpose: they are
+    excluded from the *search* too (``_initial_box``, ``_stage_edges`` and
+    ``_inside_domain`` all enforce it), so a bound that cuts them cuts nothing
+    reportable.
+    """
+    from pxrdref.indexing.dichotomy import (
+        MAX_ANGLE_COSINE,
+        _af_interval,
+        _det_interval,
+    )
+    from pxrdref.indexing.qspace import gstar_from_af
+
+    rng = np.random.default_rng(1030)
+    for system in ("orthorhombic", "monoclinic", "triclinic"):
+        basis = metric_basis(system)
+        n = basis.shape[0]
+        for _case in range(40):
+            lo = rng.uniform(0.004, 0.05, size=n)
+            hi = lo + rng.uniform(1e-4, 0.03, size=n)
+            af_lo, af_hi = _af_interval(basis, lo, hi)
+            if np.any(af_hi[:3] <= 0.0):
+                continue
+            det_lo, det_hi = _det_interval(af_lo, af_hi)
+            for _trial in range(40):
+                theta = lo + rng.uniform(size=n) * (hi - lo)
+                af = basis.T @ theta
+                if np.any(af[:3] <= 0.0):
+                    continue
+                cone = [abs(af[p]) <= 2.0 * MAX_ANGLE_COSINE
+                        * np.sqrt(af[i] * af[j])
+                        for p, (i, j) in ((3, (1, 2)), (4, (0, 2)), (5, (0, 1)))]
+                if not all(cone):
+                    continue
+                det = float(np.linalg.det(gstar_from_af(af)))
+                assert det_lo - 1e-15 <= det <= det_hi + 1e-15, (
+                    system, det, (det_lo, det_hi))
 
 
 def test_the_duplicate_leaf_hash_resolves_every_axis_equally():

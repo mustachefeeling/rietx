@@ -52,10 +52,26 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1027](wp/1027-gui-peak-picker.md)** (2026-08-01) — GUI peak
-picker + indexing panel; the indexing line now ends in pixels, extinction
-screen included. Close narrative in
-[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
+**Last closed: [1030](wp/1030-engine-scaling-low-symmetry.md)** (2026-07-31 on
+its own worktree branch, merged 2026-08-04) — a monoclinic search over the
+package's own **default** short-axis bound (d ∈ [2, 20] Å, a declared volume
+window) went from *not finishing* to **32 s with the truth ranked first**, so
+the bethanechol benchmark can now be graded; and the figure-of-merit panel
+gained Oishi-Tomiyasu's `m_rev`/`m_sym`, which separate a truth from a
+supercell **64-74×** where M₂₀ separates them 1.8×. Two of its own tasks were
+declined on measurement (Louër's parameter floors — unsound for monoclinic and
+subsumed where sound; a third ITO engine — a zero-point offset splits its
+coincidence peak rather than shifting it). Before it,
+[1027](wp/1027-gui-peak-picker.md) (2026-08-01) — GUI peak picker + indexing
+panel; the indexing line now ends in pixels, extinction screen included. Close
+narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
+here".
+
+1030's method lesson is the one to carry: **instrument before ranking.** Every
+cost item that WP listed was reasoned from the algorithm's structure, and the
+resulting order was close to backwards — one afternoon of counting box deaths
+by cause showed 97.6 % of the work in a phase no item addressed, the prune
+ranked first worth ~1.2× and the prune ranked last worth 89.9 % of box deaths.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -65,12 +81,12 @@ screen included. Close narrative in
    reaches them.
 2. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-3. [1030](wp/1030-engine-scaling-low-symmetry.md) — engine cost at low
-   symmetry (being worked on its own worktree branch as of 2026-07-31; its
-   row below is that branch's to flip).
+3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
+   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
+   carries what 1030 measured and what the harness still lacks.
 4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the 2026-08-04 use session. Behind 1028/1030 because **none of them moves the
+   the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
    bar** while those two do; 1032 → 1033 is an ordering, not a preference (one
    file).
 5. [1016](wp/1016-sequential-series-panel.md) then
@@ -405,7 +421,7 @@ per concurrent session, or only one session commits.
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ✅ 2026-08-01 | 1010, 1011, 1018–1024 |
-| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
+| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

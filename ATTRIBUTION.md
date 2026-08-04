@@ -43,8 +43,15 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   hl < 0 (the 1991 paper reaches the same linear form for its own triclinic
   case, for the same reason); and the tolerance is a per-line σ rather than one
   global absolute window. Louër & Louër's Table 1 (data-derived minimum
-  parameter limits, and the non-collinearity condition on d₁/d₂) is **not yet
-  implemented** — WP-1029.
+  parameter limits, and the non-collinearity condition on d₁/d₂) is
+  **deliberately not implemented** — WP-1030 measured it as unsound for the
+  system that needs it and subsumed where it is sound: the table has no
+  monoclinic or triclinic column because for an oblique cell the largest
+  observed d can exceed every principal d (A = C = 1, E = −1.7 gives
+  d(101) > d(100)), and where the floors *are* sound the engine's own
+  line-matching test is strictly stronger, since it uses a complete trial set
+  with corner-exact bounds. Measured on the bethanechol domain, that test
+  accounts for 0.0 % of box deaths, so a floor derived from it prunes nothing.
 - Werner, P.-E. (1964). *Z. Kristallogr.* 120, 375–387; Werner, P.-E., Eriksson,
   L. & Westdahl, M. (1985). *J. Appl. Cryst.* 18, 367–370 — the semi-exhaustive
   **trial-and-error** index-space search behind `indexing/trial_error.py` (the
@@ -52,9 +59,12 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
   Table 1 corroborates `BASE_INDEX_MAX = 2` for the low-symmetry base lines,
   independently of how that constant was chosen here.
 - Visser, J. W. (1969). *J. Appl. Cryst.* 2, 89–95 — the ITO **zone-indexing**
-  method. Read and assessed (WP-1029), **not implemented**: recorded here
-  because the assessment is cited in the roadmap, not because code derives
-  from it.
+  method. Read and assessed (WP-1030), **not implemented**, and the no-go is
+  recorded in `docs/manual/engines.md` §"What a zone-indexing engine would and
+  would not add": a constant 2θ offset splits ITO's coincidence peak rather
+  than translating it, so it fails on exactly the uncalibrated laboratory data
+  a third opinion would be wanted for. Recorded here because the assessment is
+  cited in the manual and the roadmap, not because code derives from it.
 - Křivý, I. & Gruber, B. (1976). *Acta Cryst.* A32, 297–298 — the unified
   Niggli-reduction algorithm, whose step A2 tie-break on |η| ≤ |ζ| is what makes
   the reduction canonical when two reduced axes are equal. The reduction itself
@@ -69,12 +79,15 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 - de Wolff, P. M. (1968). *J. Appl. Cryst.* 1, 108–113 — the M₂₀ figure of merit.
 - Oishi-Tomiyasu, R. (2013). *J. Appl. Cryst.* 46, 1277–1282 — the **reversed**
   and symmetric de Wolff figures of merit, and the roundoff-stable line count
-  N^cal. Cited in `indexing/fom.py`'s argument that coverage must be scored in
-  both directions; the two figures themselves are **not yet implemented**
-  (WP-1029), and until they are, this is a concept reference.
+  N^cal. **Implemented** in `indexing/fom.py` (WP-1030) as `m_rev` / `m_sym`
+  with `n_cal`, from the paper's eqs. (4), (5), (7) and (9)–(11); papers only,
+  no code consulted. Two departures are documented there: the vanishing-δ floor
+  is this package's addition (the paper does not address it), and the
+  enumeration is over one hkl per Friedel pair with the full-orbit multiplicity,
+  so Σ 1/m over the half-sphere is exactly N^cal/2.
 - Smith, G. S. & Kahara, E. (1975). *J. Appl. Cryst.* 8, 681–683 — the "020
   detector" relation 2Q(020) + Q(h10) = Q(h30). Concept reference only; not
-  implemented (WP-1029).
+  implemented (WP-1030).
 - Smith, G. S. (1977). *J. Appl. Cryst.* 10, 252–255 — estimating the unit-cell
   volume from one line, `indexing/quality.volume_envelope`. Its two constants
   (0.60 and 0.0052) are the paper's own and reproduce its printed 13.39 / 17.24 /
