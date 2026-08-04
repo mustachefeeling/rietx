@@ -289,9 +289,17 @@ class SearchSpecSpec(Base):
         "shift is only identifiable against reference positions and a candidate "
         "cell is what supplies them"))
     budget_seconds: float = Field(30.0, gt=0.0, description=(
-        "wall clock per system; an engine stopped by it reports "
-        "search_complete[system] = false, and a negative result there is not "
-        "evidence"))
+        "wall clock per (engine x crystal system) SLICE of the search, not per "
+        "run: a default two-engine, seven-system call is up to 2x7x30 s of "
+        "search before the probe and validation. An engine stopped by it "
+        "reports search_complete[system] = false, and a negative result there "
+        "is not evidence. total_budget_seconds is the whole-run bound"))
+    total_budget_seconds: float | None = Field(None, gt=0.0, description=(
+        "wall-clock ceiling for the WHOLE run — search, probe and validation "
+        "together. The run still returns a complete IndexingResult over what "
+        "was reached; systems_searched/search_complete distinguish searched, "
+        "truncated and not reached, and INDEX_BUDGET_EXHAUSTED names them. "
+        "None (default) bounds nothing beyond the per-slice budget_seconds"))
     max_candidates: int = Field(12, ge=1)
     seed: int = 0
 
@@ -325,6 +333,7 @@ class SearchSpecSpec(Base):
             k_sigma=self.k_sigma, sigma_sys_deg=self.sigma_sys_deg,
             shift_template=self.shift_template,
             budget_seconds=self.budget_seconds,
+            total_budget_seconds=self.total_budget_seconds,
             max_candidates=self.max_candidates, seed=self.seed)
 
 

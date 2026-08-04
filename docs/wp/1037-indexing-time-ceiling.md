@@ -110,7 +110,7 @@ are open literature and may be cited and implemented from. No code ported.
 
 ## Tasks
 
-- [ ] **Task 0 — measure, then write the constants.** For the 8-dataset known-cell
+- [x] **Task 0 — measure, then write the constants.** For the 8-dataset known-cell
       corpus record in the handover log: wall clock (as a *range*), **time to first
       candidate**, time to final list, per-phase split (search / probe /
       validation), and `engine_stats`. This is the first honest cost profile of
@@ -121,12 +121,12 @@ are open literature and may be cited and implemented from. No code ported.
       meta-test `set(_SURFACE_FLAGS.values()) <= set(pr.__all__)` that would have
       caught it. Rewrite `capabilities.py:19-21` as the lesson and fix
       `CLAUDE.md:166`'s example.
-- [ ] `Deadline(Budget)` — whole-run clock shaped as a cancel token: `__bool__`,
+- [x] `Deadline(Budget)` — whole-run clock shaped as a cancel token: `__bool__`,
       `is_set`, `remaining`, `cancelled_by_user`. **Must compose** with a caller's
       own `CancelToken` (`Budget.__init__` takes one `cancel`, so write the any-of
       token once), and every consumer must be able to tell a ceiling from a user
       cancellation — enumerate those sites, do not assume them.
-- [ ] `estimate_ceiling(spec, *, engines, validate) -> CeilingEstimate`: search +
+- [x] `estimate_ceiling(spec, *, engines, validate) -> CeilingEstimate`: search +
       probe + validation, `granularity_seconds` (how far past the ceiling a run can
       land), and `covers`/`unmodelled` naming registered engines whose cost is not
       modelled. **It is arithmetic on the spec, not a timing prediction, and the
@@ -138,16 +138,16 @@ are open literature and may be cited and implemented from. No code ported.
       exist today, and Le Bail cost is data-dependent — derive it from
       `predicted_reflection_count` or report it as explicitly uncertain. Do not let
       a guess wear arithmetic's clothes.
-- [ ] `index_pattern` honours `SearchSpec.total_budget_seconds` (default `None` =
+- [x] `index_pattern` honours `SearchSpec.total_budget_seconds` (default `None` =
       today's behaviour, bit-identical). A deadline that binds must leave the run
       returning a complete `IndexingResult` over what was reached, never an
       exception, and `systems_searched` must distinguish **three** states —
       searched, truncated, **not reached**. `INDEX_BUDGET_EXHAUSTED` says so.
-- [ ] Validation runs inside the ceiling: `validate_by_lebail(..., cancel=)`, with
+- [x] Validation runs inside the ceiling: `validate_by_lebail(..., cancel=)`, with
       `except RefinementCancelled: raise` **before** the generic handler. Test that
       a truncated validation leaves `lebail = None` and reads as `not_validated`,
       never `validation_failed`.
-- [ ] Progress per (engine × system) on the **existing** event kinds — adding
+- [x] Progress per (engine × system) on the **existing** event kinds — adding
       *fields* is not an `EVENT_SCHEMA_VERSION` bump, adding a kind is, and this
       task must not bump it (assert that). One flat ladder: search units, probe
       units (currently invisible), validation units. `n_stages` becomes revisable

@@ -180,6 +180,15 @@ class SearchSpec:
     sigma_sys_deg: float = 0.0
     shift_template: str | None = None
     budget_seconds: float = DEFAULT_BUDGET_SECONDS
+    #: whole-run wall-clock ceiling (WP-1037), or ``None`` for today's behaviour.
+    #: ``budget_seconds`` is **per (engine × system)** — a default run is
+    #: 2 × 7 × 30 s of search before the probe and the validation fits, and
+    #: nothing used to state that.  This is the bound a caller actually means:
+    #: ``index_pattern`` wraps it in a :class:`Deadline` that every existing
+    #: cooperative check reads, the run returns a complete
+    #: :class:`~pxrdref.schemas.indexing.IndexingResult` over whatever was
+    #: reached, and ``INDEX_BUDGET_EXHAUSTED`` names what was not.
+    total_budget_seconds: float | None = None
     max_candidates: int = DEFAULT_MAX_CANDIDATES
     #: seeded RNG for the stochastic engine; recorded in every result so a run
     #: is reproducible from what it reports
@@ -283,7 +292,16 @@ _DESCRIPTIONS: dict[str, str] = {}
 
 def register_engine(name: str, fn: Callable[..., EngineResult], description: str,
                     ) -> Callable[..., EngineResult]:
-    """Register a search engine under ``name`` (idempotent per name)."""
+    """Register a search engine under ``name`` (idempotent per name).
+
+    The callable's contract is
+    ``fn(peaks, *, spec, quality, cancel, progress) -> EngineResult`` —
+    ``progress`` (WP-1037) is a :class:`Progress` the engine feeds one unit per
+    system it searches, or ``None`` from a direct call.  An engine claims a
+    system in ``systems_searched`` only when it *starts* it, so a run stopped
+    by its token reports the un-entered systems as not reached rather than as
+    zero-second searches.
+    """
     if name in _REGISTRY and _REGISTRY[name] is not fn:
         raise ValueError(f"engine {name!r} is already registered")
     _REGISTRY[name] = fn
@@ -337,6 +355,104 @@ class Budget:
         if self._cancel is not None and bool(self._cancel):
             return True
         return self.seconds > 0.0 and self.elapsed >= self.seconds
+
+
+class Deadline(Budget):
+    """The whole-run wall clock, shaped as a cancel token (WP-1037).
+
+    A :class:`Budget` that also answers ``bool()`` and ``is_set()`` the way
+    :class:`~pxrdref.optimize.cancel.CancelToken` does — which is the entire
+    design: every cooperative check in the indexing package reads
+    ``bool(cancel)``, every per-system ``Budget`` the engines construct takes
+    that same object as its ``cancel``, and ``least_squares`` reads
+    ``.is_set()`` — so a deadline passed *as the token* nests under all of them
+    with no engine changes, and cancellation stays cooperative by construction
+    (the deadline is read between units of work, never an interrupt).
+
+    It composes with the caller's own token the way ``Budget`` always has:
+    ``Deadline(seconds, cancel=user_token)`` is true when *either* the clock
+    has run out or the user cancelled — the any-of token, written once.
+
+    **The consumers that must tell the two apart** — a ceiling is a statement
+    about the budget, a user cancellation is not, and :meth:`cancelled_by_user`
+    is the question each of them asks:
+
+    * ``index_pattern``'s engine loop — ``INDEX_BUDGET_EXHAUSTED`` is written
+      only when the *clock* stopped the run;
+    * ``index_pattern``'s validation loop — same rule; either way the un-run
+      candidates keep ``lebail = None`` and read as ``not_validated``;
+    * :func:`~pxrdref.indexing.workflow.validate_by_lebail` re-raises
+      ``RefinementCancelled`` whoever triggered it — classification is its
+      caller's job, and swallowing it into ``status="failed"`` would refute a
+      cell the run merely ran out of time on.
+
+    Sites that need no distinction, deliberately: ``Budget.expired()`` (an
+    expired per-system budget and an expired ceiling both just stop the
+    system), and every caller *outside* ``index_pattern`` — the deadline is
+    constructed inside the run from ``SearchSpec.total_budget_seconds``, never
+    handed in, so a GUI's own token keeps its meaning.
+    """
+
+    __slots__ = ()
+
+    def __bool__(self) -> bool:
+        return self.expired()
+
+    def is_set(self) -> bool:
+        return self.expired()
+
+    @property
+    def remaining(self) -> float:
+        """Seconds left on the clock (0.0 once expired; ``inf`` if unbounded)."""
+        if self.seconds <= 0.0:
+            return float("inf")
+        return max(self.seconds - self.elapsed, 0.0)
+
+    def cancelled_by_user(self) -> bool:
+        """Did the *caller's* token fire — as opposed to the clock?"""
+        return self._cancel is not None and bool(self._cancel)
+
+
+class Progress:
+    """A flat unit counter over everything an indexing run does (WP-1037).
+
+    One ladder, not two: search units — one per (engine × system) — plus the
+    dominant-zone probe's per-system rungs and the per-candidate validation
+    fits, all emitted on the *existing* ``stage_start``/``stage_end`` kinds
+    (``history/events.py``: adding fields is not a schema bump; a nested
+    second ladder on the same kind is what made the GUI's progress bar jump,
+    so the per-engine pair this replaces must not come back beside it).
+
+    ``total`` is **revisable mid-run** by :meth:`add` — the probe runs only
+    when an engine found nothing and the validation count is known only after
+    consensus — so a consumer treats ``n_stages`` as the current best claim,
+    not a constant (the same reading ``watch`` and the GUI already apply).
+
+    ``stream=None`` is a working no-op, so a direct engine call in a unit test
+    neither needs a stream nor emits anything.
+    """
+
+    __slots__ = ("stream", "total", "done")
+
+    def __init__(self, stream=None, total: int = 0) -> None:
+        self.stream = stream
+        self.total = int(total)
+        self.done = 0
+
+    def add(self, n: int) -> None:
+        """Revise the total: ``n`` more units now known to be coming."""
+        self.total += int(n)
+
+    def start(self, stage: str, **data) -> None:
+        if self.stream is not None:
+            self.stream.emit("stage_start", stage=stage, index=self.done + 1,
+                             n_stages=self.total, **data)
+
+    def end(self, stage: str, **data) -> None:
+        self.done += 1
+        if self.stream is not None:
+            self.stream.emit("stage_end", stage=stage, index=self.done,
+                             n_stages=self.total, **data)
 
 
 # ----------------------------------------------------------------------
@@ -765,14 +881,175 @@ def incomplete_diagnostic(engine: str, systems: Sequence[str],
                               if s in METRIC_DOF) + ")"))
 
 
-__all__ = ["CENTRINGS", "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
+def budget_exhausted_diagnostic(total_seconds: float,
+                                engines_not_run: Sequence[str],
+                                systems_truncated: Sequence[str],
+                                systems_not_reached: Sequence[str],
+                                candidates_not_validated: int) -> Diagnostic:
+    """``INDEX_BUDGET_EXHAUSTED`` — the declared whole-run ceiling bound.
+
+    Written only when the *clock* stopped the run
+    (:meth:`Deadline.cancelled_by_user` is false): a user cancellation is not a
+    statement about the budget.  Its whole content is the three-state reading of
+    ``systems_searched`` — a system searched to completion said something, a
+    truncated one said less, and one never reached said nothing at all — plus
+    the candidates whose validation never ran (they read ``not_validated``,
+    which is the honest cap, never ``validation_failed``).
+    """
+    where = []
+    if engines_not_run:
+        where.append("engines not run: " + ", ".join(engines_not_run))
+    if systems_truncated:
+        where.append("truncated: " + ", ".join(systems_truncated))
+    if systems_not_reached:
+        where.append("not reached: " + ", ".join(systems_not_reached))
+    if candidates_not_validated:
+        where.append(f"{candidates_not_validated} candidate(s) not validated")
+    return Diagnostic(
+        level="warning", code="INDEX_BUDGET_EXHAUSTED",
+        message=(f"the run hit its declared ceiling of {total_seconds:g} s, so "
+                 "the answer covers what was reached rather than the whole "
+                 "requested search"),
+        where=where,
+        suggestion=("what was reached is still ranked and gated honestly — "
+                    "read systems_searched and search_complete before treating "
+                    "an absence as evidence.  Raise total_budget_seconds, or "
+                    "narrow systems= to where the answer can live, which costs "
+                    "exponentially less than more time buys"))
+
+
+# ----------------------------------------------------------------------
+# The ceiling a caller can compute before running (WP-1037)
+# ----------------------------------------------------------------------
+#: Engines whose worst-case cost :func:`estimate_ceiling` models.  Both take
+#: ``budget_seconds`` per system as a hard per-system ceiling, and trial_error
+#: adds the dominant-zone probe.  A third registered engine that is not in this
+#: set comes back in ``CeilingEstimate.unmodelled`` rather than silently
+#: costing zero.
+MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "trial_error"})
+
+#: Measured seconds per Le Bail validation fit on the eight-dataset known-cell
+#: corpus (WP-1037 task 0, darwin/arm64 M4): 0.6–8.5 s on single-phase lab and
+#: synchrotron patterns, 44 s on the round-robin three-phase mixture.  A
+#: **measurement, not arithmetic** — Le Bail cost scales with the pattern's
+#: channel count and the candidate's reflection count, and no budget bounds it
+#: unless ``total_budget_seconds`` is declared — which is why the estimate
+#: carries it as an explicitly uncertain range instead of folding a guess into
+#: the worst case.  It is also why the term matters at all: on the FAP tutorial
+#: pattern validation was 74 s of an 84 s run — eight fits, none budgeted.
+MEASURED_VALIDATION_SECONDS: tuple[float, float] = (0.6, 44.0)
+
+#: Measured wall clock of a whole ``index_pattern`` run on the same corpus
+#: (WP-1037 task 0, acceptance-suite protocols): runs that actually search land
+#: in this band; the abstaining runs (quality gate, too-symmetric patterns)
+#: finish under a second.  Quoted beside the arithmetic worst case because the
+#: two differ by ~10× and a ceiling ten times the typical gets ignored.
+MEASURED_TYPICAL_SECONDS: tuple[float, float] = (3.0, 180.0)
+
+#: How far past a declared ceiling a run can land: the longest stretch between
+#: cooperative reads of the deadline.  In the searches that is one box or one
+#: solve (well under a second); the two long poles are **consensus** — ranking,
+#: panel scoring and ambiguity enumeration run after the search loop with no
+#: token reads, measured ~3.6 s past a binding ceiling on a 30-line synthetic —
+#: and the validation fit, whose token is read between residual evaluations but
+#: whose per-stage model compile is not interruptible (seconds on a dense lab
+#: pattern).  Verified by the acceptance run: ``--total-budget 60`` must finish
+#: within 60 s plus one of these.
+CEILING_GRANULARITY_SECONDS = 10.0
+
+
+@dataclass(frozen=True)
+class CeilingEstimate:
+    """The pre-run answer to "how long can this take" — and what kind of answer
+    each field is.
+
+    ``search_seconds`` and ``probe_seconds`` are **arithmetic on the spec, not a
+    timing prediction**: per-system budgets are hard ceilings the engines
+    enforce, so their sum is a bound that holds by construction, on any
+    machine.  The validation term is the weak one and wears no arithmetic
+    clothes: ``validation_seconds_each`` is a measured range
+    (:data:`MEASURED_VALIDATION_SECONDS`), because a Le Bail fit has no budget
+    of its own and its cost is a property of the data.  ``typical_seconds``
+    (:data:`MEASURED_TYPICAL_SECONDS`) is why the worst case should not be read
+    as an ETA: searches finish their systems early far more often than not.
+    """
+
+    search_seconds: float
+    probe_seconds: float
+    validation_calls: int
+    validation_seconds_each: tuple[float, float]
+    granularity_seconds: float
+    #: engines whose cost the arithmetic covers, and those it does not — a
+    #: registered engine outside :data:`MODELLED_ENGINES` costs an unknown
+    #: amount, and saying so beats a worst case that silently omits it
+    covers: tuple[str, ...]
+    unmodelled: tuple[str, ...]
+    typical_seconds: tuple[float, float]
+
+    @property
+    def worst_case_seconds(self) -> float:
+        """Arithmetic search + probe bound, plus the *measured high end* of the
+        validation range — the honest total, with the caveat in the field
+        docs."""
+        return (self.search_seconds + self.probe_seconds
+                + self.validation_calls * self.validation_seconds_each[1])
+
+
+def estimate_ceiling(spec: SearchSpec | None = None, *,
+                     engines: Sequence[str] | None = None,
+                     validate: bool = True) -> CeilingEstimate:
+    """What a run of :func:`~pxrdref.indexing.workflow.index_pattern` can cost,
+    computable **before** starting it.
+
+    See :class:`CeilingEstimate` for which terms are arithmetic and which are
+    measured.  The arithmetic: ``budget_seconds`` is per (engine × system)
+    (a default call is 2 × 7 × 30 s = 21 min of search ceiling), the
+    dominant-zone probe adds up to ``len(ladder)`` rungs of
+    ``min(budget_seconds, probe_seconds)`` for each low-DOF system, and
+    validation runs one Le Bail fit per checked candidate (worst case
+    ``max_candidates`` — :func:`~pxrdref.indexing.consensus.checked_indices`
+    is the top few plus every all-engine candidate, which the cap bounds).
+    """
+    from .trial_error import (
+        DOMINANT_ZONE_MAX_DOF,
+        DOMINANT_ZONE_PROBE_LADDER,
+        DOMINANT_ZONE_PROBE_SECONDS,
+    )
+
+    spec = spec or SearchSpec()
+    names = tuple(engines) if engines is not None else engine_names()
+    covers = tuple(n for n in names if n in MODELLED_ENGINES)
+    unmodelled = tuple(n for n in names if n not in MODELLED_ENGINES)
+    systems = [s for s in SYSTEM_ORDER if s in spec.systems]
+
+    search = len(covers) * len(systems) * float(spec.budget_seconds)
+    probe = 0.0
+    if "trial_error" in covers:
+        eligible = [s for s in systems
+                    if METRIC_DOF.get(s, 6) <= DOMINANT_ZONE_MAX_DOF]
+        probe = (len(eligible) * len(DOMINANT_ZONE_PROBE_LADDER)
+                 * min(float(spec.budget_seconds), DOMINANT_ZONE_PROBE_SECONDS))
+    calls = int(spec.max_candidates) if validate else 0
+    return CeilingEstimate(
+        search_seconds=search, probe_seconds=probe, validation_calls=calls,
+        validation_seconds_each=MEASURED_VALIDATION_SECONDS,
+        granularity_seconds=CEILING_GRANULARITY_SECONDS,
+        covers=covers, unmodelled=unmodelled,
+        typical_seconds=MEASURED_TYPICAL_SECONDS)
+
+
+__all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
+           "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
-           "MAX_PREDICTED_REFLECTIONS", "SYSTEM_ORDER", "Budget",
-           "EngineCandidate", "EngineResult", "SearchSpec", "assign_lines",
-           "DEFAULT_UNKNOWN_SHIFT_DEG", "dedup_candidates", "dedup_groups",
+           "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
+           "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES", "SYSTEM_ORDER",
+           "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
+           "EngineResult", "Progress", "SearchSpec", "assign_lines",
+           "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
+           "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
-           "indexes_the_search_lines", "refine_with_shift",
+           "estimate_ceiling", "indexes_the_search_lines", "refine_with_shift",
            "scored_positions", "shift_allowance_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",

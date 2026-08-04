@@ -562,7 +562,7 @@ def _max_index(spec: SearchSpec, q_max: float) -> int:
 
 
 def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
-                     quality=None, cancel=None) -> EngineResult:
+                     quality=None, cancel=None, progress=None) -> EngineResult:
     """Exhaustive branch-and-bound over the metric domain, system by system.
 
     ``quality`` is a :class:`~pxrdref.schemas.indexing.DataQualityReport`; its
@@ -584,7 +584,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     q_search, tol_search = q_all[search], spec.k_sigma * sigma[search]
 
     systems = [s for s in SYSTEM_ORDER if s in spec.systems]
-    result = EngineResult(engine="dichotomy", systems_searched=tuple(systems))
+    result = EngineResult(engine="dichotomy")
     if len(q_all) < 2:
         result.diagnostics.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
@@ -596,6 +596,17 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     incomplete: list[str] = []
     raw: list[EngineCandidate] = []
     for system in systems:
+        # a system this engine never *started* is not claimed: it stays out of
+        # ``systems_searched`` and ``search_complete``, which is what lets the
+        # workflow report "not reached" as a third state distinct from
+        # "truncated" (WP-1037) — an entered system with an expired token would
+        # otherwise record 0 s of work as if it had been searched
+        if cancel is not None and bool(cancel):
+            break
+        result.systems_searched += (system,)
+        if progress is not None:
+            progress.start(f"dichotomy:{system}", engine="dichotomy",
+                           system=system)
         budget = Budget(spec.budget_seconds, cancel)
         basis = metric_basis(system)
         vol_max = spec.volume_limit(
@@ -615,6 +626,10 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
         result.stats[f"{system}.rows_per_box"] = round(n_rows / max(n_boxes, 1), 1)
         if not complete:
             incomplete.append(system)
+        if progress is not None:
+            progress.end(f"dichotomy:{system}", engine="dichotomy",
+                         system=system, n_candidates=len(found),
+                         complete=complete)
 
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
