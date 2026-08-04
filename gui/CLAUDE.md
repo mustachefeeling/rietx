@@ -59,6 +59,16 @@ and says so when it is absent). `npm run build` needs `python3`, `vitest` needs
 `resolve.conditions: ["browser"]` or `mount()` comes from svelte's server build,
 and `@sveltejs/vite-plugin-svelte` must be v7 for Vite 8.
 
+**Driving a real browser: the chromium binaries are already cached even when
+playwright is not installed**, so a browser pass costs an
+`npm i playwright-core` **in a scratch directory, never in `gui/`** (it must not
+reach the committed lockfile) pointed at the cached executable. Worth the setup
+every time: the streak of "every browser session finds a defect jsdom
+structurally cannot" is what the traps recorded below are made of. And when a
+browser pass reports something impossible, **suspect the harness first** — a
+"missing" `window.prompt` echo was headless playwright auto-dismissing the
+dialog, not the app.
+
 The **editors** (WP-1011) are the parameter table and the plan editor, and their
 logic is in `gui/src/lib/` as pure functions (`table.ts`, `fnmatch.ts`,
 `palette.ts`) so it can be asserted without a DOM. Four rules. **The filter box

@@ -21,6 +21,46 @@ visible in the parameter table as an effect with no named cause.
 
 ## Context
 
+### Inherited from [1036](1036-crystal-system-settings.md) (added 2026-08-04, on its close)
+
+1036 was this WP's blocker and it landed, so read the following **before** the
+"What exists" section below, which was written at `660c950` and is stale in four
+places.
+
+- **`cell_constraints(sg)` is the oracle this WP's preview needs**, and it did
+  not exist when 1035 was written.
+  `crystallography.symmetry.cell_constraints(sg) → CellConstraints(ties,
+  fixed_angles)` answers "which cell parameters does this symbol tie, and which
+  angles does it fix, and at what value" for **any** setting. A "what would
+  changing the symbol invalidate?" preview is a diff of two `CellConstraints`
+  plus the site/ADP bases the `sites` arm already computes — no new rule, which
+  is exactly the constraint this WP is under. `check_cell_angles(sg, angles)` is
+  its companion and is what a symbol edit must call to know whether the *current*
+  cell can even carry the proposed symbol.
+- **`ext` is load-bearing, not decoration.** The measurement below quotes
+  `R -3 c` → xhm `R -3 c:H` and lists `ext` among the free phase-level facts.
+  That resolution is **conditional on the input**: `read_small_structure` picks
+  the setting from the *cell*, so the same bare symbol over a rhombohedral cell
+  comes back `R -3 c:R`, `ext='R'` — a different tie set (a = b = c, α = β = γ
+  free) and a different set of held rows. A symmetry summary that shows the
+  crystal system but not `ext`/`monoclinic_unique_axis()` is showing the user
+  something that does not determine what they are looking at.
+- **`params/vector.py:141` no longer computes and discards
+  `crystal_system_str()`** — `_collect` now calls `cell_constraints(sg)`. The
+  "costs a lookup" argument still holds; the line reference does not.
+- **The missing schema validator on `Phase.space_group` is a decision, not an
+  oversight.** 1036 declined to add one deliberately: pydantic validation would
+  change the error type at every construction site including history-node
+  deserialization, which is not a change to make just before the API freeze. It
+  is recorded as a line for [1003](1003-api-freeze-pypi.md). So this WP should
+  keep validating at the *verb*, as it already planned, and not wait for a schema
+  guard that is not coming.
+- **The trap this WP is most exposed to**: 79 of gemmi's 564 settings were served
+  wrong before 1036, and the free-parameter *count* was correct in every one of
+  them. Any UI that summarises symmetry as "N refinable cell parameters" would
+  have shown the right number for all 79. Name the tie and the held angle, never
+  the count.
+
 ### What exists (read at `660c950`)
 
 - **`Phase.space_group: str`** (`schemas/structure.py:310`) is the only symmetry

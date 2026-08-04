@@ -215,24 +215,28 @@ would mean one is.
 
 ## Handover log
 
-- **2026-08-04** — created out of the GUI planning session that asked where the
-  space group is shown, alongside [1032](1032-gui-repairs.md),
-  [1033](1033-plot-range-regions.md), [1034](1034-panel-layout.md) and
-  [1035](1035-symmetry-surfaced.md). Nothing is started.
-
-  **The three defects were read, not measured**, and the distinction is the
-  whole of task 1. The tables are wrong for the settings named above — that much
-  is plain in the source. Whether any real input reaches them is **unknown**, and
-  a first draft of this plan claimed "reachable from any CIF" before that was
-  caught. If the sweep finds live inputs, this outranks every GUI item in the
-  1032-1035 set and probably belongs ahead of the milestone's queue; if it finds
-  none, it is a fence and can be sized accordingly.
-
-  **It is placed first in the queue anyway**, because the sweep is cheap and its
-  answer changes the ordering of everything else.
-
 - **2026-08-04 (close)** — all seven tasks done, in one session. The measurement
   came first and reshaped the rest, exactly as the plan intended.
+
+  **Read this before anything else: `main` moved under this branch.** It went
+  c71d6e0 → 22d7d8c mid-session when WP-1030 merged (PR #24), so `worktree-gui`
+  is **not** a fast-forward and a trial `git merge-tree` reports **two
+  conflicts, both pure bookkeeping**: CLAUDE.md's `### Current numbers` block
+  and ROADMAP's `## Current focus` + WP table row — the two places every
+  close-session writes. No code conflicts. `tests/test_indexing_core.py` merges
+  clean and is *semantically* clean too: 1030 only added tests elsewhere in the
+  file, while this WP replaced
+  `test_metric_subspace_dimensions_match_the_tabulated_cell_dof` (which imported
+  the now-deleted `_CELL_TIES`/`_FIXED_ANGLES`) — so whoever merges must keep
+  **this branch's** version of that test, or the import fails. `docs/manual/conf.py`
+  merges clean (each side added one substitution).
+
+  **And the numbers below are this branch's, not the merged tree's.** Both
+  branches added tests, so `1596 / 1683` cannot simply be added to 1030's
+  figures — the merged tree has to be re-measured, and the count check
+  (passed+skipped moves by exactly the rows added) has to be redone against the
+  merge, not against either parent. Quoting the tree is the same discipline as
+  quoting the venv.
 
   **The sweep's two answers point opposite ways, and both are load-bearing.**
   Zero of 28 existing inputs reach any broken branch, so no published number
@@ -321,3 +325,19 @@ would mean one is.
   exactly the "what would changing this symbol invalidate?" oracle that WP wants
   a preview built on, and it is now right for every setting rather than for two
   of them.
+
+- **2026-08-04** — created out of the GUI planning session that asked where the
+  space group is shown, alongside [1032](1032-gui-repairs.md),
+  [1033](1033-plot-range-regions.md), [1034](1034-panel-layout.md) and
+  [1035](1035-symmetry-surfaced.md). Nothing is started.
+
+  **The three defects were read, not measured**, and the distinction is the
+  whole of task 1. The tables are wrong for the settings named above — that much
+  is plain in the source. Whether any real input reaches them is **unknown**, and
+  a first draft of this plan claimed "reachable from any CIF" before that was
+  caught. If the sweep finds live inputs, this outranks every GUI item in the
+  1032-1035 set and probably belongs ahead of the milestone's queue; if it finds
+  none, it is a fence and can be sized accordingly.
+
+  **It is placed first in the queue anyway**, because the sweep is cheap and its
+  answer changes the ordering of everything else.

@@ -274,9 +274,9 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   picks the R setting from the cell**, so a bare `R -3 c` over a rhombohedral
   cell arrives as `:R` — no non-standard symbol needed. This is the Rᵀ trap one
   rank down and it fails the same way: the free-parameter *count* is right in
-  every broken case (2 for both R settings, 4 for both monoclinic ones), so
+  every broken case (2 for both R settings, 4 for all three monoclinic ones), so
   assert **which** angle is held and **which** length follows which, never how
-  many. A symmetry-fixed angle is **refused** when it disagrees with its
+  many — 79 of gemmi's 564 settings were served wrong under a correct count. A symmetry-fixed angle is **refused** when it disagrees with its
   symmetry, not normalised — the table has no diagnostics channel, so an edit
   there could not be made visible, and it is held at its stored value, which is
   how a monoclinic β = 93.2° once survived under an orthorhombic symbol.
