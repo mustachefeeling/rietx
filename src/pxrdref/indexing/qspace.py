@@ -23,8 +23,16 @@ monoclinic one
 four-dimensional, with no case table and no assumption about the setting: the
 same code gives the right subspace for hexagonal axes, rhombohedral axes or a
 non-standard monoclinic b-unique cell.  ``tests/test_indexing_core.py`` asserts
-the derived dimensions against ``params.vector._CELL_TIES`` — the derivation must
-reproduce the tabulation the refinement side has used since v0.1.
+the derived subspace against ``crystallography.symmetry.cell_constraints`` — the
+derivation must reproduce what the refinement side ties, and it asserts *which*
+tie rather than how many, because the dimension agrees even when the subspace
+does not (WP-1036, and :func:`metric_basis` one rank up).
+
+Note the asymmetry with the refinement side: ``cell_constraints`` is keyed by
+**setting** because a caller can hand it any symbol, while this module is keyed
+by crystal *system* because a search has no symbol yet — only a lattice — and an
+R lattice reaches indexing in hexagonal axes by construction (see
+``indexing.extinction.compatible_groups``).
 
 **esds are analytic, by the delta method.**  A..F comes out of a linear solve
 with a covariance, and the cell is a smooth function of it, so ∂cell/∂(A..F) is
