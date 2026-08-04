@@ -49,33 +49,29 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 on the **merged** tree (WP-1036 close, after WP-1030 came
-in from `worktree-indexer`), darwin/arm64 M4, numpy-only `[dev]` worktree venv.
-**Measured on the merge, not summed from the two branches** — neither parent's
-figure is this tree's:
+Measured 2026-08-04 at the WP-1037 close, darwin/arm64 M4, in the
+**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
+jax converts skips into passes, so none of these rows compares with a `[dev]`
+count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
+re-measured (they predate 1037's 19 tests; last good: the WP-1036 close entry,
+now in the v1.0 appendix):
 
-- fast suite: **1605 passed / 108 skipped**, 38 s / 1:41 (quiet vs sharing the
-  machine with a full run — the spread is the machine, not the change).
-  Decomposes exactly: 1577 baseline + 1030's 8 + 1036's 14 rows + 5 from one new
-  `validation_matrix` `Claim` (five parametrised tests each expand it) + 1 for
-  the derived-candidate angle guard. No new skips.
-- full suite: **1692 passed / 117 skipped**, 11:36–15:00 over two runs.
-  passed+skipped 1809 = the fast selection's 1713 + 96 slow-marked.
-  The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
-  checkout's.
-- fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
-  with **no torch**: **1657 passed / 67 skipped**, 57–60 s over two runs —
-  re-measured on the merged tree 2026-08-04, then again after the WP-1037…1042
-  docs pass, which moved neither count. jax converts skips into passes, so
-  these rows do not compare with the `[dev]` ones — a worktree needs its own
-  venv and its own count.
-- `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto` —
-  the engine-closing gate (why: the indexing dossier's WP-1030 bullet).
-- frontend (vitest): **282**, unchanged by 1030 and 1036 (neither touched
+- fast suite: **1676 passed / 67 skipped**. Decomposes exactly: 1657 at the
+  WP-1036 close + 1037's 19 (14 `test_indexing_ceiling.py` + 3 engines + 1
+  run-control + 1 capabilities meta-test), no new skips. Wall 77 s measured
+  once right after a full run; 57–60 s in the quiet runs at the 1036 close —
+  the spread is the machine.
+- full suite: **1769 passed / 72 skipped**, 11:07 — the first full-suite
+  measurement on this venv, so it has no prior to compare with.
+  passed+skipped 1841 = the fast selection's 1743 + 98 slow-marked.
+- `tests/test_acceptance_indexing.py` alone: 34 rows, 6:35 at `-n auto` this
+  session (~10 min in prior ones) — the engine-closing gate (why: the indexing
+  dossier's WP-1030 bullet).
+- frontend (vitest): **282**, unchanged by 1030/1036/1037 (none touched
   `gui/`); last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
-  numbers.
+  fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
+  § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -632,9 +628,16 @@ constants in `indexing/`:
   (`volume_envelope` is a mean line, not an envelope) are WP-1030's, in its file.
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches
   3770 s on hard triclinic patterns and McMaille "hours, if not a night", against
-  our 30–150 s. Buy responsiveness with ordering and reporting, never by
-  shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s by
-  default, with the probe and Le Bail validation on top and *outside* it (1037).
+  our measured 0.7–177 s. Buy responsiveness with ordering and reporting, never
+  by shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s of
+  search by default, probe and Le Bail validation on top and *outside* it —
+  so the whole-run bound is `SearchSpec.total_budget_seconds`, enforced as a
+  `Deadline` that *is* the cancel token (it nests under every cooperative check
+  with no engine changes), with `estimate_ceiling` the pre-run arithmetic and
+  `INDEX_BUDGET_EXHAUSTED` naming the three states a bound run leaves
+  (searched / truncated / not reached). A truncated validation reads
+  `not_validated`, never `validation_failed` — a ceiling must not refute a
+  cell it merely ran out of time on (1037).
 - **A Monte Carlo indexer must refine each proposal; scoring raw random cells
   does not rank.** Both working MC indexers do it — TOPAS iterates SVD to a fixed
   hkl assignment, McMaille takes 200–5000 local steps accepting a non-improving

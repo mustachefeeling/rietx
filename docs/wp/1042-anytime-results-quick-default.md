@@ -3,6 +3,26 @@
 Milestone: v1.0 · Status: ⬜
 Depends on: WP-1037
 
+### Inherited
+
+- **From WP-1037 (2026-08-04), the streaming argument now has numbers.**
+  Task 0's profile of the 8-dataset corpus measured *time to first visible
+  candidate* — today, the end of dichotomy's last system, since nothing streams:
+  zincite **165.8 s of a 177.3 s run**, corundum 31.4 of 49.7, hl2 33.4 of 43.2,
+  fap 1.1 of 83.7 (there validation is the tail: 74 of 84 s over eight
+  unbudgeted Le Bail fits). Full table in WP-1037's handover log.
+- **What 1037 left for you to build on**: `Progress` (one flat revisable ladder
+  on `stage_start`/`stage_end` — do not add a second ladder on the same kinds),
+  `Deadline` (the whole-run clock as a cancel token; `remaining` is what a
+  cost-ordered scheduler would consult), and `estimate_ceiling` whose
+  `MEASURED_TYPICAL_SECONDS`/`MEASURED_VALIDATION_SECONDS` constants must be
+  re-measured if `quick` changes the default protocol.
+- **A trap measured, not guessed**: post-search consensus is the uninterruptible
+  block — the geometric-ambiguity enumeration cost 45 s of a 105 s ceiling-bound
+  corundum run (12 candidates × 3.75 s) until `consensus(..., cancel=)` learned
+  to skip and report `ambiguity_checked`. Anything you stream mid-run sits
+  *before* that block; keep new work token-aware from the start.
+
 ## Goal
 
 `index_pattern()` produces a usable ranked shortlist early instead of only at the
