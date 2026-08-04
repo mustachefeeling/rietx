@@ -44,6 +44,7 @@ way — c/a moves +29.8 → +30.2 ppm against a 100 ppm bar — but Rwp rises
 are dispersion-off ones and say so.
 """
 
+import math
 from pathlib import Path
 
 import pytest
@@ -124,5 +125,149 @@ def test_srm676a_corundum_cell_anchor():
                 two_theta_range=(120.0, 150.0))
     report = ref.report(plan=qpa_plan())
     plot_for_vlm(result, report, path=str(out / "srm676a_vlm.png"))
+    import matplotlib.pyplot as plt
+    plt.close("all")
+
+
+# ----------------------------------------------------------------------
+# WP-1036: the same lattice on rhombohedral axes
+# ----------------------------------------------------------------------
+# Corundum is R-3c, so it has two equally valid cell descriptions, and before
+# WP-1036 the parameter table could only serve one of them.  On rhombohedral
+# axes it tied b←a but left c free — breaking a = b = c — and locked all three
+# angles at their stored value, removing the single angular degree of freedom
+# the setting has.  The free-parameter count was 2 either way, so nothing
+# counting degrees of freedom could see it.
+#
+# The assertion below is stronger than "the ties are right": the *same physical
+# lattice*, started from the same place and fitted with the same plan, must give
+# the same answer in both descriptions.
+
+
+def hexagonal_from_rhombohedral(a_r: float, alpha_deg: float) -> tuple[float, float]:
+    """(a_H, c_H) of the hexagonal description of a rhombohedral cell.
+
+    a_H = 2·a_R·sin(α/2), c_H = a_R·√(3 + 6cos α) — International Tables for
+    Crystallography Vol. A, the obverse setting relating the two descriptions of
+    an R lattice (V_H = 3·V_R, checked in the test).
+    """
+    a_h = 2.0 * a_r * math.sin(math.radians(alpha_deg) / 2.0)
+    c_h = a_r * math.sqrt(3.0 + 6.0 * math.cos(math.radians(alpha_deg)))
+    return a_h, c_h
+
+
+def rhombohedral_from_hexagonal(a_h: float, c_h: float) -> tuple[float, float]:
+    """(a_R, α) of the rhombohedral description — the inverse of the above."""
+    a_r = math.sqrt(a_h ** 2 / 3.0 + c_h ** 2 / 9.0)
+    alpha = 2.0 * math.degrees(math.asin(3.0 / (2.0 * math.sqrt(3.0 + (c_h / a_h) ** 2))))
+    return a_r, alpha
+
+
+def _lattice_only_plan():
+    """Le Bail, so the fit is about the lattice and nothing else.
+
+    A dummy atom carries no structure — exactly the indexing validator's device
+    — which is what makes this a clean test of the cell ties: the rhombohedral
+    *atomic* coordinates never enter, so they cannot be got wrong and confound
+    the comparison.  Stage order follows ``validation_plan``: ``w`` before the
+    other width terms, because it is the only one non-zero at 2θ = 0.
+    """
+    from pxrdref.strategy.staged import RefinementPlan, Stage
+
+    return RefinementPlan(stages=[
+        Stage("bkg", ["instrument.background.*"]),
+        Stage("profile_w", ["instrument.profile.w"]),
+        Stage("cell", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=80),
+        Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                          "instrument.profile.x", "instrument.profile.y",
+                          "phases.*.lor_size"]),
+        Stage("cell2", ["phases.*.cell.*", "instrument.zero_shift"], max_iter=80),
+    ])
+
+
+def _lebail_corundum(symbol: str, cell: tuple[float, ...], data):
+    ins = qarr_instrument()
+    # the ProfileTCHZ default W is a synchrotron line (~13x too narrow here);
+    # seeding it is what seed_widths does for an indexing validation
+    ins.profile.w.value = 0.01
+    a, b, c, alpha, beta, gamma = cell
+    structure = pr.Structure(phases=[pr.Phase(
+        name="corundum", space_group=symbol,
+        cell=pr.Cell(a=pr.Parameter(value=a, min=1.0),
+                     b=pr.Parameter(value=b, min=1.0),
+                     c=pr.Parameter(value=c, min=1.0),
+                     alpha=pr.Parameter(value=alpha, min=20.0, max=130.0),
+                     beta=pr.Parameter(value=beta, min=20.0, max=130.0),
+                     gamma=pr.Parameter(value=gamma, min=20.0, max=130.0)),
+        atoms=[pr.Atom(label="X", species="Al", x=pr.Parameter(value=0.0),
+                       y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0))],
+        lor_size=pr.Parameter(value=0.02, min=0.0, transform="softplus"))])
+    ref = pr.Refinement(structure, ins)
+    result = ref.fit(data, plan=_lattice_only_plan(), mode="lebail")
+    return ref, result
+
+
+def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
+    """A refinement that WP-1036 would have mis-tied, on real certified data."""
+    if not DATA.exists():
+        pytest.skip("IUCr QPA round-robin dataset not present")
+    data = pr.read_pattern(DATA / "corundum.prn")
+
+    # start both arms at the SAME physical lattice, displaced from the
+    # certificate so the fit has to find its way back
+    a_r0, alpha0 = rhombohedral_from_hexagonal(A_CERT, C_CERT)
+    a_r_start, alpha_start = a_r0 * 1.003, alpha0 - 0.3
+    a_h_start, c_h_start = hexagonal_from_rhombohedral(a_r_start, alpha_start)
+
+    ref_r, res_r = _lebail_corundum(
+        "R -3 c:R", (a_r_start,) * 3 + (alpha_start,) * 3, data)
+    ref_h, res_h = _lebail_corundum(
+        "R -3 c:H", (a_h_start, a_h_start, c_h_start, 90.0, 90.0, 120.0), data)
+
+    assert res_r.status == "converged" and res_h.status == "converged"
+    assert res_r.statistics.rwp < 0.25 and res_h.statistics.rwp < 0.25
+
+    cell_r = ref_r.fitted_structure.phases[0].cell
+    # 1. the ties held through the whole fit, bitwise — a = b = c and α = β = γ.
+    #    Before WP-1036 c was free here, so this is the assertion that could not
+    #    have been made.
+    assert cell_r.a.value == cell_r.b.value == cell_r.c.value
+    assert cell_r.alpha.value == cell_r.beta.value == cell_r.gamma.value
+
+    # 2. α is genuinely refinable, and it walked back to the certificate.  The
+    #    old table locked all three angles at their stored value, so α could
+    #    never have left its start.
+    assert abs(cell_r.alpha.value - alpha_start) > 0.2, "alpha did not refine"
+    assert cell_r.alpha.value == pytest.approx(alpha0, abs=0.02)
+
+    # 3. the hexagonal image of the rhombohedral answer is the hexagonal
+    #    answer — the same lattice, described two ways, fitted independently.
+    #    Measured 2026-08-04: 1.4e-9 and 1.2e-8 relative, Rwp equal to 5 dp.
+    a_h, c_h = hexagonal_from_rhombohedral(cell_r.a.value, cell_r.alpha.value)
+    cell_h = ref_h.fitted_structure.phases[0].cell
+    assert a_h == pytest.approx(cell_h.a.value, rel=1e-6)
+    assert c_h == pytest.approx(cell_h.c.value, rel=1e-6)
+    assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-4)
+
+    # 4. V_H = 3·V_R, the volume relation between the two descriptions
+    from pxrdref.crystallography.lattice import cell_volume
+    v_r = cell_volume(*[getattr(cell_r, n).value
+                        for n in ("a", "b", "c", "alpha", "beta", "gamma")])
+    assert float(cell_volume(a_h, a_h, c_h, 90.0, 90.0, 120.0)) == \
+        pytest.approx(3.0 * float(v_r), rel=1e-9)
+
+    # 5. and it is the right lattice: the same uniform d-scale systematic of
+    #    this uncalibrated instrument the Rietveld arm above measures
+    #    (−313/−283 ppm), here −312/−424 ppm, with c/a within 1.2e-4
+    assert abs(a_h / A_CERT - 1.0) < 1e-3 and abs(c_h / C_CERT - 1.0) < 1e-3
+    assert (c_h / a_h) / (C_CERT / A_CERT) - 1.0 == pytest.approx(0.0, abs=5e-4)
+
+    from pxrdref.viz.plots import plot_result
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    plot_result(res_r, path=str(out / "srm676a_rhombohedral_fit.png"))
+    plot_result(res_r, path=str(out / "srm676a_rhombohedral_lowangle.png"),
+                two_theta_range=(24.0, 60.0))
+    plot_result(res_h, path=str(out / "srm676a_hexagonal_lebail_fit.png"))
     import matplotlib.pyplot as plt
     plt.close("all")
