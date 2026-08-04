@@ -52,20 +52,56 @@ There is also **no schema validator on the symbol**: `Phase.space_group` is a
 bare `str` (`schemas/structure.py:310`), so nothing refuses an unresolvable or
 unsupported setting until something calls `get_spacegroup`.
 
-### The measurement that decides the priority — and it has not been made
+### The measurement that decides the priority — MADE 2026-08-04
 
-`structure_from_cif` stores gemmi's canonical `sg.xhm()`
-(`crystallography/cif.py:81`), and gemmi resolves a bare `R -3 c` to the **`:H`**
-setting. So it is entirely possible that **no input this package has ever read
-reaches the broken branches**, in which case this is a latent trap to fence
-rather than a live bug to chase.
+Two questions, and they have **different answers**. That is the finding.
 
-Nobody has checked. Saying "reachable from any CIF" without that sweep is the
-mistake this project has a name for — a status claim asserted rather than
-measured, which is what the WP-1019 volume-envelope audit caught (a
-least-squares *mean line* described as an upper envelope, used as a hard search
-ceiling). **Task 1 is the sweep, and the rest of the WP is scoped by its
-answer.**
+**Q1: does any input this package has ever read reach the broken branches? No —
+zero, of 28.** Swept: the 3 CIFs in `tests/data`, the 14 COD entries the WP-1028
+benchmark fetched (re-fetched for this sweep; the branch gitignores them), and
+every `space_group="…"` literal in `src`/`tests`/`examples`/`gui` (12 distinct
+symbols). Every monoclinic entry is b-unique (`C 1 2/c 1`, `I 1 2/c 1`,
+`P 1 21/c 1`, `P 21/n`); the one R symbol, `R -3 c`, resolves to **`R -3 c:H`**;
+no fixed angle disagrees with its symmetry anywhere. Several *are* non-reference
+settings (`P m c n`, `P b n m`, `P c m n`, `I 1 2/c 1`), but orthorhombic axis
+permutations do not touch the cell tables. `nist_srm660c_100a.cif` is pattern
+data, not a structure — 8 blocks, `read_small_structure` refuses it, unrelated.
+
+**Q2: can a CIF reach them? Yes — all three, and one is worse than described
+above.** Probed by writing minimal CIFs and reading them back through
+`structure_from_cif`:
+
+| CIF declares | reader resolves | table does | correct |
+|---|---|---|---|
+| `R -3 c` + rhombohedral cell | **`R -3 c:R`** | `b←a`, **c free**, α β γ all locked | `b←a`, `c←a`, α β γ *tied equal and free* |
+| `P 1 1 2/m` + γ=98.3 | `P 1 1 2/m`, ua=`'c'` | locks α **and γ**, frees **β** | lock α β, free γ |
+| `P 2/m 1 1` + α=98.3 | `P 2/m 1 1`, ua=`'a'` | locks α and γ, frees β | lock β γ, free α |
+| `P m m m` + β=93.2 | `P m m m` | β **locked at 93.2** | refuse, or normalise visibly |
+
+The premise in the paragraph this replaces was **wrong**: gemmi does not default
+a bare `R -3 c` to `:H`. `read_small_structure` picks the setting **from the
+cell** — a rhombohedral cell under a bare `R -3 c` comes back `:R`, `ext='R'`.
+So defect 2 needs no non-standard symbol in the file at all, only rhombohedral
+axes, which is how a good fraction of the R-lattice literature is written.
+
+**And the degrees-of-freedom count is right in every one of these cases.** `:R`
+tabulated gives {a, c} free = 2, correct is {a, α} = 2. c-unique monoclinic
+tabulated gives {a,b,c,β} = 4, correct is {a,b,c,γ} = 4. This is WP-1020's
+transposed-rotation lesson landing exactly where the plan predicted it would:
+`tests/test_indexing_core.py::test_metric_subspace_dimensions_match_the_tabulated_cell_dof`
+compares `6 − len(ties) − len(fixed)` against `METRIC_DOF` and **passes on the
+wrong subspace**. A DOF test cannot see any of this.
+
+Cost, measured (`d_spacings`, a=5 b=6 c=7): a fixed angle wrong by δ biases
+d-spacings by **8.3 ppm per 1e-3°** (825 ppm at 0.1°). For defect 3's β=93.2°
+under `P m m m`, (101) and (10-1) move −0.56° and +0.61° 2θ in opposite
+directions while the orbit merge — which reads the *symbol*, not the cell —
+still folds them into one peak.
+
+**Verdict: a fence, not a fire.** No published number from this package is
+affected, and the full suite must not move. But it is a fence against the next
+rhombohedral CIF someone opens, not against a hypothetical, so it keeps its
+place at the head of the queue.
 
 ### Where a fix has to hold
 
@@ -102,13 +138,15 @@ answer.**
 
 ## Tasks
 
-- [ ] **Measure the reach.** Sweep every CIF in `tests/data` and the COD entries
+- [x] **Measure the reach.** Sweep every CIF in `tests/data` and the COD entries
       the WP-1028 benchmark used (branch `wpem-benchmark`), recording what each
       resolves to via `structure_from_cif` → `sg.xhm()` /
       `crystal_system_str()` / `monoclinic_unique_axis()` /
       `is_reference_setting()`. Report how many reach a c-unique monoclinic or a
       rhombohedral-axes setting. **Write the answer into this file** — if it is
       zero, say zero; that is a finding, not a non-result.
+      → **zero of 28 existing inputs; all three reachable from a plain CIF**, and
+      the `:H`-by-default premise was wrong. § *The measurement* above.
 - [ ] **`_FIXED_ANGLES` reads `monoclinic_unique_axis()`** instead of assuming
       b, with a test per axis choice asserting *which* angle is held.
 - [ ] **`_CELL_TIES` distinguishes the rhombohedral setting** from the
