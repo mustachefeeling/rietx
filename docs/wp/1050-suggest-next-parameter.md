@@ -100,6 +100,17 @@ bib entry, so **this WP owns** adding `toby2024` to
 From **WP-0602**: `tests/test_agent_surface.py` pins the request schema at
 `len(schema["oneOf"]) == 3` — update to 4 in the same commit as the task.
 
+From **WP-1052** (2026-08-05, at creation): Layer 2 has **no emitter for
+`refine_profile_widths`** — width trends map only onto `phases.*.lor_size`/
+`lor_strain` (`report/layer2.py:54-57`; the kind exists only in the vocabulary
+and RECIPES). So when the true culprit is an instrument width (U/V/W), the
+Gauss-Newton leverage ranking here *will* rank it while Layer 2 structurally
+cannot suggest it — that is an expected, explainable disagreement, not a failure
+of the agreement cross-check; scope the cross-check's assertion accordingly.
+Also: WP-1052's `tests/test_report_loop.py` episodes (eight planted single-cause
+states built from the layers suite's `_truth()`) are a ready-made testbed for
+`suggest()` — prefer reusing them over inventing new perturbations.
+
 ## Non-goals
 
 - No automatic stage insertion: the staged runner stays preset; `suggest()`

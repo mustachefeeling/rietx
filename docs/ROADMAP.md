@@ -511,6 +511,8 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 |---|---|---|---|
 | [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ⬜ | — (before 1003 if frozen) |
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
+| [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ⬜ | — |
+| [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ⬜ | 1052 |
 
 **1050/1051 came from a literature review** (2026-07-30, Toby 2024 *J. Appl.
 Cryst.* **57**, 175 and Tian 2013 *J. Appl. Cryst.* **46**, 255 — SrRietveld).
@@ -524,6 +526,12 @@ which our chain has only two leaky rungs of — including a measured hygiene
 defect where a doubly-diverged pattern still seeds its successor. The review's
 third adoption, weighted Δ/σ difference curves as the default Rietveld panel,
 was small enough to land directly (commit `732535d`).
+
+**1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
+and `suggest()` only *inform* a caller (the no-autopilot fence), then whether
+following them actually converges a fit is a measurable claim — 1052 runs the
+AGENT_PROTOCOL §9 loop mechanically in CI, 1053 puts real models behind the shipped
+`refine_json` surface and scores them on the same planted-cause episodes.
 
 ## v2+ (seams pre-built, implementations fenced out)
 
