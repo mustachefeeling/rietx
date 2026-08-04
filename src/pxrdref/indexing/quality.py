@@ -22,14 +22,30 @@ did not resolve it.  Everything except the shift is a property of the list:
   measured, which makes it a statement about the experiment rather than about
   the specimen.
 
-The **magnitude and cause of a systematic shift, however, are not** knowable
-from the list on its own: with no cell there is nothing to deviate *from*.
-A shift is identifiable only against a reference — a certified cell, an internal
-standard, or a candidate cell an engine has proposed — so
-:func:`fit_shift_model` takes deviations, :func:`assess_peak_list` screens the
-shift only when a caller supplies references, and the report says
-``shift.source == "unavailable"`` otherwise rather than reporting a zero shift
-it did not measure.  A search that then wants a shift dimension gets it from
+The **cause** of a systematic shift is not knowable from the list on its own; the
+**magnitude** is, and that division is WP-1038's correction to what this module
+asserted before it.  The thesis it replaces — *"a shift is identifiable only
+against a reference"* — was wrong, and wrong in the one place where it cost the
+most: it is why ``best_or_none()`` was structurally ``None`` on every real
+dataset, including the five that rank the truth first.
+
+What makes the magnitude knowable with no cell is that a **harmonic reflection
+pair** carries its own reference.  Two lines whose planes are integer multiples,
+``(h'k'l') = m·(hkl)``, satisfy ``m·sin θ_B = sin θ'_B`` exactly, whatever the
+lattice — so each such pair is one equation in the shift and none in the cell.
+:mod:`pxrdref.indexing.pairs` is that measurement (Dong, Wu & Chen, 1999), and it
+recovers corundum's −0.065° and SRM 660c's +0.037° from the peak list and nothing
+else.  It is also honest about when it cannot: on a bare 20-line position list the
+pair supply collapses to 1-7 and the method declines, which is exactly what Le
+Bail (2004) §VII reports for the bethanechol entries.
+
+So a shift reaches this module by three roads, and they are *named* rather than
+merged (:data:`~pxrdref.schemas.indexing.TRUSTED_SHIFT_SOURCES` carries what they
+share).  :func:`fit_shift_model` takes deviations against references a caller
+supplied and reports ``source == "measured"``; :func:`assess_peak_list` with
+``shift_from_pairs=True`` reports ``"reflection_pairs"``; and with neither it
+still says ``"unavailable"`` rather than reporting a zero shift it never measured.
+A search that wants a shift *dimension* rather than a magnitude still gets it from
 WP-1020's ``refine_candidate``, where a cell exists.
 
 **Dominant zone and dominant row are *not* here, and the reason is a
@@ -71,12 +87,15 @@ from ..schemas.indexing import (
     MAX_RELATIVE_SIGMA_Q,
     METRIC_DOF,
     MIN_LINES_PER_DOF,
+    PAIR_NULL_REPLICATES,
+    PAIR_REFUTE_K_FRACTION,
     PEAK_MIN_USABLE_LINES,
     SHIFT_TEMPLATES,
     SMITH_VOLUME_C1,
     SMITH_VOLUME_C2,
     DataQualityReport,
     PeakList,
+    ReflectionPairScreen,
     ShiftScreen,
     ShiftTemplateFit,
 )
@@ -188,12 +207,17 @@ def fit_shift_model(two_theta: np.ndarray, deviation_deg: np.ndarray,
     spread = (float(np.max(rival.max(axis=0) - rival.min(axis=0)))
               if len(rival) > 1 else 0.0)
 
+    sigma_sys = float(np.std(resid_best, ddof=1)) if len(tt) > 2 else 0.0
     return ShiftScreen(
         n_lines=len(tt), templates=fits, best=best.name,
         separable=bool(ratio > SEPARABILITY_MIN_SS_RATIO),
         separability_ratio=float(min(ratio, 1e6)),
         max_collinearity=template_collinearity(tt),
-        sigma_sys_deg=float(np.std(resid_best, ddof=1)) if len(tt) > 2 else 0.0,
+        sigma_sys_deg=sigma_sys,
+        # the window must span the shift itself, not what removing it leaves —
+        # the two differ by 4.3× on SRM 660c and only one of them indexes.  This
+        # is the computation ``lab6_calibrated`` used to do by hand.
+        allowance_deg=abs(float(best.coefficient)) + sigma_sys,
         prediction_spread_deg=spread,
         source="measured")
 
@@ -270,9 +294,73 @@ def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
     return float(factor * centring * SMITH_VOLUME_C1 * d_n ** 3 / denom)
 
 
+def screen_shift_from_pairs(two_theta: np.ndarray,
+                            esd: np.ndarray | float | None = None, *,
+                            seed: int = 0) -> ShiftScreen:
+    """A :class:`ShiftScreen` from harmonic reflection pairs — no reference needed.
+
+    Wraps :func:`pxrdref.indexing.pairs.estimate_shift_from_pairs` into the shape
+    the rest of the package already reads.  Three things it deliberately does not
+    claim.  ``separable`` is **False** whenever the two collinear templates tie,
+    which measurement says is the normal case — the pair method sees the same 0.96
+    collinearity :func:`template_collinearity` reports, by a different road.
+    ``best`` names the template with the tightest agreement but is not evidence on
+    its own; ``pairs.refuted_templates`` is the part that *is*, because a template
+    whose pairs do not concentrate is one the data reject.  And when the method
+    declines, the screen comes back ``source="unavailable"`` carrying the reason,
+    never a zero shift dressed as a measurement.
+    """
+    from .pairs import estimate_shift_from_pairs, shift_template
+
+    tt = np.asarray(two_theta, dtype=np.float64)
+    res = estimate_shift_from_pairs(tt, esd, seed=seed)
+    screen = ReflectionPairScreen(
+        n_pairs=res.n_pairs, n_candidate_triples=res.n_candidate_triples,
+        n_clustered=res.n_clustered, null_k_mean=res.null_k_mean,
+        null_k_std=res.null_k_std, z=res.z, p_value=res.p_value,
+        null_replicates=PAIR_NULL_REPLICATES, seed=res.seed,
+        scatter_deg=res.scatter_deg, refuted_templates=list(res.refuted),
+        declined_reason=res.reason)
+    if not res.detected:
+        return ShiftScreen(n_lines=len(tt), max_collinearity=template_collinearity(tt),
+                           source="unavailable", pairs=screen)
+
+    fits = [ShiftTemplateFit(
+        name=name, coefficient=float(v["amplitude"]),
+        stderr=float(v["esd"]) if np.isfinite(v["esd"]) else 0.0,
+        # r² has no meaning for a cluster count; residual_ss carries the
+        # concentration so the ordering downstream code reads is still "smaller is
+        # better", and `separable` is decided on the counts, not on this.
+        r2=0.0, residual_ss=1.0 / max(v["k"], 1))
+        for name, v in res.per_template.items()]
+    # `competitive` is a weaker claim than `refuted` and they are needed for
+    # different things.  `prediction_spread_deg` is defined over the templates
+    # that fit *comparably* (schema), so a template reaching a third of the
+    # winner's agreement must not drive it — on SRM 660c that alone would report
+    # the cost of a wrong cause as 0.067°, twice the shift, on the strength of
+    # three pairs against ten.  `refuted` additionally demands that the data
+    # reject the cause, which is a statement about physics and needs more.
+    k_best = max(v["k"] for v in res.per_template.values())
+    competitive = [name for name, v in res.per_template.items()
+                   if v["k"] >= PAIR_REFUTE_K_FRACTION * k_best]
+    spread = 0.0
+    if len(competitive) > 1:
+        preds = np.array([res.per_template[name]["amplitude"]
+                          * shift_template(name, tt) for name in competitive])
+        spread = float(np.max(preds.max(axis=0) - preds.min(axis=0)))
+    return ShiftScreen(
+        n_lines=len(tt), templates=fits, best=res.best,
+        separable=len(competitive) <= 1, separability_ratio=0.0,
+        max_collinearity=template_collinearity(tt),
+        sigma_sys_deg=res.scatter_deg, allowance_deg=res.allowance_deg,
+        prediction_spread_deg=spread, source="reflection_pairs", pairs=screen)
+
+
 def assess_peak_list(peaks: PeakList, *,
                      reference_two_theta: np.ndarray | None = None,
                      sigma_sys_deg: float | None = None,
+                     shift_from_pairs: bool = False,
+                     pair_seed: int = 0,
                      envelope_n: int = PEAK_MIN_USABLE_LINES,
                      ) -> DataQualityReport:
     """Judge a peak list fit to index, or abstain with a reason.
@@ -344,6 +432,11 @@ def assess_peak_list(peaks: PeakList, *,
                 f"{tt.shape[0]} usable lines — pass one reference per usable "
                 "line, in the same 2θ order")
         shift = fit_shift_model(tt, tt - ref, esd)
+    elif shift_from_pairs:
+        # references beat pairs when both are available: a supplied reference
+        # measures the shift against a *known* answer, where pairs measure it
+        # against the list's own self-consistency and can agree by accident.
+        shift = screen_shift_from_pairs(tt, esd, seed=pair_seed)
     elif sigma_sys_deg is not None:
         shift = ShiftScreen(n_lines=n, sigma_sys_deg=float(sigma_sys_deg),
                             max_collinearity=template_collinearity(tt),
@@ -380,5 +473,5 @@ def assess_peak_list(peaks: PeakList, *,
         "diagnostics": quality_diagnostics(report, peaks)})
 
 
-__all__ = ["assess_peak_list", "fit_shift_model", "shift_template_basis",
-           "template_collinearity", "volume_envelope"]
+__all__ = ["assess_peak_list", "fit_shift_model", "screen_shift_from_pairs",
+           "shift_template_basis", "template_collinearity", "volume_envelope"]
