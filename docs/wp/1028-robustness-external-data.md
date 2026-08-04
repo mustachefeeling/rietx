@@ -166,6 +166,36 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From [1036](1036-crystal-system-settings.md), closed 2026-08-04 — a new
+refusal on the path every external CIF takes, and 1036 established that a plain
+CIF can trip it.**
+
+`ParameterTable._collect` now calls
+`crystallography.symmetry.check_cell_angles(sg, angles)`, which **raises** when
+a symmetry-fixed angle disagrees with the value its space group demands, beyond
+`SYMMETRY_ANGLE_TOL_DEG = 1e-3`°. 1036 swept the 3 CIFs this repo ships plus the
+14 COD entries this benchmark pulls and found **zero** disagreements, so nothing
+here breaks today — but that is 17 files *we* chose, and this WP's whole subject
+is files we did not. The reader does not enforce consistency: a CIF declaring
+`P m m m` with `_cell_angle_beta 93.2` loads and stores 93.2 verbatim, which is
+how 1036 established all three defects are reachable from a plain CIF.
+
+The realistic external case is not that malformed one. It is a file quoting a
+*refined* β = 90.002(3) under an orthorhombic symbol — an experimenter
+reporting a measurement, not a mistake — which exceeds 1e-3° and will now raise
+at the first `parameters()` / `set_vary` / stage compile rather than refine.
+
+Two things to weigh, and **neither is raising the tolerance**: 1036 chose 1e-3°
+by consequence, not by comfort (a fixed angle wrong by δ biases d-spacings by
+8.3 ppm per 1e-3°), so widening it re-admits the bias it exists to stop. And
+the deviation is real information about the specimen or the refinement that
+produced the file, so the useful outcome here is a **diagnostic naming it**
+rather than a bare raise. Note where that has to live: 1036 refused rather than
+normalised precisely because `ParameterTable` has no diagnostics channel — a
+*reader* does, so if a real external corpus turns up files in this state the fix
+belongs in `structure_from_cif`, alongside item (a)'s species normalisation,
+where a correction can be recorded as provenance instead of applied silently.
+
 **From the 2026-07-30 assessment session — a bound that can exclude the right
 answer, which is this WP's shape exactly ("a guard, a bound, a default").**
 `indexing.quality.volume_envelope` is documented and used as an **upper envelope**

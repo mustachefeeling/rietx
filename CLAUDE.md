@@ -64,10 +64,11 @@ figure is this tree's:
   The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
   checkout's.
 - fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
-  with **no torch**: 1627 passed / 67 skipped in 1:01–2:57 (`-n auto` to
-  `-n 4`), after WP-1030's +8 (1619/67 before). A worktree needs its own venv
-  and its own count — the extras differ, so these do not compare with the rows
-  above, and that row has **not** been re-measured since the merge.
+  with **no torch**: **1657 passed / 67 skipped**, 57 s — re-measured on the
+  merged tree 2026-08-04, closing the gap the previous row flagged (it stood at
+  1627/67 pre-merge). More passes and fewer skips than the `[dev]` rows above
+  because jax present converts its skips into passes; a worktree needs its own
+  venv and its own count, so these do not compare with those rows.
 - `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
   **Run it before closing anything that touches an engine** — WP-1030's one
   regression was invisible to all 115 fast indexing tests.

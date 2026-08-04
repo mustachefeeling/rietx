@@ -71,6 +71,13 @@ and never a silent cap.
 
 ## Quoting numbers
 
+- **Do not pass `-q` yourself**: `addopts` already carries one, so `-q` on the
+  command line makes it `-qq`, and at `-qq` pytest prints **no summary line at
+  all** — the run looks clean, exits 0, and the passed/skipped counts you came
+  to measure are simply absent. Use the root CLAUDE.md's commands verbatim; the
+  ones that do show `-q` are single-file selections where the count is not the
+  point. This wastes whole runs before anyone notices the line is missing
+  rather than the run being quiet.
 - **Quote wall clock as a range, never as a figure**: the same green tree
   measured 7:37 and 5:44 minutes apart on one machine, 11:52 on a busier
   one, and 12:40 while it also ran a headless browser, three vite builds and
