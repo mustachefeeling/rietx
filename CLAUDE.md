@@ -49,25 +49,24 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 at the WP-1037 close, darwin/arm64 M4, in the
+Measured 2026-08-04 at the WP-1038 close, darwin/arm64 M4, in the
 **`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
 jax converts skips into passes, so none of these rows compares with a `[dev]`
 count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
-re-measured (they predate 1037's 19 tests; last good: the WP-1036 close entry,
-now in the v1.0 appendix):
+re-measured (they now predate 1037's 19 tests and 1038's 26; last good: the
+WP-1036 close entry, now in the v1.0 appendix):
 
-- fast suite: **1676 passed / 67 skipped**. Decomposes exactly: 1657 at the
-  WP-1036 close + 1037's 19 (14 `test_indexing_ceiling.py` + 3 engines + 1
-  run-control + 1 capabilities meta-test), no new skips. Wall 77 s measured
-  once right after a full run; 57–60 s in the quiet runs at the 1036 close —
-  the spread is the machine.
-- full suite: **1769 passed / 72 skipped**, 11:07 — the first full-suite
-  measurement on this venv, so it has no prior to compare with.
-  passed+skipped 1841 = the fast selection's 1743 + 98 slow-marked.
-- `tests/test_acceptance_indexing.py` alone: 34 rows, 6:35 at `-n auto` this
-  session (~10 min in prior ones) — the engine-closing gate (why: the indexing
-  dossier's WP-1030 bullet).
-- frontend (vitest): **282**, unchanged by 1030/1036/1037 (none touched
+- fast suite: **1701 passed / 67 skipped**, 1:47. Decomposes exactly: 1676 at
+  the WP-1037 close + 1038's 25 — 14 `test_indexing_pairs.py`, 10 from two new
+  `validation_matrix` claims (five per-claim parametrized meta-tests each, which
+  is the multiplier to remember when adding a Claim) and 1 acceptance row. No
+  new skips.
+- full suite: **1795 passed / 72 skipped**, 8:33 (11:07 at the 1037 close — the
+  spread is the machine, not the 26 added tests). passed+skipped 1867 = the fast
+  selection's 1768 + 99 slow-marked, one more slow row than 1037's 98.
+- `tests/test_acceptance_indexing.py` alone: **36** rows — the engine-closing
+  gate (why: the indexing dossier's WP-1030 bullet), and 1038 is what it caught.
+- frontend (vitest): **282**, unchanged by 1030/1036/1037/1038 (none touched
   `gui/`); last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
@@ -566,22 +565,40 @@ candidate carrying a fitted shift is scored on `engines.scored_positions`, the
 **corrected** lines it actually claims, or the panel marks it down for its own
 correction.
 
-**The tolerance an engine searches with is not the per-line σ, and this is the one
-thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and
-the wrong *matching window*: measured on the bundled qarr corundum pattern, whose
-cell is certified, the lines sit a median 0.060° from the true positions (a cos θ
-displacement) against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the
-true cell indexes **zero** lines and both engines return nothing. Hence
-`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, added in quadrature whenever no shift has been
-*measured*, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must
-never look like a measured one) and `refine_with_shift`, which fits the shift template
-to a candidate **after** it survives — a shift is identifiable only against reference
-positions, and a candidate cell is what supplies them. A cell found under a widened
-window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
+**The search window is a correctness parameter, measured rather than assumed**
+(WP-1038, `indexing/pairs.py`). A *harmonic reflection pair* — planes that are
+integer multiples, so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in
+the shift and none in the cell, so Dong (1999) gives its **magnitude** from the
+peak list alone and `ShiftScreen.allowance_deg` is what a window must span. Four
+measured rules. **The magnitude is knowable with no reference and the cause is
+not**: `constant` and `cos_theta` concentrate identically, so the screen may
+refute `sin_2theta` and never choose between the other two. **Detection is
+concentration against a seeded structureless null, because the published
+false-pair rule fails on real data** — DICVOL04's sign-category margin admits
+11-BM NAC on 84 of 1838 pairs, chance at that count, reporting −0.09° where the
+shift is zero; a 20-line list yields 1–7 pairs and declining is honest (all ten
+bethanechol sets do, reproducing Le Bail 2004 §VII). **A window wider than the
+shift manufactures a confident wrong singleton** — at σ_sys = 0.060 SRM 660c
+returns a cell 293 000 ppm from its certificate at `high` confidence — so
+headroom scales the amplitude's *standard error*, never the pair scatter. And
+**an allowance is not a correction**: it finds lines, only `shift_template`
+moves the cell.
 
-Eleven more indexing rules, each learned the hard way — the measured stories
-are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
-constants in `indexing/`:
+**The tolerance an engine searches with is not the per-line σ, and this is the one
+thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the
+wrong *matching window*: measured on the bundled qarr corundum pattern, whose cell is
+certified, the lines sit a median 0.060° from the true positions (a cos θ displacement)
+against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the true cell
+indexes **zero** lines and both engines return nothing. Hence
+`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above
+declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never
+look like a measured one) and `refine_with_shift`, which fits the shift *template* to a
+candidate **after** it survives — the *shape* needs reference positions, which a
+candidate cell supplies. A cell found under a widened window but never shift-refined is
+biased by roughly the shift (+1400 ppm measured).
+
+Eleven more indexing rules, each learned the hard way — the measured stories are in
+the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
 - **Profile an engine before ranking what to fix in it: a cost model reasoned
   from the algorithm's structure is not a profile** (WP-1030's ranking came out

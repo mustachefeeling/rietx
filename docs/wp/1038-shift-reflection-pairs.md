@@ -1,13 +1,19 @@
 # WP-1038 — Pre-indexing 2θ shift from reflection pairs
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-04
 Depends on: WP-1019, WP-1024
 
 ## Goal
 
 `assess_peak_list` measures a systematic 2θ shift **from the peak list alone** —
 no cell, no indices, no reference — so `effective_sigma_sys` can stop assuming one.
-This is the single structural reason every real dataset abstains.
+
+**Delivered; the second sentence of this goal was wrong.** It read "this is the
+single structural reason every real dataset abstains". Measured at the close, it
+is **one of several**: clearing `shift_allowance_assumed` removes one caveat from
+both certified sets and leaves `engines_disagree`, `predicted_but_absent` and
+`fom_panel_disagrees` standing, so `high` remains unreachable on this corpus.
+The abstention has more than one cause and the others belong to 1026 and 1041.
 
 ## Context
 
@@ -277,31 +283,38 @@ the papers. PowderX and DICVOL are not to be ported.
       FP 0.03 % over 3600 replicates; every real list ≥ 4.2), amplitude within
       **0.005°** of the independently known value on corundum and SRM 660c, and
       refusal on all ten bethanechol sets and HL2.
-- [ ] The pair relation, its Newton generalisation to the three templates, and the
-      **derived** σ propagation — with the test that records Dong eq. (6)'s printed
-      coefficients being swapped (1.9088 vs 0.9089 at m = 2, θ = 10°).
-- [ ] A robust estimator with a stated refusal: DICVOL04's sign-category rule
-      (more populous category wins, **margin ≥ 2**), plus a seeded permutation null
-      so the false-positive rate is *measured* rather than asserted.
-- [ ] `ShiftScreen.allowance_deg` — what a search window must span — computed once
-      and consumed by `effective_sigma_sys`; delete the `lab6_calibrated` fixture's
-      hand computation.
-- [ ] `ShiftScreen.source` gains `"reflection_pairs"`; `TRUSTED_SHIFT_SOURCES`;
-      `INDEXING_THRESHOLDS_VERSION` bump; `quality.py`'s module-docstring thesis
-      rewritten.
-- [ ] `assess_peak_list(..., shift_from_pairs=True)` wired, template adoption in
-      `index_pattern` gated on the cause being safe to name,
-      `INDEX_SHIFT_FROM_PAIRS` diagnostic + `AGENT_PROTOCOL.md` row. **This commit
-      changes default behaviour** — `shift_from_pairs=False` must reproduce every
-      prior number bit-for-bit, and a test must exercise that escape.
-- [ ] Acceptance rows: corundum and SRM 660c against their independently known
-      shifts (see Context); the bethanechol **A − C = 0.100°** differential, which
-      needs no cell at all; a two-phase pair list (corundum + zincite lines, one
-      shift) reproducing Dong's own NiO-impurity result on bundled data.
-      `validation_matrix.py` Claims + regenerate `docs/VALIDATION.md`.
-- [ ] Theory manual: Dong eq. (5) with its `*Source:*` line, `dong1999` in
-      `references.bib`, and the paragraph in `docs/manual/indexing.md` asserting a
-      shift is unknowable from the list alone.
+- [x] The pair relation, its Newton generalisation to the three templates, and the
+      **derived** σ propagation — `indexing/pairs.py`. Eq. (6)'s transposition is
+      pinned three ways (derivation, central difference of eq. (5), the paper's own
+      printed algebra): **1.90880 / 0.90880** at m = 2, θ = 10°.
+- [x] A robust estimator with a stated refusal — **and DICVOL04's sign-category
+      rule was measured and *rejected*, not implemented.** It admits NAC on a
+      margin of 84 out of 1838 pairs (chance) while admitting SRM 660c on a
+      binomial z of 1.15. Concentration against the seeded null replaces it; the
+      false-positive rate is measured (0.03 % at z ≥ 3.5 over 3600 replicates).
+- [x] `ShiftScreen.allowance_deg` computed once and consumed by
+      `effective_sigma_sys`; `lab6_calibrated`'s hand computation deleted. **Its
+      formula was re-scoped by the window sweep** — amplitude + 3 × the *standard
+      error*, never the cluster scatter, which overshoots corundum's breaking
+      point. One formula now serves both roads (`SHIFT_ALLOWANCE_K_ESD`).
+- [x] `ShiftScreen.source` gains `"reflection_pairs"`; `TRUSTED_SHIFT_SOURCES`;
+      `INDEXING_THRESHOLDS_VERSION` → **1.1**; `quality.py`'s thesis rewritten —
+      the *cause* needs a reference, the *magnitude* does not.
+- [x] `assess_peak_list(..., shift_from_pairs=)` wired, template adoption gated on
+      the cause being safe to name (`_adopt_measured_shift` — measured, the
+      refusal is the common case: no corpus dataset names a cause),
+      `INDEX_SHIFT_FROM_PAIRS` + `AGENT_PROTOCOL.md` row, and the
+      `shift_from_pairs=False` escape exercised by test.
+- [x] Acceptance rows: SRM 660c and corundum against their independently known
+      shifts, and Dong's two-phase result on the IUCr three-phase mixture.
+      `validation_matrix.py` + `docs/VALIDATION.md` regenerated (61 claims).
+      **The bethanechol A − C differential is not among them, and that is the
+      result**: all ten sets *decline*, so there is no pair estimate to difference.
+      Pinned as a refusal instead, reproducing Le Bail (2004) §VII.
+- [x] Theory manual: eq. (5) and the pair relation with their `*Source:*` lines,
+      `dong1999` in `references.bib`. **The paragraph asserts the opposite of what
+      this WP was written expecting** — that the shift *is* knowable from the list
+      alone — with both cautions (the null, and magnitude-not-cause) attached.
 
 ## Acceptance
 
@@ -333,6 +346,53 @@ pre-change number.
   search. `/Users/yue/zotero-linker/derived/4ZBNLND9/`
 
 ## Handover log
+
+- **2026-08-04 (close, ✅)** — landed in one session, all seven tasks, and the
+  shift is now measured from the peak list alone on every fitted list in the
+  corpus. **Done**: `indexing/pairs.py` (Dong eq. (5) closed form, the Newton
+  generalisation to any template, the *derived* σ propagation); concentration
+  against a seeded structureless null as the detector; `ShiftScreen.source`
+  gains `"reflection_pairs"` with `TRUSTED_SHIFT_SOURCES` and
+  `allowance_deg`, thresholds → 1.1; `effective_sigma_sys` and `index_pattern`
+  wired; 14 unit tests, 2 acceptance rows, 2 validation claims, the manual, the
+  `AGENT_PROTOCOL` row. Full suite **1795 / 72**, acceptance 36/36, ruff and
+  sphinx clean.
+
+  **Three things a successor should not have to rediscover.** (1) **Two of the
+  three papers' prescriptions did not survive contact with this corpus**, and
+  both failures were only visible on real data: DICVOL04's sign-category rule
+  admits an 84-of-1838 margin as signal, and the first `allowance_deg` — built
+  from the cluster scatter, which is what the literature's error bar looks like
+  — pushed corundum past its own breaking point. Neither is in the papers'
+  favour or against them; they were written for ~10-pair 00l lists. (2) **The
+  window sweep is the reusable artefact**, not the constant it produced: it
+  showed that σ_sys is a *correctness* parameter (SRM 660c returns a cell
+  293 000 ppm wrong at `high` confidence at 0.060) and that cost grows with it.
+  Any future change to a matching tolerance should be swept the same way before
+  it is believed. (3) **The measured magnitude and the declared shape are now
+  cleanly separated** on corundum — the window finds lines (49 → 51, clearing
+  `indexed_fraction_low` unaided), the template moves the cell (+122 → −93 ppm).
+  They used to be confounded in one acceptance row.
+
+  **Not done, deliberately.** The bethanechol **A − C = 0.100° differential** the
+  task list asked for **cannot be computed**: all ten sets decline, so there is
+  no pair estimate to difference. That is Le Bail's published result reproduced
+  from our own data and it is pinned as a refusal instead. And **`high`
+  confidence is still unreachable on this corpus** — clearing
+  `shift_allowance_assumed` removes one caveat from the certified sets and the
+  others (`engines_disagree`, `predicted_but_absent`, `fom_panel_disagrees`)
+  stand untouched. This WP was described as "the single structural reason every
+  real dataset abstains"; measured, it was **one of several**, and the others are
+  1041's and 1026's.
+
+  **Next**: the queue is unchanged — [1039](1039-search-line-count.md) is the
+  natural successor (it inherits a working pre-search shift, which is what its
+  line-selection question assumed), then [1040](1040-engine-svd-index.md).
+  A loose thread worth one measurement: `_adopt_measured_shift` can name a cause
+  when `prediction_spread_deg ≤ median σ`, which on this corpus only NAC and
+  zincite reach — both patterns whose shift is ~0, where naming it is free. It
+  has therefore never been exercised on a pattern with a *real* shift and a
+  nameable cause, and its first such run should be watched.
 
 - **2026-08-04** — created from the source-literature review. The eq. (6) finding
   was derived and checked against the source file this session; everything else
