@@ -114,6 +114,97 @@ to the paper.
   (`separable`, or `prediction_spread_deg` within the median σ). Otherwise adopt
   nothing and keep the caveat.
 
+### Task 0, measured 2026-08-04 — the supply is ample and the paper's *test* is the part that fails
+
+Survey script kept out of `src/`; the three passes are pair supply, a seeded
+permutation null, and per-template concentration. Two estimators throughout:
+Dong's closed form (`constant`) and the Newton generalisation (`cos_theta`),
+both in `fit_shift_model`'s deviation convention (c = −2θ_z of the paper), so the
+numbers compare directly with the screen's coefficients.
+
+**The implementation reproduces both of Dong's published tables**: Table 2 mean
+−0.0334° against the paper's stated −0.0334°, Table 3 mean −0.1818° against
+−0.182°. Individual rows disagree in *sign* on 4 of 12 and 1 of 11 — those are
+typesetting drops, not a method difference, and the paper's own quoted averages
+are arithmetically consistent only with all-negative (the printed signs average to
+−0.0106°). **Do not "fix" the sign convention to match the printed rows.**
+
+Supply, over the whole corpus (window ±0.20°, m ≤ 8; wall clock is the pair pass,
+excluding peak picking):
+
+| list | N | candidate triples | accepted ±0.20° | ±0.05° | s |
+|---|---|---|---|---|---|
+| corundum | 55 | 539 | 20 | 0 | 0.004 |
+| zincite / zircon | 27 / 68 | 139 / 896 | 8 / 31 | 7 / 17 | <0.01 |
+| cpd-1a | 36 | 310 | 15 | 10 | <0.01 |
+| SRM 660c LaB6 | 30 | 231 | 19 | 12 | 0.002 |
+| NAC 11-BM | 285 | 19105 | 1838 | 513 | 0.137 |
+| FAP | 185 | 6011 | 142 | 56 | 0.049 |
+| bethanechol ×10 | 20 | 41–76 | **1–7** | 0–3 | <0.01 |
+| HL2 | 74 | 1297 | 37 | 7 | 0.010 |
+
+So the pair supply is ample on every *fitted* list and **structurally thin on a
+bare 20-line position list** — 1 to 7 accepted pairs, which is at or below Dong's
+own "at least three, and close to one another" floor.
+
+**DICVOL04's sign-category rule does not survive contact with this corpus, and
+that is the finding.** It admits NAC on 868/952 of 1838 pairs — a margin of 84
+that is pure chance at that count, returning a median of −0.09° for a pattern
+whose shift is zero — while admitting LaB6, whose answer is *right*, on a binomial
+z of only 1.15. The rule was written for ~10 pairs; a fixed margin of 2 is not a
+test at 1838.
+
+**What replaces it is concentration**, and it separates cleanly. Statistic: the
+largest number of pairs inside any ±0.010° window on c. Null: the same list with
+its lines redrawn uniformly in the same *Q* range (a lattice is linear in Q), 200
+seeded replicates.
+
+| list | pairs | k | c (cos θ) | null k | z | p | known |
+|---|---|---|---|---|---|---|---|
+| corundum | 20 | 10 | **−0.0625** | 3.5±1.3 | 4.9 | 0.005 | −0.065 |
+| SRM 660c | 19 | 10 | **+0.0362** | 1.2±0.6 | 14.9 | 0.005 | +0.0415 pred / +0.0367 fitted |
+| zincite | 8 | 7 | +0.0017 | 0.8±0.5 | 12.3 | 0.005 | — |
+| zircon | 31 | 8 | −0.0249 | 3.2±1.1 | 4.2 | 0.005 | — |
+| cpd-1a | 15 | 5 | −0.0403 | 1.2±0.6 | 5.9 | 0.005 | — |
+| NAC | 1838 | 199 | **−0.0003** | 65.9±11.1 | 12.0 | 0.005 | — (synchrotron, expect ~0) |
+| FAP | 142 | 45 | −0.0346 | 14.0±2.5 | 12.6 | 0.005 | — |
+| bethanechol ×10 | 1–7 | **1** | — | ~1 | −0.3…1.1 | 0.43–0.93 | refuses |
+| HL2 | 37 | 5 | +0.1424 | 4.7±1.4 | 0.2 | 0.55 | refuses |
+
+Three results follow, and each decides a design question:
+
+- **Both certified datasets recover their shift with no reference.** Corundum
+  −0.0625° against an independently measured −0.065°; LaB6 +0.0362° against the
+  screen's own reference-based +0.0367 ± 0.0015° — 0.4σ. On corundum the pair
+  estimate is *closer to the certificate-derived value* than the screen's own
+  −0.0606 ± 0.0138° is. The acceptance criterion is reachable.
+- **The false-positive rate is measured, not asserted**: over 3600 null replicates
+  (18 lists × 200), z ≥ 3.0 fires 0.83 %, z ≥ 3.5 fires **0.03 %** (1 of 3600).
+  Every real fitted list scores z ≥ 4.2. A bar at **z ≥ 4** admits all seven and
+  costs one false positive in 3600.
+- **All ten bethanechol sets and HL2 refuse**, at k = 1 and p ≥ 0.43. This
+  independently reproduces Le Bail (2004) §VII — *"any self-calibration from these
+  original data failed to estimate that zeropoint error"* — from our own data, and
+  it is the right behaviour rather than a shortfall. The counter-evidence recorded
+  below stands, confirmed.
+
+**The cause is *not* identifiable from pairs, and that is measured too.** Per-template
+concentration puts `constant` and `cos_theta` within one pair of each other on every
+dataset (corundum k = 10/10, cluster σ 0.0044/0.0043; LaB6 k = 9/10, σ 0.0062/0.0056),
+differing only ~5 % in *value* (corundum −0.0661 vs −0.0625, either side of the known
+−0.065). `sin_2theta` is decisively rejected everywhere (k collapses 10→3, 45→15,
+199→68). So the pair method may report an **amplitude** and may **refute transparency**,
+but it must not adopt between constant and cos θ on its own authority — which is
+`template_collinearity`'s 0.96 arriving by a second road. For a search *window* this
+costs nothing: 5 % of the amplitude is far inside the window either choice opens.
+
+Two consequences for the implementation. The detection statistic runs on the **closed
+form**, which is exactly as concentrated and fully vectorisable — the Python
+double-loop-plus-Newton pass above costs 26 s of null on NAC's 285 lines, and that is
+the only reason to care. And `allowance_deg` cannot be the bare amplitude: NAC's is
+0.0003°, so a window built from it alone would be *narrower* than today's and could
+lose a pattern that currently indexes. It must carry the cluster scatter with it.
+
 ### Non-obvious counter-evidence, recorded up front
 
 The most decisive test is also the one the literature says may fail. Bethanechol's
@@ -138,10 +229,12 @@ the papers. PowderX and DICVOL are not to be ported.
 
 ## Tasks
 
-- [ ] **Task 0 — how many pairs does the corpus actually offer?** For corundum,
-      SRM 660c, cpd-1a, the ten bethanechol sets and the HL2 list, record candidate
-      triples, accepted pairs, category populations, and wall clock. **Write the
-      acceptance bars after this table exists, not before.** No `src/` change.
+- [x] **Task 0 — how many pairs does the corpus actually offer?** Done
+      2026-08-04, three passes, table and conclusions in Context above. Bars
+      written *after* it: **z ≥ 4** against a 200-replicate seeded null (measured
+      FP 0.03 % over 3600 replicates; every real list ≥ 4.2), amplitude within
+      **0.005°** of the independently known value on corundum and SRM 660c, and
+      refusal on all ten bethanechol sets and HL2.
 - [ ] The pair relation, its Newton generalisation to the three templates, and the
       **derived** σ propagation — with the test that records Dong eq. (6)'s printed
       coefficients being swapped (1.9088 vs 0.9089 at m = 2, θ = 10°).
