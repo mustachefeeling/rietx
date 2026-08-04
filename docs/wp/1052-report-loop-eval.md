@@ -176,6 +176,12 @@ parent χ² bit-unchanged and a dead leaf whose compare row shows < 1 % improvem
 
 ## Handover log
 
-- **2026-08-05** — created, from a two-round critically-reviewed design (review
-  record in the session plan file; the load-bearing mechanics above were verified
-  against the code, not assumed). Not started.
+- **2026-08-05** — created; not started. The design survived two adversarial
+  review rounds and every load-bearing mechanic in Context carries the file:line
+  it was verified at — trust those over re-derivation, but re-verify if the named
+  lines have moved. Next: the first task (driver + E1). Gotchas for the
+  implementer: the 1 % keep-threshold is also the loop's convergence detector, so
+  a true first-round cause being rejected is a report calibration bug to record,
+  never a threshold to tune; the module deliberately has **no** `xdist_group`
+  (grouping the episodes would create the suite's longest group — the shared
+  `_truth()` is cheap synthesis, not a fitted fixture).

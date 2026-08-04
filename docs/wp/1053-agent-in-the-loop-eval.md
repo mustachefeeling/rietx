@@ -144,5 +144,12 @@ scorecards; the scorer's unit tests pass; the repo carries no LLM dependency.
 
 ## Handover log
 
-- **2026-08-05** — created, from the same two-round critically-reviewed design as
-  WP-1052 (interface facts verified against `agent.py`, not assumed). Not started.
+- **2026-08-05** — created; not started, and blocked on WP-1052 only for the
+  episode tolerances/families (the fixtures themselves come from `_truth()`
+  directly). Interface facts in Context were verified against `agent.py`, not
+  assumed. Next: the `AgentSuccess` payload verification task — do it first, the
+  scorer's design rests on it. Gotchas: conditions are enforced by the shim, not
+  the prompt (an agent can ignore a prompt; it cannot un-strip a response), and
+  every summary of the pilot grid must carry the discriminating-rows caveat — the
+  default plan alone solves E1/E3/E4/E6, so a flat "report didn't help" reading
+  of those rows is the misread this WP exists to prevent.
