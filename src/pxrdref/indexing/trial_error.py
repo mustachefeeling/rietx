@@ -33,6 +33,7 @@ enumeration by one to two orders of magnitude and is right in any setting.
 
 from __future__ import annotations
 
+import time
 from itertools import combinations
 
 import numpy as np
@@ -255,7 +256,8 @@ def _admissible(af: np.ndarray, a_lo: float, a_hi: float, vol_min: float,
 
 
 def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
-                       quality=None, cancel=None) -> EngineResult:
+                       quality=None, cancel=None,
+                       progress=None) -> EngineResult:
     """Assign trial indices to base lines, solve exactly, check against all lines.
 
     Deterministic and seed-free: the base sets come from ``combinations`` over the
@@ -271,7 +273,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     tt_max = float(peaks.two_theta_max)
 
     systems = [s for s in SYSTEM_ORDER if s in spec.systems]
-    result = EngineResult(engine="trial_error", systems_searched=tuple(systems))
+    result = EngineResult(engine="trial_error")
     if len(q_all) < 2:
         result.diagnostics.append(Diagnostic(
             level="error", code="INDEX_DATA_INSUFFICIENT",
@@ -283,6 +285,14 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     raw: list[EngineCandidate] = []
     incomplete: list[str] = []
     for system in systems:
+        # not started ⇒ not claimed — the same rule as ``search_dichotomy``,
+        # and what keeps "not reached" distinct from "truncated" (WP-1037)
+        if cancel is not None and bool(cancel):
+            break
+        result.systems_searched += (system,)
+        if progress is not None:
+            progress.start(f"trial_error:{system}", engine="trial_error",
+                           system=system)
         budget = Budget(spec.budget_seconds, cancel)
         basis = metric_basis(system)
         vol_max = spec.volume_limit(
@@ -298,6 +308,10 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
             result.stats[f"{system}.{key}"] = value
         if not complete:
             incomplete.append(system)
+        if progress is not None:
+            progress.end(f"trial_error:{system}", engine="trial_error",
+                         system=system, n_candidates=len(found),
+                         complete=complete)
 
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
@@ -310,9 +324,17 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("trial_error", incomplete, spec.budget_seconds))
-    if not result.candidates:
+    if not result.candidates and not (cancel is not None and bool(cancel)):
+        # the probe explains a silence, so a cancelled run — whose silence the
+        # token explains — skips it.  Probed systems are the *entered* ones:
+        # probing a system the search never reached would quietly claim it.
+        # ``probe.seconds`` makes its cost visible — WP-1037's task-0 profile
+        # found it a third of the worst case and absent from every stat.
+        t0 = time.monotonic()
         probe = _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all, tt_max,
-                                     systems, quality, cancel)
+                                     list(result.systems_searched), quality,
+                                     cancel, progress=progress)
+        result.stats["probe.seconds"] = round(time.monotonic() - t0, 3)
         if probe is not None:
             result.diagnostics.append(probe)
     return result
@@ -447,8 +469,8 @@ def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
 
 def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
                          sigma: np.ndarray, tt_all: np.ndarray, tt_max: float,
-                         systems: list[str], quality, cancel
-                         ) -> Diagnostic | None:
+                         systems: list[str], quality, cancel, *,
+                         progress=None) -> Diagnostic | None:
     """Was the *index table* the binding constraint?  Measure it, don't infer it.
 
     WP-1019 established that a dominant zone is not detectable from a census of the
@@ -467,10 +489,20 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
         basis = metric_basis(system)
         if basis.shape[0] > DOMINANT_ZONE_MAX_DOF:
             continue
+        if cancel is not None and bool(cancel):
+            return None
+        # the probe was invisible in the progress ladder (WP-1037): a unit per
+        # probed system, *added* rather than pre-declared, because whether the
+        # probe runs at all is known only after the search came back empty
+        if progress is not None:
+            progress.add(1)
+            progress.start(f"probe:{system}", engine="trial_error",
+                           system=system, probe=True)
         vol_max = spec.volume_limit(
             system, float(quality.volume_envelope[system])
             if quality is not None and system in quality.volume_envelope
             else 8000.0)
+        hit: Diagnostic | None = None
         for wider in DOMINANT_ZONE_PROBE_LADDER:
             budget = Budget(min(spec.budget_seconds, DOMINANT_ZONE_PROBE_SECONDS),
                             cancel)
@@ -478,7 +510,7 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
                 peaks, system, basis, spec, budget, q_all, sigma, tt_all, tt_max,
                 vol_max, index_max=wider)
             if found:
-                return Diagnostic(
+                hit = Diagnostic(
                     level="warning", code="INDEX_DOMINANT_ZONE",
                     message=(f"no cell was found with base-line indices up to "
                              f"{BASE_INDEX_MAX}, but {len(found)} appeared at "
@@ -494,6 +526,12 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
                         "engine, which bounds the metric instead of assuming "
                         "indices and so is indifferent to how large they are, or "
                         f"raise BASE_INDEX_MAX past {wider} for this pattern"))
+                break
+        if progress is not None:
+            progress.end(f"probe:{system}", engine="trial_error",
+                         system=system, probe=True, found=hit is not None)
+        if hit is not None:
+            return hit
     return None
 
 

@@ -126,20 +126,22 @@ def test_capabilities_survives_json(caps):
     """WP-1008 serves this verbatim, so it has to be JSON all the way down."""
     round_tripped = type(caps).model_validate_json(caps.model_dump_json())
     assert round_tripped == caps
-    assert json.loads(caps.model_dump_json())["features"]["indexing"] is False
+    assert json.loads(caps.model_dump_json())["features"]["indexing"] is True
 
 
 # ------------------------------------------------------------- features
 def test_features_are_derived_not_asserted(caps):
     """A flag must be a predicate over the tree, not a literal.
 
-    ``indexing`` is the case that proves it: false today, and it flips by itself
-    when ``pxrdref.index`` lands (WP-1020) with nothing here to remember.
+    And the predicate's *name* must be data, because this test's first version
+    was a tautology: it asserted ``features["indexing"] == hasattr(pr, "index")``
+    — the very expression the flag computes — so when the export landed as
+    ``index_pattern`` (WP-1024) both sides stayed ``False`` together and the
+    test kept passing.  The ``is True`` lines below are what break that
+    symmetry: they state what the answer *is*, not that the code equals itself.
     """
-    assert caps.features["indexing"] is False
-    assert caps.features["indexing"] == hasattr(pr, "index")
+    assert caps.features["indexing"] is True
     assert caps.features["peak_picking"] is True
-    assert caps.features["peak_picking"] == hasattr(pr, "pick_peaks")
     assert caps.features["cancellation"] is True
 
     # schema-shaped flags follow the schemas
@@ -149,6 +151,24 @@ def test_features_are_derived_not_asserted(caps):
     # the one default whose position changes published numbers (WP-1001)
     assert caps.features["anomalous_dispersion_default_on"] is True
     assert all(isinstance(v, bool) for v in caps.features.values())
+
+
+def test_every_surface_flag_names_a_real_export(caps):
+    """The WP-1037 meta-test: each flag's export name, checked against an
+    authority the flag itself never consults.
+
+    ``_SURFACE_FLAGS`` is the one table both the flags and this test read, so
+    the failure mode it closes — flag and test drifting *together* while the
+    export is called something else — needs a third party, and ``__all__`` is
+    it: a name in the table but absent from ``__all__`` fails here whether or
+    not ``hasattr`` happens to find it.
+    """
+    from pxrdref.capabilities import _SURFACE_FLAGS
+
+    missing = set(_SURFACE_FLAGS.values()) - set(pr.__all__)
+    assert not missing, f"surface flags name exports not in __all__: {missing}"
+    # and the table is the source: every one of its flags is served
+    assert set(_SURFACE_FLAGS) <= set(caps.features)
 
 
 def test_the_documented_feature_keys_are_present(caps):

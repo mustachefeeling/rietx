@@ -43,10 +43,13 @@ Four of the sixteen are advice, and none of them for want of effort:
   what it did.  Until that measurement is *in* the report, the panel names the
   edit and the diagnostic to read after making it.
 
-and one — ``reindex_or_recheck_cell`` — is applicable in principle and refused
-today for a reason a client can watch: ``capabilities().features["indexing"]`` is
-a derived predicate, so this stops being a refusal by itself when ``index()``
-lands (WP-1024), with no change here.
+and one — ``reindex_or_recheck_cell`` — is gated on a flag a client can watch:
+``capabilities().features["indexing"]``.  The design held up half-way: nothing
+here needed editing when the engine landed (WP-1024), but the flag it watches
+was mis-derived (``hasattr(pr, "index")`` against an export named
+``index_pattern``), so the refusal outlived the engine until WP-1037 fixed the
+name.  The gate still runs off the flag a caller passes, so a client talking to
+a build that reports no engine still gets the refusal with its reason.
 """
 
 from __future__ import annotations
@@ -234,8 +237,8 @@ def refusal(action: SuggestedAction, *, held: Mapping[str, str],
     if rule.how == "advice":
         return f"not a one-click action — {rule.note}"
     if rule.how == "index" and not indexing:
-        return ("this build has no indexing engine yet "
-                "(capabilities().features['indexing'] is False, WP-1024); "
+        return ("this build reports no indexing engine "
+                "(capabilities().features['indexing'] is False); "
                 f"{rule.note}")
     if not action.parameter_paths:
         # ``predict_then_verify``'s words for the same state, kept the same

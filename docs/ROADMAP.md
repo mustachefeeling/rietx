@@ -55,41 +55,39 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1036](wp/1036-crystal-system-settings.md)** (2026-08-04) — cell
-ties follow the space-group **setting**, not the crystal system. Its task-1
-measurement answered both ways: **zero of 28 existing inputs** reach a broken
-branch, so nothing shipped moved, but **all three defects are reachable from a
-plain CIF** — `read_small_structure` picks the R setting from the *cell*, so a
-rhombohedral cell under a bare `R -3 c` arrives as `:R`. **79 of gemmi's 564
-settings were served wrong, and the free-parameter count was right in every
-one**, so the degrees-of-freedom test guarding this had passed on the wrong
-subspace since v0.1. Before it,
-[1030](wp/1030-engine-scaling-low-symmetry.md) (2026-07-31, merged 2026-08-04) —
-a monoclinic search over the package's own **default** short-axis bound went
-from *not finishing* to **32 s with the truth ranked first**, and the FoM panel
-gained `m_rev`/`m_sym`, which separate a truth from a supercell **64-74×**
-where M₂₀ manages 1.8×; and before that [1027](wp/1027-gui-peak-picker.md)
-(2026-08-01), the GUI peak picker and indexing panel. Close narratives in
+**Last closed: [1037](wp/1037-indexing-time-ceiling.md)** (2026-08-04) — the
+whole-run indexing ceiling, closed in one session with **no answer changed**.
+`SearchSpec.total_budget_seconds` bounds search, probe *and* validation through
+a `Deadline` that *is* the cancel token; `estimate_ceiling` states the worst
+case before a run (1308 s arithmetic for the default spec, against task 0's
+measured 0.7–177 s over the whole known-cell corpus — the first honest profile
+of `index_pattern`, which found validation unbudgeted at up to 74 of 84 s); a
+bound run reports **three states** (searched / truncated / not reached) and a
+truncated validation can never refute a cell. On the way in it retired
+`features["indexing"]` reading `hasattr(pr, "index")` — always `False`, its
+test a tautology — as data plus the missing meta-test. Same day, before it:
+[1036](wp/1036-crystal-system-settings.md) — cell ties follow the space-group
+**setting**, not the crystal system; 79 of gemmi's 564 settings served wrong
+under a correct free-parameter count. Close narratives in
 [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-Two method lessons, and they are one lesson twice. 1030: **instrument before
-ranking** — the cost items were reasoned from the algorithm's structure and came
-out near-backwards; counting box deaths found 97.6 % of the work in a phase no
-item addressed. 1036: **a count is not a subspace** — name which angle is held
-and which length follows which, never how many.
+One method lesson, now three sessions in a row (1030 → 1036 → 1037):
+**instrument before ranking, and let the by-hand acceptance run judge, not the
+fast tests.** 1037's granularity guess blamed the validation compile; the
+profile put 45 of 105 s in consensus's ambiguity enumeration, caught by the
+one timed CLI run the WP demanded — 156 fast tests were green throughout.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1037](wp/1037-indexing-time-ceiling.md) — a **stated time ceiling** and
-   honest progress; changes no answer, so it is cheap and unblocks the rest.
-   Then [1038](wp/1038-shift-reflection-pairs.md), the pre-indexing shift, which
+2. [1038](wp/1038-shift-reflection-pairs.md), the pre-indexing shift, which
    is the one change that could move all eight datasets off abstention.
    [1039](wp/1039-search-line-count.md), [1040](wp/1040-engine-svd-index.md),
    [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) follow — all six written
-   2026-08-04 from the source literature ([LITERATURE.md](LITERATURE.md)).
+   [1042](wp/1042-anytime-results-quick-default.md) follow — written
+   2026-08-04 from the source literature ([LITERATURE.md](LITERATURE.md));
+   1042's `### Inherited` carries 1037's measured streaming argument.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
@@ -434,7 +432,7 @@ per concurrent session, or only one session commits.
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ✅ 2026-08-01 | 1010, 1011, 1018–1024 |
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
-| [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ⬜ | 1024 (1021, 1022 soft) |
+| [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ⬜ | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | How many lines a search enumerates on | ⬜ | 1037 (1038 soft) |
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |

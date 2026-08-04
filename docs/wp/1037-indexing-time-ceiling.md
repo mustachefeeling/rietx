@@ -1,6 +1,6 @@
 # WP-1037 — Indexing: a stated time ceiling and honest progress
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-04
 Depends on: WP-1024 (1021, 1022 soft)
 
 ## Goal
@@ -110,23 +110,23 @@ are open literature and may be cited and implemented from. No code ported.
 
 ## Tasks
 
-- [ ] **Task 0 — measure, then write the constants.** For the 8-dataset known-cell
+- [x] **Task 0 — measure, then write the constants.** For the 8-dataset known-cell
       corpus record in the handover log: wall clock (as a *range*), **time to first
       candidate**, time to final list, per-phase split (search / probe /
       validation), and `engine_stats`. This is the first honest cost profile of
       `index_pattern` and it sets every default below. No `src/` change.
       *Instrument before ranking (WP-1030) — a plausible cost model is not a profile.*
-- [ ] `features["indexing"]` names an export that exists. Fix as **data** —
+- [x] `features["indexing"]` names an export that exists. Fix as **data** —
       `_SURFACE_FLAGS: dict[str, str]` mapping flag → top-level name — plus the
       meta-test `set(_SURFACE_FLAGS.values()) <= set(pr.__all__)` that would have
       caught it. Rewrite `capabilities.py:19-21` as the lesson and fix
       `CLAUDE.md:166`'s example.
-- [ ] `Deadline(Budget)` — whole-run clock shaped as a cancel token: `__bool__`,
+- [x] `Deadline(Budget)` — whole-run clock shaped as a cancel token: `__bool__`,
       `is_set`, `remaining`, `cancelled_by_user`. **Must compose** with a caller's
       own `CancelToken` (`Budget.__init__` takes one `cancel`, so write the any-of
       token once), and every consumer must be able to tell a ceiling from a user
       cancellation — enumerate those sites, do not assume them.
-- [ ] `estimate_ceiling(spec, *, engines, validate) -> CeilingEstimate`: search +
+- [x] `estimate_ceiling(spec, *, engines, validate) -> CeilingEstimate`: search +
       probe + validation, `granularity_seconds` (how far past the ceiling a run can
       land), and `covers`/`unmodelled` naming registered engines whose cost is not
       modelled. **It is arithmetic on the spec, not a timing prediction, and the
@@ -138,26 +138,26 @@ are open literature and may be cited and implemented from. No code ported.
       exist today, and Le Bail cost is data-dependent — derive it from
       `predicted_reflection_count` or report it as explicitly uncertain. Do not let
       a guess wear arithmetic's clothes.
-- [ ] `index_pattern` honours `SearchSpec.total_budget_seconds` (default `None` =
+- [x] `index_pattern` honours `SearchSpec.total_budget_seconds` (default `None` =
       today's behaviour, bit-identical). A deadline that binds must leave the run
       returning a complete `IndexingResult` over what was reached, never an
       exception, and `systems_searched` must distinguish **three** states —
       searched, truncated, **not reached**. `INDEX_BUDGET_EXHAUSTED` says so.
-- [ ] Validation runs inside the ceiling: `validate_by_lebail(..., cancel=)`, with
+- [x] Validation runs inside the ceiling: `validate_by_lebail(..., cancel=)`, with
       `except RefinementCancelled: raise` **before** the generic handler. Test that
       a truncated validation leaves `lebail = None` and reads as `not_validated`,
       never `validation_failed`.
-- [ ] Progress per (engine × system) on the **existing** event kinds — adding
+- [x] Progress per (engine × system) on the **existing** event kinds — adding
       *fields* is not an `EVENT_SCHEMA_VERSION` bump, adding a kind is, and this
       task must not bump it (assert that). One flat ladder: search units, probe
       units (currently invisible), validation units. `n_stages` becomes revisable
       mid-run; record that in `history/events.py` beside the additivity rule. A
       `Progress` object carries the counter with `stream=None` a working no-op, so
       every direct engine unit test is unchanged.
-- [ ] `pxrdref index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
+- [x] `pxrdref index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
       field; `AGENT_PROTOCOL.md` rows for `INDEX_BUDGET_EXHAUSTED` and a
       "how long will this take" note beside the indexing recipe.
-- [ ] Tests: `tests/test_indexing_ceiling.py` (new) + edits to
+- [x] Tests: `tests/test_indexing_ceiling.py` (new) + edits to
       `test_capabilities.py`, `test_run_control.py`, `test_indexing_engines.py`.
 
 ## Acceptance
@@ -192,6 +192,61 @@ finishes within 60 s plus one granularity unit and names the systems not reached
   `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
 
 ## Handover log
+
+- **2026-08-04 (close)** — all nine tasks landed in one session
+  (`wp1037-time-ceiling`, three commits). Every existing indexing answer
+  unchanged; fast indexing suites, run-control, GUI, capabilities and the
+  full `test_acceptance_indexing.py` green (counts in ROADMAP/CLAUDE.md
+  "Current numbers", measured on this `[dev,jax]` worktree venv).
+
+  **Task 0 — the first honest cost profile** (darwin/arm64 M4, this worktree,
+  serial, acceptance-suite protocols; seconds; validation = Σ per-fit wall):
+
+  | dataset | total | first candidate | search | probe | validation (fits) |
+  |---|---|---|---|---|---|
+  | corundum | 49.7 | 31.4 | 39.0 | — | 4.6 (3) |
+  | corundum+shift | 48.6 | 31.5 | 39.0 | — | 3.5 (3) |
+  | cpd-1a mixture | 99.3 | 31.7 | 39.0 | — | 58.7 (3, one **44.1**) |
+  | zincite | 177.3 | 165.8 | 169.3 | — | 4.6 (8) |
+  | zircon | 42.7 | 23.0 | 25.9 | — | 13.8 (4) |
+  | nac | 0.7 | — | 0.7 | 0.5 (1) | 0 |
+  | fap | 83.7 | 1.1 | 4.4 | — | **74.1 (8)** |
+  | fluorite | 0.0 | — | — | — | 0 (refused pre-engine) |
+  | hl2 (peaks only) | 43.2 | 33.4 | 38.3 | — | 0 |
+  | lab6 | 20.8 | 13.0 | 17.3 | — | 3.1 (4) |
+  | lab6-calibrated | 3.5 | 0.05 | 0.08 | — | 2.7 (3) |
+
+  Serial total 576 s; peak picks 0.1–3.3 s. What it decided: totals **0.7–177 s**
+  (the "30–150 s" the WP inherited was close but not measured);
+  `MEASURED_VALIDATION_SECONDS = (0.6, 44.0)` — validation is unbudgeted and
+  *dominates* FAP (74 of 84 s) and the mixture (one 44 s fit); the probe fired
+  once, 0.49 s, and was invisible in every stat (now `stats["probe.seconds"]`);
+  "time to first candidate" = the end of dichotomy's last system, which is
+  WP-1042's streaming argument with numbers on it (forwarded to its Inherited).
+  `validation_calls` reached 8 (checked = top-3 ∪ all-engine candidates), so
+  the estimate's worst case uses `max_candidates`, not 3.
+
+  **What the by-hand acceptance caught that 115 fast tests did not** (the
+  WP-1030 lesson paying immediately): the first `--total-budget 60` corundum
+  run landed at **107 s**. Profile, not reasoning: 45 s was consensus's
+  geometric-ambiguity enumeration (12 × 3.75 s, no token reads) — not the
+  validation compile the granularity docstring had guessed. Fix:
+  `consensus(..., cancel=)` skips remaining enumerations once the token fires
+  and reports `ambiguity_checked`; the gate reads a skipped candidate as
+  *not enumerated* (capping), never "no ambiguity found". Re-measured:
+  **61.7 s**, truth still ranked first, `where=` naming engines not run
+  (trial_error), truncated (orthorhombic, monoclinic), not reached
+  (triclinic), 12 candidates not validated. `--ceiling` prints
+  worst 1308 s = 420 search + 360 probe + 12 × 44 validation, beside
+  measured typical 3–180 s.
+
+  **Gotchas for successors**: `Deadline` is constructed *inside*
+  `index_pattern` from the spec — never handed in — so outside callers' tokens
+  keep their meaning; engines claim a system in `systems_searched` only when
+  they **start** it (the three-state encoding depends on this); the registry
+  callable contract grew a `progress=None` kwarg; `CEILING_GRANULARITY_SECONDS
+  = 10` is now honest only because consensus is token-aware — anything new and
+  expensive after the search loop must read the token or it re-breaks.
 
 - **2026-08-04** — created. Written from the source-literature review that also
   produced WP-1038…1042 and `docs/LITERATURE.md`. **Nothing here has been run**:

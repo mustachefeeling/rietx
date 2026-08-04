@@ -109,7 +109,20 @@ def _index(argv: list[str]) -> int:
     p.add_argument("--min-d", type=float, default=None,
                    help="shortest principal d-spacing in Å (default 2)")
     p.add_argument("--budget", type=float, default=None,
-                   help="wall-clock seconds per crystal system (default 30)")
+                   help="wall-clock seconds per (engine x crystal system) slice "
+                        "of the search (default 30 — so a default two-engine, "
+                        "seven-system run is up to 2x7x30 s of search, before "
+                        "the probe and validation; --ceiling prints the "
+                        "arithmetic)")
+    p.add_argument("--total-budget", type=float, default=None,
+                   help="wall-clock ceiling for the WHOLE run — search, probe "
+                        "and validation. The run returns what was reached and "
+                        "INDEX_BUDGET_EXHAUSTED names the systems truncated or "
+                        "not reached")
+    p.add_argument("--ceiling", action="store_true",
+                   help="print the pre-run cost ceiling for these options — "
+                        "worst-case arithmetic and the measured typical range — "
+                        "and exit without searching")
     p.add_argument("--sigma-sys", type=float, default=None,
                    help="a MEASURED systematic 2θ allowance in degrees; without "
                         "one the engines assume 0.05° and cap confidence, because "
@@ -137,15 +150,20 @@ def _index(argv: list[str]) -> int:
         spec_kw["systems"] = tuple(s.strip() for s in args.systems.split(","))
     for name, value in (("min_d_axis", args.min_d), ("max_d_axis", args.max_d),
                         ("budget_seconds", args.budget),
+                        ("total_budget_seconds", args.total_budget),
                         ("sigma_sys_deg", args.sigma_sys)):
         if value is not None:
             spec_kw[name] = value
+    spec = SearchSpec(**spec_kw)
+    engine_names = (tuple(e.strip() for e in args.engines.split(","))
+                    if args.engines else None)
+
+    if args.ceiling:
+        _print_ceiling(spec, engine_names, validate=not args.no_validate)
+        return 0
 
     result = index_pattern(data=data, instrument=instrument,
-                           spec=SearchSpec(**spec_kw),
-                           engines=(tuple(e.strip()
-                                          for e in args.engines.split(","))
-                                    if args.engines else None),
+                           spec=spec, engines=engine_names,
                            validate=not args.no_validate)
     _print_index(result)
     if args.json:
@@ -155,6 +173,30 @@ def _index(argv: list[str]) -> int:
                                    encoding="utf-8")
         print(f"\nwrote {args.json}")
     return 0 if result.best_or_none() is not None else 1
+
+
+def _print_ceiling(spec, engine_names, *, validate: bool) -> None:
+    """The pre-run cost answer, printed with its own epistemics: the search and
+    probe lines are arithmetic the per-system budgets enforce, the validation
+    line is a measured range, and the typical line is why the worst case is not
+    an ETA (``engines.estimate_ceiling``)."""
+    from .indexing.engines import estimate_ceiling
+
+    est = estimate_ceiling(spec, engines=engine_names, validate=validate)
+    lo, hi = est.validation_seconds_each
+    t_lo, t_hi = est.typical_seconds
+    print(f"worst case: {est.worst_case_seconds:.0f} s   "
+          f"(search {est.search_seconds:.0f} + probe {est.probe_seconds:.0f}, "
+          "arithmetic on the per-system budgets; "
+          f"+ validation {est.validation_calls} fits x {lo:g}-{hi:g} s, "
+          "a measured range — Le Bail cost is data-dependent)")
+    print(f"measured typical: {t_lo:g}-{t_hi:g} s per real dataset "
+          "(searches finish their systems early far more often than not)")
+    print(f"a --total-budget binds within ~{est.granularity_seconds:g} s "
+          "(the longest uninterruptible stretch)")
+    if est.unmodelled:
+        print(f"NOT modelled: engine(s) {', '.join(est.unmodelled)} — "
+              "the worst case above omits their cost")
 
 
 def _print_index(result) -> None:
@@ -192,6 +234,11 @@ def _print_index(result) -> None:
               f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°")
     for diag in result.diagnostics:
         print(f"  [{diag.level:^7}] {diag.code}: {diag.message}")
+        # ``where`` is load-bearing for the run-level codes — it is the field
+        # that names which systems INDEX_BUDGET_EXHAUSTED left truncated or
+        # unreached, which no message prose restates
+        for entry in diag.where:
+            print(f"           - {entry}")
     for c in result.candidates:
         for diag in c.diagnostics:
             print(f"  [{diag.level:^7}] {diag.code} (candidate "

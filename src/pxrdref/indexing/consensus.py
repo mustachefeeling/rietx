@@ -104,6 +104,13 @@ class ConsensusOutcome:
     systems_searched: list[str] = field(default_factory=list)
     search_complete: dict[str, bool] = field(default_factory=dict)
     engine_stats: dict[str, float] = field(default_factory=dict)
+    #: candidates whose geometrical-ambiguity enumeration actually ran — the
+    #: ``checked`` the gate must be given.  Identical to ``checked_indices``
+    #: except under a fired token (WP-1037), where the enumeration is the
+    #: measured long pole (12 × 3.75 s on the corundum run) and is skipped for
+    #: the remaining candidates — which must then read "not enumerated"
+    #: (a capping caveat), never "no ambiguity found"
+    ambiguity_checked: list[int] = field(default_factory=list)
     fom_panel_disagrees: bool = False
     #: was any engine's tolerance widened by an *assumed* systematic?  Read from
     #: the engines' own ``INDEX_SHIFT_ALLOWANCE`` diagnostic rather than
@@ -186,7 +193,8 @@ def checked_indices(candidates: Sequence[CellCandidate],
 def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
               spec: SearchSpec | None = None,
               quality: DataQualityReport | None = None,
-              top: int = CONSENSUS_CHECK_TOP) -> ConsensusOutcome:
+              top: int = CONSENSUS_CHECK_TOP,
+              cancel=None) -> ConsensusOutcome:
     """Merge, rank, classify and enumerate ambiguity — everything but validation.
 
     Order matters and it is the WP's: reduce and merge (so ``found_by`` is
@@ -194,6 +202,13 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     merit panel (never a member — measured, ``indexed_fraction`` alone put a
     390-line wrong phase above the truth), then the two-opinion Bravais screen and
     the geometrical-ambiguity enumeration on the checked subset.
+
+    ``cancel`` (WP-1037) is read between ambiguity enumerations only — merging,
+    ranking and the Bravais screen always run, because they are what turns raw
+    engine output into an answer at all and they are cheap (the enumeration was
+    measured at 45 of a 105 s ceiling-bound corundum run; everything else here
+    is noise).  A skipped candidate stays out of ``ambiguity_checked``, which
+    is what makes the gate read it honestly.
     """
     spec = spec or SearchSpec()
     merged = merge_engine_candidates(results)
@@ -245,8 +260,9 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     for i, cand in enumerate(out.candidates):
         cand.bravais = bravais_opinion(cand.cell, cand.centring,
                                        cell_esd=np.asarray(cand.cell_esd))
-        if i in checked:
+        if i in checked and not (cancel is not None and bool(cancel)):
             cand.ambiguity = _partners(cand, peaks)
+            out.ambiguity_checked.append(i)
     return out
 
 

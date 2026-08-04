@@ -8,15 +8,15 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
-.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-15 min (1772 collected), incl. real-data acceptance
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance (1675 collected, ~20-80 s)
+.venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-15 min, incl. real-data acceptance (counts: Current numbers)
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~20-80 s
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
 .venv/bin/pxrdref gui my_sample.pxrd                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
-npm --prefix gui test && npm --prefix gui run check    # vitest (276: jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic) + svelte-check
+npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic; count: Current numbers) + svelte-check
 .venv/bin/pxrdref watch <live-dir>                     # live viewer for a LiveSession run
 .venv/bin/pxrdref compare --open                       # settings-comparison UI on the standards
 ```
@@ -49,35 +49,29 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 on the **merged** tree (WP-1036 close, after WP-1030 came
-in from `worktree-indexer`), darwin/arm64 M4, numpy-only `[dev]` worktree venv.
-**Measured on the merge, not summed from the two branches** — neither parent's
-figure is this tree's:
+Measured 2026-08-04 at the WP-1037 close, darwin/arm64 M4, in the
+**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
+jax converts skips into passes, so none of these rows compares with a `[dev]`
+count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
+re-measured (they predate 1037's 19 tests; last good: the WP-1036 close entry,
+now in the v1.0 appendix):
 
-- fast suite: **1605 passed / 108 skipped**, 38 s / 1:41 (quiet vs sharing the
-  machine with a full run — the spread is the machine, not the change).
-  Decomposes exactly: 1577 baseline + 1030's 8 + 1036's 14 rows + 5 from one new
-  `validation_matrix` `Claim` (five parametrised tests each expand it) + 1 for
-  the derived-candidate angle guard. No new skips.
-- full suite: **1692 passed / 117 skipped**, 11:36–15:00 over two runs.
-  passed+skipped 1809 = the fast selection's 1713 + 96 slow-marked.
-  The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
-  checkout's.
-- fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
-  with **no torch**: **1657 passed / 67 skipped**, 57–60 s over two runs —
-  re-measured on the merged tree 2026-08-04, then again after the WP-1037…1042
-  docs pass, which moved neither count (docs-only, as intended). More passes and
-  fewer skips than the `[dev]` rows above
-  because jax present converts its skips into passes; a worktree needs its own
-  venv and its own count, so these do not compare with those rows.
-- `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
-  **Run it before closing anything that touches an engine** — WP-1030's one
-  regression was invisible to all 115 fast indexing tests.
-- frontend (vitest): **282**, unchanged by 1030 and 1036 (neither touched
+- fast suite: **1676 passed / 67 skipped**. Decomposes exactly: 1657 at the
+  WP-1036 close + 1037's 19 (14 `test_indexing_ceiling.py` + 3 engines + 1
+  run-control + 1 capabilities meta-test), no new skips. Wall 77 s measured
+  once right after a full run; 57–60 s in the quiet runs at the 1036 close —
+  the spread is the machine.
+- full suite: **1769 passed / 72 skipped**, 11:07 — the first full-suite
+  measurement on this venv, so it has no prior to compare with.
+  passed+skipped 1841 = the fast selection's 1743 + 98 slow-marked.
+- `tests/test_acceptance_indexing.py` alone: 34 rows, 6:35 at `-n auto` this
+  session (~10 min in prior ones) — the engine-closing gate (why: the indexing
+  dossier's WP-1030 bullet).
+- frontend (vitest): **282**, unchanged by 1030/1036/1037 (none touched
   `gui/`); last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
-  numbers.
+  fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
+  § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -158,18 +152,17 @@ title/description/modes/when-to-use per preset, in bijection with
 build can do — backends *with whether each optional dependency imports here*,
 solvers, plans from `PLAN_INFO`, modes, anodes, the formats `read_pattern` opens,
 and the **five** versioned contracts (schema / report-thresholds / event-schema /
-project-format / textdoc-format — the fifth arrived with WP-1009, which is the
-argument for keeping them in the arm rather than in prose: a client reads the
-field list, and a meta-test fails on a `*_version` field that is not the constant
-it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
+project-format / textdoc-format — in the arm rather than in prose because a
+client reads the field list, and a meta-test fails on a `*_version` field that
+is not the constant it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
 on a member missing from its arm**; `features` flags are *derived predicates* (a
 schema field's presence, a top-level export's existence), never literal `True`,
-so a flag flips by itself when its feature lands. **A derived flag still rots, and
-it rots silently: `features["indexing"]` has read `hasattr(pr, "index")` since
-indexing shipped, but the export is `index_pattern` — so it has always been
-`False`, and its test asserts the same tautology and can never fail.** Pair the
-flag with the export name as *data*, and meta-test that every name is in
-`__all__` (WP-1037).
+so a flag flips by itself when its feature lands. **A derived flag still rots,
+and it rots silently**: the `hasattr` name and the real export drift together
+while the test asserts the flag's own expression — `features["indexing"]` spent
+its whole life `False` this way (`index` vs `index_pattern`, fixed WP-1037). So
+each surface flag's export name is *data* (`_SURFACE_FLAGS`), the flags derive
+from that table, and a meta-test checks every name in it against `__all__`.
 Guard hits are `GuardFinding(code, paths, value, message)` — `GuardReport`'s six
 fields hold those, `str(finding)` is the pre-v1.0 text byte for byte (pinned by
 test, because the diagnostics' messages are built from it), and every guard
@@ -248,20 +241,19 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   a smoothness penalty (`BackgroundPSpline`).
 - **Every weighted residual in the package divides by
   `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
-  montage, Layer 0 and the GUI window — and it is a peer of `PatternData.sig()`,
-  which is where the esd-column/Poisson choice was already made: `CompiledModel`
-  stores `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
-  result's σ is a *lookup*, never a re-derivation. Five call sites had open-coded
-  `√max(y,1)` under three policies before WP-1029 (s) unified them. The lesson is
-  in what that hid: the fallback branches disagreed only on pre-v0.2 results, so
-  the visible bug was not there but in the flag beside them — `weighted` meant
-  `bool(result.sigma)`, i.e. "is this a pre-v0.2 result", which is constant-true,
-  so a Poisson fit was labelled `(obs−calc)/σ` as though its σ had been measured.
-  **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ *present* — the same
-  fact `textdoc` renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is
-  what the fit minimised either way, and the flag changes only the axis title. A
-  test that recomputes a residual cannot catch this class of bug: the pin compares
-  what each renderer **drew** against what the route **sent**.
+  montage, Layer 0 and the GUI window — a peer of `PatternData.sig()`, where the
+  esd-column/Poisson choice was already made: `CompiledModel` stores
+  `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
+  result's σ is a *lookup*, never a re-derivation (five call sites open-coded
+  it under three policies before WP-1029 (s), whose file has the story). The
+  bug hid beside the fallback, not in it: `weighted` meant `bool(result.sigma)`
+  — constant-true — so a Poisson fit was labelled `(obs−calc)/σ` as though its
+  σ had been measured. **`weighted` is `DataRef.has_sigma`** (σ *measured*, not
+  σ *present* — the fact `textdoc` renders as "σ from file"), `delta` is always
+  Δ/σ because Δ/σ is what the fit minimised either way, and the flag changes
+  only the axis title. A test that recomputes a residual cannot catch this
+  class of bug: the pin compares what each renderer **drew** against what the
+  route **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.**
   A background able to imitate the peaks biases ADPs up and scales (hence QPA
   fractions) down while Rwp *improves*. Measure it as the block projection
@@ -413,12 +405,11 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   `solver="lm"` (WP-0601) it is carried as a linear inequality and the guard
   falls silent because there is nothing left to report. Read a firing as "these
   coefficients are not quotable", never as evidence *of* anisotropy. **Zero is
-  on the cone, not outside it** — the guard's test is one-sided, and the ≤ 0
-  form it had before v0.6 reported the inert all-zero block as unphysical,
-  which is what produced the since-withdrawn claim that it "fires on isotropic
-  and anisotropic specimens alike". Re-measured: brucite leaves the cone on 12
-  of 43 reflections unconstrained and 0 of 43 under `solver="lm"`; corundum
-  never leaves it at all.
+  on the cone, not outside it** — the guard's test is one-sided; the ≤ 0 form
+  before v0.6 flagged the inert all-zero block as unphysical (the source of a
+  since-withdrawn claim — v0.6's record has it). Re-measured: brucite leaves
+  the cone on 12 of 43 reflections unconstrained and 0 of 43 under
+  `solver="lm"`; corundum never leaves it at all.
 - **Anomalous scattering is ON by default since v1.0** (`Source.dispersion`, f = f₀ +
   f′ + i·f″ from bundled Cromer-Liberman `data/f1f2_CromerLiberman.dat`), and
   the load-bearing part is *not* that f goes complex — F always was. It is that
@@ -437,8 +428,7 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   differs from the primary by more than 1 % of Z (an edge between them). Near an
   edge the table is wrong in principle, not merely coarse, so that is refused
   too and `Dispersion.overrides` takes measured pairs. It is the **only**
-  correction here needing no information the caller does not already have
-  (µR, a habit, a strain model, a surface — dispersion wants species and λ),
+  correction needing no information the caller lacks — species and λ suffice —
   which is why WP-1001 made it the default; `dispersion = None` declines it and
   reproduces every ≤ v0.6 number bit-identically, and `DISPERSION_NEGLECTED`
   then says so. **Every test that pins a number declares this setting
@@ -489,8 +479,7 @@ them all:
 - `docs/LITERATURE.md` — where the papers physically are, and which are unread.
   **Search the local corpus before asking for a paper or re-deriving a published
   constant**: `sqlite3 /Users/yue/zotero-linker/index.sqlite` (table `documents`,
-  columns `title`/`md_path`). Learned by requesting seven papers that were all
-  already there — including the source of constants we hold a defect against.
+  columns `title`/`md_path`); the lesson that pinned this rule is in that file.
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
 - `gui/CLAUDE.md`, `tests/CLAUDE.md` — subsystem rulebooks; they load with
@@ -544,13 +533,12 @@ lines and cannot see reflections predicted where there is no intensity, so
 `validate_by_lebail` reports `predicted_but_absent`, which is what catches an
 oversized cell (measured: 117 of 153 reflections for a doubled cell, 0 of 28 for the
 truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
-serve as that detector and the plan was wrong to name it: Le Bail extraction assigns
-~nothing to a phantom reflection, so there is no negative residual, and the detector
-fires on 61 % of the reflections either way. **The validation fit holds the cell**
-and frees exactly one peak-position parameter, chosen from the candidate's own shift
-template. And on real data with no measured shift, `high` is currently
-*unreachable* by design (`shift_allowance_assumed`); the fix is evidence, not a
-bigger constant, and it is WP-1026's.
+serve as that detector: Le Bail extraction assigns ~nothing to a phantom reflection,
+so there is no negative residual and it fires on 61 % either way. **The validation
+fit holds the cell** and frees exactly one peak-position parameter, chosen from the
+candidate's own shift template. And on real data with no measured shift, `high` is
+currently *unreachable* by design (`shift_allowance_assumed`); the fix is evidence,
+not a bigger constant, and it is WP-1026's.
 
 Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
 `EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
@@ -570,7 +558,7 @@ where M₂₀ separates them 1.8×. Its `N^cal` is Σ 1/m over centring-allowed 
 and is **never rounded**: Σ 1/m over a complete orbit is exactly 1, so an integer
 result is the *self-check* that the multiplicity is right, while a hexagonal orbit
 cut by the enumeration box legitimately contributes a fraction. Two things the panel
-needs from its caller, both learned the same way (WP-1026): the **matching window** is an argument
+needs from its caller (WP-1026): the **matching window** is an argument
 (`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
 members must ask the same "is this the same line" question the *search* asked while
 M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
@@ -596,13 +584,11 @@ are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
 
 - **Profile an engine before ranking what to fix in it: a cost model reasoned
-  from the algorithm's structure is not a profile.** WP-1030's ranking came out
-  nearly inverted — the phase holding 97.6 % of the boxes had no item against
-  it, and the prune ranked last was the one worth 89.9 %. Two corollaries:
-  **wall clock is worthless while a second search shares the machine**, and **a
-  candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice`, never with sorted axes, or a correct answer in another
-  setting reads as a miss.
+  from the algorithm's structure is not a profile** (WP-1030's ranking came out
+  nearly inverted — the appendix has the counts). Two corollaries: **wall clock
+  is worthless while a second search shares the machine**, and **a candidate
+  cell is a lattice, not a tuple** — compare with `reduce.same_lattice`, never
+  with sorted axes, or a correct answer in another setting reads as a miss.
 - **Removing a redundant search must not remove its prunes**, and only real
   data will say that you did: the centred passes are redundant *as searches*
   (each centred trial set is a subset of the primitive one) and not as
@@ -637,24 +623,29 @@ constants in `indexing/`:
   `_box_key` skipping unrefined leaves — a performance filter's failure mode
   is a wrong answer, not a slow one).
 - **An assumed precision may never refuse to index** (`from_positions` lists
-  get no `MAX_RELATIVE_SIGMA_Q` vote), and an assumed shift allowance is
-  reported as `INDEX_SHIFT_ALLOWANCE` because it must never look measured.
-  Open items from the source-paper audit (`volume_envelope` is a mean line,
-  not an envelope) are WP-1030's, recorded in its file.
+  get no `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half of the rule is
+  in the tolerance paragraph above). Open items from the source-paper audit
+  (`volume_envelope` is a mean line, not an envelope) are WP-1030's, in its file.
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches
   3770 s on hard triclinic patterns and McMaille "hours, if not a night", against
-  our 30–150 s. Buy responsiveness with ordering and reporting, never by
-  shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s by
-  default, with the probe and Le Bail validation on top and *outside* it (1037).
+  our measured 0.7–177 s. Buy responsiveness with ordering and reporting, never
+  by shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s of
+  search by default, probe and Le Bail validation on top and *outside* it —
+  so the whole-run bound is `SearchSpec.total_budget_seconds`, enforced as a
+  `Deadline` that *is* the cancel token (it nests under every cooperative check
+  with no engine changes), with `estimate_ceiling` the pre-run arithmetic and
+  `INDEX_BUDGET_EXHAUSTED` naming the three states a bound run leaves
+  (searched / truncated / not reached). A truncated validation reads
+  `not_validated`, never `validation_failed` — a ceiling must not refute a
+  cell it merely ran out of time on (1037).
 - **A Monte Carlo indexer must refine each proposal; scoring raw random cells
   does not rank.** Both working MC indexers do it — TOPAS iterates SVD to a fixed
   hkl assignment, McMaille takes 200–5000 local steps accepting a non-improving
   move ~15 % of the time. WP-1023's no-go measured the unrefined variant only, so
   read it as "unrefined random-cell scoring does not rank" (WP-1040).
 - **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
-  the reflection-pair method for it, and McMaille refuses to scan the zeropoint
-  and says so outright. A widened window is a tolerance, never a measurement, and
-  a cell found inside one has absorbed the shift (WP-1038).
+  the reflection-pair method, McMaille refuses to scan the zeropoint and says so,
+  and a cell found inside a widened window has absorbed the shift (WP-1038).
 - **Enumerate liberally, sort conservatively.** A *false* line costs only
   computation (the enumeration still contains the truth); a *missing* line costs
   success; and the figures of merit are what contamination actually damages.

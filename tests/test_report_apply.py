@@ -146,18 +146,26 @@ def test_advice_kinds_refuse_in_their_own_words_rather_than_silently():
     assert "biasing ADPs" in RECIPES["increase_background_flexibility"].note
 
 
-def test_indexing_is_declared_applicable_and_refused_until_an_engine_exists():
-    """The one refusal a client can watch expire (WP-1007's derived flags)."""
+def test_indexing_is_applicable_now_that_the_engine_exists():
+    """The refusal a client could watch expire — expired (WP-1024, via WP-1037).
+
+    This test's first version was a sentinel: it asserted the live flag
+    ``is False`` so it would fail the day the engine landed and demand the
+    applicable branch.  It slept through the event it was set for — the flag's
+    ``hasattr`` name was wrong (``index`` against an export named
+    ``index_pattern``), so the flag stayed ``False`` with the engine present.
+    ``test_capabilities.py`` now meta-tests the name against ``__all__``; what
+    is left to assert here is both sides of the gate on the live flag.
+    """
     action = _action("reindex_or_recheck_cell", ["phases.*.cell.*"])
     held = {"phases.0.cell.a": ""}
+    # a build that reports no engine still gets the refusal, with the reason…
     why = refusal(action, held=held, indexing=False)
-    assert "WP-1024" in why and "features['indexing']" in why
-    # …and nothing here changes when the engine lands: the same call, one flag on
-    assert refusal(action, held=held, indexing=True) == ""
-
-    assert pr.capabilities().features["indexing"] is False, (
-        "indexing has landed — this test's premise, and the panel's refusal, "
-        "should now be the applicable branch")
+    assert "features['indexing']" in why
+    # …and the live flag now takes the applicable branch
+    assert pr.capabilities().features["indexing"] is True
+    assert refusal(action, held=held,
+                   indexing=pr.capabilities().features["indexing"]) == ""
 
 
 def test_the_veto_outranks_every_other_reason():

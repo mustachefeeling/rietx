@@ -633,6 +633,47 @@ def test_a_restricted_search_reports_only_the_systems_it_searched():
     assert "orthorhombic" not in result.search_complete
 
 
+@pytest.mark.parametrize("engine", ["dichotomy", "trial_error"])
+def test_a_system_never_started_is_never_claimed(engine):
+    """WP-1037: ``systems_searched`` means *started*, not *requested*.
+
+    Before this, an engine whose token was already set still 'searched' every
+    system — each one entered, given an instantly-expired budget, and recorded
+    as a zero-second incomplete search — so a run stopped early was
+    indistinguishable from one truncated after real work.  A pre-set token now
+    claims nothing, which is the engine-level half of the three-state reading
+    (searched / truncated / not reached) the workflow reports."""
+    from pxrdref.indexing.engines import get_engine
+    from pxrdref.optimize.cancel import CancelToken
+
+    peaks, _cell = synthetic_peaks("cubic")
+    token = CancelToken()
+    token.cancel()
+    result = get_engine(engine)(peaks, spec=spec_for("cubic"), cancel=token)
+    assert result.systems_searched == ()
+    assert result.search_complete == {}
+    assert result.candidates == []
+
+
+def test_the_probe_cost_is_visible_in_the_stats():
+    """WP-1037's task-0 profile found the dominant-zone probe about a third of
+    the worst case and absent from every stat.  When it runs, it now reports
+    its seconds; when the search found candidates, it does not run and the key
+    is absent — so the key's presence *is* the record that it ran."""
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, _cell = synthetic_peaks("cubic")
+    # a volume ceiling below the true cell's leaves nothing to find, cheaply:
+    # the search dies at the volume gate and so do the probe's wider rungs
+    barren = search_trial_error(peaks, spec=spec_for("cubic", max_volume=20.0))
+    assert not barren.candidates
+    assert "probe.seconds" in barren.stats
+
+    found = search_trial_error(peaks, spec=spec_for("cubic"))
+    assert found.candidates
+    assert "probe.seconds" not in found.stats
+
+
 # ----------------------------------------------------------------------
 # Trial and error (WP-1022)
 # ----------------------------------------------------------------------

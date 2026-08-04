@@ -240,6 +240,7 @@ propagate it, do not paper over it.
 | `INDEX_GEOMETRIC_AMBIGUITY` | Two distinct lattices explain the positions equally well (Mighell & Santoro 1975) | Do not pick one. The information is **absent from the measurement**, not buried in noise — collect to the 2θ in `discriminating_two_theta` and look for the reflections named there |
 | `INDEX_MULTIPLE_SOLUTIONS` | More than one candidate satisfies the whole gate | Compare the panels and each `lebail.rwp`, and extend the 2θ range: two cells that both explain a range this wide are usually separated by one high-angle reflection |
 | `INDEX_SEARCH_INCOMPLETE` | A budget expired before the domain did | Do not read "no cell found" as "no cell exists". Only a *completed* exhaustive search says that, and `search_complete[system]` says which systems finished |
+| `INDEX_BUDGET_EXHAUSTED` | The declared whole-run ceiling (`total_budget_seconds`) bound | The answer covers what was *reached*. Read the three states of `systems_searched` (§7c) before treating any absence — of a system, a candidate, or a validation — as evidence |
 | `INDEX_SYSTEMS_NOT_COVERED` | Systems were not searched | Read a failure as "no cell in the systems searched", never as a statement about the specimen — and in particular never as "this is multiphase" (§8.15) |
 | `ExtinctionScreen.best_or_none()` returns `None` | No extinction class is separated from its rivals by these data | Read the ranked `candidates` and `EXTINCTION_SYMBOL_AMBIGUOUS`, which states every reason at once. The action is a longer count at the *forbidden positions the leading classes disagree about*, or a wider range — never the better Rwp, which always favours the class with more reflections |
 | `EXTINCTION_GROUPS_NOT_SEPARABLE` | The leading class holds more than one space group | Nothing. This is **not** a data problem and no counting time fixes it: those groups differ only by elements that produce no absences. Carry the whole list forward and choose with chemistry (§7e) |
@@ -332,6 +333,7 @@ result.
 | `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. The stated system is the conservative one; refine there and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug — their tolerances are different kinds of number (a Le Page obliquity in degrees against a `symprec` in Å) and disagreement is what genuine pseudosymmetry looks like |
 | `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. It is outside what these data can support — below a single atom's exclusion volume, or clear of Smith's (1977) envelope for the number of lines observed |
 | `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
+| `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The declared `total_budget_seconds` bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). A user cancellation never writes this code: a stopped run is not a budget statement |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
 
 ### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
@@ -393,6 +395,21 @@ Indexing is the step that used to be missing. Before it, this package could
 refine a structure against a pattern but could not find the cell, so an unknown
 phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
 loop between them closes:
+
+**How long will this take?** Ask before running:
+`pxrdref.indexing.engines.estimate_ceiling(spec)` (CLI: `pxrdref index
+--ceiling`). `budget_seconds` (default 30) is per **(engine × system)** — a
+default two-engine, seven-system call is up to 420 s of search, plus the
+dominant-zone probe (up to 360 s) and one *unbudgeted* Le Bail fit per checked
+candidate (measured 0.6–44 s each) — arithmetic worst case ≈ 1300 s against a
+measured typical of 3–180 s, because searches usually finish their systems
+early. To bound the whole run, set `SearchSpec.total_budget_seconds` (CLI:
+`--total-budget`): the result still arrives complete over what was reached,
+and `INDEX_BUDGET_EXHAUSTED` (§7c) names what was not. Budgets are runaway
+guards, not timers — this package's record has six point measurements where a
+longer run never bought a better answer, and one where too little budget
+reported a wrong centring, so bound generously and read the three states
+rather than shrinking the search.
 
 ```python
 peaks  = pxrdref.pick_peaks(data, instrument)           # fitted positions + σ

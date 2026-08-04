@@ -292,7 +292,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                        space_group: str | None = None,
                        two_theta_limits: tuple[float, float] | None = None,
                        k_sigma: float = ABSENT_SIGMA,
-                       ) -> LeBailValidation:
+                       cancel=None) -> LeBailValidation:
     """Fit ``candidate`` to the whole pattern by Le Bail and report the three
     detectors.
 
@@ -309,7 +309,18 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     rather than as an exception: a candidate the physics refuses is evidence
     about the candidate, and the gate reads it as such (the ``validation_failed``
     caveat), where a traceback would abandon every other candidate with it.
+
+    **Except a cancellation, which is evidence about nothing** (WP-1037).
+    ``cancel`` may be the caller's token or ``index_pattern``'s whole-run
+    :class:`~pxrdref.indexing.engines.Deadline`; either way the fit it stops is
+    a fit that *ran out of time*, and letting ``RefinementCancelled`` fall into
+    the generic handler would hand the gate a ``validation_failed`` — a
+    **refuting** caveat — for a cell the run merely could not afford to check.
+    So it re-raises, the caller stops the loop, and the candidate keeps
+    ``lebail = None``, which reads as ``not_validated`` (capping): the honest
+    state, and the same one an unreached candidate was always in.
     """
+    from ..optimize.cancel import RefinementCancelled
     from ..refine import Refinement
     from ..report.layer0 import build_layer0
     from .peaks import predicted_fwhm
@@ -324,7 +335,9 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     ref = Refinement(structure, ins, history=False)
     try:
         result = ref.fit(data, mode="lebail", plan=plan,
-                         two_theta_limits=two_theta_limits)
+                         two_theta_limits=two_theta_limits, cancel=cancel)
+    except RefinementCancelled:
+        raise                       # before the generic handler — see docstring
     except Exception as exc:                        # noqa: BLE001
         return LeBailValidation(
             rwp=float("inf"), gof=float("inf"), space_group=symbol,
@@ -393,19 +406,39 @@ def index_pattern(peaks: PeakList | None = None, *,
     what it has rather than raising — an indexing run has nothing to abandon,
     unlike a seeding refinement stage.
 
+    ``spec.total_budget_seconds`` (WP-1037) is the whole-run ceiling — search,
+    probe *and* validation, where ``budget_seconds`` is one (engine × system)
+    slice.  It is enforced as a :class:`~pxrdref.indexing.engines.Deadline`,
+    a clock shaped as a cancel token, so it nests under every cooperative
+    check above with no engine changes and the run still returns a complete
+    :class:`~pxrdref.schemas.indexing.IndexingResult` over what was reached.
+    ``systems_searched`` then distinguishes three states — a system searched to
+    completion (``search_complete`` true), one truncated mid-search (false),
+    and one never reached (absent) — and ``INDEX_BUDGET_EXHAUSTED`` names them.
+    ``estimate_ceiling`` is the pre-run arithmetic for choosing the value.
+
     **Abstention is checked before any budget is spent.**  A peak list that cannot
     support a search comes back with the candidates empty and
     ``INDEX_DATA_INSUFFICIENT`` from the quality gate, never as an exception and
     never as a ranked list with nothing behind it.
     """
     from ..history.events import as_event_stream
+    from ..optimize.cancel import RefinementCancelled
     from ..refine import _VERSION, _utcnow
     from ..report.schemas import THRESHOLDS_VERSION
     from ..schemas.common import Provenance
     from ..schemas.indexing import IndexingResult
     from .consensus import CONSENSUS_CHECK_TOP, apply_gate, checked_indices, consensus
     from .diagnostics import candidate_diagnostics, index_diagnostics
-    from .engines import SearchSpec, engine_names, get_engine
+    from .engines import (
+        SYSTEM_ORDER,
+        Deadline,
+        Progress,
+        SearchSpec,
+        budget_exhausted_diagnostic,
+        engine_names,
+        get_engine,
+    )
     from .pick import pick_peaks
     from .quality import assess_peak_list
 
@@ -421,17 +454,35 @@ def index_pattern(peaks: PeakList | None = None, *,
     names = tuple(engines) if engines is not None else engine_names()
     top = CONSENSUS_CHECK_TOP if check_top is None else check_top
 
+    # the whole-run clock, if one was declared: a Deadline both *is* the token
+    # every cooperative check reads (so it binds the engines, the probe and the
+    # validation fits alike) and *carries* the caller's own token, so either
+    # stops the run and cancelled_by_user() says which did
+    deadline = None
+    run_cancel = cancel
+    if spec.total_budget_seconds is not None:
+        deadline = Deadline(spec.total_budget_seconds, cancel=cancel)
+        run_cancel = deadline
+
     provenance = Provenance(
         package_version=_VERSION, created_utc=_utcnow(),
         report_thresholds_version=THRESHOLDS_VERSION,
         notes=_spec_notes(spec, names, quality))
     stream = as_event_stream(events)
     if stream is not None:
+        extra = ({"total_budget_seconds": float(spec.total_budget_seconds)}
+                 if spec.total_budget_seconds is not None else {})
         stream.emit("index_start", engines=list(names),
                     systems=[s for s in spec.systems],
                     n_usable_lines=len(peaks.usable()),
                     wavelength=peaks.wavelength,
-                    supports_indexing=quality.supports_indexing)
+                    supports_indexing=quality.supports_indexing, **extra)
+    # one flat ladder over everything the run does (WP-1037): a search unit per
+    # (engine × system), plus probe and validation units add()-ed when their
+    # counts become known — never a second per-engine ladder beside it, which
+    # is what made a progress bar jump (two writers, one ``n_stages``)
+    n_systems = len([s for s in SYSTEM_ORDER if s in spec.systems])
+    progress = Progress(stream, total=len(names) * n_systems)
 
     if not quality.supports_indexing:
         # abstention *is* the result: the gate has already decided the data cannot
@@ -449,39 +500,62 @@ def index_pattern(peaks: PeakList | None = None, *,
         return out
 
     results = []
-    for i, name in enumerate(names, start=1):
-        if cancel is not None and bool(cancel):
+    for name in names:
+        # per-(engine × system) progress is emitted by the engines themselves
+        # through ``progress`` — the per-engine stage pair that used to sit
+        # here is *replaced*, not nested (WP-1037's trap 2)
+        if run_cancel is not None and bool(run_cancel):
             break
-        if stream is not None:
-            stream.emit("stage_start", stage=f"engine:{name}", index=i,
-                        n_stages=len(names), engine=name,
-                        systems=[s for s in spec.systems])
         engine_result = get_engine(name)(peaks, spec=spec, quality=quality,
-                                         cancel=cancel)
+                                         cancel=run_cancel, progress=progress)
         results.append(engine_result)
-        if stream is not None:
-            stream.emit("stage_end", stage=f"engine:{name}", index=i,
-                        n_stages=len(names), engine=name,
-                        n_candidates=len(engine_result.candidates),
-                        complete=engine_result.complete)
 
-    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top)
+    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
+                        cancel=run_cancel)
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
     if validate and data is not None and instrument is not None:
+        progress.add(len(checked))
         for i in checked:
-            if cancel is not None and bool(cancel):
+            if run_cancel is not None and bool(run_cancel):
                 break
-            outcome.candidates[i].lebail = validate_by_lebail(
-                outcome.candidates[i], data, instrument, peaks=peaks,
-                two_theta_limits=two_theta_limits)
+            cand = outcome.candidates[i]
+            label = f"validate:{cand.system} {cand.centring}"
+            progress.start(label, system=cand.system, validation=True)
+            try:
+                cand.lebail = validate_by_lebail(
+                    cand, data, instrument, peaks=peaks,
+                    two_theta_limits=two_theta_limits, cancel=run_cancel)
+            except RefinementCancelled:
+                # a truncated fit is not evidence about the candidate: leave
+                # ``lebail = None`` (reads ``not_validated``, capping) and stop
+                progress.end(label, validation=True, status="cancelled")
+                break
+            progress.end(label, validation=True, status=cand.lebail.status)
         validated = True
 
+    if deadline is not None and deadline.expired() \
+            and not deadline.cancelled_by_user():
+        requested = [s for s in SYSTEM_ORDER if s in spec.systems]
+        outcome.diagnostics.append(budget_exhausted_diagnostic(
+            float(spec.total_budget_seconds),
+            engines_not_run=[n for n in names if n not in outcome.engines_run],
+            systems_truncated=[s for s, ok in outcome.search_complete.items()
+                               if not ok],
+            systems_not_reached=[s for s in requested
+                                 if s not in outcome.systems_searched],
+            candidates_not_validated=sum(
+                1 for i in checked if outcome.candidates[i].lebail is None)
+            if validated else 0))
+
+    # the gate's ``checked`` is what the enumeration actually covered, not what
+    # was scheduled: under a fired token the two differ, and a candidate whose
+    # ambiguity question was never asked must not read as answered (WP-1037)
     apply_gate(outcome.candidates, engines_run=outcome.engines_run,
                panel_disagrees=outcome.fom_panel_disagrees, validated=validated,
                search_complete=outcome.search_complete,
                shift_allowance_assumed=outcome.shift_allowance_assumed,
-               checked=checked, quality=quality)
+               checked=outcome.ambiguity_checked, quality=quality)
     for cand in outcome.candidates:
         cand.diagnostics = list(cand.diagnostics) + candidate_diagnostics(cand)
 
@@ -525,6 +599,10 @@ def _spec_notes(spec, names: Sequence[str], quality) -> dict[str, str]:
         "k_sigma": f"{spec.k_sigma:g}",
         "sigma_sys_deg": f"{spec.sigma_sys_deg:g}",
         "budget_seconds": f"{spec.budget_seconds:g}",
+        # only when declared, so a default run's notes are byte-identical to
+        # every run recorded before the field existed
+        **({"total_budget_seconds": f"{spec.total_budget_seconds:g}"}
+           if spec.total_budget_seconds is not None else {}),
         "seed": str(spec.seed),
         "indexing_thresholds_version": quality.thresholds_version,
     }

@@ -23,9 +23,16 @@ Event kinds (closed set, versioned with the schema):
   pair rather than a reuse of ``fit_start``/``fit_end`` because an indexing run
   has none of what a refinement run has: no mode, no Rwp, no history node.  What
   it *does* have is engines and systems, and those go on the open ``data`` dict —
-  the per-engine progress in between is emitted as ``stage_start``/``stage_end``
-  with ``index``, ``n_stages``, ``engine`` and ``system``, so ``pxrdref watch``
-  and the GUI's progress reporting need no new case at all.
+  the progress in between is emitted as ``stage_start``/``stage_end`` with
+  ``index``, ``n_stages``, ``engine`` and ``system``, so ``pxrdref watch``
+  and the GUI's progress reporting need no new case at all.  Since WP-1037 that
+  ladder is **flat and per (engine × system)** — plus a unit per dominant-zone
+  probe rung and per validation fit — and its ``n_stages`` is **revisable
+  mid-run**: probe and validation counts are unknowable at ``index_start``
+  (the probe runs only after an empty search, the validation count only after
+  consensus), so a consumer treats ``n_stages`` as the current best claim
+  rather than a constant.  Revising a field's *value* is not a change of its
+  meaning, so the additivity rule below holds and the version does not move.
 
 Every line carries ``t`` (Unix seconds) so a tail of the file doubles as a
 progress bar; ``pxrdref watch`` renders it as the console pane.
