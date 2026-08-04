@@ -10,6 +10,7 @@
 from importlib.metadata import version as _dist_version
 
 from pxrdref.crystallography.dispersion import NEAR_EDGE_EV
+from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from pxrdref.indexing.ambiguity import MAX_AMBIGUITY_INDEX
 from pxrdref.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
 from pxrdref.indexing.reduce import NIGGLI_EPS_RELATIVE
@@ -46,6 +47,7 @@ myst_substitutions = {
     "NODES_PER_FWHM": NODES_PER_FWHM,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
+    "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
     "WINDOW_FWHM_MULT": WINDOW_FWHM_MULT,
     "release": release,

@@ -40,6 +40,138 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     return sg
 
 
+#: Largest deviation of a symmetry-fixed cell angle from its exact value that
+#: :func:`cell_constraints` accepts, in degrees.  Chosen by consequence, not by
+#: float tolerance: at 1e-3° the worst-case d-spacing bias is **8.3 ppm**
+#: (measured on a=5, b=6, c=7 Å over h0l/hk l reflections; the coupling is
+#: linear, 825 ppm at 0.1°), an order of magnitude under the tightest cell
+#: assertion in the acceptance suite — SRM 660c's a = 4.15678 ± 2e-4 Å, i.e.
+#: 48 ppm.  And it clears, by a **measured 7e10 ×**, the round-off an indexing
+#: candidate arrives with: ``refine_candidate`` solves A..F *inside* the symmetry
+#: subspace, so the derived angles come back within 1.4e-14° of exactly 90/120
+#: across all five constrained systems.  That matters because
+#: ``validate_by_lebail`` builds a ``ParameterTable`` from every candidate — a
+#: tolerance anywhere near the conversion noise would make the indexer refuse its
+#: own answers.
+SYMMETRY_ANGLE_TOL_DEG = 1e-3
+
+#: The exact angle a hexagonal/trigonal γ takes on hexagonal axes.
+_GAMMA_HEX = 120.0
+
+
+@dataclass(frozen=True)
+class CellConstraints:
+    """Which cell parameters a space-group **setting** leaves free.
+
+    ``ties`` maps a dependent cell parameter to the one it equals (``"b" → "a"``,
+    and on rhombohedral axes ``"beta" → "alpha"`` as well); ``fixed_angles`` maps
+    an angle to the value its symmetry *demands*, in degrees.  Everything not
+    named in either is refinable.
+
+    **The crystal system is not enough** — the setting is, and three of them
+    disagree with the system alone (WP-1036):
+
+    * monoclinic has three unique-axis choices, and gemmi knows which
+      (:meth:`gemmi.SpaceGroup.monoclinic_unique_axis`).  Assuming ``b`` inverts
+      the answer on a ``c``-unique symbol: γ, the one angle the setting leaves
+      free, gets held, and β, which symmetry fixes at 90°, is left to refine.
+    * an R lattice on **rhombohedral** axes (``sg.ext == 'R'``) needs
+      a = b = c and α = β = γ, not the hexagonal-axes ``b ← a`` with c free.
+      ``read_small_structure`` picks the setting from the *cell*, so a bare
+      ``R -3 c`` over a rhombohedral cell arrives here as ``R -3 c:R`` — no
+      non-standard symbol required.
+    * the ``:1``/``:2`` extensions on cubic, tetragonal and orthorhombic groups
+      are origin choices and do not touch the metric, which is why only ``'R'``
+      is tested for.
+
+    **A degrees-of-freedom count cannot check any of this.** Both monoclinic
+    subspaces have four free parameters and both trigonal ones have two; the
+    wrong table has the right dimension and the wrong subspace, exactly as the
+    transposed-rotation trap did one rank up (see
+    :func:`~pxrdref.indexing.qspace.metric_basis`).  The test that does check it
+    asserts the *true* metric of each setting lies in the span the constraints
+    describe — ``tests/test_wyckoff.py`` runs it over gemmi's whole table.
+
+    The values in ``fixed_angles`` are **new knowledge**: nothing else in this
+    package knows a hexagonal γ "should be" 120°.  They live here so that no
+    call site can open-code them.
+    """
+
+    ties: dict[str, str]
+    fixed_angles: dict[str, float]
+
+
+def cell_constraints(sg: gemmi.SpaceGroup) -> CellConstraints:
+    """Cell ties and symmetry-fixed angles for one space-group **setting**.
+
+    Raises ``ValueError`` naming the symbol and the setting if the group is one
+    this package cannot serve.  See :class:`CellConstraints` for why the crystal
+    system alone is the wrong key.
+    """
+    system = sg.crystal_system_str()
+    right = {"alpha": 90.0, "beta": 90.0, "gamma": 90.0}
+    if system == "cubic":
+        return CellConstraints({"b": "a", "c": "a"}, right)
+    if system == "tetragonal":
+        return CellConstraints({"b": "a"}, right)
+    if system == "hexagonal":
+        return CellConstraints({"b": "a"}, right | {"gamma": _GAMMA_HEX})
+    if system == "orthorhombic":
+        return CellConstraints({}, right)
+    if system == "triclinic":
+        return CellConstraints({}, {})
+    if system == "trigonal":
+        if sg.ext == "R":  # rhombohedral axes: one length, one angle
+            return CellConstraints({"b": "a", "c": "a", "beta": "alpha",
+                                    "gamma": "alpha"}, {})
+        return CellConstraints({"b": "a"}, right | {"gamma": _GAMMA_HEX})
+    if system == "monoclinic":
+        axis = sg.monoclinic_unique_axis()
+        free = {"a": "alpha", "b": "beta", "c": "gamma"}.get(axis)
+        if free is None:
+            raise ValueError(
+                f"space group {sg.xhm()!r}: monoclinic with unique axis "
+                f"{axis!r}, which is not one of a, b, c — this package cannot "
+                f"decide which angle its symmetry fixes")
+        return CellConstraints({}, {k: v for k, v in right.items() if k != free})
+    raise ValueError(
+        f"space group {sg.xhm()!r}: crystal system {system!r} has no cell-tie "
+        f"rule in this package")
+
+
+def check_cell_angles(sg: gemmi.SpaceGroup,
+                      angles: dict[str, float]) -> None:
+    """Raise if a symmetry-fixed angle disagrees with the value symmetry demands.
+
+    ``angles`` maps ``"alpha"``/``"beta"``/``"gamma"`` to the stored value in
+    degrees.  Tolerance is :data:`SYMMETRY_ANGLE_TOL_DEG`.
+
+    **Refusing, rather than normalising, is the deliberate choice** (WP-1036).
+    A fixed angle is *held at its stored value*, so before this check a
+    monoclinic β = 93.2° survived under an orthorhombic symbol and every
+    d-spacing was computed from it — silently, because nothing in the package
+    knew what the angle should have been.  Normalising it instead would move a
+    number the user supplied, and the one place this is called from
+    (``ParameterTable``) has no diagnostics channel to report a model edit
+    through; an invisible edit to a stored cell is worse than a refusal.
+
+    Putting the check on that hot path is safe for a reason worth stating: a
+    symmetry-fixed angle is **locked**, so it cannot drift while a fit runs.
+    The table is rebuilt at every stage boundary and on every ``set_vary`` /
+    ``set_values``, but the answer here is the same at each rebuild — a
+    refinement that starts can never fail this mid-flight.
+    """
+    for name, target in cell_constraints(sg).fixed_angles.items():
+        value = angles[name]
+        if abs(value - target) > SYMMETRY_ANGLE_TOL_DEG:
+            raise ValueError(
+                f"space group {sg.xhm()!r} fixes {name} at {target}° by "
+                f"symmetry, but the cell stores {value}° — off by "
+                f"{value - target:+.6g}°, {SYMMETRY_ANGLE_TOL_DEG}° allowed. "
+                f"Correct the cell, or use a space group whose symmetry leaves "
+                f"{name} free.")
+
+
 def rotation_matrices(sg: gemmi.SpaceGroup) -> np.ndarray:
     """Integer rotation parts of all symmetry operations, shape (M, 3, 3).
 

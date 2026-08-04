@@ -17,11 +17,35 @@ p_{\mathrm{phys}} \;=\; C\, p_{\mathrm{free}} + d,
 
 with sparse $C$ rebuilt at every stage boundary and constant during a
 least-squares run — a constant matmul stays exact under the autodiff
-backends. Crystal-system cell ties ($b \leftarrow a$, fixed angles) are the
-identity-row special case; Wyckoff site constraints supply general rows.
-Structurally locked entries — the first emission line's weight (degenerate
-with the phase scales), symmetry-fixed cell angles, fully fixed special
-positions — can never be freed by a glob.
+backends. Cell ties ($b \leftarrow a$, fixed angles) are the identity-row
+special case; Wyckoff site constraints supply general rows. Structurally
+locked entries — the first emission line's weight (degenerate with the phase
+scales), symmetry-fixed cell angles, fully fixed special positions — can
+never be freed by a glob.
+
+**The cell ties follow the space-group *setting*, not the crystal system.**
+Three settings disagree with the system alone, and in each the number of free
+cell parameters is the same either way — so the count is right while the
+subspace is wrong, and only naming which angle is held and which length
+follows which distinguishes them:
+
+- a **monoclinic** symbol may be unique-axis $a$, $b$ or $c$, and the one
+  angle its symmetry leaves free is $\alpha$, $\beta$ or $\gamma$
+  respectively;
+- an **R lattice on rhombohedral axes** needs $a = b = c$ with
+  $\alpha = \beta = \gamma$ free, not the hexagonal-axes $b \leftarrow a$ with
+  $c$ free and all three angles fixed. Which description arrives is decided by
+  the file: `read_small_structure` resolves a bare `R -3 c` over a
+  rhombohedral cell to the `:R` setting;
+- the `:1`/`:2` extensions are origin choices and leave the metric untouched.
+
+A symmetry-fixed angle is checked against the value its symmetry demands and
+the cell is **refused** if it disagrees by more than
+{{ SYMMETRY_ANGLE_TOL_DEG }}° — it is *held* at its stored value, so an
+orthorhombic symbol over a cell carrying $\beta = 93.2°$ would otherwise
+compute every $d$-spacing from that angle in silence.
+
+*Source:* `pxrdref.crystallography.symmetry.cell_constraints`
 
 Strictly positive quantities (widths, scales) refine through the softplus
 transform,

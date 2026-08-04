@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from pxrdref.crystallography.lattice import cell_volume
-from pxrdref.crystallography.symmetry import generate_reflections
+from pxrdref.crystallography.symmetry import cell_constraints, generate_reflections, get_spacegroup
 from pxrdref.indexing.fom import (
     FOM_N,
     borda_scores,
@@ -44,7 +44,6 @@ from pxrdref.indexing.qspace import (
     refine_candidate,
     sigma_effective,
 )
-from pxrdref.params.vector import _CELL_TIES, _FIXED_ANGLES
 from pxrdref.schemas.indexing import (
     METRIC_DOF,
     FigureOfMerit,
@@ -78,21 +77,59 @@ def _lines(system: str, two_theta_max: float = 90.0):
 # ----------------------------------------------------------------------
 # The quadratic form and its subspaces
 # ----------------------------------------------------------------------
-def test_metric_subspace_dimensions_match_the_tabulated_cell_dof():
-    """The derived subspace must reproduce ``params.vector``'s cell ties.
+def test_metric_subspace_matches_the_refinement_sides_cell_constraints():
+    """The derived subspace must reproduce ``cell_constraints``'s cell ties.
 
     Two independent statements of the same crystallography: the refinement side
-    ties b←a and fixes angles from a table, while indexing derives the invariant
+    ties b←a and fixes angles per setting, while indexing derives the invariant
     metric directions from the operators by exact rational algebra.  If they ever
     disagree, one of them is wrong — and the derivation is the one that stays
     right in a non-standard setting.
+
+    **The dimension is checked last and on its own is worthless** (WP-1036).
+    Before that WP this test compared ``6 − len(ties) − len(fixed)`` against
+    ``METRIC_DOF`` and nothing else, and it passed while ``params.vector`` held
+    the wrong angle for a c-unique monoclinic symbol (4 free either way) and the
+    wrong lengths for a rhombohedral-axes R group (2 either way).  So the real
+    assertion is the one below it: the cell each setting's constraints *describe*
+    has its metric inside the derived span, and a cell that breaks one of those
+    constraints falls outside it.
     """
     for system, dof in METRIC_DOF.items():
-        tabulated = 6 - len(_CELL_TIES[system]) - len(_FIXED_ANGLES[system])
-        derived = metric_basis(system).shape[0]
-        assert derived == tabulated == dof, (
-            f"{system}: derived {derived}, tabulated {tabulated}, "
-            f"METRIC_DOF {dof}")
+        symbol, cell = CELLS[system]
+        constraints = cell_constraints(get_spacegroup(symbol))
+        basis = metric_basis(system)
+
+        names = ("a", "b", "c", "alpha", "beta", "gamma")
+        values = dict(zip(names, cell))
+        for dependent, source in constraints.ties.items():
+            assert values[dependent] == values[source], (
+                f"{system}: the fixture cell violates its own tie "
+                f"{dependent}←{source}")
+        for angle, target in constraints.fixed_angles.items():
+            assert values[angle] == target, (
+                f"{system}: fixture {angle}={values[angle]}, symmetry says {target}")
+
+        af = af_from_cell(cell)
+        coef, *_ = np.linalg.lstsq(basis.T, af, rcond=None)
+        assert np.allclose(basis.T @ coef, af, atol=1e-12), (
+            f"{system}: a cell obeying cell_constraints lies outside metric_basis")
+
+        # and a cell that breaks a constraint must leave the span, or the
+        # subspace is not constraining what the tie claims it constrains
+        for name in names:
+            if name not in constraints.ties and name not in constraints.fixed_angles:
+                continue
+            broken = dict(values)
+            broken[name] = values[name] * 1.03 if name in ("a", "b", "c") \
+                else values[name] + 3.0
+            af_bad = af_from_cell(tuple(broken[k] for k in names))
+            coef, *_ = np.linalg.lstsq(basis.T, af_bad, rcond=None)
+            assert not np.allclose(basis.T @ coef, af_bad, atol=1e-9), (
+                f"{system}: breaking {name} stays inside metric_basis, so the "
+                f"constraint on it is not the one the subspace encodes")
+
+        assert basis.shape[0] == dof, f"{system}: derived {basis.shape[0]}, METRIC_DOF {dof}"
 
 
 def test_metric_basis_is_integer_and_spans_the_true_cell():
@@ -557,3 +594,33 @@ def test_fom_n_is_twenty_lines():
     _hkl, q_pred = predicted_lines(cell, "triclinic", "P", LAM, 90.0)
     assert m20(q, q_esd, q_pred).n_lines == FOM_N
     assert f_n(tt, esd_tt, tt).n_lines == FOM_N
+
+
+def test_a_derived_candidate_cell_never_trips_the_symmetry_angle_check():
+    """The indexer must not refuse its own answers (WP-1036).
+
+    ``validate_by_lebail`` builds a ``ParameterTable`` from every candidate, and
+    that now calls ``check_cell_angles``, which refuses a fixed angle more than
+    ``SYMMETRY_ANGLE_TOL_DEG`` from the value symmetry demands.  The reason this
+    is safe rather than lucky: ``refine_candidate`` solves A..F *inside*
+    ``metric_basis``, so a derived cell satisfies its system's angle constraints
+    to round-off — measured 1.4e-14 deg, a 7e10 margin on the 1e-3 deg bar.  A
+    tolerance chosen anywhere near the conversion noise would turn every
+    hexagonal candidate into a validation crash.
+    """
+    from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG, check_cell_angles
+
+    worst = 0.0
+    for system, (symbol, cell) in CELLS.items():
+        if system == "triclinic":
+            continue  # nothing is fixed, so there is nothing to trip
+        hkl, q, _tt, _cell = _lines(system)
+        fit = refine_candidate(q, np.full_like(q, 1e-6), hkl, system=system)
+        angles = dict(zip(("alpha", "beta", "gamma"), fit.cell[3:]))
+        check_cell_angles(get_spacegroup(symbol), angles)  # must not raise
+        for name, target in cell_constraints(
+                get_spacegroup(symbol)).fixed_angles.items():
+            worst = max(worst, abs(angles[name] - target))
+    assert worst < SYMMETRY_ANGLE_TOL_DEG / 1e6, (
+        f"derived angles deviate by {worst:.3e} deg, within a factor 1e6 of the "
+        f"{SYMMETRY_ANGLE_TOL_DEG} deg bar — the margin this test exists to keep")

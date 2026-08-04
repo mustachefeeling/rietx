@@ -14,6 +14,8 @@ import pytest
 
 from pxrdref import Instrument
 from pxrdref.params.vector import AffineTie, ParameterTable
+from pxrdref.schemas.common import Parameter
+from pxrdref.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_schemas import make_lab6
 
 
@@ -213,3 +215,127 @@ def test_tying_removes_from_free_set_and_globs_skip_it():
     table.set_tie("phases.0.scale", AffineTie(terms=(("phases.0.cell.a", 1.0),)))
     assert "phases.0.scale" not in table.free_paths
     assert "phases.0.scale" not in table.set_vary(["phases.0.scale"], True)
+
+
+# -- WP-1036: the setting a symbol names, not the crystal system alone -----
+#
+# Three defects, each a *different* subspace of the same dimension as the one
+# the tables used to produce — so every assertion below names the angle held
+# and the length tied, never how many of each there are (WP-1020's lesson).
+
+
+def _cell(a, b, c, alpha, beta, gamma) -> Cell:
+    return Cell(a=Parameter(value=a, min=0.1), b=Parameter(value=b, min=0.1),
+                c=Parameter(value=c, min=0.1), alpha=Parameter(value=alpha),
+                beta=Parameter(value=beta), gamma=Parameter(value=gamma))
+
+
+def _phase(symbol: str, cell: Cell) -> Structure:
+    return Structure(phases=[Phase(
+        name="probe", space_group=symbol, cell=cell,
+        atoms=[Atom(label="X", species="Si", x=Parameter(value=0.0),
+                    y=Parameter(value=0.0), z=Parameter(value=0.0))])])
+
+
+def _cell_layout(symbol: str, cell: Cell) -> dict[str, tuple[bool, str | None]]:
+    """(locked, tie-source) per cell parameter, as the table decides it."""
+    table = ParameterTable(_phase(symbol, cell), Instrument.debye_scherrer(1.5406))
+    out = {}
+    for e in table.entries:
+        if e.path.startswith("phases.0.cell."):
+            name = e.path.rsplit(".", 1)[-1]
+            src = e.tie.terms[0][0].rsplit(".", 1)[-1] if e.tie else None
+            out[name] = (e.locked, src)
+    return out
+
+
+@pytest.mark.parametrize("symbol,unique,free_angle,held", [
+    ("P 1 2/m 1", "b", "beta", ("alpha", "gamma")),
+    ("P 1 1 2/m", "c", "gamma", ("alpha", "beta")),
+    ("P 2/m 1 1", "a", "alpha", ("beta", "gamma")),
+    ("P 1 1 21/b", "c", "gamma", ("alpha", "beta")),
+])
+def test_monoclinic_holds_the_angle_its_unique_axis_names(symbol, unique, free_angle, held):
+    """The unique axis comes from the symbol, not from an assumption of b.
+
+    Red before WP-1036 for every row but the b-unique one: the table locked
+    alpha and gamma unconditionally, so a c-unique symbol had its free angle
+    (gamma) held and its symmetry-fixed one (beta) left refinable — inverted,
+    and invisible to a degrees-of-freedom count, which is 4 either way.
+    """
+    import gemmi
+    assert gemmi.find_spacegroup_by_name(symbol).monoclinic_unique_axis() == unique
+    angles = {"alpha": 90.0, "beta": 90.0, "gamma": 90.0} | {free_angle: 98.3}
+    layout = _cell_layout(symbol, _cell(5.0, 6.0, 7.0, **angles))
+    assert layout[free_angle] == (False, None), f"{symbol}: {free_angle} must refine"
+    for name in held:
+        assert layout[name] == (True, None), f"{symbol}: {name} must be held"
+    for name in ("a", "b", "c"):
+        assert layout[name] == (False, None), f"{symbol}: {name} must be free"
+
+
+def test_rhombohedral_axes_tie_all_three_lengths_and_all_three_angles():
+    """R -3 c:R needs a=b=c and alpha=beta=gamma, with one free angle.
+
+    Red before WP-1036: the trigonal row assumed hexagonal axes, so c was left
+    free (breaking a=b=c) and all three angles were locked at 55.28 (removing
+    the one angular degree of freedom the setting has).  Free-parameter count
+    is 2 either way — {a, c} then, {a, alpha} now.
+    """
+    layout = _cell_layout("R -3 c:R", _cell(5.128, 5.128, 5.128, 55.28, 55.28, 55.28))
+    assert layout["a"] == (False, None)
+    assert layout["b"] == (False, "a")
+    assert layout["c"] == (False, "a")
+    assert layout["alpha"] == (False, None)
+    assert layout["beta"] == (False, "alpha")
+    assert layout["gamma"] == (False, "alpha")
+
+
+def test_hexagonal_axes_r_setting_is_unchanged():
+    """The :H sibling keeps exactly the behaviour every existing fixture uses."""
+    layout = _cell_layout("R -3 c:H", _cell(4.7602, 4.7602, 12.9933, 90.0, 90.0, 120.0))
+    assert layout["b"] == (False, "a")
+    assert layout["c"] == (False, None)
+    assert all(layout[k] == (True, None) for k in ("alpha", "beta", "gamma"))
+
+
+def test_rhombohedral_cell_ties_track_alpha_bitwise():
+    """The angle tie is the identity, so beta and gamma follow alpha exactly."""
+    table = ParameterTable(_phase("R -3 c:R", _cell(5.128, 5.128, 5.128, 55.28, 55.28, 55.28)),
+                           Instrument.debye_scherrer(1.5406))
+    table.set_vary(["phases.0.cell.a", "phases.0.cell.alpha"], True)
+    values = table.decode(table.x0() + 0.01)
+    assert values["phases.0.cell.b"] == values["phases.0.cell.a"]
+    assert values["phases.0.cell.c"] == values["phases.0.cell.a"]
+    assert values["phases.0.cell.beta"] == values["phases.0.cell.alpha"]
+    assert values["phases.0.cell.gamma"] == values["phases.0.cell.alpha"]
+
+
+@pytest.mark.parametrize("symbol,angles,offender", [
+    ("P m m m", (90.0, 93.2, 90.0), "beta"),
+    ("P m -3 m", (90.0, 90.0, 120.0), "gamma"),
+    ("P 6/m m m", (90.0, 90.0, 90.0), "gamma"),
+    ("P 1 1 2/m", (90.0, 93.2, 98.3), "beta"),
+])
+def test_a_fixed_angle_disagreeing_with_its_symmetry_is_refused(symbol, angles, offender):
+    """Silence is not an option: the old table locked the *stored* value.
+
+    Red before WP-1036 — a monoclinic beta = 93.2 survived, locked, under an
+    orthorhombic symbol, and every d-spacing was computed from it (8.3 ppm of
+    bias per 1e-3 deg).  The raise names the symbol, the angle, the value it
+    holds and the value the symmetry demands.
+    """
+    with pytest.raises(ValueError, match="symmetry") as exc:
+        _cell_layout(symbol, _cell(5.0, 6.0, 7.0, *angles))
+    message = str(exc.value)
+    assert symbol in message and offender in message
+
+
+def test_a_fixed_angle_within_tolerance_is_accepted_and_still_held():
+    """Float noise from an A..F metric solve must not refuse to build a table."""
+    from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+
+    layout = _cell_layout("P 6/m m m",
+                          _cell(4.76, 4.76, 12.99, 90.0, 90.0,
+                                120.0 - 0.5 * SYMMETRY_ANGLE_TOL_DEG))
+    assert layout["gamma"] == (True, None)

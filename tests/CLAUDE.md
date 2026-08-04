@@ -79,6 +79,14 @@ and never a silent cap.
 - **Quote the extras with any count**: installing `[jax,torch]` converts
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
+- **A worktree needs its own venv, and quote which one you used.** The main
+  checkout's `.venv` resolves `pxrdref` to the *main checkout's* `src`, so a
+  worktree session running it measures the wrong tree — green, and about code
+  it did not change. Build one per worktree (`uv venv --python 3.12 && uv pip
+  install -e ".[dev]"`), and say `[dev]` vs `[dev,jax,torch]` with every figure.
+  The same discipline extends to the **tree**: when `main` has moved under a
+  branch, that branch's counts are not the merged tree's and the two parents'
+  additions cannot simply be summed — re-measure after the merge.
 - **Say which numbers moved**: after adding N tests, passed+skipped must
   move by exactly N in both the fast and full selections, and a new skip is
   not a new pass (WP-1029 added six: five passes and one skip, which is the

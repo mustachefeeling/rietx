@@ -49,31 +49,30 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-01 (WP-1027 close session), darwin/arm64 M4, numpy-only
-`[dev]` worktree venv:
+Measured 2026-08-04 on the **merged** tree (WP-1036 close, after WP-1030 came
+in from `worktree-indexer`), darwin/arm64 M4, numpy-only `[dev]` worktree venv.
+**Measured on the merge, not summed from the two branches** — neither parent's
+figure is this tree's:
 
-- fast suite: **1577 passed / 108 skipped**, 33 s (one quiet run) — moved by
-  exactly the close session's +2 (`test_gui_peaks` extinction rows) from the
-  1575/108 baseline; no new skips. **Predates WP-1030's +8**, merged
-  2026-08-04 from `worktree-indexer`.
-- full suite: **1663 passed / 117 skipped**, 9:05 (one run, while the machine
-  also drove a headless browser and an indexing search); passed+skipped
-  1780 = the fast selection's 1685 + 95 slow-marked. The `[dev,jax,torch]`
-  figures (1772 collected pre-1027, 8:09–15:33 over three runs) were again
-  **not** re-measured — that venv is the main checkout's; expect +10
-  collected there vs pre-1027. Critical path at that measurement was
-  `stephens-brucite` (418 s), then `indexing-acceptance-qarr` (363 s).
+- fast suite: **1605 passed / 108 skipped**, 38 s / 1:41 (quiet vs sharing the
+  machine with a full run — the spread is the machine, not the change).
+  Decomposes exactly: 1577 baseline + 1030's 8 + 1036's 14 rows + 5 from one new
+  `validation_matrix` `Claim` (five parametrised tests each expand it) + 1 for
+  the derived-candidate angle guard. No new skips.
+- full suite: **1692 passed / 117 skipped**, 11:36–15:00 over two runs.
+  passed+skipped 1809 = the fast selection's 1713 + 96 slow-marked.
+  The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
+  checkout's.
 - fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
   with **no torch**: 1627 passed / 67 skipped in 1:01–2:57 (`-n auto` to
   `-n 4`), after WP-1030's +8 (1619/67 before). A worktree needs its own venv
   and its own count — the extras differ, so these do not compare with the rows
-  above, and **none of the three rows here has been re-measured since the
-  merge**.
+  above, and that row has **not** been re-measured since the merge.
 - `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
   **Run it before closing anything that touches an engine** — WP-1030's one
   regression was invisible to all 115 fast indexing tests.
-- frontend (vitest): **282** (was 276: +4 `grabToleranceDeg` + 2
-  extinction-table mounts).
+- frontend (vitest): **282**, unchanged by 1030 and 1036 (neither touched
+  `gui/`); last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
   numbers.
@@ -274,6 +273,22 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   subspace from Rᵀ, reproduced 1/2/2/2/3/4/6 exactly, and had F = −A for
   hexagonal (the *direct* metric's cos γ) where the reciprocal metric has F = +A.
   Only asserting that the true metric lies in the span catches it.
+- **Cell ties follow the space-group *setting*, never the crystal system** —
+  `crystallography.symmetry.cell_constraints(sg)` is the one authority, and
+  `ParameterTable` is its only caller. Three settings disagree with the system
+  alone: monoclinic has three unique-axis choices (`monoclinic_unique_axis()`),
+  an R lattice on **rhombohedral** axes (`sg.ext == "R"`) needs a = b = c with
+  α = β = γ free rather than `b ← a` with c free, and the `:1`/`:2` extensions
+  are origin choices that leave the metric alone. **`read_small_structure`
+  picks the R setting from the cell**, so a bare `R -3 c` over a rhombohedral
+  cell arrives as `:R` — no non-standard symbol needed. This is the Rᵀ trap one
+  rank down and it fails the same way: the free-parameter *count* is right in
+  every broken case (2 for both R settings, 4 for all three monoclinic ones), so
+  assert **which** angle is held and **which** length follows which, never how
+  many — 79 of gemmi's 564 settings were served wrong under a correct count. A symmetry-fixed angle is **refused** when it disagrees with its
+  symmetry, not normalised — the table has no diagnostics channel, so an edit
+  there could not be made visible, and it is held at its stored value, which is
+  how a monoclinic β = 93.2° once survived under an orthorhombic symbol.
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).

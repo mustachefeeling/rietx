@@ -52,47 +52,45 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1030](wp/1030-engine-scaling-low-symmetry.md)** (2026-07-31 on
-its own worktree branch, merged 2026-08-04) — a monoclinic search over the
-package's own **default** short-axis bound (d ∈ [2, 20] Å, a declared volume
-window) went from *not finishing* to **32 s with the truth ranked first**, so
-the bethanechol benchmark can now be graded; and the figure-of-merit panel
-gained Oishi-Tomiyasu's `m_rev`/`m_sym`, which separate a truth from a
-supercell **64-74×** where M₂₀ separates them 1.8×. Two of its own tasks were
-declined on measurement (Louër's parameter floors — unsound for monoclinic and
-subsumed where sound; a third ITO engine — a zero-point offset splits its
-coincidence peak rather than shifting it). Before it,
-[1027](wp/1027-gui-peak-picker.md) (2026-08-01) — GUI peak picker + indexing
-panel; the indexing line now ends in pixels, extinction screen included. Close
-narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
-here".
+**Last closed: [1036](wp/1036-crystal-system-settings.md)** (2026-08-04) — cell
+ties follow the space-group **setting**, not the crystal system. Its task-1
+measurement answered both ways: **zero of 28 existing inputs** reach a broken
+branch, so nothing shipped moved, but **all three defects are reachable from a
+plain CIF** — `read_small_structure` picks the R setting from the *cell*, so a
+rhombohedral cell under a bare `R -3 c` arrives as `:R`. **79 of gemmi's 564
+settings were served wrong, and the free-parameter count was right in every
+one**, so the degrees-of-freedom test guarding this had passed on the wrong
+subspace since v0.1. Before it,
+[1030](wp/1030-engine-scaling-low-symmetry.md) (2026-07-31, merged 2026-08-04) —
+a monoclinic search over the package's own **default** short-axis bound went
+from *not finishing* to **32 s with the truth ranked first**, and the FoM panel
+gained `m_rev`/`m_sym`, which separate a truth from a supercell **64-74×**
+where M₂₀ manages 1.8×; and before that [1027](wp/1027-gui-peak-picker.md)
+(2026-08-01), the GUI peak picker and indexing panel. Close narratives in
+[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-1030's method lesson is the one to carry: **instrument before ranking.** Every
-cost item that WP listed was reasoned from the algorithm's structure, and the
-resulting order was close to backwards — one afternoon of counting box deaths
-by cause showed 97.6 % of the work in a phase no item addressed, the prune
-ranked first worth ~1.2× and the prune ranked last worth 89.9 % of box deaths.
+Two method lessons, and they are one lesson twice. 1030: **instrument before
+ranking** — the cost items were reasoned from the algorithm's structure and came
+out near-backwards; counting box deaths found 97.6 % of the work in a phase no
+item addressed. 1036: **a count is not a subspace** — name which angle is held
+and which length follows which, never how many.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1036](wp/1036-crystal-system-settings.md) — first only because its **task 1
-   is a cheap measurement whose answer reorders the rest**: the cell-tie tables
-   are wrong for two settings, and nobody has checked whether any real input
-   reaches them.
-2. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
+1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
+2. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
-4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
+3. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
    the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
-   bar** while those two do; 1032 → 1033 is an ordering, not a preference (one
-   file).
-5. [1016](wp/1016-sequential-series-panel.md) then
+   bar** while those two do. 1035 is unblocked and its `### Inherited` carries
+   1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
+4. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
 **The bar** (milestone row below): full validation matrix green; GUI
@@ -203,7 +201,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ⬜ | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ⬜ | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ⬜ | 1013, 1014, 1029 (1032 soft) |
-| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | **1036**, 1014 (1004 soft) |
+| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |
@@ -426,16 +424,19 @@ per concurrent session, or only one session commits.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ⬜ | — (1007 soft) |
-| [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ⬜ | — |
+| [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
 
-**1036 came from a GUI question and is not a GUI WP.** `_FIXED_ANGLES` assumes
-b-unique monoclinic, `_CELL_TIES` assumes hexagonal axes for R groups, and a
-symmetry-fixed angle is locked at its *stored* value rather than at 90°/120° —
-so the wrong angle can be held and a stale one kept. All three were **read, not
-measured**: `structure_from_cif` stores gemmi's canonical `xhm()` and a bare
-`R -3 c` resolves to `:H`, so whether any real input reaches those branches is
-unknown, and its task 1 is that sweep. If inputs reach it, it outranks the GUI
-set; if none do, it is a fence.
+**1036 came from a GUI question and was not a GUI WP.** The cell ties assumed
+b-unique monoclinic and hexagonal axes for R groups, and held a symmetry-fixed
+angle at its *stored* value rather than at 90°/120°. Its task 1 was the sweep
+that decided how much that mattered, and **the answer went both ways**: zero of
+28 existing inputs reach a broken branch, so nothing shipped moved — but all
+three are reachable from a plain CIF, because `read_small_structure` picks the R
+setting from the **cell**, not from the symbol. The draft premise that a bare
+`R -3 c` always resolves to `:H` was wrong, and measuring it is what caught
+that. The lesson to carry: the free-parameter *count* was correct in every
+broken case, so the degrees-of-freedom test guarding this had been passing on
+the wrong subspace — WP-1020's transposed-rotation trap, one rank down.
 
 **1028 came from outside.** Every item in it was hit by driving the package
 end-to-end over nine unfamiliar refinement targets from a third-party paper

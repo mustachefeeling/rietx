@@ -239,6 +239,37 @@ CLAIMS: tuple[Claim, ...] = (
                  "within 3e-5; Rwp 14.4 %, GoF 1.61 against a GoF floor of "
                  "1.5-1.9 for analytical-PSF lab fits (Cline 2015)",
     ),
+    Claim(
+        "test_acceptance_srm676a",
+        "test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell",
+        "srm676a", ("identity", "own_result", "characterisation", "ceiling"),
+        "that the two axis descriptions of corundum's R lattice are one "
+        "lattice: the cell ties hold bitwise through a fit on rhombohedral "
+        "axes, and the hexagonal image of that answer equals the "
+        "independently-fitted hexagonal answer",
+        reference="ITA's rhombohedral/hexagonal relations for an R lattice "
+                  "(a_H = 2 a_R sin(alpha/2), c_H = a_R sqrt(3 + 6 cos alpha), "
+                  "V_H = 3 V_R) as the identity bar, and this package's own "
+                  "hexagonal-axes Le Bail fit of the same pattern from the "
+                  "same physical starting lattice as the own_result bar.  "
+                  "**No certificate claim**: the +-1e-3 band against SRM 676a "
+                  "is a sanity check that the fit found the right lattice, "
+                  "not a graded comparison — this is Le Bail with only w/u/v/"
+                  "x/y and lor_size free, deliberately looser than the "
+                  "Rietveld row above, which owns this specimen's certificate "
+                  "claim.  Registered because WP-1036 made the RHOMBOHEDRAL "
+                  "description representable at all; before it, c refined free "
+                  "of a and all three angles were locked, so this row could "
+                  "not have been written",
+        measured="a = b = c and alpha = beta = gamma bitwise after the fit; "
+                 "alpha walks 54.987 -> 55.292 from a 0.3 deg displacement "
+                 "(certificate 55.287); the two descriptions agree to 1.4e-9 "
+                 "(a) and 1.2e-8 (c) relative with Rwp equal to five decimals; "
+                 "V_H = 3 V_R to 1e-9; against the certificate a -312 / "
+                 "c -424 ppm, the same uniform d-scale systematic the Rietveld "
+                 "row measures at -313 / -283; Rwp 0.150, GoF 1.67",
+        starts=2,
+    ),
     # ---- FAP: the one cross-code row ------------------------------------
     Claim(
         "test_acceptance_fap", "test_fap_lab_rietveld_matches_gsas", "fap",
