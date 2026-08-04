@@ -902,6 +902,13 @@ def test_the_shift_allowance_is_assumed_declared_and_reported():
     caller, *measured* by the data-quality screen, or assumed — and only the third
     sets the "assumed" flag that puts ``INDEX_SHIFT_ALLOWANCE`` in the result.  This
     is the same rule ``PeakList.from_positions`` follows for σ(2θ), one level up.
+
+    **What it reads from a measured screen is ``allowance_deg``, and WP-1038
+    changed that**: the window is matched against *uncorrected* positions, so it
+    must span the shift's own amplitude, not the scatter the template leaves.  A
+    screen carrying only ``sigma_sys_deg`` is therefore not a usable measurement
+    and falls through to the assumed value — which is the honest answer, since
+    that field never was the window.
     """
     from pxrdref.indexing.engines import (
         DEFAULT_UNKNOWN_SHIFT_DEG,
@@ -915,12 +922,29 @@ def test_the_shift_allowance_is_assumed_declared_and_reported():
     assert effective_sigma_sys(SearchSpec(sigma_sys_deg=0.02)) == (0.02, False)
 
     class _Q:
+        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, allowance_deg=0.048,
+                            source="measured")
+    assert effective_sigma_sys(plain, _Q()) == (0.048, False)
+
+    # both trusted sources are measurements; they differ in failure mode, not
+    # in whether the number may be used (TRUSTED_SHIFT_SOURCES)
+    class _Pairs:
+        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.004, allowance_deg=0.077,
+                            source="reflection_pairs")
+    assert effective_sigma_sys(plain, _Pairs()) == (0.077, False)
+
+    # the scatter alone is not the window: a screen that carries only the
+    # residual σ has not measured what the search needs, and the 4.3× gap
+    # between them is the difference between a cell and no cell on SRM 660c
+    class _ScatterOnly:
         shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, source="measured")
-    assert effective_sigma_sys(plain, _Q()) == (0.011, False)
+    assert effective_sigma_sys(plain, _ScatterOnly()) == (
+        DEFAULT_UNKNOWN_SHIFT_DEG, True)
 
     # an *unavailable* screen is not a measurement, even when it carries a number
     class _Unavailable:
-        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, source="unavailable")
+        shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, allowance_deg=0.048,
+                            source="unavailable")
     assert effective_sigma_sys(plain, _Unavailable()) == (
         DEFAULT_UNKNOWN_SHIFT_DEG, True)
 

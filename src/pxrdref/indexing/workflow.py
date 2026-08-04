@@ -72,6 +72,7 @@ intensities fits better.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 import numpy as np
 
@@ -376,12 +377,60 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
 # ----------------------------------------------------------------------
 # the entry point
 # ----------------------------------------------------------------------
+def _pair_shift_diagnostics(quality) -> list[Diagnostic]:
+    """``INDEX_SHIFT_FROM_PAIRS``, when the pair screen actually measured one."""
+    from .engines import shift_from_pairs_diagnostic
+
+    shift = getattr(quality, "shift", None)
+    if shift is None or shift.source != "reflection_pairs" or shift.pairs is None:
+        return []
+    return [shift_from_pairs_diagnostic(shift)]
+
+
+def _adopt_measured_shift(spec, quality):
+    """Adopt a pair-measured shift *template* into the spec, when it is safe to name.
+
+    Measuring the shift's **magnitude** and naming its **cause** are separate
+    permissions, and this function is where the second one is refused.  The
+    magnitude reaches the search through ``effective_sigma_sys`` and needs no
+    template; adopting a template additionally tells ``refine_with_shift`` which
+    *shape* to fit once a candidate survives, and fitting the wrong shape biases
+    the cell it corrects.
+
+    So adoption requires the cause to be safe to name — ``separable``, or the
+    competitive templates disagreeing, over the angles actually sampled, by less
+    than the list's own median σ.  **Measured (WP-1038), that is rare and the
+    refusal is the common case**: on corundum the two collinear templates predict
+    corrections differing by 0.0505° against a median σ of 0.0056°, because cos θ
+    runs from ~1 to ~0.26 across 5-150° while a constant does not.  A caller who
+    knows the cause declares ``spec.shift_template`` and is never overridden here.
+
+    **Clearing the caveat without adopting a template would be the trap.**  A cell
+    found inside a widened window has absorbed the shift — +1400 ppm, measured on
+    corundum — so when nothing is adopted the run keeps saying so.
+    """
+    from ..schemas.indexing import TRUSTED_SHIFT_SOURCES
+
+    shift = getattr(quality, "shift", None)
+    if (spec.shift_template is not None or shift is None
+            or shift.source not in TRUSTED_SHIFT_SOURCES or shift.best is None):
+        return spec
+    median_sigma = float(getattr(quality, "sigma_two_theta_median", 0.0) or 0.0)
+    nameable = bool(shift.separable
+                    or (shift.prediction_spread_deg <= median_sigma
+                        and median_sigma > 0.0))
+    if not nameable:
+        return spec
+    return replace(spec, shift_template=shift.best)
+
+
 def index_pattern(peaks: PeakList | None = None, *,
                   data: PatternData | None = None,
                   instrument: Instrument | None = None,
                   spec=None,
                   engines: Sequence[str] | None = None,
                   quality=None,
+                  shift_from_pairs: bool = True,
                   validate: bool = True,
                   check_top: int | None = None,
                   two_theta_limits: tuple[float, float] | None = None,
@@ -450,7 +499,10 @@ def index_pattern(peaks: PeakList | None = None, *,
                 "profile it does not know")
         peaks = pick_peaks(data, instrument)
     spec = spec or SearchSpec()
-    quality = quality if quality is not None else assess_peak_list(peaks)
+    if quality is None:
+        quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
+                                   pair_seed=spec.seed)
+    spec = _adopt_measured_shift(spec, quality)
     names = tuple(engines) if engines is not None else engine_names()
     top = CONSENSUS_CHECK_TOP if check_top is None else check_top
 
@@ -567,7 +619,8 @@ def index_pattern(peaks: PeakList | None = None, *,
         fom_panel_disagrees=outcome.fom_panel_disagrees, quality=quality,
         validated=validated, wavelength=peaks.wavelength,
         n_usable_lines=len(peaks.usable()), provenance=provenance,
-        diagnostics=list(quality.diagnostics) + outcome.diagnostics)
+        diagnostics=list(quality.diagnostics) + outcome.diagnostics
+        + _pair_shift_diagnostics(quality))
     out = result.model_copy(update={
         "diagnostics": list(result.diagnostics)
         + index_diagnostics(result, instrument)})

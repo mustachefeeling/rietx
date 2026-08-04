@@ -40,6 +40,7 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import (
     METRIC_DOF,
+    TRUSTED_SHIFT_SOURCES,
     CellCandidate,
     PeakList,
 )
@@ -530,18 +531,30 @@ def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
     """The systematic allowance to use, and whether it was **assumed**.
 
     Three cases, in priority order: the caller declared one; the data-quality
-    report *measured* one (``shift.source == "measured"``, which needs reference
-    positions and so is unusual at index time); or neither, in which case
+    report measured one, by either of the two roads
+    :data:`~pxrdref.schemas.indexing.TRUSTED_SHIFT_SOURCES` names — against
+    supplied references (``"measured"``), or from harmonic reflection pairs with
+    no reference at all (``"reflection_pairs"``, WP-1038, which is what made this
+    branch reachable on real data); or neither, in which case
     :data:`DEFAULT_UNKNOWN_SHIFT_DEG` is assumed and the second return value says
     so.  An assumed precision must never be reported as a measured one — the same
     rule ``PeakList.from_positions`` follows.
+
+    **What it reads from the screen is ``allowance_deg``, not ``sigma_sys_deg``,
+    and that was a bug for as long as this branch was unreachable.**  ``sigma_sys``
+    is the scatter the winning template *leaves*; the window has to span the shift
+    itself, because matching happens against uncorrected positions.  Measured on
+    SRM 660c the two are 0.0078° and 0.037°: declaring the smaller finds
+    **nothing**, declaring the larger recovers the certificate.  The
+    ``lab6_calibrated`` fixture computed the right quantity by hand for exactly
+    this reason; the screen now computes it once.
     """
     if spec.sigma_sys_deg > 0.0:
         return float(spec.sigma_sys_deg), False
     if (quality is not None and quality.shift is not None
-            and quality.shift.source == "measured"
-            and quality.shift.sigma_sys_deg > 0.0):
-        return float(quality.shift.sigma_sys_deg), False
+            and quality.shift.source in TRUSTED_SHIFT_SOURCES
+            and quality.shift.allowance_deg > 0.0):
+        return float(quality.shift.allowance_deg), False
     return DEFAULT_UNKNOWN_SHIFT_DEG, True
 
 
@@ -563,6 +576,37 @@ def shift_allowance_diagnostic(sigma_sys: float) -> Diagnostic:
                     "shift_template in the SearchSpec) and quote *that* cell; "
                     "supply reference positions to assess_peak_list if you have "
                     "an internal standard"))
+
+
+def shift_from_pairs_diagnostic(shift) -> Diagnostic:
+    """``INDEX_SHIFT_FROM_PAIRS`` — a systematic 2θ shift was **measured** from the
+    peak list alone, and this is what it says.
+
+    The counterpart of ``INDEX_SHIFT_ALLOWANCE``: that one fires when the window
+    was widened by an assumed number, this one when it was widened by a measured
+    one.  Both are reported for the same reason — the window size is the
+    difference between a cell and no cell — but the reader's next action differs,
+    which is why they are separate codes rather than one code with a flag.
+    """
+    p = shift.pairs
+    named = ("; the cause is not named: "
+             + ("no template was refuted" if not p.refuted_templates
+                else f"{', '.join(p.refuted_templates)} refuted, "
+                     "the rest indistinguishable over this range"))
+    return Diagnostic(
+        level="info", code="INDEX_SHIFT_FROM_PAIRS",
+        message=(f"a systematic shift of {shift.allowance_deg:.4f}° 2θ was "
+                 f"measured from {p.n_clustered} harmonic reflection pairs "
+                 f"agreeing to {p.scatter_deg:.4f}° (of {p.n_pairs} admitted, "
+                 f"z = {p.z:.1f} against {p.null_replicates} structureless "
+                 f"replicates, p = {p.p_value:.3f}) — no reference positions "
+                 "were needed" + named),
+        where=[f"allowance = {shift.allowance_deg:.4f}° 2θ (measured)",
+               f"best template = {shift.best}"],
+        suggestion=("this is the window the search used; if the cause matters, "
+                    "extending the 2θ range is what separates a zero-point error "
+                    "from a specimen displacement — they are collinear over a "
+                    "short range and no amount of counting can attribute them"))
 
 
 def refine_with_shift(fit, spec: SearchSpec, system: str, q_all: np.ndarray,
@@ -1051,6 +1095,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "refine_with_shift",
            "scored_positions", "shift_allowance_diagnostic",
+           "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",
            "trial_hkl"]

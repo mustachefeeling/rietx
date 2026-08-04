@@ -35,7 +35,10 @@ from pydantic import Field, model_validator
 from .common import Base, Diagnostic, Provenance
 
 #: 1.0 (WP-1018): first release of the peak-list contract.
-INDEXING_THRESHOLDS_VERSION = "1.0"
+#: 1.1 (WP-1038): ``ShiftScreen.source`` gains ``"reflection_pairs"`` and the
+#: screen gains ``allowance_deg`` — a vocabulary member is a contract change even
+#: when every prior value still means what it did.
+INDEXING_THRESHOLDS_VERSION = "1.1"
 
 # ----------------------------------------------------------------------
 # Detection
@@ -193,6 +196,94 @@ MAX_RELATIVE_SIGMA_Q = 1e-3
 #: is about to produce.  WP-1020 refines the cell and the chosen shift together,
 #: where the tanθ direction belongs to the cell by construction.
 SHIFT_TEMPLATES: tuple[str, ...] = ("constant", "cos_theta", "sin_2theta")
+#: Shift sources a downstream tolerance may **trust** as measured.  Kept separate
+#: from ``ShiftScreen.source`` so the label never has to lie: a shift fitted
+#: against supplied references and one recovered from harmonic reflection pairs
+#: are different measurements with different failure modes — a wrong reference
+#: versus accidental agreement — and an agent's next action differs, so they get
+#: different names.  Trust is the thing they share, and it lives here.
+TRUSTED_SHIFT_SOURCES: frozenset[str] = frozenset({"measured", "reflection_pairs"})
+
+# ----------------------------------------------------------------------
+# The reflection-pair shift screen (WP-1038)
+# ----------------------------------------------------------------------
+#: Largest harmonic order ``m`` a reflection pair may have.  ``m·sin θ ≤ 1``
+#: confines the low member of an m = 3 pair below ~39° 2θ and an m = 8 pair below
+#: ~14°, so the supply above this is dominated by accidental sine ratios rather
+#: than by harmonics of a real plane.
+PAIR_MAX_M = 8
+#: Implied shift (° 2θ) beyond which a candidate triple is not admitted as a pair.
+#: Dong (1999) §3's own window, used there to find 11 pairs in a pattern carrying
+#: −0.182°.  It is deliberately *wider* than any shift this package expects to
+#: measure: narrowing it would bias the estimate toward zero by truncating the
+#: very tail that says the shift is large.
+PAIR_WINDOW_DEG = 0.20
+#: Half-width (° 2θ) of the window the concentration statistic slides over the
+#: implied shifts.  Measured (WP-1038 task 0): real clusters have σ 0.0033-0.0071°
+#: across the corpus, so 0.010 holds a real cluster whole while spanning 1/20 of
+#: the admission window.
+PAIR_CLUSTER_HALF_WIDTH_DEG = 0.010
+#: Structureless replicates the concentration is tested against.  200 puts the
+#: empirical p floor at 1/201, which is below the bar and cheap: the whole screen
+#: costs well under a second on every list in the corpus.
+PAIR_NULL_REPLICATES = 200
+#: Concentration z below which the pair method declines to report a shift.
+#: **Measured, not asserted**: over 3600 null replicates (18 line lists × 200),
+#: z ≥ 3.0 fires on 0.83 % and z ≥ 3.5 on 0.03 % — one replicate — while every
+#: fitted list in the corpus scores z ≥ 4.2 and every bare position list scores
+#: z ≈ 0.  So 4 admits all seven real lists at a measured false-positive rate of
+#: 1 in 3600, and the gap on either side of it is wide rather than tuned.
+PAIR_MIN_Z = 4.0
+#: Empirical p a concentration must also clear, and the **only** gate used when
+#: judging a *losing* template.  z and p say the same thing while the null counts
+#: are many and spread; they part company when the counts are few and discrete,
+#: where the null's own σ can collapse to a fraction of a count and make z an
+#: artefact of the draw rather than a measurement.  That is not hypothetical: it
+#: let ``sin_2theta`` escape refutation on SRM 660c at k = 3 against a null mean of
+#: 1.2, on one rng sequence and not another.  So detection requires **both** bars
+#: — z carries the measured false-positive rate, p carries the robustness — and
+#: refutation, which lives entirely in the small-count regime, uses p alone.
+PAIR_MAX_P = 0.01
+#: Pairs that must agree before an amplitude is quoted at all, independent of the
+#: null.  Dong (1999) §3: "at least three reflection pairs should be used and the
+#: calculated zero shifts ... should be close to one another."
+PAIR_MIN_CLUSTERED = 3
+#: A template is **refuted** only if its concentration is both insignificant
+#: (below :data:`PAIR_MIN_Z`) *and* this far below the winner's.  The second half
+#: is what stops a one-pair difference reading as evidence: on zircon
+#: ``constant`` reaches k = 7 against ``cos_theta``'s 8, which straddles the z bar
+#: and would report the zero-point cause refuted on the strength of a single
+#: accidental pair.  Measured across the corpus the real separation is not
+#: marginal — ``sin_2theta`` sits at 0.30-0.50 of the winner wherever a shift
+#: exists — so a bar at 0.6 refutes transparency everywhere it should and never
+#: separates the two collinear templates.
+PAIR_REFUTE_K_FRACTION = 0.6
+#: Standard errors of the fitted amplitude carried into
+#: :attr:`ShiftScreen.allowance_deg` on top of the amplitude itself.  **One
+#: formula for both roads** — a shift fitted against supplied references and one
+#: recovered from harmonic pairs produce the same kind of number, so they open
+#: the same kind of window, and ``lab6_calibrated`` no longer computes it by hand.
+#:
+#: **The headroom term is the dangerous one, and its size was measured against
+#: the answer rather than argued.**  A window must span the shift, because
+#: matching happens against uncorrected positions; every degree beyond that is
+#: one more coincidence a wrong lattice is allowed to have.  Swept on the two
+#: certified datasets (WP-1038): corundum keeps the certified trigonal *R*
+#: lattice at σ_sys = 0, 0.05, 0.0639 (its own amplitude) and 0.070, and flips to
+#: a wrong **hexagonal P** at 0.0767; SRM 660c keeps cubic *P* at 0.0345 and
+#: 0.05, flips to tetragonal *P* at 0.0532, and at 0.060 returns a 35.9 Å³ cell
+#: **293 000 ppm** from the certificate *at ``high`` confidence* — the
+#: confident-wrong-singleton this package exists to prevent, manufactured by
+#: window width alone.  Cost moves the same way: corundum takes 50 s at 0.05 and
+#: 169 s at 0.085.
+#:
+#: So the amplitude is safe and the headroom must be small.  It is scaled by the
+#: standard error of the cluster **mean**, not by the pair-to-pair **scatter**:
+#: the scatter is dominated by each pair's own σ amplified through
+#: :func:`~pxrdref.indexing.pairs.pair_shift_sensitivity`, and using it put
+#: corundum at 0.0767 — past its own breaking point — while the standard error
+#: puts it at 0.0681, inside it.
+SHIFT_ALLOWANCE_K_ESD = 3.0
 #: Smith (1977) volume envelope, ``V ≈ 0.6·d_N³/(1/N − 0.0052)``, evaluated for
 #: **triclinic** at N = 20: 13.39·d₂₀³.  Kept as the two published constants
 #: rather than the product, because the formula is used at other N.
@@ -723,6 +814,43 @@ class ShiftTemplateFit(Base):
     residual_ss: float
 
 
+class ReflectionPairScreen(Base):
+    """Evidence behind a shift measured from harmonic reflection pairs.
+
+    Reported in full rather than summarised because the method's failure mode is
+    *accidental agreement*, and the only way a reader can judge that is to see how
+    much agreement there was against how much a structureless list of the same
+    size produces.  ``z`` is that comparison; everything else is what it was
+    computed from.
+    """
+
+    #: pairs admitted inside :data:`PAIR_WINDOW_DEG`, of the candidate triples
+    #: (any line pair whose sine ratio rounds to an integer 2 ≤ m ≤
+    #: :data:`PAIR_MAX_M`) that were examined
+    n_pairs: int
+    n_candidate_triples: int
+    #: pairs inside the densest ±:data:`PAIR_CLUSTER_HALF_WIDTH_DEG` window — the
+    #: statistic, and the members the amplitude is averaged over
+    n_clustered: int
+    #: the same statistic on ``null_replicates`` structureless line lists drawn
+    #: uniformly in sin²θ over the same range, and the standardised gap
+    null_k_mean: float
+    null_k_std: float
+    z: float
+    p_value: float
+    null_replicates: int
+    seed: int
+    #: scatter (° 2θ) of the clustered pairs about the reported amplitude
+    scatter_deg: float
+    #: templates the pair evidence **refutes** — those whose own concentration is
+    #: not significant.  The method may refute (``sin_2theta`` collapses from
+    #: k = 10 to 3 on corundum) and may **not** choose between ``constant`` and
+    #: ``cos_theta``, which tie to within one pair on every dataset measured.
+    refuted_templates: list[str] = Field(default_factory=list)
+    #: why no shift was reported, when none was
+    declined_reason: str | None = None
+
+
 class ShiftScreen(Base):
     """Which physical cause a systematic 2θ shift has — or that it has no
     nameable one over the range measured.
@@ -760,11 +888,29 @@ class ShiftScreen(Base):
     #: cause, and averaging it in overstates the risk forty-fold.  Read this field
     #: rather than inferring the risk from ``separable``.
     prediction_spread_deg: float = 0.0
+    #: **What a search window must span** (° 2θ), which is *not* ``sigma_sys_deg``
+    #: and the difference is the whole reason this field exists.  ``sigma_sys_deg``
+    #: is the scatter the winning template *leaves*; the window has to span the
+    #: shift's own **amplitude**, because a candidate's positions are matched
+    #: against uncorrected lines — ``refine_with_shift`` fits the template only
+    #: after a candidate survives.  Measured on SRM 660c the two are 0.0078° and
+    #: 0.037°, a factor 4.3, and declaring the smaller one makes the search find
+    #: **nothing** while declaring the larger one recovers the certificate.  The
+    #: cluster scatter is carried in quadrature so a list whose shift is
+    #: consistent with zero (11-BM NAC: 0.0003°) still opens a window wide enough
+    #: for the precision behind that zero.
+    allowance_deg: float = 0.0
     #: ``"measured"`` when reference positions were supplied and the templates
-    #: were fitted; ``"unavailable"`` when there was nothing to fit against,
-    #: which is the *normal* state at index time — see
-    #: :func:`pxrdref.indexing.quality.assess_peak_list`.
-    source: Literal["measured", "unavailable"] = "unavailable"
+    #: were fitted; ``"reflection_pairs"`` when
+    #: :mod:`pxrdref.indexing.pairs` recovered it from harmonic pairs with no
+    #: reference at all; ``"unavailable"`` when neither was possible — see
+    #: :func:`pxrdref.indexing.quality.assess_peak_list`.  Which of the first two
+    #: produced a number matters because their failure modes differ (a wrong
+    #: reference versus accidental agreement); what they share is trust, and that
+    #: is :data:`TRUSTED_SHIFT_SOURCES` rather than a widened label.
+    source: Literal["measured", "reflection_pairs", "unavailable"] = "unavailable"
+    #: the pair screen's own evidence, when ``source == "reflection_pairs"``
+    pairs: "ReflectionPairScreen | None" = None
 
 
 class DataQualityReport(Base):

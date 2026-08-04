@@ -105,6 +105,55 @@ otherwise the magnitude is reported and the cause is not. Note what is
 offering it to a shift screen would let the screen explain a shift by
 changing the answer indexing is about to produce.
 
+### The shift is measurable before the cell is
+
+Fitting those templates needs reference positions, and before indexing there
+is no cell to deviate from. It is tempting to conclude that the shift is
+therefore unknowable until afterwards; that conclusion is **false**, and
+correcting it is what lets a search widen its window by a measurement rather
+than by an assumption.
+
+Two reflections form a **reflection pair** when their planes are harmonics of
+one another, $(h'k'l') = m\,(hkl)$ with $m$ integer, so that
+$d_{hkl} = m\,d_{h'k'l'}$ *exactly*. Bragg's law then relates their angles
+with no reference to the cell, the crystal system or the indices — the
+relation follows from the lattice being self-consistent, not from which
+lattice it is:
+
+```{math}
+:label: idx-pair
+
+m \sin\theta_B \;=\; \sin\theta'_B .
+```
+
+*Source:* `pxrdref.indexing.pairs.pair_shift`
+
+Writing $2\theta_B = 2\theta_\mathrm{obs} + 2\theta_z$ for a constant shift and
+solving {cite}`dong1999`:
+
+```{math}
+:label: idx-pair-shift
+
+2\theta_z \;=\; 2\arctan\!\left[
+  \frac{\sin\theta' - m\sin\theta}{m\cos\theta - \cos\theta'} \right].
+```
+
+*Source:* `pxrdref.indexing.pairs.pair_shift`
+
+Each pair is thus one equation in the shift and none in the cell. Substituting
+a general $2\theta_B = 2\theta_\mathrm{obs} - c\,T(2\theta_\mathrm{obs})$
+instead of a constant leaves a scalar equation in the amplitude $c$ of any of
+the three templates, solved by Newton.
+
+Two cautions govern how the result may be read. Real harmonic pairs agree on
+$c$ while accidental ones — any two lines whose sine ratio happens to fall near
+an integer — scatter, so a shift is reported only when the agreement is
+significant against a **structureless null** of the same size; on a bare
+twenty-line list the supply of pairs collapses and the honest answer is to
+decline. And the pair evidence measures a **magnitude**, not a cause: the
+constant and $\cos\theta$ templates concentrate equally well on real data, so a
+pair screen may refute $\sin 2\theta$ and may not choose between the other two.
+
 ## Volume from one line
 
 An estimate of the cell volume follows from the number of distinct
