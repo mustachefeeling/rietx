@@ -280,6 +280,16 @@ would mean one is.
   trigonal bug was. Verified by sabotage: removing the `:R` branch fails it on
   `R 3:R`, restoring the b-unique assumption fails it on `P 1 1 2`.
 
+  **How much of the symbol space was served wrong: 79 of gemmi's 564 settings,
+  14 %.** The census (`cell_constraints` over the whole table, 0 raises, 9
+  distinct constraint shapes) breaks down as 247 orthorhombic / 88 tetragonal /
+  52 hexagonal+trigonal-P+`:H` / 43 monoclinic b-unique / 43 cubic / 12
+  triclinic — all correct before — against **37 monoclinic c-unique + 35
+  monoclinic a-unique** (the held angle inverted) and **7 trigonal `:R`** (the
+  tie set absent). Worth recording because "three defects" undersells it: the
+  a-unique monoclinic case was not in the plan at all, and it is the second
+  largest of the three.
+
   **Measured, `[dev]` numpy-only worktree venv, darwin/arm64 M4:**
 
   - fast suite **1591 passed / 108 skipped**, 48 s — +14 passes on the 1577/108
