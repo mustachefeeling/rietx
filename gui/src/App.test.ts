@@ -2201,3 +2201,230 @@ describe("the structure viewer", () => {
     return host.querySelector<HTMLInputElement>(`[data-field="${path}"]`)!;
   }
 });
+
+// ----------------------------------------------------------------------
+// WP-1027 — the peaks tab and the candidate table's gate
+// ----------------------------------------------------------------------
+import Peaks from "./panels/Peaks.svelte";
+
+const PEAK = (index: number, tt: number, extra: Record<string, unknown> = {}) => ({
+  index, two_theta: tt, two_theta_esd: 0.0011, d: 4.4, intensity: 1234,
+  intensity_esd: 20, q: 0.05, q_esd: 1e-4, fwhm: 0.08, eta: 0.5, group: index,
+  n_in_group: 1, chi2_red: 1.1, flags: [], origin: "fitted", usable: true,
+  ...extra,
+});
+
+const PEAKS_PAYLOAD = {
+  peaks: [
+    PEAK(0, 10.0),
+    PEAK(1, 12.0, { flags: ["not_separable"], usable: false }),
+    PEAK(2, 14.0, { origin: "manual" }),
+  ],
+  pattern: { two_theta: [9, 10, 11, 12, 13, 14], y_obs: [1, 5, 2, 3, 1, 4], n_total: 6 },
+  groups: [],
+  diagnostics: [{ level: "warning", code: "PEAK_LIST_TOO_SHORT", message: "3 usable lines" }],
+  flag_vocabulary: ["ghost_kbeta", "excluded", "not_separable", "sigma_assumed"],
+  unusable_flags: ["ghost_kbeta", "excluded", "not_separable"],
+  n_total: 3, n_usable: 2, source: "fitted", wavelength: 1.5406,
+};
+
+const MEDIUM_CANDIDATE = {
+  cell: [4.7594, 4.7594, 12.992, 90, 90, 120], cell_esd: [0, 0, 0, 0, 0, 0],
+  system: "hexagonal", centring: "R", lattice_group: "R -3 m", volume: 254.9,
+  n_indexed: 20, n_lines: 20,
+  fom: [{ name: "M20", value: 43.1, n_lines: 20, blind_spot: "" }],
+  found_by: ["dichotomy", "trial_error"], confidence: "medium",
+  confidence_caveats: ["shift_allowance_assumed"], ambiguity: [], lebail: null,
+  diagnostics: [],
+};
+
+describe("the peaks tab (WP-1027)", () => {
+  it("lists every line, the fitter's exclusions distinguished, diagnostics inline", async () => {
+    vi.stubGlobal("fetch", server({
+      ...boot(),
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    expect(host.textContent).toContain("2 of 3 lines usable");
+    // the fitter's own explanation of a strong peak's shape stays visible…
+    expect(host.textContent).toContain("not_separable");
+    // …a hand-placed line says so, and the diagnostics render as a strip
+    expect(host.textContent).toContain("manual");
+    expect(host.textContent).toContain("PEAK_LIST_TOO_SHORT");
+  });
+
+  it("sends the overrule verb from the use-for-indexing checkbox", async () => {
+    const stub = server({
+      ...boot(),
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/flag": (call: Call) => ({ body: { ...PEAKS_PAYLOAD, api_call:
+        `session.set_peak_flags(${call.body.index}, use_for_indexing=${call.body.use_for_indexing})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.acts input[type="checkbox"]')];
+    expect(boxes.length).toBe(3);
+    boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    const sent = stub.calls.find((c) => c.path === "/api/peaks/flag");
+    // the unusable line's checkbox asks to *use* it — the overrule, not a toggle blind
+    expect(sent?.body).toEqual({ index: 1, use_for_indexing: true });
+  });
+
+  it("disables Adopt for a medium candidate and quotes the server's why", async () => {
+    vi.stubGlobal("fetch", server({}).fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
+        adopt: [{ allowed: false, why: "confidence is 'medium' (shift_allowance_assumed); only the one candidate best_or_none() returns can be adopted" }],
+        refuting_caveats: ["predicted_but_absent"], running: false,
+      },
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    const adopt = button("Adopt")!;
+    // the gate does not leak into the UI: the button follows the server's arm
+    expect(adopt.disabled).toBe(true);
+    expect(adopt.title).toContain("medium");
+    expect(host.textContent).toContain("the list below is ranked, not chosen");
+  });
+
+  it("enables Adopt only when the server's arm allows, and sends the candidate", async () => {
+    const stub = server({
+      "/api/index/adopt": (call: Call) => ({ body: { node_id: "n0007", mode: "lebail",
+        api_call: `session.adopt_candidate(${call.body.candidate})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [{ ...MEDIUM_CANDIDATE, confidence: "high",
+                                 confidence_caveats: [] }],
+                  diagnostics: [], quality: null },
+        adopt: [{ allowed: true, why: "" }],
+        refuting_caveats: [], running: false,
+      },
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    const adopt = button("Adopt")!;
+    expect(adopt.disabled).toBe(false);
+    expect(host.textContent).toContain("best_or_none()");
+    adopt.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/index/adopt")?.body)
+      .toEqual({ candidate: 0 });
+  });
+});
+
+// ----------------------------------------------------------------------
+// WP-1027 — the extinction screen (WP-1025 served)
+// ----------------------------------------------------------------------
+const SCREEN_CLASS = (extra: Record<string, unknown> = {}) => ({
+  symbol: "P 63/m - -", representative: "P 63/m", space_groups: ["P 63", "P 63/m"],
+  conditions: ["00l: l = 2n"], conditions_complete: true, n_lines: 40,
+  n_absent: 6, n_testable: 4, n_present: 0, forbidden_hkl: [], forbidden_two_theta: [],
+  rwp: 0.09, gof: 1.2, chi2: 100, delta_bic: -14.2, absences_rejected: false,
+  screened: true, refuted: false, refuted_reason: null, diagnostics: [],
+  ...extra,
+});
+
+const EXTINCTION = (best: number | null) => ({
+  result: {
+    candidates: [
+      SCREEN_CLASS(),
+      SCREEN_CLASS({ symbol: "P - - -", representative: "P 6/m", n_absent: 0,
+                     n_testable: 0, space_groups: ["P 6/m", "P 6/m m m"], delta_bic: 0 }),
+      SCREEN_CLASS({ symbol: "P 63/m c m", representative: "P 63/m c m",
+                     space_groups: ["P 63 c m"], refuted: true, screened: false,
+                     refuted_reason: "intensity at 2 forbidden positions",
+                     n_present: 2, forbidden_hkl: [[0, 0, 1], [0, 0, 3]],
+                     forbidden_two_theta: [10.51, 31.72] }),
+      // unrefuted but never fitted (a max_classes cap): the unasked question
+      SCREEN_CLASS({ symbol: "P 63/m m c", representative: "P 63/m m c",
+                     space_groups: ["P 63 m c"], screened: false, delta_bic: 0 }),
+    ],
+    lattice_group: "P 6/m m m", cell: [3, 3, 5, 90, 90, 120], system: "hexagonal",
+    centring: "P", wavelength: 1.5406, two_theta_range: [5.0, 90.0],
+    n_classes: 4, n_screened: 2, status: "converged",
+    diagnostics: [{ level: "info", code: "EXTINCTION_GROUPS_NOT_SEPARABLE",
+                    message: "the class members produce identical patterns" }],
+  },
+  candidate: 0,
+  best,
+  running: false,
+});
+
+describe("the extinction screen table (WP-1027)", () => {
+  it("ranks classes, lists every space group, and keeps chips inert without the adopt verdict", async () => {
+    vi.stubGlobal("fetch", server({}).fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [MEDIUM_CANDIDATE], diagnostics: [], quality: null },
+        adopt: [{ allowed: false, why: "confidence is 'medium'" }],
+        refuting_caveats: [], running: false,
+      },
+      extinction: EXTINCTION(null),
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    // the gate's abstention is the headline, not an error
+    expect(host.textContent).toContain("No class is singled out");
+    // every class row: the symbol, the refutation with its hkl, the unfitted cap
+    expect(host.textContent).toContain("P 63/m - -");
+    expect(host.textContent).toContain("refuted");
+    expect(host.textContent).toContain("(001) 10.51°");
+    expect(host.textContent).toContain("not screened");
+    // both members of the class render — the singleton is unmeasurable…
+    expect(host.textContent).toContain("P 63/m");
+    expect(host.textContent).toContain("P 63");
+    // …and with the candidate not adoptable, no space-group chip is a button
+    expect(button("P 63")).toBeFalsy();
+    // the not-separable info must be shown (it is information, not a footnote)
+    expect(host.textContent).toContain("EXTINCTION_GROUPS_NOT_SEPARABLE");
+  });
+
+  it("adopts in a chosen space group when the server's arm allows", async () => {
+    const stub = server({
+      "/api/index/adopt": (call: Call) => ({ body: { node_id: "n0009", mode: "lebail",
+        api_call: `session.adopt_candidate(${call.body.candidate}, space_group=${call.body.space_group})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(Peaks, { target: host, props: {
+      peaks: PEAKS_PAYLOAD as any,
+      indexAnswer: {
+        result: { candidates: [{ ...MEDIUM_CANDIDATE, confidence: "high",
+                                 confidence_caveats: [] }],
+                  diagnostics: [], quality: null },
+        adopt: [{ allowed: true, why: "" }],
+        refuting_caveats: [], running: false,
+      },
+      extinction: EXTINCTION(0),
+      run: IDLE_RUN as any, busy: false,
+    } });
+    await flush();
+
+    expect(host.textContent).toContain("best_or_none()");
+    const chip = button("P 63/m")!;
+    expect(chip).toBeTruthy();
+    chip.click();
+    await flush();
+    expect(stub.calls.find((c) => c.path === "/api/index/adopt")?.body)
+      .toEqual({ candidate: 0, space_group: "P 63/m" });
+    // a refuted class's members never act, whatever the verdict
+    expect(button("P 63 c m")).toBeFalsy();
+  });
+});

@@ -252,14 +252,21 @@ def test_host_header_is_checked(blank):
     assert status == 403
 
 
-def test_reserved_routes_answer_404_naming_their_work_package(blank):
+def test_the_reserved_routes_all_came_live(blank):
+    """WP-1027 filled in the last reserved family; the table is empty.
+
+    The routes it owned now answer as live verbs — a blank session refuses
+    with its own 409 (``NO_PROJECT``), never with ``NOT_IMPLEMENTED`` — and
+    the mechanism stays for the next reserved surface.
+    """
+    assert RESERVED_ROUTES == {}
     _, client = blank
-    status, payload = client.get("/api/peaks")
-    assert status == 404
-    assert payload["error"]["code"] == "NOT_IMPLEMENTED"
-    assert "WP-1027" in payload["error"]["message"]
-    status, payload = client.post("/api/index")
-    assert status == 404 and "WP-1024" in payload["error"]["message"]
+    for method, path in (("GET", "/api/peaks"), ("POST", "/api/index"),
+                         ("GET", "/api/index/result"),
+                         ("POST", "/api/index/adopt")):
+        status, payload = client.request(method, path, body={})
+        assert status == 409, (method, path, payload)
+        assert payload["error"]["code"] == "NO_PROJECT", (method, path)
 
 
 def test_no_route_is_declared_twice(blank):

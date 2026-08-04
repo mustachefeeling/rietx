@@ -24,6 +24,7 @@
   import Model from "./panels/Model.svelte";
   import Palette from "./panels/Palette.svelte";
   import Params from "./panels/Params.svelte";
+  import Peaks from "./panels/Peaks.svelte";
   import Plan from "./panels/Plan.svelte";
   import Plot from "./panels/Plot.svelte";
   import Report from "./panels/Report.svelte";
@@ -31,6 +32,7 @@
   import Stubs from "./panels/Stubs.svelte";
   import Text from "./panels/Text.svelte";
   import { isShortcutTarget, type Command } from "./lib/palette";
+  import type { PeaksPayload } from "./lib/peaks";
   import { consoleLine, follow, type EngineEvent, type RunState } from "./lib/stream";
   import {
     THEME_CHOICES,
@@ -54,7 +56,7 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
-  let tab = $state<"params" | "plan" | "history" | "report" | "build">("params");
+  let tab = $state<"params" | "plan" | "peaks" | "history" | "report" | "build">("params");
   /** Two panes are **modes** over the whole window rather than tabs.
    *
    *  The text pane (WP-1013) is one because its content is line-oriented — the
@@ -124,6 +126,14 @@
    *  out and the χ² it was applied at, which is what makes the *observed* Δχ²
    *  measurable beside the predicted one */
   let applied = $state<any>(null);
+  /** the stored peak list plus the raw pattern (WP-1027); the plot draws it and
+   *  the Peaks tab is its ledger, so the state lives here, once */
+  let peaksData = $state<PeaksPayload | null>(null);
+  /** the last indexing answer, with the server's per-candidate adopt verdicts */
+  let indexAnswer = $state<any>(null);
+  /** the last extinction screen — cleared whenever the candidates renumber,
+   *  which the server enforces too (a new index run 409s the stale GET) */
+  let extinction = $state<any>(null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -198,9 +208,12 @@
     readUi();
     openError = "";
     mode = "panes";
+    indexAnswer = null;
+    extinction = null;
     say(`# project: ${doc.path}`);
     run = await api.runState();
     await loadResult();
+    await loadPeaks();
   }
 
   async function open(path: string) {
@@ -208,7 +221,10 @@
       project = await api.openProject(path);
       readUi();
       openError = "";
+      indexAnswer = null;
+      extinction = null;
       await loadResult();
+      await loadPeaks();
       say(`project.open(${path})`);
     } catch (error) {
       // every Project.open refusal names a different remedy — show it verbatim
@@ -239,6 +255,67 @@
       say("token.cancel()");
     } catch (error) {
       say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  /** The peak list, refetched whole — cheap, and the payload every peak verb
+   *  already answers with, so a verb's caller passes it here instead. */
+  async function loadPeaks() {
+    try {
+      peaksData = await api.peaks();
+    } catch (error) {
+      peaksData = null;
+      if (!(error instanceof ApiError && error.empty)) {
+        say(`peaks: ${(error as Error).message}`);
+      }
+    }
+  }
+
+  /** One plot gesture → one verb → one console echo — the same round trip the
+   *  panel's own buttons make, kept here so the Plot stays presentation. */
+  async function peakVerb(work: () => Promise<PeaksPayload>) {
+    try {
+      const payload = await work();
+      if (payload.api_call) say(payload.api_call);
+      peaksData = payload;
+    } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  const addPeak = (tt: number) => peakVerb(() => api.addPeak(tt));
+  const movePeak = (i: number, tt: number) => peakVerb(() => api.movePeak(i, tt));
+  const togglePeak = (i: number) => {
+    const row = peaksData?.peaks?.find((p) => p.index === i);
+    if (row) peakVerb(() => api.flagPeak(i, { use_for_indexing: !row.usable }));
+  };
+  const refitGroup = (group: number) => {
+    const asked = window.prompt(
+      "Fit how many components in this group? (empty = the picker decides)");
+    if (asked === null) return;
+    const n = asked.trim() === "" ? undefined : Number(asked);
+    if (n !== undefined && (!Number.isInteger(n) || n < 1)) {
+      say(`refused: "${asked}" is not a component count`);
+      return;
+    }
+    peakVerb(() => api.refitGroup(group, n));
+  };
+
+  async function loadIndexAnswer() {
+    try {
+      indexAnswer = await api.indexResult();
+      extinction = null; // new candidates, new numbering — the server 409s too
+    } catch {
+      // NO_INDEX_RESULT — nothing has run in this session; an empty state
+    }
+  }
+
+  async function loadExtinction() {
+    try {
+      extinction = await api.extinctionResult();
+    } catch {
+      // NO_EXTINCTION_RESULT — none run, or cleared by a new indexing run
+      extinction = null;
     }
   }
 
@@ -319,6 +396,11 @@
       run: () => { tab = "params"; paramsPanel?.fixSelection(); } },
     { id: "filter", label: "Filter parameters", echo: "ref.parameters()", key: "/",
       disabled: !project, run: () => { tab = "params"; setTimeout(() => paramsPanel?.focusFilter(), 0); } },
+    { id: "peaks", label: "Show the peak picker", echo: "session.pick_peaks()", key: "p",
+      disabled: !project, run: () => (tab = "peaks") },
+    { id: "index", label: "Run indexing", echo: "index_pattern(peaks, data=…, instrument=…)",
+      disabled: busy || !project || !peaksData?.peaks?.length,
+      run: async () => { tab = "peaks"; try { await api.index(); say("index_pattern(peaks, data=…, instrument=…)"); } catch (e) { say(`refused: ${(e as Error).message}`); } } },
     { id: "report", label: "Show the fit report", echo: "ref.report()", key: "?",
       disabled: !project, run: () => (tab = "report") },
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
@@ -380,6 +462,15 @@
       await loadProject();
       run = await api.runState();
       await loadResult();
+      if (project) {
+        await loadPeaks();
+        // the session outlives this page: a reload must not lose an indexing
+        // answer (or its extinction screen) the server still holds — both
+        // loaders treat the 409 empty states as "nothing yet".  Order matters:
+        // loadIndexAnswer clears the screen it assumes stale.
+        await loadIndexAnswer();
+        await loadExtinction();
+      }
     })();
 
     // The run this shell has already reacted to, as (state, outcome, node).  Keyed
@@ -397,9 +488,21 @@
         const key = `${frame.state}:${frame.run.status ?? ""}:${frame.run.node_id ?? ""}`;
         // a run just ended (any way it ended) → the result and the history moved
         if (seen !== null && key !== seen && frame.state === "idle" && frame.run.status) {
-          loadResult();
+          if (frame.run.kind === "index") {
+            // an indexing run commits no node and moves no curves; what it
+            // leaves is its answer, adopt verdicts included
+            loadIndexAnswer();
+            tab = "peaks";
+          } else if (frame.run.kind === "extinction") {
+            // same shape one rank down: the screen is the whole outcome
+            loadExtinction();
+            tab = "peaks";
+          } else {
+            loadResult();
+          }
           if (frame.run.status === "failed") say(`FAILED  ${frame.run.error?.message ?? ""}`);
-          if (frame.run.status === "cancelled")
+          if (frame.run.status === "cancelled"
+              && frame.run.kind !== "index" && frame.run.kind !== "extinction")
             say(`cancelled at stage ${frame.run.stage} — state stands at ${frame.run.node_id}`);
         }
         seen = key;
@@ -515,7 +618,10 @@
         onopened={opened} onmoved={moved} />
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
-      <Plot {result} {plotKey} {zoom} {theme} error={resultError} />
+      <Plot {result} {plotKey} {zoom} {theme} error={resultError}
+        peaks={peaksData} peaksActive={tab === "peaks"}
+        onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
+        onrefitgroup={refitGroup} />
       <div class="side" bind:clientWidth={sideMeasured}
         style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
         <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
@@ -524,6 +630,7 @@
         <nav class="tabs">
           <button class:on={tab === "params"} onclick={() => (tab = "params")}>Parameters</button>
           <button class:on={tab === "plan"} onclick={() => (tab = "plan")}>Plan</button>
+          <button class:on={tab === "peaks"} onclick={() => (tab = "peaks")}>Peaks</button>
           <button class:on={tab === "report"} onclick={() => (tab = "report")}>Report</button>
           <button class:on={tab === "history"} onclick={() => (tab = "history")}>History</button>
           <button class:on={tab === "build"} onclick={() => (tab = "build")}>Build</button>
@@ -536,6 +643,12 @@
         <div class="panel" class:hidden={tab !== "plan"}>
           <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
             onrun={runStage} />
+        </div>
+        <div class="panel" class:hidden={tab !== "peaks"}>
+          <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
+            onpeaks={(p) => (peaksData = p)}
+            onindexed={(a) => (indexAnswer = a)}
+            onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={tab !== "report"}>
           <Report {head} {busy} {simple} {say} {applied}

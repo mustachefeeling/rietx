@@ -3,13 +3,47 @@
 Milestone: v1.0 · Status: ⬜ — stub, expand before starting
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
 the milestone's last row, so the freeze covers a surface the GUI exercised),
-WP-1018…WP-1030 (indexing)
+WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
 ### Inherited
+
+**From the 2026-08-04 use session (WP-1032…1036) — two freeze-relevant surface
+changes and one that touches a question already in this mailbox.**
+[1035](1035-symmetry-surfaced.md) makes a phase's **space group editable**
+through `PATCH /api/structure` plus a preview verb beside it, so the freeze
+covers a route that can change what the parameter table *contains* — and the
+existing behaviour it repairs is itself a defect worth pinning at freeze time:
+today that route accepts a symbol change, commits an `edit_model` node, and the
+incompatibility surfaces as a **500 on the next `GET /api/params`**.
+[1033](1033-plot-range-regions.md) makes the GUI a writer of
+`two_theta_limits`/`excluded_regions` through `POST /api/project`, which until
+now has only ever carried `{ui: …}` from a client — so the **"a `ui`-only patch
+is not model state" question below stops being about `ui` alone**: the same
+route will carry genuine settings, and whether a settings patch may land while a
+run is in flight is the freeze's call, not a panel's.
+[1036](1036-crystal-system-settings.md) may change which cell parameters are
+refinable for two space-group settings; if it lands after the freeze it is a
+behaviour change to a frozen surface, so prefer it before.
+
+**From WP-1027 (peak picker + indexing panel, 2026-07-31) — new public surface
+for the freeze to cover.** `ObservedPeak` gained `origin`
+(`"fitted"|"manual"|"edited"`, default `"fitted"` — provenance a reader weighs,
+no gate branches on it); `indexing.pick` now exports `pick_peaks_with_state`,
+`peaks_of_group` and `flag_ghosts(only=)`; `indexing.peakfit` exports
+`fit_group_at` and `group_profile`. The GUI wire surface grew the whole
+peak/index route family and `RESERVED_ROUTES` is now empty; on 2026-08-01 it
+grew two more — `POST`/`GET /api/index/extinction` (the WP-1025 screen as a
+fourth run kind, `"extinction"`, in `GuiSession.run`'s vocabulary) — so the
+run-kind set the freeze pins is `fit | stage | index | extinction`. One versioning
+question is deliberately left to you: `peaks.json` (the `.pxrd/` container's
+peak-list artifact, `gui/peaks.py`) carries its own internal
+`format_version "1"` and is *not* one of the five contracts `capabilities()`
+quotes — decide at freeze time whether it becomes the sixth or stays a GUI
+internal.
 
 **From the 2026-07-30 assessment session — your dependency list grew by one, and
 one frozen constant is on a decision.** [1030](1030-engine-scaling-low-symmetry.md)
