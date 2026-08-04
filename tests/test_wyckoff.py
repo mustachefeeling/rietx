@@ -129,3 +129,106 @@ def test_general_position_multiplicity_is_group_order():
     assert sc.wyckoff == "48n"
     assert sc.multiplicity == 48
     assert sc.coord_basis.tolist() == np.eye(3, dtype=int).tolist()
+
+
+# -- WP-1036: the cell constraints, checked against the operators ---------
+
+
+def _symmetry_compatible_cell(sg) -> tuple[float, ...]:
+    """A cell the group's operators allow, derived without any case table.
+
+    G = ⟨Rᵀ·G₀·R⟩ over the point group is invariant by construction, for
+    *whatever setting* the operators are in — hexagonal axes, rhombohedral axes,
+    a c-unique monoclinic — which is the same device
+    ``wyckoff._compatible_lattice`` uses to feed spglib.  G₀ is deliberately
+    generic, so every equality surviving the average is one the symmetry
+    imposes and not an accident of the probe.
+    """
+    import gemmi
+
+    g0 = np.array([[1.00, 0.05, 0.02],
+                   [0.05, 1.21, 0.03],
+                   [0.02, 0.03, 1.44]])
+    rots = [np.array(op.rot, dtype=np.float64) / gemmi.Op.DEN for op in sg.operations()]
+    g = sum(r.T @ g0 @ r for r in rots) / len(rots)
+    a, b, c = np.sqrt(np.diag(g))
+    return (a, b, c,
+            np.degrees(np.arccos(g[1, 2] / (b * c))),
+            np.degrees(np.arccos(g[0, 2] / (a * c))),
+            np.degrees(np.arccos(g[0, 1] / (a * b))))
+
+
+def test_cell_constraints_reproduce_the_operators_for_every_gemmi_setting():
+    """``cell_constraints`` must state exactly what the operators impose.
+
+    For all ~550 settings in gemmi's table — every unique-axis choice, every
+    origin choice, both R descriptions — a symmetry-compatible cell is derived
+    from the operators alone and the tabulation is checked against it **in both
+    directions**: everything the constraints claim must hold, and nothing they
+    omit may hold.
+
+    The second direction is the one that matters and the one a
+    degrees-of-freedom count cannot supply (WP-1036).  Omitting ``c ← a`` for a
+    rhombohedral-axes R group leaves the count right and the subspace wrong; it
+    is caught here because the derived cell has a = c and the constraints failed
+    to say so.
+    """
+    import gemmi
+
+    from pxrdref.crystallography.symmetry import cell_constraints
+
+    lengths, angles = ("a", "b", "c"), ("alpha", "beta", "gamma")
+    checked = 0
+    for sg in gemmi.spacegroup_table():
+        cell = dict(zip(lengths + angles, _symmetry_compatible_cell(sg)))
+        con = cell_constraints(sg)
+        where = f"{sg.xhm()!r} ({sg.crystal_system_str()}, ext={sg.ext!r})"
+
+        # 1. everything the constraints claim, holds
+        for dependent, source in con.ties.items():
+            assert cell[dependent] == pytest.approx(cell[source], rel=1e-9), (
+                f"{where}: claims {dependent}←{source}, operators disagree "
+                f"({cell[dependent]} vs {cell[source]})")
+        for angle, target in con.fixed_angles.items():
+            assert cell[angle] == pytest.approx(target, abs=1e-9), (
+                f"{where}: claims {angle}={target}, operators give {cell[angle]}")
+
+        # 2. nothing the constraints omit, holds
+        for i, first in enumerate(lengths):
+            for second in lengths[i + 1:]:
+                if con.ties.get(second) == first or con.ties.get(first) == second:
+                    continue
+                if first in con.ties and con.ties[first] == con.ties.get(second):
+                    continue
+                assert cell[first] != pytest.approx(cell[second], rel=1e-7), (
+                    f"{where}: operators force {first} = {second}, "
+                    f"constraints leave them independent")
+        for angle in angles:
+            if angle in con.fixed_angles or angle in con.ties:
+                continue
+            if any(src == angle for src in con.ties.values()):
+                continue  # it is the source another angle is tied to
+            for target in (90.0, 120.0, 60.0):
+                assert cell[angle] != pytest.approx(target, abs=1e-7), (
+                    f"{where}: operators force {angle}={target}, "
+                    f"constraints leave it free")
+        checked += 1
+
+    assert checked > 500, f"only {checked} settings checked"
+
+
+def test_rhombohedral_and_hexagonal_r_settings_differ_in_the_derived_cell():
+    """The two descriptions of an R lattice are genuinely different cells.
+
+    This is why ``ext`` has to be read: the crystal system is ``trigonal`` for
+    both, and both have two degrees of freedom.
+    """
+    hexagonal = _symmetry_compatible_cell(get_spacegroup("R -3 c:H"))
+    rhombohedral = _symmetry_compatible_cell(get_spacegroup("R -3 c:R"))
+    assert hexagonal[3:] == pytest.approx((90.0, 90.0, 120.0))
+    assert hexagonal[0] == pytest.approx(hexagonal[1])
+    assert hexagonal[0] != pytest.approx(hexagonal[2])
+    # rhombohedral: all three lengths equal, all three angles equal and free
+    assert rhombohedral[0] == pytest.approx(rhombohedral[1]) == pytest.approx(rhombohedral[2])
+    assert rhombohedral[3] == pytest.approx(rhombohedral[4]) == pytest.approx(rhombohedral[5])
+    assert rhombohedral[3] != pytest.approx(90.0)

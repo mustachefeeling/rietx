@@ -26,7 +26,12 @@ from scipy import sparse
 
 from ..crystallography.adp import U_NAMES
 from ..crystallography.stephens import S_NAMES, isotropic_coefficients, strain_basis
-from ..crystallography.symmetry import get_spacegroup, rotation_matrices
+from ..crystallography.symmetry import (
+    cell_constraints,
+    check_cell_angles,
+    get_spacegroup,
+    rotation_matrices,
+)
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
 from ..schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Instrument
@@ -94,26 +99,8 @@ class Entry:
     locked: bool = False  # structurally fixed: set_vary may never free it
 
 
-# crystal-system cell ties: dependent → source for the identity ties, plus a
-# set of angle values fixed by symmetry (never refinable in those systems).
-_CELL_TIES: dict[str, dict[str, str]] = {
-    "cubic": {"b": "a", "c": "a"},
-    "tetragonal": {"b": "a"},
-    "hexagonal": {"b": "a"},
-    "trigonal": {"b": "a"},  # hexagonal-axes setting (gemmi default for R groups)
-    "orthorhombic": {},
-    "monoclinic": {},
-    "triclinic": {},
-}
-_FIXED_ANGLES: dict[str, tuple[str, ...]] = {
-    "cubic": ("alpha", "beta", "gamma"),
-    "tetragonal": ("alpha", "beta", "gamma"),
-    "hexagonal": ("alpha", "beta", "gamma"),
-    "trigonal": ("alpha", "beta", "gamma"),
-    "orthorhombic": ("alpha", "beta", "gamma"),
-    "monoclinic": ("alpha", "gamma"),
-    "triclinic": (),
-}
+#: Cell parameter names in table order — lengths first, then angles.
+_CELL_NAMES = ("a", "b", "c", "alpha", "beta", "gamma")
 
 
 class ParameterTable:
@@ -138,16 +125,20 @@ class ParameterTable:
     def _collect(self, structure: Structure, instrument: Instrument) -> None:
         for ip, phase in enumerate(structure.phases):
             sg = get_spacegroup(phase.space_group)
-            system = sg.crystal_system_str()
-            ties = _CELL_TIES.get(system, {})
-            fixed_angles = _FIXED_ANGLES.get(system, ())
+            # The cell ties come from the *setting*, not from the crystal system
+            # alone: a c-unique monoclinic symbol fixes β, not γ, and an R group
+            # on rhombohedral axes ties c←a and α=β=γ rather than leaving c free
+            # (WP-1036, crystallography.symmetry.CellConstraints).
+            constraints = cell_constraints(sg)
+            check_cell_angles(sg, {name: getattr(phase.cell, name).value
+                                   for name in ("alpha", "beta", "gamma")})
             base = f"phases.{ip}"
-            for name in ("a", "b", "c", "alpha", "beta", "gamma"):
+            for name in _CELL_NAMES:
                 p: Parameter = getattr(phase.cell, name)
-                if name in ties:
-                    self._add(f"{base}.cell.{name}", p,
-                              tie=AffineTie.identity(f"{base}.cell.{ties[name]}"))
-                elif name in fixed_angles:
+                if name in constraints.ties:
+                    self._add(f"{base}.cell.{name}", p, tie=AffineTie.identity(
+                        f"{base}.cell.{constraints.ties[name]}"))
+                elif name in constraints.fixed_angles:
                     self._add(f"{base}.cell.{name}", p, force_fixed=True)
                 else:
                     self._add(f"{base}.cell.{name}", p)
