@@ -154,7 +154,7 @@ are open literature and may be cited and implemented from. No code ported.
       mid-run; record that in `history/events.py` beside the additivity rule. A
       `Progress` object carries the counter with `stream=None` a working no-op, so
       every direct engine unit test is unchanged.
-- [ ] `pxrdref index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
+- [x] `pxrdref index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
       field; `AGENT_PROTOCOL.md` rows for `INDEX_BUDGET_EXHAUSTED` and a
       "how long will this take" note beside the indexing recipe.
 - [ ] Tests: `tests/test_indexing_ceiling.py` (new) + edits to

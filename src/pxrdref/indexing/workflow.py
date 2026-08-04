@@ -510,7 +510,8 @@ def index_pattern(peaks: PeakList | None = None, *,
                                          cancel=run_cancel, progress=progress)
         results.append(engine_result)
 
-    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top)
+    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
+                        cancel=run_cancel)
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
     if validate and data is not None and instrument is not None:
@@ -547,11 +548,14 @@ def index_pattern(peaks: PeakList | None = None, *,
                 1 for i in checked if outcome.candidates[i].lebail is None)
             if validated else 0))
 
+    # the gate's ``checked`` is what the enumeration actually covered, not what
+    # was scheduled: under a fired token the two differ, and a candidate whose
+    # ambiguity question was never asked must not read as answered (WP-1037)
     apply_gate(outcome.candidates, engines_run=outcome.engines_run,
                panel_disagrees=outcome.fom_panel_disagrees, validated=validated,
                search_complete=outcome.search_complete,
                shift_allowance_assumed=outcome.shift_allowance_assumed,
-               checked=checked, quality=quality)
+               checked=outcome.ambiguity_checked, quality=quality)
     for cand in outcome.candidates:
         cand.diagnostics = list(cand.diagnostics) + candidate_diagnostics(cand)
 

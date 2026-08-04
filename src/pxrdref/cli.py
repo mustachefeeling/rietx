@@ -234,6 +234,11 @@ def _print_index(result) -> None:
               f"{best.cell[3]:.3f} {best.cell[4]:.3f} {best.cell[5]:.3f}°")
     for diag in result.diagnostics:
         print(f"  [{diag.level:^7}] {diag.code}: {diag.message}")
+        # ``where`` is load-bearing for the run-level codes — it is the field
+        # that names which systems INDEX_BUDGET_EXHAUSTED left truncated or
+        # unreached, which no message prose restates
+        for entry in diag.where:
+            print(f"           - {entry}")
     for c in result.candidates:
         for diag in c.diagnostics:
             print(f"  [{diag.level:^7}] {diag.code} (candidate "

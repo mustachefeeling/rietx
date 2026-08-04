@@ -264,3 +264,18 @@ def test_token_is_reusable(ref, pattern):
     token.reset()
     assert not token.is_set()
     assert ref.fit(pattern, plan=PLAN, cancel=token).statistics.rwp > 0
+
+
+def test_a_deadline_serves_as_a_fit_cancel_token(ref, pattern):
+    """WP-1037: the indexing ``Deadline`` duck-types ``CancelToken`` at every
+    consumer, including the solver's ``.is_set()`` read here — which is the
+    property that puts a Le Bail validation inside the whole-run ceiling with
+    no solver changes.  An expired one cancels the fit; an unexpired one costs
+    nothing (the same claim ``test_an_unset_token_costs_nothing`` makes for
+    the real token)."""
+    from pxrdref.indexing.engines import Deadline
+
+    with pytest.raises(RefinementCancelled):
+        ref.fit(pattern, plan=PLAN, cancel=Deadline(1e-9))
+    result = ref.fit(pattern, plan=PLAN, cancel=Deadline(3600.0))
+    assert result.statistics.rwp > 0
