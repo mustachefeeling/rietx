@@ -577,9 +577,9 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** NIST SRM 676a a = 4.759355(80), c = 12.99231(15) A (k = 2). Both axes are asserted at 150 ppm.  An earlier version of this row asserted c as a RANGE of 1000-5000 ppm and called it 'what an uncalibrated lab pattern costs'; it was not, it was dichotomy's duplicate-leaf hash skipping the leaf that held the certificate's c (WP-1026, _box_key)
 
-**Measured:** ranked first, trigonal R, a +101 ppm and c +16 ppm, 49 of 55 lines, chi2_red 0.84.  Confidence low on four caveats: engines_disagree, predicted_but_absent (12 -- the R-3c c-glide, not an oversized cell), indexed_fraction_low (49/55 = 0.891 against a 0.9 bar) and shift_allowance_assumed.  best_or_none() returns None
+**Measured:** ranked first, trigonal R, a +122 ppm and c +28 ppm, 51 of 55 lines, chi2_red 0.70.  Confidence low on three caveats: engines_disagree, predicted_but_absent (12 -- the R-3c c-glide, not an oversized cell) and fom_panel_disagrees.  best_or_none() returns None.  WP-1038 cleared two of the former four: the shift is now MEASURED before the search from harmonic reflection pairs (-0.0639 deg, against an independently known -0.065), so shift_allowance_assumed no longer fires, and the measured window indexes 51 lines rather than 49, crossing the 0.9 bar unaided.  The wider window costs 21 ppm on a (+101 -> +122) and is recorded rather than hidden: a window that cannot rule out a constant must stay at |c| everywhere, where the true cos(theta) deviation has fallen to 0.26|c| by 150 deg
 
-**Diagnostics:** `INDEX_SHIFT_ALLOWANCE`
+**Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
 #### `test_declaring_the_shift_template_is_what_recovers_the_certificate`
 
@@ -589,9 +589,33 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Referenced to:** The displacement was measured independently against the certificate as a -0.065 deg cos(theta) term (WP-1023).  This row never supplies it: the search fits the template after each candidate survives, from the pattern alone.  The cell and the figures of merit are asserted TOGETHER, because f_n's stated blind spot is that a refined shift can manufacture a large figure of merit on its own
 
-**Measured:** fitted shift -0.0606 +/- 0.0138 deg; a -73 ppm, c -126 ppm; M20 22.1 -> 76.6 and F_N 15.8 -> 59.5; indexed_fraction 0.891 -> 0.927 so indexed_fraction_low clears.  Still low, because the allowance was assumed either way
+**Measured:** fitted shift -0.0726 +/- 0.0181 deg; a +122 -> -93 ppm, c +28 -> -140 ppm; M20 22.5 -> 83.5, F_N 16.1 -> 65.5, Le Bail Rwp 0.282 -> 0.225.  Since WP-1038 the two mechanisms are cleanly separated: the pair-MEASURED magnitude widens the window and finds lines (both calls index 51 of 55, so indexed_fraction_low has already cleared before the template is declared), and the DECLARED shape is what moves the cell.  Three routes to one systematic, none told the answer: -0.0639 from pairs pre-search, -0.0726 from the post-candidate fit, -0.065 measured against the certificate.  Still low, on caveats that have nothing to do with the shift
 
-**Diagnostics:** `INDEX_SHIFT_ALLOWANCE`
+**Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
+
+#### `test_a_certified_shift_is_recovered_from_the_peak_list_alone`
+
+`certificate` · dataset `srm660c`
+
+**Claims:** a systematic 2theta shift is measured from the peak list alone -- no cell, no indices, no reference positions
+
+**Referenced to:** NIST's own recorded specimen displacement, -0.07877 mm at R = 217.5 mm, PREDICTS +0.0415 deg cos(theta) parameter-free through model.corrections; the reference-based screen fits +0.0367 +/- 0.0015 against it.  The reflection-pair method (Dong, Wu & Chen 1999) sees neither: only harmonic pairs among the list's own lines, m sin(theta) = sin(theta'), which hold for any lattice
+
+**Measured:** +0.0345 deg from 10 agreeing pairs of 19 admitted, z = 16.6 against 200 structureless replicates -- within 0.4 sigma of the reference-based fit it never saw, and 0.83 of the geometric prediction (the same 0.75-1.0 band the reference-based screen sits in, for the same reason).  separable is False: constant and cos_theta concentrate within one pair of each other, so a MAGNITUDE is measured and a CAUSE is not
+
+**Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
+
+#### `test_one_shift_is_measured_from_a_multi_phase_pattern`
+
+`characterisation` · dataset `qarr`
+
+**Claims:** harmonic pairs constrain the instrument rather than the lattice, so one shift is measurable from a multi-phase pattern with no cell for any of its phases
+
+**Referenced to:** Dong, Wu & Chen (1999) sec. 3's second example: two of its eleven pairs come from an NiO impurity and agree with the other nine.  Reproduced here on bundled data -- the IUCr round-robin's three-phase mixture (corundum + zincite + fluorite) against the single-phase corundum specimen run on the same diffractometer
+
+**Measured:** corundum -0.0639 deg (against -0.065 measured independently vs the certificate); cpd-1a -0.0382 deg, both at z >= 4.  The two agree to 0.026 deg, well inside what a specimen-mounting difference between the two mounts produces
+
+**Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
 #### `test_the_phantom_lines_are_what_had_blocked_it`
 

@@ -71,7 +71,11 @@ from pxrdref.indexing.fom import (
     predicted_lines,
 )
 from pxrdref.indexing.quality import assess_peak_list, fit_shift_model
-from pxrdref.schemas.indexing import PEAK_ASSUMED_ESD_DEG, PeakList
+from pxrdref.schemas.indexing import (
+    PAIR_MIN_Z,
+    PEAK_ASSUMED_ESD_DEG,
+    PeakList,
+)
 
 DATA = pathlib.Path(__file__).parent / "data"
 BENCH = DATA / "bethanechol_indexing.json"
@@ -1409,6 +1413,90 @@ def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
             f"{strong.two_theta:.4f}° for an axial-divergence tail")
     assert exceptions == 1, (
         f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
+
+
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
+def test_a_certified_shift_is_recovered_from_the_peak_list_alone(lab6_peaks):
+    """SRM 660c's specimen displacement, measured with **no reference at all**.
+
+    This is WP-1038's headline claim on a certified pattern, and the reason it is
+    checkable here rather than only in principle: the CIF records −0.07877 mm at
+    R = 217.5 mm, so the displacement is *predicted* parameter-free at +0.0415°
+    cos θ, and the reference-based screen fits +0.0367 ± 0.0015° against it.  The
+    reflection-pair method sees neither the certificate nor the prediction — only
+    harmonic pairs among the list's own lines, ``m·sin θ = sin θ'`` — and lands at
+    **+0.0345°**, within 0.4σ of the reference-based fit and at 0.83 of the
+    geometric prediction, which is the same 0.75-1.0 band the reference-based
+    screen is held to for the same reason (the other aberrations SRM 660c's
+    docstring names are still in the residual).
+
+    Note what is *not* claimed.  ``separable`` is False: ``constant`` and
+    ``cos_theta`` concentrate within one pair of each other, so the method has
+    measured a magnitude, not named a cause.
+    """
+    from pxrdref.indexing.quality import screen_shift_from_pairs
+
+    screen = screen_shift_from_pairs(lab6_peaks.two_theta(),
+                                     lab6_peaks.two_theta_esd())
+    assert screen.source == "reflection_pairs", screen.pairs.declined_reason
+    amp = next(t.coefficient for t in screen.templates if t.name == screen.best)
+
+    predicted = np.degrees(-2.0 * SRM660C_DISPLACEMENT_MM / SRM660C_RADIUS_MM)
+    assert amp == pytest.approx(0.0345, abs=0.004)
+    assert amp == pytest.approx(0.0367, abs=0.005), (
+        "the pair estimate must agree with the reference-based fit it never saw")
+    assert 0.75 < amp / predicted < 1.0, (
+        f"{amp:+.4f}° against a parameter-free geometric {predicted:+.4f}°")
+
+    # the evidence, not just the number
+    assert screen.pairs.n_clustered >= 8
+    assert screen.pairs.z >= PAIR_MIN_Z
+    assert screen.pairs.p_value <= 0.01
+    # a magnitude, not a cause
+    assert not screen.separable
+    assert screen.allowance_deg > abs(amp)
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-qarr")
+def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
+    """Dong's own two-phase result, on this package's bundled data.
+
+    Dong (1999) §3's second example indexes Pr₂Ni₁₋ₓLiₓO₄ containing NiO, and its
+    point is that two of the eleven pairs come from the **impurity** and agree
+    with the other nine: a harmonic pair constrains the *instrument*, not the
+    lattice, so it does not matter which phase produced it.  That is what makes
+    the method usable on exactly the patterns indexing is hardest on.
+
+    Checked here both ways.  Corundum, single phase, gives −0.0639° against an
+    independently measured −0.065°.  ``cpd-1a`` is the IUCr round-robin's
+    **three-phase** mixture — corundum, zincite and fluorite on the same
+    diffractometer — and returns −0.0382° from pairs its own screen cannot
+    attribute to any one phase, with no cell for any of them.
+    """
+    from pxrdref.indexing.pick import pick_peaks
+    from pxrdref.indexing.quality import screen_shift_from_pairs
+
+    single = screen_shift_from_pairs(corundum_peaks.two_theta(),
+                                     corundum_peaks.two_theta_esd())
+    assert single.source == "reflection_pairs", single.pairs.declined_reason
+    amp = next(t.coefficient for t in single.templates if t.name == single.best)
+    assert amp == pytest.approx(-0.065, abs=0.005), (
+        f"{amp:+.4f}° against the −0.065° measured against the certificate")
+    assert single.pairs.z >= PAIR_MIN_Z
+
+    data, ins = _qarr("cpd-1a.prn")
+    mixture = screen_shift_from_pairs(*(lambda p: (p.two_theta(),
+                                                   p.two_theta_esd()))(
+        pick_peaks(data, ins)))
+    assert mixture.source == "reflection_pairs", mixture.pairs.declined_reason
+    m_amp = next(t.coefficient for t in mixture.templates
+                 if t.name == mixture.best)
+    assert m_amp == pytest.approx(-0.038, abs=0.010)
+    assert mixture.pairs.z >= PAIR_MIN_Z
+    # the two specimens were run on the same instrument, and the shifts agree to
+    # well inside the spread a specimen-mounting difference would produce
+    assert abs(m_amp - amp) < 0.030
 
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
