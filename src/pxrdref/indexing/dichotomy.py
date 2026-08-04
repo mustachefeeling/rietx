@@ -77,6 +77,7 @@ from .engines import (
 )
 from .qspace import (
     cell_from_af,
+    centring_allows,
     design_matrix,
     metric_basis,
     refine_candidate,
@@ -286,14 +287,59 @@ def _test_box(m: np.ndarray, lo: np.ndarray, hi: np.ndarray, basis: np.ndarray,
     # high-index reflections whose Q sweeps the whole domain, and measuring the box
     # by those forces depth nothing needs.
     relevant = hit.any(axis=0)
-    width = float(np.max((q_max - q_min)[relevant])) if relevant.any() else 0.0
+    n_reachable = int(np.count_nonzero(relevant))
+    counts = hit.sum(axis=1)
+    if not _assignment_possible(hit, n_reachable, counts, len(hi_search),
+                                n_unindexed):
+        return None
+    width = float(np.max((q_max - q_min)[relevant])) if n_reachable else 0.0
     # **The box is small enough when the indexing inside it is unique** — no
     # observed line has two candidate reflections — not when some width crosses a
     # threshold.  The width test alone does not terminate: a high-index reflection
     # has a large ‖m‖, so its Q interval stays wide long after the assignment has
     # stopped being ambiguous, and the search bisects past its own depth cap.
-    unique = bool(len(hit)) and int(np.max(hit.sum(axis=1))) <= 1
+    unique = bool(len(hit)) and int(np.max(counts)) <= 1
     return m[relevant], width, unique
+
+
+def _assignment_possible(hit: np.ndarray, n_reachable: int, counts: np.ndarray,
+                         n_lines: int, n_unindexed: int) -> bool:
+    """Hall's condition, in the two forms that cost nothing to check.
+
+    ``hit.any(axis=1)`` — "can *some* reflection reach each line" — is the
+    weakest necessary condition there is, and measured on the bethanechol
+    monoclinic domain it is very nearly vacuous: it killed **342 boxes of
+    692 294**, 0.0 %.  An indexing is an *injective* map from lines to
+    reflections (one hkl has one Q, so two resolved lines cannot both be it),
+    so the box must admit a matching, and Hall's theorem says a matching needs
+    ``|N(S)| ≥ |S|`` for every set ``S`` of lines.  Two instances of that are
+    already sitting in the ``hit`` matrix:
+
+    * **S = every line.**  ``|N(S)|`` is the number of reflections that reach
+      anything, i.e. ``relevant.sum()`` — which the caller computes anyway.  On
+      the same domain this alone refuses **89.9 %** of the boxes that reach it,
+      because the surviving trial set collapses to ~16 reflections while 20
+      lines still have to be explained, and the weak test is happy for the 20 to
+      share.
+    * **S = the lines with exactly one candidate.**  Those assignments are
+      forced, so two such lines pointing at the *same* reflection is a violation
+      at ``|S| = 2`` — DICVOL91's own rejection rule.  Worth 29.8 % on its own,
+      mostly overlapping the first.
+
+    Both are *necessary*, never sufficient, so this refuses boxes and never
+    accepts one.  Soundness under bisection is the same argument the rest of the
+    prunes rest on — a child's Q intervals are subsets of its parent's, so
+    ``|N(S)|`` only shrinks and a box refused here has no sub-box that recovers.
+    """
+    if n_reachable < n_lines - n_unindexed:
+        return False
+    forced = counts == 1
+    n_forced = int(np.count_nonzero(forced))
+    if n_forced > 1:
+        distinct = len(np.unique(np.argmax(hit[forced], axis=1)))
+        if distinct < n_forced - n_unindexed:
+            return False
+    return True
 
 
 def _push_children(stack: list, children: list, m: np.ndarray,
@@ -322,6 +368,11 @@ def _push_children(stack: list, children: list, m: np.ndarray,
                                                         >= lo_search[:, None])
         misses = len(hi_search) - int(np.count_nonzero(hit.any(axis=1)))
         if misses > n_unindexed:
+            continue
+        # the cheap half of Hall's condition only: this child is about to be
+        # pushed, popped and fully tested anyway, so all that is bought here is
+        # the push, and the counting reduction is already paid for by ``hit``
+        if int(np.count_nonzero(hit.any(axis=0))) < len(hi_search) - n_unindexed:
             continue
         scored.append((misses, int(hit.sum()), child_lo, child_hi))
     scored.sort(key=lambda entry: (entry[0], entry[1]), reverse=True)
@@ -412,29 +463,93 @@ def _imul(x: tuple[float, float], y: tuple[float, float]) -> tuple[float, float]
     return min(p), max(p)
 
 
+def _isq(x: tuple[float, float]) -> tuple[float, float]:
+    """[lo, hi]² as an interval — **0 is the minimum when it straddles zero**.
+
+    ``_imul(x, x)`` treats the two factors as independent and returns a negative
+    lower bound for an interval containing 0, which is not a square of anything.
+    """
+    lo, hi = x
+    if lo <= 0.0 <= hi:
+        return 0.0, max(lo * lo, hi * hi)
+    return min(lo * lo, hi * hi), max(lo * lo, hi * hi)
+
+
+def _rho_interval(x_lo: float, x_hi: float, y: tuple[float, float],
+                  z: tuple[float, float]) -> tuple[float, float]:
+    """The off-diagonal as a **correlation**, clipped to the domain's obliquity."""
+    c = float(MAX_ANGLE_COSINE)
+    if y[0] <= 0.0 or z[0] <= 0.0:
+        return -c, c
+    small = 2.0 * np.sqrt(y[0] * z[0])       # smallest denominator → largest |ρ|
+    big = 2.0 * np.sqrt(y[1] * z[1])
+    lo = x_lo / small if x_lo < 0.0 else x_lo / big
+    hi = x_hi / small if x_hi > 0.0 else x_hi / big
+    return max(lo, -c), min(hi, c)
+
+
 def _det_interval(af_lo: np.ndarray, af_hi: np.ndarray
                   ) -> tuple[float, float]:
     """Interval bound on det G* over the box, for the volume prune.
 
-    Interval arithmetic on the symmetric 3×3 expansion — conservative (the terms
-    are treated as independent when they are not), which is the right direction:
-    a volume prune that is too wide costs search time, one that is too tight
-    excludes the answer.  V = (det G*)^(−1/2), so a volume band [V_min, V_max]
-    is the det band [1/V_max², 1/V_min²].
+    V = (det G*)^(−1/2), so a volume band [V_min, V_max] is the det band
+    [1/V_max², 1/V_min²], and the bound must be conservative in the direction
+    that costs search time rather than the one that excludes the answer.
+
+    **It is bounded through the correlation form, not the expanded determinant,
+    and that is what makes the volume window prune at all.**  Writing
+    G* = D^½ R D^½ with D the diagonal gives det G* = A·B·C·det R, so the
+    off-diagonals enter only as ρᵢⱼ = G*ᵢⱼ/√(G*ᵢᵢG*ⱼⱼ) — which the search domain
+    already bounds by :data:`MAX_ANGLE_COSINE` (``_initial_box``, ``_stage_edges``
+    and ``_inside_domain`` all enforce it, so a box's cone-violating corners hold
+    nothing this search may report).  Interval arithmetic on the *expanded*
+    determinant throws that coupling away: it evaluates −B·(E/2)² with E at the
+    **domain's** maximum while A and C are at this **box's**, and the term then
+    swamps A·B·C.  Measured over the bethanechol monoclinic domain (d ∈ [5, 20],
+    V ∈ [800, 1200]) the expanded form gives det ∈ [−4.80e−5, 6.40e−5] against a
+    band of [6.94e−7, 1.56e−6] — det_lo < 0, so "this cell is too small" could
+    never fire at any grid stage, which is the whole of WP-1030's opening
+    diagnosis.  The correlation form gives [3.91e−9, 6.40e−5] on the same box and
+    ABC·[1 − cos²ϑ, 1] on a monoclinic one, and it fires.
+
+    Note this is a *tightening*, not a reordering: the coupling is available
+    whether or not the off-diagonals have been cut yet, so the grid keeps the
+    staging that lets ``_stage_edges`` narrow the off-diagonal axis from 18 slabs
+    to 1-3 using the same Cauchy-Schwarz bound.
+
+    **Both forms are computed and intersected, because neither dominates.**  The
+    correlation form carries the diagonal spread twice — once in A·B·C and again
+    in ρ's denominator — so on a box narrow in the off-diagonals but not yet in
+    the diagonals it is *looser* than the expansion, and using it alone was
+    measured to take the bethanechol grid from 298 k boxes to 441 k even while
+    cutting the top-stage grid.  The expansion is tight there and useless where
+    the cone matters; the intersection of two valid bounds is valid and is at
+    least as tight as either.
     """
-    g = [(float(af_lo[i]), float(af_hi[i])) for i in range(3)]
+    a = (float(af_lo[0]), float(af_hi[0]))
+    b = (float(af_lo[1]), float(af_hi[1]))
+    c = (float(af_lo[2]), float(af_hi[2]))
     # off-diagonals: A..F carries 2·G*, so halve
     d23 = (0.5 * float(af_lo[3]), 0.5 * float(af_hi[3]))
     d13 = (0.5 * float(af_lo[4]), 0.5 * float(af_hi[4]))
     d12 = (0.5 * float(af_lo[5]), 0.5 * float(af_hi[5]))
-    t1 = _imul(_imul(g[0], g[1]), g[2])
-    t2 = _imul(_imul(d12, d13), d23)
-    t3 = _imul(g[0], _imul(d23, d23))
-    t4 = _imul(g[1], _imul(d13, d13))
-    t5 = _imul(g[2], _imul(d12, d12))
-    lo = t1[0] + 2.0 * t2[0] - t3[1] - t4[1] - t5[1]
-    hi = t1[1] + 2.0 * t2[1] - t3[0] - t4[0] - t5[0]
-    return lo, hi
+    diag = _imul(_imul(a, b), c)
+    cross_d = _imul(_imul(d12, d13), d23)
+    t3, t4, t5 = (_imul(a, _isq(d23)), _imul(b, _isq(d13)), _imul(c, _isq(d12)))
+    lo = diag[0] + 2.0 * cross_d[0] - t3[1] - t4[1] - t5[1]
+    hi = diag[1] + 2.0 * cross_d[1] - t3[0] - t4[0] - t5[0]
+
+    # the same determinant through det G* = A·B·C·det R, where the domain's
+    # obliquity bound clips every ρ
+    r23 = _rho_interval(float(af_lo[3]), float(af_hi[3]), b, c)
+    r13 = _rho_interval(float(af_lo[4]), float(af_hi[4]), a, c)
+    r12 = _rho_interval(float(af_lo[5]), float(af_hi[5]), a, b)
+    s23, s13, s12 = _isq(r23), _isq(r13), _isq(r12)
+    cross_r = _imul(_imul(r12, r13), r23)
+    det_r = (1.0 + 2.0 * cross_r[0] - s23[1] - s13[1] - s12[1],
+             1.0 + 2.0 * cross_r[1] - s23[0] - s13[0] - s12[0])
+    c_lo, c_hi = _imul(diag, det_r)
+    return max(lo, c_lo), min(hi, c_hi)
 
 
 def _max_index(spec: SearchSpec, q_max: float) -> int:
@@ -487,19 +602,13 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
             system, float(quality.volume_envelope[system])
             if quality is not None and system in quality.volume_envelope
             else 8000.0)
-        complete = True
-        n_boxes = n_rows = 0
-        for centring in spec.centrings_for(system):
-            found, (boxes, rows), done = _search_one(
-                basis, system, centring, spec, budget, q_all, sigma, q_search,
-                tol_search, peaks.wavelength, tt_max, spec.min_volume, vol_max,
-                search, tt_all)
-            raw.extend(found)
-            n_boxes += boxes
-            n_rows += rows
-            complete &= done
-            if len(raw) > DEDUP_EVERY:
-                raw = dedup_candidates(raw)
+        found, (n_boxes, n_rows), complete = _search_one(
+            basis, system, spec.centrings_for(system), spec, budget, q_all,
+            sigma, q_search, tol_search, peaks.wavelength, tt_max,
+            spec.min_volume, vol_max, search, tt_all)
+        raw.extend(found)
+        if len(raw) > DEDUP_EVERY:
+            raw = dedup_candidates(raw)
         result.search_complete[system] = complete
         result.stats[f"{system}.seconds"] = round(budget.elapsed, 3)
         result.stats[f"{system}.boxes"] = float(n_boxes)
@@ -533,13 +642,28 @@ def _centre_volume(basis: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> float:
         return float("inf")
 
 
-def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
+def _search_one(basis: np.ndarray, system: str, centrings: tuple[str, ...],
+                spec: SearchSpec,
                 budget: Budget, q_all: np.ndarray, sigma: np.ndarray,
                 q_search: np.ndarray, tol_search: np.ndarray, wavelength: float,
                 tt_max: float, vol_min: float, vol_max: float,
                 search_lines: np.ndarray, tt_all: np.ndarray,
                 ) -> tuple[list[EngineCandidate], tuple[int, int], bool]:
-    """One (system, centring, volume shell): **the grid pass, then dichotomy.**
+    """One system, **every admissible centring in one pass**: grid, then dichotomy.
+
+    **The grid is searched once per system, not once per centring**, and that is
+    a completeness argument rather than an optimisation.  ``centring_allows``
+    makes each centred trial set a strict *subset* of the primitive one (asserted
+    in ``tests/test_indexing_engines.py``), so a centred box has strictly fewer
+    reflections with which to reach the same lines: the centred line-matching
+    test is harder, every box surviving it survives the primitive test, and **the
+    centred pass can therefore find no metric the primitive pass misses**.  All
+    the separate pass ever contributed was the *scoring* — which centring's
+    reflections explain the pattern — and that is recovered by re-running the
+    assign-and-refine step of :func:`_accept` under each admissible centring at
+    the leaves, where there are ~10² boxes rather than ~10⁶.  Measured on the
+    bethanechol monoclinic domain, dropping the redundant pass is a clean 2× on
+    monoclinic and 4× on orthorhombic, for no change in what is reported.
 
     The two phases are not a refactor of one loop, they are the fix for a measured
     failure.  Running grid subdivision and bisection in one depth-first stack means
@@ -569,14 +693,46 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
     # 55 lines came back reporting 20 of 55, tying it with every supercell.
     q_hi_search = float(q_search.max() + tol_search.max())
     q_hi_all = float(q_all.max() + spec.k_sigma * sigma.max())
-    hkl_all = trial_hkl(_max_index(spec, q_hi_all), centring)
-    if len(hkl_all) > MAX_TRIAL_HKL:
+    # the search sees the **union** of the admissible centrings' reflections —
+    # the smallest set that can miss no candidate — and each centring keeps its
+    # own mask for the leaves.  With "P" admissible the union is every hkl, which
+    # is what makes the single pass cover the centred ones.
+    hkl_all = trial_hkl(_max_index(spec, q_hi_all), "P")
+    masks = {c: centring_allows(hkl_all, c) for c in centrings}
+    # **A centring whose own set fits the cap keeps its search when the union
+    # does not.**  Sharing one pass means sharing one trial set, so the cap now
+    # applies to the union — and the union of an admissible "P" is every hkl.
+    # Dropping the whole system there would lose the centred searches that used
+    # to run in their own pass (a cubic F set is a quarter of P's, so there is a
+    # band of ``max_index`` where F fits and P does not), so the widest sets are
+    # dropped until the rest fit, and what is dropped is reported by returning
+    # ``complete = False`` exactly as an overflow always has.
+    complete_union = True
+    order = sorted(masks, key=lambda c: -int(masks[c].sum()))
+    while order and int(np.logical_or.reduce(
+            [masks[c] for c in order]).sum()) > MAX_TRIAL_HKL:
+        order.pop(0)
+        complete_union = False
+    if not order:
         return [], (0, 0), False
+    masks = {c: masks[c] for c in order}
+    union = np.logical_or.reduce(list(masks.values()))
+    hkl_all = hkl_all[union]
     dm_all = design_matrix(hkl_all)
+    # each centring's (hkl, design) pair is sliced **once**, not once per leaf:
+    # the arrays are tens of thousands of rows and _accept is called per leaf per
+    # centring, so slicing inside that loop cost 3× the whole search when it was
+    # first written this way
+    per_centring = {c: (hkl_all[mask[union]], dm_all[mask[union]])
+                    for c, mask in masks.items()}
+    centring_rows = {c: mask[union] for c, mask in masks.items()}
     m_all = dm_all @ basis.T
     root_min, _root_max = _q_bounds(m_all, lo0, hi0)
     search_set = np.flatnonzero(root_min <= q_hi_search)
     m_full = m_all[search_set]
+    # each centring's own view of the *recursion* set, for the leaf-level replay
+    # of the pass it no longer gets — see the loop in phase 2
+    m_search = {c: m_full[rows[search_set]] for c, rows in centring_rows.items()}
     q_hi = q_hi_search
 
     det_band = (1.0 / max(vol_max, 1e-6) ** 2, 1.0 / max(vol_min, 1e-6) ** 2)
@@ -666,11 +822,30 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
             if key in seen:
                 continue
             seen.add(key)
-            cand = _accept(basis, system, centring, spec, theta,
-                           hkl_all, dm_all, q_all, sigma, wavelength, tt_max,
-                           vol_min, vol_max, width, search_lines, tt_all)
-            if cand is not None:
-                found.append(cand)
+            for centring, (hkl_c, dm_c) in per_centring.items():
+                # **The centred pass is replayed here, and one box is enough.**
+                # Dropping the per-centring *search* must not also drop its
+                # per-centring *pruning*: a leaf reached by the union set has
+                # not shown that the centred trial set can reach these lines.
+                # Measured on SRM 660c, skipping this put a pseudo-cubic
+                # trigonal R description of the LaB6 lattice **above** the
+                # certified cubic cell — a lower-symmetry description indexes
+                # two more lines because the off-lattice tail components fit
+                # it.  Testing the leaf alone is *equivalent* to having run the
+                # whole centred search: every prune in :func:`_test_box` is
+                # monotone under bisection, so a box that survives implies
+                # every ancestor survived, and leaf survival is exactly "the
+                # centred search would have reached here".
+                if _test_box(m_search[centring], lo, hi, basis, q_hi, det_band,
+                             swaps, lo_search, hi_search,
+                             spec.n_unindexed) is None:
+                    continue
+                cand = _accept(basis, system, centring, spec, theta,
+                               hkl_c, dm_c, q_all, sigma,
+                               wavelength, tt_max, vol_min, vol_max, width,
+                               search_lines, tt_all)
+                if cand is not None:
+                    found.append(cand)
             continue
 
         # bisect the dimension that moves Q most — the one whose own width, times
@@ -687,7 +862,7 @@ def _search_one(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,
         right_lo[j] = mid
         _push_children(stack, [(lo, left_hi), (right_lo, hi)], m, lo_search,
                        hi_search, spec.n_unindexed, depth + 1)
-    return found, (n_boxes, n_rows), complete
+    return found, (n_boxes, n_rows), complete and complete_union
 
 
 #: Relative grid on which a converged box's A..F is hashed to see whether that

@@ -100,6 +100,23 @@ And a `from_positions` list indexes despite its assumed σ, but every line carri
 `sigma_assumed` — the panel must say "precision assumed", never quote σ(Q)/Q as a
 property of the data.
 
+**Arrived after this WP closed, with WP-1030's merge on 2026-08-04 — two things
+the panel may not honour, because 1030 was on a worktree branch while this one
+shipped.** Check both before trusting the panel's FoM display:
+
+- **The figure-of-merit panel is seven members, not five**: `m_rev` and `m_sym`
+  (Oishi-Tomiyasu 2013) joined M₂₀, F_N and the three coverage fractions.
+  Anything laying the panel out by a fixed count, or assuming the members are
+  comparable in scale, needs re-reading — **`m_sym` is a product of two ratios
+  and runs four to five orders above the rest** (~2×10⁵ against M₂₀'s ~10²), so
+  a shared axis or a bar chart across members will be unreadable. Every member
+  carries its own `blind_spot` string, which is what belongs beside a value.
+- **A search over the package's *default* short-axis bound is now affordable at
+  low symmetry** — monoclinic over d ∈ [2, 20] Å with a declared volume window
+  completes in ~32 s where it previously did not finish at all. A panel offering
+  "search monoclinic" no longer has to insist on a narrow `min_d_axis` first.
+  Still ~30 s, so it wants the streaming/cancellation path, not a blocking call.
+
 **Correction (pruned): `ObservedPeak.origin` does not exist.** The note here
 attributing a `"fitted"`/`"manual"`/`"edited"` origin field to WP-1018 was wrong
 — no such field is in `schemas/indexing.py` and WP-1018's file never mentions

@@ -218,25 +218,26 @@ would mean one is.
 - **2026-08-04 (close)** — all seven tasks done, in one session. The measurement
   came first and reshaped the rest, exactly as the plan intended.
 
-  **Read this before anything else: `main` moved under this branch.** It went
-  c71d6e0 → 22d7d8c mid-session when WP-1030 merged (PR #24), so `worktree-gui`
-  is **not** a fast-forward and a trial `git merge-tree` reports **two
-  conflicts, both pure bookkeeping**: CLAUDE.md's `### Current numbers` block
-  and ROADMAP's `## Current focus` + WP table row — the two places every
-  close-session writes. No code conflicts. `tests/test_indexing_core.py` merges
-  clean and is *semantically* clean too: 1030 only added tests elsewhere in the
-  file, while this WP replaced
-  `test_metric_subspace_dimensions_match_the_tabulated_cell_dof` (which imported
-  the now-deleted `_CELL_TIES`/`_FIXED_ANGLES`) — so whoever merges must keep
-  **this branch's** version of that test, or the import fails. `docs/manual/conf.py`
-  merges clean (each side added one substitution).
+  **`main` moved under this branch mid-session and the merge is done.** It went
+  c71d6e0 → 22d7d8c when WP-1030 merged (PR #24); `origin/main` is merged in
+  here, the two conflicts resolved. Both were pure bookkeeping — CLAUDE.md's
+  `### Current numbers` and ROADMAP's `## Current focus`, the blocks every close
+  rewrites — plus `v1.0.md`, where both sides had prepended a narrative entry
+  and both were kept, newest first. **No code conflict**, and one resolution is
+  load-bearing: `tests/test_indexing_core.py` merged textually clean, but main
+  still carried the old metric-subspace test importing the now-deleted
+  `_CELL_TIES`/`_FIXED_ANGLES`, so this branch's replacement is the one that had
+  to survive.
 
-  **And the numbers below are this branch's, not the merged tree's.** Both
-  branches added tests, so `1596 / 1683` cannot simply be added to 1030's
-  figures — the merged tree has to be re-measured, and the count check
-  (passed+skipped moves by exactly the rows added) has to be redone against the
-  merge, not against either parent. Quoting the tree is the same discipline as
-  quoting the venv.
+  **The merge surfaced a risk worth naming.** `validate_by_lebail` builds a
+  `ParameterTable` from *every* indexing candidate, so `check_cell_angles` now
+  stands in the indexer's path — a tolerance near the A..F → cell round-off would
+  make the indexer refuse its own answers. Measured rather than assumed:
+  `refine_candidate` solves inside `metric_basis`, so derived angles land within
+  **1.4e-14°** of exactly 90/120 across all five constrained systems, a **7e10
+  margin** on the 1e-3° bar. Pinned by
+  `test_a_derived_candidate_cell_never_trips_the_symmetry_angle_check`, which
+  fails if the margin ever drops below 1e6.
 
   **The sweep's two answers point opposite ways, and both are load-bearing.**
   Zero of 28 existing inputs reach any broken branch, so no published number
@@ -296,13 +297,14 @@ would mean one is.
 
   **Measured, `[dev]` numpy-only worktree venv, darwin/arm64 M4:**
 
-  - fast suite **1596 passed / 108 skipped**, 48 s quiet (1:41 with the full
-    suite running alongside — same tree, twice). +19 on the 1577/108 baseline:
-    14 new rows (12 `test_params`, 2 `test_wyckoff`) plus **5 from one new
-    `validation_matrix` Claim**, which five parametrised tests each expand. No
-    new skips.
-  - full suite **1683 passed / 117 skipped**, 11:59 — +20 on 1663/117, the
-    fast selection's +19 plus the one slow-marked acceptance row. The first
+  - on the **merged** tree (the number that counts): fast **1605 passed / 108
+    skipped**, full **1692 / 117**. On this branch before the merge it was
+    1596 / 1683; 1030 brought 8 fast rows and the merge-time guard added 1, and
+    the merged figures were *measured*, never summed.
+  - 1036's own contribution is +20: 14 rows (12 `test_params`, 2
+    `test_wyckoff`) plus **5 from one new `validation_matrix` Claim**, which
+    five parametrised tests each expand, plus one slow-marked acceptance row.
+    No new skips in either selection. The first
     full run failed two bookkeeping guards and both were doing their job: the
     ROADMAP-glyph mirror (fixed by the close commit that run predated) and
     `test_every_acceptance_test_has_a_matrix_row`, which refused the new

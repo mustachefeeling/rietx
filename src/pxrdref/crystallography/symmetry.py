@@ -46,8 +46,13 @@ def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
 #: (measured on a=5, b=6, c=7 Å over h0l/hk l reflections; the coupling is
 #: linear, 825 ppm at 0.1°), an order of magnitude under the tightest cell
 #: assertion in the acceptance suite — SRM 660c's a = 4.15678 ± 2e-4 Å, i.e.
-#: 48 ppm.  It is also ~1e11 × the round-off of the A..F → cell conversion an
-#: indexing candidate arrives with, so a *derived* cell is never refused.
+#: 48 ppm.  And it clears, by a **measured 7e10 ×**, the round-off an indexing
+#: candidate arrives with: ``refine_candidate`` solves A..F *inside* the symmetry
+#: subspace, so the derived angles come back within 1.4e-14° of exactly 90/120
+#: across all five constrained systems.  That matters because
+#: ``validate_by_lebail`` builds a ``ParameterTable`` from every candidate — a
+#: tolerance anywhere near the conversion noise would make the indexer refuse its
+#: own answers.
 SYMMETRY_ANGLE_TOL_DEG = 1e-3
 
 #: The exact angle a hexagonal/trigonal γ takes on hexagonal axes.

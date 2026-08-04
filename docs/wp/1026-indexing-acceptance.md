@@ -71,6 +71,45 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From WP-1030, closed 2026-07-31 — criterion 1 is unblocked, and three of the
+failures you handed over now have a tool but not a measurement.** This WP is
+marked ✅ with criterion 1 deferred; reopening it for that criterion is the
+intended next step, and everything below is the state it should start from.
+
+- **The monoclinic search finishes, in both of the paper's modes.** d ∈ [5, 20]
+  (manual) completes in 11–24 s, d ∈ [2, 20] (default) in 32 s, both ranking
+  the published cell first. The default-mode row is the new one: it previously
+  expired incomplete at 300 s with zero candidates. **So the global benchmark
+  score is now a matter of running the harness that already exists** — and note
+  that the harness is less complete than WP-1030's Context claimed: the ten
+  sets, the reconstructed Table 5 and the published-score self-check are
+  landed, but a per-set scoring function that grades *this package's* result
+  against the ±1 rule is **not**, and the module docstring's "deliberately
+  absent" table (its lines ~24-51) has to be rewritten rather than deleted.
+- **A candidate cell is a lattice, not a tuple.** The bethanechol truth comes
+  back as its `c + a` setting — (8.875, 16.408, 11.0099, β 139.70°), the
+  published volume — so any scoring harness that compares sorted axis lengths
+  will score a correct answer as a miss. Use `reduce.same_lattice`.
+- **`M^Rev` and `M^Sym` are in the panel now**, and they are the figures your
+  handover named as "the obvious thing to test against" the FAP inversion. On a
+  synthetic doubled axis `M^Rev` separates truth from supercell **64-74×**
+  where M₂₀ separates them 1.8×. Whether that turns the FAP ranking round, and
+  whether it demotes the brucite and magnetite supercells, are claims about
+  `fap_index` and two unlanded rows (95 s, 218 s) — i.e. yours, not the
+  engine's. The panel is now **seven** members, so any test asserting its
+  length or Borda arithmetic needs re-reading.
+- **`DEFAULT_SEARCH_LINES` still takes the first twenty lines in 2θ order**,
+  and on `11BM_NAC.fxye` (starting at 0.76° 2θ) that is the wrong twenty — six
+  of the true cell's lines against 268 of 285 over the whole list. Untouched by
+  WP-1030: it is a peak-list selection question, not a search-cost one.
+- **NAC still cannot be searched at its own d_min**, and no prune added in 1030
+  reaches it: the obstruction is `reflection_ceiling_ok` at d_min = 0.43 Å,
+  which is a *reflection-count* limit rather than a domain-size one. The
+  instruction to state the scope in terms of d_min rather than 2θ stands.
+- **Dong, Wu & Chen (1999) is still not held.** It remains the unblock for a
+  *measured* `shift.source`, and so for the `shift_allowance_assumed` caveat
+  that makes `high` unreachable on real lab data.
+
 From **WP-1024**: `best_or_none()` is the only singleton accessor and
 `systems_searched` is on the result — the abstention tests below assert on
 those, not on a `.cell` attribute that does not exist.

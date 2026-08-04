@@ -52,28 +52,41 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1036](wp/1036-crystal-system-settings.md)** (2026-08-04) —
-cell ties now derive from the space-group *setting*, not the crystal system
-alone. Its task-1 measurement answered both ways: **zero of 28 existing inputs**
-reach a broken branch (so nothing shipped is affected and the suite did not
-move), but **all three are reachable from a plain CIF** — gemmi picks the R
-setting from the *cell*, so a rhombohedral cell under a bare `R -3 c` arrives
-as `:R`. The free-parameter count was right in every broken case, so the
-degrees-of-freedom test had been passing on the wrong subspace.
+**Last closed: [1036](wp/1036-crystal-system-settings.md)** (2026-08-04) — cell
+ties follow the space-group **setting**, not the crystal system. Its task-1
+measurement answered both ways: **zero of 28 existing inputs** reach a broken
+branch, so nothing shipped moved, but **all three defects are reachable from a
+plain CIF** — `read_small_structure` picks the R setting from the *cell*, so a
+rhombohedral cell under a bare `R -3 c` arrives as `:R`. **79 of gemmi's 564
+settings were served wrong, and the free-parameter count was right in every
+one**, so the degrees-of-freedom test guarding this had passed on the wrong
+subspace since v0.1. Before it,
+[1030](wp/1030-engine-scaling-low-symmetry.md) (2026-07-31, merged 2026-08-04) —
+a monoclinic search over the package's own **default** short-axis bound went
+from *not finishing* to **32 s with the truth ranked first**, and the FoM panel
+gained `m_rev`/`m_sym`, which separate a truth from a supercell **64-74×**
+where M₂₀ manages 1.8×; and before that [1027](wp/1027-gui-peak-picker.md)
+(2026-08-01), the GUI peak picker and indexing panel. Close narratives in
+[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
+
+Two method lessons, and they are one lesson twice. 1030: **instrument before
+ranking** — the cost items were reasoned from the algorithm's structure and came
+out near-backwards; counting box deaths found 97.6 % of the work in a phase no
+item addressed. 1036: **a count is not a subspace** — name which angle is held
+and which length follows which, never how many.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1030](wp/1030-engine-scaling-low-symmetry.md) — engine cost at low
-   symmetry (being worked on its own worktree branch as of 2026-07-31; its
-   row below is that branch's to flip).
+2. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
+   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
+   carries what 1030 measured and what the harness still lacks.
 3. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the 2026-08-04 use session. Behind 1028/1030 because **none of them moves the
-   bar** while those two do; 1032 → 1033 is an ordering, not a preference (one
-   file). 1035 is now unblocked, and inherits `cell_constraints(sg)` as the
-   oracle its "what would this change invalidate?" preview needs.
+   the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
+   bar** while those two do. 1035 is unblocked and its `### Inherited` carries
+   1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
 4. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
@@ -406,7 +419,7 @@ per concurrent session, or only one session commits.
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ✅ 2026-08-01 | 1010, 1011, 1018–1024 |
-| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ⬜ | 1020–1022 (1026 soft) |
+| [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

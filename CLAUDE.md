@@ -49,21 +49,30 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 (WP-1036 close session), darwin/arm64 M4, numpy-only
-`[dev]` worktree venv:
+Measured 2026-08-04 on the **merged** tree (WP-1036 close, after WP-1030 came
+in from `worktree-indexer`), darwin/arm64 M4, numpy-only `[dev]` worktree venv.
+**Measured on the merge, not summed from the two branches** — neither parent's
+figure is this tree's:
 
-- fast suite: **1596 passed / 108 skipped**, 48 s quiet / 1:41 while the full
-  suite ran alongside it — the same tree, twice, and the spread is the machine,
-  not the change. Moved by exactly +19 from the 1577/108 baseline: 14 new rows
-  (12 `test_params`, 2 `test_wyckoff`) plus 5 from one new `validation_matrix`
-  `Claim`, which five parametrised tests each expand. No new skips.
-- full suite: **1683 passed / 117 skipped**, 11:59 (one run). +20 on the
-  1663/117 baseline = the fast selection's +19 plus one slow-marked acceptance
-  row. passed+skipped 1800 = the fast selection's 1704 + 96 slow-marked. The
-  `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
+- fast suite: **1605 passed / 108 skipped**, 38 s / 1:41 (quiet vs sharing the
+  machine with a full run — the spread is the machine, not the change).
+  Decomposes exactly: 1577 baseline + 1030's 8 + 1036's 14 rows + 5 from one new
+  `validation_matrix` `Claim` (five parametrised tests each expand it) + 1 for
+  the derived-candidate angle guard. No new skips.
+- full suite: **1692 passed / 117 skipped**, 11:36–15:00 over two runs.
+  passed+skipped 1809 = the fast selection's 1713 + 96 slow-marked.
+  The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
   checkout's.
-- frontend (vitest): **282**, carried forward from the WP-1027 session and
-  **not** re-measured; WP-1036 touched no file under `gui/`.
+- fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
+  with **no torch**: 1627 passed / 67 skipped in 1:01–2:57 (`-n auto` to
+  `-n 4`), after WP-1030's +8 (1619/67 before). A worktree needs its own venv
+  and its own count — the extras differ, so these do not compare with the rows
+  above, and that row has **not** been re-measured since the merge.
+- `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
+  **Run it before closing anything that touches an engine** — WP-1030's one
+  regression was invisible to all 115 fast indexing tests.
+- frontend (vitest): **282**, unchanged by 1030 and 1036 (neither touched
+  `gui/`); last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
   numbers.
@@ -541,8 +550,15 @@ in A..F (corner-exact, because Q is linear in the metric) and its silence is evi
 indices of a few base lines and solves the metric exactly, so a bad base line poisons
 it where a wide domain poisons the other. Both rank on the FoM **panel** via
 `rank_candidates`, never on a member — supercells index every observed line exactly
-and lose only on `predicted_seen_fraction`. Two things the panel needs from its
-caller, both learned the same way (WP-1026): the **matching window** is an argument
+and lose only on the reversed members. There are **seven**: M₂₀, F_N, three
+coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
+content is that the reversed direction is a *ratio* where ours is a windowed
+fraction — measured on a doubled axis, `m_rev` separates truth from supercell 64-74×
+where M₂₀ separates them 1.8×. Its `N^cal` is Σ 1/m over centring-allowed triples
+and is **never rounded**: Σ 1/m over a complete orbit is exactly 1, so an integer
+result is the *self-check* that the multiplicity is right, while a hexagonal orbit
+cut by the enumeration box legitimately contributes a fraction. Two things the panel
+needs from its caller, both learned the same way (WP-1026): the **matching window** is an argument
 (`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
 members must ask the same "is this the same line" question the *search* asked while
 M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
@@ -563,9 +579,27 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-Six more indexing rules, each learned the hard way — the measured stories
+Seven more indexing rules, each learned the hard way — the measured stories
 are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
+
+- **Profile an engine before ranking what to fix in it: a cost model reasoned
+  from the algorithm's structure is not a profile.** WP-1030's ranking came out
+  nearly inverted — the phase holding 97.6 % of the boxes had no item against
+  it, and the prune ranked last was the one worth 89.9 %. Two corollaries:
+  **wall clock is worthless while a second search shares the machine**, and **a
+  candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice`, never with sorted axes, or a correct answer in another
+  setting reads as a miss.
+- **Removing a redundant search must not remove its prunes**, and only real
+  data will say that you did: the centred passes are redundant *as searches*
+  (each centred trial set is a subset of the primitive one) and not as
+  *filters*. Because the prunes are monotone under bisection, replaying one at
+  the leaf is equivalent to the whole pass. WP-1030 skipped that and put a
+  pseudo-cubic trigonal R description of the certified LaB6 lattice above the
+  cubic truth with **115 fast indexing tests green** — so run
+  `tests/test_acceptance_indexing.py` before closing anything that touches an
+  engine.
 
 - Read a `predicted_but_absent` firing as "this cell predicts lines the
   pattern lacks", **never** "this cell is too big": it counts against the
