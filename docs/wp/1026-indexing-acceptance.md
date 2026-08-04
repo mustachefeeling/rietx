@@ -71,6 +71,27 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From the 2026-08-04 source-literature review (WP-1037…1042 created, no code
+changed).** Three things bear on this WP:
+
+- **The bar has been restated in the ROADMAP**, which had still been quoting
+  "≥ +9" — your own restatement (grade against the *individual* program globals:
+  ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6) is now in both
+  the milestone row and Current focus. Grade against those.
+- **`DEFAULT_SEARCH_LINES` is no longer yours** — it moved to
+  [WP-1039](1039-search-line-count.md), with a published answer: Conograph
+  searches on 48 lines and *proves* the asymmetry (a false line costs only
+  computation, a missing line costs success). Your NAC finding — six of the true
+  cell's lines in the first twenty against 268 of 285 over the whole list — is
+  quoted there as the motivating defect.
+- **Le Bail (2004) §VII is worth reading before criterion 1.** It reports that
+  the bethanechol ICDD entries carry a **−0.10° 2θ zeropoint** and that *"any
+  self-calibration from these original data failed to estimate"* it — McMaille
+  indexes them only when told the zeropoint. That is consistent with this WP's
+  own `max_collinearity` 1.0000 finding, and it means a poor score on the ICDD
+  sets may be the data, not the package. `/Users/yue/zotero-linker/derived/7AEVVGH6/`;
+  see `docs/LITERATURE.md` for the corpus.
+
 **From WP-1030, closed 2026-07-31 — criterion 1 is unblocked, and three of the
 failures you handed over now have a tool but not a measurement.** This WP is
 marked ✅ with criterion 1 deferred; reopening it for that criterion is the
