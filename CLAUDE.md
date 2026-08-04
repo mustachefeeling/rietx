@@ -49,20 +49,21 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-01 (WP-1027 close session), darwin/arm64 M4, numpy-only
+Measured 2026-08-04 (WP-1036 close session), darwin/arm64 M4, numpy-only
 `[dev]` worktree venv:
 
-- fast suite: **1577 passed / 108 skipped**, 33 s (one quiet run) — moved by
-  exactly the close session's +2 (`test_gui_peaks` extinction rows) from the
-  1575/108 baseline; no new skips.
-- full suite: **1663 passed / 117 skipped**, 9:05 (one run, while the machine
-  also drove a headless browser and an indexing search); passed+skipped
-  1780 = the fast selection's 1685 + 95 slow-marked. The `[dev,jax,torch]`
-  figures (1772 collected pre-1027, 8:09–15:33 over three runs) were again
-  **not** re-measured — that venv is the main checkout's; expect +10
-  collected there vs pre-1027.
-- frontend (vitest): **282** (was 276: +4 `grabToleranceDeg` + 2
-  extinction-table mounts).
+- fast suite: **1596 passed / 108 skipped**, 48 s quiet / 1:41 while the full
+  suite ran alongside it — the same tree, twice, and the spread is the machine,
+  not the change. Moved by exactly +19 from the 1577/108 baseline: 14 new rows
+  (12 `test_params`, 2 `test_wyckoff`) plus 5 from one new `validation_matrix`
+  `Claim`, which five parametrised tests each expand. No new skips.
+- full suite: **1683 passed / 117 skipped**, 11:59 (one run). +20 on the
+  1663/117 baseline = the fast selection's +19 plus one slow-marked acceptance
+  row. passed+skipped 1800 = the fast selection's 1704 + 96 slow-marked. The
+  `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
+  checkout's.
+- frontend (vitest): **282**, carried forward from the WP-1027 session and
+  **not** re-measured; WP-1036 touched no file under `gui/`.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv) — resolved, `tests/CLAUDE.md` § Quoting
   numbers.

@@ -292,9 +292,18 @@ would mean one is.
 
   **Measured, `[dev]` numpy-only worktree venv, darwin/arm64 M4:**
 
-  - fast suite **1591 passed / 108 skipped**, 48 s — +14 passes on the 1577/108
-    baseline, which is exactly the 14 rows added (12 in `test_params.py`, 2 in
-    `test_wyckoff.py`); no new skips, nothing else moved.
+  - fast suite **1596 passed / 108 skipped**, 48 s quiet (1:41 with the full
+    suite running alongside — same tree, twice). +19 on the 1577/108 baseline:
+    14 new rows (12 `test_params`, 2 `test_wyckoff`) plus **5 from one new
+    `validation_matrix` Claim**, which five parametrised tests each expand. No
+    new skips.
+  - full suite **1683 passed / 117 skipped**, 11:59 — +20 on 1663/117, the
+    fast selection's +19 plus the one slow-marked acceptance row. The first
+    full run failed two bookkeeping guards and both were doing their job: the
+    ROADMAP-glyph mirror (fixed by the close commit that run predated) and
+    `test_every_acceptance_test_has_a_matrix_row`, which refused the new
+    corundum test until it was registered with what its tolerance is
+    referenced to.
   - the real-data arm: corundum's two descriptions refined independently from
     the identical physical lattice land on the same answer to **1.4e-9 / 1.2e-8**
     relative with Rwp equal to five decimals; α walks 54.987 → 55.292 against a
