@@ -39,6 +39,22 @@ real UI.
 
 ### Inherited
 
+From the **2026-08-04 use session**, which created
+[1032](1032-gui-repairs.md), [1033](1033-plot-range-regions.md),
+[1034](1034-panel-layout.md) and [1035](1035-symmetry-surfaced.md): **do not
+write the panel-by-panel chapter until those land.** All four change controls
+this chapter documents, and one of them ([1034](1034-panel-layout.md)) moves
+Model and Text out of full-window modes and into right-panel tabs — which
+rewrites the paragraph the WP-1029 note below asks for, and with it the
+"[ Plot | Model | Text ]" sentence. The quickstart and the `.pxt` spec chapter
+are unaffected and can be written now. Three things those WPs will hand over
+that a manual must state: the peak picker's **right-click will remove** a line
+rather than refit its group (refit moves to the table's `↻`), the plot gains
+**per-curve visibility toggles** that are deliberately *not* persisted while the
+**fit range and excluded regions** beside them *are* (one is a drawing choice,
+the other is protocol), and a phase's **symmetry becomes editable** with a
+preview of what the change would invalidate.
+
 From **WP-1027** (closed 2026-08-01), extending the note below: the browser
 pass changed two behaviours the manual should state, and the extinction
 screen landed. **A drag only moves a line once you are zoomed in enough for

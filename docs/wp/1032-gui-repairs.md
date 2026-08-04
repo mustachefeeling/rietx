@@ -1,0 +1,206 @@
+# WP-1032 — GUI repairs found by use
+
+Milestone: v1.0 · Status: ⬜
+Depends on: 1010-1015, 1027, 1029 (all landed) · **blocks** 1033 (same file)
+
+## Goal
+
+Nine small repairs to controls that already exist, all reported by a user
+driving the shipped build: a hover box that is readable in dark mode, reflection
+ticks that do not hide under the residual, control over which curves are drawn,
+a peak picker whose gestures say what they do, a form with no unexplained field,
+and a panel drag that does not lag.
+
+## Context
+
+**Every item came from the user driving the GUI on 2026-08-04**, the same
+provenance as WP-1029 and none of it found by reading. The shape is deliberately
+WP-1029's: uniformly small repairs, each independently landable, none needing a
+design decision. **If an item starts arguing for a redesign it does not belong
+here** — the panel layout is [1034](1034-panel-layout.md)'s and the fitted range
+is [1033](1033-plot-range-regions.md)'s.
+
+Everything below was **read from the source at `660c950`**, not measured. In
+this codebase that distinction is load-bearing: WP-1029's second pass concluded
+`lightposition` was inert from six pixel-identical probe pairs, and the next
+session's probes contradicted it on the same browser and the same bundle. Treat
+each citation as a place to look, not as a finding.
+
+### What is there now
+
+- **No `hoverlabel` styling exists anywhere in the app.** `Plot.svelte:113` sets
+  `hovermode: "x unified"` and every trace carries a `hovertemplate`, but
+  nothing themes the box — so it keeps plotly's default light background while
+  `layout.font.color` is the themed `--fg` (`Plot.svelte:83,96`). Light-grey ink on
+  a white box is exactly the report. `Structure3D.svelte` has the same gap.
+- **Ticks live inside the residual subplot.** `Plot.svelte:181-189` draws one
+  trace per phase on `yaxis2` at `y = -0.5 - row*0.9`, and `yaxis2`'s domain is
+  `[0, 0.22]` (`Plot.svelte:111`). Their visibility therefore depends on which
+  residual is selected — under a cumulative χ² curve, whose values run to
+  thousands, they are pinned at the floor. The domain gap `[0.22, 0.28]` between
+  the two subplots is **free**: `yaxis` starts at 0.28 (`Plot.svelte:106`).
+- **The background curve is already unconditional.** `Plot.svelte:170-175` draws
+  it whenever `w.y_background` is non-empty, and `/api/result/window` sends `[]`
+  when the result carries none (`session.py:1424,1440`). So "make it possible to
+  toggle the background on" is either the **raw/peaks view** — `paintRaw`
+  (`Plot.svelte:300-318`) builds a payload of `two_theta`/`y_obs` only — or a
+  request for control over a curve that is currently forced. A missing trace and
+  a missing control are different repairs; find out which before building.
+- **Nothing throttles a resize.** `Plot.svelte:408-414` calls
+  `plotly.Plots.resize(node)` once per `ResizeObserver` callback;
+  `Splitter.svelte:64` calls `onsize(next, false)` on every `pointermove` (the
+  *network* is already spared — the POST fires once, on `done`); the relayout
+  handler refetches the window from the server with no debounce
+  (`Plot.svelte:201-208`); and the knob/theme effect (`Plot.svelte:449-454`)
+  repaints through a full `plotly.react` with fresh trace objects. Four
+  candidates, no measurement. See task 1.
+- **The peak picker's right-click is a refit**, not a remove
+  (`Plot.svelte:386-394` → `App.svelte:refitGroup`, which prompts through
+  `window.prompt`). Remove already exists as the peak table's `×`
+  (`Peaks.svelte:226`), and refit as its `↻` (`Peaks.svelte:221-225`).
+- **The affordance line renders only in the raw state**: `Plot.svelte:467-471`
+  is inside `{:else if !result && peaksActive}`, so once a fit exists the
+  gestures are undocumented on screen.
+- **Nothing links the peak table and the plot by hover.** The only link is a
+  click on the 2θ cell, which zooms (`Peaks.svelte:137-139` → `onzoom` →
+  `App.svelte:zoom` → a *server* refetch of that window).
+- **`packing` has no `title`** in either of the two places it is offered:
+  `lib/wizard.ts:48` (`debye_scherrer`) and `:71` (`flat_plate_transmission`),
+  and `lib/model.ts:290,300` in the instrument editor. `title=` is the app's
+  only help mechanism (`Model.svelte:588` for wizard fields, `:828` for
+  instrument fields, where it falls back to the server's `held_because`).
+  `PresetField` already declares an optional `title` (`lib/wizard.ts:27-36`).
+
+### One reported item has no located defect
+
+*"Transparent background text headings over picked list clash with other text on
+scroll."* It was not found by reading. The **only** `position: sticky` in the
+app is the Peaks table's `th` (`Peaks.svelte:482`), and it paints
+`var(--panel)` — while `.side` and `.panel` (`App.svelte:762-806`) set no
+background at all and show the body's `--bg`. That is a colour *mismatch*
+(#ffffff on #fbfbfa light, #1e1e1e on #151515 dark), which is a plausible cause
+and is **not** transparency. Other candidates worth checking in the same pass:
+the plotly legend (`Plot.svelte:95`, over a transparent `paper_bgcolor`), and
+the `h2` block headings in the scrolling section. **Reproduce it before planning
+a fix** — task 3 is written as a reproduction, not a repair.
+
+### Rules from the neighbours, restated because they bind here
+
+- **A drawing choice is not persisted.** WP-1029 kept the residual kind and the
+  intensity scale as component state for WP-1015's reason one panel over:
+  storing one would make a picture the project's opinion (`Plot.svelte:73-75`).
+  The curve toggles are the same kind of thing. What *is* persisted goes to
+  `ProjectDoc.ui` **on the verb**, never on save.
+- **Every pointer verb has a non-pointer route** (WP-1027). The typed-2θ box
+  (`Peaks.svelte:153-157`) and the `.pxt` peaks block are the existing ones;
+  changing what right-click means must not orphan a verb.
+- **A style sampled synchronously inside an effect races the shell's
+  `applyTheme`** — `paint()` awaits one microtask before `getComputedStyle`
+  (`Plot.svelte:153`). Anything new that samples a custom property at draw time
+  inherits that ordering, and the theme must be a **dependency** of the effect
+  that draws it.
+- **plotly's `responsive: true` listens for window resizes only**, which has now
+  bitten two panels; any control row under a plot needs the `ResizeObserver`.
+- The dist is committed: every commit touching `gui/` ends with
+  `npm --prefix gui run build`, or `tests/test_gui_dist.py` fails on the digest.
+
+## Non-goals
+
+- **Not the panel layout** — Model/Text into the right panel, and the open
+  screen, are [1034](1034-panel-layout.md)'s.
+- **Not the fitted range** — 2θ limits and excluded regions are
+  [1033](1033-plot-range-regions.md)'s, and it lands *after* this WP because
+  both edit `Plot.svelte`.
+- **Not the manual** — [1017](1017-gui-manual-onboarding.md) documents what this
+  changes; land before it and write into its `### Inherited` on sign-off.
+- **Not a new plot library, and no client-side decimation** (WP-1010).
+
+## Tasks
+
+- [ ] **Where does the frame go?** Profile a sidebar drag and a plot resize in a
+      real browser *before* changing anything, and name the cost. The four
+      candidates above are candidates; the plan deliberately picks no winner.
+      Fix what the profile indicts, and **record what it exonerated** — a
+      throttle added to an innocent path is a permanent claim nobody can audit.
+- [ ] **Themed `hoverlabel`** on both plotly surfaces (`Plot.svelte:layout()`
+      and `Structure3D.svelte`), sourced from the same custom properties
+      everything else reads. No component learns a hex value.
+- [ ] **Reproduce the heading clash**, both themes, and fix what is actually
+      there. Either way, give `.side`/`.panel` the surface colour they claim, so
+      a sticky `--panel` backdrop stops being a mismatch.
+- [ ] **A tick band of its own** in the `[0.22, 0.28]` gap — a third y axis,
+      one row per phase, ticks legible under every residual kind and every
+      intensity scale.
+- [ ] **Curve toggles** (observed / calculated / background / difference / each
+      phase's row), unpersisted. Settle the background question above first and
+      say which repair it turned out to be.
+- [ ] **Right-click removes.** Refit stays on the table's `↻`; the
+      `window.prompt` goes with it.
+- [ ] **The gestures are stated whenever the Peaks tab is active**, fit or no
+      fit, with the non-pointer route named beside each.
+- [ ] **Hover links the table and the plot both ways** — one `hoveredIndex` in
+      the shell threaded to both panels, drawn through `restyle` or a dedicated
+      one-point trace. A full `react` per mouse move is the defect task 1 is
+      about.
+- [ ] **No form field without help**: `packing` gets its title from the schema's
+      own words (`instrument.py:384-386` — fraction of the bore or slab occupied
+      by solid, 0.3-0.6 for a tapped powder, 0.64 random close packing,
+      estimator input only and never refinable), then a vitest asserts **every**
+      `PresetField` and every `instrumentFields()` entry has one.
+- [ ] Tests: vitest for each pure function added and a jsdom mount test per
+      control; `tests/test_gui_server.py` only if a route moves (none should).
+
+## Acceptance
+
+```sh
+npm --prefix gui test && npm --prefix gui run check
+.venv/bin/python -m pytest tests/test_gui_server.py tests/test_gui_peaks.py -q
+.venv/bin/python -m ruff check src tests examples
+npm --prefix gui run build && .venv/bin/python -m pytest tests/test_gui_dist.py -q
+```
+
+And the part no suite covers: **the screenshot that prompted each item, taken
+again**, in both themes at 1500 px and at 1000 px — on the NAC project (COD
+1000236 + `11BM_NAC.fxye`, which refines to Rwp ≈ 13.4 %) for the fit path, and
+on the qarr corundum project (`corundum.prn`, `has_sigma = False`) for the
+raw/peaks path.
+
+Two harness traps that already cost measurements: playwright's viewport option
+is `newContext({ viewport })` and **not** `viewportSize`, which is silently
+ignored — so a run claiming 1500 px and 1000 px is otherwise a run at the
+default 1280 px twice; and the chromium binaries are cached although playwright
+is not installed, so `playwright-core` is installed in the job scratchpad,
+**never** in `gui/`.
+
+## References
+
+- `gui/CLAUDE.md` — the GUI rulebook; WP-1029's and WP-1027's paragraphs bind
+  most of the items here.
+- `docs/milestones/v1.0.md` — WP-1027's and WP-1029's measured browser passes.
+- `src/pxrdref/schemas/instrument.py:374-386` — the `packing_fraction` docstring
+  the tooltip quotes.
+
+## Handover log
+
+- **2026-08-04** — created from a user's list after driving the shipped GUI,
+  together with [1033](1033-plot-range-regions.md),
+  [1034](1034-panel-layout.md), [1035](1035-symmetry-surfaced.md) and
+  [1036](1036-crystal-system-settings.md). Nothing is started.
+
+  **Three things a successor should not re-derive.** The domain gap
+  `[0.22, 0.28]` is free, so the tick band needs no room made for it. The
+  background curve is already drawn unconditionally, so the reported item is
+  *not* "add the trace" until someone checks the raw view. And the heading-clash
+  item has **no located defect** — the only sticky element in the app already
+  has a backdrop, so the reproduction is the work, and finding it is something
+  else entirely is a legitimate outcome to write down.
+
+  **Two scope decisions the user took**, binding and not to be re-litigated:
+  right-click **removes** (refit survives on the table's `↻`), and "toggle
+  individual histograms" means **toggle the plot's curves** — the GUI is
+  single-pattern by construction, `Project.open` refuses a project holding more
+  than one, so no server change is implied.
+
+  Suggested order is the task list's, and task 1 is first for a reason: the
+  hover-link item is the one most likely to *create* the lag complaint, and it
+  should be written against a profile rather than a guess.
