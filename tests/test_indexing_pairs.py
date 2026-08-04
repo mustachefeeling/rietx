@@ -267,20 +267,34 @@ def test_the_bethanechol_benchmark_declines_reproducing_a_published_failure():
         assert res.reason
 
 
-def test_the_allowance_is_the_amplitude_not_the_scatter():
-    """``pair_allowance`` spans the shift *and* the precision behind it.
+def test_the_allowance_is_the_amplitude_plus_only_how_well_it_is_known():
+    """``pair_allowance`` spans the shift, and barely more — measured both ways.
 
-    Two failure modes, opposite directions, both measured.  Declaring the scatter
-    alone is the SRM 660c failure — 0.0078° against a 0.037° shift, a 4.3× gap,
-    and the search finds nothing.  Declaring the amplitude alone is the 11-BM NAC
-    failure waiting to happen: its shift is 0.0002°, so the window would be
-    narrower than the line precision that measured it.
+    Declaring *less* than the amplitude is the SRM 660c failure: the residual
+    scatter is 0.0078° against a 0.037° shift, and a window that size finds
+    nothing.  Declaring *more* is the failure the corpus sweep found, and it is
+    the worse one, because it returns a wrong cell rather than none — corundum
+    keeps its certified trigonal *R* lattice through σ_sys = 0.070 and flips to
+    hexagonal *P* at 0.0767, and SRM 660c returns a cell 293 000 ppm wrong at
+    ``high`` confidence at 0.060.
+
+    Hence the headroom is the standard error of the mean and **not** the
+    pair-to-pair scatter: on corundum those give 0.0680 and 0.0767, and the
+    breaking point falls between them.
     """
-    assert pair_allowance(0.037, 0.0056) > 0.037
-    assert pair_allowance(0.0002, 0.0036) > 0.010, (
-        "a shift consistent with zero must still open a window")
-    assert pair_allowance(-0.064, 0.0043) == pytest.approx(0.064 + 3 * 0.0043)
+    assert pair_allowance(0.037, 0.0020) > 0.037, "must span the shift itself"
+    assert pair_allowance(-0.0639, 0.0014) == pytest.approx(0.0639 + 3 * 0.0014)
+    assert pair_allowance(-0.0639, 0.0014) < 0.070, (
+        "corundum's own measured allowance must stay inside its measured "
+        "breaking point, or the certified lattice stops ranking first")
+    # the scatter is the quantity that overshoots — 0.0043 on corundum, which
+    # would put the window at 0.0767, past the flip
+    assert 0.0639 + 3 * 0.0043 > 0.0767 - 1e-9
+
     assert pair_allowance(0.0, 0.0) == 0.0
+    assert pair_allowance(0.02, float("nan")) == pytest.approx(0.02), (
+        "a single-pair cluster has no standard error and must not poison the "
+        "window with a NaN")
 
 
 def test_the_enumeration_is_a_window_on_the_shift_not_on_the_ratio():

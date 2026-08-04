@@ -90,6 +90,7 @@ from ..schemas.indexing import (
     PAIR_NULL_REPLICATES,
     PAIR_REFUTE_K_FRACTION,
     PEAK_MIN_USABLE_LINES,
+    SHIFT_ALLOWANCE_K_ESD,
     SHIFT_TEMPLATES,
     SMITH_VOLUME_C1,
     SMITH_VOLUME_C2,
@@ -216,8 +217,11 @@ def fit_shift_model(two_theta: np.ndarray, deviation_deg: np.ndarray,
         sigma_sys_deg=sigma_sys,
         # the window must span the shift itself, not what removing it leaves —
         # the two differ by 4.3× on SRM 660c and only one of them indexes.  This
-        # is the computation ``lab6_calibrated`` used to do by hand.
-        allowance_deg=abs(float(best.coefficient)) + sigma_sys,
+        # is the computation ``lab6_calibrated`` used to do by hand, and it is
+        # the *same* formula the pair road uses (``pairs.pair_allowance``), so
+        # one measured shift means one window however it was measured.
+        allowance_deg=(abs(float(best.coefficient))
+                       + SHIFT_ALLOWANCE_K_ESD * float(best.stderr)),
         prediction_spread_deg=spread,
         source="measured")
 

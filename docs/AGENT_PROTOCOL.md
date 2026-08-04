@@ -316,6 +316,7 @@ are read on the peak list, not on a `RefinementResult`.
 | `INDEX_SEARCH_INCOMPLETE` | Read "no cell found" as "no cell exists". Only a *completed* exhaustive search says that; this one ran out of budget, and `search_complete[system]` says which systems it covered |
 | `INDEX_DOMINANT_ZONE` | Conclude the pattern cannot be indexed. The exact-solve engine found nothing at its base-line index table but found a cell with a wider one, which means one axis is long enough (or short enough) that the lowest observed lines carry large indices. Use the dichotomy engine, which bounds the metric instead of assuming indices |
 | `INDEX_SHIFT_ALLOWANCE` | (info) Quote the winning cell without fitting a shift template. The search *assumed* a systematic allowance (no shift had been measured), and a cell found inside a widened window absorbs the shift — measured, +1400 ppm on a certified pattern. Re-fit with `shift_template` and quote that cell |
+| `INDEX_SHIFT_FROM_PAIRS` | (info) Read the reported amplitude as naming a *cause*. It does not: the pair method measures the shift's size from harmonic reflection pairs with no reference, and `constant` and `cos_theta` are collinear over an ordinary range, so `best` is not an attribution. Read `pairs.refuted_templates` for what the data *do* reject, and widen the 2θ range if the cause matters |
 
 ### 7c. The answer's own diagnostics (`IndexingResult.diagnostics`, and each
 candidate's)

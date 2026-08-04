@@ -258,12 +258,32 @@ PAIR_MIN_CLUSTERED = 3
 #: exists — so a bar at 0.6 refutes transparency everywhere it should and never
 #: separates the two collinear templates.
 PAIR_REFUTE_K_FRACTION = 0.6
-#: Cluster scatters carried into :attr:`ShiftScreen.allowance_deg` alongside the
-#: amplitude.  The window must span the shift *and* the precision behind it: on a
-#: pattern whose shift is consistent with zero (11-BM NAC, 0.0002°) the amplitude
-#: alone would open a window narrower than the line precision and could lose a
-#: pattern that currently indexes.
-PAIR_ALLOWANCE_K_SCATTER = 3.0
+#: Standard errors of the fitted amplitude carried into
+#: :attr:`ShiftScreen.allowance_deg` on top of the amplitude itself.  **One
+#: formula for both roads** — a shift fitted against supplied references and one
+#: recovered from harmonic pairs produce the same kind of number, so they open
+#: the same kind of window, and ``lab6_calibrated`` no longer computes it by hand.
+#:
+#: **The headroom term is the dangerous one, and its size was measured against
+#: the answer rather than argued.**  A window must span the shift, because
+#: matching happens against uncorrected positions; every degree beyond that is
+#: one more coincidence a wrong lattice is allowed to have.  Swept on the two
+#: certified datasets (WP-1038): corundum keeps the certified trigonal *R*
+#: lattice at σ_sys = 0, 0.05, 0.0639 (its own amplitude) and 0.070, and flips to
+#: a wrong **hexagonal P** at 0.0767; SRM 660c keeps cubic *P* at 0.0345 and
+#: 0.05, flips to tetragonal *P* at 0.0532, and at 0.060 returns a 35.9 Å³ cell
+#: **293 000 ppm** from the certificate *at ``high`` confidence* — the
+#: confident-wrong-singleton this package exists to prevent, manufactured by
+#: window width alone.  Cost moves the same way: corundum takes 50 s at 0.05 and
+#: 169 s at 0.085.
+#:
+#: So the amplitude is safe and the headroom must be small.  It is scaled by the
+#: standard error of the cluster **mean**, not by the pair-to-pair **scatter**:
+#: the scatter is dominated by each pair's own σ amplified through
+#: :func:`~pxrdref.indexing.pairs.pair_shift_sensitivity`, and using it put
+#: corundum at 0.0767 — past its own breaking point — while the standard error
+#: puts it at 0.0681, inside it.
+SHIFT_ALLOWANCE_K_ESD = 3.0
 #: Smith (1977) volume envelope, ``V ≈ 0.6·d_N³/(1/N − 0.0052)``, evaluated for
 #: **triclinic** at N = 20: 13.39·d₂₀³.  Kept as the two published constants
 #: rather than the product, because the formula is used at other N.

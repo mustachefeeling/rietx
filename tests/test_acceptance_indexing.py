@@ -531,12 +531,15 @@ def lab6_calibrated(lab6_peaks):
     tt = trimmed.two_theta()
     screen = fit_shift_model(tt, _certified_deviation(trimmed, tt),
                              trimmed.two_theta_esd())
-    amplitude = next(t.coefficient for t in screen.templates
-                     if t.name == screen.best)
+    # ``screen.allowance_deg`` — WP-1038.  This used to be ``abs(amplitude)``
+    # computed here by hand, because ``ShiftScreen`` reported only the scatter the
+    # template leaves and that is not what a window must span.  The screen now
+    # computes it, by the same formula the reflection-pair road uses, so the one
+    # place in the suite that knew the difference no longer has to.
     spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
-                      sigma_sys_deg=abs(float(amplitude)))
+                      sigma_sys_deg=float(screen.allowance_deg))
     return index_pattern(trimmed, data=data, instrument=ins, spec=spec), screen
 
 
@@ -778,18 +781,33 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     them *before refining*, and one of the three held the certificate's c.
 
     So this row asserts the corrected answer: peaks picked by the package, no cell
-    supplied, no shift measured, and the certified lattice **ranked first with the
-    right centring**, both axes inside 150 ppm.
+    supplied, no shift *declared*, and the certified lattice **ranked first with
+    the right centring**, both axes inside 150 ppm.
 
-    The second half is still the point, and it is that ``low`` is the honest grade
-    for a cell this accurate.  Four caveats stand, and each names something real:
-    only one engine found it (``engines_disagree``); the Le Bail fit sees ~12
-    reflections the *lattice* R-3m allows where the pattern has no intensity, which
-    is the R-3c c-glide and not an oversized cell (``predicted_but_absent`` cannot
-    tell those apart — WP-1025's extinction screen is what can); 49 of 55 lines are
-    indexed against a 0.9 bar (``indexed_fraction_low``); and the matching window
-    was widened by an assumed allowance (``shift_allowance_assumed``).  Declaring
-    the shift template clears the third and sharpens the cell — the next test.
+    **WP-1038 changed what "no shift measured" means here, and two caveats moved
+    with it.**  The shift is now measured from harmonic reflection pairs before
+    the search — −0.0639° on this pattern, against an independently known
+    −0.065° — so the window is a measurement rather than the assumed 0.05°, and
+    ``shift_allowance_assumed`` no longer fires.  With it the search indexes
+    **51 of 55** lines where it indexed 49, which crosses the 0.9 bar unaided and
+    clears ``indexed_fraction_low`` as well.  Declaring the template used to be
+    what crossed that bar; now it is not, and the next test says what declaring it
+    still buys.
+
+    **The wider window is not free and the cost is recorded rather than hidden.**
+    A measured 0.0680° is wider than the assumed 0.05° on *this* pattern (it is
+    narrower on six of the corpus's seven fitted lists), and a is +122 ppm where
+    it was +101.  The reason is knowable: the true cause is a cos θ displacement,
+    whose deviation falls to ~0.26·|c| by 150° 2θ, while a window that cannot rule
+    out a *constant* must stay at |c| everywhere.  That is the price of measuring
+    the magnitude without being able to name the cause, and it is inside the bar.
+
+    ``low`` remains the honest grade, on three caveats that each name something
+    real: only one engine found it (``engines_disagree``); the Le Bail fit sees 12
+    reflections the *lattice* R-3m allows where the pattern has no intensity,
+    which is the R-3c c-glide and not an oversized cell (``predicted_but_absent``
+    cannot tell those apart — WP-1025's extinction screen is what can); and the
+    panel's members do not agree on the ranking (``fom_panel_disagrees``).
     """
     res, a_cert, c_cert = corundum_index
 
@@ -803,16 +821,24 @@ def test_a_certified_lab_pattern_indexes_and_is_graded_honestly(corundum_index):
     dc = best.cell[2] / c_cert - 1.0
     assert abs(da) < 1.5e-4, f"a = {best.cell[0]:.5f} ({da*1e6:+.0f} ppm)"
     assert abs(dc) < 1.5e-4, f"c = {best.cell[2]:.5f} ({dc*1e6:+.0f} ppm)"
-    assert best.n_indexed >= 49, f"{best.n_indexed} of {best.n_lines} lines"
+    assert best.n_indexed >= 51, f"{best.n_indexed} of {best.n_lines} lines"
     assert best.chi2_red < 1.5, best.chi2_red
 
-    # the gate refuses to promote it, and every caveat names something real
+    # the shift reached the search as a measurement, and said so
+    assert any(d.code == "INDEX_SHIFT_FROM_PAIRS" for d in res.diagnostics)
+    assert not any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in res.diagnostics)
+    assert "shift_allowance_assumed" not in best.confidence_caveats
+    # …which is what carried indexed_fraction over its bar with nothing declared
+    assert best.fom_value("indexed_fraction") >= 0.9
+    assert "indexed_fraction_low" not in best.confidence_caveats
+
+    # the gate still refuses to promote it, and every caveat names something real
     assert best.confidence == "low"
     assert set(best.confidence_caveats) >= {
-        "shift_allowance_assumed", "indexed_fraction_low", "predicted_but_absent"}
+        "engines_disagree", "predicted_but_absent"}
     assert best.lebail is not None and best.lebail.predicted_but_absent > 0
     assert res.best_or_none() is None, (
-        "a cell was returned as the answer with four caveats standing")
+        "a cell was returned as the answer with caveats standing")
 
 
 @pytest.mark.slow
@@ -821,20 +847,28 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
         corundum_index, corundum_index_with_shift):
     """The other half of the protocol: declare the systematic, and see it fitted.
 
-    A user with a standard cannot measure a specimen displacement before there is
-    a cell to measure it against, so the sequence is: index under the assumed
+    A user cannot measure a specimen displacement's *cause* before there is a cell
+    to measure it against, so the sequence is: index under the pair-measured
     allowance, then declare the template and index again.  This row is that second
-    call, and it is the first end-to-end evidence that ``refine_with_shift`` does
-    what it exists for on real data.
+    call, and it is the end-to-end evidence that ``refine_with_shift`` does what it
+    exists for on real data.
 
-    The fitted coefficient is **−0.061 ± 0.014°**, against a specimen displacement
-    of −0.065° measured independently against the certificate (WP-1023) — so the
-    package recovers a systematic it was never told about, from the pattern alone.
-    Both axes land inside 150 ppm and ``indexed_fraction`` crosses its bar, so one
-    refuting caveat clears.
+    The fitted coefficient is **−0.0726 ± 0.0181°**, against a specimen
+    displacement of −0.065° measured independently against the certificate
+    (WP-1023) and a pre-search pair estimate of −0.0639° (WP-1038) — three routes
+    to the same systematic, none of which was told the answer.
 
-    **The figures of merit are the striking part and they are not free.**  M₂₀ goes
-    22 → 77 and F_N 16 → 60, because ``engines.scored_positions`` scores a
+    **What declaring the template buys changed with WP-1038, and the change is
+    the point.**  It used to be what carried ``indexed_fraction`` over its bar;
+    now the pair-measured window does that on its own, and both calls index 51 of
+    55 lines.  What is left is what the template was always actually for: the
+    *cell*.  a goes +122 → −93 ppm and c +28 → −140 ppm, χ²_red 0.70 → 0.37, and
+    the Le Bail Rwp 0.282 → 0.225.  So the two mechanisms are now cleanly
+    separated — the measured **magnitude** widens the window and finds more lines,
+    the declared **shape** corrects the cell — where before they were confounded.
+
+    **The figures of merit are the striking part and they are not free.**  M₂₀
+    goes 22 → 83 and F_N 16 → 66, because ``engines.scored_positions`` scores a
     shift-carrying candidate against the positions it actually claims.  That is the
     blind spot ``f_n`` has always stated — a refined shift can manufacture a large
     F_N — so the number to read here is not the size of the jump but that the
@@ -862,12 +896,18 @@ def test_declaring_the_shift_template_is_what_recovers_the_certificate(
     before, after = plain.candidates[0], best
     assert after.chi2_red < before.chi2_red
     assert after.fom_value("m20") > 3.0 * before.fom_value("m20")
-    assert after.fom_value("indexed_fraction") >= 0.9 > \
-        before.fom_value("indexed_fraction")
-    assert "indexed_fraction_low" not in after.confidence_caveats
-    # and it is still not promoted: the allowance was assumed either way
+    assert after.lebail.rwp < before.lebail.rwp
+    # the cell is what the template buys: both axes move *toward* the certificate
+    assert abs(after.cell[0] - a_cert) < abs(before.cell[0] - a_cert), (
+        "declaring the shape must sharpen a, not merely the figures of merit")
+    # and the window already carried indexed_fraction over its bar in both calls,
+    # since WP-1038 measures the magnitude before the search rather than assuming
+    for c in (before, after):
+        assert c.fom_value("indexed_fraction") >= 0.9
+        assert "indexed_fraction_low" not in c.confidence_caveats
+    # still not promoted, on caveats that have nothing to do with the shift
     assert after.confidence == "low"
-    assert "shift_allowance_assumed" in after.confidence_caveats
+    assert "shift_allowance_assumed" not in after.confidence_caveats
     assert res.best_or_none() is None
 
 
@@ -995,14 +1035,17 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     one metric stay *separate* candidates, because they predict different numbers
     of lines, and the figure-of-merit panel is what chooses between them
     (``engines.dedup_groups``).  Here it chooses correctly — tetragonal **I**,
-    a +207 ppm and c +1906 ppm from Hazen & Finger's cell, 66 of 68 lines.
+    a +207 ppm and c +1906 ppm from Hazen & Finger's cell.
 
-    Note which figure does the choosing.  The primitive twin of the same metric
-    is also in the list and indexes exactly as many observed lines; what
-    separates them is ``predicted_seen_fraction`` (0.59 for I against 0.31 for
-    P), because the P cell predicts twice as many reflections and half of them
-    are not there.  That is coverage scored *in both directions*, which is the
-    whole reason the panel is a panel.
+    Note which figure does the choosing, and note that the obvious one would
+    choose **wrong**.  The primitive twin of the same metric is also in the list
+    and indexes 60 of 68 observed lines against the centred cell's 59 — *more*,
+    not fewer, because a cell predicting twice as many reflections can only ever
+    match at least as many observed ones.  What separates them is
+    ``predicted_seen_fraction``, 0.57 for I against 0.28 for P, since half of what
+    P predicts is not there.  That is coverage scored *in both directions*, which
+    is the whole reason the panel is a panel — and forward coverage alone would
+    rank the wrong twin first.
     """
     res = zircon_index
     a_ref, c_ref = QARR_PHASES["zircon"][1][0], QARR_PHASES["zircon"][1][2]
@@ -1021,8 +1064,19 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
              and abs(c.cell[2] / best.cell[2] - 1.0) < 1e-3]
     assert twins, "the primitive twin was merged away; dedup_groups must keep it"
     twin = twins[0]
-    assert twin.n_indexed == best.n_indexed, (
-        "the twins should be indistinguishable on forward coverage")
+    # Forward coverage cannot separate them: the twins index 59 and 60 of 68
+    # lines, i.e. the *primitive* twin explains marginally more, which is the
+    # trap — a cell that predicts twice as many reflections will never index
+    # fewer.  (They were exactly equal under the assumed 0.05° window; WP-1038's
+    # measured 0.0299° is narrower and splits them by one line, in the direction
+    # that would rank the wrong twin first if forward coverage decided.)
+    assert abs(twin.n_indexed - best.n_indexed) <= 1, (
+        f"forward coverage: I {best.n_indexed}, P {twin.n_indexed} of "
+        f"{best.n_lines} — the twins should be within a line of each other")
+    assert twin.n_indexed >= best.n_indexed, (
+        "the primitive twin should not index *fewer* lines than the centred one "
+        "— if it does, this row is no longer testing what it claims")
+    # what actually separates them is coverage in the *reverse* direction
     assert (best.fom_value("predicted_seen_fraction")
             > 1.5 * twin.fom_value("predicted_seen_fraction"))
 
@@ -1252,10 +1306,14 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
     assert "predicted_but_absent" not in best.confidence_caveats
 
     # …and it is still not promoted, on caveats that have nothing to do with
-    # extinctions: the allowance was assumed, and only one engine found it
+    # extinctions.  ``shift_allowance_assumed`` is **no longer** among them:
+    # WP-1038 measures this pattern's +0.0345° from harmonic pairs before the
+    # search, against the +0.0367° the reference-based screen fits and the
+    # +0.0415° its recorded geometry predicts, so the window is a measurement.
+    # What still stands is that only one engine found it.
     assert best.confidence == "low"
-    assert set(best.confidence_caveats) >= {"shift_allowance_assumed",
-                                            "engines_disagree"}
+    assert set(best.confidence_caveats) >= {"engines_disagree"}
+    assert "shift_allowance_assumed" not in best.confidence_caveats
     assert res.best_or_none() is None
 
 

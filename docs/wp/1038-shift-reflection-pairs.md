@@ -205,6 +205,48 @@ the only reason to care. And `allowance_deg` cannot be the bare amplitude: NAC's
 0.0003°, so a window built from it alone would be *narrower* than today's and could
 lose a pattern that currently indexes. It must carry the cluster scatter with it.
 
+### The window sweep — measured 2026-08-04, and it re-scoped the allowance
+
+Wiring the first `allowance_deg` (amplitude + 3 × **cluster scatter**) into
+`effective_sigma_sys` broke **five** acceptance rows. Rather than adjust the
+constant by reasoning, the ranking was swept against the window on the two
+certified datasets — the third session running where the reasoned answer would
+have been wrong, and the first where the *sign* of the effect was:
+
+| σ_sys ° | corundum (truth trigonal *R*) | s | SRM 660c (truth cubic *P*) | s |
+|---|---|---|---|---|
+| 0.000 | trigonal R, +101 ppm | 50 | — | |
+| 0.0345 | — | | cubic P, −127 ppm | 21 |
+| 0.050 (today's assumed) | trigonal R, +101 ppm | 50 | cubic P, −127 ppm | 21 |
+| 0.0639 (its own amplitude) | trigonal R, +122 ppm | 78 | — | |
+| 0.0700 | trigonal R, +122 ppm | 97 | — | |
+| 0.0532 | — | | **tetragonal P** | 26 |
+| 0.0600 | — | | **tetragonal P, 35.9 Å³, −293 000 ppm, `high`** | 28 |
+| 0.0767 (amplitude + 3σ_scatter) | **hexagonal P** | 124 | — | |
+| 0.0850 | **hexagonal P, 383 Å³, +436 ppm** | 169 | — | |
+
+**The amplitude is safe; the headroom is what breaks it.** Corundum holds the
+certified lattice through 0.070 and loses it at 0.0767; SRM 660c holds through
+0.05 and loses it at 0.0532. Two things follow that no amount of reading would
+have given:
+
+- **A wider window manufactures a confident wrong singleton.** At σ_sys = 0.060
+  SRM 660c returns a 35.9 Å³ tetragonal cell 293 000 ppm from the certificate
+  **at `high` confidence**. The gate is not defective — every engine really does
+  agree on it, and it really does index the lines it is shown. Window width alone
+  produced the exact failure the whole indexing block is built to prevent, which
+  makes the allowance a *correctness* parameter and not a convenience.
+- **Widening costs time super-linearly too**: corundum runs 50 s at 0.05, 97 s at
+  0.070, 169 s at 0.085.
+
+So the headroom scales the standard error of the cluster **mean** (how well the
+amplitude is known) rather than the pair-to-pair **scatter** (dominated by each
+pair's own σ amplified through the sensitivity). On corundum those are 0.0680 and
+0.0767, and the breaking point falls between them. Corpus-wide the measured
+allowance is *narrower* than today's assumed 0.05 on six of seven fitted lists —
+NAC 0.0010, zincite 0.0049, zircon 0.0299, FAP 0.0390, SRM 660c 0.0404, cpd-1a
+0.0437 — and wider only on corundum, at 0.0680.
+
 ### Non-obvious counter-evidence, recorded up front
 
 The most decisive test is also the one the literature says may fail. Bethanechol's

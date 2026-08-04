@@ -69,7 +69,6 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..schemas.indexing import (
-    PAIR_ALLOWANCE_K_SCATTER,
     PAIR_CLUSTER_HALF_WIDTH_DEG,
     PAIR_MAX_M,
     PAIR_MAX_P,
@@ -78,6 +77,7 @@ from ..schemas.indexing import (
     PAIR_NULL_REPLICATES,
     PAIR_REFUTE_K_FRACTION,
     PAIR_WINDOW_DEG,
+    SHIFT_ALLOWANCE_K_ESD,
     SHIFT_TEMPLATES,
 )
 
@@ -331,27 +331,34 @@ def null_two_theta(two_theta: np.ndarray, rng: np.random.Generator) -> np.ndarra
     return 2.0 * np.degrees(np.arcsin(np.sqrt(np.clip(drawn, 0.0, 1.0))))
 
 
-def pair_allowance(amplitude_deg: float, scatter_deg: float) -> float:
-    """What a search window must span, given a measured amplitude and its scatter.
+def pair_allowance(amplitude_deg: float, amplitude_esd_deg: float) -> float:
+    """What a search window must span: the shift, plus how well it is known.
 
-    **Not the amplitude alone, and not the residual scatter alone.**  The window
-    is matched against *uncorrected* positions — ``refine_with_shift`` fits the
-    template only after a candidate survives — so it has to cover the shift
-    itself; that is the 4.3× lesson SRM 660c taught, where declaring the scatter
-    (0.0078°) found nothing and declaring the amplitude (0.037°) recovered the
-    certificate.  But the amplitude alone is not enough either, in the opposite
-    case: 11-BM NAC's shift is 0.0002°, and a window built from that would be
-    narrower than the precision that measured it.  So the two are added, the
-    scatter with :data:`~pxrdref.schemas.indexing.PAIR_ALLOWANCE_K_SCATTER`
-    multiples of headroom.
+    The window is matched against *uncorrected* positions —
+    :func:`refine_with_shift` fits the template only after a candidate survives —
+    so it has to cover the shift itself.  That is the 4.3× lesson SRM 660c taught,
+    where declaring the residual scatter (0.0078°) found nothing and declaring the
+    amplitude (0.037°) recovered the certificate.
+
+    **Everything beyond the amplitude is a liability, and the corpus says so
+    sharply.**  A wider window is one more coincidence a wrong lattice is allowed
+    to have: corundum keeps its certified lattice through σ_sys = 0.070 and loses
+    it at 0.0767, and SRM 660c returns a cell 293 000 ppm wrong *at high
+    confidence* at 0.060.  So the headroom is the standard error of the cluster
+    **mean** — how well the amplitude is known — and never the pair-to-pair
+    scatter, which is larger by the σ amplification each pair carries and would
+    push corundum past its own breaking point.  See
+    :data:`~pxrdref.schemas.indexing.SHIFT_ALLOWANCE_K_ESD` for the sweep.
 
     ``max|T|`` is 1 for all three templates over any range this is used on
-    (``cos θ`` and ``sin 2θ`` both peak at 1, at low and at 45° respectively), so
-    the amplitude *is* the largest correction the model applies and no range
-    argument is needed.
+    (``cos θ`` and ``sin 2θ`` both peak at 1, at low angle and at 45°
+    respectively), so the amplitude *is* the largest correction the model applies
+    anywhere and no range argument is needed.
     """
-    return float(abs(amplitude_deg)
-                 + PAIR_ALLOWANCE_K_SCATTER * max(float(scatter_deg), 0.0))
+    esd = float(amplitude_esd_deg)
+    if not np.isfinite(esd) or esd < 0.0:
+        esd = 0.0
+    return float(abs(amplitude_deg) + SHIFT_ALLOWANCE_K_ESD * esd)
 
 
 @dataclass(frozen=True)
@@ -462,7 +469,7 @@ def estimate_shift_from_pairs(two_theta: np.ndarray,
 
     return PairShiftResult(
         detected=reason is None, amplitude_deg=b["amplitude"],
-        allowance_deg=pair_allowance(b["amplitude"], b["scatter"]),
+        allowance_deg=pair_allowance(b["amplitude"], b["esd"]),
         amplitude_esd_deg=b["esd"], scatter_deg=b["scatter"],
         n_pairs=b["n_pairs"], n_clustered=b["k"],
         n_candidate_triples=b["n_candidate_triples"], z=b["z"], p_value=b["p"],
