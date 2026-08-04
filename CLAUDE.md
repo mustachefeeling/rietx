@@ -64,9 +64,10 @@ figure is this tree's:
   The `[dev,jax,torch]` figures were **not** re-measured — that venv is the main
   checkout's.
 - fast suite in the **`worktree-indexer`** worktree, whose venv is `[dev,jax]`
-  with **no torch**: **1657 passed / 67 skipped**, 57 s — re-measured on the
-  merged tree 2026-08-04, closing the gap the previous row flagged (it stood at
-  1627/67 pre-merge). More passes and fewer skips than the `[dev]` rows above
+  with **no torch**: **1657 passed / 67 skipped**, 57–60 s over two runs —
+  re-measured on the merged tree 2026-08-04, then again after the WP-1037…1042
+  docs pass, which moved neither count (docs-only, as intended). More passes and
+  fewer skips than the `[dev]` rows above
   because jax present converts its skips into passes; a worktree needs its own
   venv and its own count, so these do not compare with those rows.
 - `tests/test_acceptance_indexing.py` alone: 34 rows, ~10 min at `-n auto`.
@@ -163,7 +164,12 @@ field list, and a meta-test fails on a `*_version` field that is not the constan
 it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
 on a member missing from its arm**; `features` flags are *derived predicates* (a
 schema field's presence, a top-level export's existence), never literal `True`,
-which is what lets `features["indexing"]` flip by itself when `index()` lands.
+so a flag flips by itself when its feature lands. **A derived flag still rots, and
+it rots silently: `features["indexing"]` has read `hasattr(pr, "index")` since
+indexing shipped, but the export is `index_pattern` — so it has always been
+`False`, and its test asserts the same tautology and can never fail.** Pair the
+flag with the export name as *data*, and meta-test that every name is in
+`__all__` (WP-1037).
 Guard hits are `GuardFinding(code, paths, value, message)` — `GuardReport`'s six
 fields hold those, `str(finding)` is the pre-v1.0 text byte for byte (pinned by
 test, because the diagnostics' messages are built from it), and every guard
@@ -480,6 +486,11 @@ them all:
 - `docs/milestones/vX.Y.md` — one record per milestone: measured acceptance
   at ship, plus (while in flight) the running "How vX.Y is getting here"
   narrative and the dated appendices. `v1.0.md` is the live one.
+- `docs/LITERATURE.md` — where the papers physically are, and which are unread.
+  **Search the local corpus before asking for a paper or re-deriving a published
+  constant**: `sqlite3 /Users/yue/zotero-linker/index.sqlite` (table `documents`,
+  columns `title`/`md_path`). Learned by requesting seven papers that were all
+  already there — including the source of constants we hold a defect against.
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
 - `gui/CLAUDE.md`, `tests/CLAUDE.md` — subsystem rulebooks; they load with
@@ -580,7 +591,7 @@ to a candidate **after** it survives — a shift is identifiable only against re
 positions, and a candidate cell is what supplies them. A cell found under a widened
 window but never shift-refined is biased by roughly the shift (+1400 ppm measured).
 
-Seven more indexing rules, each learned the hard way — the measured stories
+Eleven more indexing rules, each learned the hard way — the measured stories
 are in the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), the
 constants in `indexing/`:
 
@@ -630,6 +641,25 @@ constants in `indexing/`:
   reported as `INDEX_SHIFT_ALLOWANCE` because it must never look measured.
   Open items from the source-paper audit (`volume_envelope` is a mean line,
   not an envelope) are WP-1030's, recorded in its file.
+- **This package is not slow at indexing, it is silent** — DICVOL04 reaches
+  3770 s on hard triclinic patterns and McMaille "hours, if not a night", against
+  our 30–150 s. Buy responsiveness with ordering and reporting, never by
+  shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s by
+  default, with the probe and Le Bail validation on top and *outside* it (1037).
+- **A Monte Carlo indexer must refine each proposal; scoring raw random cells
+  does not rank.** Both working MC indexers do it — TOPAS iterates SVD to a fixed
+  hkl assignment, McMaille takes 200–5000 local steps accepting a non-improving
+  move ~15 % of the time. WP-1023's no-go measured the unrefined variant only, so
+  read it as "unrefined random-cell scoring does not rank" (WP-1040).
+- **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
+  the reflection-pair method for it, and McMaille refuses to scan the zeropoint
+  and says so outright. A widened window is a tolerance, never a measurement, and
+  a cell found inside one has absorbed the shift (WP-1038).
+- **Enumerate liberally, sort conservatively.** A *false* line costs only
+  computation (the enumeration still contains the truth); a *missing* line costs
+  success; and the figures of merit are what contamination actually damages.
+  Conograph searches on 48 lines where `DEFAULT_SEARCH_LINES` takes 20 in 2θ
+  order — which on NAC is the wrong twenty (WP-1039).
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
 one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /

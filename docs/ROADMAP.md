@@ -10,6 +10,9 @@ a work session loads only what it needs:
   diagnostic code or a correction should add its row there.
 - **[DESIGN.md](DESIGN.md)** — the design record (rationale, locked decisions,
   invariants). Stable; read the specific section a work package links.
+- **[LITERATURE.md](LITERATURE.md)** — the local paper corpus and how to search
+  it, plus which papers back which module and which are still unread. Check it
+  before requesting a paper or re-deriving a published constant.
 - **[milestones/](milestones/)** — shipped-milestone records with the measured
   acceptance blocks (`v0.1.md`, `v0.2.md`, …).
 - **[wp/](wp/)** — one self-contained **work package (WP)** per task. Each has
@@ -79,23 +82,34 @@ and which length follows which, never how many.
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
+2. [1037](wp/1037-indexing-time-ceiling.md) — a **stated time ceiling** and
+   honest progress; changes no answer, so it is cheap and unblocks the rest.
+   Then [1038](wp/1038-shift-reflection-pairs.md), the pre-indexing shift, which
+   is the one change that could move all eight datasets off abstention.
+   [1039](wp/1039-search-line-count.md), [1040](wp/1040-engine-svd-index.md),
+   [1041](wp/1041-indexing-benchmark-gallery.md) and
+   [1042](wp/1042-anytime-results-quick-default.md) follow — all six written
+   2026-08-04 from the source literature ([LITERATURE.md](LITERATURE.md)).
+3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
-3. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
+4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
    the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
    bar** while those two do. 1035 is unblocked and its `### Inherited` carries
    1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
-4. [1016](wp/1016-sequential-series-panel.md) then
+5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
-5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
 **The bar** (milestone row below): full validation matrix green; GUI
-end-to-end on 11-BM NAC matching the API-driven acceptance; indexing ≥ +9 on
-the published bethanechol benchmark, abstaining on the mixture fixtures.
+end-to-end on 11-BM NAC matching the API-driven acceptance; indexing graded
+against the **individual** program globals in Bergmann et al. 2004 (McMaille +5,
+Crysfire +6 are the ones to beat — the old "≥ +9" was Table 5's `first_4`
+row, an oracle over four programs that no single entry reaches), abstaining on
+the mixture fixtures.
 
 ## Milestones
 
@@ -107,7 +121,7 @@ the published bethanechol benchmark, abstaining on the mixture fixtures.
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
-| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `pxrdref gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing scores ≥ +9 on the published bethanechol benchmark** (the best combination of the four classic programs in Bergmann et al. 2004) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
+| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `pxrdref gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing is graded against the individual program globals of the published bethanechol benchmark** (Bergmann et al. 2004 Table 5: ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6 — the former "≥ +9" was that table's `first_4` oracle over four programs, which no single entry reaches; restated by WP-1026) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -420,6 +434,12 @@ per concurrent session, or only one session commits.
 | [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ✅ 2026-08-01 | 1010, 1011, 1018–1024 |
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
+| [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ⬜ | 1024 (1021, 1022 soft) |
+| [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ⬜ | 1019, 1024 |
+| [1039](wp/1039-search-line-count.md) | How many lines a search enumerates on | ⬜ | 1037 (1038 soft) |
+| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |
+| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
+| [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
