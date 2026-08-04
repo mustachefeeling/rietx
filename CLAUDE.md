@@ -263,6 +263,22 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   subspace from Rᵀ, reproduced 1/2/2/2/3/4/6 exactly, and had F = −A for
   hexagonal (the *direct* metric's cos γ) where the reciprocal metric has F = +A.
   Only asserting that the true metric lies in the span catches it.
+- **Cell ties follow the space-group *setting*, never the crystal system** —
+  `crystallography.symmetry.cell_constraints(sg)` is the one authority, and
+  `ParameterTable` is its only caller. Three settings disagree with the system
+  alone: monoclinic has three unique-axis choices (`monoclinic_unique_axis()`),
+  an R lattice on **rhombohedral** axes (`sg.ext == "R"`) needs a = b = c with
+  α = β = γ free rather than `b ← a` with c free, and the `:1`/`:2` extensions
+  are origin choices that leave the metric alone. **`read_small_structure`
+  picks the R setting from the cell**, so a bare `R -3 c` over a rhombohedral
+  cell arrives as `:R` — no non-standard symbol needed. This is the Rᵀ trap one
+  rank down and it fails the same way: the free-parameter *count* is right in
+  every broken case (2 for both R settings, 4 for both monoclinic ones), so
+  assert **which** angle is held and **which** length follows which, never how
+  many. A symmetry-fixed angle is **refused** when it disagrees with its
+  symmetry, not normalised — the table has no diagnostics channel, so an edit
+  there could not be made visible, and it is held at its stored value, which is
+  how a monoclinic β = 93.2° once survived under an orthorhombic symbol.
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).

@@ -1,6 +1,8 @@
 # WP-1036 — Crystal-system cell ties: the settings the tables do not check
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-04 — the three defects fixed, the reach
+measured (zero live inputs, all three CIF-reachable), and the cell ties now
+derive from the *setting*; 1035 is unblocked
 Depends on: — · **blocks** 1035
 
 ## Goal
@@ -147,24 +149,41 @@ place at the head of the queue.
       zero, say zero; that is a finding, not a non-result.
       → **zero of 28 existing inputs; all three reachable from a plain CIF**, and
       the `:H`-by-default premise was wrong. § *The measurement* above.
-- [ ] **`_FIXED_ANGLES` reads `monoclinic_unique_axis()`** instead of assuming
+- [x] **`_FIXED_ANGLES` reads `monoclinic_unique_axis()`** instead of assuming
       b, with a test per axis choice asserting *which* angle is held.
-- [ ] **`_CELL_TIES` distinguishes the rhombohedral setting** from the
+      → all three axes covered, plus a fourth row (`P 1 1 21/b`) so the c-unique
+      case is not a single symbol's quirk.
+- [x] **`_CELL_TIES` distinguishes the rhombohedral setting** from the
       hexagonal one, with a test asserting a = b = c and α = β = γ under `:R`.
-- [ ] **Settle the locked-at-current-value question**: either a symmetry-fixed
-      angle is normalised to its symmetry value as a visible model edit, or the
-      table refuses a cell whose fixed angle disagrees with its symmetry and
-      says by how much. Silence is not an option — that is the state today.
-- [ ] **Refuse what is not served**, in the raise's own words, naming the symbol
+      → `sg.ext == "R"` is the discriminator, the same one `indexing/extinction.py`
+      already used. The `:1`/`:2` extensions are origin choices and provably do
+      not move the metric, so only `'R'` is tested for.
+- [x] **Settle the locked-at-current-value question** → **refuse**, with the
+      deviation in the message. `ParameterTable` has no diagnostics channel, so
+      a normalisation there could not be made visible, and an invisible edit to a
+      stored cell is worse than a refusal. `SYMMETRY_ANGLE_TOL_DEG = 1e-3`,
+      chosen by consequence (8.3 ppm of d-spacing bias, against the 48 ppm of the
+      tightest acceptance assertion), not by float noise.
+- [x] **Refuse what is not served**, in the raise's own words, naming the symbol
       and the setting rather than the table it fell out of.
-- [ ] **Re-read `docs/manual/parameterisation.md`** in the same change: its line
+      → and the measured answer is that **nothing gemmi can produce is unserved**:
+      the exhaustive test calls `cell_constraints` on all ~550 settings and none
+      raises. The two raise branches are there to fail loudly rather than
+      silently mis-tie if gemmi's table ever grows a case.
+- [x] **Re-read `docs/manual/parameterisation.md`** in the same change: its line
       20 states the ties as a settled fact (*"Crystal-system cell ties
       (b ← a, fixed angles)"*) with no mention of a setting, which is the prose
       form of the same assumption. `tests/test_manual.py` enforces the fenced
       constants, not sentences, so this one is read by hand.
-- [ ] Tests in `tests/test_params.py` / `tests/test_wyckoff.py` naming each
+      → rewritten; the tolerance is a MyST substitution injected from the live
+      constant, so retuning it fails the `-W` build.
+- [x] Tests in `tests/test_params.py` / `tests/test_wyckoff.py` naming each
       setting covered; plus a refinement that would have been mis-tied, with its
       obs/calc/diff PNG in `tests/output/`.
+      → 12 rows in `test_params.py`, 2 in `test_wyckoff.py` (one of them
+      exhaustive over gemmi's table, in **both** directions — everything the
+      constraints claim must hold, nothing they omit may hold), and the real-data
+      arm in `test_acceptance_srm676a.py`.
 
 ## Acceptance
 
@@ -211,3 +230,75 @@ would mean one is.
 
   **It is placed first in the queue anyway**, because the sweep is cheap and its
   answer changes the ordering of everything else.
+
+- **2026-08-04 (close)** — all seven tasks done, in one session. The measurement
+  came first and reshaped the rest, exactly as the plan intended.
+
+  **The sweep's two answers point opposite ways, and both are load-bearing.**
+  Zero of 28 existing inputs reach any broken branch, so no published number
+  from this package is affected and the full suite did not move. But all three
+  branches are reachable from a plain CIF, and the plan's own premise was wrong
+  about how: gemmi does *not* default a bare `R -3 c` to `:H`.
+  `read_small_structure` picks the setting **from the cell**, so a rhombohedral
+  cell under a bare `R -3 c` arrives as `R -3 c:R` with `ext='R'`. No
+  non-standard symbol, no unusual file — just the axis convention a good part of
+  the R-lattice literature is written in. That is why this closed as a real fix
+  rather than as a fence, and why the `:H`-by-default sentence was deleted from
+  the context section rather than left standing with a correction beside it.
+
+  **The design decision that took the longest was defect 3, and the argument
+  that settled it was not about friendliness.** `ParameterTable` is constructed
+  with no diagnostics channel — deep on a hot path, rebuilt at every stage
+  boundary and on every `set_vary`/`set_values` — so a normalisation there could
+  not have been *made* visible, and the WP's own constraint ("a normalisation
+  that moves a stored value is a model edit and has to be visible as one") rules
+  it out on those grounds alone. Hence `check_cell_angles` refuses. The reason
+  it is safe to refuse on that hot path is worth keeping: a symmetry-fixed angle
+  is **locked**, so it cannot drift while a fit runs, and the answer is
+  identical at every rebuild — a refinement that starts can never fail this
+  mid-flight. `SYMMETRY_ANGLE_TOL_DEG = 1e-3` is chosen by consequence (8.3 ppm
+  of d-spacing bias, an order of magnitude under the 48 ppm of SRM 660c's cell
+  assertion), not by float noise, and comfortably above the round-off an
+  indexing candidate's A..F → cell conversion arrives with.
+
+  **WP-1020's lesson repeated itself in the strongest possible form.** The free
+  cell-parameter *count* is right in every one of the three broken cases — 2 for
+  both R settings, 4 for both monoclinic ones — so
+  `test_metric_subspace_dimensions_match_the_tabulated_cell_dof` was passing on
+  the wrong subspace the whole time. It has been rewritten to assert that a cell
+  obeying the constraints lies inside the derived span **and** that breaking any
+  one constraint leaves it, with the dimension checked last and explicitly
+  labelled as worthless alone.
+
+  **The test to keep is the exhaustive one**, and it is exhaustive because it
+  needed no case table: `G = ⟨Rᵀ·G₀·R⟩` over a group's own operators is a
+  symmetry-compatible metric for whatever setting those operators are in — the
+  device `wyckoff._compatible_lattice` already used for spglib. So all ~550
+  gemmi settings are checked in **both** directions: everything the constraints
+  claim must hold, and nothing they omit may hold. The second direction is the
+  one that catches an *under*-constrained table, which is what the original
+  trigonal bug was. Verified by sabotage: removing the `:R` branch fails it on
+  `R 3:R`, restoring the b-unique assumption fails it on `P 1 1 2`.
+
+  **Measured, `[dev]` numpy-only worktree venv, darwin/arm64 M4:**
+
+  - fast suite **1591 passed / 108 skipped**, 48 s — +14 passes on the 1577/108
+    baseline, which is exactly the 14 rows added (12 in `test_params.py`, 2 in
+    `test_wyckoff.py`); no new skips, nothing else moved.
+  - the real-data arm: corundum's two descriptions refined independently from
+    the identical physical lattice land on the same answer to **1.4e-9 / 1.2e-8**
+    relative with Rwp equal to five decimals; α walks 54.987 → 55.292 against a
+    certificate of 55.287. 2.35 s, Rwp 0.150, GoF 1.67.
+
+  **What is *not* done, deliberately.** `Phase.space_group` is still a bare
+  `str` with no schema validator — the WP's context notes it, no task asked for
+  it, and adding pydantic validation right before the API freeze would change
+  the error type at every construction site including history-node
+  deserialization. An unresolvable symbol already raises from `get_spacegroup`
+  naming itself, so the gap is *where* the failure lands, not whether it
+  happens. Worth a line in the freeze WP (1003) rather than a late change here.
+
+  **1035 is unblocked**, and it inherits a real asset: `cell_constraints(sg)` is
+  exactly the "what would changing this symbol invalidate?" oracle that WP wants
+  a preview built on, and it is now right for every setting rather than for two
+  of them.
