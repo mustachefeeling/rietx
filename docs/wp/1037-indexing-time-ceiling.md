@@ -116,7 +116,7 @@ are open literature and may be cited and implemented from. No code ported.
       validation), and `engine_stats`. This is the first honest cost profile of
       `index_pattern` and it sets every default below. No `src/` change.
       *Instrument before ranking (WP-1030) — a plausible cost model is not a profile.*
-- [ ] `features["indexing"]` names an export that exists. Fix as **data** —
+- [x] `features["indexing"]` names an export that exists. Fix as **data** —
       `_SURFACE_FLAGS: dict[str, str]` mapping flag → top-level name — plus the
       meta-test `set(_SURFACE_FLAGS.values()) <= set(pr.__all__)` that would have
       caught it. Rewrite `capabilities.py:19-21` as the lesson and fix

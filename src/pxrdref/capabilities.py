@@ -16,9 +16,16 @@ pattern, one level up from ``agent.tool_definition()``.
 The same rule shapes :attr:`Capabilities.features`: each flag is a **derived
 predicate** — a schema field's presence, a top-level export's existence — and not
 a literal ``True``. A literal is a claim that cannot rot loudly; a derivation
-either keeps telling the truth or stops importing. ``features["indexing"]`` is
-the case that proves the point: it is ``False`` today and flips by itself when
-``pxrdref.index`` lands (WP-1020), with nothing here to remember to change.
+either keeps telling the truth or stops importing.  **But a derived flag rots
+too, and it rots silently** (WP-1037): ``features["indexing"]`` asked
+``hasattr(pr, "index")`` from the day it was written, while the export that
+landed (WP-1024) is ``index_pattern`` — so the flag read ``False`` for the whole
+life of the feature, and its test asserted the same ``hasattr`` and could never
+fail.  The repair is to make the *name* data: :data:`_SURFACE_FLAGS` pairs each
+flag with the export it claims, ``_features()`` derives the flags from that one
+table, and the meta-test checks every name in it against ``pxrdref.__all__`` —
+an authority the predicate itself never consults, which is what a tautology
+lacks.
 """
 
 from __future__ import annotations
@@ -189,13 +196,35 @@ def _anode(name: str) -> AnodeCapability:
     )
 
 
+#: Entry-point-shaped feature flags: flag → the top-level export whose existence
+#: it reports.  One table, two consumers — ``_features()`` derives the flags from
+#: it, and ``tests/test_capabilities.py`` checks every name in it against
+#: ``pxrdref.__all__`` — because the two halves of a derived predicate (the name
+#: asked about and the name that exists) can otherwise drift with the guarding
+#: test asserting the same ``hasattr``, which is how ``indexing`` stayed
+#: ``False`` from the day the feature shipped (see the module docstring).
+_SURFACE_FLAGS: dict[str, str] = {
+    "multi_histogram": "refine_multi",
+    "sequential_series": "refine_sequential",
+    "project_container": "Project",
+    "background_estimation": "auto_background",
+    "pattern_diagnostics": "diagnose",
+    "peak_picking": "pick_peaks",
+    "indexing": "index_pattern",
+    "agent_json": "agent",
+    # run control (WP-1006): a client that cannot cancel must not offer to
+    "cancellation": "CancelToken",
+}
+
+
 def _features() -> dict[str, bool]:
     """Feature flags, every one of them derived (see the module docstring).
 
     The schema-shaped ones ask the model whether it has the field, so a
     correction that is removed or renamed cannot leave a flag behind claiming
-    it; the surface-shaped ones ask the package whether the entry point exists,
-    which is what lets ``indexing`` flip on its own when ``index()`` lands.
+    it; the surface-shaped ones ask the package for the export
+    :data:`_SURFACE_FLAGS` names, so a flag flips on its own when its entry
+    point lands — provided the name is right, which is the meta-test's job.
     """
     import pxrdref as pr
 
@@ -219,15 +248,7 @@ def _features() -> dict[str, bool]:
         # arguments and could run validators — a capability query must not.
         "anomalous_dispersion_default_on": Source.model_fields["dispersion"]
         .get_default(call_default_factory=True) is not None,
-        # entry points, asked of the package
-        "multi_histogram": hasattr(pr, "refine_multi"),
-        "sequential_series": hasattr(pr, "refine_sequential"),
-        "project_container": hasattr(pr, "Project"),
-        "background_estimation": hasattr(pr, "auto_background"),
-        "pattern_diagnostics": hasattr(pr, "diagnose"),
-        "peak_picking": hasattr(pr, "pick_peaks"),
-        "indexing": hasattr(pr, "index"),
-        "agent_json": hasattr(pr, "agent"),
-        # run control (WP-1006): a client that cannot cancel must not offer to
-        "cancellation": hasattr(pr, "CancelToken"),
+        # entry points, asked of the package through the one table the
+        # meta-test also reads
+        **{flag: hasattr(pr, name) for flag, name in _SURFACE_FLAGS.items()},
     }

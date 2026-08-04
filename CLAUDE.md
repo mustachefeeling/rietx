@@ -161,12 +161,12 @@ client reads the field list, and a meta-test fails on a `*_version` field that
 is not the constant it claims to quote). **Every arm is quoted from a live registry and a meta-test fails
 on a member missing from its arm**; `features` flags are *derived predicates* (a
 schema field's presence, a top-level export's existence), never literal `True`,
-so a flag flips by itself when its feature lands. **A derived flag still rots, and
-it rots silently: `features["indexing"]` has read `hasattr(pr, "index")` since
-indexing shipped, but the export is `index_pattern` — so it has always been
-`False`, and its test asserts the same tautology and can never fail.** Pair the
-flag with the export name as *data*, and meta-test that every name is in
-`__all__` (WP-1037).
+so a flag flips by itself when its feature lands. **A derived flag still rots,
+and it rots silently**: the `hasattr` name and the real export drift together
+while the test asserts the flag's own expression — `features["indexing"]` spent
+its whole life `False` this way (`index` vs `index_pattern`, fixed WP-1037). So
+each surface flag's export name is *data* (`_SURFACE_FLAGS`), the flags derive
+from that table, and a meta-test checks every name in it against `__all__`.
 Guard hits are `GuardFinding(code, paths, value, message)` — `GuardReport`'s six
 fields hold those, `str(finding)` is the pre-v1.0 text byte for byte (pinned by
 test, because the diagnostics' messages are built from it), and every guard
