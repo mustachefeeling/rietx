@@ -49,27 +49,28 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 at the WP-1038 close, darwin/arm64 M4, in the
-**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
-jax converts skips into passes, so none of these rows compares with a `[dev]`
-count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
-re-measured (they now predate 1037's 19 tests and 1038's 26; last good: the
-WP-1036 close entry, now in the v1.0 appendix):
+Measured 2026-08-05 at the WP-1032 close, darwin/arm64 M4, in the **`gui`**
+worktree whose venv is `[dev]` — **no jax, no torch**. That venv is why the
+Python rows below do **not** compare line-for-line with the WP-1038 close's
+(`[dev,jax]`, in `worktree-indexer`), and the difference is in the *total*, not
+only in the pass/skip split — see the next-to-last bullet. WP-1032 added **no
+Python test**; every Python figure here is the 1038 tree re-measured under
+different extras. The full suite was **not** re-run this session (frontend-only
+change), so its last good figure stays the 1038 close's, in the v1.0 appendix.
 
-- fast suite: **1701 passed / 67 skipped**, 1:47. Decomposes exactly: 1676 at
-  the WP-1037 close + 1038's 25 — 14 `test_indexing_pairs.py`, 10 from two new
-  `validation_matrix` claims (five per-claim parametrized meta-tests each, which
-  is the multiplier to remember when adding a Claim) and 1 acceptance row. No
-  new skips.
-- full suite: **1795 passed / 72 skipped**, 8:33 (11:07 at the 1037 close — the
-  spread is the machine, not the 26 added tests). passed+skipped 1867 = the fast
-  selection's 1768 + 99 slow-marked, one more slow row than 1037's 98.
-- `tests/test_acceptance_indexing.py` alone: **36** rows — the engine-closing
-  gate (why: the indexing dossier's WP-1030 bullet), and 1038 is what it caught.
-- frontend (vitest): **282**, unchanged by 1030/1036/1037/1038 (none touched
-  `gui/`); last measured at the WP-1027 close.
+- fast suite: **1649 passed / 108 skipped**, 34 s.
+- frontend (vitest): **303** — was 282 at the WP-1027 close, +21 from WP-1032:
+  4 `coalesce`, 2 `hoverLabel`, 3 tick band, 4 curve toggles, 3 field-help
+  meta-tests, 5 jsdom mounts. `svelte-check` clean over 365 files.
+- `tests/test_gui_server.py` + `test_gui_peaks.py` + `test_gui_dist.py`
+  together: **73**.
+- **passed+skipped is venv-dependent, not only the split**: 1757 here against
+  1768 at the 1038 close, because `tests/test_backend_jax.py`'s module-level
+  `importorskip` collapses 12 collected rows into **one skip** without jax. So
+  the "passed+skipped moves by exactly N" decomposition check is valid *within*
+  one venv only; the arithmetic is in the v1.0 timing appendix.
 - `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
+  fires (two on this `[dev]` venv) — resolved, `tests/CLAUDE.md`
   § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction

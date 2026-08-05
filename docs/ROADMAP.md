@@ -55,27 +55,29 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1038](wp/1038-shift-reflection-pairs.md)** (2026-08-04) — a
-systematic 2θ shift is now **measured from the peak list alone**, no cell and no
-reference: a harmonic pair (`m·sin θ_B = sin θ'_B`, exact for any lattice) is one
-equation in the shift and none in the cell. `indexing/pairs.py` recovers SRM 660c's
-+0.0345° and corundum's −0.0639° against independently known +0.0367/+0.0415° and
-−0.065°, and declines on all ten bethanechol sets and HL2 — Le Bail (2004) §VII's
-published failure reproduced from our own data. Same day, before it:
-[1037](wp/1037-indexing-time-ceiling.md), the whole-run indexing ceiling, and
-[1036](wp/1036-crystal-system-settings.md), cell ties following the space-group
-**setting**. Close narratives in
+**Last closed: [1032](wp/1032-gui-repairs.md)** (2026-08-05) — the nine GUI
+repairs a use session reported, every one measured in a browser before and
+after. The frame the user felt is a **trailing canvas, not stutter**: one
+`Plotly.Plots.resize` of the NAC pattern costs ~111 ms, a 60-move sidebar drag
+issued sixty, and the last resolved **1.10 s** late — at a steady 60 fps with
+zero long tasks, so no frame-time metric would have found it. `resize.ts:
+coalesce` takes that to 3 calls and 116 ms; the structure viewer had the same
+defect (measured, not assumed: 60 → 6, 1115 → 135 ms). The "headings clash on
+scroll" was neither transparency nor the colour mismatch that was also there
+and is also fixed: it is `opacity: 0.55` on excluded rows promoting them above
+a sticky header left at `z-index: auto`. Before it, on 2026-08-04:
+[1038](wp/1038-shift-reflection-pairs.md), [1037](wp/1037-indexing-time-ceiling.md)
+and [1036](wp/1036-crystal-system-settings.md). Close narratives in
 [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-The method lesson is now four sessions running (1030 → 1036 → 1037 → 1038):
-**instrument before ranking, and let the by-hand acceptance run judge, not the
-fast tests.** 1038 is its sharpest case. Two of the source papers' prescriptions
-failed on this corpus and *only real data said so*: DICVOL04's sign-category rule
-admits an 84-of-1838 margin as signal, and the obvious allowance (amplitude +
-cluster scatter) broke five acceptance rows with 156 fast tests green. The sweep
-that fixed it is the artefact to reuse — it showed a matching window is a
-**correctness** parameter: at σ_sys = 0.060 SRM 660c returns a cell 293 000 ppm
-wrong *at `high` confidence*. Sweep any tolerance before believing it.
+The method lesson is now five sessions running (1030 → 1036 → 1037 → 1038 →
+1032): **instrument before ranking.** 1032 is the GUI's version — the plan named
+four candidates for the lag and picked none, the profile indicted one and
+exonerated three, and *reading the source had ranked them differently*. Two
+reusable traps: instrument **before the library loads** (a `$state` proxy caches
+each property on first read, so a wrapper on `window.Plotly.react` counted zero
+calls while the plot redrew), and read a fix that leaves the symptom as evidence
+about the *cause*.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -93,11 +95,12 @@ wrong *at `high` confidence*. Sweep any tolerance before believing it.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
-4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
+4. [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
-   bar** while those two do. 1035 is unblocked and its `### Inherited` carries
-   1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
+   the rest of the 2026-08-04 use session (1032 closed). Behind 1028/1026
+   because **none of them moves the bar** while those two do. Both 1033 and 1035
+   are unblocked, and each `### Inherited` says what changed under it —
+   `Plot.svelte` for 1033, `cell_constraints(sg)` for 1035.
 5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
@@ -212,7 +215,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
-| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ⬜ | 1010–1015, 1027, 1029 |
+| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ⬜ | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ⬜ | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
