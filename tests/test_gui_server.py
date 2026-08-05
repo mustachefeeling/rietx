@@ -228,7 +228,27 @@ def test_version_and_recent_work_without_a_project(blank):
     assert client.get("/api/recent")[0] == 200
 
 
-def test_app_settings_are_the_persons_and_outlive_the_project(blank, tmp_path,
+@pytest.fixture
+def app_settings(tmp_path):
+    """A server whose **app** state directory is this test's own.
+
+    The settings store is a file in that directory and the module's ``blank``
+    shares one across the whole module — so a test that asserts an empty store
+    over it would be asserting test *order*, which ``pytest-randomly`` falsifies
+    sooner or later.  Its own directory is the fix that does not depend on
+    anyone remembering to clean up.
+    """
+    session = GuiSession(state_dir=tmp_path / "state")
+    httpd = _start(session)
+    try:
+        yield session, Client(httpd.server_address[1])
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_app_settings_are_the_persons_and_outlive_the_project(app_settings, tmp_path,
                                                               pattern_file):
     """WP-1043 — `/api/settings` is a second `ui` dict, at app scope.
 
@@ -238,7 +258,7 @@ def test_app_settings_are_the_persons_and_outlive_the_project(blank, tmp_path,
     per project, so choosing dark and opening a second project came back
     ``system`` — measured in a browser, which is where it was reported.
     """
-    session, client = blank
+    session, client = app_settings
     assert client.get("/api/settings") == (200, {"ui": {}})
 
     status, payload = client.post("/api/settings", {"ui": {"theme": "dark"}})
@@ -263,9 +283,9 @@ def test_app_settings_are_the_persons_and_outlive_the_project(blank, tmp_path,
     assert status == 400 and payload["error"]["where"] == ["theme"]
 
 
-def test_app_settings_survive_an_unreadable_store(blank):
+def test_app_settings_survive_an_unreadable_store(app_settings):
     """A mangled or unwritable file is an empty setting, never a boot failure."""
-    session, client = blank
+    session, client = app_settings
     session.state_dir.mkdir(parents=True, exist_ok=True)
     (session.state_dir / "settings.json").write_text("{not json", encoding="utf-8")
     assert client.get("/api/settings") == (200, {"ui": {}})

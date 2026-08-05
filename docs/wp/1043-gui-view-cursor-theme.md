@@ -136,6 +136,11 @@ row for the same region; the armed cursor is `col-resize` and returns to
     `window.Plotly.react` after boot silently counts nothing (it caught
     `relayout` and no reacts at all). Wrap it from a **setter** on
     `window.Plotly` in an init script.
+  - **The modebar was checked and is fine**: pinning a range does *not* make
+    `Reset axes` a no-op, because `_rangeInitial` is only captured at
+    `newPlot` and a `react`'s range never becomes "initial" — both it and
+    `Autoscale` still go 9.97–14.66 → the full 1.74–25.25. Only the
+    *double-click* needed the config change.
   - **On the Peaks tab a double-click is two add-peak verbs**, and the redraw
     they cause can land after plotly's autorange and re-pin the window. Left
     alone: click-to-add is WP-1027's choice and the interaction is only visible
