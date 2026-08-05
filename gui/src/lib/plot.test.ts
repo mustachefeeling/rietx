@@ -115,16 +115,20 @@ describe("shading what is not fitted (WP-1033)", () => {
     expect(maskShapes({ limits: null, regions: [] }, EXTENT, COLORS)).toEqual([]);
   });
 
-  it("shades the *outside* of the fit range, and reaches past any view", () => {
-    // plotly clips a shape to the axis and has no infinity to be given, so the
-    // outer bands must be finite and wider than any range the data can produce
+  it("shades the *outside* of the fit range, clipped to the measured data", () => {
+    // measured in a browser: a shape bound to a data axis takes part in the
+    // autorange, so bands drawn past the data to cover a zoom-out *became* the
+    // range — the 0.5–59.99° NAC pattern came back reading −40 to 100
     const shapes = maskShapes({ limits: [8, 19], regions: [] }, EXTENT, COLORS);
     const bands = shapes.filter((s) => s.type === "rect");
-    expect(bands).toHaveLength(2);
-    expect(bands[0].x0).toBeLessThan(EXTENT[0]);
-    expect(bands[0].x1).toBe(8);
-    expect(bands[1].x0).toBe(19);
-    expect(bands[1].x1).toBeGreaterThan(EXTENT[1]);
+    expect(bands.map((s) => [s.x0, s.x1])).toEqual([[3, 8], [19, 24]]);
+  });
+
+  it("draws no band where a limit is already outside the data", () => {
+    // …and no edge either: both are bound to the x axis, so either one placed
+    // out there would drag the view with it
+    const shapes = maskShapes({ limits: [1, 40], regions: [[30, 33]] }, EXTENT, COLORS);
+    expect(shapes).toEqual([]);
   });
 
   it("puts every shape in paper coordinates, which is what survives a scale", () => {

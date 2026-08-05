@@ -435,7 +435,12 @@
       return;
     }
     loadError = "";
-    const w = { raw: true, two_theta: peaks.pattern.two_theta, y_obs: peaks.pattern.y_obs };
+    // the masked channels travel here too: this is the view a project has
+    // *before* any fit, so it is the only place a fit range can be seen at all
+    // — and without them the axis autoranges inside the range and the shading
+    // has nothing to shade (found in the browser; jsdom drew no axis)
+    const w = { raw: true, two_theta: peaks.pattern.two_theta, y_obs: peaks.pattern.y_obs,
+                excluded: peaks.pattern.excluded };
     held = w;
     shown = {
       n: w.two_theta.length,

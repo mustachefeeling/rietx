@@ -110,6 +110,31 @@ three re-derivations of one formula agree with each other while all being wrong.
 Decide explicitly whether `viz/` shades too — and if the answer is no, write
 down why, because the next person will ask.
 
+**Decided 2026-08-05: `viz/` does not shade, and it is not a second authority.**
+Three facts settle it, and the first is the one to read:
+
+1. **A `RefinementResult` cannot say what was excluded.** `compile_model` masks
+   before a result exists, so `result.two_theta` *is* the surviving channels
+   (measured: a 3–24° pattern comes back 8.005–18.990° under limits, with zero
+   points inside a 3° exclusion). The exported figure therefore draws exactly
+   what was fitted, and the exclusion is present in it as absence. That is the
+   same reason a history node cannot record the regions either
+   (`schemas/project.py`) — it is *why* they live in `ProjectDoc`.
+2. `plot_result`, `plot_for_vlm` and `write_html` all take a result and nothing
+   else, and `GuiSession.export` passes `res`, not `p`. Shading would mean a new
+   argument on three functions plus a caller that knows the document — three new
+   places to be wrong about one fact, which is the WP-1029 (s) shape rather than
+   the cure for it.
+3. The GUI shades because it is the **settings surface**, not because it is a
+   better picture: it must show the range and the regions *before* any run
+   exists (the raw peak view), and it must show what a change did *before* the
+   next fit agrees with it. Neither statement is about a result, so neither
+   belongs to a result renderer.
+
+What the GUI must not do, and does not, is *infer* the protocol from a gap in
+the arrays. A gap is what an exclusion leaves; the exclusion itself is read from
+`ProjectDoc`, and the two are pinned to each other by the channel count.
+
 ## Non-goals
 
 - **Not the repairs** in [1032](1032-gui-repairs.md), which lands first.
@@ -123,27 +148,36 @@ down why, because the next person will ask.
 
 ## Tasks
 
-- [ ] **Shade both from `ProjectDoc`** through `layout.shapes` — the fit range
+- [x] **Shade both from `ProjectDoc`** through `layout.shapes` — the fit range
       as what is *outside* it, the excluded regions as bands — legible in both
       themes, from the custom properties, and correct under every intensity
       scale (a shape in log space is not a shape in linear space).
-- [ ] **Settle the gesture arbitration and write the argument down** where the
+      `lib/plot.ts:maskShapes`, `yref: "paper"`, clipped to the measured extent.
+- [x] **Serve what the shading needs**, which the measurement added to this WP:
+      both views drop the masked channels, so the bands had nothing to shade and
+      the fit range had no outside (`GuiSession._masked_arm`, `Project.fitted_mask`).
+- [x] **Settle the gesture arbitration and write the argument down** where the
       handler lives, with WP-1027's measured overlap as the precedent. Then
-      implement selection.
-- [ ] **Typed bounds in the panel** as the non-pointer route, refusing an
-      inverted or empty range in the verb's own words.
-- [ ] **Send through `POST /api/project`**, which means `api.patchProject` stops
+      implement selection. — an armed *mode*, plotly's own select box, the peak
+      verbs suspended while it holds; the argument is at `Plot.svelte:arm`.
+- [x] **Typed bounds in the panel** as the non-pointer route, refusing an
+      inverted or empty range in the verb's own words
+      (`schemas.project.check_interval`, quoted by three surfaces).
+- [x] **Send through `POST /api/project`**, which means `api.patchProject` stops
       being a `{ui: …}`-only call site — check that the 409-while-running rule
       still reads correctly for a settings-only patch (the open question in
       [1003](1003-api-freeze-pypi.md)'s `### Inherited` about `ui`-only patches
-      is adjacent, and this WP must not settle it unilaterally).
-- [ ] **The two surfaces agree**, asserted: a region set on the plot renders in
+      is adjacent, and this WP must not settle it unilaterally). — it reads
+      correctly and is now asserted: an exclusion changes which channels the
+      *compiled* model was built from, so it is a mutating verb in the strict
+      sense. Nothing about `ui`-only patches was decided here.
+- [x] **The two surfaces agree**, asserted: a region set on the plot renders in
       the `.pxt` document, and one typed into the document shades on the plot.
-- [ ] **Decide the `viz/` question** and record the answer either way.
-- [ ] Tests: vitest for the shape-building and range-arithmetic pure functions,
+- [x] **Decide the `viz/` question** and record the answer either way (above).
+- [x] Tests: vitest for the shape-building and range-arithmetic pure functions,
       a jsdom mount test for the controls, a `tests/test_gui_server.py` case for
       the settings round trip, and obs/calc/diff PNGs to `tests/output/` if
-      `viz/` changes.
+      `viz/` changes (it did not).
 
 ## Acceptance
 

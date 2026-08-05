@@ -1430,6 +1430,9 @@ def test_mutating_verbs_refuse_while_a_run_is_in_flight(blocked):
             ("PATCH", "/api/params", {"values": {"phases.0.cell.a": 4.16}}),
             ("PATCH", "/api/params", {"vary": {"phases.*.cell.*": True}}),
             ("POST", "/api/project", {"mode": "lebail"}),
+            # a settings-only patch is no exception: an exclusion changes which
+            # channels the *compiled* model was built from (WP-1033)
+            ("POST", "/api/project", {"excluded_regions": [[8.0, 8.5]]}),
             ("PUT", "/api/plan", {"preset": "profile_only"}),
             ("POST", "/api/run", {"kind": "fit"}),
             ("POST", "/api/history/checkout", {"node_id": "n0000"}),

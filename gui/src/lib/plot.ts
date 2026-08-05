@@ -115,9 +115,14 @@ export interface Protocol {
  * which is also the truth: an excluded channel is missing from the residual, not
  * only from the pattern.
  *
- * `extent` is the measured 2θ range, widened by its own span: plotly clips a
- * shape to the axis, and there is no infinity to give it, so the outside-the-
- * range bands have to be finite and wider than any view the data can produce.
+ * **Every shape is clipped to the measured range**, and that is a browser
+ * finding rather than tidiness: a shape bound to a data axis takes part in
+ * plotly's autorange, so bands drawn past the data to cover any future zoom-out
+ * (the obvious implementation, and the first one here) *became* the range — on
+ * the 0.5–59.99° NAC pattern the axis came back reading −40 to 100 with the
+ * data squeezed into a fifth of the width. Clipping is also the truthful shape:
+ * outside the measured pattern there are no channels to exclude, so there is
+ * nothing there to shade.
  *
  * `layer: "below"` keeps the wash under the traces — a shaded band that dims the
  * points it covers would be saying something about the data rather than about
@@ -126,22 +131,22 @@ export interface Protocol {
 export function maskShapes(protocol: Protocol, extent: [number, number],
                            colors: { mask: string; edge: string }): any[] {
   const [lo, hi] = extent;
-  const pad = Math.max(hi - lo, 1);
-  const band = (x0: number, x1: number) => ({
-    type: "rect", xref: "x", yref: "paper", x0, x1, y0: 0, y1: 1,
+  const band = (x0: number, x1: number) => (x1 <= lo || x0 >= hi ? null : {
+    type: "rect", xref: "x", yref: "paper",
+    x0: Math.max(x0, lo), x1: Math.min(x1, hi), y0: 0, y1: 1,
     fillcolor: colors.mask, line: { width: 0 }, layer: "below",
   });
-  const edge = (x: number) => ({
+  const edge = (x: number) => (x < lo || x > hi ? null : {
     type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1,
     line: { color: colors.edge, width: 1, dash: "dot" }, layer: "below",
   });
-  const shapes: any[] = [];
+  const shapes: (any | null)[] = [];
   if (protocol.limits) {
     const [a, b] = protocol.limits;
-    shapes.push(band(lo - pad, a), band(b, hi + pad), edge(a), edge(b));
+    shapes.push(band(lo, a), band(b, hi), edge(a), edge(b));
   }
   for (const [a, b] of protocol.regions) shapes.push(band(a, b), edge(a), edge(b));
-  return shapes;
+  return shapes.filter(Boolean);
 }
 
 /** A drawn interval as an ordered pair, or null if it is a point. */

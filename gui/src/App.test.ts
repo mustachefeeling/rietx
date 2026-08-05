@@ -2366,7 +2366,7 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
 
     const shapes = drawn.at(-1)!.layout.shapes;
     expect(shapes.filter((s: any) => s.type === "rect").map((s: any) => [s.x0, s.x1]))
-      .toEqual([[-17.995, 8], [19, 44.99], [13, 16]]);
+      .toEqual([[3, 8], [19, 23.995], [13, 16]]);
     // paper coordinates, so the band is the same band under log and √
     expect(shapes.every((s: any) => s.yref === "paper")).toBe(true);
   });
