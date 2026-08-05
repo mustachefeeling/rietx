@@ -1,6 +1,7 @@
 # WP-1043 — GUI defects found by use: the view, the armed cursor, the theme
 
-Milestone: v1.0 · Status: 🔄 2026-08-06 — three of four reported items landed
+Milestone: v1.0 · Status: ✅ 2026-08-06 — all four landed, each against a browser
+measurement; three of the four reports named a cause and only one was right
 Depends on: 1029 (theming), 1032–1033 (`Plot.svelte`, the armed gesture), 1027 (peaks)
 
 ## Goal
@@ -25,8 +26,8 @@ re-autoranged over *everything drawn* — and what is drawn is not only the fetc
 window: the peak markers span the whole pattern (the list is not windowed), and
 so do the mask shapes, which are `xref: "x"` and therefore take part in the
 autorange, the same property `maskShapes` was already clipping against
-(WP-1033). Measured in Chrome on the synthetic fixture (`tests/output` of this
-WP's browser pass), a drag to **9.97–14.66°** came back as:
+(WP-1033). Measured in Chrome on a fitted synthetic project, a drag to
+**9.97–14.66°** came back as:
 
 | also on the plot            | axis after the refetch |
 |-----------------------------|------------------------|
@@ -76,7 +77,10 @@ are in.
       over `state_dir/settings.json`, beside `recent.json`.
 - [x] Tests: vitest over `heldRanges`/`span` and the panel's own draw;
       `test_gui_server.py` over the settings store.
-- [ ] Docs: `gui/CLAUDE.md` rules, ROADMAP row, handover.
+- [x] Docs: `gui/CLAUDE.md` rules, root CLAUDE.md's GUI paragraph, ROADMAP row
+      and focus, the v1.0 narrative, and the inherited mailboxes of 1003 (a second
+      `ui` scope to freeze; the "a `ui`-only patch is not model state" question
+      is now only about four keys) and 1017 (three manual sentences made wrong).
 
 ## Acceptance
 
@@ -104,6 +108,48 @@ row for the same region; the armed cursor is `col-resize` and returns to
 - WP-1029 — the three-way theme and `ProjectDoc.ui`; this WP moves one key out.
 
 ## Handover log
+
+- **2026-08-06** — **all four items landed; WP closed.**
+
+  **Done.** (1) `lib/plot.ts:heldRanges`/`span` + `Plot.svelte`: the view is
+  handed back on every draw, the window a redraw refetches follows the axis,
+  `doubleClick: "autosize"`, and two reactivity repairs the browser count forced
+  — the repaint effect reads `held` **untracked** (a fetch cost two identical
+  reacts: 2 per zoom drag, 6 at boot; now 1 and 3) and `view()` compares the
+  knobs untracked (or the *fetch* effect takes a dependency on the residual
+  selector). (2) `col-resize` on the plot-area rect while armed. (3) the theme
+  moved to `GET`/`POST /api/settings` over `state_dir/settings.json`, the
+  control left the `{#if project}` block, and `ProjectDoc.ui.theme` is now
+  unread rather than migrated. (4) tests: vitest 376 → 390 (6 pure + 6 panel),
+  `test_gui_server.py` +2 and its in-flight 409 row now also says what is *not*
+  refused.
+
+  **Gotchas for whoever is next in this file.**
+  - **The fixture's fit is in memory.** A freshly opened `.pxrd` has no result,
+    so the plot draws the *raw* pattern — where the relayout handler returns
+    early and nothing refetches, so every zoom "works". Five mask configurations
+    came back green that way before a network count showed **zero**
+    `/api/result/window` fetches at boot. Run a fit over HTTP first, and count
+    the requests before believing the pixels.
+  - **Instrumenting plotly from the page is unreliable**: a `$state` rune proxies
+    the namespace and caches each property on first read, so a poll that patches
+    `window.Plotly.react` after boot silently counts nothing (it caught
+    `relayout` and no reacts at all). Wrap it from a **setter** on
+    `window.Plotly` in an init script.
+  - **On the Peaks tab a double-click is two add-peak verbs**, and the redraw
+    they cause can land after plotly's autorange and re-pin the window. Left
+    alone: click-to-add is WP-1027's choice and the interaction is only visible
+    on that one tab. If it is ever fixed, it belongs beside the arming rule
+    (a pointer meaning that is ambiguous everywhere is a mode).
+  - The scratchpad drivers that measured all of this:
+    `zoomcheck.mjs` (six mask configurations), `verify.mjs` (drag → one fetch,
+    peak toggle, double-click, cursor), `request.mjs` (a panel's window, twice),
+    `rawview.mjs` (no fit), `count.mjs` (reacts per drag), `theme.mjs`,
+    `empty.mjs`. They are not committed — a browser pass is a measurement, not a
+    fixture — but the harness is three lines around the cached chromium.
+
+  **Next**: nothing on this WP. [1017](1017-gui-manual-onboarding.md) and
+  [1003](1003-api-freeze-pypi.md) have been told what changed under them.
 
 - **2026-08-06** — created; the plot's view fix and the armed cursor landed
   against a browser pass (`scratchpad/{zoomcheck,verify,request}.mjs`).

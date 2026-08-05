@@ -187,12 +187,13 @@
       font: { color: fg, size: 11 },
       paper_bgcolor: "rgba(0,0,0,0)",
       plot_bgcolor: "rgba(0,0,0,0)",
-      // anchored to the *lower* subplot, so the ticks and the title sit under
-      // the residual rather than between the two — where the title landed
-      // inside the residual plot, on top of a cumulative χ² curve
-      // Every axis the user has moved is handed back here (`heldRanges`); an
-      // axis they have not keeps no `range` key at all, which is what leaves
-      // plotly autoranging and what makes a double-click still mean "all of it".
+      // Every axis the user has moved is handed back through `span` (see
+      // `heldRanges`); an axis they have not keeps no `range` key at all, which
+      // is what leaves plotly autoranging.
+      //
+      // The x axis is anchored to the *lower* subplot, so the ticks and the
+      // title sit under the residual rather than between the two — where the
+      // title landed inside the residual plot, on a cumulative χ² curve.
       xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
                anchor: "y2", gridcolor: line, ...span(ranges.xaxis) },
       yaxis: {

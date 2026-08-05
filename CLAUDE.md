@@ -203,14 +203,17 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1016, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` —
-stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
+The **GUI** (WP-1008…1016, 1029, 1032-1035, 1043) is `pxrdref gui [PROJECT.pxrd]`
+— stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
 — the session/wire split, the server contract, the `.pxt` document, the editors,
 the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
-`gui/`. Two rules matter outside the GUI too: mutating verbs
+`gui/`. Three rules matter outside the GUI too: mutating verbs
 return **409 while a run is in flight** (frozen-per-stage discreteness enforced
-structurally), and the **run state is not an event** — `EventKind` is closed, and
-`live/events.jsonl` stays the one stream `watch` tails.
+structurally); the **run state is not an event** — `EventKind` is closed, and
+`live/events.jsonl` stays the one stream `watch` tails; and a **project** setting
+is one that is about *the project* — the theme is the person's and lives in
+`/api/settings` beside the recent list, which is also why it is not behind the
+409 (WP-1043).
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
