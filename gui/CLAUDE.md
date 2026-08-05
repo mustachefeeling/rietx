@@ -358,6 +358,39 @@ project replaces the session's** with no prompt and no dialog: settings persist
 on the verb and the log is on disk, so there is nothing unsaved, and a run in
 flight is already refused by `project_open`'s 409.
 
+**Symmetry, surfaced and editable** (WP-1035, `src/pxrdref/gui/symmetry.py`,
+`gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
+read-only string quoted in three places while everything it *does* — a tied `b`,
+a locked angle, two DOFs instead of three — showed in the parameter table as an
+effect with no named cause. Five rules. **Two tiers, split by a measurement**:
+the phase facts are one `get_spacegroup` call, so they ride on `GET
+/api/structure` beside `sites` as `symmetry` + `causes`, while a Wyckoff letter
+is spglib per atom (**1.8-8.7 ms**, measured, and an orbit expansion is another
+0.4-1.3) and lives on the deliberately-opened `GET /api/structure/symmetry` — the
+escape that route's own docstring had already named. **`causes` names the
+symmetry and stays silent where symmetry is not the subject**: it supplies the
+missing subject of `held_because`'s "structurally fixed by symmetry **or by the
+model**", so a locked `lor_strain` (the Stephens block's) keeps the anonymous
+version rather than getting a wrong cause. **The preview is a diff of two
+`ParameterTable`s and duplicates no rule** — the raises *are* the incompatibility
+list, nearest-allowed values included, and since a table stops at the first bad
+item the per-atom pass probes one atom at a time against a *real* table rather
+than parsing a sentence this package owns elsewhere. **The gate belongs in
+`_edit`, not in the symmetry verb**: `PATCH /api/structure` used to accept an
+incompatible model, commit an `edit_model` node from a snapshot that never builds
+a table, then 500 on the next `GET /api/params` with the head standing where no
+table can build — so every whole-model verb now builds the candidate table first,
+and testing the *candidate* is what keeps the repair path open. And **the notes
+are for what a table diff structurally cannot see**: a setting change, a centring
+change, `_free_paths` casualties (dropped *and* renumbered — `…dof.k` is
+positional), an orbit collision, and the **orbit multiplicity**, which a browser
+found by taking NAC from `I 21 3` to `I 41 3 2` — same orders, same DOFs, same
+ties, same centring, empty diff, and 84 atoms in the cell becoming 168. Two
+corollaries: an orbit collision blocks only when the shared occupancies sum past
+1, because a mixed site is standard modelling and F is right for it; and a
+**blocked** preview is given no consequences at all, since they would be computed
+from operators the model cannot carry.
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

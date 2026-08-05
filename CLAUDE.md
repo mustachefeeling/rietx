@@ -49,17 +49,15 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1040 task-3** close, darwin/arm64 M4, `worktree-indexer`,
-venv `[dev,jax]`, no torch — so **WP-1034's `[dev]` figures do not compare**; it
-was frontend-only and moved no python row.
+2026-08-05 at the **WP-1035** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
+— **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
 
-- fast suite: **1738 passed / 67 skipped**, **3-4 min** — 1040's 1722 + 16: 6 new
-  rows plus **10 meta-tests** (`validation_matrix` parametrises five per `Claim`).
-  ~55 s at the 1039 close and **three engines is why**; the lever is narrowing what
-  those `index_pattern`-driven rows search, never their budgets.
-- full suite: **1835 passed / 72 skipped**, 29-36 min (fast's 1805 + 30 slow).
-  `test_acceptance_indexing.py` sets the clock: **38 rows, 13-14 min** against **20:03** at the 1040 close — same file, so that spread is machine state.
-- frontend (vitest): **330** (321 at 1033, +9 at 1034), `svelte-check` clean; `test_gui_*.py` collect **81**; WP-1040 touched no `gui/` file.
+- fast suite: **PLACEHOLDER**, **3 min** — +10 python rows (9 in
+  `test_gui_server.py`, 1 in `test_textdoc.py`); the extra skips against the
+  `[dev,jax]` entry are jax's, not new.
+- full suite: **PLACEHOLDER** (fast + 30 slow). `test_acceptance_indexing.py`
+  still sets the clock; WP-1035 touched no engine and no physics module.
+- frontend (vitest): **347** (330 at 1034, +17: 13 formatter rows, 4 jsdom mounts), `svelte-check` clean; `test_gui_*.py` collect **93**.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -204,16 +202,18 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029, 1032-1034) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+The **GUI** (WP-1008…1015, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` — stdlib
 `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
 holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
 server contract, `.pxt` text document, editors, panels, 3D viewer, theming —
 is `gui/CLAUDE.md` (loads when working under `gui/`; `src/pxrdref/gui/`
-carries a pointer stub). Two rules matter outside the GUI too: mutating verbs
-return **409 while a run is in flight** (frozen-per-stage discreteness
-enforced structurally), and the **run state is not an event** — `EventKind`
-is closed, and `live/events.jsonl` stays the one stream `watch` tails.
+carries a pointer stub). Three rules matter outside the GUI too: mutating verbs
+return **409 while a run is in flight** (frozen-per-stage discreteness enforced
+structurally); the **run state is not an event** — `EventKind` is closed, and
+`live/events.jsonl` stays the one stream `watch` tails; and **pydantic does not
+validate a model swap** — every symmetry refusal lives in `ParameterTable`
+construction, which `Refinement.edit`'s snapshot never performs (WP-1035).
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
