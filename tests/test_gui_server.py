@@ -717,6 +717,289 @@ def test_the_aniso_toggle_seeds_and_unseeds_through_the_metric(blank, tmp_path,
                        {"path": "phases.0.atoms.9"})[0] == 404
 
 
+# ----------------------------------------------------------------------
+# symmetry, surfaced and editable (WP-1035)
+# ----------------------------------------------------------------------
+def test_symmetry_rides_free_on_the_structure_route_and_names_its_effects(
+        blank, tmp_path, pattern_file):
+    """The free tier: one gemmi lookup per phase, and the causes it explains.
+
+    The parameter table already says a row is tied or locked; ``held_because``
+    says "structurally fixed by symmetry or by the model", which is a sentence
+    with no subject.  What is asserted here is that every held row symmetry is
+    responsible for now has one — and that the arm names the **setting**, not the
+    crystal system, which is the distinction 79 of gemmi's 564 settings were
+    served wrong on before WP-1036 while every degrees-of-freedom count was right.
+    """
+    session, client = blank
+    _open(session, tmp_path / "sym.pxrd", pattern_file)
+    payload = client.get("/api/structure")[1]
+    facts = payload["symmetry"][0]
+    assert facts["xhm"] == "P m -3 m" and facts["number"] == 221
+    assert facts["crystal_system"] == "cubic" and facts["laue_class"] == "m-3m"
+    assert facts["centring"] == "P" and facts["centrosymmetric"] is True
+    assert facts["ties"] == {"b": "a", "c": "a"}
+    assert facts["fixed_angles"] == {"alpha": 90.0, "beta": 90.0, "gamma": 90.0}
+
+    causes = payload["causes"]
+    rows = {r["path"]: r for r in client.get("/api/params")[1]["parameters"]}
+    # every cell row the table holds has a named cause, and it names the symbol
+    for path in ("phases.0.cell.b", "phases.0.cell.c", "phases.0.cell.alpha"):
+        assert not rows[path]["vary"]
+        assert "P m -3 m is cubic" in causes[path]
+    assert "b follows a" in causes["phases.0.cell.b"]
+    assert "β is fixed at 90°" in causes["phases.0.cell.beta"]
+    assert "fully fixed special position" in causes["phases.0.atoms.0.x"]
+    assert "dof.*" in causes["phases.0.atoms.1.x"]
+    # …and it stays silent where symmetry is not the subject: the line-0 emission
+    # weight and a mode-fixed row are held by something else entirely
+    assert "instrument.source.lines.0.weight" not in causes
+    # every cause names a path the table actually has
+    assert set(causes) <= set(rows)
+
+
+def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
+        blank, tmp_path, pattern_file):
+    """The measured half of WP-1035's split.
+
+    ``site_constraints`` runs spglib per atom — 1.8-8.7 ms an atom on the machine
+    this was written on — so it may not ride on ``/api/structure``, which
+    refetches on every head move including one a ``set_vary`` made.  What the
+    extra route buys is the *oriented* site-symmetry symbol, which is why the
+    causes it serves are strictly better sentences than the free tier's.
+    """
+    session, client = blank
+    _open(session, tmp_path / "wyckoff.pxrd", pattern_file)
+    assert "letters" not in client.get("/api/structure")[1]     # not on that route
+
+    status, payload = client.get("/api/structure/symmetry?phase=0")
+    assert status == 200, payload
+    letters = {row["path"]: row for row in payload["letters"]}
+    assert letters["phases.0.atoms.0"]["wyckoff"] == "1a"       # La
+    assert letters["phases.0.atoms.0"]["site_symmetry"] == "m-3m"
+    assert letters["phases.0.atoms.1"]["wyckoff"] == "6f"       # B at (x, ½, ½)
+    assert letters["phases.0.atoms.1"]["site_symmetry"] == "4m.m"
+    assert payload["causes"]["phases.0.atoms.1.x"].startswith(
+        "Wyckoff 6f, site symmetry 4m.m")
+    assert client.get("/api/structure/symmetry?phase=7")[0] == 404
+
+
+def test_a_symmetry_change_is_previewed_out_of_the_rules_that_would_refuse_it(
+        blank, tmp_path, pattern_file):
+    """The preview is a diff of two parameter tables, and duplicates no rule.
+
+    Each assertion below is something the *candidate table* said, not something
+    this module recomputed: which entries lose a tie, which DOFs appear, and —
+    for a refusal — the package's own sentence with the nearest allowed tensor
+    it had already computed.
+    """
+    session, client = blank
+    _open(session, tmp_path / "preview.pxrd", pattern_file)
+
+    # cubic → tetragonal: c stops following a, and nothing else moves
+    status, out = client.post("/api/structure/symmetry/preview",
+                              {"phase": 0, "space_group": "P 4/m m m"})
+    assert status == 200, out
+    assert out["blocked"] is False and out["changed"] is True
+    assert out["to"]["crystal_system"] == "tetragonal"
+    assert out["entries"]["untied"] == ["phases.0.cell.c"]
+    assert out["entries"]["added"] == [] and out["entries"]["removed"] == []
+    b = next(s for s in out["sites"] if s["atom"] == 1)
+    assert (b["from"]["order"], b["to"]["order"]) == (8, 4)
+
+    # cubic → triclinic: every coordinate becomes free, in DOFs that did not exist
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P 1"})[1]
+    assert out["entries"]["added"] == ["phases.0.atoms.0.dof.0",
+                                       "phases.0.atoms.0.dof.1",
+                                       "phases.0.atoms.0.dof.2",
+                                       "phases.0.atoms.1.dof.1",
+                                       "phases.0.atoms.1.dof.2"]
+    assert "phases.0.cell.alpha" in out["entries"]["unlocked"]
+
+    # a cell that cannot carry the symbol is refused in check_cell_angles' words
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "R -3 c"})[1]
+    assert out["blocked"] is True
+    assert out["refusals"][0]["where"] == "phases.0.cell"
+    assert "fixes gamma at 120.0°" in out["refusals"][0]["message"]
+
+    # an unresolvable symbol is a refusal addressed to the field it was typed in
+    status, payload = client.post("/api/structure/symmetry/preview",
+                                  {"phase": 0, "space_group": "not a group"})
+    assert status == 400
+    assert payload["error"]["where"] == ["space_group"]
+    assert client.post("/api/structure/symmetry/preview",
+                       {"phase": 9, "space_group": "P 1"})[0] == 404
+
+
+def test_the_preview_reports_every_bad_atom_not_only_the_first(blank, tmp_path,
+                                                               pattern_file):
+    """A table stops at the first refusal; a user fixing four atoms one 500 at a
+    time is not being told what is wrong.  The per-atom probe is a *real* table
+    each time, which is why the message carries the nearest allowed tensor."""
+    session, client = blank
+    _open(session, tmp_path / "everybad.pxrd", pattern_file)
+    for path in ("phases.0.atoms.0", "phases.0.atoms.1"):
+        assert client.post("/api/structure/aniso", {"path": path, "on": True})[0] == 200
+    structure = client.get("/api/structure")[1]["structure"]
+    for atom in structure["phases"][0]["atoms"]:
+        atom["aniso"]["u12"]["value"] = 0.004        # shear no cubic site allows
+    assert client.patch("/api/structure", {"structure": structure})[0] == 400
+    # …so put it there through the path that does not check, to set the scene
+    session.project.refinement.structure.phases[0].atoms[0].aniso.u12.value = 0.004
+    session.project.refinement.structure.phases[0].atoms[1].aniso.u12.value = 0.004
+
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    assert [r["where"] for r in out["refusals"]] == ["phases.0.atoms.0",
+                                                     "phases.0.atoms.1"]
+    for refusal in out["refusals"]:
+        assert "nearest allowed tensor" in refusal["message"]
+        # the probe is numbered from zero; the path quoted is the caller's
+        assert refusal["message"].startswith(refusal["where"] + ":")
+    # the diff is empty rather than wrong when the candidate cannot build
+    assert out["entries"]["added"] == []
+
+
+def test_the_three_silent_failures_are_previewed_rather_than_discovered(
+        blank, tmp_path, pattern_file):
+    """None of these raises today, and the table diff cannot see any of them."""
+    session, client = blank
+    project = _open(session, tmp_path / "silent.pxrd", pattern_file)
+
+    # (1) a setting change: same group, other axes, every coordinate reinterpreted
+    project.refinement.structure.phases[0].space_group = "P 1 21/c 1"
+    project.refinement.structure.phases[0].cell.b.value = 5.0
+    project.refinement.structure.phases[0].cell.c.value = 6.0
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P 1 1 21/b"})[1]
+    note = next(n for n in out["notes"] if n["kind"] == "setting_change")
+    assert "same space group (No. 14)" in note["message"]
+    assert "unique axis b" in note["message"] and "unique axis c" in note["message"]
+
+    # (3) …and the free set: a dof path that vanishes, and one that survives with
+    #     a different direction behind it — the second warns nowhere at all today
+    client.patch("/api/params", {"vary": {"phases.*.atoms.*.dof.*": True}})
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P 1 2/m 1"})[1]
+    kinds = {n["kind"]: n for n in out["notes"]}
+    assert kinds["free_paths_dropped"]["where"] == ["phases.0.atoms.1.dof.2"]
+    assert kinds["free_paths_renumbered"]["where"] == ["phases.0.atoms.1.dof.1"]
+    assert "positional" in kinds["free_paths_renumbered"]["message"]
+
+
+def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
+        blank, tmp_path, pattern_file):
+    """``select_orbit_ops`` dedups *within* one atom's orbit, so two
+    asymmetric-unit atoms a higher symmetry maps together are counted twice — and
+    nothing in the package checks it.  A *mixed* site is the same geometry and is
+    not a bug, so the criterion is the shared occupancy rather than a guess."""
+    from pxrdref.schemas.structure import Atom
+
+    session, client = blank
+    project = _open(session, tmp_path / "orbit.pxrd", pattern_file)
+    phase = project.refinement.structure.phases[0]
+    # distinct under P 4/m m m (z is the unique axis); one orbit under P m -3 m
+    phase.space_group = "P 4/m m m"
+    phase.atoms.append(Atom(label="X1", species="B", x={"value": 0.3},
+                            y={"value": 0.0}, z={"value": 0.0}))
+    phase.atoms.append(Atom(label="X2", species="B", x={"value": 0.0},
+                            y={"value": 0.0}, z={"value": 0.3}))
+
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    note = next(n for n in out["notes"] if n["kind"] == "orbit_collision")
+    assert note["where"] == ["phases.0.atoms.2", "phases.0.atoms.3"]
+    assert "combined occupancy of 2" in note["message"]
+    assert out["blocked"] is True and not out["refusals"]
+
+    head = client.get("/api/history")[1]["head"]
+    status, payload = client.post("/api/structure/symmetry",
+                                  {"phase": 0, "space_group": "P m -3 m"})
+    assert status == 400
+    assert payload["error"]["code"] == "SYMMETRY_REFUSED"
+    assert client.get("/api/history")[1]["head"] == head
+
+    # halve them and the same geometry is a legal mixed site: a note, not a gate
+    for atom in phase.atoms[2:]:
+        atom.occ.value = 0.5
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    assert out["blocked"] is False
+    assert [n["kind"] for n in out["notes"] if n["kind"].startswith("orbit")] \
+        == ["orbit_collision_shared"]
+
+
+def test_an_incompatible_model_is_refused_before_any_history_node_is_written(
+        blank, tmp_path, pattern_file):
+    """The regression this WP exists for, and it was never about the space group.
+
+    Measured before the fix: ``PATCH /api/structure`` with an aniso tensor no
+    longer allowed **succeeded**, recorded an ``edit_model`` node, and then
+    surfaced as a 500 ``INTERNAL_ERROR`` on the panel's next ``GET /api/params``
+    — because a ``ValueError`` out of ``ParameterTable`` is not a ``GuiError``.
+    The head then stood at a state whose table cannot build and a history
+    checkout was the only way out.  The gate is in ``_edit``, so it covers every
+    whole-model verb, and it is on the *candidate*, so an edit that repairs a
+    broken head still passes.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "gate.pxrd", pattern_file)
+    client.post("/api/structure/aniso", {"path": "phases.0.atoms.0", "on": True})
+    head = client.get("/api/history")[1]["head"]
+
+    structure = client.get("/api/structure")[1]["structure"]
+    structure["phases"][0]["atoms"][0]["aniso"]["u12"]["value"] = 0.004
+    status, payload = client.patch("/api/structure", {"structure": structure})
+    assert status == 400, payload
+    assert payload["error"]["code"] == "MODEL_REFUSED"
+    assert payload["error"]["where"] == ["phases.0.atoms.0"]
+    assert "nearest allowed tensor" in payload["error"]["message"]
+
+    assert client.get("/api/history")[1]["head"] == head      # nothing committed
+    assert client.get("/api/params")[0] == 200                # and still readable
+
+    # the escape hatch has to keep working: put the model into the state the old
+    # bug left behind, and the verb that repairs it must not be gated by it
+    project.refinement.structure.phases[0].atoms[0].aniso.u12.value = 0.004
+    assert client.get("/api/params")[0] == 500                # the 500 of record
+    assert client.post("/api/structure/symmetry/preview",
+                       {"phase": 0, "space_group": "P 1"})[0] == 200
+    status, payload = client.post("/api/structure/symmetry",
+                                  {"phase": 0, "space_group": "P 1"})
+    assert status == 200, payload
+    assert payload["node_id"] is not None
+    assert client.get("/api/params")[0] == 200
+
+
+def test_the_symmetry_verb_commits_one_node_and_says_what_it_did(blank, tmp_path,
+                                                                 pattern_file):
+    """One ``edit_model`` node, through the same path every model edit takes."""
+    session, client = blank
+    _open(session, tmp_path / "apply.pxrd", pattern_file)
+    before = client.get("/api/params")[1]["parameters"]
+    assert {r["path"] for r in before if r["path"] == "phases.0.cell.c"}
+
+    status, payload = client.post("/api/structure/symmetry",
+                                  {"phase": 0, "space_group": "P 4/m m m"})
+    assert status == 200, payload
+    assert payload["changed"] is True
+    assert session.project.history[payload["node_id"]].action.kind == "edit_model"
+    assert payload["structure"]["phases"][0]["space_group"] == "P 4/m m m"
+    assert payload["symmetry"][0]["crystal_system"] == "tetragonal"
+    # the tie really went: c is now its own row, and the causes say so for b only
+    rows = {r["path"]: r for r in client.get("/api/params")[1]["parameters"]}
+    assert rows["phases.0.cell.c"]["tie"] is None
+    causes = client.get("/api/structure")[1]["causes"]
+    assert "phases.0.cell.c" not in causes and "phases.0.cell.b" in causes
+
+    # the same symbol again is a no-op rather than a second node
+    payload = client.post("/api/structure/symmetry",
+                          {"phase": 0, "space_group": "P 4/m m m"})[1]
+    assert payload["changed"] is False and payload["node_id"] is None
+
+
 def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,
                                                        pattern_file):
     """The close dialog has nothing to confirm, so a settings verb must save."""
