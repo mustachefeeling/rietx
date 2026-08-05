@@ -80,7 +80,7 @@ from typing import Any, get_args
 from ..schemas.common import Mode
 from ..schemas.indexing import PeakFlag
 from ..schemas.plan import PlanSpec, StageSpec
-from ..schemas.project import ProjectDoc
+from ..schemas.project import ProjectDoc, check_interval
 from ..strategy.staged import PLAN_PRESETS
 
 #: The ``pxt N`` header.  Bumped when a line's *meaning* changes, not when a
@@ -533,7 +533,14 @@ def parse(text: str) -> ParsedDocument:
             if rest[:1] == ["none"]:
                 doc.limits = None
             elif len(rest) == 2 and None not in (_number(rest[0]), _number(rest[1])):
-                doc.limits = (float(rest[0]), float(rest[1]))
+                # ordering is the document schema's rule, quoted with a line
+                # number rather than restated (WP-1033)
+                try:
+                    check_interval("limits", float(rest[0]), float(rest[1]))
+                except ValueError as exc:
+                    fail(n, str(exc), raw, "limits")
+                else:
+                    doc.limits = (float(rest[0]), float(rest[1]))
             else:
                 fail(n, "limits takes two numbers or 'none'", raw, "limits")
         elif keyword == "excluded":
@@ -544,8 +551,15 @@ def parse(text: str) -> ParsedDocument:
                 fail(n, "excluded takes pairs of numbers (lo hi  lo hi …) "
                         "or 'none'", raw, "excluded")
             else:
-                doc.excluded = [(float(a), float(b))
-                                for a, b in zip(rest[::2], rest[1::2])]
+                pairs = [(float(a), float(b))
+                         for a, b in zip(rest[::2], rest[1::2])]
+                try:
+                    for a, b in pairs:
+                        check_interval("an excluded region", a, b)
+                except ValueError as exc:
+                    fail(n, str(exc), raw, "excluded")
+                else:
+                    doc.excluded = pairs
         elif keyword == "plan":
             doc.plan_name = rest[0] if rest else ""
         elif keyword == "guard":

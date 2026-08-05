@@ -47,6 +47,7 @@ import re
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -323,6 +324,12 @@ class GuiSession:
                 # which weights the fit uses is a correctness property that is
                 # invisible once the file is read (CLAUDE.md, Weights)
                 "has_sigma": ref.has_sigma,
+                # how many channels survive the limits and the exclusions — the
+                # check that a shaded band is telling the truth (WP-1033).  A
+                # band drawn over points still in the residual is worse than no
+                # band, and this number is what makes the difference readable
+                # without re-running anything.
+                "n_fitted": int(p.fitted_mask().sum()),
             },
             "head": p.refinement._head_id,
             "n_nodes": len(p.history),
@@ -335,6 +342,11 @@ class GuiSession:
         whole blobs for the panel it touched); a ``null`` value drops a key.
         ``excluded_regions`` goes through ``Project.set_excluded_regions`` so the
         document and the in-memory pattern cannot disagree about what is masked.
+
+        An inverted or empty interval is refused in
+        :func:`schemas.project.check_interval`'s words — the same sentence the
+        ``.pxt`` document refuses with, because the document's field validators
+        are what both routes run into (WP-1033).
         """
         self._require_idle()
         p = self._need_project()
@@ -347,10 +359,12 @@ class GuiSession:
             p.doc.mode = body["mode"]
         if "two_theta_limits" in body:
             limits = body["two_theta_limits"]
-            p.doc.two_theta_limits = None if limits is None else tuple(limits)
+            with self._settings_refusal("two_theta_limits"):
+                p.doc.two_theta_limits = None if limits is None else tuple(limits)
         if "excluded_regions" in body:
             regions = [tuple(r) for r in (body["excluded_regions"] or [])]
-            p.set_excluded_regions(regions)
+            with self._settings_refusal("excluded_regions"):
+                p.set_excluded_regions(regions)
         for key, value in (body.get("ui") or {}).items():
             if value is None:
                 p.doc.ui.pop(key, None)
@@ -358,6 +372,27 @@ class GuiSession:
                 p.doc.ui[key] = value
         p.save()
         return self.project_doc()
+
+    @staticmethod
+    @contextmanager
+    def _settings_refusal(where: str):
+        """Turn a document validator's refusal into this verb's 400 (WP-1033).
+
+        The message is passed through with pydantic's ``"Value error, "`` prefix
+        removed and nothing else added: the sentence a client shows is the one
+        :func:`schemas.project.check_interval` wrote, so the wire route, the
+        ``.pxt`` document and a bare ``doc.two_theta_limits = …`` all refuse
+        alike.  Without this the assignment raises ``ValidationError`` and the
+        transport answers 500 — true, and useless to the person who typed it.
+        """
+        from pydantic import ValidationError
+
+        try:
+            yield
+        except ValidationError as exc:
+            message = str(exc.errors()[0]["msg"])
+            raise GuiError(message.removeprefix("Value error, "),
+                           where=[where]) from None
 
     def project_save(self) -> dict:
         """Rewrite ``project.json``.
@@ -1112,20 +1147,33 @@ class GuiSession:
         return out
 
     def _peaks_pattern(self, max_points: int = 4000) -> dict:
-        """The measured pattern, masked and decimated, for the peak plot."""
+        """The measured pattern, masked and decimated, for the peak plot.
+
+        The masked channels ride along in ``excluded`` for the reason
+        :meth:`_masked_arm` gives: this is the view a project has *before* any
+        fit, so it is the only place the fit range can be seen at all, and it
+        cropped to the limits — a user could not see what they had cut.  The
+        intersection itself is :meth:`Project.fitted_mask`, so this cannot
+        drift from what the residual contains.
+        """
         p = self._need_project()
         data = p.data
-        mask = data.in_range_mask()
-        tt, y = data.tt()[mask], data.y()[mask]
-        limits = p.doc.two_theta_limits
-        if limits is not None:
-            keep = (tt >= limits[0]) & (tt <= limits[1])
-            tt, y = tt[keep], y[keep]
+        keep = p.fitted_mask()
+        tt_all, y_all = data.tt(), data.y()
+        tt, y = tt_all[keep], y_all[keep]
+        out_tt, out_y = tt_all[~keep], y_all[~keep]
+        excluded = {"two_theta": [], "y_obs": []}
+        if len(out_tt):
+            out_idx = decimation_index(out_tt, [out_y], max(2, max_points // 4))
+            excluded = {"two_theta": out_tt[out_idx].tolist(),
+                        "y_obs": out_y[out_idx].tolist()}
         if not len(tt):
-            return {"two_theta": [], "y_obs": [], "n_total": 0}
+            return {"two_theta": [], "y_obs": [], "n_total": 0,
+                    "excluded": excluded, "n_excluded": int(len(out_tt))}
         idx = decimation_index(tt, [y], max_points)
         return {"two_theta": tt[idx].tolist(), "y_obs": y[idx].tolist(),
-                "n_total": int(len(tt))}
+                "n_total": int(len(tt)), "excluded": excluded,
+                "n_excluded": int(len(out_tt))}
 
     def _peak_editor(self):
         from . import peaks as store
@@ -1418,7 +1466,8 @@ class GuiSession:
                     "delta": [], "delta_raw": [], "cumulative_chi2": [],
                     "weighted": self._need_project().data_ref.has_sigma,
                     "ticks": {}, "n_total": 0,
-                    "n_returned": 0, "max_points": max_points}
+                    "n_returned": 0, "max_points": max_points,
+                    **self._masked_arm(lo, hi, max_points)}
         y_obs = np.asarray(res.y_obs)[mask]
         y_calc = np.asarray(res.y_calc)[mask]
         y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
@@ -1450,7 +1499,54 @@ class GuiSession:
                       for phase, ticks in res.ticks.items()},
             "window": list(window), "n_total": int(mask.sum()),
             "n_returned": len(idx), "max_points": max_points,
+            **self._masked_arm(lo, hi, max_points),
         }
+
+    def _masked_arm(self, lo: float | None, hi: float | None,
+                    max_points: int) -> dict:
+        """The measured points this window covers that the protocol **masks**.
+
+        Measured before it was written (WP-1033): a result carries only the
+        channels ``compile_model`` kept, so with ``two_theta_limits`` set the
+        plot's x-axis autoranges *inside* the fit range and a user cannot see
+        what they cut — on the synthetic fixture, a 3–24° pattern came back as
+        8.005–18.990°, with zero points inside a 3° exclusion.  A band shaded
+        over that is a band over nothing.  So the excluded channels travel
+        beside the fitted ones, decimated the same way, and the client draws
+        them recessively under the shading.
+
+        ``stale`` is the other half, and it is the one thing on this route that
+        is about *disagreement*: settings persist on the verb while curves move
+        only on a run, so between an exclusion and the next fit the result on
+        screen was computed over a different channel set (measured: 586 points
+        inside the new band still in the residual).  The comparison is exact —
+        the fitted 2θ values, not their count — because two different masks can
+        keep the same number of channels.
+        """
+        import numpy as np
+
+        p = self._need_project()
+        keep = p.fitted_mask()
+        tt_all, y_all = p.data.tt(), p.data.y()
+        # read once: the worker swaps the result wholesale (``_need_result``)
+        res = p.refinement.result_
+        stale = res is None or not np.array_equal(
+            tt_all[keep], np.asarray(res.two_theta, dtype=float))
+        out = ~keep
+        if lo is not None:
+            out &= tt_all >= lo
+        if hi is not None:
+            out &= tt_all <= hi
+        if not out.any():
+            return {"excluded": {"two_theta": [], "y_obs": []},
+                    "n_excluded": 0, "stale": stale}
+        tt, y = tt_all[out], y_all[out]
+        # a quarter of the budget: these points are context, and spending the
+        # same 4000 on them as on the fit would halve the fitted curve's detail
+        idx = decimation_index(tt, [y], max(2, max_points // 4))
+        return {"excluded": {"two_theta": tt[idx].tolist(),
+                             "y_obs": y[idx].tolist()},
+                "n_excluded": int(out.sum()), "stale": stale}
 
     def report(self, plan: str | None = None) -> dict:
         """The three-layer :class:`FitReport` for the last fit, plus what applies.

@@ -21,9 +21,10 @@ are the fields below.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from .common import Base, Mode
 from .plan import PlanSpec
@@ -32,6 +33,28 @@ from .plan import PlanSpec
 #: refuses a newer major than it knows rather than letting pydantic's
 #: ``extra="forbid"`` report an unknown field, which is true but unhelpful.
 PROJECT_FORMAT_VERSION = "1"
+
+
+def check_interval(kind: str, lo: float, hi: float) -> None:
+    """Refuse an inverted or empty 2θ interval, in one sentence (WP-1033).
+
+    The one place the words exist, because three surfaces refuse with them: the
+    GUI's ``POST /api/project``, the ``.pxt`` document's ``limits``/``excluded``
+    lines (with a line number attached, never restated), and the field
+    validators below — which, because :class:`Base` sets
+    ``validate_assignment``, also catch a plain ``doc.two_theta_limits = …`` and
+    a hand-edited ``project.json``.
+
+    ``lo == hi`` is refused rather than treated as a point mask: the fit-range
+    intersection is inclusive at both ends, so an empty interval and a
+    single-channel one are indistinguishable in the arithmetic and a user typing
+    one meant neither.
+    """
+    if not (math.isfinite(lo) and math.isfinite(hi)):
+        raise ValueError(f"{kind} takes two finite numbers, got ({lo}, {hi})")
+    if lo >= hi:
+        state = "empty" if lo == hi else "inverted"
+        raise ValueError(f"{kind} must run low to high: ({lo}, {hi}) is {state}")
 
 
 class DataRef(Base):
@@ -106,6 +129,20 @@ class ProjectDoc(Base):
     excluded_regions: list[tuple[float, float]] = Field(default_factory=list)
 
     history_file: str = "history.jsonl"
+
+    @field_validator("two_theta_limits")
+    @classmethod
+    def _check_limits(cls, value):
+        if value is not None:
+            check_interval("two_theta_limits", *value)
+        return value
+
+    @field_validator("excluded_regions")
+    @classmethod
+    def _check_regions(cls, value):
+        for lo, hi in value:
+            check_interval("an excluded region", lo, hi)
+        return value
 
     #: Untyped on purpose: the GUI owns these keys (disclosure level, panel
     #: layout, plot ranges) and the container only persists them.  A schema here
