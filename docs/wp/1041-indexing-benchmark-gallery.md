@@ -225,6 +225,12 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   is **not** the panel's `m20` (1.15 against 1.43 on NAC), which the previous
   session's paraphrase had wrong in ROADMAP.
 
+  **Counts**, `[dev,jax]` on the merged tree: fast **1760 / 67**, full **1858 / 72**.
+  The sum closes — 1041's pre-merge 1841 + 1035's 12 python rows + 1041's 5 = 1858,
+  no new skip, both selections moving by exactly the 5. **No timing is quotable**:
+  another worktree's suite held the machine at load 40–120, so the same tree read
+  fast 2:46 and 4:05 an hour apart and full 46:59 against 25–36 min pre-merge.
+
   **Gotcha for the next session**: `CLAUDE.md`'s size cap was raised 700 → 720 in
   `tests/test_docs_consistency.py`, deliberately and with the reason in a comment.
   The file is now 100 lines past what the last consolidation achieved — **the next WP

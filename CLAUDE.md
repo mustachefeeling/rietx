@@ -50,11 +50,16 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-05 at the **WP-1041** handover, darwin/arm64 M4, `worktree-indexer`, venv
-`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here) and
-**pre-merge of `main`'s WP-1035 rows**. Fast **1743 / 67 skipped**, 3-4 min
-*unloaded*; full **1841 / 72**, 25-36 min, of which `test_acceptance_indexing.py` is
-**38 rows, 13-14 min**. Frontend **347** vitest, `svelte-check` clean, collect **93**.
-A fired module-level `importorskip` is one skip and zero collected items.
+`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here), **on the
+tree with `main`'s WP-1035 merged in**. Fast **1760 / 67 skipped**; full
+**1858 / 72**, of which `test_acceptance_indexing.py` is **38 rows**. The sum closes:
+1041's pre-merge 1841 + 1035's **12** python rows + 1041's **5** = 1858, no new skip,
+and both selections move by exactly the 5. Frontend **347** vitest, `svelte-check`
+clean, collect **93**, all 1035's — 1040/1041 touched no `gui/` file.
+**No timing here is quotable alone**: another worktree's suite shared the machine at
+load 40-120, so the same green tree read fast **2:46** and **4:05** an hour apart and
+full **46:59** against 25-36 min before the merge. A fired module-level
+`importorskip` is one skip and zero collected items.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
