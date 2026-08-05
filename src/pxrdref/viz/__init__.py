@@ -1,7 +1,8 @@
+from .indexing import plot_candidates, plot_peak_list, plot_validation
 from .plots import plot_for_vlm, plot_result, plot_trajectory
 
-__all__ = ["LiveSession", "plot_for_vlm", "plot_result",
-           "plot_trajectory", "write_html"]
+__all__ = ["LiveSession", "plot_candidates", "plot_for_vlm", "plot_peak_list",
+           "plot_result", "plot_trajectory", "plot_validation", "write_html"]
 
 
 def __getattr__(name: str):

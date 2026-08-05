@@ -831,6 +831,63 @@ def test_trial_error_survives_an_impurity_among_the_base_lines():
     assert_same_lattice(result.candidates[0].cell, cell)
 
 
+def test_the_within_engine_dedup_key_carries_the_scale_and_the_centring():
+    """``engines.solution_key`` — the two ways a lazier key loses a real answer.
+
+    Both are unit-level statements about the key itself; the engine-level cost of
+    each is measured in the test below.
+    """
+    from pxrdref.indexing.engines import solution_key
+
+    # scale: two cubic metrics differing only in scale are different hypotheses,
+    # and a scale-*invariant* key maps every cubic cell to one entry
+    small = np.array([0.05, 0.05, 0.05, 0.0, 0.0, 0.0])
+    assert solution_key(small, "P") != solution_key(2.0 * small, "P")
+    # ...but a change far below the grid is still the same solution, which is the
+    # whole point of a pre-filter
+    assert solution_key(small, "P") == solution_key(small * (1.0 + 1e-9), "P")
+
+    # centring: identical axes, two centrings, two lattices
+    assert solution_key(small, "P") != solution_key(small, "I")
+
+
+def test_a_body_centred_cubic_list_survives_the_engines_own_dedup():
+    """The measured cost of the two defects above, on a lattice that has both.
+
+    A cubic **I** list is the case where they compound, and the compounded failure
+    is silent and confident: the engine returns exactly **one** candidate, cubic
+    **P** with a = 6.2/√2, which indexes 15 of the 17 lines and is not the answer.
+
+    Measured on this list (a = 6.2 Å, ``I m -3 m``, 17 lines), by substitution:
+
+    | key | candidates | first | true I present |
+    |---|---|---|---|
+    | scale-invariant, no centring | 1 | P a = 4.3841 | **no** |
+    | scale-invariant, with centring | 2 | I a = 6.2000 | yes |
+    | scale-dependent, no centring | 4 | **P a = 6.2000** | **no** |
+    | both (shipped) | 8 | I a = 6.2000 | yes |
+
+    Row three is the 11-BM NAC failure in miniature — the same axes described as
+    P, which predicts reflections the I lattice does not and the pattern lacks.
+    Row one is why the cubic case is the one to test: a one-dimensional metric is
+    where scale invariance is total rather than merely lossy.
+    """
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks, cell = synthetic_peaks("cubic", sg="I m -3 m",
+                                  cell=(6.2, 6.2, 6.2, 90.0, 90.0, 90.0))
+    result = search_trial_error(peaks, spec=spec_for("cubic"))
+    assert len(result.candidates) > 1, (
+        "one candidate from a cubic search is the scale-invariant key collapsing "
+        "the whole system onto a single entry")
+    best = result.candidates[0]
+    assert best.centring == "I", (
+        f"the body-centred description was discarded for {best.centring}: the "
+        "dedup key does not carry the centring")
+    assert_same_lattice(best.cell, cell)
+    assert best.n_indexed == best.n_lines
+
+
 def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     """``INDEX_DOMINANT_ZONE``, which WP-1019 measured a *census* cannot supply.
 

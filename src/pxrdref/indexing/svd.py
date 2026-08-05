@@ -178,6 +178,7 @@ from .engines import (
     register_engine,
     search_line_order,
     shift_allowance_diagnostic,
+    solution_key,
 )
 from .fom import LINE_COINCIDENCE_RTOL
 from .qspace import (
@@ -867,16 +868,9 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
         return -np.inf
     if not reflection_ceiling_ok(cell, peaks.wavelength, tt_max):
         return -np.inf
-    # **Keyed on the centring as well as the metric.**  ``seen`` spans the whole
-    # centring loop, and P and I on the same axes are *different candidates*:
-    # they predict different reflection sets, which is the one thing
-    # ``predicted_but_absent`` exists to measure.  Without the centring in the
-    # key the first centring tried claims the metric and every later one is
-    # silently discarded — measured on 11-BM NAC, which came back cubic **P**
-    # with 92 predicted-and-absent reflections in place of the cubic **I**
-    # description of the identical axes, which has 0.  ``P`` is simply first in
-    # ``centrings_for``.
-    key = (centring, *_solution_key(af))
+    # keyed on the centring as well as the metric, because ``seen`` spans the
+    # whole centring loop — ``engines.solution_key`` carries both measurements
+    key = solution_key(af, centring)
     if key in seen:
         return -np.inf
     seen.add(key)
@@ -927,32 +921,6 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
         fit=fit, system=system, centring=centring, engine="svd", hkl=assigned,
         line_index=line_index, n_lines=len(q_all)))
     return float(len(line_index)) - float(fit.chi2_red)
-
-
-#: Relative grid a solved metric is hashed on before it is re-fitted.  A real cell
-#: is reached by many different random starts, and re-fitting each of them is the
-#: cost this avoids.
-SAME_SOLUTION_RTOL = 1e-3
-
-
-def _solution_key(af: np.ndarray) -> tuple[int, ...]:
-    """A scale-**dependent** hash of a metric.
-
-    The obvious form — ``round(af / (max|af| · rtol))`` — is scale *invariant*,
-    and for a one-dimensional metric that is fatal rather than merely lossy:
-    every cubic cell is ``(A, A, A, 0, 0, 0)``, so dividing by ``max|af|`` maps
-    all of them to the same key and the first random start on the volume ladder
-    silently blocks every later one.  Measured while writing this module: a clean
-    synthetic cubic pattern returned **0 candidates** from 72 starts that
-    included the truth.  So the quantised scale goes into the key too, on a
-    logarithmic grid of the same relative width.
-    """
-    a = np.asarray(af, dtype=np.float64)
-    scale = float(np.max(np.abs(a)))
-    if not np.isfinite(scale) or scale <= 0.0:
-        return (0,) * (len(a) + 1)
-    decade = int(np.round(np.log(scale) / np.log1p(SAME_SOLUTION_RTOL)))
-    return (decade, *np.round(a / (scale * SAME_SOLUTION_RTOL)).astype(np.int64))
 
 
 register_engine(
