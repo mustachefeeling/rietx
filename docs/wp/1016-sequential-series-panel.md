@@ -122,6 +122,19 @@ npm --prefix gui test
   per column — core 308 px (index, label, coordinate, the reorder buttons), detail
   231 — measured in a browser, now `lib/resize.ts:seriesCompact`.
 
+  **A fifth defect came from auditing my own unmeasured claim**, which is this
+  WP's lesson turned on itself. `lib/series.ts` said a `null` in
+  `error_y.array` leaves a gap; measured against plotly 3.7.0 it does not — the
+  bar's two caps are drawn at the point with zero height between them,
+  byte-identical to what a `0` produces, so a pattern that estimated nothing
+  rendered as one that measured the value exactly. The bars now ride an invisible
+  carrier trace over the subset that *has* an esd (a tied path with no esd
+  anywhere went from three flat caps to none). And the measurement that stays: a
+  well-determined trajectory shows **no visible bar** — σ(a) 6.5e-6 Å against a
+  4.8e-3 Å axis over 189 px is a 0.5 px bar, and 0.5 px is exactly what was
+  drawn. Scaling it to be seen would be WP-1029's "an exaggeration is not a
+  probability" one panel over.
+
   **The browser pass found four defects and one negative**, per the standing
   streak. Ranked-by-noise (above); the table side-scrolling its own main verb off
   the right edge; the console rendering five series keys as fields on **every**
