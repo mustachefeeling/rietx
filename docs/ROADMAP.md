@@ -55,52 +55,51 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1032](wp/1032-gui-repairs.md)** (2026-08-05) — the nine GUI
-repairs a use session reported, every one measured in a browser before and
-after. The frame the user felt is a **trailing canvas, not stutter**: one
-`Plotly.Plots.resize` of the NAC pattern costs ~111 ms, a 60-move sidebar drag
-issued sixty, and the last resolved **1.10 s** late — at a steady 60 fps with
-zero long tasks, so no frame-time metric would have found it. `resize.ts:
-coalesce` takes that to 3 calls and 116 ms; the structure viewer had the same
-defect (measured, not assumed: 60 → 6, 1115 → 135 ms). The "headings clash on
-scroll" was neither transparency nor the colour mismatch that was also there
-and is also fixed: it is `opacity: 0.55` on excluded rows promoting them above
-a sticky header left at `z-index: auto`. Before it, on 2026-08-04:
-[1038](wp/1038-shift-reflection-pairs.md), [1037](wp/1037-indexing-time-ceiling.md)
-and [1036](wp/1036-crystal-system-settings.md). Close narratives in
+**Last closed: two on 2026-08-05, in parallel worktrees over disjoint code** —
+[1039](wp/1039-search-line-count.md) and [1032](wp/1032-gui-repairs.md); before
+them, on 2026-08-04, [1038](wp/1038-shift-reflection-pairs.md),
+[1037](wp/1037-indexing-time-ceiling.md) and
+[1036](wp/1036-crystal-system-settings.md). Narratives and numbers in
 [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-The method lesson is now five sessions running (1030 → 1036 → 1037 → 1038 →
-1032): **instrument before ranking.** 1032 is the GUI's version — the plan named
-four candidates for the lag and picked none, the profile indicted one and
-exonerated three, and *reading the source had ranked them differently*. Two
-reusable traps: instrument **before the library loads** (a `$state` proxy caches
-each property on first read, so a wrapper on `window.Plotly.react` counted zero
-calls while the plot redrew), and read a fix that leaves the symptom as evidence
-about the *cause*.
+**1039** asked how many lines a search enumerates on; the answer is **which**.
+The first twenty in 2θ order assumes the lowest-angle components are the
+strongest reflections — false of any pattern opening on background (NAC: six of
+its cell's lines there, against 268 of 285). `search_line_order` takes the
+strongest N; **raising N loses answers**, the budget being absolute.
+
+**1032**, nine GUI repairs from a use session: the lag is a **trailing canvas,
+not stutter** (a drag issued sixty ~111 ms resizes, the last landing 1.10 s late
+at a steady 60 fps with **zero** long tasks), and "headings clash on scroll" was
+`opacity: 0.55` on excluded rows outranking a sticky `z-index: auto` header.
+
+The method lesson is now six sessions running (1030 → 1036 → 1037 → 1038 → 1039
+→ 1032): **instrument before ranking, and let the by-hand acceptance run judge.**
+Four edges, each argued in its own WP: **read the paper, not the summary** and
+**a no-go inherits the defects of its run** (1039); **instrument before the
+library loads** and **a fix that leaves the symptom is evidence** (1032).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1039](wp/1039-search-line-count.md) — the natural successor to 1038, whose
-   line-selection question assumed a working pre-search shift and now has one.
-   Then [1040](wp/1040-engine-svd-index.md),
+2. [1040](wp/1040-engine-svd-index.md),
    [1041](wp/1041-indexing-benchmark-gallery.md) and
    [1042](wp/1042-anytime-results-quick-default.md) — written 2026-08-04 from the
    source literature ([LITERATURE.md](LITERATURE.md)); 1042's `### Inherited`
-   carries 1037's measured streaming argument. **1038 was expected to move all
-   eight datasets off abstention and did not**: it cleared one caveat of several,
-   so what still blocks `high` is 1026's and 1041's, not a missing shift.
+   carries 1037's measured streaming argument, and 1040's and 1041's now carry
+   1039's. **Neither 1038 nor 1039 moved the eight datasets off abstention**, and
+   each cleared exactly one caveat: what still blocks `high` is 1026's and 1041's.
+   1041 also inherits the scoreboard's *numbers*, which are stale — SRM 660c's
+   caveat set has changed twice since they were recorded.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
 4. [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the rest of the 2026-08-04 use session (1032 closed). Behind 1028/1026
-   because **none of them moves the bar** while those two do. Both 1033 and 1035
-   are unblocked, and each `### Inherited` says what changed under it —
-   `Plot.svelte` for 1033, `cell_constraints(sg)` for 1035.
+   the rest of the 2026-08-04 use session (1032 closed). Behind 1028/1026 because
+   **none of them moves the bar**. Both 1033 and 1035 are unblocked; each
+   `### Inherited` says what changed under it.
 5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
@@ -439,7 +438,7 @@ per concurrent session, or only one session commits.
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
-| [1039](wp/1039-search-line-count.md) | How many lines a search enumerates on | ⬜ | 1037 (1038 soft) |
+| [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |

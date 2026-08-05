@@ -93,6 +93,42 @@ $\sigma(Q)/Q$, above {{ MAX_RELATIVE_SIGMA_Q }} at which two cells
 differing by 0.1 % in a lattice parameter are indistinguishable — the scale
 at which derivative-lattice ambiguity lives.
 
+### Which lines drive the search
+
+A search is *driven* by {{ DEFAULT_SEARCH_LINES }} lines and *scored* against
+every usable one. Conograph argues the driven set should be large — 48 rather
+than the 20–30 its contemporaries used — on the grounds that a **missing** line
+costs success while a **false** line costs only computation, because its
+enumeration succeeds by a membership condition on the observed $q$ set and
+adding elements cannot break one {cite}`oishitomiyasu2014`.
+
+That asymmetry does not transfer here, and the reason is worth stating because
+it is a property of the *acceptance rule* rather than of the enumeration. A
+candidate is accepted only if it indexes all but {{ DEFAULT_N_UNINDEXED }} of
+the driven lines — an absolute budget, not a membership test — so each foreign
+line admitted spends that budget, and past it the true cell is **refused**
+rather than out-ranked. Enlarging the driven set therefore has a failure mode
+Conograph's does not, and measurement bears it out: on a 68-line lab pattern
+carrying 16 foreign lines, going from 20 driven lines to 32 loses the certified
+lattice from the candidate list altogether.
+
+What does pay is *which* lines, not how many. The driven set is taken in order
+of integrated intensity, with ties broken by $Q$, so a pattern whose low-angle
+range opens on background does not spend its whole budget there — on a
+synchrotron pattern beginning at $0.76^\circ\ 2\theta$ the twenty lowest-angle
+components contain six of the true cell's lines, where the strongest twenty
+contain eighteen. A list of bare positions carries no measured intensities, so
+every line ties and the order reduces exactly to ascending $Q$: an assumed
+intensity may no more reorder a search than an assumed $\sigma$ may refuse one.
+
+The rank is applied within the lowest {{ SEARCH_POOL_MULTIPLE }}$N$ lines rather
+than over the whole list, and the reason is cost rather than physics. A
+branch-and-bound search sizes the trial reflection set it tests each box against
+by the largest $Q$ among the driven lines, so letting the rank reach a lab
+pattern's high-angle tail enlarges that set for every box in the recursion. The
+bound recovers about half of what the rank costs, at a few lines of selection
+quality: unbounded, the same synchrotron list scores twenty of twenty.
+
 A systematic $2\theta$ shift is the failure mode both indexing benchmarks
 single out {cite}`bergmann2004`. Three physical causes give three angular
 dependences — a constant (detector zero point), $\cos\theta$ (specimen

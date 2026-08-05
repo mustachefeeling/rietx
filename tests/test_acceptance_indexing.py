@@ -1310,14 +1310,24 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
     assert "predicted_but_absent" not in best.confidence_caveats
 
     # …and it is still not promoted, on caveats that have nothing to do with
-    # extinctions.  ``shift_allowance_assumed`` is **no longer** among them:
-    # WP-1038 measures this pattern's +0.0345° from harmonic pairs before the
-    # search, against the +0.0367° the reference-based screen fits and the
-    # +0.0415° its recorded geometry predicts, so the window is a measurement.
-    # What still stands is that only one engine found it.
+    # extinctions — but the list has been shrinking, and by *evidence* each time.
+    # ``shift_allowance_assumed`` went first: WP-1038 measures this pattern's
+    # +0.0345° from harmonic pairs before the search, against the +0.0367° the
+    # reference-based screen fits and the +0.0415° its recorded geometry predicts,
+    # so the window is a measurement.  ``engines_disagree`` went second, in
+    # WP-1039: ``trial_error`` was not failing to *find* the certified cell, it was
+    # being handed the wrong lines to solve from.  Its base-line pool took the
+    # lowest-Q lines of the whole list, and five of this pattern's low-angle
+    # components are not lines of the phase; drawn instead from the strongest-N
+    # selection the pool is clean, the exact solve lands, and **both engines find
+    # it**.  Note what did *not* follow: on a cubic-only search the run promotes to
+    # ``high``, and here it does not, because a four-system search leaves
+    # ``fom_panel_disagrees`` behind.  Agreement was necessary, not sufficient.
     assert best.confidence == "low"
-    assert set(best.confidence_caveats) >= {"engines_disagree"}
-    assert "shift_allowance_assumed" not in best.confidence_caveats
+    assert set(best.confidence_caveats) == {"fom_panel_disagrees"}, (
+        f"the caveat list moved: {sorted(best.confidence_caveats)}")
+    assert set(best.found_by) == {"dichotomy", "trial_error"}, (
+        f"only {best.found_by} found the certified cell")
     assert res.best_or_none() is None
 
 

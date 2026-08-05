@@ -930,7 +930,18 @@ CLAIMS: tuple[Claim, ...] = (
         measured="cubic P ranked first, a -127 ppm against the CIF's "
                  "4.156780 A; predicted_but_absent 0 of 30 and "
                  "predicted_seen_fraction 1.000 against corundum's 0.86.  "
-                 "Still low, on shift_allowance_assumed and engines_disagree; "
+                 "Still low, but the caveat list has been shrinking by "
+                 "evidence and is now ONE: fom_panel_disagrees.  WP-1038 "
+                 "cleared shift_allowance_assumed (this pattern's +0.0345 deg "
+                 "is measured from harmonic pairs before the search), and "
+                 "WP-1039 cleared engines_disagree -- trial_error was not "
+                 "failing to find the certified cell, it was solving from the "
+                 "wrong base lines, because its pool took the lowest-Q lines "
+                 "of the whole list and five of this pattern's low-angle "
+                 "components are not lines of the phase.  Drawn from the "
+                 "strongest-N selection instead, BOTH engines find it.  "
+                 "Agreement was necessary and not sufficient: a cubic-only "
+                 "search now promotes to high, this four-system one does not.  "
                  "best_or_none() returns None",
         diagnostics=("INDEX_SHIFT_ALLOWANCE",),
     ),

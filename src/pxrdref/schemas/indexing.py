@@ -38,7 +38,14 @@ from .common import Base, Diagnostic, Provenance
 #: 1.1 (WP-1038): ``ShiftScreen.source`` gains ``"reflection_pairs"`` and the
 #: screen gains ``allowance_deg`` — a vocabulary member is a contract change even
 #: when every prior value still means what it did.
-INDEXING_THRESHOLDS_VERSION = "1.1"
+#: 1.2 (WP-1039): the lines a search is *driven* by are now the strongest
+#: ``n_search_lines`` rather than the first N in 2θ order
+#: (:func:`pxrdref.indexing.engines.search_line_order`).  No field changed and no
+#: threshold here moved — this is bumped because ``workflow._spec_notes`` records
+#: this string beside the spec as the stamp a run is reproducible from, and two
+#: runs with identical spec notes now answer differently.  A position-only list is
+#: unaffected: with no measured intensities the rule is exactly the old one.
+INDEXING_THRESHOLDS_VERSION = "1.2"
 
 # ----------------------------------------------------------------------
 # Detection

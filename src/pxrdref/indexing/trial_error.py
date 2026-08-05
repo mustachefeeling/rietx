@@ -55,6 +55,7 @@ from .engines import (
     refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    search_line_order,
     shift_allowance_diagnostic,
     trial_hkl,
 )
@@ -347,9 +348,15 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                    index_max: int = BASE_INDEX_MAX,
                    ) -> tuple[list[EngineCandidate], dict[str, float], bool]:
     n_dof = basis.shape[0]
-    order = np.argsort(q_all)
-    search_lines = order[:min(spec.n_search_lines, len(order))]
-    pool = order[:min(max(n_dof + 4, BASE_POOL_MIN), len(order))]
+    search_lines = search_line_order(peaks, spec)
+    # The base-line pool is a *prefix of the search lines*, not of the whole list.
+    # It has to be: the exact solve assumes small indices, so the pool must be the
+    # lowest-Q lines **the search was given** rather than the lowest-Q lines full
+    # stop — which on a pattern opening on background are the ones the selection
+    # just declined.  This is where WP-1039's rule pays: on SRM 660c the 2θ-order
+    # pool poisons every base set and only dichotomy finds the certified cell
+    # (``engines_disagree``); on the strongest-N pool both engines find it.
+    pool = search_lines[:min(max(n_dof + 4, BASE_POOL_MIN), len(search_lines))]
     if len(pool) < n_dof:
         return [], {"solves": 0.0}, True
 

@@ -11,6 +11,24 @@ the indexing suite draws nothing at all.
 
 ## Context
 
+### Inherited
+
+**From WP-1039, closed 2026-08-05.** You now own the eight-dataset scoreboard's
+numbers: CLAUDE.md keeps the *rule* ("never wrong, and silent more often than
+right; never let a summary round it up") and points here for the counts, which
+had been "five right, one refused, two fail, all eight abstain". **They are stale
+and at least one has moved** — SRM 660c no longer reports `engines_disagree`,
+because both engines now find the certified cell once `trial_error` solves from
+the selected lines rather than the whole list's low-Q end. Re-measure rather than
+copy. A second row worth a picture while you are there: NAC truncated to ≤ 32° now
+ranks the truth first at −22 ppm with the right centring, where WP-1026 recorded
+that experiment as useless.
+
+Also inherited, as a caution about this WP's own artefacts: a
+`validation_matrix.py` Claim's `measured` prose went **two WPs** out of date
+without failing anything, because the per-Claim meta-tests check structure and not
+prose. A gallery is the same species of artefact. Generate it from live runs.
+
 ### The gap
 
 `tests/CLAUDE.md` carries a standing rule — *"every test refinement also writes

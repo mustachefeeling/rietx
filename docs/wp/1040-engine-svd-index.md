@@ -11,6 +11,24 @@ supersedes WP-1023's Monte Carlo no-go rather than reopening it.
 
 ## Context
 
+### Inherited
+
+**From WP-1039, closed 2026-08-05.** A third engine must select its driven lines
+through `engines.search_line_order` like the other two — the whole point of that
+seam is that "which lines drive the search" means the same thing in every engine,
+or their agreement stops being evidence. It returns the strongest `n_search_lines`
+in Q order, and ties fall back to Q, so a position-only list behaves as before.
+
+Two measured facts that bear directly on an SVD engine. **Do not raise
+`n_search_lines` to feed the SVD more rows**: `indexes_the_search_lines` is an
+absolute budget, so each foreign line admitted *refutes* the true cell rather than
+ranking it lower (zircon loses its certified lattice going from 20 to 32). And the
+base-line lesson from `trial_error` transfers — its exact solve was failing on SRM
+660c not because the method was wrong but because it was handed the pattern's
+low-angle background components to solve from. Any engine that assumes indices for
+a small set of lines wants that set drawn from the *selection*, not from the raw
+low-Q end.
+
 ### Why WP-1023's no-go does not fence this
 
 WP-1023 measured that a Monte Carlo tier-1 ranked the true corundum cell **29 053 of

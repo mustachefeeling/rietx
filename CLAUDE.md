@@ -49,29 +49,28 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-05 at the WP-1032 close, darwin/arm64 M4, in the **`gui`**
-worktree whose venv is `[dev]` — **no jax, no torch**. That venv is why the
-Python rows below do **not** compare line-for-line with the WP-1038 close's
-(`[dev,jax]`, in `worktree-indexer`), and the difference is in the *total*, not
-only in the pass/skip split — see the next-to-last bullet. WP-1032 added **no
-Python test**; every Python figure here is the 1038 tree re-measured under
-different extras. The full suite was **not** re-run this session (frontend-only
-change), so its last good figure stays the 1038 close's, in the v1.0 appendix.
+Measured 2026-08-05: the Python rows at the **WP-1039** close, darwin/arm64 M4,
+in **`worktree-indexer`**, venv `[dev,jax]`, **no torch**; the frontend row at
+the **WP-1032** close (two WPs, parallel worktrees, disjoint code). jax converts
+skips into passes, so no Python row compares with a `[dev]` count, and the main
+checkout's figures were **not** re-measured (they predate 1037/1038/1039's 52
+tests; last good: the WP-1036 entry, in the v1.0 appendix):
 
-- fast suite: **1649 passed / 108 skipped**, 34 s.
-- frontend (vitest): **303** — was 282 at the WP-1027 close, +21 from WP-1032:
-  4 `coalesce`, 2 `hoverLabel`, 3 tick band, 4 curve toggles, 3 field-help
-  meta-tests, 5 jsdom mounts. `svelte-check` clean over 365 files.
-- `tests/test_gui_server.py` + `test_gui_peaks.py` + `test_gui_dist.py`
-  together: **73**.
-- **passed+skipped is venv-dependent, not only the split**: 1757 here against
-  1768 at the 1038 close, because `tests/test_backend_jax.py`'s module-level
-  `importorskip` collapses 12 collected rows into **one skip** without jax. So
-  the "passed+skipped moves by exactly N" decomposition check is valid *within*
-  one venv only; the arithmetic is in the v1.0 timing appendix.
-- `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on this `[dev]` venv) — resolved, `tests/CLAUDE.md`
-  § Quoting numbers.
+- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 1039's 7
+  (five `search_line_order` rows, one end-to-end over both engines), no new
+  skips; 1032 added no Python test.
+- full suite: **1802 passed / 72 skipped**, 15:04. passed+skipped 1874 = the fast
+  selection's 1775 + 99 slow-marked, unchanged from 1038 — every new row is fast.
+- **1039 made the indexing acceptance file the wall clock**:
+  `tests/test_acceptance_indexing.py` is **36** rows and **11:58**, its corundum
+  fixture now the longest single item — the group ordering moved again, so
+  re-read `--durations` rather than quoting it (figures: the v1.0 record).
+- frontend (vitest): **303** — 282 from WP-1027 through 1039 (none touched
+  `gui/`), +21 at WP-1032; `svelte-check` clean, GUI-server rows **73**.
+- **A module-level `importorskip` collapses its whole module into one skip**, so
+  `--collect-only` undercounts by one per module that fires *and* passed+skipped
+  is venv-dependent — "moves by exactly N" holds within one venv only (one tree:
+  1757 `[dev]` vs 1768 `[dev,jax]`). `tests/CLAUDE.md` § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -623,9 +622,8 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   reflections) refutes a correct cell, and only the extinction screen
   separates the two. Choose acceptance datasets **by space group** — SRM
   660c (P m -3 m, extinguishes nothing) is the control that proved it.
-- The scoreboard across eight known-cell datasets is *never wrong, and
-  silent more often than right* — five right, one refused, two fail, all
-  eight abstain. Do not let a summary round it up.
+- The scoreboard across eight known-cell datasets is *never wrong, and silent more
+  often than right*; never let a summary round it up (counts: WP-1041, which owns them).
 - **An ambiguity partner must be refuted by the lines it needs and the data
   lack** (asymmetric: the partner's extra predictions, never the parent's
   own absences), or every derivative lattice is reported and the gate can
@@ -664,11 +662,13 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
 - **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
   the reflection-pair method, McMaille refuses to scan the zeropoint and says so,
   and a cell found inside a widened window has absorbed the shift (WP-1038).
-- **Enumerate liberally, sort conservatively.** A *false* line costs only
-  computation (the enumeration still contains the truth); a *missing* line costs
-  success; and the figures of merit are what contamination actually damages.
-  Conograph searches on 48 lines where `DEFAULT_SEARCH_LINES` takes 20 in 2θ
-  order — which on NAC is the wrong twenty (WP-1039).
+- **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
+  rule this package cannot have** (WP-1039, `engines.search_line_order`). Which
+  twenty beats how many (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool; unbounded it doubles the acceptance
+  suite), and raising N *loses* answers — `indexes_the_search_lines` is an
+  **absolute** budget, so an admitted foreign line refutes the truth rather than
+  out-ranking it. Ties fall back to Q, so position-only lists are untouched.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
 one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /
