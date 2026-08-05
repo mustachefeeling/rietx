@@ -15,6 +15,59 @@
 /** Which way the pointer travels to make the pane on the grip's side *bigger*. */
 export type Grow = "up" | "down" | "left" | "right";
 
+/**
+ * Run `work` at most once at a time, and once more if it was asked while busy.
+ *
+ * The plot's `ResizeObserver` called `Plotly.Plots.resize` once per callback,
+ * and a drag delivers one callback per pointer move. Measured on the shipped
+ * build (WP-1032 task 1, 22 003-point NAC pattern decimated to 7347 drawn
+ * points, five traces): **one resize costs ~111 ms** and a 60-move drag issued
+ * **60 of them**, whose latencies climbed 117, 134, 151, 168 … ms — a queue
+ * draining at ~17 ms per item while new work arrived every ~17 ms — so the last
+ * resolved **1.10 s** after it was asked for. The page never dropped a frame
+ * (median 16.7 ms, zero long tasks): plotly's work is chunked, so the defect is
+ * not stutter but a canvas that *trails the grip by a second* and keeps
+ * redrawing after the mouse is up.
+ *
+ * Collapsing to "one in flight plus at most one queued" is what makes the last
+ * redraw the final size rather than the 60th of a queue. The trailing re-run is
+ * the half that matters: dropping the extras outright would leave the plot at
+ * whatever size it was when the last accepted call started.
+ *
+ * A promise-returning `work` is awaited; a synchronous one completes at once.
+ */
+export function coalesce(work: () => unknown): () => void {
+  let running = false;
+  let queued = false;
+  const done = () => {
+    running = false;
+    if (queued) {
+      queued = false;
+      go();
+    }
+  };
+  const go = () => {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    let out: unknown;
+    try {
+      out = work();
+    } catch (error) {
+      done();
+      throw error;
+    }
+    if (out && typeof (out as Promise<unknown>).then === "function") {
+      (out as Promise<unknown>).then(done, done);
+    } else {
+      done();
+    }
+  };
+  return go;
+}
+
 const AXIS = { up: "y", down: "y", left: "x", right: "x" } as const;
 const SIGN = { up: -1, down: 1, left: -1, right: 1 } as const;
 

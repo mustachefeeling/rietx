@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { axisOf, clampSize, dragged, fitColumns } from "./resize";
+import { axisOf, clampSize, coalesce, dragged, fitColumns } from "./resize";
 
 describe("which coordinate a grip reads", () => {
   it("is the one its pane grows along", () => {
@@ -85,5 +85,76 @@ describe("fitting stored columns into the window they are reopened in", () => {
   it("leaves them alone when nothing is measurable", () => {
     expect(fitColumns([920, 393], 0)).toEqual([920, 393]);
     expect(fitColumns(null, 1200)).toBeNull();
+  });
+});
+
+describe("coalescing the work a drag asks for sixty times", () => {
+  /** A worker that finishes when the test says so. */
+  function gated() {
+    const gates: Array<() => void> = [];
+    let started = 0;
+    const work = () => {
+      started += 1;
+      return new Promise<void>((resolve) => gates.push(resolve));
+    };
+    return { work, gates, started: () => started };
+  }
+
+  it("runs the first ask immediately", () => {
+    const g = gated();
+    coalesce(g.work)();
+    expect(g.started()).toBe(1);
+  });
+
+  it("collapses every ask made while busy into exactly one more", async () => {
+    // the measured case: 60 pointer moves against a 111 ms redraw.  Before this,
+    // all 60 were issued and the last resolved 1.10 s after the drag ended.
+    const g = gated();
+    const ask = coalesce(g.work);
+    for (let i = 0; i < 60; i++) ask();
+    expect(g.started()).toBe(1);
+
+    g.gates[0]();                       // the first redraw finishes
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(g.started()).toBe(2);        // one trailing run, not 59
+
+    g.gates[1]();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(g.started()).toBe(2);        // and nothing left queued
+  });
+
+  it("runs the trailing one, so the last size drawn is the final size", async () => {
+    // dropping the extras outright would leave the plot at whatever size the
+    // last *accepted* call started with — the drag's beginning, not its end
+    const sizes: number[] = [];
+    let release: (() => void) | null = null;
+    let current = 0;
+    const ask = coalesce(() => {
+      sizes.push(current);
+      return new Promise<void>((resolve) => (release = resolve));
+    });
+    current = 100;
+    ask();
+    for (let px = 101; px <= 160; px++) {
+      current = px;
+      ask();
+    }
+    release!();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sizes).toEqual([100, 160]);
+  });
+
+  it("accepts a synchronous worker, and is re-armed after a throw", () => {
+    let n = 0;
+    const ask = coalesce(() => {
+      n += 1;
+      if (n === 1) throw new Error("first one fails");
+    });
+    expect(ask).toThrow("first one fails");
+    ask();
+    expect(n).toBe(2);   // a throw must not latch the gate shut for ever
   });
 });

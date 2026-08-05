@@ -28,6 +28,7 @@
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
+  import { coalesce } from "../lib/resize";
   import type { Theme } from "../lib/theme";
 
   let {
@@ -404,12 +405,16 @@
    * knobs arrived, and the browser reported the result in the defect's own
    * words: a `<rect class="sdrag drag">` from the plot div "intercepts pointer
    * events" on a button 40 px underneath it.
+   *
+   * `coalesce` is WP-1032's half: one resize costs ~111 ms here and a sidebar
+   * drag delivered sixty of them, so the canvas trailed the grip by up to 1.1 s
+   * (the measurement, and why the trailing re-run is not optional, are in
+   * `lib/resize.ts`).
    */
   function watch() {
     if (observer || !node || typeof ResizeObserver === "undefined") return;
-    observer = new ResizeObserver(() => {
-      if (node && plotly) plotly.Plots?.resize(node);
-    });
+    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
+    observer = new ResizeObserver(fit);
     observer.observe(node);
   }
 
