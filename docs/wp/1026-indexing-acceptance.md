@@ -71,6 +71,31 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — this WP's
+scoreboard is superseded, and two of its three failure claims were never true of
+any tree it shipped on.** The handover entry below is left as written, because a
+dated entry is a record; **do not quote its scoreboard.** Re-measured:
+
+| | 1026 (2026-07-31) | 1041 (2026-08-05) |
+|---|---|---|
+| datasets | "eight", nine named | **nine**, counted |
+| truth ranked first | 5 | **6** |
+| truth found below first | (no bucket) | **2** — NAC rank 2, FAP rank 4 |
+| refused before searching | 1 | **1** — fluorite |
+| fail | 2 — brucite, magnetite | **0** |
+| promoted | 0 | **0** |
+
+Two structural defects, not arithmetic slips. The buckets had no room for *the
+truth is in the list and something else leads it*, which is what this package
+produces most — so FAP was counted as "right" by a sentence saying it is second,
+and NAC was described inside the failure bucket without being counted, which is
+where "eight" over nine names came from. And **brucite and magnetite were prose**:
+measured once, never acceptance rows, so never re-run while WP-1030's prunes,
+WP-1039's search-line ordering, WP-1040's third engine and WP-1041's dedup key
+changed the answer. Both now rank the truth **first**. They are rows now, and the
+scoreboard is *generated* from the acceptance run (`tests/indexing_gallery.py`),
+so the next re-measurement is a suite run rather than an edit.
+
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — "ranked first" is
 a weaker measurement than criterion 2 assumes, and the fix for it is refuted.**
 Criterion 2 grades on the truth being *ranked first*, which makes it a measurement

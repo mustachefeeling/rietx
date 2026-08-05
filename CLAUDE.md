@@ -615,9 +615,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice` *and its centring*, never sorted axes, or a correct answer in
-  another setting reads as a miss (WP-1040's monoclinic row) and a P description of
-  one cell reads as its own I truth (WP-1041's harness, on NAC).
+  `reduce.same_lattice`, *its centring*, **and the dataset's own accuracy band**,
+  never sorted axes. Drop any of the three and a wrong answer reads as right: sorted
+  axes miss a correct answer in another setting (WP-1040's monoclinic row), no
+  centring reads a P description as its own I truth (NAC), and `same_lattice` alone
+  falls back to a deliberately loose 5e-3 that calls FAP's +966 ppm leader and its
+  +258 ppm cross-code cell the same answer (WP-1041).
 - **Removing a redundant search must not remove its prunes**, and only real data will
   say that you did: the centred passes are redundant *as searches* (each centred trial
   set is a subset of the primitive one) and not as *filters*; the prunes being monotone
@@ -630,8 +633,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
   only the extinction screen separates the two. Choose acceptance datasets **by
   space group** — SRM 660c (P m -3 m) is the control that proved it.
-- The scoreboard across eight known-cell datasets is *never wrong, and silent more
-  often than right*; never round it up (counts: WP-1041).
+- The scoreboard over **nine** known-cell datasets is *never wrong, and silent more
+  often than right*: 6 first, 2 found-below-first, 1 refused pre-search, **0
+  promoted**. Never round it up, and **keep the found-but-not-first bucket** — it is
+  what this package produces most, and collapsing it is how the old board named nine
+  datasets under a total of eight. It is *generated* by `tests/indexing_gallery.py`,
+  so re-measure by running the suite, never by editing prose (WP-1041).
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And
