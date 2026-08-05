@@ -294,6 +294,19 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
     reason ``indexing/diagnostics.py`` is separate from the fitter: the facts and
     what they are worth are different decisions, and a threshold should move
     without touching the code that measures.
+
+    **``unmatched_observed`` is deliberately not read here, and it was measured
+    rather than overlooked** (WP-1041).  A caveat is an absolute verdict on one
+    candidate, and that count has no absolute scale: across 21 validated
+    candidates on six known-cell datasets it runs 10 to 188 *for correct cells*,
+    because its level is set by how much of the specimen the candidate's phase is
+    not — 11-BM NAC's own truth leaves 188 unmatched against a CaF₂ impurity.
+    Within one pattern it does discriminate, and there it is nearly the number
+    the fit already reports: Spearman ρ against Rwp is +0.80 to +1.00 on the five
+    datasets with enough candidates to rank, against +0.44 pooled across them.
+    So it is a comparative instrument, and reading it as a per-candidate verdict
+    is the same mistake as scoring the FoM panel absolutely
+    (:func:`~pxrdref.indexing.fom.log_sum_scores`).
     """
     out: list[IndexCaveat] = []
     engines = set(engines_run)

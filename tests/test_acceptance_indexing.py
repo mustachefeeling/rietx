@@ -1090,39 +1090,45 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     assert res.best_or_none() is None
 
 
-def test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_nothing(
+def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
         nac_index):
-    """The 11-BM synchrotron pattern **is** indexed as measured — by one engine.
+    """The 11-BM synchrotron pattern **is** indexed as measured — by two engines.
 
-    This row asserted the opposite until WP-1040, and the way it turned over is
-    the point.  λ = 0.4139 Å and the pattern runs to 57.4° 2θ, so d_min = 0.43 Å;
-    a 10.25 Å cubic cell at that resolution predicts more reflections than
+    This row asserted it could not be indexed at all until WP-1040, then that one
+    engine managed it, and the way it turned over twice is the point.  λ = 0.4139 Å
+    and the pattern runs to 57.4° 2θ, so d_min = 0.43 Å; a 10.25 Å cubic cell at
+    that resolution predicts more reflections than
     ``engines.reflection_ceiling_ok`` allows, so the dichotomy still rejects its
     very first box and explores **zero** of them.  That premise is unchanged and
     is asserted below, because it is what the guard is for.
 
-    What changed is that a third engine does not enumerate a box at all.
-    ``search_svd`` sizes its prediction set from the *current* trial metric and
-    Coelho's N_c/N_o gate holds it to at most four times the observed line count,
-    so the resolution that defeats an exhaustive box search never arises.  It
-    returns **a = 10.2512 Å, cubic I** — +19 ppm from the certified 10.2510 and
-    the right centring, where every 2θ-truncation attempt returned cubic *P* at
-    −5967 to +8189 ppm.
+    What changed is that the other two engines never enumerate a box.
+    ``search_svd`` sizes its prediction set from the *current* trial metric under
+    Coelho's N_c/N_o gate, and ``search_trial_error`` solves the metric from a few
+    base lines; neither meets the resolution that defeats an exhaustive search.
+    Both return **a = 10.2512 Å** — +19 ppm from the certified 10.2510 — in both
+    the P and the I description of identical axes.
 
-    **Two recorded no-goes died here, and neither by being argued with.**
-    WP-1026's "truncating 2θ was measured and does not work — recorded so the
-    next session does not spend the hour again" was measured with the 2θ-ordered
-    search-line selection WP-1039 later replaced.  And this row's own closing
-    sentence — "a search-line selection that ranked on something other than 2θ
-    order would change this row's outcome, which makes it an engine question" —
-    turned out to be exactly right, and the engine question had two answers
-    rather than one.  *A recorded no-go inherits the defects of the run that
-    produced it.*
+    **``trial_error`` reached this cell all along and its own dedup key threw it
+    away** (WP-1041).  The key was scale-invariant, so in a one-dimensional metric
+    every cubic candidate hashed to one entry, and it spanned the centring loop
+    without carrying the centring, so ``P`` — first in ``centrings_for`` — claimed
+    the metric and ``I`` was discarded unscored.  With ``engines.solution_key``
+    fixed the engine agrees with ``svd`` on both descriptions, which is why
+    ``found_by`` here has two names rather than one.
+
+    **Three recorded no-goes died here, and none by being argued with.**  WP-1026's
+    "truncating 2θ was measured and does not work" was measured with the 2θ-ordered
+    search-line selection WP-1039 replaced; this row's own "only ``svd`` can reach
+    it" lasted one WP; and its predecessor's closing sentence about search-line
+    selection being an engine question turned out right with more answers than it
+    expected.  *A recorded no-go inherits the defects of the run that produced it.*
 
     **The gate is untouched by any of this, which is the half that matters.**
-    One engine is not agreement, so the cell is ``low``, ``best_or_none()`` is
-    still ``None``, and ``INDEX_ABSTAINED`` still says so.  A capability gain
-    that quietly relaxed the confidence rule would be worth less than nothing.
+    ``dichotomy`` ran and found nothing, so ``engines_disagree`` still stands, the
+    cells are ``low``, ``best_or_none()`` is still ``None`` and ``INDEX_ABSTAINED``
+    still says so.  A capability gain that quietly relaxed the confidence rule
+    would be worth less than nothing.
     """
     peaks, res = nac_index
 
@@ -1145,7 +1151,7 @@ def test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_not
     by_centring = {c.centring: c for c in res.candidates}
     assert set(by_centring) == {"P", "I"}
     for cand in res.candidates:
-        assert cand.found_by == ["svd"], cand.found_by
+        assert cand.found_by == ["svd", "trial_error"], cand.found_by
         assert cand.system == "cubic"
         da = cand.cell[0] / A_NAC - 1.0
         assert abs(da) < 2.0e-4, f"a = {cand.cell[0]:.5f} ({da * 1e6:+.0f} ppm)"
@@ -1158,19 +1164,44 @@ def test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_not
         f"{by_centring['I'].lebail.n_reflections}")
     assert by_centring["P"].lebail.predicted_but_absent > 50
 
-    # **A known ranking defect, pinned rather than hidden** (WP-1040 task 3).
-    # The panel *has* the answer — `m_rev` is 356.1 for I against 0.69 for P, a
-    # 516× separation, exactly the reversed-member behaviour Oishi-Tomiyasu was
-    # adopted for — but `borda_scores` weighs every member alike, so the four
-    # forward-looking members (M₂₀ 2.60 vs 1.57, F_N 10.5 vs 7.8, and the two
-    # indexed fractions) outvote the three reversed ones 4-3 and the looser
-    # centring leads.  Balancing the two directions gives a tie rather than the
-    # right answer, so the fix is a magnitude-aware aggregate and it needs
-    # measuring across every row — filed, not attempted here.  **When it lands,
-    # this assertion inverts.**
+    # **A known ranking defect, pinned rather than hidden**, and the whole panel
+    # is written out because the margins are the argument (measured WP-1041):
+    #
+    #   member                        P        I     wins by
+    #   m20                       2.297    1.432    P, 1.6x
+    #   f_n                       8.571    6.685    P, 1.3x
+    #   indexed_fraction          0.786   0.7825    P, 1.004x
+    #   indexed_intensity_frac   0.9656   0.9655    P, 1.0001x
+    #   predicted_seen_fraction   0.462   0.8352    I, 1.8x
+    #   m_rev                    0.6907    356.1    I, 516x
+    #   m_sym                     1.285      408    I, 318x
+    #
+    # `borda_scores` weighs every member alike, so P takes it 4-3 — on two
+    # margins of 0.4 % and 0.01 %, against separations of 516x and 318x the
+    # other way.  A near-tie counting as a full win *is* the defect; the panel
+    # already holds the answer, which is the reversed-member behaviour
+    # Oishi-Tomiyasu was adopted for, and Le Bail confirms it (I predicts 0 of
+    # 837 absent, P predicts 92 of 1668).
+    #
+    # **The log-sum that was going to fix this has been measured, and it does
+    # not** (WP-1041).  Ranking on the panel's product is magnitude-aware and
+    # unit-invariant, and it does put the I description first here — but across
+    # six known-cell datasets it scores 5 of 6, exactly Borda's, because summing
+    # raw logs weights each member by its dynamic range: on certified corundum
+    # `m_rev` spans 2.5-356 where the coverage fractions span 0.78-0.99, and it
+    # promotes a half-volume subcell indexing 43 of 55 lines over the truth's 51.
+    # Standardising the logs cures corundum and degenerates exactly here, since
+    # with two candidates every z-score is +/-1 and NAC reverts to this answer.
+    # Down-weighting `m_rev` reaches 6 of 6 on a weight two datasets bracket only
+    # to 0.034-0.294 — one constant fitted on two points.
+    #
+    # So this row keeps its defect **and its reason**: the margin is comparable
+    # within a member, not across members, and no aggregate of these seven
+    # numbers has yet been shown to read both patterns right.  `log_sum_scores`
+    # is in `fom.py`, tested and unwired, with the measurement in its docstring.
     assert res.candidates[0].centring == "P", (
-        "the panel now leads with the centring that predicts nothing absent — "
-        "good; invert this assertion and delete the borda note with it")
+        "the panel still leads with the centring Le Bail refutes; invert this "
+        "only with a measured aggregate, not a predicted one")
 
     # …and it is still not promoted, on caveats that name why
     best = res.candidates[0]
@@ -1732,8 +1763,12 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
         lab6_calibrated, lab6_peaks):
     """The whole protocol, with every piece of evidence supplied — and ``high``.
 
-    This is the first ``high`` confidence answer ``index_pattern`` returns on
-    real data, and the first time ``best_or_none()`` hands back a cell at all.
+    This is the first ``high`` confidence answer ``index_pattern`` returns on real
+    data.  It is **not** the first time ``best_or_none()`` hands back a cell: that
+    claim held only while a dedup bug was suppressing two rivals, and it is
+    withdrawn below with the measurement that withdraws it (WP-1041).  The ``high``
+    on the certified cell itself is unaffected.
+
     It costs three things, and naming them is the point of the row:
 
     1. the five off-lattice components removed — **using the certificate**, which
@@ -1772,8 +1807,45 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # the gate, with nothing left to object to
     assert best.confidence == "high", sorted(best.confidence_caveats)
     assert best.confidence_caveats == []
-    assert res.best_or_none() is not None
     assert set(best.found_by) == set(res.engines_run)
+
+    # **And `best_or_none()` is None anyway, because two more cells also reach
+    # `high` — a defect this row used to hide rather than one WP-1041 caused.**
+    #
+    # Both are the a·√2 supercell (5.878564 = 4.156772 × 1.414214), in its I and
+    # P descriptions, and all three engines find all three cells.  They used to
+    # carry `engines_disagree` only because `trial_error`'s dedup key was
+    # scale-invariant, so in a one-dimensional metric it could return **one**
+    # cubic candidate per search and the supercells never got its vote.  The
+    # unique `high` on the package's flagship real-data row was therefore
+    # protected by a bug, not by the gate — the exact inversion of "a filter
+    # fails with a wrong answer": here a broken filter was producing the *right*
+    # answer for no reason.
+    #
+    # Everything needed to refute the supercell is measured and none of it is
+    # gated (compare #1 against #2/#3):
+    #
+    #   Le Bail Rwp             0.098   0.250   0.664
+    #   predicted_seen_fraction 1.00    0.88    0.49
+    #   m_rev                   890     6.2     1.8
+    #   unmatched_observed      17      91      136
+    #   predicted_but_absent    0/30    0/35    0/67   <- the one caveat that IS
+    #                                                     gated, and it is blind
+    #
+    # So this is the same root as the `borda_scores` note on the NAC row: the
+    # panel holds the answer and the aggregation does not use its magnitude,
+    # plus `caveats_for` reads `predicted_but_absent` and never its mirror
+    # `unmatched_observed`, which `indexing/workflow.py`'s own module docstring
+    # says is what catches a wrong metric.  Both need one measured fix.
+    # **When it lands, this block inverts back to `is not None`.**
+    high = [c for c in res.candidates if c.confidence == "high"]
+    assert len(high) == 3, [(c.centring, round(c.cell[0], 6)) for c in high]
+    assert res.best_or_none() is None
+    for rival in res.candidates[1:]:
+        ratio = rival.cell[0] / best.cell[0]
+        assert ratio == pytest.approx(np.sqrt(2.0), abs=1e-5), ratio
+        assert rival.lebail.rwp > 2.0 * best.lebail.rwp
+        assert rival.fom_value("m_rev") < 0.05 * best.fom_value("m_rev")
 
     # the displacement, taken out of the cell rather than absorbed into it
     assert best.shift_template == "cos_theta"

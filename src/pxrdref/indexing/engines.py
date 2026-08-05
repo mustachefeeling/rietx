@@ -877,6 +877,52 @@ def _volume_esd(fit: CandidateFit) -> float:
     return float(np.sqrt(max(grad @ np.asarray(fit.cov_af) @ grad, 0.0)))
 
 
+#: Relative grid a solved metric is hashed on before it is refined.  A real cell is
+#: reached by many different base sets (``trial_error``) and many different random
+#: starts (``svd``), and re-fitting each of them is the cost this pre-filter avoids.
+SAME_SOLUTION_RTOL = 1e-3
+
+
+def solution_key(af: np.ndarray, centring: str = "") -> tuple[object, ...]:
+    """The **within-engine** dedup key of a solved metric: cheap, and lossless in
+    the two ways an engine's ``seen`` set can silently discard a real hypothesis.
+
+    Both are measured defects rather than precautions, and both were found in
+    ``svd`` (WP-1040) before being fixed here for ``trial_error`` too (WP-1041) —
+    which is why the key lives in this module, the one place engines share.
+
+    *One: it is scale-**dependent**.*  The obvious form ``round(af / (max|af| ·
+    rtol))`` is scale invariant, and for a one-dimensional metric that is fatal
+    rather than merely lossy: every cubic cell is ``(A, A, A, 0, 0, 0)``, so
+    dividing by ``max|af|`` maps all of them to one key and the first candidate
+    reached blocks every later one.  Measured on a clean synthetic cubic pattern:
+    **0 candidates** from 72 starts that included the truth.  So the quantised
+    scale goes into the key too, on a logarithmic grid of the same relative width.
+
+    *Two: it carries the centring.*  A ``seen`` set spanning the centring loop with
+    a centring-free key lets the first centring tried claim a metric while every
+    later one is silently discarded — and ``P`` is first in ``centrings_for``.
+    Measured on 11-BM NAC: the answer came back cubic **P** with 92
+    predicted-and-absent reflections in place of the cubic **I** description of
+    identical axes, which has none.  It is also what ``dedup_groups`` already says
+    one rank up — two centrings of one metric are two lattices, predicting
+    different numbers of lines, and the figures of merit exist to choose between
+    them.  Passing ``centring=""`` is the deliberate opt-out, for a caller whose
+    loop does not span centrings at all.
+
+    This is a *pre-filter*, never the authority on whether two candidates are the
+    same lattice: that is ``dedup_groups``' χ² test on the Niggli-reduced metric,
+    which knows about settings and covariance and costs accordingly.
+    """
+    a = np.asarray(af, dtype=np.float64)
+    scale = float(np.max(np.abs(a)))
+    if not np.isfinite(scale) or scale <= 0.0:
+        return (centring, *(0,) * (len(a) + 1))
+    decade = int(np.round(np.log(scale) / np.log1p(SAME_SOLUTION_RTOL)))
+    return (centring, decade,
+            *np.round(a / (scale * SAME_SOLUTION_RTOL)).astype(np.int64))
+
+
 def dedup_groups(cands: Sequence[EngineCandidate],
                  ) -> list[list[EngineCandidate]]:
     """Group candidates that are the same lattice, best-fitting member first.
@@ -1190,7 +1236,8 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
            "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
-           "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES", "SYSTEM_ORDER",
+           "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES",
+           "SAME_SOLUTION_RTOL", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",
            "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
@@ -1200,5 +1247,5 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "scored_positions", "search_line_order", "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
-           "reflection_ceiling_ok", "register_engine", "to_cell_candidate",
-           "trial_hkl"]
+           "reflection_ceiling_ok", "register_engine", "solution_key",
+           "to_cell_candidate", "trial_hkl"]

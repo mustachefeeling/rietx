@@ -57,6 +57,7 @@ from .engines import (
     register_engine,
     search_line_order,
     shift_allowance_diagnostic,
+    solution_key,
     trial_hkl,
 )
 from .qspace import (
@@ -125,10 +126,6 @@ MAX_ASSIGN_PER_BASE = 4_000_000
 #: Rows solved per batched ``np.linalg.solve`` call.  Memory, not speed: the batch
 #: is (chunk, n, n) float64 plus the same again for the solution.
 SOLVE_CHUNK = 200_000
-#: Relative grid on which a solved metric is hashed before it is refined — the same
-#: cheap pre-filter WP-1021 uses, and for the same reason (a real cell is solved
-#: exactly by many different base sets).
-_SAME_SOLUTION_RTOL = 1e-3
 
 
 def index_table(basis: np.ndarray, centring: str, max_index: int, *,
@@ -364,7 +361,7 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
 
     theta_lo, theta_hi = _initial_box(basis, spec)
     found: list[EngineCandidate] = []
-    seen: set[tuple[int, ...]] = set()
+    seen: set[tuple[object, ...]] = set()
     n_solved = 0
     complete = True
     for centring in spec.centrings_for(system):
@@ -391,7 +388,10 @@ def _search_system(peaks: PeakList, system: str, basis: np.ndarray,
                 rows, combos, q_all[lines], basis, spec, vol_max)
             n_solved += len(combos)
             for af, combo in zip(af_batch, combo_batch):
-                key = _solution_key(af)
+                # keyed on the centring as well as the metric, because ``seen``
+                # spans the centring loop — see ``engines.solution_key`` for the
+                # two ways a lazier key silently discards a real hypothesis
+                key = solution_key(af, centring)
                 if key in seen:
                     continue
                 seen.add(key)
@@ -414,13 +414,6 @@ def _scoring_index(spec: SearchSpec, q_all: np.ndarray,
     """
     q_hi = float(q_all.max() + spec.k_sigma * sigma.max())
     return int(np.ceil(spec.max_d_axis * np.sqrt(max(q_hi, 1e-12)))) + 1
-
-
-def _solution_key(af: np.ndarray) -> tuple[int, ...]:
-    scale = float(np.max(np.abs(af)))
-    if not np.isfinite(scale) or scale <= 0.0:
-        return (0,) * len(af)
-    return tuple(np.round(af / (scale * _SAME_SOLUTION_RTOL)).astype(np.int64))
 
 
 def _score(basis: np.ndarray, system: str, centring: str, spec: SearchSpec,

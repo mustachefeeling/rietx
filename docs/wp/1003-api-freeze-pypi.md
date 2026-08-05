@@ -11,6 +11,18 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — one new public
+export that is deliberately unwired, and the freeze has to decide about it.**
+`pxrdref.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,
+`AGGREGATE_FLOOR_RTOL`) is exported from `fom.__all__` and `indexing/__init__`,
+is tested, and **nothing in the package calls it**: `rank_candidates` still
+aggregates with `borda_scores`. It ships because it is the instrument that
+measured the panel-aggregation question and refuted the recorded design, and its
+docstring carries that measurement. Freeze options are to keep it public as a
+measurement tool, make it private, or land a successor aggregate first — but it
+must not be frozen *by accident* as a supported ranking API, because it is not
+the ranking. Same question, smaller: the constants are exported beside it.
+
 **From the 2026-08-04 use session (WP-1032…1036) — two freeze-relevant surface
 changes and one that touches a question already in this mailbox.**
 [1035](1035-symmetry-surfaced.md) makes a phase's **space group editable**

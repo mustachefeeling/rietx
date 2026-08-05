@@ -293,9 +293,21 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                        space_group: str | None = None,
                        two_theta_limits: tuple[float, float] | None = None,
                        k_sigma: float = ABSENT_SIGMA,
+                       with_result: bool = False,
                        cancel=None) -> LeBailValidation:
     """Fit ``candidate`` to the whole pattern by Le Bail and report the three
     detectors.
+
+    ``with_result=True`` additionally returns the
+    :class:`~pxrdref.schemas.results.RefinementResult` the fit produced, as
+    ``(validation, result)`` — ``result`` is ``None`` when the fit raised, which
+    is the state ``status="failed"`` describes.  It is **opt-in and not a field
+    on** :class:`~pxrdref.schemas.indexing.LeBailValidation` for the reason
+    history nodes store state rather than curves: the validation object is a
+    JSON-round-tripped schema of a few hundred bytes, and a result carries
+    y_obs/y_calc/y_background over every channel.  So the caller who wants a
+    picture asks for one, and every caller who wants a verdict is unaffected —
+    ``index_pattern`` among them, which stores the verdict on the candidate.
 
     Single-phase by construction, and that is a measured constraint rather than a
     simplification: ``CompiledModel.lebail_update`` partitions
@@ -340,7 +352,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     except RefinementCancelled:
         raise                       # before the generic handler — see docstring
     except Exception as exc:                        # noqa: BLE001
-        return LeBailValidation(
+        failed = LeBailValidation(
             rwp=float("inf"), gof=float("inf"), space_group=symbol,
             n_reflections=0, status="failed",
             diagnostics=[Diagnostic(
@@ -352,6 +364,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
                             "search — but check the instrument first: a "
                             "mis-declared profile or a wavelength on an "
                             "absorption edge fails for every candidate alike"))])
+        return (failed, None) if with_result else failed
 
     rows = [r for r in ref.reflection_table() if r.line == 0]
     positions = np.array([r.two_theta for r in rows], dtype=np.float64)
@@ -364,7 +377,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     layer0 = build_layer0(result)
     unmatched = [u.two_theta for u in layer0.unmatched
                  if u.kind == "unmatched_obs"]
-    return LeBailValidation(
+    validation = LeBailValidation(
         rwp=float(result.statistics.rwp), gof=float(result.statistics.gof),
         space_group=symbol, n_reflections=len(rows),
         predicted_but_absent=len(absent_tt),
@@ -372,6 +385,7 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
         predicted_but_absent_two_theta=[round(v, 4) for v in absent_tt],
         unmatched_observed_two_theta=[round(float(v), 4) for v in unmatched],
         status=result.status, n_stages=len(result.stages))
+    return (validation, result) if with_result else validation
 
 
 # ----------------------------------------------------------------------
