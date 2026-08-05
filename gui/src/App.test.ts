@@ -495,9 +495,19 @@ function server(routes: Record<string, (call: Call) =>
   return { fetcher, calls };
 }
 
-/** The routes a mounted shell asks for before anyone has clicked anything. */
-function boot(project: any = PROJECT, run: any = IDLE_RUN) {
+/** The routes a mounted shell asks for before anyone has clicked anything.
+ *
+ * `appUi` is the *person's* settings store (WP-1043), which is a different
+ * scope from `project.doc.ui` and answers a different question — the theme is
+ * about the screen, a column width is about the project. */
+function boot(project: any = PROJECT, run: any = IDLE_RUN,
+              appUi: Record<string, unknown> = {}) {
+  const ui = { ...appUi };
   return {
+    "/api/settings": (call: Call) => {
+      if (call.method === "POST") Object.assign(ui, call.body.ui);
+      return { body: { ui } };
+    },
     "/api/version": () => ({ body: { package_version: "1.0.0.dev0", project: project?.path ?? null } }),
     "/api/capabilities": () => ({ body: CAPABILITIES }),
     "/api/project": (call: Call) =>
@@ -1355,8 +1365,46 @@ describe("disclosure and the command palette", () => {
     // …and `color-scheme` with it, which is what the unstyled native controls read
     expect(document.documentElement.style.colorScheme).toBe("dark");
 
-    const post = stub.calls.find((call) => call.method === "POST" && call.path === "/api/project");
+    // …to the *app's* settings, not the project's (WP-1043)
+    const post = stub.calls.find((call) => call.method === "POST" && call.path === "/api/settings");
     expect(post?.body).toEqual({ ui: { theme: "dark" } });
+    expect(stub.calls.some((call) => call.method === "POST" && call.path === "/api/project"))
+      .toBe(false);
+  });
+
+  it("restores the person's theme, and the project has no say in it (WP-1043)", async () => {
+    // The defect: `readUi` re-read the choice off whichever document was open,
+    // so a project that had never been told reset it — measured in Chrome,
+    // choosing dark and opening a second project came back `system`. The
+    // project below carries a stale `ui.theme` from before this moved, and the
+    // page must ignore it: one authority, and it is not this one.
+    const stale = { ...PROJECT, doc: { ...PROJECT.doc, ui: { theme: "light" } } };
+    const stub = server(boot(stale, IDLE_RUN, { theme: "dark" }));
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    const on = [...host.querySelectorAll<HTMLElement>('[aria-label="theme"] button')]
+      .find((b) => b.classList.contains("on"));
+    expect(on?.getAttribute("aria-label")).toBe("dark");
+  });
+
+  it("offers the theme with no project open — the empty state is a screen too",
+     async () => {
+    const stub = server(boot(null));
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const dark = [...host.querySelectorAll("button")]
+      .find((b) => b.getAttribute("aria-label") === "dark");
+    expect(dark).toBeTruthy();
+    dark!.click();
+    await flush();
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/settings")?.body)
+      .toEqual({ ui: { theme: "dark" } });
   });
 
   it("repaints the plot on a theme change — new ink, no refetch", async () => {

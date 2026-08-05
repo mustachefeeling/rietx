@@ -228,6 +228,54 @@ def test_version_and_recent_work_without_a_project(blank):
     assert client.get("/api/recent")[0] == 200
 
 
+def test_app_settings_are_the_persons_and_outlive_the_project(blank, tmp_path,
+                                                              pattern_file):
+    """WP-1043 — `/api/settings` is a second `ui` dict, at app scope.
+
+    The line between the two is what the key is *about*: a column width is a
+    fact about a project (it has four phases), a theme is a fact about the
+    person.  Putting the theme in ``ProjectDoc.ui`` made ``readUi`` re-read it
+    per project, so choosing dark and opening a second project came back
+    ``system`` — measured in a browser, which is where it was reported.
+    """
+    session, client = blank
+    assert client.get("/api/settings") == (200, {"ui": {}})
+
+    status, payload = client.post("/api/settings", {"ui": {"theme": "dark"}})
+    assert status == 200 and payload == {"ui": {"theme": "dark"}}
+    # merges at the top level and persists on the verb, exactly as the
+    # project's own `ui` does — one grammar for both scopes
+    assert client.post("/api/settings", {"ui": {"other": 1}})[1] == {
+        "ui": {"theme": "dark", "other": 1}}
+    assert client.post("/api/settings", {"ui": {"other": None}})[1] == {
+        "ui": {"theme": "dark"}}
+
+    # …and it is the *store* that holds it, not this session: opening a project
+    # in a fresh session over the same state directory still answers dark
+    _project(tmp_path / "settings.pxrd", pattern_file)
+    other = GuiSession(state_dir=session.state_dir)
+    other.project_open({"path": str(tmp_path / "settings.pxrd")})
+    assert other.settings() == {"ui": {"theme": "dark"}}
+    assert other.project_doc()["doc"]["ui"] == {}       # and the project has no say
+    other.close()
+
+    status, payload = client.post("/api/settings", {"theme": "dark"})
+    assert status == 400 and payload["error"]["where"] == ["theme"]
+
+
+def test_app_settings_survive_an_unreadable_store(blank):
+    """A mangled or unwritable file is an empty setting, never a boot failure."""
+    session, client = blank
+    session.state_dir.mkdir(parents=True, exist_ok=True)
+    (session.state_dir / "settings.json").write_text("{not json", encoding="utf-8")
+    assert client.get("/api/settings") == (200, {"ui": {}})
+    # a list where a dict belongs is the same answer, not a 500
+    (session.state_dir / "settings.json").write_text('{"ui": []}', encoding="utf-8")
+    assert client.get("/api/settings") == (200, {"ui": {}})
+    assert client.post("/api/settings", {"ui": {"theme": "light"}})[1] == {
+        "ui": {"theme": "light"}}
+
+
 def test_project_verbs_refuse_before_a_project_is_open(blank):
     """``NO_PROJECT`` rather than a 500 or an empty table."""
     _, client = blank
@@ -1827,6 +1875,17 @@ def test_mutating_verbs_refuse_while_a_run_is_in_flight(blocked):
     params = client.get("/api/params")[1]
     assert params["live"] is True
     assert client.get("/api/history")[0] == 200
+
+    # The app's own settings are **not** among them (WP-1043), and that is the
+    # finding WP-1029 recorded and could not fix from inside `POST /api/project`:
+    # a theme is not model state, so refusing it mid-run with "this verb would
+    # change the model a compiled stage was built from" was both a refusal
+    # nobody needed and a sentence that was not true.  It is out of the locked
+    # route entirely now — the project's other `ui` keys still ride it, so the
+    # freeze question 1003 inherited is smaller rather than gone.
+    assert client.post("/api/settings", {"ui": {"theme": "dark"}}) == (
+        200, {"ui": {"theme": "dark"}})
+    assert client.get("/api/settings")[0] == 200
 
     release.set()
     _wait_idle(client)

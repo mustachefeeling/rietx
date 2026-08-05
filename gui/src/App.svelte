@@ -201,13 +201,17 @@
   }
 
   /** The `ui` keys this frontend owns, read back off the document it saved them
-   *  to — one place, so a new key cannot be persisted and then never restored. */
+   *  to — one place, so a new key cannot be persisted and then never restored.
+   *
+   *  The theme is **not** among them and that is the point (WP-1043): these are
+   *  facts about a project (it has four phases, so the table wants to be wide),
+   *  and re-reading a theme per project is what made choosing dark last until
+   *  the next `Open…`. It lives in `/api/settings`, loaded once at boot. */
   function readUi() {
     simple = project?.doc?.ui?.simple ?? true;
     consoleHeight = project?.doc?.ui?.console_height ?? 150;
     sideWidth = project?.doc?.ui?.side_width ?? null;
     modelColumns = project?.doc?.ui?.model_columns ?? null;
-    themeChoice = readChoice(project?.doc?.ui?.theme);
   }
 
   /** Persist a `ui` key on the verb, not on a later save (WP-1005/1008). */
@@ -459,10 +463,21 @@
     return THEME_CHOICES[(THEME_CHOICES.indexOf(themeChoice) + 1) % THEME_CHOICES.length];
   }
 
+  /** The app's own `ui` keys — the person's, not a project's (WP-1043).
+   *
+   *  Applied before it is sent, and a refusal costs the *persistence* rather
+   *  than the choice: the state directory may be read-only (the server treats
+   *  it the same way, `settings_patch`), and a theme that snapped back because
+   *  a home directory is not writable would be a worse answer than a quiet one.
+   */
   async function setTheme(next: ThemeChoice) {
     themeChoice = next;
-    await setUi({ theme: next });
-    say(`project.doc.ui["theme"] = ${JSON.stringify(next)}`);
+    try {
+      await api.patchSettings({ theme: next });
+      say(`session.settings_patch({"ui": {"theme": ${JSON.stringify(next)}}})`);
+    } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
   }
 
   /** Every splitter reports live and persists once — `done` is the round trip. */
@@ -528,8 +543,10 @@
       run: () => { tab = "model"; startImport(); } },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
+    // no `disabled`: the theme is the person's, so it is reachable in the empty
+    // state too — which is the one screen a first-time user starts on
     { id: "theme", label: `Theme: ${themeChoice} — switch to ${nextTheme()}`,
-      echo: 'project.doc.ui["theme"]', disabled: !project,
+      echo: 'session.settings_patch({"ui": {"theme": …}})',
       run: () => setTheme(nextTheme()) },
     { id: "save", label: "Save the project", echo: "project.save()", disabled: !project,
       run: async () => { await api.save(); say("project.save()"); } },
@@ -572,6 +589,13 @@
     (async () => {
       version = await api.version();
       capabilities = await api.capabilities();
+      // the person's settings, before the project's: the theme is applied on
+      // the first paint rather than after one in the wrong one (WP-1043)
+      try {
+        themeChoice = readChoice((await api.settings()).ui?.theme);
+      } catch {
+        // an unreadable store is the default choice, not a boot failure
+      }
       await loadProject();
       run = await api.runState();
       await loadResult();
@@ -685,13 +709,16 @@
         <button class:on={!simple} onclick={() => setSimple(false)}
           title="show every field a stage and a parameter carry">Advanced</button>
       </div>
-      <div class="segmented theme" role="group" aria-label="theme">
-        {#each THEME_CHOICES as choice (choice)}
-          <button class:on={themeChoice === choice} onclick={() => setTheme(choice)}
-            aria-label={choice} title={THEME_TITLE[choice]}>{GLYPH[choice]}</button>
-        {/each}
-      </div>
     {/if}
+    <!-- outside the `{#if project}` above, because a theme is not the
+         project's (WP-1043): the empty state is a screen too, and it is the
+         one a first-time user starts on -->
+    <div class="segmented theme" role="group" aria-label="theme">
+      {#each THEME_CHOICES as choice (choice)}
+        <button class:on={themeChoice === choice} onclick={() => setTheme(choice)}
+          aria-label={choice} title={THEME_TITLE[choice]}>{GLYPH[choice]}</button>
+      {/each}
+    </div>
     <span class="pill" data-state={run?.state ?? "idle"}>
       {#if busy}
         {run?.run.stage ?? "starting"}
