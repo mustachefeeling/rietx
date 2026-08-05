@@ -1,8 +1,8 @@
 # WP-1040 — Engine C (second attempt): SVD-Index
 
-Milestone: v1.0 · Status: 🔄 2026-08-05 — **built and landed**, tasks 0-6 done
-including the zero-error column; only the 8-dataset scoreboard is open, and it is
-handed to WP-1041 behind two `trial_error` dedup fixes measured here
+Milestone: v1.0 · Status: ✅ 2026-08-05 — **built and landed**, every task done;
+the scoreboard was re-measured in WP-1041 behind the two `trial_error` dedup fixes
+measured here, and both of the failures this WP inherited now rank the truth first
 Depends on: WP-1020, WP-1024 (1038 soft)
 
 ## Goal
@@ -12,26 +12,6 @@ behind TOPAS's indexing module, which is this package's stated design target. It
 supersedes WP-1023's Monte Carlo no-go rather than reopening it.
 
 ## Context
-
-### Inherited
-
-**From WP-1041, 2026-08-05 — both dedup fixes you handed over are landed, and the
-defect was larger than you measured it.** They are now one shared
-`engines.solution_key`, since `trial_error._solution_key` and `svd._solution_key`
-were the same function with a different bug fixed in each. Two corrections to what
-this WP recorded:
-
-* **Scale invariance is not "cubic, and only cubic".** It merges any two metrics
-  related by a *uniform rescaling* — one candidate per **shape** in every system, so
-  a cell always collides with its own uniform supercell.
-* **`seen.add` runs before `_score`**, so a metric that *fails* scoring claims its
-  whole shape family. That is what made `INDEX_DOMINANT_ZONE` fire for two years on a
-  fixture the base table could in fact solve.
-
-Consequences for this WP's own rows: **11-BM NAC is now found by `trial_error` as
-well as `svd`** (`found_by == ["svd", "trial_error"]`), in both the P and I
-descriptions at +19 ppm; the gate is unchanged, because `dichotomy` still finds
-nothing. Nothing else in the acceptance file moved. The scoreboard stays with 1041.
 
 ### Why WP-1023's no-go does not fence this
 
@@ -136,10 +116,13 @@ any decompiled artefact.
       "unrefined random-cell scoring does not rank".
 - [x] Acceptance across the corpus + `validation_matrix.py` + regenerate
       `docs/VALIDATION.md`. *(38 rows green; two `Claim`s added, 63 total.)*
-- [ ] Re-measure the 8-dataset scoreboard with three engines. **Handed to
-      WP-1041**, which owns the scoreboard and must fix `trial_error`'s two
-      dedup defects *first* — both were measured here and both move cubic rows,
-      so counts recorded before them would be stale on arrival.
+- [x] Re-measure the scoreboard with three engines. **Done in WP-1041**
+      (2026-08-05), and the handoff condition was right: fixing `trial_error`'s
+      dedup first turned over three rows, and the board itself turned out to
+      have **nine** datasets rather than eight. Final: 6 rank the truth first,
+      2 find it below first, 1 is refused before searching, **0 promoted** —
+      with brucite and magnetite, this WP's two inherited "failures", both now
+      first. It is generated from the acceptance run rather than typed.
 
 ## Acceptance
 

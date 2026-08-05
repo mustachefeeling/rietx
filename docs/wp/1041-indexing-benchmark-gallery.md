@@ -1,7 +1,8 @@
 # WP-1041 — The indexing benchmark gallery
 
-Milestone: v1.0 · Status: 🔄 2026-08-05 — dedup key, opt-in Le Bail result and the
-three renderers landed; the aggregate measured and refuted; the benchmark tasks open
+Milestone: v1.0 · Status: ✅ 2026-08-05 — all nine tasks landed. Every acceptance row
+leaves PNGs, the scoreboard is generated and re-measured (9 datasets: 6/2/1/0), the
+contamination curve is measured, and the aggregate was measured and refuted
 Depends on: WP-1026
 
 ## Goal
@@ -145,17 +146,25 @@ rows.
 - [x] `viz/` gains indexing plots: picked peaks over the pattern, ranked-candidate
       tick rows via `fom.predicted_lines`, and the Le Bail obs/calc/diff panel with
       `predicted_but_absent` / `unmatched_observed` marked.
-- [ ] Every acceptance row writes its PNGs to `tests/output/`, closing the
-      `tests/CLAUDE.md` rule's exception. Prioritise the phantom-component and
-      tail-component rows — those are pictures waiting to be drawn.
-- [ ] Real-data contamination sweep: inject k impurity lines into a certified peak
-      list, sweep k, measure rank of truth / n_indexed / M₂₀ / confidence /
-      `best_or_none()`. Report against Coelho Table 6 and McMaille §V.
-- [ ] Re-measure the eight-dataset scoreboard, fix its arithmetic, and decide
-      whether brucite and magnetite become rows. Update all three copies
-      (`CLAUDE.md`, `docs/milestones/v1.0.md`, `docs/wp/1026-*.md`).
-- [ ] A one-page benchmark summary a reader can scan: dataset, provenance, what is
-      asserted, what happened, and the picture.
+- [x] Every acceptance row writes its PNGs to `tests/output/` — `tests/indexing_gallery.py`
+      draws per dataset and writes a JSON sidecar. Wiring it to real data found
+      **three defects in the renderers**, all of them the picture contradicting its
+      own labels; the tail-component row got the picture the three generic
+      renderers cannot draw, since those components are *unflagged*.
+- [x] Real-data contamination sweep, on the certified LaB6 list. **What breaks is
+      the grade, not the rank, and by arithmetic** — the truth indexes exactly its
+      own 25 lines at every k and never an injected one. Two protocols, because
+      `n_unindexed` is absolute and no user knows k. Le Bail §V's fractions are a
+      fair comparison and it lands on them; Coelho Table 6's rates are not, and the
+      row says why instead of quoting them side by side.
+- [x] Scoreboard re-measured and **generated** rather than retyped: 9 datasets,
+      6 first, 2 found-below-first, 1 refused, 0 promoted. Brucite and magnetite
+      are rows now and **both of the recorded failures had turned over**. All three
+      copies updated; WP-1026's dated entry left intact under a superseded note.
+- [x] The one-page summary is `tests/output/indexing_gallery.html`, built by
+      `python -m tests.indexing_gallery` from the sidecars — dataset, provenance,
+      what is asserted, what happened, and the pictures, with the scoreboard on
+      top. Generated from the run, so it cannot say more than the run did.
 
 ## Acceptance
 
@@ -183,6 +192,123 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   inventory as it stands.
 
 ## Handover log
+
+- **2026-08-05 (third session, branch `wp1041-benchmark-gallery` off the merged
+  `main`)** — **nine of nine; the WP's remaining tasks are done.** The theme of
+  the session is one sentence: *a number that is not regenerated is a number
+  nobody re-measures*, and it cost this WP four separate stale records.
+
+  **Task 6 — the gallery.** `tests/indexing_gallery.py` draws per dataset and
+  writes a JSON sidecar; one sidecar per dataset, never a shared manifest,
+  because these rows span five xdist groups and an appended file would
+  interleave. 38 PNGs over 16 datasets. Cost: measured on corundum, the whole
+  gallery is 10.2 s against that row's search, and the only real component is the
+  one extra `validate_by_lebail(with_result=True)` the obs/calc/diff panel needs
+  — which **reproduces the stored verdict exactly** (Rwp 0.2822 against 0.2822,
+  12 predicted-but-absent against 12), so the picture cannot disagree with the
+  number beside it.
+
+  **Wiring the renderers to real data found three defects in them, all of the
+  same kind, and all in code this WP landed last session.** They are why the
+  session took as long as it did, and each is now pinned:
+
+  1. **The matching window.** `plot_candidates` asked "is this the same line" in
+     the raw per-line σ where the search asked it in a *widened* one. On NAC that
+     put `224/285 indexed` and `not indexed by #1 (213)` in one figure. It takes
+     `q_match` now, and `engines.match_window` is the one authority — `consensus`
+     was open-coding the same two lines.
+  2. **The shift.** The guard was `hasattr(best, "fit")`, never true on a
+     `CellCandidate`, so every shift-carrying candidate was drawn against
+     positions it had not claimed — exactly what `scored_positions` exists to
+     prevent, with a comment claiming it was being used.
+  3. **The range floor.** Enumerating from `peaks.two_theta_min` drops the
+     boundary prediction, and that attribute *is* the first line's own position,
+     so **every** candidate figure read its first observed line as unindexed.
+
+  The share in the label is now *quoted from* `predicted_seen_fraction` rather
+  than recomputed, because the panel stops at the last observed line and a
+  picture must cover its axis — recomputing printed 43 % beside a panel that had
+  ranked on 46 %.
+
+  **Task 7 — the contamination sweep.** k impurity lines into the certified LaB6
+  list. **What breaks is the grade, not the rank, and by arithmetic**: the truth
+  indexes *exactly* its own 25 lines at every k and never an injected one, so
+  `indexed_fraction` is 25/(25+k) and the 0.9 bar falls between k = 2 (0.926,
+  `high`) and k = 3 (0.893, `low`). Rank, over eleven k and eight seeds:
+
+  | k | first, `n_unindexed` = k | first, `n_unindexed` = 3 |
+  |---|---|---|
+  | 6 | 8/8 | 8/8 |
+  | 9 | 8/8 | 5/8 |
+  | 12 | 8/8 | 2/8 |
+  | 15 | 2/8 | 1/8 |
+  | 18 | 1/8 | 0/8 |
+
+  The right column is the experiment a user runs, and it is *the absolute budget
+  showing as a contamination limit* — when it misses, the truth is **nowhere**,
+  not second. **Do not read the left column past k = 12 as robustness**: it is
+  not monotone (k = 21 returns 8/8) and M₂₀ of the truth says why — ~160, ~300,
+  then **3-5** once more than twenty injected lines mean the first twenty of the
+  list are mostly impurity, at which point the member is noise for every
+  candidate alike. Le Bail §V's fractions are the fair comparison and the
+  budget-matched column lands on them; **Coelho Table 6 is not comparable** and
+  the row says so rather than quoting it alongside — an ensemble of structures in
+  systems with three to six free metric parameters against one cubic lattice with
+  one, and cubic is not in that table.
+
+  **Task 8 — the scoreboard, and two of its three failures were never true of any
+  tree it shipped on.** Re-measured: **9** datasets, **6** rank the truth first,
+  **2** find it below first (NAC rank 2, FAP rank 4), **1** refused pre-search
+  (fluorite), **0** promoted. brucite and magnetite were prose from before
+  WP-1030's prunes and are now rows, each in its own group — **both rank the
+  truth first.** Brucite's c × 2 and c × 3 supercells sit below it at
+  `predicted_seen_fraction` 0.43 and 0.32 against 0.86, near the exact 1/2 and
+  1/3 an exact supercell must give, where forward coverage cannot separate them
+  at all (the supercells index *more*).
+
+  **Magnetite earned its own row: the panel ranks it right and the gate grades it
+  backwards.** Cubic F truth first at −334 ppm; the gate gives it `low` and its
+  own P rival `medium`. F d -3 m's d-glide refutes the *correct* cell (2 of 52)
+  while the P rival's Le Bail fit predicts **163** reflections on a 23-line
+  pattern and reports **zero** absent — an extraction with seven free intensities
+  per observed line puts intensity wherever it is asked. Rwp is not fooled (0.25
+  against 0.79). This is CLAUDE.md's `predicted_but_absent` rule at full
+  strength: it does not merely refute a correct cell, it can invert two
+  candidates on one dataset.
+
+  **The scoreboard is generated, and building it found a fourth defect.**
+  `same_lattice` with no covariance falls back to `CELL_EQUALITY_RELATIVE` =
+  5e-3, deliberately loose so dedup is never *tightened* — and reused as a truth
+  test it called FAP's +966 ppm leader and its +258 ppm cross-code cell the same
+  answer, so the first scoreboard reported "ranked first" for the one dataset
+  whose row asserts the opposite. `TRUTHS` carries each dataset's **own
+  acceptance band** now, so the scoreboard cannot disagree with the rows it is
+  generated from.
+
+  **Task 9 — `tests/output/indexing_gallery.html`**, built by
+  `python -m tests.indexing_gallery` from the sidecars: scoreboard on top, then
+  every dataset with provenance, what is asserted, what was measured, and its
+  pictures. Nothing on it is maintained by hand.
+
+  **Three stale records corrected, all the same failure.** The NAC panel table in
+  the acceptance file had three of seven rows off by up to 13 % — m20, f_n and
+  m_sym, i.e. exactly the three that floor their discrepancy on σ, with m20 and
+  M̃ₙ moving by the *same* factor 1.130, which identifies the floor rather than
+  the lattice. FAP's prose (181 of 185 at +232/+363 ppm behind a 1218 ppm leader)
+  is now 178 at +258/+325 behind three at 966-1396. Both predate last session's
+  merge of `main`; **verified against `origin/main`'s library code that neither
+  moved because of this session.** `tests/CLAUDE.md` says to re-measure after a
+  merge and the counts were — a table inside a comment is a measurement too.
+
+  **Gotchas for the next session.** `CLAUDE.md` is at **720 of 720** and got
+  there by consolidation, as the last handover asked, not another raise — the new
+  truth-band rule is folded into the existing "a candidate cell is a lattice, not
+  a tuple" bullet, which now carries all three ways that comparison goes wrong.
+  There is no room left; the next addition needs a real consolidation pass.
+  `docs/VALIDATION.md` is generated (63 → 66 claims) and
+  `tests/test_validation_matrix.py` caught all three new rows immediately, which
+  is the meta-test earning its keep. And the two new dataset rows are
+  `characterisation`, not a "consistency" tier — the tier vocabulary is closed.
 
 - **2026-08-05 (later, after merging `main`)** — **five of nine**. `main`'s WP-1035
   merged in (no code conflict; both doc conflicts were the always-loaded files), then

@@ -55,48 +55,41 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** (2026-08-05) — the
-gallery, opened by clearing its inherited defects: one shared `engines.solution_key`
-(both engines had the same dedup function with a different bug fixed in each),
-`validate_by_lebail(..., with_result=True)`, and `viz/indexing.py`'s three renderers.
+**Nothing in flight.** Pick up the queue below.
 
-**The dedup defect was three defects**: scale invariance merges every *uniform
-rescaling* (a cell collides with its own supercell), and `seen` is claimed **before**
-scoring, so a *rejected* metric poisons its whole family. Two rows turned over — NAC
-is now found by two engines, and `INDEX_DOMINANT_ZONE`'s fixture was never a dominant
-zone, the diagnostic having caused the silence it explained.
+**Last closed: [1041](wp/1041-indexing-benchmark-gallery.md) and
+[1040](wp/1040-engine-svd-index.md)** (2026-08-05) — the indexing milestone's
+evidence is **generated** now, not typed. Every acceptance row leaves PNGs (38 over
+16 datasets, closing the last exception to `tests/CLAUDE.md`'s plotting rule), and
+`tests/indexing_gallery.py` writes a sidecar per dataset from which the scoreboard
+and `tests/output/indexing_gallery.html` are built.
 
-**The aggregate was measured, and the design this WP recorded is refuted.** A log-sum
-over the panel does fix NAC — and scores **5 of 6** known-cell datasets, exactly
-Borda's, breaking certified corundum instead: summing raw logs weights each member by
-its dynamic range (`m_rev` 2.5-356 against coverage 0.78-0.99). Standardising
-degenerates at two candidates, and the 6/6 weighting is one constant fitted on two
-datasets. The gate half fails identically — `unmatched_observed` runs 10-188 for
-**correct** cells, and inside a pattern is Rwp again. *Both halves read a comparative
-instrument as an absolute verdict*; a successor needs a new member or a
-within-pattern-normalised score, not another aggregate over these seven.
-`fom.log_sum_scores` ships tested and unwired. **Open:** tasks 5-9 — PNGs,
-contamination, scoreboard, summary.
+**The scoreboard is re-measured and its shape is different: nine datasets — 6 rank
+the truth first, 2 find it below first, 1 is refused before searching, 0 promoted.**
+The old "eight datasets: five right, one refused, two fail" named *nine* and had no
+bucket for the outcome this package produces most. brucite and magnetite, 1040's two
+inherited failures, were **prose that no run reproduced** — never test rows, so never
+re-run while four WPs changed the answer; both are rows now and both rank the truth
+first.
 
-**Last closed: [1035](wp/1035-symmetry-surfaced.md)** — a phase's space group is read
-out, names the **cause** of every row symmetry holds, and is **editable behind a
-preview** built from a candidate `ParameterTable`. **[1040](wp/1040-engine-svd-index.md)
-stays 🔄**, its one open item being 1041's scoreboard. Same day:
-[1034](wp/1034-panel-layout.md), [1033](wp/1033-plot-range-regions.md),
-[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md); narratives in
-[milestones/v1.0.md](milestones/v1.0.md). Ten sessions running (1030 → … → 1041):
-**instrument before ranking, and let the by-hand run judge** — 1041 is the sharpest
-case, two green tests, one asserting a diagnostic fires where the silence *and* the
-diagnostic were a filter's own artefacts, one asserting a unique `high` a *bug*
-produced. **A prediction is not a measurement.**
+**One session theme, and it is the transferable part: a number that is not
+regenerated is a number nobody re-measures.** Four stale records, none visible to any
+test — the scoreboard, the NAC panel table (three of seven members off by up to 13 %
+after the WP-1035 merge), FAP's prose, and three renderer defects that each made a
+picture contradict its own label. **magnetite is the sharpest new result**: the panel
+ranks the cubic F truth first and the *gate grades it below its own P rival*, because
+a d-glide refutes the correct cell while the rival's over-parameterised Le Bail fit
+leaves nothing detectably absent. Also settled earlier in the WP: the magnitude-aware
+aggregate is **refuted** (`fom.log_sum_scores` ships tested and unwired), and the
+contamination curve says what breaks under impurity is the *grade*, by arithmetic,
+long before the *rank*.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
 2. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   its `### Inherited` carries 1037's streaming argument. (1041 is in flight
-   above: two of its three inherited defects are cleared, the aggregate is not.)
+   its `### Inherited` carries 1037's streaming argument.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
 4. [1016](wp/1016-sequential-series-panel.md) then
@@ -443,8 +436,8 @@ per concurrent session, or only one session commits.
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
-| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
-| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | 🔄 2026-08-05 — dedup key + renderers landed; aggregate and benchmark open | 1026 |
+| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ✅ 2026-08-05 — landed with the zero-error column; scoreboard re-measured in 1041 | 1020, 1024 (1038 soft) |
+| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 
 | WP | Title | Status | Depends on |
