@@ -22,10 +22,14 @@
     RESIDUAL_KINDS,
     SCALES,
     curveColors,
+    curveToggles,
     hoverLabel,
     residual,
     scaleValues,
+    shows,
     sqrtTicks,
+    tickBand,
+    toggleCurve,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
@@ -77,10 +81,16 @@
    *  project's opinion. */
   let kind = $state<ResidualKind>("weighted");
   let scale = $state<Scale>("linear");
+  /** curves the user has switched off, by id — an *exception* list, so a curve
+   *  this build does not know about yet still arrives drawn */
+  let hidden = $state<string[]>([]);
   /** the payload the last draw used, so a knob redraws without a refetch */
   let held: any = $state(null);
+  /** the toggles this payload offers — background only when there is one, one
+   *  row per phase (WP-1032) */
+  const toggles = $derived(held ? curveToggles(held, residual(kind, held).label) : []);
 
-  function layout(w: any, colors: ReturnType<typeof curveColors>): any {
+  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number): any {
     const style = getComputedStyle(document.body);
     const fg = style.color;
     // the panel border colour, for the grid: plotly's default grid is
@@ -91,7 +101,9 @@
       ? { title: "(y − fit)/σ per group", label: "", zeroline: true }
       : residual(kind, w);
     const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
+    const band = tickBand(nPhases);
     return {
+      ...(band ? { yaxis3: band.axis } : {}),
       margin: { l: 62, r: 12, t: 8, b: 40 },
       showlegend: true,
       legend: { orientation: "h", y: 1.12, x: 0 },
@@ -158,42 +170,53 @@
     // change actually change anything
     const colors = curveColors((name) =>
       getComputedStyle(document.body).getPropertyValue(name));
-    const traces: any[] = [
-      { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
-        type: "scattergl", customdata: w.y_obs,
-        marker: { size: 4, color: colors.obs },
-        hovertemplate: "%{customdata:.6g}<extra>observed</extra>" },
-    ];
+    const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
+    const band = tickBand(phases.length);
+    const traces: any[] = [];
+    if (shows(hidden, "obs")) {
+      traces.push(
+        { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
+          type: "scattergl", customdata: w.y_obs,
+          marker: { size: 4, color: colors.obs },
+          hovertemplate: "%{customdata:.6g}<extra>observed</extra>" });
+    }
     if (!w.raw) {
       const res = residual(kind, w);
-      traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
-        mode: "lines", type: "scattergl", customdata: w.y_calc,
-        line: { width: 1.2, color: colors.calc },
-        hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
-      if (w.y_background?.length) {
+      if (shows(hidden, "calc")) {
+        traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
+          mode: "lines", type: "scattergl", customdata: w.y_calc,
+          line: { width: 1.2, color: colors.calc },
+          hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
+      }
+      if (w.y_background?.length && shows(hidden, "bkg")) {
         traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
           mode: "lines", type: "scattergl", customdata: w.y_background,
           line: { width: 1, dash: "dot", color: colors.bkg },
           hovertemplate: "%{customdata:.6g}<extra>background</extra>" });
       }
-      traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-        type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      if (shows(hidden, "diff")) {
+        traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
+          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      }
 
       // every emission line's ticks, not just the primary: the Kα2 positions are
-      // in here too, which is what stops a doublet reading as an impurity
-      let row = 0;
-      for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
-        const y = -0.5 - row * 0.9;
-        traces.push({ x: ticks as number[], y: (ticks as number[]).map(() => y), yaxis: "y2",
+      // in here too, which is what stops a doublet reading as an impurity.  They
+      // ride on `y3`, a band of their own between the two subplots (WP-1032) —
+      // on the residual axis their visibility was a property of which residual
+      // was selected, and under cumulative χ² they were a line on the floor.
+      phases.forEach((phase, row) => {
+        if (!shows(hidden, `ticks:${phase}`)) return;
+        const ticks = (w.ticks ?? {})[phase] as number[];
+        const y = band!.rows[row];
+        traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
           name: phase, mode: "markers", type: "scattergl",
           marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } },
           hovertemplate: `${phase} %{x:.4f}°<extra></extra>` });
-        row += 1;
-      }
+      });
     }
     traces.push(...peakTraces(w, colors));
 
-    await plotly.react(node, traces, layout(w, colors),
+    await plotly.react(node, traces, layout(w, colors, phases.length),
                        { responsive: true, displaylogo: false });
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
@@ -457,6 +480,7 @@
     void kind;
     void scale;
     void theme;
+    void hidden;
     if (held) paint(held);
   });
 </script>
@@ -499,6 +523,18 @@
             title={entry.title}>{entry.label}</button>
         {/each}
       </div>
+      <!-- Which curves are drawn.  Unpersisted, like the two knobs beside it:
+           a drawing choice is not the project's opinion (WP-1015/1029). -->
+      {#if toggles.length > 1}
+        <div class="segmented curves" role="group" aria-label="curves">
+          {#each toggles as curve (curve.id)}
+            <button class:on={shows(hidden, curve.id)}
+              onclick={() => (hidden = toggleCurve(hidden, curve.id))}
+              title="{curve.title} — click to {shows(hidden, curve.id) ? 'hide' : 'show'}"
+              >{curve.label}</button>
+          {/each}
+        </div>
+      {/if}
       <p class="note muted tabular">
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
         · min/max decimated server-side · zoom refetches the window
@@ -526,6 +562,14 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  /* a phase name is arbitrarily long — clip the button, not the row */
+  .segmented.curves button {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .note {

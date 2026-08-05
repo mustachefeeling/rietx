@@ -76,6 +76,94 @@ export interface Window {
   weighted?: boolean;
 }
 
+/**
+ * The reflection ticks get an axis of their own, in the gap between the plots.
+ *
+ * They used to ride on the residual axis at `y = −0.5 − row·0.9`, which made
+ * their visibility a property of **which residual is selected**: under Δ/σ they
+ * sat near the middle, and under cumulative χ² — whose values run to hundreds of
+ * thousands (measured on the NAC fit: y2 spanned −59 253 to 658 029) — they were
+ * pinned at the floor as an invisible line. A tick is a statement about the
+ * *model*, so it cannot be drawn in a coordinate system owned by the residual.
+ *
+ * The gap `[0.22, 0.28]` between the two subplots was already free (`yaxis`
+ * starts at 0.28), so this needed no room made for it. The range is fixed in
+ * rows, one per phase, and `fixedrange` keeps a stray drag from zooming a band
+ * whose vertical coordinate means nothing.
+ */
+export const TICK_BAND: [number, number] = [0.225, 0.275];
+
+export function tickBand(nPhases: number): { axis: any; rows: number[] } | null {
+  if (nPhases <= 0) return null;
+  const rows: number[] = [];
+  for (let i = 0; i < nPhases; i++) rows.push(-(i + 0.5));
+  return {
+    axis: {
+      domain: TICK_BAND,
+      anchor: "x",
+      range: [-nPhases, 0],
+      fixedrange: true,
+      showticklabels: false,
+      showgrid: false,
+      zeroline: false,
+      showline: false,
+    },
+    rows,
+  };
+}
+
+/** A curve the plot can be asked to stop drawing. */
+export interface CurveToggle {
+  id: string;
+  label: string;
+  title: string;
+}
+
+/**
+ * Which curves this window actually has, in drawing order (WP-1032).
+ *
+ * A *drawing* choice, so nothing here is persisted — WP-1015's rule one panel
+ * over: storing one would make a picture the project's opinion. The list is
+ * derived from the payload rather than fixed, because "background" is a curve
+ * only when the model has one and a phase row exists only per phase.
+ *
+ * The reported item was "make it possible to toggle the background on", and the
+ * measurement says which repair that is: the background trace is drawn
+ * *unconditionally* whenever `y_background` is non-empty, so nothing was
+ * missing — what was missing is the control to turn a forced curve **off**.
+ */
+export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string, unknown> },
+                             residualLabel = "Δ"): CurveToggle[] {
+  const out: CurveToggle[] = [
+    { id: "obs", label: "obs", title: "the measured points" },
+  ];
+  if (!w.raw) {
+    out.push({ id: "calc", label: "calc", title: "the model" });
+    if (w.y_background?.length) {
+      out.push({ id: "bkg", label: "bkg", title: "the background, drawn additively — "
+        + "it is held or co-refined, never subtracted from the data" });
+    }
+    out.push({ id: "diff", label: residualLabel,
+      title: "the residual in the lower panel" });
+    for (const phase of Object.keys(w.ticks ?? {})) {
+      out.push({ id: `ticks:${phase}`, label: phase,
+        title: `reflection positions for ${phase} — every emission line, `
+          + "so a Kα2 tick is a tick and not an impurity" });
+    }
+  }
+  return out;
+}
+
+/** Is `id` drawn?  Hidden is the exception list, so a new curve arrives shown. */
+export function shows(hidden: readonly string[], id: string): boolean {
+  return !hidden.includes(id);
+}
+
+/** Toggle one id in an exception list, returning a new one. */
+export function toggleCurve(hidden: readonly string[], id: string): string[] {
+  return hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id];
+}
+
 export interface Residual {
   values: number[];
   /** the y2 axis title — it names what is plotted, never what was hoped for */
