@@ -71,6 +71,30 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From WP-1039, closed 2026-08-05 — one of your findings is fixed and one of your
+conclusions is withdrawn.**
+
+- **`DEFAULT_SEARCH_LINES` is settled, and the answer was selection, not count.**
+  Your NAC figure reproduced exactly (six of the true cell's lines in the first
+  twenty against 268 of 285); the cause was the *rank*, not the number, and
+  `engines.search_line_order` now takes the strongest N with a Q tiebreak. Note for
+  any list you add here: the bethanechol sets are position-only, so they select
+  exactly as before and none of your benchmark rows moves.
+- **"Truncating NAC's 2θ was measured and does not work — do not spend that hour
+  again" is withdrawn.** It was measured with the broken selection. Redone: ≤ 32°
+  now ranks the truth **first**, cubic **I**, a = 10.25108 Å at −22 ppm, in 10.5 s,
+  against your recorded −5967/+8189/+7997 ppm, M₂₀ = 4, cubic **P** at 300–620 s.
+  The gate still declines it on `indexed_fraction_low` (91 of 129), correctly. NAC
+  at *full* range remains blocked, and that obstruction is now demonstrated rather
+  than assumed to be `reflection_ceiling_ok` — zero boxes explored under every rule
+  and every N, which is still your inherited item.
+- **A caveat you relied on is gone**: SRM 660c no longer reports
+  `engines_disagree`. Both engines find the certified cell once `trial_error`'s
+  base pool is drawn from the selection; `fom_panel_disagrees` is the only survivor.
+- **`n_search_lines` and `n_unindexed` are one knob, not two** — the acceptance test
+  is an absolute budget over the driven set, so a foreign line admitted *refutes*
+  the truth rather than ranking it lower. Do not raise either to make a row pass.
+
 **From the 2026-08-04 source-literature review (WP-1037…1042 created, no code
 changed).** Three things bear on this WP:
 
