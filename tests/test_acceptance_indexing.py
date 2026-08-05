@@ -2135,6 +2135,13 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
     n_clean = len(clean.usable())
     allowed = _cubic_positions(A_SRM660C, clean.wavelength, clean.two_theta_max)
     af_truth = af_from_cell((A_SRM660C,) * 3 + (90.0, 90.0, 90.0))
+    # **The pattern is passed, and it has to be.**  Without it there is no
+    # whole-profile validation, every candidate is capped ``not_validated``, and
+    # the grade can never reach ``high`` for a reason that has nothing to do with
+    # contamination — which is how the first version of this row came to assert a
+    # knee it could not have observed.  The curve above was measured with
+    # validation on; the row runs the same protocol.
+    data, instrument = _lab6_inputs()
 
     seen: dict[int, list[dict]] = {}
     for k in CONTAMINATION_KS:
@@ -2143,7 +2150,8 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
             spec = SearchSpec(systems=("cubic",), max_volume=300.0,
                               budget_seconds=REAL_DATA_BUDGET_SECONDS,
                               n_unindexed=max(REAL_DATA_N_UNINDEXED, k))
-            res = index_pattern(peaks, data=None, instrument=None, spec=spec)
+            res = index_pattern(peaks, data=data, instrument=instrument,
+                                spec=spec)
             rank, truth = None, None
             for i, c in enumerate(res.candidates):
                 if c.centring == "P" and same_lattice(np.asarray(c.af),
