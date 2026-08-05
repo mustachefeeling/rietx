@@ -166,6 +166,26 @@ DATASETS: dict[str, dict[str, str]] = {
         "asserts": "the unflagged tail components escape for three different "
                    "reasons, and sit on the axial-divergence side below 90° 2θ.",
     },
+    "brucite": {
+        "title": "Brucite — the ranking prefers a supercell",
+        "provenance": "IUCr CPD QPA round robin, qarr/brucite.prn; literature "
+                      "cell P -3 m 1 a = 3.142, c = 4.766 Å (Zigan & Rothbauer). "
+                      "This specimen's a sits +1750 ppm from it — a literature "
+                      "cell is a cell for the mineral, not for the specimen.",
+        "tier": "consistency",
+        "asserts": "what the ranking does when a supercell explains everything "
+                   "the truth does: the c × 3 supercell leads, and the gate "
+                   "refuses to promote it.",
+    },
+    "magnetite": {
+        "title": "Magnetite — a subcell above a cubic F truth",
+        "provenance": "IUCr CPD QPA round robin, qarr/magnetit.prn; literature "
+                      "cell F d -3 m a = 8.3941 Å.",
+        "tier": "consistency",
+        "asserts": "the second of the two datasets WP-1026 measured and did not "
+                   "land; both were measured before WP-1030's prunes and are "
+                   "re-measured here rather than quoted.",
+    },
     "bethanechol": {
         "title": "Bethanechol chloride — the one externally graded benchmark",
         "provenance": "Bergmann, Le Bail, Shirley & Zlokazov (2004), Z. Kristallogr. "
@@ -178,6 +198,62 @@ DATASETS: dict[str, dict[str, str]] = {
                    "the paper's search domain exhausts every budget.",
     },
 }
+
+
+#: ``stem -> (conventional cell, centring)`` for the datasets whose lattice is
+#: known.  This is what turns the gallery into the **scoreboard**: with a truth
+#: declared, :func:`draw` records where in the ranking that lattice landed, so
+#: "five put the right lattice first" is generated from the run rather than
+#: retyped into three documents.  A dataset with no entry has no known cell, and
+#: its rows claim an abstention rather than an answer (cpd-1a, hl2).
+TRUTHS: dict[str, tuple[tuple[float, ...], str]] = {
+    "corundum": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0), "R"),
+    "corundum_shift": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0), "R"),
+    "lab6": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P"),
+    "lab6_calibrated": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P"),
+    "zincite": ((3.2499, 3.2499, 5.2066, 90.0, 90.0, 120.0), "P"),
+    "zircon": ((6.6042, 6.6042, 5.9796, 90.0, 90.0, 90.0), "I"),
+    "nac": ((10.2510,) * 3 + (90.0, 90.0, 90.0), "I"),
+    "fap": ((9.3717, 9.3717, 6.8859, 90.0, 90.0, 120.0), "P"),
+    "brucite": ((3.142, 3.142, 4.766, 90.0, 90.0, 120.0), "P"),
+    "magnetite": ((8.3941,) * 3 + (90.0, 90.0, 90.0), "F"),
+    "fluorite": ((5.4631,) * 3 + (90.0, 90.0, 90.0), "F"),
+}
+
+
+def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
+    """1-based rank of the declared truth in a stored ``ranking``, or ``None``.
+
+    **The centring is half the test, and leaving it out is the mistake this
+    package has now made at three ranks.**  ``same_lattice`` compares A..F after
+    Niggli reduction, so a *setting* change is equality — which is what it is
+    for — but a primitive description of a centred lattice reduces to the same
+    metric with a different content, and calling that a match reads a wrong
+    answer as right.  Measured: without the centring clause both NAC candidates
+    scored as the truth, and only one of them is (``engines.solution_key``
+    carries the same lesson one rank down, WP-1040's monoclinic row a rank up).
+
+    It reads the **stored** ranking rather than live candidates on purpose.  The
+    A..F vectors are seven numbers a candidate already has, so keeping them costs
+    nothing, and it means declaring a truth for a dataset later re-scores the
+    scoreboard from sidecars already on disk instead of needing a 26-minute
+    acceptance run — which is exactly the loop this was first written without.
+    """
+    import numpy as np
+
+    from pxrdref.indexing.qspace import af_from_cell
+    from pxrdref.indexing.reduce import same_lattice
+
+    if stem not in TRUTHS:
+        return None
+    cell, centring = TRUTHS[stem]
+    af_true = af_from_cell(cell)
+    for i, row in enumerate(ranking):
+        if row.get("centring") != centring:
+            continue
+        if same_lattice(np.asarray(row["af"], dtype=float), af_true)[0]:
+            return i + 1
+    return None
 
 
 def _close(fig) -> None:
@@ -241,6 +317,16 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
     best_or_none = result.best_or_none() if hasattr(result, "best_or_none") else None
     card["promoted"] = best_or_none is not None
     card["diagnostics"] = sorted({d.code for d in getattr(result, "diagnostics", ())})
+
+    # the whole ranking, compactly — seven numbers and two strings per candidate,
+    # which is what lets the scoreboard be re-scored without re-running a search
+    card["ranking"] = [{
+        "system": c.system, "centring": c.centring,
+        "af": [float(v) for v in c.af],
+        "cell": [round(float(v), 5) for v in c.cell],
+        "volume": round(float(c.volume), 2),
+        "n_indexed": int(c.n_indexed), "confidence": c.confidence,
+    } for c in cands]
 
     if not cands:
         card["outcome"] = "abstained — no candidate"
@@ -324,6 +410,32 @@ def _validation_panel(stem, best, peaks, data, instrument, figures) -> dict:
             validation.predicted_but_absent == best.lebail.predicted_but_absent
             and abs(validation.rwp - best.lebail.rwp) < 1e-9)
     return out
+
+
+#: The scoreboard's vocabulary, and it is deliberately **four** buckets rather
+#: than the three the pre-WP-1041 wording used.  "Right" and "wrong" cannot
+#: absorb the case this package produces most: the true lattice is *in the list*
+#: and something else leads it, which is neither a success nor a failure and is
+#: what FAP and NAC both do.  Collapsing it either way is how a scoreboard gets
+#: rounded up.
+VERDICTS = {
+    "first": "the true lattice is ranked first",
+    "present": "the true lattice is found but not ranked first",
+    "absent": "the true lattice is not among the candidates",
+    "refused": "no engine ran — the quality gate refused the list",
+    "unknown": "no cell is known for this dataset; the claim is the abstention",
+}
+
+
+def _verdict(card: dict[str, Any]) -> str:
+    if not card.get("has_truth"):
+        return "unknown"
+    if not card.get("n_candidates"):
+        return "refused" if not card.get("systems_searched") else "absent"
+    rank = card.get("truth_rank")
+    if rank == 1:
+        return "first"
+    return "present" if rank else "absent"
 
 
 def _write(stem: str, card: dict[str, Any]) -> None:
@@ -468,15 +580,69 @@ def draw_benchmark_sets(stem: str, sets: dict, predicted: dict, *,
 #: conclude from each, not the order the suite happens to run them in.
 PAGE_ORDER = ("lab6", "lab6_calibrated", "lab6_peaks", "corundum",
               "corundum_shift", "corundum_peaks", "nac",
-              "fap", "zincite", "zircon", "cpd1a", "fluorite", "hl2",
-              "bethanechol")
+              "fap", "zincite", "zircon", "brucite", "magnetite",
+              "cpd1a", "fluorite", "hl2", "bethanechol")
+
+#: The scoreboard's datasets, one row each — the **known-cell** ones plus
+#: fluorite, whose whole result is that it is refused before any engine starts.
+#: ``corundum_shift`` and ``lab6_calibrated`` are deliberately absent: they are
+#: the *second step* of a two-step protocol on a dataset already counted, and
+#: counting a dataset twice is how the pre-WP-1041 scoreboard came to name nine
+#: datasets under a total of eight.
+SCOREBOARD_STEMS = ("lab6", "corundum", "nac", "fap", "zincite", "zircon",
+                    "brucite", "magnetite", "fluorite")
+
+
+def scoreboard(cards: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The known-cell scoreboard, counted from the sidecars.
+
+    The pre-WP-1041 wording was "five right, one refused, two fail" over "eight
+    known-cell datasets", and it had two defects this replaces rather than
+    reproduces.  **Its arithmetic did not close**: 5 + 1 + 2 = 8 while *nine*
+    datasets are named across the buckets, because NAC was described inside the
+    failure bucket without being counted, and FAP was counted as putting the
+    right lattice first by a sentence that says in the same breath it is second.
+    And **two of its rows were prose**: brucite and magnetite were measured
+    before WP-1030's prunes landed and were never test rows, so the scoreboard
+    quoted numbers no run reproduced.
+
+    Both are structural, so the fix is structural: the buckets are
+    :data:`VERDICTS`, computed per dataset from ``truth_rank``, and this
+    function is the only place that counts them.
+    """
+    cards = load_cards() if cards is None else cards
+    by_stem = {c["stem"]: c for c in cards}
+    rows, counts = [], dict.fromkeys(VERDICTS, 0)
+    for stem in SCOREBOARD_STEMS:
+        card = by_stem.get(stem)
+        if card is None:
+            continue
+        verdict = card.get("verdict", "unknown")
+        counts[verdict] += 1
+        rows.append({
+            "stem": stem, "verdict": verdict,
+            "truth_rank": card.get("truth_rank"),
+            "n_candidates": card.get("n_candidates", 0),
+            "promoted": bool(card.get("promoted")),
+            "outcome": card.get("outcome", ""),
+        })
+    return {"rows": rows, "counts": counts, "n": len(rows),
+            "n_promoted": sum(r["promoted"] for r in rows),
+            "missing": [s for s in SCOREBOARD_STEMS if s not in by_stem]}
 
 
 def load_cards() -> list[dict[str, Any]]:
-    """Every sidecar the last run left, in :data:`PAGE_ORDER`."""
+    """Every sidecar the last run left, in :data:`PAGE_ORDER`, re-scored.
+
+    ``truth_rank`` and ``verdict`` are computed **here**, not stored, so a truth
+    added to :data:`TRUTHS` takes effect on the sidecars already on disk.
+    """
     cards = {}
     for path in sorted(OUTPUT.glob(SIDECAR_GLOB)):
         card = json.loads(path.read_text(encoding="utf-8"))
+        card["has_truth"] = card["stem"] in TRUTHS
+        card["truth_rank"] = truth_rank(card["stem"], card.get("ranking", []))
+        card["verdict"] = _verdict(card)
         cards[card["stem"]] = card
     ordered = [cards[s] for s in PAGE_ORDER if s in cards]
     ordered += [c for s, c in sorted(cards.items()) if s not in PAGE_ORDER]
@@ -554,6 +720,7 @@ def summary_html(cards: list[dict[str, Any]] | None = None) -> str:
     warn = (f'<p class="warn">Not in this run: {", ".join(missing)}. '
             f'Run the full acceptance selection to fill the page.</p>'
             if missing else "")
+    board = _scoreboard_html(cards)
     return f"""<!doctype html>
 <meta charset="utf-8"><title>pxrdref indexing benchmark gallery</title>
 <style>
@@ -574,6 +741,16 @@ def summary_html(cards: list[dict[str, Any]] | None = None) -> str:
  img {{ max-width: 100%; border: 1px solid #eee; }}
  .warn {{ background: #fff6e0; border-left: 3px solid #f2c14e; padding: .5rem .8rem; }}
  .lede {{ color: #444; }}
+ table {{ border-collapse: collapse; width: 100%; font-size: .88rem;
+          margin: .6rem 0; }}
+ th, td {{ text-align: left; padding: .28rem .5rem;
+           border-bottom: 1px solid #eee; vertical-align: top; }}
+ th {{ color: #666; font-weight: 600; font-size: .8rem; text-transform: uppercase;
+       letter-spacing: .03em; }}
+ .v-first {{ color: #1f7a1f; font-weight: 600; }}
+ .v-present {{ color: #a06000; font-weight: 600; }}
+ .v-absent {{ color: #a8195f; font-weight: 600; }}
+ .v-refused, .v-unknown {{ color: #666; }}
 </style>
 <h1>pxrdref — indexing benchmark gallery</h1>
 <p class="lede">Generated from the sidecars
@@ -584,8 +761,40 @@ ordered by how much may be concluded from each — certified cells first, then
 literature cells for a mineral, then the rows whose whole claim is an abstention.
 </p>
 {warn}
+{board}
 {"".join(rows)}
 """
+
+
+def _scoreboard_html(cards: list[dict[str, Any]]) -> str:
+    board = scoreboard(cards)
+    if not board["rows"]:
+        return ""
+    counted = ", ".join(f"<b>{board['counts'][v]}</b> {v}"
+                        for v in VERDICTS if board["counts"][v])
+    body = "".join(
+        f'<tr><td>{_esc(r["stem"])}</td>'
+        f'<td class="v-{r["verdict"]}">{_esc(r["verdict"])}</td>'
+        f'<td>{r["truth_rank"] if r["truth_rank"] else "—"} '
+        f'of {r["n_candidates"]}</td>'
+        f'<td>{"yes" if r["promoted"] else "no"}</td>'
+        f'<td>{_esc(r["outcome"])}</td></tr>'
+        for r in board["rows"])
+    miss = (f'<p class="warn">Not measured in this run: '
+            f'{", ".join(board["missing"])}.</p>' if board["missing"] else "")
+    return f"""<section id="scoreboard"><h2>The known-cell scoreboard</h2>
+<p class="prov">{board['n']} datasets whose lattice is known independently:
+{counted}. <b>{board['n_promoted']}</b> of {board['n']} were promoted — a cell
+handed back as the answer rather than as a ranked candidate.</p>
+{miss}
+<table><thead><tr><th>dataset</th><th>verdict</th><th>truth rank</th>
+<th>promoted</th><th>measured</th></tr></thead><tbody>{body}</tbody></table>
+<p class="lede">Read the shape rather than the count: this feature is
+<b>never wrong, and silent more often than right</b>. Every verdict here is
+computed from the run — the truth's rank is a <code>same_lattice</code> test on
+the reduced A..F vector <em>and</em> the centring, since a primitive description
+of a centred lattice reduces to the same metric and calling that a match reads a
+wrong answer as right.</p></section>"""
 
 
 def write_summary(path: pathlib.Path | None = None) -> pathlib.Path:
