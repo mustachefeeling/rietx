@@ -16,12 +16,14 @@ values that were fitted independently of them.
 """
 
 import json
+from typing import get_args
 
 import numpy as np
 import pytest
 
 import pxrdref as pr
 from pxrdref.model.forward import compile_model
+from pxrdref.optimize.cancel import CancelToken
 from pxrdref.params.vector import ParameterTable
 from pxrdref.schemas.common import Parameter
 from pxrdref.schemas.instrument import BackgroundChebyshev
@@ -38,6 +40,7 @@ from pxrdref.sequential import (
     _reseed_needed,
     refine_sequential,
 )
+from pxrdref.strategy import staged
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 0.4139
@@ -505,3 +508,136 @@ def test_series_entry_lookup_helpers():
     assert entry.value("phases.0.cell.a") == 4.0
     assert entry.stderr("phases.0.cell.a") == pytest.approx(1e-4)
     assert entry.value("nope") is None and entry.stderr("nope") is None
+
+
+# ----------------------------------------------------------------------
+# telemetry and cancellation (WP-1016)
+# ----------------------------------------------------------------------
+#: A one-stage plan freeing the one parameter these tests care about.  The
+#: chain's *answers* are the tests above; what is under test here is the stream
+#: and the token, so the fits are as cheap as they can be.
+_CHEAP = staged.RefinementPlan(stages=[
+    staged.Stage("quick", ["phases.*.scale"], max_iter=5)])
+
+
+def test_unique_labels_disambiguates_by_position():
+    """Two files with the same basename is an ordinary series.
+
+    Split out of ``_labels_for`` because a caller that *offers* the labels before
+    the run has to show the ones the run will use — a panel displaying the name
+    that was typed would be displaying a name that names nothing (WP-1016).
+    """
+    from pxrdref.sequential import unique_labels
+
+    assert unique_labels(["a", "b", "a", "a"]) == ["a", "b", "a_2", "a_3"]
+    assert unique_labels([]) == []
+    # and ``_labels_for`` is that function, not a second copy of the rule
+    assert _labels_for([None, None, None], ["x", "x", "y"]) == ["x", "x_1", "y"]
+
+
+def test_every_patterns_events_carry_its_place_in_the_series():
+    """Per-pattern telemetry, and not one new ``EventKind``.
+
+    ``data`` is an open dict on both sides, so five added fields on existing
+    kinds is an additive change and ``EVENT_SCHEMA_VERSION`` does not move — the
+    rule, and the reason a bump would make the version useless as a
+    compatibility signal, are in ``history/events.py``.
+    """
+    from pxrdref.history.events import EVENT_SCHEMA_VERSION, EventKind
+
+    patterns = [_simulate(A0 * (1 + RAMP * i), seed=500 + i) for i in range(2)]
+    structure, ins = _start_models()
+    seen = []
+    series = SequentialRefinement(structure, ins).fit(
+        patterns, plan=_CHEAP, labels=["lo", "hi"], events=seen.append)
+
+    assert len(series) == 2
+    kinds = {e["kind"] for e in seen}
+    assert kinds <= set(get_args(EventKind))          # nothing new was invented
+    assert {"fit_start", "fit_end", "stage_start", "stage_end"} <= kinds
+    assert {e["v"] for e in seen} == {EVENT_SCHEMA_VERSION}
+
+    # every event, not only the fit pair: an ``eval`` from pattern 1 has to be
+    # attributable too, or a progress bar cannot tell the two patterns apart
+    assert all("series_index" in e["data"] for e in seen)
+    starts = [e["data"] for e in seen if e["kind"] == "fit_start"]
+    assert [(d["series_index"], d["series_label"]) for d in starts] == [
+        (0, "lo"), (1, "hi")]
+    assert {d["series_n"] for d in starts} == {2}
+    assert {d["series_pass"] for d in starts} == {"forward"}
+    # the stamp does not displace the event's own fields
+    assert starts[0]["mode"] == "rietveld" and starts[0]["n_points"] == len(
+        patterns[0].two_theta)
+
+
+def test_a_backward_pass_is_the_same_patterns_walked_again():
+    """``series_index`` is the pattern's place in the *series*, not in the walk.
+
+    Which is what makes the two chains comparable frame by frame — and
+    ``series_pass`` is then the only thing that distinguishes the verification
+    pass from a restart, which a counter running 1…N…1 otherwise reads as.
+    """
+    patterns = [_simulate(A0 * (1 + RAMP * i), seed=600 + i) for i in range(2)]
+    structure, ins = _start_models()
+    seen = []
+    SequentialRefinement(structure, ins).fit(
+        patterns, plan=_CHEAP, labels=["lo", "hi"], direction="both",
+        events=seen.append)
+
+    walked = [(e["data"]["series_index"], e["data"]["series_pass"])
+              for e in seen if e["kind"] == "fit_start"]
+    assert walked == [(0, "forward"), (1, "forward"),
+                      (1, "backward"), (0, "backward")]
+
+
+def test_a_cancelled_series_returns_what_it_completed():
+    """The rule one level up, not an exception to it.
+
+    ``Refinement.fit`` abandons the stage in flight and raises; a *series* is N
+    separate refinements, so the patterns already walked are finished fits with
+    committed nodes — raising here would throw them away.  What must not happen
+    is silence: a short ``entries`` list is indistinguishable from a shorter
+    series that ran to completion, so ``SEQUENTIAL_CANCELLED`` says how far it
+    got.
+    """
+    patterns = [_simulate(A0 * (1 + RAMP * i), seed=700 + i) for i in range(3)]
+    structure, ins = _start_models()
+    token = CancelToken()
+
+    def watch(event):
+        if event["kind"] == "fit_end" and event["data"]["series_index"] == 0:
+            token.cancel()
+
+    runner = SequentialRefinement(structure, ins, history=True)
+    series = runner.fit(patterns, plan=_CHEAP, events=watch, cancel=token)
+
+    assert len(series) == 1
+    assert len(runner.results_) == 1 and len(runner.trees_) == 1
+    assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_CANCELLED"]
+    assert "after 1 of 3 patterns" in series.diagnostics[0].message
+    # the completed pattern is a real fit with a real node
+    assert series[0].node_id and series[0].statistics is not None
+
+
+def test_a_cancelled_chain_does_not_run_the_verification_pass():
+    """The comparison is between two *complete* chains; half of one says nothing."""
+    patterns = [_simulate(A0 * (1 + RAMP * i), seed=800 + i) for i in range(3)]
+    structure, ins = _start_models()
+    token = CancelToken()
+    passes = []
+
+    def watch(event):
+        if event["kind"] == "fit_start":
+            passes.append(event["data"]["series_pass"])
+        if event["kind"] == "fit_end" and event["data"]["series_index"] == 1:
+            token.cancel()
+
+    runner = SequentialRefinement(structure, ins)
+    series = runner.fit(patterns, plan=_CHEAP, direction="both", events=watch,
+                        cancel=token)
+
+    assert set(passes) == {"forward"}
+    assert runner.backward_ is None
+    assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_CANCELLED"]
+    assert not any(d.code == "SEQUENTIAL_PATH_DEPENDENT"
+                   for d in series.diagnostics)

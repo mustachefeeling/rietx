@@ -49,26 +49,22 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1041 close**, darwin/arm64 M4, `worktree-indexer`, venv
-`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here). Fast
-**1780 / 67 skipped** in 4:14; full **1881 / 72** in 22-23 min, of which
-`test_acceptance_indexing.py` is **41 rows**. Closes off 1041's mid-session
-1760/1858: **+20** fast (5 renderer/gallery, 15 from three `validation_matrix`
-claims) and **+3** slow acceptance rows, no new skip, the +23 splitting 20/3 across
-the selections. Frontend **347** vitest, `svelte-check` clean, collect **93**,
-unchanged since 1035 — 1040/1041 touched no `gui/` file. `docs/VALIDATION.md` is at
-**66** claims. **Timings are a range, not a figure**: parallel sessions held this
-machine at load 4-120 all day and the same green tree read full 26:14, 22:46 and
-22:39. A fired module-level `importorskip` is one skip and zero collected items.
+2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
+— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — **on the
+tree with `main`'s WP-1041 merged in**.
 
-`pxrdref compare` is the fastest way to answer "does this new correction
-actually help?": pick a standard, tick variants, and read the **cumulative
-Δχ² vs reference** panel, which localises *where* a change acted rather than
-only whether Rwp moved. Registry + runner in `viz/compare.py` (also usable
-headlessly as `compare.run(standard, variant)`); server/page in
-`compare_app.py`. Its standards are the acceptance suites' protocols, and
-`tests/test_compare_ui.py` asserts that field-by-field so the two cannot
-drift — **add a row there whenever a new correction lands.**
+- fast **1727 / 108** in **5:22**, full **1819 / 117** in **34:24**, both on this merged tree. The same fast selection read **3:07-4:11** pre-merge and the full one **24:13**, so quote the range and never the figure — 1041 measured the same file at 46:59 under load. **The parents' deltas do not sum**: 1016 added 19 test functions and 1041 net 11 against a measured +29 fast / +30 full over 1035's 1698 / 1789 — `test_indexing_plots.py` collects 4 items from 3 functions, so a `def test_` count is not a test count. The closing-sum check holds within one lineage; across a merge only the re-measurement counts (`tests/CLAUDE.md`).
+- frontend (vitest): **376** (347 at 1035), `svelte-check` clean, `test_gui_*.py` collect **104**; 1041 touched no `gui/` file, so the dist digest is unchanged.
+- **A module-level `importorskip` collapses its module into one skip**, so
+  `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
+
+`pxrdref compare` is the fastest way to answer "does this new correction actually
+help?": pick a standard, tick variants, and read the **cumulative Δχ² vs
+reference** panel, which localises *where* a change acted rather than only
+whether Rwp moved. Registry + runner in `viz/compare.py` (also headless:
+`compare.run(standard, variant)`), server/page in `compare_app.py`; its standards
+are the acceptance suites' protocols and `tests/test_compare_ui.py` asserts that
+field by field, so **add a row there whenever a new correction lands.**
 
 ## Data flow
 
@@ -110,14 +106,18 @@ of its test, are in `history/events.py`.
 A **series** (in-situ ramp, parametric sweep, tray of related specimens) is N
 separate refinements chained by a warm start — `sequential.py`
 (`SequentialRefinement` / `refine_sequential`), returning a `SeriesResult` of
-per-pattern summaries plus parameter *trajectories*, one history tree per
-pattern (a tree is pinned to its pattern by `TreeHeader.data_fingerprint`),
-linked by annotation notes. Not to be confused with `multi.py`, which stacks
-patterns into **one joint residual**. A chained fit is worth ≈3× in iterations
-and nothing in accuracy, and its trajectory is path-dependent by construction,
-so `direction="both"` runs the chain each way and flags parameters the two
-disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only check that separates a
-measured trajectory from an ordering artefact.
+per-pattern summaries plus parameter *trajectories*, one history tree per pattern
+(pinned to it by `TreeHeader.data_fingerprint`), linked by annotation notes. Not
+`multi.py`, which stacks patterns into **one joint residual**. A chained fit is
+worth ≈3× in iterations and nothing in accuracy, and its trajectory is
+path-dependent by construction, so `direction="both"` runs the chain each way and
+flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only
+check that separates a measured trajectory from an ordering artefact.
+`events=`/`cancel=` are **per pattern** (WP-1016): every event carries
+`series_index`/`…_label`/`…_n`/`…_pass` (+`…_cold` on a reseed refit) in `data`, so
+no `EventKind` is new, and a cancelled series **returns** what completed with
+`SEQUENTIAL_CANCELLED` — WP-1006's rule one rank up, not an exception to it
+(`sequential.py`'s docstring has why).
 
 The **parameter surface** (WP-1004) is how a client works the table without
 running a fit: `Refinement.parameters() → list[ParameterRow]` lists *every*
@@ -126,13 +126,13 @@ held row saying which of the three reasons holds it (`.refinable`,
 `.held_because`); `set_vary(globs, vary)` and `set_values({path: value})` edit
 it and auto-commit the `set_vary`/`set_value` history nodes. Three rules there
 are load-bearing: `ParameterRow` mirrors `params.vector.Entry` field for field
-(pinned by `dataclasses.fields`, `esd`/`mode_fixed` declared as the deliberate
-extras), a **tied** path refuses an edit and names its sources instead, and
-`mode_fixed` — lebail/pawley force-fix every `.atoms.` path, `.scale` and
-`.source.lines.` — is *not* `locked`, which is what keeps a Le Bail phase's
-mandatory dummy atom from looking editable. There is exactly **one**
-`StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py` and
-`agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
+(pinned by `dataclasses.fields`, `esd`/`mode_fixed` declared as the
+deliberate extras), a **tied** path refuses an edit and names its sources
+instead, and `mode_fixed` — lebail/pawley force-fix every `.atoms.` path,
+`.scale` and `.source.lines.` — is *not* `locked`, which is what keeps a Le
+Bail phase's mandatory dummy atom from looking editable. There is exactly
+**one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
+and `agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
 title/description/modes/when-to-use per preset, in bijection with
 `PLAN_PRESETS` by meta-test.
 
@@ -177,10 +177,11 @@ pdCIF with a `_meas` and a `_calc` block is a different pattern depending on
 purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
 corrupt project. `excluded_regions` live in the document because they are
 protocol that is in neither the file nor `RefinementState` — a node cannot say
-what was excluded when it ran. Two rules follow (WP-1033):
-`Project.fitted_mask()` is the one authority for **which channels the next run
-fits** (`compile_model`'s first act, pinned by asserting `len(result.two_theta)`
-against its sum), and an inverted or empty interval is **refused, not reordered**
+what was excluded when it ran. Two rules follow (WP-1033): `project.fitted_mask`
+is the one authority for **which channels the next run fits** (`compile_model`'s
+first act, pinned by asserting `len(result.two_theta)` against its sum, and a
+function so a pattern the project does not own — a series member — asks the same
+question), and an inverted or empty interval is **refused, not reordered**
 by `schemas.project.check_interval` — one sentence the verb, the `.pxt` parser
 and the document's own validators all quote.
 
@@ -202,13 +203,11 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` — stdlib
-`http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
-holds every verb as a plain method and nothing there knows about HTTP;
-`gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
-server contract, `.pxt` text document, editors, panels, 3D viewer, theming —
-is `gui/CLAUDE.md` (loads when working under `gui/`; `src/pxrdref/gui/`
-carries a pointer stub). Two rules matter outside the GUI too: mutating verbs
+The **GUI** (WP-1008…1016, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` —
+stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
+— the session/wire split, the server contract, the `.pxt` document, the editors,
+the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
+`gui/`. Two rules matter outside the GUI too: mutating verbs
 return **409 while a run is in flight** (frozen-per-stage discreteness enforced
 structurally), and the **run state is not an event** — `EventKind` is closed, and
 `live/events.jsonl` stays the one stream `watch` tails.
@@ -232,20 +231,21 @@ structurally), and the **run state is not an event** — `EventKind` is closed, 
   building its table.** Every symmetry refusal is raised in
   `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs
   none of it, so `edit` builds the **proposed** pair's table and refuses rather
-  than recording — before WP-1035 an incompatible model was accepted, wrote a
-  node, and raised from whatever next asked for the table.
+  than recording (before WP-1035 such a model was accepted, recorded a node, and
+  raised from whatever next asked for the table).
 - **Weights**: use the file's esd column when present (readers), Poisson
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
 - **Every weighted residual in the package divides by
   `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
-  montage, Layer 0 and the GUI window — a peer of `PatternData.sig()`, where the
+  montage, Layer 0 and both GUI windows (`session.curve_window` is shared by the
+  fit plot and the series panel's) — a peer of `PatternData.sig()`, where the
   esd-column/Poisson choice was already made: `CompiledModel` stores
   `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
-  result's σ is a *lookup*, never a re-derivation (five call sites open-coded
-  it under three policies before WP-1029 (s), whose file has the story). The
-  bug hid beside the fallback, not in it: `weighted` meant `bool(result.sigma)`
+  result's σ is a *lookup*, never a re-derivation (five call sites open-coded it
+  under three policies before WP-1029 (s), whose file has the story). The bug hid
+  beside the fallback, not in it: `weighted` meant `bool(result.sigma)`
   — constant-true — so a Poisson fit was labelled `(obs−calc)/σ` as though its
   σ had been measured. **`weighted` is `DataRef.has_sigma`** (σ *measured*, not
   σ *present* — the fact `textdoc` renders as "σ from file"), `delta` is always
@@ -265,12 +265,11 @@ structurally), and the **run state is not an event** — `EventKind` is closed, 
   that contracts with h twice — G\*, or the U\* form of an ADP — is invariant
   under U → R·U·Rᵀ with R **untransposed**, because (Rᵀh)ᵀU(Rᵀh) = hᵀ(RURᵀ)h. So
   `wyckoff.adp_basis` takes untransposed rotations for a metric or an ADP basis.
-  The trap is that the transposed set is a group too, so the *dimension* of the
-  invariant subspace is identical in every crystal system and a
-  degrees-of-freedom test passes: WP-1020 built the whole indexing metric
-  subspace from Rᵀ, reproduced 1/2/2/2/3/4/6 exactly, and had F = −A for
-  hexagonal (the *direct* metric's cos γ) where the reciprocal metric has F = +A.
-  Only asserting that the true metric lies in the span catches it.
+  The trap is that the transposed set is a group too, so the invariant subspace's
+  *dimension* is identical in every crystal system and a degrees-of-freedom test
+  passes — WP-1020 built the whole indexing metric subspace from Rᵀ and satisfied
+  its own 1/2/2/2/3/4/6 criterion. Only asserting that the true metric lies in
+  the span catches it.
 - **Cell ties follow the space-group *setting*, never the crystal system** —
   `crystallography.symmetry.cell_constraints(sg)` is the one authority, and
   `ParameterTable` is its only caller. Three settings disagree with the system
@@ -428,13 +427,13 @@ structurally), and the **run state is not an event** — `EventKind` is closed, 
   edge the table is wrong in principle, not merely coarse, so that is refused
   too and `Dispersion.overrides` takes measured pairs. It is the **only**
   correction needing no information the caller lacks — species and λ suffice —
-  which is why WP-1001 made it the default; `dispersion = None` declines it and
-  reproduces every ≤ v0.6 number bit-identically, and `DISPERSION_NEGLECTED`
-  then says so. **Every test that pins a number declares this setting
+  which is why WP-1001 made it the default; `dispersion = None` declines it,
+  reproduces every ≤ v0.6 number bit-identically, and says so through
+  `DISPERSION_NEGLECTED`. **Every test that pins a number declares this setting
   explicitly rather than inheriting it** — a suite whose numbers move when a
   default moves is not pinning a protocol, and `tests/test_validation_matrix.py`
-  enforces it for the acceptance suites. Ions resolve to the element
-  (core-level effect), unlike ionic f₀.
+  enforces it for the acceptance suites. Ions resolve to the element (core-level
+  effect), unlike ionic f₀.
 - History nodes store **state, not curves** (a node is ~10 kB; embedding
   y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
   measured on a model frozen at the values each stage *started* from — so

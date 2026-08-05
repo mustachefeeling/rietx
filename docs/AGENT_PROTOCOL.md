@@ -235,6 +235,7 @@ propagate it, do not paper over it.
 | `ADP_NOT_POSITIVE_DEFINITE` | The tensor is not an ellipsoid; its Debye-Waller factor diverges at high Q | Revert the site to isotropic `biso` |
 | `ROUGHNESS_UNCONSTRAINED` | The refined correction depresses no modelled reflection by >1 % | Drop the block. The value it refined to is arbitrary |
 | `SEQUENTIAL_PATH_DEPENDENT` | A parameter's trajectory differs between the forward and backward chains by more than their esds allow | That trajectory is an artefact of the refinement order, not a measurement. Hold the parameter, restrain it, or quote the forward/backward spread as its uncertainty |
+| `SEQUENTIAL_CANCELLED` | The chain was cancelled: the pattern in flight was abandoned and the rest were never started | The reported entries are complete fits and stand on their own, but the trajectory is **truncated, not finished** — do not read its last point as the end of the ramp, and do not compare a slope over it with one over the whole series |
 | `IndexingResult.best_or_none()` returns `None` | No candidate cell reached the confidence gate | **This is the most likely outcome of a first indexing run, and it is not a failure.** Read each candidate's `confidence_caveats` and act on the *refuting* ones first (§7c). Never take `candidates[0]` because it is ranked first — the ranking orders the hypotheses, the gate judges them, and the two are different questions |
 | `INDEX_ABSTAINED` | The result declined to name a cell, and says why | Propagate the abstention. The candidates are there so you can see what was considered, not so you can pick one |
 | `INDEX_GEOMETRIC_AMBIGUITY` | Two distinct lattices explain the positions equally well (Mighell & Santoro 1975) | Do not pick one. The information is **absent from the measurement**, not buried in noise — collect to the 2θ in `discriminating_two_theta` and look for the reflections named there |
@@ -282,6 +283,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `SEQUENTIAL_RESEED` | Read this point of a series as evidence that the trajectory is continuous — its starting values did not come from its neighbour |
 | `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure |
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
+| `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series — it is where the chain stopped, not where the ramp ended |
 | `CONSTRAINT_ACTIVE` | (info, `solver="lm"` only) Read the constrained coefficients as free-fit measurements. The driver truncated steps against a linear-inequality constraint (the Stephens cone) in the answer-producing stage, so the optimum sits on or near a constraint face: admissible, not measured. Vary the start before quoting — and note this is the *only* signal a declared constraint was active rather than merely present |
 
 ```python

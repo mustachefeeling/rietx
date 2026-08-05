@@ -237,6 +237,35 @@ export const api = {
     call("POST", "/api/index/extinction", { candidate }),
   extinctionResult: () => call("GET", "/api/index/extinction"),
 
+  /** The staged series and its chain settings (WP-1016).  Answers before any
+   *  file is staged — the empty list plus the defaults *is* the empty state. */
+  series: () => call("GET", "/api/series"),
+  /** Replace the list and/or the settings.  A whole-list PUT because the order
+   *  **is** the series, and every file is read server-side here rather than at
+   *  run time — a file that does not parse is a message about that file, not a
+   *  chain that dies half way through. */
+  putSeries: (body: Record<string, unknown>) => call("PUT", "/api/series", body),
+  /** One run on the one run machine: same worker, same 409, and the per-pattern
+   *  events on the same stream with `series_index` stamped on. */
+  runSeries: (plan?: unknown) =>
+    call("POST", "/api/series/run", plan ? { plan } : {}),
+  /** Entries, trajectories with esds, and the fences — `path_dependent` hoisted
+   *  to the top level because it is the headline, not a footnote. */
+  seriesResult: () => call("GET", "/api/series/result"),
+  /** One member's curves, through the same window arithmetic (and therefore the
+   *  same σ) the project's own plot uses. */
+  seriesWindow: (index: number, lo?: number, hi?: number, maxPoints = 2000) => {
+    const query = new URLSearchParams({ index: String(index),
+                                        max_points: String(maxPoints) });
+    if (lo !== undefined) query.set("lo", String(lo));
+    if (hi !== undefined) query.set("hi", String(hi));
+    return call("GET", `/api/series/window?${query}`);
+  },
+  /** That pattern's own history tree — **read-only**: a tree is pinned to its
+   *  data fingerprint, so its nodes cannot be checked out into this project. */
+  seriesHistory: (index: number) =>
+    call("GET", `/api/series/history?index=${index}`),
+
   export: (kind: string) => call("POST", `/api/export/${kind}`),
   events: (since: number) => call("GET", `/api/events?poll=1&since=${since}`),
 };

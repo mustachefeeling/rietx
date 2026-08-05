@@ -47,9 +47,33 @@ export function consoleLine(event: EngineEvent): string {
   const data = event.data ?? {};
   const time = new Date((event.t ?? 0) * 1000).toLocaleTimeString();
   const body = Object.entries(data)
+    .filter(([key]) => !SERIES_KEYS.has(key))
     .map(([key, value]) => `${key}=${format(value)}`)
     .join(" ");
-  return `${time}  ${event.kind.padEnd(11)} ${body}`;
+  return `${time}  ${event.kind.padEnd(11)} ${seriesPrefix(data)}${body}`;
+}
+
+/** The series stamp (WP-1016), rendered as a prefix rather than as four fields.
+ *
+ * The console renders whatever keys arrive — deliberately, since `data` is an
+ * open dict and a reader that knew the shape would go stale (`history/events.py`).
+ * But a series stamps **five** keys onto every event including every `eval`, and
+ * a browser showed what that does: the transcript became
+ * `series_index=0 series_label="T300" series_n=3 series_p…` repeated, with the
+ * cost and the evaluation counter pushed off the right edge. So these five are
+ * folded into one `[T300 ↩]` prefix — the same information, and the line's own
+ * fields stay where they were.
+ */
+const SERIES_KEYS = new Set(["series_index", "series_label", "series_n",
+                             "series_pass", "series_cold"]);
+
+function seriesPrefix(data: Record<string, unknown>): string {
+  if (data.series_index === undefined) return "";
+  const name = data.series_label ?? data.series_index;
+  const n = data.series_n ? `/${data.series_n}` : "";
+  const back = data.series_pass === "backward" ? " ↩" : "";
+  const cold = data.series_cold ? " ❄" : "";
+  return `[${name} ${Number(data.series_index) + 1}${n}${back}${cold}] `;
 }
 
 function format(value: unknown): string {

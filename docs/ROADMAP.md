@@ -57,61 +57,61 @@ size caps on this file and CLAUDE.md.
 
 **Nothing in flight.** Pick up the queue below.
 
-**Last closed: [1041](wp/1041-indexing-benchmark-gallery.md) and
-[1040](wp/1040-engine-svd-index.md)** (2026-08-05) — the indexing milestone's
-evidence is **generated** now, not typed. Every acceptance row leaves PNGs (38 over
-16 datasets, closing the last exception to `tests/CLAUDE.md`'s plotting rule), and
+**Closed 2026-08-05: [1041](wp/1041-indexing-benchmark-gallery.md) +
+[1040](wp/1040-engine-svd-index.md)** — the indexing milestone's evidence is
+**generated**, not typed. Every acceptance row leaves PNGs (38 over 16 datasets,
+closing the last exception to `tests/CLAUDE.md`'s plotting rule);
 `tests/indexing_gallery.py` writes a sidecar per dataset from which the scoreboard
-and `tests/output/indexing_gallery.html` are built.
+and `tests/output/indexing_gallery.html` are built. **The scoreboard's shape
+changed: nine datasets — 6 truth-first, 2 found-below-first, 1 refused
+pre-search, 0 promoted.** The old "eight datasets: five right, one refused, two
+fail" named *nine* and had no bucket for what this package produces most; brucite
+and magnetite were **prose no run reproduced**, and both now rank the truth first.
+Sharpest new result — **magnetite**: the panel ranks the cubic F truth first and
+the *gate grades it below its own P rival*, because a d-glide refutes the correct
+cell while the rival's over-parameterised Le Bail fit leaves nothing detectably
+absent.
 
-**The scoreboard is re-measured and its shape is different: nine datasets — 6 rank
-the truth first, 2 find it below first, 1 is refused before searching, 0 promoted.**
-The old "eight datasets: five right, one refused, two fail" named *nine* and had no
-bucket for the outcome this package produces most. brucite and magnetite, 1040's two
-inherited failures, were **prose that no run reproduced** — never test rows, so never
-re-run while four WPs changed the answer; both are rows now and both rank the truth
-first.
+**Also closed 2026-08-05: [1016](wp/1016-sequential-series-panel.md)** — an
+in-situ ramp is drivable from the GUI, built around the fact that **a smooth curve
+is exactly what a poisoned chain produces**. It found its own charter wrong
+(WP-1008 said `SequentialRefinement` took `events=`/`cancel=`; it took neither),
+so the library gained both per pattern and a cancelled series **returns** what
+completed. The series lives *beside* the project; persistence deferred to
+**1003**, and the GUI is complete but for [1017](wp/1017-gui-manual-onboarding.md).
 
-**One session theme, and it is the transferable part: a number that is not
-regenerated is a number nobody re-measures.** Four stale records, none visible to any
-test — the scoreboard, the NAC panel table (three of seven members off by up to 13 %
-after the WP-1035 merge), FAP's prose, and three renderer defects that each made a
-picture contradict its own label. **magnetite is the sharpest new result**: the panel
-ranks the cubic F truth first and the *gate grades it below its own P rival*, because
-a d-glide refutes the correct cell while the rival's over-parameterised Le Bail fit
-leaves nothing detectably absent. Also settled earlier in the WP: the magnitude-aware
-aggregate is **refuted** (`fom.log_sum_scores` ships tested and unwired), and the
-contamination curve says what breaks under impurity is the *grade*, by arithmetic,
-long before the *rank*.
+**The theme both share: a number that is not regenerated is a number nobody
+re-measures.** 1041 found four stale records no test could see. **A prediction is
+not a measurement**, and 1016 adds the inverse: **nor is an inherited claim.**
+Narratives: [milestones/v1.0.md](milestones/v1.0.md).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
-   we did not author; every item was hit by a real external benchmark.
+   we did not author; every item was hit by a real external benchmark, and its
+   `### Inherited` now also carries a peak-picking defect found by eye in 1041's
+   gallery (the pattern's rising left edge picked as a line on 4 of 6 patterns).
 2. [1043](wp/1043-agent-and-human-indexing.md) — **new, from the gallery
    review**: the package refuses a clean 18-line cubic pattern that all three
    engines index at −5 ppm in under a second, because the 20-line bar is a
-   *scoring* precondition being enforced as a *searching* one. Also files the
-   corpus skew — 9 of 10 real datasets sit at ≤ 2 free metric parameters, and we
-   hold no orthorhombic or triclinic data at all.
+   *scoring* precondition enforced as a *searching* one. Also files the corpus
+   skew — 9 of 10 real datasets sit at ≤ 2 free metric parameters, and there is
+   no orthorhombic or triclinic data at all.
 3. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   its `### Inherited` carries 1037's streaming argument.
+   its `### Inherited` carries 1037's streaming argument and 1016's third writer
+   of the run record's progress fields.
 4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-5. [1016](wp/1016-sequential-series-panel.md) then
-   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
-   waits on 1032–1035, all now closed, which changed the controls it documents.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
-   the freeze covers an exercised surface. It **inherits one line from 1036 via
-   1035**: `Phase.space_group` has no schema validator, deliberately, because
-   adding one changes the error type at every construction site including
-   history-node deserialization.
+5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+   freeze covers an exercised surface. Its `### Inherited` was filled by both
+   1016 and 1041; read it first.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
 **individual** program globals in Bergmann et al. 2004 (McMaille +5, Crysfire +6
-to beat — the old "≥ +9" was Table 5's `first_4` oracle, which no single entry
-reaches), abstaining on the mixture fixtures.
+to beat — "≥ +9" was Table 5's `first_4` oracle, which no entry reaches), and
+abstaining on the mixture fixtures.
 
 ## Milestones
 
@@ -212,7 +212,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
-| [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
+| [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ✅ 2026-08-05 | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |

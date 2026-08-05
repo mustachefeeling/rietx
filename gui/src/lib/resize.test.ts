@@ -7,7 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MODEL_MIN, axisOf, clampSize, coalesce, dragged, fitColumns, modelStacks } from "./resize";
+import { MODEL_MIN, SERIES_MIN, axisOf, clampSize, coalesce, dragged, fitColumns,
+         modelStacks, seriesCompact } from "./resize";
 
 describe("which coordinate a grip reads", () => {
   it("is the one its pane grows along", () => {
@@ -183,5 +184,33 @@ describe("when the model pane becomes one stacked column", () => {
     // jsdom, or the render before the first layout: the same fallback
     // `clampSize` and `fitColumns` make, rather than a stacked pane by accident
     expect(modelStacks(0)).toBe(false);
+  });
+});
+
+describe("when the staged-series table drops its descriptive columns", () => {
+  it("is decided by the measured halves, not by a round number", () => {
+    // WP-1016's browser pass: the row is 539 px, of which the four load-bearing
+    // columns (#, label, coordinate, the reorder/remove buttons) are 308 and the
+    // four descriptive ones are 231.
+    expect(SERIES_MIN.core + SERIES_MIN.detail).toBe(539);
+    expect(seriesCompact(538)).toBe(true);
+    expect(seriesCompact(539)).toBe(false);
+  });
+
+  it("reflows at every sidebar width narrower than the clamp ceiling", () => {
+    // the panel is the sidebar minus its 20 px of padding, so 559 px of column
+    // is where the full table fits exactly — which is the `clamp(340px, 38%,
+    // 560px)` ceiling, i.e. the shipped default just holds it
+    for (const width of [320, 340, 436, 460, 538]) {
+      expect(seriesCompact(width)).toBe(true);
+    }
+    expect(seriesCompact(540)).toBe(false);
+    expect(seriesCompact(1480)).toBe(false);   // the full-window hatch
+  });
+
+  it("keeps the full table when nothing is measurable", () => {
+    // jsdom, or before the first layout: the same fallback every other
+    // measurement here makes, rather than a reflowed table by accident
+    expect(seriesCompact(0)).toBe(false);
   });
 });

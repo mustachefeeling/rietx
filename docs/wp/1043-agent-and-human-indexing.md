@@ -12,6 +12,26 @@ why, and leaves the judgement to whoever asked — a gate for unattended use, an
 
 ## Context
 
+### Inherited
+
+**From [1016](1016-sequential-series-panel.md) via the closed
+[1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — two measured facts about
+drawing an esd, inherited here because this WP is the one that will surface
+per-candidate quantities.** Both were measured against the bundled **plotly
+3.7.0** and neither transfers to matplotlib unchecked — but the reasoning does.
+
+- **A `null` in `error_y.array` does not leave a gap.** plotly draws the bar's two
+  caps at the point with zero height between them — byte-identical to a `0` — so a
+  quantity with no esd renders as one measured exactly, which is a confident-wrong
+  singleton in picture form. The fix is a second, invisible trace carrying bars
+  only over the points that *have* an esd. Directly relevant here: some candidates
+  carry `cov_af` and some do not, so any evidence view that plots a fitted cell
+  parameter with its esd has exactly this problem.
+- **An esd smaller than a pixel must be left invisible.** Measured: σ(a) = 6.5e-6 Å
+  against a 4.8e-3 Å axis over 189 px is a 0.5 px bar, and 0.5 px is what was
+  drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
+  probability*.
+
 ### The thesis this WP serves
 
 The package's premise is that a well-designed *output* plus LLM reasoning beats a

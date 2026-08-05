@@ -141,6 +141,36 @@ export function modelStacks(available: number): boolean {
     && available < MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view;
 }
 
+/**
+ * The staged-series table's two halves, in px — **measured**, not chosen.
+ *
+ * On the browser pass (WP-1016, three ramp patterns, 1500 px window): the row is
+ * 539 px wide, of which `#` (22) + label (117) + the coordinate (83) + the
+ * reorder/remove buttons (86) are **308**, and file (73) + points (47) + 2θ range
+ * (78) + σ (33) are **231**. The split is not cosmetic — the buttons are the
+ * panel's main verb and they are the *last* column, so below the floor they go off
+ * the right edge of a box that scrolls horizontally, and a user has to scroll a
+ * table sideways to reorder a series.
+ */
+export const SERIES_MIN = { core: 308, detail: 231 } as const;
+
+/**
+ * Does the staged-series table have to drop its descriptive columns?
+ *
+ * `available` is the panel's own width. The sum plus the section's 20 px of
+ * padding is 559, which is what a `clamp(340px, 38%, 560px)` sidebar measures at
+ * the ceiling — so the full table fits exactly at the shipped default and
+ * anything narrower reflows. Nothing is lost when it does: the reader, the point
+ * count, the range and the σ source move into the label cell's tooltip.
+ *
+ * Zero means nothing is measurable (jsdom, or before the first layout) and the
+ * full table stands — the same fallback `clampSize`, `fitColumns` and
+ * `modelStacks` make.
+ */
+export function seriesCompact(available: number): boolean {
+  return available > 0 && available < SERIES_MIN.core + SERIES_MIN.detail;
+}
+
 export function fitColumns(widths: number[] | null | undefined, available: number,
                            min = 200, keep = 260): number[] | null {
   if (!widths || !widths.length || available <= 0) return widths ?? null;

@@ -63,6 +63,7 @@ from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz.compare import decimation_index
+from . import series as series_mod
 from . import symmetry
 from .imports import (
     UPLOAD_KINDS,
@@ -183,6 +184,16 @@ class GuiSession:
         #: ``(cache key, PeakEditor)`` — the editor holds the lazily built
         #: Detection; the key is everything a detection depends on
         self._peak_ed: tuple[tuple, Any] | None = None
+        #: the staged series and its chain settings (WP-1016).  Session-scoped
+        #: because its patterns are upload tokens, which die with ``close`` —
+        #: a *persisted* series would need a document, which is WP-1003's to
+        #: decide rather than this WP's to add.
+        self._series = series_mod.SeriesSetup()
+        #: the last completed series run: the ``SequentialRefinement`` (which
+        #: holds each pattern's full result and its own history tree) beside the
+        #: serializable ``SeriesResult``.  One object, so "is there an answer"
+        #: cannot be two answers.
+        self._series_run: dict | None = None
         if project is not None:
             self._remember(project.path)
 
@@ -886,9 +897,10 @@ class GuiSession:
         """
         p = self._need_project()
         kind = body.get("kind", "fit")
-        if kind not in ("fit", "stage", "index", "extinction"):
+        if kind not in ("fit", "stage", "index", "extinction", "series"):
             raise GuiError(f"unknown run kind {kind!r}; expected 'fit', "
-                           "'stage', 'index' or 'extinction'", where=["kind"])
+                           "'stage', 'index', 'extinction' or 'series'",
+                           where=["kind"])
         summarize = _summarize_refinement
         if kind == "stage":
             stage_spec = _validate(StageSpec, _need(body, "stage"), "stage")
@@ -958,6 +970,58 @@ class GuiSession:
             summarize = _summarize_extinction
             label = "extinction"
             n_stages = 1
+        elif kind == "series":
+            # One run on the one machine (WP-1008's charter): a series is N fits,
+            # but it is *one* long computation with one cancel token, and
+            # ``SequentialRefinement`` already emits per-pattern events — since
+            # WP-1016 it does, which is the half that charter assumed and the
+            # library did not have.
+            from ..sequential import SequentialRefinement
+
+            setup = self._series
+            if len(setup.members) < 2:
+                raise GuiError(
+                    f"a series needs at least two patterns; {len(setup.members)} "
+                    "staged. One pattern is a fit — use Run — and the fences a "
+                    "series exists for (reseed, discontinuity, path dependence) "
+                    "all compare a pattern with its neighbours.",
+                    code="NO_SERIES", status=409, where=["patterns"])
+            plan = self._effective_plan(body.get("plan"))
+            data = series_mod.read_members(setup, p.doc.excluded_regions)
+            limits = (tuple(p.doc.two_theta_limits)
+                      if p.doc.two_theta_limits else None)
+            runner = SequentialRefinement(
+                # the working state, not the root: a series warm-starts from
+                # whatever the user has already got right in this project
+                p.refinement.structure, p.refinement.instrument,
+                backend=self.backend, solver=self.solver, carry=setup.carry,
+                # in memory: the trees belong to patterns the project does not
+                # own, so writing them into it would leave orphans no document
+                # can interpret on the next open (see gui/series.py)
+                history=True)
+            members = [m.as_dict() for m in setup.members]
+
+            def call(stream, token):
+                result = runner.fit(
+                    data, x=setup.x, x_label=setup.axis_label,
+                    labels=setup.labels, mode=p.doc.mode, plan=plan,
+                    refit=setup.refit, direction=setup.direction,
+                    two_theta_limits=limits, events=stream, cancel=token)
+                with self._cond:
+                    self._series_run = {"runner": runner, "result": result,
+                                        "backward": runner.backward_,
+                                        "members": members, "data": data,
+                                        # the limits *this run* used, not the
+                                        # document's now: a member's curves
+                                        # cannot be re-fitted without replacing
+                                        # the whole answer, so its masked band
+                                        # must not move when a setting does
+                                        "limits": limits}
+                return result
+
+            summarize = _summarize_series
+            label = "series"
+            n_stages = len(setup.members)
         else:
             plan = self._effective_plan(body.get("plan"))
 
@@ -1116,8 +1180,26 @@ class GuiSession:
             self._seq += 1
             self._events.append({"seq": self._seq, **event})
             kind = event.get("kind")
+            series = data.get("series_index")
             if kind == "eval":
                 self._n_eval = int(data.get("n_eval") or self._n_eval + 1)
+            elif series is not None:
+                # A series' progress is "pattern k of N", and the run record says
+                # so through the *existing* three fields rather than three new
+                # ones — the same reuse an indexing run makes of
+                # ``stage_start``.  Its inner stages would otherwise fill them
+                # with "warm_refit (1/1)", which is true and says nothing about a
+                # forty-pattern chain.
+                if kind == "fit_start":
+                    self._run["stage"] = _series_stage_name(data, series)
+                    self._run["stage_index"] = int(series) + 1
+                    self._run["n_stages"] = (data.get("series_n")
+                                             or self._run["n_stages"])
+                elif kind == "fit_end":
+                    completed = self._run["completed_stages"]
+                    name = _series_stage_name(data, series)
+                    if name not in completed:
+                        completed.append(name)
             elif kind == "stage_start":
                 self._run["stage"] = data.get("stage") or data.get("name")
                 self._run["stage_index"] = data.get("index")
@@ -1490,6 +1572,184 @@ class GuiSession:
                 **self.structure()}
 
     # ------------------------------------------------------------------
+    # series (WP-1016)
+    # ------------------------------------------------------------------
+    def series(self) -> dict:
+        """The staged series, its chain settings, and the protocol it inherits.
+
+        Answers before any file is staged — an empty list plus the defaults *is*
+        the empty state, and a client needs the ``choices``/``carry_help`` arms to
+        draw the editor at all.  Needs a project, because the protocol it reports
+        (mode, plan, limits, exclusions) is the project's.
+        """
+        p = self._need_project()
+        plan = self._effective_plan()
+        with self._cond:
+            entry = self._series_run
+            busy = self._state != "idle" and self._run.get("kind") == "series"
+        return series_mod.setup_payload(
+            self._series, running=busy, has_result=entry is not None,
+            mode=p.doc.mode, plan_preset=self.plan()["preset"],
+            n_stages=len(plan.stages))
+
+    def series_put(self, body: dict) -> dict:
+        """Replace the staged list and/or the chain settings.
+
+        A whole-list PUT rather than add/remove/reorder verbs: the order *is* the
+        series, so every edit a panel makes is "here is the series now", and one
+        round trip cannot leave the server holding an order nobody chose.  Every
+        file is read here (:func:`series.members_from`), which is WP-1014's
+        two-phase property at N files — a file that does not parse is a message
+        about that file rather than a chain that dies half way through.
+
+        Idle-gated: the settings are what the next run will be *called* with.
+        """
+        self._require_idle()
+        self._need_project()
+        unknown = set(body) - {"patterns", "carry", "refit", "direction", "x_label"}
+        if unknown:
+            raise GuiError(f"unknown series setting(s): {sorted(unknown)}; the "
+                           "mode, plan, limits and excluded regions are the "
+                           "project's and are set through its own verbs",
+                           where=sorted(unknown))
+        setup = self._series
+        carry = body.get("carry", setup.carry)
+        refit = body.get("refit", setup.refit)
+        direction = body.get("direction", setup.direction)
+        try:
+            series_mod.check_settings(carry, refit, direction)
+            members = (series_mod.members_from(body["patterns"], self.uploads,
+                                              setup.members)
+                       if "patterns" in body else setup.members)
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=["patterns"]) from None
+        except series_mod.SeriesRefused as exc:
+            # the field, not the request: a form highlights what to retype
+            raise GuiError(str(exc), where=[exc.where]) from None
+        self._series = series_mod.SeriesSetup(
+            members=list(members), carry=[str(g) for g in carry], refit=refit,
+            direction=direction,
+            x_label=str(body.get("x_label", setup.x_label) or "index"))
+        return self.series()
+
+    def series_result(self) -> dict:
+        """The last series answer: entries, trajectories, and the fences.
+
+        Session-scoped like ``Refinement.result_`` and for the same reason — a
+        ``SeriesResult`` is a computation over patterns the project does not own,
+        so there is nothing on disk for it to be the stale view of.
+        """
+        self._need_project()
+        with self._cond:
+            entry = self._series_run
+            busy = self._state != "idle" and self._run.get("kind") == "series"
+        if entry is None:
+            raise GuiError(
+                "a series run is in flight; follow /api/events" if busy
+                else "no series has completed in this session yet; stage the "
+                     "patterns with PUT /api/series, then POST /api/series/run",
+                code="NO_SERIES_RESULT", status=409)
+        runner = entry["runner"]
+        return series_mod.result_payload(
+            entry["result"], entry["backward"], running=busy,
+            curves=[bool(r.two_theta) for r in runner.results_])
+
+    def series_window(self, index: int, lo: float | None = None,
+                      hi: float | None = None, max_points: int = 4000) -> dict:
+        """One series member's curves, through the *same* window arithmetic.
+
+        :func:`curve_window`, so the σ policy and the decimation are the project
+        plot's (CLAUDE.md: every weighted residual divides by ``sig()``).  The
+        masked-channel arm is computed from this member's own pattern through
+        ``project.fitted_mask`` — the one authority — because the protocol
+        applied to it was the project's while the *pattern* was not.
+        """
+        entry = self._series_entry()
+        runner = entry["runner"]
+        if not 0 <= index < len(runner.results_):
+            raise GuiError(
+                f"no series pattern {index}; the run reached "
+                f"{len(runner.results_)}", code="NOT_FOUND", status=404,
+                where=["index"])
+        res = runner.results_[index]
+        if not res.two_theta:
+            raise GuiError("this series pattern carries no curves",
+                           code="NO_RESULT", status=409)
+        member = entry["members"][index]
+        return {"index": index, "label": member["label"], "x": member["x"],
+                **curve_window(res, lo, hi, max_points,
+                               weighted=bool(member["has_sigma"])),
+                **self._series_masked_arm(index, lo, hi, max_points)}
+
+    def _series_masked_arm(self, index: int, lo: float | None, hi: float | None,
+                           max_points: int) -> dict:
+        """The channels this member's fit masked, for the same reason as WP-1033.
+
+        A result carries only the channels ``compile_model`` kept, so without this
+        the per-pattern plot autoranges *inside* the fit range and the protocol is
+        invisible in a picture of its own output.  There is no ``stale`` arm and
+        does not need one: the mask is rebuilt from the limits **this run** used
+        and from the member's own ``excluded_regions`` as it was read, so it
+        cannot drift from the curves beside it — a series member cannot be
+        re-fitted under a new protocol without re-running the chain, which
+        replaces the whole answer.
+        """
+        from ..project import fitted_mask
+
+        entry = self._series_entry()
+        data = entry["data"][index]
+        keep = fitted_mask(data, entry["limits"])
+        tt_all, y_all = data.tt(), data.y()
+        out = ~keep
+        if lo is not None:
+            out &= tt_all >= lo
+        if hi is not None:
+            out &= tt_all <= hi
+        if not out.any():
+            return {"excluded": {"two_theta": [], "y_obs": []}, "n_excluded": 0}
+        tt, y = tt_all[out], y_all[out]
+        idx = decimation_index(tt, [y], max(2, max_points // 4))
+        return {"excluded": {"two_theta": tt[idx].tolist(),
+                             "y_obs": y[idx].tolist()},
+                "n_excluded": int(out.sum())}
+
+    def series_history(self, index: int) -> dict:
+        """One series member's own history tree — read-only, and that is the point.
+
+        There is one tree per pattern, never one for the series
+        (``TreeHeader.data_fingerprint`` pins a tree to its data), so a node here
+        **cannot be checked out** into this project: its state was fitted against
+        another pattern, and restoring it would be the silent rebinding
+        ``Project.open`` refuses.  What it is for is reading — the warm-start link
+        is recorded in the root node's ``notes``
+        (``series_warm_start_tree``/``…_node``), so this payload is what makes a
+        chain navigable.
+        """
+        entry = self._series_entry()
+        runner = entry["runner"]
+        if not 0 <= index < len(runner.trees_):
+            raise GuiError(
+                f"no series pattern {index}; the run reached "
+                f"{len(runner.trees_)}", code="NOT_FOUND", status=404,
+                where=["index"])
+        tree = runner.trees_[index]
+        if tree is None:  # pragma: no cover - the GUI always runs with history
+            raise GuiError("this series was run without history",
+                           code="NO_HISTORY", status=409)
+        member = entry["members"][index]
+        return {"index": index, "label": member["label"],
+                "checkout": False, **tree_payload(tree)}
+
+    def _series_entry(self) -> dict:
+        with self._cond:
+            entry = self._series_run
+        if entry is None:
+            raise GuiError("no series has completed in this session yet",
+                           code="NO_SERIES_RESULT", status=409)
+        return entry
+
+    # ------------------------------------------------------------------
     # results
     # ------------------------------------------------------------------
     def result(self) -> dict:
@@ -1550,6 +1810,14 @@ class GuiSession:
         at a budget of 4000).  ``n_returned`` is therefore the length to trust,
         and a client sizing an array from ``max_points`` would be wrong.
 
+        The arithmetic is :func:`curve_window`, shared with the series panel's
+        per-pattern route (WP-1016) for the reason every weighted residual in this
+        package divides by ``RefinementResult.sig()``: a second window builder
+        would be a second σ policy, which is the class of bug WP-1029 (s) found.
+        What stays here is what only a *project's* result has — the masked
+        channels and the ``stale`` comparison, both of which need
+        ``Project.fitted_mask``.
+
         **Three residuals, and one of them cannot be derived from the others**
         (WP-1029).  ``delta_raw`` is obs − calc and ``delta`` is that over σ —
         either could be recomputed in a client from ``y_obs``/``y_calc``, but
@@ -1578,58 +1846,13 @@ class GuiSession:
         Poisson fit got its axis labelled ``(obs−calc)/σ`` with nothing saying
         the σ was an assumption.
         """
-        import numpy as np
-
         res = self._need_result()
         if not res.two_theta:
             raise GuiError("this result carries no curves", code="NO_RESULT",
                            status=409)
-        tt = np.asarray(res.two_theta)
-        mask = np.ones(len(tt), dtype=bool)
-        if lo is not None:
-            mask &= tt >= lo
-        if hi is not None:
-            mask &= tt <= hi
-        if not mask.any():
-            return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
-                    "delta": [], "delta_raw": [], "cumulative_chi2": [],
-                    "weighted": self._need_project().data_ref.has_sigma,
-                    "ticks": {}, "n_total": 0,
-                    "n_returned": 0, "max_points": max_points,
-                    **self._masked_arm(lo, hi, max_points)}
-        y_obs = np.asarray(res.y_obs)[mask]
-        y_calc = np.asarray(res.y_calc)[mask]
-        y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
-        # σ over the whole pattern, then masked: RefinementResult.sig() floors
-        # against the pattern's own median, and a window-local floor would make
-        # the residual depend on how far the user happened to be zoomed in
-        sigma = res.sig()[mask]
-        tt = tt[mask]
-        raw = y_obs - y_calc
-        delta = raw / sigma
-        # accumulated over every point, then decimated — see the docstring
-        cumulative = np.cumsum(delta**2)
-        idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
-        window = (float(tt[0]), float(tt[-1]))
-        return {
-            "two_theta": tt[idx].tolist(),
-            "y_obs": y_obs[idx].tolist(),
-            "y_calc": y_calc[idx].tolist(),
-            "y_background": [] if y_bkg is None else y_bkg[idx].tolist(),
-            "delta": delta[idx].tolist(),
-            "delta_raw": raw[idx].tolist(),
-            "cumulative_chi2": cumulative[idx].tolist(),
-            # whether σ was the file's or a Poisson fallback is the *server's*
-            # fact: a client labelling its axis without it can only guess
-            "weighted": self._need_project().data_ref.has_sigma,
-            # every emission line's ticks, not just the primary — Layer 0 flags
-            # each Kα2 peak as an impurity otherwise (CLAUDE.md)
-            "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]
-                      for phase, ticks in res.ticks.items()},
-            "window": list(window), "n_total": int(mask.sum()),
-            "n_returned": len(idx), "max_points": max_points,
-            **self._masked_arm(lo, hi, max_points),
-        }
+        return {**curve_window(res, lo, hi, max_points,
+                               weighted=self._need_project().data_ref.has_sigma),
+                **self._masked_arm(lo, hi, max_points)}
 
     def _masked_arm(self, lo: float | None, hi: float | None,
                     max_points: int) -> dict:
@@ -1769,36 +1992,7 @@ class GuiSession:
         ``api_call``, which is the node's equivalent public-API line and turns
         the log into a script a user can copy.
         """
-        p = self._need_project()
-        tree = p.history
-        tags: dict[str, list[str]] = {}
-        for name, node_id in tree.refs.items():
-            if name != "head":
-                tags.setdefault(node_id, []).append(name)
-        nodes = []
-        for node_id in tree.order:
-            node = tree.nodes[node_id]
-            stats = node.metrics.statistics
-            nodes.append({
-                "id": node.id, "parents": list(node.parents),
-                "label": node.label, "created_utc": node.created_utc,
-                "kind": node.action.kind, "name": node.action.name,
-                "action": node.action.model_dump(mode="json"),
-                "api_call": node.action.api_call(),
-                "status": node.metrics.status,
-                "n_iterations": node.metrics.n_iterations,
-                "rwp": None if stats is None else stats.rwp,
-                "gof": None if stats is None else stats.gof,
-                "n_free": None if stats is None else stats.n_free_parameters,
-                "n_diagnostics": len(node.diagnostics),
-                "diagnostics": [d.model_dump(mode="json") for d in node.diagnostics],
-                "tags": tags.get(node.id, []),
-                "children": [c.id for c in tree.children(node.id)],
-                "scores": dict(node.scores), "notes": dict(node.notes),
-            })
-        return {"tree_id": tree.header.tree_id, "head": tree.head,
-                "root": None if tree.root is None else tree.root.id,
-                "n_nodes": len(tree), "nodes": nodes}
+        return tree_payload(self._need_project().history)
 
     def history_diff(self, a: str, b: str) -> dict:
         tree = self._need_project().history
@@ -1926,6 +2120,10 @@ class GuiSession:
             self._index_result = None
             self._extinction = None
             self._peak_ed = None
+            # a series is staged against a project's protocol and warm-started
+            # from its models, so another project's series is not this one's
+            self._series = series_mod.SeriesSetup()
+            self._series_run = None
             self._cond.notify_all()
         self._remember(project.path)
 
@@ -1978,6 +2176,108 @@ class GuiSession:
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
+def curve_window(res, lo: float | None, hi: float | None, max_points: int, *,
+                 weighted: bool) -> dict:
+    """One result's curves over a 2θ window, decimated — the shared arithmetic.
+
+    Module-level and taking the result explicitly, because it has two callers
+    that hold results from different places: ``GuiSession.result_window`` (the
+    project's own fit) and ``GuiSession.series_window`` (one member of a series,
+    which the project does not own).  Everything about *what* is drawn is decided
+    here once, in particular the σ — ``RefinementResult.sig()``, never a
+    re-derivation — so the two panels cannot draw residuals under two policies.
+
+    ``weighted`` is the caller's fact, not this function's: it is whether the σ
+    was **measured** (``DataRef.has_sigma``) rather than whether ``delta`` is
+    divided by something, which it always is.  See ``result_window``'s docstring
+    for what happens when that distinction is lost.
+    """
+    import numpy as np
+
+    tt = np.asarray(res.two_theta, dtype=float)
+    mask = np.ones(len(tt), dtype=bool)
+    if lo is not None:
+        mask &= tt >= lo
+    if hi is not None:
+        mask &= tt <= hi
+    if not mask.any():
+        return {"two_theta": [], "y_obs": [], "y_calc": [], "y_background": [],
+                "delta": [], "delta_raw": [], "cumulative_chi2": [],
+                "weighted": weighted, "ticks": {}, "n_total": 0,
+                "n_returned": 0, "max_points": max_points}
+    y_obs = np.asarray(res.y_obs)[mask]
+    y_calc = np.asarray(res.y_calc)[mask]
+    y_bkg = np.asarray(res.y_background)[mask] if res.y_background else None
+    # σ over the whole pattern, then masked: RefinementResult.sig() floors
+    # against the pattern's own median, and a window-local floor would make
+    # the residual depend on how far the user happened to be zoomed in
+    sigma = res.sig()[mask]
+    tt = tt[mask]
+    raw = y_obs - y_calc
+    delta = raw / sigma
+    # accumulated over every point, then decimated — see result_window
+    cumulative = np.cumsum(delta**2)
+    idx = decimation_index(tt, [y_obs, y_calc, delta], max_points)
+    window = (float(tt[0]), float(tt[-1]))
+    return {
+        "two_theta": tt[idx].tolist(),
+        "y_obs": y_obs[idx].tolist(),
+        "y_calc": y_calc[idx].tolist(),
+        "y_background": [] if y_bkg is None else y_bkg[idx].tolist(),
+        "delta": delta[idx].tolist(),
+        "delta_raw": raw[idx].tolist(),
+        "cumulative_chi2": cumulative[idx].tolist(),
+        # whether σ was the file's or a Poisson fallback is the *server's*
+        # fact: a client labelling its axis without it can only guess
+        "weighted": weighted,
+        # every emission line's ticks, not just the primary — Layer 0 flags
+        # each Kα2 peak as an impurity otherwise (CLAUDE.md)
+        "ticks": {phase: [t for t in ticks if window[0] <= t <= window[1]]
+                  for phase, ticks in res.ticks.items()},
+        "window": list(window), "n_total": int(mask.sum()),
+        "n_returned": len(idx), "max_points": max_points,
+    }
+
+
+def tree_payload(tree) -> dict:
+    """A history tree as nodes a client can draw, without any node's full state.
+
+    ``GuiSession.history``'s body, taking the tree explicitly: a series is N
+    trees (one per pattern, each pinned to its own data fingerprint), and the
+    panel that walks into one of them needs the same node shape the project's own
+    history panel already renders — `lib/history.ts`'s lane layout is reusable
+    only if the payload is identical.
+    """
+    tags: dict[str, list[str]] = {}
+    for name, node_id in tree.refs.items():
+        if name != "head":
+            tags.setdefault(node_id, []).append(name)
+    nodes = []
+    for node_id in tree.order:
+        node = tree.nodes[node_id]
+        stats = node.metrics.statistics
+        nodes.append({
+            "id": node.id, "parents": list(node.parents),
+            "label": node.label, "created_utc": node.created_utc,
+            "kind": node.action.kind, "name": node.action.name,
+            "action": node.action.model_dump(mode="json"),
+            "api_call": node.action.api_call(),
+            "status": node.metrics.status,
+            "n_iterations": node.metrics.n_iterations,
+            "rwp": None if stats is None else stats.rwp,
+            "gof": None if stats is None else stats.gof,
+            "n_free": None if stats is None else stats.n_free_parameters,
+            "n_diagnostics": len(node.diagnostics),
+            "diagnostics": [d.model_dump(mode="json") for d in node.diagnostics],
+            "tags": tags.get(node.id, []),
+            "children": [c.id for c in tree.children(node.id)],
+            "scores": dict(node.scores), "notes": dict(node.notes),
+        })
+    return {"tree_id": tree.header.tree_id, "head": tree.head,
+            "root": None if tree.root is None else tree.root.id,
+            "n_nodes": len(tree), "nodes": nodes}
+
+
 def _summarize_refinement(result, _token) -> dict:
     """The run-record fields a finished fit or stage supplies."""
     return {"status": result.status, "rwp": result.statistics.rwp,
@@ -1996,6 +2296,43 @@ def _summarize_index(result, token) -> dict:
     return {"status": "cancelled" if cancelled else "completed",
             "completed_stages": [f"engine:{name}"
                                  for name in result.engines_run]}
+
+
+def _series_stage_name(data: dict, index: Any) -> str:
+    """What the progress pill says while a series pattern is being fitted.
+
+    The label alone would be a lie twice over on the same number: a
+    ``direction="both"`` run walks every pattern a second time in reverse (so the
+    counter goes 1…N and back to 1, which reads as a restart unless the pass is
+    named), and a reseeded pattern is fitted **twice** by design — the warm fit
+    and the cold restart that judges it.  Both facts are already on the event's
+    open ``data``; this is the two of them made readable.
+    """
+    name = str(data.get("series_label") or index)
+    if data.get("series_pass") == "backward":
+        name += " (backward)"
+    if data.get("series_cold"):
+        name += " (cold restart)"
+    return name
+
+
+def _summarize_series(result, token) -> dict:
+    """The run-record fields a finished series supplies.
+
+    ``rwp``/``gof`` are the **last** entry's, not an average: a series has N of
+    each and averaging them would invent a statistic no fit computed.  The status
+    is read off the token for the same reason an indexing run's is — a cancelled
+    series returns the patterns that completed rather than raising (the module
+    docstring of :mod:`pxrdref.sequential` says why that is WP-1006's rule and
+    not an exception to it) — and ``completed_stages`` is the patterns reached, so
+    the header's stage list reads as the chain's progress.
+    """
+    cancelled = token is not None and bool(token)
+    last = result.entries[-1].statistics if result.entries else None
+    return {"status": "cancelled" if cancelled else "completed",
+            "rwp": None if last is None else last.rwp,
+            "gof": None if last is None else last.gof,
+            "completed_stages": [e.label or str(e.index) for e in result.entries]}
 
 
 def _summarize_extinction(result, token) -> dict:
