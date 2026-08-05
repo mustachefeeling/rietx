@@ -47,7 +47,7 @@
     onaddpeak = () => {},
     onmovepeak = () => {},
     ontogglepeak = () => {},
-    onrefitgroup = () => {},
+    onremovepeak = () => {},
   }: {
     result: any;
     plotKey: number;
@@ -68,7 +68,7 @@
     onaddpeak?: (twoTheta: number) => void;
     onmovepeak?: (index: number, twoTheta: number) => void;
     ontogglepeak?: (index: number) => void;
-    onrefitgroup?: (group: number) => void;
+    onremovepeak?: (index: number) => void;
   } = $props();
 
   let node: HTMLDivElement | undefined = $state();
@@ -409,6 +409,16 @@
     }
   }
 
+  /**
+   * Right-click **removes** the line under the pointer (WP-1032).
+   *
+   * It used to refit the line's whole group through a `window.prompt` for a
+   * component count — a modal in the one gesture that has no undo, on a verb the
+   * table's `↻` already carries.  Remove is the destructive edit a pointer
+   * should be able to make directly; the panel's `×` is its non-pointer route,
+   * and the coarse 10-px radius is the same one shift-toggle aims with, because
+   * the precision of a *marker* hit does not come from the pixel radius.
+   */
   function context(ev: MouseEvent) {
     if (!peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
@@ -416,7 +426,7 @@
     const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
     if (hit === null) return;
     ev.preventDefault();
-    onrefitgroup(peaks.peaks.find((p) => p.index === hit)!.group);
+    onremovepeak(hit);
   }
 
   /**
@@ -496,17 +506,26 @@
       history, run again: a checkout restores parameter values, not a fit.
     </p>
   {:else if !result && peaksActive}
-    <p class="note muted">
-      Raw pattern. Click to add a peak, drag a marker to move it, shift-click to
-      exclude, right-click a marker to refit its group.
-    </p>
+    <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
     <p class="note bad">{loadError} — install the plot extra: <code>pip install 'pxrd-refine[gui]'</code></p>
   {/if}
+  <!-- The gestures, stated whenever the tab that owns them is showing — fit or
+       no fit (WP-1032).  This line used to render only in the *raw* state, so
+       the moment a fit existed the pointer verbs were undocumented on screen.
+       Each one names its non-pointer route beside it, which is WP-1027's rule
+       made visible rather than only true. -->
+  {#if peaksActive && peaks?.peaks?.length}
+    <p class="note muted gestures">
+      <strong>Click</strong> to add a line <span class="muted">(or the panel's 2θ box)</span> ·
+      <strong>drag</strong> a marker to move it <span class="muted">(or the Text pane's 2θ column)</span> ·
+      <strong>shift-click</strong> to exclude <span class="muted">(or the row's checkbox)</span> ·
+      <strong>right-click</strong> to remove <span class="muted">(or the row's ×)</span>
+    </p>
+  {/if}
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
-       active.  Every verb has a non-pointer route too — add by typed 2θ in the
-       panel, move by editing the 2θ column of the text document — so the
-       pointer path is an accelerator, not the only way in. -->
+       active.  Every verb has a non-pointer route too — the line above names
+       each — so the pointer path is an accelerator, not the only way in. -->
   <div class="plot" role="application" aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   {#if shown}
@@ -575,6 +594,11 @@
   .note {
     margin: 4px 2px;
     font-size: 11.5px;
+  }
+
+  .gestures strong {
+    font-weight: 600;
+    color: var(--fg);
   }
 
   .bad {

@@ -289,17 +289,11 @@
     const row = peaksData?.peaks?.find((p) => p.index === i);
     if (row) peakVerb(() => api.flagPeak(i, { use_for_indexing: !row.usable }));
   };
-  const refitGroup = (group: number) => {
-    const asked = window.prompt(
-      "Fit how many components in this group? (empty = the picker decides)");
-    if (asked === null) return;
-    const n = asked.trim() === "" ? undefined : Number(asked);
-    if (n !== undefined && (!Number.isInteger(n) || n < 1)) {
-      say(`refused: "${asked}" is not a component count`);
-      return;
-    }
-    peakVerb(() => api.refitGroup(group, n));
-  };
+  /** Right-click on a marker removes it (WP-1032).  Refit stays on the Peaks
+   *  table's `↻`, and the `window.prompt` for a component count went with it:
+   *  a modal on the one pointer gesture with no undo, for a verb another
+   *  control already carried. */
+  const removePeak = (index: number) => peakVerb(() => api.removePeak(index));
 
   async function loadIndexAnswer() {
     try {
@@ -621,7 +615,7 @@
       <Plot {result} {plotKey} {zoom} {theme} error={resultError}
         peaks={peaksData} peaksActive={tab === "peaks"}
         onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
-        onrefitgroup={refitGroup} />
+        onremovepeak={removePeak} />
       <div class="side" bind:clientWidth={sideMeasured}
         style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
         <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}

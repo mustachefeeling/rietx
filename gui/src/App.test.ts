@@ -2350,6 +2350,60 @@ describe("the peaks tab (WP-1027)", () => {
     expect(sent?.body).toEqual({ index: 1, use_for_indexing: true });
   });
 
+  it("removes the line under a right-click, with no prompt in the way", async () => {
+    // WP-1032, a scope decision the user took: right-click **removes**, and
+    // refit stays on the table's `↻`.  The `window.prompt` for a component
+    // count went with it — a modal in the one gesture that has no undo.
+    const stub = server({
+      ...boot(),
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/remove": (call: Call) => ({ body: { ...PEAKS_PAYLOAD,
+        api_call: `session.remove_peak(${call.body.index})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    const prompt = vi.fn();
+    vi.stubGlobal("prompt", prompt);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // plotly's axis, which jsdom has no layout to build: pixel → 2θ over
+    // 9–15° in 100 px, so 50 px is 12.0° and the 10-px radius is 0.6°
+    const node = host.querySelector<HTMLElement>(".plot")! as any;
+    node._fullLayout = { xaxis: { _offset: 0, _length: 100, range: [9, 15],
+                                  p2d: (px: number) => 9 + px * 0.06 } };
+    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
+    await flush();
+
+    expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
+    expect(stub.calls.some((c) => c.path === "/api/peaks/refit")).toBe(false);
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("states the gestures whenever the tab that owns them is showing", async () => {
+    // it used to render only in the raw state, so the moment a fit existed the
+    // pointer verbs were undocumented — and each one names its non-pointer route
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.querySelector(".gestures")).toBeNull();   // not while reading the report
+
+    button("Peaks")!.click();
+    await flush();
+    const line = host.querySelector(".gestures")!.textContent!;
+    for (const gesture of ["Click", "drag", "shift-click", "right-click"]) {
+      expect(line).toContain(gesture);
+    }
+    for (const route of ["2θ box", "2θ column", "checkbox", "×"]) {
+      expect(line).toContain(route);
+    }
+  });
+
   it("disables Adopt for a medium candidate and quotes the server's why", async () => {
     vi.stubGlobal("fetch", server({}).fetcher);
     app = mount(Peaks, { target: host, props: {
