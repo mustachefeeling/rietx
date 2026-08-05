@@ -81,6 +81,28 @@ distinction rather than the list:
   vanish under Σχ²" is no longer true and should not be written as a caveat),
   and **hovering a peak row lights it on the plot and vice versa**.
 
+From **[1034](1034-panel-layout.md)** (closed 2026-08-05) — the chapter's
+opening two sentences, and one thing the screen cannot say:
+
+- **There are eight tabs and no modes.** `Parameters | Plan | Peaks | Model |
+  Text | Report | History | Build`, all beside the plot, all mounted at once;
+  the header's `Split | Full` chooses only how much window the *column* gets,
+  and the tab strip travels with it. So the "[ Plot | Model | Text ]" sentence
+  the WP-1029 note below asks for is gone, and what replaces it is: where you
+  are is the tab, how wide it is, is the layout.
+- **An edit empties the plot until the next run, and that is the design.**
+  Applying a value discards the fitted curves server-side, because they
+  described the values the model no longer holds — so the workflow to teach is
+  *edit → Run → compare*, not *edit → watch*. The manual is the only place this
+  can be said; the app can only show the empty state's own "Press Run".
+- **Two widths are worth quoting once** (measured, 1034 task 1): the `.pxt`
+  document's editable columns need 546 px and its comments 756, and the atom
+  table needs 472 — which is why the Text and Model tabs get a wider column, or
+  `Full`, when a rectangular selection or an eight-column table is the job.
+- **`Open…` in the header** opens the wizard with a recent list in it. Say what
+  it does to the session: it replaces the open project, and nothing is unsaved
+  because settings persist on the verb.
+
 From the **2026-08-04 use session**, which created
 [1032](1032-gui-repairs.md), [1033](1033-plot-range-regions.md),
 [1034](1034-panel-layout.md) and [1035](1035-symmetry-surfaced.md): **do not

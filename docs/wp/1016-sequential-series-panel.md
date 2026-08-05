@@ -42,6 +42,17 @@ warning and per-pattern drill-down into each pattern's own history tree.
 
 ### Inherited
 
+From **[1034](1034-panel-layout.md)** (closed 2026-08-05) — this panel is the
+**ninth** tab, and two things follow. The strip already **wraps** rather than
+truncating (no label is shortened, the buttons do not grow), so a ninth costs a
+second row at a narrow column and nothing else — but pick a short label, because
+eight already fill a 455 px strip. And **the full-window hatch is free**: the
+header's `Split | Full` expands the whole column with its tabs, so a trajectory
+panel that wants width does not need a mode of its own — which is what the two
+panes that had one gave up. A panel that cannot work below some width should say
+so the way `Model.svelte` does: measure its floor, put the threshold in
+`lib/resize.ts` as arithmetic over the parts, and reflow.
+
 From **WP-1029** (GUI usability, landed 2026-07-30): **the splitter you were told
 to expect exists — use it, do not build a second one.**
 `panels/Splitter.svelte` over `lib/resize.ts`, carrying `Console.svelte`'s rule
