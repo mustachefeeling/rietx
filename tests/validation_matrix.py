@@ -999,11 +999,18 @@ CLAIMS: tuple[Claim, ...] = (
                  "never an injected one, so indexed_fraction is 25/(25+k) and "
                  "the 0.9 bar falls between k = 2 (0.926, high) and k = 3 "
                  "(0.893, low on indexed_fraction_low).  Rank is far more "
-                 "robust than grade: over eleven k and eight seeds, first to "
-                 "k = 12 (32 % by number, 11-13 % by intensity) when the "
-                 "search is told how many lines it may leave unindexed, and to "
-                 "k = 6 when it is not -- n_unindexed is an absolute budget "
-                 "and no user of an unknown phase knows k",
+                 "robust than grade, and how robust depends on a budget the "
+                 "user does not have -- first at k = 6/9/12/15/18 is "
+                 "8/8, 8/8, 8/8, 2/8, 1/8 with n_unindexed = k and "
+                 "8/8, 5/8, 2/8, 1/8, 0/8 with n_unindexed = 3 (eight seeds "
+                 "each).  The second column is the honest one and is the "
+                 "absolute budget showing as a contamination limit: when it "
+                 "misses it returns the truth NOWHERE, not second.  The first "
+                 "column is NOT monotone past k = 12 -- k = 21 returns 8/8 -- "
+                 "because M20 of the truth runs ~160, ~300, then 3-5 once more "
+                 "than twenty injected lines mean the first twenty of the list "
+                 "are mostly impurity, at which point the member is noise for "
+                 "every candidate alike",
         starts=2,
     ),
     Claim(

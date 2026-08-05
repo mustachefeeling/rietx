@@ -2075,24 +2075,49 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
     the confidence fall should therefore look at how many lines are unexplained,
     not at whether the cell is wrong.
 
-    **The rank is far more robust than the grade**, and the full curve is in the
-    WP-1041 handover: over eleven k and eight seeds the truth stays ranked first
-    to k = 12 — 32 % of the lines by number, 11-13 % by intensity — when the
-    search is told how many lines it may leave unindexed, and to k = 6 when it is
-    not.  That second number is the honest one, since ``n_unindexed`` is an
-    absolute budget and no user of an unknown phase knows k.
+    **The rank is far more robust than the grade, and how robust depends on a
+    budget the user does not have.**  The full curve, eleven k and eight seeds
+    each, is in the WP-1041 handover.  Two protocols, because ``n_unindexed`` is
+    how many lines a candidate may leave unexplained and CLAUDE.md records that
+    it is *absolute*:
+
+    ======  ===========================  ===========================
+    k       first, ``n_unindexed`` = k   first, ``n_unindexed`` = 3
+    ======  ===========================  ===========================
+    6       8/8                          8/8
+    9       8/8                          5/8
+    12      8/8                          2/8
+    15      2/8                          1/8
+    18      1/8                          0/8
+    ======  ===========================  ===========================
+
+    The right-hand column is the experiment a user actually runs, since nobody
+    indexing an unknown phase knows k — and it is *the absolute budget showing up
+    as a contamination limit*, not a search weakness: told it may leave 3 lines
+    unindexed on a list carrying 12 impurities, the search cannot reach the
+    answer, and when it misses it returns the truth **nowhere** rather than
+    second (``found`` equals ``first`` in that column at every k).
+
+    **Do not read the left-hand column past k = 12 as robustness.**  It is not
+    monotone — k = 21 comes back 8/8 — and the mechanism is visible in M₂₀ of the
+    truth itself: ~160 at k = 15, ~300 at k = 18, and **3-5** at k = 21, once
+    more than twenty injected lines mean the first twenty of the contaminated
+    list are mostly impurity.  At that point M₂₀ is noise for every candidate
+    alike and the reversed members decide alone.  A curve that turns over because
+    a member stopped meaning anything is a measurement about the member.
 
     **Against the published rates, one comparison is fair and one is not.**  Le
     Bail's statement — under 35 % impurity lines by number the correct cell is
     generally first, at 35-50 % it may be found but usually not first, provided
-    impurity intensity stays under 15 % — is a statement about *fractions* and
-    this sweep lands on it: first at 32 %, and failing at 37 %.  Coelho's Table 6
-    rates (3 lines → 84 % orthorhombic / 91 % monoclinic / 67 % triclinic) are
-    **not** comparable and must not be quoted beside these: they are success rates
-    over an ensemble of *different structures* in systems with three, four and six
-    free metric parameters, where this is one cubic lattice with **one**.  Cubic
-    does not appear in that table, and this row is not evidence about the systems
-    that do.
+    impurity intensity stays under 15 % — is about *fractions*, and the
+    budget-matched column lands on it exactly: 8/8 first at 32.4 % by number
+    (11-13 % by intensity), then 2/8 first but 8/8 still **found** at 37.5 %,
+    which is that sentence's second clause.  Coelho's Table 6 rates (3 lines →
+    84 % orthorhombic / 91 % monoclinic / 67 % triclinic) are **not** comparable
+    and must not be quoted beside these: they are success rates over an ensemble
+    of *different structures* in systems with three, four and six free metric
+    parameters, where this is one cubic lattice with **one**.  Cubic does not
+    appear in that table, and this row is not evidence about the systems that do.
     """
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
