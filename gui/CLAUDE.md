@@ -375,21 +375,29 @@ version rather than getting a wrong cause. **The preview is a diff of two
 `ParameterTable`s and duplicates no rule** — the raises *are* the incompatibility
 list, nearest-allowed values included, and since a table stops at the first bad
 item the per-atom pass probes one atom at a time against a *real* table rather
-than parsing a sentence this package owns elsewhere. **The gate belongs in
-`_edit`, not in the symmetry verb**: `PATCH /api/structure` used to accept an
-incompatible model, commit an `edit_model` node from a snapshot that never builds
-a table, then 500 on the next `GET /api/params` with the head standing where no
-table can build — so every whole-model verb now builds the candidate table first,
-and testing the *candidate* is what keeps the repair path open. And **the notes
-are for what a table diff structurally cannot see**: a setting change, a centring
-change, `_free_paths` casualties (dropped *and* renumbered — `…dof.k` is
-positional), an orbit collision, and the **orbit multiplicity**, which a browser
-found by taking NAC from `I 21 3` to `I 41 3 2` — same orders, same DOFs, same
-ties, same centring, empty diff, and 84 atoms in the cell becoming 168. Two
-corollaries: an orbit collision blocks only when the shared occupancies sum past
-1, because a mixed site is standard modelling and F is right for it; and a
-**blocked** preview is given no consequences at all, since they would be computed
-from operators the model cannot carry.
+than parsing a sentence this package owns elsewhere. **The gate is
+`Refinement.edit`'s, not this layer's** — the failure was never a GUI one, so it
+was fixed where it lived (root CLAUDE.md), and all `GuiSession._edit` adds is the
+**address**: the refusal's leading dot-path, which a form needs to highlight the
+field. And **the notes are for what a table diff structurally cannot see**: a
+setting change, a centring change, `_free_paths` casualties (dropped *and*
+renumbered — `…dof.k` is positional), an orbit collision, and the **orbit
+multiplicity**, which a browser found by taking NAC from `I 21 3` to `I 41 3 2` —
+same orders, same DOFs, same ties, same centring, empty diff, and 84 atoms in the
+cell becoming 168. Two corollaries: a **blocked** preview is given no
+consequences at all, since they would be computed from operators the model cannot
+carry; and **a shared orbit is judged as a group, by its occupancies**. Atoms the
+symmetry merges are one *site*, so the members are the connected components of
+the coincidence relation and the verdict is the sum over the whole group — three
+atoms at 0.4 are over-occupied where no pair of them is, which makes pairwise not
+a coarser answer but a wrong one. Over 1 blocks; at or under it the same geometry
+is a legal mixed site and F is right for it. **No prior art to copy, checked**:
+GSAS-II recomputes every site symmetry on a space-group change
+(`G2spc.UpdateSytSym`) and runs no such check, and TOPAS's `occ_merge` rescales
+occupancies continuously during *structure solution* rather than refusing an edit
+— deliberately not copied, because it silently rewrites a number the user typed,
+which is the objection that made `check_cell_angles` refuse rather than
+normalise.
 
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the

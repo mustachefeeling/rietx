@@ -52,11 +52,7 @@ Replaced at every handover, never appended (history: the v1.0 appendix). Measure
 2026-08-05 at the **WP-1035** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
 — **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
 
-- fast suite: **1696 passed / 108 skipped**, **2:35-3:00** — +10 python rows (9 in
-  `test_gui_server.py`, 1 in `test_textdoc.py`); the extra skips are jax's.
-- full suite: **1787 passed / 117 skipped**, **23:12** — fast **+ exactly the 100
-  rows `-m slow` collects** (both selections run 2 over `--collect-only`, for the
-  reason below). WP-1035 touched no engine and no physics module.
+- fast **1698 passed / 108 skipped**, **2:35-3:00** *unloaded* — the same green tree read **9:01** while another worktree's suite shared the machine (load 56), so quote the range and never the figure. Full **1789 / 117**: measured at **1787 / 117 in 23:12** two rows earlier, and the two are fast rows over an unchanged 100-row `-m slow` selection. Both selections run 2 over `--collect-only`, for the reason below.
 - frontend (vitest): **347** (330 at 1034, +17: 13 formatter rows, 4 jsdom mounts), `svelte-check` clean; `test_gui_*.py` collect **93**.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
@@ -208,12 +204,10 @@ holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
 server contract, `.pxt` text document, editors, panels, 3D viewer, theming —
 is `gui/CLAUDE.md` (loads when working under `gui/`; `src/pxrdref/gui/`
-carries a pointer stub). Three rules matter outside the GUI too: mutating verbs
+carries a pointer stub). Two rules matter outside the GUI too: mutating verbs
 return **409 while a run is in flight** (frozen-per-stage discreteness enforced
-structurally); the **run state is not an event** — `EventKind` is closed, and
-`live/events.jsonl` stays the one stream `watch` tails; and **pydantic does not
-validate a model swap** — every symmetry refusal lives in `ParameterTable`
-construction, which `Refinement.edit`'s snapshot never performs (WP-1035).
+structurally), and the **run state is not an event** — `EventKind` is closed, and
+`live/events.jsonl` stays the one stream `watch` tails.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
@@ -230,6 +224,12 @@ construction, which `Refinement.edit`'s snapshot never performs (WP-1035).
   re-measures each step against an fp64 cost.
 - **No pydantic in the hot loop**: `ParameterTable.decode()` returns a plain
   dict; the forward model consumes floats/arrays only.
+- **Pydantic knows no crystallography, so a whole-model swap is checked by
+  building its table.** Every symmetry refusal is raised in
+  `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs
+  none of it, so `edit` builds the **proposed** pair's table and refuses rather
+  than recording — before WP-1035 an incompatible model was accepted, wrote a
+  node, and raised from whatever next asked for the table.
 - **Weights**: use the file's esd column when present (readers), Poisson
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under

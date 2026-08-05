@@ -961,7 +961,7 @@ def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
                       {"phase": 0, "space_group": "P m -3 m"})[1]
     note = next(n for n in out["notes"] if n["kind"] == "orbit_collision")
     assert note["where"] == ["phases.0.atoms.2", "phases.0.atoms.3"]
-    assert "combined occupancy of 2" in note["message"]
+    assert "occupancies sum to 2" in note["message"]
     assert out["blocked"] is True and not out["refusals"]
 
     head = client.get("/api/history")[1]["head"]
@@ -974,6 +974,48 @@ def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
     # halve them and the same geometry is a legal mixed site: a note, not a gate
     for atom in phase.atoms[2:]:
         atom.occ.value = 0.5
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    assert out["blocked"] is False
+    assert [n["kind"] for n in out["notes"] if n["kind"].startswith("orbit")] \
+        == ["orbit_collision_shared"]
+
+
+def test_a_shared_site_is_judged_as_a_group_and_never_as_pairs(blank, tmp_path,
+                                                               pattern_file):
+    """Three atoms at occ 0.4 are 1.2 on one site; no *pair* of them exceeds 1.
+
+    Coincidence is transitive — A with B and B with C means all three are one
+    site — and the verdict is a sum over the site, so reading it pairwise is not
+    a coarser answer but a wrong one.  It also decides the wording: "keep one
+    atom of the 3" is advice a pairwise message cannot give.
+    """
+    from pxrdref.schemas.structure import Atom
+
+    session, client = blank
+    project = _open(session, tmp_path / "triple.pxrd", pattern_file)
+    phase = project.refinement.structure.phases[0]
+    phase.space_group = "P 4/m m m"
+    # three points a 4-fold about z leaves distinct and P m -3 m's 3-folds merge
+    for label, xyz in (("X1", (0.3, 0.0, 0.0)), ("X2", (0.0, 0.0, 0.3)),
+                       ("X3", (0.0, 0.3, 0.0))):
+        phase.atoms.append(Atom(label=label, species="B",
+                                x={"value": xyz[0]}, y={"value": xyz[1]},
+                                z={"value": xyz[2]}, occ={"value": 0.4}))
+
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "P m -3 m"})[1]
+    note = next(n for n in out["notes"] if n["kind"] == "orbit_collision")
+    assert note["where"] == ["phases.0.atoms.2", "phases.0.atoms.3",
+                             "phases.0.atoms.4"]
+    assert "X1, X2 and X3" in note["message"]
+    assert "occupancies sum to 1.2" in note["message"]
+    assert "one atom of the 3" in note["message"]
+    assert out["blocked"] is True
+
+    # …and the same three at 1/3 each are a legal three-way mixed site
+    for atom in phase.atoms[2:]:
+        atom.occ.value = 1.0 / 3.0
     out = client.post("/api/structure/symmetry/preview",
                       {"phase": 0, "space_group": "P m -3 m"})[1]
     assert out["blocked"] is False

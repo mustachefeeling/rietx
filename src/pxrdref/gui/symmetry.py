@@ -684,28 +684,54 @@ def _orbits(structure: Structure, phase: int) -> list[np.ndarray]:
 
 def orbit_collisions(structure: Structure, phase: int,
                      orbits: list[np.ndarray] | None = None
-                     ) -> list[tuple[int, int, float]]:
-    """Asymmetric-unit atom pairs whose symmetry orbits coincide.
+                     ) -> list[tuple[tuple[int, ...], float]]:
+    """Sets of asymmetric-unit atoms that share one symmetry orbit.
 
     ``structure_factor.select_orbit_ops`` dedups images *within* one atom's
-    orbit; two atoms the symmetry maps onto each other are two full orbits at the
-    same places, so F counts the site twice and no existing check says so.  The
-    distance is returned in Å, through the cell's own metric, because a
+    orbit; atoms the symmetry maps onto each other are several full orbits at the
+    same places, so F counts the site once per atom and no existing check says
+    so.  The distance is returned in Å, through the cell's own metric, because a
     fractional tolerance means three different things in three different cells.
+
+    **Sets, not pairs, and that is a correctness requirement rather than tidiness.**
+    Coincidence is transitive here — if A shares a site with B and B with C then
+    all three are the same site — and the verdict downstream is a *sum* of
+    occupancies over the site.  Three atoms at occ 0.4 are 1.2 on one site and
+    over-occupied, while no pair of them exceeds 1, so a pairwise reading is not
+    a coarser answer but a wrong one.  Groups are the connected components of the
+    coincidence relation, and the reported gap is the widest separation inside a
+    group (its members are all one site to within that).
     """
     block = structure.phases[phase]
     basis = cartesian_basis(*block.cell.lengths_angles())
     orbits = _orbits(structure, phase) if orbits is None else orbits
-    out = []
+    parent = list(range(len(orbits)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    gaps: dict[tuple[int, int], float] = {}
     for i in range(len(orbits)):
         for j in range(i + 1, len(orbits)):
             delta = orbits[i][:, None, :] - orbits[j][None, :, :]
             delta = ((delta + 0.5) % 1.0) - 0.5
             if float(np.abs(delta).max(axis=-1).min()) > ORBIT_COLLISION_TOL:
                 continue
-            gap = float(np.linalg.norm(delta.reshape(-1, 3) @ basis.T, axis=1).min())
-            out.append((i, j, gap))
-    return out
+            gaps[(i, j)] = float(
+                np.linalg.norm(delta.reshape(-1, 3) @ basis.T, axis=1).min())
+            parent[root(i)] = root(j)
+
+    groups: dict[int, list[int]] = {}
+    for i in range(len(orbits)):
+        if any(i in pair for pair in gaps):
+            groups.setdefault(root(i), []).append(i)
+    return [(tuple(members),
+             max(gap for pair, gap in gaps.items()
+                 if pair[0] in members and pair[1] in members))
+            for members in (sorted(g) for g in groups.values())]
 
 
 def _collisions(current: Structure, candidate: Structure, phase: int,
@@ -715,49 +741,72 @@ def _collisions(current: Structure, candidate: Structure, phase: int,
     A shared orbit is **not** automatically a bug: a mixed site — Na at occ 0.5
     beside Ca at occ 0.5 on the same 12b — is standard modelling, and F is right
     for it, because each atom contributes its own occupancy-weighted orbit.  What
-    is wrong is the *same site counted twice*, and the criterion for that is
-    physical rather than a guess about the crystallographer's intent: the
-    occupancies on the shared orbit sum past 1.  So over-occupancy blocks and a
-    legal mixed site is reported as a note.
+    is wrong is the *same site counted more than once*, and the criterion for
+    that is physical rather than a guess about the crystallographer's intent: the
+    occupancies **on the whole shared site** sum past 1.  So over-occupancy
+    blocks and a legal mixed site is reported as a note.  The sum is over the
+    group and never over a pair — three atoms at 0.4 are over-occupied and no two
+    of them are (:func:`orbit_collisions`).
 
     A collision that exists **before** the change is never this edit's, so it is
     reported as its own kind and never blocks — otherwise a project with a mixed
-    site could not change its symmetry at all.
+    site could not change its symmetry at all.  "Before" is compared as a *set of
+    members*: a group that gains an atom is a new group, because the sum that
+    decides the verdict has changed.
+
+    No prior art to copy, checked: GSAS-II recomputes every site symmetry on a
+    space-group change (``G2spc.UpdateSytSym``) and performs no such check, and
+    TOPAS's ``occ_merge`` — occ = 1/(1 + intersecting fractional volumes),
+    after Favre-Nicolin & Černý (2002) — solves the same double count *during
+    structure solution* by rescaling occupancies continuously, not by refusing an
+    edit.  Rescaling is deliberately not copied here: it silently rewrites a
+    number the user typed, which is the same objection that made
+    ``check_cell_angles`` refuse rather than normalise (WP-1036).
     """
     try:
-        before = {(i, j) for i, j, _ in orbit_collisions(current, phase, orbits[0])}
+        before = {members
+                  for members, _ in orbit_collisions(current, phase, orbits[0])}
         found = orbit_collisions(candidate, phase, orbits[1])
     except (ValueError, RuntimeError):
         return []
     atoms = candidate.phases[phase].atoms
     symbol = candidate.phases[phase].space_group
     notes = []
-    for i, j, gap in found:
-        share = atoms[i].occ.value + atoms[j].occ.value
-        pair = f"{atoms[i].label} and {atoms[j].label}"
-        where = [f"phases.{phase}.atoms.{i}", f"phases.{phase}.atoms.{j}"]
-        if (i, j) in before:
+    for members, gap in found:
+        share = sum(atoms[i].occ.value for i in members)
+        named = _and_list([atoms[i].label for i in members])
+        where = [f"phases.{phase}.atoms.{i}" for i in members]
+        n = len(members)
+        if members in before:
             notes.append({
                 "kind": "orbit_collision_existing", "where": where,
-                "message": (f"{pair} already share an orbit ({gap:.3g} Å) before "
+                "message": (f"{named} already share one site ({gap:.3g} Å) before "
                             f"this change, at a combined occupancy of {share:g} — "
                             f"not caused by the symbol, and not changed by it.")})
         elif share > 1.0 + 1e-6:
             notes.append({
                 "kind": "orbit_collision", "where": where,
                 "message": (
-                    f"{pair} become symmetry-equivalent under {symbol}: their "
-                    f"orbits coincide to {gap:.3g} Å at a combined occupancy of "
-                    f"{share:g}, so the structure factor would count that site "
-                    f"{share:g} times over. Remove one of the two atoms and give "
-                    f"the survivor the occupancy they should share.")})
+                    f"{named} become symmetry-equivalent under {symbol}: their "
+                    f"orbits coincide to within {gap:.3g} Å, so they are one site "
+                    f"— and their occupancies sum to {share:g}, so the structure "
+                    f"factor would count it {share:g} times over. Keep one atom "
+                    f"of the {n} and give it the occupancy they should share, or "
+                    f"scale the {n} so they sum to 1.")})
         else:
             notes.append({
                 "kind": "orbit_collision_shared", "where": where,
                 "message": (
-                    f"{pair} become symmetry-equivalent under {symbol} ({gap:.3g} "
-                    f"Å apart), at a combined occupancy of {share:g}. That is a "
-                    f"legal mixed site and F is right for it — but if they were "
-                    f"meant to be two independent sites, this symbol has just "
+                    f"{named} become symmetry-equivalent under {symbol} (within "
+                    f"{gap:.3g} Å), at a combined occupancy of {share:g}. That is "
+                    f"a legal mixed site and F is right for it — but if they were "
+                    f"meant to be {n} independent sites, this symbol has just "
                     f"merged them.")})
     return notes
+
+
+def _and_list(names: list[str]) -> str:
+    """``"A and B"`` / ``"A, B and C"`` — a group is not always a pair."""
+    if len(names) <= 2:
+        return " and ".join(names)
+    return ", ".join(names[:-1]) + f" and {names[-1]}"

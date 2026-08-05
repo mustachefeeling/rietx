@@ -840,30 +840,26 @@ class GuiSession:
 
     def _edit(self, *, structure: Structure | None = None,
               instrument: Instrument | None = None, label: str = "") -> str | None:
-        """The one funnel every whole-model edit goes through — and its gate.
+        """The one funnel every whole-model edit goes through.
 
-        ``Refinement.edit`` swaps the models wholesale and commits an
-        ``edit_model`` node from a snapshot that **never builds a
-        ParameterTable**, while every symmetry refusal lives in that
-        construction: an aniso tensor outside the site's allowed subspace, a
-        Stephens block outside the Laue subspace, a ``vary=True`` coordinate on a
-        now fully fixed special position, a cell angle disagreeing with the
-        symbol.  So before WP-1035 an incompatible change succeeded, recorded a
-        node, and then surfaced as a 500 on the next ``GET /api/params`` — with
-        the head standing where no table can build.
-
-        Building the candidate table here is the gate, and it is deliberately
-        *not* a symmetry check: it is "does this model have a parameter table",
-        which is the property the rest of the session assumes.  It also cannot
-        trap a user in a broken head, because the test is on the **candidate** —
-        an edit that repairs the state passes it.
+        The gate that used to live here is now in ``Refinement.edit`` itself
+        (WP-1035), because nothing about it was a GUI concern: pydantic knows no
+        crystallography, every symmetry refusal is raised when a
+        ``ParameterTable`` is constructed, and the snapshot ``edit`` commits
+        never constructs one — so a Python caller was exposed to exactly the
+        failure a browser found. All this layer adds is the **address**: a
+        ``ValueError`` carries the offending dot-path in its first token, and a
+        form needs it to highlight the field.
         """
         self._require_idle()
         p = self._need_project()
-        _check_buildable(structure or p.refinement.structure,
-                         instrument or p.refinement.instrument)
-        return p.refinement.edit(structure=structure, instrument=instrument,
-                                 label=label)
+        try:
+            return p.refinement.edit(structure=structure, instrument=instrument,
+                                     label=label)
+        except ValueError as exc:
+            match = _LEADING_PATH.search(str(exc))
+            raise GuiError(str(exc), code="MODEL_REFUSED",
+                           where=[match.group(1)] if match else []) from None
 
     # ------------------------------------------------------------------
     # run control
@@ -2134,25 +2130,12 @@ def _validate(model, payload, where: str):
                        where=paths) from None
 
 
-#: The leading dot-path of a ``ParameterTable`` refusal.  Every one of them
-#: opens with the path at fault (``phases.0.atoms.3: the anisotropic tensor …``,
-#: ``phases.0.atoms.3 sits on a fully fixed special position``), which is what
-#: lets :func:`_check_buildable` address the field without parsing the sentence.
-_LEADING_PATH = re.compile(r"^((?:phases|instrument)\.[\w.]*[\w])")
-
-
-def _check_buildable(structure: Structure, instrument: Instrument) -> None:
-    """Refuse a model whose parameter table cannot be built — see :meth:`_edit`."""
-    from ..params.vector import ParameterTable
-
-    try:
-        ParameterTable(structure, instrument)
-    except ValueError as exc:
-        match = _LEADING_PATH.match(str(exc))
-        raise GuiError(
-            f"this model has no parameter table: {exc}",
-            code="MODEL_REFUSED",
-            where=[match.group(1)] if match else []) from None
+#: The dot-path a ``ParameterTable`` refusal opens with (``phases.0.atoms.3: the
+#: anisotropic tensor …``, ``phases.0.atoms.3 sits on a fully fixed special
+#: position``).  ``Refinement.edit`` prefixes its own sentence, so this
+#: *searches* rather than anchors — it is what lets :meth:`GuiSession._edit`
+#: address the field without parsing a sentence it does not own.
+_LEADING_PATH = re.compile(r"\b((?:phases|instrument)\.[\w.]*[\w])")
 
 
 def _as_structure(payload, uploads=None) -> Structure:

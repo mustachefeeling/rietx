@@ -244,6 +244,59 @@ multiplicity gap — see the handover.
 
 ## Handover log
 
+- **2026-08-05 (second pass, on review)** — two things the reviewer would not
+  accept as they stood, both now fixed in place rather than filed.
+
+  **The gate was in the wrong package.** The first pass put it in
+  `GuiSession._edit`, which protects a browser and leaves a Python caller
+  standing in exactly the trap the WP describes: `ref.edit(structure=…)` accepted
+  a model with no parameter table, wrote a node, and raised from whatever next
+  asked for the table. Nothing about that was a GUI concern, so the check moved
+  into **`Refinement.edit`** — it builds the *proposed* pair's table and refuses
+  rather than recording. Two callers in the package and one in `examples/`, so
+  the move was small; `GuiSession._edit` now only adds the **address** (the
+  refusal's leading dot-path) that a form needs to highlight a field.
+  `tests/test_history.py` carries the library-level row, including the repair
+  path: the gate reads the candidate, so an edit that undoes the damage is not
+  refused by it.
+
+  **The collision check was pairwise, and pairwise is wrong, not coarse.**
+  Coincidence is transitive — A with B and B with C means all three are one site
+  — and the verdict is a *sum of occupancies over the site*. Three atoms at
+  occ 0.4 are 1.2 on one site and over-occupied while no pair of them exceeds 1,
+  so `orbit_collisions` now returns the **connected components** of the
+  coincidence relation and `_collisions` sums over the group. It also fixes the
+  advice: "keep one atom of the 3" is a sentence a pairwise message cannot write.
+
+  **How TOPAS and GSAS-II handle this, asked and answered.** Neither does what
+  this preview does, which is worth knowing before assuming there was an obvious
+  design to copy.
+
+  - **GSAS-II** recomputes every atom's site symmetry and multiplicity on a
+    space-group change (`G2spc.UpdateSytSym`, called straight from the General
+    tab's handler), shows an informational operator dialog, and **does not warn,
+    confirm, or check for atoms that become equivalent**. Coordinates are not
+    transformed — that is a separate, explicit *Transform Phase* operation
+    (X′ = M(X−U)+V, with an Origin 1 → Origin 2 option), which is the same split
+    this WP's `setting_change` note describes. The multiplicity change *is*
+    visible, because GSAS-II's atom table has a multiplicity column; nothing
+    draws attention to it.
+  - **TOPAS** has no symmetry-edit gate at all — the space group is a line in an
+    input file. `num_posns` on a `site` line "corresponds to the number of unique
+    equivalent position generated from the space group; `num_posns` is updated on
+    termination of refinement", i.e. the multiplicity is a **post-hoc readout**
+    written back after the fit, not a pre-flight check. Its `occ_merge`
+    (Favre-Nicolin & Černý 2002) *is* prior art for the double count —
+    `occ_xyz = 1 / (1 + intersecting fractional volumes)`, explicitly "useful for
+    identifying special positions" — but it is a continuous rescaling used during
+    **structure solution**, and sites in `$sites` cannot then have their
+    occupancies refined.
+
+    Rescaling was considered and declined: it silently rewrites a number the user
+    typed, which is the objection that made `check_cell_angles` refuse rather
+    than normalise (WP-1036). If a future WP wants the TOPAS behaviour it should
+    be an opt-in verb that says what it changed, not a side effect of an edit.
+
 - **2026-08-05** — **closed.** Every task landed; both inherited sections were
   consumed on arrival (1034's width facts are in the panel's comments and its
   styles; 1036's four corrections were all still true and are quoted where they
