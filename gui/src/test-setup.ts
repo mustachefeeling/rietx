@@ -39,6 +39,9 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 if (typeof (globalThis as any).Plotly === "undefined") {
   (globalThis as any).Plotly = {
     react: async () => {},
+    // `restyle` is the hover link's whole mechanism (WP-1032): a mouse move
+    // moves one two-coordinate trace rather than repainting the pattern
+    restyle: async () => {},
     purge: () => {},
   };
 }

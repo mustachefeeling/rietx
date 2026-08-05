@@ -2381,6 +2381,49 @@ describe("the peaks tab (WP-1027)", () => {
     expect(prompt).not.toHaveBeenCalled();
   });
 
+  it("links the table and the plot by hover, through restyle rather than a repaint", async () => {
+    // Task 1 measured what a repaint of this pattern costs (~111 ms); a mouse
+    // move must not pay it.  One ring trace, two coordinates, `restyle`.
+    const drawn: any[] = [];
+    const restyled: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      restyle: async (_n: any, update: any, which: number[]) => restyled.push({ update, which }),
+      purge: () => {},
+    });
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // the ring is drawn empty, last, and out of the legend
+    const ring = drawn.at(-1)!.at(-1)!;
+    expect(ring.name).toBe("hovered");
+    expect(ring.x).toEqual([]);
+    expect(ring.showlegend).toBe(false);
+
+    const painted = drawn.length;
+    const rows = [...host.querySelectorAll<HTMLElement>(".panel:not(.hidden) tbody tr")];
+    rows[2].dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await flush();
+
+    // the row lights up, the ring moves to that 2θ, and nothing was repainted
+    expect(rows[2].classList.contains("lit")).toBe(true);
+    expect(restyled.at(-1)!.update.x).toEqual([[14.0]]);
+    expect(restyled.at(-1)!.which).toEqual([drawn.at(-1)!.length - 1]);
+    expect(drawn.length).toBe(painted);
+
+    rows[2].dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+    await flush();
+    expect(rows[2].classList.contains("lit")).toBe(false);
+    expect(restyled.at(-1)!.update.x).toEqual([[]]);   // off the plot, not at 0
+  });
+
   it("states the gestures whenever the tab that owns them is showing", async () => {
     // it used to render only in the raw state, so the moment a fit existed the
     // pointer verbs were undocumented — and each one names its non-pointer route

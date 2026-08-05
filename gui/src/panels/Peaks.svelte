@@ -35,22 +35,27 @@
     extinction = null,
     run,
     busy,
+    hovered = null,
     say = () => {},
     onpeaks = () => {},
     onindexed = () => {},
     onzoom = () => {},
     onmoved = () => {},
+    onhover = () => {},
   }: {
     peaks: PeaksPayload | null;
     indexAnswer: any;
     extinction?: any;
     run: RunState | null;
     busy: boolean;
+    /** the line the pointer is over, in the plot or in this table (WP-1032) */
+    hovered?: number | null;
     say?: (line: string) => void;
     onpeaks?: (payload: PeaksPayload) => void;
     onindexed?: (answer: any) => void;
     onzoom?: (lo: number, hi: number) => void;
     onmoved?: () => void;
+    onhover?: (index: number | null) => void;
   } = $props();
 
   let failure = $state("");
@@ -195,7 +200,10 @@
         </thead>
         <tbody>
           {#each rows as p (p.index)}
-            <tr class:out={!p.usable}>
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <tr class:out={!p.usable} class:lit={hovered === p.index}
+              onmouseenter={() => onhover(p.index)}
+              onmouseleave={() => onhover(null)}>
               <td class="muted">{p.index}</td>
               <td>
                 <button class="ghost pos" title="zoom the plot to this line"
@@ -508,6 +516,11 @@ convention, not a measurement"
 
   tr.best td {
     background: color-mix(in srgb, var(--ok) 8%, transparent);
+  }
+
+  /* the hover link, both ways: this row and the plot's ring name one line */
+  tr.lit td {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   .pos {

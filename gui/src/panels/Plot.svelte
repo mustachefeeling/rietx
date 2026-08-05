@@ -44,6 +44,8 @@
     theme = "light",
     peaks = null,
     peaksActive = false,
+    hovered = null,
+    onhoverpeak = () => {},
     onaddpeak = () => {},
     onmovepeak = () => {},
     ontogglepeak = () => {},
@@ -65,6 +67,11 @@
     /** the Peaks tab is showing: only then do clicks mean add/move/exclude —
      *  a stray click while reading the report must not edit a peak list */
     peaksActive?: boolean;
+    /** the peak the pointer is over, wherever it is over it — one index in the
+     *  shell, threaded to both panels, so the table and the plot point at the
+     *  same line (WP-1032) */
+    hovered?: number | null;
+    onhoverpeak?: (index: number | null) => void;
     onaddpeak?: (twoTheta: number) => void;
     onmovepeak?: (index: number, twoTheta: number) => void;
     ontogglepeak?: (index: number) => void;
@@ -215,6 +222,7 @@
       });
     }
     traces.push(...peakTraces(w, colors));
+    ringAt = peaks?.peaks?.length ? traces.length - 1 : -1;
 
     await plotly.react(node, traces, layout(w, colors, phases.length),
                        { responsive: true, displaylogo: false });
@@ -232,6 +240,20 @@
       if (typeof a === "number" && typeof b === "number") draw(a, b);
       else if (ev["xaxis.autorange"]) draw();
     });
+    // the other half of the hover link: a marker under the pointer names its
+    // row in the panel.  `x unified` hands over every trace's point at that 2θ,
+    // so the peak — if there is one there — is the one to read.
+    plotNode.removeAllListeners?.("plotly_hover");
+    plotNode.on?.("plotly_hover", (ev: any) => {
+      if (!peaksActive) return;
+      const hit = ev.points?.find((p: any) => p.data?.name === "peaks");
+      onhoverpeak(hit ? (hit.customdata?.[0] ?? null) : null);
+    });
+    plotNode.removeAllListeners?.("plotly_unhover");
+    plotNode.on?.("plotly_unhover", () => {
+      if (peaksActive) onhoverpeak(null);
+    });
+    drawRing();   // a redraw resets the trace, so the ring is put back
     watch();
   }
 
@@ -295,7 +317,29 @@
           .filter(Boolean).join(" ") || "usable"]),
       hovertemplate: "#%{customdata[0]} %{x:.4f}° — %{customdata[1]}<extra>peak</extra>",
     });
+    // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
+    // a full `react` per mouse move is exactly the cost task 1 measured, and one
+    // ring that changes its two coordinates is the cheapest thing plotly does.
+    out.push({
+      x: [], y: [], name: "hovered", mode: "markers", type: "scattergl",
+      marker: { size: 16, symbol: "circle-open", color: accent, line: { width: 2 } },
+      showlegend: false, hoverinfo: "skip",
+    });
     return out;
+  }
+
+  /** Where the highlight ring sits in the trace list of the last draw. */
+  let ringAt = $state(-1);
+
+  /** Move the ring to the hovered line — or off the plot when nothing is. */
+  function drawRing() {
+    if (!node || !plotly || ringAt < 0 || !held) return;
+    const row = hovered === null
+      ? undefined
+      : peaks?.peaks?.find((p) => p.index === hovered);
+    const x = row ? [row.two_theta] : [];
+    const y = row ? [heightAt(held, row.two_theta)] : [];
+    plotly.restyle?.(node, { x: [x], y: [y] }, [ringAt]);
   }
 
   /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
@@ -492,6 +536,15 @@
     void theme;
     void hidden;
     if (held) paint(held);
+  });
+
+  // the hover link is *not* in the effect above, and that is the whole point:
+  // a mouse move must cost one `restyle` of one two-point trace, never a
+  // repaint of the pattern (task 1 measured what a repaint costs)
+  $effect(() => {
+    void hovered;
+    void ringAt;
+    drawRing();
   });
 </script>
 

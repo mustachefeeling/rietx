@@ -134,6 +134,10 @@
   /** the last extinction screen — cleared whenever the candidates renumber,
    *  which the server enforces too (a new index run 409s the stale GET) */
   let extinction = $state<any>(null);
+  /** the peak the pointer is over, wherever it is over it (WP-1032).  One index
+   *  here rather than one per panel, because "which line is this" is a question
+   *  about the session, and two copies would be two answers. */
+  let hoveredPeak = $state<number | null>(null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -613,7 +617,8 @@
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} {theme} error={resultError}
-        peaks={peaksData} peaksActive={tab === "peaks"}
+        peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
+        onhoverpeak={(i) => (hoveredPeak = i)}
         onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
         onremovepeak={removePeak} />
       <div class="side" bind:clientWidth={sideMeasured}
@@ -640,6 +645,7 @@
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
           <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
+            hovered={hoveredPeak} onhover={(i) => (hoveredPeak = i)}
             onpeaks={(p) => (peaksData = p)}
             onindexed={(a) => (indexAnswer = a)}
             onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />
