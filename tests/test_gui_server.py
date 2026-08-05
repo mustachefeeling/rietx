@@ -2076,9 +2076,14 @@ def test_the_series_refuses_a_setting_the_chain_would(blank, tmp_path,
     """Same words, because ``REFIT_MODES``/``DIRECTIONS`` are one list."""
     session, client = blank
     _open(session, tmp_path / "settings.pxrd", pattern_file)
-    for body, where in (({"refit": "staged"}, "patterns"),
-                        ({"direction": "sideways"}, "patterns"),
-                        ({"carry": []}, "patterns")):
+    # …and the refusal names the *field*, because a form highlights what to
+    # retype: a bad `refit` reported as `patterns` sends the user to the wrong
+    # control
+    for body, where in (({"refit": "staged"}, "refit"),
+                        ({"direction": "sideways"}, "direction"),
+                        ({"carry": []}, "carry"),
+                        ({"patterns": [{"x": 3}]}, "patterns.0.upload"),
+                        ({"patterns": "nope"}, "patterns")):
         status, payload = client.put("/api/series", body)
         assert status == 400, (body, payload)
         assert payload["error"]["where"] == [where], body
@@ -2125,6 +2130,35 @@ def test_a_staged_series_is_described_by_reading_it(blank, tmp_path,
     status, setup = client.put("/api/series", {
         "patterns": [{"upload": t} for t in tokens]})
     assert status == 200 and setup["sigma_mixed"] is True
+
+
+def test_a_coordinate_is_all_or_nothing_and_the_axis_says_which(blank, tmp_path,
+                                                                series_files,
+                                                                state_dir):
+    """An axis whose values are indices may not be labelled ``T``.
+
+    ``SequentialRefinement.fit`` only renames the axis in the other direction (a
+    given ``x`` promotes a default ``"index"`` to ``"x"``), so a user who typed a
+    label and then cleared one temperature would get a trajectory whose x values
+    mean something other than what the label says.
+    """
+    session, client = blank
+    _open(session, tmp_path / "axis.pxrd", series_files[0])
+    tokens = [client.upload("pattern", path.read_bytes(),
+                            filename=path.name)[1]["upload"]
+              for path in series_files[:2]]
+    body = {"patterns": [{"upload": t, "x": 300.0 + 100 * i}
+                         for i, t in enumerate(tokens)], "x_label": "T"}
+    assert client.put("/api/series", body)[1]["has_x"] is True
+    assert session._series.axis_label == "T"
+
+    # clear one coordinate: the setting stands, the axis does not
+    body["patterns"][1].pop("x")
+    setup = client.put("/api/series", body)[1]
+    assert setup["has_x"] is False
+    assert setup["settings"]["x_label"] == "T"     # what the user typed, kept
+    assert session._series.x is None
+    assert session._series.axis_label == "index"   # what the run will be told
 
 
 def test_a_series_runs_and_its_trajectories_are_the_series_result(series):

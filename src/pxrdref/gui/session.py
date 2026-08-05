@@ -1003,7 +1003,7 @@ class GuiSession:
 
             def call(stream, token):
                 result = runner.fit(
-                    data, x=setup.x, x_label=setup.x_label,
+                    data, x=setup.x, x_label=setup.axis_label,
                     labels=setup.labels, mode=p.doc.mode, plan=plan,
                     refit=setup.refit, direction=setup.direction,
                     two_theta_limits=limits, events=stream, cancel=token)
@@ -1618,8 +1618,9 @@ class GuiSession:
         except UploadRefused as exc:
             raise GuiError(str(exc), code=exc.code, status=exc.status,
                            where=["patterns"]) from None
-        except ValueError as exc:
-            raise GuiError(str(exc), where=["patterns"]) from None
+        except series_mod.SeriesRefused as exc:
+            # the field, not the request: a form highlights what to retype
+            raise GuiError(str(exc), where=[exc.where]) from None
         self._series = series_mod.SeriesSetup(
             members=list(members), carry=[str(g) for g in carry], refit=refit,
             direction=direction,

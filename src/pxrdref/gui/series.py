@@ -81,6 +81,20 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+class SeriesRefused(ValueError):
+    """A setting or a member was refused, carrying the field at fault.
+
+    The field matters as much as the sentence: a form highlights what to retype,
+    and a refusal of ``refit`` that reports ``patterns`` sends the user to the
+    wrong control — the same reason ``GuiSession._edit`` extracts the offending
+    dot-path from a ``ParameterTable`` refusal (WP-1035).
+    """
+
+    def __init__(self, message: str, where: str) -> None:
+        super().__init__(message)
+        self.where = where
+
+
 @dataclass
 class SeriesMember:
     """One staged pattern in series order, with what reading it revealed."""
@@ -136,6 +150,20 @@ class SeriesSetup:
             return None
         return [float(v) for v in xs]
 
+    @property
+    def axis_label(self) -> str:
+        """What the trajectory axis is actually called.
+
+        ``x_label`` is a *setting* and the coordinate may be absent, and
+        ``SequentialRefinement.fit`` only renames the axis in the other
+        direction (a given ``x`` promotes a default ``"index"`` to ``"x"``). So a
+        user who typed ``T`` and then cleared one temperature would get an axis
+        of pattern indices labelled ``T`` — a trajectory whose x values mean
+        something other than what the label says, which is the one thing a
+        plotted axis may never do.
+        """
+        return self.x_label if self.x is not None else "index"
+
 
 # ----------------------------------------------------------------------
 # the setup
@@ -160,19 +188,21 @@ def members_from(entries: Any, uploads: UploadStore,
     """
     cached = {(m.token, m.block): m for m in (known or [])}
     if not isinstance(entries, list):
-        raise ValueError("'patterns' must be a list of "
-                         "{upload: token, label?: str, x?: number}")
+        raise SeriesRefused("'patterns' must be a list of "
+                            "{upload: token, label?: str, x?: number}",
+                            "patterns")
     out: list[SeriesMember] = []
     raw_labels: list[str] = []
     for i, entry in enumerate(entries):
         if isinstance(entry, str):
             entry = {"upload": entry}
         if not isinstance(entry, dict):
-            raise ValueError(f"patterns[{i}] must be an object with an "
-                             "'upload' token")
+            raise SeriesRefused(f"patterns[{i}] must be an object with an "
+                                "'upload' token", f"patterns.{i}")
         token = str(entry.get("upload") or "")
         if not token:
-            raise ValueError(f"patterns[{i}] has no 'upload' token")
+            raise SeriesRefused(f"patterns[{i}] has no 'upload' token",
+                                f"patterns.{i}.upload")
         staged = uploads.get(token, "pattern")   # UploadRefused names the token
         block = entry.get("block")
         x = entry.get("x")
@@ -180,7 +210,8 @@ def members_from(entries: Any, uploads: UploadStore,
             try:
                 x = float(x)
             except (TypeError, ValueError):
-                raise ValueError(f"patterns[{i}].x={x!r} is not a number") from None
+                raise SeriesRefused(f"patterns[{i}].x={x!r} is not a number",
+                                    f"patterns.{i}.x") from None
         label = str(entry.get("label") or "").strip() or Path(staged.filename).stem
         raw_labels.append(label)
         seen = cached.get((token, block))
@@ -207,12 +238,12 @@ def check_settings(carry: Any, refit: Any, direction: Any) -> None:
     """
     if not isinstance(carry, list) or not carry or not all(
             isinstance(g, str) and g for g in carry):
-        raise ValueError("'carry' is a non-empty list of dot-path globs; "
-                         "['*'] carries everything")
+        raise SeriesRefused("'carry' is a non-empty list of dot-path globs; "
+                            "['*'] carries everything", "carry")
     if refit not in REFIT_MODES:
-        raise ValueError(f"refit must be one of {REFIT_MODES}")
+        raise SeriesRefused(f"refit must be one of {REFIT_MODES}", "refit")
     if direction not in DIRECTIONS:
-        raise ValueError(f"direction must be one of {DIRECTIONS}")
+        raise SeriesRefused(f"direction must be one of {DIRECTIONS}", "direction")
 
 
 def read_members(setup: SeriesSetup,

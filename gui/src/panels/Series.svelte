@@ -228,9 +228,12 @@
     put();
   }
 
+  /** An emptied label is sent **empty**, not filled in here: the server's own
+   *  rule is "blank means the file's stem", and a client that guessed would send
+   *  `T300.xye` where the run uses `T300`. */
   function setLabel(index: number, text: string) {
     patterns = patterns.map((p, i) =>
-      (i === index ? { ...p, label: text.trim() || p.filename } : p));
+      (i === index ? { ...p, label: text.trim() } : p));
     put();
   }
 
