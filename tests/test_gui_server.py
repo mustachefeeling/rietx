@@ -2274,6 +2274,26 @@ def test_a_series_window_is_the_project_plot_arithmetic(series):
     # own plot — an unmasked series member has an empty arm rather than no arm
     assert payload["excluded"] == {"two_theta": [], "y_obs": []}
     assert payload["n_excluded"] == 0
+    # …and it is pinned to what this member's fit actually kept, which is
+    # WP-1033's `len(result.two_theta)` assertion one rank down: the mask is
+    # rebuilt from the limits *this run* used, through the same function
+    # `Project.fitted_mask` calls, so it cannot drift from the curves beside it
+    from pxrdref.project import fitted_mask
+
+    entry = session._series_run
+    keep = fitted_mask(entry["data"][1], entry["limits"])
+    assert int(keep.sum()) == len(result.two_theta)
+
+    # a *later* exclusion moves the document and must not move this band: the
+    # curves are the run's, and a series member cannot be re-fitted without
+    # replacing the whole answer
+    assert client.post("/api/project", {"excluded_regions": [[8.0, 12.0]]})[0] == 200
+    try:
+        again = client.get("/api/series/window?index=1")[1]
+        assert again["n_excluded"] == 0, "the band followed a setting, not the fit"
+        assert again["n_total"] == payload["n_total"]
+    finally:
+        client.post("/api/project", {"excluded_regions": []})
 
     # the index is required rather than defaulted: a window of "whichever
     # pattern" would draw one member's curves under another's label

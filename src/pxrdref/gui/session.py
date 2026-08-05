@@ -1010,7 +1010,13 @@ class GuiSession:
                 with self._cond:
                     self._series_run = {"runner": runner, "result": result,
                                         "backward": runner.backward_,
-                                        "members": members, "data": data}
+                                        "members": members, "data": data,
+                                        # the limits *this run* used, not the
+                                        # document's now: a member's curves
+                                        # cannot be re-fitted without replacing
+                                        # the whole answer, so its masked band
+                                        # must not move when a setting does
+                                        "limits": limits}
                 return result
 
             summarize = _summarize_series
@@ -1682,15 +1688,18 @@ class GuiSession:
 
         A result carries only the channels ``compile_model`` kept, so without this
         the per-pattern plot autoranges *inside* the fit range and the protocol is
-        invisible in a picture of its own output.  There is no ``stale`` arm: a
-        series member's curves are the run's and cannot be re-fitted under a new
-        protocol without re-running the whole chain, which replaces the answer.
+        invisible in a picture of its own output.  There is no ``stale`` arm and
+        does not need one: the mask is rebuilt from the limits **this run** used
+        and from the member's own ``excluded_regions`` as it was read, so it
+        cannot drift from the curves beside it — a series member cannot be
+        re-fitted under a new protocol without re-running the chain, which
+        replaces the whole answer.
         """
         from ..project import fitted_mask
 
         entry = self._series_entry()
         data = entry["data"][index]
-        keep = fitted_mask(data, self._need_project().doc.two_theta_limits)
+        keep = fitted_mask(data, entry["limits"])
         tt_all, y_all = data.tt(), data.y()
         out = ~keep
         if lo is not None:
