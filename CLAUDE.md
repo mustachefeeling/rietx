@@ -49,17 +49,17 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1041** handover, darwin/arm64 M4, `worktree-indexer`, venv
-`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here), **on the
-tree with `main`'s WP-1035 merged in**. Fast **1760 / 67 skipped**; full
-**1858 / 72**, of which `test_acceptance_indexing.py` is **38 rows**. The sum closes:
-1041's pre-merge 1841 + 1035's **12** python rows + 1041's **5** = 1858, no new skip,
-and both selections move by exactly the 5. Frontend **347** vitest, `svelte-check`
-clean, collect **93**, all 1035's — 1040/1041 touched no `gui/` file.
-**No timing here is quotable alone**: another worktree's suite shared the machine at
-load 40-120, so the same green tree read fast **2:46** and **4:05** an hour apart and
-full **46:59** against 25-36 min before the merge. A fired module-level
-`importorskip` is one skip and zero collected items.
+2026-08-05 at the **WP-1041 close**, darwin/arm64 M4, `worktree-indexer`, venv
+`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here). Fast
+**1780 / 67 skipped** in 4:14; full **1881 / 72** in 22-23 min, of which
+`test_acceptance_indexing.py` is **41 rows**. Closes off 1041's mid-session
+1760/1858: **+20** fast (5 renderer/gallery, 15 from three `validation_matrix`
+claims) and **+3** slow acceptance rows, no new skip, the +23 splitting 20/3 across
+the selections. Frontend **347** vitest, `svelte-check` clean, collect **93**,
+unchanged since 1035 — 1040/1041 touched no `gui/` file. `docs/VALIDATION.md` is at
+**66** claims. **Timings are a range, not a figure**: parallel sessions held this
+machine at load 4-120 all day and the same green tree read full 26:14, 22:46 and
+22:39. A fired module-level `importorskip` is one skip and zero collected items.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
