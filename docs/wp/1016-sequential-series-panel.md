@@ -1,6 +1,6 @@
 # WP-1016 — Sequential series panel
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-05
 Depends on: WP-1008, WP-1010, WP-1011
 
 ## Goal
@@ -40,157 +40,6 @@ warning and per-pattern drill-down into each pattern's own history tree.
 - Defaults follow the measured WP-0505 results: `refit="single"`, carry
   everything; do not re-litigate them in the UI.
 
-### Inherited
-
-From **[1034](1034-panel-layout.md)** (closed 2026-08-05) — this panel is the
-**ninth** tab, and two things follow. The strip already **wraps** rather than
-truncating (no label is shortened, the buttons do not grow), so a ninth costs a
-second row at a narrow column and nothing else — but pick a short label, because
-eight already fill a 455 px strip. And **the full-window hatch is free**: the
-header's `Split | Full` expands the whole column with its tabs, so a trajectory
-panel that wants width does not need a mode of its own — which is what the two
-panes that had one gave up. A panel that cannot work below some width should say
-so the way `Model.svelte` does: measure its floor, put the threshold in
-`lib/resize.ts` as arithmetic over the parts, and reflow.
-
-From **WP-1029** (GUI usability, landed 2026-07-30): **the splitter you were told
-to expect exists — use it, do not build a second one.**
-`panels/Splitter.svelte` over `lib/resize.ts`, carrying `Console.svelte`'s rule
-generalised: the component **reports a size and never writes one**, emitting
-`onsize(size, done)` where `done` is false on every pointer move and true once on
-release, so a drag renders live and persists once. Two flows: `overlay` (an
-absolute grip on a pane's own edge, needing a positioned ancestor) and `inline`
-(a flex item *between* two panes) — a scrolling pane needs `inline`, because an
-absolute edge inside `overflow: auto` scrolls away from the edge it is meant to
-be. A series panel splitting a trajectory list from a per-pattern plot wants the
-inline form.
-
-Two rules that came with it and are not optional. **Widths persist in
-`ProjectDoc.ui`**, owned by the shell rather than by the panel (the panel takes a
-`columns`-style prop and an `oncolumns` callback; see `panels/Model.svelte`). And
-**a stored size must be re-clamped at render, not only at drag** — `fitColumns`
-in `lib/resize.ts` — because a drag clamps against the extent it happens in and
-nothing clamps a width that outlives its window. Measured: widths chosen at
-1500 px reopened at 1000 px left a column **24 px** wide before that landed.
-
-Also: the plot's residual and scaling knobs are `lib/plot.ts`, and a series panel
-drawing per-pattern residuals should reuse `residual()` rather than re-deciding
-what Δ/σ means — `/api/result/window` sends all three curves plus a `weighted`
-flag precisely so no client has to.
-
-From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload
-machinery is how N patterns get in.** `POST /api/upload/pattern` stages one file
-and answers with the reader that claimed it, the point count, the 2θ range,
-whether the file carries σ, and a decimated preview curve; the token it returns is
-what `project_new` takes. A series panel wanting to load a directory of ramp
-patterns should loop that verb rather than inventing a second ingest path — and
-note the two-phase property it buys, which matters more for 40 files than for one:
-*a file that does not parse is a message, not a half-built project*.
-
-Two specifics. `preview_pattern` reports `has_sigma` per file, and a series whose
-files disagree about that is a weighting inconsistency worth surfacing before the
-chain runs (CLAUDE.md, Weights). And an upload's **token is session-scoped** —
-`UploadStore` is emptied by `GuiSession.close`, so a panel must commit its uploads
-within the session that staged them, not persist tokens anywhere.
-
-From **WP-1015** (structure viewer, landed 2026-07-30): **there is now one plotly
-loader, and one trap every panel that plots must avoid.**
-
-`gui/src/lib/plotly.ts` is the shared runtime loader (`loadPlotly()`, a
-deduplicating promise around the `<script src="/plotly.js">` injection that
-WP-1010 kept out of the dist). A trajectory plot should call it rather than copy
-the injection a third time.
-
-The trap is measured, not theoretical: **plotly's `responsive: true` listens for
-*window* resizes only.** If a panel puts controls or a caption *below* its plot,
-those render after the first payload arrives, the plot's box shrinks under an
-already-sized canvas, and the canvas then overhangs and **swallows the clicks** of
-everything beneath it — in a real browser the controls look live and are not.
-A jsdom mount cannot see this at all (no layout). `Structure3D.svelte` fixes it
-with a `ResizeObserver` → `Plotly.Plots.resize`; do the same, or put every control
-*above* the plot.
-
-One method note that cost this WP two wrong claims in a row, and applies to any
-plotly panel: **reading `gd.layout` back is not a reading of the view.** It
-reports whatever was last passed *in*, so a check written that way says a user's
-zoom or rotation was preserved when it has been thrown away. Compare screenshots
-— but not their hashes, since a re-render differs by a pixel.
-
-The consequence for a 3D panel specifically (measured against plotly 6.9.0,
-2026-07-30): **`plotly_relayout` does not fire for a gl3d camera drag at all**,
-so a listener for it is not a fallback — it receives nothing, silently. If a
-panel needs to preserve a camera across a redraw that replaces traces, read
-`gd._fullLayout.scene._scene.getCamera()` immediately before the redraw and hand
-it back in; that is private API and it is the only reading of the view there is.
-A 2D plot has the same question with a different answer: its zoom lives in
-`xaxis.range`, which `uirevision` does keep as long as the trace *count* is
-stable.
-
-Also worth knowing: this WP did **not** add a sixth tab — the viewer is a third
-column inside the model pane, which leaves the sixth-tab question below exactly
-where WP-1013 left it.
-
-From **WP-1013** (landed 2026-07-30): **the tab strip is still five wide, and a
-`Series` tab would be the sixth.** WP-1012 warned that six labelled tabs stop
-fitting a `clamp(340px, 38%, 560px)` sidebar and handed the question to 1013,
-which took the text pane *out* of the strip rather than growing it — but on
-grounds that do not transfer: the `.pxt` document is line-oriented and its columns
-are aligned so a rectangular selection can hit one field, which a narrow column
-undoes. A series panel is a table of per-pattern summaries and trajectories, which
-the sidebar suits. So the sixth-tab problem is still open and is now this WP's; the
-two shapes available are a full-width **mode** (`App.svelte`'s `textMode`, a header
-toggle plus a palette entry, hidden with `class:hidden` so it stays mounted) and a
-narrower tab strip. Pick deliberately rather than adding a sixth label and seeing.
-
-From **WP-1011** (landed 2026-07-30): the sidebar is a **tab strip whose tabs all
-stay mounted** — add a `Series` tab, not a route or a modal. `lib/table.ts` is
-reusable for the per-pattern parameter listing (grouping, the virtual window, and
-`formatValue`/`formatEsd`, which render a value at the precision its esd
-justifies); a trajectory table is the same shape one axis over. And the plan
-editor's preset picker is the thing a series run needs to *reuse* rather than
-re-implement, since `refine_sequential` takes the same `PlanSpec` — including its
-`refit` semantics, where WP-0505 measured the collapsed single-stage refit as the
-default.
-
-From **WP-1012** (landed 2026-07-30): the sidebar is now five tabs
-(Parameters, Plan, Report, History, Build) at `clamp(340px, 38%, 560px)`, so a
-`Series` tab is the sixth and the strip's width is the thing to check first — see
-the same note in WP-1013, which faces it for the text pane.
-
-Two reusable pieces. **`lib/history.ts`'s `layout`** assigns lanes over a
-topologically-ordered node list and returns edges with rows and lanes, drawn as
-plain SVG — a series is N history trees linked by annotation notes (WP-0505), and
-per-pattern lanes are the same shape as per-branch ones, so the renderer is
-reusable if the trees are concatenated with the links as edges. And **the
-trajectory table's `SEQUENTIAL_PATH_DEPENDENT` flags are `Diagnostic`s**, which
-carry `where` but **no numeric field** — the history panel hit the same wall
-displaying guard diagnostics per node, and it is recorded in WP-1003's Inherited as
-a freeze decision. If the panel wants to sort a trajectory by disagreement
-magnitude, expect to need it.
-
-From the **v1.0 GUI plan** (2026-07-29): series routes/panel are v1's only
-multi-pattern surface — `ProjectDoc.patterns` stays length 1 (a series is N
-patterns *outside* the project's single-pattern model, referenced by the
-series run, one history tree each). If this feels awkward in practice,
-record it for WP-1003 rather than growing the project schema mid-WP.
-
-From **WP-1008** (GUI server, landed 2026-07-30): **no series routes were
-reserved**, deliberately — the shapes in WP-1008's charter came from the GUI plan
-and the indexing plan, and a series does not fit the session model as it stands.
-Two things to settle here rather than discover:
-
-- **`GuiSession` is one project, and a project is one pattern.**
-  `ProjectDoc.patterns` is a list but `Project.open` *refuses* more than one, so
-  a series panel either drives N projects (and the session needs a second
-  container verb) or runs outside the project container. That decision is this
-  WP's, and it is the same seam multi-histogram (WP-0308) will want.
-- **The run state machine is single-slot** (`idle | running | cancelling`, one
-  worker, one `CancelToken`). A `refine_sequential` run fits it as *one* long run
-  — which is right, since `SequentialRefinement` already emits per-pattern
-  events and takes `events=`/`cancel=` — so prefer adding a `kind: "series"` to
-  `GuiSession.run` over a second machine. The per-pattern progress a panel needs
-  is already expressible in the event `data` dict without a new `EventKind`.
-
 ## Non-goals
 
 - No multi-histogram (joint residual) UI — different machinery
@@ -201,16 +50,16 @@ Two things to settle here rather than discover:
 
 ## Tasks
 
-- [ ] Multi-file upload → ordered series (reorder/remove before run);
+- [x] Multi-file upload → ordered series (reorder/remove before run);
       series run/cancel via the session worker.
-- [ ] Series event wrapper: per-pattern `fit_start`/`fit_end` → SSE with
+- [x] Series event wrapper: per-pattern `fit_start`/`fit_end` → SSE with
       `series_index`; progress "pattern k of N".
-- [ ] Trajectory plots with esds; `SEQUENTIAL_PATH_DEPENDENT` parameters
+- [x] Trajectory plots with esds; `SEQUENTIAL_PATH_DEPENDENT` parameters
       rendered distinct + headline warning; `direction="both"` toggle.
-- [ ] Per-pattern navigation into that pattern's own history tree (loads
+- [x] Per-pattern navigation into that pattern's own history tree (loads
       the tree, plot follows).
-- [ ] Carry-glob editor behind Advanced, help text per WP-0505.
-- [ ] `tests/test_gui_server.py`: series rows on 3 tiny synthetic patterns;
+- [x] Carry-glob editor behind Advanced, help text per WP-0505.
+- [x] `tests/test_gui_server.py`: series rows on 3 tiny synthetic patterns;
       trajectory payload matches `SeriesResult`.
 
 ## Acceptance
@@ -227,5 +76,78 @@ npm --prefix gui test
   path-dependence check) — summarised in CLAUDE.md's series paragraph.
 
 ## Handover log
+
+- **2026-08-05 — closed ✅.** Branch `wp1016-series-panel`, four commits.
+
+  **Done.** The library half first, because the WP's charter was wrong about it:
+  WP-1008's Inherited said "`SequentialRefinement` already emits per-pattern
+  events and takes `events=`/`cancel=`" and **it did neither** —
+  `_fit_one` called `ref.fit(data, mode=, plan=, two_theta_limits=)` and nothing
+  else. So `fit` now takes both, `_SeriesStream` (an `EventStream` subclass, so
+  `as_event_stream` passes it through and the pattern's fit does not close the
+  stream the series owns) stamps `series_index`/`series_label`/`series_n`/
+  `series_pass`/`series_cold` onto existing kinds, and `unique_labels` came out of
+  `_labels_for` so a caller can *show* the names the run will use. Cancellation
+  **returns** what completed with a new `SEQUENTIAL_CANCELLED` — WP-1006's rule
+  one rank up, since the in-flight pattern is abandoned by `Refinement.fit` itself
+  while the walked ones are committed fits that raising would discard — and a
+  cancelled forward chain skips the verification pass, because the comparison is
+  between two *complete* chains.
+
+  Then six routes (`GET`/`PUT /api/series`, `POST /api/series/run`, `GET
+  /api/series/{result,window,history}`) over a new `gui/series.py`, and the ninth
+  tab. Two shared authorities rather than second copies: `session.curve_window`
+  and `session.tree_payload` hoisted out of `result_window`/`history`, and
+  `project.fitted_mask` made a function so a series member asks the same question
+  about which channels a run fits.
+
+  **The three seams WP-1008 left to settle, settled.** (a) A series lives
+  **beside** the project: staged uploads, in-memory trees, a session-scoped
+  answer, `ProjectDoc.patterns` still length 1 — and it inherits the *project's*
+  protocol (mode, plan, limits, exclusions), quoted rather than offered, because
+  one protocol over N specimens is what makes their trajectories comparable. (b)
+  It rides the one run machine as `kind: "series"`, and "pattern k of N" reaches
+  the run record through the **existing** `stage`/`stage_index`/`n_stages` — the
+  same reuse an indexing run makes, so no field and no `EventKind` is new. (c) No
+  second container verb: an upload token dies with the session, so a *persisted*
+  series needs a document, which is left to **1003** below rather than added here.
+
+  **Measured, and one of them changed the design.** The clean three-pattern ramp
+  **agrees** between chain directions — every parameter's between-chain distance
+  under 5e-4 σ — which is the right answer and left the flagged branch
+  unexercised, so `n_sigma` is pinned against the fence on a *constructed* 4.95σ
+  disagreement instead (`test_the_served_disagreement_is_the_fences_own_arithmetic`).
+  It also killed the first ranking rule: sorting *unflagged* trajectories by that
+  noise put `phases.0.cell.a` eighth of fifteen. And the staged table's floor is
+  per column — core 308 px (index, label, coordinate, the reorder buttons), detail
+  231 — measured in a browser, now `lib/resize.ts:seriesCompact`.
+
+  **The browser pass found four defects and one negative**, per the standing
+  streak. Ranked-by-noise (above); the table side-scrolling its own main verb off
+  the right edge; the console rendering five series keys as fields on **every**
+  `eval`, so the cost was pushed off the edge (now one `[T300 1/3 ↩]` prefix in
+  `lib/stream.ts`); and the per-pattern plot's x axis anchored to the upper
+  subplot, so "2θ (deg)" ran through the middle of the residual (`Plot.svelte`
+  already had `anchor: "y2"`). The negative is worth keeping: **this plot is
+  plotly SVG, not canvas** — zero canvas elements, zero unreachable controls after
+  scrolling — so WP-1015's swallowed-click trap cannot apply to it, because
+  `Plot.svelte` draws its residual with `scattergl` and *that* is what made it a
+  canvas there. The `ResizeObserver` still earns its place: 539 → 1480 px when the
+  column takes the window. The jsdom mounts found two more first (a page reload
+  lost a finished series; `bind:value` made the carry glob depend on an `input`
+  event having fired before the `change`).
+
+  **A cap decision, deliberately.** `CLAUDE.md` was at its 700-line cap, and this
+  WP's root-level rule is 5 lines of library contract. Compression was tried —
+  four passages tightened, the GUI paragraph's duplication of `gui/CLAUDE.md`
+  removed — and the document has no narrative left to move, so `SIZE_CAPS` is 720
+  with the reasoning in the test's own comment, including the 25 lines of
+  bullet-list reflow slack a future session should spend before raising it again.
+
+  **Next / gotchas.** [1017](1017-gui-manual-onboarding.md) is the last GUI WP and
+  now documents nine tabs, not eight; the Build panel's owed list is empty and the
+  mechanism is kept for the next one. Series settings are session-scoped, which is
+  the one thing a user will notice as missing — that is 1003's call, and the
+  Inherited note is filed there.
 
 - **2026-07-29** — created from the v1.0 GUI plan.

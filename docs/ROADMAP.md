@@ -55,36 +55,33 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1035](wp/1035-symmetry-surfaced.md), 2026-08-05** — a phase's space
-group stops being one read-only string explained nowhere: it is read out, it names
-the **cause** of every held row symmetry holds, its Wyckoff letters are one
-deliberately-opened route away, and it is **editable behind a preview** built by
-constructing a candidate `ParameterTable`, so the refusals are the package's own
-with the nearest-allowed values they already compute. The bug the WP predicted was
-real and was never about symmetry: `PATCH /api/structure` accepted a model whose
-table cannot be built, committed a node, then 500'd on the next `GET /api/params`
-— so the gate went into `_edit`, where every whole-model verb passes, testing the
-*candidate*, which keeps the repair path open. Two costs were **measured** rather
-than assumed (a Wyckoff letter 1.8-8.7 ms an atom, an orbit expansion 0.4-1.3) and
-that put the tier split where it is. The browser pass then found what jsdom
-structurally could not: NAC's `I 21 3` → `I 41 3 2` moves **no parameter at all**
-and takes the cell from 84 atoms to 168.
+**Last closed: [1016](wp/1016-sequential-series-panel.md), 2026-08-05** — an
+in-situ ramp is drivable from the GUI, and the panel is built around the fact that
+**a smooth curve is exactly what a poisoned chain produces**: `direction="both"`
+banners `SEQUENTIAL_PATH_DEPENDENT` and draws the flagged trajectory dashed with
+the backward chain beside it. It began by finding its own charter wrong — WP-1008
+said `SequentialRefinement` already took `events=`/`cancel=` and it took neither —
+so the library gained both, per pattern, and a cancelled series now **returns**
+what completed. The series lives *beside* the project (staged uploads, in-memory
+trees, `ProjectDoc.patterns` still length 1) under the project's own protocol;
+persistence is deferred to **1003**. Narrative and the four browser findings:
+[milestones/v1.0.md](milestones/v1.0.md).
 
 **Still open from [1040](wp/1040-engine-svd-index.md)**: the eight-dataset
 scoreboard, handed to [1041](wp/1041-indexing-benchmark-gallery.md) with three
 defects 1040 measured in it. Everything else there landed — a third engine, so
 `high` now means all three agree; 11-BM NAC indexed as measured; and the
 zero-error column, which does *not* raise the hit rate and does stop a converged
-answer being wrong. Same day before it: [1034](wp/1034-panel-layout.md),
-[1033](wp/1033-plot-range-regions.md), [1039](wp/1039-search-line-count.md),
-[1032](wp/1032-gui-repairs.md). Narratives in
-[milestones/v1.0.md](milestones/v1.0.md).
+answer being wrong. Same day before it: [1035](wp/1035-symmetry-surfaced.md),
+[1034](wp/1034-panel-layout.md), [1033](wp/1033-plot-range-regions.md),
+[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md).
 
-The method lesson is nine sessions running (1030 → … → 1035): **instrument
-before ranking, and let the by-hand run judge.** 1040's "nothing regressed" was
-written on three datasets and a 38-row acceptance run refuted it; 1035's entry
-diff said "no parameter gains or loses a tie" and a browser refuted that. Both
-repeat 1039's withdrawal: **a prediction is not a measurement.**
+The method lesson is ten sessions running (1030 → … → 1016): **instrument before
+ranking, and let the by-hand run judge.** 1040's "nothing regressed" died to a
+38-row acceptance run; 1035's entry diff and 1016's ranking rule both died to a
+browser. All of it repeats 1039's withdrawal — **a prediction is not a
+measurement** — and 1016 adds the inverse: **an inherited claim is not one
+either.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -99,14 +96,16 @@ repeat 1039's withdrawal: **a prediction is not a measurement.**
    with the wrong centring where `m_rev` separates them 516×. Fix all three first.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1016](wp/1016-sequential-series-panel.md) then
-   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
-   waits on 1032–1035, all now closed, which changed the controls it documents.
+4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP, and the only one
+   left in it. Its `### Inherited` now carries nine tabs rather than eight, plus
+   the four things 1016's panel needs *taught* rather than listed.
 5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface. It **inherits one line from 1036 via
-   1035**: `Phase.space_group` has no schema validator, deliberately, because
+   1035** (`Phase.space_group` has no schema validator, deliberately, because
    adding one changes the error type at every construction site including
-   history-node deserialization.
+   history-node deserialization) and, from **1016**, the one decision that WP
+   deferred rather than took: a series has nowhere durable to live, which needs a
+   document and is the same seam multi-histogram wants.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -213,7 +212,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1013](wp/1013-text-pane-sync.md) | Text pane (CodeMirror 6) + two-way sync | ✅ 2026-07-30 | 1009, 1010 |
 | [1014](wp/1014-import-structure-editing.md) | Import & in-GUI structure/instrument editing | ✅ 2026-07-30 | 1008, 1010 |
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
-| [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
+| [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ✅ 2026-08-05 | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |

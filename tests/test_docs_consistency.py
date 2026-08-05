@@ -44,8 +44,17 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # achieved it (WP-1031, 2026-07-31: CLAUDE.md landed at 601 lines, ROADMAP at
 # 494).  Raising a cap is a decision about every future session's fixed cost —
 # make it in a commit that says so, not as a side effect.
+#
+# 700 → 720 at the WP-1016 close (2026-08-05), and the decision rather than the
+# arithmetic: five WPs of standing rules (1032-1035, then 1016's per-pattern
+# `events=`/`cancel=`) consumed WP-1031's 99 lines of headroom, and the document
+# is now rule-only prose with no narrative left to move — the GUI's own detail
+# went to `gui/CLAUDE.md`, which is where it belongs and is not capped.  **Reflow
+# before raising this again**: the bullet lists wrap at ~74 columns against a
+# 79-column body, which is 25 lines of slack measured at this close, and spending
+# that costs no facts at all.
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 700,
+    "CLAUDE.md": 720,
     "docs/ROADMAP.md": 650,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (landed at 33)

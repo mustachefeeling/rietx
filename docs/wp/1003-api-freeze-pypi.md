@@ -11,6 +11,35 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1016](1016-sequential-series-panel.md) (closed 2026-08-05) — one
+deliberate omission this WP has to decide, and three surfaces to cover.**
+
+The omission: **a series has nowhere durable to live.** Its patterns are staged
+uploads (`UploadStore`, emptied by `GuiSession.close`) and its answer is
+session-scoped, because `ProjectDoc.patterns` is length 1 and `Project.open`
+refuses more — so closing the window loses the staged list, which is the one
+absence a user notices. Persisting it needs a *document* naming the files (paths,
+reader options, the coordinate, the chain settings), and the v1.0 GUI plan
+explicitly told 1016 to record that here rather than grow the project schema
+mid-WP. It is the same seam multi-histogram (WP-0308) wants, so decide the two
+together or fence both: a `series/` block in `project.json` referencing files
+*outside* the project directory is a new kind of reference, and `DataRef` records
+a filename relative to the project on purpose.
+
+The surfaces: `SequentialRefinement.fit` gained **`events=`/`cancel=`**, so the
+frozen signature is the one with them — and with it a documented event contract
+(`series_index`/`series_label`/`series_n`/`series_pass`/`series_cold` as *added*
+`data` fields on existing kinds, so `EVENT_SCHEMA_VERSION` stays "2") and a new
+diagnostic code `SEQUENTIAL_CANCELLED`. `sequential.REFIT_MODES`/`DIRECTIONS` and
+`sequential.unique_labels` are now public because the GUI quotes them; freezing
+them means a caller may rely on the tuples' *contents*. And **six new routes**
+(`GET`/`PUT /api/series`, `POST /api/series/run`, `GET
+/api/series/{result,window,history}`) plus two module-level helpers promoted out
+of `GuiSession` — `session.curve_window` and `session.tree_payload` — which two
+panels now share; `project.fitted_mask` likewise became a function beside the
+method. Freezing the method without the function would leave the shared authority
+un-frozen.
+
 **From the 2026-08-04 use session (WP-1032…1036) — two freeze-relevant surface
 changes and one that touches a question already in this mailbox.**
 [1035](1035-symmetry-surfaced.md) makes a phase's **space group editable**
