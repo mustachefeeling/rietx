@@ -22,6 +22,7 @@
    * tolerance is a server round trip because the server owns the bond rule.
    */
   import { ApiError, api } from "../api";
+  import { hoverLabel } from "../lib/plot";
   import { loadPlotly } from "../lib/plotly";
   import {
     DEFAULT_CAMERA,
@@ -201,7 +202,8 @@
       node,
       traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary,
              exaggeration),
-      layout(style.color, camera),
+      layout(style.color, camera,
+             hoverLabel((name) => style.getPropertyValue(name))),
       // the default gl3d modebar floats over a panel this small, and one of its
       // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the
       // up vector to +z and would silently break the view-down-axis buttons.

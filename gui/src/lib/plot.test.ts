@@ -1,7 +1,14 @@
 /** The pattern plot's two new choices (WP-1029). */
 import { describe, expect, it } from "vitest";
 
-import { curveColors, residual, scaleValues, sqrtTicks, type Window } from "./plot";
+import {
+  curveColors,
+  hoverLabel,
+  residual,
+  scaleValues,
+  sqrtTicks,
+  type Window,
+} from "./plot";
 
 const WEIGHTED: Window = {
   two_theta: [1, 2, 3],
@@ -77,5 +84,27 @@ describe("the curve colours (WP-1029 q)", () => {
     expect(colors.calc).toBe("#c23b22");
     expect(colors.bkg).toBe("#6b7280");
     expect(colors.zero).toBe("#88888888");
+  });
+});
+
+describe("the hover box (WP-1032)", () => {
+  it("takes its surface, border and ink from the theme's own properties", () => {
+    // nothing themed it before: `hovermode: "x unified"` and a hovertemplate on
+    // every trace, over plotly's default *light* box, with `layout.font.color`
+    // already themed — light-grey ink on white, on the dark page
+    const dark: Record<string, string> = {
+      "--panel": " #1e1e1e ", "--line": "#333333", "--fg": "#e6e6e2",
+    };
+    expect(hoverLabel((name) => dark[name] ?? "")).toEqual({
+      bgcolor: "#1e1e1e", bordercolor: "#333333",
+      font: { color: "#e6e6e2", size: 11 },
+    });
+  });
+
+  it("falls back per property to the light palette, as the curve colours do", () => {
+    expect(hoverLabel(() => "")).toEqual({
+      bgcolor: "#ffffff", bordercolor: "#dcdcd6",
+      font: { color: "#1b1b1b", size: 11 },
+    });
   });
 });

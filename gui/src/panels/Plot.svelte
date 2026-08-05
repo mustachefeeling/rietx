@@ -22,6 +22,7 @@
     RESIDUAL_KINDS,
     SCALES,
     curveColors,
+    hoverLabel,
     residual,
     scaleValues,
     sqrtTicks,
@@ -112,6 +113,7 @@
       yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
                 zeroline: res.zeroline, zerolinecolor: colors.zero },
       hovermode: "x unified",
+      hoverlabel: hoverLabel((name) => style.getPropertyValue(name)),
     };
   }
 

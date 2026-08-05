@@ -37,6 +37,33 @@ export function curveColors(read: (name: string) => string): {
   };
 }
 
+/**
+ * The hover box, themed from the same custom properties everything else reads.
+ *
+ * plotly's default hover box is a **light** surface, and nothing in this app
+ * ever styled it: `hovermode: "x unified"` was set and every trace given a
+ * `hovertemplate`, while `layout.font.color` was the themed `--fg`. On the dark
+ * theme that is light-grey ink on a white box, which is what the report said.
+ * Both plotly surfaces take it — the pattern plot and the structure viewer — so
+ * it lives here rather than in either component, and neither learns a hex value
+ * (WP-1032; the fallbacks are the light palette's, for a page with no
+ * stylesheet).
+ *
+ * `bordercolor` is `--line` and not the trace colour: `x unified` draws **one**
+ * box for every trace at that 2θ, so a per-trace border would be a colour picked
+ * from whichever trace plotly happened to put first.
+ */
+export function hoverLabel(read: (name: string) => string): {
+  bgcolor: string; bordercolor: string; font: { color: string; size: number };
+} {
+  const pick = (name: string, fallback: string) => read(name).trim() || fallback;
+  return {
+    bgcolor: pick("--panel", "#ffffff"),
+    bordercolor: pick("--line", "#dcdcd6"),
+    font: { color: pick("--fg", "#1b1b1b"), size: 11 },
+  };
+}
+
 export interface Window {
   two_theta: number[];
   y_obs: number[];

@@ -760,8 +760,20 @@
     display: none;
   }
 
+  /* The panel column is a *surface*, and says so (WP-1032).
+     Reported as "transparent headings clash with other text on scroll"; what is
+     actually there is a colour mismatch, measured in both themes.  The Peaks
+     table's `th` is the app's only `position: sticky`, and it already paints an
+     opaque `var(--panel)` backdrop — over a column that set no background at
+     all and therefore showed the body's `--bg`.  Two surfaces, one strip:
+     #ffffff on #fbfbfa light, #1e1e1e on #151515 dark, so the header row read
+     as a band of a different colour rather than as a backdrop.  Naming the
+     column `--panel` — which is what the header bar already is — makes the
+     sticky backdrop match the surface it sticks to, and is why no rule here
+     needs to know that a table above it is sticky. */
   .side {
     flex: 0 0 clamp(340px, 38%, 560px);
+    background: var(--panel);
     border-left: 1px solid var(--line);
     display: flex;
     flex-direction: column;
