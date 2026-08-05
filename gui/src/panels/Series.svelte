@@ -29,7 +29,7 @@
 
   import { api } from "../api";
   import { loadPlotly } from "../lib/plotly";
-  import { coalesce } from "../lib/resize";
+  import { coalesce, seriesCompact } from "../lib/resize";
   import { curveColors, hoverLabel } from "../lib/plot";
   import {
     asRequest,
@@ -80,7 +80,10 @@
   let selectedPattern = $state<number | null>(null);
   let memberHistory = $state<any>(null);
   let plotNode = $state<HTMLDivElement | undefined>();
+  /** the panel's own width, for the table reflow below its measured floor */
+  let panelWidth = $state(0);
   let loaded = false;
+  const compact = $derived(seriesCompact(panelWidth));
 
   const entries = $derived<SeriesEntry[]>(answer?.result?.entries ?? []);
   const trajectories = $derived<Trajectory[]>(answer?.trajectories ?? []);
@@ -360,7 +363,11 @@
       }
       await plotly.react(plotNode, traces, {
         ...base,
-        xaxis: { ...base.xaxis, title: { text: "2θ (deg)", font: { size: 10 } } },
+        // anchored to the *lower* subplot, `Plot.svelte`'s rule: the default
+        // anchor is the first y axis, which put the "2θ" title and its ticks
+        // through the middle of the residual trace (measured in a browser)
+        xaxis: { ...base.xaxis, domain: [0, 1], anchor: "y2",
+                 title: { text: "2θ (deg)", font: { size: 10 } } },
         yaxis: { ...base.yaxis, domain: [0.34, 1], title: { text: "counts", font: { size: 10 } } },
         yaxis2: { ...base.yaxis, domain: [0, 0.28],
                   title: { text: window.weighted ? "Δ/σ" : "Δ/σ (Poisson)",
@@ -387,7 +394,7 @@
   }
 </script>
 
-<section>
+<section bind:clientWidth={panelWidth}>
   <!-- the headline, not a footnote: the one check that separates a measured
        trajectory from an ordering artefact (WP-0505) -->
   {#if flagged.length}
@@ -453,6 +460,11 @@ once the files are read">
       blank and the pattern index is the axis.
     </p>
   {:else}
+    <!-- Below its measured floor the table drops the four descriptive columns
+         (`lib/resize.ts:seriesCompact`) rather than side-scrolling: the reorder
+         buttons are the last column and the panel's main verb, so scrolling put
+         them off the right edge of a box a user then had to scroll to reorder a
+         series. Nothing is lost — the four move into the label's tooltip. -->
     <div class="scroll">
       <table class="tabular">
         <thead>
@@ -460,14 +472,20 @@ once the files are read">
             <th>#</th><th>label</th>
             <th title="the series coordinate — blank means the index is the axis"
               >{settings?.x_label ?? "x"}</th>
-            <th>file</th><th>pts</th><th>2θ</th><th>σ</th><th></th>
+            {#if !compact}
+              <th>file</th><th>pts</th><th>2θ</th><th>σ</th>
+            {/if}
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {#each patterns as p, i (p.upload + i)}
+            {@const detail = `${p.filename} · read as ${p.reader} · ${p.n_points} points`
+              + ` · 2θ ${p.two_theta_range[0].toFixed(1)}–${p.two_theta_range[1].toFixed(1)}°`
+              + ` · σ ${p.has_sigma ? "from file" : "Poisson fallback"}`}
             <tr>
               <td class="muted">{i}</td>
-              <td>
+              <td title={detail}>
                 <input class="label" type="text" value={p.label} disabled={busy}
                   onchange={(ev) => setLabel(i, (ev.currentTarget as HTMLInputElement).value)} />
               </td>
@@ -476,10 +494,12 @@ once the files are read">
                   value={p.x === null ? "" : p.x} disabled={busy}
                   onchange={(ev) => setX(i, (ev.currentTarget as HTMLInputElement).value)} />
               </td>
-              <td class="muted" title={`${p.filename} · read as ${p.reader}`}>{p.filename}</td>
-              <td>{p.n_points}</td>
-              <td class="muted">{p.two_theta_range[0].toFixed(1)}–{p.two_theta_range[1].toFixed(1)}°</td>
-              <td>{p.has_sigma ? "file" : "Poisson"}</td>
+              {#if !compact}
+                <td class="muted" title={detail}>{p.filename}</td>
+                <td>{p.n_points}</td>
+                <td class="muted">{p.two_theta_range[0].toFixed(1)}–{p.two_theta_range[1].toFixed(1)}°</td>
+                <td>{p.has_sigma ? "file" : "Poisson"}</td>
+              {/if}
               <td class="acts">
                 <button class="ghost tiny" disabled={busy || i === 0}
                   title="earlier in the series" onclick={() => move(i, -1)}>↑</button>
@@ -593,7 +613,11 @@ plot's x-axis title, and the column above">
         <thead>
           <tr>
             <th>#</th><th>label</th><th>{answer.result.x_label}</th>
-            <th>status</th><th>Rwp</th><th>GoF</th>
+            <th>status</th><th>Rwp</th>
+            <!-- the same floor as the staged table one section up, and GoF is
+                 what goes: Rwp is the headline and this column was the 6 px that
+                 put the drill-down button off the right edge (measured) -->
+            {#if !compact}<th>GoF</th>{/if}
             <th title="least-squares iterations over every stage of this pattern's fit
 — what the warm start actually buys">iter</th>
             <th></th>
@@ -618,8 +642,11 @@ restart did not rescue it: this pattern was hard for a reason a restart could no
 fix">hard</span>
                 {/if}
               </td>
-              <td>{e.statistics ? (e.statistics.rwp * 100).toFixed(2) + "%" : "—"}</td>
-              <td>{e.statistics ? e.statistics.gof.toFixed(3) : "—"}</td>
+              <td title={e.statistics ? `GoF ${e.statistics.gof.toFixed(3)}` : ""}>
+                {e.statistics ? (e.statistics.rwp * 100).toFixed(2) + "%" : "—"}</td>
+              {#if !compact}
+                <td>{e.statistics ? e.statistics.gof.toFixed(3) : "—"}</td>
+              {/if}
               <td>{e.n_iterations}</td>
               <td>
                 <button class="ghost tiny" disabled={busy || !answer.curves[i]}

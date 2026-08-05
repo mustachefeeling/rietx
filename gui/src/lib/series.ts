@@ -125,27 +125,44 @@ export function sortByX(patterns: SeriesPattern[]): SeriesPattern[] {
 /**
  * The trajectories worth showing first: the path-dependent ones, then the rest.
  *
- * Ranked on `n_sigma` inside the flagged group, which is why the server computes
- * it — a `Diagnostic` carries `where` and no magnitude, so "which parameter
- * disagrees *most*" is not answerable from the fences alone (WP-1012 hit the same
- * wall; the answer was to compute it from the two chains rather than to grow the
- * schema).
+ * Ranked on `n_sigma` **inside the flagged group only**, which is why the server
+ * computes it — a `Diagnostic` carries `where` and no magnitude, so "which
+ * parameter disagrees *most*" is not answerable from the fences alone (WP-1012 hit
+ * the same wall; the answer was to compute it from the two chains rather than to
+ * grow the schema).
+ *
+ * Sorting the *unflagged* ones by σ too was the first version and a browser
+ * showed why not: on a clean ramp nothing is flagged, every distance is under
+ * 5e-4 σ, and ordering 15 parameters by that noise put `phases.0.cell.a` — the
+ * one anybody opens a ramp to look at — eighth, in an order that reads as random.
+ * Below the fence there is nothing to rank, so the series' own first-seen order
+ * stands (`Array.prototype.sort` is stable).
  */
 export function rankTrajectories(trajectories: Trajectory[]): Trajectory[] {
   const score = (t: Trajectory) => (t.path_dependent ? 2 : t.discontinuous ? 1 : 0);
   return [...trajectories].sort((a, b) => {
     const diff = score(b) - score(a);
     if (diff !== 0) return diff;
+    if (!a.path_dependent) return 0;
     return (b.n_sigma ?? 0) - (a.n_sigma ?? 0);
   });
 }
 
-/** One trajectory's y-axis title: the parameter, and what its esds mean. */
+/**
+ * One trajectory's y-axis title: the parameter's **leaf**, not its path.
+ *
+ * Measured in a browser, and the reason it is not a character-count threshold
+ * like `viz/plots.py:plot_trajectory`'s: a *rotated* title competes with the tick
+ * labels for the same fixed left margin, so `phases.0.cell.a` — fifteen
+ * characters, well under matplotlib's cut — rendered as `aes.0.cell.a` beside
+ * `4.161`-style ticks. The width that clips is the plot's margin, not the string,
+ * and the leaf is what a y-axis wants anyway; the full path is the heading
+ * directly above.
+ */
 export function axisTitle(traj: Trajectory | null): string {
   if (!traj) return "";
-  return traj.path.startsWith("qpa.")
-    ? `${traj.path.slice(4)} (wt %)`
-    : traj.path;
+  if (traj.path.startsWith("qpa.")) return `${traj.path.slice(4)} (wt %)`;
+  return traj.path.split(".").at(-1) ?? traj.path;
 }
 
 /** A one-line reading of a trajectory's standing — the panel's caption. */

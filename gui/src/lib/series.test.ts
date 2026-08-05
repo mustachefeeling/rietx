@@ -84,6 +84,25 @@ describe("ranking trajectories", () => {
     expect(rankTrajectories(rows).map((t) => t.path)).toEqual(
       ["measured", "unknown"]);
   });
+
+  it("leaves the unflagged in the series' own order", () => {
+    // Found in a browser: on a clean ramp nothing is flagged and every distance
+    // is under 5e-4 σ, so ranking the unflagged ones by σ too ordered fifteen
+    // parameters by noise and put the cell edge eighth.
+    const rows = [
+      traj({ path: "phases.0.cell.a", n_sigma: 4.3e-4 }),
+      traj({ path: "phases.0.scale", n_sigma: 0 }),
+      traj({ path: "instrument.zero_shift", n_sigma: 3.2e-4 }),
+      traj({ path: "qpa.LaB6", n_sigma: null }),
+    ];
+    expect(rankTrajectories(rows).map((t) => t.path)).toEqual(
+      ["phases.0.cell.a", "phases.0.scale", "instrument.zero_shift", "qpa.LaB6"]);
+    // …and a flagged one still jumps the queue from wherever it was
+    const flagged = [...rows];
+    flagged[2] = traj({ path: "instrument.zero_shift", path_dependent: true,
+                        n_sigma: 5.2 });
+    expect(rankTrajectories(flagged)[0].path).toBe("instrument.zero_shift");
+  });
 });
 
 describe("what a trajectory says about itself", () => {
@@ -109,7 +128,16 @@ describe("what a trajectory says about itself", () => {
 
   it("titles a QPA trajectory as a weight percentage", () => {
     expect(axisTitle(traj({ path: "qpa.corundum" }))).toBe("corundum (wt %)");
-    expect(axisTitle(traj())).toBe("phases.0.cell.a");
+  });
+
+  it("titles the y axis with the leaf, because the margin is what clips", () => {
+    // Measured in a browser: a *rotated* title shares the fixed left margin with
+    // the tick labels, so `phases.0.cell.a` — fifteen characters, under
+    // matplotlib's 24-character cut — came out as `aes.0.cell.a`.  The full path
+    // is the heading above the plot.
+    expect(axisTitle(traj({ path: "phases.0.cell.a" }))).toBe("a");
+    expect(axisTitle(traj({ path: "phases.0.atoms.3.adp.2" }))).toBe("2");
+    expect(axisTitle(traj({ path: "instrument.background.c11" }))).toBe("c11");
   });
 });
 
