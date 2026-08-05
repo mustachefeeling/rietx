@@ -311,7 +311,11 @@ def test_progress_is_one_flat_ladder_on_the_existing_kinds(cubic_peaks):
         assert d["n_stages"] >= d["index"]
     search_units = {(d.get("engine"), d.get("system")) for d in starts
                     if not d.get("probe") and not d.get("validation")}
-    assert search_units == {(e, s) for e in ("dichotomy", "trial_error")
+    # quoted from the **live registry**, never spelled out: a fourth engine that
+    # forgot to feed ``progress`` must fail this row rather than be absent from
+    # the expectation it is meant to satisfy (the WP-0602 meta-test pattern, and
+    # what let WP-1040's third engine land without touching this assertion)
+    assert search_units == {(e, s) for e in engine_names()
                             for s in ("cubic", "tetragonal")}
     # every event line is a valid record of the *current* schema
     for e in events:
