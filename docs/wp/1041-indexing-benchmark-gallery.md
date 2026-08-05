@@ -13,6 +13,33 @@ the indexing suite draws nothing at all.
 
 ### Inherited
 
+**From WP-1040, 2026-08-05 — the scoreboard is stale a second time, and it now has
+a third column.** `search_svd` is registered, so `index_pattern` runs **three**
+engines by default and `high` requires all three to agree. Two rows already moved:
+SRM 660c LaB6 is found by all three, and **11-BM NAC is indexed as measured** —
+a = 10.2512 Å cubic I, +19 ppm, `predicted_but_absent` 0 of 837, by `svd` alone —
+where the acceptance file previously asserted it could not be. Anything the
+gallery says about NAC abstaining is wrong as of that commit.
+
+Three things to carry into the re-measure:
+
+* **the wall clock moved**: the indexing acceptance file is 36 rows and **20:03**
+  against 11:58 with two engines. That is the price of the confidence gate, not a
+  regression, but it is the number the gallery's own cost claims must use.
+* **`trial_error._solution_key` is scale-invariant**, so for a one-dimensional
+  metric — cubic, and only cubic — every candidate hashes to one key and the
+  engine reports **at most one cubic candidate per system search**. Measured in
+  WP-1040, which fixed it only in `svd.py` (a scale-quantised key) and left
+  `trial_error` alone on purpose: changing a shipped engine's dedup inside a WP
+  about a third engine is an unmeasured behaviour change. Fixing it will move
+  cubic rows, so do it *before* recording the counts, not after.
+* **bethanechol A-D are still unreachable and the cause is measured**: at the
+  published cell those sets' lines sit a median 2.5 % in Q from their predictions
+  (set F: 1.9e-4). That is the benchmark's zeroshift, and WP-1040's open
+  zero-error column is the instrument for it — so the global score is worth
+  computing *after* that lands, or it will be scored against a handicap the
+  package has already decided to remove.
+
 **From WP-1039, closed 2026-08-05.** You now own the eight-dataset scoreboard's
 numbers: CLAUDE.md keeps the *rule* ("never wrong, and silent more often than
 right; never let a summary round it up") and points here for the counts, which

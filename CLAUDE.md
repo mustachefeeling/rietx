@@ -49,28 +49,25 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-05 at the WP-1039 close, darwin/arm64 M4, in the
-**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
-jax converts skips into passes, so none of these rows compares with a `[dev]`
-count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
-re-measured (they predate 1037's 19, 1038's 26 and 1039's 7; last good: the
-WP-1036 close entry, in the v1.0 appendix):
+Measured 2026-08-05 at the **WP-1040** close, darwin/arm64 M4, in the
+**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** — jax
+converts skips into passes, so no row here compares with a `[dev]` count, and the
+main checkout's figures were **not** re-measured (they predate 1037-1040; last
+good: the WP-1036 close entry, in the v1.0 appendix):
 
-- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 7 (five
-  `search_line_order` rows plus one end-to-end row over both engines), no new skips.
-- full suite: **1802 passed / 72 skipped**, 15:04. passed+skipped 1874 = the fast
-  selection's 1775 + 99 slow-marked, unchanged from 1038 — every new row is fast.
-- **1039 made the indexing acceptance file the wall clock**, and its rank is a
-  correctness change that is not free: `tests/test_acceptance_indexing.py` is
-  **36** rows and **11:58** (6:10 before 1039, 25:19 before its low-Q pool bound).
-  Its corundum fixture is the full suite's longest single item at 490 s, above
-  `stephens-brucite`'s 434 — the ordering has moved again, so re-read
-  `--durations` rather than quoting this; run alone that fixture is 330 s.
-- frontend (vitest): **282**, unchanged by 1030-1039 (none touched `gui/`);
-  last measured at the WP-1027 close.
-- `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
-  § Quoting numbers.
+- fast suite: **1718 passed / 67 skipped**, ~6-7 min — 1039's 1708 + 10 (nine SVD
+  engine rows plus the third parametrisation of `never_started`), no new skips.
+- full suite: **1813 passed / 72 skipped**, 21-24 min. passed+skipped 1885 = the
+  fast selection's 1785 + 100 slow-marked: 1040 adds one slow row (the SVD
+  monoclinic recovery) to 1039's 99.
+- **the indexing acceptance file is still the wall clock, and a third engine costs
+  it**: 36 rows, **20:03** against 11:58 with two — `index_pattern` runs every
+  registered engine, so that is the price of the confidence gate, not a
+  regression.  Re-read `--durations` rather than quoting this.
+- frontend (vitest): **282**, unchanged by 1030-1040 (none touched `gui/`), last
+  measured at the WP-1027 close.  `--collect-only` undercounts by one per
+  module-level `importorskip` that fires (two on `[dev]`, one here) —
+  `tests/CLAUDE.md` § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -495,29 +492,24 @@ milestone table in ROADMAP carries the acceptance one-liners — neither is
 restated here).
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
-`pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the
-last one shipped, because that string is stamped into every
-`RefinementResult.provenance` and history node. The GUI (WP-1004…1017,
-expanded into v1.0 on 2026-07-29) lands *before* the freeze (WP-1003) so the
-freeze covers an exercised surface; stack decision in DESIGN.md §Outputs.
-**Indexing** (WP-1018…1027, added the same day) lands before the freeze for the
-same reason — `index_pattern()` is a peer of `refine()`, and until it exists the
-package cannot touch a phase whose cell is unknown. Its governing rule is the
-FitReport's one rank up: an indexer must never hand back one cell confidently,
-so `IndexingResult` has **no** `.cell`/`.best` attribute, only a gated
-`best_or_none()`; geometrical ambiguity (Mighell & Santoro 1975) is reported
-with the reflections that would break the tie rather than silently resolved;
-coverage is scored in *both* directions because ranking on
-share-of-observed-intensity alone demonstrably puts a 390-line wrong phase
-above the truth; and a restricted search reports `systems_searched` rather than
-concluding anything about the sample. Engines supply the confidence by
+`pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the last one
+shipped, because that string is stamped into every `RefinementResult.provenance`
+and history node. The GUI (WP-1004…1017) and **indexing** (WP-1018…1027) both land
+*before* the freeze (WP-1003) so it covers an exercised surface; grounds in the
+v1.0 record. Indexing's governing rule is the FitReport's one rank up: an indexer
+must never hand back one cell confidently, so `IndexingResult` has **no**
+`.cell`/`.best` attribute, only a gated `best_or_none()`; geometrical ambiguity
+(Mighell & Santoro 1975) is reported with the reflections that would break the tie
+rather than silently resolved; coverage is scored in *both* directions because
+ranking on share-of-observed-intensity alone demonstrably puts a 390-line wrong
+phase above the truth; and a restricted search reports `systems_searched` rather
+than concluding anything about the sample. Engines supply the confidence by
 **agreeing**, the same device as `direction="both"` and the cross-backend matrix —
-**three** of them, and `high` means *every* engine that ran found the lattice, so
-adding one raises the bar rather than diluting it. They must fail differently for
-that to mean anything, and they do: a wide domain (dichotomy), a poisoned base
-line (trial_error), a bad starting basin (svd). The count was two until WP-1040 —
-the *whole-profile* Monte Carlo of WP-1023 remains a no-go, but its scope is
-narrower than it read (see the Monte Carlo rule below). The same rule runs one step further into the
+**three** of them (two until WP-1040), and `high` means *every* engine that ran
+found the lattice, so adding one raises the bar rather than diluting it. They must
+fail differently for that to mean anything, and they do: a wide domain
+(dichotomy), a poisoned base line (trial_error), a bad starting basin
+(svd). The same rule runs one step further into the
 workflow: the **extinction symbol**, not the space group, is what a powder measures,
 so `determine_extinction_symbol` answers with a ranked list of classes and every
 class carries a *list* of space groups — the one place in the package where the
@@ -533,14 +525,13 @@ to `low`, the rest cap it at `medium`, and *count* deliberately does not separat
 medium from low. **Whole-profile validation is mandatory** — the FoM panel sees ≤20
 lines and cannot see reflections predicted where there is no intensity, so
 `validate_by_lebail` reports `predicted_but_absent`, which is what catches an
-oversized cell (measured: 117 of 153 reflections for a doubled cell, 0 of 28 for the
+oversized cell (117 of 153 reflections for a doubled cell against 0 of 28 for the
 truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
 serve as that detector: Le Bail extraction assigns ~nothing to a phantom reflection,
-so there is no negative residual and it fires on 61 % either way. **The validation
-fit holds the cell** and frees exactly one peak-position parameter, chosen from the
-candidate's own shift template. And on real data with no measured shift, `high` is
-currently *unreachable* by design (`shift_allowance_assumed`); the fix is evidence,
-not a bigger constant, and it is WP-1026's.
+so it fires on 61 % either way. **The validation fit holds the cell** and frees
+exactly one peak-position parameter, from the candidate's own shift template. And on
+real data with no measured shift, `high` is currently *unreachable* by design
+(`shift_allowance_assumed`); the fix is evidence, not a bigger constant (WP-1026).
 
 Everything the engines share is `indexing/engines.py` — one `SearchSpec`, one
 `EngineResult` (carrying the `CandidateFit`, because consensus dedup is a χ² test
@@ -553,12 +544,12 @@ indices of a few base lines and solves the metric exactly, so a bad base line po
 it where a wide domain poisons the other; `search_svd` (WP-1040) proposes a metric at
 random and alternates "assign each line to its nearest calculated one" with "re-solve
 A..F from that assignment" until the assignment stops changing — **no tolerance to
-search with**, failing instead on a bad starting basin. It is the only *stochastic*
-engine (`SearchSpec.seed` is part of its answer, and must never come from `hash()` of
-a name, which python salts per process) and the only one whose search reads observed
-intensities. All three rank on the FoM **panel** via
-`rank_candidates`, never on a member — supercells index every observed line exactly
-and lose only on the reversed members. There are **seven**: M₂₀, F_N, three
+search with**, failing instead on a bad starting basin, the only *stochastic* engine
+(`SearchSpec.seed` is part of its answer and must never come from `hash()` of a name,
+which python salts per process) and the only one whose search reads observed
+intensities. All three rank on the FoM **panel** via `rank_candidates`, never on a
+member — supercells index every observed line exactly and lose only on the reversed
+members. There are **seven**: M₂₀, F_N, three
 coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
 content is that the reversed direction is a *ratio* where ours is a windowed
 fraction — measured on a doubled axis, `m_rev` separates truth from supercell 64-74×
@@ -579,19 +570,16 @@ correction.
 integer multiples, so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in
 the shift and none in the cell, so Dong (1999) gives its **magnitude** from the
 peak list alone and `ShiftScreen.allowance_deg` is what a window must span. Four
-measured rules. **The magnitude is knowable with no reference and the cause is
-not**: `constant` and `cos_theta` concentrate identically, so the screen may
-refute `sin_2theta` and never choose between the other two. **Detection is
-concentration against a seeded structureless null, because the published
-false-pair rule fails on real data** — DICVOL04's sign-category margin admits
-11-BM NAC on 84 of 1838 pairs, chance at that count, reporting −0.09° where the
-shift is zero; a 20-line list yields 1–7 pairs and declining is honest (all ten
-bethanechol sets do, reproducing Le Bail 2004 §VII). **A window wider than the
-shift manufactures a confident wrong singleton** — at σ_sys = 0.060 SRM 660c
-returns a cell 293 000 ppm from its certificate at `high` confidence — so
-headroom scales the amplitude's *standard error*, never the pair scatter. And
-**an allowance is not a correction**: it finds lines, only `shift_template`
-moves the cell.
+measured rules, stories in the appendix. **The magnitude is knowable with no
+reference and the cause is not** — `constant` and `cos_theta` concentrate
+identically, so the screen may refute `sin_2theta` and never choose between the
+other two. **Detection is concentration against a seeded structureless null,
+because the published false-pair rule fails on real data** (DICVOL04's margin
+admits 11-BM NAC at chance, reporting −0.09° where the shift is zero). **A window
+wider than the shift manufactures a confident wrong singleton** — at σ_sys = 0.060
+SRM 660c returns a cell 293 000 ppm off at `high` confidence — so headroom scales
+the amplitude's *standard error*, never the pair scatter. And **an allowance is
+not a correction**: it finds lines, only `shift_template` moves the cell.
 
 **The tolerance an engine searches with is not the per-line σ, and this is the one
 thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the
@@ -601,111 +589,99 @@ against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the 
 indexes **zero** lines and both engines return nothing. Hence
 `DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above
 declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never
-look like a measured one) and `refine_with_shift`, which fits the shift *template* to a
-candidate **after** it survives — the *shape* needs reference positions, which a
-candidate cell supplies. A cell found under a widened window but never shift-refined is
-biased by roughly the shift (+1400 ppm measured).
+look like a measured one) and `refine_with_shift`, which fits the shift *template*
+**after** a candidate survives — the *shape* needs reference positions, which a
+candidate cell supplies. A cell found under a widened window but never shift-refined
+is biased by roughly the shift (+1400 ppm measured).
 
-Eleven more indexing rules, each learned the hard way — the measured stories are in
+Thirteen more indexing rules, each learned the hard way — the measured stories are in
 the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
-- **Profile an engine before ranking what to fix in it: a cost model reasoned
-  from the algorithm's structure is not a profile** (WP-1030's ranking came out
-  nearly inverted — the appendix has the counts). Two corollaries: **wall clock
-  is worthless while a second search shares the machine**, and **a candidate
-  cell is a lattice, not a tuple** — compare with `reduce.same_lattice`, never
-  with sorted axes, or a correct answer in another setting reads as a miss.
-- **Removing a redundant search must not remove its prunes**, and only real
-  data will say that you did: the centred passes are redundant *as searches*
-  (each centred trial set is a subset of the primitive one) and not as
-  *filters*. Because the prunes are monotone under bisection, replaying one at
-  the leaf is equivalent to the whole pass. WP-1030 skipped that and put a
-  pseudo-cubic trigonal R description of the certified LaB6 lattice above the
-  cubic truth with **115 fast indexing tests green** — so run
-  `tests/test_acceptance_indexing.py` before closing anything that touches an
-  engine.
-
-- Read a `predicted_but_absent` firing as "this cell predicts lines the
-  pattern lacks", **never** "this cell is too big": it counts against the
-  *lattice* group, so a space-group extinction (corundum's R-3c c-glide, 12
-  reflections) refutes a correct cell, and only the extinction screen
-  separates the two. Choose acceptance datasets **by space group** — SRM
-  660c (P m -3 m, extinguishes nothing) is the control that proved it.
+- **Profile an engine before ranking what to fix in it: a cost model reasoned from
+  the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
+  inverted). Two corollaries: **wall clock is worthless while a second search shares
+  the machine**, and **a candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice`, never sorted axes, or a correct answer in another setting
+  reads as a miss (it bit WP-1040's own monoclinic row).
+- **Removing a redundant search must not remove its prunes**, and only real data
+  will say that you did: the centred passes are redundant *as searches* (each
+  centred trial set is a subset of the primitive one) and not as *filters*; the
+  prunes being monotone under bisection, replaying one at the leaf is equivalent
+  to the whole pass. WP-1030 skipped that and put a pseudo-cubic trigonal R
+  description of the certified LaB6 lattice above the cubic truth with **115 fast
+  indexing tests green** — so run `tests/test_acceptance_indexing.py` before
+  closing anything that touches an engine.
+- Read a `predicted_but_absent` firing as "this cell predicts lines the pattern
+  lacks", **never** "this cell is too big": it counts against the *lattice* group,
+  so a space-group extinction (corundum's R-3c c-glide, 12 reflections) refutes a
+  correct cell, and only the extinction screen separates the two. Choose acceptance
+  datasets **by space group** — SRM 660c (P m -3 m) is the control that proved it.
 - The scoreboard across eight known-cell datasets is *never wrong, and silent more
-  often than right*; never let a summary round it up (counts: WP-1041, which owns them).
-- **An ambiguity partner must be refuted by the lines it needs and the data
-  lack** (asymmetric: the partner's extra predictions, never the parent's
-  own absences), or every derivative lattice is reported and the gate can
-  never promote. And `ambiguity_partners` walks sublattices only, so a
-  *smaller*-volume isospectral rival is invisible — tetragonal P (a/√2, a)
-  vs cubic P a is exact, and both engines find it on real data.
-- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is
-  provenance about the input, never to be handed to anything that applies a
-  centring. Reduction needs the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one
-  lattice splits into two candidates and denies the gate its agreement.
-- **A search that finds nothing indicts its input before its tolerance**:
-  the peak list blocked the certified pattern twice (fitted satellites, then
-  `_box_key` skipping unrefined leaves — a performance filter's failure mode
-  is a wrong answer, not a slow one).
-- **An assumed precision may never refuse to index** (`from_positions` lists
-  get no `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half of the rule is
-  in the tolerance paragraph above). Open items from the source-paper audit
-  (`volume_envelope` is a mean line, not an envelope) are WP-1030's, in its file.
+  often than right*; never let a summary round it up (WP-1041 owns the counts).
+- **An ambiguity partner must be refuted by the lines it needs and the data lack**
+  (asymmetric: the partner's extra predictions, never the parent's own absences), or
+  every derivative lattice is reported and the gate can never promote. And
+  `ambiguity_partners` walks sublattices only, so a *smaller*-volume isospectral
+  rival is invisible — tetragonal P (a/√2, a) vs cubic P a is exact.
+- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is provenance
+  about the input, never to be handed to anything that applies a centring.
+  Reduction needs the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits
+  into two candidates and denies the gate its agreement.
+- **A search that finds nothing indicts its input before its tolerance**: the peak
+  list blocked the certified pattern twice (fitted satellites, then `_box_key`
+  skipping unrefined leaves — a performance filter's failure mode is a wrong
+  answer, not a slow one).
+- **An assumed precision may never refuse to index** (`from_positions` lists get no
+  `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is in the tolerance paragraph
+  above). `volume_envelope` is a mean line, not an envelope — WP-1030's.
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches
   3770 s on hard triclinic patterns and McMaille "hours, if not a night", against
   our measured 0.7–177 s. Buy responsiveness with ordering and reporting, never
-  by shrinking the box. **`budget_seconds` is per (engine × system)** — 420 s of
-  search by default, probe and Le Bail validation on top and *outside* it —
-  so the whole-run bound is `SearchSpec.total_budget_seconds`, enforced as a
-  `Deadline` that *is* the cancel token (it nests under every cooperative check
-  with no engine changes), with `estimate_ceiling` the pre-run arithmetic and
-  `INDEX_BUDGET_EXHAUSTED` naming the three states a bound run leaves
-  (searched / truncated / not reached). A truncated validation reads
-  `not_validated`, never `validation_failed` — a ceiling must not refute a
-  cell it merely ran out of time on (1037).
-- **A Monte Carlo indexer must refine each proposal; scoring raw random cells
-  does not rank** — measured from both sides now. WP-1023 scored raw proposals
-  and ranked corundum's truth 29 053 of 200 001; `search_svd`, iterating each to
-  a fixed hkl assignment, returns that certified lattice as its **only**
-  candidate in 16 s (WP-1040).
-- **Coelho's N_c/N_o gate is a bound on *volume*, not a per-trial verdict**
-  (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ = N_c/V and the
-  gate becomes V ∈ [N_o/3κ, 4N_o/κ] — containing the truth on all nine corpus
-  datasets, and most of why that engine costs seconds. **N_c counts distinct
-  calculated d-spacings, not hkl** — the paper's caption and prose disagree, and
-  an hkl count refuses the certified LaB6 cell outright.
+  by shrinking the box. **`budget_seconds` is per (engine × system)**, with the
+  probe and Le Bail validation on top and *outside* it, so the whole-run bound is
+  `SearchSpec.total_budget_seconds`, enforced as a `Deadline` that *is* the cancel
+  token (it nests under every cooperative check with no engine changes);
+  `estimate_ceiling` is the pre-run arithmetic and `INDEX_BUDGET_EXHAUSTED` names the
+  three states a bound run leaves (searched / truncated / not reached). A truncated
+  validation reads `not_validated`, never `validation_failed` (1037).
+- **A Monte Carlo indexer must refine each proposal; scoring raw random cells does
+  not rank** — measured from both sides: WP-1023 scored raw proposals and ranked
+  corundum's truth 29 053 of 200 001, while `search_svd`, iterating each to a fixed
+  hkl assignment, returns it as its only candidate (WP-1040).
+- **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
+  (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
+  V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
+  of why that engine costs seconds. **N_c counts distinct calculated d-spacings,
+  not hkl**; the paper's caption and prose disagree and an hkl count refuses the
+  certified LaB6 cell.
 - **An impurity cut is worth nothing until the metric is roughly right, and a
-  *budget* is not a *tolerance*** (WP-1040). Cutting far-lying lines in the first
-  pass rather than the last — what real data suggests, since our lists carry
-  artifacts no iteration will index — takes zincite 5/5 → 1/5 and zircon and FAP
-  5/5 → **0/5**: a random metric predicts nothing near the observed lines, so an
-  unbounded cut deletes them all. A cut bounded to `n_unindexed` has the opposite
-  profile — it rescues the one dataset a single wild line destroys (corundum's
-  5.17° edge artifact, 3.9× beyond its longest d: 0 convergences in 4000 starts)
-  and costs every other — so it is a **retry after silence**, never a default.
-- **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
-  the reflection-pair method, McMaille refuses to scan the zeropoint and says so,
-  and a cell found inside a widened window has absorbed the shift (WP-1038).
+  *budget* is not a *tolerance*** (WP-1040). Cutting far lines in the first pass
+  rather than the last takes zincite 5/5 → 1/5 and zircon and FAP to **0/5** — a
+  random metric predicts nothing near the observed lines, so an unbounded cut
+  deletes them all. A cut bounded to `n_unindexed` rescues only the dataset one
+  wild line destroys and costs every other, so it is a **retry after silence**.
+- **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts the
+  reflection-pair method, McMaille refuses to scan the zeropoint, and a cell found
+  inside a widened window has absorbed the shift (WP-1038).
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
-  rule this package cannot have** (WP-1039, `engines.search_line_order`). Which
-  twenty beats how many (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
-  over a `SEARCH_POOL_MULTIPLE` low-Q pool; unbounded it doubles the acceptance
-  suite), and raising N *loses* answers — `indexes_the_search_lines` is an
-  **absolute** budget, so an admitted foreign line refutes the truth rather than
-  out-ranking it. Ties fall back to Q, so position-only lists are untouched.
+  rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
+  twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and raising N *loses* answers —
+  `indexes_the_search_lines` is an **absolute** budget, so an admitted foreign line
+  refutes the truth rather than out-ranking it. Ties fall back to Q, so
+  position-only lists are untouched.
 
-**Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
-one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /
-`"torch-mps"` (Apple GPU, necessarily fp32) — never installed by default,
-kept as an independent opinion in the agreement matrix. Every backend is
-held to per-column agreement with the analytic Jacobian in
-`tests/test_cross_backend.py` — **whose configs must grow whenever a new
-derivative path does**, or no backend row covers it. Apple-GPU execution is
-*slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
-precision validation, not speed (break-even and ceiling: the v0.4 record).
-Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default), soft
-restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
-spherical-harmonics texture, MCP server.
+**Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only one
+anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) / `"torch-mps"`
+(Apple GPU, necessarily fp32) — never installed by default, kept as an independent
+opinion in the agreement matrix. Every backend is held to per-column agreement with
+the analytic Jacobian in `tests/test_cross_backend.py` — **whose configs must grow
+whenever a new derivative path does**, or no backend row covers it. Apple-GPU
+execution is *slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
+precision validation, not speed (break-even and ceiling: the v0.4 record). Also
+since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default), soft restraints,
+the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF, spherical-harmonics
+texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +

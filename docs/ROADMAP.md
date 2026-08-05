@@ -55,55 +55,56 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1039](wp/1039-search-line-count.md)** (2026-08-05) — the WP asked
-how many lines a search enumerates on; the answer is **which**. Taking the first
-twenty in 2θ order assumes the lowest-angle components are the strongest
-reflections, which is false of any pattern opening on background: NAC holds six of
-its cell's lines in that twenty against 268 of 285. `search_line_order` now takes
-the strongest N, ties broken by Q, so position-only lists — the whole bethanechol
-benchmark — are untouched. **Raising N instead loses answers**, because
-`indexes_the_search_lines` is an absolute budget rather than the membership test
-Conograph's "a false line costs only computation" rests on. Before it:
-[1038](wp/1038-shift-reflection-pairs.md) (shift from harmonic pairs),
-[1037](wp/1037-indexing-time-ceiling.md), [1036](wp/1036-crystal-system-settings.md).
-Close narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
-here".
+**In flight: [1040](wp/1040-engine-svd-index.md)** (2026-08-05) — a **third
+indexing engine** landed: Coelho's iterative SVD, which proposes a metric at random
+and alternates "assign each line to its nearest calculated one" with "re-solve A..F
+from that assignment" until the assignment stops changing. It needs **no tolerance
+to search with**, a Table-1 call costs 0.2-3 ms, and it fails on a bad starting
+basin where the other two fail on a wide domain and a poisoned base line — so
+`high` confidence now means all three agree, which raises the bar rather than
+diluting it. WP-1023's Monte Carlo no-go is narrowed, not overturned: it scored
+*unrefined* random cells, and every working MC indexer refines each proposal.
 
-The method lesson is now five sessions running (1030 → 1036 → 1037 → 1038 → 1039):
-**instrument before ranking, and let the by-hand acceptance run judge.** 1039 adds
-a second edge — **read the paper, not the summary of it**: three of its own stated
-premises failed checking (the asymmetry is asserted in one sentence, not proved; 48
-is an upper threshold on an AUTO value; the 18–250× prune was never timed), the
-WP-0501 b₂ precedent paying out a third time. And a withdrawal worth generalising:
-**WP-1026's "truncating NAC's 2θ does not work — do not spend that hour again" was
-measured with the broken selection**, and redone the truth ranks first at −22 ppm.
-A recorded no-go inherits the defects of the run that produced it.
+**Two acceptance rows turned over toward capability.** 11-BM NAC is indexed *as
+measured* (a = 10.2512 Å cubic **I**, +19 ppm, `predicted_but_absent` 0 of 837)
+where the row asserted it could not be — and the gate still declines it, one engine
+not being agreement. SRM 660c LaB6 is now found by all three.
+
+**What 1040 still owes**: the **zero-error column** (Coelho §2.3), which the corpus
+says is not optional — bethanechol E and F are reached, A-D never are, and at the
+published cell set Aa's lines sit a median 2.5 % in Q from their predictions
+against F's 1.9e-4, the zeroshift the benchmark was built to test; then the
+three-engine scoreboard re-measure, [1041](wp/1041-indexing-benchmark-gallery.md)'s
+as much as 1040's.
+
+The method lesson is six sessions running (1030 → … → 1040): **instrument before
+ranking, and let the by-hand acceptance run judge.** 1040 pays the WP-1039 edge —
+*read the paper, not the summary of it* — a second time, on its own context
+section, and repeats 1039's withdrawal: **a recorded no-go inherits the defects of
+the run that produced it**, twice over in one row.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
+1. [1040](wp/1040-engine-svd-index.md)'s two open tasks, above.
+2. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1040](wp/1040-engine-svd-index.md),
-   [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — written 2026-08-04 from the
-   source literature ([LITERATURE.md](LITERATURE.md)); 1042's `### Inherited`
-   carries 1037's measured streaming argument, and 1040's and 1041's now carry
-   1039's. **Neither 1038 nor 1039 moved the eight datasets off abstention**, and
-   each cleared exactly one caveat: what still blocks `high` is 1026's and 1041's.
-   1041 also inherits the scoreboard's *numbers*, which are stale — SRM 660c's
-   caveat set has changed twice since they were recorded.
-3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
-   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
-   carries what 1030 measured and what the harness still lacks.
-4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
-   [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
-   bar** while those two do. 1035 is unblocked and its `### Inherited` carries
-   1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
-5. [1016](wp/1016-sequential-series-panel.md) then
-   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
-   waits on 1032–1035, which change the controls it documents.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+3. [1041](wp/1041-indexing-benchmark-gallery.md) and
+   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+   1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
+   *numbers* are stale twice over: SRM 660c's caveat set changed, and every
+   dataset now has a third engine's opinion. **1041 also inherits a defect**:
+   `trial_error._solution_key` is scale-invariant, so it reports at most one cubic
+   candidate per system — measured in 1040, fixed only in `svd.py`.
+4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
+   the bethanechol global score, now unblocked by 1030.
+5. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
+   [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) — the
+   2026-08-04 use session, behind the indexing rows because **none of them moves
+   the bar**. 1035's `### Inherited` carries 1036's `cell_constraints(sg)`.
+6. [1016](wp/1016-sequential-series-panel.md) then
+   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017 waits
+   on 1032–1035, which change the controls it documents.
+7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
 **The bar** (milestone row below): full validation matrix green; GUI
@@ -439,7 +440,7 @@ per concurrent session, or only one session commits.
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
-| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |
+| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 

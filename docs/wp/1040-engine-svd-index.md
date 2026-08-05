@@ -1,6 +1,7 @@
 # WP-1040 — Engine C (second attempt): SVD-Index
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: 🔄 2026-08-05 — **built and landed**; tasks 0-2 and 4-6
+done, the zero-error column (task 3) and the scoreboard re-measure (task 7) open
 Depends on: WP-1020, WP-1024 (1038 soft)
 
 ## Goal
@@ -10,24 +11,6 @@ behind TOPAS's indexing module, which is this package's stated design target. It
 supersedes WP-1023's Monte Carlo no-go rather than reopening it.
 
 ## Context
-
-### Inherited
-
-**From WP-1039, closed 2026-08-05.** A third engine must select its driven lines
-through `engines.search_line_order` like the other two — the whole point of that
-seam is that "which lines drive the search" means the same thing in every engine,
-or their agreement stops being evidence. It returns the strongest `n_search_lines`
-in Q order, and ties fall back to Q, so a position-only list behaves as before.
-
-Two measured facts that bear directly on an SVD engine. **Do not raise
-`n_search_lines` to feed the SVD more rows**: `indexes_the_search_lines` is an
-absolute budget, so each foreign line admitted *refutes* the true cell rather than
-ranking it lower (zircon loses its certified lattice going from 20 to 32). And the
-base-line lesson from `trial_error` transfers — its exact solve was failing on SRM
-660c not because the method was wrong but because it was handed the pattern's
-low-angle background components to solve from. Any engine that assumes indices for
-a small set of lines wants that set drawn from the *selection*, not from the raw
-low-Q end.
 
 ### Why WP-1023's no-go does not fence this
 
@@ -111,22 +94,22 @@ any decompiled artefact.
 
 ## Tasks
 
-- [ ] **Task 0 — spike Table 1 alone.** Implement the iterative-SVD inner loop and
+- [x] **Task 0 — spike Table 1 alone.** Implement the iterative-SVD inner loop and
       measure, on the known-cell corpus: calls-to-convergence, wall clock per call,
       and whether the truth is reached at all. Compare against Coelho's Table 5
       averages (triclinic 105 / monoclinic 78 / orthorhombic 63). **Go/no-go on this
       table**, as WP-1023 was — and unlike WP-1023, on a peak list with the
       `not_separable` screen already applied.
-- [ ] The weighting function and the `N_c/N_o` gate, measured separately so their
+- [x] The weighting function and the `N_c/N_o` gate, measured separately so their
       contributions are attributable (Coelho's own 4.4 → 11.8 % decomposition is the
       template).
 - [ ] The zero-error column and the two-pass strategy; check against WP-1038's
       measured shifts where both exist.
-- [ ] The Monte Carlo strategy layer (Coelho Table 2), with the control parameters
+- [x] The Monte Carlo strategy layer (Coelho Table 2), with the control parameters
       per system from his Table 3, and a seeded RNG recorded in the result.
-- [ ] Register as an engine; extend `consensus`, the agent schema and the CLI from
+- [x] Register as an engine; extend `consensus`, the agent schema and the CLI from
       the live registry (the meta-tests will fail if a registry member is missing).
-- [ ] Restate WP-1023's no-go line, and `CLAUDE.md`'s Monte Carlo rule, as
+- [x] Restate WP-1023's no-go line, and `CLAUDE.md`'s Monte Carlo rule, as
       "unrefined random-cell scoring does not rank".
 - [ ] Acceptance across the corpus + `validation_matrix.py` + regenerate
       `docs/VALIDATION.md`; re-measure the 8-dataset scoreboard with three engines.
@@ -159,6 +142,114 @@ dataset regresses.
 - `docs/wp/1023-engine-montecarlo.md` — the superseded no-go and its numbers.
 
 ## Handover log
+
+- **2026-08-05** — **task 0 measured, the engine built, and it is a go.**
+  `src/pxrdref/indexing/svd.py`, registered as `"svd"`, 10 new tests
+  (`tests/test_indexing_engines.py`, one `slow`).  Branch
+  `wp1040-engine-svd-index`.
+
+  **Task 0's table**, on the known-cell corpus, calls to Table 1 before the true
+  lattice is first reached (median of five seeded runs; Coelho's simulated
+  averages beside):
+
+  | dataset | system | calls to truth | Coelho |
+  |---|---|---|---|
+  | SRM 660c LaB6 | cubic | **1** | 1.3 |
+  | 11-BM NAC | cubic | **6** | 1.3 |
+  | qarr zincite | hexagonal | **107** | 8.3 |
+  | qarr zircon | tetragonal | **150** | 26.1 |
+  | GSAS-II FAP | hexagonal | **389** | 8.3 |
+  | bethanechol F | monoclinic | **~15 000** | 78 |
+  | qarr corundum | trigonal | never (see rule 4) | — |
+
+  A Table 1 call is **0.2-3 ms**, so the whole ladder is seconds where dichotomy
+  is minutes.  The bethanechol row is what made it a go: the acceptance file
+  records that an exhaustive dichotomy over the paper's own domain returns **0
+  candidates and never finishes**, at 240 s *and* at 900 s.
+
+  **Four measured rules, each contradicting something reasoned from the
+  algorithm's structure** — they are in the module docstring and the shortest
+  forms are in CLAUDE.md:
+
+  1. **the N_c/N_o gate is a volume window**, computable before the search from
+     one κ probe, and it contained the truth on all nine corpus datasets;
+  2. **N_c counts distinct calculated d-spacings, not hkl** — the paper's caption
+     and its prose disagree and only the prose can be right;
+  3. **the impurity cut belongs in the last pass only, as Coelho says and
+     contrary to what real data suggests** — in pass 1 it takes zincite 5/5 → 1/5
+     and zircon and FAP to 0/5;
+  4. **one line below the lattice's longest d destroys the eq. (4) weighting** —
+     corundum's 5.17° edge artifact is 3.9× beyond anything its lattice can
+     produce, and gives **0 convergences in 4000 starts** against 3293 with that
+     one line removed.  Coelho's impurity tests only reach 1.5×.
+
+  **Two defects in existing code, both surfaced by the new engine exercising it.**
+  `_solution_key`'s scale-*invariant* hash maps every cubic cell to one key, so
+  the first random start blocks all later ones (a clean synthetic cubic returned
+  0 candidates from 72 starts that included the truth).  Fixed in `svd.py`;
+  **`trial_error.py` carries the same form and the same blind spot** — untouched
+  here deliberately, because changing a shipped engine's dedup inside a WP about
+  a third engine is an unmeasured behaviour change, and it is narrow (cubic is
+  the only 1-DOF system).  Worth a WP or a task in 1041.  And the progress-ladder
+  test in `test_indexing_ceiling.py` spelled its engine names out rather than
+  quoting `engine_names()`; now quoted, as `found_by` on the LaB6 row is too.
+
+  **Two acceptance rows turned over, both toward capability.**  11-BM NAC is now
+  indexed *as measured* — a = 10.2512 Å cubic **I**, +19 ppm, `predicted_but_absent`
+  0 of 837 — where the row previously asserted that it cannot be.  The dichotomy
+  still explores zero boxes (premise unchanged and still asserted); `search_svd`
+  enumerates no box at all, so the resolution that defeats a box search never
+  arises for it.  The gate is untouched: one engine is not agreement, so it stays
+  `low` with `best_or_none()` None.  **Two recorded no-goes died there** — WP-1026's
+  2θ-truncation no-go was measured with the 2θ-ordered selection WP-1039 replaced,
+  and that row's own closing sentence predicted its own reversal.  *A recorded
+  no-go inherits the defects of the run that produced it.*  And SRM 660c LaB6 is
+  now found by all three engines.
+
+  **What is open, and the order to take it.**
+
+  1. **Task 3, the zero-error column** — and the corpus says it is not optional.
+     Bethanechol sets **E and F are reached** (E 3/3 seeded runs, F 1/3-3/3);
+     **A-D never are**, and the reason is measurable rather than mysterious: at
+     the published cell, set Aa's lines sit a median **2.5 % in Q** from their
+     predictions against set F's 1.9e-4.  Those sets carry the zeroshift the
+     benchmark was built to test, and Coelho §2.3's zero-error column in a second
+     pass is exactly the instrument for it.  Expect it to unlock A-D; if it does,
+     the milestone's benchmark bar becomes scorable.
+  2. **Task 7, the scoreboard**, which is 1041's as much as this WP's.
+  3. **A reported cell may be in an odd setting.**  SVD-Index starts from random
+     metrics and quotients by nothing, so the synthetic monoclinic truth came back
+     as (11.010, 16.408, 8.875, β = 139.70°) — the same lattice, volume 1037.0 to
+     four figures.  Consensus dedups on the *reduced* form so nothing downstream
+     is wrong, but a user reading `candidates[0].cell` sees β = 139.7°.  Deciding
+     whether engines should normalise their reported setting touches all three and
+     consensus, so it is a decision rather than a fix.  It also caught me: the
+     first version of the monoclinic test compared sorted axes and scored the
+     correct answer a miss, which is CLAUDE.md's "a candidate cell is a lattice,
+     not a tuple" in the one place it bites hardest.
+
+  **Two corrections to this WP's own context section**, both from reading the
+  paper rather than the summary of it (the WP-1039 edge, paid a second time).
+  §3.2 randomises m between **0 and 6**, not 0-4 — 4 is where "an optimum setting
+  for m occurs", a different sentence.  And the "4.4 → 8.4 → 11.8 %
+  decomposition" is **two experiments**: 4.4 % is §3.1's triclinic Δ = 0.3
+  perturbation rate, while 8.4 and 11.8 are §3.2 single-pass Table 2 runs.
+  Measured here, randomising m is not free either — it helps LaB6 at large Δ and
+  takes NAC from 100 % to 51-67 % — so `WEIGHT_EXPONENT` is fixed at 4 and the
+  randomisation is recorded as unreproduced rather than adopted on the paper's
+  word.
+
+  **Numbers**, `[dev,jax]` no torch, darwin/arm64 M4, in `worktree-indexer`:
+  fast **1718 passed / 67 skipped** (1039's 1708 + 10, no new skips); indexing
+  acceptance **36 rows, 20:03** against 11:58 with two engines — `index_pattern`
+  runs every registered engine, so that is the price of the confidence gate.
+  Full-suite figures in CLAUDE.md § Current numbers.
+
+  **The spike lives in the job scratchpad, not the repo** (`svd_table1.py`,
+  `svd_table2.py`, `corpus.py`, `exp_*.py`): every rule it measured is now either
+  a test or a docstring, so the scripts are superseded evidence rather than
+  something to maintain.  The corpus builder is the one worth re-deriving if task
+  3 needs it — 30 lines over `pick_peaks` and the acceptance fixtures.
 
 - **2026-08-04** — created from the source-literature review. Nothing measured this
   session; every figure is quoted from the papers. The WP exists because reading

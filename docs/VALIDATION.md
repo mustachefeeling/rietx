@@ -745,15 +745,15 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Measured:** tetragonal I ranked first, a +207 ppm and c +1906 ppm, 66 of 68 lines; the P twin ties on n_indexed and loses on predicted_seen_fraction 0.59 against 0.31.  predicted_but_absent = 7 (4_1 screw and glides on top of the centring); low, best_or_none() None
 
-#### `test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed`
+#### `test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_nothing`
 
 `characterisation` · dataset `nac`
 
-**Claims:** a short-wavelength pattern cannot be indexed as measured, and the null result says 'incomplete' rather than 'nothing exists'
+**Claims:** a short-wavelength pattern defeats an exhaustive box search and is still indexed, by the one engine that enumerates no box -- and one engine is not agreement, so the gate still declines it
 
-**Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call.  The row pins the SHAPE of the failure, because a null that distinguishes 'we did not finish' from 'there is nothing' is the whole design
+**Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call -- so the dichotomy rejects its first box.  search_svd sizes its prediction set from the CURRENT trial metric and Coelho's N_c/N_o gate holds it to <= 4x the observed line count, so that resolution never arises for it
 
-**Measured:** zero boxes explored, 0.15 s, no candidate, search_complete[cubic] False.  Truncating 2theta was measured and does NOT rescue it: 2-18/25/32 deg give 215 boxes but a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth is I, at 300-620 s each.  Underneath, the true cell explains 6 of the first 20 picked lines (CaF2 none) though 268 of 285 overall -- a search-line selection question, filed to WP-1030
+**Measured:** zero boxes explored by the dichotomy, premise unchanged; search_svd returns a = 10.2512 A cubic I, +19 ppm from the certified 10.2510 and the RIGHT CENTRING, 223 of 285 lines, chi2_red 0.10, Le Bail Rwp 0.154 with predicted_but_absent 0 of 837.  Still low / best_or_none() None on engines_disagree.  This row asserted the opposite until WP-1040, and two recorded no-goes died with it: WP-1026's 2theta-truncation no-go was measured with the 2theta-ordered line selection WP-1039 replaced (its runs gave cubic P at -5967/+8189/+7997 ppm), and this row's own closing sentence predicted that a different selection would change its outcome.  A recorded no-go inherits the defects of the run that produced it
 
 **Diagnostics:** `INDEX_SEARCH_INCOMPLETE`, `INDEX_ABSTAINED`
 
