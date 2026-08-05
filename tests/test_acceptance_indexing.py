@@ -1239,16 +1239,26 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     # is written out because the margins are the argument (measured WP-1041):
     #
     #   member                        P        I     wins by
-    #   m20                       2.297    1.432    P, 1.6x
-    #   f_n                       8.571    6.685    P, 1.3x
+    #   m20                       2.596   1.5664    P, 1.7x
+    #   f_n                     10.5334   7.7884    P, 1.4x
     #   indexed_fraction          0.786   0.7825    P, 1.004x
     #   indexed_intensity_frac   0.9656   0.9655    P, 1.0001x
     #   predicted_seen_fraction   0.462   0.8352    I, 1.8x
-    #   m_rev                    0.6907    356.1    I, 516x
-    #   m_sym                     1.285      408    I, 318x
+    #   m_rev                    0.6907  356.131    I, 516x
+    #   m_sym                    1.4524  446.264    I, 307x
+    #
+    # **Re-measured on the merged tree** (WP-1041, task 6).  The first version of
+    # this table was measured before `main`'s WP-1035 was merged in and three of
+    # its seven rows had moved by up to 13 % — m20, f_n and m_sym, i.e. exactly
+    # the three that floor their discrepancy on sigma, and m20 and M-tilde by the
+    # *same* factor 1.130, which is what identifies the floor rather than the
+    # lattice as what moved.  The four window-dependent members did not move at
+    # all.  `tests/CLAUDE.md` says to re-measure after a merge and the counts were;
+    # a table inside a comment is a measurement too.  Nothing the table argues
+    # changed: still 4-3, still those two margins, still those two separations.
     #
     # `borda_scores` weighs every member alike, so P takes it 4-3 — on two
-    # margins of 0.4 % and 0.01 %, against separations of 516x and 318x the
+    # margins of 0.4 % and 0.01 %, against separations of 516x and 307x the
     # other way.  A near-tie counting as a full win *is* the defect; the panel
     # already holds the answer, which is the reversed-member behaviour
     # Oishi-Tomiyasu was adopted for, and Le Bail confirms it (I predicts 0 of
