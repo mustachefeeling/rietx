@@ -88,14 +88,20 @@ long before the *rank*.
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+2. [1043](wp/1043-agent-and-human-indexing.md) — **new, from the gallery
+   review**: the package refuses a clean 18-line cubic pattern that all three
+   engines index at −5 ppm in under a second, because the 20-line bar is a
+   *scoring* precondition being enforced as a *searching* one. Also files the
+   corpus skew — 9 of 10 real datasets sit at ≤ 2 free metric parameters, and we
+   hold no orthorhombic or triclinic data at all.
+3. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
    its `### Inherited` carries 1037's streaming argument.
-3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1016](wp/1016-sequential-series-panel.md) then
+5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, all now closed, which changed the controls it documents.
-5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface. It **inherits one line from 1036 via
    1035**: `Phase.space_group` has no schema validator, deliberately, because
    adding one changes the error type at every construction site including
@@ -439,6 +445,7 @@ per concurrent session, or only one session commits.
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ✅ 2026-08-05 — landed with the zero-error column; scoreboard re-measured in 1041 | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
+| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ⬜ | 1041, 1026 (1028 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

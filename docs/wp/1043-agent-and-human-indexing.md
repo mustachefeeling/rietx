@@ -1,0 +1,148 @@
+# WP-1043 — Indexing for an agent and for a human: report, don't refuse
+
+Milestone: v1.0 · Status: ⬜
+Depends on: 1041 (closed), 1026 (closed) · 1028 soft (peak-picking edge artifact)
+
+## Goal
+
+`index_pattern` stops refusing to search, and stops reporting one verdict for two
+different consumers. It computes what it can, says what it could not compute and
+why, and leaves the judgement to whoever asked — a gate for unattended use, and
+**structured evidence** for an agent or a human who can reason.
+
+## Context
+
+### The thesis this WP serves
+
+The package's premise is that a well-designed *output* plus LLM reasoning beats a
+mechanical rule, because the reasoner can weigh evidence a threshold has to
+collapse into a boolean. Indexing is currently the part of the package that least
+reflects that: the gate is a boolean, the quality screen is a boolean, and both
+are tuned for an unattended agent that must never be wrong. The measured cost is
+below, and it is not small.
+
+### Measured: the package refuses a question it answers perfectly
+
+**Fluorite.** 18 usable lines, cubic F, certified a = 5.4631 Å. `assess_peak_list`
+refuses it — *"18 usable lines, below the 20 that M20, F20 and Smith's volume
+envelope are defined on"* — and no engine starts. Bypass the gate and hand the
+same list to the engines directly:
+
+| engine | wall clock | candidates | result |
+|---|---|---|---|
+| dichotomy | 0.1 s | 2 | **truth at rank 1**, a = 5.46308 Å, **−5 ppm**, centring F |
+| trial_error | 0.1 s | 2 | **truth at rank 1**, a = 5.46308 Å, −5 ppm, F |
+| svd | 0.6 s | 2 | **truth at rank 1**, a = 5.46308 Å, −5 ppm, F |
+
+Three-way agreement, five parts per million, under a second. The package declines
+to report it.
+
+**The bar is real and it is about the wrong thing.** Twenty lines is where M₂₀,
+F₂₀ and Smith's volume envelope are *defined*, so it is a precondition for
+**scoring**. It is not a precondition for **searching**: a search needs enough
+lines to over-determine the metric, which is 1 free parameter for cubic, 2 for
+tetragonal/hexagonal/trigonal, 3 for orthorhombic, 4 for monoclinic, 6 for
+triclinic (`METRIC_DOF`, already in `schemas/indexing.py` and already consulted
+for a *different* check). Eighteen lines against one free parameter is
+eighteen-fold over-determined. Conflating the two preconditions is the defect.
+
+### Measured: the corpus tests the easy half of the problem
+
+Difficulty scales with free metric parameters. The real-data acceptance corpus:
+
+| system | free params | datasets |
+|---|---|---|
+| cubic | 1 | **4** |
+| tetragonal | 2 | 1 |
+| hexagonal | 2 | 2 |
+| trigonal | 2 | 2 |
+| orthorhombic | 3 | **0** |
+| monoclinic | 4 | **1** (bethanechol — the one we decline to score) |
+| triclinic | 6 | **0** |
+
+**Nine of ten datasets sit at ≤ 2 free metric parameters.** Centrings are better
+spread (5 P, 2 I, 2 F, 1 R) but that is the easy axis.
+
+This has a sharp consequence already recorded in the contamination row: Coelho
+(2003) Table 6 publishes rates for orthorhombic / monoclinic / triclinic, and we
+hold **0 / 1 / 0** datasets in those systems. The WP-1041 row says the rates are
+"not comparable" because one cubic lattice is not an ensemble of structures —
+true, and the deeper reason is that *we have no real data in any system that
+table covers*. The engines are exercised on low symmetry only synthetically.
+
+So a claim like "never wrong, and silent more often than right" is currently a
+statement about high-symmetry lattices, and should say so until the corpus moves.
+
+### What an agent needs that a gate cannot give
+
+The gate returns `low`/`medium`/`high` and `best_or_none()`. An agent that can
+reason wants the *inputs* to that judgement, and several already exist but are
+either collapsed or withheld:
+
+* which caveats fired, and whether each is refuting or capping — present, but the
+  distinction is not in the serialized answer;
+* **Le Bail Rwp**, which on magnetite separates the correct cell from its wrong
+  rival 3.1× (0.2545 against 0.7884) *while* `predicted_but_absent` reads 2 and
+  **0** — i.e. the fit statistic is decisive exactly where the gated detector is
+  blind. The gate reads the detector and not the Rwp;
+* which figures of merit were computable and which were not, rather than a refusal
+  to compute any;
+* what the search covered — `systems_searched` and `search_complete` exist and are
+  the model for the rest.
+
+## Non-goals
+
+- Loosening the **gate**. `high` should stay as strict as it is; unattended use is
+  what it is for, and WP-1041 measured that a broken filter once produced the
+  right answer for no reason. This WP adds a road around the gate, not through it.
+- Retuning `borda_scores`, or landing an aggregate. WP-1041 measured and refuted
+  the candidates; that question needs a new panel member, not another sweep.
+- New engines.
+
+## Tasks
+
+- [ ] **Separate "can this be searched" from "can this be scored".** A list with
+      at least `METRIC_DOF[system] + margin` usable lines is searchable; twenty
+      remains the bar for the figures of merit. Below twenty the search runs and
+      every figure that is undefined is reported **absent with its reason**, never
+      silently zero or quietly omitted.
+- [ ] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
+      each caveat with its `refuting`/`capping` kind, the Le Bail Rwp and both
+      detector counts, which figures were computable, and what the search covered.
+      No new physics — this is surfacing what the pipeline already knows.
+- [ ] **The gate reads Rwp.** Measured on magnetite: `predicted_but_absent` is 0
+      on the wrong cell and 2 on the right one, while Le Bail Rwp is 0.79 against
+      0.25. Decide whether a Rwp ratio between rival candidates becomes a caveat,
+      and measure it across the corpus before wiring it (WP-1041's lesson: a
+      margin is comparable within a member, not across members).
+- [ ] Re-measure the fluorite row: it currently asserts an abstention that this WP
+      makes wrong. It should assert that a short clean list is **searched, ranked
+      and reported unscored**, and that the certified cell comes back at rank 1.
+- [ ] **Corpus coverage**: add at least one orthorhombic and one triclinic
+      real-data set, so the low-symmetry half of the problem is measured rather
+      than assumed. Until then, every summary that quotes the scoreboard says
+      "high-symmetry" out loud.
+- [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
+      read (the gate) and what a reasoning consumer should read (the evidence),
+      with the fluorite case as the worked example of why they differ.
+
+## Acceptance
+
+A clean 18-line cubic pattern is indexed, ranked and reported with its figures
+marked uncomputable — no abstention. The gate's own verdicts are unchanged on
+every existing acceptance row. `docs/VALIDATION.md` regenerates.
+
+```sh
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m pytest -n auto --dist loadgroup
+.venv/bin/python -m ruff check src tests examples
+```
+
+## References
+
+- WP-1041's handover — the gallery, the scoreboard, and the contamination curve
+  that exposed the `n_unindexed` limit.
+- `PEAK_MIN_USABLE_LINES` and `METRIC_DOF` in `schemas/indexing.py` — the two
+  preconditions this WP separates.
+- `indexing/workflow.py` — `validate_by_lebail`'s docstring carries the measured
+  Le Bail-vs-Pawley table that says why the validator must stay constrained.
