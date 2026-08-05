@@ -39,6 +39,25 @@ real UI.
 
 ### Inherited
 
+From **[1032](1032-gui-repairs.md)** (closed 2026-08-05) — the three sentences
+below were forecast by the use-session note that follows; two are now facts and
+one is not this WP's to state:
+
+- **Right-click removes a line**, refit is the peak table's `↻`, and the
+  component-count prompt is gone from the app entirely (the count survives only
+  through the `.pxt` peaks block). The plot now prints the four gestures
+  whenever the Peaks tab is up, each naming its non-pointer route — so the
+  manual's job there is to *not* repeat that line, and to explain the one thing
+  the screen cannot: why every pointer verb has a typed twin.
+- **Per-curve visibility toggles** exist and are deliberately unpersisted, next
+  to the residual and scale knobs. The paired half of that sentence — the fit
+  range and excluded regions *are* persisted — is still
+  [1033](1033-plot-range-regions.md)'s to deliver.
+- Two new things to document that the forecast did not include: the reflection
+  ticks now have a **band of their own** between the two subplots (so "the ticks
+  vanish under Σχ²" is no longer true and should not be written as a caveat),
+  and **hovering a peak row lights it on the plot and vice versa**.
+
 From the **2026-08-04 use session**, which created
 [1032](1032-gui-repairs.md), [1033](1033-plot-range-regions.md),
 [1034](1034-panel-layout.md) and [1035](1035-symmetry-surfaced.md): **do not
