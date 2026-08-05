@@ -1,6 +1,6 @@
 # WP-1035 — Symmetry, surfaced and editable
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-05
 Depends on: **1036** (its tables are what a preview would encode), 1014 (landed)
 · soft: 1004
 
@@ -21,60 +21,28 @@ visible in the parameter table as an effect with no named cause.
 
 ## Context
 
-### Inherited from [1034](1034-panel-layout.md) (added 2026-08-05, on its close)
+### What the mailbox carried, folded in on arrival (2026-08-05)
 
-**The pane this WP edits is a tab now, and it is routinely 340–560 px wide.**
-`Model.svelte` reflows to one stacked column below 932 px (`modelStacks` in
-`lib/resize.ts`, the sum of the three columns' measured floors), so a symmetry
-summary added to the structure column must read at **~340 px**, not only at the
-1500 px full-window layout — check both, and remember the header's `Split |
-Full` is the escape hatch for anything genuinely wide. Two mechanics that come
-with it: a column's minimum is stated as a **flex basis** (the structure
-column's is 472 px, the atom table's `min-content` plus padding) rather than an
-equal share, and the atom table sits in its own `overflow-x` wrapper, so
-anything you add beside it must not re-introduce a column-wide side scroll.
-`.column` widths are still the shell's `ui.model_columns`, and a drag still
-overrides both.
+Both inherited sections were consumed at the start of the closing session and
+are deleted per the protocol. What they said, and what became of it:
 
-### Inherited from [1036](1036-crystal-system-settings.md) (added 2026-08-04, on its close)
-
-1036 was this WP's blocker and it landed, so read the following **before** the
-"What exists" section below, which was written at `660c950` and is stale in four
-places.
-
-- **`cell_constraints(sg)` is the oracle this WP's preview needs**, and it did
-  not exist when 1035 was written.
-  `crystallography.symmetry.cell_constraints(sg) → CellConstraints(ties,
-  fixed_angles)` answers "which cell parameters does this symbol tie, and which
-  angles does it fix, and at what value" for **any** setting. A "what would
-  changing the symbol invalidate?" preview is a diff of two `CellConstraints`
-  plus the site/ADP bases the `sites` arm already computes — no new rule, which
-  is exactly the constraint this WP is under. `check_cell_angles(sg, angles)` is
-  its companion and is what a symbol edit must call to know whether the *current*
-  cell can even carry the proposed symbol.
-- **`ext` is load-bearing, not decoration.** The measurement below quotes
-  `R -3 c` → xhm `R -3 c:H` and lists `ext` among the free phase-level facts.
-  That resolution is **conditional on the input**: `read_small_structure` picks
-  the setting from the *cell*, so the same bare symbol over a rhombohedral cell
-  comes back `R -3 c:R`, `ext='R'` — a different tie set (a = b = c, α = β = γ
-  free) and a different set of held rows. A symmetry summary that shows the
-  crystal system but not `ext`/`monoclinic_unique_axis()` is showing the user
-  something that does not determine what they are looking at.
-- **`params/vector.py:141` no longer computes and discards
-  `crystal_system_str()`** — `_collect` now calls `cell_constraints(sg)`. The
-  "costs a lookup" argument still holds; the line reference does not.
-- **The missing schema validator on `Phase.space_group` is a decision, not an
-  oversight.** 1036 declined to add one deliberately: pydantic validation would
-  change the error type at every construction site including history-node
-  deserialization, which is not a change to make just before the API freeze. It
-  is recorded as a line for [1003](1003-api-freeze-pypi.md). So this WP should
-  keep validating at the *verb*, as it already planned, and not wait for a schema
-  guard that is not coming.
-- **The trap this WP is most exposed to**: 79 of gemmi's 564 settings were served
-  wrong before 1036, and the free-parameter *count* was correct in every one of
-  them. Any UI that summarises symmetry as "N refinable cell parameters" would
-  have shown the right number for all 79. Name the tie and the held angle, never
-  the count.
+- **From [1034](1034-panel-layout.md)** — the pane is a tab and is routinely
+  340–560 px wide (`modelStacks` reflows to one stacked column below 932 px), a
+  column's minimum is a flex *basis* rather than a share, and the atom table sits
+  in its own `overflow-x` wrapper. All still true, and all three shaped the
+  layout: the symmetry block is not a `.cell`, every paragraph in it wraps rather
+  than truncating, and the Wyckoff letter rides in the coordinate cell rather
+  than a seventh column. Checked in a real browser at 341 px and 1600 px: nothing
+  side-scrolls, before or after a preview.
+- **From [1036](1036-crystal-system-settings.md)** — `cell_constraints(sg)` /
+  `check_cell_angles(sg, angles)` are the oracles this WP's preview needed and
+  they exist; `ext` and `monoclinic_unique_axis()` are load-bearing, so
+  `symmetryLine` names the setting and not only the crystal system; the missing
+  `Phase.space_group` validator is a deliberate deferral to
+  [1003](1003-api-freeze-pypi.md), so validation stayed at the verb; and the trap
+  — 79 of 564 settings served wrong under a *correct* free-parameter count —
+  is why nothing here reports a count of refinable cell parameters. The stale
+  `params/vector.py:141` reference below is stale in the same way it was.
 
 ### What exists (read at `660c950`)
 
@@ -219,26 +187,28 @@ maps a `ValueError` from an unresolvable symbol to
 
 ## Tasks
 
-- [ ] **Phase symmetry summary** — symbol, IT number, crystal system, Laue
+- [x] **Phase symmetry summary** — symbol, IT number, crystal system, Laue
       class, point group, centring, centrosymmetric — from one gemmi lookup,
       served and rendered wherever a phase appears.
-- [ ] **Wyckoff letters per site on a deliberately-opened route**, with the
+- [x] **Wyckoff letters per site on a deliberately-opened route**, with the
       per-atom cost *measured* and quoted, not assumed.
-- [ ] **Name the cause of a held row**: a cell tie or a locked angle says which
+- [x] **Name the cause of a held row**: a cell tie or a locked angle says which
       symmetry element is responsible, so the parameter table stops showing
       effects with anonymous causes.
-- [ ] **The `.pxt` phase line carries the symbol as a comment**, with the
+- [x] **The `.pxt` phase line carries the symbol as a comment**, with the
       render → parse → render fixed-point test still passing and no format bump.
-- [ ] **A preview verb** built from a candidate `ParameterTable` plus
+- [x] **A preview verb** built from a candidate `ParameterTable` plus
       `_site_rows`: entries gaining/losing a tie or lock, DOF and ADP paths
       appearing/vanishing, the refusals verbatim with their nearest-allowed
       values, and the free paths that would be dropped or renumbered.
-- [ ] **The three silent failures** answered: a setting change flagged as one, an
+- [x] **The three silent failures** answered: a setting change flagged as one, an
       orbit-collision check, and a `_free_paths` casualty list — each surfaced in
-      the preview rather than discovered afterwards.
-- [ ] **Apply through the whole-model path**, gated on the preview, with an
+      the preview rather than discovered afterwards. **Five**, in the end: a
+      centring change and an orbit multiplicity join them, both for the same
+      reason the other three qualify.
+- [x] **Apply through the whole-model path**, gated on the preview, with an
       unresolvable symbol refused as `GuiError(where=["space_group"])`.
-- [ ] Tests: a server test that an incompatible change is **refused before any
+- [x] Tests: a server test that an incompatible change is **refused before any
       history node is written** (today it commits and then 500s — assert the new
       behaviour and keep a regression test for the old failure), vitest for the
       preview-rendering pure functions, and a jsdom mount test for the editor.
@@ -252,10 +222,17 @@ npm --prefix gui test && npm --prefix gui run check
 npm --prefix gui run build && .venv/bin/python -m pytest tests/test_gui_dist.py -q
 ```
 
-And by hand, on the NAC project (COD 1000236 + `11BM_NAC.fxye`, `Ia-3d`, four
-species, aniso): read the symmetry summary, check the Wyckoff letters against
-the published site list, then attempt a change that must be refused — an aniso
+And by hand, on the NAC project (COD 1000236 + `11BM_NAC.fxye`, **`I 21 3`** —
+the draft said `Ia-3d`, and the CIF does not — six atoms over four species,
+aniso): read the symmetry summary, check the Wyckoff letters against the
+published site list, then attempt a change that must be refused — an aniso
 tensor is the easy one — and confirm **the head has not moved** afterwards.
+
+Done 2026-08-05 in headless Chromium at 1600 px and at 900 px (the 341 px
+sidebar). The letters came back `12b 2..` / `8a .3.` / `24c 1`, matching
+Na₂Ca₃Al₂F₁₄'s published sites; `R -3 c` was refused on γ with Apply disabled;
+`I 41 3 2` applied and left one `edit_model` node. It also found the orbit
+multiplicity gap — see the handover.
 
 ## References
 
@@ -266,6 +243,121 @@ tensor is the easy one — and confirm **the head has not moved** afterwards.
   measurement.
 
 ## Handover log
+
+- **2026-08-05 (second pass, on review)** — two things the reviewer would not
+  accept as they stood, both now fixed in place rather than filed.
+
+  **The gate was in the wrong package.** The first pass put it in
+  `GuiSession._edit`, which protects a browser and leaves a Python caller
+  standing in exactly the trap the WP describes: `ref.edit(structure=…)` accepted
+  a model with no parameter table, wrote a node, and raised from whatever next
+  asked for the table. Nothing about that was a GUI concern, so the check moved
+  into **`Refinement.edit`** — it builds the *proposed* pair's table and refuses
+  rather than recording. Two callers in the package and one in `examples/`, so
+  the move was small; `GuiSession._edit` now only adds the **address** (the
+  refusal's leading dot-path) that a form needs to highlight a field.
+  `tests/test_history.py` carries the library-level row, including the repair
+  path: the gate reads the candidate, so an edit that undoes the damage is not
+  refused by it.
+
+  **The collision check was pairwise, and pairwise is wrong, not coarse.**
+  Coincidence is transitive — A with B and B with C means all three are one site
+  — and the verdict is a *sum of occupancies over the site*. Three atoms at
+  occ 0.4 are 1.2 on one site and over-occupied while no pair of them exceeds 1,
+  so `orbit_collisions` now returns the **connected components** of the
+  coincidence relation and `_collisions` sums over the group. It also fixes the
+  advice: "keep one atom of the 3" is a sentence a pairwise message cannot write.
+
+  **How TOPAS and GSAS-II handle this, asked and answered.** Neither does what
+  this preview does, which is worth knowing before assuming there was an obvious
+  design to copy.
+
+  - **GSAS-II** recomputes every atom's site symmetry and multiplicity on a
+    space-group change (`G2spc.UpdateSytSym`, called straight from the General
+    tab's handler), shows an informational operator dialog, and **does not warn,
+    confirm, or check for atoms that become equivalent**. Coordinates are not
+    transformed — that is a separate, explicit *Transform Phase* operation
+    (X′ = M(X−U)+V, with an Origin 1 → Origin 2 option), which is the same split
+    this WP's `setting_change` note describes. The multiplicity change *is*
+    visible, because GSAS-II's atom table has a multiplicity column; nothing
+    draws attention to it.
+  - **TOPAS** has no symmetry-edit gate at all — the space group is a line in an
+    input file. `num_posns` on a `site` line "corresponds to the number of unique
+    equivalent position generated from the space group; `num_posns` is updated on
+    termination of refinement", i.e. the multiplicity is a **post-hoc readout**
+    written back after the fit, not a pre-flight check. Its `occ_merge`
+    (Favre-Nicolin & Černý 2002) *is* prior art for the double count —
+    `occ_xyz = 1 / (1 + intersecting fractional volumes)`, explicitly "useful for
+    identifying special positions" — but it is a continuous rescaling used during
+    **structure solution**, and sites in `$sites` cannot then have their
+    occupancies refined.
+
+    Rescaling was considered and declined: it silently rewrites a number the user
+    typed, which is the objection that made `check_cell_angles` refuse rather
+    than normalise (WP-1036). If a future WP wants the TOPAS behaviour it should
+    be an opt-in verb that says what it changed, not a side effect of an edit.
+
+- **2026-08-05** — **closed.** Every task landed; both inherited sections were
+  consumed on arrival (1034's width facts are in the panel's comments and its
+  styles; 1036's four corrections were all still true and are quoted where they
+  act). Four commits: the server, its tests, the panel, and what the browser
+  found.
+
+  **Where things are.** `src/pxrdref/gui/symmetry.py` (new) — phase facts, the
+  cause map, the letters, the preview; `gui/src/lib/symmetry.ts` (new) — the
+  formatters, nothing else. Three routes: `GET /api/structure/symmetry?phase=N`,
+  `POST /api/structure/symmetry/preview`, `POST /api/structure/symmetry`.
+  `_site_rows` moved out of `session.py` as `symmetry.site_rows`.
+
+  **Two measurements, both of which decided a design.** A Wyckoff letter costs
+  **1.8-8.7 ms an atom** (`site_constraints`, spglib) — 13 ms for NAC's six
+  sites, 13 ms for LaB₆'s two — and an orbit expansion is another **0.4-1.3 ms an
+  atom**, so both stay off `/api/structure`, which refetches on every head move
+  including one a `set_vary` made. The WP's premise held: nobody had timed
+  either, and the numbers are the reason the split is where it is rather than a
+  restatement of "expensive".
+
+  **The bug the WP predicted was real and was not about the space group.**
+  Measured before the fix: `PATCH /api/structure` with an incompatible aniso
+  tensor **succeeded**, committed `n0003`, and `params()` then raised a bare
+  `ValueError` → 500. The gate therefore went into `_edit`, the one funnel every
+  whole-model verb passes, and it tests the **candidate**, which is what keeps an
+  edit that *repairs* a broken head from being refused by it. That escape path is
+  asserted, 500 and all.
+
+  **What the browser pass added, and it is the WP's own lesson repeating.** On
+  real NAC, `I 21 3` → `I 41 3 2` moves **no parameter at all** — same
+  stabiliser orders, same DOF counts, same ties, same centring — while every
+  orbit doubles and the cell goes from 84 atoms to 168. The panel read "no
+  parameter gains or loses a tie". So the site diff carries the orbit
+  multiplicity and a `multiplicity_change` note carries the total. jsdom could
+  not have found it: it is not a rendering fault, it is a *crystallographic*
+  question about which symbols a person actually types. The same pass found a
+  refused preview being given consequences ("the cell would hold 198 atoms" for
+  an `R -3 c` over a 90° cell) — a blocked preview now prints only the refusal
+  and the note that explains it.
+
+  **Two judgements a successor may want to revisit.** An orbit collision blocks
+  only when the shared occupancies sum past 1: a mixed site (Na 0.5 + Ca 0.5 on
+  one orbit) is standard modelling and F is right for it, so the criterion is
+  physical rather than a guess about intent — but it is pairwise, and a
+  three-atom shared site is only caught as three pairs. And `held_because` was
+  **not** changed: the cause is a second sentence served beside it, because
+  `ParameterRow` mirrors `Entry` field for field and a third deliberate extra is
+  not a thing to add days before the API freeze (`docs/wp/1003`).
+
+  **One correction for the docs.** This WP's own Acceptance section, and
+  [1009](1009-textdoc-format.md) line 28, say NAC is `Ia-3d` with four species.
+  It is **`I 21 3` (No. 199), six atoms, four species** — that is what
+  `tests/data/cod_1000236.cif` stores and what the page renders. The `.pxt`
+  module docstring's example carried the same error and is fixed; the two
+  planning docs are left as they are, recorded here.
+
+  **Not done, and deliberately.** Nothing writes a Wyckoff letter into the model
+  or the `.pxt` document, no symbol is *derived* from the pattern (that is
+  WP-1025's ranked classes, and the non-goal stands), and `causes` says nothing
+  about a row symmetry does not hold — a locked `lor_strain` belongs to the
+  Stephens block and keeps `held_because`'s anonymous sentence.
 
 - **2026-08-04** — created from the user's question *"where is the space group /
   symmetry information?"*, alongside [1032](1032-gui-repairs.md),

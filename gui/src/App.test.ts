@@ -154,6 +154,74 @@ const SITES = [
     adp_paths: [], adp_patterns: [], aniso: false },
 ];
 
+/** `GET /api/structure`'s two free symmetry arms (WP-1035) — one gemmi lookup
+ *  per phase, and the sentence naming what holds each held row. */
+const SYMMETRY = [{
+  phase: 0, space_group: "P m -3 m", xhm: "P m -3 m", number: 221,
+  hall: "-P 4 2 3", short_name: "Pm-3m", ext: "", qualifier: "",
+  crystal_system: "cubic", laue_class: "m-3m", point_group: "m-3m",
+  centring: "P", unique_axis: "", centrosymmetric: true, sohncke: false,
+  enantiomorphic: false, symmorphic: true, reference_setting: true,
+  setting: "P m -3 m is cubic",
+  ties: { b: "a", c: "a" },
+  fixed_angles: { alpha: 90, beta: 90, gamma: 90 },
+  tie_error: "", constraints: "b = a, c = a · α = β = γ = 90°",
+}];
+
+const CAUSES = {
+  "phases.0.cell.b": "P m -3 m is cubic, so b follows a",
+  "phases.0.cell.alpha": "P m -3 m is cubic, so α is fixed at 90°",
+  "phases.0.atoms.0.x": "a site symmetry of order 48 allows no displacement at "
+    + "all — a fully fixed special position, so x cannot move",
+};
+
+/** …and the tier that costs a spglib search per atom, on its own route. */
+const LETTERS = {
+  phase: 0,
+  symmetry: SYMMETRY[0],
+  letters: [
+    { path: "phases.0.atoms.0", atom: 0, label: "La", wyckoff: "1a",
+      site_symmetry: "m-3m", multiplicity: 1 },
+    { path: "phases.0.atoms.1", atom: 1, label: "B", wyckoff: "6f",
+      site_symmetry: "4m.m", multiplicity: 6 },
+  ],
+  causes: { ...CAUSES,
+    "phases.0.atoms.0.x": "Wyckoff 1a, site symmetry m-3m allows no displacement "
+      + "at all — a fully fixed special position, so x cannot move" },
+};
+
+/** A preview that changes the table (cubic → tetragonal) and one that cannot be
+ *  applied at all (an orbit collision), in the shapes the server sends. */
+const PREVIEW_OK = {
+  phase: 0, from: SYMMETRY[0],
+  to: { ...SYMMETRY[0], xhm: "P 4/m m m", number: 123,
+        crystal_system: "tetragonal", ties: { b: "a" },
+        constraints: "b = a · α = β = γ = 90°" },
+  changed: true, blocked: false, refusals: [], notes: [],
+  entries: { added: [], removed: [], tied: [], untied: ["phases.0.cell.c"],
+             locked: [], unlocked: [] },
+  sites: [{ path: "phases.0.atoms.1", atom: 1, label: "B",
+            from: { order: 8, multiplicity: 6, dofs: 1, adps: 0,
+                    dof_directions: [[1, 0, 0]] },
+            to: { order: 4, multiplicity: 6, dofs: 1, adps: 0,
+                  dof_directions: [[1, 0, 0]] } }],
+};
+
+const PREVIEW_BLOCKED = {
+  ...PREVIEW_OK,
+  to: { ...SYMMETRY[0] },
+  blocked: true,
+  refusals: [{ where: "phases.0.atoms.0",
+               message: "phases.0.atoms.0: the anisotropic tensor […] is not "
+                 + "compatible with the site symmetry; the nearest allowed "
+                 + "tensor is [0.0063, 0.0063, 0.0063, 0, 0, 0]" }],
+  notes: [{ kind: "orbit_collision",
+            where: ["phases.0.atoms.0", "phases.0.atoms.1"],
+            message: "La and B become symmetry-equivalent under P m -3 m" }],
+  entries: { added: [], removed: [], tied: [], untied: [], locked: [], unlocked: [] },
+  sites: [],
+};
+
 /** `GET /api/structure3d` for the same LaB6: the orbit of the corner atom with
  *  one of its boundary copies, one boron, one bond, and the twelve cell edges.
  *  Trimmed by hand — the geometry itself is `tests/test_structure3d.py`'s
@@ -371,7 +439,8 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN) {
     "/api/plans": () => ({ body: PLANS }),
     "/api/history": () => ({ body: HISTORY }),
     "/api/report": () => ({ status: 409, body: { error: { code: "NO_RESULT", message: "none" } } }),
-    "/api/structure": () => ({ body: { structure: STRUCTURE, sites: SITES } }),
+    "/api/structure": () => ({ body: { structure: STRUCTURE, sites: SITES,
+                                       symmetry: SYMMETRY, causes: CAUSES } }),
     "/api/structure3d": () => ({ body: GEOMETRY }),
     "/api/instrument": () => ({ body: { instrument: INSTRUMENT } }),
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
@@ -2044,6 +2113,101 @@ describe("the model editor", () => {
 
     const call = stub.calls.find((c) => c.path === "/api/structure/aniso")!;
     expect(call.body).toEqual({ path: "phases.0.atoms.0", on: true });
+  });
+
+  // -- symmetry (WP-1035) --------------------------------------------
+  it("says what the symbol is, and what it holds, without being asked", async () => {
+    await openModel();
+    // the free tier, off the route this pane already fetches
+    expect(host.textContent).toContain("No. 221");
+    expect(host.textContent).toContain("Laue m-3m");
+    expect(host.textContent).toContain("P lattice");
+    expect(host.textContent).toContain("b = a, c = a");
+    // …and a held cell row now names its cause *beside* `held_because`, which
+    // stays the parameter surface's own wording rather than being rewritten
+    const edges = [...field("phases.0.cell.a").closest(".cellrow")!
+      .querySelectorAll<HTMLElement>("label.cell")];
+    const tied = edges.find((l) => l.textContent?.trim().startsWith("b"))!;
+    expect(tied.title).toContain("tied: = 1·phases.0.cell.a");
+    expect(tied.title).toContain("so b follows a");
+    const locked = edges.find((l) => l.textContent?.trim().startsWith("α"))!;
+    expect(locked.title).toContain("structurally fixed");
+    expect(locked.title).toContain("α is fixed at 90°");
+  });
+
+  it("buys the Wyckoff letters only when asked, and never on a head move", async () => {
+    const stub = await openModel({ "/api/structure/symmetry": () => ({ body: LETTERS }) });
+    const route = () => stub.calls.filter((c) => c.path === "/api/structure/symmetry");
+    expect(route()).toHaveLength(0);          // the point of the second route
+    expect(host.textContent).not.toContain("6f");
+
+    button("Wyckoff letters…")!.click();
+    await flush();
+    expect(route()).toHaveLength(1);
+    expect(host.textContent).toContain("1a · m-3m");
+    expect(host.textContent).toContain("6f · 4m.m");
+    // the sentences it brought back replace the free tier's counting ones
+    const xyz = host.querySelector<HTMLElement>("table.atoms td.xyz")!;
+    expect(xyz.title).toContain("Wyckoff 1a, site symmetry m-3m");
+  });
+
+  it("previews a symbol before applying it, and applies nothing until Apply",
+     async () => {
+    const stub = await openModel({
+      "/api/structure/symmetry/preview": () => ({ body: PREVIEW_OK }),
+      "/api/structure/symmetry": () => ({ body: { node_id: "n0004", changed: true,
+        structure: STRUCTURE, sites: SITES, symmetry: SYMMETRY, causes: CAUSES } }),
+    });
+    const symbol = field("phases.0.space_group");
+    expect(symbol.value).toBe("P m -3 m");
+    expect(button("Preview…")!.disabled).toBe(true);   // nothing typed yet
+
+    symbol.value = "P 4/m m m";
+    symbol.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(button("Preview…")!.disabled).toBe(false);
+    button("Preview…")!.click();
+    await flush();
+
+    // …and it is a preview: the apply route has not been touched
+    expect(stub.calls.filter((c) => c.path === "/api/structure/symmetry"
+                                    && c.method === "POST")).toHaveLength(0);
+    expect(host.textContent).toContain("1 stop being tied and refine on their own: cell.c");
+    expect(host.textContent).toContain("B: site symmetry order 8 → 4");
+
+    button("Apply")!.click();
+    await flush();
+    const applied = stub.calls.find((c) => c.path === "/api/structure/symmetry"
+                                           && c.method === "POST")!;
+    expect(applied.body).toEqual({ phase: 0, space_group: "P 4/m m m" });
+  });
+
+  it("shows a blocked preview in the server's words and disables Apply", async () => {
+    await openModel({
+      "/api/structure/symmetry/preview": () => ({ body: PREVIEW_BLOCKED }),
+    });
+    const symbol = field("phases.0.space_group");
+    // whitespace alone is not a change: gemmi owns the symbol grammar, and the
+    // client's only job is "is this different text" (`symbolChanged`)
+    symbol.value = " P m -3 m ";
+    symbol.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    expect(button("Preview…")!.disabled).toBe(true);
+
+    symbol.value = "I a -3 d";
+    symbol.dispatchEvent(new Event("input", { bubbles: true }));
+    await flush();
+    button("Preview…")!.click();
+    await flush();
+
+    // the refusal verbatim, with the nearest allowed tensor the raise computed
+    expect(host.textContent).toContain("nearest allowed tensor is");
+    expect(host.textContent).toContain("become symmetry-equivalent");
+    expect(button("Apply")!.disabled).toBe(true);
+    // …and Discard puts the field back to the model's own symbol
+    button("Discard")!.click();
+    await flush();
+    expect(field("phases.0.space_group").value).toBe("P m -3 m");
   });
 });
 

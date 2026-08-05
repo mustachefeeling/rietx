@@ -56,39 +56,39 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** (2026-08-05) — the
-gallery, opened by clearing the three defects it inherited. Landed: one shared
-`engines.solution_key` (the two engines had the same dedup function with a
-different bug fixed in each), `validate_by_lebail(..., with_result=True)`, and
+gallery, opened by clearing the defects it inherited: one shared
+`engines.solution_key` (the two engines had the same dedup function with a different
+bug fixed in each), `validate_by_lebail(..., with_result=True)`, and
 `viz/indexing.py`'s three renderers with tests that assert what was **drawn**.
 
 **The dedup defect was three defects.** Scale invariance is not cubic-only — it
 merges every *uniform rescaling*, so a cell always collides with **its own
 supercell**, the exact false positive the panel exists to separate; and `seen` is
-claimed **before** scoring, so a *rejected* metric poisons its whole family. Two
-rows turned over: **11-BM NAC is now found by two engines** (`trial_error` had
-reached it all along and its key threw it away — three recorded no-goes have now
-died on that one dataset), and **`INDEX_DOMINANT_ZONE`'s fixture was never a
-dominant zone** — the base table solved it, a same-shape junk cell claimed the key
-and failed scoring, so the diagnostic spent two years explaining a silence it had
-itself caused.
+claimed **before** scoring, so a *rejected* metric poisons its whole family. Two rows
+turned over: **11-BM NAC is now found by two engines** (`trial_error` had reached it
+all along and its key threw it away — three recorded no-goes died on that one
+dataset), and **`INDEX_DOMINANT_ZONE`'s fixture was never a dominant zone** — the
+base table solved it, a same-shape junk cell claimed the key and failed scoring, so
+the diagnostic spent two years explaining a silence it had itself caused.
 
-**Open, and next:** the magnitude-aware aggregate, now fully measured on NAC. Borda
-gives P the win 4-3 while it takes two members by **0.4 % and 0.01 %** and loses
-`m_rev` **516×**; Le Bail agrees with I. *A near-tie counting as a full win is the
-defect.* The design is a **log-sum** — magnitude-aware, still unit-invariant — minus
-`m_sym`, which is exactly the sum of the other two in logs; measure it across every
-row before landing it. Then tasks 5-8: acceptance PNGs, the contamination sweep, the
-scoreboard re-measure, the one-page summary.
+**Open, and next:** the magnitude-aware aggregate, measured on NAC. Borda gives P the
+win 4-3 while it takes two members by **0.4 % and 0.01 %** and loses `m_rev` **516×**;
+Le Bail agrees with I. *A near-tie counting as a full win is the defect.* The design
+is a **log-sum** — magnitude-aware, still unit-invariant — minus `m_sym`, exactly the
+sum of the other two in logs; measure it across every row first. Then tasks 5-8:
+acceptance PNGs, the contamination sweep, the scoreboard re-measure, the summary.
 
-**[1040](wp/1040-engine-svd-index.md) stays 🔄** — its engine is landed and its one
-open item, the scoreboard, is 1041's. Last *closed*, all 2026-08-05:
+**Last closed: [1035](wp/1035-symmetry-surfaced.md)** — a phase's space group is read
+out, names the **cause** of every row symmetry holds, and is **editable behind a
+preview** built from a candidate `ParameterTable`. **[1040](wp/1040-engine-svd-index.md)
+stays 🔄**, its one open item being 1041's scoreboard. Same day:
 [1034](wp/1034-panel-layout.md), [1033](wp/1033-plot-range-regions.md),
 [1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md); narratives in
-[milestones/v1.0.md](milestones/v1.0.md). The method lesson is nine sessions running
-(1030 → … → 1041): **instrument before ranking, and let the by-hand acceptance run
-judge.** 1041 is the sharpest case yet — two green tests, one asserting a diagnostic
-fires where the silence *and* the diagnostic were a filter's artefacts, one asserting
-a unique `high` that a *bug* was producing. **A prediction is not a measurement.**
+[milestones/v1.0.md](milestones/v1.0.md). Ten sessions running (1030 → … → 1041):
+**instrument before ranking, and let the by-hand run judge** — 1041 is the sharpest
+case, two green tests, one asserting a diagnostic fires where the silence *and* the
+diagnostic were a filter's own artefacts, one asserting a unique `high` a *bug*
+produced. **A prediction is not a measurement.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -99,14 +99,14 @@ a unique `high` that a *bug* was producing. **A prediction is not a measurement.
    above: two of its three inherited defects are cleared, the aggregate is not.)
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1035](wp/1035-symmetry-surfaced.md) — the last of the 2026-08-04 use session,
-   behind 1028/1026 because **it does not move the bar**; its `### Inherited` says
-   what 1036 settled and what 1034 left under the editor.
-5. [1016](wp/1016-sequential-series-panel.md) then
+4. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
-   waits on 1032–1035, which change the controls it documents.
-7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
-   the freeze covers an exercised surface.
+   waits on 1032–1035, all now closed, which changed the controls it documents.
+5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+   the freeze covers an exercised surface. It **inherits one line from 1036 via
+   1035**: `Phase.space_group` has no schema validator, deliberately, because
+   adding one changes the error type at every construction site including
+   history-node deserialization.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -218,7 +218,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
-| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
+| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |
@@ -231,7 +231,10 @@ because both edit `Plot.svelte`** — the dependency column says so even though
 the features are independent, for the reason the 1018 interleaving already
 taught (one worktree per concurrent session, or only one session commits). The
 question that started 1035 turned up [1036](wp/1036-crystal-system-settings.md),
-which is not a GUI WP at all.
+which is not a GUI WP at all — and 1035 then found that the same question had a
+*second* answer nobody had asked for: `PATCH /api/structure` accepted a model
+whose parameter table cannot be built, because `Refinement.edit` snapshots
+without ever building one. All four are closed; the set is complete.
 
 ### v1.0 — indexing (added 2026-07-29)
 

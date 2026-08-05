@@ -50,15 +50,11 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-05 at the **WP-1041** handover, darwin/arm64 M4, `worktree-indexer`, venv
-`[dev,jax]`, no torch — **WP-1034's `[dev]` figures do not compare**.
-- fast: **1743 / 67 skipped**, 3-4 min — 1040's 1738 **+5**: seven added, one deleted
-  (`svd`'s scale-invariance pin, subsumed by the shared key's), one *moved* to `slow`
-  (`INDEX_DOMINANT_ZONE`). full: **1841 / 72**, 25-36 min, **+6** — that move is the
-  whole difference between the deltas; no new skip. `test_acceptance_indexing.py`
-  sets the clock: **38 rows, 13-14 min**.
-- frontend (vitest) **330**, `svelte-check` clean, `test_gui_*.py` collect **81**;
-  1040/1041 touched no `gui/` file. **A module-level `importorskip` collapses its
-  module into one skip**, so `--collect-only` undercounts (`tests/CLAUDE.md`).
+`[dev,jax]`, no torch (1035's `[dev]` run read 108 skips against 67 here) and
+**pre-merge of `main`'s WP-1035 rows**. Fast **1743 / 67 skipped**, 3-4 min
+*unloaded*; full **1841 / 72**, 25-36 min, of which `test_acceptance_indexing.py` is
+**38 rows, 13-14 min**. Frontend **347** vitest, `svelte-check` clean, collect **93**.
+A fired module-level `importorskip` is one skip and zero collected items.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -201,16 +197,16 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029, 1032-1034) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+The **GUI** (WP-1008…1015, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` — stdlib
 `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
 holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
 server contract, `.pxt` text document, editors, panels, 3D viewer, theming —
 is `gui/CLAUDE.md` (loads when working under `gui/`; `src/pxrdref/gui/`
 carries a pointer stub). Two rules matter outside the GUI too: mutating verbs
-return **409 while a run is in flight** (frozen-per-stage discreteness
-enforced structurally), and the **run state is not an event** — `EventKind`
-is closed, and `live/events.jsonl` stays the one stream `watch` tails.
+return **409 while a run is in flight** (frozen-per-stage discreteness enforced
+structurally), and the **run state is not an event** — `EventKind` is closed, and
+`live/events.jsonl` stays the one stream `watch` tails.
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
@@ -227,6 +223,12 @@ is closed, and `live/events.jsonl` stays the one stream `watch` tails.
   re-measures each step against an fp64 cost.
 - **No pydantic in the hot loop**: `ParameterTable.decode()` returns a plain
   dict; the forward model consumes floats/arrays only.
+- **Pydantic knows no crystallography, so a whole-model swap is checked by
+  building its table.** Every symmetry refusal is raised in
+  `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs
+  none of it, so `edit` builds the **proposed** pair's table and refuses rather
+  than recording — before WP-1035 an incompatible model was accepted, wrote a
+  node, and raised from whatever next asked for the table.
 - **Weights**: use the file's esd column when present (readers), Poisson
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
@@ -558,36 +560,35 @@ M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a 
 carrying a fitted shift is scored on `engines.scored_positions`, the **corrected**
 lines it actually claims, or the panel marks it down for its own correction.
 
-**The search window is a correctness parameter, measured rather than assumed**
-(WP-1038, `indexing/pairs.py`). A *harmonic reflection pair* — planes that are
-integer multiples, so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in
-the shift and none in the cell, so Dong (1999) gives its **magnitude** from the
-peak list alone and `ShiftScreen.allowance_deg` is what a window must span. Four
-measured rules, stories in the appendix. **The magnitude is knowable with no
-reference and the cause is not** — `constant` and `cos_theta` concentrate
-identically, so the screen may refute `sin_2theta` and never choose between the
-other two. **Detection is concentration against a seeded structureless null,
-because the published false-pair rule fails on real data** (DICVOL04's margin
-admits 11-BM NAC at chance, reporting −0.09° where the shift is zero). **A window
-wider than the shift manufactures a confident wrong singleton** — at σ_sys = 0.060
-SRM 660c returns a cell 293 000 ppm off at `high` confidence — so headroom scales
-the amplitude's *standard error*, never the pair scatter. And **an allowance is
-not a correction**: it finds lines, only `shift_template` moves the cell.
+**The search window is a correctness parameter, measured rather than assumed** (WP-1038,
+`indexing/pairs.py` ). A *harmonic reflection pair* — planes that are integer multiples,
+so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in the shift and none in the
+cell, so Dong (1999) gives its **magnitude** from the peak list alone and
+`ShiftScreen.allowance_deg` is what a window must span. Four measured rules, stories in
+the appendix. **The magnitude is knowable with no reference and the cause is not** —
+`constant` and `cos_theta` concentrate identically, so the screen may refute
+`sin_2theta` and never choose between the other two. **Detection is concentration
+against a seeded structureless null, because the published false-pair rule fails on real
+data** (DICVOL04's margin admits 11-BM NAC at chance, reporting −0.09° where the shift
+is zero). **A window wider than the shift manufactures a confident wrong singleton** —
+at σ_sys = 0.060 SRM 660c returns a cell 293 000 ppm off at `high` confidence — so
+headroom scales the amplitude's *standard error*, never the pair scatter. And **an
+allowance is not a correction**: it finds lines, only `shift_template` moves the cell.
 
-**The tolerance an engine searches with is not the per-line σ, and this is the one
-thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the
-wrong *matching window*: measured on the bundled qarr corundum pattern, whose cell is
+**The tolerance an engine searches with is not the per-line σ, and this is the one thing
+to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the wrong
+*matching window*: measured on the bundled qarr corundum pattern, whose cell is
 certified, the lines sit a median 0.060° from the true positions (a cos θ displacement)
 against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the true cell
 indexes **zero** lines and both engines return nothing. Hence
-`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above
-declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never
-look like a measured one) and `refine_with_shift`, which fits the shift *template*
-**after** a candidate survives — the *shape* needs reference positions, which a candidate
-cell supplies. A cell found under a widened window but never shift-refined is biased by
+`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above declines,
+reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never look like a
+measured one) and `refine_with_shift` , which fits the shift *template* **after** a
+candidate survives — the *shape* needs reference positions, which a candidate cell
+supplies. A cell found under a widened window but never shift-refined is biased by
 roughly the shift (+1400 ppm measured).
 
-Fourteen more indexing rules, each learned the hard way — the measured stories are in
+Thirteen more indexing rules, each learned the hard way — the measured stories are in
 the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
 - **A filter inside a search fails with a wrong *answer*, so a silence indicts the
@@ -604,14 +605,13 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   the machine**, and **a candidate cell is a lattice, not a tuple** — compare with
   `reduce.same_lattice`, never sorted axes, or a correct answer in another setting
   reads as a miss (it bit WP-1040's own monoclinic row).
-- **Removing a redundant search must not remove its prunes**, and only real data
-  will say that you did: the centred passes are redundant *as searches* (each
-  centred trial set is a subset of the primitive one) and not as *filters*; the
-  prunes being monotone under bisection, replaying one at the leaf is equivalent
-  to the whole pass. WP-1030 skipped that and put a pseudo-cubic trigonal R
-  description of the certified LaB6 lattice above the cubic truth with **115 fast
-  indexing tests green** — so run `tests/test_acceptance_indexing.py` before
-  closing anything that touches an engine.
+- **Removing a redundant search must not remove its prunes**, and only real data will
+  say that you did: the centred passes are redundant *as searches* (each centred trial
+  set is a subset of the primitive one) and not as *filters*; the prunes being monotone
+  under bisection, replaying one at the leaf is equivalent to the whole pass. WP-1030
+  skipped that and put a pseudo-cubic trigonal R description of the certified LaB6
+  lattice above the cubic truth with **115 fast indexing tests green** — so run
+  `tests/test_acceptance_indexing.py` before closing anything that touches an engine.
 - Read a `predicted_but_absent` firing as "this cell predicts lines the pattern
   lacks", **never** "this cell is too big": it counts against the *lattice* group,
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and

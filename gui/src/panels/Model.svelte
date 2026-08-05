@@ -46,6 +46,16 @@
     type Field,
     type Site,
   } from "../lib/model";
+  import {
+    entryLines,
+    noteTone,
+    siteLines,
+    symbolChanged,
+    symmetryLine,
+    wyckoffLabel,
+    type PhaseSymmetry,
+    type SiteLetter,
+  } from "../lib/symmetry";
   import { editState, formatEsd, formatValue, normalize, type ParamRow } from "../lib/table";
   import {
     PRESET_FIELDS,
@@ -227,6 +237,26 @@
   // -- the editors ---------------------------------------------------
   let structure = $state<any>(null);
   let sites = $state<Site[]>([]);
+  /** `GET /api/structure`'s free arms: what each phase's symbol *is*, and which
+   *  symmetry holds each held row.  Both ride on the route this pane already
+   *  refetches, so neither costs a request. */
+  let symmetry = $state<PhaseSymmetry[]>([]);
+  let causes = $state<Record<string, string>>({});
+  /** …and the tier that is *not* free: a spglib search per atom, so it is
+   *  fetched when the user asks for it and dropped on every head move rather
+   *  than reloaded (WP-1035). */
+  let letters = $state<SiteLetter[]>([]);
+  let lettersFor = $state<number | null>(null);
+  let lettersBusy = $state(false);
+  /** the symbol being typed, the preview it produced, and the verb's refusal —
+   *  three separate fields for WP-1014's reason: a verb's refusal and a panel's
+   *  load error must not share one.  `null` is *untouched* rather than empty, so
+   *  deleting the field leaves it empty instead of springing back to the model's
+   *  symbol mid-edit. */
+  let symbolDraft = $state<string | null>(null);
+  let symPreview = $state<any>(null);
+  let symError = $state("");
+  let symBusy = $state(false);
   let instrument = $state<any>(null);
   let rows = $state<ParamRow[]>([]);
   let phase = $state(0);
@@ -268,6 +298,20 @@
                             ...pending.invalid]);
   const warning = $derived(instrument ? axialWarning(instrument) : "");
   const byPath = $derived(new Map(rows.map((r) => [r.path, r])));
+  const phaseSym = $derived<PhaseSymmetry | null>(symmetry[phase] ?? null);
+  const symLine = $derived(symmetryLine(phaseSym));
+  const symDirty = $derived(symbolChanged(symbolDraft ?? "",
+    structure?.phases?.[phase]?.space_group ?? ""));
+
+  /** A held row's tooltip: the verb's own `held_because`, and — where symmetry
+   *  is the subject — the symmetry that is responsible.  Two sentences rather
+   *  than one rewritten, because `held_because` is the parameter surface's
+   *  wording and this pane may not restate it (WP-1011). */
+  function why(path: string): string {
+    const held = byPath.get(path)?.held_because ?? "";
+    const cause = causes[path] ?? "";
+    return [held, cause].filter(Boolean).join(" — ");
+  }
 
   /** Reload on every head move — the head *is* the working state (WP-1005), and
    *  a run, a checkout, a text apply and a form edit all move it.  Only while
@@ -295,9 +339,18 @@
                                            api.params()]);
       structure = s.structure;
       sites = s.sites ?? [];
+      symmetry = s.symmetry ?? [];
+      causes = s.causes ?? {};
       instrument = i.instrument;
       rows = normalize(p.parameters);
       loadError = "";
+      // the letters were measured against a model that has just been replaced;
+      // re-asking would put a spglib search per atom on every head move, which
+      // is the whole reason they are not on this route
+      letters = [];
+      lettersFor = null;
+      symPreview = null;
+      symbolDraft = null;
       // the signal the 3D view follows: this runs on every head move *and*
       // immediately after every local write, which is one frame earlier than
       // the head reaches the shell
@@ -364,6 +417,63 @@
         ? "a run is in flight — the model is read-only until it ends"
         : (exc as Error).message;
       await load();
+    }
+  }
+
+  // -- symmetry (WP-1035) --------------------------------------------
+  /** Fetch the Wyckoff letters for the phase on screen, once, on request.
+   *
+   * The one route in this pane that is *not* refetched on a head move: it costs
+   * a spglib search per atom, which is why it is a route of its own. */
+  async function showLetters() {
+    if (lettersFor === phase || lettersBusy) return;
+    lettersBusy = true;
+    try {
+      const out = await api.symmetry(phase);
+      letters = out.letters ?? [];
+      lettersFor = phase;
+      // the better sentences: the same causes, with the oriented site symmetry
+      causes = out.causes ?? causes;
+      say(`site_constraints(structure.phases[${phase}].space_group, xyz)  # per atom`);
+      symError = "";
+    } catch (exc) {
+      symError = (exc as Error).message;
+    } finally {
+      lettersBusy = false;
+    }
+  }
+
+  /** What the typed symbol would do — applying nothing. */
+  async function previewSymbol() {
+    symBusy = true;
+    symError = "";
+    try {
+      symPreview = await api.symmetryPreview(phase, (symbolDraft ?? "").trim());
+    } catch (exc) {
+      symPreview = null;
+      symError = (exc as Error).message;
+    } finally {
+      symBusy = false;
+    }
+  }
+
+  /** …and apply it.  The server re-runs the same preview and gates on it, so
+   *  this button is a convenience and never the check itself. */
+  async function applySymbol() {
+    symBusy = true;
+    symError = "";
+    try {
+      const wanted = (symbolDraft ?? "").trim();
+      await api.setSymmetry(phase, wanted);
+      say(`structure.phases[${phase}].space_group = "${wanted}"  # ref.edit(structure=…)`);
+      symbolDraft = null;
+      symPreview = null;
+      onmoved();
+      await load();
+    } catch (exc) {
+      symError = (exc as Error).message;
+    } finally {
+      symBusy = false;
     }
   }
 
@@ -720,9 +830,77 @@
               label: "phase", kind: "text" }, "structure")}
               oninput={(e) => type(`phases.${phase}.name`,
                 (e.currentTarget as HTMLInputElement).value)} /></label>
-          <div class="cell"><span class="muted">space group</span>
-            <span class="mono fixed" title="symmetry is derived by the CIF reader —
-              re-import to change it">{structure.phases[phase].space_group}</span></div>
+        </div>
+
+        <!-- Symmetry is not one read-only string any more (WP-1035): it is the
+             one field whose *effects* fill the rest of this column, so it says
+             what it is, what it holds, and what changing it would invalidate —
+             before anything is applied. -->
+        <div class="symmetry">
+          <div class="symrow">
+            <span class="muted tiny">space group</span>
+            <input class="mono sym" data-field="phases.{phase}.space_group"
+              value={symbolDraft ?? structure.phases[phase].space_group}
+              title="the Hermann-Mauguin symbol or its IT number; a setting
+                extension (:H, :R) is part of it"
+              oninput={(e) => (symbolDraft =
+                (e.currentTarget as HTMLInputElement).value)} />
+            <button class="ghost tiny" disabled={!symDirty || symBusy || busy}
+              onclick={previewSymbol}>Preview…</button>
+          </div>
+          <p class="muted tiny nowrapish">{symLine}</p>
+          {#if phaseSym?.constraints}
+            <p class="muted tiny">holds: {phaseSym.constraints}</p>
+          {/if}
+          {#if lettersFor !== phase}
+            <button class="ghost tiny" disabled={lettersBusy}
+              title="a symmetry search per atom — fetched on request, not on
+                every head move"
+              onclick={showLetters}>{lettersBusy
+                ? "searching…" : "Wyckoff letters…"}</button>
+          {/if}
+          {#if symError}<p class="bad tiny">{symError}</p>{/if}
+
+          {#if symPreview}
+            <div class="preview" class:blocked={symPreview.blocked}>
+              <p class="small">
+                <strong class="mono">{symPreview.to?.xhm ?? "?"}</strong>
+                {#if !symPreview.changed}
+                  — the same setting; nothing would change.
+                {:else if symPreview.blocked}
+                  — this model cannot carry it:
+                {:else}
+                  — {symPreview.to?.constraints}
+                {/if}
+              </p>
+              {#each symPreview.refusals as refusal (refusal.where)}
+                <p class="bad tiny">{refusal.message}</p>
+              {/each}
+              {#each symPreview.notes as note2 (note2.kind + note2.where.join())}
+                <p class="tiny {noteTone(note2.kind)}">{note2.message}</p>
+              {/each}
+              {#if !symPreview.blocked}
+                {#each entryLines(symPreview.entries) as line (line)}
+                  <p class="muted tiny">{line}</p>
+                {/each}
+                {#each siteLines(symPreview.sites) as line (line)}
+                  <p class="muted tiny">{line}</p>
+                {/each}
+                {#if !entryLines(symPreview.entries).length
+                     && !siteLines(symPreview.sites).length && symPreview.changed}
+                  <p class="muted tiny">no parameter gains or loses a tie — the
+                    reflection list is what moves.</p>
+                {/if}
+              {/if}
+              <div class="symrow">
+                <button disabled={symPreview.blocked || !symPreview.changed
+                  || symBusy || busy} onclick={applySymbol}>Apply</button>
+                <button class="ghost small"
+                  onclick={() => { symPreview = null; symbolDraft = null; }}
+                  >Discard</button>
+              </div>
+            </div>
+          {/if}
         </div>
 
         <h3>Cell</h3>
@@ -734,7 +912,7 @@
             {@const path = `phases.${phase}.cell.${edge}`}
             {@const row = byPath.get(path)}
             {@const field = { path, label: edge, kind: "number" } as Field}
-            <label class="cell" title={row?.held_because ?? ""}>
+            <label class="cell" title={why(path)}>
               <span class="muted">{CELL_GLYPH[edge] ?? edge}</span>
               {#if !editableValue(row)}
                 <span class="mono fixed">{formatValue(row!.value, row!.esd)}</span>
@@ -771,16 +949,19 @@
                   { path: `${row.base}.species`, label: "species", kind: "text" }, "structure")}
                   oninput={(e) => type(`${row.base}.species`,
                     (e.currentTarget as HTMLInputElement).value)} /></td>
-                <td class="mono xyz" title={`${row.xyz.join(", ")} — `
-                  + (row.frozen || "moved by the DOFs below")}>
+                <td class="mono xyz" title={why(`${row.base}.x`)
+                  || `${row.xyz.join(", ")} — ` + (row.frozen || "moved by the DOFs below")}>
                   {row.xyz.map((v) => v.toFixed(4)).join(" ")}
+                  {#if wyckoffLabel(letters, row.base)}
+                    <span class="wyckoff">{wyckoffLabel(letters, row.base)}</span>
+                  {/if}
                 </td>
                 {#each [`${row.base}.occ`, `${row.base}.biso`] as path (path)}
                   {@const prow = byPath.get(path)}
                   {@const cell = { path, label: path, kind: "number" } as Field}
                   <td>
                     {#if !editableValue(prow)}
-                      <span class="mono fixed" title={prow!.held_because}
+                      <span class="mono fixed" title={why(path)}
                         >{formatValue(prow!.value, prow!.esd)}</span>
                     {:else}
                       <input class="mono narrow" data-field={path}
@@ -1382,5 +1563,71 @@
 
   .warn {
     color: var(--warn);
+  }
+
+  /* an `info` note is a fact about the change, not a complaint about it — the
+     third tone `noteTone` returns, and the reason the two above are not enough */
+  .info {
+    opacity: 0.75;
+  }
+
+  /* ---- symmetry (WP-1035) ----
+     A block rather than a `.cell`, because it is a field *and* three lines of
+     consequence, and at 340 px (the sidebar's floor) those do not sit beside a
+     label.  Every paragraph in it wraps: WP-1034's rule is that overflow is
+     wrap, never truncation, and a refusal that says "the nearest allowed
+     tensor is …" is exactly the sentence that must not be cut. */
+  .symmetry {
+    margin: 4px 0 2px;
+  }
+
+  .symrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .symrow input.sym {
+    flex: 1 1 96px;
+    min-width: 84px;
+  }
+
+  .symmetry p {
+    margin: 2px 0 0;
+    /* the refusals carry six-component tensors; they have to be able to break */
+    overflow-wrap: anywhere;
+  }
+
+  .nowrapish {
+    /* the summary is one line where there is room and two where there is not —
+       never a scrollbar, which is what `white-space: nowrap` would have made */
+    line-height: 1.35;
+  }
+
+  .preview {
+    margin-top: 5px;
+    padding: 5px 6px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 3px;
+    background: var(--surface, transparent);
+  }
+
+  .preview.blocked {
+    border-left-color: var(--bad);
+  }
+
+  .preview .symrow {
+    margin-top: 6px;
+  }
+
+  /* the letter rides in the coordinate cell rather than in a column of its own:
+     the atom table's `min-content` is already 448 px (WP-1034 task 1) and a
+     seventh column would take the whole column sideways at the sidebar's floor */
+  .wyckoff {
+    margin-left: 6px;
+    opacity: 0.75;
+    font-size: 10.5px;
   }
 </style>

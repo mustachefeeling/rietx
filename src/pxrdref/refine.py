@@ -247,7 +247,34 @@ class Refinement:
         beside the stages, so a branch that adds a phase can be compared
         against one that does not.  Returns the new node id (``None`` when
         history is disabled).
+
+        **The proposed models must have a parameter table, and that is checked
+        here rather than discovered later.**  Pydantic validates a `Structure`
+        against its schema and knows no crystallography: every symmetry refusal
+        in this package — an anisotropic tensor outside the site's allowed
+        subspace, a Stephens block outside the Laue subspace, a ``vary=True``
+        coordinate on a fully fixed special position, a cell angle disagreeing
+        with the space group — is raised when :class:`ParameterTable` is
+        *constructed*, and the snapshot this method commits never constructs one.
+        Without the check an incompatible edit succeeded, wrote a history node,
+        and then raised from whatever next asked for the table, leaving the
+        working state somewhere no fit and no listing can be built from
+        (WP-1035, measured through the GUI as a 500 on the following
+        ``GET /api/params``).
+
+        The check is on the **proposed** pair, never on the current one, so an
+        edit that *repairs* such a state is not refused by the damage it is
+        undoing.  It costs one table build on a cold path — the same build the
+        next stage compile or ``parameters()`` call performs anyway.
         """
+        candidate = self.structure if structure is None else structure
+        try:
+            ParameterTable(candidate,
+                           self.instrument if instrument is None else instrument)
+        except ValueError as exc:
+            raise ValueError(
+                f"this model has no parameter table, so the edit is refused "
+                f"rather than recorded: {exc}") from None
         if structure is not None:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:

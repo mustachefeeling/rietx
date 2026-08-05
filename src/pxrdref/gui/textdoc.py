@@ -19,7 +19,7 @@ protocols by eye.
     stage scale_bkg   free phases.*.scale, instrument.background.*
     stage cell        free phases.*.cell.*
 
-    phase 0 "NAC"                    # Ia-3d
+    phase 0 "NAC"                    # I 21 3 · No. 199 · cubic · Laue m-3
       cell.a        @ 10.251285      min 10.1  max 10.4  esd 3.1e-05
       cell.b          10.251285      = cell.a
       scale         @ 1.234e-06      min 0  softplus
@@ -324,8 +324,11 @@ def render(project) -> str:
     lines.extend(["", *_render_plan(doc)])
     rows = project.parameters()
     for index, phase in enumerate(ref.structure.phases):
-        lines.extend(["", *_render_block(f'phase {index} "{phase.name}"',
-                                         f"phases.{index}.", rows, phase)])
+        header = f'phase {index} "{phase.name}"'
+        note = _phase_comment(phase)
+        lines.extend(["", *_render_block(
+            header.ljust(34) + f"# {note}" if note else header,
+            f"phases.{index}.", rows, phase)])
     lines.extend(["", *_render_block("instrument", "instrument.", rows, None)])
     peaks = _render_peaks(project)
     if peaks:
@@ -417,6 +420,37 @@ def _render_block(header: str, prefix: str, all_rows, phase) -> list[str]:
         lines.append(line.rstrip() if not comment
                      else f"{line.ljust(return_width)}# {comment}")
     return lines
+
+
+def _phase_comment(phase) -> str:
+    """``# I a -3 d · cubic · Laue m-3m`` on a phase header (WP-1035).
+
+    The space group is the one fact about a phase that this document could not
+    say, and it is **rendered, never editable**: the ``.pxt`` surface is
+    parameters and settings, a symbol change is a whole-model edit
+    (``POST /api/structure/symmetry``, which gates on a preview), and a second
+    authority on a phase's symmetry is what this module's rules forbid.  It goes
+    through the same comment mechanism the atom rows use, so no format bump —
+    comments parse and are ignored on the way back in.
+
+    The **setting** is quoted, not the crystal system alone: ``R -3 c:H`` and
+    ``R -3 c:R`` tie different cell edges (WP-1036), and a line that showed only
+    "trigonal" would not say which document the reader is holding.  An
+    unresolvable symbol says so rather than rendering nothing — that is exactly
+    when a reader needs the line most.
+
+    What it deliberately leaves out is the tie list: the block *below* it already
+    carries ``= cell.a`` on every tied edge and ``locked`` on every held angle,
+    and repeating them here would put the same fact in two places and take the
+    line past the width the rest of the document holds to.
+    """
+    from .symmetry import phase_facts
+
+    facts = phase_facts(phase, 0)
+    if "error" in facts:
+        return f"{phase.space_group} · unresolvable symbol"
+    return (f"{facts['xhm']} · No. {facts['number']} · {facts['crystal_system']}"
+            f" · Laue {facts['laue_class']}")
 
 
 def _atom_comment(phase, local: str) -> str:
