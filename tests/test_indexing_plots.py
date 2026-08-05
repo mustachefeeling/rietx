@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pxrdref.crystallography.symmetry import generate_reflections
-from pxrdref.indexing.engines import SearchSpec, to_cell_candidate
+from pxrdref.indexing.engines import SearchSpec, match_window, to_cell_candidate
 from pxrdref.indexing.trial_error import search_trial_error
 from pxrdref.schemas.indexing import PeakList
 
@@ -113,11 +113,22 @@ def test_the_candidate_rows_show_both_directions(bcc_candidates, bcc_peaks):
         f"the supercell row drew {seen_n[i_forest]} seen and "
         f"{absent_n[i_forest]} absent: a forest must look like one")
 
-    # the caption quotes the same counts the ticks were drawn from
+    # The caption's *drawn* count is the ticks, and its *share* is the panel's
+    # own ``predicted_seen_fraction`` rather than a recomputation.  The two
+    # enumerate over different ranges by design — the panel stops at the last
+    # observed line and the picture covers the axis it draws — so a caption that
+    # recomputed the share printed a number a few points off the one the
+    # candidate was ranked on (measured on 11-BM NAC: 43 % drawn against the
+    # panel's 46 %), in a figure whose whole claim is that it agrees with the
+    # panel.  Both halves are asserted, because only quoting one lets the other
+    # drift.
     captions = [t.get_text() for t in axt.texts]
     assert len(captions) == len(bcc_candidates)
     total = seen_n[i_truth] + absent_n[i_truth]
-    assert f"of {total} predicted seen" in captions[i_truth], captions[i_truth]
+    assert f"({total} drawn)" in captions[i_truth], captions[i_truth]
+    panel_share = truth[0].fom_value("predicted_seen_fraction")
+    assert f"{panel_share:.0%} of predicted lines seen" in captions[i_truth], (
+        captions[i_truth])
     # rank order fixes the colour, so two galleries of one dataset compare
     assert rows[0].get_color()[0].tolist()[:3] == pytest.approx(
         _rgb(CANDIDATE_COLORS[0]), abs=1e-6)
@@ -127,6 +138,92 @@ def _rgb(hex_colour: str) -> list[float]:
     from matplotlib.colors import to_rgb
 
     return list(to_rgb(hex_colour))
+
+
+#: The same lattice displaced by a constant 0.04° 2θ, with a per-line σ ten times
+#: smaller — corundum's situation in miniature (there the two are 0.0045° and a
+#: 0.05° allowance, an 11× gap).  A search *must* open its window to the
+#: systematic to find anything, so the window and the measurement genuinely
+#: differ, which is what makes this fixture able to tell them apart.
+SHIFTED_DEG = 0.04
+SHIFTED_ESD = 0.004
+SHIFTED_ALLOWANCE = 0.05
+
+
+@pytest.fixture(scope="module")
+def shifted_peaks() -> PeakList:
+    refl = generate_reflections("I m -3 m", CELL, LAM, 90.0)
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d))))
+    inten = np.asarray(refl.multiplicity, dtype=np.float64)
+    order = np.argsort(tt)
+    return PeakList.from_positions(tt[order] + SHIFTED_DEG, LAM,
+                                   intensity=inten[order],
+                                   two_theta_esd=SHIFTED_ESD)
+
+
+@pytest.fixture(scope="module")
+def shifted_search(shifted_peaks):
+    spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                      max_volume=1500.0, sigma_sys_deg=SHIFTED_ALLOWANCE,
+                      budget_seconds=120.0)
+    result = search_trial_error(shifted_peaks, spec=spec)
+    cands = [to_cell_candidate(c, shifted_peaks, k_sigma=spec.k_sigma,
+                               n_unindexed=spec.n_unindexed,
+                               q_match=match_window(shifted_peaks, spec))
+             for c in result.candidates[:3]]
+    return cands, spec
+
+
+def test_the_tick_rows_match_in_the_window_the_search_used(shifted_search,
+                                                           shifted_peaks):
+    """The picture's own legend must not contradict the label beside it.
+
+    ``plot_candidates`` asks *is this the same line* once per prediction, and
+    CLAUDE.md's rule is that the answer depends on the **matching window**, not
+    on the per-line σ: a search that had to open its window to a systematic
+    selected its candidate under the wide one, so re-asking under the narrow one
+    judges it by a criterion it was never selected under.
+
+    Measured, this was not a subtlety.  On 11-BM NAC — which carries the default
+    0.05° allowance — the figure labelled its top row ``224/285 indexed`` from
+    the candidate's own field and drew ``not indexed by #1 (213)`` in the same
+    legend, a direct contradiction inside one picture.  Here the two counts are
+    asserted to close against the observed total, in both directions: with the
+    search's window they agree, and with the raw σ they do not — which is what
+    makes this a test of the window rather than of arithmetic.
+    """
+    from pxrdref.viz import plot_candidates
+
+    cands, spec = shifted_search
+    best = cands[0]
+    n_obs = len(shifted_peaks.usable())
+    OUT.mkdir(exist_ok=True)
+
+    fig = plot_candidates(cands, shifted_peaks,
+                          q_match=match_window(shifted_peaks, spec),
+                          path=str(OUT / "indexing_candidates_shifted.png"))
+    missed = _missed_count(fig)
+    assert missed is not None, "the top row indexed everything; no window to test"
+    assert best.n_indexed + missed == n_obs, (
+        f"the figure drew {missed} unindexed against a label claiming "
+        f"{best.n_indexed} of {n_obs} indexed")
+
+    # and the defect this replaced: the raw σ is 10x narrower than the window
+    # the search used, so it refuses lines the candidate was selected on
+    narrow = plot_candidates(cands, shifted_peaks,
+                             q_match=shifted_peaks.q_esd())
+    assert _missed_count(narrow) > missed, (
+        "the raw-σ window found no more unindexed lines than the search's — "
+        "this fixture no longer separates the two")
+
+
+def _missed_count(fig) -> int:
+    """The ``not indexed by #1 (N)`` the figure actually drew, 0 when absent."""
+    labels = [t.get_text() for t in fig.get_axes()[0].get_legend().get_texts()]
+    for text in labels:
+        if text.startswith("not indexed by #1"):
+            return int(text.split("(")[1].rstrip(")"))
+    return 0
 
 
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,

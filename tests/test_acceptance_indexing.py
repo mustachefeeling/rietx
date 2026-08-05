@@ -76,6 +76,7 @@ from pxrdref.schemas.indexing import (
     PEAK_ASSUMED_ESD_DEG,
     PeakList,
 )
+from tests import indexing_gallery as gallery
 
 DATA = pathlib.Path(__file__).parent / "data"
 BENCH = DATA / "bethanechol_indexing.json"
@@ -215,40 +216,61 @@ def _qarr(name: str):
 def corundum_peaks():
     from pxrdref.indexing.pick import pick_peaks
     data, ins = _qarr("corundum.prn")
-    return pick_peaks(data, ins)
+    peaks = pick_peaks(data, ins)
+    gallery.draw("corundum_peaks", peaks=peaks, data=data,
+                 note="the phantom components are the faint ticks; they sit "
+                      "0.17-0.24 deg below a line more than 4x stronger")
+    return peaks
 
 
 def _index_corundum(peaks, **spec_kw):
+    """``(result, spec)`` — the spec travels because the gallery needs the window
+    the search matched in (``engines.match_window``)."""
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _qarr("corundum.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED,
                       **spec_kw)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec), spec
 
 
 @pytest.fixture(scope="module")
 def corundum_index(corundum_peaks):
     """Step 1 of the protocol: index with nothing declared. ~45-50 s."""
-    return _index_corundum(corundum_peaks), A_SRM676A, C_SRM676A
+    res, spec = _index_corundum(corundum_peaks)
+    data, ins = _qarr("corundum.prn")
+    gallery.draw("corundum", peaks=corundum_peaks, data=data, result=res,
+                 instrument=ins, spec=spec)
+    return res, A_SRM676A, C_SRM676A
 
 
 @pytest.fixture(scope="module")
 def corundum_index_with_shift(corundum_peaks):
     """Step 2: the same search with the shift template declared. ~45-50 s."""
-    return (_index_corundum(corundum_peaks, shift_template="cos_theta"),
-            A_SRM676A, C_SRM676A)
+    res, spec = _index_corundum(corundum_peaks, shift_template="cos_theta")
+    data, ins = _qarr("corundum.prn")
+    gallery.draw("corundum_shift", peaks=corundum_peaks, data=data, result=res,
+                 instrument=ins, spec=spec)
+    return res, A_SRM676A, C_SRM676A
 
 
 @pytest.fixture(scope="module")
 def qpa_mixture_index():
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
     data, ins = _qarr("cpd-1a.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(data=data, instrument=ins, spec=spec)
+    res = index_pattern(data=data, instrument=ins, spec=spec)
+    # this row hands ``index_pattern`` the *pattern* rather than a list, so the
+    # gallery picks the same lines the run picked rather than being handed them
+    gallery.draw("cpd1a", peaks=pick_peaks(data, ins), data=data, result=res,
+                 instrument=ins, spec=spec,
+                 note="three phases; no single lattice explains the list, and "
+                      "the tick rows are what that looks like")
+    return res
 
 
 # ----------------------------------------------------------------------
@@ -295,7 +317,10 @@ def _index_qarr_phase(name: str, systems: tuple[str, ...]):
     spec = SearchSpec(systems=systems, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw(name, peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec)
+    return res
 
 
 @pytest.fixture(scope="module")
@@ -331,7 +356,13 @@ def nac_index():
     spec = SearchSpec(systems=("cubic",), max_volume=1200.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return peaks, index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("nac", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="the unindexed observed lines on the top row are the CaF2 "
+                      "impurity, which is why this pattern's *correct* cell "
+                      "leaves 188 of them")
+    return peaks, res
 
 
 #: GSAS's own converged cell for `FAP.XRA` (`FAP.EXP`), which is the reference
@@ -365,7 +396,10 @@ def fap_index():
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=("hexagonal", "trigonal"), max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("fap", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec)
+    return res
 
 
 #: Budget for the unidentified-pattern search.  Deliberately small: the row
@@ -389,7 +423,11 @@ def hl2_index():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS,
                       budget_seconds=HL2_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return peaks, index_pattern(peaks, spec=spec)
+    res = index_pattern(peaks, spec=spec)
+    # no ``data``: this row is a bare position list, which is what the stem plot
+    # in the peak figure shows and why there is no Le Bail panel to draw
+    gallery.draw("hl2", peaks=peaks, result=res, spec=spec)
+    return peaks, res
 
 
 @pytest.fixture(scope="module")
@@ -409,6 +447,10 @@ def qarr_fluorite():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
     res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("fluorite", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="18 usable lines against PEAK_MIN_USABLE_LINES = 20 — the "
+                      "picture is the whole row, and there is nothing else to draw")
     return peaks, assess_peak_list(peaks), res
 
 
@@ -446,7 +488,12 @@ def lab6_peaks():
     """The picked line list, ~1 s.  Shared by the fast rows and the searches."""
     from pxrdref.indexing.pick import pick_peaks
     data, ins = _lab6_inputs()
-    return pick_peaks(data, ins)
+    peaks = pick_peaks(data, ins)
+    gallery.draw("lab6_peaks", peaks=peaks, data=data,
+                 note="the tail components this list carries are unflagged — they "
+                      "are among the solid ticks, not the faint ones, which is "
+                      "exactly why three rows exist about them")
+    return peaks
 
 
 def _cubic_positions(a: float, wavelength: float, two_theta_max: float
@@ -515,7 +562,13 @@ def lab6_index(lab6_peaks):
     data, ins = _lab6_inputs()
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("lab6", peaks=lab6_peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="rows 2 and 3 are both centrings of the a*sqrt(2) supercell, "
+                      "found by every engine — the tick rows are where an "
+                      "isospectral rival stops being an abstraction")
+    return res
 
 
 @pytest.fixture(scope="module")
@@ -544,7 +597,13 @@ def lab6_calibrated(lab6_peaks):
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=float(screen.allowance_deg))
-    return index_pattern(trimmed, data=data, instrument=ins, spec=spec), screen
+    res = index_pattern(trimmed, data=data, instrument=ins, spec=spec)
+    gallery.draw("lab6_calibrated", peaks=trimmed, data=data, result=res,
+                 instrument=ins, spec=spec,
+                 note=f"drawn on the *trimmed* list ({len(trimmed.usable())} usable "
+                      f"against {len(lab6_peaks.usable())}); the shift was measured "
+                      f"against the certificate, allowance {screen.allowance_deg:.4f} deg")
+    return res, screen
 
 
 # ----------------------------------------------------------------------
@@ -556,6 +615,18 @@ def test_every_set_is_twenty_ascending_lines(bench):
         tt = np.array(s["two_theta"])
         assert len(tt) == 20, name
         assert np.all(np.diff(tt) > 0), f"{name} is not ascending"
+
+    # the benchmark's picture, drawn from the row that proves the transcription:
+    # ten sets against the cell the paper solved, with the lines it cannot
+    # explain marked.  Those counts are the paper's own and are asserted three
+    # rows below — this is the same statement in a form a reader can scan.
+    gallery.draw_benchmark_sets(
+        "bethanechol",
+        {name: np.array(s["two_theta"]) for name, s in bench["sets"].items()},
+        {name: _predicted(bench, name) for name in bench["sets"]},
+        note="A/B are the raw ICDD entries, C/D the same lines with the paper's "
+             "0.100 deg zeroshift removed, E/F the synchrotron measurement; the "
+             "second letter is the I >= 5 % intensity cut")
 
 
 @pytest.mark.parametrize("raw,corrected", [("Aa", "Ca"), ("Ab", "Cb"),
@@ -1500,6 +1571,19 @@ def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
             f"{strong.two_theta:.4f}° for an axial-divergence tail")
     assert exceptions == 1, (
         f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
+
+    # the picture the generic renderers cannot draw, because these components
+    # are **unflagged** — plot_peak_list gives them the same tick as a real line,
+    # which is the finding.  What separates them is the signed distance to the
+    # certified lattice and the 90° crossover, so that is what is plotted.
+    tt = peaks.two_theta()
+    dev = _certified_deviation(peaks, tt)
+    gallery.draw_deviation(
+        "lab6_peaks", "certified_deviation", tt, dev, split_deg=90.0,
+        marked=np.abs(dev) >= LAB6_OFF_LATTICE_DEG,
+        marked_label="off-lattice component",
+        title="SRM 660c: signed distance to the nearest certified LaB6 line — "
+              "the real lines run +0.010 to +0.041°, the survivors −0.16 to +0.19°")
 
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
