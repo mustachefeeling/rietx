@@ -138,6 +138,22 @@
    *  here rather than one per panel, because "which line is this" is a question
    *  about the session, and two copies would be two answers. */
   let hoveredPeak = $state<number | null>(null);
+  /** the last refusal from a settings patch, in the verb's own words — held
+   *  beside the boxes that caused it rather than scrolled away in the console */
+  let protocolError = $state("");
+
+  /** What is being fitted (WP-1033), rebuilt from the document on every change.
+   *  A *derived* object rather than plot state: `project.json` is the authority,
+   *  and the plot is drawing it, not holding an opinion about it. */
+  const protocol = $derived({
+    limits: (project?.doc?.two_theta_limits ?? null) as [number, number] | null,
+    regions: (project?.doc?.excluded_regions ?? []) as [number, number][],
+  });
+  const extent = $derived((project?.data?.two_theta_range ?? null) as [number, number] | null);
+  const channels = $derived(project
+    ? ([project.data.n_fitted ?? project.data.n_points,
+        project.data.n_points] as [number, number])
+    : null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -169,6 +185,36 @@
     try {
       project = await api.patchProject({ ui: patch });
     } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  /** What is fitted, from the plot (WP-1033) — the same route `ui` takes, and
+   *  the reason `api.patchProject` stops being a `{ui: …}`-only call site.
+   *
+   *  It goes through the shell rather than the panel for the reason every peak
+   *  verb does: the Plot stays presentation, and the console echo of the Python
+   *  call belongs beside every other one.  The refusal is *held* rather than
+   *  toasted, because it is about a value still on screen in a box — the user
+   *  needs it while they retype. */
+  async function setProtocol(patch: Record<string, unknown>) {
+    if (!project) return;
+    try {
+      project = await api.patchProject(patch);
+      protocolError = "";
+      if ("two_theta_limits" in patch) {
+        const limits = patch.two_theta_limits as number[] | null;
+        say(`project.doc.two_theta_limits = ${limits ? `(${limits.join(", ")})` : "None"}`);
+      }
+      if ("excluded_regions" in patch) {
+        const regions = patch.excluded_regions as number[][];
+        say(`project.set_excluded_regions(${JSON.stringify(regions)})`);
+      }
+      // the peak plot's raw pattern is masked by the same document, so its
+      // payload is stale the moment this lands (`GuiSession._peaks_pattern`)
+      if (peaksData) await loadPeaks();
+    } catch (error) {
+      protocolError = (error as Error).message;
       say(`refused: ${(error as Error).message}`);
     }
   }
@@ -618,9 +664,10 @@
     <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} {theme} error={resultError}
         peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
+        {protocol} {extent} {channels} {protocolError} {busy}
         onhoverpeak={(i) => (hoveredPeak = i)}
         onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
-        onremovepeak={removePeak} />
+        onremovepeak={removePeak} onprotocol={setProtocol} />
       <div class="side" bind:clientWidth={sideMeasured}
         style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
         <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}

@@ -5,7 +5,12 @@ import {
   TICK_BAND,
   curveColors,
   curveToggles,
+  formatRegion,
   hoverLabel,
+  maskShapes,
+  masked,
+  mergeRegions,
+  normalizeRegion,
   residual,
   scaleValues,
   shows,
@@ -90,6 +95,90 @@ describe("the curve colours (WP-1029 q)", () => {
     expect(colors.bkg).toBe("#6b7280");
     expect(colors.zero).toBe("#88888888");
   });
+
+  it("reads the mask wash and its edge from properties too (WP-1033)", () => {
+    // the edge is `--muted`, not a sixth plot colour: it is chrome for a
+    // boundary, and it has to match the ink the strip below the plot uses
+    const set: Record<string, string> = { "--plot-mask": "#00000022", "--muted": "#9a9a94" };
+    const colors = curveColors((name) => set[name] ?? "");
+    expect(colors.mask).toBe("#00000022");
+    expect(colors.edge).toBe("#9a9a94");
+    expect(curveColors(() => "").mask).toBe("#1b1b1b14");
+  });
+});
+
+describe("shading what is not fitted (WP-1033)", () => {
+  const COLORS = { mask: "#1b1b1b14", edge: "#6b6b66" };
+  const EXTENT: [number, number] = [3, 24];
+
+  it("draws nothing when the whole pattern is being fitted", () => {
+    expect(maskShapes({ limits: null, regions: [] }, EXTENT, COLORS)).toEqual([]);
+  });
+
+  it("shades the *outside* of the fit range, and reaches past any view", () => {
+    // plotly clips a shape to the axis and has no infinity to be given, so the
+    // outer bands must be finite and wider than any range the data can produce
+    const shapes = maskShapes({ limits: [8, 19], regions: [] }, EXTENT, COLORS);
+    const bands = shapes.filter((s) => s.type === "rect");
+    expect(bands).toHaveLength(2);
+    expect(bands[0].x0).toBeLessThan(EXTENT[0]);
+    expect(bands[0].x1).toBe(8);
+    expect(bands[1].x0).toBe(19);
+    expect(bands[1].x1).toBeGreaterThan(EXTENT[1]);
+  });
+
+  it("puts every shape in paper coordinates, which is what survives a scale", () => {
+    // a rectangle in log space is not the rectangle in linear space, and the
+    // only free y-domain — TICK_BAND — belongs to the reflection ticks
+    const shapes = maskShapes({ limits: [8, 19], regions: [[13, 16]] }, EXTENT, COLORS);
+    expect(shapes.every((s) => s.yref === "paper" && s.y0 === 0 && s.y1 === 1)).toBe(true);
+    expect(shapes.every((s) => s.xref === "x")).toBe(true);
+    // …and under the traces: a wash that dimmed the points would be saying
+    // something about the data rather than about the protocol
+    expect(shapes.every((s) => s.layer === "below")).toBe(true);
+  });
+
+  it("gives every region a band and both its edges", () => {
+    const shapes = maskShapes({ limits: null, regions: [[13, 16], [20, 21]] },
+                              EXTENT, COLORS);
+    expect(shapes.filter((s) => s.type === "rect").map((s) => [s.x0, s.x1]))
+      .toEqual([[13, 16], [20, 21]]);
+    expect(shapes.filter((s) => s.type === "line").map((s) => s.x0))
+      .toEqual([13, 16, 20, 21]);
+  });
+});
+
+describe("the region list (WP-1033)", () => {
+  it("orders a backwards drag and refuses a zero-width one", () => {
+    expect(normalizeRegion([19, 8])).toEqual([8, 19]);
+    expect(normalizeRegion([8, 19])).toEqual([8, 19]);
+    expect(normalizeRegion([8, 8])).toBeNull();
+    expect(normalizeRegion([NaN, 19])).toBeNull();
+  });
+
+  it("merges overlapping and touching entries, and sorts", () => {
+    expect(mergeRegions([[20, 21], [3, 5]])).toEqual([[3, 5], [20, 21]]);
+    expect(mergeRegions([[3, 5]], [4, 9])).toEqual([[3, 9]]);
+    // touching merges because the mask is inclusive at both ends
+    expect(mergeRegions([[3, 5]], [5, 9])).toEqual([[3, 9]]);
+    expect(mergeRegions([[3, 9]], [4, 5])).toEqual([[3, 9]]);
+  });
+
+  it("merging changes the chip list and provably not the mask", () => {
+    // the reason merging is allowed at all: `in_range_mask` removes the *union*
+    // of the regions, so this is a presentation change — asserted against the
+    // mask over a grid rather than by re-deriving the union in the assertion
+    const drawn: [number, number][] = [[13, 16], [15.5, 17], [4, 4.5], [17, 18]];
+    const merged = mergeRegions(drawn);
+    expect(merged).toEqual([[4, 4.5], [13, 18]]);
+    for (let x = 3; x <= 24; x += 0.05) {
+      expect(masked(merged, x)).toBe(masked(drawn, x));
+    }
+  });
+
+  it("labels a chip with what would be sent, not a rounded story", () => {
+    expect(formatRegion([13.0004, 16])).toBe("13.000–16.000°");
+  });
 });
 
 describe("the hover box (WP-1032)", () => {
@@ -162,6 +251,20 @@ describe("which curves are drawn (WP-1032)", () => {
 
   it("names the difference button whatever the residual knob chose", () => {
     expect(curveToggles(FITTED, "Σχ²").find((t) => t.id === "diff")!.label).toBe("Σχ²");
+  });
+
+  it("offers the masked points only when the protocol masks some (WP-1033)", () => {
+    // the *points* are a drawing choice and get a toggle; the shading is not,
+    // and is switched off only by removing the region that causes it
+    const withMask = { ...FITTED, excluded: { two_theta: [3, 4], y_obs: [1, 2] } };
+    expect(curveToggles(withMask).map((t) => t.id))
+      .toEqual(["obs", "masked", "calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2"]);
+    expect(curveToggles({ ...withMask, excluded: { two_theta: [], y_obs: [] } })
+      .map((t) => t.id)).not.toContain("masked");
+    // and on the raw view, which is the only place a fit range can be seen
+    // before there is a fit at all
+    expect(curveToggles({ ...withMask, raw: true } as any).map((t) => t.id))
+      .toEqual(["obs", "masked"]);
   });
 
   it("hides by exception, so a curve this build does not know about is drawn", () => {

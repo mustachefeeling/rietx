@@ -26,6 +26,7 @@ export type Scale = "linear" | "sqrt" | "log";
  */
 export function curveColors(read: (name: string) => string): {
   obs: string; calc: string; bkg: string; diff: string; zero: string;
+  mask: string; edge: string;
 } {
   const pick = (name: string, fallback: string) => read(name).trim() || fallback;
   return {
@@ -34,6 +35,12 @@ export function curveColors(read: (name: string) => string): {
     bkg: pick("--plot-bkg", "#6b7280"),
     diff: pick("--plot-diff", "#1f5fa8"),
     zero: pick("--plot-zero", "#88888888"),
+    // the two protocol colours (WP-1033).  `mask` is a wash rather than a
+    // curve colour because what it marks is *absence from the residual*, and
+    // `edge` is the boundary, which has to stay readable when the wash is
+    // off-screen — a fit range shows only its edges once you zoom inside it.
+    mask: pick("--plot-mask", "#1b1b1b14"),
+    edge: pick("--muted", "#6b6b66"),
   };
 }
 
@@ -74,6 +81,113 @@ export interface Window {
   cumulative_chi2?: number[];
   /** σ was *measured* (the file's esd column), not the Poisson fallback */
   weighted?: boolean;
+  /** the measured points the protocol masks — never in the residual, and not
+   *  in the result at all, which is why the server sends them separately */
+  excluded?: { two_theta: number[]; y_obs: number[] };
+  n_excluded?: number;
+  /** the curves on screen were fitted over a different channel set */
+  stale?: boolean;
+}
+
+/**
+ * What is being fitted — the protocol, not a drawing choice (WP-1033).
+ *
+ * Both fields are `ProjectDoc`'s, both persist on the verb that sets them, and
+ * both change the answer: excluded channels never enter the residual, so they
+ * never enter Rwp or χ² either. That is the whole reason they may not wear the
+ * same clothes as the residual selector and the intensity scale beside them —
+ * those are session-local and deliberately unpersisted (WP-1015), because
+ * storing one would make a *picture* the project's opinion.
+ */
+export interface Protocol {
+  limits: [number, number] | null;
+  regions: [number, number][];
+}
+
+/**
+ * The shapes that shade what is not being fitted.
+ *
+ * `yref: "paper"` on purpose, and it is the load-bearing choice: a band in data
+ * coordinates would have to be recomputed for every intensity scale (a rectangle
+ * in log space is not the rectangle in linear space), and the reflection ticks
+ * already own the only free y-domain there was — `TICK_BAND` at [0.225, 0.275].
+ * In paper coordinates one rectangle spans both subplots *and* the tick band,
+ * which is also the truth: an excluded channel is missing from the residual, not
+ * only from the pattern.
+ *
+ * `extent` is the measured 2θ range, widened by its own span: plotly clips a
+ * shape to the axis, and there is no infinity to give it, so the outside-the-
+ * range bands have to be finite and wider than any view the data can produce.
+ *
+ * `layer: "below"` keeps the wash under the traces — a shaded band that dims the
+ * points it covers would be saying something about the data rather than about
+ * the protocol.
+ */
+export function maskShapes(protocol: Protocol, extent: [number, number],
+                           colors: { mask: string; edge: string }): any[] {
+  const [lo, hi] = extent;
+  const pad = Math.max(hi - lo, 1);
+  const band = (x0: number, x1: number) => ({
+    type: "rect", xref: "x", yref: "paper", x0, x1, y0: 0, y1: 1,
+    fillcolor: colors.mask, line: { width: 0 }, layer: "below",
+  });
+  const edge = (x: number) => ({
+    type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1,
+    line: { color: colors.edge, width: 1, dash: "dot" }, layer: "below",
+  });
+  const shapes: any[] = [];
+  if (protocol.limits) {
+    const [a, b] = protocol.limits;
+    shapes.push(band(lo - pad, a), band(b, hi + pad), edge(a), edge(b));
+  }
+  for (const [a, b] of protocol.regions) shapes.push(band(a, b), edge(a), edge(b));
+  return shapes;
+}
+
+/** A drawn interval as an ordered pair, or null if it is a point. */
+export function normalizeRegion(pair: [number, number]): [number, number] | null {
+  const [a, b] = pair;
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return null;
+  return a < b ? [a, b] : [b, a];
+}
+
+/**
+ * The region list with `add` folded in: sorted, and with overlaps merged.
+ *
+ * Merging is a **presentation** decision that provably changes nothing about
+ * what is fitted — `PatternData.in_range_mask` removes the union of the
+ * regions, so two overlapping entries and their merged one mask exactly the
+ * same channels (asserted that way in `plot.test.ts`, over a grid, rather than
+ * by re-deriving the union). What it buys is a chip list a user can read: three
+ * drags over one peak are one exclusion, not three.
+ *
+ * Touching intervals merge too, because the mask is inclusive at both ends.
+ */
+export function mergeRegions(regions: readonly [number, number][],
+                             add?: [number, number] | null): [number, number][] {
+  const all = [...regions, ...(add ? [add] : [])]
+    .map((r) => normalizeRegion(r as [number, number]))
+    .filter((r): r is [number, number] => r !== null)
+    .sort((p, q) => p[0] - q[0]);
+  const out: [number, number][] = [];
+  for (const [a, b] of all) {
+    const last = out[out.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else out.push([a, b]);
+  }
+  return out;
+}
+
+/** Is 2θ inside any region?  The client's copy of the server's mask test, and
+ *  the only thing `plot.test.ts` compares a merge against. */
+export function masked(regions: readonly [number, number][], twoTheta: number): boolean {
+  return regions.some(([a, b]) => twoTheta >= a && twoTheta <= b);
+}
+
+/** One decimal place more than the data resolves — a region is a protocol
+ *  statement, so its chip shows what would be sent, not a rounded story. */
+export function formatRegion([a, b]: [number, number]): string {
+  return `${a.toFixed(3)}–${b.toFixed(3)}°`;
 }
 
 /**
@@ -137,6 +251,14 @@ export function curveToggles(w: Window & { raw?: boolean; ticks?: Record<string,
   const out: CurveToggle[] = [
     { id: "obs", label: "obs", title: "the measured points" },
   ];
+  if (w.excluded?.two_theta?.length) {
+    // a *curve* toggle for the excluded points, not for the shading: hiding
+    // them is a drawing choice, while the region itself is protocol and is
+    // switched off only by removing it (WP-1033)
+    out.push({ id: "masked", label: "masked",
+      title: "the measured points outside the fit range or inside an excluded "
+        + "region — drawn recessively, and in no residual" });
+  }
   if (!w.raw) {
     out.push({ id: "calc", label: "calc", title: "the model" });
     if (w.y_background?.length) {
