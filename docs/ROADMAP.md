@@ -56,62 +56,45 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **Last closed: [1016](wp/1016-sequential-series-panel.md), 2026-08-05** — an
-in-situ ramp is drivable from the GUI, and the panel is built around the fact that
-**a smooth curve is exactly what a poisoned chain produces**: `direction="both"`
-banners `SEQUENTIAL_PATH_DEPENDENT` and draws the flagged trajectory dashed with
-the backward chain beside it. It began by finding its own charter wrong — WP-1008
-said `SequentialRefinement` already took `events=`/`cancel=` and it took neither —
-so the library gained both, per pattern, and a cancelled series now **returns**
-what completed. The series lives *beside* the project (staged uploads, in-memory
-trees, `ProjectDoc.patterns` still length 1) under the project's own protocol;
-persistence is deferred to **1003**. Narrative and the four browser findings:
+in-situ ramp is drivable from the GUI, built around the fact that **a smooth curve
+is exactly what a poisoned chain produces**. It began by finding its own charter
+wrong (WP-1008 said `SequentialRefinement` already took `events=`/`cancel=`; it
+took neither), so the library gained both per pattern and a cancelled series
+**returns** what completed. The series lives *beside* the project; persistence is
+deferred to **1003**. **The GUI is complete but for
+[1017](wp/1017-gui-manual-onboarding.md)**; narrative in
 [milestones/v1.0.md](milestones/v1.0.md).
 
 **Still open from [1040](wp/1040-engine-svd-index.md)**: the eight-dataset
 scoreboard, handed to [1041](wp/1041-indexing-benchmark-gallery.md) with three
-defects 1040 measured in it. Everything else there landed — a third engine, so
-`high` now means all three agree; 11-BM NAC indexed as measured; and the
-zero-error column, which does *not* raise the hit rate and does stop a converged
-answer being wrong. Same day before it: [1035](wp/1035-symmetry-surfaced.md),
-[1034](wp/1034-panel-layout.md), [1033](wp/1033-plot-range-regions.md),
-[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md).
+defects 1040 measured in it. Everything else there landed — a third engine (so
+`high` means all three agree), 11-BM NAC indexed, and the zero-error column.
 
 The method lesson is ten sessions running (1030 → … → 1016): **instrument before
-ranking, and let the by-hand run judge.** 1040's "nothing regressed" died to a
-38-row acceptance run; 1035's entry diff and 1016's ranking rule both died to a
-browser. All of it repeats 1039's withdrawal — **a prediction is not a
-measurement** — and 1016 adds the inverse: **an inherited claim is not one
-either.**
+ranking, and let the by-hand run judge** — 1040's "nothing regressed", 1035's
+entry diff and 1016's ranking rule each died to one. **A prediction is not a
+measurement**, and 1016 adds the inverse: **nor is an inherited claim.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
 2. [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
-   *numbers* are stale twice over and it **inherits three defects measured in
-   1040**: `trial_error._solution_key` is scale-invariant *and* carries no
-   centring, and `borda_scores` weighs all seven panel members alike, so it leads
-   with the wrong centring where `m_rev` separates them 516×. Fix all three first.
+   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature.
+   1041's scoreboard *numbers* are stale twice over and it **inherits three
+   defects measured in 1040**; fix all three before scoring anything.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP, and the only one
-   left in it. Its `### Inherited` now carries nine tabs rather than eight, plus
-   the four things 1016's panel needs *taught* rather than listed.
-5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
-   the freeze covers an exercised surface. It **inherits one line from 1036 via
-   1035** (`Phase.space_group` has no schema validator, deliberately, because
-   adding one changes the error type at every construction site including
-   history-node deserialization) and, from **1016**, the one decision that WP
-   deferred rather than took: a series has nowhere durable to live, which needs a
-   document and is the same seam multi-histogram wants.
+4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+   freeze covers an exercised surface. Both carry an `### Inherited` this
+   session filled; read it first.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
 **individual** program globals in Bergmann et al. 2004 (McMaille +5, Crysfire +6
-to beat — the old "≥ +9" was Table 5's `first_4` oracle, which no single entry
-reaches), abstaining on the mixture fixtures.
+to beat — "≥ +9" was Table 5's `first_4` oracle, which no entry reaches), and
+abstaining on the mixture fixtures.
 
 ## Milestones
 

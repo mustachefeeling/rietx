@@ -13,6 +13,26 @@ the indexing suite draws nothing at all.
 
 ### Inherited
 
+**From [1016](1016-sequential-series-panel.md), 2026-08-05 — two measured facts
+about drawing an esd, since this WP's whole deliverable is pictures.** Both were
+measured against the bundled **plotly 3.7.0** (what `/plotly.js` serves; the
+Python `plotly` package is 6.9.0 and the two version independently) and neither
+transfers to matplotlib without checking — but the *reasoning* does.
+
+- **A `null` in `error_y.array` does not leave a gap.** plotly draws the bar's two
+  caps at the point with zero height between them — byte-identical to what a `0`
+  produces — so a quantity with no esd renders as one measured exactly, which is a
+  confident-wrong singleton in picture form. The fix is a second, invisible trace
+  carrying the bars over only the points that *have* an esd
+  (`lib/series.ts:trajectoryTraces`). If this gallery plots a candidate's fitted
+  quantities with esds, it has the same problem: some candidates carry `cov_af`
+  and some do not.
+- **An esd smaller than a pixel must be left invisible.** Measured: σ(a) = 6.5e-6 Å
+  against a 4.8e-3 Å axis over 189 px is a 0.5 px bar, and 0.5 px is what was
+  drawn. That is the data, and scaling it to be seen would be WP-1029's "an
+  exaggeration is not a probability" — the rule it set for ellipsoid probability
+  levels, which applies to any error indicator a picture draws.
+
 **From WP-1040, 2026-08-05 — the scoreboard is stale a second time, and it now has
 a third column.** `search_svd` is registered, so `index_pattern` runs **three**
 engines by default and `high` requires all three to agree. Two rows already moved:
