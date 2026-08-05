@@ -5,7 +5,19 @@ Depends on: WP-1037
 
 ### Inherited
 
-- **From WP-1037 (2026-08-04), the streaming argument now has numbers.**
+- **From [1016](1016-sequential-series-panel.md) (2026-08-05): the run record's
+  three progress fields now have a *third* consumer, and it reads a different
+  event.** `_run["stage"]`/`["stage_index"]`/`["n_stages"]` are how the header's
+  progress pill reads "3 of 5", and `GuiSession._push` fills them from
+  `stage_start` for a fit, from `stage_start` for an indexing run (1037's flat
+  ladder), and now from **`fit_start`** for a series — gated on `series_index`
+  being present in `data`, because a series' inner stages would otherwise fill
+  them with `warm_refit (1/1)` for a forty-pattern chain. Two consequences for
+  anytime reporting: the gate is on a `data` key rather than on the run *kind*, so
+  a new run kind that stamps `series_index` would inherit the series framing by
+  accident; and if this WP makes progress richer than three fields, there are now
+  three writers to keep honest, not two. The additivity rule holds throughout — no
+  new `EventKind` was added for any of it.
   Task 0's profile of the 8-dataset corpus measured *time to first visible
   candidate* — today, the end of dichotomy's last system, since nothing streams:
   zincite **165.8 s of a 177.3 s run**, corundum 31.4 of 49.7, hl2 33.4 of 43.2,

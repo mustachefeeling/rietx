@@ -77,7 +77,7 @@ npm --prefix gui test
 
 ## Handover log
 
-- **2026-08-05 — closed ✅.** Branch `wp1016-series-panel`, four commits.
+- **2026-08-05 — closed ✅.** Branch `wp1016-series-panel`, eleven commits.
 
   **Done.** The library half first, because the WP's charter was wrong about it:
   WP-1008's Inherited said "`SequentialRefinement` already emits per-pattern
