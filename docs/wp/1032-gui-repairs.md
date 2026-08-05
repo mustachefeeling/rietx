@@ -1,6 +1,6 @@
 # WP-1032 — GUI repairs found by use
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-05
 Depends on: 1010-1015, 1027, 1029 (all landed) · **blocks** 1033 (same file)
 
 ## Goal
@@ -112,42 +112,43 @@ a fix** — task 3 is written as a reproduction, not a repair.
   [1033](1033-plot-range-regions.md)'s, and it lands *after* this WP because
   both edit `Plot.svelte`.
 - **Not the manual** — [1017](1017-gui-manual-onboarding.md) documents what this
-  changes; land before it and write into its `### Inherited` on sign-off.
+  changes; land before it and write into its inherited-mailbox section on
+  sign-off.
 - **Not a new plot library, and no client-side decimation** (WP-1010).
 
 ## Tasks
 
-- [ ] **Where does the frame go?** Profile a sidebar drag and a plot resize in a
+- [x] **Where does the frame go?** Profile a sidebar drag and a plot resize in a
       real browser *before* changing anything, and name the cost. The four
       candidates above are candidates; the plan deliberately picks no winner.
       Fix what the profile indicts, and **record what it exonerated** — a
       throttle added to an innocent path is a permanent claim nobody can audit.
-- [ ] **Themed `hoverlabel`** on both plotly surfaces (`Plot.svelte:layout()`
+- [x] **Themed `hoverlabel`** on both plotly surfaces (`Plot.svelte:layout()`
       and `Structure3D.svelte`), sourced from the same custom properties
       everything else reads. No component learns a hex value.
-- [ ] **Reproduce the heading clash**, both themes, and fix what is actually
+- [x] **Reproduce the heading clash**, both themes, and fix what is actually
       there. Either way, give `.side`/`.panel` the surface colour they claim, so
       a sticky `--panel` backdrop stops being a mismatch.
-- [ ] **A tick band of its own** in the `[0.22, 0.28]` gap — a third y axis,
+- [x] **A tick band of its own** in the `[0.22, 0.28]` gap — a third y axis,
       one row per phase, ticks legible under every residual kind and every
       intensity scale.
-- [ ] **Curve toggles** (observed / calculated / background / difference / each
+- [x] **Curve toggles** (observed / calculated / background / difference / each
       phase's row), unpersisted. Settle the background question above first and
       say which repair it turned out to be.
-- [ ] **Right-click removes.** Refit stays on the table's `↻`; the
+- [x] **Right-click removes.** Refit stays on the table's `↻`; the
       `window.prompt` goes with it.
-- [ ] **The gestures are stated whenever the Peaks tab is active**, fit or no
+- [x] **The gestures are stated whenever the Peaks tab is active**, fit or no
       fit, with the non-pointer route named beside each.
-- [ ] **Hover links the table and the plot both ways** — one `hoveredIndex` in
+- [x] **Hover links the table and the plot both ways** — one `hoveredIndex` in
       the shell threaded to both panels, drawn through `restyle` or a dedicated
       one-point trace. A full `react` per mouse move is the defect task 1 is
       about.
-- [ ] **No form field without help**: `packing` gets its title from the schema's
+- [x] **No form field without help**: `packing` gets its title from the schema's
       own words (`instrument.py:384-386` — fraction of the bore or slab occupied
       by solid, 0.3-0.6 for a tapped powder, 0.64 random close packing,
       estimator input only and never refinable), then a vitest asserts **every**
       `PresetField` and every `instrumentFields()` entry has one.
-- [ ] Tests: vitest for each pure function added and a jsdom mount test per
+- [x] Tests: vitest for each pure function added and a jsdom mount test per
       control; `tests/test_gui_server.py` only if a route moves (none should).
 
 ## Acceptance
@@ -181,6 +182,58 @@ is not installed, so `playwright-core` is installed in the job scratchpad,
   the tooltip quotes.
 
 ## Handover log
+
+- **2026-08-05** — **closed.** All nine repairs landed on branch
+  `wp1032-gui-repairs`, seven commits, every one of them measured in a real
+  browser before and after. Frontend: **303** vitest (was 282 — +21: 4
+  `coalesce`, 2 `hoverLabel`, 3 tick band, 4 curve toggles, 3 field-help
+  meta-tests, 5 jsdom mounts), svelte-check clean, `tests/test_gui_server.py`
+  + `test_gui_peaks.py` + `test_gui_dist.py` **73 passed**, ruff clean, dist
+  rebuilt in each commit. Screenshots: both themes × 1500/1000 px × both
+  projects, in the job scratchpad.
+
+  **Four findings worth more than the repairs they came from.**
+
+  1. **The lag is a trailing canvas, not stutter.** One `Plotly.Plots.resize`
+     of the NAC pattern (22 003 points → 7347 drawn, five traces) costs
+     **~111 ms**, and a 60-move sidebar drag issued **sixty** of them —
+     latencies climbing 117 134 151 168 …, the last resolving **1.10 s** after
+     it was asked for — while the page held 60 fps with **zero** long tasks.
+     So the eye sees the plot arrive a second late, and no frame-time metric
+     would ever have shown it. Fixed by `lib/resize.ts:coalesce` (one in
+     flight, at most one queued, and the queued one *runs* so the last redraw
+     is the final size): 60 → 3 calls, 1101 → 116 ms. The structure viewer had
+     the identical defect — **measured, not assumed**: 60 calls, max 1115 ms,
+     now 6 and 135 ms.
+     Exonerated and recorded: Splitter's per-pointermove `onsize` (already one
+     POST per drag, 14 ms), the relayout refetch (a drag-zoom emits one
+     relayout; plotly's cartesian `scrollZoom` is off, so a wheel emits none —
+     10 notches, 0 events), and the knob/theme `react` (12–16 ms per click).
+  2. **The heading clash was a `z-index`, and the reported cause was wrong
+     twice over.** Not transparency: the sticky `th` backdrop is opaque in both
+     themes. Not the `.side` colour mismatch either — that was real (#ffffff on
+     #fbfbfa, #1e1e1e on #151515), it is fixed, and **the clash survived it**.
+     What puts a row over the header is `tr.out td { opacity: 0.55 }`: opacity
+     < 1 paints as though positioned at z-index 0, and `tbody` follows `thead`
+     in tree order. Hence only the *excluded* rows ever clashed. Found by
+     `elementFromPoint` inside the header band returning the chip.
+  3. **A harness trap that cost the first two profiling runs**, and it will
+     cost the next session too: instrumentation must be installed from an
+     **init script**, before plotly.js assigns `window.Plotly`. `Plot.svelte`
+     holds the namespace in a `$state` rune, whose proxy caches each property
+     in a signal on first read — so a wrapper *confirmed installed* on
+     `window.Plotly.react` counted zero calls while the plot demonstrably
+     redrew. "Suspect the harness first" earned again.
+  4. **The background question resolved to "a missing control".** The trace is
+     drawn unconditionally whenever `y_background` is non-empty, so nothing was
+     absent; what was absent is the way to turn a forced curve off.
+
+  Two smaller notes. The task-9 assertion found **ten more** mute fields once
+  it existed, which is the argument for writing the meta-test rather than the
+  tooltip. And the `.side`/`.panel` surface change is CSS with no pure function
+  under it: it is verified by screenshot only, in both themes, at both widths.
+
+  Nothing is left open. `1033` inherits the `Plot.svelte` it now shares.
 
 - **2026-08-04** — created from a user's list after driving the shipped GUI,
   together with [1033](1033-plot-range-regions.md),

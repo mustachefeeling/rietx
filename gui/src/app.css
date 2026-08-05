@@ -31,6 +31,11 @@
   --plot-bkg: #6b7280;
   --plot-diff: #1f5fa8;
   --plot-zero: #88888888;
+  /* What is *not* being fitted (WP-1033): a wash, deliberately not a sixth
+     curve colour.  It marks absence from the residual rather than a quantity,
+     so it carries no hue anything else could be confused with, and it is weak
+     enough that the recessive grey observations stay readable through it. */
+  --plot-mask: #1b1b1b14;
   --mono: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
 }
 
@@ -50,6 +55,7 @@
     --plot-bkg: #6e6e66;
     --plot-diff: #5897dd;
     --plot-zero: #88888888;
+    --plot-mask: #e6e6e214;
   }
 }
 
@@ -68,6 +74,7 @@
   --plot-bkg: #6e6e66;
   --plot-diff: #5897dd;
   --plot-zero: #88888888;
+  --plot-mask: #e6e6e214;
 }
 
 * {

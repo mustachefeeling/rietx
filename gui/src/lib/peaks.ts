@@ -36,7 +36,13 @@ export interface GroupCurve {
 
 export interface PeaksPayload {
   peaks: PeakRow[] | null;
-  pattern: { two_theta: number[]; y_obs: number[]; n_total: number };
+  pattern: {
+    two_theta: number[]; y_obs: number[]; n_total: number;
+    /** the channels the protocol masks — this view is the only one a project
+     *  has before its first fit, so it is where a fit range is first seen */
+    excluded?: { two_theta: number[]; y_obs: number[] };
+    n_excluded?: number;
+  };
   groups?: GroupCurve[];
   diagnostics?: Array<{ level: string; code: string; message: string }>;
   flag_vocabulary: string[];

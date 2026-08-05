@@ -134,6 +134,26 @@
   /** the last extinction screen — cleared whenever the candidates renumber,
    *  which the server enforces too (a new index run 409s the stale GET) */
   let extinction = $state<any>(null);
+  /** the peak the pointer is over, wherever it is over it (WP-1032).  One index
+   *  here rather than one per panel, because "which line is this" is a question
+   *  about the session, and two copies would be two answers. */
+  let hoveredPeak = $state<number | null>(null);
+  /** the last refusal from a settings patch, in the verb's own words — held
+   *  beside the boxes that caused it rather than scrolled away in the console */
+  let protocolError = $state("");
+
+  /** What is being fitted (WP-1033), rebuilt from the document on every change.
+   *  A *derived* object rather than plot state: `project.json` is the authority,
+   *  and the plot is drawing it, not holding an opinion about it. */
+  const protocol = $derived({
+    limits: (project?.doc?.two_theta_limits ?? null) as [number, number] | null,
+    regions: (project?.doc?.excluded_regions ?? []) as [number, number][],
+  });
+  const extent = $derived((project?.data?.two_theta_range ?? null) as [number, number] | null);
+  const channels = $derived(project
+    ? ([project.data.n_fitted ?? project.data.n_points,
+        project.data.n_points] as [number, number])
+    : null);
 
   const busy = $derived(run?.state !== "idle");
   const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
@@ -165,6 +185,36 @@
     try {
       project = await api.patchProject({ ui: patch });
     } catch (error) {
+      say(`refused: ${(error as Error).message}`);
+    }
+  }
+
+  /** What is fitted, from the plot (WP-1033) — the same route `ui` takes, and
+   *  the reason `api.patchProject` stops being a `{ui: …}`-only call site.
+   *
+   *  It goes through the shell rather than the panel for the reason every peak
+   *  verb does: the Plot stays presentation, and the console echo of the Python
+   *  call belongs beside every other one.  The refusal is *held* rather than
+   *  toasted, because it is about a value still on screen in a box — the user
+   *  needs it while they retype. */
+  async function setProtocol(patch: Record<string, unknown>) {
+    if (!project) return;
+    try {
+      project = await api.patchProject(patch);
+      protocolError = "";
+      if ("two_theta_limits" in patch) {
+        const limits = patch.two_theta_limits as number[] | null;
+        say(`project.doc.two_theta_limits = ${limits ? `(${limits.join(", ")})` : "None"}`);
+      }
+      if ("excluded_regions" in patch) {
+        const regions = patch.excluded_regions as number[][];
+        say(`project.set_excluded_regions(${JSON.stringify(regions)})`);
+      }
+      // the peak plot's raw pattern is masked by the same document, so its
+      // payload is stale the moment this lands (`GuiSession._peaks_pattern`)
+      if (peaksData) await loadPeaks();
+    } catch (error) {
+      protocolError = (error as Error).message;
       say(`refused: ${(error as Error).message}`);
     }
   }
@@ -289,17 +339,11 @@
     const row = peaksData?.peaks?.find((p) => p.index === i);
     if (row) peakVerb(() => api.flagPeak(i, { use_for_indexing: !row.usable }));
   };
-  const refitGroup = (group: number) => {
-    const asked = window.prompt(
-      "Fit how many components in this group? (empty = the picker decides)");
-    if (asked === null) return;
-    const n = asked.trim() === "" ? undefined : Number(asked);
-    if (n !== undefined && (!Number.isInteger(n) || n < 1)) {
-      say(`refused: "${asked}" is not a component count`);
-      return;
-    }
-    peakVerb(() => api.refitGroup(group, n));
-  };
+  /** Right-click on a marker removes it (WP-1032).  Refit stays on the Peaks
+   *  table's `↻`, and the `window.prompt` for a component count went with it:
+   *  a modal on the one pointer gesture with no undo, for a verb another
+   *  control already carried. */
+  const removePeak = (index: number) => peakVerb(() => api.removePeak(index));
 
   async function loadIndexAnswer() {
     try {
@@ -619,9 +663,11 @@
     </div>
     <div class="panes" class:hidden={mode !== "panes"}>
       <Plot {result} {plotKey} {zoom} {theme} error={resultError}
-        peaks={peaksData} peaksActive={tab === "peaks"}
+        peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
+        {protocol} {extent} {channels} {protocolError} {busy}
+        onhoverpeak={(i) => (hoveredPeak = i)}
         onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
-        onrefitgroup={refitGroup} />
+        onremovepeak={removePeak} onprotocol={setProtocol} />
       <div class="side" bind:clientWidth={sideMeasured}
         style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
         <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
@@ -646,6 +692,7 @@
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
           <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
+            hovered={hoveredPeak} onhover={(i) => (hoveredPeak = i)}
             onpeaks={(p) => (peaksData = p)}
             onindexed={(a) => (indexAnswer = a)}
             onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />
@@ -760,8 +807,20 @@
     display: none;
   }
 
+  /* The panel column is a *surface*, and says so (WP-1032).
+     Reported as "transparent headings clash with other text on scroll"; what is
+     actually there is a colour mismatch, measured in both themes.  The Peaks
+     table's `th` is the app's only `position: sticky`, and it already paints an
+     opaque `var(--panel)` backdrop — over a column that set no background at
+     all and therefore showed the body's `--bg`.  Two surfaces, one strip:
+     #ffffff on #fbfbfa light, #1e1e1e on #151515 dark, so the header row read
+     as a band of a different colour rather than as a backdrop.  Naming the
+     column `--panel` — which is what the header bar already is — makes the
+     sticky backdrop match the surface it sticks to, and is why no rule here
+     needs to know that a table above it is sticky. */
   .side {
     flex: 0 0 clamp(340px, 38%, 560px);
+    background: var(--panel);
     border-left: 1px solid var(--line);
     display: flex;
     flex-direction: column;

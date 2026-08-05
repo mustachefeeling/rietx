@@ -89,7 +89,12 @@ carries: `gui/server.py` spells non-finite floats as the schemas do
 (`ser_json_inf_nan="strings"`) on responses *and* SSE frames, and the client reads
 them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
 `bind:clientHeight` compiles to, so its absence throws *during mount*) and
-`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled.
+`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled. It
+also has no plotly **emitter** — the library decorates the graph div with `on`
+at runtime, so `plotNode.on?.(…)` is a silent no-op and no plotly event can be
+driven at all; a test that needs one patches `on`/`removeAllListeners` onto
+`HTMLDivElement.prototype` for its own block (WP-1033) rather than globally,
+because what it wants is to *capture* the handlers.
 
 The **history and report panels** (WP-1012) are the GUI's read-and-act half, and
 the module that carries them is `report/apply.py` — the *how* beside Layer 2's
@@ -267,6 +272,63 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` send
 `cumulative_chi2` is not, because it must be accumulated over every point and
 decimated afterwards. And plotly's `responsive: true` window-only listener bit a
 **second** panel — any control row under a plot needs the `ResizeObserver`.
+
+**Repairs found by use** (WP-1032, `lib/resize.ts`, `lib/plot.ts`,
+`panels/{Plot,Peaks,Structure3D}.svelte`) is the pass that measured what the
+eleven panels *feel* like, and its rules are about how to find such things.
+**A trailing canvas is not a dropped frame**: `Plotly.Plots.resize` returns a
+promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
+*latency*, not jank — a drag issued one ~111 ms resize per pointer move and the
+last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
+through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
+one runs, so the last redraw is the final size), and both plotly panels were
+*measured* before taking it. **Instrument before the library loads**: a `$state`
+rune proxies the namespace and caches each property on first read, so patching
+`window.Plotly` after boot counts nothing while the plot redraws — use an init
+script. **A fix that does not remove the symptom is evidence about the cause**:
+the sticky peak header's backdrop is opaque and the panel column's missing
+surface was a real, separate mismatch; what paints a row over the header is
+`opacity: 0.55`, which promotes it to z-index 0 while the sticky `th` sat at
+`auto`. Three rules about what a plot may say: **a tick belongs to the model,
+not the residual** (its own `yaxis3` band in the free `[0.22, 0.28]` gap —
+on `y2` its visibility was a property of which residual was chosen), **hiding a
+curve is by exception** (`curveToggles`/`hidden`, unpersisted, so a curve a
+later build adds arrives drawn), and **a hover link costs a `restyle`, never a
+`react`** — one ring trace whose two coordinates move. Right-click **removes** a
+peak (refit stays on the table's `↻`; the `window.prompt` is gone), and the
+gestures are stated whenever the Peaks tab is up, each naming its non-pointer
+route. `title=` is these forms' only help mechanism, so **every `PresetField`
+and every `instrumentFields()` entry carries one**, pinned by a meta-test over
+every geometry — the assertion found ten mute fields the day it was written.
+
+**What is fitted, shaded and selectable** (WP-1033, `lib/plot.ts`,
+`panels/Plot.svelte`, `session._masked_arm`, `Project.fitted_mask`) is the fit
+range and the excluded regions made visible, and its founding measurement is
+that **a mask is invisible in a picture of its own output**: `compile_model`
+masks before a result exists, so both payloads carried only the surviving
+channels — a band would have shaded a hole, and a fit range had no *outside* at
+all, the axis autoranging inside it. So the masked channels travel beside the
+fitted ones (`excluded`, quarter budget) and `Project.fitted_mask` is the one
+authority for which channels the next run fits, pinned to `compile_model` by
+asserting `len(result.two_theta)` against it. Four rules. **Protocol is not a
+drawing choice and may not wear its clothes** — the residual selector and the
+scale are session-local and unpersisted, while a region changes Rwp and persists
+on the verb, so it lives in a strip of its own with typed fields and chips, and
+that strip carries the **channel count**, because a band drawn over points still
+in the residual is worse than no band. **Settings persist on the verb and curves
+move only on a run**, so between the two the picture contradicts the setting: the
+route says `stale` by comparing the fitted 2θ *values*, not their count. **A
+shape is `yref: "paper"` and clipped to the measured extent** — paper because a
+rectangle in log space is not the rectangle in linear space and `TICK_BAND` owns
+the only free y-domain; clipped because a shape bound to a data axis **takes part
+in the autorange**, and bands drawn past the data to survive a zoom-out *became*
+the range (measured: −40 to 100 on a 0.5–59.99° pattern). And **a new pointer
+meaning that is ambiguous everywhere is a mode, not an arbitration**: WP-1027
+could make the peak grab radius readable because the ambiguity was local, but a
+region drag is a zoom drag at every distance — so arming is explicit, hands the
+drag to plotly's own select box, *suspends* the peak verbs, and disarms after
+one selection. `viz/` deliberately does not shade (grounds in the WP): a result
+cannot say what was excluded, so the exported figure shows it as absence.
 
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the

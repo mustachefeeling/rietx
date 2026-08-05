@@ -56,63 +56,63 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **In flight: [1040](wp/1040-engine-svd-index.md)** (2026-08-05) — a **third
-indexing engine** landed: Coelho's iterative SVD, which proposes a metric at random
-and alternates "assign each line to its nearest calculated one" with "re-solve A..F
-from that assignment" until the assignment stops changing. It needs **no tolerance
-to search with**, a Table-1 call costs 0.2-3 ms, and it fails on a bad starting
-basin where the other two fail on a wide domain and a poisoned base line — so
-`high` confidence now means all three agree, which raises the bar rather than
-diluting it. WP-1023's Monte Carlo no-go is narrowed, not overturned: it scored
-*unrefined* random cells, and every working MC indexer refines each proposal.
+indexing engine**: Coelho's iterative SVD, which proposes a metric at random and
+alternates "assign each line to its nearest calculated one" with "re-solve A..F
+from that assignment" until the assignment stops changing. **No tolerance to search
+with**, a Table-1 call costs 0.2-3 ms, and it fails on a bad starting basin where
+the other two fail on a wide domain and a poisoned base line — so `high` now means
+all three agree, raising the bar rather than diluting it. WP-1023's Monte Carlo
+no-go is narrowed, not overturned: it scored *unrefined* random cells. **Two
+acceptance rows turned over toward capability** — 11-BM NAC is indexed *as
+measured* (a = 10.2512 Å cubic **I**, +19 ppm) where the row asserted it could not
+be, and the gate still declines it. **What 1040 still owes**: the zero-error column
+(Coelho §2.3), not optional per the corpus — bethanechol E and F are reached, A-D
+never are, their lines sitting a median 2.5 % in Q from the published cell's.
 
-**Two acceptance rows turned over toward capability.** 11-BM NAC is indexed *as
-measured* (a = 10.2512 Å cubic **I**, +19 ppm, `predicted_but_absent` 0 of 837)
-where the row asserted it could not be — and the gate still declines it, one engine
-not being agreement. SRM 660c LaB6 is now found by all three.
+**Also closed 2026-08-05: [1033](wp/1033-plot-range-regions.md)** (fit range and
+excluded regions, visible and selectable), before it
+[1032](wp/1032-gui-repairs.md) and [1039](wp/1039-search-line-count.md);
+narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
+here", including 1033's half-wrong premise — **a mask is invisible in a picture of
+its own output**.
 
-**What 1040 still owes**: the **zero-error column** (Coelho §2.3), which the corpus
-says is not optional — bethanechol E and F are reached, A-D never are, and at the
-published cell set Aa's lines sit a median 2.5 % in Q from their predictions
-against F's 1.9e-4, the zeroshift the benchmark was built to test; then the
-three-engine scoreboard re-measure, [1041](wp/1041-indexing-benchmark-gallery.md)'s
-as much as 1040's.
-
-The method lesson is six sessions running (1030 → … → 1040): **instrument before
-ranking, and let the by-hand acceptance run judge.** 1040 pays the WP-1039 edge —
-*read the paper, not the summary of it* — a second time, on its own context
-section, and repeats 1039's withdrawal: **a recorded no-go inherits the defects of
-the run that produced it**, twice over in one row.
+The method lesson is eight sessions running (1030 → … → 1040): **instrument before
+ranking, and let the by-hand acceptance run judge.** 1040 pays the WP-1039 edge
+(*read the paper, not the summary of it*) a second time on its own context section,
+and repeats 1039's withdrawal: **a recorded no-go inherits the defects of the run
+that produced it**, twice in one row. **`main` moved under this branch**, so
+CLAUDE.md's counts were re-measured *after* the merge — parents do not sum.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1040](wp/1040-engine-svd-index.md)'s two open tasks, above.
-2. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
-   we did not author; every item was hit by a real external benchmark.
+1. **[1040]'s two open tasks, above**, then
+   [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs we
+   did not author; every item was hit by a real external benchmark.
 3. [1041](wp/1041-indexing-benchmark-gallery.md) and
    [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
    1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
-   *numbers* are stale twice over: SRM 660c's caveat set changed, and every
-   dataset now has a third engine's opinion. **1041 also inherits a defect**:
+   *numbers* are stale twice over: SRM 660c's caveat set changed, and every dataset
+   now has a third engine's opinion. **1041 also inherits a defect**:
    `trial_error._solution_key` is scale-invariant, so it reports at most one cubic
    candidate per system — measured in 1040, fixed only in `svd.py`.
 4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
-   the bethanechol global score, now unblocked by 1030.
-5. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
-   [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) — the
-   2026-08-04 use session, behind the indexing rows because **none of them moves
-   the bar**. 1035's `### Inherited` carries 1036's `cell_constraints(sg)`.
+   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
+   carries what 1030 measured and what the harness still lacks.
+5. [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) — the
+   rest of the 2026-08-04 use session (1032/1033 closed), behind 1028/1026 because
+   **neither moves the bar**. Both unblocked; their `### Inherited` carry what
+   1033 put under the plot and what 1036 settled beneath it.
 6. [1016](wp/1016-sequential-series-panel.md) then
-   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017 waits
-   on 1032–1035, which change the controls it documents.
+   [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
+   waits on 1032–1035, which change the controls it documents.
 7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
-**The bar** (milestone row below): full validation matrix green; GUI
-end-to-end on 11-BM NAC matching the API-driven acceptance; indexing graded
-against the **individual** program globals in Bergmann et al. 2004 (McMaille +5,
-Crysfire +6 are the ones to beat — the old "≥ +9" was Table 5's `first_4`
-row, an oracle over four programs that no single entry reaches), abstaining on
-the mixture fixtures.
+**The bar** (milestone row below): full validation matrix green; GUI end-to-end on
+11-BM NAC matching the API-driven acceptance; indexing graded against the
+**individual** program globals in Bergmann et al. 2004 (McMaille +5, Crysfire +6
+are the ones to beat — the old "≥ +9" was Table 5's `first_4` oracle, which no
+single entry reaches), abstaining on the mixture fixtures.
 
 ## Milestones
 
@@ -215,8 +215,8 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
-| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ⬜ | 1010–1015, 1027, 1029 |
-| [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ⬜ | **1032** (same file), 1005, 1009 |
+| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
+| [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ⬜ | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |

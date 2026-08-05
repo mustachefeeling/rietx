@@ -49,25 +49,24 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1040** close, darwin/arm64 M4, in **`worktree-indexer`**
-whose venv is `[dev,jax]` with **no torch** — jax converts skips into passes, so no
-row here compares with a `[dev]` count, and the main checkout's figures were **not**
-re-measured (they predate 1037-1040; last good: the WP-1036 close entry):
+2026-08-05 at the **WP-1040** close, darwin/arm64 M4, **after merging `main`
+(WP-1032/1033)** — parents do not sum, so every python row was re-measured in one
+tree, `worktree-indexer`, venv `[dev,jax]`, **no torch** (jax turns skips into
+passes, so no row compares with a `[dev]` count):
 
-- fast suite: **1718 passed / 67 skipped**, **~3 min** idle — 1039's 1708 + 10
-  (nine SVD rows plus a third `never_started` parametrisation), no new skips.
-  **It was ~55 s at the 1039 close and the third engine is why**: the new rows are
-  ~10 s of that, the rest is every `index_pattern`-driven fast test now running
-  three engines (one is **51 s** alone). Narrowing what those rows search is the
-  lever if the developer loop needs it back; the budget is not.
-- full suite: **1813 passed / 72 skipped**, 24:03. passed+skipped 1885 = the fast
-  selection's 1785 + 100 slow-marked: 1040 adds one slow row (the SVD monoclinic
-  recovery, ~84 s) to 1039's 99.
-- **the indexing acceptance file is still the wall clock**: 36 rows, **20:03**
-  against 11:58 with two engines — the confidence gate's price, not a regression.
-- frontend (vitest): **282**, unchanged by 1030-1040 (none touched `gui/`), last
-  measured at the WP-1027 close.  `--collect-only` undercounts by one per fired
-  module-level `importorskip` — `tests/CLAUDE.md` § Quoting numbers.
+- fast suite: **1722 passed / 67 skipped**, **~2.5-3 min** idle — 1039's 1708 + 10
+  (1040) + 4 (1033). It was ~55 s at the 1039 close and **the third engine is
+  why**: the new rows are ~10 s of that, the rest is every `index_pattern`-driven
+  fast test now running three engines (one is **51 s** alone). Narrowing what those
+  rows search is the lever if the loop needs it back; the budget is not.
+- full suite: **1817 passed / 72 skipped**, 24-29 min; passed+skipped 1889 = the fast
+  selection's 1789 + 100 slow-marked. `tests/test_acceptance_indexing.py` sets the
+  wall clock: 36 rows, **20:03** against 11:58 with two engines.
+- frontend (vitest): **321** at the WP-1033 close (303 at 1032, +18 at 1033),
+  `svelte-check` clean; 1040 touched no `gui/` file.
+- **A module-level `importorskip` collapses its module into one skip**, so
+  `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
+
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -185,7 +184,12 @@ pdCIF with a `_meas` and a `_calc` block is a different pattern depending on
 purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
 corrupt project. `excluded_regions` live in the document because they are
 protocol that is in neither the file nor `RefinementState` — a node cannot say
-what was excluded when it ran.
+what was excluded when it ran. Two rules follow (WP-1033):
+`Project.fitted_mask()` is the one authority for **which channels the next run
+fits** (`compile_model`'s first act, pinned by asserting `len(result.two_theta)`
+against its sum), and an inverted or empty interval is **refused, not reordered**
+by `schemas.project.check_interval` — one sentence the verb, the `.pxt` parser
+and the document's own validators all quote.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
@@ -205,7 +209,7 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+The **GUI** (WP-1008…1015, 1029, 1032-1033) is `pxrdref gui [PROJECT.pxrd]` — stdlib
 `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
 holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
@@ -613,31 +617,30 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   closing anything that touches an engine.
 - Read a `predicted_but_absent` firing as "this cell predicts lines the pattern
   lacks", **never** "this cell is too big": it counts against the *lattice* group,
-  so a space-group extinction (corundum's R-3c c-glide, 12 reflections) refutes a
-  correct cell, and only the extinction screen separates the two. Choose acceptance
-  datasets **by space group** — SRM 660c (P m -3 m) is the control that proved it.
+  so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
+  only the extinction screen separates the two. Choose acceptance datasets **by
+  space group** — SRM 660c (P m -3 m) is the control that proved it.
 - The scoreboard across eight known-cell datasets is *never wrong, and silent more
-  often than right*; never let a summary round it up (WP-1041 owns the counts).
+  often than right*; never round it up (counts: WP-1041).
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And
   `ambiguity_partners` walks sublattices only, so a *smaller*-volume isospectral
-  rival is invisible — tetragonal P (a/√2, a) vs cubic P a is exact.
+  rival is invisible — tetragonal P (a/√2, a) vs cubic P a.
 - **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is provenance
-  about the input, never to be handed to anything that applies a centring.
-  Reduction needs the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits
-  into two candidates and denies the gate its agreement.
+  about the input, never handed to anything that applies a centring. Reduction needs
+  the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies
+  the gate its agreement.
 - **A search that finds nothing indicts its input before its tolerance**: the peak
   list blocked the certified pattern twice (fitted satellites, then `_box_key`
-  skipping unrefined leaves — a performance filter fails with a wrong answer, not
-  a slow one).
+  skipping unrefined leaves — a performance filter fails with a wrong answer).
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
-  `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is in the tolerance paragraph
-  above). `volume_envelope` is a mean line, not an envelope — WP-1030's.
-- **This package is not slow at indexing, it is silent** — DICVOL04 reaches
-  3770 s on hard triclinic patterns and McMaille "hours, if not a night", against
-  our measured 0.7–177 s. Buy responsiveness with ordering and reporting, never
-  by shrinking the box. **`budget_seconds` is per (engine × system)**, with the
+  `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above). `volume_envelope`
+  is a mean line, not an envelope — WP-1030's.
+- **This package is not slow at indexing, it is silent** — DICVOL04 reaches 3770 s
+  on hard triclinic patterns and McMaille "hours, if not a night", against our
+  measured 0.7–177 s. Buy responsiveness with ordering and reporting, never by
+  shrinking the box. **`budget_seconds` is per (engine × system)**, with the
   probe and Le Bail validation on top and *outside* it, so the whole-run bound is
   `SearchSpec.total_budget_seconds`, enforced as a `Deadline` that *is* the cancel
   token (it nests under every cooperative check with no engine changes);
@@ -645,30 +648,27 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   three states a bound run leaves (searched / truncated / not reached). A truncated
   validation reads `not_validated`, never `validation_failed` (1037).
 - **A Monte Carlo indexer must refine each proposal; scoring raw random cells does
-  not rank** — measured from both sides: WP-1023 scored raw proposals and ranked
+  not rank** — measured both ways: WP-1023 scored raw proposals and ranked
   corundum's truth 29 053 of 200 001, while `search_svd`, iterating each to a fixed
-  hkl assignment, returns it as its only candidate (WP-1040).
+  assignment, returns it as its only candidate (WP-1040).
 - **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
   (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
   V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
-  of why that engine costs seconds. **N_c counts distinct calculated d-spacings,
-  not hkl**; the paper's caption and prose disagree and an hkl count refuses the
-  certified LaB6 cell.
+  of why that engine costs seconds. **N_c counts distinct d-spacings, not hkl**, or
+  the gate refuses certified LaB6 (the paper's caption and prose disagree).
 - **An impurity cut is worth nothing until the metric is roughly right, and a
-  *budget* is not a *tolerance*** (WP-1040). Cutting far lines in the first pass
-  rather than the last takes zincite 5/5 → 1/5 and zircon and FAP to **0/5** — a
-  random metric predicts nothing near the observed lines, so an unbounded cut
-  deletes them all. A cut bounded to `n_unindexed` rescues only the dataset one
-  wild line destroys and costs every other, so it is a **retry after silence**.
+  *budget* is not a *tolerance*** (WP-1040): cutting far lines in the first pass
+  rather than the last takes zincite 5/5 → 1/5 and zircon and FAP to **0/5**, while
+  a cut bounded to `n_unindexed` rescues one dataset and costs the rest — a **retry
+  after silence**, never a default.
 - **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts the
   reflection-pair method, McMaille refuses to scan the zeropoint, and a cell found
   inside a widened window has absorbed the shift (WP-1038).
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
-  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and raising N *loses* answers —
-  `indexes_the_search_lines` is an **absolute** budget, so an admitted foreign line
-  refutes the truth rather than out-ranking it. Ties fall back to Q, so
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool), and raising N *loses* answers, since
+  `indexes_the_search_lines` is an **absolute** budget. Ties fall back to Q, so
   position-only lists are untouched.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only one

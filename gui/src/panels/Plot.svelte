@@ -22,12 +22,23 @@
     RESIDUAL_KINDS,
     SCALES,
     curveColors,
+    curveToggles,
+    formatRegion,
+    hoverLabel,
+    maskShapes,
+    mergeRegions,
+    normalizeRegion,
     residual,
     scaleValues,
+    shows,
     sqrtTicks,
+    tickBand,
+    toggleCurve,
+    type Protocol,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
+  import { coalesce } from "../lib/resize";
   import type { Theme } from "../lib/theme";
 
   let {
@@ -38,10 +49,18 @@
     theme = "light",
     peaks = null,
     peaksActive = false,
+    hovered = null,
+    protocol = { limits: null, regions: [] },
+    extent = null,
+    channels = null,
+    protocolError = "",
+    busy = false,
+    onhoverpeak = () => {},
     onaddpeak = () => {},
     onmovepeak = () => {},
     ontogglepeak = () => {},
-    onrefitgroup = () => {},
+    onremovepeak = () => {},
+    onprotocol = () => {},
   }: {
     result: any;
     plotKey: number;
@@ -59,10 +78,32 @@
     /** the Peaks tab is showing: only then do clicks mean add/move/exclude —
      *  a stray click while reading the report must not edit a peak list */
     peaksActive?: boolean;
+    /** the peak the pointer is over, wherever it is over it — one index in the
+     *  shell, threaded to both panels, so the table and the plot point at the
+     *  same line (WP-1032) */
+    hovered?: number | null;
+    /** what is being fitted, from `ProjectDoc` (WP-1033) — *not* a drawing
+     *  choice: these persist on the verb and change Rwp, which is why they
+     *  wear a different register from the knobs beside them */
+    protocol?: Protocol;
+    /** the measured 2θ range, which is what the shading has to reach past */
+    extent?: [number, number] | null;
+    /** `[fitted, measured]` channels — the check that a band is telling the
+     *  truth, because a band over points still in the residual is worse than
+     *  no band at all */
+    channels?: [number, number] | null;
+    /** the last refusal from `POST /api/project`, in the verb's own words */
+    protocolError?: string;
+    busy?: boolean;
+    onhoverpeak?: (index: number | null) => void;
     onaddpeak?: (twoTheta: number) => void;
     onmovepeak?: (index: number, twoTheta: number) => void;
     ontogglepeak?: (index: number) => void;
-    onrefitgroup?: (group: number) => void;
+    onremovepeak?: (index: number) => void;
+    onprotocol?: (patch: {
+      two_theta_limits?: [number, number] | null;
+      excluded_regions?: [number, number][];
+    }) => void;
   } = $props();
 
   let node: HTMLDivElement | undefined = $state();
@@ -75,10 +116,16 @@
    *  project's opinion. */
   let kind = $state<ResidualKind>("weighted");
   let scale = $state<Scale>("linear");
+  /** curves the user has switched off, by id — an *exception* list, so a curve
+   *  this build does not know about yet still arrives drawn */
+  let hidden = $state<string[]>([]);
   /** the payload the last draw used, so a knob redraws without a refetch */
   let held: any = $state(null);
+  /** the toggles this payload offers — background only when there is one, one
+   *  row per phase (WP-1032) */
+  const toggles = $derived(held ? curveToggles(held, residual(kind, held).label) : []);
 
-  function layout(w: any, colors: ReturnType<typeof curveColors>): any {
+  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number): any {
     const style = getComputedStyle(document.body);
     const fg = style.color;
     // the panel border colour, for the grid: plotly's default grid is
@@ -89,7 +136,19 @@
       ? { title: "(y − fit)/σ per group", label: "", zeroline: true }
       : residual(kind, w);
     const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
+    const band = tickBand(nPhases);
     return {
+      ...(band ? { yaxis3: band.axis } : {}),
+      // What is not being fitted, shaded where it acts.  Drawn from the
+      // project document rather than inferred from a hole in the data: a gap
+      // in the arrays is what an exclusion *leaves*, not what it is, and a
+      // renderer that guessed would be a second authority on the protocol.
+      shapes: extent ? maskShapes(protocol, extent, colors) : [],
+      // The one arbitration in this panel: while a range gesture is armed the
+      // drag belongs to plotly's own select box, and the peak verbs below are
+      // suspended for as long as it is (see `arm`).
+      dragmode: arm ? "select" : "zoom",
+      selectdirection: "h",
       margin: { l: 62, r: 12, t: 8, b: 40 },
       showlegend: true,
       legend: { orientation: "h", y: 1.12, x: 0 },
@@ -111,6 +170,7 @@
       yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
                 zeroline: res.zeroline, zerolinecolor: colors.zero },
       hovermode: "x unified",
+      hoverlabel: hoverLabel((name) => style.getPropertyValue(name)),
     };
   }
 
@@ -155,42 +215,68 @@
     // change actually change anything
     const colors = curveColors((name) =>
       getComputedStyle(document.body).getPropertyValue(name));
-    const traces: any[] = [
-      { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
-        type: "scattergl", customdata: w.y_obs,
-        marker: { size: 4, color: colors.obs },
-        hovertemplate: "%{customdata:.6g}<extra>observed</extra>" },
-    ];
+    const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
+    const band = tickBand(phases.length);
+    const traces: any[] = [];
+    if (shows(hidden, "obs")) {
+      traces.push(
+        { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
+          type: "scattergl", customdata: w.y_obs,
+          marker: { size: 4, color: colors.obs },
+          hovertemplate: "%{customdata:.6g}<extra>observed</extra>" });
+    }
+    // The channels the protocol masks, which are in no result and therefore
+    // arrive on their own arm.  Without them a fit range has no *outside* to
+    // shade — the axis autoranges to the surviving points, so the picture
+    // simply stops where the range does and the user cannot see what they cut
+    // (measured on the synthetic fixture: a 3–24° pattern came back as
+    // 8.005–18.990°).  Recessive on purpose: they are context, not evidence.
+    if (w.excluded?.two_theta?.length && shows(hidden, "masked")) {
+      traces.push(
+        { x: w.excluded.two_theta, y: scaleValues(scale, w.excluded.y_obs),
+          name: "masked", mode: "markers", type: "scattergl",
+          customdata: w.excluded.y_obs,
+          marker: { size: 3, color: colors.edge, opacity: 0.45 },
+          hovertemplate: "%{customdata:.6g}<extra>masked — not in the residual</extra>" });
+    }
     if (!w.raw) {
       const res = residual(kind, w);
-      traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
-        mode: "lines", type: "scattergl", customdata: w.y_calc,
-        line: { width: 1.2, color: colors.calc },
-        hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
-      if (w.y_background?.length) {
+      if (shows(hidden, "calc")) {
+        traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
+          mode: "lines", type: "scattergl", customdata: w.y_calc,
+          line: { width: 1.2, color: colors.calc },
+          hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
+      }
+      if (w.y_background?.length && shows(hidden, "bkg")) {
         traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
           mode: "lines", type: "scattergl", customdata: w.y_background,
           line: { width: 1, dash: "dot", color: colors.bkg },
           hovertemplate: "%{customdata:.6g}<extra>background</extra>" });
       }
-      traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-        type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      if (shows(hidden, "diff")) {
+        traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
+          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      }
 
       // every emission line's ticks, not just the primary: the Kα2 positions are
-      // in here too, which is what stops a doublet reading as an impurity
-      let row = 0;
-      for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
-        const y = -0.5 - row * 0.9;
-        traces.push({ x: ticks as number[], y: (ticks as number[]).map(() => y), yaxis: "y2",
+      // in here too, which is what stops a doublet reading as an impurity.  They
+      // ride on `y3`, a band of their own between the two subplots (WP-1032) —
+      // on the residual axis their visibility was a property of which residual
+      // was selected, and under cumulative χ² they were a line on the floor.
+      phases.forEach((phase, row) => {
+        if (!shows(hidden, `ticks:${phase}`)) return;
+        const ticks = (w.ticks ?? {})[phase] as number[];
+        const y = band!.rows[row];
+        traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
           name: phase, mode: "markers", type: "scattergl",
           marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } },
           hovertemplate: `${phase} %{x:.4f}°<extra></extra>` });
-        row += 1;
-      }
+      });
     }
     traces.push(...peakTraces(w, colors));
+    ringAt = peaks?.peaks?.length ? traces.length - 1 : -1;
 
-    await plotly.react(node, traces, layout(w, colors),
+    await plotly.react(node, traces, layout(w, colors, phases.length),
                        { responsive: true, displaylogo: false });
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
@@ -206,6 +292,27 @@
       if (typeof a === "number" && typeof b === "number") draw(a, b);
       else if (ev["xaxis.autorange"]) draw();
     });
+    // the other half of the hover link: a marker under the pointer names its
+    // row in the panel.  `x unified` hands over every trace's point at that 2θ,
+    // so the peak — if there is one there — is the one to read.
+    plotNode.removeAllListeners?.("plotly_hover");
+    plotNode.on?.("plotly_hover", (ev: any) => {
+      if (!peaksActive) return;
+      const hit = ev.points?.find((p: any) => p.data?.name === "peaks");
+      onhoverpeak(hit ? (hit.customdata?.[0] ?? null) : null);
+    });
+    plotNode.removeAllListeners?.("plotly_unhover");
+    plotNode.on?.("plotly_unhover", () => {
+      if (peaksActive) onhoverpeak(null);
+    });
+    plotNode.removeAllListeners?.("plotly_selected");
+    plotNode.on?.("plotly_selected", (ev: any) => {
+      // plotly fires this with `undefined` to clear a selection, which is what
+      // a plain click inside select mode does — not a zero-width region
+      const range = ev?.range?.x;
+      if (arm && Array.isArray(range)) selected(range[0], range[1]);
+    });
+    drawRing();   // a redraw resets the trace, so the ring is put back
     watch();
   }
 
@@ -269,7 +376,29 @@
           .filter(Boolean).join(" ") || "usable"]),
       hovertemplate: "#%{customdata[0]} %{x:.4f}° — %{customdata[1]}<extra>peak</extra>",
     });
+    // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
+    // a full `react` per mouse move is exactly the cost task 1 measured, and one
+    // ring that changes its two coordinates is the cheapest thing plotly does.
+    out.push({
+      x: [], y: [], name: "hovered", mode: "markers", type: "scattergl",
+      marker: { size: 16, symbol: "circle-open", color: accent, line: { width: 2 } },
+      showlegend: false, hoverinfo: "skip",
+    });
     return out;
+  }
+
+  /** Where the highlight ring sits in the trace list of the last draw. */
+  let ringAt = $state(-1);
+
+  /** Move the ring to the hovered line — or off the plot when nothing is. */
+  function drawRing() {
+    if (!node || !plotly || ringAt < 0 || !held) return;
+    const row = hovered === null
+      ? undefined
+      : peaks?.peaks?.find((p) => p.index === hovered);
+    const x = row ? [row.two_theta] : [];
+    const y = row ? [heightAt(held, row.two_theta)] : [];
+    plotly.restyle?.(node, { x: [x], y: [y] }, [ringAt]);
   }
 
   /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
@@ -306,7 +435,12 @@
       return;
     }
     loadError = "";
-    const w = { raw: true, two_theta: peaks.pattern.two_theta, y_obs: peaks.pattern.y_obs };
+    // the masked channels travel here too: this is the view a project has
+    // *before* any fit, so it is the only place a fit range can be seen at all
+    // — and without them the axis autoranges inside the range and the shading
+    // has nothing to shade (found in the browser; jsdom drew no axis)
+    const w = { raw: true, two_theta: peaks.pattern.two_theta, y_obs: peaks.pattern.y_obs,
+                excluded: peaks.pattern.excluded };
     held = w;
     shown = {
       n: w.two_theta.length,
@@ -344,7 +478,55 @@
    *  the non-destructive gestures (shift-toggle) still aim with. */
   let gesture: { move: number; click: number; startX: number; moved: boolean } | null = null;
 
+  /**
+   * The range gesture, and why it is a *mode* rather than a fourth drag
+   * meaning (WP-1033).
+   *
+   * The canvas already carries five pointer meanings — peak-add, peak-move,
+   * shift-toggle, right-click-remove and plotly's zoom drag — and WP-1027
+   * measured what a sixth costs when two overlap: a 10 px grab radius is ±1.9°
+   * at the survey view, so a zoom drag starting 0.9° from a marker silently
+   * moved a line 11°.  The repair there was to make the radius *readable*
+   * (`grabToleranceDeg`), so an ambiguous drag falls through to the harmless
+   * verb.
+   *
+   * Here there is no radius to derive, because a region drag is ambiguous with
+   * a zoom drag **everywhere** — same button, same shape, same distances.  So
+   * the ambiguity is removed rather than arbitrated: arming is an explicit
+   * click on a named control, it hands the drag to plotly's own select box
+   * (`dragmode: "select"`, which is also the visible feedback), it *suspends*
+   * the peak verbs while it holds, and it disarms itself after one selection.
+   * Nothing is momentary except the mode the user asked for, and an
+   * un-armed drag still zooms, which is the harmless thing.
+   *
+   * The non-pointer routes are the typed boxes in the strip below and the
+   * `.pxt` document's `limits`/`excluded` lines — both of which existed
+   * before this gesture did.
+   */
+  let arm = $state<null | "limits" | "exclude">(null);
+
+  function selected(a: number, b: number) {
+    const pair = normalizeRegion([a, b]);
+    const which = arm;
+    arm = null;   // one drag, one region: the mode does not linger
+    if (!pair || !which) {
+      clearSelection();
+      return;
+    }
+    if (which === "limits") onprotocol({ two_theta_limits: pair });
+    else onprotocol({ excluded_regions: mergeRegions(protocol.regions, pair) });
+    clearSelection();
+  }
+
+  /** Drop plotly's selection rectangle — the region is now the shading's job,
+   *  and a lingering marquee would claim the fact twice. */
+  function clearSelection() {
+    if (node && plotly) plotly.relayout?.(node, { selections: [] });
+  }
+
   function down(ev: PointerEvent) {
+    // armed: the drag is plotly's select box, and every peak verb stands down
+    if (arm) return;
     if (!peaksActive || !peaks?.peaks || ev.button !== 0) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
@@ -367,7 +549,7 @@
   function up(ev: PointerEvent) {
     const g = gesture;
     gesture = null;
-    if (!g || !peaksActive || !peaks?.peaks) return;
+    if (arm || !g || !peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
     if (g.moved) {
@@ -383,14 +565,24 @@
     }
   }
 
+  /**
+   * Right-click **removes** the line under the pointer (WP-1032).
+   *
+   * It used to refit the line's whole group through a `window.prompt` for a
+   * component count — a modal in the one gesture that has no undo, on a verb the
+   * table's `↻` already carries.  Remove is the destructive edit a pointer
+   * should be able to make directly; the panel's `×` is its non-pointer route,
+   * and the coarse 10-px radius is the same one shift-toggle aims with, because
+   * the precision of a *marker* hit does not come from the pixel radius.
+   */
   function context(ev: MouseEvent) {
-    if (!peaksActive || !peaks?.peaks) return;
+    if (arm || !peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
     if (tt === null) return;
     const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
     if (hit === null) return;
     ev.preventDefault();
-    onrefitgroup(peaks.peaks.find((p) => p.index === hit)!.group);
+    onremovepeak(hit);
   }
 
   /**
@@ -404,20 +596,58 @@
    * knobs arrived, and the browser reported the result in the defect's own
    * words: a `<rect class="sdrag drag">` from the plot div "intercepts pointer
    * events" on a button 40 px underneath it.
+   *
+   * `coalesce` is WP-1032's half: one resize costs ~111 ms here and a sidebar
+   * drag delivered sixty of them, so the canvas trailed the grip by up to 1.1 s
+   * (the measurement, and why the trailing re-run is not optional, are in
+   * `lib/resize.ts`).
    */
   function watch() {
     if (observer || !node || typeof ResizeObserver === "undefined") return;
-    observer = new ResizeObserver(() => {
-      if (node && plotly) plotly.Plots?.resize(node);
-    });
+    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
+    observer = new ResizeObserver(fit);
     observer.observe(node);
   }
 
   $effect(() => () => observer?.disconnect());
 
+  /** The protocol as a *primitive*, so this panel does not refetch on every
+   *  ui-only PATCH — the effect-reads-the-project-object trap WP-1027's second
+   *  pass recorded, one panel over. */
+  const protocolKey = $derived(JSON.stringify([protocol.limits, protocol.regions]));
+
+  // -- the typed route (WP-1033) -------------------------------------
+  // Empty means "no limit", which is why the placeholder is the measured
+  // extent rather than a zero: a blank box says the whole pattern is fitted,
+  // and that is also what `limits none` means in the .pxt document.
+  let loText = $state("");
+  let hiText = $state("");
+  $effect(() => {
+    void protocolKey;
+    loText = protocol.limits ? String(protocol.limits[0]) : "";
+    hiText = protocol.limits ? String(protocol.limits[1]) : "";
+  });
+
+  /** Send the typed range. A half-filled or unparseable pair is sent as it
+   *  reads and refused by the document's own validator — this client has no
+   *  opinion about validity, which is WP-1013's rule for the text pane and the
+   *  same rule here: two validators would be two answers. */
+  function applyLimits() {
+    if (!loText.trim() && !hiText.trim()) {
+      onprotocol({ two_theta_limits: null });
+      return;
+    }
+    const num = (text: string) => (text.trim() === "" ? NaN : Number(text));
+    onprotocol({ two_theta_limits: [num(loText), num(hiText)] });
+  }
+
   $effect(() => {
     plotKey; // redraw when the session says the curves moved
     void peaks; // …and when a peak verb answered with a new list
+    // …and refetch — not merely repaint — when the protocol moves: the masked
+    // points are an arm of the payload, so a repaint of the held copy would
+    // shade a region whose points are still the old mask's
+    void protocolKey;
     // …and refetch the window when another panel points at one: the zoom is a
     // *server* fetch, not an axis range, so a region the report sent us to comes
     // back at full point budget rather than as the decimated overview stretched
@@ -450,11 +680,24 @@
     void kind;
     void scale;
     void theme;
+    void hidden;
+    void arm;     // the drag mode is layout, so arming redraws
+    void extent;
     if (held) paint(held);
+  });
+
+  // the hover link is *not* in the effect above, and that is the whole point:
+  // a mouse move must cost one `restyle` of one two-point trace, never a
+  // repaint of the pattern (task 1 measured what a repaint costs)
+  $effect(() => {
+    void hovered;
+    void ringAt;
+    drawRing();
   });
 </script>
 
-<svelte:window onpointermove={moved} onpointerup={up} />
+<svelte:window onpointermove={moved} onpointerup={up}
+  onkeydown={(ev) => { if (ev.key === "Escape" && arm) { arm = null; clearSelection(); } }} />
 
 <section>
   {#if error}
@@ -465,17 +708,34 @@
       history, run again: a checkout restores parameter values, not a fit.
     </p>
   {:else if !result && peaksActive}
-    <p class="note muted">
-      Raw pattern. Click to add a peak, drag a marker to move it, shift-click to
-      exclude, right-click a marker to refit its group.
-    </p>
+    <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
     <p class="note bad">{loadError} — install the plot extra: <code>pip install 'pxrd-refine[gui]'</code></p>
   {/if}
+  <!-- The gestures, stated whenever the tab that owns them is showing — fit or
+       no fit (WP-1032).  This line used to render only in the *raw* state, so
+       the moment a fit existed the pointer verbs were undocumented on screen.
+       Each one names its non-pointer route beside it, which is WP-1027's rule
+       made visible rather than only true. -->
+  {#if arm}
+    <!-- While a range gesture is armed it owns the canvas, and this line is
+         where that is said: the peak verbs are suspended, not competing. -->
+    <p class="note arming">
+      <strong>Drag on the plot</strong> to {arm === "limits"
+        ? "set the fitted 2θ range" : "exclude a 2θ region"}
+      <span class="muted">— the peak gestures are suspended; Esc cancels</span>
+    </p>
+  {:else if peaksActive && peaks?.peaks?.length}
+    <p class="note muted gestures">
+      <strong>Click</strong> to add a line <span class="muted">(or the panel's 2θ box)</span> ·
+      <strong>drag</strong> a marker to move it <span class="muted">(or the Text pane's 2θ column)</span> ·
+      <strong>shift-click</strong> to exclude <span class="muted">(or the row's checkbox)</span> ·
+      <strong>right-click</strong> to remove <span class="muted">(or the row's ×)</span>
+    </p>
+  {/if}
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
-       active.  Every verb has a non-pointer route too — add by typed 2θ in the
-       panel, move by editing the 2θ column of the text document — so the
-       pointer path is an accelerator, not the only way in. -->
+       active.  Every verb has a non-pointer route too — the line above names
+       each — so the pointer path is an accelerator, not the only way in. -->
   <div class="plot" role="application" aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   {#if shown}
@@ -492,10 +752,98 @@
             title={entry.title}>{entry.label}</button>
         {/each}
       </div>
+      <!-- Which curves are drawn.  Unpersisted, like the two knobs beside it:
+           a drawing choice is not the project's opinion (WP-1015/1029). -->
+      {#if toggles.length > 1}
+        <div class="segmented curves" role="group" aria-label="curves">
+          {#each toggles as curve (curve.id)}
+            <button class:on={shows(hidden, curve.id)}
+              onclick={() => (hidden = toggleCurve(hidden, curve.id))}
+              title="{curve.title} — click to {shows(hidden, curve.id) ? 'hide' : 'show'}"
+              >{curve.label}</button>
+          {/each}
+        </div>
+      {/if}
       <p class="note muted tabular">
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
         · min/max decimated server-side · zoom refetches the window
       </p>
+    </div>
+  {/if}
+  <!-- The protocol strip (WP-1033), and its separation from the knobs above is
+       the point rather than a layout preference: those are drawing choices,
+       session-local and unpersisted, while everything here changes what is
+       fitted, persists in `project.json` on the verb, and moves Rwp.  Two kinds
+       of knob on one plot; if they wore the same clothes a user could not tell
+       which one changes the answer. -->
+  {#if extent}
+    <div class="protocol" role="group" aria-label="what is fitted">
+      <label class="field" title="the lowest 2θ the fit includes; empty means the
+        whole measured pattern. Channels outside are dropped from the residual,
+        so they are in no Rwp or χ² either.">
+        <span>Fitted range</span>
+        <input class="tabular" type="text" inputmode="decimal" bind:value={loText}
+          placeholder={extent[0].toFixed(3)} disabled={busy}
+          onkeydown={(ev) => { if (ev.key === "Enter") applyLimits(); }} />
+      </label>
+      <label class="field" title="the highest 2θ the fit includes; empty means the
+        whole measured pattern">
+        <span>–</span>
+        <input class="tabular" type="text" inputmode="decimal" bind:value={hiText}
+          placeholder={extent[1].toFixed(3)} disabled={busy}
+          onkeydown={(ev) => { if (ev.key === "Enter") applyLimits(); }} />
+      </label>
+      <button class="ghost small" onclick={applyLimits} disabled={busy}
+        title="send the typed range — project.doc.two_theta_limits">Set</button>
+      <button class="ghost small" onclick={() => onprotocol({ two_theta_limits: null })}
+        disabled={busy || !protocol.limits}
+        title="fit the whole measured pattern again">All</button>
+
+      <div class="segmented arm" role="group" aria-label="select on the plot">
+        <button class:on={arm === "limits"} disabled={busy}
+          onclick={() => (arm = arm === "limits" ? null : "limits")}
+          title="then drag on the plot to set the fitted range — the peak
+            gestures stand down while this is armed, and Esc cancels"
+          >⇥ range</button>
+        <button class:on={arm === "exclude"} disabled={busy}
+          onclick={() => (arm = arm === "exclude" ? null : "exclude")}
+          title="then drag on the plot to exclude that 2θ region from the
+            residual — the peak gestures stand down while this is armed"
+          >✂ exclude</button>
+      </div>
+
+      {#if protocol.regions.length}
+        <ul class="regions" aria-label="excluded regions">
+          {#each protocol.regions as region, i (formatRegion(region))}
+            <li class="pill tabular" title="excluded from the residual — click ×
+              to fit these channels again">
+              {formatRegion(region)}
+              <button class="ghost tiny" disabled={busy}
+                aria-label="stop excluding {formatRegion(region)}"
+                onclick={() => onprotocol({
+                  excluded_regions: protocol.regions.filter((_, k) => k !== i) })}
+                >×</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      <!-- The check that the shading is telling the truth, on screen rather
+           than only in the acceptance run: a band over channels still in the
+           residual is worse than no band at all. -->
+      {#if channels}
+        <p class="note muted tabular count">
+          {channels[0].toLocaleString()} of {channels[1].toLocaleString()} channels fitted
+        </p>
+      {/if}
+      {#if held?.stale}
+        <p class="note warn">
+          the curves shown were fitted over a different set of channels — re-run
+        </p>
+      {/if}
+      {#if protocolError}
+        <p class="note bad">{protocolError}</p>
+      {/if}
     </div>
   {/if}
 </section>
@@ -521,9 +869,87 @@
     flex-wrap: wrap;
   }
 
+  /* a phase name is arbitrarily long — clip the button, not the row */
+  .segmented.curves button {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .note {
     margin: 4px 2px;
     font-size: 11.5px;
+  }
+
+  .gestures strong {
+    font-weight: 600;
+    color: var(--fg);
+  }
+
+  .arming {
+    color: var(--accent);
+  }
+
+  .arming strong {
+    color: var(--accent);
+  }
+
+  /* A register of its own, and deliberately not `.knobs`: a rule above the
+     strip and typed fields inside it read as "settings", where a segmented
+     button reads as "view".  The only segmented control here arms a *gesture*,
+     which is a view of the same setting, not a fourth drawing choice. */
+  .protocol {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .field input {
+    width: 76px;
+    font: var(--mono);
+    padding: 2px 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--fg);
+  }
+
+  .regions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .regions li {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 4px 1px 8px;
+  }
+
+  .count {
+    margin-left: auto;
+  }
+
+  .warn {
+    color: var(--warn);
   }
 
   .bad {

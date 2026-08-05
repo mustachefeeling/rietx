@@ -18,6 +18,8 @@
  * knows which it is drawing.
  */
 
+import type { hoverLabel } from "./plot";
+
 export interface Site {
   index: number;
   path: string;
@@ -638,8 +640,13 @@ export function axisCamera(geometry: Geometry, axis: number,
  * only durable answer is for the component to own the camera — captured from
  * `plotly_relayout` and handed back in — which is what
  * `panels/Structure3D.svelte` does.
+ *
+ * `hover` is `lib/plot.ts`'s themed box (WP-1032), optional only so the layout
+ * stays assertable without a stylesheet: this surface hovers atoms and bonds
+ * with the same un-themed light box the pattern plot had.
  */
-export function layout(fg: string, camera: Camera = DEFAULT_CAMERA): any {
+export function layout(fg: string, camera: Camera = DEFAULT_CAMERA,
+                       hover?: ReturnType<typeof hoverLabel>): any {
   // No Cartesian box: `axisTrace` labels the frame of reference this picture
   // actually has.  `visible: false` takes plotly's wholesale branch — ticks,
   // labels, title, grid, zeroline and background off in one flag.
@@ -649,6 +656,7 @@ export function layout(fg: string, camera: Camera = DEFAULT_CAMERA): any {
     showlegend: false,
     font: { color: fg, size: 11 },
     paper_bgcolor: "rgba(0,0,0,0)",
+    ...(hover ? { hoverlabel: hover } : {}),
     scene: {
       aspectmode: "data",
       dragmode: "orbit",

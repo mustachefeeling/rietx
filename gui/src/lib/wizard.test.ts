@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { GEOMETRIES, instrumentFields } from "./model";
 import {
   PRESET_FIELDS,
   blocked,
@@ -157,5 +158,50 @@ describe("the step summaries quote the reader rather than the extension", () => 
   it("summarises a phase without inventing anything", () => {
     expect(structureSummary(staged().structure)).toBe(
       "LaB6 · P m -3 m · 4.1566 4.1566 4.1566 Å · 2 atoms (B, La)");
+  });
+});
+
+describe("no form field without help (WP-1032)", () => {
+  /** Every geometry the instrument editor can be showing, so its whole field
+   *  vocabulary is reachable from one assertion. */
+  const INSTRUMENTS = GEOMETRIES.map((kind) => ({
+    zero_shift: { value: 0 },
+    source: { polarization: { value: 0.5 },
+              lines: [{ wavelength: 1.54, weight: { value: 1 } },
+                      { wavelength: 1.544, weight: { value: 0.5 } }] },
+    profile: { shape: "tchz_pv", u: {}, v: {}, w: {}, x: {}, y: {} },
+    geometry: { kind },
+  }));
+
+  it("titles every preset field the wizard offers", () => {
+    // `title=` is this form's *only* help mechanism, and `packing` — the field
+    // the report named — was offered in three places with none of them.
+    const bare = Object.entries(PRESET_FIELDS).flatMap(([preset, fields]) =>
+      fields.filter((f) => !f.title?.trim()).map((f) => `${preset}.${f.name}`));
+    expect(bare).toEqual([]);
+  });
+
+  it("titles every field the instrument editor offers, in every geometry", () => {
+    const bare = INSTRUMENTS.flatMap((instrument) =>
+      instrumentFields(instrument)
+        .filter((f) => !f.title?.trim())
+        .map((f) => `${instrument.geometry.kind}:${f.path}`));
+    expect(bare).toEqual([]);
+  });
+
+  it("explains packing the same way wherever it is offered", () => {
+    // one wording, quoted from `schemas/instrument.py` — two forms explaining
+    // one quantity two ways is how a form starts disagreeing with the package
+    const titles = new Set<string>();
+    for (const fields of Object.values(PRESET_FIELDS)) {
+      for (const f of fields) if (f.name === "packing_fraction") titles.add(f.title!);
+    }
+    for (const instrument of INSTRUMENTS) {
+      for (const f of instrumentFields(instrument)) {
+        if (f.path === "geometry.packing_fraction") titles.add(f.title!);
+      }
+    }
+    expect(titles.size).toBe(1);
+    expect([...titles][0]).toContain("never refinable");
   });
 });
