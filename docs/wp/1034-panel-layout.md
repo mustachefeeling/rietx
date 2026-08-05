@@ -3,23 +3,6 @@
 Milestone: v1.0 · Status: ⬜
 Depends on: 1013, 1014, 1029 (all landed) · soft: 1032
 
-### Inherited
-
-From **[1033](1033-plot-range-regions.md)** (closed 2026-08-05) — one fact that
-changes this WP's recon, and one that constrains where a control may go:
-
-- **The plot column is one row taller.** A `.protocol` strip now sits under the
-  knobs — typed range boxes, an arm control, one chip per excluded region, a
-  channel count — and it *wraps*, so with several regions it is two rows on a
-  narrow window. The three measurements task 1 asks for must be taken with it
-  present, and the number that matters is how much vertical room the plot has
-  left at 860 px, not how wide the sidebar is.
-- **Protocol controls may not be moved in beside drawing controls.** The strip
-  is separate from `.knobs` because one set changes what is fitted and the other
-  changes only the picture; if this WP reflows the plot column, that separation
-  is the thing to preserve — a rule stated in `gui/CLAUDE.md`, not a layout
-  preference.
-
 ## Goal
 
 Editing a parameter and seeing the fit change are the same glance: the model
@@ -74,13 +57,61 @@ back rather than shipping a cramped tab**: the escape hatch would then be the
 primary surface and the tab a shortcut to it, which is a different design and
 the user should get to choose it with the measurements in hand.
 
+### The recon, measured
+
+**2026-08-05**, Chrome for Testing (playwright chromium-1223) against the
+shipped build on a real NAC project — COD 1000236 read `aniso=True` (six atoms,
+four species, an aniso tensor on every site) plus the CaF₂ impurity phase,
+`11BM_NAC.fxye`, limits 2–24° — at a 900 px viewport height and
+`deviceScaleFactor: 2`. The `.protocol` strip WP-1033 added is present in every
+row below, which is what the inherited note asked for.
+
+| window | `.side` | plot column | `.protocol` | plot height | 6 tabs | 8 tabs |
+|---|---|---|---|---|---|---|
+| 1500 | 560 (clamp ceiling) | 940 | 32 px, one row | 749 | fits (559) | fits (559) |
+| 1200 | 456 | 744 | 32 px | 716 | fits (455) | fits (455) |
+| 1000 | 380 | 620 | 64 px, **two rows** | 667 | fits (379) | **overflows** |
+| 860 | 340 (clamp floor) | 520 | 64 px, two rows | 650 | fits (339) | **overflows** |
+
+**1 · The Model pane's minimum content width is 472 px** — the atom table's
+`min-content` is **448 px** and the column adds 24 px of padding. Below it the
+column side-scrolls: by 15 px at 456, 91 px at 380, 131 px at 340, and what
+scrolls is *the whole column*, so the cell row and the headings leave with the
+table (visible in the 860 px screenshot: `10.25710.25790` where a, b, c should
+be). At 472 the table is whole with its `occ` box at its 44 px floor; at 560
+nothing is at a floor (narrowest input 74 px).
+
+**2 · It fits at 560, and a drag reaches it at every width measured.** The
+clamp ceiling leaves 88 px spare, and the 72 % `max-width` is 1080 / 864 / 720 /
+619 px at the four windows — all above 472. What the *default* cannot do is
+reach 472 below a ~1245 px window (38 % of the window ≥ 472).
+
+**3 · The `.pxt` document has two widths, and only the larger one is the
+comments'**: 165 lines, 12 px `ui-monospace` at 7.3 px/char, 47 px gutter. The
+**editable columns** — everything left of the trailing `#`, which is what a
+rectangular selection has to hit — are at most 69 chars, **546 px with the
+gutter**. The whole line with its comment reaches 98 chars, **756 px**. So at
+the 560 px ceiling **0 of 165 lines** scroll an editable column while 110 scroll
+their comment; at 456 px, 60 lines lose an editable column; at 340 px, 85 do.
+Comments stop scrolling only past 720 px.
+
+**Verdict: the tabs decision stands, and it acquires a condition.** WP-1013's
+argument was that a 340–560 px sidebar undoes the `.pxt` alignment; measured,
+that is true at the 340 px floor and **false at the 560 px ceiling**, where every
+field a rectangular selection needs is on screen. Both panes therefore work as
+tabs *at the ceiling and above*, and neither works at the floor — which is what
+makes the full-window hatch load-bearing rather than decorative at ≤1000 px
+windows, and what the Model pane's reflow is for.
+
 ### What the change touches
 
 - **The tab strip goes eight wide.** It is already six
   (`App.svelte:630-637`: Parameters, Plan, Peaks, Report, History, Build) —
   WP-1013 predicted five was the limit and it has been over that since WP-1027.
   **Settle overflow before adding tabs, not after**: a strip that silently
-  truncates is worse than the mode buttons it replaces.
+  truncates is worse than the mode buttons it replaces. Measured: eight labels
+  need **415 px** squeezed and 533 px unsqueezed, so they fit at the 560 and
+  456 px sidebars and overflow at 380 and 340 — i.e. below a ~1090 px window.
 - **Everything stays mounted.** The current panels are hidden with
   `class:hidden`, never unmounted, because switching must not throw away a
   filter, a pending edit, an unsaved stage list or a two-node comparison
@@ -121,6 +152,11 @@ the user should get to choose it with the measurements in hand.
 - A drag is **refused persistence while a run is in flight** (409); that is a
   known wart filed as a freeze question in [1003](1003-api-freeze-pypi.md), not
   this WP's to settle.
+- **Protocol controls may not be moved in beside drawing controls** (WP-1033).
+  The `.protocol` strip is separate from `.knobs` because one set changes what
+  is fitted and the other changes only the picture; if this WP reflows the plot
+  column, that separation is the thing to preserve — a rule in `gui/CLAUDE.md`,
+  not a layout preference.
 
 ## Non-goals
 
@@ -136,9 +172,11 @@ the user should get to choose it with the measurements in hand.
 
 ## Tasks
 
-- [ ] **Recon**: the three measurements above, on NAC, at 1500/1200/1000/860 px.
+- [x] **Recon**: the three measurements above, on NAC, at 1500/1200/1000/860 px.
       Write the numbers into this file. If they contradict the tabs decision,
-      stop and report rather than shipping a cramped tab.
+      stop and report rather than shipping a cramped tab. — § "The recon,
+      measured": 472 px for the Model tab, 546/756 px for the `.pxt` document's
+      two widths, and the decision stands with a condition.
 - [ ] **Tab-strip overflow** settled first — scroll, wrap, or a grouped
       overflow control — with a mount test that a hidden tab is still reachable.
 - [ ] **Model and Text as tabs**, both still always-mounted, the text pane still
