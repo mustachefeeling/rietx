@@ -17,7 +17,13 @@ evidence. The measurement diary that taught these rules is archived in
   `_capillary.py`, `_indexing.py`). Reference values and data provenance in
   `tests/data/README.md`. Every test refinement also writes obs/calc/diff
   PNGs to `tests/output/` (gitignored) for visual inspection — Rwp hides
-  locally-bad fits.
+  locally-bad fits. **The indexing suite draws through
+  `tests/indexing_gallery.py`** rather than calling the renderers directly: it
+  writes a JSON sidecar per dataset (one writer per file, because these rows
+  span five xdist groups), and `python -m tests.indexing_gallery` turns those
+  into the scoreboard and a summary page. Declare a new dataset in its
+  `DATASETS`/`TRUTHS` tables — `draw()` refuses an undeclared stem, because a
+  silent skip is a dataset in the suite and not in the summary.
 
 ## Shared fixtures and xdist groups
 

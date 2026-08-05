@@ -166,6 +166,31 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — indexing
+robustness under contamination is now measured, so do not re-derive it, and one
+result changes what "survives a stranger's pattern" means for the gate.**
+
+A sweep injecting k impurity lines into the certified LaB6 list is
+`test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank`. Two
+things transfer to this WP:
+
+- **What contamination breaks is the *grade*, not the answer, and by arithmetic.**
+  The truth indexes exactly its own 25 lines at every k and never an injected one,
+  so `indexed_fraction` = 25/(25+k) and the 0.9 bar falls between k = 2 and k = 3.
+  A stranger's pattern with a few extra lines therefore drops to `low` on
+  `indexed_fraction_low` while the cell is still right and still first. That is
+  worth a diagnostic-wording check when you write yours: the caveat names the
+  symptom, not the cause.
+- **The real limit is `n_unindexed`, and it is an absolute budget.** Told it may
+  leave 3 lines unindexed on a list carrying 12 impurities, the search returns the
+  truth **nowhere** rather than second — first-rank rate 8/8 at k = 6, 5/8 at 9,
+  2/8 at 12, 0/8 at 18. A stranger's multi-phase pattern is exactly this case, and
+  the fix is not a tolerance.
+
+Also relevant to "no silent stall": the whole indexing acceptance suite is 41 rows
+and 22-26 min, and its budgets are runaway guards with ≥8× headroom measured, not
+timers.
+
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — your §"the payoff"
 paragraph is half withdrawn, and the σ_sys item you were filed is unchanged.**
 `best_or_none()` no longer returns a cell on the calibrated LaB6 protocol: it did

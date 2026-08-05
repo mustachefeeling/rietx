@@ -633,12 +633,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
   only the extinction screen separates the two. Choose acceptance datasets **by
   space group** — SRM 660c (P m -3 m) is the control that proved it.
-- The scoreboard over **nine** known-cell datasets is *never wrong, and silent more
-  often than right*: 6 first, 2 found-below-first, 1 refused pre-search, **0
-  promoted**. Never round it up, and **keep the found-but-not-first bucket** — it is
-  what this package produces most, and collapsing it is how the old board named nine
-  datasets under a total of eight. It is *generated* by `tests/indexing_gallery.py`,
-  so re-measure by running the suite, never by editing prose (WP-1041).
+- The known-cell scoreboard is *never wrong, and silent more often than right* —
+  **never round it up**, and **keep the found-but-not-first bucket**: the truth *in
+  the list* under a wrong leader is what this package produces most, and collapsing
+  it into right-or-wrong is how the old board named nine datasets under a total of
+  eight. It is **generated** by `tests/indexing_gallery.py`, so re-measure by running
+  the suite; counts live in the v1.0 dossier, never retyped here (WP-1041).
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And
