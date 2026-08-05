@@ -72,6 +72,7 @@ from .engines import (
     refine_with_shift,
     reflection_ceiling_ok,
     register_engine,
+    search_line_order,
     shift_allowance_diagnostic,
     trial_hkl,
 )
@@ -578,9 +579,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
     sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
     tt_max = float(peaks.two_theta_max)
 
-    order = np.argsort(q_all)
-    n_search = min(spec.n_search_lines, len(order))
-    search = order[:n_search]
+    search = search_line_order(peaks, spec)
     q_search, tol_search = q_all[search], spec.k_sigma * sigma[search]
 
     systems = [s for s in SYSTEM_ORDER if s in spec.systems]

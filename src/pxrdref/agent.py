@@ -274,7 +274,13 @@ class SearchSpecSpec(Base):
         "it MANUFACTURES cells — every tolerated line is one more coincidence a "
         "wrong metric is allowed — so 2 is a default and 4 is a statement about "
         "the specimen"))
-    n_search_lines: int = Field(20, ge=2)
+    n_search_lines: int = Field(20, ge=2, description=(
+        "observed lines the search is DRIVEN by — the strongest N, scored "
+        "afterwards against every usable line. Raising it is not free and not "
+        "safe: a cell must index all but n_unindexed of THESE, an absolute "
+        "budget, so every extra foreign line admitted can refute the true cell "
+        "rather than merely rank it lower (measured: a 68-line list loses its "
+        "certified lattice entirely at 32)"))
     k_sigma: float = Field(3.0, gt=0.0, description=(
         "matching window in units of each line's own sigma; 3 is a calibrated "
         "99.7 % window, not a knob"))

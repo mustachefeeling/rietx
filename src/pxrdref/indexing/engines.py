@@ -97,10 +97,38 @@ DEFAULT_MAX_D_AXIS = 25.0
 #: smaller than a single atom's exclusion volume, so it is a numerical artefact
 #: of the metric cone rather than a lattice.
 DEFAULT_MIN_VOLUME = 15.0
-#: Observed lines a search is *driven* by, lowest Q first.  Twenty because that
-#: is what the figures of merit are defined on and what the literature searches
-#: use; scoring afterwards uses **every** usable line, so a candidate that
-#: explains the first twenty and nothing else is ranked down rather than hidden.
+#: Observed lines a search is *driven* by — **the strongest N**, in Q order once
+#: chosen (:func:`search_line_order`, which is where the ranking rule and its
+#: measured grounds live).  Scoring afterwards uses **every** usable line, so a
+#: candidate that explains these N and nothing else is ranked down rather than
+#: hidden.
+#:
+#: **Enumerate liberally, sort conservatively** (Oishi-Tomiyasu 2014, *J. Appl.
+#: Cryst.* **47**, 593, §3): a *false* line costs only computation — "the success
+#: rate in obtaining the correct solution remains the same if Λ^obs is replaced
+#: with Λ^obs ∪ {q^obs}" — while a *missing* line costs success, and the figures
+#: of merit, unlike the enumeration, are "severely affected" by both.
+#:
+#: **That asymmetry is asserted there, not proved, and the difference is worth
+#: keeping** (WP-1039 read the paper rather than the summary of it): §3 is running
+#: prose with no proposition or proof, the statement is made for a *single* added
+#: element, and the superset argument that would justify it is never written down.
+#: Conograph's own numbers are likewise softer than they are usually quoted —
+#: ``N_peak`` is **AUTO** with 48 an *upper threshold* (Table 1), the enumeration
+#: cost ∝ N_zone² ∝ N_peak⁴ is hedged twice and defers to supporting information
+#: absent from our corpus, and the celebrated 18-250× zone-sorting speedup is
+#: 1/rate² computed from measured *selection rates* under that assumed cost model,
+#: never a timed A/B.  Read as this package's own rule would have it: a cost model
+#: reasoned from an algorithm's structure is not a profile.
+#:
+#: Twenty, then, is measured here rather than deferred to (WP-1039).  Swept over
+#: the known-cell corpus, raising N bought **nothing** at any price — every
+#: dataset that indexes at 20 indexes at 20 — and on ``11BM_NAC.fxye``, the
+#: pattern that motivated the whole question, N = 48 still spends 16 of its 48
+#: lines on background components.  What fixed NAC was the *rank*, not the count.
+#: Note also that the split here is not Conograph's shape: it enumerates on ≤ 48
+#: and *sorts* on 20-30, where this package searches on these N and scores on
+#: **every** usable line, which is the more conservative half of the two.
 DEFAULT_SEARCH_LINES = 20
 #: Lines a search may leave unindexed and still accept a cell.  DICVOL06's own
 #: reported gain, and the single most valuable option here: without it one
@@ -525,6 +553,48 @@ def assign_lines(q_obs: np.ndarray, sigma: np.ndarray, hkl: np.ndarray,
     idx, _ = match_lines(q_obs, sigma, q_pred[order], k_sigma=k_sigma)
     hit = idx >= 0
     return np.flatnonzero(hit), hkl_in[order][idx[hit]]
+
+
+def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
+    """Indices of the observed lines a search is **driven** by: the strongest
+    ``n_search_lines`` of them, returned in Q order.
+
+    One function rather than the slice each engine used to open-code, because
+    "which lines drive the search" has to mean the same thing in both or their
+    agreement stops being evidence (the reason :class:`SearchSpec` is one object).
+    Scoring is unaffected and stays over the whole usable list — the
+    enumerate-liberally / sort-conservatively split :data:`DEFAULT_SEARCH_LINES`
+    states.
+
+    **The count was never the defect; the rank was** (WP-1039).  Taking the first
+    N lines *in 2θ order* assumes the lowest-angle components are the phase's
+    strongest reflections — true of a lab pattern that opens after its first
+    Bragg peak, false of anything that opens on background.  Measured on
+    ``11BM_NAC.fxye``, which starts at 0.76° 2θ: of the first twenty lines in 2θ
+    order the true cell explains **six**, against 268 of the whole 285.  The
+    fourteen others are low-angle components at 0.1–0.6 % of the strongest line's
+    intensity carrying a fitted σ(2θ) two orders above their real neighbours'.
+    Raising N does not reach past them — 32 of 48 at N = 48, and paid for at
+    whatever the enumeration actually scales as (Conograph's own N_peak⁴ is
+    hedged twice and defers to supporting information; see
+    :data:`DEFAULT_SEARCH_LINES`).  Ranking by intensity clears them at N = 20,
+    for nothing.
+
+    Ties fall back to Q order, and that is not a detail.  A
+    :meth:`PeakList.from_positions` list has no measured intensities and every
+    line comes back weight 1, so a bare position list — which is the whole
+    bethanechol benchmark — selects **exactly** as it did before this rule
+    existed.  An assumed intensity may no more reorder a search than an assumed σ
+    may refuse one.
+
+    **Do not propagate this rule into** ``fom.py``.  M₂₀'s "first twenty" is de
+    Wolff's *definition* — the figure is N_poss counted up to the twentieth
+    observed line in Q order — so re-ranking there would not tune a figure of
+    merit, it would compute a different one under the same name.
+    """
+    q = peaks.q()
+    order = np.lexsort((q, -peaks.intensity()))[:min(spec.n_search_lines, len(q))]
+    return order[np.argsort(q[order])]
 
 
 def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
@@ -1094,7 +1164,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "refine_with_shift",
-           "scored_positions", "shift_allowance_diagnostic",
+           "scored_positions", "search_line_order", "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "to_cell_candidate",

@@ -32,6 +32,7 @@ from pxrdref.indexing.dichotomy import (
     search_dichotomy,
 )
 from pxrdref.indexing.engines import (
+    DEFAULT_SEARCH_LINES,
     MAX_PREDICTED_REFLECTIONS,
     SYSTEM_ORDER,
     Budget,
@@ -39,8 +40,10 @@ from pxrdref.indexing.engines import (
     engine_descriptions,
     engine_names,
     get_engine,
+    indexes_the_search_lines,
     predicted_reflection_count,
     reflection_ceiling_ok,
+    search_line_order,
     trial_hkl,
 )
 from pxrdref.indexing.qspace import af_from_cell, design_matrix, metric_basis
@@ -1036,3 +1039,158 @@ def test_systems_are_searched_highest_symmetry_first():
     assert SYSTEM_ORDER[0] == "cubic"
     assert SYSTEM_ORDER[-1] == "triclinic"
     assert set(SYSTEM_ORDER) == set(METRIC_DOF)
+
+
+# ----------------------------------------------------------------------
+# Which lines drive a search — WP-1039
+# ----------------------------------------------------------------------
+def test_the_search_is_driven_by_the_strongest_lines_in_q_order():
+    """The rule is *rank by intensity, report in Q order* — both halves matter.
+
+    The rank is what fixes a pattern that opens on background; the Q order is what
+    every consumer downstream assumes, including ``trial_error``'s base-line pool,
+    whose exact solve wants the lowest-Q lines of whatever the search was given.
+    """
+    tt = np.array([5.0, 10.0, 15.0, 20.0, 25.0, 30.0])
+    inten = np.array([1.0, 900.0, 2.0, 800.0, 3.0, 700.0])
+    peaks = PeakList.from_positions(tt, LAM, intensity=inten)
+    spec = SearchSpec(n_search_lines=3)
+
+    sel = search_line_order(peaks, spec)
+    assert len(sel) == 3
+    q = peaks.q()
+    assert np.all(np.diff(q[sel]) > 0), "the selection is not in Q order"
+    # the three strongest are the 10/20/30° lines, and none of the weak ones
+    assert np.allclose(np.sort(peaks.two_theta()[sel]), [10.0, 20.0, 30.0])
+
+
+def test_a_position_only_list_selects_exactly_as_it_did_before_the_rule():
+    """The bethanechol benchmark's invariance, asserted rather than hoped for.
+
+    ``from_positions`` without intensities gives every line weight 1, so the
+    intensity key is constant and the Q tiebreak decides — which is *identically*
+    the ``argsort(q)[:n]`` this package used before WP-1039.  An assumed intensity
+    may no more reorder a search than an assumed σ may refuse one, and every one
+    of the ten published benchmark sets arrives this way.
+    """
+    tt = np.array([31.0, 6.238, 22.4, 13.171, 9.403, 6.712, 18.0])
+    peaks = PeakList.from_positions(tt, LAM)          # no intensity=
+    q = peaks.q()
+    for n in (2, 4, len(tt), len(tt) + 5):
+        sel = search_line_order(peaks, SearchSpec(n_search_lines=n))
+        assert np.array_equal(sel, np.argsort(q)[:min(n, len(q))]), (
+            f"n={n}: {sel} is not the first {n} in Q order")
+
+
+def test_offering_more_lines_can_refute_the_true_cell():
+    """**The published false-peak asymmetry does not transfer to this package**,
+    and the reason is our acceptance rule rather than our enumeration.
+
+    Oishi-Tomiyasu (2014) §3 argues a false line costs only computation, because
+    there the enumeration's success is a *membership* test on Λ^obs and adding
+    elements cannot break it.  :func:`indexes_the_search_lines` is not a
+    membership test: it demands ``hit >= len(search) - n_unindexed``, an
+    **absolute** budget over whatever the search was driven by.  So every foreign
+    line admitted spends that budget, and past ``n_unindexed`` of them the true
+    cell is refused — the truth is not out-competed, it is *rejected*.
+
+    Measured on the real corpus (WP-1039): the qarr zircon list carries 16 foreign
+    lines among 68, and raising N from 20 to 32 loses the certified lattice
+    entirely rather than merely ranking it lower.  That is why this WP raised no
+    count.
+    """
+    truth = np.arange(10)                    # the lines the true cell indexes
+    n_unindexed = 2
+
+    # a search driven by ten true lines plus two foreign ones: still accepted
+    assert indexes_the_search_lines(truth, np.arange(12), n_unindexed)
+    # one more foreign line and the *same* true cell is refused
+    assert not indexes_the_search_lines(truth, np.arange(13), n_unindexed)
+
+
+def test_the_base_pool_is_a_prefix_of_the_selected_search_lines():
+    """``trial_error``'s exact solve must start from lines the *selection* kept.
+
+    The pool used to be the lowest-Q lines of the whole list, which on a pattern
+    opening on background is exactly the set the selection just declined — and an
+    exact solve is poisoned by one bad base line.  Measured on SRM 660c: with the
+    2θ-order pool only ``dichotomy`` finds the certified cell and the run reports
+    ``engines_disagree``; with the pool drawn from the strongest-N selection both
+    engines find it.
+    """
+    from pxrdref.indexing.trial_error import BASE_POOL_MIN
+
+    tt = np.linspace(5.0, 60.0, 40)
+    inten = np.ones_like(tt)
+    inten[20:] = 1000.0                       # every strong line is high-angle
+    peaks = PeakList.from_positions(tt, LAM, intensity=inten)
+
+    spec = SearchSpec(n_search_lines=DEFAULT_SEARCH_LINES)
+    sel = search_line_order(peaks, spec)
+    pool = sel[:BASE_POOL_MIN]                      # what ``_search_system`` takes
+
+    # the pool is the low-Q end **of the selection**…
+    assert np.array_equal(pool, np.sort(sel)[:BASE_POOL_MIN])
+    # …and on this list that is a different set from the low-Q end of the pattern,
+    # which is what it used to be — the assertion is worthless without this half
+    old_pool = np.argsort(peaks.q())[:BASE_POOL_MIN]
+    assert not np.array_equal(np.sort(pool), np.sort(old_pool))
+    assert peaks.two_theta()[pool].min() > tt[19], (
+        "the pool is still drawn from lines the selection declined")
+
+
+@pytest.mark.parametrize("engine", ["dichotomy", "trial_error"])
+def test_weak_background_components_below_the_first_line_do_not_defeat_a_search(
+        engine):
+    """The NAC failure in miniature, end to end and on both engines.
+
+    A synthetic cubic pattern with six weak components *below* its first
+    reflection — the shape of a synchrotron list that opens on background at
+    0.76° 2θ.  In 2θ order those six would be half the driven set, they index
+    nothing, and the true cell is refused by ``indexes_the_search_lines`` for
+    spending an absolute budget of ``n_unindexed = 2``.  Ranked by intensity they
+    are never driven on at all, so the same list, the same tolerance and the same
+    N recover the cell.
+
+    **N is declared below the line count on purpose**, and that is the condition
+    rather than a convenience: a selection rule can only decline what it is not
+    obliged to take, so on a list no longer than N it does nothing at all.  The
+    real corpus is the other way round — NAC offers 285 lines to a search driven
+    by 20 — but the synthetic cubic list has 14, and the first version of this
+    test set N = 20 over 20 lines and failed for exactly that reason.
+
+    Both engines, because a selection rule that fixed only one would break the
+    agreement that *is* this package's confidence.
+    """
+    peaks, cell = synthetic_peaks("cubic")
+    tt = peaks.two_theta()
+    # **Irregular on purpose, and a volume ceiling with it.**  The first version
+    # spaced these evenly with ``linspace`` and dichotomy correctly returned the
+    # *doubled* cell — evenly spaced components below the first line are exactly
+    # what a doubled axis predicts, so the fixture had built a genuine supercell
+    # ambiguity rather than background.  Supercell discrimination is the FoM
+    # panel's job and is tested against it elsewhere; here it is a confound, so
+    # the blips are non-commensurate and the search is capped below the doubled
+    # cell's 574 Å³.
+    junk = tt.min() - np.array([6.23, 4.91, 3.02, 2.37, 1.44, 1.09])
+    assert junk.min() > 1.0
+
+    both = np.concatenate([junk, tt])
+    strength = np.concatenate([np.full(len(junk), 0.004), np.ones(len(tt))])
+    contaminated = PeakList.from_positions(both, LAM, intensity=strength,
+                                           two_theta_esd=0.005)
+    spec = spec_for("cubic", n_search_lines=12, max_volume=300.0)
+
+    # the rule declines every blip — assert it here so a regression in the
+    # selection fails on its own terms rather than as a mysterious lost cell
+    driven = contaminated.two_theta()[search_line_order(contaminated, spec)]
+    assert not np.intersect1d(np.round(driven, 6), np.round(junk, 6)).size
+    # …and in 2θ order half the driven set would be blips, which the absolute
+    # budget of n_unindexed = 2 cannot absorb
+    in_2theta_order = contaminated.two_theta()[np.argsort(contaminated.q())][:12]
+    assert np.intersect1d(np.round(in_2theta_order, 6),
+                          np.round(junk, 6)).size == 6
+
+    result = get_engine(engine)(contaminated, spec=spec)
+    assert result.candidates, f"{engine} lost the cell to six background blips"
+    assert_same_lattice(result.candidates[0].cell, cell)
