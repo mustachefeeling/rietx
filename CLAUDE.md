@@ -50,10 +50,11 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
-— **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
+— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — **on the
+tree with `main`'s WP-1041 merged in**.
 
-- fast **1717 passed / 108 skipped** in **3:07-4:11** (three runs of *this* tree, nothing else deliberately running — the spread is the machine, which is the whole point of quoting a range; the same green tree read **9:01** at 1035 with another worktree's suite on it at load 56). Full **1808 / 117**, one run, **24:13**. Both selections moved by exactly the 19 Python tests added (1698 / 1789 at WP-1035), and both run 2 over `--collect-only` for the reason below.
-- frontend (vitest): **376** (347 at 1035, +29), `svelte-check` clean; `test_gui_*.py` collect **104**.
+- fast **1727 / 108** in **5:22**, full **1819 / 117** in **34:24**, both on this merged tree. The same fast selection read **3:07-4:11** pre-merge and the full one **24:13**, so quote the range and never the figure — 1041 measured the same file at 46:59 under load. **The parents' deltas do not sum**: 1016 added 19 test functions and 1041 net 11 against a measured +29 fast / +30 full over 1035's 1698 / 1789 — `test_indexing_plots.py` collects 4 items from 3 functions, so a `def test_` count is not a test count. The closing-sum check holds within one lineage; across a merge only the re-measurement counts (`tests/CLAUDE.md`).
+- frontend (vitest): **376** (347 at 1035), `svelte-check` clean, `test_gui_*.py` collect **104**; 1041 touched no `gui/` file, so the dist digest is unchanged.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -506,15 +507,14 @@ ranking on share-of-observed-intensity alone demonstrably puts a 390-line wrong
 phase above the truth; and a restricted search reports `systems_searched` rather
 than concluding anything about the sample. Engines supply the confidence by
 **agreeing**, the same device as `direction="both"` and the cross-backend matrix —
-**three** of them (two until WP-1040), and `high` means *every* engine that ran
-found the lattice, so adding one raises the bar rather than diluting it. They must
-fail differently for that to mean anything, and they do: a wide domain
-(dichotomy), a poisoned base line (trial_error), a bad starting basin
-(svd). The same rule runs one step further into the
-workflow: the **extinction symbol**, not the space group, is what a powder measures,
-so `determine_extinction_symbol` answers with a ranked list of classes and every
-class carries a *list* of space groups — the one place in the package where the
-singleton is not merely unsupported but unmeasurable.
+**three** of them (two until WP-1040), and `high` means *every* engine that ran found
+the lattice, so adding one raises the bar rather than diluting it. They must fail
+differently for that to mean anything, and they do: a wide domain (dichotomy), a
+poisoned base line (trial_error), a bad starting basin (svd). The same rule runs one
+step further into the workflow: the **extinction symbol**, not the space group, is
+what a powder measures, so `determine_extinction_symbol` answers with a ranked list
+of classes and every class carries a *list* of space groups — the one place in the
+package where the singleton is not merely unsupported but unmeasurable.
 
 `index_pattern(peaks | data+instrument)` (`indexing/workflow.py`) runs that
 pipeline: quality gate → engines → `indexing/consensus.py` (merge on the reduced
@@ -529,7 +529,10 @@ lines and cannot see reflections predicted where there is no intensity, so
 oversized cell (117 of 153 reflections for a doubled cell against 0 of 28 for the
 truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
 serve as that detector: Le Bail extraction assigns ~nothing to a phantom reflection,
-so it fires on 61 % either way. **The validation fit holds the cell** and frees
+so it fires on 61 % either way. Nor can its mirror `unmatched_observed` be a caveat:
+its level is the *specimen's*, not the candidate's (10-188 across 21 **correct**
+candidates), and inside one pattern it is Rwp again — comparative only (WP-1041).
+**The validation fit holds the cell** and frees
 exactly one peak-position parameter, from the candidate's own shift template. And on
 real data with no measured shift, `high` is currently *unreachable* by design
 (`shift_allowance_assumed`); the fix is evidence, not a bigger constant (WP-1026).
@@ -557,60 +560,70 @@ separates truth from supercell 64-74× where M₂₀ separates them 1.8×. Its `
 Σ 1/m over centring-allowed triples and is **never rounded**: Σ 1/m over a complete
 orbit is exactly 1, so an integer result is the *self-check* that the multiplicity is
 right, while a hexagonal orbit cut by the box legitimately contributes a fraction.
-Two things the panel needs from its caller (WP-1026): the **matching window** is an
-argument (`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage
-members must ask the same "is this the same line" question the *search* asked while
-M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
-candidate carrying a fitted shift is scored on `engines.scored_positions`, the
-**corrected** lines it actually claims, or the panel marks it down for its own
-correction.
+**But the panel ranks; it does not score** (WP-1041) — a margin is comparable within a
+member, not across them, so a raw log-sum merely re-weights the panel by each member's
+dynamic range: 5 of 6 datasets, exactly Borda's, failing on a different one.
+`fom.log_sum_scores` carries the measurement and stays **unwired**.
+Two things the panel needs from its caller (WP-1026):
+the **matching window** is an argument (`fom_panel(..., q_match=)`) separate from the
+per-line σ, because coverage members must ask the same "is this the same line"
+question the *search* asked while M₂₀ and F_N floor their discrepancy on what the
+measurement resolves; and a candidate carrying a fitted shift is scored on
+`engines.scored_positions`, the **corrected** lines it claims, or the panel marks it
+down for its own correction.
 
-**The search window is a correctness parameter, measured rather than assumed**
-(WP-1038, `indexing/pairs.py`). A *harmonic reflection pair* — planes that are
-integer multiples, so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in
-the shift and none in the cell, so Dong (1999) gives its **magnitude** from the
-peak list alone and `ShiftScreen.allowance_deg` is what a window must span. Four
-measured rules, stories in the appendix. **The magnitude is knowable with no
-reference and the cause is not** — `constant` and `cos_theta` concentrate
-identically, so the screen may refute `sin_2theta` and never choose between the
-other two. **Detection is concentration against a seeded structureless null,
-because the published false-pair rule fails on real data** (DICVOL04's margin
-admits 11-BM NAC at chance, reporting −0.09° where the shift is zero). **A window
-wider than the shift manufactures a confident wrong singleton** — at σ_sys = 0.060
-SRM 660c returns a cell 293 000 ppm off at `high` confidence — so headroom scales
-the amplitude's *standard error*, never the pair scatter. And **an allowance is
-not a correction**: it finds lines, only `shift_template` moves the cell.
+**The search window is a correctness parameter, measured rather than assumed** (WP-1038,
+`indexing/pairs.py` ). A *harmonic reflection pair* — planes that are integer multiples,
+so `m·sin θ_B = sin θ'_B` for any lattice — is one equation in the shift and none in the
+cell, so Dong (1999) gives its **magnitude** from the peak list alone and
+`ShiftScreen.allowance_deg` is what a window must span. Four measured rules, stories in
+the appendix. **The magnitude is knowable with no reference and the cause is not** —
+`constant` and `cos_theta` concentrate identically, so the screen may refute
+`sin_2theta` and never choose between the other two. **Detection is concentration
+against a seeded structureless null, because the published false-pair rule fails on real
+data** (DICVOL04's margin admits 11-BM NAC at chance, reporting −0.09° where the shift
+is zero). **A window wider than the shift manufactures a confident wrong singleton** —
+at σ_sys = 0.060 SRM 660c returns a cell 293 000 ppm off at `high` confidence — so
+headroom scales the amplitude's *standard error*, never the pair scatter. And **an
+allowance is not a correction**: it finds lines, only `shift_template` moves the cell.
 
-**The tolerance an engine searches with is not the per-line σ, and this is the one
-thing to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the
-wrong *matching window*: measured on the bundled qarr corundum pattern, whose cell is
+**The tolerance an engine searches with is not the per-line σ, and this is the one thing
+to know before touching indexing.** A fitted σ(2θ) is the right *weight* and the wrong
+*matching window*: measured on the bundled qarr corundum pattern, whose cell is
 certified, the lines sit a median 0.060° from the true positions (a cos θ displacement)
 against a median fitted σ of 0.0056° — an 11σ systematic — so at 3σ the true cell
 indexes **zero** lines and both engines return nothing. Hence
-`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above
-declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never
-look like a measured one) and `refine_with_shift`, which fits the shift *template*
-**after** a candidate survives — the *shape* needs reference positions, which a
-candidate cell supplies. A cell found under a widened window but never shift-refined
-is biased by roughly the shift (+1400 ppm measured).
+`DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above declines,
+reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never look like a
+measured one) and `refine_with_shift` , which fits the shift *template* **after** a
+candidate survives — the *shape* needs reference positions, which a candidate cell
+supplies. A cell found under a widened window but never shift-refined is biased by
+roughly the shift (+1400 ppm measured).
 
-Fourteen more indexing rules, each learned the hard way — the measured stories are in
+Thirteen more indexing rules, each learned the hard way — the measured stories are in
 the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
+- **A filter inside a search fails with a wrong *answer*, so a silence indicts the
+  filters before the tolerance.** `engines.solution_key` is the one dedup authority —
+  quantised **scale** *and* **centring**, claimed before scoring, so a *rejected*
+  metric poisons its whole shape family (scale invariance merges every uniform
+  rescaling: a cell collides with its own supercell). It lost a cubic-I truth and
+  fired `INDEX_DOMINANT_ZONE` for two years on a fixture the base table could solve
+  (WP-1041); the peak list blocked the certified pattern twice the same way (fitted
+  satellites, then `_box_key` skipping unrefined leaves).
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
-  inverted). Two corollaries: **wall clock is worthless while a second search shares
-  the machine**, and **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice`, never sorted axes, or a correct answer in another setting
-  reads as a miss (it bit WP-1040's own monoclinic row).
-- **Removing a redundant search must not remove its prunes**, and only real data
-  will say that you did: the centred passes are redundant *as searches* (each
-  centred trial set is a subset of the primitive one) and not as *filters*; the
-  prunes being monotone under bisection, replaying one at the leaf is equivalent
-  to the whole pass. WP-1030 skipped that and put a pseudo-cubic trigonal R
-  description of the certified LaB6 lattice above the cubic truth with **115 fast
-  indexing tests green** — so run `tests/test_acceptance_indexing.py` before
-  closing anything that touches an engine.
+  inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice` *and its centring*, never sorted axes, or a correct answer in
+  another setting reads as a miss (WP-1040's monoclinic row) and a P description of
+  one cell reads as its own I truth (WP-1041's harness, on NAC).
+- **Removing a redundant search must not remove its prunes**, and only real data will
+  say that you did: the centred passes are redundant *as searches* (each centred trial
+  set is a subset of the primitive one) and not as *filters*; the prunes being monotone
+  under bisection, replaying one at the leaf is equivalent to the whole pass. WP-1030
+  skipped that and put a pseudo-cubic trigonal R description of the certified LaB6
+  lattice above the cubic truth with **115 fast indexing tests green** — so run
+  `tests/test_acceptance_indexing.py` before closing anything that touches an engine.
 - Read a `predicted_but_absent` firing as "this cell predicts lines the pattern
   lacks", **never** "this cell is too big": it counts against the *lattice* group,
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
@@ -627,9 +640,6 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   about the input, never handed to anything that applies a centring. Reduction needs
   the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies
   the gate its agreement.
-- **A search that finds nothing indicts its input before its tolerance**: the peak
-  list blocked the certified pattern twice (fitted satellites, then `_box_key`
-  skipping unrefined leaves — a performance filter fails with a wrong answer).
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above). `volume_envelope`
   is a mean line, not an envelope — WP-1030's.
@@ -642,10 +652,10 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   token (it nests under every cooperative check with no engine changes);
   `estimate_ceiling` is the pre-run arithmetic and `INDEX_BUDGET_EXHAUSTED` names the
   three states a bound run leaves (searched / truncated / not reached). A truncated
-  validation reads `not_validated`, never `validation_failed` (1037).
-- **A Monte Carlo indexer must refine each proposal; scoring raw random cells does not
-  rank** — measured both ways: WP-1023 ranked corundum's truth 29 053 of 200 001
-  unrefined; `search_svd`, iterating each to a fixed assignment, returns it alone.
+  validation reads `not_validated`, never `validation_failed` (1037). And **a Monte
+  Carlo indexer must refine each proposal; scoring raw random cells does not rank** —
+  WP-1023 ranked corundum's truth 29 053 of 200 001 unrefined, where `search_svd`,
+  iterating each to a fixed assignment, returns it alone.
 - **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
   (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
   V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
@@ -662,10 +672,10 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   Coelho §2.3's column is the other half, and it does *not* raise the hit rate: at an
   injected 0.10°, started **at** the truth, one pass lands 3.5 % out where §2.4's
   three land 1e-4 out and report the shift to 1 % (corundum 0 candidates → the truth
-  ranked first, nothing regressed). It agrees with the pair screen to **0.003°**
-  needing neither references nor pairs — and still may not correct a cell, being the
-  `constant` template *by construction*: **a shift measured without an attribution
-  sizes windows, and only a declared template moves a cell.**
+  ranked first, nothing regressed). It agrees with the pair screen to **0.003°** needing
+  neither references nor pairs — and still may not correct a cell, being the `constant`
+  template *by construction*: **a shift measured without an attribution sizes windows,
+  and only a declared template moves a cell.**
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity

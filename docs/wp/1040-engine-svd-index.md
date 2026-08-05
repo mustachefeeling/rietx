@@ -13,6 +13,26 @@ supersedes WP-1023's Monte Carlo no-go rather than reopening it.
 
 ## Context
 
+### Inherited
+
+**From WP-1041, 2026-08-05 — both dedup fixes you handed over are landed, and the
+defect was larger than you measured it.** They are now one shared
+`engines.solution_key`, since `trial_error._solution_key` and `svd._solution_key`
+were the same function with a different bug fixed in each. Two corrections to what
+this WP recorded:
+
+* **Scale invariance is not "cubic, and only cubic".** It merges any two metrics
+  related by a *uniform rescaling* — one candidate per **shape** in every system, so
+  a cell always collides with its own uniform supercell.
+* **`seen.add` runs before `_score`**, so a metric that *fails* scoring claims its
+  whole shape family. That is what made `INDEX_DOMINANT_ZONE` fire for two years on a
+  fixture the base table could in fact solve.
+
+Consequences for this WP's own rows: **11-BM NAC is now found by `trial_error` as
+well as `svd`** (`found_by == ["svd", "trial_error"]`), in both the P and I
+descriptions at +19 ppm; the gate is unchanged, because `dichotomy` still finds
+nothing. Nothing else in the acceptance file moved. The scoreboard stays with 1041.
+
 ### Why WP-1023's no-go does not fence this
 
 WP-1023 measured that a Monte Carlo tier-1 ranked the true corundum cell **29 053 of

@@ -1073,8 +1073,9 @@ CLAIMS: tuple[Claim, ...] = (
         "test_what_the_unflagged_tail_components_cost_the_certified_cell",
         "srm660c", ("certificate", "characterisation"),
         "with every piece of evidence supplied the gate reaches high for the "
-        "first time on real data, and the cell lands 2 ppm from a certified "
-        "value",
+        "first time on real data and the cell lands 2 ppm from a certified "
+        "value -- and best_or_none() still declines, because the a*sqrt2 "
+        "supercell reaches high too",
         reference="An attribution probe, not a protocol: the off-lattice "
                   "components are identified USING the certificate, which no "
                   "user of an unknown phase can do.  What it establishes is "
@@ -1083,13 +1084,24 @@ CLAIMS: tuple[Claim, ...] = (
                   "peak list.  Three things are supplied -- the five "
                   "off-lattice components removed, the systematic measured "
                   "rather than assumed, the cos_theta template declared",
-        measured="a = 4.156772 A, -2 ppm, M20 1113, ZERO caveats, confidence "
-                 "high and best_or_none() non-None -- both firsts on real "
-                 "data, against -127 ppm with none of the three.  Also "
-                 "measured: declaring the screen's own sigma_sys (0.0078, the "
-                 "residual the template LEAVES) returns no candidate at all, "
-                 "because the search matches uncorrected positions and needs "
-                 "the shift's amplitude (0.037) instead -- 4.3x apart",
+        measured="a = 4.156772 A, -2 ppm, M20 1120, ZERO caveats, confidence "
+                 "high -- a first on real data, against -127 ppm with none of "
+                 "the three.  But best_or_none() is None: the a*sqrt2 supercell "
+                 "(5.878564) reaches high in BOTH its I and P descriptions, all "
+                 "three engines finding all three cells.  The 'best_or_none() "
+                 "non-None' claim recorded here before WP-1041 held only while "
+                 "trial_error's scale-invariant dedup key could return one cubic "
+                 "candidate per search, denying the supercells its vote -- the "
+                 "flagship result was protected by a bug rather than by the "
+                 "gate.  Everything that refutes the supercell is measured and "
+                 "ungated: Rwp 0.098 vs 0.250/0.664, predicted_seen_fraction "
+                 "1.00 vs 0.88/0.49, m_rev 890 vs 6.2/1.8, unmatched_observed 17 "
+                 "vs 91/136, while the one gated detector (predicted_but_absent) "
+                 "reads 0 for all three.  Also measured: declaring the screen's "
+                 "own sigma_sys (0.0078, the residual the template LEAVES) "
+                 "returns no candidate at all, because the search matches "
+                 "uncorrected positions and needs the shift's amplitude (0.037) "
+                 "instead -- 4.3x apart",
         diagnostics=("!INDEX_SHIFT_ALLOWANCE",),
     ),
     # ---- the round-robin pure phases, NAC, FAP and the unknown ----------
@@ -1149,32 +1161,38 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_short_wavelength_data_is_indexed_only_by_the_engine_that_"
-        "enumerates_nothing",
+        "test_short_wavelength_data_is_indexed_by_the_engines_that_"
+        "enumerate_nothing",
         "nac", ("characterisation",),
         "a short-wavelength pattern defeats an exhaustive box search and is "
-        "still indexed, by the one engine that enumerates no box -- and one "
-        "engine is not agreement, so the gate still declines it",
+        "still indexed, by the two engines that enumerate no box -- and the "
+        "third one finding nothing is still a disagreement, so the gate "
+        "declines it",
         reference="lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which "
                   "a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok "
                   "-- the crash guard in front of every generate_reflections "
                   "call -- so the dichotomy rejects its first box.  search_svd "
-                  "sizes its prediction set from the CURRENT trial metric and "
-                  "Coelho's N_c/N_o gate holds it to <= 4x the observed line "
-                  "count, so that resolution never arises for it",
-        measured="zero boxes explored by the dichotomy, premise unchanged; "
-                 "search_svd returns a = 10.2512 A cubic I, +19 ppm from the "
-                 "certified 10.2510 and the RIGHT CENTRING, 223 of 285 lines, "
-                 "chi2_red 0.10, Le Bail Rwp 0.154 with predicted_but_absent "
-                 "0 of 837.  Still low / best_or_none() None on "
-                 "engines_disagree.  This row asserted the opposite until "
-                 "WP-1040, and two recorded no-goes died with it: WP-1026's "
-                 "2theta-truncation no-go was measured with the 2theta-ordered "
-                 "line selection WP-1039 replaced (its runs gave cubic P at "
-                 "-5967/+8189/+7997 ppm), and this row's own closing sentence "
-                 "predicted that a different selection would change its "
-                 "outcome.  A recorded no-go inherits the defects of the run "
-                 "that produced it",
+                  "sizes its prediction set from the CURRENT trial metric under "
+                  "Coelho's N_c/N_o gate, and search_trial_error solves the "
+                  "metric from a few base lines; neither meets that resolution",
+        measured="zero boxes explored by the dichotomy, premise unchanged; svd "
+                 "AND trial_error both return a = 10.2512 A, +19 ppm from the "
+                 "certified 10.2510, in both the P and the I description of "
+                 "identical axes.  Le Bail chooses: I predicts 0 of 837 absent "
+                 "at Rwp 0.154, P predicts 92 of 1668 at Rwp 0.204.  The panel "
+                 "does NOT -- borda leads with P 4-3 on margins of 0.4 % and "
+                 "0.01 % against m_rev separating them 516x (356.1 vs 0.69) "
+                 "and m_sym 318x; pinned, and the assertion inverts when a "
+                 "magnitude-aware aggregate lands.  Still low / best_or_none() "
+                 "None on engines_disagree.  This row has now turned over "
+                 "TWICE -- 'cannot be indexed' died in WP-1040, 'only svd can' "
+                 "in WP-1041, where trial_error turned out to have reached the "
+                 "cell all along and discarded it: its dedup key was scale-"
+                 "invariant (every cubic candidate hashing to one entry) and "
+                 "carried no centring across the centring loop, so P claimed "
+                 "the metric and I was dropped unscored.  Three recorded "
+                 "no-goes have died on this one dataset.  A recorded no-go "
+                 "inherits the defects of the run that produced it",
         diagnostics=("INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"),
     ),
     Claim(

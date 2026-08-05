@@ -71,6 +71,20 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — "ranked first" is
+a weaker measurement than criterion 2 assumes, and the fix for it is refuted.**
+Criterion 2 grades on the truth being *ranked first*, which makes it a measurement
+of `borda_scores` as much as of the engines. Measured on six known-cell datasets,
+Borda ranks the truth first on **5 of 6** — and so does every alternative tried: a
+log-sum over the panel (misses corundum instead of NAC), a standardised log-sum
+(degenerates to Borda at two candidates), and gate-status-first ordering (misses
+zincite, because `predicted_but_absent` fires on its correct cell's extinctions).
+Only a weighting of `m_rev` fitted on two datasets reaches 6/6. So: when you
+re-run criterion 2, **report the rank of the truth and not only whether it led**,
+and read a "not first" as a statement about the aggregate rather than the search —
+the cell is usually in the list. The refutation and its numbers are in 1041's
+handover log; `fom.log_sum_scores` is the instrument, tested and unwired.
+
 **From WP-1039, closed 2026-08-05 — one of your findings is fixed and one of your
 conclusions is withdrawn.**
 

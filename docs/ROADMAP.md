@@ -61,28 +61,31 @@ is exactly what a poisoned chain produces**. It began by finding its own charter
 wrong (WP-1008 said `SequentialRefinement` already took `events=`/`cancel=`; it
 took neither), so the library gained both per pattern and a cancelled series
 **returns** what completed. The series lives *beside* the project; persistence is
-deferred to **1003**. **The GUI is complete but for
-[1017](wp/1017-gui-manual-onboarding.md)**; narrative in
-[milestones/v1.0.md](milestones/v1.0.md).
+deferred to **1003**, and the GUI is complete but for
+[1017](wp/1017-gui-manual-onboarding.md).
 
-**Still open from [1040](wp/1040-engine-svd-index.md)**: the eight-dataset
-scoreboard, handed to [1041](wp/1041-indexing-benchmark-gallery.md) with three
-defects 1040 measured in it. Everything else there landed — a third engine (so
-`high` means all three agree), 11-BM NAC indexed, and the zero-error column.
+**In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** — the gallery, opened
+by clearing its inherited defects (one shared `engines.solution_key`, an opt-in
+Le Bail result, `viz/indexing.py`'s three renderers). Two rows turned over, and
+**its recorded design for the panel aggregate is refuted** — a log-sum scores 5 of
+6, exactly Borda's, because summing raw logs weights each member by its dynamic
+range; `fom.log_sum_scores` ships tested and unwired. Open: tasks 5-9.
+**[1040](wp/1040-engine-svd-index.md) stays 🔄**, its one open item being 1041's
+scoreboard.
 
-The method lesson is ten sessions running (1030 → … → 1016): **instrument before
-ranking, and let the by-hand run judge** — 1040's "nothing regressed", 1035's
-entry diff and 1016's ranking rule each died to one. **A prediction is not a
-measurement**, and 1016 adds the inverse: **nor is an inherited claim.**
+Narratives: [milestones/v1.0.md](milestones/v1.0.md). Eleven sessions running
+(1030 → … → 1041, 1016): **instrument before ranking, and let the by-hand run
+judge** — 1041 is the sharpest case, two green tests asserting what a filter's own
+artefacts produced. **A prediction is not a measurement**, and 1016 adds the
+inverse: **nor is an inherited claim.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature.
-   1041's scoreboard *numbers* are stale twice over and it **inherits three
-   defects measured in 1040**; fix all three before scoring anything.
+2. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+   its `### Inherited` carries 1037's streaming argument and 1016's third writer
+   of the run record's progress fields. (1041 is in flight above.)
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
 4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
@@ -426,7 +429,7 @@ per concurrent session, or only one session commits.
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
-| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
+| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | 🔄 2026-08-05 — dedup key + renderers landed; aggregate and benchmark open | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 
 | WP | Title | Status | Depends on |

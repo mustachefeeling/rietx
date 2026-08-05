@@ -166,6 +166,18 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — your §"the payoff"
+paragraph is half withdrawn, and the σ_sys item you were filed is unchanged.**
+`best_or_none()` no longer returns a cell on the calibrated LaB6 protocol: it did
+so only while `trial_error`'s dedup key was scale-invariant and could return one
+cubic candidate per search, which denied the a·√2 supercell its vote. With
+`engines.solution_key` fixed, all three engines find the truth *and* both centrings
+of that supercell, and all three reach `high`. The certified cell's own `high` and
+its −2 ppm are untouched — only the uniqueness is gone, and it was a bug's doing.
+The paragraph in Context is corrected in place; nothing else in this WP moves. The
+`sigma_sys_deg` naming item you own (the residual the template *leaves*, 0.0078°,
+against the amplitude a window must span, 0.037°) is untouched and still filed here.
+
 **From [1036](1036-crystal-system-settings.md), closed 2026-08-04 — a new
 refusal on the path every external CIF takes, and 1036 established that a plain
 CIF can trip it.**
@@ -301,10 +313,20 @@ shape this WP owns — a guard, a bound, a default.**
 **And the payoff, so the size of the prize is on record: with those three
 handled the gate reaches `high`.** Same pattern, off-lattice components removed
 and the systematic measured rather than assumed: **a = 4.156772 Å, −2 ppm** from
-the certification CIF, M₂₀ = 1113, **zero caveats**, and `best_or_none()`
-returning a cell — the first time either has happened on real data. The
-pipeline's arithmetic is sound to the part per million; what stands between it
-and a *blind* certified answer is a peak list.
+the certification CIF, M₂₀ = 1120, **zero caveats** on that candidate — the first
+time `high` has been reached on real data. The pipeline's arithmetic is sound to
+the part per million; what stands between it and a *blind* certified answer is a
+peak list.
+
+**The half of that sentence about `best_or_none()` is withdrawn (WP-1041,
+2026-08-05).** It returned a cell only because a dedup bug was suppressing two
+rivals: all three engines also find both centrings of the a·√2 supercell, and with
+`engines.solution_key` fixed those reach `high` too, so the "exactly one high
+candidate" rule declines. The certified cell's own `high` is untouched; what the
+row now shows is that the *gate* never separated the truth from its supercell —
+`caveats_for` reads `predicted_but_absent` (0 for all three here) and never
+`unmatched_observed` (17 against 91 and 136). Fixing that is WP-1041's, not this
+WP's; it is noted here only so this paragraph is not read as still true.
 
 **A geometrical ambiguity the enumeration cannot reach from one side (WP-1026,
 same session).** `ambiguity.ambiguity_partners` enumerates **derivative**

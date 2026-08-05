@@ -643,6 +643,93 @@ def borda_scores(panels: list[list[FigureOfMerit]]) -> np.ndarray:
     return scores
 
 
+#: Panel members the aggregate does not read.  ``m_sym`` is ``M̃ₙ × M^Rev`` by
+#: construction (:func:`_reversed_pair`), so on a log scale it is *exactly*
+#: ``log M̃ₙ + log M^Rev``: including it counts ``m_rev`` a second time and adds a
+#: near-duplicate of the forward figure alongside ``m20``.  A rank aggregation
+#: could not see this — Borda is blind to one member being a monotone function of
+#: others — which is why the exclusion arrives with the log-sum and not before it.
+AGGREGATE_EXCLUDES: frozenset[str] = frozenset({"m_sym"})
+
+#: How far below the best candidate a member's value is floored before its log is
+#: taken.  **Relative** to that best, so the floor rescales with the member and
+#: the aggregate stays invariant to its units; six orders down is past anything
+#: still in contention, so it only compresses hopeless candidates against each
+#: other rather than deciding between them.
+AGGREGATE_FLOOR_RTOL = 1e-6
+
+
+def log_sum_scores(panels: list[list[FigureOfMerit]], *,
+                   exclude: frozenset[str] = AGGREGATE_EXCLUDES,
+                   floor_rtol: float = AGGREGATE_FLOOR_RTOL) -> np.ndarray:
+    """Sum of ``log`` over the panel: magnitude-aware, still unit-invariant.
+
+    Higher is better, and ranking on this is ranking on the **product** of the
+    members — a geometric mean up to a constant.
+
+    **Why not Borda.**  A rank aggregation spends one whole point on a win of any
+    size, so a near-tie and a rout are worth the same.  Measured on 11-BM NAC,
+    that is not hypothetical: the primitive candidate beat the body-centred truth
+    4 members to 3 while *taking* two of those members by 0.4 % and 0.01 % and
+    *losing* ``m_rev`` by 516×, and Le Bail agreed with the loser.  A margin the
+    panel measured in orders of magnitude was spent as one point, and three
+    hairline margins outvoted it.
+
+    **Why logs rather than a weighted sum.**  The panel mixes a ratio (M₂₀), an
+    inverse-degrees quantity (F_N) and three fractions, so a plain sum is
+    dominated by whichever member happens to carry the largest numbers, and
+    fixing that needs weights there is no data to set.  Rescaling a member by
+    ``c > 0`` shifts every candidate's log-sum by the same ``log c``, so the
+    ordering does not depend on any member's units — the property that made
+    ranks attractive — while the *size* of each win survives.
+
+    What is given up is invariance to an arbitrary monotone reparametrisation of
+    a member, which ranks do have.  That is the trade, not an oversight: a
+    figure's magnitude is evidence, and a transform that changes ratios changes
+    what the evidence says.
+
+    Zero, negative and non-finite values floor at ``floor_rtol`` of the best
+    candidate on that member, so a figure that could not be computed ranks worst
+    rather than aborting the sum.  A member on which *every* candidate scores
+    zero is silent and contributes nothing, rather than making every score
+    ``-inf``.
+
+    **This is not the ranking in use, and the measurement is why.**
+    :func:`~pxrdref.indexing.engines.rank_candidates` still aggregates with
+    :func:`borda_scores`.  Measured across six known-cell datasets (WP-1041), a
+    plain log-sum ranks the truth first on **5 of 6** — exactly Borda's score,
+    with a different failure: it fixes 11-BM NAC, where the truth wins ``m_rev``
+    by 516×, and breaks certified corundum, where it promotes a half-volume
+    subcell that indexes 43 of 55 lines against the truth's 51.
+
+    The mechanism is general, so read it before reaching for this again: summing
+    raw logs weights each member by its **dynamic range** across the candidate
+    set, and the panel's ranges are not comparable — on corundum ``m_rev`` spans
+    2.5→356 while the coverage fractions span 0.78→0.99, so one member is worth
+    ten of another for no stated reason.  Standardising each member's logs cures
+    that and **degenerates exactly where it is needed**: with two candidates every
+    z-score is ±1 by construction, so NAC reverts to Borda's answer.  Down-
+    weighting ``m_rev`` reaches 6 of 6 and the corpus brackets the weight only to
+    ``0.034 < w < 0.294`` — two datasets setting one constant, which is the
+    tuning the panel exists to avoid.  Kept, exported and tested because it is
+    the instrument that measured all of this, not because it won.
+    """
+    if not panels:
+        return np.zeros(0)
+    scores = np.zeros(len(panels))
+    by_name = [{f.name: float(f.value) for f in p} for p in panels]
+    names = [f.name for f in panels[0] if f.name not in exclude]
+    for name in names:
+        values = np.array([d.get(name, np.nan) for d in by_name],
+                          dtype=np.float64)
+        values = np.where(np.isfinite(values) & (values > 0.0), values, 0.0)
+        best = float(np.max(values)) if len(values) else 0.0
+        if best <= 0.0:
+            continue
+        scores += np.log(np.maximum(values, best * floor_rtol))
+    return scores
+
+
 def fom_panel_disagrees(panels: list[list[FigureOfMerit]]) -> bool:
     """Do the panel's members put different candidates first?
 
@@ -698,8 +785,10 @@ def _blind(name: str, n_unindexed: int) -> str:
     return text
 
 
-__all__ = ["FOM_N", "MATCH_SIGMA", "borda_scores", "f_n",
+__all__ = ["AGGREGATE_EXCLUDES", "AGGREGATE_FLOOR_RTOL", "FOM_N",
+           "MATCH_SIGMA", "borda_scores", "f_n",
            "fom_panel", "fom_panel_disagrees", "indexed_fraction",
-           "lattice_group", "lattice_reflections", "laue_multiplicity", "m20",
+           "lattice_group", "lattice_reflections", "laue_multiplicity",
+           "log_sum_scores", "m20",
            "match_lines", "n_cal", "nearest_discrepancy", "predicted_lines",
            "predicted_seen_fraction", "q_of_two_theta", "trimmed_mean"]

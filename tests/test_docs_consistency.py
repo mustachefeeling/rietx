@@ -45,14 +45,19 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # 494).  Raising a cap is a decision about every future session's fixed cost —
 # make it in a commit that says so, not as a side effect.
 #
-# 700 → 720 at the WP-1016 close (2026-08-05), and the decision rather than the
-# arithmetic: five WPs of standing rules (1032-1035, then 1016's per-pattern
-# `events=`/`cancel=`) consumed WP-1031's 99 lines of headroom, and the document
-# is now rule-only prose with no narrative left to move — the GUI's own detail
-# went to `gui/CLAUDE.md`, which is where it belongs and is not capped.  **Reflow
-# before raising this again**: the bullet lists wrap at ~74 columns against a
-# 79-column body, which is 25 lines of slack measured at this close, and spending
-# that costs no facts at all.
+# 700 -> 720 on 2026-08-05, by two sessions on one day, and the decision rather
+# than the arithmetic: WP-1016, WP-1035 and WP-1041 all landed standing rules
+# against a file already at 700, which is where WP-1032-1035 had taken WP-1031's
+# 99 lines of headroom.  Both sessions paid what they could first — 1035 by reflow
+# and by deleting two restatements, 1016 by tightening four passages and removing
+# the GUI paragraph's duplication of `gui/CLAUDE.md` — and what is left is measured
+# fact compressed to a clause plus a pointer.
+#
+# **This buys twelve lines, not a habit.**  The file is ~100 lines past the size
+# the last consolidation achieved, and the next WP that needs room here should do
+# the consolidation rather than the raise: measured at the 1016 close, the bullet
+# lists wrap at ~74 columns against a 79-column body, which is **25 lines** of
+# slack that costs no facts at all to spend.
 SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 720,
     "docs/ROADMAP.md": 650,
