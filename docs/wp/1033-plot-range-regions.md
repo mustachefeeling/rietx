@@ -4,29 +4,6 @@ Milestone: v1.0 · Status: ⬜
 Depends on: **1032** (strictly — both edit `Plot.svelte`; see below) · 1005,
 1008, 1009 (landed)
 
-### Inherited from [1032](1032-gui-repairs.md) (added 2026-08-05, on its close)
-
-**`Plot.svelte` moved under you**, which is what the strict dependency was for.
-Four things to know before editing it:
-
-- The reflection ticks are on **`yaxis3`**, a band at `[0.225, 0.275]` between
-  the two subplots (`lib/plot.ts:tickBand`). The gap is no longer free — a
-  shaded fit-range or excluded region must be drawn as a **shape** across the
-  paper, or on `xaxis`, not by claiming that domain.
-- **Which curves are drawn is now a client choice** (`hidden`, an *exception*
-  list, `curveToggles`). A shaded region is not a curve and should not join it:
-  it is a fact about the protocol, and the WP-1015 rule that kept the toggles
-  unpersisted is the same rule that says a *region* belongs in `ProjectDoc`.
-- **The `ResizeObserver` is coalesced** through `lib/resize.ts:coalesce` — one
-  `Plots.resize` in flight, at most one queued. If a region drag ends up
-  calling `relayout` per pointer move, measure it the way task 1 did (an init
-  script, before `window.Plotly` is assigned — see this WP's handover for why a
-  later patch is invisible) rather than assuming it is cheap: one redraw of the
-  NAC pattern is ~111 ms.
-- Right-click now **removes a peak**; a region gesture must not collide with it
-  while the Peaks tab is active, and the gestures line under the header is
-  where any new gesture has to be named.
-
 ## Goal
 
 A user can see which part of the pattern is being fitted and change it from the
@@ -73,6 +50,24 @@ that no renderer in the package draws them, and no pointer sets them.
   and `viz/` has no `excluded_regions` consumer at all: not `plot_result`, not
   `plot_for_vlm`, not `write_html`. A region you excluded is invisible in every
   picture the package produces.
+
+### What WP-1032 left in `Plot.svelte` (folded in from its `### Inherited`)
+
+- The reflection ticks are on **`yaxis3`**, a band at `[0.225, 0.275]` between
+  the two subplots (`lib/plot.ts:tickBand`). That gap is no longer free, so a
+  shaded range or region is drawn as a **shape** across the paper
+  (`yref: "paper"`), never by claiming a domain.
+- **Which curves are drawn is a client choice** (`hidden`, an *exception* list,
+  `curveToggles`) — but a shaded region is not a curve and does not join it: it
+  is a fact about the protocol, and the WP-1015 rule that keeps the toggles
+  unpersisted is the same rule that puts a *region* in `ProjectDoc`.
+- The `ResizeObserver` is coalesced through `lib/resize.ts:coalesce`; one redraw
+  of the NAC pattern is ~111 ms, so a per-pointer-move `relayout` would be
+  measurable. It is avoided by construction here: the drag is plotly's own
+  select box, which costs nothing until it ends.
+- Right-click **removes a peak**, and the gestures line under the header names
+  every pointer verb. Arming a region selection therefore *suspends* the peak
+  gestures rather than competing with them (below).
 
 ### The two rules this WP is really about
 
