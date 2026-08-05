@@ -525,7 +525,10 @@ lines and cannot see reflections predicted where there is no intensity, so
 oversized cell (117 of 153 reflections for a doubled cell against 0 of 28 for the
 truth, while Rwp moves only 0.216 → 0.379). Layer 0's `unmatched_calc` **cannot**
 serve as that detector: Le Bail extraction assigns ~nothing to a phantom reflection,
-so it fires on 61 % either way. **The validation fit holds the cell** and frees
+so it fires on 61 % either way. Nor can its mirror `unmatched_observed` be a caveat:
+its level is the *specimen's*, not the candidate's (10-188 across 21 **correct**
+candidates), and inside one pattern it is Rwp again — comparative only (WP-1041).
+**The validation fit holds the cell** and frees
 exactly one peak-position parameter, from the candidate's own shift template. And on
 real data with no measured shift, `high` is currently *unreachable* by design
 (`shift_allowance_assumed`); the fix is evidence, not a bigger constant (WP-1026).
@@ -553,12 +556,17 @@ separates truth from supercell 64-74× where M₂₀ separates them 1.8×. Its `
 Σ 1/m over centring-allowed triples and is **never rounded**: Σ 1/m over a complete
 orbit is exactly 1, so an integer result is the *self-check* that the multiplicity is
 right, while a hexagonal orbit cut by the box legitimately contributes a fraction.
-Two things the panel needs from its caller (WP-1026): the **matching window** is an
-argument (`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage
-members must ask the same "is this the same line" question the *search* asked while
-M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a candidate
-carrying a fitted shift is scored on `engines.scored_positions`, the **corrected**
-lines it actually claims, or the panel marks it down for its own correction.
+**But the panel ranks; it does not score** (WP-1041) — a margin is comparable within a
+member, not across them, so a raw log-sum merely re-weights the panel by each member's
+dynamic range: 5 of 6 datasets, exactly Borda's, failing on a different one.
+`fom.log_sum_scores` carries the measurement and stays **unwired**.
+Two things the panel needs from its caller (WP-1026):
+the **matching window** is an argument (`fom_panel(..., q_match=)`) separate from the
+per-line σ, because coverage members must ask the same "is this the same line"
+question the *search* asked while M₂₀ and F_N floor their discrepancy on what the
+measurement resolves; and a candidate carrying a fitted shift is scored on
+`engines.scored_positions`, the **corrected** lines it claims, or the panel marks it
+down for its own correction.
 
 **The search window is a correctness parameter, measured rather than assumed** (WP-1038,
 `indexing/pairs.py` ). A *harmonic reflection pair* — planes that are integer multiples,
@@ -601,10 +609,10 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   satellites, then `_box_key` skipping unrefined leaves).
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
-  inverted). Two corollaries: **wall clock is worthless while a second search shares
-  the machine**, and **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice`, never sorted axes, or a correct answer in another setting
-  reads as a miss (it bit WP-1040's own monoclinic row).
+  inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
+  `reduce.same_lattice` *and its centring*, never sorted axes, or a correct answer in
+  another setting reads as a miss (WP-1040's monoclinic row) and a P description of
+  one cell reads as its own I truth (WP-1041's harness, on NAC).
 - **Removing a redundant search must not remove its prunes**, and only real data will
   say that you did: the centred passes are redundant *as searches* (each centred trial
   set is a subset of the primitive one) and not as *filters*; the prunes being monotone

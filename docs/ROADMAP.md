@@ -56,27 +56,27 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** (2026-08-05) — the
-gallery, opened by clearing the defects it inherited: one shared
-`engines.solution_key` (the two engines had the same dedup function with a different
-bug fixed in each), `validate_by_lebail(..., with_result=True)`, and
-`viz/indexing.py`'s three renderers with tests that assert what was **drawn**.
+gallery, opened by clearing its inherited defects: one shared `engines.solution_key`
+(both engines had the same dedup function with a different bug fixed in each),
+`validate_by_lebail(..., with_result=True)`, and `viz/indexing.py`'s three renderers.
 
-**The dedup defect was three defects.** Scale invariance is not cubic-only — it
-merges every *uniform rescaling*, so a cell always collides with **its own
-supercell**, the exact false positive the panel exists to separate; and `seen` is
-claimed **before** scoring, so a *rejected* metric poisons its whole family. Two rows
-turned over: **11-BM NAC is now found by two engines** (`trial_error` had reached it
-all along and its key threw it away — three recorded no-goes died on that one
-dataset), and **`INDEX_DOMINANT_ZONE`'s fixture was never a dominant zone** — the
-base table solved it, a same-shape junk cell claimed the key and failed scoring, so
-the diagnostic spent two years explaining a silence it had itself caused.
+**The dedup defect was three defects**: scale invariance merges every *uniform
+rescaling* (a cell collides with its own supercell), and `seen` is claimed **before**
+scoring, so a *rejected* metric poisons its whole family. Two rows turned over — NAC
+is now found by two engines, and `INDEX_DOMINANT_ZONE`'s fixture was never a dominant
+zone, the diagnostic having caused the silence it explained.
 
-**Open, and next:** the magnitude-aware aggregate, measured on NAC. Borda gives P the
-win 4-3 while it takes two members by **0.4 % and 0.01 %** and loses `m_rev` **516×**;
-Le Bail agrees with I. *A near-tie counting as a full win is the defect.* The design
-is a **log-sum** — magnitude-aware, still unit-invariant — minus `m_sym`, which is
-`M̃ₙ × M^Rev` so in logs it re-adds `m_rev` (`M̃ₙ` is *not* the panel's `m20`: 1.15
-against 1.43 on NAC). Then tasks 5-8: PNGs, contamination, scoreboard, summary.
+**The aggregate was measured, and the design this WP recorded is refuted.** A log-sum
+over the panel does fix NAC — and scores **5 of 6** known-cell datasets, exactly
+Borda's, breaking certified corundum instead: summing raw logs weights each member by
+its dynamic range (`m_rev` 2.5-356 against coverage 0.78-0.99). Standardising
+degenerates at two candidates, and the 6/6 weighting is one constant fitted on two
+datasets. The gate half fails identically — `unmatched_observed` runs 10-188 for
+**correct** cells, and inside a pattern is Rwp again. *Both halves read a comparative
+instrument as an absolute verdict*; a successor needs a new member or a
+within-pattern-normalised score, not another aggregate over these seven.
+`fom.log_sum_scores` ships tested and unwired. **Open:** tasks 5-9 — PNGs,
+contamination, scoreboard, summary.
 
 **Last closed: [1035](wp/1035-symmetry-surfaced.md)** — a phase's space group is read
 out, names the **cause** of every row symmetry holds, and is **editable behind a

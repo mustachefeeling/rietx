@@ -1,7 +1,7 @@
 # WP-1041 — The indexing benchmark gallery
 
 Milestone: v1.0 · Status: 🔄 2026-08-05 — dedup key, opt-in Le Bail result and the
-three renderers landed; the aggregate and the benchmark tasks open
+three renderers landed; the aggregate measured and refuted; the benchmark tasks open
 Depends on: WP-1026
 
 ## Goal
@@ -127,13 +127,15 @@ rows.
 - [x] `trial_error._solution_key` carries the scale and the centring — landed as
       **one** shared `engines.solution_key`, since the two engines had the same
       function with a different bug fixed in each. Before any count.
-- [ ] **One fix, not two** (merged 2026-08-05, when the LaB6 row showed they are the
-      same defect): a magnitude-aware panel aggregate replacing plain Borda, **and**
-      `caveats_for` reading `unmatched_observed` as well as `predicted_but_absent`.
-      The panel holds the answer in both cases and neither consumer uses it.
-      Measured across every acceptance row rather than tuned on one — no absolute
-      threshold survives NAC, whose *correct* cell leaves 188 peaks unmatched.
-      Before any count.
+- [x] **One fix, not two** — measured across a six-dataset corpus, and **neither half
+      survives its measurement**. It really was one defect, but the shared defect is
+      the *premise*: both halves read a comparative instrument as an absolute verdict.
+      The log-sum scores 5/6, exactly Borda's, failing on a different dataset;
+      `unmatched_observed` has no absolute scale (10-188 for **correct** cells) and
+      within a pattern is Rwp again. Numbers below. `log_sum_scores` ships tested and
+      **unwired**; `rank_candidates` and `caveats_for` are unchanged, so no acceptance
+      row turned over. A successor needs a *new* panel member or a
+      within-pattern-normalised score, not another aggregate over these seven.
 - [x] The three rows the dedup fix turned over, re-measured and re-pinned: 11-BM NAC
       (`found_by` gains `trial_error`), `INDEX_DOMINANT_ZONE` (fixture split in two,
       genuine case now `slow`), and the LaB6 flagship (`best_or_none()` withdrawn,
@@ -181,6 +183,56 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   inventory as it stands.
 
 ## Handover log
+
+- **2026-08-05 (later, after merging `main`)** — **five of nine**. `main`'s WP-1035
+  merged in (no code conflict; both doc conflicts were the always-loaded files), then
+  the aggregate task was measured and **its recorded design refuted**.
+
+  **The measurement.** A harness dumps every candidate's panel for six known-cell
+  datasets, reusing the acceptance module's own fixtures so the protocol cannot
+  drift; aggregates are then compared offline on identical panels. Truth is
+  `same_lattice` **and centring** — the first version forgot centring and read both
+  NAC candidates as the truth, which is `solution_key`'s own lesson one rank up.
+
+  | aggregate | truth ranked first |
+  |---|---|
+  | Borda (shipped) | 5/6 — misses **NAC** |
+  | log-sum − `m_sym` (the recorded design) | 5/6 — misses **corundum** |
+  | standardised log-sum | 5/6 — misses **NAC** again |
+  | gate-status first, then either | 5/6 — misses **zincite** |
+  | log-sum, `m_rev` weighted 0.10–0.20 | 6/6 — on a weight two datasets fit |
+
+  **Why the log-sum fails.** Summing raw logs weights each member by its dynamic
+  range, and the panel's are not comparable: on corundum `m_rev` spans 2.5–356 where
+  the coverage fractions span 0.78–0.99, so it promotes a half-volume trigonal R
+  subcell indexing 43/55 over the truth's 51/55. Standardising cures that and
+  **degenerates exactly where it is needed** — with NAC's two candidates every
+  z-score is ±1 by construction. The corpus brackets `m_rev`'s weight only to
+  `0.034 < w < 0.294`; that is two datasets setting one constant.
+
+  **Why the gate half fails, and why it is the same failure.** `unmatched_observed`
+  cannot be a caveat because a caveat is an absolute verdict and the count has no
+  absolute scale: 10–188 across 21 validated candidates that are *correct* (NAC's own
+  truth leaves 188 against its CaF₂ impurity). Within one pattern it does
+  discriminate — and is nearly what Rwp already reports, Spearman **+0.80 to +1.00**
+  on the five datasets with enough candidates to rank, against **+0.44** pooled.
+  Gate-status-first ordering was measured too and demotes zincite's truth to rank 2,
+  because `predicted_but_absent` fires on the correct cell's P6₃mc extinctions (4 of
+  36) and clears the wrong supercell (0 of 68) — the trap CLAUDE.md already carries.
+
+  **Also settled**: `m_sym` = `M̃ₙ × M^Rev` is now *proved*, re-derived in the test
+  from `n_cal`/`nearest_discrepancy`/`trimmed_mean` and matching to 1e-9 — and `M̃ₙ`
+  is **not** the panel's `m20` (1.15 against 1.43 on NAC), which the previous
+  session's paraphrase had wrong in ROADMAP.
+
+  **Gotcha for the next session**: `CLAUDE.md`'s size cap was raised 700 → 720 in
+  `tests/test_docs_consistency.py`, deliberately and with the reason in a comment.
+  The file is now 100 lines past what the last consolidation achieved — **the next WP
+  that needs room there should do the consolidation pass, not another raise.**
+
+  Open: tasks 5–9 (acceptance PNGs, contamination sweep, scoreboard re-measure,
+  one-page summary). The harness lives in the job scratchpad, not the repo — if the
+  scoreboard task wants it, it should land in `tests/` as a fixture.
 
 - **2026-08-05** — **four of nine** tasks landed (the checklist gained one: the three
   acceptance rows the dedup fix turned over, which was not foreseen work), and **the

@@ -44,8 +44,17 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # achieved it (WP-1031, 2026-07-31: CLAUDE.md landed at 601 lines, ROADMAP at
 # 494).  Raising a cap is a decision about every future session's fixed cost —
 # make it in a commit that says so, not as a side effect.
+#
+# 2026-08-05, 700 -> 720: WP-1035 and WP-1041 both landed standing rules on one
+# day against a file already at 700.  1035's six-line invariant was paid for by
+# reflow and by deleting two restatements; 1041's two rules (the panel ranks and
+# does not score; `unmatched_observed` has no absolute scale) are already
+# compressed to a clause plus a pointer and there is nothing left to cut that is
+# not a measured fact.  **This buys twelve lines, not a habit** — the file is
+# 100 lines past the size the last consolidation achieved, so the next WP that
+# needs room here should do the consolidation pass rather than the raise.
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 700,
+    "CLAUDE.md": 720,
     "docs/ROADMAP.md": 650,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (landed at 33)
