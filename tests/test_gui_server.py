@@ -823,6 +823,11 @@ def test_a_symmetry_change_is_previewed_out_of_the_rules_that_would_refuse_it(
     assert out["blocked"] is True
     assert out["refusals"][0]["where"] == "phases.0.cell"
     assert "fixes gamma at 120.0°" in out["refusals"][0]["message"]
+    # …and a refused change is given no *consequences*: the browser pass read
+    # "the cell would hold 198 atoms" here, computed by applying R -3 c's
+    # operators to a cell whose γ is 90° — a number about nothing
+    assert [n["kind"] for n in out["notes"]
+            if n["kind"] in ("multiplicity_change", "centring_change")] == []
 
     # an unresolvable symbol is a refusal addressed to the field it was typed in
     status, payload = client.post("/api/structure/symmetry/preview",
@@ -887,6 +892,40 @@ def test_the_three_silent_failures_are_previewed_rather_than_discovered(
     assert kinds["free_paths_dropped"]["where"] == ["phases.0.atoms.1.dof.2"]
     assert kinds["free_paths_renumbered"]["where"] == ["phases.0.atoms.1.dof.1"]
     assert "positional" in kinds["free_paths_renumbered"]["message"]
+
+
+def test_a_supergroup_that_moves_no_parameter_still_says_the_cell_doubled(
+        blank, tmp_path, pattern_file):
+    """Found by driving the real page, and invisible to every diff that existed.
+
+    Real NAC, ``I 21 3`` → ``I 41 3 2``: every stabiliser keeps its order, every
+    site keeps its DOF count, the cell ties are the same and the centring is the
+    same — so the entry diff is *empty* and the panel read "no parameter gains or
+    loses a tie".  What actually happens is that every orbit doubles (12→24,
+    8→16, 24→48), the cell holds twice as many atoms, and the phase scale means
+    something else.  The multiplicity is the only thing that says so.
+    """
+    from pxrdref.crystallography.cif import structure_from_cif
+
+    session, client = blank
+    project = _open(session, tmp_path / "supergroup.pxrd", pattern_file)
+    nac = structure_from_cif(str(Path(__file__).parent / "data" / "cod_1000236.cif"))
+    project.refinement.structure = nac
+    assert nac.phases[0].space_group == "I 21 3"
+
+    out = client.post("/api/structure/symmetry/preview",
+                      {"phase": 0, "space_group": "I 41 3 2"})[1]
+    assert out["blocked"] is False
+    assert out["entries"] == {"added": [], "removed": [], "tied": [], "untied": [],
+                              "locked": [], "unlocked": []}
+    note = next(n for n in out["notes"] if n["kind"] == "multiplicity_change")
+    assert "168 atoms instead of 84" in note["message"]    # 12+8+8+24+24+8, ×2
+    sites = {s["label"]: s for s in out["sites"]}
+    assert sites["Ca1"]["from"]["order"] == sites["Ca1"]["to"]["order"] == 2
+    assert (sites["Ca1"]["from"]["multiplicity"],
+            sites["Ca1"]["to"]["multiplicity"]) == (12, 24)
+    assert (sites["F1"]["from"]["multiplicity"],
+            sites["F1"]["to"]["multiplicity"]) == (24, 48)
 
 
 def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(

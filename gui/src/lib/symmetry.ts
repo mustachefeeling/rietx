@@ -75,7 +75,7 @@ export function symmetryLine(facts: PhaseSymmetry | null | undefined): string {
 export function noteTone(kind: string): Tone {
   if (kind === "orbit_collision") return "bad";
   if (kind === "setting_change" || kind === "centring_change"
-      || kind.startsWith("free_paths_")) return "warn";
+      || kind === "multiplicity_change" || kind.startsWith("free_paths_")) return "warn";
   return "info";
 }
 
@@ -108,15 +108,26 @@ export function entryLines(entries: Record<string, string[]> | undefined,
   return out;
 }
 
-/** Per-atom site changes, one sentence each — the shape the atom table shows. */
+/**
+ * Per-atom site changes, one sentence each — the shape the atom table shows.
+ *
+ * The **multiplicity** is in here because it is the one of the three that no
+ * parameter reflects: a browser pass on NAC's `I 21 3` → `I 41 3 2` found every
+ * stabiliser and every DOF unchanged while every orbit doubled, and the panel
+ * read "no parameter gains or loses a tie".
+ */
 export function siteLines(sites: any[] | undefined): string[] {
   return (sites ?? []).map((site) => {
     const from = site.from ?? {};
     const to = site.to ?? {};
-    const dofs = from.dofs === to.dofs
+    const parts = [`site symmetry order ${from.order} → ${to.order}`];
+    if (from.multiplicity !== to.multiplicity) {
+      parts.push(`multiplicity ${from.multiplicity} → ${to.multiplicity}`);
+    }
+    parts.push(from.dofs === to.dofs
       ? `${to.dofs} coordinate DOF(s)`
-      : `${from.dofs} → ${to.dofs} coordinate DOF(s)`;
-    return `${site.label}: site symmetry order ${from.order} → ${to.order}, ${dofs}`;
+      : `${from.dofs} → ${to.dofs} coordinate DOF(s)`);
+    return `${site.label}: ${parts.join(", ")}`;
   });
 }
 

@@ -201,8 +201,10 @@ const PREVIEW_OK = {
   entries: { added: [], removed: [], tied: [], untied: ["phases.0.cell.c"],
              locked: [], unlocked: [] },
   sites: [{ path: "phases.0.atoms.1", atom: 1, label: "B",
-            from: { order: 8, dofs: 1, adps: 0, dof_directions: [[1, 0, 0]] },
-            to: { order: 4, dofs: 1, adps: 0, dof_directions: [[1, 0, 0]] } }],
+            from: { order: 8, multiplicity: 6, dofs: 1, adps: 0,
+                    dof_directions: [[1, 0, 0]] },
+            to: { order: 4, multiplicity: 6, dofs: 1, adps: 0,
+                  dof_directions: [[1, 0, 0]] } }],
 };
 
 const PREVIEW_BLOCKED = {

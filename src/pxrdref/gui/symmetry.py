@@ -381,9 +381,13 @@ def preview(structure: Structure, instrument, phase: int, symbol: str, *,
     after = phase_facts(candidate.phases[phase], phase)
 
     refusals = _refusals(candidate, instrument, phase)
-    collisions = _new_collisions(structure, candidate, phase)
+    # one orbit expansion per atom per side, shared by the collision check and
+    # the site diff — the expensive half of this verb, and the reason it is one
+    orbits = (_orbits(structure, phase), _orbits(candidate, phase))
+    collisions = _collisions(structure, candidate, phase, orbits)
+    multiplicity = ([len(o) for o in orbits[0]], [len(o) for o in orbits[1]])
     notes = _notes(structure, candidate, phase, before, after, free_paths or [],
-                   blocked=bool(refusals))
+                   multiplicity, blocked=bool(refusals))
     notes.extend(collisions)
     return {
         "phase": phase,
@@ -395,7 +399,7 @@ def preview(structure: Structure, instrument, phase: int, symbol: str, *,
         "refusals": refusals,
         "notes": notes,
         **_table_diff(structure, candidate, instrument, blocked=bool(refusals)),
-        "sites": _site_diff(structure, candidate, phase),
+        "sites": _site_diff(structure, candidate, phase, multiplicity),
     }
 
 
@@ -495,26 +499,41 @@ def _table_diff(current: Structure, candidate: Structure, instrument, *,
     return {"entries": out}
 
 
-def _site_diff(current: Structure, candidate: Structure, phase: int) -> list[dict]:
-    """Per atom, only where something moved: DOF count, ADP patterns, order."""
+def _site_diff(current: Structure, candidate: Structure, phase: int,
+               multiplicity: tuple[list[int], list[int]]) -> list[dict]:
+    """Per atom, only where something moved: DOF count, ADP patterns, order —
+    **and the orbit multiplicity**, which is none of those.
+
+    The multiplicity is here because a browser pass caught the diff being silent
+    about it: NAC's ``I 21 3`` → ``I 41 3 2`` leaves every stabiliser and every
+    DOF exactly as it was (order 2/3/1, one or three directions) while every
+    orbit doubles — 12 → 24, 8 → 16, 24 → 48 — so the cell holds twice as many
+    atoms, F is computed over twice as many, and the phase scale means something
+    else.  No parameter appears, no tie moves, and the preview read "no parameter
+    gains or loses a tie".  It costs an orbit expansion per atom (0.4-1.3 ms,
+    measured), which is why it is computed here and not on ``/api/structure``.
+    """
     now = {r["path"]: r for r in site_rows(current) if "error" not in r}
     then = {r["path"]: r for r in site_rows(candidate) if "error" not in r}
+    mult_now, mult_then = multiplicity
     out = []
     for j, atom in enumerate(candidate.phases[phase].atoms):
         base = f"phases.{phase}.atoms.{j}"
         a, b = now.get(base), then.get(base)
         if a is None or b is None:
             continue
+        m_a = mult_now[j] if j < len(mult_now) else 0
+        m_b = mult_then[j] if j < len(mult_then) else 0
         if (a["site_symmetry_order"] == b["site_symmetry_order"]
                 and a["dof_directions"] == b["dof_directions"]
-                and a["adp_patterns"] == b["adp_patterns"]):
+                and a["adp_patterns"] == b["adp_patterns"] and m_a == m_b):
             continue
         out.append({
             "path": base, "atom": j, "label": atom.label,
-            "from": {"order": a["site_symmetry_order"],
+            "from": {"order": a["site_symmetry_order"], "multiplicity": m_a,
                      "dofs": len(a["dof_paths"]), "adps": len(a["adp_paths"]),
                      "dof_directions": a["dof_directions"]},
-            "to": {"order": b["site_symmetry_order"],
+            "to": {"order": b["site_symmetry_order"], "multiplicity": m_b,
                    "dofs": len(b["dof_paths"]), "adps": len(b["adp_paths"]),
                    "dof_directions": b["dof_directions"]},
         })
@@ -522,21 +541,33 @@ def _site_diff(current: Structure, candidate: Structure, phase: int) -> list[dic
 
 
 def _notes(current: Structure, candidate: Structure, phase: int, before: dict,
-           after: dict, free_paths: list[str], *, blocked: bool) -> list[dict]:
+           after: dict, free_paths: list[str],
+           multiplicity: tuple[list[int], list[int]], *,
+           blocked: bool) -> list[dict]:
     notes: list[dict] = []
-    if (before.get("number") == after.get("number")
-            and before.get("xhm") != after.get("xhm")):
+    n_before, n_after = sum(multiplicity[0]), sum(multiplicity[1])
+    if blocked:
+        # A refused change has no consequences, so it must not be given any.  On
+        # a blocked candidate the orbits and the centring are computed from
+        # operators the cell cannot carry — the browser pass read "the cell would
+        # hold 198 atoms" for an ``R -3 c`` over a 90° cell — and only the
+        # refusal, plus what caused it, is worth printing.
+        return _cause_notes(before, after, phase)
+    if n_before != n_after and n_before and n_after:
+        # the second thing the entry diff is blind to, and the one a browser
+        # pass caught: NAC's I 21 3 → I 41 3 2 moves no parameter at all and
+        # doubles every orbit (see _site_diff)
         notes.append({
-            "kind": "setting_change",
+            "kind": "multiplicity_change",
             "where": [f"phases.{phase}.space_group"],
             "message": (
-                f"{before['xhm']} and {after['xhm']} are the same space group "
-                f"(No. {after['number']}) in different settings — "
-                f"{before['setting']}, {after['setting']}. Every coordinate and "
-                "every cell edge is read on the other axes; nothing here "
-                "converts them, so the numbers must already be in the setting "
-                "you are choosing."),
+                f"the cell would hold {n_after} atoms instead of {n_before}: "
+                f"every site's orbit is regenerated under the new operators. F "
+                f"is computed over a different number of atoms, so the phase "
+                f"scale — and any QPA fraction derived from it — no longer means "
+                f"what it did, whatever the parameter table says below."),
         })
+    notes.extend(_cause_notes(before, after, phase))
     if (before.get("centring") != after.get("centring")
             and not before.get("error") and not after.get("error")):
         # the one big change the entry diff is structurally blind to: centring
@@ -554,6 +585,29 @@ def _notes(current: Structure, candidate: Structure, phase: int, before: dict,
     if not blocked:
         notes.extend(_free_path_notes(current, candidate, phase, free_paths))
     return notes
+
+
+def _cause_notes(before: dict, after: dict, phase: int) -> list[dict]:
+    """The notes that explain the *request* rather than its consequences.
+
+    A setting change survives a refusal because it is usually what caused one: a
+    ``R -3 c:R`` typed over a hexagonal-axes cell is refused on γ, and the
+    sentence a reader needs is "these are the same group on different axes".
+    """
+    if (before.get("number") != after.get("number")
+            or before.get("xhm") == after.get("xhm")):
+        return []
+    return [{
+        "kind": "setting_change",
+        "where": [f"phases.{phase}.space_group"],
+        "message": (
+            f"{before['xhm']} and {after['xhm']} are the same space group "
+            f"(No. {after['number']}) in different settings — "
+            f"{before['setting']}, {after['setting']}. Every coordinate and "
+            "every cell edge is read on the other axes; nothing here converts "
+            "them, so the numbers must already be in the setting you are "
+            "choosing."),
+    }]
 
 
 def _free_path_notes(current: Structure, candidate: Structure, phase: int,
@@ -605,7 +659,25 @@ def _free_path_notes(current: Structure, candidate: Structure, phase: int,
     return notes
 
 
-def orbit_collisions(structure: Structure, phase: int) -> list[tuple[int, int, float]]:
+def _orbits(structure: Structure, phase: int) -> list[np.ndarray]:
+    """Each asymmetric-unit atom's symmetry orbit, or ``[]`` if the symbol fails.
+
+    The expensive part of the preview — 0.4-1.3 ms an atom, measured — so it is
+    computed once and handed to both readers (the collision check and the
+    multiplicity half of the site diff) rather than twice.
+    """
+    block = structure.phases[phase]
+    try:
+        sg = get_spacegroup(block.space_group)
+    except (ValueError, RuntimeError):
+        return []
+    return [np.asarray(expand_positions(sg, np.array(
+        [a.x.value, a.y.value, a.z.value])), dtype=float) for a in block.atoms]
+
+
+def orbit_collisions(structure: Structure, phase: int,
+                     orbits: list[np.ndarray] | None = None
+                     ) -> list[tuple[int, int, float]]:
     """Asymmetric-unit atom pairs whose symmetry orbits coincide.
 
     ``structure_factor.select_orbit_ops`` dedups images *within* one atom's
@@ -615,11 +687,8 @@ def orbit_collisions(structure: Structure, phase: int) -> list[tuple[int, int, f
     fractional tolerance means three different things in three different cells.
     """
     block = structure.phases[phase]
-    sg = get_spacegroup(block.space_group)
     basis = cartesian_basis(*block.cell.lengths_angles())
-    orbits = [np.asarray(expand_positions(sg, np.array(
-        [a.x.value, a.y.value, a.z.value])), dtype=float)
-        for a in block.atoms]
+    orbits = _orbits(structure, phase) if orbits is None else orbits
     out = []
     for i in range(len(orbits)):
         for j in range(i + 1, len(orbits)):
@@ -632,8 +701,8 @@ def orbit_collisions(structure: Structure, phase: int) -> list[tuple[int, int, f
     return out
 
 
-def _new_collisions(current: Structure, candidate: Structure,
-                    phase: int) -> list[dict]:
+def _collisions(current: Structure, candidate: Structure, phase: int,
+                orbits: tuple[list[np.ndarray], list[np.ndarray]]) -> list[dict]:
     """Collisions the change *creates*, and whether each one is an error.
 
     A shared orbit is **not** automatically a bug: a mixed site — Na at occ 0.5
@@ -649,8 +718,8 @@ def _new_collisions(current: Structure, candidate: Structure,
     site could not change its symmetry at all.
     """
     try:
-        before = {(i, j) for i, j, _ in orbit_collisions(current, phase)}
-        found = orbit_collisions(candidate, phase)
+        before = {(i, j) for i, j, _ in orbit_collisions(current, phase, orbits[0])}
+        found = orbit_collisions(candidate, phase, orbits[1])
     except (ValueError, RuntimeError):
         return []
     atoms = candidate.phases[phase].atoms

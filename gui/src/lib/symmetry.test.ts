@@ -60,7 +60,8 @@ describe("noteTone", () => {
   it("separates the one kind that blocks from the ones that only warn", () => {
     expect(noteTone("orbit_collision")).toBe("bad");
     for (const kind of ["setting_change", "centring_change",
-                        "free_paths_dropped", "free_paths_renumbered"]) {
+                        "multiplicity_change", "free_paths_dropped",
+                        "free_paths_renumbered"]) {
       expect(noteTone(kind)).toBe("warn");
     }
     // a shared site is legal modelling and a pre-existing collision is not this
@@ -94,12 +95,25 @@ describe("entryLines", () => {
 describe("siteLines", () => {
   it("reports the order change and holds the DOF count steady when it is", () => {
     expect(siteLines([{ label: "B",
-                        from: { order: 8, dofs: 1 }, to: { order: 4, dofs: 1 } }]))
+                        from: { order: 8, dofs: 1, multiplicity: 6 },
+                        to: { order: 4, dofs: 1, multiplicity: 6 } }]))
       .toEqual(["B: site symmetry order 8 → 4, 1 coordinate DOF(s)"]);
     expect(siteLines([{ label: "La",
-                        from: { order: 48, dofs: 0 }, to: { order: 1, dofs: 3 } }]))
-      .toEqual(["La: site symmetry order 48 → 1, 0 → 3 coordinate DOF(s)"]);
+                        from: { order: 48, dofs: 0, multiplicity: 1 },
+                        to: { order: 1, dofs: 3, multiplicity: 48 } }]))
+      .toEqual(["La: site symmetry order 48 → 1, multiplicity 1 → 48, "
+                + "0 → 3 coordinate DOF(s)"]);
     expect(siteLines(undefined)).toEqual([]);
+  });
+
+  it("says the multiplicity moved even when nothing else did", () => {
+    // NAC's I 21 3 → I 41 3 2, found in a browser: same order, same DOFs, same
+    // ties, same centring — and twice as many atoms in the cell.
+    expect(siteLines([{ label: "Ca1",
+                        from: { order: 2, dofs: 1, multiplicity: 12 },
+                        to: { order: 2, dofs: 1, multiplicity: 24 } }]))
+      .toEqual(["Ca1: site symmetry order 2 → 2, multiplicity 12 → 24, "
+                + "1 coordinate DOF(s)"]);
   });
 });
 

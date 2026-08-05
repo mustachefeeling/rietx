@@ -19,7 +19,7 @@ protocols by eye.
     stage scale_bkg   free phases.*.scale, instrument.background.*
     stage cell        free phases.*.cell.*
 
-    phase 0 "NAC"                    # I a -3 d · No. 230 · cubic · Laue m-3m
+    phase 0 "NAC"                    # I 21 3 · No. 199 · cubic · Laue m-3
       cell.a        @ 10.251285      min 10.1  max 10.4  esd 3.1e-05
       cell.b          10.251285      = cell.a
       scale         @ 1.234e-06      min 0  softplus
