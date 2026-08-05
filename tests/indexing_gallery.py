@@ -687,7 +687,114 @@ def _esc(text: str) -> str:
             .replace(">", "&gt;"))
 
 
-def summary_html(cards: list[dict[str, Any]] | None = None) -> str:
+#: What `index_pattern` actually does, in the order it does it — the section a
+#: reader needs *before* any result means anything, and the one this page did not
+#: have when it was first written.  Each step names the module that owns it so the
+#: page is an entry point into the code rather than a substitute for it.
+PIPELINE = (
+    ("1. Pick the peaks",
+     "<code>indexing/pick.py</code>",
+     "A search never sees the pattern — it sees a <b>peak list</b>, which has "
+     "already thrown most of the measurement away. Every real-data indexing "
+     "failure this package has measured was visible here first, which is why the "
+     "first figure of every dataset below is the picked list and why lines the "
+     "picker distrusts are drawn faint. <b>This is the figure to check for "
+     "autopicking mistakes.</b>"),
+    ("2. Refuse lists that cannot support an answer",
+     "<code>indexing/quality.py</code>",
+     "M₂₀, F₂₀ and Smith's volume envelope are all <i>defined</i> on twenty "
+     "lines, so below that the package would be reporting figures of merit "
+     "outside their own definitions. Fluorite abstains here, before any engine "
+     "starts, on 18 usable lines."),
+    ("3. Measure the 2θ shift, before searching",
+     "<code>indexing/pairs.py</code>",
+     "Harmonic reflection pairs — planes that are integer multiples — give one "
+     "equation in the shift and none in the cell, so the <i>magnitude</i> of a "
+     "systematic is knowable from the peak list alone, with no reference. This "
+     "sizes the matching window. It is a correctness parameter: a fitted σ is "
+     "the right weight and the <b>wrong</b> window, and on corundum the lines "
+     "sit a median 0.060° from the true positions against a fitted σ of 0.0056° "
+     "— an 11σ systematic, at which the true cell indexes zero lines."),
+    ("4. Search, with three engines that fail differently",
+     "<code>indexing/dichotomy.py</code>, <code>trial_error.py</code>, "
+     "<code>svd.py</code>",
+     "Confidence comes from engines <i>agreeing</i>, so they have to be capable "
+     "of disagreeing: a wide domain defeats the exhaustive dichotomy, a bad base "
+     "line poisons the exact-solve trial-and-error, and a bad starting basin "
+     "defeats the stochastic SVD method. Adding an engine therefore <i>raises</i> "
+     "the bar rather than diluting it."),
+    ("5. Merge, and rank on a panel of seven",
+     "<code>indexing/consensus.py</code>, <code>fom.py</code>",
+     "Candidates are merged on the reduced cell (a lattice, not a tuple), and "
+     "ranked by Borda count over <b>seven</b> figures of merit — M₂₀, F_N, three "
+     "coverage fractions, and Oishi-Tomiyasu's M<sup>Rev</sup>/M<sup>Sym</sup>. "
+     "Coverage is scored in <b>both directions</b> because a supercell indexes "
+     "every observed line exactly and only loses on the reversed members: it "
+     "predicts a forest that is not there. In the tick-row figures below, that is "
+     "the row which is mostly faint."),
+    ("6. Validate against the whole profile (Le Bail)",
+     "<code>indexing/workflow.py</code> — <code>validate_by_lebail</code>",
+     "The panel sees ≤ 20 lines and <b>cannot see reflections predicted where "
+     "there is no intensity</b>, so every surviving candidate is fitted to the "
+     "full pattern. This is a <b>Le Bail</b> extraction, not Pawley, and "
+     "single-phase by construction — two phases were measured at Rwp "
+     "742-9281 % against 7.5-24.8 % for one, because the intensity partition has "
+     "nothing to arbitrate two phases claiming the same channel. It reports two "
+     "detectors: <span class='sw' style='background:#f2c14e'></span> predicted "
+     "but absent, and <span class='sw' style='background:#7a1fa8'></span> "
+     "observed but unmatched. They catch opposite failures — an oversized cell "
+     "and a wrong metric — and Rwp separates neither reliably."),
+    ("7. Grade, and usually refuse",
+     "<code>indexing/consensus.py</code> — <code>grade</code>",
+     "The governing rule is that an indexer must <b>never hand back one cell "
+     "confidently</b>. <code>IndexingResult</code> has no <code>.cell</code>: "
+     "only a gated <code>best_or_none()</code>, which returns <code>None</code> "
+     "unless the answer is <code>high</code> — and <code>high</code> requires "
+     "<i>zero</i> caveats and <i>every</i> engine that ran finding the lattice. "
+     "That is why the scoreboard below shows six correct answers and zero "
+     "promotions: <b>never wrong, and silent more often than right.</b>"),
+)
+
+
+def _pipeline_html() -> str:
+    steps = "".join(
+        f'<li><b>{_esc(title)}</b> <span class="mod">{module}</span><br>{body}</li>'
+        for title, module, body in PIPELINE)
+    return f"""<section id="pipeline"><h2>How indexing works here</h2>
+<p class="lede">Seven steps, in order. Each names the module that owns it — this
+page is an entry point into the code, not a substitute for it. The three figures
+every dataset below carries correspond to steps 1, 5 and 6.</p>
+<ol class="pipeline">{steps}</ol>
+<p class="lede"><b>Reading the figures.</b> In a tick-row plot a
+<i>solid</i> tick is a line the candidate predicts with an observed line under
+it, and a <i>faint</i> one is a prediction with nothing there — so "indexes
+everything by predicting a forest" is visible without trusting any number. In a
+picked-peak plot, faint ticks are lines the picker itself flagged; the lines that
+have caused real failures here were usually <i>unflagged</i>, which is why LaB6
+also gets a plot of each line's distance from its certified position.</p>
+</section>"""
+
+
+def _img_src(name: str, inline: bool) -> str:
+    """The figure's ``src`` — a sibling filename, or the PNG itself.
+
+    ``inline=True`` base64s each PNG into the page so it survives being moved,
+    mailed or published; the payload is ~4.7 MB of PNG, i.e. ~6.3 MB encoded.
+    Off by default because the local page sits beside its figures and reloading
+    them is what makes it cheap to regenerate after every run.
+    """
+    if not inline:
+        return _esc(name)
+    path = OUTPUT / name
+    if not path.exists():
+        return _esc(name)
+    import base64
+    return ("data:image/png;base64,"
+            + base64.b64encode(path.read_bytes()).decode("ascii"))
+
+
+def summary_html(cards: list[dict[str, Any]] | None = None, *,
+                 inline: bool = False) -> str:
     """The one-page benchmark summary, generated from the sidecars.
 
     HTML rather than markdown because the last column is a *picture*, and a
@@ -700,7 +807,7 @@ def summary_html(cards: list[dict[str, Any]] | None = None) -> str:
     rows = []
     for card in cards:
         figs = "".join(
-            f'<figure><img src="{_esc(f)}" alt="{_esc(f)}">'
+            f'<figure><img src="{_img_src(f, inline)}" alt="{_esc(f)}">'
             f'<figcaption>{_esc(f)}</figcaption></figure>'
             for f in card.get("figures", ()))
         facts = []
@@ -757,43 +864,117 @@ def summary_html(cards: list[dict[str, Any]] | None = None) -> str:
     return f"""<!doctype html>
 <meta charset="utf-8"><title>pxrdref indexing benchmark gallery</title>
 <style>
- body {{ font: 15px/1.5 -apple-system, system-ui, sans-serif; max-width: 1100px;
-        margin: 2rem auto; padding: 0 1rem; color: #222; }}
- h1 {{ font-size: 1.6rem; }}
- h2 {{ font-size: 1.1rem; margin: 2.2rem 0 .3rem; border-bottom: 1px solid #ddd;
-       padding-bottom: .25rem; }}
- .tier {{ float: right; font-size: .72rem; font-weight: 600; letter-spacing: .04em;
-          text-transform: uppercase; color: #666; border: 1px solid #ccc;
-          border-radius: 3px; padding: 1px 6px; }}
- p {{ margin: .3rem 0; }}
- .prov, .asserts {{ color: #444; }}
- .outcome {{ color: #1f5fa8; }}
- ul {{ margin: .4rem 0 .8rem 1.1rem; padding: 0; color: #333; font-size: .93rem; }}
- figure {{ margin: .6rem 0; }}
- figcaption {{ font-size: .75rem; color: #888; }}
- img {{ max-width: 100%; border: 1px solid #eee; }}
- .warn {{ background: #fff6e0; border-left: 3px solid #f2c14e; padding: .5rem .8rem; }}
- .lede {{ color: #444; }}
- table {{ border-collapse: collapse; width: 100%; font-size: .88rem;
-          margin: .6rem 0; }}
- th, td {{ text-align: left; padding: .28rem .5rem;
-           border-bottom: 1px solid #eee; vertical-align: top; }}
- th {{ color: #666; font-weight: 600; font-size: .8rem; text-transform: uppercase;
-       letter-spacing: .03em; }}
- .v-first {{ color: #1f7a1f; font-weight: 600; }}
- .v-present {{ color: #a06000; font-weight: 600; }}
- .v-absent {{ color: #a8195f; font-weight: 600; }}
- .v-refused, .v-unknown {{ color: #666; }}
+/* Palette taken from the package's own plot inks (viz/indexing.py), so the page
+   and the figures on it are drawn in one language.  Verdict colours are separate
+   from the accent and always carry a shape as well, never colour alone. */
+:root {{
+  --obs: #1f5fa8; --calc: #c23b22; --absent: #f2c14e; --unmatched: #7a1fa8;
+  --ground: #fcfcfb; --raised: #ffffff; --ink: #16191d; --ink-2: #414852;
+  --ink-3: #6b7480; --rule: #e2e4e8; --rule-2: #eef0f3;
+  --ok: #1c6b45; --warn-ink: #8a5a00; --bad: #9c2740;
+  --measure: 68ch;
+  --serif: ui-serif, Charter, "Bitstream Charter", "Iowan Old Style", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}}
+@media (prefers-color-scheme: dark) {{
+  :root {{
+    --ground: #14161a; --raised: #1b1e24; --ink: #e8eaee; --ink-2: #b3bac4;
+    --ink-3: #858e9a; --rule: #2b2f37; --rule-2: #23272e;
+    --obs: #6ba3e0; --calc: #e8785c; --unmatched: #b678db;
+    --ok: #56b686; --warn-ink: #d9a441; --bad: #e0748e;
+  }}
+}}
+:root[data-theme="dark"] {{
+  --ground: #14161a; --raised: #1b1e24; --ink: #e8eaee; --ink-2: #b3bac4;
+  --ink-3: #858e9a; --rule: #2b2f37; --rule-2: #23272e;
+  --obs: #6ba3e0; --calc: #e8785c; --unmatched: #b678db;
+  --ok: #56b686; --warn-ink: #d9a441; --bad: #e0748e;
+}}
+:root[data-theme="light"] {{
+  --ground: #fcfcfb; --raised: #ffffff; --ink: #16191d; --ink-2: #414852;
+  --ink-3: #6b7480; --rule: #e2e4e8; --rule-2: #eef0f3;
+  --obs: #1f5fa8; --calc: #c23b22; --unmatched: #7a1fa8;
+  --ok: #1c6b45; --warn-ink: #8a5a00; --bad: #9c2740;
+}}
+* {{ box-sizing: border-box; }}
+body {{ background: var(--ground); color: var(--ink); font-family: var(--sans);
+        font-size: 16px; line-height: 1.6; margin: 0; padding: 3rem 1.25rem 6rem; }}
+/* one measure for prose; figures and the table break out wider */
+body > *, section > * {{ max-width: var(--measure); margin-inline: auto; }}
+h1 {{ font-family: var(--serif); font-size: clamp(1.9rem, 4vw, 2.6rem);
+      font-weight: 600; line-height: 1.15; letter-spacing: -.015em;
+      text-wrap: balance; margin: 0 0 .4rem; }}
+h2 {{ font-family: var(--serif); font-size: 1.35rem; font-weight: 600;
+      line-height: 1.25; text-wrap: balance; letter-spacing: -.01em;
+      margin: 0 0 .1rem; padding-right: 7rem; }}
+section {{ border-top: 1px solid var(--rule); padding-top: 1.6rem;
+           margin-top: 2.6rem; position: relative; }}
+p {{ margin: .45rem 0; }}
+.lede {{ color: var(--ink-2); }}
+.prov, .asserts {{ color: var(--ink-2); font-size: .95rem; }}
+.outcome {{ color: var(--obs); font-weight: 500; }}
+b, strong {{ font-weight: 650; }}
+.tier {{ position: absolute; right: max(0px, calc(50% - var(--measure) / 2));
+         top: 1.7rem; font-family: var(--mono); font-size: .68rem;
+         letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+         border: 1px solid var(--rule); border-radius: 999px;
+         padding: .15rem .6rem; background: var(--raised); }}
+ul {{ margin: .5rem 0 .9rem; padding-left: 1.15rem; color: var(--ink-2);
+      font-size: .93rem; }}
+li {{ margin-bottom: .2rem; }}
+ol.pipeline {{ margin: .8rem auto 1rem; padding-left: 1.4rem; }}
+ol.pipeline li {{ margin-bottom: .9rem; color: var(--ink-2); }}
+ol.pipeline b {{ color: var(--ink); }}
+.mod {{ font-family: var(--mono); font-size: .72rem; color: var(--ink-3); }}
+.mod code {{ background: none; padding: 0; font-size: 1em; }}
+code {{ font-family: var(--mono); font-size: .86em; background: var(--rule-2);
+        padding: .05em .3em; border-radius: 3px; }}
+.sw {{ display: inline-block; width: .72em; height: .72em; border-radius: 2px;
+       vertical-align: baseline; }}
+/* figures break the measure — they are wide and are the point of the page */
+.figs {{ max-width: min(1180px, 100%); display: flex; flex-direction: column;
+         gap: 1rem; margin: 1.1rem auto 0; }}
+figure {{ margin: 0; }}
+figcaption {{ font-family: var(--mono); font-size: .7rem; color: var(--ink-3);
+              margin-top: .3rem; }}
+/* the plots are white-ground documents; keep them so in either theme */
+img {{ display: block; width: 100%; height: auto; background: #fff;
+       border: 1px solid var(--rule); border-radius: 4px; }}
+.warn {{ background: color-mix(in srgb, var(--absent) 16%, var(--ground));
+         border-left: 3px solid var(--absent); color: var(--ink);
+         padding: .6rem .9rem; border-radius: 0 4px 4px 0; }}
+.tablewrap {{ max-width: min(1180px, 100%); margin: 1rem auto 0;
+              overflow-x: auto; }}
+table {{ border-collapse: collapse; width: 100%; font-size: .88rem;
+         font-variant-numeric: tabular-nums; }}
+th, td {{ text-align: left; padding: .45rem .7rem; vertical-align: top;
+          border-bottom: 1px solid var(--rule-2); }}
+th {{ font-family: var(--mono); font-size: .68rem; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3);
+      border-bottom: 1px solid var(--rule); white-space: nowrap; }}
+td:first-child {{ font-family: var(--mono); font-size: .84rem; white-space: nowrap; }}
+.chip {{ display: inline-block; font-family: var(--mono); font-size: .7rem;
+         letter-spacing: .04em; padding: .1rem .5rem; border-radius: 999px;
+         border: 1px solid currentColor; white-space: nowrap; }}
+.v-first {{ color: var(--ok); }}
+.v-present {{ color: var(--warn-ink); }}
+.v-absent {{ color: var(--bad); }}
+.v-refused, .v-unknown {{ color: var(--ink-3); }}
+@media (prefers-reduced-motion: no-preference) {{ html {{ scroll-behavior: smooth; }} }}
+:focus-visible {{ outline: 2px solid var(--obs); outline-offset: 2px; }}
 </style>
-<h1>pxrdref — indexing benchmark gallery</h1>
-<p class="lede">Generated from the sidecars
-<code>tests/output/{SIDECAR_GLOB}</code> that
-<code>tests/test_acceptance_indexing.py</code> writes, so nothing on this page is
-maintained by hand and nothing here can say more than the run did. Datasets are
-ordered by how much may be concluded from each — certified cells first, then
-literature cells for a mineral, then the rows whose whole claim is an abstention.
-</p>
+<h1>Indexing benchmark gallery</h1>
+<p class="lede">Every unit-cell indexing result <code>pxrdref</code> is held to,
+with the picked peaks, the ranked candidate lattices and the Le&nbsp;Bail
+validation fit behind each one. Generated from the sidecars
+<code>{SIDECAR_GLOB}</code> that <code>tests/test_acceptance_indexing.py</code>
+writes, so nothing here is maintained by hand and nothing can say more than the
+run did. Datasets are ordered by how much may be concluded from each — certified
+cells first, then literature cells for a mineral, then the rows whose whole claim
+is an abstention.</p>
 {warn}
+{_pipeline_html()}
 {board}
 {"".join(rows)}
 """
@@ -807,7 +988,7 @@ def _scoreboard_html(cards: list[dict[str, Any]]) -> str:
                         for v in VERDICTS if board["counts"][v])
     body = "".join(
         f'<tr><td>{_esc(r["stem"])}</td>'
-        f'<td class="v-{r["verdict"]}">{_esc(r["verdict"])}</td>'
+        f'<td><span class="chip v-{r["verdict"]}">{_esc(r["verdict"])}</span></td>'
         f'<td>{r["truth_rank"] if r["truth_rank"] else "—"} '
         f'of {r["n_candidates"]}</td>'
         f'<td>{"yes" if r["promoted"] else "no"}</td>'
@@ -818,26 +999,34 @@ def _scoreboard_html(cards: list[dict[str, Any]]) -> str:
     return f"""<section id="scoreboard"><h2>The known-cell scoreboard</h2>
 <p class="prov">{board['n']} datasets whose lattice is known independently:
 {counted}. <b>{board['n_promoted']}</b> of {board['n']} were promoted — a cell
-handed back as the answer rather than as a ranked candidate.</p>
+handed back as <em>the answer</em> rather than as a ranked candidate.</p>
 {miss}
-<table><thead><tr><th>dataset</th><th>verdict</th><th>truth rank</th>
-<th>promoted</th><th>measured</th></tr></thead><tbody>{body}</tbody></table>
+<div class="tablewrap"><table><thead><tr><th>dataset</th><th>verdict</th>
+<th>truth rank</th><th>promoted</th><th>measured</th></tr></thead>
+<tbody>{body}</tbody></table></div>
 <p class="lede">Read the shape rather than the count: this feature is
 <b>never wrong, and silent more often than right</b>. Every verdict here is
 computed from the run — the truth's rank is a <code>same_lattice</code> test on
-the reduced A..F vector <em>and</em> the centring, since a primitive description
-of a centred lattice reduces to the same metric and calling that a match reads a
-wrong answer as right.</p></section>"""
+the reduced A..F vector, <em>and</em> the centring, <em>and</em> the dataset's own
+accuracy band. Drop any of the three and a wrong answer reads as right.</p>
+</section>"""
 
 
-def write_summary(path: pathlib.Path | None = None) -> pathlib.Path:
-    out = path or (OUTPUT / "indexing_gallery.html")
+def write_summary(path: pathlib.Path | None = None, *,
+                  inline: bool = False) -> pathlib.Path:
+    out = path or (OUTPUT / ("indexing_gallery_standalone.html" if inline
+                             else "indexing_gallery.html"))
     out.parent.mkdir(exist_ok=True)
-    out.write_text(summary_html(), encoding="utf-8")
+    out.write_text(summary_html(inline=inline), encoding="utf-8")
     return out
 
 
 if __name__ == "__main__":       # pragma: no cover - operator entry point
-    written = write_summary()
+    import sys
+
+    inline = "--inline" in sys.argv
+    written = write_summary(inline=inline)
     n = len(load_cards())
-    print(f"{written}  ({n} of {len(PAGE_ORDER)} datasets)")
+    size = written.stat().st_size / 1e6
+    print(f"{written}  ({n} of {len(PAGE_ORDER)} datasets, {size:.1f} MB"
+          + (", self-contained)" if inline else ")"))
