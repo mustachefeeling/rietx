@@ -269,10 +269,20 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   2. Tasks 5-8 untouched: acceptance PNGs, the contamination sweep, the scoreboard
      re-measure, the one-page summary.
 
+  **Measured green** (`worktree-indexer`, venv `[dev,jax]`, no torch, darwin/arm64
+  M4): fast **1743 passed / 67 skipped** in 3:41, full **1841 / 72** in 24:36,
+  `test_acceptance_indexing.py` **38 rows** in 14:12, ruff clean. The two selections
+  move by **+5** and **+6** off 1040's 1738/1835 — six rows added, one deleted
+  (`svd`'s scale-invariance pin, subsumed by the shared key's), and
+  `INDEX_DOMINANT_ZONE` *moved* from fast to slow, which is the whole of the
+  difference between the two deltas.
+
   **Gotchas.** CLAUDE.md is at **exactly** its 700-line cap — adding a line means
   moving narrative out, not raising the cap (the cap is a deliberate commit).
   `docs/VALIDATION.md` is generated: edit `tests/validation_matrix.py` and run
-  `.venv/bin/python -m tests.validation_matrix`.
+  `.venv/bin/python -m tests.validation_matrix`. And the two remaining renderer
+  gaps: `plot_candidates` is exercised only on a synthetic list so far, and no
+  acceptance row writes a PNG yet — task 5 is untouched.
 
 - **2026-08-04** — created from the source-literature review. The "zero PNGs"
   finding and the `validate_by_lebail` discard were established by reading the code
