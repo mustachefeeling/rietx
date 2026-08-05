@@ -51,11 +51,11 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-05 at the **WP-1041** handover, darwin/arm64 M4, `worktree-indexer`, venv
 `[dev,jax]`, no torch — **WP-1034's `[dev]` figures do not compare**.
-- fast: **1743 / 67 skipped**, 3-4 min — 1040's 1738 **+5** (six added, one deleted:
-  `svd`'s scale-invariance pin, subsumed by the shared key's). full: **1841 / 72**,
-  25-36 min, **+6** — the extra one is `INDEX_DOMINANT_ZONE` *moving* into `slow`,
-  which is why the two selections differ. Clocked by `test_acceptance_indexing.py`
-  (**38 rows, 13-14 min**; 20:03 at the 1040 close, same file — machine state).
+- fast: **1743 / 67 skipped**, 3-4 min — 1040's 1738 **+5**: seven added, one deleted
+  (`svd`'s scale-invariance pin, subsumed by the shared key's), one *moved* to `slow`
+  (`INDEX_DOMINANT_ZONE`). full: **1841 / 72**, 25-36 min, **+6** — that move is the
+  whole difference between the deltas; no new skip. `test_acceptance_indexing.py`
+  sets the clock: **38 rows, 13-14 min**.
 - frontend (vitest) **330**, `svelte-check` clean, `test_gui_*.py` collect **81**;
   1040/1041 touched no `gui/` file. **A module-level `importorskip` collapses its
   module into one skip**, so `--collect-only` undercounts (`tests/CLAUDE.md`).

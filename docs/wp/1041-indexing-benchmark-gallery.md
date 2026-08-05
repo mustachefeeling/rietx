@@ -127,8 +127,17 @@ rows.
 - [x] `trial_error._solution_key` carries the scale and the centring — landed as
       **one** shared `engines.solution_key`, since the two engines had the same
       function with a different bug fixed in each. Before any count.
-- [ ] A magnitude-aware panel aggregate replacing plain Borda, measured across
-      every acceptance row rather than tuned on one. Before any count.
+- [ ] **One fix, not two** (merged 2026-08-05, when the LaB6 row showed they are the
+      same defect): a magnitude-aware panel aggregate replacing plain Borda, **and**
+      `caveats_for` reading `unmatched_observed` as well as `predicted_but_absent`.
+      The panel holds the answer in both cases and neither consumer uses it.
+      Measured across every acceptance row rather than tuned on one — no absolute
+      threshold survives NAC, whose *correct* cell leaves 188 peaks unmatched.
+      Before any count.
+- [x] The three rows the dedup fix turned over, re-measured and re-pinned: 11-BM NAC
+      (`found_by` gains `trial_error`), `INDEX_DOMINANT_ZONE` (fixture split in two,
+      genuine case now `slow`), and the LaB6 flagship (`best_or_none()` withdrawn,
+      with the evidence that the old answer came from the bug).
 - [x] `validate_by_lebail` gains an opt-in return of its `RefinementResult` (it is
       already built); default behaviour unchanged.
 - [x] `viz/` gains indexing plots: picked peaks over the pattern, ranked-candidate
@@ -173,8 +182,10 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
 
 ## Handover log
 
-- **2026-08-05** — three of the eight tasks landed, and **the dedup fix was much
-  bigger than the WP inherited it as**. Branch `wp1041-indexing-benchmark-gallery`.
+- **2026-08-05** — **four of nine** tasks landed (the checklist gained one: the three
+  acceptance rows the dedup fix turned over, which was not foreseen work), and **the
+  dedup fix was much bigger than the WP inherited it as**. Branch
+  `wp1041-indexing-benchmark-gallery`, [draft PR #34](https://github.com/yue-here/pxrd-refine/pull/34).
 
   **Done.**
   1. *One shared `engines.solution_key`* replacing `trial_error._solution_key` and
@@ -279,10 +290,12 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   **Measured green** (`worktree-indexer`, venv `[dev,jax]`, no torch, darwin/arm64
   M4): fast **1743 passed / 67 skipped** in 3:41, full **1841 / 72** in 24:36,
   `test_acceptance_indexing.py` **38 rows** in 14:12, ruff clean. The two selections
-  move by **+5** and **+6** off 1040's 1738/1835 — six rows added, one deleted
+  move by **+5** and **+6** off 1040's 1738/1835 — **seven** rows added, one deleted
   (`svd`'s scale-invariance pin, subsumed by the shared key's), and
   `INDEX_DOMINANT_ZONE` *moved* from fast to slow, which is the whole of the
-  difference between the two deltas.
+  difference between the two deltas. No new skip (67 and 72 both unchanged). The NAC
+  row is a **rename**, not an addition, and counting it as one is how the first
+  version of this paragraph said "six".
 
   **Gotchas.** CLAUDE.md is at **exactly** its 700-line cap — adding a line means
   moving narrative out, not raising the cap (the cap is a deliberate commit).
