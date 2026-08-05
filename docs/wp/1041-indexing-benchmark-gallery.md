@@ -269,6 +269,13 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   2. Tasks 5-8 untouched: acceptance PNGs, the contamination sweep, the scoreboard
      re-measure, the one-page summary.
 
+  **These counts are pre-merge, and `main` has moved.** The branch is based on
+  `1185c7f` and `origin/main` gained **10 commits** of concurrent GUI work while this
+  session ran; nothing here touches `gui/` or `src/pxrdref/gui/` (zero files), so
+  there is no conflict to expect, but `tests/CLAUDE.md`'s rule applies — the two
+  parents' additions cannot be summed, so **re-measure after the merge** rather than
+  adding this WP's +5/+6 to whatever the GUI branch reports.
+
   **Measured green** (`worktree-indexer`, venv `[dev,jax]`, no torch, darwin/arm64
   M4): fast **1743 passed / 67 skipped** in 3:41, full **1841 / 72** in 24:36,
   `test_acceptance_indexing.py` **38 rows** in 14:12, ruff clean. The two selections
