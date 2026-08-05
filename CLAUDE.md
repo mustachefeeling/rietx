@@ -52,8 +52,8 @@ Replaced at every handover, never appended (history: the v1.0 appendix). Measure
 2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
 — **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
 
-- fast **1715 passed / 108 skipped**, **3:05-3:40** *unloaded* — the same green tree read **9:01** at WP-1035 while another worktree's suite shared the machine (load 56), so quote the range and never the figure. Full: **1806 / 117** expected over the unchanged 100-row `-m slow` selection (1789 / 117 measured at 1035). Both selections run 2 over `--collect-only`, for the reason below.
-- frontend (vitest): **375** (347 at 1035, +28), `svelte-check` clean; `test_gui_*.py` collect **104**.
+- fast **1717 passed / 108 skipped** in **3:07-3:35** *unloaded*, full **1808 / 117** in **24:13** — both **measured**, and both moved by exactly the 19 Python tests added (1698 / 1789 at WP-1035). Quote the range, never the figure: this same green tree read **9:01** at 1035 while another worktree's suite shared the machine (load 56). Both selections run 2 over `--collect-only`, for the reason below.
+- frontend (vitest): **376** (347 at 1035, +29), `svelte-check` clean; `test_gui_*.py` collect **104**.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 

@@ -189,11 +189,21 @@ export function trajectoryNote(traj: Trajectory | null, sigmaBar: number): strin
 /**
  * plotly traces for one trajectory — value ± esd, and the other chain beside it.
  *
- * Error bars come from `stderr` with the missing entries **dropped rather than
- * zeroed**: a `null` there means that pattern did not estimate one (the parameter
- * was not free in that fit, or a stage returned no covariance), and a zero-length
- * bar is a claim of infinite precision. plotly takes `null` in an
- * `error_y.array`, so the gap stays a gap.
+ * **A point with no esd carries no error bar at all**, which takes a second
+ * trace, and the reason is measured rather than assumed. A `null` in
+ * `error_y.array` does *not* leave a gap: plotly 3.7.0 draws the bar's two caps
+ * at the point with zero height between them (measured — `h: 0`, path
+ * `M261,180h8m-4,0V180m-4,0h8`, byte-identical to what a `0` produces), so a
+ * pattern that estimated nothing would render as one that measured the value
+ * exactly. That is the claim of infinite precision this has to avoid, so the
+ * bars ride an invisible marker trace over the subset that *has* an esd, and the
+ * visible line+markers trace carries no `error_y` at all.
+ *
+ * A well-determined trajectory then shows **no visible bar**, and that is the
+ * data rather than a defect: measured on the synthetic ramp under
+ * `mccusker_default`, σ(a) is 6.5e-6 Å against a 4.8e-3 Å axis over 189 px, so a
+ * 2σ bar is 0.5 px — and 0.5 px is exactly what plotly drew. Scaling it up to be
+ * seen would be WP-1029's "an exaggeration is not a probability" one panel over.
  *
  * Reseeded points are ringed, never dropped: the fit is good, but its starting
  * values did not come from its neighbour, so it is not evidence that the
@@ -203,20 +213,36 @@ export function trajectoryTraces(traj: Trajectory, colors: {
   ok: string; warn: string; muted: string;
 }, reseeded: boolean[] = []): any[] {
   const flagged = traj.path_dependent;
+  const tone = flagged ? colors.warn : colors.ok;
   const traces: any[] = [{
     type: "scatter",
     mode: "lines+markers",
     name: flagged ? "forward (path-dependent)" : "forward",
     x: traj.x,
     y: traj.value,
-    error_y: { type: "data", array: traj.stderr, visible: true, thickness: 1,
-               width: 3, color: flagged ? colors.warn : colors.ok },
-    line: { color: flagged ? colors.warn : colors.ok, width: 1.4,
-            dash: flagged ? "dash" : "solid" },
-    marker: { size: 6, color: flagged ? colors.warn : colors.ok },
+    line: { color: tone, width: 1.4, dash: flagged ? "dash" : "solid" },
+    marker: { size: 6, color: tone },
     hovertemplate: "%{x}: %{y:.6g}<extra>%{text}</extra>",
     text: traj.labels,
   }];
+  const withEsd = traj.x
+    .map((x, i) => ({ x, y: traj.value[i], e: traj.stderr[i] }))
+    .filter((p) => typeof p.e === "number" && Number.isFinite(p.e));
+  if (withEsd.length) {
+    traces.push({
+      type: "scatter",
+      mode: "markers",
+      x: withEsd.map((p) => p.x),
+      y: withEsd.map((p) => p.y),
+      error_y: { type: "data", array: withEsd.map((p) => p.e), visible: true,
+                 thickness: 1, width: 3, color: tone },
+      // the point is already drawn by the trace above; this one exists only to
+      // hang the bars on, so it neither shows a marker nor claims a legend row
+      marker: { size: 6, opacity: 0 },
+      showlegend: false,
+      hoverinfo: "skip",
+    });
+  }
   if (traj.backward) {
     traces.push({
       type: "scatter",

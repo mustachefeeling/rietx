@@ -142,12 +142,28 @@ describe("what a trajectory says about itself", () => {
 });
 
 describe("the traces", () => {
-  it("keeps a missing esd missing rather than drawing a zero-length bar", () => {
-    const [forward] = trajectoryTraces(traj(), TONES);
-    // a zero there is a claim of infinite precision; plotly takes the null and
-    // draws no bar for that point
-    expect(forward.error_y.array).toEqual([1e-4, null, 1e-4]);
-    expect(forward.error_y.visible).toBe(true);
+  it("hangs the bars on a second trace, over the points that have an esd", () => {
+    // Measured against plotly 3.7.0: a `null` in `error_y.array` draws the bar's
+    // two caps at the point with zero height between them — byte-identical to
+    // what a `0` produces — so a pattern that estimated nothing would render as
+    // one that measured the value exactly.  Hence the split.
+    const traces = trajectoryTraces(traj(), TONES);
+    expect(traces[0].error_y).toBeUndefined();
+    const bars = traces.find((t) => t.error_y);
+    expect(bars.error_y.array).toEqual([1e-4, 1e-4]);   // the middle one is absent
+    expect(bars.x).toEqual([300, 500]);
+    expect(bars.y).toEqual([4.1, 4.3]);
+    // it is a carrier, not a series: no marker, no legend row, no hover
+    expect(bars.marker.opacity).toBe(0);
+    expect(bars.showlegend).toBe(false);
+    expect(bars.hoverinfo).toBe("skip");
+  });
+
+  it("adds no bar trace at all when nothing estimated an esd", () => {
+    const traces = trajectoryTraces(
+      traj({ stderr: [null, null, null] }), TONES);
+    expect(traces.some((t) => t.error_y)).toBe(false);
+    expect(traces).toHaveLength(1);
   });
 
   it("draws the flagged trajectory in the warning colour and dashed", () => {
@@ -162,11 +178,13 @@ describe("the traces", () => {
   });
 
   it("draws the backward chain beside the forward one when it exists", () => {
-    const plain = trajectoryTraces(traj(), TONES);
-    expect(plain.map((t) => t.name)).toEqual(["forward"]);
+    // named traces only: the error-bar carrier has no name and no legend row
+    const named = (rows: any[]) => rows.filter((t) => t.name).map((t) => t.name);
+    expect(named(trajectoryTraces(traj(), TONES))).toEqual(["forward"]);
     const both = trajectoryTraces(traj({ backward: [4.11, 4.21, 4.31] }), TONES);
-    expect(both.map((t) => t.name)).toEqual(["forward", "backward"]);
-    expect(both[1].y).toEqual([4.11, 4.21, 4.31]);
+    expect(named(both)).toEqual(["forward", "backward"]);
+    expect(both.find((t) => t.name === "backward").y)
+      .toEqual([4.11, 4.21, 4.31]);
   });
 
   it("rings the reseeded points and leaves them in the curve", () => {
