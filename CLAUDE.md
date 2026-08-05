@@ -52,11 +52,11 @@ Replaced at every handover, never appended (history: the v1.0 appendix). Measure
 2026-08-05 at the **WP-1035** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
 — **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
 
-- fast suite: **PLACEHOLDER**, **3 min** — +10 python rows (9 in
-  `test_gui_server.py`, 1 in `test_textdoc.py`); the extra skips against the
-  `[dev,jax]` entry are jax's, not new.
-- full suite: **PLACEHOLDER** (fast + 30 slow). `test_acceptance_indexing.py`
-  still sets the clock; WP-1035 touched no engine and no physics module.
+- fast suite: **1696 passed / 108 skipped**, **2:35-3:00** — +10 python rows (9 in
+  `test_gui_server.py`, 1 in `test_textdoc.py`); the extra skips are jax's.
+- full suite: **1787 passed / 117 skipped**, **23:12** — fast **+ exactly the 100
+  rows `-m slow` collects** (both selections run 2 over `--collect-only`, for the
+  reason below). WP-1035 touched no engine and no physics module.
 - frontend (vitest): **347** (330 at 1034, +17: 13 formatter rows, 4 jsdom mounts), `svelte-check` clean; `test_gui_*.py` collect **93**.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
