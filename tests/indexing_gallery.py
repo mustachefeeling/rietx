@@ -45,159 +45,256 @@ OUTPUT = pathlib.Path(__file__).parent / "output"
 #: matches — that directory holds ~120 files from the refinement suites.
 SIDECAR_GLOB = "indexing_*.gallery.json"
 
-#: What each dataset **is**, and what its rows claim about it.  Declared here
-#: rather than scraped from docstrings, for the reason ``PLAN_INFO`` is declared
-#: rather than derived from plan names: a summary a reader trusts has to say what
-#: was asserted, and a test name is not that.  :func:`draw` refuses an undeclared
-#: stem, so a new dataset cannot reach the gallery without saying what it is.
+#: **What each specimen physically is.**  Declared once per specimen rather than
+#: once per run, because a dataset that is indexed twice under two protocols is
+#: still one mineral with one space group — and the first version of this page
+#: gave it two headings and stated its identity in neither.
 #:
-#: ``tier`` is the same vocabulary the acceptance suites already use for how far a
-#: number may be trusted — ``certificate`` (a certified cell), ``cross-code``
-#: (another refinement program's answer), ``consistency`` (a literature cell for
-#: the mineral, not for this specimen), ``published`` (a printed benchmark), and
-#: ``none`` (an unidentified pattern, where the claim is about the abstention).
-DATASETS: dict[str, dict[str, str]] = {
+#: ``space_group`` is the *answer* — what the phase actually is — and is shown
+#: beside every result, because "trigonal R" is a lattice and R-3c is a
+#: structure, and the gap between them is where half this package's caveats come
+#: from (a space-group extinction refutes a correct *lattice*).
+#:
+#: ``tier`` says how far the reference may be trusted: ``certificate`` (a
+#: certified cell), ``cross-code`` (another program's converged answer),
+#: ``consistency`` (a literature cell for the mineral, not for this specimen),
+#: ``published`` (a printed benchmark), ``none`` (no known cell — the claim is
+#: the abstention).
+SPECIMENS: dict[str, dict[str, str]] = {
+    "lab6": {
+        "title": "LaB\u2086 — NIST SRM 660c",
+        "space_group": "P m -3 m (cubic, primitive)",
+        "cell": "a = 4.156780 \u00c5 at this block's 20.85 \u00b0C",
+        "tier": "certificate",
+        "provenance": "NIST certification data, nist_srm660c_100a.cif "
+                      "(_meas block); lab Cu K\u03b1 doublet + graphite analyzer.",
+        "why": "The absolute lab anchor, and the one bundled phase whose space "
+               "group has <b>no extinctions at all</b> \u2014 which makes it the "
+               "control that proved a space-group absence can refute a correct "
+               "cell everywhere else.",
+    },
     "corundum": {
-        "title": "SRM 676a corundum — indexed with nothing declared",
-        "provenance": "IUCr CPD QPA round robin, qarr/corundum.prn; Cu Kα doublet, "
-                      "graphite diffracted-beam monochromator. NIST SRM 676a cell.",
+        "title": "Corundum (Al\u2082O\u2083) — NIST SRM 676a",
+        "space_group": "R -3 c (trigonal, rhombohedral centring)",
+        "cell": "a = 4.759355, c = 12.99231 \u00c5",
         "tier": "certificate",
-        "asserts": "the certified trigonal R lattice ranked first with the right "
-                   "centring, both axes inside 150 ppm, and the grade honestly low "
-                   "on three caveats that each name something real.",
-    },
-    "corundum_shift": {
-        "title": "SRM 676a corundum — with the cos θ shift template declared",
-        "provenance": "as above; the second half of the two-step protocol.",
-        "tier": "certificate",
-        "asserts": "declaring the shape moves the *cell* toward the certificate "
-                   "(a +122 → −93 ppm) while the pair-measured window had already "
-                   "carried indexed_fraction over its bar.",
-    },
-    "corundum_peaks": {
-        "title": "SRM 676a corundum — the picked line list the search is given",
-        "provenance": "as above, pick_peaks output before any search.",
-        "tier": "certificate",
-        "asserts": "the phantom components that blocked this dataset are flagged: "
-                   "each sits ~0.17–0.24° below a line more than 4× stronger.",
-    },
-    "cpd1a": {
-        "title": "A three-phase mixture — the correct answer is a refusal",
-        "provenance": "IUCr CPD QPA round robin, qarr/cpd-1a.prn: corundum + "
-                      "zincite + fluorite.",
-        "tier": "none",
-        "asserts": "best_or_none() is None and no candidate reaches high — a "
-                   "coverage score cannot tell a multiphase pattern from a "
-                   "single-phase one of lower symmetry.",
-    },
-    "fluorite": {
-        "title": "CaF₂ — too symmetric to index from its own pattern",
-        "provenance": "IUCr CPD QPA round robin, qarr/fluorite.prn; Fm-3m, "
-                      "a = 5.4631 Å.",
-        "tier": "none",
-        "asserts": "the run abstains before any engine starts: 18 usable lines "
-                   "against PEAK_MIN_USABLE_LINES = 20.",
-    },
-    "zincite": {
-        "title": "Zincite — a hexagonal P lattice from a lab pattern",
-        "provenance": "IUCr CPD QPA round robin, qarr/zincite.prn; literature cell "
-                      "P 6₃ m c a = 3.2499, c = 5.2066 Å.",
-        "tier": "consistency",
-        "asserts": "the hexagonal lattice is recovered at the level a lab d-scale "
-                   "supports — a lattice type and a centring, never a ppm figure.",
-    },
-    "zircon": {
-        "title": "Zircon — the row that recovers a centring",
-        "provenance": "IUCr CPD QPA round robin, qarr/zircon.prn; literature cell "
-                      "I 4₁/a m d a = 6.6042, c = 5.9796 Å.",
-        "tier": "consistency",
-        "asserts": "tetragonal **I**, not the P description of the same axes — the "
-                   "only acceptance row whose claim is a centring.",
+        "provenance": "IUCr CPD QPA round robin, qarr/corundum.prn; Cu K\u03b1 "
+                      "doublet, graphite diffracted-beam monochromator.",
+        "why": "The row the indexing milestone was blocked on, twice. Its c-glide "
+               "is why a <i>correct</i> cell here is refuted by "
+               "<code>predicted_but_absent</code>: the lattice R knows nothing "
+               "about a glide plane, so 12 reflections it allows are absent.",
     },
     "nac": {
-        "title": "11-BM NAC — synchrotron, and a CaF₂ impurity",
-        "provenance": "APS 11-BM, 11BM_NAC.fxye, λ = 0.4139090 Å from the .prm. "
-                      "Na₂Ca₃Al₂F₁₄, cubic I2₁3, a = 10.2510 Å.",
+        "title": "NAC (Na\u2082Ca\u2083Al\u2082F\u2081\u2084) — APS 11-BM",
+        "space_group": "I 2\u2081 3 (cubic, body-centred)",
+        "cell": "a = 10.2510 \u00c5",
         "tier": "certificate",
-        "asserts": "the cubic I cell is found at +19 ppm by svd and trial_error — "
-                   "dichotomy enumerates nothing at this wavelength, so "
-                   "engines_disagree stands and the gate refuses to promote.",
+        "provenance": "APS 11-BM synchrotron, 11BM_NAC.fxye, \u03bb = 0.4139090 "
+                      "\u00c5 from the .prm. Carries a CaF\u2082 impurity.",
+        "why": "Short wavelength, 285 lines, and a second phase. The exhaustive "
+               "engine cannot start here at all \u2014 at d_min = 0.43 \u00c5 a "
+               "10.25 \u00c5 cell exceeds the reflection ceiling \u2014 so the "
+               "other two carry it.",
     },
     "fap": {
-        "title": "Fluorapatite — a cross-code comparison, not a certificate",
-        "provenance": "GSAS-II LabData tutorial, FAP.XRA; the reference cell is "
-                      "GSAS's own converged answer in FAP.EXP (a = 9.3717, "
-                      "c = 6.8859 Å).",
+        "title": "Fluorapatite (Ca\u2085(PO\u2084)\u2083F)",
+        "space_group": "P 6\u2083/m (hexagonal, primitive)",
+        "cell": "a = 9.3717, c = 6.8859 \u00c5 (GSAS's converged answer)",
         "tier": "cross-code",
-        "asserts": "the cross-code cell is *found* but not ranked first, inside "
-                   "500 ppm — the band an indexed cell earns, wider than a "
-                   "refinement's ±300 ppm because it has no displacement parameter.",
+        "provenance": "GSAS-II LabData tutorial, FAP.XRA; the reference is GSAS's "
+                      "own fit in FAP.EXP \u2014 another program's result, not a "
+                      "certificate.",
+        "why": "The case the whole design exists for: the right cell is "
+               "<i>reachable and not ranked first</i>, and the package declines "
+               "to hand back the leader rather than tuning the panel until the "
+               "right one wins.",
     },
-    "hl2": {
-        "title": "An unidentified pattern stays unidentified",
-        "provenance": "hl2_peaks.txt — a position list for a phase with no known "
-                      "cell. Cu Kα.",
-        "tier": "none",
-        "asserts": "12 candidates, M₂₀ ≈ 4.6, nothing promoted; the verdict is "
-                   "identical at 15, 25 and 45 s of budget.",
+    "zincite": {
+        "title": "Zincite (ZnO)",
+        "space_group": "P 6\u2083 m c (hexagonal, primitive)",
+        "cell": "a = 3.2499, c = 5.2066 \u00c5 (Kihara & Donnay)",
+        "tier": "consistency",
+        "provenance": "IUCr CPD QPA round robin, qarr/zincite.prn.",
+        "why": "The cleanest recovery here \u2014 all 27 usable lines indexed, "
+               "both engines agreeing. Its 6\u2083 screw and c-glide still refute "
+               "it, which is the extinction blind spot on a third space group.",
     },
-    "lab6": {
-        "title": "NIST SRM 660c LaB6 — the absolute anchor",
-        "provenance": "NIST certification data, nist_srm660c_100a.cif (_meas "
-                      "block); Cu Kα doublet + graphite analyzer. a = 4.156780 Å "
-                      "at this block's 20.85 °C.",
-        "tier": "certificate",
-        "asserts": "the certified cubic cell at −2 ppm with no extinction caveat "
-                   "(P m -3 m has none) — and, since WP-1041, **not** uniquely: "
-                   "both centrings of its a·√2 supercell are found by every engine.",
-    },
-    "lab6_calibrated": {
-        "title": "SRM 660c LaB6 — everything the gate can be given, given",
-        "provenance": "as above, with the off-lattice tail components removed and "
-                      "the shift measured against the certificate.",
-        "tier": "certificate",
-        "asserts": "what the *gate* does once the evidence exists, rather than "
-                   "what the search can find.",
-    },
-    "lab6_peaks": {
-        "title": "SRM 660c LaB6 — the picked list, and its tail components",
-        "provenance": "as above, pick_peaks output.",
-        "tier": "certificate",
-        "asserts": "the unflagged tail components escape for three different "
-                   "reasons, and sit on the axial-divergence side below 90° 2θ.",
+    "zircon": {
+        "title": "Zircon (ZrSiO\u2084)",
+        "space_group": "I 4\u2081/a m d (tetragonal, body-centred)",
+        "cell": "a = 6.6042, c = 5.9796 \u00c5 (Hazen & Finger)",
+        "tier": "consistency",
+        "provenance": "IUCr CPD QPA round robin, qarr/zircon.prn.",
+        "why": "The only row whose answer is a <b>centring</b>. Its primitive twin "
+               "indexes <i>more</i> observed lines (60 against 59) and is wrong; "
+               "only coverage scored in reverse separates them.",
     },
     "brucite": {
-        "title": "Brucite — the ranking prefers a supercell",
-        "provenance": "IUCr CPD QPA round robin, qarr/brucite.prn; literature "
-                      "cell P -3 m 1 a = 3.142, c = 4.766 Å (Zigan & Rothbauer). "
-                      "This specimen's a sits +1750 ppm from it — a literature "
-                      "cell is a cell for the mineral, not for the specimen.",
+        "title": "Brucite (Mg(OH)\u2082)",
+        "space_group": "P -3 m 1 (trigonal, primitive)",
+        "cell": "a = 3.142, c = 4.766 \u00c5 (Zigan & Rothbauer)",
         "tier": "consistency",
-        "asserts": "what the ranking does when a supercell explains everything "
-                   "the truth does: the c × 3 supercell leads, and the gate "
-                   "refuses to promote it.",
+        "provenance": "IUCr CPD QPA round robin, qarr/brucite.prn.",
+        "why": "The specimen that proved a literature cell is not a specimen's "
+               "cell: its <i>a</i> sits +1750 ppm from the published value, 30\u00d7 "
+               "the instrument floor. Also the c\u00d72 and c\u00d73 supercell case.",
     },
     "magnetite": {
-        "title": "Magnetite — a subcell above a cubic F truth",
-        "provenance": "IUCr CPD QPA round robin, qarr/magnetit.prn; literature "
-                      "cell F d -3 m a = 8.3941 Å.",
+        "title": "Magnetite (Fe\u2083O\u2084)",
+        "space_group": "F d -3 m (cubic, face-centred)",
+        "cell": "a = 8.3941 \u00c5",
         "tier": "consistency",
-        "asserts": "the second of the two datasets WP-1026 measured and did not "
-                   "land; both were measured before WP-1030's prunes and are "
-                   "re-measured here rather than quoted.",
+        "provenance": "IUCr CPD QPA round robin, qarr/magnetit.prn.",
+        "why": "Ranked right and <b>graded backwards</b>: the correct F cell is "
+               "refuted by its own d-glide while its wrong primitive rival escapes "
+               "clean. The sharpest illustration of the extinction blind spot.",
+    },
+    "fluorite": {
+        "title": "Fluorite (CaF\u2082)",
+        "space_group": "F m -3 m (cubic, face-centred)",
+        "cell": "a = 5.4631 \u00c5",
+        "tier": "consistency",
+        "provenance": "IUCr CPD QPA round robin, qarr/fluorite.prn.",
+        "why": "High symmetry makes a pattern easy to index right up until it "
+               "makes the pattern too sparse to index at all: 18 usable lines "
+               "against a floor of 20, so nothing runs.",
+    },
+    "cpd1a": {
+        "title": "A three-phase mixture",
+        "space_group": "\u2014 (corundum + zincite + fluorite)",
+        "cell": "no single lattice explains it",
+        "tier": "none",
+        "provenance": "IUCr CPD QPA round robin, qarr/cpd-1a.prn.",
+        "why": "The failure mode the prior art retracted a claim over: a coverage "
+               "score cannot tell a multiphase pattern from a single-phase one of "
+               "lower symmetry, so a naive indexer produces a confident list here.",
+    },
+    "hl2": {
+        "title": "An unidentified pattern",
+        "space_group": "unknown \u2014 and it stays unknown",
+        "cell": "unknown",
+        "tier": "none",
+        "provenance": "hl2_peaks.txt \u2014 a bare position list for a phase with "
+                      "no known cell. Cu K\u03b1.",
+        "why": "12 candidates, M\u2082\u2080 \u2248 4.6, nothing promoted \u2014 "
+               "and the verdict is identical at 15, 25 and 45 s of budget, so the "
+               "silence is not a budget artefact.",
     },
     "bethanechol": {
-        "title": "Bethanechol chloride — the one externally graded benchmark",
-        "provenance": "Bergmann, Le Bail, Shirley & Zlokazov (2004), Z. Kristallogr. "
-                      "219, 783: ten peak sets at six levels of difficulty, with "
-                      "every program's score printed in Table 5.",
+        "title": "Bethanechol chloride — the published benchmark",
+        "space_group": "P 2\u2081/n (monoclinic, primitive)",
+        "cell": "a = 8.875, b = 16.408, c = 7.137 \u00c5, \u03b2 = 93.84\u00b0",
         "tier": "published",
-        "asserts": "the published figures of merit are reproduced unfloored, and "
-                   "the published cell reproduces the paper's own impurity counts. "
-                   "The global score is a measured no-go, not an unfinished row — "
-                   "the paper's search domain exhausts every budget.",
+        "provenance": "Bergmann, Le Bail, Shirley & Zlokazov (2004), Z. "
+                      "Kristallogr. 219, 783 \u2014 ten peak sets at six levels of "
+                      "difficulty, with eleven programs' scores printed.",
+        "why": "The only externally graded benchmark any feature in this package "
+               "has \\u2014 and the one place we <b>decline to report a score</b>. "
+               "Eleven indexing programs were run on one compound at six levels "
+               "of difficulty, and both the data and every program's score were "
+               "printed, so the bar is what ITO13, DICVOL91, TREOR90 and McMaille "
+               "actually achieved rather than a tolerance somebody chose. What we "
+               "check against it is below; <b>what we cannot</b> is that score, "
+               "and the reason is a measurement, not an omission \\u2014 see the "
+               "note under the figure.",
     },
 }
+
+#: One entry per *run*. ``specimen`` keys into :data:`SPECIMENS` for the identity;
+#: ``step`` says what this particular run did to it, which is what distinguishes
+#: three runs on one mineral.
+DATASETS: dict[str, dict[str, str]] = {
+    "lab6_peaks": {
+        "specimen": "lab6", "step": "The picked line list, before any search",
+        "asserts": "the unflagged tail components escape the picker for three "
+                   "different reasons, and sit on the axial-divergence side.",
+    },
+    "lab6": {
+        "specimen": "lab6", "step": "Indexed as picked, nothing declared",
+        "asserts": "the certified cubic cell is recovered with no extinction "
+                   "caveat \u2014 and, since WP-1041, not uniquely: both centrings "
+                   "of its a\u00b7\u221a2 supercell are found by every engine.",
+    },
+    "lab6_calibrated": {
+        "specimen": "lab6",
+        "step": "Indexed with every piece of evidence supplied",
+        "asserts": "what the gate does once the off-lattice lines are removed and "
+                   "the shift is measured and declared \u2014 i.e. the ceiling, not "
+                   "what an unaided search reaches.",
+    },
+    "corundum_peaks": {
+        "specimen": "corundum", "step": "The picked line list, before any search",
+        "asserts": "the phantom components that blocked this dataset are flagged: "
+                   "each sits ~0.17\u20130.24\u00b0 below a line 4\u00d7 stronger.",
+    },
+    "corundum": {
+        "specimen": "corundum", "step": "Indexed with nothing declared",
+        "asserts": "the certified lattice ranked first with the right centring, "
+                   "both axes inside 150 ppm, graded low on three caveats that "
+                   "each name something real.",
+    },
+    "corundum_shift": {
+        "specimen": "corundum",
+        "step": "Indexed with the cos\u2009\u03b8 shift template declared",
+        "asserts": "declaring the <i>shape</i> of the systematic moves the cell "
+                   "toward the certificate (a: +122 \u2192 \u221293 ppm).",
+    },
+    "nac": {
+        "specimen": "nac", "step": "Indexed over the whole range",
+        "asserts": "the cubic I cell is found at +19 ppm by two engines; the third "
+                   "enumerates nothing, so the gate refuses to promote.",
+    },
+    "fap": {
+        "specimen": "fap", "step": "Indexed over hexagonal and trigonal",
+        "asserts": "the cross-code cell is found but <b>not ranked first</b>, "
+                   "inside 500 ppm \u2014 and the gate declines the leader.",
+    },
+    "zincite": {
+        "specimen": "zincite", "step": "Indexed over hexagonal and trigonal",
+        "asserts": "the hexagonal lattice recovered at the level a lab d-scale "
+                   "supports \u2014 lattice type and centring, never a ppm figure.",
+    },
+    "zircon": {
+        "specimen": "zircon", "step": "Indexed over tetragonal",
+        "asserts": "tetragonal <b>I</b>, not the P description of the same axes.",
+    },
+    "brucite": {
+        "specimen": "brucite", "step": "Indexed over trigonal and hexagonal",
+        "asserts": "the truth ranked first with its c\u00d72 and c\u00d73 supercells "
+                   "below it \u2014 reversing what was recorded in 2026-07.",
+    },
+    "magnetite": {
+        "specimen": "magnetite", "step": "Indexed over cubic",
+        "asserts": "the cubic F truth ranked first, and the gate grading it "
+                   "<i>below</i> its own primitive rival.",
+    },
+    "fluorite": {
+        "specimen": "fluorite", "step": "Refused before any engine started",
+        "asserts": "18 usable lines against PEAK_MIN_USABLE_LINES = 20, so "
+                   "systems_searched is empty and the run costs 0.1 s.",
+    },
+    "cpd1a": {
+        "specimen": "cpd1a", "step": "Indexed as a single phase (it is not one)",
+        "asserts": "best_or_none() is None and no candidate reaches high.",
+    },
+    "hl2": {
+        "specimen": "hl2", "step": "Indexed from a bare position list",
+        "asserts": "12 candidates, nothing promoted, and the abstention is stable "
+                   "across three budgets.",
+    },
+    "bethanechol": {
+        "specimen": "bethanechol",
+        "step": "The ten published peak sets, checked against the published cell",
+        "asserts": "three things the paper states and never tabulates, so a "
+                   "transcription error in the 200 typed numbers would break at "
+                   "least one: the zeroshift arithmetic (C = A \\u2212 0.100\\u00b0), "
+                   "the I \\u2265 5 % intensity subsetting, and the paper's own "
+                   "count of unexplained lines per set. Then its published "
+                   "figures of merit, M(20) = 197 and F(20) = 1080, reproduce.",
+    },
+}
+
 
 
 #: ``stem -> (conventional cell, centring, relative band)`` for the datasets whose
@@ -611,10 +708,16 @@ def draw_benchmark_sets(stem: str, sets: dict, predicted: dict, *,
 #: consistency-tier minerals, then the rows whose claim is an abstention, then
 #: the published benchmark — which is the order of how much a reader may
 #: conclude from each, not the order the suite happens to run them in.
-PAGE_ORDER = ("lab6", "lab6_calibrated", "lab6_peaks", "corundum",
-              "corundum_shift", "corundum_peaks", "nac",
+PAGE_ORDER = ("lab6_peaks", "lab6", "lab6_calibrated", "corundum_peaks",
+              "corundum", "corundum_shift", "nac",
               "fap", "zincite", "zircon", "brucite", "magnetite",
               "cpd1a", "fluorite", "hl2", "bethanechol")
+
+#: Specimen order on the page — by how much may be concluded from each, which is
+#: not the order the suite runs them in.
+SPECIMEN_ORDER = ("lab6", "corundum", "nac", "fap", "zincite", "zircon",
+                  "brucite", "magnetite", "cpd1a", "fluorite", "hl2",
+                  "bethanechol")
 
 #: The scoreboard's datasets, one row each — the **known-cell** ones plus
 #: fluorite, whose whole result is that it is refused before any engine starts.
@@ -673,6 +776,13 @@ def load_cards() -> list[dict[str, Any]]:
     cards = {}
     for path in sorted(OUTPUT.glob(SIDECAR_GLOB)):
         card = json.loads(path.read_text(encoding="utf-8"))
+        # **The declaration is re-read from the live tables, never trusted from
+        # the sidecar.**  ``draw`` copies DATASETS into the card at write time,
+        # so a sidecar holds a *snapshot* of what the page said when the suite
+        # last ran — and editing a title or regrouping the page would then take
+        # effect only after a 23-minute acceptance run.  The measurement is the
+        # sidecar's; the prose is always the module's.
+        card.update(DATASETS.get(card["stem"], {}))
         card["has_truth"] = card["stem"] in TRUTHS
         card["truth_rank"] = truth_rank(card["stem"], card.get("ranking", []))
         card["verdict"] = _verdict(card)
@@ -754,6 +864,101 @@ PIPELINE = (
      "That is why the scoreboard below shows six correct answers and zero "
      "promotions: <b>never wrong, and silent more often than right.</b>"),
 )
+
+
+#: Every term this page uses that is not standard crystallography.  It exists
+#: because the first version used *promoted*, *first/present*, *truth rank*,
+#: *flagged*, *Borda* and *caveat* without defining any of them — all six are
+#: this package's own vocabulary, and a reader who has not read the source has no
+#: way to recover them.
+GLOSSARY = (
+    ("Flagged (a peak)",
+     "The peak fitter's own verdict on a line it found. Nine flags exist; the "
+     "ones that <b>remove</b> a line from the search are <code>ghost_kbeta</code> "
+     "and <code>ghost_tungsten</code> (contamination — flagged and excluded, "
+     "never subtracted, because Rachinger stripping redistributes the noise), "
+     "<code>fit_failed</code>, <code>excluded</code> (you removed it), and "
+     "<code>not_separable</code> (the component improves the group's <i>shape</i> "
+     "but is not believable as a <i>line</i>). Flags that stay in the search: "
+     "<code>unresolved_shoulder</code>, <code>sigma_assumed</code>, "
+     "<code>position_at_bound</code> and <code>asymmetry_unmodelled</code> — "
+     "these lines are weaker evidence, and their σ says so. In the picked-peak "
+     "figures, faint ticks are flagged lines."),
+    ("Caveat",
+     "A named reservation attached to a candidate cell. Six are "
+     "<b>refuting</b> — they say something is wrong with this cell "
+     "(<code>predicted_but_absent</code>, <code>indexed_fraction_low</code>, "
+     "<code>geometric_ambiguity</code>, <code>fom_panel_disagrees</code>, "
+     "<code>volume_unphysical</code>, <code>validation_failed</code>) — and the "
+     "rest merely <b>cap</b>, meaning the evidence is incomplete rather than "
+     "against you (<code>not_validated</code>, <code>search_incomplete</code>, "
+     "<code>shift_allowance_assumed</code>, <code>engines_disagree</code>, "
+     "<code>bravais_ambiguous</code>)."),
+    ("Confidence: low / medium / high",
+     "Four lines of logic, no thresholds. <b>low</b> — fewer than two engines "
+     "found this lattice, <i>or</i> any refuting caveat stands. <b>high</b> — "
+     "every engine that ran found it and there is <i>nothing</i> to qualify. "
+     "<b>medium</b> — everything else. Caveat <i>count</i> deliberately does not "
+     "separate medium from low: two capping caveats are the ordinary state of a "
+     "peaks-only run, and counting them would make every answer low."),
+    ("Promoted",
+     "Whether <code>best_or_none()</code> returned a cell. It returns one only "
+     "at <b>high</b> confidence — otherwise <code>None</code>. This is the "
+     "package's governing rule made structural: <code>IndexingResult</code> has "
+     "no <code>.cell</code> attribute at all, so there is no way to read \"the "
+     "answer\" without passing the gate. You always get the ranked list; "
+     "promotion is the separate claim that the top of it is trustworthy "
+     "unattended."),
+    ("Truth rank, and first / present / absent / refused",
+     "Only meaningful for the datasets whose lattice is known independently. "
+     "<b>Truth rank</b> is where the known lattice landed in the ranked list — "
+     "1 is the top. The verdicts: <b>first</b> = rank 1; <b>present</b> = found "
+     "but something else leads; <b>absent</b> = not in the list at all; "
+     "<b>refused</b> = no engine ran, because the quality gate rejected the peak "
+     "list. Matching is a <code>same_lattice</code> test on the reduced A..F "
+     "vector, <i>and</i> the centring, <i>and</i> that dataset's own accuracy "
+     "band."),
+    ("Borda count",
+     "How the seven figures of merit are combined into one ranking. Each "
+     "candidate is <i>ranked</i> within each figure, and the ranks are summed; "
+     "ties share an averaged rank. Ranks rather than values because the panel "
+     "mixes a dimensionless ratio, an inverse-degrees quantity and three "
+     "fractions — summing those directly would weight each member by its own "
+     "dynamic range, which was measured and is why a magnitude-aware aggregate "
+     "was tried and rejected."),
+    ("The seven figures of merit",
+     "<b>M₂₀</b> (de Wolff) = Q₂₀ / (2·⟨ΔQ⟩·N_poss) — how tightly the observed "
+     "lines sit on predicted ones, penalised by how many lines the cell could "
+     "have produced. <b>F_N</b> (Smith &amp; Snyder) = (1/⟨|Δ2θ|⟩)·(N_obs/N_poss) "
+     "— the same idea in 2θ. <b>indexed_fraction</b> and "
+     "<b>indexed_intensity_fraction</b> — the share of observed lines, and of "
+     "observed intensity, the lattice explains. <b>predicted_seen_fraction</b> — "
+     "the reverse: the share of the lattice's own predicted lines that are "
+     "actually there. <b>M^Rev</b> and <b>M^Sym</b> (Oishi-Tomiyasu 2013) — M₂₀ "
+     "run backwards as an unbounded ratio, and its product with M₂₀. The reverse "
+     "direction is what catches a supercell, which indexes every observed line "
+     "and predicts a forest that is not there."),
+    ("Le Bail, not Pawley",
+     "Both extract intensities without a structural model. <b>Pawley</b> refines "
+     "each reflection's intensity as a least-squares parameter alongside the "
+     "cell; <b>Le Bail</b> instead re-partitions the observed intensity among "
+     "overlapping reflections each cycle, which needs no extra parameters and "
+     "cannot go singular on overlaps. Validation here is <b>Le Bail</b>, because "
+     "a candidate cell can predict hundreds of reflections on a 25-line pattern "
+     "and Pawley would be fitting more parameters than there are lines. It is "
+     "also single-phase by construction: two phases were measured at Rwp "
+     "742–9281 % against 7.5–24.8 % for one. The package does have a Pawley mode "
+     "— it is just not what validates a candidate."),
+)
+
+
+def _glossary_html() -> str:
+    items = "".join(f"<dt>{_esc(term)}</dt><dd>{body}</dd>"
+                    for term, body in GLOSSARY)
+    return (f'<section id="glossary"><h2>What the words mean</h2>'
+            f'<p class="lede">This page uses several terms that are this '
+            f'package\'s own, not standard crystallography.</p>'
+            f'<dl class="glossary">{items}</dl></section>')
 
 
 def _pipeline_html() -> str:
@@ -847,16 +1052,15 @@ def summary_html(cards: list[dict[str, Any]] | None = None, *,
                          "<b>the drawn fit differs from the stored verdict</b>")
         if card.get("note"):
             facts.append(_esc(card["note"]))
-        rows.append(
-            f'<section><h2>{_esc(card["title"])}'
-            f'<span class="tier">{_esc(card["tier"])}</span></h2>'
-            f'<p class="prov"><b>Provenance.</b> {_esc(card["provenance"])}</p>'
-            f'<p class="asserts"><b>Asserted.</b> {_esc(card["asserts"])}</p>'
+        rows.append((card, (
+            f'<div class="run"><h3>{_esc(card.get("step", card["stem"]))}</h3>'
+            f'<p class="asserts"><b>Asserted.</b> {card["asserts"]}</p>'
             f'<p class="outcome"><b>Measured.</b> '
-            f'{_esc(card.get("outcome", "peak list only — no search on this row"))}'
+            f'{_esc(card.get("outcome", "peak list only — no search here"))}'
             f'</p><ul>' + "".join(f"<li>{f}</li>" for f in facts) + "</ul>"
-            f'<div class="figs">{figs}</div></section>')
+            f'<div class="figs">{figs}</div></div>')))
 
+    rows = _group_by_specimen(rows)
     warn = (f'<p class="warn">Not in this run: {", ".join(missing)}. '
             f'Run the full acceptance selection to fill the page.</p>'
             if missing else "")
@@ -901,7 +1105,8 @@ def summary_html(cards: list[dict[str, Any]] | None = None, *,
 body {{ background: var(--ground); color: var(--ink); font-family: var(--sans);
         font-size: 16px; line-height: 1.6; margin: 0; padding: 3rem 1.25rem 6rem; }}
 /* one measure for prose; figures and the table break out wider */
-body > *, section > * {{ max-width: var(--measure); margin-inline: auto; }}
+body > *, section > *, .run > * {{ max-width: var(--measure);
+  margin-inline: auto; }}
 h1 {{ font-family: var(--serif); font-size: clamp(1.9rem, 4vw, 2.6rem);
       font-weight: 600; line-height: 1.15; letter-spacing: -.015em;
       text-wrap: balance; margin: 0 0 .4rem; }}
@@ -962,6 +1167,20 @@ td:first-child {{ font-family: var(--mono); font-size: .84rem; white-space: nowr
 .v-absent {{ color: var(--bad); }}
 .v-refused, .v-unknown {{ color: var(--ink-3); }}
 @media (prefers-reduced-motion: no-preference) {{ html {{ scroll-behavior: smooth; }} }}
+h3 {{ font-family: var(--sans); font-size: .95rem; font-weight: 650;
+      letter-spacing: .01em; margin: 0 0 .3rem; color: var(--ink); }}
+.run {{ margin-top: 1.8rem; padding-left: 1rem;
+        border-left: 2px solid var(--rule); }}
+.run:first-of-type {{ margin-top: 1.2rem; }}
+.why {{ color: var(--ink-2); margin: .7rem 0 0; }}
+dl.ident {{ display: grid; grid-template-columns: max-content 1fr;
+            gap: .2rem .9rem; margin: .8rem 0 0; font-size: .9rem; }}
+dl.ident dt {{ font-family: var(--mono); font-size: .68rem; letter-spacing: .08em;
+               text-transform: uppercase; color: var(--ink-3); padding-top: .15rem; }}
+dl.ident dd {{ margin: 0; color: var(--ink); }}
+dl.glossary {{ margin: 1rem 0 0; }}
+dl.glossary dt {{ font-weight: 650; margin-top: 1rem; }}
+dl.glossary dd {{ margin: .2rem 0 0; color: var(--ink-2); font-size: .95rem; }}
 :focus-visible {{ outline: 2px solid var(--obs); outline-offset: 2px; }}
 </style>
 <h1>Indexing benchmark gallery</h1>
@@ -975,9 +1194,48 @@ cells first, then literature cells for a mineral, then the rows whose whole clai
 is an abstention.</p>
 {warn}
 {_pipeline_html()}
+{_glossary_html()}
 {board}
 {"".join(rows)}
 """
+
+
+def _group_by_specimen(rendered: list[tuple[dict[str, Any], str]]) -> list[str]:
+    """One ``<section>`` per specimen, its runs as ``<h3>`` steps inside it.
+
+    The first version of this page emitted one section per *run*, so LaB6 and
+    corundum each got three headings and stated their identity in none of them —
+    a reader could not tell that "indexed as picked" and "with the shift template
+    declared" were the same mineral, and the space group appeared nowhere.
+    """
+    by_specimen: dict[str, list[str]] = {}
+    for card, html in rendered:
+        by_specimen.setdefault(card.get("specimen", card["stem"]), []).append(html)
+    order = [s for s in SPECIMEN_ORDER]
+    order += [k for k in SPECIMENS if k not in order]
+    # anything left over gets its own section rather than vanishing: a run the
+    # page cannot place is a run a reader must still see, and the first version
+    # of this function dropped four of them in silence
+    order += [k for k in by_specimen if k not in order]
+    out = []
+    for key in order:
+        runs = by_specimen.get(key)
+        if not runs:
+            continue
+        spec = SPECIMENS.get(key, {})
+        ident = (
+            f'<dl class="ident">'
+            f'<dt>Space group</dt><dd>{_esc(spec.get("space_group", "—"))}</dd>'
+            f'<dt>Reference cell</dt><dd>{_esc(spec.get("cell", "—"))}</dd>'
+            f'<dt>Data</dt><dd>{_esc(spec.get("provenance", "—"))}</dd>'
+            f'</dl>')
+        out.append(
+            f'<section><h2>{_esc(spec.get("title", key))}'
+            f'<span class="tier">{_esc(spec.get("tier", ""))}</span></h2>'
+            f'{ident}'
+            f'<p class="why">{spec.get("why", "")}</p>'
+            + "".join(runs) + '</section>')
+    return out
 
 
 def _scoreboard_html(cards: list[dict[str, Any]]) -> str:

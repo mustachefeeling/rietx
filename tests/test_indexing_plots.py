@@ -248,6 +248,40 @@ def test_every_gallery_table_names_a_declared_dataset():
         f"{set(g.SCOREBOARD_STEMS) - set(g.TRUTHS)} would be counted as "
         "'unknown' and vanish from the scoreboard rather than fail")
 
+    # every run names a specimen that exists, and every specimen is placed
+    unknown = {k: v["specimen"] for k, v in g.DATASETS.items()
+               if v["specimen"] not in g.SPECIMENS}
+    assert not unknown, f"runs naming an undeclared specimen: {unknown}"
+    assert set(g.SPECIMEN_ORDER) == set(g.SPECIMENS), (
+        set(g.SPECIMEN_ORDER) ^ set(g.SPECIMENS))
+    placed = {v["specimen"] for v in g.DATASETS.values()}
+    assert placed == set(g.SPECIMENS), (
+        f"specimens with no run: {set(g.SPECIMENS) - placed}")
+    for key, spec in g.SPECIMENS.items():
+        for field in ("title", "space_group", "cell", "tier", "provenance",
+                      "why"):
+            assert spec.get(field), f"{key} has no {field}"
+
+
+def test_no_run_is_dropped_from_the_page(tmp_path, monkeypatch):
+    """A run the grouper cannot place gets its own section, never silence.
+
+    Measured: the first version keyed grouping off the *sidecar's* copy of the
+    declaration, so editing the tables without re-running the 23-minute
+    acceptance suite silently dropped four of sixteen runs — the page simply
+    rendered fewer datasets and said nothing.  Both halves are fixed and both
+    are asserted: declarations are re-read live, and an unplaceable run still
+    renders.
+    """
+    from tests import indexing_gallery as g
+
+    rendered = [({"stem": "known", "specimen": "lab6"}, "<div>A</div>"),
+                ({"stem": "orphan", "specimen": "not_a_specimen"},
+                 "<div>B</div>")]
+    html = "".join(g._group_by_specimen(rendered))
+    assert "<div>A</div>" in html and "<div>B</div>" in html, (
+        "a run whose specimen is undeclared was dropped from the page")
+
 
 def test_an_undeclared_dataset_cannot_reach_the_gallery(bcc_peaks):
     """``draw`` raises on an unknown stem rather than writing an unlabelled card.

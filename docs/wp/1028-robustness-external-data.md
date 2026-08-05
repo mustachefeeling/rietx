@@ -166,6 +166,44 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From the WP-1041 gallery review, 2026-08-05 — a peak-picking defect found by
+LOOKING at the pictures, and it is a class rather than the one-off this repo has
+recorded twice.** The user read the picked-peak figures and asked whether the
+pattern's **rising left edge** is sometimes taken for a peak. Measured, on every
+bundled round-robin pattern (all start at 5.00° 2θ):
+
+| dataset | lowest picked line | gap from first channel | flags | on the known lattice? |
+|---|---|---|---|---|
+| brucite | 4.979° | −0.01 FWHM | `position_at_bound` | **no** |
+| corundum | 5.169° | 0.10 FWHM | **none** | **no** |
+| fluorite | 5.153° | 0.11 FWHM | **none** | **no** |
+| magnetite | 5.706° | 0.31 FWHM | `position_at_bound` | **no** |
+
+Four of six, and **all four reach `PeakList.usable()`** — `position_at_bound` is
+not in `PEAK_UNUSABLE_FLAGS`, and two of them carry no flag at all. The two
+patterns that escape (zincite, zircon) are the two whose first real line is far
+from the start; LaB6 escapes because its data begins at 20.3°, not because the
+picker is better there.
+
+The cause is already named in the codebase for the corundum case — the background
+is a rolling low quantile (`background.background_envelope`) and *cannot be
+estimated at the first channel*, so a monotonic rise reads as prominence over an
+extrapolated flat background. What is new is that it was recorded as one dataset's
+artifact (sized into `REAL_DATA_N_UNINDEXED = 3`) when it is a **property of any
+pattern whose first channel is on a rising edge**.
+
+Why it is filed here and not fixed in 1041: it is a library behaviour change on
+the path every external pattern takes, it would move acceptance numbers on four
+datasets, and 1041 was closing. Candidate fixes to weigh — an edge guard of ~1
+FWHM where the background envelope has no left-hand support; adding
+`position_at_bound` to `PEAK_UNUSABLE_FLAGS`; or a dedicated `edge_artifact`
+flag, which is the one that keeps the reporting honest since these components are
+real intensity, just not lines. **Do not simply crop the pattern** — that discards
+a real low-angle line on a specimen that has one.
+
+*Method note worth keeping: this was found by eye, in one figure, after every
+green test had missed it. It is the argument for the gallery existing.*
+
 **From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — indexing
 robustness under contamination is now measured, so do not re-derive it, and one
 result changes what "survives a stranger's pattern" means for the gate.**
