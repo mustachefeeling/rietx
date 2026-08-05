@@ -297,15 +297,14 @@ class Project:
         :class:`PatternData` and a limits tuple, which is the level a fit runs
         at, and it is pinned to this one by asserting the fitted channel count
         against ``len(result.two_theta)``.
-        """
-        import numpy as np
 
-        mask = self.data.in_range_mask()
-        if self.doc.two_theta_limits is not None:
-            lo, hi = self.doc.two_theta_limits
-            tt = self.data.tt()
-            mask &= (tt >= lo) & (tt <= hi)
-        return np.asarray(mask, dtype=bool)
+        The arithmetic itself is :func:`fitted_mask`, so a pattern that is *not*
+        this project's one — a series member (WP-1016), run under this project's
+        protocol but held outside its single-pattern document — asks the same
+        question of the same function rather than open-coding the intersection a
+        second time.
+        """
+        return fitted_mask(self.data, self.doc.two_theta_limits)
 
     def parameters(self, **kw):
         """:meth:`Refinement.parameters` answered for *this project's* mode.
@@ -347,6 +346,25 @@ class Project:
 
 
 # ----------------------------------------------------------------------
+def fitted_mask(data: PatternData,
+                two_theta_limits: tuple[float, float] | None):
+    """Which of ``data``'s channels a run under these limits would fit.
+
+    :meth:`Project.fitted_mask`'s arithmetic, taking the pattern explicitly so
+    the *same* authority answers for a pattern the project does not own.  Public
+    because it has a second caller (the GUI's series window) and because a third
+    open-coding of ``in_range_mask() & limits`` is the drift WP-1033 measured.
+    """
+    import numpy as np
+
+    mask = data.in_range_mask()
+    if two_theta_limits is not None:
+        lo, hi = two_theta_limits
+        tt = data.tt()
+        mask &= (tt >= lo) & (tt <= hi)
+    return np.asarray(mask, dtype=bool)
+
+
 def _as_plan_spec(plan: Any) -> PlanSpec | None:
     """A ``PlanSpec`` from a preset name, a ``RefinementPlan`` or a spec."""
     if plan is None or isinstance(plan, PlanSpec):

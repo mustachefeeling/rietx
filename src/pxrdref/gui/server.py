@@ -157,6 +157,23 @@ def _structure3d(s: GuiSession, q: dict, _body: dict) -> dict:
                          bond_tolerance=_query_float(q, "bond_tolerance"))
 
 
+def _series_window(s: GuiSession, q: dict, _body: dict) -> dict:
+    """One series member's curves.  ``index`` is required and is not defaulted to
+    0: a window of "whichever pattern" is not a question anyone asks, and a
+    silent default would draw pattern 0 under another one's label."""
+    if not q.get("index") or q["index"][0] == "":
+        raise GuiError("series window needs ?index=<pattern>", where=["index"])
+    return s.series_window(_query_int(q, "index", 0),
+                           lo=_query_float(q, "lo"), hi=_query_float(q, "hi"),
+                           max_points=_query_int(q, "max_points", 4000))
+
+
+def _series_history(s: GuiSession, q: dict, _body: dict) -> dict:
+    if not q.get("index") or q["index"][0] == "":
+        raise GuiError("series history needs ?index=<pattern>", where=["index"])
+    return s.series_history(_query_int(q, "index", 0))
+
+
 def _report(s: GuiSession, q: dict, _body: dict) -> dict:
     plan = q.get("plan", [None])[0]
     return s.report(plan=plan or None)
@@ -223,6 +240,16 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/index/extinction"):
         lambda s, q, b: s.run({**b, "kind": "extinction"}),
     ("GET", "/api/index/extinction"): lambda s, q, b: s.index_extinction(),
+
+    # a series is N patterns *outside* the project's single-pattern document
+    # (WP-1016), so it is a route family of its own — and its run rides the one
+    # run machine, exactly as /api/index does
+    ("GET", "/api/series"): lambda s, q, b: s.series(),
+    ("PUT", "/api/series"): lambda s, q, b: s.series_put(b),
+    ("POST", "/api/series/run"): lambda s, q, b: s.run({**b, "kind": "series"}),
+    ("GET", "/api/series/result"): lambda s, q, b: s.series_result(),
+    ("GET", "/api/series/window"): _series_window,
+    ("GET", "/api/series/history"): _series_history,
 
     ("GET", "/api/history"): lambda s, q, b: s.history(),
     ("GET", "/api/history/diff"): _diff,
