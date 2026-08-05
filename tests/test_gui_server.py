@@ -757,6 +757,17 @@ def test_symmetry_rides_free_on_the_structure_route_and_names_its_effects(
     # every cause names a path the table actually has
     assert set(causes) <= set(rows)
 
+    # the same, over the branch with the most keys — an aniso site contributes a
+    # sentence per U^ij component plus the biso the tensor displaces
+    client.post("/api/structure/aniso", {"path": "phases.0.atoms.0", "on": True})
+    payload = client.get("/api/structure")[1]
+    rows = {r["path"] for r in client.get("/api/params")[1]["parameters"]}
+    causes = payload["causes"]
+    assert set(causes) <= rows
+    assert "U12 to zero" in causes["phases.0.atoms.0.u12"]        # cubic: no shear
+    assert "U11 follows phases.0.atoms.0.adp.*" in causes["phases.0.atoms.0.u11"]
+    assert "anisotropic tensor" in causes["phases.0.atoms.0.biso"]
+
 
 def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
         blank, tmp_path, pattern_file):
