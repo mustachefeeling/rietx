@@ -1194,3 +1194,39 @@ def test_weak_background_components_below_the_first_line_do_not_defeat_a_search(
     result = get_engine(engine)(contaminated, spec=spec)
     assert result.candidates, f"{engine} lost the cell to six background blips"
     assert_same_lattice(result.candidates[0].cell, cell)
+
+
+def test_the_rank_is_applied_within_a_bounded_low_q_pool():
+    """``SEARCH_POOL_MULTIPLE`` is a **cost** bound, and it is load-bearing.
+
+    Dichotomy sizes the trial set it tests each box against by the largest Q among
+    the *driven* lines, so an unbounded intensity rank over a lab pattern running
+    to 150° 2θ enlarges that set for every box in the recursion.  Measured on the
+    qarr corundum trigonal search: 72 s unbounded against 26 s bounded, both
+    ranking the certified cell first; over the whole indexing acceptance file,
+    ~25 min against ~12.
+
+    The two properties asserted here are the ones that make it safe.  A list no
+    longer than the pool is selected exactly as the unbounded rule would select it
+    — which is why SRM 660c's engine agreement survives the bound — and on a long
+    list the driven set cannot reach past the pool's own Q ceiling.
+    """
+    from pxrdref.indexing.engines import SEARCH_POOL_MULTIPLE
+
+    n = 10
+    spec = SearchSpec(n_search_lines=n)
+
+    # short list (<= pool): the bound is inert, and the strongest N win outright
+    tt_short = np.linspace(20.0, 120.0, SEARCH_POOL_MULTIPLE * n)
+    strong_high = np.arange(len(tt_short), dtype=float)      # strongest at high Q
+    short = PeakList.from_positions(tt_short, LAM, intensity=strong_high)
+    sel = search_line_order(short, spec)
+    assert np.array_equal(np.sort(sel), np.sort(np.argsort(-strong_high)[:n]))
+
+    # long list: the driven set stays inside the pool's Q ceiling
+    tt_long = np.linspace(20.0, 150.0, 8 * n)
+    long = PeakList.from_positions(tt_long, LAM,
+                                   intensity=np.arange(len(tt_long), dtype=float))
+    q = long.q()
+    ceiling = np.sort(q)[SEARCH_POOL_MULTIPLE * n - 1]
+    assert q[search_line_order(long, spec)].max() <= ceiling

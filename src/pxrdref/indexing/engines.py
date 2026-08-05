@@ -130,6 +130,30 @@ DEFAULT_MIN_VOLUME = 15.0
 #: and *sorts* on 20-30, where this package searches on these N and scores on
 #: **every** usable line, which is the more conservative half of the two.
 DEFAULT_SEARCH_LINES = 20
+#: Multiple of ``n_search_lines`` forming the low-Q pool the strongest N are drawn
+#: from (:func:`search_line_order`).  **A cost bound, and the reason it exists is
+#: measured** (WP-1039): ranking by intensity over the *whole* list lets the driven
+#: set reach the pattern's high-angle end — on the qarr corundum list, 25.5-150.1°
+#: where the low-Q rule gives 5.2-76.8° — and dichotomy sizes its recursion trial
+#: set by the driven lines' largest Q, so every box test then carries a far larger
+#: set.  Measured on that pattern's trigonal search: 72 s unbounded against 26 s at
+#: this bound and 6 s for the old low-Q-only rule, all three ranking the certified
+#: cell first.
+#:
+#: **Two is the smallest pool that gives the rank any freedom at all** — at one the
+#: selection *is* the lowest N and intensity cannot act — which is the argument for
+#: it, rather than a tuned optimum.  It is also enough to preserve what the rule was
+#: for: a list of 2N lines or fewer (SRM 660c's 30) is selected exactly as the
+#: unbounded rule would select it, which is why the caveat that rule cleared stays
+#: cleared.
+#:
+#: **What it costs is a little selection quality, and that is the honest trade.**
+#: NAC goes from 20 of 20 unbounded to 18, corundum 19 to 17, zircon 18 to 17 — all
+#: still far above the 6 of 20 the low-Q rule gives NAC, and every acceptance row
+#: passes either way.  What it buys is the whole indexing acceptance file at
+#: **~12 min against ~25** (against ~6 before this WP): the rule is a correctness
+#: change that is not free, and half its price was avoidable.
+SEARCH_POOL_MULTIPLE = 2
 #: Lines a search may leave unindexed and still accept a cell.  DICVOL06's own
 #: reported gain, and the single most valuable option here: without it one
 #: impurity line prunes the true box and the engine returns nothing, confidently.
@@ -577,8 +601,10 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     Raising N does not reach past them — 32 of 48 at N = 48, and paid for at
     whatever the enumeration actually scales as (Conograph's own N_peak⁴ is
     hedged twice and defers to supporting information; see
-    :data:`DEFAULT_SEARCH_LINES`).  Ranking by intensity clears them at N = 20,
-    for nothing.
+    :data:`DEFAULT_SEARCH_LINES`).  Ranking by intensity takes the same twenty
+    lines to **18** of 20, and within the :data:`SEARCH_POOL_MULTIPLE` bound that
+    keeps the cost sane — unbounded it is 20 of 20, which is not worth what it
+    costs; that trade is measured in the constant's own docstring.
 
     Ties fall back to Q order, and that is not a detail.  A
     :meth:`PeakList.from_positions` list has no measured intensities and every
@@ -593,7 +619,9 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     merit, it would compute a different one under the same name.
     """
     q = peaks.q()
-    order = np.lexsort((q, -peaks.intensity()))[:min(spec.n_search_lines, len(q))]
+    n = min(spec.n_search_lines, len(q))
+    pool = np.argsort(q)[:min(SEARCH_POOL_MULTIPLE * n, len(q))]
+    order = pool[np.lexsort((q[pool], -peaks.intensity()[pool]))[:n]]
     return order[np.argsort(q[order])]
 
 
@@ -1156,6 +1184,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
+           "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
            "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
