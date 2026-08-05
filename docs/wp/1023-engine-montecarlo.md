@@ -1,7 +1,29 @@
 # WP-1023 — Engine C: whole-profile Monte Carlo (spike, then decide)
 
-Milestone: v1.0 · Status: 🛑 2026-07-30 — **no-go**; task 0 complete, engine not built
+Milestone: v1.0 · Status: 🛑 2026-07-30 — **no-go**; task 0 complete, engine not built.
+**Narrowed 2026-08-05 by [WP-1040](1040-engine-svd-index.md), which built a third
+engine that is Monte Carlo** — see "What this no-go does and does not say" below.
 Depends on: 1020
+
+## What this no-go does and does not say
+
+**It says: unrefined random-cell scoring does not rank.**  It does *not* say that
+a Monte Carlo indexer cannot work, and the difference is one step in the
+algorithm.  Every number below was measured on a tier-1 that scored raw proposals
+with **no refinement stage at all**; both working Monte Carlo indexers refine
+every proposal before scoring it — SVD-Index iterates each to a fixed hkl
+assignment (Coelho 2003 Table 1), McMaille takes 200-5000 local steps per
+proposal accepting a non-improving move ~15 % of the time (Le Bail 2004 §III).
+
+WP-1040 built the refined variant and it works: on the same qarr corundum pattern
+whose truth ranked **29 053 of 200 001** here, the iterated engine returns the
+certified lattice as its **only** candidate in 16 s, a = 4.7598 / c = 12.9934
+against the certificate's 4.759355 / 12.99231.
+
+The two-engine confidence gate this WP's no-go left behind is therefore no longer
+the ceiling either: `high` now requires all **three** registered engines to agree.
+The measurements below stand for exactly what they measured, which is the whole
+point of recording them.
 
 ## Goal
 

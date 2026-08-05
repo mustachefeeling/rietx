@@ -512,9 +512,12 @@ share-of-observed-intensity alone demonstrably puts a 390-line wrong phase
 above the truth; and a restricted search reports `systems_searched` rather than
 concluding anything about the sample. Engines supply the confidence by
 **agreeing**, the same device as `direction="both"` and the cross-backend matrix —
-**two** of them, not three: the whole-profile Monte Carlo is a measured no-go
-(WP-1023), so `high` confidence means both landed engines agree and that is the
-ceiling rather than a shortfall. The same rule runs one step further into the
+**three** of them, and `high` means *every* engine that ran found the lattice, so
+adding one raises the bar rather than diluting it. They must fail differently for
+that to mean anything, and they do: a wide domain (dichotomy), a poisoned base
+line (trial_error), a bad starting basin (svd). The count was two until WP-1040 —
+the *whole-profile* Monte Carlo of WP-1023 remains a no-go, but its scope is
+narrower than it read (see the Monte Carlo rule below). The same rule runs one step further into the
 workflow: the **extinction symbol**, not the space group, is what a powder measures,
 so `determine_extinction_symbol` answers with a ranked list of classes and every
 class carries a *list* of space groups — the one place in the package where the
@@ -547,7 +550,13 @@ that needs `cov_af`), the live registry the agent schema quotes, `Budget`, and t
 in A..F (corner-exact, because Q is linear in the metric) and its silence is evidence
 *only when* `search_complete[system]` is true; `search_trial_error` assumes the
 indices of a few base lines and solves the metric exactly, so a bad base line poisons
-it where a wide domain poisons the other. Both rank on the FoM **panel** via
+it where a wide domain poisons the other; `search_svd` (WP-1040) proposes a metric at
+random and alternates "assign each line to its nearest calculated one" with "re-solve
+A..F from that assignment" until the assignment stops changing — **no tolerance to
+search with**, failing instead on a bad starting basin. It is the only *stochastic*
+engine (`SearchSpec.seed` is part of its answer, and must never come from `hash()` of
+a name, which python salts per process) and the only one whose search reads observed
+intensities. All three rank on the FoM **panel** via
 `rank_candidates`, never on a member — supercells index every observed line exactly
 and lose only on the reversed members. There are **seven**: M₂₀, F_N, three
 coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
@@ -655,10 +664,25 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   `not_validated`, never `validation_failed` — a ceiling must not refute a
   cell it merely ran out of time on (1037).
 - **A Monte Carlo indexer must refine each proposal; scoring raw random cells
-  does not rank.** Both working MC indexers do it — TOPAS iterates SVD to a fixed
-  hkl assignment, McMaille takes 200–5000 local steps accepting a non-improving
-  move ~15 % of the time. WP-1023's no-go measured the unrefined variant only, so
-  read it as "unrefined random-cell scoring does not rank" (WP-1040).
+  does not rank** — measured from both sides now. WP-1023 scored raw proposals
+  and ranked corundum's truth 29 053 of 200 001; `search_svd`, iterating each to
+  a fixed hkl assignment, returns that certified lattice as its **only**
+  candidate in 16 s (WP-1040).
+- **Coelho's N_c/N_o gate is a bound on *volume*, not a per-trial verdict**
+  (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ = N_c/V and the
+  gate becomes V ∈ [N_o/3κ, 4N_o/κ] — containing the truth on all nine corpus
+  datasets, and most of why that engine costs seconds. **N_c counts distinct
+  calculated d-spacings, not hkl** — the paper's caption and prose disagree, and
+  an hkl count refuses the certified LaB6 cell outright.
+- **An impurity cut is worth nothing until the metric is roughly right, and a
+  *budget* is not a *tolerance*** (WP-1040). Cutting far-lying lines in the first
+  pass rather than the last — what real data suggests, since our lists carry
+  artifacts no iteration will index — takes zincite 5/5 → 1/5 and zircon and FAP
+  5/5 → **0/5**: a random metric predicts nothing near the observed lines, so an
+  unbounded cut deletes them all. A cut bounded to `n_unindexed` has the opposite
+  profile — it rescues the one dataset a single wild line destroys (corundum's
+  5.17° edge artifact, 3.9× beyond its longest d: 0 convergences in 4000 starts)
+  and costs every other — so it is a **retry after silence**, never a default.
 - **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
   the reflection-pair method, McMaille refuses to scan the zeropoint and says so,
   and a cell found inside a widened window has absorbed the shift (WP-1038).
