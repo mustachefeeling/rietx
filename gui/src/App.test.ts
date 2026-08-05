@@ -390,6 +390,81 @@ interface Call {
   blob?: Blob | null;
 }
 
+/** The series setup as the server answers it before any file is staged: an empty
+ *  list plus the defaults, which *is* the empty state (WP-1016). */
+const SERIES_SETUP = {
+  patterns: [],
+  n_patterns: 0,
+  settings: { carry: ["*"], refit: "single", direction: "forward", x_label: "index" },
+  choices: { refit: ["single", "stages"], direction: ["forward", "backward", "both"] },
+  carry_help: "dot-path globs naming which parameters cross the pattern boundary",
+  defaults: { carry: ["*"], refit: "single", direction: "forward", x_label: "index" },
+  protocol: { mode: "rietveld", plan: "mccusker_default", n_stages: 5 },
+  has_x: false,
+  sigma_mixed: false,
+  has_result: false,
+  running: false,
+};
+
+/** Two staged patterns, one of them without a file esd column — which is the
+ *  weighting inconsistency the panel has to surface before the chain runs. */
+const SERIES_STAGED = {
+  ...SERIES_SETUP,
+  patterns: [
+    { upload: "tok0", filename: "T300.xye", label: "T300", x: 300, reader: "xy",
+      block: null, n_points: 4200, two_theta_range: [3, 24], has_sigma: true },
+    { upload: "tok1", filename: "T400.xye", label: "T400", x: 400, reader: "xy",
+      block: null, n_points: 4200, two_theta_range: [3, 24], has_sigma: false },
+  ],
+  n_patterns: 2,
+  settings: { carry: ["*"], refit: "single", direction: "both", x_label: "T" },
+  has_x: true,
+  sigma_mixed: true,
+};
+
+/** A finished two-pattern series whose cell edge is path-dependent — the case
+ *  the panel exists to make un-missable. */
+const SERIES_ANSWER = {
+  result: {
+    mode: "rietveld", x_label: "T", direction: "both",
+    entries: [
+      { index: 0, label: "T300", x: 300, status: "converged",
+        statistics: { rwp: 0.091, gof: 1.2 }, parameters: [], qpa: null,
+        diagnostics: [], n_iterations: 31, reseeded: false, rwp_warm: null,
+        node_id: "n0001", tree_id: "t1" },
+      { index: 1, label: "T400", x: 400, status: "converged",
+        statistics: { rwp: 0.094, gof: 1.3 }, parameters: [], qpa: null,
+        diagnostics: [], n_iterations: 12, reseeded: true, rwp_warm: 0.31,
+        node_id: "n0002", tree_id: "t2" },
+    ],
+    diagnostics: [
+      { level: "warning", code: "SEQUENTIAL_PATH_DEPENDENT",
+        where: ["phases.0.cell.a"],
+        message: "phases.0.cell.a differs between the forward and backward chains",
+        suggestion: "hold it, restrain it, or quote the spread" },
+      { level: "warning", code: "SEQUENTIAL_RESEED", where: ["T400"],
+        message: "pattern 1 (T400) was refitted from the initial model",
+        suggestion: "check whether the specimen changed here" },
+    ],
+  },
+  trajectories: [
+    { path: "instrument.zero_shift", x: [300, 400], x_label: "T",
+      value: [0.008, 0.0081], stderr: [1e-5, 1e-5], labels: ["T300", "T400"],
+      path_dependent: false, discontinuous: false, backward: [0.008, 0.0081],
+      n_sigma: 0.4 },
+    { path: "phases.0.cell.a", x: [300, 400], x_label: "T",
+      value: [4.1566, 4.1587], stderr: [1e-4, null], labels: ["T300", "T400"],
+      path_dependent: true, discontinuous: false, backward: [4.1571, 4.1592],
+      n_sigma: 5.2 },
+  ],
+  path_dependent: ["phases.0.cell.a"],
+  path_dependence_sigma: 3.0,
+  has_backward: true,
+  n_iterations: 43,
+  curves: [true, true],
+  running: false,
+};
+
 /** A stub server that also records what was asked of it. */
 /** A handler may return a `gate` to hold its answer open — which is the only
  *  way to put two requests in flight at once and choose the order they land in. */
@@ -443,6 +518,12 @@ function boot(project: any = PROJECT, run: any = IDLE_RUN) {
                                        symmetry: SYMMETRY, causes: CAUSES } }),
     "/api/structure3d": () => ({ body: GEOMETRY }),
     "/api/instrument": () => ({ body: { instrument: INSTRUMENT } }),
+    // the series tab fetches only when it is looked at, but the tab *tour* looks
+    // at it — and an unstubbed route is a 404, which the panel would show as a
+    // failure banner rather than as its empty state
+    "/api/series": () => ({ body: SERIES_SETUP }),
+    "/api/series/result": () => ({ status: 409, body: { error: {
+      code: "NO_SERIES_RESULT", message: "no series has completed" } } }),
   } as Record<string, (call: Call) => { status?: number; body: unknown }>;
 }
 
@@ -538,9 +619,13 @@ describe("the shell", () => {
     expect(host.textContent).toContain("4200 pts");
     expect(host.textContent).toContain("σ from file");     // which weights the fit used
     expect(host.textContent).toContain("No fitted curves yet");
-    // the panels still owed — and the viewer WP-1015 shipped is not one of them
-    expect(host.textContent).toContain("WP-1016");
-    expect(host.textContent).not.toContain("WP-1015");
+    // the panels still owed — empty since WP-1016 built the series panel, which
+    // was the last one the v1.0 GUI plan named.  The assertion is kept (rather
+    // than deleted with the list it was about) because the *mechanism* is what
+    // makes the next owed panel visible: no WP number may appear in the Build
+    // panel while nothing is owed.
+    expect(host.textContent).toContain("every panel the v1.0 GUI plan named");
+    expect(host.textContent).not.toMatch(/WP-\d{4}/);
     expect(button("Run")?.disabled).toBe(false);
   });
 
@@ -1212,7 +1297,8 @@ describe("disclosure and the command palette", () => {
     expect(host.querySelector(".plot")).not.toBeNull();
     // the tab strip travels with the column, which is what makes this a hatch
     // for every panel rather than for the two that used to have their own mode
-    expect(host.querySelectorAll("nav.tabs button").length).toBe(8);
+    // — nine since WP-1016, which needed no mode of its own for exactly this
+    expect(host.querySelectorAll("nav.tabs button").length).toBe(9);
     // …and no splitter, because there is nothing on the other side of it
     expect(host.querySelector('.side > .grip[data-grow="left"]')).toBeNull();
 
@@ -1223,7 +1309,7 @@ describe("disclosure and the command palette", () => {
     expect(host.querySelector(".side")?.classList.contains("wide")).toBe(false);
   });
 
-  it("carries eight tabs with no label shortened and every panel reachable", async () => {
+  it("carries nine tabs with no label shortened and every panel reachable", async () => {
     const stub = server({ ...boot(), ...FITTED });
     vi.stubGlobal("fetch", stub.fetcher);
     app = mount(App, { target: host });
@@ -1231,22 +1317,26 @@ describe("disclosure and the command palette", () => {
 
     const tabs = [...host.querySelectorAll<HTMLButtonElement>("nav.tabs button")];
     expect(tabs.map((b) => b.textContent?.trim())).toEqual([
-      "Parameters", "Plan", "Peaks", "Model", "Text", "Report", "History", "Build"]);
+      "Parameters", "Plan", "Peaks", "Model", "Text", "Series", "Report",
+      "History", "Build"]);
     // the overflow rule is `flex-wrap` plus `min-width: max-content`: a strip
     // that hides a tab or elides its name is worse than the mode buttons it
     // replaced, so the *count* and the *labels* are the assertion jsdom can make
     expect(tabs.every((b) => (b.textContent ?? "").trim().length > 0)).toBe(true);
 
     for (const [label, marker] of [["Plan", "scale+bkg"], ["Peaks", "peak"],
+                                   ["Series", "No patterns staged"],
                                    ["Report", "21.600%"], ["History", "2 lanes"],
-                                   ["Build", "WP-1016"]] as const) {
+                                   // the owed list is empty since this panel
+                                   // landed — the last one the plan named
+                                   ["Build", "every panel the v1.0"]] as const) {
       button(label)!.click();
       await flush();
       expect(host.textContent?.toLowerCase()).toContain(marker.toLowerCase());
     }
     // every panel is still in the document after the tour — switching must not
     // throw away a filter, a pending edit or a two-node comparison
-    expect(host.querySelectorAll(".side .panel").length).toBe(8);
+    expect(host.querySelectorAll(".side .panel").length).toBe(9);
   });
 
   it("stamps an explicit theme on the root and persists the choice", async () => {
@@ -3148,5 +3238,178 @@ describe("the extinction screen table (WP-1027)", () => {
       .toEqual({ candidate: 0, space_group: "P 63/m" });
     // a refuted class's members never act, whatever the verdict
     expect(button("P 63 c m")).toBeFalsy();
+  });
+});
+
+/**
+ * The series panel (WP-1016) — the ninth tab, and the one panel whose subject is
+ * a *method* rather than a model.
+ *
+ * A sequential fit is path-dependent by construction, so what these mounts assert
+ * is the honesty of the presentation: the list the panel sends is the order it is
+ * showing, the σ inconsistency is surfaced before the chain runs rather than
+ * after, and `SEQUENTIAL_PATH_DEPENDENT` reaches the top of the panel with the
+ * parameter named. jsdom cannot see the plot, so the trajectory drawing is
+ * asserted in `lib/series.test.ts` and the *requests* are asserted here.
+ */
+describe("the series panel", () => {
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+  });
+
+  afterEach(() => {
+    if (app) unmount(app);
+    app = null;
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+
+  /** Mount, then open the Series tab (the panel fetches only when looked at). */
+  async function openSeries(routes: Record<string, any>) {
+    const stub = server({ ...boot(), ...routes });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Series")!.click();
+    await flush();
+    return stub;
+  }
+
+  /** The panel's icon buttons, which have no label to search by. */
+  function icons(glyph: string): HTMLButtonElement[] {
+    return [...host.querySelectorAll<HTMLButtonElement>(".side button")]
+      .filter((b) => b.textContent?.trim() === glyph);
+  }
+
+  it("fetches only when the tab is opened, and offers the empty state", async () => {
+    const stub = server(boot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    // mounted from boot like every tab, but a nine-panel shell that fetched
+    // everything on boot would pay for nine panels to show one
+    expect(stub.calls.some((c) => c.path === "/api/series")).toBe(false);
+
+    button("Series")!.click();
+    await flush();
+    expect(stub.calls.some((c) => c.path === "/api/series")).toBe(true);
+    expect(host.textContent).toContain("No patterns staged");
+    // the protocol is the project's and is stated, not offered
+    expect(host.textContent).toContain("mccusker_default");
+    // and it cannot be run: one pattern is a fit, and every fence a series has
+    // compares a pattern with its neighbours
+    expect(button("Run series")?.disabled).toBe(true);
+  });
+
+  it("sends the list it is showing, and surfaces a mixed-σ series", async () => {
+    const stub = await openSeries({
+      "/api/series": () => ({ body: SERIES_STAGED }) });
+
+    // the weighting inconsistency is a correctness property that is invisible
+    // once the files are read, so it is said before the chain runs
+    expect(host.textContent).toContain("disagree about carrying esds");
+    expect(button("Run series")?.disabled).toBe(false);
+
+    // reorder: the order *is* the series, so one PUT carries the whole list
+    icons("↓")[0].click();
+    await flush();
+    const put = stub.calls.find((c) => c.method === "PUT" && c.path === "/api/series");
+    expect(put?.body).toEqual({ patterns: [
+      { upload: "tok1", label: "T400", x: 400 },
+      { upload: "tok0", label: "T300", x: 300 },
+    ] });
+  });
+
+  it("never PUTs a reorder that cannot happen", async () => {
+    const stub = await openSeries({
+      "/api/series": () => ({ body: SERIES_STAGED }) });
+    // the first member's "earlier" is disabled *and* inert: a PUT here would
+    // re-read every staged file to rewrite the list as it already is
+    expect(icons("↑")[0].disabled).toBe(true);
+    icons("↑")[0].click();
+    await flush();
+    expect(stub.calls.some((c) => c.method === "PUT")).toBe(false);
+  });
+
+  it("puts the path-dependence where it cannot be missed", async () => {
+    const stub = await openSeries({
+      "/api/series": () => ({ body: { ...SERIES_STAGED, has_result: true } }),
+      "/api/series/result": () => ({ body: SERIES_ANSWER }),
+      "/api/series/window": () => ({ body: { two_theta: [9], y_obs: [1],
+        y_calc: [1], y_background: [], delta: [0], weighted: true, ticks: {},
+        window: [9, 9], n_total: 1, n_returned: 1, max_points: 2000,
+        excluded: { two_theta: [], y_obs: [] }, n_excluded: 0,
+        index: 0, label: "T300", x: 300 } }),
+      "/api/series/history": () => ({ body: { index: 1, label: "T400",
+        checkout: false, tree_id: "t2", head: "n0002", root: "n0000",
+        n_nodes: 2, nodes: [
+          { id: "n0000", parents: [], label: "root", kind: "root", name: "",
+            action: {}, api_call: "", status: null, n_iterations: 0, rwp: null,
+            gof: null, n_free: null, n_diagnostics: 0, diagnostics: [],
+            tags: [], children: ["n0002"], scores: {},
+            notes: { series_warm_start_node: "n0001" } },
+          { id: "n0002", parents: ["n0000"], label: "warm_refit", kind: "stage",
+            name: "warm_refit", action: {}, api_call: "", status: "converged",
+            n_iterations: 12, rwp: 0.094, gof: 1.3, n_free: 4,
+            n_diagnostics: 0, diagnostics: [], tags: [], children: [],
+            scores: {}, notes: {} },
+        ] } }),
+    });
+
+    // the banner, not a strip entry — and it names the parameter
+    const banner = host.querySelector(".banner.bad")!;
+    expect(banner.textContent).toContain("1 parameter");
+    expect(banner.textContent).toContain("path-dependent");
+    expect(banner.textContent).toContain("phases.0.cell.a");
+
+    // the reseed fence rides the row it is about, and the ranking put the
+    // flagged trajectory on the plot first
+    expect(host.textContent).toContain("reseeded");
+    expect(host.textContent).toContain("Trajectory — phases.0.cell.a");
+    expect(host.textContent).toContain("5.2σ");
+
+    // walking into a pattern loads *its* tree, and says the nodes are read-only
+    icons("▸").at(-1)!.click();
+    await flush();
+    const asked = stub.calls.find((c) => c.path === "/api/series/history");
+    expect(asked?.url).toContain("index=1");
+    expect(host.textContent).toContain("read-only here");
+    // the warm-start link is what makes the chain navigable
+    expect(host.textContent).toContain("n0001");
+    // …and the plot followed: the per-pattern window is what it drew
+    expect(stub.calls.some((c) => c.path === "/api/series/window")).toBe(true);
+  });
+
+  it("runs the chain through the one run machine", async () => {
+    const stub = await openSeries({
+      "/api/series": () => ({ body: SERIES_STAGED }),
+      "/api/series/run": () => ({ body: { ...IDLE_RUN, state: "running",
+        run: { ...IDLE_RUN.run, kind: "series", n_stages: 2 } } }),
+    });
+    button("Run series")!.click();
+    await flush();
+    const started = stub.calls.find((c) => c.path === "/api/series/run");
+    expect(started?.method).toBe("POST");
+    // the echo is the API line, like every other verb's
+    expect(host.textContent).toContain("refine_sequential(");
+  });
+
+  it("keeps the two measured settings behind Advanced", async () => {
+    const stub = await openSeries({
+      "/api/series": () => ({ body: SERIES_STAGED }) });
+    // `refit` and `carry` are WP-0505 *results*, not preferences, so Simple does
+    // not offer them and nothing re-litigates the default
+    expect(host.querySelector("input.carry")).toBeNull();
+    button("Advanced")!.click();
+    await flush();
+    expect(host.querySelector("input.carry")).not.toBeNull();
+
+    const carry = host.querySelector<HTMLInputElement>("input.carry")!;
+    carry.value = "phases.* instrument.zero_shift";
+    carry.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+    const put = stub.calls.filter((c) => c.method === "PUT").at(-1);
+    expect(put?.body.carry).toEqual(["phases.*", "instrument.zero_shift"]);
   });
 });

@@ -1612,7 +1612,8 @@ class GuiSession:
         direction = body.get("direction", setup.direction)
         try:
             series_mod.check_settings(carry, refit, direction)
-            members = (series_mod.members_from(body["patterns"], self.uploads)
+            members = (series_mod.members_from(body["patterns"], self.uploads,
+                                              setup.members)
                        if "patterns" in body else setup.members)
         except UploadRefused as exc:
             raise GuiError(str(exc), code=exc.code, status=exc.status,

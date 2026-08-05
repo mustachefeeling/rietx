@@ -39,7 +39,7 @@ change.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -140,7 +140,8 @@ class SeriesSetup:
 # ----------------------------------------------------------------------
 # the setup
 # ----------------------------------------------------------------------
-def members_from(entries: Any, uploads: UploadStore) -> list[SeriesMember]:
+def members_from(entries: Any, uploads: UploadStore,
+                 known: list[SeriesMember] | None = None) -> list[SeriesMember]:
     """Resolve ``[{upload, label?, x?}, …]`` against the session's staged files.
 
     Every member is *read* here, not at run time, which is WP-1014's two-phase
@@ -149,7 +150,15 @@ def members_from(entries: Any, uploads: UploadStore) -> list[SeriesMember]:
     comes from :func:`preview_pattern` verbatim (reader, point count, range,
     ``has_sigma``), so the series list and the import wizard cannot disagree
     about what a file is.
+
+    ``known`` is the list this one replaces, and a member already described in it
+    is **not re-read**: a staged upload is immutable (its bytes are on disk under
+    a token nothing rewrites), so the reader, the point count and ``has_sigma``
+    cannot have changed.  It matters because the order *is* the series — every
+    reorder, every typed coordinate is a whole-list PUT — and re-reading forty
+    patterns per keystroke would make the editor unusable while proving nothing.
     """
+    cached = {(m.token, m.block): m for m in (known or [])}
     if not isinstance(entries, list):
         raise ValueError("'patterns' must be a list of "
                          "{upload: token, label?: str, x?: number}")
@@ -166,7 +175,6 @@ def members_from(entries: Any, uploads: UploadStore) -> list[SeriesMember]:
             raise ValueError(f"patterns[{i}] has no 'upload' token")
         staged = uploads.get(token, "pattern")   # UploadRefused names the token
         block = entry.get("block")
-        preview = preview_pattern(staged, block=block)
         x = entry.get("x")
         if x is not None:
             try:
@@ -175,12 +183,16 @@ def members_from(entries: Any, uploads: UploadStore) -> list[SeriesMember]:
                 raise ValueError(f"patterns[{i}].x={x!r} is not a number") from None
         label = str(entry.get("label") or "").strip() or Path(staged.filename).stem
         raw_labels.append(label)
-        out.append(SeriesMember(
-            token=token, path=staged.path, filename=staged.filename,
-            label=label, x=x, reader=preview["format"]["name"], block=block,
-            n_points=int(preview["n_points"]),
-            two_theta_range=tuple(preview["two_theta_range"]),
-            has_sigma=bool(preview["has_sigma"])))
+        seen = cached.get((token, block))
+        if seen is None:
+            preview = preview_pattern(staged, block=block)
+            seen = SeriesMember(
+                token=token, path=staged.path, filename=staged.filename,
+                label=label, x=x, reader=preview["format"]["name"], block=block,
+                n_points=int(preview["n_points"]),
+                two_theta_range=tuple(preview["two_theta_range"]),
+                has_sigma=bool(preview["has_sigma"]))
+        out.append(replace(seen, label=label, x=x))
     # the names the run will use, shown before it runs (``unique_labels``)
     for member, label in zip(out, unique_labels(raw_labels), strict=True):
         member.label = label

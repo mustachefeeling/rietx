@@ -28,6 +28,7 @@
   import Plan from "./panels/Plan.svelte";
   import Plot from "./panels/Plot.svelte";
   import Report from "./panels/Report.svelte";
+  import Series from "./panels/Series.svelte";
   import Splitter from "./panels/Splitter.svelte";
   import Stubs from "./panels/Stubs.svelte";
   import Text from "./panels/Text.svelte";
@@ -56,7 +57,7 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
-  /** The eight panels, and the one that is showing.
+  /** The nine panels, and the one that is showing.
    *
    * Model and Text joined the strip in WP-1034 — an edit and the fit it changes
    * are now one glance, which is what every other panel already had.  WP-1013
@@ -65,13 +66,20 @@
    * the `.pxt` document's editable columns 546 px, against a sidebar that
    * clamps at 560 and drags to 72 % of the window.  So they fit at the ceiling,
    * they do not fit at the 340 px floor, and the full-window layout below is
-   * what covers the difference. */
+   * what covers the difference.
+   *
+   * `Series` is the ninth (WP-1016) and its label is one word for the reason
+   * WP-1034 measured: eight already fill a 455 px strip, so a ninth costs a
+   * second row at a narrow column and nothing else — the strip wraps rather than
+   * shortening a label. It needs no mode of its own either: the header's
+   * `Split | Full` already gives any panel the whole window. */
   const TABS = [
     { id: "params", label: "Parameters" },
     { id: "plan", label: "Plan" },
     { id: "peaks", label: "Peaks" },
     { id: "model", label: "Model" },
     { id: "text", label: "Text" },
+    { id: "series", label: "Series" },
     { id: "report", label: "Report" },
     { id: "history", label: "History" },
     { id: "build", label: "Build" },
@@ -80,6 +88,7 @@
   let tab = $state<Tab>("params");
   const modelTab = $derived(tab === "model");
   const textTab = $derived(tab === "text");
+  const seriesTab = $derived(tab === "series");
 
   /** Whether the panel column has the whole window (WP-1034).
    *
@@ -132,6 +141,7 @@
   let paramsPanel = $state<any>(null);
   let planPanel = $state<any>(null);
   let modelPanel = $state<any>(null);
+  let seriesPanel = $state<any>(null);
   /** a 2θ window the report panel asked the plot to show, or null for all of it */
   let zoom = $state<[number, number] | null>(null);
   /** the last applied suggestion, until it is undone — carries the node to check
@@ -498,6 +508,9 @@
     { id: "index", label: "Run indexing", echo: "index_pattern(peaks, data=…, instrument=…)",
       disabled: busy || !project || !peaksData?.peaks?.length,
       run: async () => { tab = "peaks"; try { await api.index(); say("index_pattern(peaks, data=…, instrument=…)"); } catch (e) { say(`refused: ${(e as Error).message}`); } } },
+    { id: "series", label: "Refine a series of patterns",
+      echo: "refine_sequential(patterns, structure, instrument, x=…)",
+      disabled: !project, run: () => (tab = "series") },
     { id: "report", label: "Show the fit report", echo: "ref.report()", key: "?",
       disabled: !project, run: () => (tab = "report") },
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
@@ -597,6 +610,12 @@
             // same shape one rank down: the screen is the whole outcome
             loadExtinction();
             tab = "peaks";
+          } else if (frame.run.kind === "series") {
+            // a series fits N patterns the project does not own: it moves no
+            // curve of *this* project's and commits nothing to its tree, so the
+            // outcome is the series panel's answer and nothing else here changes
+            seriesPanel?.reload();
+            tab = "series";
           } else {
             loadResult();
           }
@@ -759,6 +778,10 @@
             onpeaks={(p) => (peaksData = p)}
             onindexed={(a) => (indexAnswer = a)}
             onzoom={(lo, hi) => (zoom = [lo, hi])} onmoved={moved} />
+        </div>
+        <div class="panel" class:hidden={!seriesTab}>
+          <Series bind:this={seriesPanel} {project} {run} {busy} {simple} {theme}
+            {say} active={seriesTab} />
         </div>
         <div class="panel" class:hidden={tab !== "report"}>
           <Report {head} {busy} {simple} {say} {applied}
