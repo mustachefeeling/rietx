@@ -50,17 +50,17 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
 Measured 2026-08-05 at the **WP-1033** close: darwin/arm64 M4, `worktree-gui`,
-venv **`[dev]`** — no jax, no torch, so **no row here compares with 1039's
+venv **`[dev]`** — no jax, no torch, so **no row compares with 1039's
 `[dev,jax]` figures** (jax turns skips into passes). The baseline below was
-re-measured in this tree and venv back to back, which is the only comparison
-that means anything:
+re-measured in this tree and venv, back to back:
 
 - fast suite: **1660 passed / 108 skipped**, 2:22 — against **1656 / 108** at the
   merge base (`265b7ac`), 2:20: +4 passes, no new skip, wall clock unmoved.
-- full suite: **not re-measured**; 1033 adds no slow-marked row. Last good is
-  1039's — 1802 passed / 72 skipped, 15:04, `[dev,jax]`, `worktree-indexer`,
-  where `tests/test_acceptance_indexing.py` (36 rows, 11:58) set the wall clock.
-  A group ordering has a shelf life: re-read `--durations` rather than that.
+- full suite: **not re-measured**; the slow selection collects **97** here and
+  1033 adds none of them, so the move is the fast one above. Last good full
+  figure is 1039's — 1802 passed / 72 skipped, 15:04, `[dev,jax]`, where
+  `tests/test_acceptance_indexing.py` (36 rows, 11:58) set the wall clock; a
+  group ordering has a shelf life, so re-read `--durations` rather than that.
 - frontend (vitest): **321** — 303 at WP-1032, +18 at 1033 (11 pure, 7 mounted);
   `svelte-check` clean. `test_gui_{server,peaks,dist,fnmatch}.py` collect **81**.
 - **A module-level `importorskip` collapses its module into one skip**, so

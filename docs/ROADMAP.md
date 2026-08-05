@@ -55,29 +55,29 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: two on 2026-08-05, in parallel worktrees over disjoint code** —
-[1039](wp/1039-search-line-count.md) and [1032](wp/1032-gui-repairs.md); before
-them, on 2026-08-04, [1038](wp/1038-shift-reflection-pairs.md),
+**Last closed: [1033](wp/1033-plot-range-regions.md), 2026-08-05** — the fit
+range and the excluded regions, shaded where they act and selectable by pointer;
+before it, the same day, [1039](wp/1039-search-line-count.md) and
+[1032](wp/1032-gui-repairs.md), and on 2026-08-04
+[1038](wp/1038-shift-reflection-pairs.md),
 [1037](wp/1037-indexing-time-ceiling.md) and
 [1036](wp/1036-crystal-system-settings.md). Narratives and numbers in
 [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-**1039** asked how many lines a search enumerates on; the answer is **which**.
-The first twenty in 2θ order assumes the lowest-angle components are the
-strongest reflections — false of any pattern opening on background (NAC: six of
-its cell's lines there, against 268 of 285). `search_line_order` takes the
-strongest N; **raising N loses answers**, the budget being absolute.
+**1033's premise was half wrong, and measuring it is what said so.** "Only the
+pixels are missing" held for the model, the mask and the verb — and missed that
+**a mask is invisible in a picture of its own output**: a result carries only
+the channels `compile_model` kept, so a band would have shaded a hole and a fit
+range had no *outside* (a 3–24° pattern comes back 8.005–18.990°). Half the WP
+is server work. Two rules survive it: **a pointer meaning ambiguous everywhere
+is a mode, not an arbitration** (a region drag is a zoom drag at every distance,
+where WP-1027's peak overlap was local), and **protocol must not wear a drawing
+choice's clothes** — one plot, two registers, one of which changes the answer.
 
-**1032**, nine GUI repairs from a use session: the lag is a **trailing canvas,
-not stutter** (a drag issued sixty ~111 ms resizes, the last landing 1.10 s late
-at a steady 60 fps with **zero** long tasks), and "headings clash on scroll" was
-`opacity: 0.55` on excluded rows outranking a sticky `z-index: auto` header.
-
-The method lesson is now six sessions running (1030 → 1036 → 1037 → 1038 → 1039
-→ 1032): **instrument before ranking, and let the by-hand acceptance run judge.**
-Four edges, each argued in its own WP: **read the paper, not the summary** and
-**a no-go inherits the defects of its run** (1039); **instrument before the
-library loads** and **a fix that leaves the symptom is evidence** (1032).
+The method lesson is now seven sessions running (1030 → 1036 → 1037 → 1038 →
+1039 → 1032 → 1033): **instrument before ranking, and let the by-hand acceptance
+run judge.** Its GUI form is the browser pass, which has found a defect jsdom
+cannot see every time — this round, shapes taking part in plotly's autorange.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -95,11 +95,11 @@ library loads** and **a fix that leaves the symptom is evidence** (1032).
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
-4. [1033](wp/1033-plot-range-regions.md), then
-   [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the rest of the 2026-08-04 use session (1032 closed). Behind 1028/1026 because
-   **none of them moves the bar**. Both 1033 and 1035 are unblocked; each
-   `### Inherited` says what changed under it.
+4. [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
+   the rest of the 2026-08-04 use session (1032 and 1033 closed). Behind
+   1028/1026 because **neither moves the bar**. Both are unblocked; 1034's
+   `### Inherited` carries what 1033 put under the plot, and 1035's says what
+   1036 settled beneath it.
 5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
@@ -215,7 +215,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
-| [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ⬜ | **1032** (same file), 1005, 1009 |
+| [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ⬜ | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |

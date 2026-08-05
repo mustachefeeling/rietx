@@ -25,6 +25,18 @@ now has only ever carried `{ui: …}` from a client — so the **"a `ui`-only pa
 is not model state" question below stops being about `ui` alone**: the same
 route will carry genuine settings, and whether a settings patch may land while a
 run is in flight is the freeze's call, not a panel's.
+
+**1033 closed 2026-08-05 and left that question exactly where it found it**, on
+purpose: a settings patch still 409s mid-run and is now *asserted* to, on the
+grounds that an exclusion changes which channels the compiled model was built
+from — which is an argument about `two_theta_limits`/`excluded_regions` and not
+about `ui`, so the mailbox question stands. Four things it added for the freeze
+to cover: **`Project.fitted_mask()`** (the one authority for which channels the
+next run fits); **`schemas.project.check_interval`** plus field validators on
+`ProjectDoc`, so an inverted or empty interval now raises where it used to be
+stored — a *behaviour* change to a shipped schema, worth pinning deliberately;
+an **`excluded` arm, `n_excluded` and `stale`** on `/api/result/window` and on
+`GET /api/peaks`'s `pattern`; and **`n_fitted`** in `GET /api/project`'s `data`.
 [1036](1036-crystal-system-settings.md) may change which cell parameters are
 refinable for two space-group settings; if it lands after the freeze it is a
 behaviour change to a frozen surface, so prefer it before.

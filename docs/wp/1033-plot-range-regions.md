@@ -1,6 +1,7 @@
 # WP-1033 — 2θ limits and excluded regions, visible and selectable
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-05 — shaded, selectable, and pinned to the
+channel count
 Depends on: **1032** (strictly — both edit `Plot.svelte`; see below) · 1005,
 1008, 1009 (landed)
 
@@ -51,7 +52,7 @@ that no renderer in the package draws them, and no pointer sets them.
   `plot_for_vlm`, not `write_html`. A region you excluded is invisible in every
   picture the package produces.
 
-### What WP-1032 left in `Plot.svelte` (folded in from its `### Inherited`)
+### What WP-1032 left in `Plot.svelte` (folded in from its mailbox)
 
 - The reflection ticks are on **`yaxis3`**, a band at `[0.225, 0.275]` between
   the two subplots (`lib/plot.ts:tickBand`). That gap is no longer free, so a
@@ -166,7 +167,7 @@ the arrays. A gap is what an exclusion leaves; the exclusion itself is read from
 - [x] **Send through `POST /api/project`**, which means `api.patchProject` stops
       being a `{ui: …}`-only call site — check that the 409-while-running rule
       still reads correctly for a settings-only patch (the open question in
-      [1003](1003-api-freeze-pypi.md)'s `### Inherited` about `ui`-only patches
+      [1003](1003-api-freeze-pypi.md)'s mailbox about `ui`-only patches
       is adjacent, and this WP must not settle it unilaterally). — it reads
       correctly and is now asserted: an exclusion changes which channels the
       *compiled* model was built from, so it is a mutating verb in the strict
@@ -205,6 +206,60 @@ than no band at all.
   document and not in a history node.
 
 ## Handover log
+
+- **2026-08-05** — **closed.** Branch `wp1033-plot-range-regions`, six commits.
+
+  **Done.** All eight tasks, plus one the measurement added. The shading is
+  `lib/plot.ts:maskShapes` (paper y-ref, clipped to the measured extent) drawn
+  from `ProjectDoc`; the gesture is an armed *mode* over plotly's own select box
+  (`Plot.svelte:arm`); the typed route and the region chips are the `.protocol`
+  strip under the plot; everything goes through `POST /api/project`, which is no
+  longer a `{ui: …}`-only call site. Server side: `Project.fitted_mask()`, an
+  `excluded` arm and a `stale` flag on `/api/result/window` and the raw peaks
+  pattern, `n_fitted` on the project document, and
+  `schemas.project.check_interval`. 18 vitest rows (11 pure, 7 mounted) and 4
+  server rows; fast suite 1656 → 1660 passed, 108 skipped either way, `[dev]`.
+
+  **The thing to know before touching any of it.** The feature was *not* only
+  missing pixels, which is what this file said on 2026-08-04 and what I believed
+  for the first hour. **A mask is invisible in a picture of its own output**:
+  `compile_model` masks before a result exists, so both payloads carried only
+  the surviving channels — measured, a 3–24° pattern comes back 8.005–18.990°
+  under limits, with zero points inside a 3° exclusion. Shading alone would have
+  drawn a band over a hole, and the fit range would have had no *outside* at all
+  because the axis autoranges inside it. Half this WP is therefore server work
+  that the plan did not contain, and a successor who deletes the `excluded` arm
+  as redundant will silently get the empty picture back.
+
+  **Two more, both found only in a real browser** (chromium is cached;
+  `gui/CLAUDE.md` has the recipe). A shape bound to a data axis **takes part in
+  the autorange**, so bands drawn past the data — to survive a zoom-out, the
+  obvious implementation — *became* the range: −40 to 100 on a 0.5–59.99°
+  pattern. And `paintRaw` builds its payload by hand, so the raw view silently
+  had no masked points until it was passed them explicitly; that view is the
+  only place a fit range can be seen before the first fit.
+
+  **A harness note in the same key as WP-1027's `window.prompt`.** jsdom's div
+  has no plotly emitter, so `plotNode.on?.(…)` is a silent no-op and a select
+  gesture cannot be driven at all — `App.test.ts` patches `on` /
+  `removeAllListeners` onto `HTMLDivElement.prototype` for that one block. And
+  in the browser probe a listener registered from `page.evaluate` recorded
+  nothing while the app's own handler fired correctly: the component's next
+  `react` had cleared it. Suspect the harness first.
+
+  **Next.** Nothing is left open here. [1034](1034-panel-layout.md) is the
+  next GUI WP and its mailbox now says what the strip costs in vertical
+  space; [1017](1017-gui-manual-onboarding.md) has the controls to document;
+  [1003](1003-api-freeze-pypi.md) has the new public surface and the `ui`-only
+  question, which this WP deliberately did **not** settle.
+
+  **Gotchas.** The `.pxt` document renders 12 significant digits, so a
+  pointer-drawn region reads as `excluded 15.2668475177 34.6747042553` — correct
+  and ugly; rounding it would be a second authority on the number, so it stands.
+  `formatRegion` rounds the *chip* only. And the region chips are keyed by their
+  formatted text, so two regions that print identically at 3 dp would collide in
+  the `{#each}` — they cannot both exist after `mergeRegions`, but a future
+  writer that stops merging must change that key.
 
 - **2026-08-04** — created from a user's list after driving the shipped GUI,
   alongside [1032](1032-gui-repairs.md), [1034](1034-panel-layout.md),

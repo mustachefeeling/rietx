@@ -89,7 +89,12 @@ carries: `gui/server.py` spells non-finite floats as the schemas do
 (`ser_json_inf_nan="strings"`) on responses *and* SSE frames, and the client reads
 them back with `lib/table.ts`'s `num()`. jsdom lacks `ResizeObserver` (which
 `bind:clientHeight` compiles to, so its absence throws *during mount*) and
-`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled.
+`DragEvent`; `gui/src/test-setup.ts` is the one place that gap is filled. It
+also has no plotly **emitter** — the library decorates the graph div with `on`
+at runtime, so `plotNode.on?.(…)` is a silent no-op and no plotly event can be
+driven at all; a test that needs one patches `on`/`removeAllListeners` onto
+`HTMLDivElement.prototype` for its own block (WP-1033) rather than globally,
+because what it wants is to *capture* the handlers.
 
 The **history and report panels** (WP-1012) are the GUI's read-and-act half, and
 the module that carries them is `report/apply.py` — the *how* beside Layer 2's
