@@ -52,7 +52,7 @@ Replaced at every handover, never appended (history: the v1.0 appendix). Measure
 2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
 — **no jax, no torch**, so WP-1040's `[dev,jax]` figures do not compare.
 
-- fast **1717 passed / 108 skipped** in **3:07-3:35** *unloaded*, full **1808 / 117** in **24:13** — both **measured**, and both moved by exactly the 19 Python tests added (1698 / 1789 at WP-1035). Quote the range, never the figure: this same green tree read **9:01** at 1035 while another worktree's suite shared the machine (load 56). Both selections run 2 over `--collect-only`, for the reason below.
+- fast **1717 passed / 108 skipped** in **3:07-4:11** (three runs of *this* tree, nothing else deliberately running — the spread is the machine, which is the whole point of quoting a range; the same green tree read **9:01** at 1035 with another worktree's suite on it at load 56). Full **1808 / 117**, one run, **24:13**. Both selections moved by exactly the 19 Python tests added (1698 / 1789 at WP-1035), and both run 2 over `--collect-only` for the reason below.
 - frontend (vitest): **376** (347 at 1035, +29), `svelte-check` clean; `test_gui_*.py` collect **104**.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
