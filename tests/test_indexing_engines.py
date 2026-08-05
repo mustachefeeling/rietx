@@ -1418,11 +1418,171 @@ def test_one_line_beyond_the_lattice_needs_the_trim_retry():
     basis = metric_basis(system)
     af_true = _af(true_cell)
 
-    loose, ok_loose, _i, _w = svd_iterate(af_true, q, tt, inten, basis, "P",
-                                          LAM, sigma=sig, trim=0)
-    tight, ok_tight, _i2, _w2 = svd_iterate(af_true, q, tt, inten, basis, "P",
-                                            LAM, sigma=sig, trim=1)
-    assert ok_tight and same_lattice(tight, af_true)[0]
-    assert not (ok_loose and same_lattice(loose, af_true)[0]), (
+    loose = svd_iterate(af_true, q, tt, inten, basis, "P", LAM, sigma=sig,
+                        trim=0)
+    tight = svd_iterate(af_true, q, tt, inten, basis, "P", LAM, sigma=sig,
+                        trim=1)
+    assert tight.converged and same_lattice(tight.af, af_true)[0]
+    assert not (loose.converged and same_lattice(loose.af, af_true)[0]), (
         "the wild line no longer breaks the unbudgeted loop — if the weighting "
         "changed, re-measure rule 4 rather than deleting this row")
+
+
+# ----------------------------------------------------------------------
+# WP-1040 task 3 — Coelho §2.3's zero-error column and §2.4's three passes
+# ----------------------------------------------------------------------
+def _shifted_case(system: str, ze: float):
+    """A synthetic list with a constant zero error injected into every position.
+
+    Injected in **2θ**, which is what a diffractometer zero error is; the column
+    under test lives in Q, and whether those are the same statement to first
+    order is the whole question.  Positions stay otherwise exact, so a failure
+    here is the *model* and never the noise (``synthetic_peaks``).
+    """
+    peaks, true_cell = synthetic_peaks(system, esd_deg=1e-9)
+    return (PeakList.from_positions(peaks.two_theta() + ze, LAM,
+                                    two_theta_esd=1e-9), true_cell)
+
+
+def test_the_zero_error_column_is_the_derivative_of_q_by_two_theta():
+    """Coelho eq. (6) and ``q_of_two_theta`` must be the same first-order claim.
+
+    Eq. (6) is derived by expanding ``sin²(θ + Ze·π/360)``, so its coefficient
+    ``(π/360)·(4/λ²)·sin 2θ`` should be exactly ∂Q/∂(2θ) in degrees — the
+    ``(π/90)·sin(2θ)/λ²`` that ``refine_candidate`` carries a note about, since
+    ``4·π/360 = π/90`` and the classic slip is π/180.  Checked against a central
+    difference rather than against the algebra, because the algebra is what is
+    in doubt: they agree to 5e-10 relative over 10-90° 2θ.
+    """
+    from pxrdref.indexing.qspace import q_of_two_theta
+    from pxrdref.indexing.svd import zero_error_column
+
+    tt = np.linspace(10.0, 90.0, 9)
+    h = 1e-5
+    fd = (q_of_two_theta(tt + h, LAM) - q_of_two_theta(tt - h, LAM)) / (2 * h)
+    assert zero_error_column(tt, LAM) == pytest.approx(fd, rel=1e-8)
+
+
+@pytest.mark.parametrize("ze", [0.10, 0.05, -0.08])
+def test_a_zero_error_is_absorbed_by_one_pass_and_removed_by_three(ze):
+    """Rule 5: the column does not help the search converge, it makes a
+    converged answer *correct*.
+
+    Started **at** the truth so the search is out of the question and only the
+    modelling is measured.  One pass has no way to express a shift, so it puts
+    the shift into the axes — 3.5 % away from the true lattice at Ze = 0.10°,
+    which every equality test in the package calls a different lattice — while
+    §2.4's three passes return it to ~1e-4 and report the shift to about 1 %.
+
+    This is the same fact the package states one rank up as *a cell found under
+    a widened window has absorbed the shift* (``engines.refine_with_shift``,
+    +1400 ppm measured on corundum).  Here it is the search's own inner loop
+    rather than the acceptance fit, and the remedy is Coelho's, not ours.
+    """
+    from pxrdref.indexing.qspace import af_from_cell as _af
+    from pxrdref.indexing.reduce import equal_reduced, reduced_af
+    from pxrdref.indexing.svd import svd_iterate, svd_trial
+
+    system = "monoclinic"
+    peaks, true_cell = _shifted_case(system, ze)
+    spec = spec_for(system)
+    sel = search_line_order(peaks, spec)
+    q, tt = peaks.q()[sel], peaks.two_theta()[sel]
+    inten, sig = peaks.intensity()[sel], peaks.q_esd()[sel]
+    basis = metric_basis(system)
+    af_true = _af(true_cell)
+
+    one = svd_iterate(af_true, q, tt, inten, basis, "P", LAM, sigma=sig)
+    three = svd_trial(af_true, q, tt, inten, basis, "P", LAM, sigma=sig)
+
+    # the shift is measured, and signed as eq. (6) signs it
+    assert three.ze == pytest.approx(ze, rel=0.05)
+    # and the lattice comes back with it
+    assert equal_reduced(reduced_af(three.af), reduced_af(af_true))[0], (
+        f"three passes left the lattice wrong at Ze = {ze}")
+    assert not equal_reduced(reduced_af(one.af), reduced_af(af_true))[0], (
+        "one pass no longer absorbs the shift — if the weighting or the "
+        "acceptance changed, re-measure rule 5 rather than deleting this row")
+
+
+def test_the_first_pass_carries_no_zero_error_and_no_impurity_cut():
+    """§2.3 and §2.4 both turn on *ordering*, so the ordering is the assertion.
+
+    Coelho's reason is one sentence used twice: Ze *"as returned by SVD is often
+    too large … due to grossly incorrect hkl assignments in the early
+    iterations"*, and the ``d_o²`` weighting *"reduces the chances of getting
+    close to the correct solution"* if assigned immediately.  Both refinements
+    are things a caller may only do once the assignment is roughly right, so
+    with both switched off :func:`svd_trial` must be exactly one call to Table 1
+    — not merely similar to one.
+    """
+    from pxrdref.indexing.qspace import af_from_cell as _af
+    from pxrdref.indexing.svd import svd_iterate, svd_trial
+
+    system = "tetragonal"
+    peaks, true_cell = synthetic_peaks(system)
+    spec = spec_for(system)
+    sel = search_line_order(peaks, spec)
+    q, tt = peaks.q()[sel], peaks.two_theta()[sel]
+    inten, sig = peaks.intensity()[sel], peaks.q_esd()[sel]
+    basis = metric_basis(system)
+    af0 = _af((4.0, 4.0, 9.0, 90.0, 90.0, 90.0))
+
+    one = svd_iterate(af0, q, tt, inten, basis, "P", LAM, sigma=sig)
+    bare = svd_trial(af0, q, tt, inten, basis, "P", LAM, sigma=sig,
+                     zero_error=False, cut_deg=None)
+    assert bare.af.tolist() == one.af.tolist()
+    assert (bare.converged, bare.iterations, bare.why, bare.ze) == (
+        one.converged, one.iterations, one.why, 0.0)
+
+
+def test_the_measured_zero_error_never_writes_the_reported_cell():
+    """A shift measured **without an attribution** may size a window and nothing
+    more — ``effective_sigma_sys``'s rule, applied to this engine's own number.
+
+    Coelho's column is the ``constant`` template by construction, and WP-1038
+    measured that ``constant`` and ``cos_theta`` concentrate within one pair of
+    each other on real data: the magnitude is knowable and the cause is not.  So
+    the engine reports its Ze in the stats and leaves the cell on the same
+    footing as the other two engines' — shift-absorbed unless the *caller*
+    declares a template, which is the one path ``refine_with_shift`` owns.
+
+    Asserted as a **difference**, not as a threshold: both runs find the same
+    lattice, and the question is only which of them still has the shift in its
+    axes.  A binary "the plain one is not the true lattice" would be asserting
+    that the absorbed error happens to exceed ``CELL_EQUALITY_RELATIVE``, which
+    is a coincidence of this fixture's shift and this system's degrees of freedom
+    rather than the rule under test — measured, a 0.05° shift on a 2-parameter
+    tetragonal metric absorbs to well inside 0.5 %.
+    """
+    from pxrdref.indexing.svd import search_svd
+
+    system = "tetragonal"
+    injected = 0.05
+    peaks, true_cell = _shifted_case(system, injected)
+    plain = search_svd(peaks, spec=spec_for(system, sigma_sys_deg=0.06))
+    declared = search_svd(peaks, spec=spec_for(system, sigma_sys_deg=0.06,
+                                               shift_template="constant"))
+    assert plain.candidates and declared.candidates
+
+    # the engine measured a shift and said so, whether or not it was asked to
+    for res in (plain, declared):
+        ze = res.stats.get(f"{system}.ze_deg")
+        assert ze == pytest.approx(injected, abs=0.02), res.stats
+
+    # ...and only the run that declared a template has it in the cell
+    assert plain.candidates[0].fit.shift_template is None
+    assert declared.candidates[0].fit.shift_template == "constant"
+    assert declared.candidates[0].fit.shift_coefficient == pytest.approx(
+        injected, abs=0.01)
+    assert_finds_lattice(declared, true_cell, top=1)
+
+    def _off(cand):
+        return max(abs(c / t - 1.0) for c, t in zip(cand.cell[:3],
+                                                    true_cell[:3]))
+
+    assert _off(declared.candidates[0]) < 0.2 * _off(plain.candidates[0]), (
+        f"declared {_off(declared.candidates[0]):.2e} against plain "
+        f"{_off(plain.candidates[0]):.2e} — the undeclared run is supposed to "
+        "carry the shift in its axes, which is what INDEX_SHIFT_ALLOWANCE warns "
+        "about and what refine_with_shift exists to undo")

@@ -143,7 +143,14 @@ from .reduce import (
     reduce_cell,
     same_lattice,
 )
-from .svd import search_svd, svd_iterate, volume_window
+from .svd import (
+    SvdPass,
+    search_svd,
+    svd_iterate,
+    svd_trial,
+    volume_window,
+    zero_error_column,
+)
 from .trial_error import index_table, search_trial_error
 from .workflow import (
     absent_reflections,
@@ -224,8 +231,11 @@ __all__ = [
     "search_svd",
     "search_trial_error",
     "sigma_effective",
+    "SvdPass",
     "svd_iterate",
+    "svd_trial",
     "volume_window",
+    "zero_error_column",
     "structure_from_candidate",
     "template_collinearity",
     "to_cell_candidate",

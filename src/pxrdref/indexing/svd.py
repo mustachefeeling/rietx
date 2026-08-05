@@ -95,10 +95,66 @@ d-spacings between the smallest observed d and 1.5× the largest, so it never
 reaches this case.  The fallback is :data:`TRIM_RETRY` and it is a *retry*, not a
 default, because a budgeted trim rescues corundum and costs every other dataset
 (zircon 58 → 1 hits per 3000 starts, zincite 317 → 205, bethanechol F 1 → 0).
+
+## What §2.3's zero-error column turned out to be for (WP-1040 task 3)
+
+**5. It does not make the search converge more often; it makes a converged
+answer correct.**  This is the opposite of what the WP expected of it, and both
+halves are measured.  On the ten published bethanechol sets the per-trial hit
+rate does not move at all under any pass strategy.  Started **at** the truth on a
+synthetic monoclinic with a zero error injected, a single pass returns a lattice
+**3.5 % from the truth** at Ze = 0.10° — a miss by every equality test in the
+package, because a search that cannot model the shift absorbs it into the axes —
+and :func:`svd_trial`'s three passes return it to **1e-4** while reporting the
+shift to 1 % (0.0989 for 0.100, 0.0497 for 0.050, −0.0807 for −0.080).  With a
+realistic 0.005° of scatter on the positions the recovered lattice sits at
+0.0044 **independently of the injected shift**, which is the residual of the
+scatter and not of the shift.  End to end that bought one dataset and cost none:
+qarr corundum goes from **0 candidates to 1** — the truth, ranked first, 3e-4
+from the certificate — while zincite and zircon return the same cells at the
+same ranks, for up to 2× the wall clock (2.0 → 2.8 s, 4.2 → 4.4 s, 3.5 → 7.2 s).
+
+**6. The zero error it fits is a third independent road to WP-1038's number,
+and it agrees to 0.003°.**  Where both speak, on the two datasets whose shift the
+reflection-pair screen detects:
+
+===============  ==================  ==================  ==========
+dataset          pairs (``constant``)  against reference  SVD Ze
+===============  ==================  ==================  ==========
+SRM 660c LaB6    +0.0359             +0.0367             **+0.0329**
+qarr corundum    −0.0670             −0.0650             **−0.0666**
+===============  ==================  ==================  ==========
+
+The three see different things — the pair screen sees only harmonic pairs among
+the observed lines, the reference-based fit sees certified positions, and this
+column sees only a candidate lattice — so the agreement is evidence about the
+*shift*, not about any one method.  It also reaches where the pair screen
+declines: a bare 20-line list supplies too few pairs to concentrate (WP-1038),
+and this column needs none.
+
+**7. The bethanechol A-D sets are not blocked by their zeroshift.**  Closest
+approach to the true lattice over 1500 random starts, in ``equal_reduced``'s own
+relative units where 0.005 is a hit: **six of the ten sets never get inside
+0.21-0.33** under any pass strategy, so nothing about the shift was ever going to
+reach them.  The failure on A-D is not the shift — half of those sets barely have
+one, since the paper's blanket −0.100° correction is right for PDF 43-1748 and
+wrong for 46-1964 — it is that the *a* entries carry **7 impurity lines in 20**,
+past the 33 % Coelho's own N_c/N_o gate says it tolerates (§2) and past anything
+his Table 6 tests.  The WP predicted this column would unlock A-D.  It does not,
+and a prediction is not a measurement even when the paper is on its side.
+
+Of the four sets that *are* reached, three improve — Bb 0.122 → 0.007, E 0.017 →
+0.005, Db 0.011 → 0.007 — and **the fourth gets worse**: set F, the synchrotron
+measurement with the most precise positions and essentially no shift, goes 0.0009
+→ 0.004, which is what a free column costs when there is nothing for it to
+absorb.  It does not survive into the answer, because :func:`_keep` re-fits every
+converged metric on 1/σ(Q) before anything is reported — but it is the reason
+this module does not claim the strategy is free.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 
 import numpy as np
@@ -160,16 +216,19 @@ CONTROL: dict[str, tuple[int, int]] = {
 }
 #: Exponent m of the weighting function W = d_o^m·|Δ2θ|·I_o (Coelho eq. 4).
 #:
-#: **Four, fixed — and the range this package does *not* randomise it over is a
-#: correction to the WP's own reading of the paper.**  §3.2 randomises m between
-#: **0 and 6** (the "0-4" in WP-1040's context section is a misreading; 4 is where
-#: "an optimum setting for m occurs", a different sentence).  His 4.4 → 8.4 →
-#: 11.8 % "decomposition" is likewise two experiments rather than one: 4.4 % is
-#: the triclinic Δ = 0.3 perturbation rate of §3.1, while 8.4 and 11.8 are
-#: single-pass Table 2 runs from §3.2.  Measured here on the corpus, randomising m
-#: is not free either way — it helps LaB6 at large Δ and hurts NAC (100 % → 51-67
-#: % at every Δ) — so the fixed optimum is kept and the randomisation is recorded
-#: as unreproduced rather than adopted on the paper's word.
+#: **Four, fixed, and the paper disagrees with itself about the range it should
+#: be randomised over.**  §2.2 says *"randomizing m between 0 and 4 produces
+#: better results"*; the experiment that produced that claim, in §3.1, says the m
+#: values *"were randomly varied between 0 and 6"*.  Both are quotations, so
+#: neither reading of the WP's context section is a misreading — there are two
+#: sentences and they do not agree, and only the second is attached to a number.
+#: The "4.4 → 8.4 → 11.8 % decomposition" is likewise not one experiment: 4.4 % is
+#: §3.1's triclinic Δ = 0.3 single-call perturbation rate, while 8.4 and 11.8 are
+#: single-pass Table 2 runs later in the same section.  Measured here on the
+#: corpus, randomising m is not free either way — it helps LaB6 at large Δ and
+#: hurts NAC (100 % → 51-67 % at every Δ) — so the fixed optimum is kept and the
+#: randomisation is recorded as unreproduced rather than adopted on the paper's
+#: word.
 WEIGHT_EXPONENT = 4.0
 #: Lines dropped, at most, when a search that found nothing is retried.  See rule
 #: 4 in the module docstring: this rescues one corpus dataset and costs every
@@ -188,6 +247,23 @@ KAPPA_PROBES, KAPPA_VOLUME = 24, 500.0
 #: Angle range random triclinic and monoclinic starts are drawn from — Coelho §3's
 #: own test-lattice generation (90-130°).
 ANGLE_LO, ANGLE_HI = 90.0, 130.0
+#: Coelho §2.4: in the **last** pass only, an observed line whose nearest
+#: calculated line is further than this is left unindexed rather than fitted.
+#: Read it as a search device and not as a precision — it is the one number in
+#: this module that resembles a tolerance, and it is applied only once the metric
+#: is already roughly right (module docstring, rule 3, and rule 5 below).
+IMPURITY_CUT_DEG = 0.05
+#: Largest |Ze| (° 2θ) a pass will carry forward.  Coelho's own reason for
+#: running a zero-error-free pass first is that *"the absolute value of Ze as
+#: returned by SVD is often too large (>0.1° 2θ)"* on early, wrong assignments;
+#: this bounds what survives a *later* pass for the same reason, since the column
+#: is one free parameter that will happily absorb a wrong metric.  Set to twice
+#: the ±0.05° the paper claims the strategy tolerates, so it can never refuse a
+#: shift the method is supposed to handle.  Measured, it does not bind on either
+#: bundled dataset that has a shift to find — SRM 660c +0.033°, qarr corundum
+#: −0.067° — and the one place it would is the bethanechol `A` sets' +0.108°,
+#: which are unreachable for an unrelated reason (module docstring, rule 7).
+ZERO_ERROR_LIMIT_DEG = 0.10
 
 
 @lru_cache(maxsize=32)
@@ -262,13 +338,57 @@ def _nearest_assignment(q_obs: np.ndarray, intensity: np.ndarray,
     return out
 
 
+@dataclass(frozen=True)
+class SvdPass:
+    """What one call to Coelho's Table 1 returned.
+
+    ``ze`` is the fitted zero error in **degrees 2θ**, signed as eq. (6) signs it:
+    the observed angle is the true one *plus* ``ze``, so a correction subtracts
+    it.  It is 0.0 exactly whenever the pass carried no zero-error column, which
+    is not the same claim as "the zero error was measured to be zero" —
+    :func:`svd_trial` records which passes fitted one.
+    """
+
+    af: np.ndarray
+    converged: bool
+    iterations: int
+    why: str
+    ze: float = 0.0
+
+
+def zero_error_column(two_theta: np.ndarray, wavelength: float) -> np.ndarray:
+    """Coelho eq. (6)'s design column: ∂Q/∂Ze for a **constant** 2θ zero error.
+
+    From ``1/d_o² = sin²(θ + Ze·π/360)·4/λ²`` expanded to first order,
+
+        Q_obs = Q_lattice + Ze·(π/360)·(4/λ²)·sin(2θ)
+
+    so a constant shift in 2θ enters Q *through* ``sin 2θ``.  **This is not the
+    package's** ``sin_2theta`` **template** — that one is a shift proportional to
+    sin 2θ in 2θ space (specimen transparency), and it is the ``constant``
+    template whose Q-space signature this is.  The two get conflated because the
+    same three letters appear in both; the discriminator is which space the
+    sin 2θ lives in.
+
+    Equivalent, to first order, to differentiating ``q_of_two_theta``: that
+    derivative is ``(π/90)·sin(2θ)/λ²`` per degree of 2θ, and ``π/90 = 2·π/180``
+    against this column's ``4·π/360 = π/90``.  They are the same number, and the
+    check is worth stating because ``refine_candidate`` carries the note about
+    π/90 versus π/180 for the same reason.
+    """
+    return ((np.pi / 360.0) * (4.0 / wavelength ** 2)
+            * np.sin(np.radians(np.asarray(two_theta, dtype=np.float64))))
+
+
 def svd_iterate(af0: np.ndarray, q_obs: np.ndarray, two_theta: np.ndarray,
                 intensity: np.ndarray, basis: np.ndarray, centring: str,
                 wavelength: float, *, m: float = WEIGHT_EXPONENT,
                 sigma: np.ndarray | None = None, trim: int = 0,
                 max_iterations: int = MAX_ITERATIONS,
-                ) -> tuple[np.ndarray, bool, int, str]:
-    """One call to Coelho's Table 1.  Returns ``(af, converged, iterations, why)``.
+                zero_error: bool = False, ze0: float = 0.0,
+                weight: str = "eq4", cut_deg: float | None = None,
+                ) -> SvdPass:
+    """One call to Coelho's Table 1.
 
     The weighting is eq. (4), ``W = d_o^m·|Δ2θ|·I_o``, applied to both sides of the
     quadratic form.  Note that it deliberately weights the *worst-fitting* lines
@@ -285,57 +405,154 @@ def svd_iterate(af0: np.ndarray, q_obs: np.ndarray, two_theta: np.ndarray,
     a 2-cycle never satisfies — measured on four of the nine corpus datasets,
     where the loop reached the true metric and then burned all twenty iterations
     alternating between two assignments before reporting failure.
+
+    **The three optional arguments are the three ways §2.3 and §2.4's later
+    passes differ from this one**, and none of them is on by default because a
+    first pass must have all three off (:func:`svd_trial` is the strategy):
+
+    ``zero_error``
+        append :func:`zero_error_column` to the design and solve for Ze with the
+        metric.  The assignment step then works on ``Q_obs − Ze·col`` — the
+        *corrected* observed lines — while the fit stays on the uncorrected ones
+        with the column, which is eq. (7) as printed.
+    ``weight="d2"``
+        Coelho §2.4's ``W = d_o²``, i.e. all lines weighted alike in Q.  Eq. (4)
+        deliberately over-weights the worst-fitting lines to *search*; once the
+        assignment is right that bias is a bias, and this is the pass that
+        removes it.
+    ``cut_deg``
+        leave unindexed any observed line whose nearest calculated line is
+        further than this in 2θ.  Coelho's impurity cut, and the module
+        docstring's rule 3 is that it belongs here and nowhere earlier.
     """
     af = np.asarray(af0, dtype=np.float64).copy()
-    q_max = float(q_obs.max())
     n_o = len(q_obs)
     n_free = basis.shape[0]
     seen: set[bytes] = set()
+    col = (zero_error_column(two_theta, wavelength) if zero_error
+           else np.zeros_like(q_obs))
+    ze = float(ze0)
     for it in range(1, max_iterations + 1):
-        q_cal, hkl_cal = _predicted(af, basis, centring, q_max)
+        # the assignment always sees the *corrected* observed lines; the fit
+        # below always sees the uncorrected ones plus the column
+        q_corr = q_obs - ze * col
+        q_cal, hkl_cal = _predicted(af, basis, centring, float(q_corr.max()))
         if not (NC_NO_LO <= len(q_cal) / n_o <= NC_NO_HI):
-            return af, False, it, "gate"
-        assign = _nearest_assignment(q_obs, intensity, q_cal)
+            return SvdPass(af, False, it, "gate", ze)
+        assign = _nearest_assignment(q_corr, intensity, q_cal)
         idx = np.flatnonzero(assign >= 0)
         if trim > 0 and len(idx) - trim >= n_free + 1:
-            dq = np.abs(q_obs[idx] - q_cal[assign[idx]])
+            dq = np.abs(q_corr[idx] - q_cal[assign[idx]])
             scale = (np.asarray(sigma)[idx] if sigma is not None
-                     else np.maximum(q_obs[idx], 1e-300))
+                     else np.maximum(q_corr[idx], 1e-300))
             idx = idx[np.argsort(dq / np.maximum(scale, 1e-300))][:len(idx) - trim]
         if len(idx) < n_free + 1:
-            return af, False, it, "too-few-indexed"
+            return SvdPass(af, False, it, "too-few-indexed", ze)
+
+        tt_cal = np.degrees(2.0 * np.arcsin(np.clip(
+            wavelength * np.sqrt(np.maximum(q_cal[assign[idx]], 0.0)) / 2.0,
+            -1.0, 1.0)))
+        dtt = np.abs(two_theta[idx] - ze - tt_cal)
+        if cut_deg is not None:
+            near = dtt <= cut_deg
+            if int(np.count_nonzero(near)) >= n_free + 1:
+                idx, tt_cal, dtt = idx[near], tt_cal[near], dtt[near]
 
         hkl = hkl_cal[assign[idx]]
         key = hkl.tobytes() + idx.tobytes()
         if key in seen:
-            return af, True, it, "converged"
+            return SvdPass(af, True, it, "converged", ze)
         seen.add(key)
 
         q_i = q_obs[idx]
         rows = design_matrix(hkl) @ basis.T
-        d_o = 1.0 / np.sqrt(np.maximum(q_i, 1e-300))
-        tt_cal = np.degrees(2.0 * np.arcsin(np.clip(
-            wavelength * np.sqrt(np.maximum(q_cal[assign[idx]], 0.0)) / 2.0,
-            -1.0, 1.0)))
-        dtt = np.abs(two_theta[idx] - tt_cal)
-        # |Δ2θ| = 0 would delete the row rather than merely stop it pulling, and
-        # deleting a row changes the *rank* of the system, which is a different
-        # claim about what the lines determine.  Floored well below the smallest
-        # real discrepancy instead.
-        floor = float(dtt[dtt > 0.0].min()) * 1e-3 if np.any(dtt > 0.0) else 1e-9
-        w = d_o ** m * np.maximum(dtt, floor) * intensity[idx]
+        if zero_error:
+            rows = np.column_stack([rows, col[idx]])
+        d_o = 1.0 / np.sqrt(np.maximum(q_corr[idx], 1e-300))
+        if weight == "d2":
+            w = d_o ** 2
+        else:
+            # |Δ2θ| = 0 would delete the row rather than merely stop it pulling,
+            # and deleting a row changes the *rank* of the system, which is a
+            # different claim about what the lines determine.  Floored well below
+            # the smallest real discrepancy instead.
+            floor = (float(dtt[dtt > 0.0].min()) * 1e-3 if np.any(dtt > 0.0)
+                     else 1e-9)
+            w = d_o ** m * np.maximum(dtt, floor) * intensity[idx]
         w = np.where(np.isfinite(w) & (w > 0.0), w, 0.0)
         if not np.any(w > 0.0):
-            return af, False, it, "degenerate-weights"
+            return SvdPass(af, False, it, "degenerate-weights", ze)
         try:
             theta, *_ = np.linalg.lstsq(rows * w[:, None], q_i * w, rcond=None)
         except np.linalg.LinAlgError:
-            return af, False, it, "lstsq-failed"
+            return SvdPass(af, False, it, "lstsq-failed", ze)
+        if zero_error:
+            ze_new = float(theta[-1])
+            # Coelho runs a zero-error-free pass first because SVD returns
+            # |Ze| > 0.1° on early wrong assignments.  A later pass can still ask
+            # for one, so it is bounded rather than trusted.
+            if not np.isfinite(ze_new):
+                return SvdPass(af, False, it, "non-finite", ze)
+            ze = float(np.clip(ze_new, -ZERO_ERROR_LIMIT_DEG,
+                               ZERO_ERROR_LIMIT_DEG))
+            theta = theta[:-1]
         af_new = basis.T @ theta
         if not np.all(np.isfinite(af_new)):
-            return af, False, it, "non-finite"
+            return SvdPass(af, False, it, "non-finite", ze)
         af = af_new
-    return af, False, max_iterations, "max-iterations"
+    return SvdPass(af, False, max_iterations, "max-iterations", ze)
+
+
+def svd_trial(af0: np.ndarray, q_obs: np.ndarray, two_theta: np.ndarray,
+              intensity: np.ndarray, basis: np.ndarray, centring: str,
+              wavelength: float, *, m: float = WEIGHT_EXPONENT,
+              sigma: np.ndarray | None = None, trim: int = 0,
+              zero_error: bool = True,
+              cut_deg: float | None = IMPURITY_CUT_DEG) -> SvdPass:
+    """§2.4's *final* algorithm: Table 1 three times from one random start.
+
+    Coelho: *"The first call is made with the weighting function of equation (4)
+    and no zero error, the second is made with the weighting function of equation
+    (4) and a zero error included, and the third is made with a zero error
+    included but with the weighting function W = d_o²"*, with the impurity cut in
+    the third only.  He measures ~5 iterations for the first pass and ~1 for each
+    of the others, so the strategy costs well under twice one pass.
+
+    Each pass starts from the previous pass's metric, which is the entire point:
+    *"Immediate assignment of this weighting … reduces the chances of getting
+    close to the correct solution"* — the same sentence, structurally, as the one
+    about Ze being too large on early assignments.  Both later refinements are
+    things you may only do **once the assignment is roughly right**, and pass 1
+    is what makes it so.
+
+    A pass that dies on the N_c gate ends the trial: its metric is not a starting
+    point for anything.  A pass that merely runs out of iterations is carried
+    forward, because its metric is still the best estimate available.
+    """
+    first = svd_iterate(af0, q_obs, two_theta, intensity, basis, centring,
+                        wavelength, m=m, sigma=sigma, trim=trim)
+    if not (zero_error or cut_deg is not None):
+        return first
+    if first.why in ("gate", "too-few-indexed", "degenerate-weights",
+                     "lstsq-failed", "non-finite"):
+        return first
+    second = svd_iterate(first.af, q_obs, two_theta, intensity, basis, centring,
+                         wavelength, m=m, sigma=sigma, trim=trim,
+                         zero_error=zero_error)
+    if second.why in ("gate", "too-few-indexed", "degenerate-weights",
+                      "lstsq-failed", "non-finite"):
+        return SvdPass(first.af, first.converged, first.iterations, first.why,
+                       0.0)
+    third = svd_iterate(second.af, q_obs, two_theta, intensity, basis, centring,
+                        wavelength, sigma=sigma, trim=trim,
+                        zero_error=zero_error, ze0=second.ze, weight="d2",
+                        cut_deg=cut_deg)
+    if third.why in ("gate", "too-few-indexed", "degenerate-weights",
+                     "lstsq-failed", "non-finite"):
+        return second
+    return SvdPass(third.af, third.converged,
+                   first.iterations + second.iterations + third.iterations,
+                   third.why, third.ze)
 
 
 # ----------------------------------------------------------------------
@@ -540,6 +757,7 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
                 else 8000.0)
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
+    zes: list[float] = []
     calls = 0
     complete = True
 
@@ -554,23 +772,24 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
         best_af, best_score = None, -np.inf
         while v1 <= v_hi:
             if budget.expired():
-                return found, {"calls": float(calls),
-                               "seconds": round(budget.elapsed, 3)}, False
+                return found, _stats(calls, budget, zes), False
             for _ in range(n1):
                 af0 = _project(scale_to_volume(
                     _random_af(system, rng, spec.min_d_axis, spec.max_d_axis),
                     v1), basis)
-                af, converged, _it, _why = svd_iterate(
-                    af0, q_search, tt_search, i_search, basis, centring,
-                    peaks.wavelength, sigma=sig_search, trim=trim)
+                out = svd_trial(af0, q_search, tt_search, i_search, basis,
+                                centring, peaks.wavelength, sigma=sig_search,
+                                trim=trim)
                 calls += 1
-                if not converged:
+                if not out.converged:
                     continue
-                score = _keep(af, basis, system, centring, spec, peaks, q_all,
-                              sigma, tt_all, tt_max, search_lines, seen, found,
-                              v_hi)
+                score = _keep(out.af, basis, system, centring, spec, peaks,
+                              q_all, sigma, tt_all, tt_max, search_lines, seen,
+                              found, v_hi, ze=out.ze)
+                if score > -np.inf:
+                    zes.append(out.ze)
                 if score > best_score:
-                    best_af, best_score = af, score
+                    best_af, best_score = out.af, score
             for _ in range(n2 - 1):
                 if best_af is None or budget.expired():
                     break
@@ -585,23 +804,40 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
                     hi = 1.50 + 0.49 * k / max(n1, 1)
                     af0 = basis.T @ (theta * rng.uniform(lo, hi,
                                                          size=theta.shape))
-                    af, converged, _it, _why = svd_iterate(
-                        af0, q_search, tt_search, i_search, basis, centring,
-                        peaks.wavelength, sigma=sig_search, trim=trim)
+                    out = svd_trial(af0, q_search, tt_search, i_search, basis,
+                                    centring, peaks.wavelength,
+                                    sigma=sig_search, trim=trim)
                     calls += 1
-                    if converged:
-                        _keep(af, basis, system, centring, spec, peaks, q_all,
-                              sigma, tt_all, tt_max, search_lines, seen, found,
-                              v_hi)
+                    if out.converged and _keep(
+                            out.af, basis, system, centring, spec, peaks, q_all,
+                            sigma, tt_all, tt_max, search_lines, seen, found,
+                            v_hi, ze=out.ze) > -np.inf:
+                        zes.append(out.ze)
             v1 *= VOLUME_LADDER_RATIO
         if len(found) > 2000:
             found = dedup_candidates(found)
-    return (found, {"calls": float(calls), "seconds": round(budget.elapsed, 3)},
-            complete)
+    return found, _stats(calls, budget, zes), complete
+
+
+def _stats(calls: int, budget: Budget, zes: list[float]) -> dict[str, float]:
+    """What one (engine × system) search reports about itself.
+
+    ``ze_deg`` is the median zero error the accepted candidates were *found*
+    under, and it is reported rather than applied (see :func:`_keep`).  It is the
+    only number in the package that measures a systematic 2θ shift with no
+    reference positions and no harmonic pairs — WP-1038's screen is the other
+    road to the same quantity and declines on short lists — so where both speak
+    they are worth comparing, and where only this one does it is evidence a
+    caller can act on by declaring a template.
+    """
+    out = {"calls": float(calls), "seconds": round(budget.elapsed, 3)}
+    if zes:
+        out["ze_deg"] = round(float(np.median(zes)), 5)
+    return out
 
 
 def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
-          tt_max, search_lines, seen, found, vol_max) -> float:
+          tt_max, search_lines, seen, found, vol_max, ze: float = 0.0) -> float:
     """Re-fit a converged metric properly, then apply the shared acceptance bar.
 
     The SVD loop's own cell is fitted under eq. (4)'s deliberately perverse
@@ -610,6 +846,20 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
     which is also what supplies the ``cov_af`` consensus dedup needs.  The bar
     afterwards is ``indexes_the_search_lines`` — the same absolute budget both
     other engines are held to, so three engines' candidates mean the same thing.
+
+    **``ze`` centres the matching window; it never writes the reported cell.**
+    A zero error fitted inside the search is measured, but measured *under an
+    assumed attribution* — Coelho's column is the ``constant`` template and
+    nothing in the data distinguishes it from ``cos_theta`` over a short range
+    (WP-1038, ``template_collinearity``).  The package already has the rule for
+    that case and it is ``effective_sigma_sys``'s: **a shift measured without an
+    attribution sizes windows; only a template the caller declared corrects a
+    cell.**  So the assignment runs in corrected space, where it belongs — the
+    question "is this the same line" is asked of positions the shift has been
+    taken out of — and the reported fit is on ``q_all``, under
+    ``engines.refine_with_shift`` and the caller's own template, exactly as for
+    the other two engines.  The measured value is reported instead, in
+    ``EngineResult.stats``.
     """
     try:
         cell = cell_from_af(af)
@@ -617,7 +867,16 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
         return -np.inf
     if not reflection_ceiling_ok(cell, peaks.wavelength, tt_max):
         return -np.inf
-    key = _solution_key(af)
+    # **Keyed on the centring as well as the metric.**  ``seen`` spans the whole
+    # centring loop, and P and I on the same axes are *different candidates*:
+    # they predict different reflection sets, which is the one thing
+    # ``predicted_but_absent`` exists to measure.  Without the centring in the
+    # key the first centring tried claims the metric and every later one is
+    # silently discarded — measured on 11-BM NAC, which came back cubic **P**
+    # with 92 predicted-and-absent reflections in place of the cubic **I**
+    # description of the identical axes, which has 0.  ``P`` is simply first in
+    # ``centrings_for``.
+    key = (centring, *_solution_key(af))
     if key in seen:
         return -np.inf
     seen.add(key)
@@ -628,10 +887,17 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
     hkl_full = trial_hkl(max_index, centring)
     dm_full = design_matrix(hkl_full)
 
-    fit = None
+    q_match = (q_all if ze == 0.0
+               else q_all - ze * zero_error_column(tt_all, peaks.wavelength))
+    # The loop settles the *assignment*, so it runs on ``q_match`` throughout —
+    # refitting on ``q_all`` here would drag ``af`` back onto shift-absorbed axes
+    # between iterations and re-ask the matching question against a metric the
+    # corrected lines no longer agree with.  One fit on ``q_all`` afterwards is
+    # what the caller is told about.
+    line_index = assigned = None
     previous: bytes | None = None
     for _pass in range(3):
-        line_index, assigned = assign_lines(q_all, sigma, hkl_full, af,
+        line_index, assigned = assign_lines(q_match, sigma, hkl_full, af,
                                             k_sigma=spec.k_sigma, design=dm_full)
         if len(line_index) < basis.shape[0] + 1:
             return -np.inf
@@ -640,12 +906,16 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
             break
         previous = stamp
         try:
-            fit = refine_candidate(q_all[line_index], sigma[line_index], assigned,
-                                   system=system)
+            af = refine_candidate(q_match[line_index], sigma[line_index],
+                                  assigned, system=system).af
         except (ValueError, np.linalg.LinAlgError):
             return -np.inf
-        af = fit.af
-    if fit is None or fit.chi2_red > spec.k_sigma ** 2:
+    try:
+        fit = refine_candidate(q_all[line_index], sigma[line_index], assigned,
+                               system=system)
+    except (ValueError, np.linalg.LinAlgError):
+        return -np.inf
+    if fit.chi2_red > spec.k_sigma ** 2:
         return -np.inf
     if not indexes_the_search_lines(line_index, search_lines, spec.n_unindexed):
         return -np.inf
@@ -692,6 +962,7 @@ register_engine(
     "stochastic, so its failure mode is a bad starting basin rather than a wide "
     "domain or a bad base line")
 
-__all__ = ["CONTROL", "MAX_ITERATIONS", "NC_NO_HI", "NC_NO_LO", "TRIM_RETRY",
-           "VOLUME_LADDER_RATIO", "WEIGHT_EXPONENT", "scale_to_volume",
-           "search_svd", "svd_iterate", "volume_window"]
+__all__ = ["CONTROL", "IMPURITY_CUT_DEG", "MAX_ITERATIONS", "NC_NO_HI",
+           "NC_NO_LO", "TRIM_RETRY", "VOLUME_LADDER_RATIO", "WEIGHT_EXPONENT",
+           "ZERO_ERROR_LIMIT_DEG", "SvdPass", "scale_to_volume", "search_svd",
+           "svd_iterate", "svd_trial", "volume_window", "zero_error_column"]
