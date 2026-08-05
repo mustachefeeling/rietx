@@ -865,6 +865,41 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
+        "test_the_svd_zero_error_is_a_third_road_to_the_anchors_shift",
+        "srm660c", ("certificate", "characterisation"),
+        "a systematic 2theta shift measured a THIRD way -- as one design "
+        "column solved with the metric inside the search -- agrees with both "
+        "of the package's existing roads to it",
+        reference="Coelho (2003) sec. 2.3 eq. (7): a zero error enters Q "
+                  "through Ze (pi/360)(4/lambda^2) sin(2theta), appended to "
+                  "the SVD design matrix.  It sees neither certified positions "
+                  "(the reference-based screen, +0.0367 deg) nor harmonic "
+                  "pairs (WP-1038, +0.0359 deg on the constant template) -- "
+                  "only a candidate lattice -- so the three share no input",
+        measured="+0.0329 deg, within 0.003 of both.  Started AT the certified "
+                  "cell, so this measures the COLUMN and not the search; the "
+                  "search's own use of it is asserted against an exactly known "
+                  "injected shift in test_indexing_engines.py.  It also "
+                  "reaches where the pair screen declines -- a bare 20-line "
+                  "list supplies too few pairs to concentrate, the published "
+                  "bethanechol failure, and this needs none",
+    ),
+    Claim(
+        "test_acceptance_indexing",
+        "test_the_svd_zero_error_is_a_third_road_to_corundums_shift",
+        "srm676a", ("certificate", "characterisation"),
+        "the same three-way agreement on the lab specimen with the larger "
+        "shift, and the line the column is NOT allowed to rescue",
+        reference="as above, against -0.0670 deg from harmonic pairs and "
+                  "-0.0650 deg measured against the SRM 676a certificate",
+        measured="-0.0666 deg, within 0.002 of both.  Needs trim=1: the list "
+                  "opens on a 5.17 deg edge artifact 3.9x beyond the longest d "
+                  "the lattice allows, which breaks eq. (4)'s weighting "
+                  "outright.  A line no lattice can index is not a shifted "
+                  "line, and the column does not pretend otherwise",
+    ),
+    Claim(
+        "test_acceptance_indexing",
         "test_one_shift_is_measured_from_a_multi_phase_pattern",
         "qarr", ("characterisation",),
         "harmonic pairs constrain the instrument rather than the lattice, so "

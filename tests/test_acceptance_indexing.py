@@ -1134,21 +1134,47 @@ def test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_not
         "moved, and this row's premise with it")
     assert res.search_complete.get("cubic") is False
 
-    # the cell that is nevertheless found, and by which engine
-    assert len(res.candidates) == 1, [c.cell for c in res.candidates]
-    best = res.candidates[0]
-    assert best.found_by == ["svd"], best.found_by
-    assert best.system == "cubic" and best.centring == "I", (
-        f"{best.system} {best.centring} — the truncation runs all returned P")
-    da = best.cell[0] / A_NAC - 1.0
-    assert abs(da) < 2.0e-4, f"a = {best.cell[0]:.5f} ({da * 1e6:+.0f} ppm)"
-    # and the whole profile agrees: nothing is predicted where nothing is seen
-    assert best.lebail is not None
-    assert best.lebail.predicted_but_absent == 0, (
-        f"{best.lebail.predicted_but_absent} of {best.lebail.n_reflections}")
+    # the cell that is nevertheless found, and by which engine.  **Two
+    # descriptions of one metric**: identical axes, different centring, which
+    # ``dedup_groups`` keeps apart on purpose — "the same metric with two
+    # different centrings is two different lattices (one predicts half the lines
+    # of the other) and merging them would silently drop a hypothesis the figures
+    # of merit are there to choose between".
+    assert len(res.candidates) == 2, [(c.centring, c.cell[0])
+                                      for c in res.candidates]
+    by_centring = {c.centring: c for c in res.candidates}
+    assert set(by_centring) == {"P", "I"}
+    for cand in res.candidates:
+        assert cand.found_by == ["svd"], cand.found_by
+        assert cand.system == "cubic"
+        da = cand.cell[0] / A_NAC - 1.0
+        assert abs(da) < 2.0e-4, f"a = {cand.cell[0]:.5f} ({da * 1e6:+.0f} ppm)"
+
+    # and the whole profile picks between them, which is what it is for: the I
+    # description predicts nothing that is not seen, the P description of the
+    # same axes predicts 92 reflections the pattern does not contain
+    assert by_centring["I"].lebail.predicted_but_absent == 0, (
+        f"{by_centring['I'].lebail.predicted_but_absent} of "
+        f"{by_centring['I'].lebail.n_reflections}")
+    assert by_centring["P"].lebail.predicted_but_absent > 50
+
+    # **A known ranking defect, pinned rather than hidden** (WP-1040 task 3).
+    # The panel *has* the answer — `m_rev` is 356.1 for I against 0.69 for P, a
+    # 516× separation, exactly the reversed-member behaviour Oishi-Tomiyasu was
+    # adopted for — but `borda_scores` weighs every member alike, so the four
+    # forward-looking members (M₂₀ 2.60 vs 1.57, F_N 10.5 vs 7.8, and the two
+    # indexed fractions) outvote the three reversed ones 4-3 and the looser
+    # centring leads.  Balancing the two directions gives a tie rather than the
+    # right answer, so the fix is a magnitude-aware aggregate and it needs
+    # measuring across every row — filed, not attempted here.  **When it lands,
+    # this assertion inverts.**
+    assert res.candidates[0].centring == "P", (
+        "the panel now leads with the centring that predicts nothing absent — "
+        "good; invert this assertion and delete the borda note with it")
 
     # …and it is still not promoted, on caveats that name why
-    assert best.confidence == "low"
+    best = res.candidates[0]
+    assert all(c.confidence == "low" for c in res.candidates)
     assert "engines_disagree" in best.confidence_caveats
     assert res.best_or_none() is None
     codes = {d.code for d in res.diagnostics}
@@ -1754,8 +1780,19 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     assert best.shift_coefficient == pytest.approx(0.034, abs=0.006)
     assert best.fom_value("m20") > 500.0
 
-    # and the trap: the residual the screen leaves is not the window the search
-    # needs, and declaring it returns no candidate at all
+    # and the trap, **which one engine no longer falls into** (WP-1040 task 3).
+    # Declaring the residual scatter (0.0078°) rather than the amplitude
+    # (0.038°) gives the search a window 4.3× too tight to span the shift, and
+    # until the zero-error column landed that returned nothing at all.  It now
+    # returns the certified cell at **+5 ppm**, because `search_svd` no longer
+    # needs the window to span a shift it can *measure*: Coelho's Ze column
+    # fits it inside the search and `_keep` centres the matching window on the
+    # corrected positions.  The engine's own reported Ze is +0.033°, against
+    # +0.0359° from harmonic pairs and +0.0367° against the certificate.
+    #
+    # The σ_sys semantics filed to WP-1028 are **not** thereby fixed — the two
+    # engines that cannot model a shift still need the wider window, which is
+    # why the `found_by` assertion below is the whole point of this block.
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
@@ -1766,6 +1803,101 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
                       sigma_sys_deg=float(screen.sigma_sys_deg))
     tight = index_pattern(_without_the_off_lattice_lines(lab6_peaks),
                           data=data, instrument=ins, spec=spec)
-    assert tight.candidates == [], (
-        "the post-correction residual now indexes — re-read the docstring, the "
-        "σ_sys semantics may have been fixed")
+    assert tight.candidates, (
+        "a window 4.3× too tight now finds nothing again — if the zero-error "
+        "column changed, this is where it shows first")
+    recovered = tight.candidates[0]
+    assert recovered.found_by == ["svd"], (
+        f"{recovered.found_by} — only the engine that fits a zero error should "
+        "reach a cell through a window this tight")
+    assert recovered.cell[0] / A_SRM660C - 1.0 == pytest.approx(0.0, abs=2e-5)
+    assert tight.engine_stats.get("svd.cubic.ze_deg") == pytest.approx(
+        0.033, abs=0.006), tight.engine_stats
+    # and it is still not promoted: one engine is not agreement
+    assert recovered.confidence == "low"
+    assert tight.best_or_none() is None
+
+
+#: The zero error Coelho's column recovers on each bundled dataset whose shift
+#: WP-1038's reflection-pair screen also detects, beside the two numbers it is
+#: checked against.  Three methods, no shared input: the reference-based screen
+#: sees certified positions, the pair screen sees only harmonic pairs among the
+#: observed lines, and the column sees only a candidate lattice.
+#: ``(cell, system, centring, trim, from_pairs, against_reference)``.
+SVD_ZERO_ERROR_ROWS = {
+    "lab6": ((A_SRM660C,) * 3 + (90.0, 90.0, 90.0), "cubic", "P", 0,
+             0.0359, 0.0367),
+    "corundum": ((A_SRM676A, A_SRM676A, C_SRM676A, 90.0, 90.0, 120.0),
+                 "trigonal", "R", 1, -0.0670, -0.0650),
+}
+
+
+def _assert_svd_zero_error_agrees(peaks, name: str):
+    """WP-1040 task 3's check, shared by the two dataset rows below.
+
+    Started **at** the certified cell, so this measures the *column* and not the
+    search — the search's own use of it is asserted on synthetic data in
+    ``test_indexing_engines.py``, where the injected shift is known exactly.
+    """
+    from pxrdref.indexing.engines import SearchSpec, search_line_order
+    from pxrdref.indexing.qspace import af_from_cell, metric_basis
+    from pxrdref.indexing.quality import screen_shift_from_pairs
+    from pxrdref.indexing.svd import svd_trial
+
+    cell, system, centring, trim, from_pairs, reference = SVD_ZERO_ERROR_ROWS[name]
+
+    screen = screen_shift_from_pairs(peaks.two_theta(), peaks.two_theta_esd())
+    assert screen.source == "reflection_pairs", screen.pairs.declined_reason
+    const = next(t.coefficient for t in screen.templates if t.name == "constant")
+    assert const == pytest.approx(from_pairs, abs=0.005), name
+
+    spec = SearchSpec(systems=(system,))
+    sel = search_line_order(peaks, spec)
+    out = svd_trial(af_from_cell(cell), peaks.q()[sel], peaks.two_theta()[sel],
+                    peaks.intensity()[sel], metric_basis(system), centring,
+                    peaks.wavelength, sigma=peaks.q_esd()[sel], trim=trim)
+    assert out.converged, (name, out.why)
+    assert out.ze == pytest.approx(const, abs=0.005), (
+        f"{name}: SVD Ze {out.ze:+.4f}° against {const:+.4f}° from harmonic "
+        "pairs — two methods sharing no input")
+    assert out.ze == pytest.approx(reference, abs=0.005), (
+        f"{name}: SVD Ze {out.ze:+.4f}° against {reference:+.4f}° measured "
+        "against reference positions")
+    # a magnitude, not a cause: this column *is* the ``constant`` template, and
+    # the pair screen measured that these data cannot separate it from cos θ
+    assert not screen.separable
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
+def test_the_svd_zero_error_is_a_third_road_to_the_anchors_shift(lab6_peaks):
+    """Coelho's Ze column against WP-1038's screen, on the absolute anchor.
+
+    Three methods measure one quantity here and **none of them sees what the
+    others do** — the same device as the cross-backend Jacobian matrix and
+    ``direction="both"``, so agreement is evidence about the *shift* rather than
+    about any one method.  Measured: **+0.0329°** against **+0.0359°** from
+    harmonic pairs and **+0.0367°** against the certified positions.
+
+    This is also where the column reaches and the pair screen does not.  A bare
+    twenty-line list supplies too few harmonic pairs to concentrate — which is
+    the published bethanechol failure the pairs suite reproduces — while this
+    needs none of them, only a candidate lattice.
+    """
+    _assert_svd_zero_error_agrees(lab6_peaks, "lab6")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-qarr")
+def test_the_svd_zero_error_is_a_third_road_to_corundums_shift(corundum_peaks):
+    """The same three-way check on the lab specimen with the larger shift.
+
+    **−0.0666°** against **−0.0670°** from pairs and **−0.0650°** measured
+    against the certificate.  Corundum needs ``trim=1``: its list opens on the
+    5.17° edge artifact, 3.9× beyond the longest d the lattice allows, and that
+    one line breaks eq. (4)'s weighting outright (``svd.py`` rule 4).  The
+    zero-error column does not rescue it and is not supposed to — **a line no
+    lattice can index is not a shifted line**, and a correction that absorbed it
+    would be the failure the whole gate exists to prevent.
+    """
+    _assert_svd_zero_error_agrees(corundum_peaks, "corundum")
