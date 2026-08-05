@@ -57,7 +57,7 @@
     seedPreset,
     structureSummary,
   } from "../lib/wizard";
-  import { fitColumns } from "../lib/resize";
+  import { fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
   import Splitter from "./Splitter.svelte";
   import Structure3D from "./Structure3D.svelte";
@@ -70,8 +70,10 @@
     simple = true,
     active = true,
     columns = null,
+    recent = [],
     theme = "light",
     say = (_line: string) => {},
+    onopen = async (_path: string) => "",
     onopened = (_doc: any) => {},
     oncolumns = (_widths: number[], _done: boolean) => {},
     onmoved = () => {},
@@ -82,12 +84,17 @@
     busy?: boolean;
     simple?: boolean;
     active?: boolean;
+    /** what `GET /api/recent` last answered — the shell owns the fetch, because
+     *  opening one of these is the shell's verb (WP-1034) */
+    recent?: any[];
     /** the first two columns' widths in px, or `null` while the flex defaults
      *  hold — the shell owns the `ui` key, this pane only reports drags */
     columns?: number[] | null;
     /** passed through to the 3D viewer, whose draw effect depends on it */
     theme?: Theme;
     say?: (line: string) => void;
+    /** open a recent project; resolves to the refusal, or "" if it opened */
+    onopen?: (path: string) => Promise<string>;
     onopened?: (doc: any) => void;
     oncolumns?: (widths: number[], done: boolean) => void;
     onmoved?: () => void;
@@ -108,10 +115,22 @@
   let colMeasured = $state([0, 0]);
   let editorsEl: HTMLElement | undefined = $state();
   let editorsWidth = $state(0);
+  /** One column, stacked, when three cannot each hold their floor (WP-1034).
+   *
+   * The pane is a tab now, so it is routinely rendered into 340-560 px — and
+   * three columns there are not a squeeze but a *loss*: the atom table needs
+   * 472 px and side-scrolls the whole column, cell row and headings included,
+   * below it.  Stacked, everything keeps its width and the pane scrolls
+   * vertically, which is what a narrow column can actually do.  The threshold
+   * is arithmetic over the three floors (`lib/resize.ts`), not a taste. */
+  const stacked = $derived(modelStacks(editorsWidth));
   /** Clamped at *render*, not only at drag: widths chosen in one window have to
    *  survive being reopened in a smaller one, and no drag is present to clamp
-   *  them.  A browser found the alternative — a 3D column 24 px wide. */
-  const cols = $derived(fitColumns(colLocal ?? columns, editorsWidth, COL_MIN, VIEW_KEEP));
+   *  them.  A browser found the alternative — a 3D column 24 px wide.  Stacked,
+   *  a stored width means nothing: the columns are rows. */
+  const cols = $derived(stacked
+    ? null
+    : fitColumns(colLocal ?? columns, editorsWidth, COL_MIN, VIEW_KEEP));
 
   /** The rendered width of column `i`, in px — its stored value if it has one,
    *  else whatever the flex default is currently producing. */
@@ -131,6 +150,10 @@
   let wizardOpen = $state(false);
   let staging = $state("");
   let wizError = $state("");
+  /** a refused `Project.open`, in the verb's own words, beside the list that
+   *  asked for it — separate from `wizError`, which is a *staging* failure: a
+   *  verb's refusal and a panel's load error must not share one field (WP-1014) */
+  let openError = $state("");
   const showWizard = $derived(!project || wizardOpen);
   const anodes = $derived<any[]>(capabilities?.anodes ?? []);
   const modes = $derived<string[]>(capabilities?.modes ?? ["rietveld"]);
@@ -491,6 +514,32 @@
   {#if showWizard}
     <!-- ---------------------------------------------------------- -->
     <div class="wizard">
+      <!-- Opening an existing project belongs where making one is (WP-1034):
+           the empty state used to carry the only recent list, so with a project
+           open there was no route back to it short of restarting the program.
+           Opening one **replaces** this session's project — settings persist on
+           the verb and the history log is already on disk (WP-1005), so there is
+           nothing unsaved to warn about, and a run in flight is refused by
+           `project_open`'s own 409 rather than by a dialog here. -->
+      {#if recent.length}
+        <section class="recent">
+          <h2>Open a recent project</h2>
+          <ul>
+            {#each recent as entry (entry.path)}
+              <li>
+                <button class="ghost small" disabled={busy}
+                  onclick={async () => { openError = await onopen(entry.path); }}
+                  >{entry.name}</button>
+                <span class="muted mono tiny">{entry.path}</span>
+              </li>
+            {/each}
+          </ul>
+          {#if openError}<p class="bad tiny">{openError}</p>{/if}
+          <p class="muted tiny">
+            Opening one replaces the project in this session; nothing is unsaved.
+          </p>
+        </section>
+      {/if}
       <ol class="steps">
         <li class:done={!!wiz.pattern}>
           <h2>1 · Pattern</h2>
@@ -647,8 +696,8 @@
     </div>
   {:else if structure && instrument}
     <!-- ---------------------------------------------------------- -->
-    <div class="editors" bind:this={editorsEl} bind:clientWidth={editorsWidth}>
-      <div class="column" bind:clientWidth={colMeasured[0]}
+    <div class="editors" class:stacked bind:this={editorsEl} bind:clientWidth={editorsWidth}>
+      <div class="column structure" bind:clientWidth={colMeasured[0]}
         style:flex={cols ? `0 0 ${cols[0]}px` : null}>
         <h2>Structure
           <label class="file inline-file">
@@ -700,6 +749,10 @@
         </div>
 
         <h3>Atoms <span class="muted tiny">{atoms.length}</span></h3>
+        <!-- the table scrolls, not the column: its `min-content` is 448 px
+             (WP-1034 task 1) and a column narrower than that used to take the
+             cell row and the headings sideways with it -->
+        <div class="tablewrap">
         <table class="atoms">
           <thead>
             <tr><th>label</th><th>species</th><th>x y z</th><th>occ</th><th>Biso</th>
@@ -787,6 +840,7 @@
             {/each}
           </tbody>
         </table>
+        </div>
 
         <div class="add">
           <input class="mono narrow" placeholder="label" bind:value={draft.label} />
@@ -802,11 +856,14 @@
         </p>
       </div>
 
-      <Splitter size={colWidth(0)} grow="right" min={COL_MIN}
-        keep={colWidth(1) + VIEW_KEEP} flow="inline"
-        extent={() => editorsEl?.clientWidth ?? 0}
-        onsize={(next, done) => dragColumn(0, next, done)}
-        title="drag to resize the structure column" />
+      <!-- no grip between rows: stacked, a column's width is the pane's -->
+      {#if !stacked}
+        <Splitter size={colWidth(0)} grow="right" min={COL_MIN}
+          keep={colWidth(1) + VIEW_KEEP} flow="inline"
+          extent={() => editorsEl?.clientWidth ?? 0}
+          onsize={(next, done) => dragColumn(0, next, done)}
+          title="drag to resize the structure column" />
+      {/if}
 
       <div class="column" bind:clientWidth={colMeasured[1]}
         style:flex={cols ? `0 0 ${cols[1]}px` : null}>
@@ -870,12 +927,18 @@
       </div>
 
       {#if viewer}
-        <Splitter size={colWidth(1)} grow="right" min={COL_MIN} keep={VIEW_KEEP}
-          flow="inline"
-          extent={() => (editorsEl?.clientWidth ?? 0) - colWidth(0)}
-          onsize={(next, done) => dragColumn(1, next, done)}
-          title="drag to resize the instrument column" />
+        {#if !stacked}
+          <Splitter size={colWidth(1)} grow="right" min={COL_MIN} keep={VIEW_KEEP}
+            flow="inline"
+            extent={() => (editorsEl?.clientWidth ?? 0) - colWidth(0)}
+            onsize={(next, done) => dragColumn(1, next, done)}
+            title="drag to resize the instrument column" />
+        {/if}
+        <!-- stacked, this is a section under the forms rather than a third of a
+             400 px pane, and the header's `3D` button is its collapse control —
+             one control for one choice (WP-1029), not a second one down here -->
         <div class="column view">
+          {#if stacked}<h2>3D</h2>{/if}
           <Structure3D {stamp} {theme} {say} />
         </div>
       {/if}
@@ -960,6 +1023,34 @@
     max-width: 90ch;
   }
 
+  section.recent {
+    max-width: 90ch;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  section.recent ul {
+    margin: 2px 0 4px;
+    padding: 0;
+    list-style: none;
+  }
+
+  section.recent li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 2px 0;
+    min-width: 0;
+  }
+
+  /* the path is the disambiguator and the name is the target: clip the path */
+  section.recent li span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   ol.steps li {
     border-left: 2px solid var(--line);
     padding: 0 0 10px 14px;
@@ -1034,12 +1125,48 @@
     min-height: 0;
   }
 
+  /* one column, stacked, below the width three floors need (`lib/resize.ts`).
+     The pane scrolls once rather than each column scrolling separately, which
+     is the difference between reading a form and hunting for it. */
+  .editors.stacked {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .editors.stacked > .column {
+    flex: 0 0 auto;
+    overflow: visible;
+    border-left: 0;
+  }
+
+  .editors.stacked > .column + .column {
+    border-top: 1px solid var(--line);
+  }
+
+  /* the scene needs a height of its own once it is a row: a 3D view in a
+     `flex: 0 0 auto` row would otherwise be its content's height, which is zero */
+  .editors.stacked > .column.view {
+    height: 340px;
+    padding-top: 8px;
+  }
+
+  /* Each column starts at **its own floor** and shares what is left over.
+     Equal `flex: 1 1 0` shares looked fair and was not: at a 1000 px pane it
+     gave the structure column 306 px against the 472 its atom table needs,
+     while the two columns that needed less had more than enough (measured in a
+     browser, WP-1034).  A basis is not a maximum — a drag still overrides both
+     with `flex: 0 0 Npx` — and the 3D column keeps the 1.25 growth WP-1015 gave
+     it, so free space still favours the only two-dimensional content here. */
   .column {
-    flex: 1 1 0;
+    flex: 1 1 200px;
     min-width: 0;
     overflow: auto;
     padding: 4px 12px 16px;
     position: relative;
+  }
+
+  .column.structure {
+    flex-basis: 472px;
   }
 
   /* only where no splitter sits between them — the grip carries the rule
@@ -1055,10 +1182,10 @@
     display: flex;
     flex-direction: column;
     padding-bottom: 6px;
-    /* a quarter wider than the two form columns, because this is the only one
-       whose content is two-dimensional: a form reads fine in a narrow column
-       and a cell drawn in one is a cell drawn small */
-    flex: 1.25 1 0;
+    /* a quarter more of the *free* space than the two form columns, because
+       this is the only one whose content is two-dimensional: a form reads fine
+       in a narrow column and a cell drawn in one is a cell drawn small */
+    flex: 1.25 1 260px;
   }
 
   nav.phases {
@@ -1131,8 +1258,15 @@
     border: 1px solid transparent;
   }
 
+  .tablewrap {
+    overflow-x: auto;
+  }
+
   table.atoms {
     width: 100%;
+    /* its own floor, so the wrapper scrolls it instead of the browser shrinking
+       eight columns into an unreadable smear (measured: 448 px on NAC) */
+    min-width: 448px;
     border-collapse: collapse;
     font-size: 11.5px;
   }

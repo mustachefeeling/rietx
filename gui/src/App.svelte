@@ -56,37 +56,49 @@
   let dropped = $state(0);
   let plotKey = $state(0);
 
-  let tab = $state<"params" | "plan" | "peaks" | "history" | "report" | "build">("params");
-  /** Two panes are **modes** over the whole window rather than tabs.
+  /** The eight panels, and the one that is showing.
    *
-   *  The text pane (WP-1013) is one because its content is line-oriented — the
-   *  `.pxt` columns are aligned so a rectangular selection can hit one field,
-   *  which a 340–560 px sidebar undoes.  The model pane (WP-1014) is one for two
-   *  reasons: an atom table is eight columns wide, and it is the only pane that
-   *  must work with **no project open at all**, which no tab can. */
-  let mode = $state<"panes" | "text" | "model">("panes");
-  const textMode = $derived(mode === "text");
-  const modelMode = $derived(mode === "model");
+   * Model and Text joined the strip in WP-1034 — an edit and the fit it changes
+   * are now one glance, which is what every other panel already had.  WP-1013
+   * and WP-1014 had made both of them modes over the whole window on grounds
+   * that were sound and are now **measured**: the atom table needs 472 px and
+   * the `.pxt` document's editable columns 546 px, against a sidebar that
+   * clamps at 560 and drags to 72 % of the window.  So they fit at the ceiling,
+   * they do not fit at the 340 px floor, and the full-window layout below is
+   * what covers the difference. */
+  const TABS = [
+    { id: "params", label: "Parameters" },
+    { id: "plan", label: "Plan" },
+    { id: "peaks", label: "Peaks" },
+    { id: "model", label: "Model" },
+    { id: "text", label: "Text" },
+    { id: "report", label: "Report" },
+    { id: "history", label: "History" },
+    { id: "build", label: "Build" },
+  ] as const;
+  type Tab = (typeof TABS)[number]["id"];
+  let tab = $state<Tab>("params");
+  const modelTab = $derived(tab === "model");
+  const textTab = $derived(tab === "text");
 
-  /** One control for one choice (WP-1029).
+  /** Whether the panel column has the whole window (WP-1034).
    *
-   * There used to be two toggle buttons in the header plus a `Close` inside each
-   * pane — two different controls for the same choice, and no button named for
-   * where a click lands you.  A segmented three is the choice itself: the
-   * options *are* the control, "where am I" and "where can I go" are one
-   * reading, and Plot has a name rather than being the absence of the other two.
-   * This is not a re-litigation of WP-1013: Model and Text remain **modes over
-   * the whole window** rather than a sixth tab, and the five-wide strip below
-   * stays what it is — the sidebar's tabs *within* the plot mode. */
-  const MODES: { id: "panes" | "model" | "text"; label: string; title: string }[] = [
-    { id: "panes", label: "Plot", title: "the pattern, the panels and the console" },
-    { id: "model", label: "Model", title: "atoms, site-symmetry DOFs and the instrument" },
-    { id: "text", label: "Text", title: "the whole project as one editable document" },
+   * The full-window surface WP-1013 and WP-1014 shipped, generalised: instead of
+   * two panes each having their own mode, *the column* expands and its tab strip
+   * comes with it — so the hatch covers every panel and "where am I" is still
+   * read off one strip.  Session-local and unpersisted on purpose: it is a view
+   * choice like the residual selector, not a setting like a width (WP-1033's
+   * line between the two).
+   *
+   * One control for one choice (WP-1029): a segmented pair whose options *are*
+   * the layout, rather than a toggle button that means two different things
+   * depending on where you already are. */
+  let wide = $state(false);
+  const LAYOUTS: { id: boolean; label: string; title: string }[] = [
+    { id: false, label: "Split", title: "the pattern beside the panel column" },
+    { id: true, label: "Full",
+      title: "the panel column across the whole window — the tabs stay with it" },
   ];
-
-  function toggleMode(which: "text" | "model") {
-    mode = mode === which ? "panes" : which;
-  }
   let simple = $state(true);
   let consoleHeight = $state(150);
   /** The panel column's width in px, or `null` for "nobody has said".
@@ -156,8 +168,17 @@
     : null);
 
   const busy = $derived(run?.state !== "idle");
-  const rwp = $derived(result?.statistics?.rwp ?? run?.run?.rwp ?? null);
-  const gof = $derived(result?.statistics?.gof ?? run?.run?.gof ?? null);
+  /** The fit's own statistics, and the run frame's only *while it is running*.
+   *
+   * The frame is how a live Rwp reaches the header before a result exists — but
+   * it outlives the result it described: an edit discards the curves server-side
+   * (`refine.set_values`, "the fitted curve and statistics described the *old*
+   * values"), and the header went on printing the last run's Rwp beside a plot
+   * saying "No fitted curves yet".  Two panels contradicting each other, which
+   * is precisely what putting the editor beside the plot makes visible (found in
+   * WP-1034's browser pass). */
+  const rwp = $derived(result?.statistics?.rwp ?? (busy ? run?.run?.rwp ?? null : null));
+  const gof = $derived(result?.statistics?.gof ?? (busy ? run?.run?.gof ?? null : null));
   /** The report's own maturity gate, quoted rather than re-derived — see the
    *  header below and `GuiSession.result`. */
   const immature = $derived(Boolean(result?.maturity?.immature));
@@ -227,7 +248,7 @@
     } catch (error) {
       project = null;
       if (error instanceof ApiError && error.code === "NO_PROJECT") {
-        recent = (await api.recent()).recent ?? [];
+        await loadRecent();
       } else {
         openError = (error as Error).message;
       }
@@ -257,7 +278,7 @@
     project = doc;
     readUi();
     openError = "";
-    mode = "panes";
+    tab = "params";
     indexAnswer = null;
     extinction = null;
     say(`# project: ${doc.path}`);
@@ -266,19 +287,40 @@
     await loadPeaks();
   }
 
-  async function open(path: string) {
+  /** Open another project **in place of** this one (WP-1034).
+   *
+   * There is nothing to warn about and nothing to save: settings persist on the
+   * verb and the history log is already on disk (WP-1005), so the session's
+   * project is simply replaced — and a run in flight makes `project_open` 409
+   * before any of this, which is where that rule belongs.  Returns the refusal
+   * rather than only storing it, because the wizard's own list needs it beside
+   * the button that was clicked; every `Project.open` refusal names a different
+   * remedy, so it travels verbatim.
+   */
+  async function open(path: string): Promise<string> {
     try {
       project = await api.openProject(path);
       readUi();
       openError = "";
+      tab = "params";
       indexAnswer = null;
       extinction = null;
       await loadResult();
       await loadPeaks();
       say(`project.open(${path})`);
+      return "";
     } catch (error) {
-      // every Project.open refusal names a different remedy — show it verbatim
       openError = (error as Error).message;
+      return openError;
+    }
+  }
+
+  /** The recent list, kept where both the empty state and the wizard read it. */
+  async function loadRecent() {
+    try {
+      recent = (await api.recent()).recent ?? [];
+    } catch {
+      recent = [];   // an unreadable state directory is an empty list, not an error
     }
   }
 
@@ -424,6 +466,17 @@
     if (done) setUi({ model_columns: next });
   }
 
+  /** Show the import wizard, from anywhere — the header button, the palette.
+   *
+   * The wizard *is* `Model.svelte` (WP-1014), so reaching it is selecting that
+   * tab and telling the pane to show it; the recent list rides inside it, which
+   * is what makes "open another" reachable without restarting the program. */
+  function startImport() {
+    tab = "model";
+    loadRecent();
+    modelPanel?.startImport();
+  }
+
   const commands = $derived<Command[]>([
     { id: "run", label: "Run the fit", echo: "ref.fit(data, plan=…)", key: "r",
       disabled: busy || !project, run: start },
@@ -449,14 +502,17 @@
       disabled: !project, run: () => (tab = "report") },
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
       disabled: !project, run: () => (tab = "history") },
-    { id: "text", label: textMode ? "Leave the text document" : "Edit the project as text",
+    { id: "text", label: "Edit the project as text",
       echo: "print(pxrdref.gui.textdoc.render(project))", key: "t", disabled: !project,
-      run: () => toggleMode("text") },
-    { id: "model", label: modelMode ? "Leave the model editor" : "Edit the structure and instrument",
+      run: () => (tab = "text") },
+    { id: "model", label: "Edit the structure and instrument",
       echo: "ref.edit(structure=…, instrument=…)", key: "m", disabled: !project,
-      run: () => toggleMode("model") },
-    { id: "import", label: "Import a new project", echo: "Project.create(path, …)",
-      run: () => { mode = "model"; modelPanel?.startImport(); } },
+      run: () => (tab = "model") },
+    { id: "wide", label: wide ? "Show the pattern beside the panel" : "Give the panel the whole window",
+      echo: "# a layout choice, not a setting", disabled: !project,
+      run: () => (wide = !wide) },
+    { id: "import", label: "Open or import a project", echo: "Project.create(path, …)",
+      run: () => { tab = "model"; startImport(); } },
     { id: "disclosure", label: simple ? "Show advanced controls" : "Hide advanced controls",
       echo: 'project.doc.ui["simple"]', disabled: !project, run: () => setSimple(!simple) },
     { id: "theme", label: `Theme: ${themeChoice} — switch to ${nextTheme()}`,
@@ -585,7 +641,7 @@
       {#if gof !== null}<span class="muted">GoF {gof.toFixed(3)}</span>{/if}
       {#if immature}
         <button class="ghost tiny warn" title={result.maturity.message}
-          onclick={() => { mode = "panes"; tab = "report"; }}>
+          onclick={() => (tab = "report")}>
           ⚠ not a fit yet
         </button>
       {/if}
@@ -594,9 +650,13 @@
 
   <div class="controls">
     {#if project}
-      <div class="segmented" role="group" aria-label="view">
-        {#each MODES as entry (entry.id)}
-          <button class:on={mode === entry.id} onclick={() => (mode = entry.id)}
+      <button class="ghost" onclick={startImport}
+        title="open a recent project, or import a new one — this session's project
+               is replaced, and nothing is unsaved (settings persist on the verb)"
+        >Open…</button>
+      <div class="segmented" role="group" aria-label="layout">
+        {#each LAYOUTS as entry (entry.label)}
+          <button class:on={wide === entry.id} onclick={() => (wide = entry.id)}
             title={entry.title}>{entry.label}</button>
         {/each}
       </div>
@@ -632,54 +692,44 @@
 <main bind:this={mainEl}>
   {#if !project}
     <!-- the empty state *is* the import wizard (WP-1014): one component, so
-         "make a project" and "look at the model" cannot drift apart -->
+         "make a project" and "look at the model" cannot drift apart.  The recent
+         list lives *inside* the wizard (WP-1034) rather than above it, so there
+         is one of it whether or not a project is open. -->
     <section class="empty">
       {#if openError}<p class="bad">{openError}</p>{/if}
-      {#if recent.length}
-        <p class="muted small">Recently opened:</p>
-        <ul class="recent">
-          {#each recent as entry (entry.path)}
-            <li><button class="ghost" onclick={() => open(entry.path)}>{entry.name}</button>
-              <span class="muted mono">{entry.path}</span></li>
-          {/each}
-        </ul>
-      {/if}
-      <Model bind:this={modelPanel} {capabilities} {busy} {say} onopened={opened} />
+      <Model bind:this={modelPanel} {capabilities} {busy} {recent} {say}
+        onopen={open} onopened={opened} />
     </section>
   {:else}
-    <!-- the text pane stays mounted while hidden, exactly as the tabs do: a
-         buffer with unedited-but-typed changes has to survive a look at the
-         parameter table.  Its editor is built on first entry, not on boot. -->
-    <div class="textmode" class:hidden={!textMode}>
-      <Text {head} {busy} active={textMode} dark={theme === "dark"} {say} onmoved={moved} />
-    </div>
-    <!-- mounted while hidden, as the tabs are: a typed species or a half-filled
-         wizard has to survive a look at the plot.  `active` is what keeps it from
-         refetching three routes on every head move it is not showing. -->
-    <div class="textmode" class:hidden={!modelMode}>
-      <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
-        {theme} {say} active={modelMode} columns={modelColumns} oncolumns={modelSized}
-        onopened={opened} onmoved={moved} />
-    </div>
-    <div class="panes" class:hidden={mode !== "panes"}>
-      <Plot {result} {plotKey} {zoom} {theme} error={resultError}
-        peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
-        {protocol} {extent} {channels} {protocolError} {busy}
-        onhoverpeak={(i) => (hoveredPeak = i)}
-        onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
-        onremovepeak={removePeak} onprotocol={setProtocol} />
-      <div class="side" bind:clientWidth={sideMeasured}
-        style:flex={sideWidth === null ? null : `0 0 ${sideWidth}px`}>
-        <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
-          extent={() => mainEl?.clientWidth ?? 0} onsize={sideSized}
-          title="drag to resize the panel column" />
+    <div class="panes">
+      <!-- hidden rather than unmounted in the full-window layout, for the same
+           reason every panel is: a purge and a refetch on a layout click would
+           throw the drawn window away -->
+      <div class="plotcol" class:hidden={wide}>
+        <Plot {result} {plotKey} {zoom} {theme} error={resultError}
+          peaks={peaksData} peaksActive={tab === "peaks"} hovered={hoveredPeak}
+          {protocol} {extent} {channels} {protocolError} {busy}
+          onhoverpeak={(i) => (hoveredPeak = i)}
+          onaddpeak={addPeak} onmovepeak={movePeak} ontogglepeak={togglePeak}
+          onremovepeak={removePeak} onprotocol={setProtocol} />
+      </div>
+      <div class="side" class:wide bind:clientWidth={sideMeasured}
+        style:flex={wide || sideWidth === null ? null : `0 0 ${sideWidth}px`}>
+        {#if !wide}
+          <Splitter size={sideWidth ?? sideMeasured} grow="left" min={300} keep={360}
+            extent={() => mainEl?.clientWidth ?? 0} onsize={sideSized}
+            title="drag to resize the panel column" />
+        {/if}
+        <!-- eight wide, and it **wraps** rather than truncating: measured at
+             WP-1034 task 1, eight labels need 415 px squeezed and 533 px whole,
+             against a column that clamps at 340 px on a narrow window.  A strip
+             that hides a tab is worse than the mode buttons it replaced, so no
+             label is ever shortened and the strip takes a second row instead. -->
         <nav class="tabs">
-          <button class:on={tab === "params"} onclick={() => (tab = "params")}>Parameters</button>
-          <button class:on={tab === "plan"} onclick={() => (tab = "plan")}>Plan</button>
-          <button class:on={tab === "peaks"} onclick={() => (tab = "peaks")}>Peaks</button>
-          <button class:on={tab === "report"} onclick={() => (tab = "report")}>Report</button>
-          <button class:on={tab === "history"} onclick={() => (tab = "history")}>History</button>
-          <button class:on={tab === "build"} onclick={() => (tab = "build")}>Build</button>
+          {#each TABS as entry (entry.id)}
+            <button class:on={tab === entry.id} onclick={() => (tab = entry.id)}
+              >{entry.label}</button>
+          {/each}
         </nav>
         <!-- every tab stays mounted: switching must not throw away a filter, a
              pending edit, an unsaved stage list or a two-node comparison -->
@@ -689,6 +739,19 @@
         <div class="panel" class:hidden={tab !== "plan"}>
           <Plan bind:this={planPanel} mode={project.doc.mode} {busy} {simple} {say}
             onrun={runStage} />
+        </div>
+        <!-- the model pane and the text pane are tabs (WP-1034) and stay
+             mounted like every other one: a typed species, a half-filled wizard
+             and a typed `.pxt` buffer all have to survive a look at the plot.
+             `active` is what keeps each from refetching on a head move it is
+             not showing, and what builds the CodeMirror editor on first entry. -->
+        <div class="panel" class:hidden={!modelTab}>
+          <Model bind:this={modelPanel} {project} {capabilities} {head} {busy} {simple}
+            {theme} {recent} {say} active={modelTab} columns={modelColumns}
+            oncolumns={modelSized} onopen={open} onopened={opened} onmoved={moved} />
+        </div>
+        <div class="panel" class:hidden={!textTab}>
+          <Text {head} {busy} active={textTab} dark={theme === "dark"} {say} onmoved={moved} />
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
           <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
@@ -720,10 +783,16 @@
 {/if}
 
 <style>
+  /* wraps rather than pushing a control off the window's edge — the tab strip's
+     rule one rank up.  Measured at 860 px with a fitted project on screen:
+     `Cancel` and `⌘K` were 118 px past the right edge and unreachable, because
+     the row's only shrinkable item is the filename and it had already
+     collapsed to nothing (WP-1034's browser pass). */
   header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
+    gap: 8px 14px;
     padding: 8px 14px;
     border-bottom: 1px solid var(--line);
     background: var(--panel);
@@ -738,11 +807,15 @@
 
   /* the one thing in the header that may be shortened: everything else is a
      control, and a clipped `Advanced` is worse than a clipped filename */
+  /* `flex-basis: 0`, not `auto`: with a wrapping header the basis is what
+     decides whether the row breaks, and a long filename at its natural width
+     would push the controls onto a second row while it still had room to
+     ellipsise (measured — the header wrapped at 1200 px for nothing) */
   .project {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
   }
 
@@ -798,12 +871,14 @@
     height: 100%;
   }
 
-  .textmode {
-    height: 100%;
+  .plotcol {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
-  .panes.hidden,
-  .textmode.hidden {
+  .plotcol.hidden {
     display: none;
   }
 
@@ -832,20 +907,34 @@
     position: relative;
   }
 
+  /* the full-window layout: the column *is* the window, so neither the stored
+     width nor the clamp that keeps a plot visible applies — there is no plot to
+     keep visible, and the tab strip travels with it */
+  .side.wide {
+    flex: 1 1 auto;
+    max-width: none;
+    border-left: 0;
+  }
+
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--line);
     flex: 0 0 auto;
   }
 
+  /* The overflow rule is: never shorten a label, wrap instead (WP-1034).  Which
+     is also why the buttons no longer *grow* to fill the row — with eight of
+     them the strip wraps at a 340 px column, and a lone `Build` stretched
+     across the second row read as a banner rather than as a tab. */
   .tabs button {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     border: 0;
     border-radius: 0;
     background: transparent;
     color: var(--muted);
     font-weight: 400;
-    padding: 5px 4px;
+    padding: 5px 6px;
     border-bottom: 2px solid transparent;
   }
 
@@ -873,14 +962,8 @@
     min-height: 0;
   }
 
-  .empty ul.recent {
-    margin: 0.6rem 0 0;
-    padding: 0 1.2rem;
-    list-style: none;
-  }
-
-  .empty li {
-    margin: 0.2rem 0;
+  .empty .bad {
+    margin: 0.6rem 1.2rem 0;
   }
 
   .bad {

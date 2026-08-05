@@ -111,6 +111,36 @@ export function clampSize(value: number, min: number, keep: number, available: n
  * layout) and the widths pass through, which is the same fallback `clampSize`
  * makes.
  */
+/**
+ * What each of the model pane's three columns needs, in px.
+ *
+ * `structure` is **measured**, not chosen (WP-1034 task 1): the atom table's
+ * `min-content` on the NAC project — six atoms, four species, an aniso tensor on
+ * every site — is 448 px, and the column adds 24 px of padding. Below 472 the
+ * table cannot show its eight columns at all. `form` and `view` are
+ * `Model.svelte`'s own `COL_MIN` and `VIEW_KEEP`, restated here so the threshold
+ * below is arithmetic rather than a number somebody liked.
+ */
+export const MODEL_MIN = { structure: 472, form: 200, view: 260 } as const;
+
+/**
+ * Does the model pane have to become one stacked column?
+ *
+ * Three columns side by side need the structure column's floor plus a form
+ * column plus what the 3D view keeps — 932 px. Below that something is being
+ * squeezed under its minimum, and the thing that loses is the atom table, which
+ * side-scrolls *the whole column* and takes the cell row and the headings with
+ * it (measured at 860 px: `10.25710.25790` where a, b, c should be).
+ *
+ * Zero means nothing is measurable (jsdom, or before the first layout), and
+ * then the flex defaults hold — the same fallback `clampSize` and `fitColumns`
+ * make.
+ */
+export function modelStacks(available: number): boolean {
+  return available > 0
+    && available < MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view;
+}
+
 export function fitColumns(widths: number[] | null | undefined, available: number,
                            min = 200, keep = 260): number[] | null {
   if (!widths || !widths.length || available <= 0) return widths ?? null;

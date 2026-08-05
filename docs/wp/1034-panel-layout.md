@@ -1,24 +1,7 @@
 # WP-1034 — Model and Text in the right panel
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-05
 Depends on: 1013, 1014, 1029 (all landed) · soft: 1032
-
-### Inherited
-
-From **[1033](1033-plot-range-regions.md)** (closed 2026-08-05) — one fact that
-changes this WP's recon, and one that constrains where a control may go:
-
-- **The plot column is one row taller.** A `.protocol` strip now sits under the
-  knobs — typed range boxes, an arm control, one chip per excluded region, a
-  channel count — and it *wraps*, so with several regions it is two rows on a
-  narrow window. The three measurements task 1 asks for must be taken with it
-  present, and the number that matters is how much vertical room the plot has
-  left at 860 px, not how wide the sidebar is.
-- **Protocol controls may not be moved in beside drawing controls.** The strip
-  is separate from `.knobs` because one set changes what is fitted and the other
-  changes only the picture; if this WP reflows the plot column, that separation
-  is the thing to preserve — a rule stated in `gui/CLAUDE.md`, not a layout
-  preference.
 
 ## Goal
 
@@ -74,13 +57,61 @@ back rather than shipping a cramped tab**: the escape hatch would then be the
 primary surface and the tab a shortcut to it, which is a different design and
 the user should get to choose it with the measurements in hand.
 
+### The recon, measured
+
+**2026-08-05**, Chrome for Testing (playwright chromium-1223) against the
+shipped build on a real NAC project — COD 1000236 read `aniso=True` (six atoms,
+four species, an aniso tensor on every site) plus the CaF₂ impurity phase,
+`11BM_NAC.fxye`, limits 2–24° — at a 900 px viewport height and
+`deviceScaleFactor: 2`. The `.protocol` strip WP-1033 added is present in every
+row below, which is what the inherited note asked for.
+
+| window | `.side` | plot column | `.protocol` | plot height | 6 tabs | 8 tabs |
+|---|---|---|---|---|---|---|
+| 1500 | 560 (clamp ceiling) | 940 | 32 px, one row | 749 | fits (559) | fits (559) |
+| 1200 | 456 | 744 | 32 px | 716 | fits (455) | fits (455) |
+| 1000 | 380 | 620 | 64 px, **two rows** | 667 | fits (379) | **overflows** |
+| 860 | 340 (clamp floor) | 520 | 64 px, two rows | 650 | fits (339) | **overflows** |
+
+**1 · The Model pane's minimum content width is 472 px** — the atom table's
+`min-content` is **448 px** and the column adds 24 px of padding. Below it the
+column side-scrolls: by 15 px at 456, 91 px at 380, 131 px at 340, and what
+scrolls is *the whole column*, so the cell row and the headings leave with the
+table (visible in the 860 px screenshot: `10.25710.25790` where a, b, c should
+be). At 472 the table is whole with its `occ` box at its 44 px floor; at 560
+nothing is at a floor (narrowest input 74 px).
+
+**2 · It fits at 560, and a drag reaches it at every width measured.** The
+clamp ceiling leaves 88 px spare, and the 72 % `max-width` is 1080 / 864 / 720 /
+619 px at the four windows — all above 472. What the *default* cannot do is
+reach 472 below a ~1245 px window (38 % of the window ≥ 472).
+
+**3 · The `.pxt` document has two widths, and only the larger one is the
+comments'**: 165 lines, 12 px `ui-monospace` at 7.3 px/char, 47 px gutter. The
+**editable columns** — everything left of the trailing `#`, which is what a
+rectangular selection has to hit — are at most 69 chars, **546 px with the
+gutter**. The whole line with its comment reaches 98 chars, **756 px**. So at
+the 560 px ceiling **0 of 165 lines** scroll an editable column while 110 scroll
+their comment; at 456 px, 60 lines lose an editable column; at 340 px, 85 do.
+Comments stop scrolling only past 720 px.
+
+**Verdict: the tabs decision stands, and it acquires a condition.** WP-1013's
+argument was that a 340–560 px sidebar undoes the `.pxt` alignment; measured,
+that is true at the 340 px floor and **false at the 560 px ceiling**, where every
+field a rectangular selection needs is on screen. Both panes therefore work as
+tabs *at the ceiling and above*, and neither works at the floor — which is what
+makes the full-window hatch load-bearing rather than decorative at ≤1000 px
+windows, and what the Model pane's reflow is for.
+
 ### What the change touches
 
 - **The tab strip goes eight wide.** It is already six
   (`App.svelte:630-637`: Parameters, Plan, Peaks, Report, History, Build) —
   WP-1013 predicted five was the limit and it has been over that since WP-1027.
   **Settle overflow before adding tabs, not after**: a strip that silently
-  truncates is worse than the mode buttons it replaces.
+  truncates is worse than the mode buttons it replaces. Measured: eight labels
+  need **415 px** squeezed and 533 px unsqueezed, so they fit at the 560 and
+  456 px sidebars and overflow at 380 and 340 — i.e. below a ~1090 px window.
 - **Everything stays mounted.** The current panels are hidden with
   `class:hidden`, never unmounted, because switching must not throw away a
   filter, a pending edit, an unsaved stage list or a two-node comparison
@@ -121,6 +152,11 @@ the user should get to choose it with the measurements in hand.
 - A drag is **refused persistence while a run is in flight** (409); that is a
   known wart filed as a freeze question in [1003](1003-api-freeze-pypi.md), not
   this WP's to settle.
+- **Protocol controls may not be moved in beside drawing controls** (WP-1033).
+  The `.protocol` strip is separate from `.knobs` because one set changes what
+  is fitted and the other changes only the picture; if this WP reflows the plot
+  column, that separation is the thing to preserve — a rule in `gui/CLAUDE.md`,
+  not a layout preference.
 
 ## Non-goals
 
@@ -128,30 +164,43 @@ the user should get to choose it with the measurements in hand.
   ([1033](1033-plot-range-regions.md)).
 - **Not a redesign of the panels themselves** — this moves them and reflows
   `Model.svelte`; it does not restyle the parameter table.
-- **Not the manual** ([1017](1017-gui-manual-onboarding.md)); write into its
-  `### Inherited` on sign-off, because this WP changes the two sentences that
-  chapter would have opened with.
+- **Not the manual** ([1017](1017-gui-manual-onboarding.md)); write into that
+  WP's inherited mailbox on sign-off, because this WP changes the two sentences
+  that chapter would have opened with.
 - **Not multi-project**: "open another" replaces the session's project as it
   does today; nothing here opens two at once.
 
 ## Tasks
 
-- [ ] **Recon**: the three measurements above, on NAC, at 1500/1200/1000/860 px.
+- [x] **Recon**: the three measurements above, on NAC, at 1500/1200/1000/860 px.
       Write the numbers into this file. If they contradict the tabs decision,
-      stop and report rather than shipping a cramped tab.
-- [ ] **Tab-strip overflow** settled first — scroll, wrap, or a grouped
+      stop and report rather than shipping a cramped tab. — § "The recon,
+      measured": 472 px for the Model tab, 546/756 px for the `.pxt` document's
+      two widths, and the decision stands with a condition.
+- [x] **Tab-strip overflow** settled first — scroll, wrap, or a grouped
       overflow control — with a mount test that a hidden tab is still reachable.
-- [ ] **Model and Text as tabs**, both still always-mounted, the text pane still
+      — **wrap**: the buttons no longer grow to fill the row and no label is
+      ever shortened, so a strip too narrow for eight takes a second row. One
+      row at a 455 px column and above, two at 379 and 339.
+- [x] **Model and Text as tabs**, both still always-mounted, the text pane still
       building its editor on first entry and keeping its buffer.
-- [ ] **`Model.svelte` reflows to one column** below a threshold, 3D collapsible,
-      with the `ResizeObserver` intact for the viewer.
-- [ ] **The full-window hatch**, reachable from one control that still answers
-      "where am I" in one reading, and from the palette.
-- [ ] **Recent list inside the wizard**, a header route to it with a project
-      open, and the "open another" behaviour decided and written down.
-- [ ] Tests: mount tests for tab reachability, the reflow threshold's pure
+- [x] **`Model.svelte` reflows to one column** below a threshold, 3D collapsible,
+      with the `ResizeObserver` intact for the viewer. — `modelStacks` in
+      `lib/resize.ts`, threshold 932 px = the three columns' floors; the header's
+      own `3D` button is the collapse control in both layouts.
+- [x] **The full-window hatch**, reachable from one control that still answers
+      "where am I" in one reading, and from the palette. — it is the *column*
+      that expands, tab strip and all, so the hatch covers eight panels rather
+      than the two that used to have a mode; header control `Split | Full`.
+- [x] **Recent list inside the wizard**, a header route to it with a project
+      open, and the "open another" behaviour decided and written down. —
+      `Open…` in the header; opening one **replaces** the session's project with
+      no prompt, because settings persist on the verb and the log is on disk, so
+      there is nothing unsaved (and a run in flight is refused by
+      `project_open`'s own 409).
+- [x] Tests: mount tests for tab reachability, the reflow threshold's pure
       function, buffer survival across a tab switch, and the wizard's recent
-      list with a project open.
+      list with a project open. — vitest 321 → 330.
 
 ## Acceptance
 
@@ -172,6 +221,42 @@ jsdom has no layout, so the reflow's *behaviour* is testable and its *effect* is
 not — the screenshot is the check. Playwright's viewport option is
 `newContext({ viewport })`, **not** `viewportSize`, which is silently ignored.
 
+### What the browser pass found
+
+Run on the NAC project at 1500 / 1200 / 1000 / 860 px in both themes, against
+the built dist. Four things, and only the first was in the plan:
+
+- **Three columns still split evenly, so the reflow threshold was not the
+  whole fix.** At a 1000 px pane `modelStacks` correctly says "do not stack",
+  and the structure column then got **306 px** against the 472 it needs, while
+  the two columns that needed less had more than enough — `flex: 1 1 0` shares
+  free space equally from a zero basis. Each column now *starts* at its own
+  floor (472 / 200 / 260) and shares the surplus with the 3D column's 1.25
+  preference intact: 1000 px → 490 / 218 / 282, 1500 px → 644 / 372 / 475.
+- **A lone wrapped tab read as a banner.** With the buttons growing to fill
+  their row, `Build` alone on the second row stretched across the whole 339 px
+  column. They no longer grow.
+- **The header pushed two controls off the window** at 860 px with a fitted
+  project: `Cancel` and `⌘K` sat 118 px past the right edge, because the row's
+  only shrinkable item is the filename and it had already collapsed to nothing.
+  The header wraps now — the tab strip's rule one rank up — and `.project` takes
+  `flex-basis: 0`, or its natural width forces a break at 1200 px for nothing.
+- **The two panels contradicted each other about whether a fit existed.** An
+  edit discards the curves server-side (`refine.set_values`: "the fitted curve
+  and statistics described the *old* values") but the *run frame* survives it,
+  so the header printed `Rwp 9.582%` beside a plot saying "No fitted curves
+  yet". Invisible while the editor was a mode over the window; unmissable the
+  moment they share a screen. The frame is now the source only while a run is in
+  flight.
+
+And one thing that is **not** a defect but is the WP's premise, narrowed: the
+before/after glance has a gap in the middle. Applying an edit empties the plot
+— by design, one rank down — so the sequence is *edit → the curves go → Run →
+the new curves land beside the editor*, verified end to end (Rwp 9.582 %,
+cell 10.3 → refined back to 10.25121). The manual chapter should say so; the
+alternative, drawing curves that describe values the model no longer holds, is
+the thing this package refuses everywhere else.
+
 ## References
 
 - `docs/wp/1013-text-pane-sync.md` and `docs/wp/1014-import-structure-editing.md`
@@ -181,6 +266,45 @@ not — the screenshot is the check. Playwright's viewport option is
 - `gui/CLAUDE.md` — the always-mounted rule and the `responsive: true` trap.
 
 ## Handover log
+
+- **2026-08-05** — **closed.** Every task landed, in two commits on
+  `wp1034-panel-layout` (branched off `main` at `4ed0604`): the recon, then the
+  move itself.
+
+  **Done.** Task 1's three measurements are in § "The recon, measured" and they
+  *narrowed* the user's decision rather than contradicting it — 472 px for the
+  Model tab, 546 px for the `.pxt` document's editable columns and 756 for its
+  comments, against a sidebar that clamps at 340–560 and drags to 72 %. Then:
+  eight tabs with a wrapping strip; Model and Text as always-mounted tabs; the
+  full-window mode generalised from *two private modes* to *the column
+  expanding, tab strip and all*, under one `Split | Full` control; the model
+  pane stacking below 932 px with its 3D as a section and its atom table in its
+  own scroller; the recent list inside the wizard with `Open…` as the header
+  route. vitest 321 → 330, `svelte-check` clean, fast suite unmoved at
+  1660/108 (no Python test was added or needed).
+
+  **The browser pass earned its keep again, four times** — § "What the browser
+  pass found" has them. The one to carry forward is the rule, not the fix: **a
+  defect can be invisible until two panels share a screen.** The header had
+  been printing a fit's Rwp beside a plot that said there were no curves for as
+  long as `set_values` has discarded them; nothing about it was new, and it was
+  simply not visible while the editor covered the plot.
+
+  **What a successor should know.** The reflow threshold is arithmetic over
+  three floors in `lib/resize.ts`, and the floors are *measurements* — if the
+  atom table gains a column, re-measure `MODEL_MIN.structure` rather than
+  nudging it. The `Full` layout is deliberately **not** persisted (a layout is a
+  view choice, WP-1033's line); if that turns out to be wrong in use, the fix is
+  one `ui` key and `readUi`. And the WP's own premise is now narrowed in writing:
+  an applied edit empties the plot until the next run, by a rule one rank down,
+  so the glance is *edit → Run → compare*.
+
+  **Not done, on purpose:** nothing from the task list. Forward references went
+  to [1017](1017-gui-manual-onboarding.md) (the chapter's opening sentences, and
+  the edit-empties-the-plot fact only a manual can state),
+  [1016](1016-sequential-series-panel.md) (it is the ninth tab; the strip wraps
+  and the hatch is free) and [1035](1035-symmetry-surfaced.md) (the pane it
+  edits is now routinely 340–560 px and stacks).
 
 - **2026-08-04** — created from a user's list after driving the shipped GUI,
   alongside [1032](1032-gui-repairs.md), [1033](1033-plot-range-regions.md),
