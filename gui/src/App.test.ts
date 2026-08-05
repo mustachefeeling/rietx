@@ -32,10 +32,21 @@ const CAPABILITIES = {
 
 const PROJECT = {
   path: "/tmp/lab6.pxrd",
-  doc: { mode: "rietveld", plan: null, ui: {} },
-  data: { filename: "synth.xye", n_points: 4200, has_sigma: true, reader: "xy" },
+  doc: { mode: "rietveld", plan: null, ui: {}, two_theta_limits: null,
+         excluded_regions: [] },
+  // `two_theta_range` is what the shading has to reach past and `n_fitted` is
+  // the channel count that says whether it is telling the truth (WP-1033)
+  data: { filename: "synth.xye", n_points: 4200, n_fitted: 4200, has_sigma: true,
+          reader: "xy", two_theta_range: [3, 23.995] },
   head: "n0000",
   n_nodes: 1,
+};
+
+/** The same project with a fit range and one excluded region already set. */
+const MASKED_PROJECT = {
+  ...PROJECT,
+  doc: { ...PROJECT.doc, two_theta_limits: [8, 19], excluded_regions: [[13, 16]] },
+  data: { ...PROJECT.data, n_fitted: 1600 },
 };
 
 const IDLE_RUN = {
@@ -2308,6 +2319,249 @@ const MEDIUM_CANDIDATE = {
   confidence_caveats: ["shift_allowance_assumed"], ambiguity: [], lebail: null,
   diagnostics: [],
 };
+
+describe("what is fitted, shaded and selectable (WP-1033)", () => {
+  /** plotly decorates the plot div with its own emitter at runtime, which jsdom
+   *  has no reason to; without it `plotNode.on?.()` is a silent no-op and the
+   *  select gesture cannot be driven at all.  Patched on the prototype for the
+   *  same reason the library does it: the div is created inside `mount`. */
+  function emitter() {
+    const handlers: Record<string, (ev: any) => void> = {};
+    const proto = HTMLDivElement.prototype as any;
+    proto.on = function (name: string, fn: (ev: any) => void) { handlers[name] = fn; };
+    proto.removeAllListeners = function () {};
+    return {
+      handlers,
+      restore: () => { delete proto.on; delete proto.removeAllListeners; },
+    };
+  }
+
+  /** The settings bodies this session sent, in order — `calls.at(-1)` would be
+   *  whatever the event poll asked for a tick later. */
+  function patches(stub: { calls: Call[] }) {
+    return stub.calls
+      .filter((c) => c.method === "POST" && c.path === "/api/project")
+      .map((c) => c.body);
+  }
+
+  function plotly(drawn: any[], relayouts: any[] = []) {
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
+      relayout: async (_n: any, update: any) => relayouts.push(update),
+      restyle: async () => {},
+      purge: () => {},
+    });
+  }
+
+  it("shades the range's outside and every region, from the document", async () => {
+    // Not inferred from a hole in the data: a gap in the arrays is what an
+    // exclusion *leaves*, and a renderer that guessed would be a second
+    // authority on the protocol.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({ ...boot(MASKED_PROJECT), ...FITTED });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const shapes = drawn.at(-1)!.layout.shapes;
+    expect(shapes.filter((s: any) => s.type === "rect").map((s: any) => [s.x0, s.x1]))
+      .toEqual([[3, 8], [19, 23.995], [13, 16]]);
+    // paper coordinates, so the band is the same band under log and √
+    expect(shapes.every((s: any) => s.yref === "paper")).toBe(true);
+  });
+
+  it("draws the masked channels the result does not carry", async () => {
+    // measured before it was written: with limits set, the result spans only
+    // the fitted range (a 3–24° pattern came back 8.005–18.990°), so without
+    // this arm the axis autoranges inside the range and the shading has
+    // nothing to shade
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({
+      ...boot(MASKED_PROJECT), ...FITTED,
+      "/api/result/window": () => ({ body: {
+        two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [],
+        delta: [0, 0], ticks: {}, window: [9, 9.4], n_total: 2, n_returned: 2,
+        max_points: 4000, excluded: { two_theta: [3, 20], y_obs: [5, 6] },
+        n_excluded: 2600, stale: false } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const trace = drawn.at(-1)!.traces.find((t: any) => t.name === "masked");
+    expect(trace.x).toEqual([3, 20]);
+    // …and it is a curve, so it gets a toggle beside the others
+    const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
+    expect([...curves.querySelectorAll("button")].map((b) => b.textContent!.trim()))
+      .toContain("masked");
+  });
+
+  it("arms a mode rather than adding a fourth drag meaning, and disarms itself",
+     async () => {
+    // A region drag is ambiguous with a zoom drag *everywhere* — same button,
+    // same shape — so the ambiguity is removed rather than arbitrated: an
+    // explicit arm, plotly's own select box, and one drag per arming.
+    const drawn: any[] = [];
+    const relayouts: any[] = [];
+    plotly(drawn, relayouts);
+    const emit = emitter();
+    try {
+      const stub = server({ ...boot(), ...FITTED });
+      vi.stubGlobal("fetch", stub.fetcher);
+      app = mount(App, { target: host });
+      await flush();
+
+      expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+      [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+      await flush();
+      expect(drawn.at(-1)!.layout.dragmode).toBe("select");
+      expect(drawn.at(-1)!.layout.selectdirection).toBe("h");
+      expect(host.textContent).toContain("the peak gestures are suspended");
+
+      // the drag, delivered the way plotly delivers it
+      emit.handlers.plotly_selected({ range: { x: [16, 13] } });
+      await flush();
+
+      // ordered, sent, and the marquee dropped — the shading is the record now
+      expect(stub.calls.find((c) => c.method === "POST" && c.path === "/api/project")?.body)
+        .toEqual({ excluded_regions: [[13, 16]] });
+      expect(relayouts.at(-1)).toEqual({ selections: [] });
+      expect(drawn.at(-1)!.layout.dragmode).toBe("zoom");
+      expect(host.textContent).not.toContain("the peak gestures are suspended");
+    } finally {
+      emit.restore();
+    }
+  });
+
+  it("suspends the peak gestures while it is armed", async () => {
+    // WP-1027's rule, kept: an ambiguous pointer verb must do the harmless
+    // thing.  Here nothing is ambiguous *because* the peak verbs stand down.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const emit = emitter();
+    try {
+      const stub = server({
+        ...boot(),
+        "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+        "/api/peaks/remove": () => ({ body: PEAKS_PAYLOAD }),
+      });
+      vi.stubGlobal("fetch", stub.fetcher);
+      app = mount(App, { target: host });
+      await flush();
+      button("Peaks")!.click();
+      await flush();
+
+      const node = host.querySelector<HTMLElement>(".plot")! as any;
+      node._fullLayout = { xaxis: { _offset: 0, _length: 100, range: [9, 15],
+                                    p2d: (px: number) => 9 + px * 0.06 } };
+      const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+      [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("range"))!.click();
+      await flush();
+
+      node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
+      await flush();
+      expect(stub.calls.some((c) => c.path === "/api/peaks/remove")).toBe(false);
+
+      // Esc gives the canvas back, and the peak verb works again
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await flush();
+      node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
+      await flush();
+      expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
+    } finally {
+      emit.restore();
+    }
+  });
+
+  it("sends a typed range, and shows the verb's refusal where it was typed", async () => {
+    // The non-pointer route, and the client has no opinion about validity:
+    // two validators would be two answers (WP-1013's rule for the text pane).
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({
+      ...boot(), ...FITTED,
+      "/api/project": (call: Call) =>
+        call.method === "POST" && call.body.two_theta_limits?.[0] === 60
+          ? { status: 400, body: { error: { code: "BAD_REQUEST", where: ["two_theta_limits"],
+              message: "two_theta_limits must run low to high: (60.0, 20.0) is inverted" } } }
+          : { body: call.method === "POST" && call.body.two_theta_limits
+                ? { ...PROJECT, doc: { ...PROJECT.doc, two_theta_limits: call.body.two_theta_limits },
+                    data: { ...PROJECT.data, n_fitted: 1600 } }
+                : PROJECT },
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const boxes = [...host.querySelectorAll<HTMLInputElement>(".protocol input")];
+    // empty means the whole pattern, and the placeholder says which range that is
+    expect(boxes.map((b) => b.value)).toEqual(["", ""]);
+    expect(boxes.map((b) => b.placeholder)).toEqual(["3.000", "23.995"]);
+
+    const set = async (lo: string, hi: string) => {
+      for (const [box, value] of [[boxes[0], lo], [boxes[1], hi]] as const) {
+        box.value = value;
+        box.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      button("Set")!.click();
+      await flush();
+    };
+
+    const strip = () => host.querySelector<HTMLElement>(".protocol")!.textContent!;
+    await set("60", "20");
+    // beside the box that caused it, not only in the console — the user needs
+    // the sentence while they retype
+    expect(strip()).toContain("must run low to high: (60.0, 20.0) is inverted");
+
+    await set("8", "19");
+    expect(patches(stub).at(-1)).toEqual({ two_theta_limits: [8, 19] });
+    expect(strip()).not.toContain("must run low to high");
+    // the channel count is the check that the band is telling the truth
+    expect(host.textContent).toContain("1,600 of 4,200 channels fitted");
+  });
+
+  it("removes one region by its chip and fits the whole pattern again by All",
+     async () => {
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({ ...boot(MASKED_PROJECT), ...FITTED });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(host.querySelector(".regions")!.textContent).toContain("13.000–16.000°");
+    host.querySelector<HTMLButtonElement>(".regions button")!.click();
+    await flush();
+    expect(patches(stub).at(-1)).toEqual({ excluded_regions: [] });
+
+    button("All")!.click();
+    await flush();
+    expect(patches(stub).at(-1)).toEqual({ two_theta_limits: null });
+  });
+
+  it("says when the curves on screen were fitted over other channels", async () => {
+    // settings persist on the verb, curves move only on a run — so between an
+    // exclusion and the next fit the picture contradicts the setting, and a
+    // band over channels still in the residual is worse than no band at all
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({
+      ...boot(MASKED_PROJECT), ...FITTED,
+      "/api/result/window": () => ({ body: {
+        two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [],
+        delta: [0, 0], ticks: {}, window: [9, 9.4], n_total: 2, n_returned: 2,
+        max_points: 4000, excluded: { two_theta: [], y_obs: [] },
+        n_excluded: 2600, stale: true } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.textContent).toContain("fitted over a different set of channels");
+  });
+});
 
 describe("the peaks tab (WP-1027)", () => {
   it("lists every line, the fitter's exclusions distinguished, diagnostics inline", async () => {

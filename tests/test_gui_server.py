@@ -743,6 +743,143 @@ def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,
     assert client.post("/api/project", {"nonsense": 1})[0] == 400
 
 
+def test_the_masked_channels_have_one_authority_and_three_readers(blank, tmp_path,
+                                                                  pattern_file):
+    """WP-1033: what is drawn, what is documented and what is fitted agree.
+
+    The three readers are the project document's ``n_fitted``, the ``.pxt``
+    document's ``limits``/``excluded`` lines, and the plot's payloads — and the
+    thing they must agree about is a *set of channels*, which is why the
+    assertion is a count against ``Project.fitted_mask`` rather than a
+    re-derivation of the intersection here.
+    """
+    session, client = blank
+    root = tmp_path / "masked.pxrd"
+    project = _open(session, root, pattern_file)
+    n_points = project.data_ref.n_points
+    assert client.get("/api/project")[1]["data"]["n_fitted"] == n_points
+
+    status, payload = client.post("/api/project", {
+        "two_theta_limits": [8.0, 19.0], "excluded_regions": [[13.0, 16.0]]})
+    assert status == 200, payload
+    n_fitted = payload["data"]["n_fitted"]
+    assert n_fitted == int(session.project.fitted_mask().sum()) < n_points
+
+    # the text document renders the same two facts, in its own grammar
+    text = client.get("/api/textdoc")[1]["text"]
+    assert "limits 8 19" in text
+    assert "excluded 13 16" in text
+
+    # and one typed *into* the document comes back out of the settings route
+    # inside the limits, or it would remove nothing that was there
+    edited = text.replace("excluded 13 16", "excluded 13 16  17 18")
+    status, payload = client.put("/api/textdoc", {"text": edited,
+                                                  "base_revision": None})
+    assert status == 200, payload
+    doc = client.get("/api/project")[1]
+    assert doc["doc"]["excluded_regions"] == [[13.0, 16.0], [17.0, 18.0]]
+    assert doc["data"]["n_fitted"] < n_fitted
+
+
+def test_an_inverted_range_is_refused_in_one_sentence_by_every_surface(
+        blank, tmp_path, pattern_file):
+    """One authority for the words, three surfaces quoting them (WP-1033)."""
+    from pydantic import ValidationError
+
+    session, client = blank
+    root = tmp_path / "inverted.pxrd"
+    project = _open(session, root, pattern_file)
+
+    status, payload = client.post("/api/project", {"two_theta_limits": [60.0, 20.0]})
+    assert status == 400
+    assert payload["error"]["message"] == (
+        "two_theta_limits must run low to high: (60.0, 20.0) is inverted")
+    assert payload["error"]["where"] == ["two_theta_limits"]
+    assert client.post("/api/project", {"excluded_regions": [[5.0, 5.0]]})[1][
+        "error"]["message"].endswith("(5.0, 5.0) is empty")
+    # refused, so nothing moved — neither the document nor the pattern
+    assert project.doc.two_theta_limits is None
+    assert project.data.excluded_regions == []
+
+    # the document itself refuses a bare assignment, which is what makes a
+    # hand-edited project.json refuse to load too
+    with pytest.raises(ValidationError):
+        project.doc.two_theta_limits = (60.0, 20.0)
+
+    # and the text document says the same thing with a line number attached
+    text = client.get("/api/textdoc")[1]["text"].replace("limits none",
+                                                         "limits 60 20")
+    status, payload = client.put("/api/textdoc", {"text": text,
+                                                  "base_revision": None})
+    assert status == 400
+    detail = payload["error"]["details"][0]
+    assert detail["message"] == (
+        "limits must run low to high: (60.0, 20.0) is inverted")
+    assert detail["line"] > 0
+
+
+def test_the_window_carries_the_channels_the_result_dropped(fitted):
+    """WP-1033: a band needs something to shade, and a range needs an outside.
+
+    Measured before it was designed: ``compile_model`` masks first, so a result
+    carries only the surviving channels and the plot's axis autoranges *inside*
+    the fit range — on this fixture a 3–24° pattern came back as 8.005–18.990°,
+    with zero points inside a 3° exclusion.  Shading alone would have drawn a
+    band over a hole.
+    """
+    session, client, project = fitted
+    try:
+        status, before = client.get("/api/result/window")
+        assert status == 200
+        assert before["n_excluded"] == 0 and before["stale"] is False
+
+        assert client.post("/api/project",
+                           {"excluded_regions": [[13.0, 16.0]]})[0] == 200
+        window = client.get("/api/result/window")[1]
+        # the masked points are here, and in no residual
+        assert window["n_excluded"] == int((~project.fitted_mask()).sum()) > 0
+        assert window["excluded"]["two_theta"]
+        assert min(window["excluded"]["two_theta"]) >= 13.0
+        # …and the curves on screen predate the change, which the route says
+        # rather than leaving the client to compare counts
+        assert window["stale"] is True
+        assert any(13.0 <= tt <= 16.0 for tt in window["two_theta"])
+
+        # the raw peak view is masked by the same document and carries the
+        # same arm — it is the only view a project has before its first fit
+        session.peaks_pick({})
+        pattern = client.get("/api/peaks")[1]["pattern"]
+        assert pattern["n_excluded"] == window["n_excluded"]
+        assert not any(13.0 <= tt <= 16.0 for tt in pattern["two_theta"])
+    finally:
+        # a module fixture: give the next reader the pattern it expects
+        client.post("/api/project", {"excluded_regions": []})
+
+
+def test_a_refit_makes_the_channel_count_the_fit_agree_with_the_document(
+        blank, tmp_path, pattern_file):
+    """The pin behind the whole feature: ``fitted_mask`` and ``compile_model``.
+
+    ``Project.fitted_mask`` is the GUI's authority for which channels are in
+    the residual and ``compile_model``'s first act is the fit's — two lines,
+    one fact, and nothing but this test stops them drifting.  The count is also
+    the acceptance check: a band drawn over points still in the residual is
+    worse than no band at all.
+    """
+    session, client = blank
+    project = _open(session, tmp_path / "channels.pxrd", pattern_file)
+    assert client.post("/api/project", {"two_theta_limits": [8.0, 19.0],
+                                        "excluded_regions": [[13.0, 16.0]]})[0] == 200
+    status, run = client.post("/api/run", {"kind": "stage", "stage": {
+        "name": "scale", "turn_on": ["phases.*.scale"], "max_iter": 5}})
+    assert status == 200, run
+    _wait_idle(client)
+
+    result = project.refinement.result_
+    assert len(result.two_theta) == int(project.fitted_mask().sum())
+    assert client.get("/api/result/window")[1]["stale"] is False
+
+
 def test_plan_selection_and_the_preset_it_matches(blank, tmp_path, pattern_file):
     session, client = blank
     _open(session, tmp_path / "plan.pxrd", pattern_file)
@@ -1293,6 +1430,9 @@ def test_mutating_verbs_refuse_while_a_run_is_in_flight(blocked):
             ("PATCH", "/api/params", {"values": {"phases.0.cell.a": 4.16}}),
             ("PATCH", "/api/params", {"vary": {"phases.*.cell.*": True}}),
             ("POST", "/api/project", {"mode": "lebail"}),
+            # a settings-only patch is no exception: an exclusion changes which
+            # channels the *compiled* model was built from (WP-1033)
+            ("POST", "/api/project", {"excluded_regions": [[8.0, 8.5]]}),
             ("PUT", "/api/plan", {"preset": "profile_only"}),
             ("POST", "/api/run", {"kind": "fit"}),
             ("POST", "/api/history/checkout", {"node_id": "n0000"}),

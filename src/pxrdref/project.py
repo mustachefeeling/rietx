@@ -283,6 +283,30 @@ class Project:
         self.doc.excluded_regions = [tuple(r) for r in regions]
         self.data.excluded_regions = list(self.doc.excluded_regions)
 
+    def fitted_mask(self):
+        """True per measured channel for the points the *next* run will fit.
+
+        ``compile_model``'s first act, asked of a project rather than of a
+        pattern: the exclusion mask intersected with ``two_theta_limits``.  It
+        exists because a picture of a masked pattern needs to draw both halves —
+        the surviving channels *and* the ones the protocol removed — and every
+        caller that open-coded the intersection was one edit away from
+        disagreeing with the residual about what is in it (WP-1033).
+
+        Not a duplicate of the forward model's line: that one takes a
+        :class:`PatternData` and a limits tuple, which is the level a fit runs
+        at, and it is pinned to this one by asserting the fitted channel count
+        against ``len(result.two_theta)``.
+        """
+        import numpy as np
+
+        mask = self.data.in_range_mask()
+        if self.doc.two_theta_limits is not None:
+            lo, hi = self.doc.two_theta_limits
+            tt = self.data.tt()
+            mask &= (tt >= lo) & (tt <= hi)
+        return np.asarray(mask, dtype=bool)
+
     def parameters(self, **kw):
         """:meth:`Refinement.parameters` answered for *this project's* mode.
 

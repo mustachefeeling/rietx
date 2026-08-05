@@ -3,6 +3,23 @@
 Milestone: v1.0 · Status: ⬜
 Depends on: 1013, 1014, 1029 (all landed) · soft: 1032
 
+### Inherited
+
+From **[1033](1033-plot-range-regions.md)** (closed 2026-08-05) — one fact that
+changes this WP's recon, and one that constrains where a control may go:
+
+- **The plot column is one row taller.** A `.protocol` strip now sits under the
+  knobs — typed range boxes, an arm control, one chip per excluded region, a
+  channel count — and it *wraps*, so with several regions it is two rows on a
+  narrow window. The three measurements task 1 asks for must be taken with it
+  present, and the number that matters is how much vertical room the plot has
+  left at 860 px, not how wide the sidebar is.
+- **Protocol controls may not be moved in beside drawing controls.** The strip
+  is separate from `.knobs` because one set changes what is fitted and the other
+  changes only the picture; if this WP reflows the plot column, that separation
+  is the thing to preserve — a rule stated in `gui/CLAUDE.md`, not a layout
+  preference.
+
 ## Goal
 
 Editing a parameter and seeing the fit change are the same glance: the model
