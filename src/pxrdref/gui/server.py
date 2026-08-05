@@ -185,6 +185,14 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/structure3d"): _structure3d,
     ("PATCH", "/api/structure"): lambda s, q, b: s.structure_patch(b),
     ("POST", "/api/structure/aniso"): lambda s, q, b: s.structure_aniso(b),
+    # symmetry is three routes rather than one because they are three costs: the
+    # GET runs a spglib search per atom (WP-1035), the preview builds a candidate
+    # parameter table per atom, and only the last of them writes a history node
+    ("GET", "/api/structure/symmetry"):
+        lambda s, q, b: s.structure_symmetry(_query_int(q, "phase", 0)),
+    ("POST", "/api/structure/symmetry/preview"):
+        lambda s, q, b: s.symmetry_preview(b),
+    ("POST", "/api/structure/symmetry"): lambda s, q, b: s.symmetry_patch(b),
     ("GET", "/api/instrument"): lambda s, q, b: s.instrument(),
     ("PATCH", "/api/instrument"): lambda s, q, b: s.instrument_patch(b),
 

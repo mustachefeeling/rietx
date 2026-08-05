@@ -63,6 +63,7 @@ from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.structure import Structure
 from ..strategy.staged import PLAN_PRESETS, resolve_plan
 from ..viz.compare import decimation_index
+from . import symmetry
 from .imports import (
     UPLOAD_KINDS,
     UploadRefused,
@@ -606,15 +607,127 @@ class GuiSession:
         ``ParameterTable`` uses (``stabilizer_rotations`` → ``coordinate_basis`` /
         ``adp_basis``), never a second rule.
 
-        The Wyckoff *letter* is deliberately absent: it needs
-        ``wyckoff.site_constraints``, which runs spglib per atom, and this route
-        is refetched on every head move — including one a ``set_vary`` made.  The
-        counts and the paths are what the editor acts on; the letter would be
-        decoration bought with a symmetry search per keystroke.
+        Two more arms since WP-1035, and both are free — one ``get_spacegroup``
+        call per phase, on facts ``ParameterTable._collect`` already looks up.
+        ``symmetry`` is the phase's symbol read out (number, **setting**, crystal
+        system, Laue class, centring, and the cell ties and held angles it
+        causes); ``causes`` names the symmetry responsible for each held row, so
+        the parameter table stops showing effects with anonymous causes.
+
+        The Wyckoff *letter* is still deliberately absent: it needs
+        ``wyckoff.site_constraints``, which runs spglib per atom (**measured at
+        1.8-8.7 ms an atom**, WP-1035), and this route is refetched on every head
+        move — including one a ``set_vary`` made.  It rides on
+        ``GET /api/structure/symmetry``, the deliberately-opened route this
+        docstring already named as the escape.
         """
         structure = self._need_project().refinement.structure
+        rows = symmetry.site_rows(structure)
         return {"structure": structure.model_dump(mode="json"),
-                "sites": _site_rows(structure)}
+                "sites": rows,
+                "symmetry": symmetry.phase_summary(structure),
+                "causes": symmetry.held_causes(structure, rows)}
+
+    def structure_symmetry(self, phase: int = 0) -> dict:
+        """One phase's symmetry in full, Wyckoff letters included (WP-1035).
+
+        The tier ``GET /api/structure`` refuses to carry.  A letter is a spglib
+        search per atom, so this route is *opened deliberately* — a panel fetches
+        it when a user asks to see site symmetry, not on every head move — and
+        what it buys beyond the free tier is the **oriented site-symmetry
+        symbol** (``.3.``, ``4m.m``), which is the one form of "which element is
+        responsible" that names an element rather than counting a stabiliser.
+        The ``causes`` here are therefore the same sentences ``/api/structure``
+        serves, upgraded wherever a letter was found.
+
+        Not idle-gated: it reads the model, like ``/api/structure``.
+        """
+        structure = self._need_project().refinement.structure
+        try:
+            letters = symmetry.site_letters(structure, int(phase))
+        except IndexError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=["phase"]) from None
+        by_path = {row["path"]: row for row in letters if "error" not in row}
+        rows = symmetry.site_rows(structure)
+        return {"phase": int(phase),
+                "symmetry": symmetry.phase_facts(structure.phases[int(phase)],
+                                                 int(phase)),
+                "letters": letters,
+                "causes": symmetry.held_causes(structure, rows, by_path)}
+
+    def symmetry_preview(self, body: dict) -> dict:
+        """What changing a phase's space group would do — and nothing else.
+
+        Built out of the existing rules rather than a second copy of them: the
+        candidate model's own ``ParameterTable`` supplies the refusals verbatim
+        (nearest-allowed values included, because the raises already compute
+        them), the entry diff supplies the tie/lock story, and ``site_rows``
+        supplies the per-atom DOF story in the shape the editor already renders.
+
+        Read-only, but **idle-gated anyway**: what it previews is a mutation, and
+        an answer computed against a model a running stage is about to move is an
+        answer about nothing.
+        """
+        self._require_idle()
+        return self._preview(body)
+
+    def symmetry_patch(self, body: dict) -> dict:
+        """Change one phase's space group, gated on :meth:`symmetry_preview`.
+
+        The gate is the whole verb.  ``PATCH /api/structure`` accepted a changed
+        symbol before WP-1035 and committed an ``edit_model`` node from a
+        snapshot that never builds a ``ParameterTable`` — so an incompatible
+        change *succeeded*, recorded a node, and then surfaced as a 500 on the
+        panel's next ``GET /api/params``, with the head standing at a state whose
+        table cannot build and a history checkout the only way out.  Nothing
+        about that was specific to the space group, so the gate went one level
+        down into :meth:`_edit`; this verb adds the *complete* refusal list,
+        because a table stops at the first bad item and a user fixing four atoms
+        one 500 at a time is not being told what is wrong.
+        """
+        self._require_idle()
+        answer = self._preview(body)
+        phase = answer["phase"]
+        if answer["blocked"]:
+            first = (answer["refusals"] or [
+                {"message": n["message"]} for n in answer["notes"]
+                if n["kind"] == "orbit_collision"])[0]["message"]
+            raise GuiError(
+                f"{body.get('space_group')!r} is not compatible with this model: "
+                f"{first}",
+                code="SYMMETRY_REFUSED", where=["space_group"],
+                details=[answer])
+        if not answer["changed"]:
+            return {"node_id": None, "changed": False, "preview": answer,
+                    **self.structure()}
+        candidate = symmetry.with_symbol(
+            self._need_project().refinement.structure, phase,
+            str(_need(body, "space_group")))
+        node = self._edit(structure=candidate,
+                          label=f"phase {phase}: space group "
+                                f"{answer['to'].get('xhm', '?')}")
+        return {"node_id": node, "changed": True, "preview": answer,
+                **self.structure()}
+
+    def _preview(self, body: dict) -> dict:
+        p = self._need_project()
+        phase = int(body.get("phase", 0) or 0)
+        symbol = str(_need(body, "space_group"))
+        try:
+            free = [row.path for row in p.parameters() if row.vary]
+        except ValueError:
+            free = []           # the head cannot build a table; that is a state
+            # this verb exists to escape, not one it may refuse to answer in
+        try:
+            return symmetry.preview(p.refinement.structure, p.refinement.instrument,
+                                    phase, symbol, free_paths=free)
+        except IndexError as exc:
+            raise GuiError(str(exc), code="NOT_FOUND", status=404,
+                           where=["phase"]) from None
+        except (ValueError, RuntimeError) as exc:
+            # the same mapping ``index_adopt`` uses for an unresolvable symbol
+            raise GuiError(str(exc), where=["space_group"]) from None
 
     def structure3d(self, phase: int = 0, *, probability: float = 0.5,
                     bond_tolerance: float | None = None) -> dict:
@@ -727,8 +840,28 @@ class GuiSession:
 
     def _edit(self, *, structure: Structure | None = None,
               instrument: Instrument | None = None, label: str = "") -> str | None:
+        """The one funnel every whole-model edit goes through — and its gate.
+
+        ``Refinement.edit`` swaps the models wholesale and commits an
+        ``edit_model`` node from a snapshot that **never builds a
+        ParameterTable**, while every symmetry refusal lives in that
+        construction: an aniso tensor outside the site's allowed subspace, a
+        Stephens block outside the Laue subspace, a ``vary=True`` coordinate on a
+        now fully fixed special position, a cell angle disagreeing with the
+        symbol.  So before WP-1035 an incompatible change succeeded, recorded a
+        node, and then surfaced as a 500 on the next ``GET /api/params`` — with
+        the head standing where no table can build.
+
+        Building the candidate table here is the gate, and it is deliberately
+        *not* a symmetry check: it is "does this model have a parameter table",
+        which is the property the rest of the session assumes.  It also cannot
+        trap a user in a broken head, because the test is on the **candidate** —
+        an edit that repairs the state passes it.
+        """
         self._require_idle()
         p = self._need_project()
+        _check_buildable(structure or p.refinement.structure,
+                         instrument or p.refinement.instrument)
         return p.refinement.edit(structure=structure, instrument=instrument,
                                  label=label)
 
@@ -2001,43 +2134,25 @@ def _validate(model, payload, where: str):
                        where=paths) from None
 
 
-def _site_rows(structure: Structure) -> list[dict]:
-    """Per atom: the DOF paths that move it, and what its site symmetry allows."""
-    from ..crystallography.symmetry import get_spacegroup
-    from ..crystallography.wyckoff import (
-        adp_basis,
-        coordinate_basis,
-        stabilizer_rotations,
-    )
+#: The leading dot-path of a ``ParameterTable`` refusal.  Every one of them
+#: opens with the path at fault (``phases.0.atoms.3: the anisotropic tensor …``,
+#: ``phases.0.atoms.3 sits on a fully fixed special position``), which is what
+#: lets :func:`_check_buildable` address the field without parsing the sentence.
+_LEADING_PATH = re.compile(r"^((?:phases|instrument)\.[\w.]*[\w])")
 
-    rows: list[dict] = []
-    for i, phase in enumerate(structure.phases):
-        try:
-            sg = get_spacegroup(phase.space_group)
-        except (ValueError, RuntimeError) as exc:  # pragma: no cover - schema-validated
-            rows.append({"path": f"phases.{i}", "error": str(exc)})
-            continue
-        for j, atom in enumerate(phase.atoms):
-            xyz = [atom.x.value, atom.y.value, atom.z.value]
-            rots = stabilizer_rotations(sg, xyz)
-            coord = coordinate_basis(rots)
-            adp = adp_basis(rots)
-            base = f"phases.{i}.atoms.{j}"
-            rows.append({
-                "path": base, "phase": i, "atom": j,
-                # the stabilizer's order is the site symmetry's; 1 is a general
-                # position, and anything above it is why a coordinate may not
-                # be typed directly
-                "site_symmetry_order": len(rots),
-                "special": len(rots) > 1,
-                "dof_paths": [f"{base}.dof.{k}" for k in range(len(coord))],
-                "dof_directions": coord.tolist(),
-                "adp_paths": ([f"{base}.adp.{k}" for k in range(len(adp))]
-                              if atom.aniso is not None else []),
-                "adp_patterns": adp.tolist(),
-                "aniso": atom.aniso is not None,
-            })
-    return rows
+
+def _check_buildable(structure: Structure, instrument: Instrument) -> None:
+    """Refuse a model whose parameter table cannot be built — see :meth:`_edit`."""
+    from ..params.vector import ParameterTable
+
+    try:
+        ParameterTable(structure, instrument)
+    except ValueError as exc:
+        match = _LEADING_PATH.match(str(exc))
+        raise GuiError(
+            f"this model has no parameter table: {exc}",
+            code="MODEL_REFUSED",
+            where=[match.group(1)] if match else []) from None
 
 
 def _as_structure(payload, uploads=None) -> Structure:
