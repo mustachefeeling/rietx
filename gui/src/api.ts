@@ -113,9 +113,26 @@ export const api = {
   putPlan: (body: { preset?: string; plan?: unknown }) => call("PUT", "/api/plan", body),
   plans: () => call("GET", "/api/plans"),
 
-  /** The structure **plus** the `sites` arm: which `…dof.k` moves each atom, and
-   *  which have none at all (a fully fixed special position). */
+  /** The structure **plus** three derived arms: `sites` (which `…dof.k` moves
+   *  each atom, and which have none at all — a fully fixed special position),
+   *  `symmetry` (one gemmi lookup per phase) and `causes` (the symmetry
+   *  responsible for each held row). All three are free; the Wyckoff letter is
+   *  not, and lives on `symmetry()` below. */
   structure: () => call("GET", "/api/structure"),
+  /** One phase's symmetry in full — Wyckoff letters and oriented site-symmetry
+   *  symbols, a spglib search per atom. **Fetched on demand, never on a head
+   *  move**: that is the whole reason it is a route of its own (WP-1035). */
+  symmetry: (phase = 0) =>
+    call("GET", `/api/structure/symmetry?phase=${phase}`),
+  /** What changing a phase's space group would do, applying nothing: the
+   *  refusals a candidate parameter table raises, the entries that gain or lose
+   *  a tie, and the notes for what a table diff cannot see. */
+  symmetryPreview: (phase: number, spaceGroup: string) =>
+    call("POST", "/api/structure/symmetry/preview",
+         { phase, space_group: spaceGroup }),
+  /** …and the apply, gated on that same preview server-side. One history node. */
+  setSymmetry: (phase: number, spaceGroup: string) =>
+    call("POST", "/api/structure/symmetry", { phase, space_group: spaceGroup }),
   /** The same model as *drawable geometry*: the symmetry orbit with each image's
    *  rotated displacement tensor, bonds over the 27 nearest lattice
    *  translations, and the cell frame — none of which a `Structure` dump says.
