@@ -9,7 +9,7 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-15 min, incl. real-data acceptance (counts: Current numbers)
-.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~20-80 s
+.venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
@@ -48,26 +48,26 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 ### Current numbers
 
-Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-05 at the **WP-1040** close, darwin/arm64 M4, in the
-**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** — jax
-converts skips into passes, so no row here compares with a `[dev]` count, and the
-main checkout's figures were **not** re-measured (they predate 1037-1040; last
-good: the WP-1036 close entry, in the v1.0 appendix):
+Replaced at every handover, never appended (history: the v1.0 appendix). Measured
+2026-08-05 at the **WP-1040** close, darwin/arm64 M4, in **`worktree-indexer`**
+whose venv is `[dev,jax]` with **no torch** — jax converts skips into passes, so no
+row here compares with a `[dev]` count, and the main checkout's figures were **not**
+re-measured (they predate 1037-1040; last good: the WP-1036 close entry):
 
-- fast suite: **1718 passed / 67 skipped**, ~6-7 min — 1039's 1708 + 10 (nine SVD
-  engine rows plus the third parametrisation of `never_started`), no new skips.
-- full suite: **1813 passed / 72 skipped**, 21-24 min. passed+skipped 1885 = the
-  fast selection's 1785 + 100 slow-marked: 1040 adds one slow row (the SVD
-  monoclinic recovery) to 1039's 99.
-- **the indexing acceptance file is still the wall clock, and a third engine costs
-  it**: 36 rows, **20:03** against 11:58 with two — `index_pattern` runs every
-  registered engine, so that is the price of the confidence gate, not a
-  regression.  Re-read `--durations` rather than quoting this.
+- fast suite: **1718 passed / 67 skipped**, **~3 min** idle — 1039's 1708 + 10
+  (nine SVD rows plus a third `never_started` parametrisation), no new skips.
+  **It was ~55 s at the 1039 close and the third engine is why**: the new rows are
+  ~10 s of that, the rest is every `index_pattern`-driven fast test now running
+  three engines (one is **51 s** alone). Narrowing what those rows search is the
+  lever if the developer loop needs it back; the budget is not.
+- full suite: **1813 passed / 72 skipped**, 24:03. passed+skipped 1885 = the fast
+  selection's 1785 + 100 slow-marked: 1040 adds one slow row (the SVD monoclinic
+  recovery, ~84 s) to 1039's 99.
+- **the indexing acceptance file is still the wall clock**: 36 rows, **20:03**
+  against 11:58 with two engines — the confidence gate's price, not a regression.
 - frontend (vitest): **282**, unchanged by 1030-1040 (none touched `gui/`), last
-  measured at the WP-1027 close.  `--collect-only` undercounts by one per
-  module-level `importorskip` that fires (two on `[dev]`, one here) —
-  `tests/CLAUDE.md` § Quoting numbers.
+  measured at the WP-1027 close.  `--collect-only` undercounts by one per fired
+  module-level `importorskip` — `tests/CLAUDE.md` § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -629,8 +629,8 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   into two candidates and denies the gate its agreement.
 - **A search that finds nothing indicts its input before its tolerance**: the peak
   list blocked the certified pattern twice (fitted satellites, then `_box_key`
-  skipping unrefined leaves — a performance filter's failure mode is a wrong
-  answer, not a slow one).
+  skipping unrefined leaves — a performance filter fails with a wrong answer, not
+  a slow one).
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is in the tolerance paragraph
   above). `volume_envelope` is a mean line, not an envelope — WP-1030's.

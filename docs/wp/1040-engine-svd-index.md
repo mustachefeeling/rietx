@@ -239,11 +239,17 @@ dataset regresses.
   randomisation is recorded as unreproduced rather than adopted on the paper's
   word.
 
-  **Numbers**, `[dev,jax]` no torch, darwin/arm64 M4, in `worktree-indexer`:
-  fast **1718 passed / 67 skipped** (1039's 1708 + 10, no new skips); indexing
-  acceptance **36 rows, 20:03** against 11:58 with two engines — `index_pattern`
-  runs every registered engine, so that is the price of the confidence gate.
-  Full-suite figures in CLAUDE.md § Current numbers.
+  **Numbers**, `[dev,jax]` no torch, darwin/arm64 M4, in `worktree-indexer`: fast
+  **1718 passed / 67 skipped** (1039's 1708 + 10, no new skips), full **1813 / 72**
+  at 24:03, indexing acceptance **36 rows, 20:03** against 11:58 with two engines.
+
+  **One cost is worth the successor's attention before anything else**: the *fast*
+  suite went from ~55 s to **~3 min**, and only ~10 s of that is the new rows. The
+  rest is every `index_pattern`-driven fast test now running three engines —
+  `test_a_restricted_search_is_not_a_verdict_about_the_specimen` alone is **51 s**.
+  Nothing is wrong; three engines cost three engines. But the developer loop is a
+  design input (CLAUDE.md), and the lever is narrowing what those rows *search*,
+  never their budgets and never a silent cap.
 
   **The spike lives in the job scratchpad, not the repo** (`svd_table1.py`,
   `svd_table2.py`, `corpus.py`, `exp_*.py`): every rule it measured is now either
