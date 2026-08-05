@@ -49,24 +49,19 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1040** close, darwin/arm64 M4, **after merging `main`
-(WP-1032/1033)** — parents do not sum, so every python row was re-measured in one
-tree, `worktree-indexer`, venv `[dev,jax]`, **no torch** (jax turns skips into
-passes, so no row compares with a `[dev]` count):
+2026-08-05 at the **WP-1040 task-3** close, darwin/arm64 M4, `worktree-indexer`,
+venv `[dev,jax]`, **no torch** — jax turns skips into passes, so no `[dev]` compare:
 
-- fast suite: **1722 passed / 67 skipped**, **~2.5-3 min** idle — 1039's 1708 + 10
-  (1040) + 4 (1033). It was ~55 s at the 1039 close and **the third engine is
-  why**: the new rows are ~10 s of that, the rest is every `index_pattern`-driven
-  fast test now running three engines (one is **51 s** alone). Narrowing what those
-  rows search is the lever if the loop needs it back; the budget is not.
-- full suite: **1817 passed / 72 skipped**, 24-29 min; passed+skipped 1889 = the fast
-  selection's 1789 + 100 slow-marked. `tests/test_acceptance_indexing.py` sets the
-  wall clock: 36 rows, **20:03** against 11:58 with two engines.
-- frontend (vitest): **321** at the WP-1033 close (303 at 1032, +18 at 1033),
-  `svelte-check` clean; 1040 touched no `gui/` file.
+- fast suite: **1738 passed / 67 skipped**, **3-4 min** — 1040's 1722 + 16: 6 new
+  rows plus **10 meta-tests** (`validation_matrix` parametrises five per `Claim`).
+  It was ~55 s at the 1039 close and **three engines is why**; the lever is
+  narrowing what those `index_pattern`-driven rows search, never their budgets.
+- full suite: **1835 passed / 72 skipped**, 29-36 min (fast's 1805 + 30 slow).
+  `test_acceptance_indexing.py` sets the wall clock: **38 rows, 13-14 min** against
+  **20:03** at the 1040 close — same file, so that spread is machine state.
+- frontend (vitest): **321** at the WP-1033 close, `svelte-check` clean; untouched.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
-
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -553,16 +548,15 @@ search with**, failing instead on a bad starting basin, the only *stochastic* en
 which python salts per process) and the only one whose search reads observed
 intensities. All three rank on the FoM **panel** via `rank_candidates`, never on a
 member — supercells index every observed line exactly and lose only on the reversed
-members. There are **seven**: M₂₀, F_N, three
-coverage fractions, and Oishi-Tomiyasu (2013)'s `m_rev`/`m_sym`, whose whole
-content is that the reversed direction is a *ratio* where ours is a windowed
-fraction — measured on a doubled axis, `m_rev` separates truth from supercell 64-74×
-where M₂₀ separates them 1.8×. Its `N^cal` is Σ 1/m over centring-allowed triples
-and is **never rounded**: Σ 1/m over a complete orbit is exactly 1, so an integer
-result is the *self-check* that the multiplicity is right, while a hexagonal orbit
-cut by the enumeration box legitimately contributes a fraction. Two things the panel
-needs from its caller (WP-1026): the **matching window** is an argument
-(`fom_panel(..., q_match=)`) separate from the per-line σ, because the coverage
+members. There are **seven**: M₂₀, F_N, three coverage fractions, and Oishi-Tomiyasu
+(2013)'s `m_rev`/`m_sym`, whose whole content is that the reversed direction is a
+*ratio* where ours is a windowed fraction — measured on a doubled axis, `m_rev`
+separates truth from supercell 64-74× where M₂₀ separates them 1.8×. Its `N^cal` is
+Σ 1/m over centring-allowed triples and is **never rounded**: Σ 1/m over a complete
+orbit is exactly 1, so an integer result is the *self-check* that the multiplicity is
+right, while a hexagonal orbit cut by the box legitimately contributes a fraction.
+Two things the panel needs from its caller (WP-1026): the **matching window** is an
+argument (`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage
 members must ask the same "is this the same line" question the *search* asked while
 M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
 candidate carrying a fitted shift is scored on `engines.scored_positions`, the
@@ -598,7 +592,7 @@ look like a measured one) and `refine_with_shift`, which fits the shift *templat
 candidate cell supplies. A cell found under a widened window but never shift-refined
 is biased by roughly the shift (+1400 ppm measured).
 
-Thirteen more indexing rules, each learned the hard way — the measured stories are in
+Fourteen more indexing rules, each learned the hard way — the measured stories are in
 the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
@@ -647,23 +641,29 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   `estimate_ceiling` is the pre-run arithmetic and `INDEX_BUDGET_EXHAUSTED` names the
   three states a bound run leaves (searched / truncated / not reached). A truncated
   validation reads `not_validated`, never `validation_failed` (1037).
-- **A Monte Carlo indexer must refine each proposal; scoring raw random cells does
-  not rank** — measured both ways: WP-1023 scored raw proposals and ranked
-  corundum's truth 29 053 of 200 001, while `search_svd`, iterating each to a fixed
-  assignment, returns it as its only candidate (WP-1040).
+- **A Monte Carlo indexer must refine each proposal; scoring raw random cells does not
+  rank** — measured both ways: WP-1023 ranked corundum's truth 29 053 of 200 001
+  unrefined; `search_svd`, iterating each to a fixed assignment, returns it alone.
 - **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
   (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
   V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
   of why that engine costs seconds. **N_c counts distinct d-spacings, not hkl**, or
   the gate refuses certified LaB6 (the paper's caption and prose disagree).
-- **An impurity cut is worth nothing until the metric is roughly right, and a
-  *budget* is not a *tolerance*** (WP-1040): cutting far lines in the first pass
-  rather than the last takes zincite 5/5 → 1/5 and zircon and FAP to **0/5**, while
-  a cut bounded to `n_unindexed` rescues one dataset and costs the rest — a **retry
-  after silence**, never a default.
-- **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts the
-  reflection-pair method, McMaille refuses to scan the zeropoint, and a cell found
-  inside a widened window has absorbed the shift (WP-1038).
+- **An impurity cut is worth nothing until the metric is roughly right, and a *budget*
+  is not a *tolerance*** (WP-1040): cutting far lines in the first pass rather than the
+  last takes zincite 5/5 → 1/5 and zircon and FAP to **0/5**; a cut bounded to
+  `n_unindexed` rescues one dataset and costs the rest — a **retry after silence**.
+- **The 2θ shift is solved *before* indexing — but a zero-error *column* inside the
+  search is what stops a converged answer being wrong** (WP-1038; WP-1040 task 3,
+  `svd.zero_error_column`). A cell found inside a widened window absorbs the shift,
+  which is why DICVOL04 solves it first and McMaille refuses to scan the zeropoint.
+  Coelho §2.3's column is the other half, and it does *not* raise the hit rate: at an
+  injected 0.10°, started **at** the truth, one pass lands 3.5 % out where §2.4's
+  three land 1e-4 out and report the shift to 1 % (corundum 0 candidates → the truth
+  ranked first, nothing regressed). It agrees with the pair screen to **0.003°**
+  needing neither references nor pairs — and still may not correct a cell, being the
+  `constant` template *by construction*: **a shift measured without an attribution
+  sizes windows, and only a declared template moves a cell.**
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity

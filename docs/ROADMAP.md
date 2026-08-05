@@ -65,43 +65,43 @@ all three agree, raising the bar rather than diluting it. WP-1023's Monte Carlo
 no-go is narrowed, not overturned: it scored *unrefined* random cells. **Two
 acceptance rows turned over toward capability** — 11-BM NAC is indexed *as
 measured* (a = 10.2512 Å cubic **I**, +19 ppm) where the row asserted it could not
-be, and the gate still declines it. **What 1040 still owes**: the zero-error column
-(Coelho §2.3), not optional per the corpus — bethanechol E and F are reached, A-D
-never are, their lines sitting a median 2.5 % in Q from the published cell's.
+be, and the gate still declines it. **The zero-error column (task 3) landed and did
+the opposite of what was predicted**: it does not raise the hit rate — A-D stay
+unreachable, blocked by 7 impurity lines in 20 rather than by their zeroshift — it
+stops a *converged* answer being wrong (one pass absorbs an injected 0.10° into the
+axes and lands 3.5 % out; three passes land 1e-4 out). Its fitted Ze agrees with
+WP-1038's pair screen to **0.003°** on both datasets where both speak, seeing
+neither references nor pairs, and still may not correct a cell. The acceptance run
+also caught a **regression the per-dataset checks missed** — a dedup key that spans
+the centring loop without carrying the centring, so the first centring tried claims
+a metric and the rest are dropped silently; `trial_error` has it too. **All 1040
+still owes** is the eight-dataset scoreboard, handed to 1041 behind that fix.
 
-**Also closed 2026-08-05: [1033](wp/1033-plot-range-regions.md)** (fit range and
-excluded regions, visible and selectable), before it
-[1032](wp/1032-gui-repairs.md) and [1039](wp/1039-search-line-count.md);
-narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
-here", including 1033's half-wrong premise — **a mask is invisible in a picture of
-its own output**.
+**Also closed 2026-08-05: [1033](wp/1033-plot-range-regions.md)**, [1032](wp/1032-gui-repairs.md)
+and [1039](wp/1039-search-line-count.md); narratives in [milestones/v1.0.md](milestones/v1.0.md).
 
 The method lesson is eight sessions running (1030 → … → 1040): **instrument before
-ranking, and let the by-hand acceptance run judge.** 1040 pays the WP-1039 edge
-(*read the paper, not the summary of it*) a second time on its own context section,
-and repeats 1039's withdrawal: **a recorded no-go inherits the defects of the run
-that produced it**, twice in one row. **`main` moved under this branch**, so
+ranking, and let the by-hand acceptance run judge** — 1040's own "nothing regressed"
+was written on three datasets and the 38-row run refuted it. It also repeats 1039's
+withdrawal twice over: **a recorded no-go inherits the defects of the run that
+produced it**, and **a WP's own prediction is not a measurement.** **`main` moved under this branch**, so
 CLAUDE.md's counts were re-measured *after* the merge — parents do not sum.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. **[1040]'s two open tasks, above**, then
-   [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs we
+1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs we
    did not author; every item was hit by a real external benchmark.
 3. [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
-   *numbers* are stale twice over: SRM 660c's caveat set changed, and every dataset
-   now has a third engine's opinion. **1041 also inherits a defect**:
+   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature.
+   1041's scoreboard *numbers* are stale twice over and it **inherits a defect**:
    `trial_error._solution_key` is scale-invariant, so it reports at most one cubic
    candidate per system — measured in 1040, fixed only in `svd.py`.
-4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
-   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
-   carries what 1030 measured and what the harness still lacks.
+4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+   bethanechol global score. 1040 measured that there is no pending fix to wait
+   for; score it as it stands.
 5. [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) — the
-   rest of the 2026-08-04 use session (1032/1033 closed), behind 1028/1026 because
-   **neither moves the bar**. Both unblocked; their `### Inherited` carry what
-   1033 put under the plot and what 1036 settled beneath it.
+   rest of the 2026-08-04 use session, behind 1028/1026 because **neither moves the
+   bar**. Both unblocked; their `### Inherited` carry the details.
 6. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
