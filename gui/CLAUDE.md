@@ -296,6 +296,35 @@ route. `title=` is these forms' only help mechanism, so **every `PresetField`
 and every `instrumentFields()` entry carries one**, pinned by a meta-test over
 every geometry — the assertion found ten mute fields the day it was written.
 
+**What is fitted, shaded and selectable** (WP-1033, `lib/plot.ts`,
+`panels/Plot.svelte`, `session._masked_arm`, `Project.fitted_mask`) is the fit
+range and the excluded regions made visible, and its founding measurement is
+that **a mask is invisible in a picture of its own output**: `compile_model`
+masks before a result exists, so both payloads carried only the surviving
+channels — a band would have shaded a hole, and a fit range had no *outside* at
+all, the axis autoranging inside it. So the masked channels travel beside the
+fitted ones (`excluded`, quarter budget) and `Project.fitted_mask` is the one
+authority for which channels the next run fits, pinned to `compile_model` by
+asserting `len(result.two_theta)` against it. Four rules. **Protocol is not a
+drawing choice and may not wear its clothes** — the residual selector and the
+scale are session-local and unpersisted, while a region changes Rwp and persists
+on the verb, so it lives in a strip of its own with typed fields and chips, and
+that strip carries the **channel count**, because a band drawn over points still
+in the residual is worse than no band. **Settings persist on the verb and curves
+move only on a run**, so between the two the picture contradicts the setting: the
+route says `stale` by comparing the fitted 2θ *values*, not their count. **A
+shape is `yref: "paper"` and clipped to the measured extent** — paper because a
+rectangle in log space is not the rectangle in linear space and `TICK_BAND` owns
+the only free y-domain; clipped because a shape bound to a data axis **takes part
+in the autorange**, and bands drawn past the data to survive a zoom-out *became*
+the range (measured: −40 to 100 on a 0.5–59.99° pattern). And **a new pointer
+meaning that is ambiguous everywhere is a mode, not an arbitration**: WP-1027
+could make the peak grab radius readable because the ambiguity was local, but a
+region drag is a zoom drag at every distance — so arming is explicit, hands the
+drag to plotly's own select box, *suspends* the peak verbs, and disarms after
+one selection. `viz/` deliberately does not shade (grounds in the WP): a result
+cannot say what was excluded, so the exported figure shows it as absence.
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

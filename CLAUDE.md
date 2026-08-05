@@ -49,28 +49,23 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-05: the Python rows at the **WP-1039** close, darwin/arm64 M4,
-in **`worktree-indexer`**, venv `[dev,jax]`, **no torch**; the frontend row at
-the **WP-1032** close (two WPs, parallel worktrees, disjoint code). jax converts
-skips into passes, so no Python row compares with a `[dev]` count, and the main
-checkout's figures were **not** re-measured (they predate 1037/1038/1039's 52
-tests; last good: the WP-1036 entry, in the v1.0 appendix):
+Measured 2026-08-05 at the **WP-1033** close: darwin/arm64 M4, `worktree-gui`,
+venv **`[dev]`** — no jax, no torch, so **no row here compares with 1039's
+`[dev,jax]` figures** (jax turns skips into passes). The baseline below was
+re-measured in this tree and venv back to back, which is the only comparison
+that means anything:
 
-- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 1039's 7
-  (five `search_line_order` rows, one end-to-end over both engines), no new
-  skips; 1032 added no Python test.
-- full suite: **1802 passed / 72 skipped**, 15:04. passed+skipped 1874 = the fast
-  selection's 1775 + 99 slow-marked, unchanged from 1038 — every new row is fast.
-- **1039 made the indexing acceptance file the wall clock**:
-  `tests/test_acceptance_indexing.py` is **36** rows and **11:58**, its corundum
-  fixture now the longest single item — the group ordering moved again, so
-  re-read `--durations` rather than quoting it (figures: the v1.0 record).
-- frontend (vitest): **303** — 282 from WP-1027 through 1039 (none touched
-  `gui/`), +21 at WP-1032; `svelte-check` clean, GUI-server rows **73**.
-- **A module-level `importorskip` collapses its whole module into one skip**, so
-  `--collect-only` undercounts by one per module that fires *and* passed+skipped
-  is venv-dependent — "moves by exactly N" holds within one venv only (one tree:
-  1757 `[dev]` vs 1768 `[dev,jax]`). `tests/CLAUDE.md` § Quoting numbers.
+- fast suite: **1660 passed / 108 skipped**, 2:22 — against **1656 / 108** at the
+  merge base (`265b7ac`), 2:20: +4 passes, no new skip, wall clock unmoved.
+- full suite: **not re-measured**; 1033 adds no slow-marked row. Last good is
+  1039's — 1802 passed / 72 skipped, 15:04, `[dev,jax]`, `worktree-indexer`,
+  where `tests/test_acceptance_indexing.py` (36 rows, 11:58) set the wall clock.
+  A group ordering has a shelf life: re-read `--durations` rather than that.
+- frontend (vitest): **321** — 303 at WP-1032, +18 at 1033 (11 pure, 7 mounted);
+  `svelte-check` clean. `test_gui_{server,peaks,dist,fnmatch}.py` collect **81**.
+- **A module-level `importorskip` collapses its module into one skip**, so
+  `--collect-only` undercounts and passed+skipped is venv-dependent: "moves by
+  exactly N" holds within one venv (`tests/CLAUDE.md` § Quoting numbers).
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -188,7 +183,12 @@ pdCIF with a `_meas` and a `_calc` block is a different pattern depending on
 purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
 corrupt project. `excluded_regions` live in the document because they are
 protocol that is in neither the file nor `RefinementState` — a node cannot say
-what was excluded when it ran.
+what was excluded when it ran. Two rules follow (WP-1033):
+`Project.fitted_mask()` is the one authority for **which channels the next run
+fits** (`compile_model`'s first act, pinned by asserting `len(result.two_theta)`
+against its sum), and an inverted or empty interval is **refused, not reordered**
+by `schemas.project.check_interval` — one sentence the verb, the `.pxt` parser
+and the document's own validators all quote.
 
 Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
 `"rietveld"`, `"lebail"` (intensity partitioning in
@@ -208,7 +208,7 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+The **GUI** (WP-1008…1015, 1029, 1032-1033) is `pxrdref gui [PROJECT.pxrd]` — stdlib
 `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
 holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —
