@@ -55,41 +55,43 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1038](wp/1038-shift-reflection-pairs.md)** (2026-08-04) — a
-systematic 2θ shift is now **measured from the peak list alone**, no cell and no
-reference: a harmonic pair (`m·sin θ_B = sin θ'_B`, exact for any lattice) is one
-equation in the shift and none in the cell. `indexing/pairs.py` recovers SRM 660c's
-+0.0345° and corundum's −0.0639° against independently known +0.0367/+0.0415° and
-−0.065°, and declines on all ten bethanechol sets and HL2 — Le Bail (2004) §VII's
-published failure reproduced from our own data. Same day, before it:
-[1037](wp/1037-indexing-time-ceiling.md), the whole-run indexing ceiling, and
-[1036](wp/1036-crystal-system-settings.md), cell ties following the space-group
-**setting**. Close narratives in
-[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
+**Last closed: [1039](wp/1039-search-line-count.md)** (2026-08-05) — the WP asked
+how many lines a search enumerates on; the answer is **which**. Taking the first
+twenty in 2θ order assumes the lowest-angle components are the strongest
+reflections, which is false of any pattern opening on background: NAC holds six of
+its cell's lines in that twenty against 268 of 285. `search_line_order` now takes
+the strongest N, ties broken by Q, so position-only lists — the whole bethanechol
+benchmark — are untouched. **Raising N instead loses answers**, because
+`indexes_the_search_lines` is an absolute budget rather than the membership test
+Conograph's "a false line costs only computation" rests on. Before it:
+[1038](wp/1038-shift-reflection-pairs.md) (shift from harmonic pairs),
+[1037](wp/1037-indexing-time-ceiling.md), [1036](wp/1036-crystal-system-settings.md).
+Close narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
+here".
 
-The method lesson is now four sessions running (1030 → 1036 → 1037 → 1038):
-**instrument before ranking, and let the by-hand acceptance run judge, not the
-fast tests.** 1038 is its sharpest case. Two of the source papers' prescriptions
-failed on this corpus and *only real data said so*: DICVOL04's sign-category rule
-admits an 84-of-1838 margin as signal, and the obvious allowance (amplitude +
-cluster scatter) broke five acceptance rows with 156 fast tests green. The sweep
-that fixed it is the artefact to reuse — it showed a matching window is a
-**correctness** parameter: at σ_sys = 0.060 SRM 660c returns a cell 293 000 ppm
-wrong *at `high` confidence*. Sweep any tolerance before believing it.
+The method lesson is now five sessions running (1030 → 1036 → 1037 → 1038 → 1039):
+**instrument before ranking, and let the by-hand acceptance run judge.** 1039 adds
+a second edge — **read the paper, not the summary of it**: three of its own stated
+premises failed checking (the asymmetry is asserted in one sentence, not proved; 48
+is an upper threshold on an AUTO value; the 18–250× prune was never timed), the
+WP-0501 b₂ precedent paying out a third time. And a withdrawal worth generalising:
+**WP-1026's "truncating NAC's 2θ does not work — do not spend that hour again" was
+measured with the broken selection**, and redone the truth ranks first at −22 ppm.
+A recorded no-go inherits the defects of the run that produced it.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1039](wp/1039-search-line-count.md) — the natural successor to 1038, whose
-   line-selection question assumed a working pre-search shift and now has one.
-   Then [1040](wp/1040-engine-svd-index.md),
+2. [1040](wp/1040-engine-svd-index.md),
    [1041](wp/1041-indexing-benchmark-gallery.md) and
    [1042](wp/1042-anytime-results-quick-default.md) — written 2026-08-04 from the
    source literature ([LITERATURE.md](LITERATURE.md)); 1042's `### Inherited`
-   carries 1037's measured streaming argument. **1038 was expected to move all
-   eight datasets off abstention and did not**: it cleared one caveat of several,
-   so what still blocks `high` is 1026's and 1041's, not a missing shift.
+   carries 1037's measured streaming argument, and 1040's and 1041's now carry
+   1039's. **Neither 1038 nor 1039 moved the eight datasets off abstention**, and
+   each cleared exactly one caveat: what still blocks `high` is 1026's and 1041's.
+   1041 also inherits the scoreboard's *numbers*, which are stale — SRM 660c's
+   caveat set has changed twice since they were recorded.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
@@ -436,7 +438,7 @@ per concurrent session, or only one session commits.
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
-| [1039](wp/1039-search-line-count.md) | How many lines a search enumerates on | ⬜ | 1037 (1038 soft) |
+| [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |

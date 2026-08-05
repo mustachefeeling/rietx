@@ -49,25 +49,25 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-04 at the WP-1038 close, darwin/arm64 M4, in the
+Measured 2026-08-05 at the WP-1039 close, darwin/arm64 M4, in the
 **`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
 jax converts skips into passes, so none of these rows compares with a `[dev]`
 count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
-re-measured (they now predate 1037's 19 tests and 1038's 26; last good: the
-WP-1036 close entry, now in the v1.0 appendix):
+re-measured (they predate 1037's 19, 1038's 26 and 1039's 7; last good: the
+WP-1036 close entry, in the v1.0 appendix):
 
-- fast suite: **1701 passed / 67 skipped**, 1:47. Decomposes exactly: 1676 at
-  the WP-1037 close + 1038's 25 — 14 `test_indexing_pairs.py`, 10 from two new
-  `validation_matrix` claims (five per-claim parametrized meta-tests each, which
-  is the multiplier to remember when adding a Claim) and 1 acceptance row. No
-  new skips.
-- full suite: **1795 passed / 72 skipped**, 8:33 (11:07 at the 1037 close — the
-  spread is the machine, not the 26 added tests). passed+skipped 1867 = the fast
-  selection's 1768 + 99 slow-marked, one more slow row than 1037's 98.
-- `tests/test_acceptance_indexing.py` alone: **36** rows — the engine-closing
-  gate (why: the indexing dossier's WP-1030 bullet), and 1038 is what it caught.
-- frontend (vitest): **282**, unchanged by 1030/1036/1037/1038 (none touched
-  `gui/`); last measured at the WP-1027 close.
+- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 7 (five
+  `search_line_order` rows plus one end-to-end row over both engines), no new skips.
+- full suite: **1802 passed / 72 skipped**, 15:04. passed+skipped 1874 = the fast
+  selection's 1775 + 99 slow-marked, unchanged from 1038 — every new row is fast.
+- **1039 made the indexing acceptance file the wall clock**, and its rank is a
+  correctness change that is not free: `tests/test_acceptance_indexing.py` is
+  **36** rows and **11:58** (6:10 before 1039, 25:19 before its low-Q pool bound).
+  Its corundum fixture is the full suite's longest single item at 490 s, above
+  `stephens-brucite`'s 434 — the ordering has moved again, so re-read
+  `--durations` rather than quoting this; run alone that fixture is 330 s.
+- frontend (vitest): **282**, unchanged by 1030-1039 (none touched `gui/`);
+  last measured at the WP-1027 close.
 - `--collect-only` undercounts by one per module-level `importorskip` that
   fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
   § Quoting numbers.
@@ -622,9 +622,8 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   reflections) refutes a correct cell, and only the extinction screen
   separates the two. Choose acceptance datasets **by space group** — SRM
   660c (P m -3 m, extinguishes nothing) is the control that proved it.
-- The scoreboard across eight known-cell datasets is *never wrong, and
-  silent more often than right* — five right, one refused, two fail, all
-  eight abstain. Do not let a summary round it up.
+- The scoreboard across eight known-cell datasets is *never wrong, and silent more
+  often than right*; never let a summary round it up (counts: WP-1041, which owns them).
 - **An ambiguity partner must be refuted by the lines it needs and the data
   lack** (asymmetric: the partner's extra predictions, never the parent's
   own absences), or every derivative lattice is reported and the gate can
@@ -663,11 +662,13 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
 - **The 2θ shift is solved *before* indexing, not inside it** — DICVOL04 adopts
   the reflection-pair method, McMaille refuses to scan the zeropoint and says so,
   and a cell found inside a widened window has absorbed the shift (WP-1038).
-- **Enumerate liberally, sort conservatively.** A *false* line costs only
-  computation (the enumeration still contains the truth); a *missing* line costs
-  success; and the figures of merit are what contamination actually damages.
-  Conograph searches on 48 lines where `DEFAULT_SEARCH_LINES` takes 20 in 2θ
-  order — which on NAC is the wrong twenty (WP-1039).
+- **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
+  rule this package cannot have** (WP-1039, `engines.search_line_order`). Which
+  twenty beats how many (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
+  over a `SEARCH_POOL_MULTIPLE` low-Q pool; unbounded it doubles the acceptance
+  suite), and raising N *loses* answers — `indexes_the_search_lines` is an
+  **absolute** budget, so an admitted foreign line refutes the truth rather than
+  out-ranking it. Ties fall back to Q, so position-only lists are untouched.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only
 one anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /

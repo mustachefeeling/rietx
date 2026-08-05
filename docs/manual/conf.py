@@ -13,6 +13,11 @@ from pxrdref.crystallography.dispersion import NEAR_EDGE_EV
 from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from pxrdref.indexing.ambiguity import MAX_AMBIGUITY_INDEX
 from pxrdref.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
+from pxrdref.indexing.engines import (
+    DEFAULT_N_UNINDEXED,
+    DEFAULT_SEARCH_LINES,
+    SEARCH_POOL_MULTIPLE,
+)
 from pxrdref.indexing.reduce import NIGGLI_EPS_RELATIVE
 from pxrdref.model.absorption import CYLINDER_MU_R_MAX
 from pxrdref.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
@@ -36,6 +41,9 @@ myst_enable_extensions = ["dollarmath", "amsmath", "substitution", "colon_fence"
 myst_substitutions = {
     "BRINDLEY_MU_R_FENCE": BRINDLEY_MU_R_FENCE,
     "CYLINDER_MU_R_MAX": CYLINDER_MU_R_MAX,
+    "DEFAULT_N_UNINDEXED": DEFAULT_N_UNINDEXED,
+    "DEFAULT_SEARCH_LINES": DEFAULT_SEARCH_LINES,
+    "SEARCH_POOL_MULTIPLE": SEARCH_POOL_MULTIPLE,
     "IMPURITY_SIGMA": IMPURITY_SIGMA,
     "ANGLE_STEP_DEG": ANGLE_STEP_DEG,
     "AXIS_STEP": AXIS_STEP,
