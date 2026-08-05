@@ -1,7 +1,19 @@
 /** The pattern plot's two new choices (WP-1029). */
 import { describe, expect, it } from "vitest";
 
-import { curveColors, residual, scaleValues, sqrtTicks, type Window } from "./plot";
+import {
+  TICK_BAND,
+  curveColors,
+  curveToggles,
+  hoverLabel,
+  residual,
+  scaleValues,
+  shows,
+  sqrtTicks,
+  tickBand,
+  toggleCurve,
+  type Window,
+} from "./plot";
 
 const WEIGHTED: Window = {
   two_theta: [1, 2, 3],
@@ -77,5 +89,85 @@ describe("the curve colours (WP-1029 q)", () => {
     expect(colors.calc).toBe("#c23b22");
     expect(colors.bkg).toBe("#6b7280");
     expect(colors.zero).toBe("#88888888");
+  });
+});
+
+describe("the hover box (WP-1032)", () => {
+  it("takes its surface, border and ink from the theme's own properties", () => {
+    // nothing themed it before: `hovermode: "x unified"` and a hovertemplate on
+    // every trace, over plotly's default *light* box, with `layout.font.color`
+    // already themed — light-grey ink on white, on the dark page
+    const dark: Record<string, string> = {
+      "--panel": " #1e1e1e ", "--line": "#333333", "--fg": "#e6e6e2",
+    };
+    expect(hoverLabel((name) => dark[name] ?? "")).toEqual({
+      bgcolor: "#1e1e1e", bordercolor: "#333333",
+      font: { color: "#e6e6e2", size: 11 },
+    });
+  });
+
+  it("falls back per property to the light palette, as the curve colours do", () => {
+    expect(hoverLabel(() => "")).toEqual({
+      bgcolor: "#ffffff", bordercolor: "#dcdcd6",
+      font: { color: "#1b1b1b", size: 11 },
+    });
+  });
+});
+
+describe("the reflection ticks' own band (WP-1032)", () => {
+  it("sits in the gap the two subplots already leave", () => {
+    // yaxis2 ends at 0.22 and yaxis starts at 0.28, so this needed no room made
+    const band = tickBand(2)!;
+    expect(band.axis.domain).toEqual(TICK_BAND);
+    expect(TICK_BAND[0]).toBeGreaterThanOrEqual(0.22);
+    expect(TICK_BAND[1]).toBeLessThanOrEqual(0.28);
+  });
+
+  it("gives every phase a row, in a range that cannot be zoomed away", () => {
+    // on the residual axis the rows were at y = −0.5 − row·0.9, so under a
+    // cumulative χ² curve running to 6.6e5 (measured on the NAC fit) they were a
+    // line on the floor.  Here the coordinate is the band's own.
+    const band = tickBand(3)!;
+    expect(band.rows).toEqual([-0.5, -1.5, -2.5]);
+    expect(band.axis.range).toEqual([-3, 0]);
+    expect(band.axis.fixedrange).toBe(true);
+    expect(band.axis.showticklabels).toBe(false);
+  });
+
+  it("is absent when there is nothing to tick", () => {
+    // the raw/peaks view has no reflections at all — an empty axis would still
+    // take its slice of the plot's height
+    expect(tickBand(0)).toBeNull();
+  });
+});
+
+describe("which curves are drawn (WP-1032)", () => {
+  const FITTED = { ...WEIGHTED, y_background: [3, 3, 3], ticks: { NAC: [1], CaF2: [2] } };
+
+  it("offers the background only when the payload has one", () => {
+    // the reported item was "make it possible to toggle the background on"; the
+    // trace was already unconditional, so what was missing is the control to
+    // turn a *forced* curve off
+    expect(curveToggles(FITTED).map((t) => t.id))
+      .toEqual(["obs", "calc", "bkg", "diff", "ticks:NAC", "ticks:CaF2"]);
+    expect(curveToggles({ ...FITTED, y_background: [] }).map((t) => t.id))
+      .toEqual(["obs", "calc", "diff", "ticks:NAC", "ticks:CaF2"]);
+  });
+
+  it("offers only the observed points on the raw view", () => {
+    // no fit, so there is no calculated curve, no background and no reflection
+    // to tick — the state a project is in while peaks are picked
+    expect(curveToggles({ ...FITTED, raw: true } as any).map((t) => t.id)).toEqual(["obs"]);
+  });
+
+  it("names the difference button whatever the residual knob chose", () => {
+    expect(curveToggles(FITTED, "Σχ²").find((t) => t.id === "diff")!.label).toBe("Σχ²");
+  });
+
+  it("hides by exception, so a curve this build does not know about is drawn", () => {
+    expect(shows([], "bkg")).toBe(true);
+    expect(shows(["bkg"], "bkg")).toBe(false);
+    expect(toggleCurve([], "bkg")).toEqual(["bkg"]);
+    expect(toggleCurve(["bkg", "obs"], "bkg")).toEqual(["obs"]);
   });
 });

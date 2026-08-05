@@ -22,12 +22,18 @@
     RESIDUAL_KINDS,
     SCALES,
     curveColors,
+    curveToggles,
+    hoverLabel,
     residual,
     scaleValues,
+    shows,
     sqrtTicks,
+    tickBand,
+    toggleCurve,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
+  import { coalesce } from "../lib/resize";
   import type { Theme } from "../lib/theme";
 
   let {
@@ -38,10 +44,12 @@
     theme = "light",
     peaks = null,
     peaksActive = false,
+    hovered = null,
+    onhoverpeak = () => {},
     onaddpeak = () => {},
     onmovepeak = () => {},
     ontogglepeak = () => {},
-    onrefitgroup = () => {},
+    onremovepeak = () => {},
   }: {
     result: any;
     plotKey: number;
@@ -59,10 +67,15 @@
     /** the Peaks tab is showing: only then do clicks mean add/move/exclude —
      *  a stray click while reading the report must not edit a peak list */
     peaksActive?: boolean;
+    /** the peak the pointer is over, wherever it is over it — one index in the
+     *  shell, threaded to both panels, so the table and the plot point at the
+     *  same line (WP-1032) */
+    hovered?: number | null;
+    onhoverpeak?: (index: number | null) => void;
     onaddpeak?: (twoTheta: number) => void;
     onmovepeak?: (index: number, twoTheta: number) => void;
     ontogglepeak?: (index: number) => void;
-    onrefitgroup?: (group: number) => void;
+    onremovepeak?: (index: number) => void;
   } = $props();
 
   let node: HTMLDivElement | undefined = $state();
@@ -75,10 +88,16 @@
    *  project's opinion. */
   let kind = $state<ResidualKind>("weighted");
   let scale = $state<Scale>("linear");
+  /** curves the user has switched off, by id — an *exception* list, so a curve
+   *  this build does not know about yet still arrives drawn */
+  let hidden = $state<string[]>([]);
   /** the payload the last draw used, so a knob redraws without a refetch */
   let held: any = $state(null);
+  /** the toggles this payload offers — background only when there is one, one
+   *  row per phase (WP-1032) */
+  const toggles = $derived(held ? curveToggles(held, residual(kind, held).label) : []);
 
-  function layout(w: any, colors: ReturnType<typeof curveColors>): any {
+  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number): any {
     const style = getComputedStyle(document.body);
     const fg = style.color;
     // the panel border colour, for the grid: plotly's default grid is
@@ -89,7 +108,9 @@
       ? { title: "(y − fit)/σ per group", label: "", zeroline: true }
       : residual(kind, w);
     const ticks = scale === "sqrt" ? sqrtTicks(Math.max(0, ...(w.y_obs ?? [0]))) : null;
+    const band = tickBand(nPhases);
     return {
+      ...(band ? { yaxis3: band.axis } : {}),
       margin: { l: 62, r: 12, t: 8, b: 40 },
       showlegend: true,
       legend: { orientation: "h", y: 1.12, x: 0 },
@@ -111,6 +132,7 @@
       yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
                 zeroline: res.zeroline, zerolinecolor: colors.zero },
       hovermode: "x unified",
+      hoverlabel: hoverLabel((name) => style.getPropertyValue(name)),
     };
   }
 
@@ -155,42 +177,54 @@
     // change actually change anything
     const colors = curveColors((name) =>
       getComputedStyle(document.body).getPropertyValue(name));
-    const traces: any[] = [
-      { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
-        type: "scattergl", customdata: w.y_obs,
-        marker: { size: 4, color: colors.obs },
-        hovertemplate: "%{customdata:.6g}<extra>observed</extra>" },
-    ];
+    const phases = w.raw ? [] : Object.keys(w.ticks ?? {});
+    const band = tickBand(phases.length);
+    const traces: any[] = [];
+    if (shows(hidden, "obs")) {
+      traces.push(
+        { x: w.two_theta, y: scaleValues(scale, w.y_obs), name: "observed", mode: "markers",
+          type: "scattergl", customdata: w.y_obs,
+          marker: { size: 4, color: colors.obs },
+          hovertemplate: "%{customdata:.6g}<extra>observed</extra>" });
+    }
     if (!w.raw) {
       const res = residual(kind, w);
-      traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
-        mode: "lines", type: "scattergl", customdata: w.y_calc,
-        line: { width: 1.2, color: colors.calc },
-        hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
-      if (w.y_background?.length) {
+      if (shows(hidden, "calc")) {
+        traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_calc), name: "calculated",
+          mode: "lines", type: "scattergl", customdata: w.y_calc,
+          line: { width: 1.2, color: colors.calc },
+          hovertemplate: "%{customdata:.6g}<extra>calculated</extra>" });
+      }
+      if (w.y_background?.length && shows(hidden, "bkg")) {
         traces.push({ x: w.two_theta, y: scaleValues(scale, w.y_background), name: "background",
           mode: "lines", type: "scattergl", customdata: w.y_background,
           line: { width: 1, dash: "dot", color: colors.bkg },
           hovertemplate: "%{customdata:.6g}<extra>background</extra>" });
       }
-      traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
-        type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      if (shows(hidden, "diff")) {
+        traces.push({ x: w.two_theta, y: res.values, name: res.label, mode: "lines",
+          type: "scattergl", yaxis: "y2", line: { width: 1, color: colors.diff } });
+      }
 
       // every emission line's ticks, not just the primary: the Kα2 positions are
-      // in here too, which is what stops a doublet reading as an impurity
-      let row = 0;
-      for (const [phase, ticks] of Object.entries(w.ticks ?? {})) {
-        const y = -0.5 - row * 0.9;
-        traces.push({ x: ticks as number[], y: (ticks as number[]).map(() => y), yaxis: "y2",
+      // in here too, which is what stops a doublet reading as an impurity.  They
+      // ride on `y3`, a band of their own between the two subplots (WP-1032) —
+      // on the residual axis their visibility was a property of which residual
+      // was selected, and under cumulative χ² they were a line on the floor.
+      phases.forEach((phase, row) => {
+        if (!shows(hidden, `ticks:${phase}`)) return;
+        const ticks = (w.ticks ?? {})[phase] as number[];
+        const y = band!.rows[row];
+        traces.push({ x: ticks, y: ticks.map(() => y), yaxis: "y3",
           name: phase, mode: "markers", type: "scattergl",
           marker: { symbol: "line-ns-open", size: 8, line: { width: 1 } },
           hovertemplate: `${phase} %{x:.4f}°<extra></extra>` });
-        row += 1;
-      }
+      });
     }
     traces.push(...peakTraces(w, colors));
+    ringAt = peaks?.peaks?.length ? traces.length - 1 : -1;
 
-    await plotly.react(node, traces, layout(w, colors),
+    await plotly.react(node, traces, layout(w, colors, phases.length),
                        { responsive: true, displaylogo: false });
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
@@ -206,6 +240,20 @@
       if (typeof a === "number" && typeof b === "number") draw(a, b);
       else if (ev["xaxis.autorange"]) draw();
     });
+    // the other half of the hover link: a marker under the pointer names its
+    // row in the panel.  `x unified` hands over every trace's point at that 2θ,
+    // so the peak — if there is one there — is the one to read.
+    plotNode.removeAllListeners?.("plotly_hover");
+    plotNode.on?.("plotly_hover", (ev: any) => {
+      if (!peaksActive) return;
+      const hit = ev.points?.find((p: any) => p.data?.name === "peaks");
+      onhoverpeak(hit ? (hit.customdata?.[0] ?? null) : null);
+    });
+    plotNode.removeAllListeners?.("plotly_unhover");
+    plotNode.on?.("plotly_unhover", () => {
+      if (peaksActive) onhoverpeak(null);
+    });
+    drawRing();   // a redraw resets the trace, so the ring is put back
     watch();
   }
 
@@ -269,7 +317,29 @@
           .filter(Boolean).join(" ") || "usable"]),
       hovertemplate: "#%{customdata[0]} %{x:.4f}° — %{customdata[1]}<extra>peak</extra>",
     });
+    // The hover link's own trace, drawn empty and moved by `restyle` (WP-1032):
+    // a full `react` per mouse move is exactly the cost task 1 measured, and one
+    // ring that changes its two coordinates is the cheapest thing plotly does.
+    out.push({
+      x: [], y: [], name: "hovered", mode: "markers", type: "scattergl",
+      marker: { size: 16, symbol: "circle-open", color: accent, line: { width: 2 } },
+      showlegend: false, hoverinfo: "skip",
+    });
     return out;
+  }
+
+  /** Where the highlight ring sits in the trace list of the last draw. */
+  let ringAt = $state(-1);
+
+  /** Move the ring to the hovered line — or off the plot when nothing is. */
+  function drawRing() {
+    if (!node || !plotly || ringAt < 0 || !held) return;
+    const row = hovered === null
+      ? undefined
+      : peaks?.peaks?.find((p) => p.index === hovered);
+    const x = row ? [row.two_theta] : [];
+    const y = row ? [heightAt(held, row.two_theta)] : [];
+    plotly.restyle?.(node, { x: [x], y: [y] }, [ringAt]);
   }
 
   /** null-preserving √/log guard — `scaleValues` maps a gap to 0, which would
@@ -383,6 +453,16 @@
     }
   }
 
+  /**
+   * Right-click **removes** the line under the pointer (WP-1032).
+   *
+   * It used to refit the line's whole group through a `window.prompt` for a
+   * component count — a modal in the one gesture that has no undo, on a verb the
+   * table's `↻` already carries.  Remove is the destructive edit a pointer
+   * should be able to make directly; the panel's `×` is its non-pointer route,
+   * and the coarse 10-px radius is the same one shift-toggle aims with, because
+   * the precision of a *marker* hit does not come from the pixel radius.
+   */
   function context(ev: MouseEvent) {
     if (!peaksActive || !peaks?.peaks) return;
     const tt = thetaOf(ev.clientX);
@@ -390,7 +470,7 @@
     const hit = nearestPeak(peaks.peaks, tt, 10 * degPerPx());
     if (hit === null) return;
     ev.preventDefault();
-    onrefitgroup(peaks.peaks.find((p) => p.index === hit)!.group);
+    onremovepeak(hit);
   }
 
   /**
@@ -404,12 +484,16 @@
    * knobs arrived, and the browser reported the result in the defect's own
    * words: a `<rect class="sdrag drag">` from the plot div "intercepts pointer
    * events" on a button 40 px underneath it.
+   *
+   * `coalesce` is WP-1032's half: one resize costs ~111 ms here and a sidebar
+   * drag delivered sixty of them, so the canvas trailed the grip by up to 1.1 s
+   * (the measurement, and why the trailing re-run is not optional, are in
+   * `lib/resize.ts`).
    */
   function watch() {
     if (observer || !node || typeof ResizeObserver === "undefined") return;
-    observer = new ResizeObserver(() => {
-      if (node && plotly) plotly.Plots?.resize(node);
-    });
+    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
+    observer = new ResizeObserver(fit);
     observer.observe(node);
   }
 
@@ -450,7 +534,17 @@
     void kind;
     void scale;
     void theme;
+    void hidden;
     if (held) paint(held);
+  });
+
+  // the hover link is *not* in the effect above, and that is the whole point:
+  // a mouse move must cost one `restyle` of one two-point trace, never a
+  // repaint of the pattern (task 1 measured what a repaint costs)
+  $effect(() => {
+    void hovered;
+    void ringAt;
+    drawRing();
   });
 </script>
 
@@ -465,17 +559,26 @@
       history, run again: a checkout restores parameter values, not a fit.
     </p>
   {:else if !result && peaksActive}
-    <p class="note muted">
-      Raw pattern. Click to add a peak, drag a marker to move it, shift-click to
-      exclude, right-click a marker to refit its group.
-    </p>
+    <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
     <p class="note bad">{loadError} — install the plot extra: <code>pip install 'pxrd-refine[gui]'</code></p>
   {/if}
+  <!-- The gestures, stated whenever the tab that owns them is showing — fit or
+       no fit (WP-1032).  This line used to render only in the *raw* state, so
+       the moment a fit existed the pointer verbs were undocumented on screen.
+       Each one names its non-pointer route beside it, which is WP-1027's rule
+       made visible rather than only true. -->
+  {#if peaksActive && peaks?.peaks?.length}
+    <p class="note muted gestures">
+      <strong>Click</strong> to add a line <span class="muted">(or the panel's 2θ box)</span> ·
+      <strong>drag</strong> a marker to move it <span class="muted">(or the Text pane's 2θ column)</span> ·
+      <strong>shift-click</strong> to exclude <span class="muted">(or the row's checkbox)</span> ·
+      <strong>right-click</strong> to remove <span class="muted">(or the row's ×)</span>
+    </p>
+  {/if}
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
-       active.  Every verb has a non-pointer route too — add by typed 2θ in the
-       panel, move by editing the 2θ column of the text document — so the
-       pointer path is an accelerator, not the only way in. -->
+       active.  Every verb has a non-pointer route too — the line above names
+       each — so the pointer path is an accelerator, not the only way in. -->
   <div class="plot" role="application" aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   {#if shown}
@@ -492,6 +595,18 @@
             title={entry.title}>{entry.label}</button>
         {/each}
       </div>
+      <!-- Which curves are drawn.  Unpersisted, like the two knobs beside it:
+           a drawing choice is not the project's opinion (WP-1015/1029). -->
+      {#if toggles.length > 1}
+        <div class="segmented curves" role="group" aria-label="curves">
+          {#each toggles as curve (curve.id)}
+            <button class:on={shows(hidden, curve.id)}
+              onclick={() => (hidden = toggleCurve(hidden, curve.id))}
+              title="{curve.title} — click to {shows(hidden, curve.id) ? 'hide' : 'show'}"
+              >{curve.label}</button>
+          {/each}
+        </div>
+      {/if}
       <p class="note muted tabular">
         {shown.n} of {shown.total} points drawn, {shown.lo.toFixed(3)}–{shown.hi.toFixed(3)}°
         · min/max decimated server-side · zoom refetches the window
@@ -521,9 +636,22 @@
     flex-wrap: wrap;
   }
 
+  /* a phase name is arbitrarily long — clip the button, not the row */
+  .segmented.curves button {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .note {
     margin: 4px 2px;
     font-size: 11.5px;
+  }
+
+  .gestures strong {
+    font-weight: 600;
+    color: var(--fg);
   }
 
   .bad {

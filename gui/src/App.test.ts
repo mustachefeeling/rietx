@@ -376,6 +376,16 @@ const FITTED = {
   "/api/report": () => ({ body: REPORT }),
 };
 
+/** A window with a background and two phases' ticks — what the curve toggles
+ *  and the tick band are about, and what the bare FITTED window has neither of. */
+const TWO_PHASE_WINDOW = {
+  "/api/result/window": () => ({ body: {
+    two_theta: [9, 9.4], y_obs: [1, 2], y_calc: [1, 2], y_background: [0.4, 0.4],
+    delta: [0, 0], delta_raw: [0, 0], cumulative_chi2: [0, 0], weighted: true,
+    ticks: { NAC: [9.1], CaF2: [9.3] },
+    window: [9, 9.4], n_total: 2, n_returned: 2, max_points: 4000 } }),
+};
+
 const flush = async () => {
   for (let i = 0; i < 16; i++) await Promise.resolve();
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1218,6 +1228,67 @@ describe("disclosure and the command palette", () => {
       .find((b) => b.getAttribute("aria-label") === "dark")!.click();
     await flush();
     expect(drawn.length).toBe(painted);         // nothing to repaint, so no repaint
+  });
+
+  it("gives the reflection ticks a band of their own, not the residual's axis", async () => {
+    // On `y2` their visibility was a property of which residual was selected:
+    // under cumulative χ², whose values ran to 6.6e5 on the measured NAC fit,
+    // the rows at y = −0.5 were a line on the floor (WP-1032).
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[], layout: any) => drawn.push({ traces, layout }),
+      purge: () => {},
+    });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const last = drawn.at(-1)!;
+    const ticks = last.traces.filter((t: any) => t.yaxis === "y3");
+    expect(ticks.map((t: any) => t.name)).toEqual(["NAC", "CaF2"]);
+    // one row each, in the band's own coordinate — and the residual is still y2
+    expect(ticks[0].y[0]).toBe(-0.5);
+    expect(ticks[1].y[0]).toBe(-1.5);
+    expect(last.layout.yaxis3.domain).toEqual([0.225, 0.275]);
+    expect(last.layout.yaxis3.range).toEqual([-2, 0]);
+    expect(last.traces.find((t: any) => t.name === "Δ/σ").yaxis).toBe("y2");
+  });
+
+  it("drops a curve the user switched off, without asking the server again", async () => {
+    // The background trace was already unconditional, so the reported
+    // "toggle the background on" is a missing *control*, not a missing trace.
+    // And a drawing choice is not persisted (WP-1015's rule, one panel over).
+    const drawn: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      purge: () => {},
+    });
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const curves = host.querySelector<HTMLElement>('.segmented[aria-label="curves"]')!;
+    expect([...curves.querySelectorAll("button")].map((b) => b.textContent!.trim()))
+      .toEqual(["obs", "calc", "bkg", "Δ/σ", "NAC", "CaF2"]);
+    expect(drawn.at(-1)!.some((t: any) => t.name === "background")).toBe(true);
+
+    const fetched = stub.calls.filter((c) => c.path === "/api/result/window").length;
+    [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === "bkg")!.click();
+    await flush();
+    expect(drawn.at(-1)!.some((t: any) => t.name === "background")).toBe(false);
+    expect(drawn.at(-1)!.some((t: any) => t.name === "calculated")).toBe(true);
+    expect(stub.calls.filter((c) => c.path === "/api/result/window").length).toBe(fetched);
+
+    // one phase's ticks off, the other's still drawn
+    [...curves.querySelectorAll("button")].find((b) => b.textContent!.trim() === "CaF2")!.click();
+    await flush();
+    expect(drawn.at(-1)!.filter((t: any) => t.yaxis === "y3").map((t: any) => t.name))
+      .toEqual(["NAC"]);
+
+    // nothing about a picture reached the project document
+    expect(stub.calls.filter((c) => c.method === "POST" && c.path === "/api/project")).toEqual([]);
   });
 
   it("drags the panel column wider and persists the width once", async () => {
@@ -2277,6 +2348,103 @@ describe("the peaks tab (WP-1027)", () => {
     const sent = stub.calls.find((c) => c.path === "/api/peaks/flag");
     // the unusable line's checkbox asks to *use* it — the overrule, not a toggle blind
     expect(sent?.body).toEqual({ index: 1, use_for_indexing: true });
+  });
+
+  it("removes the line under a right-click, with no prompt in the way", async () => {
+    // WP-1032, a scope decision the user took: right-click **removes**, and
+    // refit stays on the table's `↻`.  The `window.prompt` for a component
+    // count went with it — a modal in the one gesture that has no undo.
+    const stub = server({
+      ...boot(),
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/remove": (call: Call) => ({ body: { ...PEAKS_PAYLOAD,
+        api_call: `session.remove_peak(${call.body.index})` } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    const prompt = vi.fn();
+    vi.stubGlobal("prompt", prompt);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // plotly's axis, which jsdom has no layout to build: pixel → 2θ over
+    // 9–15° in 100 px, so 50 px is 12.0° and the 10-px radius is 0.6°
+    const node = host.querySelector<HTMLElement>(".plot")! as any;
+    node._fullLayout = { xaxis: { _offset: 0, _length: 100, range: [9, 15],
+                                  p2d: (px: number) => 9 + px * 0.06 } };
+    node.dispatchEvent(new MouseEvent("contextmenu", { clientX: 50, bubbles: true }));
+    await flush();
+
+    expect(stub.calls.find((c) => c.path === "/api/peaks/remove")?.body).toEqual({ index: 1 });
+    expect(stub.calls.some((c) => c.path === "/api/peaks/refit")).toBe(false);
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
+  it("links the table and the plot by hover, through restyle rather than a repaint", async () => {
+    // Task 1 measured what a repaint of this pattern costs (~111 ms); a mouse
+    // move must not pay it.  One ring trace, two coordinates, `restyle`.
+    const drawn: any[] = [];
+    const restyled: any[] = [];
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[]) => drawn.push(traces),
+      restyle: async (_n: any, update: any, which: number[]) => restyled.push({ update, which }),
+      purge: () => {},
+    });
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // the ring is drawn empty, last, and out of the legend
+    const ring = drawn.at(-1)!.at(-1)!;
+    expect(ring.name).toBe("hovered");
+    expect(ring.x).toEqual([]);
+    expect(ring.showlegend).toBe(false);
+
+    const painted = drawn.length;
+    const rows = [...host.querySelectorAll<HTMLElement>(".panel:not(.hidden) tbody tr")];
+    rows[2].dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await flush();
+
+    // the row lights up, the ring moves to that 2θ, and nothing was repainted
+    expect(rows[2].classList.contains("lit")).toBe(true);
+    expect(restyled.at(-1)!.update.x).toEqual([[14.0]]);
+    expect(restyled.at(-1)!.which).toEqual([drawn.at(-1)!.length - 1]);
+    expect(drawn.length).toBe(painted);
+
+    rows[2].dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+    await flush();
+    expect(rows[2].classList.contains("lit")).toBe(false);
+    expect(restyled.at(-1)!.update.x).toEqual([[]]);   // off the plot, not at 0
+  });
+
+  it("states the gestures whenever the tab that owns them is showing", async () => {
+    // it used to render only in the raw state, so the moment a fit existed the
+    // pointer verbs were undocumented — and each one names its non-pointer route
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.querySelector(".gestures")).toBeNull();   // not while reading the report
+
+    button("Peaks")!.click();
+    await flush();
+    const line = host.querySelector(".gestures")!.textContent!;
+    for (const gesture of ["Click", "drag", "shift-click", "right-click"]) {
+      expect(line).toContain(gesture);
+    }
+    for (const route of ["2θ box", "2θ column", "checkbox", "×"]) {
+      expect(line).toContain(route);
+    }
   });
 
   it("disables Adopt for a medium candidate and quotes the server's why", async () => {

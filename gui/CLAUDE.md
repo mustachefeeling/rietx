@@ -268,6 +268,34 @@ its own as `.ͼ1 .cm-gutters` and wins on specificity. `/api/result/window` send
 decimated afterwards. And plotly's `responsive: true` window-only listener bit a
 **second** panel — any control row under a plot needs the `ResizeObserver`.
 
+**Repairs found by use** (WP-1032, `lib/resize.ts`, `lib/plot.ts`,
+`panels/{Plot,Peaks,Structure3D}.svelte`) is the pass that measured what the
+eleven panels *feel* like, and its rules are about how to find such things.
+**A trailing canvas is not a dropped frame**: `Plotly.Plots.resize` returns a
+promise and does its work in chunks, so an un-coalesced `ResizeObserver` costs
+*latency*, not jank — a drag issued one ~111 ms resize per pointer move and the
+last landed 1.10 s late at a steady 60 fps. Every `Plots.resize` therefore goes
+through `resize.ts:coalesce` (one in flight, at most one queued, and the queued
+one runs, so the last redraw is the final size), and both plotly panels were
+*measured* before taking it. **Instrument before the library loads**: a `$state`
+rune proxies the namespace and caches each property on first read, so patching
+`window.Plotly` after boot counts nothing while the plot redraws — use an init
+script. **A fix that does not remove the symptom is evidence about the cause**:
+the sticky peak header's backdrop is opaque and the panel column's missing
+surface was a real, separate mismatch; what paints a row over the header is
+`opacity: 0.55`, which promotes it to z-index 0 while the sticky `th` sat at
+`auto`. Three rules about what a plot may say: **a tick belongs to the model,
+not the residual** (its own `yaxis3` band in the free `[0.22, 0.28]` gap —
+on `y2` its visibility was a property of which residual was chosen), **hiding a
+curve is by exception** (`curveToggles`/`hidden`, unpersisted, so a curve a
+later build adds arrives drawn), and **a hover link costs a `restyle`, never a
+`react`** — one ring trace whose two coordinates move. Right-click **removes** a
+peak (refit stays on the table's `↻`; the `window.prompt` is gone), and the
+gestures are stated whenever the Peaks tab is up, each naming its non-pointer
+route. `title=` is these forms' only help mechanism, so **every `PresetField`
+and every `instrumentFields()` entry carries one**, pinned by a meta-test over
+every geometry — the assertion found ten mute fields the day it was written.
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

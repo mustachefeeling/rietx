@@ -22,7 +22,9 @@
    * tolerance is a server round trip because the server owns the bond rule.
    */
   import { ApiError, api } from "../api";
+  import { hoverLabel } from "../lib/plot";
   import { loadPlotly } from "../lib/plotly";
+  import { coalesce } from "../lib/resize";
   import {
     DEFAULT_CAMERA,
     axisCamera,
@@ -201,7 +203,8 @@
       node,
       traces(geometry, mode, sphere, cylinder, cell, hidden, showBoundary,
              exaggeration),
-      layout(style.color, camera),
+      layout(style.color, camera,
+             hoverLabel((name) => style.getPropertyValue(name))),
       // the default gl3d modebar floats over a panel this small, and one of its
       // buttons (`tableRotation`) sets `dragmode: "turntable"` — which pins the
       // up vector to +z and would silently break the view-down-axis buttons.
@@ -255,12 +258,16 @@
    * div underneath an already-sized canvas.  Found in Chrome and structurally
    * invisible to jsdom, which has no layout — the canvas overhung the legend and
    * swallowed its clicks, so the chips looked live and were not.
+   *
+   * `coalesce` for the same reason the pattern plot has it, and on the same
+   * evidence rather than by analogy: measured here too, a 60-move drag of the
+   * model pane's column grip issued **60** resizes whose last resolved 1.115 s
+   * after it was asked for (`lib/resize.ts` carries the numbers and the rule).
    */
   function watch() {
     if (observer || !node || typeof ResizeObserver === "undefined") return;
-    observer = new ResizeObserver(() => {
-      if (node && plotly) plotly.Plots?.resize(node);
-    });
+    const fit = coalesce(() => (node && plotly ? plotly.Plots?.resize(node) : undefined));
+    observer = new ResizeObserver(fit);
     observer.observe(node);
   }
 

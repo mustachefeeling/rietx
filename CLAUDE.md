@@ -49,28 +49,28 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix).
-Measured 2026-08-05 at the WP-1039 close, darwin/arm64 M4, in the
-**`worktree-indexer`** worktree whose venv is `[dev,jax]` with **no torch** —
-jax converts skips into passes, so none of these rows compares with a `[dev]`
-count, and the main checkout's `[dev]`/`[dev,jax,torch]` figures were **not**
-re-measured (they predate 1037's 19, 1038's 26 and 1039's 7; last good: the
-WP-1036 close entry, in the v1.0 appendix):
+Measured 2026-08-05: the Python rows at the **WP-1039** close, darwin/arm64 M4,
+in **`worktree-indexer`**, venv `[dev,jax]`, **no torch**; the frontend row at
+the **WP-1032** close (two WPs, parallel worktrees, disjoint code). jax converts
+skips into passes, so no Python row compares with a `[dev]` count, and the main
+checkout's figures were **not** re-measured (they predate 1037/1038/1039's 52
+tests; last good: the WP-1036 entry, in the v1.0 appendix):
 
-- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 7 (five
-  `search_line_order` rows plus one end-to-end row over both engines), no new skips.
+- fast suite: **1708 passed / 67 skipped**, ~52-57 s — 1038's 1701 + 1039's 7
+  (five `search_line_order` rows, one end-to-end over both engines), no new
+  skips; 1032 added no Python test.
 - full suite: **1802 passed / 72 skipped**, 15:04. passed+skipped 1874 = the fast
   selection's 1775 + 99 slow-marked, unchanged from 1038 — every new row is fast.
-- **1039 made the indexing acceptance file the wall clock**, and its rank is a
-  correctness change that is not free: `tests/test_acceptance_indexing.py` is
-  **36** rows and **11:58** (6:10 before 1039, 25:19 before its low-Q pool bound).
-  Its corundum fixture is the full suite's longest single item at 490 s, above
-  `stephens-brucite`'s 434 — the ordering has moved again, so re-read
-  `--durations` rather than quoting this; run alone that fixture is 330 s.
-- frontend (vitest): **282**, unchanged by 1030-1039 (none touched `gui/`);
-  last measured at the WP-1027 close.
-- `--collect-only` undercounts by one per module-level `importorskip` that
-  fires (two on a `[dev]` venv, one here) — resolved, `tests/CLAUDE.md`
-  § Quoting numbers.
+- **1039 made the indexing acceptance file the wall clock**:
+  `tests/test_acceptance_indexing.py` is **36** rows and **11:58**, its corundum
+  fixture now the longest single item — the group ordering moved again, so
+  re-read `--durations` rather than quoting it (figures: the v1.0 record).
+- frontend (vitest): **303** — 282 from WP-1027 through 1039 (none touched
+  `gui/`), +21 at WP-1032; `svelte-check` clean, GUI-server rows **73**.
+- **A module-level `importorskip` collapses its whole module into one skip**, so
+  `--collect-only` undercounts by one per module that fires *and* passed+skipped
+  is venv-dependent — "moves by exactly N" holds within one venv only (one tree:
+  1757 `[dev]` vs 1768 `[dev,jax]`). `tests/CLAUDE.md` § Quoting numbers.
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative

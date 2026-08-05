@@ -35,22 +35,27 @@
     extinction = null,
     run,
     busy,
+    hovered = null,
     say = () => {},
     onpeaks = () => {},
     onindexed = () => {},
     onzoom = () => {},
     onmoved = () => {},
+    onhover = () => {},
   }: {
     peaks: PeaksPayload | null;
     indexAnswer: any;
     extinction?: any;
     run: RunState | null;
     busy: boolean;
+    /** the line the pointer is over, in the plot or in this table (WP-1032) */
+    hovered?: number | null;
     say?: (line: string) => void;
     onpeaks?: (payload: PeaksPayload) => void;
     onindexed?: (answer: any) => void;
     onzoom?: (lo: number, hi: number) => void;
     onmoved?: () => void;
+    onhover?: (index: number | null) => void;
   } = $props();
 
   let failure = $state("");
@@ -195,7 +200,10 @@
         </thead>
         <tbody>
           {#each rows as p (p.index)}
-            <tr class:out={!p.usable}>
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <tr class:out={!p.usable} class:lit={hovered === p.index}
+              onmouseenter={() => onhover(p.index)}
+              onmouseleave={() => onhover(null)}>
               <td class="muted">{p.index}</td>
               <td>
                 <button class="ghost pos" title="zoom the plot to this line"
@@ -474,6 +482,16 @@ convention, not a measurement"
     width: 100%;
   }
 
+  /* `z-index` is the whole of WP-1032's reported "headings clash with the list
+     on scroll", and it is *not* the transparency the report guessed at: this
+     backdrop is opaque in both themes (measured #1e1e1e / #ffffff).  What puts a
+     row on top of it is `tr.out td { opacity: 0.55 }` two rules down — an
+     element with opacity < 1 paints as though it were positioned at z-index 0,
+     and `tbody` follows `thead` in tree order, so a *dimmed* row wins the tie
+     against a sticky header left at `z-index: auto`.  Which is why only the
+     excluded rows ever clashed, and why the fix belongs here rather than on the
+     rows: dimming a row is a statement about the row, not about paint order.
+     (Measured: `elementFromPoint` inside the header band returned the chip.) */
   th {
     text-align: left;
     font-weight: 600;
@@ -481,6 +499,7 @@ convention, not a measurement"
     padding: 2px 6px;
     position: sticky;
     top: 0;
+    z-index: 1;
     background: var(--panel);
   }
 
@@ -497,6 +516,11 @@ convention, not a measurement"
 
   tr.best td {
     background: color-mix(in srgb, var(--ok) 8%, transparent);
+  }
+
+  /* the hover link, both ways: this row and the plot's ring name one line */
+  tr.lit td {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   .pos {

@@ -55,29 +55,29 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1039](wp/1039-search-line-count.md)** (2026-08-05) — the WP asked
-how many lines a search enumerates on; the answer is **which**. Taking the first
-twenty in 2θ order assumes the lowest-angle components are the strongest
-reflections, which is false of any pattern opening on background: NAC holds six of
-its cell's lines in that twenty against 268 of 285. `search_line_order` now takes
-the strongest N, ties broken by Q, so position-only lists — the whole bethanechol
-benchmark — are untouched. **Raising N instead loses answers**, because
-`indexes_the_search_lines` is an absolute budget rather than the membership test
-Conograph's "a false line costs only computation" rests on. Before it:
-[1038](wp/1038-shift-reflection-pairs.md) (shift from harmonic pairs),
-[1037](wp/1037-indexing-time-ceiling.md), [1036](wp/1036-crystal-system-settings.md).
-Close narratives in [milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting
-here".
+**Last closed: two on 2026-08-05, in parallel worktrees over disjoint code** —
+[1039](wp/1039-search-line-count.md) and [1032](wp/1032-gui-repairs.md); before
+them, on 2026-08-04, [1038](wp/1038-shift-reflection-pairs.md),
+[1037](wp/1037-indexing-time-ceiling.md) and
+[1036](wp/1036-crystal-system-settings.md). Narratives and numbers in
+[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
 
-The method lesson is now five sessions running (1030 → 1036 → 1037 → 1038 → 1039):
-**instrument before ranking, and let the by-hand acceptance run judge.** 1039 adds
-a second edge — **read the paper, not the summary of it**: three of its own stated
-premises failed checking (the asymmetry is asserted in one sentence, not proved; 48
-is an upper threshold on an AUTO value; the 18–250× prune was never timed), the
-WP-0501 b₂ precedent paying out a third time. And a withdrawal worth generalising:
-**WP-1026's "truncating NAC's 2θ does not work — do not spend that hour again" was
-measured with the broken selection**, and redone the truth ranks first at −22 ppm.
-A recorded no-go inherits the defects of the run that produced it.
+**1039** asked how many lines a search enumerates on; the answer is **which**.
+The first twenty in 2θ order assumes the lowest-angle components are the
+strongest reflections — false of any pattern opening on background (NAC: six of
+its cell's lines there, against 268 of 285). `search_line_order` takes the
+strongest N; **raising N loses answers**, the budget being absolute.
+
+**1032**, nine GUI repairs from a use session: the lag is a **trailing canvas,
+not stutter** (a drag issued sixty ~111 ms resizes, the last landing 1.10 s late
+at a steady 60 fps with **zero** long tasks), and "headings clash on scroll" was
+`opacity: 0.55` on excluded rows outranking a sticky `z-index: auto` header.
+
+The method lesson is now six sessions running (1030 → 1036 → 1037 → 1038 → 1039
+→ 1032): **instrument before ranking, and let the by-hand acceptance run judge.**
+Four edges, each argued in its own WP: **read the paper, not the summary** and
+**a no-go inherits the defects of its run** (1039); **instrument before the
+library loads** and **a fix that leaves the symptom is evidence** (1032).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -95,11 +95,11 @@ A recorded no-go inherits the defects of the run that produced it.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
    the bethanechol global score, now unblocked by 1030. Its `### Inherited`
    carries what 1030 measured and what the harness still lacks.
-4. [1032](wp/1032-gui-repairs.md) → [1033](wp/1033-plot-range-regions.md), then
+4. [1033](wp/1033-plot-range-regions.md), then
    [1034](wp/1034-panel-layout.md) and [1035](wp/1035-symmetry-surfaced.md) —
-   the 2026-08-04 use session. Behind 1028/1026 because **none of them moves the
-   bar** while those two do. 1035 is unblocked and its `### Inherited` carries
-   1036's gift: `cell_constraints(sg)` is the oracle its preview needs.
+   the rest of the 2026-08-04 use session (1032 closed). Behind 1028/1026 because
+   **none of them moves the bar**. Both 1033 and 1035 are unblocked; each
+   `### Inherited` says what changed under it.
 5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
@@ -214,7 +214,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1015](wp/1015-structure-viewer.md) | Structure viewer, zero new dependencies | ✅ 2026-07-30 (+ scene pass same day) | 1010 (1014 soft) |
 | [1016](wp/1016-sequential-series-panel.md) | Sequential series panel | ⬜ | 1008, 1010, 1011 |
 | [1029](wp/1029-gui-usability.md) | GUI usability: legibility, layout, colour, theming | ✅ 2026-07-30, second pass 2026-07-31 | 1010–1015 |
-| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ⬜ | 1010–1015, 1027, 1029 |
+| [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ⬜ | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ⬜ | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
