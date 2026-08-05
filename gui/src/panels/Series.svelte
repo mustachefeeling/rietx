@@ -20,10 +20,16 @@
    *
    * The plot area is one plotly div with two views: a parameter's trajectory
    * across the series, or one pattern's own obs/calc/Δ. Selecting a pattern
-   * switches it, which is what "the plot follows" means here — and every control
-   * sits *above* it, the shape plotly's window-only `responsive` listener forces
-   * (a control row beneath a plot has its clicks swallowed by an oversized
-   * canvas), with the `ResizeObserver` as well because this panel scrolls.
+   * switches it, which is what "the plot follows" means here.
+   *
+   * Every control sits *above* the plot, which is WP-1015's shape — but the
+   * reason it gives does not apply here and the difference is worth knowing:
+   * measured in a browser, these traces render as **SVG**, so the plot div holds
+   * no canvas and cannot swallow a click beneath it (`Plot.svelte` draws its
+   * residual with `scattergl`, and *that* is what makes one there). What the
+   * `ResizeObserver` is for is the other half: this panel scrolls and the column
+   * expands, and the plot has to refit its box — 539 → 1480 px when the column
+   * takes the window.
    */
   import { onDestroy } from "svelte";
 
@@ -113,10 +119,10 @@
     }
   });
 
-  /** A run just ended (the shell calls this): the answer is the whole outcome. */
+  /** A run just ended (the shell calls this): the answer is the whole outcome,
+   *  and `load` fetches it off `has_result` — so this is one call, not two. */
   export async function reload() {
     await load();
-    await loadAnswer();
   }
 
   async function load() {
@@ -132,6 +138,7 @@
     } catch (error) {
       setup = null;
       failure = (error as Error).message;
+      loaded = false;   // a failed first fetch must not make the tab inert
     }
   }
 
