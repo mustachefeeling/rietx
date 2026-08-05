@@ -226,6 +226,75 @@ def _missed_count(fig) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------
+# the gallery's declaration tables, and the one test the scoreboard turns on
+# ----------------------------------------------------------------------
+def test_every_gallery_table_names_a_declared_dataset():
+    """Four tables key on the same stems; a typo in one silently drops a row.
+
+    ``DATASETS`` says what a dataset is, ``PAGE_ORDER`` places it,
+    ``TRUTHS`` gives it a known cell and ``SCOREBOARD_STEMS`` counts it.  A
+    scoreboard stem with no truth is the dangerous one: its verdict computes as
+    ``unknown``, so it silently leaves the count instead of failing — which is
+    the same class of defect as the arithmetic this scoreboard replaced.
+    """
+    from tests import indexing_gallery as g
+
+    assert set(g.PAGE_ORDER) == set(g.DATASETS), (
+        set(g.PAGE_ORDER) ^ set(g.DATASETS))
+    assert len(g.PAGE_ORDER) == len(set(g.PAGE_ORDER)), "duplicate in PAGE_ORDER"
+    assert set(g.TRUTHS) <= set(g.DATASETS), set(g.TRUTHS) - set(g.DATASETS)
+    assert set(g.SCOREBOARD_STEMS) <= set(g.TRUTHS), (
+        f"{set(g.SCOREBOARD_STEMS) - set(g.TRUTHS)} would be counted as "
+        "'unknown' and vanish from the scoreboard rather than fail")
+
+
+def test_an_undeclared_dataset_cannot_reach_the_gallery(bcc_peaks):
+    """``draw`` raises on an unknown stem rather than writing an unlabelled card.
+
+    A silent skip is what puts a dataset in the suite and not in the summary,
+    which is precisely how the scoreboard came to describe nine datasets under a
+    total of eight.
+    """
+    from tests import indexing_gallery as g
+
+    with pytest.raises(KeyError, match="no entry"):
+        g.draw("a_dataset_nobody_declared", peaks=bcc_peaks)
+
+
+def test_the_truth_test_is_the_lattice_and_the_centring(bcc_candidates):
+    """Two centrings of one metric are two lattices, and only one is the truth.
+
+    ``same_lattice`` compares Niggli-reduced A..F, so it *deliberately* calls a
+    setting change equality — and a primitive description of a centred lattice
+    reduces to the same metric.  Without the centring clause both NAC candidates
+    scored as the truth on identical axes, and the scoreboard would have counted
+    a wrong answer as right.  The same lesson is recorded one rank down in
+    ``engines.solution_key`` and one rank up in WP-1040's monoclinic row.
+    """
+    from pxrdref.indexing.qspace import af_from_cell
+    from tests import indexing_gallery as g
+
+    af = [float(v) for v in af_from_cell(CELL)]
+    ranking = [{"centring": "P", "af": af}, {"centring": "I", "af": af}]
+    assert "lab6" in g.TRUTHS, "this test needs a declared cubic P truth"
+
+    truths = dict(g.TRUTHS)
+    truths["lab6"] = (CELL, "I")
+    g.TRUTHS.update(truths)
+    try:
+        assert g.truth_rank("lab6", ranking) == 2, (
+            "the P row reduces to the same metric; matching it would read a "
+            "wrong centring as the truth")
+        truths["lab6"] = (CELL, "P")
+        g.TRUTHS.update(truths)
+        assert g.truth_rank("lab6", ranking) == 1
+    finally:
+        g.TRUTHS["lab6"] = ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P")
+
+    assert g.truth_rank("no_such_stem", ranking) is None
+
+
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,
                                                              bcc_peaks):
     """``confidence`` defaults to ``"low"``, so printing it unconditionally puts
