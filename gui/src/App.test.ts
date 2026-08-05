@@ -499,6 +499,24 @@ describe("the shell", () => {
     expect(button("Cancel")?.disabled).toBe(false);
   });
 
+  it("drops the last run's Rwp once the result it described is gone", async () => {
+    // An edit discards the curves server-side — `set_values`: "the fitted curve
+    // and statistics described the *old* values" — but the run *frame* survives
+    // it, so the header printed `Rwp 9.582%` beside a plot saying "No fitted
+    // curves yet".  Found in WP-1034's browser pass, which is the first time
+    // the two were on screen together.  The frame is still the live source
+    // while a run is in flight, which is the case above.
+    const ended = { ...IDLE_RUN,
+                    run: { ...IDLE_RUN.run, kind: "fit", status: "converged",
+                           rwp: 0.09582, gof: 3.633, node_id: "n0007" } };
+    vi.stubGlobal("fetch", server(boot(PROJECT, ended)).fetcher);   // /api/result 409s
+    app = mount(App, { target: host });
+    await flush();
+
+    expect(host.querySelector(".stats")?.textContent?.trim()).toBe("");
+    expect(host.textContent).toContain("No fitted curves yet");
+  });
+
   it("does not present a hopeless fit in the register of a good one", async () => {
     // WP-1029 item (c). The judgement is the *report's* — `maturity` quotes
     // MATURITY_MAX_RWP, the Rwp past which Layer 1 refuses to speak about
@@ -1103,31 +1121,63 @@ describe("disclosure and the command palette", () => {
     expect(writes[0].body).toEqual({ ui: { console_height: 210 } });
   });
 
-  it("selects the top-level view from one segmented control", async () => {
+  it("selects the layout from one segmented control, and keeps the plot mounted", async () => {
     vi.stubGlobal("fetch", server(boot()).fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const group = host.querySelector<HTMLElement>('[aria-label="view"]')!;
+    // WP-1034: the top-level choice is no longer *which pane* — Model and Text
+    // are tabs — it is how much window the panel column gets.  Two options, the
+    // current one lit, and neither click means two things (WP-1029's rule).
+    const group = host.querySelector<HTMLElement>('[aria-label="layout"]')!;
     const labels = [...group.querySelectorAll("button")].map((b) => b.textContent?.trim());
-    expect(labels).toEqual(["Plot", "Model", "Text"]);
-    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Plot");
+    expect(labels).toEqual(["Split", "Full"]);
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Split");
+    expect(host.querySelector(".plotcol")?.classList.contains("hidden")).toBe(false);
 
-    button("Model")!.click();
+    button("Full")!.click();
     await flush();
-    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Model");
-    // …and clicking Model again stays on Model.  The old pair toggled, so the
-    // same click meant two different things depending on where you already were
-    button("Model")!.click();
-    await flush();
-    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Model");
+    expect(host.querySelector(".side")?.classList.contains("wide")).toBe(true);
+    // hidden, not unmounted — a layout click must not purge the drawn window
+    expect(host.querySelector(".plotcol")?.classList.contains("hidden")).toBe(true);
+    expect(host.querySelector(".plot")).not.toBeNull();
+    // the tab strip travels with the column, which is what makes this a hatch
+    // for every panel rather than for the two that used to have their own mode
+    expect(host.querySelectorAll("nav.tabs button").length).toBe(8);
+    // …and no splitter, because there is nothing on the other side of it
+    expect(host.querySelector('.side > .grip[data-grow="left"]')).toBeNull();
 
-    // leaving is a button named for where you land, not a Close inside the pane
-    expect([...host.querySelectorAll("button")].some((b) => b.textContent?.trim() === "Close"))
-      .toBe(false);
-    button("Plot")!.click();
+    button("Split")!.click();
     await flush();
-    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Plot");
+    expect(group.querySelector("button.on")?.textContent?.trim()).toBe("Split");
+    // a layout is a view choice, not a setting: nothing reached the document
+    expect(host.querySelector(".side")?.classList.contains("wide")).toBe(false);
+  });
+
+  it("carries eight tabs with no label shortened and every panel reachable", async () => {
+    const stub = server({ ...boot(), ...FITTED });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>("nav.tabs button")];
+    expect(tabs.map((b) => b.textContent?.trim())).toEqual([
+      "Parameters", "Plan", "Peaks", "Model", "Text", "Report", "History", "Build"]);
+    // the overflow rule is `flex-wrap` plus `min-width: max-content`: a strip
+    // that hides a tab or elides its name is worse than the mode buttons it
+    // replaced, so the *count* and the *labels* are the assertion jsdom can make
+    expect(tabs.every((b) => (b.textContent ?? "").trim().length > 0)).toBe(true);
+
+    for (const [label, marker] of [["Plan", "scale+bkg"], ["Peaks", "peak"],
+                                   ["Report", "21.600%"], ["History", "2 lanes"],
+                                   ["Build", "WP-1016"]] as const) {
+      button(label)!.click();
+      await flush();
+      expect(host.textContent?.toLowerCase()).toContain(marker.toLowerCase());
+    }
+    // every panel is still in the document after the tour — switching must not
+    // throw away a filter, a pending edit or a two-node comparison
+    expect(host.querySelectorAll(".side .panel").length).toBe(8);
   });
 
   it("stamps an explicit theme on the root and persists the choice", async () => {
@@ -1653,6 +1703,27 @@ describe("the text pane", () => {
     await typeInto(TEXTDOC + "# checked against the certificate 2026-07-30\n");
     expect(host.textContent).toContain("will not survive the next render");
   });
+
+  it("keeps a typed buffer across a trip to another tab", async () => {
+    // The pane is a tab now (WP-1034) rather than a mode over the window, and
+    // the property WP-1013 shipped it with has to survive that move: every panel
+    // stays mounted, so a buffer typed but not applied is still there — and the
+    // editor is not rebuilt, which would take the undo history with it.
+    await openText();
+    const mine = TEXTDOC + "excluded 7.5 8\n";
+    await typeInto(mine);
+    const view = editorView();
+
+    button("Parameters")!.click();
+    await flush();
+    expect(host.querySelector(".panel .cm-content")).not.toBeNull();  // mounted, hidden
+
+    button("Text")!.click();
+    await flush();
+    expect(editorView()).toBe(view);                    // the same editor, not a new one
+    expect(editorView().state.doc.toString()).toBe(mine);
+    expect(host.textContent).toContain("edited");
+  });
 });
 
 // ----------------------------------------------------------------------
@@ -1752,6 +1823,60 @@ describe("the import wizard", () => {
     expect(host.textContent).toContain("expected block header");
     expect(button("Create project")?.disabled).toBe(true);
   });
+
+  it("carries the recent list inside itself, reachable with a project open", async () => {
+    // WP-1034: the only recent list used to be the *empty state's*, so with a
+    // project open there was no route back to another one short of restarting
+    // the program.  The wizard is one component either way (WP-1014), so the
+    // list lives in it and the header's `Open…` is the route.
+    const other = { ...PROJECT, path: "/tmp/nac.pxrd",
+                    data: { ...PROJECT.data, filename: "nac.fxye" } };
+    const stub = server({
+      ...boot(),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.pxrd", name: "nac.pxrd" }] } }),
+      "/api/project/open": () => ({ body: other }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    expect(host.textContent).not.toContain("Open a recent project");   // not until asked
+
+    button("Open…")!.click();
+    await flush();
+    expect(host.textContent).toContain("Open a recent project");
+    expect(host.textContent).toContain("nothing is unsaved");
+
+    button("nac.pxrd")!.click();
+    await flush();
+    const opened = stub.calls.find((c) => c.path === "/api/project/open")!;
+    expect(opened.body).toEqual({ path: "/tmp/nac.pxrd" });
+    // the session's project is replaced, and the shell lands on the parameters
+    expect(host.textContent).toContain("nac.fxye");
+    expect(host.querySelector("nav.tabs button.on")?.textContent?.trim()).toBe("Parameters");
+    expect(host.textContent).toContain("project.open(/tmp/nac.pxrd)");
+  });
+
+  it("shows a refused open beside the list that asked for it", async () => {
+    const message = "file has changed since the project was created (sha256 1a2b3c4d)";
+    const stub = server({
+      ...boot(),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.pxrd", name: "nac.pxrd" }] } }),
+      "/api/project/open": () => ({ status: 400,
+        body: { error: { code: "PROJECT_ERROR", message } } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Open…")!.click();
+    await flush();
+    button("nac.pxrd")!.click();
+    await flush();
+
+    // verbatim, in the wizard, and the project that was open is still open —
+    // every Project.open refusal names a different remedy (WP-1008)
+    expect(host.querySelector(".wizard .bad")?.textContent).toContain("sha256 1a2b3c4d");
+    expect(host.textContent).toContain("synth.xye");
+  });
 });
 
 /** The parameter rows the model editor needs on top of the table's own fixture:
@@ -1793,6 +1918,15 @@ describe("the model editor", () => {
     expect(field("phases.0.atoms.1.dof.0")).toBeTruthy();
     expect(host.textContent).toContain("[1 0 0]");
     expect(field("phases.0.atoms.0.dof.0")).toBeFalsy();
+  });
+
+  it("puts the atom table in a scroller of its own", async () => {
+    // WP-1034: the table's `min-content` is 448 px and the pane is now routinely
+    // 340-560 wide, so *something* has to scroll.  Before this it was the whole
+    // column, which took the cell row and the headings sideways with the table.
+    await openModel();
+    const table = host.querySelector("table.atoms")!;
+    expect(table.parentElement?.classList.contains("tablewrap")).toBe(true);
   });
 
   it("sends a value the parameter table owns through set_values", async () => {
@@ -1901,7 +2035,9 @@ describe("the model editor", () => {
       "/api/structure/aniso": () => ({ body: { node_id: "n0004", changed: true,
                                                structure: STRUCTURE, sites: SITES } }),
     });
-    const checkbox = [...host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')][0];
+    // scoped to the atom table: the parameter tab's vary boxes are mounted too
+    // (every panel is), and they come first in the document
+    const checkbox = host.querySelector<HTMLInputElement>('table.atoms input[type="checkbox"]')!;
     checkbox.checked = true;
     checkbox.dispatchEvent(new Event("change", { bubbles: true }));
     await flush();

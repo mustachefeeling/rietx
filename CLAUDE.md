@@ -50,16 +50,16 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-05 at the **WP-1040 task-3** close, darwin/arm64 M4, `worktree-indexer`,
-venv `[dev,jax]`, **no torch** — jax turns skips into passes, so no `[dev]` compare:
+venv `[dev,jax]`, no torch — so **WP-1034's `[dev]` figures do not compare**; it
+was frontend-only and moved no python row.
 
 - fast suite: **1738 passed / 67 skipped**, **3-4 min** — 1040's 1722 + 16: 6 new
   rows plus **10 meta-tests** (`validation_matrix` parametrises five per `Claim`).
-  It was ~55 s at the 1039 close and **three engines is why**; the lever is
-  narrowing what those `index_pattern`-driven rows search, never their budgets.
+  ~55 s at the 1039 close and **three engines is why**; the lever is narrowing what
+  those `index_pattern`-driven rows search, never their budgets.
 - full suite: **1835 passed / 72 skipped**, 29-36 min (fast's 1805 + 30 slow).
-  `test_acceptance_indexing.py` sets the wall clock: **38 rows, 13-14 min** against
-  **20:03** at the 1040 close — same file, so that spread is machine state.
-- frontend (vitest): **321** at the WP-1033 close, `svelte-check` clean; untouched.
+  `test_acceptance_indexing.py` sets the clock: **38 rows, 13-14 min** against **20:03** at the 1040 close — same file, so that spread is machine state.
+- frontend (vitest): **330** (321 at 1033, +9 at 1034), `svelte-check` clean; `test_gui_*.py` collect **81**; WP-1040 touched no `gui/` file.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -204,7 +204,7 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1015, 1029, 1032-1033) is `pxrdref gui [PROJECT.pxrd]` — stdlib
+The **GUI** (WP-1008…1015, 1029, 1032-1034) is `pxrdref gui [PROJECT.pxrd]` — stdlib
 `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. `gui/session.py`
 holds every verb as a plain method and nothing there knows about HTTP;
 `gui/server.py` is the wire layer a Tauri host would replace. The rulebook —

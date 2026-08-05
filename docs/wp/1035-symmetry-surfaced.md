@@ -21,6 +21,21 @@ visible in the parameter table as an effect with no named cause.
 
 ## Context
 
+### Inherited from [1034](1034-panel-layout.md) (added 2026-08-05, on its close)
+
+**The pane this WP edits is a tab now, and it is routinely 340–560 px wide.**
+`Model.svelte` reflows to one stacked column below 932 px (`modelStacks` in
+`lib/resize.ts`, the sum of the three columns' measured floors), so a symmetry
+summary added to the structure column must read at **~340 px**, not only at the
+1500 px full-window layout — check both, and remember the header's `Split |
+Full` is the escape hatch for anything genuinely wide. Two mechanics that come
+with it: a column's minimum is stated as a **flex basis** (the structure
+column's is 472 px, the atom table's `min-content` plus padding) rather than an
+equal share, and the atom table sits in its own `overflow-x` wrapper, so
+anything you add beside it must not re-introduce a column-wide side scroll.
+`.column` widths are still the shell's `ui.model_columns`, and a drag still
+overrides both.
+
 ### Inherited from [1036](1036-crystal-system-settings.md) (added 2026-08-04, on its close)
 
 1036 was this WP's blocker and it landed, so read the following **before** the
