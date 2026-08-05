@@ -543,6 +543,168 @@ def test_borda_shares_the_rank_of_tied_candidates():
     assert worst[0] < worst[1]
 
 
+def _member(name, value):
+    return FigureOfMerit(name=name, value=value, n_lines=1, n_possible=1,
+                         k_sigma=3.0)
+
+
+def test_the_log_sum_reads_the_margin_where_borda_reads_only_the_winner():
+    """The NAC defect, reduced to its arithmetic (WP-1041).
+
+    The measured shape on 11-BM NAC: the wrong candidate takes four members, two
+    of them by 0.4 % and 0.01 %, and loses one by 516×.  Borda spends one whole
+    point on a win of any size, so four hairlines outvote a rout.  These are
+    those margins, not the NAC values — the acceptance row owns those.
+    """
+    from pxrdref.indexing.fom import log_sum_scores
+
+    names = ["a", "b", "c", "d", "e"]
+    near_wins = [_member(n, v) for n, v in
+                 zip(names, [1.004, 1.0001, 1.02, 1.01, 1.0])]
+    one_rout = [_member(n, v) for n, v in
+                zip(names, [1.0, 1.0, 1.0, 1.0, 516.0])]
+
+    borda = borda_scores([near_wins, one_rout])
+    assert borda[0] > borda[1], "the premise: Borda leads with the near-winner"
+
+    logs = log_sum_scores([near_wins, one_rout])
+    assert logs[1] > logs[0], "the fix: one 516x separation outweighs four hairlines"
+
+
+def test_a_raw_log_sum_weights_each_member_by_its_dynamic_range():
+    """Why the log-sum is measured but **not wired** (WP-1041).
+
+    Summing raw logs spends influence in proportion to how far a member's values
+    spread across the candidate set, and the panel's members do not spread alike.
+    This is certified corundum's shape, in the small: one candidate wins four
+    members by the ~1.2-1.5× a bounded fraction can move, the other wins one
+    wide-range member by 12×, and the wide member takes it — there on a subcell
+    that could not index 12 of the observed lines.
+
+    Borda gets this case *right* for the wrong reason (it cannot see margins at
+    all), which is why the corpus scores them 5 of 6 apiece.  The trap to
+    remember is that the fix is not "use magnitudes": it is that a margin is
+    comparable **within** a member and not across members.
+    """
+    from pxrdref.indexing.fom import log_sum_scores
+
+    names = ["m20", "f_n", "indexed_fraction", "indexed_intensity_fraction",
+             "m_rev"]
+    broad_range_winner = [_member(n, v) for n, v in
+                          zip(names, [15.32, 10.88, 0.7818, 0.8333, 29.99])]
+    four_narrow_wins = [_member(n, v) for n, v in
+                        zip(names, [22.52, 16.05, 0.9273, 0.9844, 2.483])]
+
+    assert borda_scores([four_narrow_wins, broad_range_winner])[0] > \
+        borda_scores([four_narrow_wins, broad_range_winner])[1], \
+        "Borda counts four wins against one"
+
+    logs = log_sum_scores([four_narrow_wins, broad_range_winner])
+    assert logs[1] > logs[0], (
+        "one 12x win on the widest-ranging member outweighs four wins on "
+        "members that cannot move that far — the measured corundum failure")
+
+
+def test_the_log_sum_does_not_depend_on_any_members_units():
+    """Rescaling a member shifts every candidate equally, so the order holds.
+
+    This is the property that made *ranks* attractive and the reason a plain
+    weighted sum was refused: the panel mixes a ratio, an inverse-degrees
+    quantity and three fractions, and there is no data on which to set weights.
+    A log-sum keeps unit-invariance and, unlike a rank, keeps the margin too.
+    """
+    from pxrdref.indexing.fom import log_sum_scores
+
+    rng = np.random.default_rng(1041)
+    names = ["m20", "f_n", "indexed_fraction"]
+    panels = [[_member(n, float(v)) for n, v in zip(names, row)]
+              for row in rng.uniform(0.1, 40.0, size=(6, 3))]
+    base = log_sum_scores(panels)
+
+    for k, factor in enumerate((1e-6, 3.5, 2.4e5)):
+        scaled = [[_member(f.name, f.value * factor if i == k else f.value)
+                   for i, f in enumerate(p)] for p in panels]
+        moved = log_sum_scores(scaled)
+        assert np.argsort(-moved).tolist() == np.argsort(-base).tolist()
+        # and the shift is the same constant for every candidate
+        assert np.allclose(moved - base, np.log(factor))
+
+
+def test_the_aggregate_drops_the_member_that_is_a_product_of_two_others():
+    """``m_sym`` is ``M̃ₙ × M^Rev``, so in logs it re-adds ``m_rev`` exactly.
+
+    Borda could not see this — a rank aggregation is blind to one member being a
+    monotone function of others — so the exclusion arrives with the log-sum.
+
+    The identity is **re-derived here from the module's public pieces** rather
+    than read back off the value that computed it, because it is the whole
+    argument for the exclusion.  Note the factor is ``M̃ₙ``, the forward figure on
+    the *reversed* window and denominator — **not** the panel's ``m20``, which
+    uses de Wolff's own window and the distinct-line count.  On this fp-exact
+    fixture the two happen to coincide; on real data they do not (11-BM NAC:
+    ``m_sym / m_rev`` = 1.15 against an ``m20`` of 1.43).
+    """
+    from pxrdref.indexing.fom import (
+        AGGREGATE_EXCLUDES,
+        lattice_reflections,
+        log_sum_scores,
+        n_cal,
+        nearest_discrepancy,
+        trimmed_mean,
+    )
+
+    assert AGGREGATE_EXCLUDES == frozenset({"m_sym"})
+
+    q, q_esd, tt, esd_tt, cell = _panel_inputs()
+    panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
+                      LAM)
+    by = {f.name: f.value for f in panel}
+    assert by["m_rev"] > 0.0 and by["m_sym"] > 0.0
+
+    # M̃ₙ, derived independently: same window, same 1/m denominator
+    order = np.argsort(q)[:20]
+    obs, esd = q[order], q_esd[order]
+    _hkl, pred, mult = lattice_reflections(
+        cell, "cubic", "P", LAM, float(np.max(tt)), multiplicity=True)
+    q_i = float(pred[np.argmin(np.abs(pred - obs[0]))])
+    q_n = float(pred[np.argmin(np.abs(pred - obs[-1]))])
+    lo, hi = (q_i, q_n) if q_i <= q_n else (q_n, q_i)
+    count = n_cal(pred, mult, lo, hi)
+    delta_fwd = trimmed_mean(nearest_discrepancy(obs, pred), 0)
+    tilde = ((q_n - q_i) / (2.0 * count)) / max(delta_fwd, float(np.median(esd)))
+
+    assert by["m_sym"] == pytest.approx(tilde * by["m_rev"], rel=1e-9), (
+        "m_sym is M̃ₙ x M^Rev by construction — that product is why keeping it "
+        "in a log-sum counts the reversed direction twice")
+
+    # and the aggregate acts on that: the member is absent from what it sums
+    with_sym = [[*panel]]
+    without = [[f for f in panel if f.name != "m_sym"]]
+    assert log_sum_scores(with_sym)[0] == pytest.approx(log_sum_scores(without)[0])
+
+
+def test_a_silent_member_does_not_collapse_every_score_to_minus_infinity():
+    """A member every candidate scores zero on carries no information.
+
+    Taking its log would send every score to ``-inf`` and destroy the ranking the
+    other members had already decided, so it is skipped.  A zero on a member
+    where *someone* scored still floors, and still ranks worst.
+    """
+    from pxrdref.indexing.fom import log_sum_scores
+
+    silent = [[_member("a", 0.0), _member("b", 2.0)],
+              [_member("a", 0.0), _member("b", 1.0)]]
+    scores = log_sum_scores(silent)
+    assert np.all(np.isfinite(scores))
+    assert scores[0] > scores[1]
+
+    floored = log_sum_scores([[_member("a", 1.0)], [_member("a", 0.0)],
+                              [_member("a", float("nan"))]])
+    assert floored[0] > floored[1]
+    assert floored[1] == pytest.approx(floored[2]), (
+        "a zero and a figure that could not be computed are both 'worst'")
+
+
 def test_predicted_lines_counts_distinct_lines_not_orbits():
     """A coincidence is one line (found by WP-1021).
 

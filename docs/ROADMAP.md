@@ -74,9 +74,9 @@ the diagnostic spent two years explaining a silence it had itself caused.
 **Open, and next:** the magnitude-aware aggregate, measured on NAC. Borda gives P the
 win 4-3 while it takes two members by **0.4 % and 0.01 %** and loses `m_rev` **516×**;
 Le Bail agrees with I. *A near-tie counting as a full win is the defect.* The design
-is a **log-sum** — magnitude-aware, still unit-invariant — minus `m_sym`, exactly the
-sum of the other two in logs; measure it across every row first. Then tasks 5-8:
-acceptance PNGs, the contamination sweep, the scoreboard re-measure, the summary.
+is a **log-sum** — magnitude-aware, still unit-invariant — minus `m_sym`, which is
+`M̃ₙ × M^Rev` so in logs it re-adds `m_rev` (`M̃ₙ` is *not* the panel's `m20`: 1.15
+against 1.43 on NAC). Then tasks 5-8: PNGs, contamination, scoreboard, summary.
 
 **Last closed: [1035](wp/1035-symmetry-surfaced.md)** — a phase's space group is read
 out, names the **cause** of every row symmetry holds, and is **editable behind a

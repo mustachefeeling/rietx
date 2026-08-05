@@ -1183,16 +1183,25 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     # Oishi-Tomiyasu was adopted for, and Le Bail confirms it (I predicts 0 of
     # 837 absent, P predicts 92 of 1668).
     #
-    # Balancing the two directions gives a tie, not the answer.  A log-sum
-    # (rank on the panel's *product*) is magnitude-aware and still invariant to
-    # each member's units, since a unit change shifts every candidate equally —
-    # and it must drop `m_sym`, because log(m_sym) = log(M̃₂₀) + log(M^Rev)
-    # exactly, so keeping both counts the reversed direction twice.  Needs
-    # measuring across every row before it lands.  **When it does, this
-    # assertion inverts.**
+    # **The log-sum that was going to fix this has been measured, and it does
+    # not** (WP-1041).  Ranking on the panel's product is magnitude-aware and
+    # unit-invariant, and it does put the I description first here — but across
+    # six known-cell datasets it scores 5 of 6, exactly Borda's, because summing
+    # raw logs weights each member by its dynamic range: on certified corundum
+    # `m_rev` spans 2.5-356 where the coverage fractions span 0.78-0.99, and it
+    # promotes a half-volume subcell indexing 43 of 55 lines over the truth's 51.
+    # Standardising the logs cures corundum and degenerates exactly here, since
+    # with two candidates every z-score is +/-1 and NAC reverts to this answer.
+    # Down-weighting `m_rev` reaches 6 of 6 on a weight two datasets bracket only
+    # to 0.034-0.294 — one constant fitted on two points.
+    #
+    # So this row keeps its defect **and its reason**: the margin is comparable
+    # within a member, not across members, and no aggregate of these seven
+    # numbers has yet been shown to read both patterns right.  `log_sum_scores`
+    # is in `fom.py`, tested and unwired, with the measurement in its docstring.
     assert res.candidates[0].centring == "P", (
-        "the panel now leads with the centring that predicts nothing absent — "
-        "good; invert this assertion and delete the borda note with it")
+        "the panel still leads with the centring Le Bail refutes; invert this "
+        "only with a measured aggregate, not a predicted one")
 
     # …and it is still not promoted, on caveats that name why
     best = res.candidates[0]
