@@ -10,6 +10,43 @@ warm-staged → cold-staged), and a pattern that stays diverged after the last
 rung is quarantined: flagged, excluded from the reseed statistics, and never
 used to seed its successor.
 
+### Inherited
+
+**From [1016](1016-sequential-series-panel.md), 2026-08-05 — `sequential.py`
+moved under this WP's feet, and the line numbers in Context below are stale.**
+`SequentialRefinement.fit` now takes `events=`/`cancel=`, so `_chain` and
+`_fit_one` gained parameters and the ladder this WP builds has to thread them
+through every new rung. Five things follow.
+
+- **`_fit_one` takes `stream=`/`stamp=`/`cancel=` keyword-only**, and each attempt
+  wraps the caller's stream in `_SeriesStream`, which stamps `series_index`,
+  `series_label`, `series_n`, `series_pass` and — on the cold refit —
+  `series_cold=True`. A three-rung ladder means **three** attempts on one pattern,
+  so give each rung a distinguishing stamp field rather than reusing
+  `series_cold`: a consumer counting `fit_end`s per pattern needs to tell the
+  rungs apart, and the console renders the stamp as one `[label k/N ↩❄]` prefix
+  (`gui/src/lib/stream.ts`) that will need a rung glyph.
+- **Every stamp key is an *added* `data` field on an existing kind**, so
+  `EVENT_SCHEMA_VERSION` stays "2". A new rung must not tempt a new `EventKind` —
+  `history/events.py`'s additivity rule is what keeps the version usable as a
+  compatibility signal.
+- **`_chain` already has a mid-walk exit**: a `RefinementCancelled` from any
+  attempt breaks the loop, and a cancel during the *cold* refit deliberately keeps
+  the warm fit (it is a complete fit of that pattern). The ladder's keep-best
+  logic has to preserve that, and `SEQUENTIAL_CANCELLED` reports how far the chain
+  got. So this WP's `SEQUENTIAL_UNRECOVERED` will be the **second** warning-level
+  sequential fence, not the first.
+- **`REFIT_MODES` and `DIRECTIONS` are module constants** the GUI's series panel
+  quotes to build its menus, and `unique_labels` is split out of `_labels_for` for
+  the same reason. Adding a rung that changes what `refit=` accepts means editing
+  the tuple, not a literal — and the panel picks the new value up for free.
+- **A GUI panel now drives this chain** (`gui/series.py`, the Series tab), so a
+  new diagnostic appears in its "Fences" strip automatically, but a new *setting*
+  does not: `series_put`'s allow-list and `SeriesSetup` need the field. And its
+  trajectory view reads `SeriesEntry.reseeded`/`rwp_warm`, which a three-rung
+  ladder makes ambiguous — decide what those two mean when three attempts ran, or
+  the panel's "reseeded" chip will say something false.
+
 ## Context
 
 SrRietveld's automation result (Tian *et al.* 2013, §3): in a warm-started

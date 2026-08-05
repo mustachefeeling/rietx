@@ -399,6 +399,53 @@ occupancies continuously during *structure solution* rather than refusing an edi
 which is the objection that made `check_cell_angles` refuse rather than
 normalise.
 
+The **series panel** (WP-1016, `src/pxrdref/gui/series.py`,
+`panels/Series.svelte`, `lib/series.ts`) is the ninth tab and the only one whose
+subject is a *method* rather than a model: N separate refinements chained by a
+warm start, so **a smooth curve is exactly what a poisoned chain produces** and
+the presentation is built around that. Five rules. **A series lives beside the
+project, not inside it** — staged uploads, in-memory trees, a session-scoped
+answer, `ProjectDoc.patterns` still length 1 — and its protocol (mode, plan,
+limits, exclusions) is *quoted* from `project.json` rather than offered, because
+one protocol over N specimens is what makes their trajectories comparable. That
+is not a shortcut: an upload token dies with the session, so a persisted series
+needs a document, which is WP-1003's to decide. **The order is the series**, so
+every edit is a whole-list `PUT` and every file is read *there* (WP-1014's
+two-phase property at N files) — with a member already described not re-read,
+since a staged upload is immutable and re-reading forty patterns per keystroke
+proves nothing. **`SEQUENTIAL_PATH_DEPENDENT` is a banner, and its magnitude is
+computed rather than carried**: a `Diagnostic` has `where` and no number (the
+wall WP-1012 hit), and both chains' trajectories are in hand, so
+`series.trajectories` recomputes the fence's own combined-σ distance and serves
+it — a panel ranks by disagreement with no schema change. **Ranking stops where
+the fence stops**: on a clean ramp nothing is flagged and every distance is under
+5e-4 σ, so sorting the unflagged ones by it ordered fifteen parameters by noise
+and put `phases.0.cell.a` eighth. And **a per-pattern tree is read-only here** —
+one tree per pattern, pinned by `data_fingerprint`, so a node cannot be checked
+out into this project; what makes the chain navigable is the root node's
+`series_warm_start_node` note. Two shared authorities came out of it rather than
+second copies: `session.curve_window` (so the two panels cannot draw residuals
+under two σ policies) and `session.tree_payload`.
+
+Its **five keys on every event** are the thing to know outside the panel:
+`SequentialRefinement.fit` takes `events=`/`cancel=` (since this WP — WP-1008's
+charter said it already did), and `_SeriesStream` stamps
+`series_index`/`series_label`/`series_n`/`series_pass`/`series_cold` onto
+existing kinds, so `EVENT_SCHEMA_VERSION` does not move and "pattern k of N"
+reaches the run record through the *existing* `stage`/`stage_index`/`n_stages`.
+The console pays for that: five fields on every `eval` pushed the cost off the
+right edge, so `lib/stream.ts` folds them into one `[T300 1/3 ↩]` prefix.
+Measured browser facts: this plot is plotly **SVG**, not canvas, so WP-1015's
+swallowed-click trap cannot apply to it (`Plot.svelte` draws its residual with
+`scattergl`, which is what made it a canvas there) — but the `ResizeObserver`
+still earns its place, since the plot refits 539 → 1480 px when the column takes
+the window; a *rotated* y-axis title shares the fixed left margin with the tick
+labels, so `phases.0.cell.a` clipped to `aes.0.cell.a` and the axis takes the
+**leaf** (the heading above carries the path); and the staged table's floor is
+per column — core 308 px, detail 231 — reflowed by `lib/resize.ts:seriesCompact`
+beside `modelStacks`, because the reorder buttons are the last column and the
+panel's main verb.
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

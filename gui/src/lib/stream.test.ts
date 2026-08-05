@@ -69,4 +69,35 @@ describe("console lines", () => {
   it("survives a kind it has never seen with no data at all", () => {
     expect(consoleLine(event(4, "future_kind"))).toContain("future_kind");
   });
+
+  it("folds a series stamp into a prefix rather than five fields", () => {
+    // Found in a browser (WP-1016): a series stamps five keys onto *every*
+    // event, `eval` included, and rendering them as fields pushed the cost and
+    // the evaluation counter off the right edge of the console — every line read
+    // `series_index=0 series_label="T300" series_n=3 series_p…`.
+    const line = consoleLine(event(5, "eval", {
+      series_index: 0, series_label: "T300", series_n: 3,
+      series_pass: "forward", n_eval: 12, cost: 1.5 }));
+    expect(line).toContain("[T300 1/3]");
+    expect(line).toContain("n_eval=12");
+    expect(line).toContain("cost=1.5");
+    expect(line).not.toContain("series_index");
+    expect(line).not.toContain("series_pass");
+  });
+
+  it("marks the verification pass and a cold restart in the prefix", () => {
+    // both are second fits of a pattern already counted, so a transcript that
+    // did not distinguish them would read as a restart and as a duplicate
+    expect(consoleLine(event(6, "fit_start", {
+      series_index: 1, series_label: "T400", series_n: 3,
+      series_pass: "backward" }))).toContain("[T400 2/3 \u21a9]");
+    expect(consoleLine(event(7, "fit_start", {
+      series_index: 1, series_label: "T400", series_n: 3,
+      series_pass: "forward", series_cold: true }))).toContain("[T400 2/3 \u2744]");
+  });
+
+  it("leaves an unstamped event exactly as it was", () => {
+    const line = consoleLine(event(8, "stage_start", { stage: "cell" }));
+    expect(line).not.toContain("[");
+  });
 });

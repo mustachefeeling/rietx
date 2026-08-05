@@ -32,6 +32,24 @@ none of which alters a fitted value:
     than their esds allow: that parameter's trajectory is an artefact of the
     ordering, not a measurement.
 
+**Telemetry and cancellation are per pattern, stamped with the pattern**
+(WP-1016).  ``fit(events=, cancel=)`` reach every pattern's own
+:meth:`Refinement.fit`, and each pattern's events are forwarded through
+:class:`_SeriesStream`, which adds ``series_index``/``series_label``/
+``series_n``/``series_pass`` (and ``series_cold`` on a reseed refit) to the
+event's ``data``.  All five are *added fields on existing kinds*, so
+:data:`~pxrdref.history.events.EVENT_SCHEMA_VERSION` does not move — the rule is
+in that module, and a series needs nothing more, because "pattern k of N" is
+readable off ``fit_start`` and a consumer reads ``data`` with ``.get``.
+
+Cancelling a series **returns** what completed rather than raising, and that is
+not the exception to WP-1006's rule but the rule applied one level up: a series
+is N *separate* refinements, so the pattern in flight is abandoned by
+``Refinement.fit`` itself (no node, no commit, models restored) while patterns
+already walked are finished fits with committed nodes.  Raising would throw
+those away.  ``SEQUENTIAL_CANCELLED`` says how many of how many were reached, so
+a short ``entries`` list is never mistaken for a short series.
+
 Constraining a parameter to a functional form of T across the whole series —
 parametric refinement, Stinton & Evans (2007) J. Appl. Cryst. 40, 87 — is a
 *joint* fit over the series and is deliberately out of scope; these fences
@@ -43,11 +61,14 @@ from __future__ import annotations
 import fnmatch
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from .backend.api import backend_dtype_note
+from .history.events import EventStream, as_event_stream
 from .history.tree import RefinementTree
+from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import SOLVERS
 from .params.vector import ParameterTable
 from .refine import _VERSION, Refinement, _extract_reflections, _utcnow
@@ -95,6 +116,65 @@ PATH_DEPENDENCE_SIGMA = 3.0
 #: (the median absolute step) means anything.
 MIN_POINTS_FOR_DISCONTINUITY = 5
 
+#: What ``refit=`` and ``direction=`` accept, as data rather than as two literals
+#: inside :meth:`SequentialRefinement.fit`.  A caller that has to *offer* the
+#: choices (the GUI's series panel, WP-1016) needs the same list this validates
+#: against, and a menu that could disagree with the validator would be a second
+#: authority — the ``capabilities()`` rule at a smaller scale.
+REFIT_MODES = ("single", "stages")
+DIRECTIONS = ("forward", "backward", "both")
+
+
+class _SeriesStream(EventStream):
+    """One pattern's event stream, stamped with its place in the series.
+
+    A subclass rather than a callable because ``Refinement.fit`` normalises its
+    ``events=`` argument through
+    :func:`~pxrdref.history.events.as_event_stream`, which passes an
+    :class:`EventStream` through untouched — and *that* is what keeps
+    ``stream is events`` true inside ``fit``, so the pattern's fit does not close
+    the stream the series owns.  It writes no file and holds no callback of its
+    own: every event goes to the caller's stream, which is where the path and the
+    callback live, so a series run appends to exactly one log.
+
+    The stamp is five added ``data`` keys on existing kinds, never a new kind
+    (``history/events.py``'s additivity rule): ``series_index`` is the pattern's
+    place in **series** order, not in walk order, so a backward chain's frames
+    carry the same index as the forward chain's for the same pattern, and
+    ``series_pass`` is what distinguishes them.
+    """
+
+    def __init__(self, inner: EventStream, **stamp: Any) -> None:
+        super().__init__()          # no path, no callback: the inner one has both
+        self._inner = inner
+        self._stamp = stamp
+
+    def emit(self, kind: str, **data: Any) -> None:
+        # the stamp first, so a future event field named ``series_*`` would
+        # override it rather than be silently dropped
+        self._inner.emit(kind, **{**self._stamp, **data})
+        self.n_written += 1
+
+
+def unique_labels(names: Sequence[str]) -> list[str]:
+    """Disambiguate repeated names by their position, in order.
+
+    Split out of :func:`_labels_for` because a caller that *offers* the labels
+    before the run needs to show the ones that will actually be used — two files
+    with the same basename from two directories is an ordinary series, and a
+    panel whose list disagrees with the result's ``entry.label`` would be showing
+    a name that names nothing (WP-1016).
+    """
+    seen: set[str] = set()
+    unique = []
+    for i, name in enumerate(names):
+        if name in seen:
+            unique.append(f"{name}_{i}")
+        else:
+            seen.add(name)
+            unique.append(name)
+    return unique
+
 
 def _labels_for(patterns: Sequence[PatternData],
                 labels: Sequence[str] | None) -> list[str]:
@@ -109,15 +189,7 @@ def _labels_for(patterns: Sequence[PatternData],
         for i, d in enumerate(patterns):
             src = str(d.metadata.get("source_file", "") or "")
             out.append(Path(src).stem if src else f"p{i:03d}")
-    seen: dict[str, int] = {}
-    unique = []
-    for i, name in enumerate(out):
-        if name in seen:
-            unique.append(f"{name}_{i}")
-        else:
-            seen[name] = i
-            unique.append(name)
-    return unique
+    return unique_labels(out)
 
 
 def _collapse(plan: RefinementPlan) -> RefinementPlan:
@@ -267,6 +339,7 @@ class SequentialRefinement:
             prepare: Callable[[int, PatternData, Structure, Instrument],
                               None] | None = None,
             on_result: Callable[[int, RefinementResult], None] | None = None,
+            events=None, cancel=None,
             ) -> SeriesResult:
         """Run the series.
 
@@ -306,14 +379,22 @@ class SequentialRefinement:
             at its initial value — a phase scale on a series of different
             mixtures being the case that forced it.  Excluding scales from
             `carry` alone would only fall back to the first pattern's guess.
+        events, cancel:
+            What they mean on :meth:`Refinement.fit`, per pattern: every event a
+            pattern's fit emits is forwarded with its place in the series stamped
+            on (see :class:`_SeriesStream`), and a set token stops the chain
+            *between* patterns as well as inside the one in flight.  A cancelled
+            series **returns** the entries that completed and reports
+            ``SEQUENTIAL_CANCELLED`` — see the module docstring for why that is
+            WP-1006's rule rather than an exception to it.
         """
         patterns = list(patterns)
         if not patterns:
             raise ValueError("a sequential refinement needs at least one pattern")
-        if refit not in ("stages", "single"):
-            raise ValueError("refit must be 'stages' or 'single'")
-        if direction not in ("forward", "backward", "both"):
-            raise ValueError("direction must be 'forward', 'backward' or 'both'")
+        if refit not in REFIT_MODES:
+            raise ValueError(f"refit must be one of {REFIT_MODES}")
+        if direction not in DIRECTIONS:
+            raise ValueError(f"direction must be one of {DIRECTIONS}")
         if x is not None and len(x) != len(patterns):
             raise ValueError(f"x has {len(x)} entries for {len(patterns)} patterns")
         names = _labels_for(patterns, labels)
@@ -326,11 +407,17 @@ class SequentialRefinement:
         order = list(range(len(patterns)))
         if direction == "backward":
             order.reverse()
+        stream = as_event_stream(events)
         entries, results, trees, models = self._chain(
             order, patterns, names, xs, mode, base_plan, warm_plan,
-            two_theta_limits, reseed, reseed_factor, prepare, on_result)
+            two_theta_limits, reseed, reseed_factor, prepare, on_result,
+            stream=stream, cancel=cancel,
+            pass_name="backward" if direction == "backward" else "forward")
 
         diagnostics = [d for e in entries for d in _reseed_diagnostics(e)]
+        cancelled = cancel is not None and bool(cancel)
+        if cancelled:
+            diagnostics.append(_cancelled_diagnostic(len(entries), len(patterns)))
         series = SeriesResult(
             mode=mode, entries=entries, x_label=x_label,
             direction=direction,  # type: ignore[arg-type]
@@ -340,14 +427,22 @@ class SequentialRefinement:
                                   report_thresholds_version=THRESHOLDS_VERSION))
         diagnostics += _discontinuity_diagnostics(series)
 
-        if direction == "both":
+        # a cancelled forward chain gets no verification pass: the comparison is
+        # between two *complete* chains, and half of one says nothing
+        if direction == "both" and not cancelled:
             back_entries, *_ = self._chain(
                 list(reversed(order)), patterns, names, xs, mode, base_plan,
                 warm_plan, two_theta_limits, reseed, reseed_factor, prepare,
-                None, history_suffix=".backward")
+                None, history_suffix=".backward", stream=stream, cancel=cancel,
+                pass_name="backward")
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
                                 direction="backward")
-            diagnostics += _path_dependence_diagnostics(series, back)
+            if cancel is not None and bool(cancel):
+                diagnostics.append(
+                    _cancelled_diagnostic(len(back_entries), len(patterns),
+                                          pass_name="backward"))
+            else:
+                diagnostics += _path_dependence_diagnostics(series, back)
             self.backward_ = back
 
         series.diagnostics = diagnostics
@@ -361,12 +456,17 @@ class SequentialRefinement:
     # ------------------------------------------------------------------
     def _chain(self, order, patterns, names, xs, mode, base_plan, warm_plan,
                two_theta_limits, reseed, reseed_factor, prepare, on_result,
-               history_suffix: str = ""):
+               history_suffix: str = "", stream: EventStream | None = None,
+               cancel=None, pass_name: str = "forward"):
         """Walk ``order``, warm-starting each fit from the previous accepted one.
 
         Returns entries in **series** order regardless of the walk direction, so
         a backward chain's trajectory is directly comparable with a forward
         one's.
+
+        A cancelled pattern ends the walk: :meth:`Refinement.fit` has already
+        abandoned its stage, and this drops the pattern entirely rather than
+        recording a half-fit — whatever was walked before it stands.
         """
         entries: dict[int, SeriesEntry] = {}
         results: dict[int, RefinementResult] = {}
@@ -377,21 +477,38 @@ class SequentialRefinement:
         previous_tag: tuple[str | None, str | None] = (None, None)
         accepted_rwp: list[float] = []
 
+        n = len(patterns)
         for position, k in enumerate(order):
             data = patterns[k]
             warm = previous is not None
-            ref, result = self._fit_one(
-                data, names[k], previous, previous_hkl,
-                warm_plan if warm else base_plan,
-                mode, two_theta_limits, position, previous_tag, prepare, k,
-                history_suffix)
+            stamp = {"series_index": k, "series_label": names[k],
+                     "series_n": n, "series_pass": pass_name}
+            try:
+                ref, result = self._fit_one(
+                    data, names[k], previous, previous_hkl,
+                    warm_plan if warm else base_plan,
+                    mode, two_theta_limits, position, previous_tag, prepare, k,
+                    history_suffix, stream=stream, stamp=stamp, cancel=cancel)
+            except RefinementCancelled:
+                break
             entry = _entry_from_result(k, names[k], xs[k], result)
 
             if warm and reseed and _reseed_needed(result, accepted_rwp,
                                                   reseed_factor):
-                cold_ref, cold = self._fit_one(
-                    data, names[k], None, [], base_plan, mode, two_theta_limits,
-                    position, previous_tag, prepare, k, history_suffix)
+                try:
+                    cold_ref, cold = self._fit_one(
+                        data, names[k], None, [], base_plan, mode,
+                        two_theta_limits, position, previous_tag, prepare, k,
+                        history_suffix, stream=stream, cancel=cancel,
+                        stamp={**stamp, "series_cold": True})
+                except RefinementCancelled:
+                    # the warm fit stands: it is a complete fit of this pattern,
+                    # and the restart that was meant to judge it never finished
+                    entries[k] = entry
+                    results[k] = result
+                    trees[k] = ref.history
+                    models[k] = (ref.fitted_structure, ref.fitted_instrument)
+                    break
                 if _better(cold, result):
                     entry = _entry_from_result(k, names[k], xs[k], cold)
                     entry.reseeded = True
@@ -425,7 +542,9 @@ class SequentialRefinement:
                  previous_hkl: list[ReflectionState],
                  plan: RefinementPlan, mode: Mode, two_theta_limits,
                  position: int, previous_tag: tuple[str | None, str | None],
-                 prepare, index: int, history_suffix: str = ""):
+                 prepare, index: int, history_suffix: str = "", *,
+                 stream: EventStream | None = None,
+                 stamp: dict | None = None, cancel=None):
         """One pattern: warm the models from ``previous``, then run ``plan``."""
         structure = self.structure.model_copy(deep=True)
         instrument = self.instrument.model_copy(deep=True)
@@ -446,7 +565,10 @@ class SequentialRefinement:
             ref._pending_reflections = [r.model_copy(deep=True)
                                         for r in previous_hkl]
         result = ref.fit(data, mode=mode, plan=plan,
-                         two_theta_limits=two_theta_limits)
+                         two_theta_limits=two_theta_limits,
+                         events=(None if stream is None
+                                 else _SeriesStream(stream, **(stamp or {}))),
+                         cancel=cancel)
         _link_history(ref, position, label, previous_tag)
         return ref, result
 
@@ -531,6 +653,26 @@ def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
                     "trajectory is continuous here; check whether the specimen "
                     "or the model changed at this point of the series"),
     )]
+
+
+def _cancelled_diagnostic(n_done: int, n_total: int, *,
+                          pass_name: str = "forward") -> Diagnostic:
+    """A short ``entries`` list, said out loud (WP-1016).
+
+    Without it a cancelled series is indistinguishable from a shorter series that
+    ran to completion — and every trajectory here is read as a curve over "the
+    series", so silence would make the missing tail look like data that stops.
+    """
+    return Diagnostic(
+        level="warning", code="SEQUENTIAL_CANCELLED", where=[],
+        message=(f"the {pass_name} chain was cancelled after {n_done} of "
+                 f"{n_total} patterns; the pattern in flight was abandoned "
+                 "(no node, no commit) and the rest were never started"),
+        suggestion=("the entries reported are complete fits and stand on their "
+                    "own, but the trajectory is truncated, not finished: "
+                    "re-run the series to extend it, and do not read the last "
+                    "point as the end of the ramp"),
+    )
 
 
 def _noise_floor(*values) -> float:

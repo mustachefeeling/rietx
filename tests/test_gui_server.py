@@ -29,7 +29,7 @@ import pytest
 
 import pxrdref as pr
 from pxrdref.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
-from pxrdref.gui.session import RESERVED_ROUTES
+from pxrdref.gui.session import RESERVED_ROUTES, GuiError
 from pxrdref.history.events import read_events
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -1957,3 +1957,473 @@ def test_a_busy_port_falls_back_instead_of_refusing_to_start(state_dir):
             second.server_close()
     finally:
         first.server_close()
+
+
+# ----------------------------------------------------------------------
+# the series (WP-1016)
+# ----------------------------------------------------------------------
+#: One stage freeing what a three-pattern chain over a cell ramp actually needs.
+#: A cheap plan on purpose: what is under test is the *surface* — the staged
+#: list, the events, the trajectory payload — and the chain's own behaviour is
+#: ``test_sequential``'s ground, driven there without an HTTP round trip.
+SERIES_PLAN = {"stages": [{"name": "quick",
+                           "turn_on": ["phases.*.scale",
+                                       "instrument.background.*",
+                                       "instrument.zero_shift",
+                                       "phases.*.cell.*"],
+                           "max_iter": 25}]}
+
+
+@pytest.fixture(scope="module")
+def series_files(tmp_path_factory):
+    """Three patterns of a cell ramp, as files — 0.05 % a step.
+
+    The ramp matters: a series of three *identical* patterns has a flat
+    trajectory, so every assertion about a trajectory would pass against an
+    implementation that returned the first pattern's values three times.
+    """
+    from tests.test_sequential import A0, RAMP, _simulate
+
+    root = tmp_path_factory.mktemp("gui-series")
+    return [_write_xye(root / f"ramp{i}.xye", _simulate(A0 * (1 + RAMP * i),
+                                                        seed=300 + i))
+            for i in range(3)]
+
+
+@pytest.fixture(scope="module")
+def series(tmp_path_factory, series_files, state_dir):
+    """A project with the three ramp patterns staged and one chain run.
+
+    The project's own pattern is the ramp's first, so the series' protocol and
+    the project's are demonstrably the same one.
+    """
+    project = _project(tmp_path_factory.mktemp("gui-series-proj") / "ramp.pxrd",
+                       series_files[0])
+    session = GuiSession(project, state_dir=state_dir)
+    httpd = _start(session)
+    client = Client(httpd.server_address[1])
+
+    tokens = []
+    for path in series_files:
+        status, staged = client.upload("pattern", path.read_bytes(),
+                                       filename=path.name)
+        assert status == 200, staged
+        tokens.append(staged["upload"])
+    status, setup = client.put("/api/series", {
+        "patterns": [{"upload": t, "x": 300.0 + 100 * i, "label": f"T{300 + 100 * i}"}
+                     for i, t in enumerate(tokens)],
+        "x_label": "T", "direction": "both"})
+    assert status == 200, setup
+
+    status, run = client.post("/api/series/run", {"plan": SERIES_PLAN})
+    assert status == 200, run
+    assert run["run"]["kind"] == "series"
+    _wait_idle(client)
+    state = client.get("/api/run/state")[1]
+    assert state["run"]["status"] == "completed", state
+    try:
+        yield session, client, tokens
+    finally:
+        session.close()
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_the_series_setup_answers_before_anything_is_staged(blank, tmp_path,
+                                                            pattern_file, state_dir):
+    """An empty list plus the defaults *is* the empty state."""
+    session, client = blank
+    _open(session, tmp_path / "empty.pxrd", pattern_file)
+    status, setup = client.get("/api/series")
+    assert status == 200, setup
+    assert setup["patterns"] == [] and setup["n_patterns"] == 0
+    # the defaults are WP-0505's measured results, and the choices come from
+    # ``sequential``'s own tuples — a menu that could offer a value the chain
+    # refuses would be a second authority
+    from pxrdref.sequential import DIRECTIONS, REFIT_MODES
+
+    assert setup["settings"] == setup["defaults"]
+    assert setup["settings"]["refit"] == "single"
+    assert setup["choices"] == {"refit": list(REFIT_MODES),
+                                "direction": list(DIRECTIONS)}
+    # the protocol is the project's, quoted rather than re-derived
+    assert setup["protocol"]["mode"] == "rietveld"
+    assert setup["protocol"]["plan"] == "mccusker_default"
+    assert not setup["has_result"] and not setup["running"]
+    # …and there is nothing to report on yet
+    status, payload = client.get("/api/series/result")
+    assert status == 409 and payload["error"]["code"] == "NO_SERIES_RESULT"
+
+
+def test_a_series_of_one_pattern_is_refused_as_a_fit(blank, tmp_path,
+                                                      pattern_file, state_dir):
+    """One pattern is a fit, and every fence a series has needs a neighbour."""
+    session, client = blank
+    _open(session, tmp_path / "one.pxrd", pattern_file)
+    status, staged = client.upload("pattern", pattern_file.read_bytes(),
+                                   filename=pattern_file.name)
+    assert status == 200, staged
+    assert client.put("/api/series",
+                      {"patterns": [{"upload": staged["upload"]}]})[0] == 200
+    status, payload = client.post("/api/series/run")
+    assert status == 409, payload
+    assert payload["error"]["code"] == "NO_SERIES"
+    assert "at least two patterns" in payload["error"]["message"]
+
+
+def test_the_series_refuses_a_setting_the_chain_would(blank, tmp_path,
+                                                       pattern_file, state_dir):
+    """Same words, because ``REFIT_MODES``/``DIRECTIONS`` are one list."""
+    session, client = blank
+    _open(session, tmp_path / "settings.pxrd", pattern_file)
+    # …and the refusal names the *field*, because a form highlights what to
+    # retype: a bad `refit` reported as `patterns` sends the user to the wrong
+    # control
+    for body, where in (({"refit": "staged"}, "refit"),
+                        ({"direction": "sideways"}, "direction"),
+                        ({"carry": []}, "carry"),
+                        ({"patterns": [{"x": 3}]}, "patterns.0.upload"),
+                        ({"patterns": "nope"}, "patterns")):
+        status, payload = client.put("/api/series", body)
+        assert status == 400, (body, payload)
+        assert payload["error"]["where"] == [where], body
+    # an unknown key names itself and says where the setting really lives
+    status, payload = client.put("/api/series", {"mode": "lebail"})
+    assert status == 400 and payload["error"]["where"] == ["mode"]
+    assert "the project's" in payload["error"]["message"]
+    # …and an upload token that was never staged is the store's own refusal
+    status, payload = client.put("/api/series", {"patterns": [{"upload": "nope"}]})
+    assert status == 404, payload
+    assert "no staged upload" in payload["error"]["message"]
+
+
+def test_a_staged_series_is_described_by_reading_it(blank, tmp_path,
+                                                     series_files, state_dir):
+    """Every file is read at PUT time — WP-1014's two-phase property, N files.
+
+    And the labels a repeat produces are the ones the *run* will use: the server
+    disambiguates by position, so a panel showing what it typed would be showing
+    a name that names nothing.
+    """
+    session, client = blank
+    _open(session, tmp_path / "described.pxrd", series_files[0])
+    tokens = []
+    for path in series_files[:2]:
+        tokens.append(client.upload("pattern", path.read_bytes(),
+                                    filename=path.name)[1]["upload"])
+    status, setup = client.put("/api/series", {
+        "patterns": [{"upload": t, "label": "ramp"} for t in tokens]})
+    assert status == 200, setup
+    assert [m["label"] for m in setup["patterns"]] == ["ramp", "ramp_1"]
+    first = setup["patterns"][0]
+    assert first["reader"] == "xy" and first["n_points"] == 4200
+    assert first["has_sigma"] is True and not setup["sigma_mixed"]
+    assert not setup["has_x"]           # no coordinate: the index is the axis
+
+    # the same files with one esd column withheld → a mixed-weighting series,
+    # which is a correctness property invisible once the files are read
+    no_sigma = _write_xye(tmp_path / "bare.xye",
+                          pr.read_pattern(str(series_files[1])),
+                          with_sigma=False)
+    tokens.append(client.upload("pattern", no_sigma.read_bytes(),
+                                filename=no_sigma.name)[1]["upload"])
+    status, setup = client.put("/api/series", {
+        "patterns": [{"upload": t} for t in tokens]})
+    assert status == 200 and setup["sigma_mixed"] is True
+
+
+def test_a_coordinate_is_all_or_nothing_and_the_axis_says_which(blank, tmp_path,
+                                                                series_files,
+                                                                state_dir):
+    """An axis whose values are indices may not be labelled ``T``.
+
+    ``SequentialRefinement.fit`` only renames the axis in the other direction (a
+    given ``x`` promotes a default ``"index"`` to ``"x"``), so a user who typed a
+    label and then cleared one temperature would get a trajectory whose x values
+    mean something other than what the label says.
+    """
+    session, client = blank
+    _open(session, tmp_path / "axis.pxrd", series_files[0])
+    tokens = [client.upload("pattern", path.read_bytes(),
+                            filename=path.name)[1]["upload"]
+              for path in series_files[:2]]
+    body = {"patterns": [{"upload": t, "x": 300.0 + 100 * i}
+                         for i, t in enumerate(tokens)], "x_label": "T"}
+    assert client.put("/api/series", body)[1]["has_x"] is True
+    assert session._series.axis_label == "T"
+
+    # clear one coordinate: the setting stands, the axis does not
+    body["patterns"][1].pop("x")
+    setup = client.put("/api/series", body)[1]
+    assert setup["has_x"] is False
+    assert setup["settings"]["x_label"] == "T"     # what the user typed, kept
+    assert session._series.x is None
+    assert session._series.axis_label == "index"   # what the run will be told
+
+
+def test_a_series_runs_and_its_trajectories_are_the_series_result(series):
+    """The payload's trajectories must be ``SeriesResult``'s, not a second copy."""
+    session, client, _ = series
+    status, payload = client.get("/api/series/result")
+    assert status == 200, payload
+    result = payload["result"]
+    assert len(result["entries"]) == 3
+    assert result["x_label"] == "T" and result["direction"] == "both"
+    assert [e["label"] for e in result["entries"]] == ["T300", "T400", "T500"]
+    assert [e["x"] for e in result["entries"]] == [300.0, 400.0, 500.0]
+
+    # …and every trajectory is the library's own, path by path
+    live = session._series_run["result"]
+    served = {t["path"]: t for t in payload["trajectories"]}
+    for path in live.paths(varied_only=False):
+        traj = live.trajectory(path)
+        assert served[path]["x"] == list(traj.x), path
+        assert served[path]["value"] == list(traj.value), path
+        assert served[path]["stderr"] == list(traj.stderr), path
+        assert served[path]["labels"] == list(traj.labels), path
+        assert served[path]["x_label"] == "T"
+    # the ramp is in the answer rather than three copies of one fit
+    cell = served["phases.0.cell.a"]
+    assert cell["value"][0] < cell["value"][1] < cell["value"][2]
+    assert payload["n_iterations"] == live.n_iterations
+    assert payload["curves"] == [True, True, True]
+
+
+def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
+    """``direction="both"`` ran, so every trajectory carries the other chain.
+
+    The magnitude matters and no ``Diagnostic`` carries one (WP-1012's wall), so
+    it is recomputed from the two chains with the fence's own arithmetic — which
+    is what lets a panel rank by disagreement without a schema change.
+    """
+    session, client, _ = series
+    payload = client.get("/api/series/result")[1]
+    assert payload["has_backward"] is True
+    from pxrdref.sequential import PATH_DEPENDENCE_SIGMA
+
+    assert payload["path_dependence_sigma"] == PATH_DEPENDENCE_SIGMA
+    served = {t["path"]: t for t in payload["trajectories"]}
+    backward = session._series_run["backward"]
+    assert backward is not None
+    for path, row in served.items():
+        if path.startswith("qpa."):
+            continue
+        assert row["backward"] == list(backward.trajectory(path).value), path
+        # a flagged path is one the library flagged, never this layer's judgement
+        assert row["path_dependent"] == (path in payload["path_dependent"]), path
+        if row["path_dependent"]:
+            assert row["n_sigma"] > PATH_DEPENDENCE_SIGMA, path
+    assert payload["path_dependent"] == sorted(
+        {d["where"][0] for d in payload["result"]["diagnostics"]
+         if d["code"] == "SEQUENTIAL_PATH_DEPENDENT"})
+
+
+def test_the_series_events_say_which_pattern_they_came_from(series):
+    """Per-pattern telemetry on the one stream, and no new ``EventKind``.
+
+    The series' progress is "pattern k of N" and it reaches the run record
+    through the *existing* three fields, which is the same reuse an indexing run
+    makes of ``stage_start``.
+    """
+    from pxrdref.history.events import EVENT_SCHEMA_VERSION
+
+    session, client, _ = series
+    events = client.get("/api/events?poll=1&since=0")[1]["events"]
+    starts = [e for e in events if e["kind"] == "fit_start"]
+    # three patterns each way: the backward pass is a second walk of the same
+    # patterns, and `series_pass` is what distinguishes them from a restart
+    assert len(starts) == 6
+    assert [(e["data"]["series_index"], e["data"]["series_pass"]) for e in starts] == [
+        (0, "forward"), (1, "forward"), (2, "forward"),
+        (2, "backward"), (1, "backward"), (0, "backward")]
+    assert {e["data"]["series_n"] for e in starts} == {3}
+    assert [e["data"]["series_label"] for e in starts[:3]] == ["T300", "T400", "T500"]
+    # every kind is one the closed vocabulary already had…
+    assert {e["kind"] for e in events} <= {"fit_start", "stage_start", "eval",
+                                            "stage_end", "fit_end"}
+    # …so the schema version did not move for any of it
+    assert {e["v"] for e in events} == {EVENT_SCHEMA_VERSION}
+    # and the same stream landed in the log `pxrdref watch` tails
+    logged = read_events(session.project.live_dir / "events.jsonl")
+    assert sum(1 for e in logged if e.kind == "fit_start"
+               and "series_index" in e.data) == 6
+
+    # the run record read it as the chain's progress
+    state = client.get("/api/run/state")[1]
+    assert state["run"]["n_stages"] == 3
+    assert state["run"]["completed_stages"] == ["T300", "T400", "T500"]
+
+
+def test_a_series_window_is_the_project_plot_arithmetic(series):
+    """``curve_window`` is shared, so the two panels cannot draw two σ policies."""
+    from pxrdref.gui.session import curve_window
+
+    session, client, _ = series
+    status, payload = client.get("/api/series/window?index=1")
+    assert status == 200, payload
+    assert payload["index"] == 1 and payload["label"] == "T400"
+    assert payload["x"] == 400.0
+    result = session._series_run["runner"].results_[1]
+    assert payload["n_total"] == len(result.two_theta)
+    expected = curve_window(result, None, None, 4000, weighted=True)
+    for key in ("two_theta", "y_obs", "y_calc", "delta", "cumulative_chi2"):
+        assert payload[key] == expected[key], key
+    # σ was measured (the file's esd column), which is what the flag is about
+    assert payload["weighted"] is True
+    # the mask travels beside the fitted channels, as it does for the project's
+    # own plot — an unmasked series member has an empty arm rather than no arm
+    assert payload["excluded"] == {"two_theta": [], "y_obs": []}
+    assert payload["n_excluded"] == 0
+    # …and it is pinned to what this member's fit actually kept, which is
+    # WP-1033's `len(result.two_theta)` assertion one rank down: the mask is
+    # rebuilt from the limits *this run* used, through the same function
+    # `Project.fitted_mask` calls, so it cannot drift from the curves beside it
+    from pxrdref.project import fitted_mask
+
+    entry = session._series_run
+    keep = fitted_mask(entry["data"][1], entry["limits"])
+    assert int(keep.sum()) == len(result.two_theta)
+
+    # a *later* exclusion moves the document and must not move this band: the
+    # curves are the run's, and a series member cannot be re-fitted without
+    # replacing the whole answer
+    assert client.post("/api/project", {"excluded_regions": [[8.0, 12.0]]})[0] == 200
+    try:
+        again = client.get("/api/series/window?index=1")[1]
+        assert again["n_excluded"] == 0, "the band followed a setting, not the fit"
+        assert again["n_total"] == payload["n_total"]
+    finally:
+        client.post("/api/project", {"excluded_regions": []})
+
+    # the index is required rather than defaulted: a window of "whichever
+    # pattern" would draw one member's curves under another's label
+    assert client.get("/api/series/window")[0] == 400
+    status, payload = client.get("/api/series/window?index=9")
+    assert status == 404 and payload["error"]["where"] == ["index"]
+
+
+def test_a_series_member_history_is_its_own_tree_and_read_only(series):
+    """One tree per pattern, pinned to its data — so its nodes are not checkouts."""
+    from pxrdref.gui.session import tree_payload
+
+    session, client, _ = series
+    status, payload = client.get("/api/series/history?index=2")
+    assert status == 200, payload
+    assert payload["label"] == "T500" and payload["checkout"] is False
+    tree = session._series_run["runner"].trees_[2]
+    assert payload["nodes"] == tree_payload(tree)["nodes"]
+    # a different tree from the project's, which is the whole reason a node here
+    # cannot be restored into it
+    assert payload["tree_id"] != client.get("/api/history")[1]["tree_id"]
+    # the chain is recorded on the root node's notes — that is what makes a
+    # series navigable, since a tree cannot have a parent edge into another
+    root = next(n for n in payload["nodes"] if not n["parents"])
+    assert root["notes"]["series_label"] == "T500"
+    assert root["notes"]["series_position"] == "2"
+    assert root["notes"]["series_warm_start_node"]
+
+
+def test_the_series_is_not_in_the_project_document(series):
+    """``ProjectDoc.patterns`` stays length 1, and ``Project.open`` still refuses
+    more — the series lives beside the project, not inside it."""
+    session, client, _ = series
+    doc = client.get("/api/project")[1]
+    assert len(doc["doc"]["patterns"]) == 1
+    assert doc["doc"]["patterns"][0]["filename"] == "ramp0.xye"
+    # nothing about the series reached the document's ui keys either
+    assert "series" not in json.dumps(doc["doc"])
+    # and the project's own history is untouched by three chained fits
+    assert doc["n_nodes"] == 1
+
+
+def test_a_series_run_holds_the_same_409_as_every_other(series, monkeypatch):
+    """A mutating verb during a series is the one refusal, and the run machine is
+    single-slot — a second run kind cannot start beside it."""
+    session, _, _ = series
+    session._state = "running"
+    try:
+        for verb, args in ((session.series_put, ({"carry": ["*"]},)),
+                           (session.params_patch, ({"vary": {"*": False}},)),
+                           (session.run, ({"kind": "series"},))):
+            with pytest.raises(GuiError) as excinfo:
+                verb(*args)
+            assert excinfo.value.status == 409
+            assert excinfo.value.code == "RUN_IN_FLIGHT"
+    finally:
+        session._state = "idle"
+
+
+def _series_pair(forward_a, backward_a, esd=1e-4):
+    """Two chains over one parameter, disagreeing by whatever is asked for.
+
+    Built rather than fitted because the clean ramp above **agrees** — measured:
+    every parameter's between-chain distance is under 5e-4 σ, which is the right
+    answer for a series a warm start can legitimately walk, and it leaves the
+    flagged branch unexercised.  A hand-built pair is the only way to pin the
+    served magnitude against the fence that fires on it.
+    """
+    from pxrdref.schemas.results import RefinedParameter, Statistics
+    from pxrdref.schemas.sequential import SeriesEntry, SeriesResult
+
+    def chain(values):
+        return SeriesResult(x_label="T", direction="forward", entries=[
+            SeriesEntry(index=i, label=f"T{300 + 100 * i}", x=300.0 + 100 * i,
+                        statistics=Statistics(rwp=0.1, rp=0.08, rexp=0.09,
+                                              chi2=1.0, gof=1.0, n_points=10,
+                                              n_free_parameters=1),
+                        parameters=[RefinedParameter(
+                            path="phases.0.cell.a", value=v, stderr=esd,
+                            vary=True)])
+            for i, v in enumerate(values)])
+
+    return chain(forward_a), chain(backward_a)
+
+
+def test_the_served_disagreement_is_the_fences_own_arithmetic():
+    """``n_sigma`` must be the number ``SEQUENTIAL_PATH_DEPENDENT`` fired on.
+
+    It is served at all because a ``Diagnostic`` carries ``where`` and no
+    magnitude (the wall WP-1012 hit, left to WP-1003 as a freeze question): both
+    chains' trajectories are in hand, so the answer is to recompute the distance
+    rather than to grow the schema.
+    """
+    from pxrdref.gui import series as series_mod
+    from pxrdref.sequential import (
+        PATH_DEPENDENCE_SIGMA,
+        _path_dependence_diagnostics,
+    )
+
+    forward, backward = _series_pair([4.1560, 4.1580, 4.1600],
+                                     [4.1560, 4.1580, 4.1607])
+    forward.diagnostics = _path_dependence_diagnostics(forward, backward)
+    assert [d.code for d in forward.diagnostics] == ["SEQUENTIAL_PATH_DEPENDENT"]
+
+    row, = series_mod.trajectories(forward, backward)
+    assert row["path_dependent"] is True
+    assert row["backward"] == [4.1560, 4.1580, 4.1607]
+    # 0.0007 Å over √2·1e-4 σ ≈ 4.95, and the fence's own message quotes it
+    assert row["n_sigma"] == pytest.approx(4.95, abs=0.01)
+    assert f"{row['n_sigma']:.1f}σ" in forward.diagnostics[0].message
+    assert row["n_sigma"] > PATH_DEPENDENCE_SIGMA
+
+    payload = series_mod.result_payload(forward, backward, running=False,
+                                        curves=[True, True, True])
+    assert payload["path_dependent"] == ["phases.0.cell.a"]
+    assert payload["path_dependence_sigma"] == PATH_DEPENDENCE_SIGMA
+
+
+def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
+    """Where the fence abstains, the number does too.
+
+    A parameter with no esd in either chain cannot be judged this way, and
+    reporting 0 would read as agreement it has not earned — which is exactly
+    where a panel ranking by disagreement would file it.
+    """
+    from pxrdref.gui import series as series_mod
+
+    forward, backward = _series_pair([4.156, 4.158, 4.160],
+                                     [4.156, 4.158, 4.171], esd=None)
+    row, = series_mod.trajectories(forward, backward)
+    assert row["n_sigma"] is None
+    assert row["path_dependent"] is False       # no fence fired either
+    assert row["backward"] == [4.156, 4.158, 4.171]

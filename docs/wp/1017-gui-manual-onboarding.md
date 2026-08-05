@@ -39,6 +39,37 @@ real UI.
 
 ### Inherited
 
+From **[1016](1016-sequential-series-panel.md)** (closed 2026-08-05) — **there
+are nine tabs now, and the ninth is the one panel whose subject is a *method***.
+Four things to document rather than list.
+
+- **A series is N separate refinements chained by a warm start**, not one joint
+  residual, and the manual has to say so before it says anything else — a reader
+  who thinks it is a multi-pattern fit will misread every trajectory. It runs
+  under *this project's* protocol (mode, plan, 2θ limits, excluded regions) and
+  warm-starts from the current model, which is why the panel states those rather
+  than offering them.
+- **`direction="both"` is the thing to teach, and it costs a second pass.** It is
+  the only check that separates a measured trajectory from an ordering artefact,
+  because a smooth curve is exactly what a poisoned chain produces (WP-0505). The
+  panel banners `SEQUENTIAL_PATH_DEPENDENT`, dashes the flagged trajectory in the
+  warning colour and draws the backward chain beside it — the onboarding line is
+  "run it both ways once, then decide whether you need to keep paying for it".
+- **A series does not persist**, and this is the one absence a user will notice:
+  its patterns are staged uploads and its answer is session-scoped
+  (`ProjectDoc.patterns` stays length 1), so closing the window loses the staged
+  list. Say it plainly rather than letting it be discovered; the fix is a document
+  and it is WP-1003's call.
+- **Two controls are behind Advanced because they are measured results, not
+  preferences** — `refit="single"` (904 iterations against 1623 for re-walking the
+  staged plan, same answer to three decimals) and `carry=["*"]`. `carry` is a
+  control for a parameter that provably must not chain; the panel already carries
+  that sentence as its help text, so quote it rather than paraphrasing.
+
+Also: the **Build panel's owed list is now empty** ("None — every panel the v1.0
+GUI plan named is built"), so any screenshot or walkthrough that showed a
+"Series (WP-1016)" row is stale.
+
 From **[1032](1032-gui-repairs.md)** (closed 2026-08-05) — the three sentences
 below were forecast by the use-session note that follows; two are now facts and
 one is not this WP's to state:
