@@ -124,6 +124,32 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert (errors, delta.is_empty()) == ([], True)
 
 
+def test_the_phase_header_states_its_symmetry_and_stays_read_only(project):
+    """WP-1035: the symbol the document could not say, as a rendered comment.
+
+    A comment, not a field, and that is the rule rather than an omission — the
+    ``.pxt`` editable surface is parameters and settings, a symbol change is a
+    whole-model edit behind a preview gate, and a second authority on a phase's
+    symmetry is what this module forbids.  Through the same mechanism the atom
+    rows already use, so the format version does not move.
+    """
+    text = td.render(project)
+    header = next(line for line in text.splitlines() if line.startswith("phase 0"))
+    assert "# P m -3 m · No. 221 · cubic · Laue m-3m" in header
+    assert td.FORMAT_VERSION == "1"
+
+    parsed = td.parse(text)
+    assert parsed.errors == []
+    delta, errors = td.changes(parsed, project)
+    assert (errors, delta.is_empty()) == ([], True)
+    # typing over the comment changes nothing: comments are stripped before the
+    # header is read, so the symbol cannot be edited here even by accident
+    edited = text.replace(header, 'phase 0 "LaB6"   # P 1 · nonsense')
+    delta, errors = td.changes(td.parse(edited), project)
+    assert (errors, delta.is_empty()) == ([], True)
+    assert project.refinement.structure.phases[0].space_group == "P m -3 m"
+
+
 def _picked(project):
     """Pick and store a peak list, returning the session that did it."""
     session = GuiSession(project, state_dir=project.path / "state")

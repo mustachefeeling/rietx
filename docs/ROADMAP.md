@@ -55,35 +55,36 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight: [1040](wp/1040-engine-svd-index.md)** (2026-08-05) — a **third
-indexing engine**: Coelho's iterative SVD, proposing a metric at random and
-alternating "assign each line to its nearest calculated one" with "re-solve A..F
-from that assignment" until the assignment stops changing. **No tolerance to
-search with**, failing on a bad starting basin where the other two fail on a wide
-domain and a poisoned base line — so `high` now means all three agree. WP-1023's
-Monte Carlo no-go is narrowed, not overturned: it scored *unrefined* random cells.
-**11-BM NAC is now indexed as measured** (a = 10.2512 Å cubic **I**, +19 ppm)
-where the row asserted it could not be, and the gate still declines it. **The
-zero-error column (task 3) did the opposite of what was predicted**: it does not
-raise the hit rate — bethanechol A-D are blocked by 7 impurity lines in 20, not by
-their zeroshift — it stops a *converged* answer being wrong (an injected 0.10°
-lands 3.5 % out in one pass and 1e-4 out in three), and its fitted Ze agrees with
-1038's pair screen to **0.003°** seeing neither references nor pairs. The
-acceptance run then caught a **regression three datasets had missed**: a dedup key
-spanning the centring loop without carrying the centring. **All 1040 still owes**
-is the eight-dataset scoreboard, handed to 1041.
+**Last closed: [1035](wp/1035-symmetry-surfaced.md), 2026-08-05** — a phase's space
+group stops being one read-only string explained nowhere: it is read out, it names
+the **cause** of every held row symmetry holds, its Wyckoff letters are one
+deliberately-opened route away, and it is **editable behind a preview** built by
+constructing a candidate `ParameterTable`, so the refusals are the package's own
+with the nearest-allowed values they already compute. The bug the WP predicted was
+real and was never about symmetry: `PATCH /api/structure` accepted a model whose
+table cannot be built, committed a node, then 500'd on the next `GET /api/params`
+— so the gate went into `_edit`, where every whole-model verb passes, testing the
+*candidate*, which keeps the repair path open. Two costs were **measured** rather
+than assumed (a Wyckoff letter 1.8-8.7 ms an atom, an orbit expansion 0.4-1.3) and
+that put the tier split where it is. The browser pass then found what jsdom
+structurally could not: NAC's `I 21 3` → `I 41 3 2` moves **no parameter at all**
+and takes the cell from 84 atoms to 168.
 
-**Last closed: [1034](wp/1034-panel-layout.md), 2026-08-05** — the model editor and
-the text document are tabs beside the plot, their full-window mode now the panel
-*column* expanding; before it the same day, [1033](wp/1033-plot-range-regions.md),
-[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md). Narratives in
+**Still open from [1040](wp/1040-engine-svd-index.md)**: the eight-dataset
+scoreboard, handed to [1041](wp/1041-indexing-benchmark-gallery.md) with three
+defects 1040 measured in it. Everything else there landed — a third engine, so
+`high` now means all three agree; 11-BM NAC indexed as measured; and the
+zero-error column, which does *not* raise the hit rate and does stop a converged
+answer being wrong. Same day before it: [1034](wp/1034-panel-layout.md),
+[1033](wp/1033-plot-range-regions.md), [1039](wp/1039-search-line-count.md),
+[1032](wp/1032-gui-repairs.md). Narratives in
 [milestones/v1.0.md](milestones/v1.0.md).
 
-The method lesson is eight sessions running (1030 → … → 1040): **instrument before
-ranking, and let the by-hand acceptance run judge** — 1040's own "nothing
-regressed" was written on three datasets and the 38-row run refuted it. It repeats
-1039's withdrawal twice: **a recorded no-go inherits the defects of the run that
-produced it**, and **a prediction is not a measurement.**
+The method lesson is nine sessions running (1030 → … → 1035): **instrument
+before ranking, and let the by-hand run judge.** 1040's "nothing regressed" was
+written on three datasets and a 38-row acceptance run refuted it; 1035's entry
+diff said "no parameter gains or loses a tie" and a browser refuted that. Both
+repeat 1039's withdrawal: **a prediction is not a measurement.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -95,18 +96,17 @@ produced it**, and **a prediction is not a measurement.**
    *numbers* are stale twice over and it **inherits three defects measured in
    1040**: `trial_error._solution_key` is scale-invariant *and* carries no
    centring, and `borda_scores` weighs all seven panel members alike, so it leads
-   with the wrong centring where `m_rev` separates them 516×. Fix all three
-   before recording counts.
+   with the wrong centring where `m_rev` separates them 516×. Fix all three first.
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1035](wp/1035-symmetry-surfaced.md) — the last of the 2026-08-04 use session,
-   behind 1028/1026 because **it does not move the bar**; its `### Inherited` says
-   what 1036 settled and what 1034 left under the editor.
-5. [1016](wp/1016-sequential-series-panel.md) then
+4. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
-   waits on 1032–1035, which change the controls it documents.
-7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
-   the freeze covers an exercised surface.
+   waits on 1032–1035, all now closed, which changed the controls it documents.
+5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+   the freeze covers an exercised surface. It **inherits one line from 1036 via
+   1035**: `Phase.space_group` has no schema validator, deliberately, because
+   adding one changes the error type at every construction site including
+   history-node deserialization.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -218,7 +218,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1032](wp/1032-gui-repairs.md) | GUI repairs found by use (tooltips, ticks, curves, gestures, field help) | ✅ 2026-08-05 | 1010–1015, 1027, 1029 |
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
-| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ⬜ | ~~1036~~ ✅, 1014 (1004 soft) |
+| [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |
@@ -231,7 +231,10 @@ because both edit `Plot.svelte`** — the dependency column says so even though
 the features are independent, for the reason the 1018 interleaving already
 taught (one worktree per concurrent session, or only one session commits). The
 question that started 1035 turned up [1036](wp/1036-crystal-system-settings.md),
-which is not a GUI WP at all.
+which is not a GUI WP at all — and 1035 then found that the same question had a
+*second* answer nobody had asked for: `PATCH /api/structure` accepted a model
+whose parameter table cannot be built, because `Refinement.edit` snapshots
+without ever building one. All four are closed; the set is complete.
 
 ### v1.0 — indexing (added 2026-07-29)
 

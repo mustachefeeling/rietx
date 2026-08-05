@@ -234,6 +234,44 @@ def test_refine_function_defaults_to_no_history(pattern):
     assert result.node_id is None
 
 
+def test_edit_refuses_a_model_with_no_parameter_table(pattern):
+    """WP-1035: ``edit`` is the one write pydantic cannot check.
+
+    A ``Structure`` validates against its schema knowing no crystallography;
+    every symmetry refusal in this package is raised where a ``ParameterTable``
+    is *constructed*, and the snapshot ``edit`` commits never constructs one. So
+    an incompatible model used to be accepted, recorded as a node, and then raise
+    from whatever next asked for the table — leaving the working state somewhere
+    no fit and no listing can be built from. Measured through the GUI as a 500 on
+    the following ``GET /api/params``, but the exposure was the library's.
+    """
+    structure, ins = perturbed_models()
+    ref = pr.Refinement(structure, ins)
+    ref.fit(pattern, plan=SHORT)
+    head, n_nodes = ref.history.head, len(ref.history)
+
+    bad = copy.deepcopy(ref.structure)
+    bad.phases[0].atoms[0].aniso = pr.AnisoU.isotropic(0.006, bad.phases[0].cell)
+    bad.phases[0].atoms[0].aniso.u12.value = 0.004   # no cubic site allows shear
+    with pytest.raises(ValueError, match="no parameter table"):
+        ref.edit(structure=bad, label="should not land")
+
+    # nothing moved: not the head, not the node count, not the working models
+    assert (ref.history.head, len(ref.history)) == (head, n_nodes)
+    assert ref.structure.phases[0].atoms[0].aniso is None
+    assert ParameterTable(ref.structure, ref.instrument).entries
+
+    # …and the gate reads the *proposed* pair, so an edit that repairs a broken
+    # state is not refused by the damage it is undoing
+    ref.structure.phases[0].atoms[0].aniso = bad.phases[0].atoms[0].aniso
+    with pytest.raises(ValueError):
+        ref.parameters()                              # the state of record
+    fixed = copy.deepcopy(ref.structure)
+    fixed.phases[0].atoms[0].aniso = None
+    assert ref.edit(structure=fixed, label="repair") is not None
+    assert ref.parameters()
+
+
 # ------------------------------------------------------------- persistence
 def test_jsonl_round_trip(tmp_path, pattern):
     structure, ins = perturbed_models()
