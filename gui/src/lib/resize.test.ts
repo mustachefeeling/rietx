@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { axisOf, clampSize, coalesce, dragged, fitColumns } from "./resize";
+import { MODEL_MIN, axisOf, clampSize, coalesce, dragged, fitColumns, modelStacks } from "./resize";
 
 describe("which coordinate a grip reads", () => {
   it("is the one its pane grows along", () => {
@@ -156,5 +156,32 @@ describe("coalescing the work a drag asks for sixty times", () => {
     expect(ask).toThrow("first one fails");
     ask();
     expect(n).toBe(2);   // a throw must not latch the gate shut for ever
+  });
+});
+
+describe("when the model pane becomes one stacked column", () => {
+  it("is decided by the three floors, not by a round number", () => {
+    // WP-1034 task 1: the atom table's min-content is 448 px on the NAC project
+    // and the column adds 24 px of padding, so `structure` is a measurement.
+    const threshold = MODEL_MIN.structure + MODEL_MIN.form + MODEL_MIN.view;
+    expect(threshold).toBe(932);
+    expect(modelStacks(threshold - 1)).toBe(true);
+    expect(modelStacks(threshold)).toBe(false);
+  });
+
+  it("stacks at every sidebar width the shell can produce", () => {
+    // the clamp floor, a 1000/1200 px window's 38 %, and the clamp ceiling —
+    // measured 340 / 380 / 456 / 560, all narrower than three columns need
+    for (const width of [340, 380, 456, 560, 720]) {
+      expect(modelStacks(width)).toBe(true);
+    }
+    // …and does not, once the pane has the whole of a wide window
+    expect(modelStacks(1500)).toBe(false);
+  });
+
+  it("leaves the flex defaults alone when nothing is measurable", () => {
+    // jsdom, or the render before the first layout: the same fallback
+    // `clampSize` and `fitColumns` make, rather than a stacked pane by accident
+    expect(modelStacks(0)).toBe(false);
   });
 });
