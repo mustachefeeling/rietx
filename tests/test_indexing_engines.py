@@ -834,18 +834,27 @@ def test_trial_error_survives_an_impurity_among_the_base_lines():
 def test_the_within_engine_dedup_key_carries_the_scale_and_the_centring():
     """``engines.solution_key`` — the two ways a lazier key loses a real answer.
 
-    Both are unit-level statements about the key itself; the engine-level cost of
-    each is measured in the test below.
+    Both engines were born with one of these and both cost a real answer.  The
+    scale half was measured in ``svd`` (WP-1040): a one-dimensional metric is
+    ``(A, A, A, 0, 0, 0)``, so hashing ``af / max|af|`` maps *every* cubic cell to
+    one key, the first random start on the volume ladder blocks all the rest, and
+    a clean synthetic cubic pattern returned **0 candidates from 72 starts that
+    included the truth**.  The centring half was measured on 11-BM NAC.  This is
+    the unit statement; the engine-level cost of each is the test below, which is
+    where the two compound.
     """
     from pxrdref.indexing.engines import solution_key
+    from pxrdref.indexing.qspace import af_from_cell
 
     # scale: two cubic metrics differing only in scale are different hypotheses,
     # and a scale-*invariant* key maps every cubic cell to one entry
-    small = np.array([0.05, 0.05, 0.05, 0.0, 0.0, 0.0])
-    assert solution_key(small, "P") != solution_key(2.0 * small, "P")
+    small = af_from_cell((4.0, 4.0, 4.0, 90.0, 90.0, 90.0))
+    large = af_from_cell((8.0, 8.0, 8.0, 90.0, 90.0, 90.0))
+    assert solution_key(small, "P") != solution_key(large, "P")
     # ...but a change far below the grid is still the same solution, which is the
     # whole point of a pre-filter
-    assert solution_key(small, "P") == solution_key(small * (1.0 + 1e-9), "P")
+    same = af_from_cell((4.0 * (1 + 1e-6),) * 3 + (90.0, 90.0, 90.0))
+    assert solution_key(small, "P") == solution_key(same, "P")
 
     # centring: identical axes, two centrings, two lattices
     assert solution_key(small, "P") != solution_key(small, "I")
@@ -1424,26 +1433,6 @@ def test_nc_counts_distinct_lines_because_an_hkl_count_refuses_the_truth():
     assert n_hkl > NC_NO_HI * len(q), "the trap this reading avoids is not present"
     assert len(lines) <= NC_NO_HI * len(q)
     assert len(lines) < n_hkl
-
-
-def test_a_scale_invariant_solution_hash_would_lose_every_cubic_cell():
-    """The bug the engine was born with, pinned so it cannot come back.
-
-    A one-dimensional metric is ``(A, A, A, 0, 0, 0)``, so hashing
-    ``af / max|af|`` — the obvious relative grid, and the form ``trial_error``
-    still uses — maps *every* cubic cell to one key.  The first random start on
-    the volume ladder then blocks all the rest, and a clean synthetic cubic
-    pattern returns 0 candidates from 72 starts that included the truth.
-    """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.svd import _solution_key
-
-    small = _af((4.0, 4.0, 4.0, 90.0, 90.0, 90.0))
-    large = _af((8.0, 8.0, 8.0, 90.0, 90.0, 90.0))
-    assert _solution_key(small) != _solution_key(large)
-    # and it still merges what it should: the same cell reached twice
-    same = _af((4.0 * (1 + 1e-6),) * 3 + (90.0, 90.0, 90.0))
-    assert _solution_key(small) == _solution_key(same)
 
 
 def test_one_line_beyond_the_lattice_needs_the_trim_retry():
