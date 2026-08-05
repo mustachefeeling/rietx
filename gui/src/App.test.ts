@@ -2953,6 +2953,185 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
   });
 });
 
+describe("the view survives a redraw (WP-1043)", () => {
+  /** plotly's own record of where the axes are, which jsdom has no layout to
+   *  build.  `autorange: false` is what plotly writes on a zoom or pan drag,
+   *  and it is the whole question this panel asks the library. */
+  function zoomedTo(range: [number, number] | null) {
+    const node = host.querySelector<HTMLElement>(".plot")! as any;
+    node._fullLayout = range
+      ? { xaxis: { autorange: false, range },
+          yaxis: { autorange: false, range: [0, 4200] },
+          yaxis2: { autorange: true, range: [-5, 5] } }
+      : { xaxis: { autorange: true, range: [3, 23.995] } };
+    return node;
+  }
+
+  function plotly(drawn: any[]) {
+    vi.stubGlobal("Plotly", {
+      react: async (_n: any, traces: any[], layout: any, config: any) =>
+        drawn.push({ traces, layout, config }),
+      relayout: async () => {},
+      restyle: async () => {},
+      purge: () => {},
+    });
+  }
+
+  const windows = (stub: { calls: Call[] }) =>
+    stub.calls.filter((c) => c.path === "/api/result/window").map((c) => c.url);
+
+  it("hands every moved axis back, so a repaint is not a reason to autorange",
+     async () => {
+    // The defect this closes: `react` got a layout with no `range`, so plotly
+    // re-autoranged over *everything drawn* — and the peak markers and the mask
+    // shapes span the whole pattern while the fetched curves span the window.
+    // Measured in Chrome: a drag to 9.97–14.66° came back 4.57–24.85 with a
+    // peak list on the plot and 3.00–24.94 with a fitted range.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({ ...boot(), ...TWO_PHASE_WINDOW, ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    zoomedTo([10, 14]);
+    // a knob is the cheapest redraw there is — same numbers, new colours
+    const scales = host.querySelector<HTMLElement>('.segmented[aria-label="intensity scale"]')!;
+    [...scales.querySelectorAll("button")].find((b) => b.textContent!.trim() === "√")!.click();
+    await flush();
+
+    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10, 14]);
+    // …but not the y axis, whose meaning the √ just changed, and not the
+    // residual axis, which was autoranging (the rest of that rule is asserted
+    // on the pure function, in `lib/plot.test.ts`)
+    expect(drawn.at(-1)!.layout.yaxis).not.toHaveProperty("range");
+    expect(drawn.at(-1)!.layout.yaxis2).not.toHaveProperty("range");
+  });
+
+  it("costs one react per fetch — a payload is not a knob", async () => {
+    // Counted in Chrome before it was fixed: one zoom drag issued two identical
+    // `react`s and boot issued six, because the knob effect *tracked* `held`.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const atBoot = drawn.length;
+    zoomedTo([10, 14]);
+    drawn.length = 0;
+    // the report panel asking for a window is one fetch, so it is one draw
+    const kinds = host.querySelector<HTMLElement>('.segmented[aria-label="residual"]')!;
+    [...kinds.querySelectorAll("button")].find((b) => b.textContent!.trim() === "Δ")!.click();
+    await flush();
+    expect(drawn.length).toBe(1);       // a knob repaints once
+    expect(atBoot).toBeLessThanOrEqual(3);
+  });
+
+  it("leaves an autoranging axis alone, so a double-click still shows all of it",
+     async () => {
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({ ...boot(), ...FITTED, ...TWO_PHASE_WINDOW });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    zoomedTo(null);
+    const kinds = host.querySelector<HTMLElement>('.segmented[aria-label="residual"]')!;
+    [...kinds.querySelectorAll("button")].find((b) => b.textContent!.trim() === "Δ")!.click();
+    await flush();
+    expect(drawn.at(-1)!.layout.xaxis).not.toHaveProperty("range");
+    // …and the gesture that gets there: plotly's default `reset+autosize` means
+    // *back to the range the plot was drawn with*, which is now the zoom itself
+    // — measured in Chrome, a double-click out of a window became a no-op
+    expect(drawn.at(-1)!.config.doubleClick).toBe("autosize");
+  });
+
+  it("refetches the window on screen when a peak edit redraws it", async () => {
+    // The other half: the fetch used to fall back to the whole pattern, so a
+    // toggle both moved the axis and coarsened the curves under it.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+      "/api/peaks/flag": () => ({ body: { ...PEAKS_PAYLOAD, api_call: "session.set_peak_flags(1)" } }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    zoomedTo([10, 14]);
+    const boxes = [...host.querySelectorAll<HTMLInputElement>('td.acts input[type="checkbox"]')];
+    boxes[1].dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+
+    expect(windows(stub).at(-1)).toContain("lo=10&hi=14");
+    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10, 14]);
+  });
+
+  it("still moves for a panel's request — the same one twice, if it is asked twice",
+     async () => {
+    // A window from another panel is a *request*, and the array's identity is
+    // what tells it apart from every other reason the effect runs: the shell
+    // writes a fresh pair per click, so asking twice moves twice.
+    const drawn: any[] = [];
+    plotly(drawn);
+    const stub = server({
+      ...boot(), ...FITTED, ...TWO_PHASE_WINDOW,
+      "/api/peaks": () => ({ body: PEAKS_PAYLOAD }),
+    });
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    // the table's own zoom verb: 8 FWHM either side of the line (WP-1027)
+    const zoomTo = [...host.querySelectorAll<HTMLButtonElement>("button")]
+      .filter((b) => b.title === "zoom the plot to this line");
+    zoomTo[0].click();
+    await flush();
+    const eight = 8 * PEAKS_PAYLOAD.peaks[0].fwhm;
+    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10 - eight, 10 + eight]);
+
+    // …the user drags somewhere else, and asks for the same line again
+    zoomedTo([13, 15]);
+    zoomTo[0].click();
+    await flush();
+    expect(drawn.at(-1)!.layout.xaxis.range).toEqual([10 - eight, 10 + eight]);
+  });
+
+  it("marks the plot while a range gesture is armed, for the cursor to hang on",
+     async () => {
+    // plotly's `updateFx` gives the drag layer one cursor for every dragmode
+    // that is not `pan`, so `select` and `zoom` are pointer-identical and
+    // arming said nothing under the pointer.  The class is the hook; the rule
+    // that uses it sets the cursor on the plot-area rect, where an inherited
+    // one loses to it without a specificity fight.
+    const drawn: any[] = [];
+    plotly(drawn);
+    vi.stubGlobal("fetch", server({ ...boot(), ...FITTED }).fetcher);
+    app = mount(App, { target: host });
+    await flush();
+
+    const plot = host.querySelector(".plot")!;
+    expect(plot.classList.contains("armed")).toBe(false);
+    const arm = host.querySelector<HTMLElement>('.segmented[aria-label="select on the plot"]')!;
+    [...arm.querySelectorAll("button")].find((b) => b.textContent!.includes("exclude"))!.click();
+    await flush();
+    expect(plot.classList.contains("armed")).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await flush();
+    expect(plot.classList.contains("armed")).toBe(false);
+  });
+});
+
 describe("the peaks tab (WP-1027)", () => {
   it("lists every line, the fitter's exclusions distinguished, diagnostics inline", async () => {
     vi.stubGlobal("fetch", server({

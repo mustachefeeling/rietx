@@ -15,6 +15,8 @@
    * and the page still works air-gapped.  The loader itself is `lib/plotly.ts`,
    * shared with the structure viewer since WP-1015.
    */
+  import { untrack } from "svelte";
+
   import { ApiError, api } from "../api";
   import { loadPlotly } from "../lib/plotly";
   import { grabToleranceDeg, joinCurves, nearestPeak, type PeaksPayload } from "../lib/peaks";
@@ -24,6 +26,7 @@
     curveColors,
     curveToggles,
     formatRegion,
+    heldRanges,
     hoverLabel,
     maskShapes,
     mergeRegions,
@@ -31,10 +34,12 @@
     residual,
     scaleValues,
     shows,
+    span,
     sqrtTicks,
     tickBand,
     toggleCurve,
     type Protocol,
+    type Ranges,
     type ResidualKind,
     type Scale,
   } from "../lib/plot";
@@ -124,8 +129,35 @@
   /** the toggles this payload offers — background only when there is one, one
    *  row per phase (WP-1032) */
   const toggles = $derived(held ? curveToggles(held, residual(kind, held).label) : []);
+  /** What the last paint drew each y axis in.  Plain `let`s, not `$state`: they
+   *  are read inside the paint they describe, and a reactive one would make
+   *  every paint a reason to paint again. */
+  let paintedScale: Scale | null = null;
+  let paintedKind: ResidualKind | null = null;
 
-  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number): any {
+  /** The view on screen, handed back to the next draw (`lib/plot.ts`).
+   *
+   *  The knob comparison is **untracked**: this is called from inside the fetch
+   *  effect as well as the repaint one, and a tracked read there would make
+   *  choosing Δ over Δ/σ a reason to ask the server for the window again — the
+   *  exact round trip the two effects are split to avoid (caught by the jsdom
+   *  suite, which counts the reacts one click costs). */
+  function view(): Ranges {
+    return heldRanges((node as any)?._fullLayout, untrack(() =>
+      ({ yaxis: paintedScale === scale, yaxis2: paintedKind === kind })));
+  }
+
+  /** The 2θ window the axis is showing, or null when it is showing all of it.
+   *
+   *  This is the window the *next fetch* asks for, which is why a peak edit no
+   *  longer silently coarsens the picture: the payload follows the axis instead
+   *  of falling back to the whole pattern under a pinned range. */
+  function shownWindow(): [number, number] | null {
+    return view().xaxis ?? null;
+  }
+
+  function layout(w: any, colors: ReturnType<typeof curveColors>, nPhases: number,
+                  ranges: Ranges): any {
     const style = getComputedStyle(document.body);
     const fg = style.color;
     // the panel border colour, for the grid: plotly's default grid is
@@ -158,23 +190,37 @@
       // anchored to the *lower* subplot, so the ticks and the title sit under
       // the residual rather than between the two — where the title landed
       // inside the residual plot, on top of a cumulative χ² curve
+      // Every axis the user has moved is handed back here (`heldRanges`); an
+      // axis they have not keeps no `range` key at all, which is what leaves
+      // plotly autoranging and what makes a double-click still mean "all of it".
       xaxis: { title: { text: "2θ (°)" }, zeroline: false, domain: [0, 1],
-               anchor: "y2", gridcolor: line },
+               anchor: "y2", gridcolor: line, ...span(ranges.xaxis) },
       yaxis: {
         title: { text: scale === "linear" ? "intensity" : `intensity (${scale})` },
         domain: [0.28, 1],
         type: scale === "log" ? "log" : "linear",
         gridcolor: line,
         ...(ticks ? { tickmode: "array", ...ticks } : {}),
+        ...span(ranges.yaxis),
       },
       yaxis2: { title: { text: res.title }, domain: [0, 0.22], gridcolor: line,
-                zeroline: res.zeroline, zerolinecolor: colors.zero },
+                zeroline: res.zeroline, zerolinecolor: colors.zero,
+                ...span(ranges.yaxis2) },
       hovermode: "x unified",
       hoverlabel: hoverLabel((name) => style.getPropertyValue(name)),
     };
   }
 
-  async function draw(lo?: number, hi?: number) {
+  /**
+   * Fetch a window and draw it.
+   *
+   * `request` is a window another panel *asked* for (a report region, an
+   * unindexed peak) — the one case where the axis must be moved rather than
+   * kept, so it overrides the held view and lets the y axes autorange over
+   * whatever is there. Everything else (a zoom drag, a repaint after an edit)
+   * passes nothing and keeps the view the user is looking at.
+   */
+  async function draw(lo?: number, hi?: number, request: [number, number] | null = null) {
     if (!node || !result) return;
     try {
       plotly = plotly ?? (await loadPlotly());
@@ -198,12 +244,12 @@
     loadError = "";
     held = w;
     shown = { n: w.n_returned, total: w.n_total, lo: w.window?.[0] ?? 0, hi: w.window?.[1] ?? 0 };
-    await paint(w);
+    await paint(w, request);
   }
 
   /** Redraw the payload already in hand — a residual or a scaling change is a
    *  choice about the same numbers, so it must not cost a round trip. */
-  async function paint(w: any) {
+  async function paint(w: any, request: [number, number] | null = null) {
     if (!node || !plotly) return;
     // One microtask before sampling any style: on a theme change this effect
     // and the shell's `applyTheme` effect wake in the same flush, and this one
@@ -276,8 +322,20 @@
     traces.push(...peakTraces(w, colors));
     ringAt = peaks?.peaks?.length ? traces.length - 1 : -1;
 
-    await plotly.react(node, traces, layout(w, colors, phases.length),
-                       { responsive: true, displaylogo: false });
+    // read immediately before the react, never held between them (lib/plot.ts)
+    const ranges = request ? { xaxis: request } : view();
+    paintedScale = scale;
+    paintedKind = kind;
+    await plotly.react(node, traces, layout(w, colors, phases.length, ranges),
+                       // `doubleClick: "autosize"`, not plotly's default
+                       // `"reset+autosize"`: reset means *back to the range the
+                       // plot was drawn with*, and since the draw above hands
+                       // the view back, that range is the zoom itself — measured
+                       // in Chrome, a double-click out of a 9.97–14.66° window
+                       // became a no-op. Autosize is what "all of it" means for
+                       // a pattern, and it is the gesture the window fetch
+                       // already listens for (`xaxis.autorange`).
+                       { responsive: true, displaylogo: false, doubleClick: "autosize" });
     // plotly decorates the div with its own emitter at runtime; re-registering
     // without removing would stack one handler per redraw
     const plotNode = node as HTMLDivElement & {
@@ -426,7 +484,7 @@
 
   /** Draw the raw pattern alone — the state a project is in before any fit,
    *  which is exactly when peaks are picked and a cell is indexed. */
-  async function paintRaw() {
+  async function paintRaw(request: [number, number] | null = null) {
     if (!node || !peaks?.pattern?.two_theta?.length) return;
     try {
       plotly = plotly ?? (await loadPlotly());
@@ -448,7 +506,7 @@
       lo: w.two_theta[0],
       hi: w.two_theta[w.two_theta.length - 1],
     };
-    await paint(w);
+    await paint(w, request);
   }
 
   // -- pointer interactions (WP-1027) ---------------------------------
@@ -641,6 +699,15 @@
     onprotocol({ two_theta_limits: [num(loText), num(hiText)] });
   }
 
+  /** The `zoom` prop this panel has already acted on, by **identity**.
+   *
+   *  A window from another panel is a *request*, and every other reason this
+   *  effect runs is not — so the two have to be told apart, and the array's
+   *  identity is what does it: the shell writes a fresh pair per click, so
+   *  clicking the same region twice asks twice, while a peak edit re-runs the
+   *  effect with the same array and keeps the view. Deliberately not `$state`. */
+  let asked: [number, number] | null | undefined;
+
   $effect(() => {
     plotKey; // redraw when the session says the curves moved
     void peaks; // …and when a peak verb answered with a new list
@@ -651,13 +718,19 @@
     // …and refetch the window when another panel points at one: the zoom is a
     // *server* fetch, not an axis range, so a region the report sent us to comes
     // back at full point budget rather than as the decimated overview stretched
-    const window = zoom;
+    const request = zoom !== asked ? zoom : null;
+    asked = zoom;
+    // Any other reason to redraw keeps the window on screen. It used to fall
+    // back to the whole pattern, which is what made a peak toggle a zoom reset
+    // — the fetch went wide and the axis autoranged after it (lib/plot.ts).
+    const window = request ?? shownWindow();
     if (result) {
-      draw(window?.[0], window?.[1]);
+      draw(window?.[0], window?.[1], request);
     } else if (peaks?.pattern?.two_theta?.length) {
       // no fit yet, but there is a pattern to pick peaks on — indexing's whole
-      // situation is a project with no fittable model (WP-1027)
-      paintRaw();
+      // situation is a project with no fittable model (WP-1027).  There is no
+      // window fetch here, so a request is an axis move and nothing else.
+      paintRaw(request);
     } else {
       // the curves are gone server-side (a checkout): drop the held copy too,
       // or the theme/knob repaint below would redraw a state the project is no
@@ -683,7 +756,13 @@
     void hidden;
     void arm;     // the drag mode is layout, so arming redraws
     void extent;
-    if (held) paint(held);
+    // …and `held` is read **untracked**, which is the difference between a knob
+    // and a payload: a new payload has already been painted by whoever fetched
+    // it, so tracking it here made every fetch cost a second identical `react`
+    // (counted in Chrome: 2 per zoom drag, 6 at boot, each ~111 ms on a real
+    // pattern by WP-1032's measurement — now 1 and 3).
+    const w = untrack(() => held);
+    if (w) paint(w);
   });
 
   // the hover link is *not* in the effect above, and that is the whole point:
@@ -736,7 +815,8 @@
   <!-- role: the div is a pointer-driven editing surface when the Peaks tab is
        active.  Every verb has a non-pointer route too — the line above names
        each — so the pointer path is an accelerator, not the only way in. -->
-  <div class="plot" role="application" aria-label="diffraction pattern"
+  <div class="plot" class:armed={arm !== null} role="application"
+    aria-label="diffraction pattern"
     bind:this={node} onpointerdowncapture={down} oncontextmenu={context}></div>
   {#if shown}
     <div class="knobs">
@@ -860,6 +940,18 @@
   .plot {
     flex: 1 1 auto;
     min-height: 240px;
+  }
+
+  /* An armed range gesture has to say so **where the gesture is**.
+     plotly's `updateFx` gives the drag layer one cursor for everything that is
+     not a pan — measured in Chrome, `dragmode: "select"` and `dragmode: "zoom"`
+     both leave `g.draglayer.cursor-crosshair`, and the rects below it inherit
+     it — so arming changed the mode and the pointer went on saying "zoom".
+     Set on the plot-area rect rather than on the layer: an inherited cursor
+     loses to any direct declaration, so this needs no specificity fight with
+     plotly's own stylesheet, and it leaves the axis edge draggers alone. */
+  .plot.armed :global(.nsewdrag) {
+    cursor: col-resize;
   }
 
   .knobs {

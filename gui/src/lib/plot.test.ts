@@ -6,6 +6,7 @@ import {
   curveColors,
   curveToggles,
   formatRegion,
+  heldRanges,
   hoverLabel,
   maskShapes,
   masked,
@@ -14,6 +15,7 @@ import {
   residual,
   scaleValues,
   shows,
+  span,
   sqrtTicks,
   tickBand,
   toggleCurve,
@@ -276,5 +278,56 @@ describe("which curves are drawn (WP-1032)", () => {
     expect(shows(["bkg"], "bkg")).toBe(false);
     expect(toggleCurve([], "bkg")).toEqual(["bkg"]);
     expect(toggleCurve(["bkg", "obs"], "bkg")).toEqual(["obs"]);
+  });
+});
+
+describe("handing the view back (WP-1043)", () => {
+  const LIVE = { yaxis: true, yaxis2: true };
+  const full = (over: Record<string, any> = {}) => ({
+    xaxis: { autorange: false, range: [9.97, 14.66] },
+    yaxis: { autorange: false, range: [0, 4200] },
+    yaxis2: { autorange: false, range: [-5, 5] },
+    yaxis3: { autorange: false, range: [-2, 0] },   // the tick band — ours already
+    ...over,
+  });
+
+  it("keeps every axis the user has moved", () => {
+    expect(heldRanges(full(), LIVE)).toEqual({
+      xaxis: [9.97, 14.66], yaxis: [0, 4200], yaxis2: [-5, 5],
+    });
+  });
+
+  it("leaves an autoranging axis alone, which is what a double-click restores", () => {
+    // plotly puts `autorange` back on a double-click, so the *absence* of a
+    // range key is how "show me all of it" survives the next redraw
+    expect(heldRanges(full({ xaxis: { autorange: true, range: [1.7, 25.3] } }), LIVE))
+      .not.toHaveProperty("xaxis");
+    expect(heldRanges({}, LIVE)).toEqual({});
+    expect(heldRanges(undefined, LIVE)).toEqual({});
+  });
+
+  it("never hands back the tick band — it is not the user's axis", () => {
+    expect(heldRanges(full(), LIVE)).not.toHaveProperty("yaxis3");
+  });
+
+  it("drops a y range whose axis no longer means the same thing", () => {
+    // a √ or log scaling re-means `yaxis`, and another residual re-means
+    // `yaxis2` (Σχ² runs to hundreds of thousands where Δ/σ runs to ±5)
+    expect(heldRanges(full(), { yaxis: false, yaxis2: true }))
+      .toEqual({ xaxis: [9.97, 14.66], yaxis2: [-5, 5] });
+    expect(heldRanges(full(), { yaxis: true, yaxis2: false }))
+      .toEqual({ xaxis: [9.97, 14.66], yaxis: [0, 4200] });
+  });
+
+  it("refuses a range that is not two numbers", () => {
+    expect(heldRanges(full({ xaxis: { autorange: false, range: ["2020-01-01", 3] } }), LIVE))
+      .not.toHaveProperty("xaxis");
+    expect(heldRanges(full({ xaxis: { autorange: false } }), LIVE)).not.toHaveProperty("xaxis");
+  });
+
+  it("emits a range key only when there is one — an absent key is the autorange", () => {
+    expect(span([1, 2])).toEqual({ range: [1, 2] });
+    expect(span()).toEqual({});
+    expect("range" in span()).toBe(false);
   });
 });

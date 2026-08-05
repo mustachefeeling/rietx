@@ -149,6 +149,69 @@ export function maskShapes(protocol: Protocol, extent: [number, number],
   return shapes.filter(Boolean);
 }
 
+/**
+ * The axis ranges the user has dragged to, read back off plotly.
+ *
+ * **A redraw is not a reason to move the axes**, and before this every redraw
+ * did: the layout handed to `react` carried no `range`, so plotly re-autoranged
+ * over *everything drawn* — and what is drawn is not only the window. The peak
+ * markers span the whole pattern (the list is not windowed) and so do the mask
+ * shapes, which are `xref: "x"` and therefore take part in the autorange, the
+ * same property `maskShapes` clips against above. Measured in Chrome on the
+ * synthetic fixture, a drag to 9.97–14.66° came back as:
+ *
+ * | also on the plot            | axis after the refetch |
+ * |-----------------------------|------------------------|
+ * | nothing                     | 9.97–14.66 ✓           |
+ * | a peak list                 | 4.57–24.85             |
+ * | an excluded region at 4–5°  | 3.99–24.88             |
+ * | a fitted range of 8–18°     | 3.00–24.94             |
+ *
+ * — so the zoom worked only on a plot with nothing else on it, which is why the
+ * report was "horizontal zoom does not work when there are excluded regions".
+ * The same react is what threw the view away on every peak edit: a toggle
+ * repaints, and on the raw view there is not even a window fetch to land back
+ * in (measured: 9.97–14.66 → the full 1.74–25.25 on one shift-click).
+ *
+ * This is WP-1015's rule for the 3D camera one panel over — `react` rebuilds
+ * the scene, so **the view must be handed back on every draw** — and it is read
+ * from `_fullLayout` immediately before the react for that rule's reason too: a
+ * drag, a double-click and the modebar all move it, so a copy kept here would
+ * be a second answer.
+ *
+ * `autorange === false` is exactly "the user has said": plotly sets it on a zoom
+ * or pan drag and puts it back on a double-click, which is what keeps
+ * reset-to-all reachable. `live` is the caller's half of the question — a y axis
+ * is only the same axis while it is still drawing the same thing, and a √ or log
+ * scaling re-means `yaxis` while another residual re-means `yaxis2` (Σχ² runs to
+ * hundreds of thousands where Δ/σ runs to ±5).
+ */
+export interface Ranges {
+  xaxis?: [number, number];
+  yaxis?: [number, number];
+  yaxis2?: [number, number];
+}
+
+export function heldRanges(full: any, live: { yaxis: boolean; yaxis2: boolean }): Ranges {
+  const out: Ranges = {};
+  const keep = (key: keyof Ranges, ok: boolean) => {
+    const ax = full?.[key];
+    if (!ok || ax?.autorange !== false || !Array.isArray(ax.range)) return;
+    const pair: [number, number] = [Number(ax.range[0]), Number(ax.range[1])];
+    if (pair.every(Number.isFinite)) out[key] = pair;
+  };
+  keep("xaxis", true);
+  keep("yaxis", live.yaxis);
+  keep("yaxis2", live.yaxis2);
+  return out;
+}
+
+/** A `range` key, or nothing at all — an absent one is what leaves plotly
+ *  autoranging, and `range: null` would not (it is a value like any other). */
+export function span(range?: [number, number]): { range?: [number, number] } {
+  return range ? { range } : {};
+}
+
 /** A drawn interval as an ordered pair, or null if it is a point. */
 export function normalizeRegion(pair: [number, number]): [number, number] | null {
   const [a, b] = pair;
