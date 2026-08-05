@@ -75,6 +75,12 @@ ORBIT_COLLISION_TOL = 1e-3
 #: path — so this is display only, as it is in the frontend.
 _ANGLE_GLYPH = {"alpha": "α", "beta": "β", "gamma": "γ"}
 
+#: The ``entries`` arm's keys, so "nothing moved" and "nothing was computed" have
+#: the same *shape* on the wire — a client renders one answer either way.
+_EMPTY_ENTRIES: dict[str, list[str]] = {
+    "added": [], "removed": [], "tied": [], "untied": [],
+    "locked": [], "unlocked": []}
+
 
 # ----------------------------------------------------------------------
 # the free tier: what one gemmi lookup knows
@@ -366,12 +372,18 @@ def preview(structure: Structure, instrument, phase: int, symbol: str, *,
     """What changing phase ``phase``'s space group to ``symbol`` would do.
 
     ``blocked`` is the gate the apply verb reads: it is true when the candidate
-    model cannot build a parameter table, or when the change would make two
-    asymmetric-unit atoms symmetry-equivalent.  Everything else — a setting
-    change, a free path that would be dropped or renumbered — is a **note**: each
-    is a legitimate thing to intend, and refusing them would make the verb
-    unable to *fix* a mis-declared setting, which is the commonest reason to
-    reach for it.
+    model cannot build a parameter table, and when the change would put two
+    asymmetric-unit atoms on one orbit at a *combined occupancy past 1* — the
+    only reading of a shared orbit that is unambiguously a double count.
+    Everything else — a setting change, a centring change, an orbit
+    multiplicity, a free path that would be dropped or renumbered — is a
+    **note**: each is a legitimate thing to intend, and refusing them would make
+    the verb unable to *fix* a mis-declared setting, which is the commonest
+    reason to reach for it.
+
+    A **refused** candidate is given no consequences at all: its orbits and its
+    centring would be computed from operators the model cannot carry, so only the
+    refusal and the note explaining it are reported.
 
     Raises ``ValueError`` for an unresolvable symbol and ``IndexError`` for a
     phase that does not exist; the session maps both onto its own refusals.
@@ -381,24 +393,31 @@ def preview(structure: Structure, instrument, phase: int, symbol: str, *,
     after = phase_facts(candidate.phases[phase], phase)
 
     refusals = _refusals(candidate, instrument, phase)
+    if refusals:
+        return {
+            "phase": phase, "from": before, "to": after,
+            "changed": before.get("xhm") != after.get("xhm"),
+            "blocked": True, "refusals": refusals,
+            "notes": _cause_notes(before, after, phase),
+            "entries": _EMPTY_ENTRIES.copy(), "sites": [],
+        }
     # one orbit expansion per atom per side, shared by the collision check and
     # the site diff — the expensive half of this verb, and the reason it is one
     orbits = (_orbits(structure, phase), _orbits(candidate, phase))
     collisions = _collisions(structure, candidate, phase, orbits)
     multiplicity = ([len(o) for o in orbits[0]], [len(o) for o in orbits[1]])
     notes = _notes(structure, candidate, phase, before, after, free_paths or [],
-                   multiplicity, blocked=bool(refusals))
+                   multiplicity)
     notes.extend(collisions)
     return {
         "phase": phase,
         "from": before,
         "to": after,
         "changed": before.get("xhm") != after.get("xhm"),
-        "blocked": bool(refusals) or any(n["kind"] == "orbit_collision"
-                                         for n in collisions),
+        "blocked": any(n["kind"] == "orbit_collision" for n in collisions),
         "refusals": refusals,
         "notes": notes,
-        **_table_diff(structure, candidate, instrument, blocked=bool(refusals)),
+        "entries": _table_diff(structure, candidate, instrument),
         "sites": _site_diff(structure, candidate, phase, multiplicity),
     }
 
@@ -468,26 +487,22 @@ def _build_error(probe: Structure, instrument) -> str:
     return ""
 
 
-def _table_diff(current: Structure, candidate: Structure, instrument, *,
-                blocked: bool) -> dict:
+def _table_diff(current: Structure, candidate: Structure, instrument) -> dict:
     """Which entries gain or lose a tie or a lock, and which appear or vanish.
 
     Nothing is recomputed here: ``Entry`` already carries ``tie`` and ``locked``,
     and the diff of two tables *is* the answer.  A current model whose own table
     cannot build (the state a pre-WP-1035 bad edit leaves the head in) diffs
     against nothing rather than failing — which is what lets this verb be the way
-    *out* of that state.
+    *out* of that state.  The candidate's table is known to build: a caller that
+    got here has already run :func:`_refusals`.
     """
-    empty = {"added": [], "removed": [], "tied": [], "untied": [],
-             "locked": [], "unlocked": []}
-    if blocked:
-        return {"entries": empty}
     try:
         now = {e.path: e for e in ParameterTable(current, instrument).entries}
     except ValueError:
-        return {"entries": empty}
+        return _EMPTY_ENTRIES.copy()
     then = {e.path: e for e in ParameterTable(candidate, instrument).entries}
-    out = dict(empty)
+    out = {k: list(v) for k, v in _EMPTY_ENTRIES.items()}
     out["added"] = sorted(then.keys() - now.keys())
     out["removed"] = sorted(now.keys() - then.keys())
     for path in sorted(now.keys() & then.keys()):
@@ -496,7 +511,7 @@ def _table_diff(current: Structure, candidate: Structure, instrument, *,
             out["tied" if b.tie is not None else "untied"].append(path)
         if a.locked != b.locked:
             out["locked" if b.locked else "unlocked"].append(path)
-    return {"entries": out}
+    return out
 
 
 def _site_diff(current: Structure, candidate: Structure, phase: int,
@@ -542,17 +557,10 @@ def _site_diff(current: Structure, candidate: Structure, phase: int,
 
 def _notes(current: Structure, candidate: Structure, phase: int, before: dict,
            after: dict, free_paths: list[str],
-           multiplicity: tuple[list[int], list[int]], *,
-           blocked: bool) -> list[dict]:
+           multiplicity: tuple[list[int], list[int]]) -> list[dict]:
+    """The consequences of a change that *can* happen — see :func:`preview`."""
     notes: list[dict] = []
     n_before, n_after = sum(multiplicity[0]), sum(multiplicity[1])
-    if blocked:
-        # A refused change has no consequences, so it must not be given any.  On
-        # a blocked candidate the orbits and the centring are computed from
-        # operators the cell cannot carry — the browser pass read "the cell would
-        # hold 198 atoms" for an ``R -3 c`` over a 90° cell — and only the
-        # refusal, plus what caused it, is worth printing.
-        return _cause_notes(before, after, phase)
     if n_before != n_after and n_before and n_after:
         # the second thing the entry diff is blind to, and the one a browser
         # pass caught: NAC's I 21 3 → I 41 3 2 moves no parameter at all and
@@ -582,8 +590,7 @@ def _notes(current: Structure, candidate: Structure, phase: int, before: dict,
                 "the next stage compile, so Rwp will move even though nothing "
                 "below says anything did."),
         })
-    if not blocked:
-        notes.extend(_free_path_notes(current, candidate, phase, free_paths))
+    notes.extend(_free_path_notes(current, candidate, phase, free_paths))
     return notes
 
 
