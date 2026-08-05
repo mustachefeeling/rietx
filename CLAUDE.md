@@ -49,19 +49,16 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1040 task-3** close, darwin/arm64 M4, `worktree-indexer`,
-venv `[dev,jax]`, no torch — so **WP-1034's `[dev]` figures do not compare**; it
-was frontend-only and moved no python row.
+2026-08-05 at the **WP-1041** close, darwin/arm64 M4, `worktree-indexer`, venv
+`[dev,jax]`, no torch — **WP-1034's `[dev]` figures do not compare**.
 
-- fast suite: **1738 passed / 67 skipped**, **3-4 min** — 1040's 1722 + 16: 6 new
-  rows plus **10 meta-tests** (`validation_matrix` parametrises five per `Claim`).
-  ~55 s at the 1039 close and **three engines is why**; the lever is narrowing what
-  those `index_pattern`-driven rows search, never their budgets.
-- full suite: **1835 passed / 72 skipped**, 29-36 min (fast's 1805 + 30 slow).
-  `test_acceptance_indexing.py` sets the clock: **38 rows, 13-14 min** against **20:03** at the 1040 close — same file, so that spread is machine state.
-- frontend (vitest): **330** (321 at 1033, +9 at 1034), `svelte-check` clean; `test_gui_*.py` collect **81**; WP-1040 touched no `gui/` file.
-- **A module-level `importorskip` collapses its module into one skip**, so
-  `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
+- fast: **1744 passed / 67 skipped**, 3-4 min — 1040's 1738 +6: five new rows, plus
+  `INDEX_DOMINANT_ZONE` *moved* to `slow` (it leaves this selection, joins the next).
+  full: **1842 / 72**, 29-36 min, clocked by `test_acceptance_indexing.py` (**38 rows,
+  13-14 min**; 20:03 at the 1040 close on the same file — that spread is machine state).
+- frontend (vitest) **330**, `svelte-check` clean, `test_gui_*.py` collect **81**;
+  1040/1041 touched no `gui/` file. **A module-level `importorskip` collapses its
+  module into one skip**, so `--collect-only` undercounts (`tests/CLAUDE.md`).
 
 `pxrdref compare` is the fastest way to answer "does this new correction
 actually help?": pick a standard, tick variants, and read the **cumulative
@@ -504,15 +501,14 @@ ranking on share-of-observed-intensity alone demonstrably puts a 390-line wrong
 phase above the truth; and a restricted search reports `systems_searched` rather
 than concluding anything about the sample. Engines supply the confidence by
 **agreeing**, the same device as `direction="both"` and the cross-backend matrix —
-**three** of them (two until WP-1040), and `high` means *every* engine that ran
-found the lattice, so adding one raises the bar rather than diluting it. They must
-fail differently for that to mean anything, and they do: a wide domain
-(dichotomy), a poisoned base line (trial_error), a bad starting basin
-(svd). The same rule runs one step further into the
-workflow: the **extinction symbol**, not the space group, is what a powder measures,
-so `determine_extinction_symbol` answers with a ranked list of classes and every
-class carries a *list* of space groups — the one place in the package where the
-singleton is not merely unsupported but unmeasurable.
+**three** of them (two until WP-1040), and `high` means *every* engine that ran found
+the lattice, so adding one raises the bar rather than diluting it. They must fail
+differently for that to mean anything, and they do: a wide domain (dichotomy), a
+poisoned base line (trial_error), a bad starting basin (svd). The same rule runs one
+step further into the workflow: the **extinction symbol**, not the space group, is
+what a powder measures, so `determine_extinction_symbol` answers with a ranked list
+of classes and every class carries a *list* of space groups — the one place in the
+package where the singleton is not merely unsupported but unmeasurable.
 
 `index_pattern(peaks | data+instrument)` (`indexing/workflow.py`) runs that
 pipeline: quality gate → engines → `indexing/consensus.py` (merge on the reduced
@@ -558,10 +554,9 @@ right, while a hexagonal orbit cut by the box legitimately contributes a fractio
 Two things the panel needs from its caller (WP-1026): the **matching window** is an
 argument (`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage
 members must ask the same "is this the same line" question the *search* asked while
-M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a
-candidate carrying a fitted shift is scored on `engines.scored_positions`, the
-**corrected** lines it actually claims, or the panel marks it down for its own
-correction.
+M₂₀ and F_N floor their discrepancy on what the measurement resolves; and a candidate
+carrying a fitted shift is scored on `engines.scored_positions`, the **corrected**
+lines it actually claims, or the panel marks it down for its own correction.
 
 **The search window is a correctness parameter, measured rather than assumed**
 (WP-1038, `indexing/pairs.py`). A *harmonic reflection pair* — planes that are
@@ -588,13 +583,21 @@ indexes **zero** lines and both engines return nothing. Hence
 `DEFAULT_UNKNOWN_SHIFT_DEG` (0.05° 2θ, the fallback when the pair screen above
 declines, reported as `INDEX_SHIFT_ALLOWANCE` because an assumed precision must never
 look like a measured one) and `refine_with_shift`, which fits the shift *template*
-**after** a candidate survives — the *shape* needs reference positions, which a
-candidate cell supplies. A cell found under a widened window but never shift-refined
-is biased by roughly the shift (+1400 ppm measured).
+**after** a candidate survives — the *shape* needs reference positions, which a candidate
+cell supplies. A cell found under a widened window but never shift-refined is biased by
+roughly the shift (+1400 ppm measured).
 
 Fourteen more indexing rules, each learned the hard way — the measured stories are in
 the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `indexing/`:
 
+- **A filter inside a search fails with a wrong *answer*, so a silence indicts the
+  filters before the tolerance.** `engines.solution_key` is the one dedup authority —
+  quantised **scale** *and* **centring**, claimed before scoring, so a *rejected*
+  metric poisons its whole shape family (scale invariance merges every uniform
+  rescaling: a cell collides with its own supercell). It lost a cubic-I truth and
+  fired `INDEX_DOMINANT_ZONE` for two years on a fixture the base table could solve
+  (WP-1041); the peak list blocked the certified pattern twice the same way (fitted
+  satellites, then `_box_key` skipping unrefined leaves).
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted). Two corollaries: **wall clock is worthless while a second search shares
@@ -625,9 +628,6 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   about the input, never handed to anything that applies a centring. Reduction needs
   the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies
   the gate its agreement.
-- **A search that finds nothing indicts its input before its tolerance**: the peak
-  list blocked the certified pattern twice (fitted satellites, then `_box_key`
-  skipping unrefined leaves — a performance filter fails with a wrong answer).
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above). `volume_envelope`
   is a mean line, not an envelope — WP-1030's.
@@ -640,10 +640,10 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   token (it nests under every cooperative check with no engine changes);
   `estimate_ceiling` is the pre-run arithmetic and `INDEX_BUDGET_EXHAUSTED` names the
   three states a bound run leaves (searched / truncated / not reached). A truncated
-  validation reads `not_validated`, never `validation_failed` (1037).
-- **A Monte Carlo indexer must refine each proposal; scoring raw random cells does not
-  rank** — measured both ways: WP-1023 ranked corundum's truth 29 053 of 200 001
-  unrefined; `search_svd`, iterating each to a fixed assignment, returns it alone.
+  validation reads `not_validated`, never `validation_failed` (1037). And **a Monte
+  Carlo indexer must refine each proposal; scoring raw random cells does not rank** —
+  WP-1023 ranked corundum's truth 29 053 of 200 001 unrefined, where `search_svd`,
+  iterating each to a fixed assignment, returns it alone.
 - **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
   (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
   V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
@@ -660,10 +660,10 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   Coelho §2.3's column is the other half, and it does *not* raise the hit rate: at an
   injected 0.10°, started **at** the truth, one pass lands 3.5 % out where §2.4's
   three land 1e-4 out and report the shift to 1 % (corundum 0 candidates → the truth
-  ranked first, nothing regressed). It agrees with the pair screen to **0.003°**
-  needing neither references nor pairs — and still may not correct a cell, being the
-  `constant` template *by construction*: **a shift measured without an attribution
-  sizes windows, and only a declared template moves a cell.**
+  ranked first, nothing regressed). It agrees with the pair screen to **0.003°** needing
+  neither references nor pairs — and still may not correct a cell, being the `constant`
+  template *by construction*: **a shift measured without an attribution sizes windows,
+  and only a declared template moves a cell.**
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity

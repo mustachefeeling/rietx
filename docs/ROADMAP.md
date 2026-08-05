@@ -55,48 +55,48 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight: [1040](wp/1040-engine-svd-index.md)** (2026-08-05) — a **third
-indexing engine**: Coelho's iterative SVD, proposing a metric at random and
-alternating "assign each line to its nearest calculated one" with "re-solve A..F
-from that assignment" until the assignment stops changing. **No tolerance to
-search with**, failing on a bad starting basin where the other two fail on a wide
-domain and a poisoned base line — so `high` now means all three agree. WP-1023's
-Monte Carlo no-go is narrowed, not overturned: it scored *unrefined* random cells.
-**11-BM NAC is now indexed as measured** (a = 10.2512 Å cubic **I**, +19 ppm)
-where the row asserted it could not be, and the gate still declines it. **The
-zero-error column (task 3) did the opposite of what was predicted**: it does not
-raise the hit rate — bethanechol A-D are blocked by 7 impurity lines in 20, not by
-their zeroshift — it stops a *converged* answer being wrong (an injected 0.10°
-lands 3.5 % out in one pass and 1e-4 out in three), and its fitted Ze agrees with
-1038's pair screen to **0.003°** seeing neither references nor pairs. The
-acceptance run then caught a **regression three datasets had missed**: a dedup key
-spanning the centring loop without carrying the centring. **All 1040 still owes**
-is the eight-dataset scoreboard, handed to 1041.
+**In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** (2026-08-05) — the
+gallery, opened by clearing the three defects it inherited. Landed: one shared
+`engines.solution_key` (the two engines had the same dedup function with a
+different bug fixed in each), `validate_by_lebail(..., with_result=True)`, and
+`viz/indexing.py`'s three renderers with tests that assert what was **drawn**.
 
-**Last closed: [1034](wp/1034-panel-layout.md), 2026-08-05** — the model editor and
-the text document are tabs beside the plot, their full-window mode now the panel
-*column* expanding; before it the same day, [1033](wp/1033-plot-range-regions.md),
-[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md). Narratives in
-[milestones/v1.0.md](milestones/v1.0.md).
+**The dedup defect was three defects.** Scale invariance is not cubic-only — it
+merges every *uniform rescaling*, so a cell always collides with **its own
+supercell**, the exact false positive the panel exists to separate; and `seen` is
+claimed **before** scoring, so a *rejected* metric poisons its whole family. Two
+rows turned over: **11-BM NAC is now found by two engines** (`trial_error` had
+reached it all along and its key threw it away — three recorded no-goes have now
+died on that one dataset), and **`INDEX_DOMINANT_ZONE`'s fixture was never a
+dominant zone** — the base table solved it, a same-shape junk cell claimed the key
+and failed scoring, so the diagnostic spent two years explaining a silence it had
+itself caused.
 
-The method lesson is eight sessions running (1030 → … → 1040): **instrument before
-ranking, and let the by-hand acceptance run judge** — 1040's own "nothing
-regressed" was written on three datasets and the 38-row run refuted it. It repeats
-1039's withdrawal twice: **a recorded no-go inherits the defects of the run that
-produced it**, and **a prediction is not a measurement.**
+**Open, and next:** the magnitude-aware aggregate, now fully measured on NAC. Borda
+gives P the win 4-3 while it takes two members by **0.4 % and 0.01 %** and loses
+`m_rev` **516×**; Le Bail agrees with I. *A near-tie counting as a full win is the
+defect.* The design is a **log-sum** — magnitude-aware, still unit-invariant — minus
+`m_sym`, which is exactly the sum of the other two in logs; measure it across every
+row before landing it. Then tasks 5-8: acceptance PNGs, the contamination sweep, the
+scoreboard re-measure, the one-page summary.
+
+**[1040](wp/1040-engine-svd-index.md) stays 🔄** — its engine is landed and its one
+open item, the scoreboard, is 1041's. Last *closed*, all 2026-08-05:
+[1034](wp/1034-panel-layout.md), [1033](wp/1033-plot-range-regions.md),
+[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md); narratives in
+[milestones/v1.0.md](milestones/v1.0.md). The method lesson is nine sessions running
+(1030 → … → 1041): **instrument before ranking, and let the by-hand acceptance run
+judge.** 1041 is the sharpest case yet — two green tests, one asserting a diagnostic
+fires where the silence *and* the diagnostic were a filter's artefacts, one asserting
+a unique `high` that a *bug* was producing. **A prediction is not a measurement.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
-   *numbers* are stale twice over and it **inherits three defects measured in
-   1040**: `trial_error._solution_key` is scale-invariant *and* carries no
-   centring, and `borda_scores` weighs all seven panel members alike, so it leads
-   with the wrong centring where `m_rev` separates them 516×. Fix all three
-   before recording counts.
+2. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+   its `### Inherited` carries 1037's streaming argument. (1041 is in flight
+   above: two of its three inherited defects are cleared, the aggregate is not.)
 3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol global score. 1040 measured there is no pending fix to wait for.
 4. [1035](wp/1035-symmetry-surfaced.md) — the last of the 2026-08-04 use session,
@@ -441,7 +441,7 @@ per concurrent session, or only one session commits.
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
-| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
+| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | 🔄 2026-08-05 — dedup key + renderers landed; aggregate and benchmark open | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 
 | WP | Title | Status | Depends on |

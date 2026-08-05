@@ -1,6 +1,7 @@
 # WP-1041 — The indexing benchmark gallery
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: 🔄 2026-08-05 — dedup key, opt-in Le Bail result and the
+three renderers landed; the aggregate and the benchmark tasks open
 Depends on: WP-1026
 
 ## Goal
@@ -123,13 +124,14 @@ rows.
 
 ## Tasks
 
-- [ ] `trial_error._solution_key` carries the scale and the centring (both fixes
-      already in `svd._solution_key`). Before any count.
+- [x] `trial_error._solution_key` carries the scale and the centring — landed as
+      **one** shared `engines.solution_key`, since the two engines had the same
+      function with a different bug fixed in each. Before any count.
 - [ ] A magnitude-aware panel aggregate replacing plain Borda, measured across
       every acceptance row rather than tuned on one. Before any count.
-- [ ] `validate_by_lebail` gains an opt-in return of its `RefinementResult` (it is
+- [x] `validate_by_lebail` gains an opt-in return of its `RefinementResult` (it is
       already built); default behaviour unchanged.
-- [ ] `viz/` gains indexing plots: picked peaks over the pattern, ranked-candidate
+- [x] `viz/` gains indexing plots: picked peaks over the pattern, ranked-candidate
       tick rows via `fom.predicted_lines`, and the Le Bail obs/calc/diff panel with
       `predicted_but_absent` / `unmatched_observed` marked.
 - [ ] Every acceptance row writes its PNGs to `tests/output/`, closing the
@@ -170,6 +172,107 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   inventory as it stands.
 
 ## Handover log
+
+- **2026-08-05** — three of the eight tasks landed, and **the dedup fix was much
+  bigger than the WP inherited it as**. Branch `wp1041-indexing-benchmark-gallery`.
+
+  **Done.**
+  1. *One shared `engines.solution_key`* replacing `trial_error._solution_key` and
+     `svd._solution_key` — the same function with a different bug fixed in each,
+     so it moved to the module CLAUDE.md names as the engines' shared home.
+  2. *`validate_by_lebail(..., with_result=True)`* returns the `RefinementResult`
+     it already builds. Default return shape unchanged and pinned.
+  3. *`viz/indexing.py`* — `plot_peak_list`, `plot_candidates`, `plot_validation`,
+     exported from `pxrdref.viz`, with `tests/test_indexing_plots.py` (4 rows)
+     asserting what each renderer **drew** rather than recomputing it.
+
+  **The defect was three defects, and the third is the dangerous one.** The WP
+  inherited "scale-invariant, so cubic and only cubic". Measured: a scale-invariant
+  key merges any two metrics related by a **uniform rescaling**, i.e. one candidate
+  per *shape* in every system — one per c/a in tetragonal, one per axis ratio in
+  orthorhombic — so **a cell always collides with its own uniform supercell**, which
+  is the exact false positive the FoM panel exists to separate. And `seen.add` runs
+  **before** `_score`, so a metric that *fails* scoring still claims its whole
+  family. On a cubic-I list (a = 6.2 Å, 17 lines), by substitution:
+
+  | key | candidates | first | true I present |
+  |---|---|---|---|
+  | scale-invariant, no centring | 1 | P a = 4.3841 | **no** |
+  | scale-invariant, with centring | 2 | I a = 6.2000 | yes |
+  | scale-dependent, no centring | 4 | **P a = 6.2000** | **no** |
+  | both (shipped) | 8 | I a = 6.2000 | yes |
+
+  **Two rows turned over, and one of them had been green and wrong for two years.**
+
+  * **11-BM NAC is now found by two engines**, `svd` *and* `trial_error`, in both
+    the P and I descriptions at +19 ppm. `trial_error` had reached that cell all
+    along and its own key discarded it. The acceptance row, its title, and the
+    `validation_matrix` Claim are updated; the gate is untouched (`dichotomy` still
+    finds nothing, so `engines_disagree` stands, still `low`, `best_or_none()` still
+    `None`). **Three recorded no-goes have now died on this one dataset.**
+  * **`INDEX_DOMINANT_ZONE`'s fixture was never a dominant zone.** Instrumenting the
+    base search on the old c = 26 Å / crop 28° construction: it reaches five metrics
+    of the truth's shape at indices ≤ 2 and the truth among them, but a junk cell at
+    a = 4.1812, c = 27.1561 — the same shape within the dedup grid — was solved
+    first, claimed the key, **failed scoring, and blocked the truth**. So the
+    diagnostic was explaining a silence it had itself caused. That construction now
+    has its own fast row asserting it *is* indexed (78 of 78 lines), and the
+    diagnostic moved to a genuine construction (c = 40 Å, crop 33°, 2θ_max 46°,
+    `max_d_axis` 52) marked **slow**: probe 13 s of its 30 s cap, and the domain
+    cannot narrow further — at `max_d_axis` 45 the probe finds nothing at any rung.
+    2.3× is thinner than `tests/CLAUDE.md` likes and is stated in the row.
+
+  **The 38-row acceptance run then found the third row, and it is the sharpest.**
+  `test_what_the_unflagged_tail_components_cost_the_certified_cell` — the package's
+  flagship real-data result — asserted `best_or_none() is not None`. It now returns
+  `None`, and **the old behaviour was the bug's doing.** The calibrated LaB6 search
+  returns three cells, and every engine finds all three: the certified cell at
+  −2 ppm and **both centrings of its a·√2 supercell** (5.878564 = 4.156772·√2). The
+  supercells used to carry `engines_disagree` purely because `trial_error` could
+  return one cubic candidate per search and never voted for them. So a unique
+  `high` on the flagship row was protected by a broken filter, not by the gate —
+  the inversion of "a filter fails with a wrong answer", a broken filter producing
+  the *right* answer for no reason. The `high` on the certified cell is unaffected;
+  only the uniqueness claim is withdrawn.
+
+  Everything that refutes the supercell is measured and **none of it is gated**:
+
+  | | truth | I supercell | P supercell |
+  |---|---|---|---|
+  | Le Bail Rwp | 0.098 | 0.250 | 0.664 |
+  | `predicted_seen_fraction` | 1.00 | 0.88 | 0.49 |
+  | `m_rev` | 890 | 6.2 | 1.8 |
+  | `unmatched_observed` | 17 | 91 | 136 |
+  | `predicted_but_absent` (**gated**) | 0/30 | 0/35 | 0/67 |
+
+  **This is the same root as the borda defect**, so they are one task now:
+  `caveats_for` reads `predicted_but_absent` and never its mirror
+  `unmatched_observed`, which `indexing/workflow.py`'s own module docstring says is
+  the detector for a wrong metric — and the aggregate is magnitude-blind. A
+  threshold cannot be invented from this row alone: NAC's *correct* I cell leaves
+  **188** observed peaks unmatched (a two-phase pattern), so an absolute bar refutes
+  a right answer. It needs the cross-row measurement.
+
+  **In flight / next, in order.**
+  1. **The magnitude-aware aggregate and the second detector in the gate** — one
+     fix, because they are one defect. The aggregate half is fully measured on NAC and written into
+     the acceptance row as a table. P beats I 4-3 on Borda while winning two of its
+     four members by **0.4 % and 0.01 %** and losing `m_rev` **516×** and `m_sym`
+     **318×**; Le Bail agrees with I (0 of 837 absent against 92 of 1668). *A
+     near-tie counting as a full win is the defect.* The design that follows from
+     it: rank on the **log-sum** of the panel (its product), which is magnitude-aware
+     and still invariant to each member's units, since a unit change shifts every
+     candidate equally — and it **must drop `m_sym`**, because `log(m_sym) =
+     log(M̃₂₀) + log(M^Rev)` exactly, so keeping both counts the reversed direction
+     twice. Not landed: it needs measuring across every acceptance row, not tuned on
+     this one.
+  2. Tasks 5-8 untouched: acceptance PNGs, the contamination sweep, the scoreboard
+     re-measure, the one-page summary.
+
+  **Gotchas.** CLAUDE.md is at **exactly** its 700-line cap — adding a line means
+  moving narrative out, not raising the cap (the cap is a deliberate commit).
+  `docs/VALIDATION.md` is generated: edit `tests/validation_matrix.py` and run
+  `.venv/bin/python -m tests.validation_matrix`.
 
 - **2026-08-04** — created from the source-literature review. The "zero PNGs"
   finding and the `validate_by_lebail` discard were established by reading the code

@@ -897,24 +897,82 @@ def test_a_body_centred_cubic_list_survives_the_engines_own_dedup():
     assert best.n_indexed == best.n_lines
 
 
+def _long_axis_peaks(c: float, crop: float, tt_max: float) -> PeakList:
+    """A tetragonal pattern whose low-angle lines are cropped away — a = 4 Å."""
+    refl = generate_reflections("P 4/m m m", (4.0, 4.0, c, 90.0, 90.0, 90.0),
+                                LAM, tt_max)
+    tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
+    return PeakList.from_positions(tt[tt >= crop], LAM, two_theta_esd=0.005)
+
+
+def test_the_c_26_crop_28_construction_is_indexed_at_the_base_table():
+    """**It was never a dominant zone**, and for two years the suite said it was.
+
+    This construction — c = 26 Å cropped at 28° 2θ — was the fixture for
+    ``INDEX_DOMINANT_ZONE``, asserting the exact solve finds nothing because the
+    lowest observed lines carry indices outside the base table.  The premise was
+    false.  Instrumenting the base search (WP-1041) shows it reaches **five**
+    metrics of the truth's shape at indices ≤ 2, and the truth among them, from
+    base labels (020) and (02-1); what the search returned was nothing, because a
+    junk cell at a = 4.1812, c = 27.1561 — the same *shape* to within the dedup
+    grid — was solved first, claimed the key, **failed scoring, and still blocked
+    every later metric of that shape**, the truth included.  ``seen.add`` runs
+    before ``_score``, so a rejected candidate poisoned its whole scale family.
+
+    So the diagnostic had been firing on a dedup artefact rather than on the index
+    table, which is the shape of failure CLAUDE.md already names one rank down: *a
+    performance filter fails with a wrong answer.*  With the key carrying the
+    scale (``engines.solution_key``) the truth comes back indexing **78 of 78**,
+    and the genuine dominant-row case now lives in its own row below.
+    """
+    from pxrdref.indexing.trial_error import search_trial_error
+
+    peaks = _long_axis_peaks(26.0, 28.0, 70.0)
+    spec = SearchSpec(systems=("tetragonal",), max_d_axis=34.0,
+                      max_volume=1500.0, budget_seconds=DEFAULT_TEST_BUDGET,
+                      sigma_sys_deg=1e-9)
+    result = search_trial_error(peaks, spec=spec)
+
+    assert result.candidates, "the base table does reach this cell — it was the "\
+        "dedup key that hid it"
+    best = result.candidates[0]
+    assert_same_lattice(best.cell, (4.0, 4.0, 26.0, 90.0, 90.0, 90.0))
+    assert best.n_indexed == best.n_lines
+    assert not [d for d in result.diagnostics if d.code == "INDEX_DOMINANT_ZONE"]
+
+
+@pytest.mark.slow
 def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     """``INDEX_DOMINANT_ZONE``, which WP-1019 measured a *census* cannot supply.
 
     The construction is the real condition rather than a mock of it: a tetragonal
-    cell with c = 26 Å whose pattern is cropped at 28° 2θ, so the lines that would
+    cell with c = 40 Å whose pattern is cropped at 33° 2θ, so the lines that would
     pin the short axis are outside the measured range and the lowest *observed*
-    reflections are 105, 106 and 009.  Indices that large are outside the base
-    table, so the exact solve finds nothing — and the engine says *why* by
-    re-running with a wider table and reporting that a cell appears only then.
+    reflections carry large indices along one axis.  The exact solve then finds
+    nothing at the base table — and the engine says *why* by re-running with a
+    wider one and reporting that a cell appears only then.
 
-    The ladder matters and is asserted implicitly: one index wider is not enough
-    here, which is why the probe tries several.
+    **The probe's cell is not the truth and the diagnostic does not claim it is.**
+    Measured on the wider ``2θ_max`` variant of this construction, the wider table
+    returns a = 8, c = 20 indexing 52 of 59 lines, where the truth is a = 4,
+    c = 40.  The statement is about the *table* having been the binding
+    constraint, which is exactly what a long axis does to a low-angle line's
+    index; a cell that survives the probe is evidence about the search, not an
+    answer.
 
-    The budget declared below is a runaway guard, not a timer (CLAUDE.md), and so
-    is the probe's own per-rung cap one rank down — this test failed in the full
-    suite and passed serially when that cap was 10 s against a 4.3 s serial cost,
-    reporting no dominant zone for a reason that had nothing to do with the index
-    table.  See ``trial_error.DOMINANT_ZONE_PROBE_SECONDS``.
+    **Marked slow, and the budget margin stated rather than assumed.**  The
+    ``c = 26`` construction is now indexed at the base table (the row above), so a
+    genuine case needs a longer axis and a wider domain, and both cost.  The lever
+    ``tests/CLAUDE.md`` prescribes when a budget fix makes something slow is
+    narrowing the scope, never the budget, and that is what the numbers below are:
+    measured serially, ``2θ_max`` 55° costs the probe **25 s of its 30 s cap**,
+    46° costs **13 s**, and the domain cannot narrow further — at ``max_d_axis``
+    45 the probe finds nothing at any rung, so the diagnostic never fires and the
+    row would assert a silence for the wrong reason.  13 s against 30 is a 2.3×
+    margin, which is thinner than the rule likes; the row is marked slow rather
+    than run in the fast selection because of it, and the ladder's **three** rungs
+    are the rest of its resilience — a truncated rung 3 is followed by rung 5 with
+    a fresh budget and a wider table.
     """
     from pxrdref.indexing.trial_error import (
         BASE_INDEX_MAX,
@@ -923,11 +981,8 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
         search_trial_error,
     )
 
-    refl = generate_reflections("P 4/m m m", (4.0, 4.0, 26.0, 90.0, 90.0, 90.0),
-                                LAM, 70.0)
-    tt = np.sort(np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d)))))
-    peaks = PeakList.from_positions(tt[tt >= 28.0], LAM, two_theta_esd=0.005)
-    spec = SearchSpec(systems=("tetragonal",), max_d_axis=30.0,
+    peaks = _long_axis_peaks(40.0, 33.0, 46.0)
+    spec = SearchSpec(systems=("tetragonal",), max_d_axis=52.0,
                       max_volume=1500.0,
                       budget_seconds=max(DEFAULT_TEST_BUDGET,
                                          DOMINANT_ZONE_PROBE_SECONDS),
