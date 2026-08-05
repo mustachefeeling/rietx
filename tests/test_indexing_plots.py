@@ -276,23 +276,53 @@ def test_the_truth_test_is_the_lattice_and_the_centring(bcc_candidates):
     from tests import indexing_gallery as g
 
     af = [float(v) for v in af_from_cell(CELL)]
-    ranking = [{"centring": "P", "af": af}, {"centring": "I", "af": af}]
-    assert "lab6" in g.TRUTHS, "this test needs a declared cubic P truth"
+    ranking = [{"centring": "P", "af": af, "cell": list(CELL)},
+               {"centring": "I", "af": af, "cell": list(CELL)}]
+    assert "lab6" in g.TRUTHS, "this test needs a declared cubic truth"
 
-    truths = dict(g.TRUTHS)
-    truths["lab6"] = (CELL, "I")
-    g.TRUTHS.update(truths)
+    original = g.TRUTHS["lab6"]
     try:
+        g.TRUTHS["lab6"] = (CELL, "I", 1e-3)
         assert g.truth_rank("lab6", ranking) == 2, (
             "the P row reduces to the same metric; matching it would read a "
             "wrong centring as the truth")
-        truths["lab6"] = (CELL, "P")
-        g.TRUTHS.update(truths)
+        g.TRUTHS["lab6"] = (CELL, "P", 1e-3)
         assert g.truth_rank("lab6", ranking) == 1
     finally:
-        g.TRUTHS["lab6"] = ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P")
+        g.TRUTHS["lab6"] = original
 
     assert g.truth_rank("no_such_stem", ranking) is None
+
+
+def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
+    """A cell inside ``same_lattice``'s fallback and outside its dataset's band
+    is **not** the truth, and FAP is the dataset that says so.
+
+    ``CELL_EQUALITY_RELATIVE`` is 5e-3, deliberately loose so a dedup comparison
+    is never *tightened* by the absence of a covariance.  Reused as a truth test
+    it calls FAP's +966 ppm leader and its +258 ppm cross-code cell the same
+    lattice — and the scoreboard then reports "ranked first" for the one dataset
+    whose acceptance row asserts the cross-code cell is *not* first.
+    """
+    from pxrdref.indexing.qspace import af_from_cell
+    from pxrdref.indexing.reduce import CELL_EQUALITY_RELATIVE
+    from tests import indexing_gallery as g
+
+    cell, _centring, rtol = g.TRUTHS["fap"]
+    assert rtol < CELL_EQUALITY_RELATIVE, (
+        f"FAP's band {rtol} is not tighter than the dedup fallback "
+        f"{CELL_EQUALITY_RELATIVE}; the truth test cannot separate its "
+        "candidates")
+
+    off = (cell[0] * 1.000966, cell[1] * 1.000966, cell[2] * 1.000266,
+           *cell[3:])
+    good = (cell[0] * 1.000258, cell[1] * 1.000258, cell[2] * 1.000325,
+            *cell[3:])
+    ranking = [{"centring": "P", "af": [float(v) for v in af_from_cell(c)],
+                "cell": list(c)} for c in (off, good)]
+    assert g.truth_rank("fap", ranking) == 2, (
+        "the +966 ppm leader was accepted as the truth; FAP's row says it is "
+        "the +258 ppm cell that is the cross-code answer")
 
 
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,

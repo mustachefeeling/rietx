@@ -200,25 +200,42 @@ DATASETS: dict[str, dict[str, str]] = {
 }
 
 
-#: ``stem -> (conventional cell, centring)`` for the datasets whose lattice is
-#: known.  This is what turns the gallery into the **scoreboard**: with a truth
-#: declared, :func:`draw` records where in the ranking that lattice landed, so
-#: "five put the right lattice first" is generated from the run rather than
-#: retyped into three documents.  A dataset with no entry has no known cell, and
-#: its rows claim an abstention rather than an answer (cpd-1a, hl2).
-TRUTHS: dict[str, tuple[tuple[float, ...], str]] = {
-    "corundum": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0), "R"),
-    "corundum_shift": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0), "R"),
-    "lab6": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P"),
-    "lab6_calibrated": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P"),
-    "zincite": ((3.2499, 3.2499, 5.2066, 90.0, 90.0, 120.0), "P"),
-    "zircon": ((6.6042, 6.6042, 5.9796, 90.0, 90.0, 90.0), "I"),
-    "nac": ((10.2510,) * 3 + (90.0, 90.0, 90.0), "I"),
-    "fap": ((9.3717, 9.3717, 6.8859, 90.0, 90.0, 120.0), "P"),
-    "brucite": ((3.142, 3.142, 4.766, 90.0, 90.0, 120.0), "P"),
-    "magnetite": ((8.3941,) * 3 + (90.0, 90.0, 90.0), "F"),
-    "fluorite": ((5.4631,) * 3 + (90.0, 90.0, 90.0), "F"),
+#: ``stem -> (conventional cell, centring, relative band)`` for the datasets whose
+#: lattice is known.  This is what turns the gallery into the **scoreboard**: with
+#: a truth declared, ``truth_rank`` records where in the ranking that lattice
+#: landed, so "five put the right lattice first" is generated from the run rather
+#: than retyped into three documents.  A dataset with no entry has no known cell,
+#: and its rows claim an abstention rather than an answer (cpd-1a, hl2).
+#:
+#: **The band is each dataset's own acceptance band, and it has to be.**  The
+#: obvious implementation — ``same_lattice`` alone — is wrong here, and wrong in
+#: the direction that matters: without a covariance that function falls back to
+#: ``CELL_EQUALITY_RELATIVE`` = 5e-3, *deliberately* an order looser than a
+#: synchrotron cell so it never tightens a dedup comparison.  On FAP, whose whole
+#: row is that the cross-code cell (+258 ppm, 178 of 185 lines) sits **below** one
+#: 966 ppm out, 5e-3 calls both of them the truth and the scoreboard reports
+#: "ranked first" for a dataset whose acceptance row asserts the opposite.  So the
+#: band is quoted from the row: 150 ppm for corundum, 200 for LaB6, 500 for FAP
+#: (``FAP_INDEXING_PPM``), 3e-3 for the round-robin minerals whose reference is a
+#: literature cell rather than a certificate.
+TRUTHS: dict[str, tuple[tuple[float, ...], str, float]] = {
+    "corundum": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0), "R", 1.5e-4),
+    "corundum_shift": ((4.759355, 4.759355, 12.99231, 90.0, 90.0, 120.0),
+                       "R", 1.5e-4),
+    "lab6": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P", 2.0e-4),
+    "lab6_calibrated": ((4.156780,) * 3 + (90.0, 90.0, 90.0), "P", 2.0e-4),
+    "zincite": ((3.2499, 3.2499, 5.2066, 90.0, 90.0, 120.0), "P", 1.0e-3),
+    "zircon": ((6.6042, 6.6042, 5.9796, 90.0, 90.0, 90.0), "I", 3.0e-3),
+    "nac": ((10.2510,) * 3 + (90.0, 90.0, 90.0), "I", 2.0e-4),
+    "fap": ((9.3717, 9.3717, 6.8859, 90.0, 90.0, 120.0), "P", 5.0e-4),
+    "brucite": ((3.142, 3.142, 4.766, 90.0, 90.0, 120.0), "P", 3.0e-3),
+    "magnetite": ((8.3941,) * 3 + (90.0, 90.0, 90.0), "F", 1.0e-3),
+    "fluorite": ((5.4631,) * 3 + (90.0, 90.0, 90.0), "F", 1.0e-3),
 }
+#: Absolute tolerance (degrees) on the conventional cell's angles.  They are
+#: symmetry-fixed on every dataset here, so this only has to reject a different
+#: *setting* of the same lattice, which is a whole crystal system away.
+TRUTH_ANGLE_DEG = 0.5
 
 
 def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
@@ -233,10 +250,15 @@ def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
     scored as the truth, and only one of them is (``engines.solution_key``
     carries the same lesson one rank down, WP-1040's monoclinic row a rank up).
 
+    Three conditions, all necessary: the centring, ``same_lattice`` on the
+    reduced A..F (which makes a *setting* change equality, as it should), and the
+    dataset's own band on the conventional cell — see :data:`TRUTHS` for why the
+    third is not redundant, and for the FAP measurement that says so.
+
     It reads the **stored** ranking rather than live candidates on purpose.  The
     A..F vectors are seven numbers a candidate already has, so keeping them costs
     nothing, and it means declaring a truth for a dataset later re-scores the
-    scoreboard from sidecars already on disk instead of needing a 26-minute
+    scoreboard from sidecars already on disk instead of needing a 23-minute
     acceptance run — which is exactly the loop this was first written without.
     """
     import numpy as np
@@ -246,14 +268,25 @@ def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
 
     if stem not in TRUTHS:
         return None
-    cell, centring = TRUTHS[stem]
+    cell, centring, rtol = TRUTHS[stem]
     af_true = af_from_cell(cell)
     for i, row in enumerate(ranking):
         if row.get("centring") != centring:
             continue
-        if same_lattice(np.asarray(row["af"], dtype=float), af_true)[0]:
-            return i + 1
+        if not same_lattice(np.asarray(row["af"], dtype=float), af_true)[0]:
+            continue
+        got = row.get("cell")
+        if got is not None and not _cell_within(got, cell, rtol):
+            continue
+        return i + 1
     return None
+
+
+def _cell_within(got, want, rtol: float) -> bool:
+    lengths = all(abs(g / w - 1.0) <= rtol for g, w in zip(got[:3], want[:3]))
+    angles = all(abs(g - w) <= TRUTH_ANGLE_DEG
+                 for g, w in zip(got[3:], want[3:]))
+    return lengths and angles
 
 
 def _close(fig) -> None:

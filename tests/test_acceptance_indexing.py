@@ -1465,11 +1465,18 @@ def test_the_cross_code_cell_is_found_but_not_ranked_first(fap_index):
     refinement suite's ±300 ppm, for the reason that constant records.
 
     The candidate that meets that band is present, is the one **both engines
-    agree on**, and indexes 181 of 185 lines: a = +232 ppm, c = +363 ppm.  It is
-    not ranked first.  Above it sits a cell 1218 ppm out that indexes *fewer*
-    lines (167) but scores a higher M₂₀ — the ordering M₂₀ produces when a
+    agree on**, and indexes 178 of 185 lines: a = +258 ppm, c = +325 ppm.  It is
+    **ranked fourth**.  Above it sit three cells 966-1396 ppm out that index
+    *fewer* lines (152) but score a higher M₂₀ — the ordering M₂₀ produces when a
     slightly wrong metric matches a subset of lines more tightly than the right
     one matches all of them.
+
+    (Re-measured on the merged tree, WP-1041 task 8.  The figures here were
+    +232/+363 ppm, 181 of 185, one leader at 1218 ppm indexing 167 — recorded
+    before ``main``'s WP-1035 was merged, like the NAC panel table above.  The
+    row's *assertions* did not move, because they were written about membership
+    and refusal rather than about rank, which is the point the next paragraph
+    makes and the reason this drift cost nothing.)
 
     So the assertion is deliberately about *membership and refusal*, not about
     rank: the correct cell is reachable, and the gate declines to hand back the
