@@ -36,6 +36,15 @@ is a bad base line rather than a wide domain, which is what makes the two engine
 agreement evidence — and it raises ``INDEX_DOMINANT_ZONE`` from its own experience
 when the base-line indices it is allowed cannot reach the lowest observed lines.
 
+WP-1040 adds the third, :func:`search_svd` — Coelho's iterative SVD, which needs
+no tolerance to search with: it proposes a metric at random and alternates
+"assign every line to its nearest calculated one" with "re-solve A..F from that
+assignment" until the assignment stops changing.  So all three engines fail
+*differently* — a wide domain, a bad base line, a bad starting basin — which is
+what makes their agreement worth reporting.  It is also the only one that is
+stochastic, so ``SearchSpec.seed`` travels into its stats, and the only one whose
+search reads observed **intensities**.
+
 WP-1024 closes the loop with :func:`index_pattern`, the public entry point and a
 peer of :func:`pxrdref.refine`.  It merges the engines' candidates as reduced
 cells, ranks them on the whole figure-of-merit panel, enumerates geometrical
@@ -134,6 +143,14 @@ from .reduce import (
     reduce_cell,
     same_lattice,
 )
+from .svd import (
+    SvdPass,
+    search_svd,
+    svd_iterate,
+    svd_trial,
+    volume_window,
+    zero_error_column,
+)
 from .trial_error import index_table, search_trial_error
 from .workflow import (
     absent_reflections,
@@ -211,8 +228,14 @@ __all__ = [
     "same_lattice",
     "index_table",
     "search_dichotomy",
+    "search_svd",
     "search_trial_error",
     "sigma_effective",
+    "SvdPass",
+    "svd_iterate",
+    "svd_trial",
+    "volume_window",
+    "zero_error_column",
     "structure_from_candidate",
     "template_collinearity",
     "to_cell_candidate",

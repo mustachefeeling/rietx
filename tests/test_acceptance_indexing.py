@@ -1090,52 +1090,93 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     assert res.best_or_none() is None
 
 
-def test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed(nac_index):
-    """The 11-BM synchrotron pattern cannot be indexed *as measured*, and says so.
+def test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_nothing(
+        nac_index):
+    """The 11-BM synchrotron pattern **is** indexed as measured — by one engine.
 
-    λ = 0.4139 Å and the pattern runs to 57.4° 2θ, so d_min = **0.43 Å**.  A
-    10.25 Å cubic cell at that resolution predicts more reflections than
-    ``engines.reflection_ceiling_ok`` — the crash guard in front of every
-    ``generate_reflections`` call a search reaches — will allow, so the dichotomy
-    rejects its very first box and explores **zero**.  The run costs 0.15 s and
-    comes back with no candidate and ``search_complete[cubic] = False``.
+    This row asserted the opposite until WP-1040, and the way it turned over is
+    the point.  λ = 0.4139 Å and the pattern runs to 57.4° 2θ, so d_min = 0.43 Å;
+    a 10.25 Å cubic cell at that resolution predicts more reflections than
+    ``engines.reflection_ceiling_ok`` allows, so the dichotomy still rejects its
+    very first box and explores **zero** of them.  That premise is unchanged and
+    is asserted below, because it is what the guard is for.
 
-    That is the guard working, and the row exists to pin the *shape* of the
-    failure rather than the failure itself.  A null result that says "incomplete"
-    is a different statement from one that says "nothing exists", and every piece
-    of machinery here is built to keep those apart — ``INDEX_SEARCH_INCOMPLETE``
-    fires, ``INDEX_ABSTAINED`` says explicitly that it "is not the same statement
-    as none existing", and ``best_or_none()`` is None either way.
+    What changed is that a third engine does not enumerate a box at all.
+    ``search_svd`` sizes its prediction set from the *current* trial metric and
+    Coelho's N_c/N_o gate holds it to at most four times the observed line count,
+    so the resolution that defeats an exhaustive box search never arises.  It
+    returns **a = 10.2512 Å, cubic I** — +19 ppm from the certified 10.2510 and
+    the right centring, where every 2θ-truncation attempt returned cubic *P* at
+    −5967 to +8189 ppm.
 
-    **Truncating 2θ is the obvious fix and it was measured, and it does not
-    work** — recorded so the next session does not spend the hour again.
-    Picking over 2-18°, 2-25° and 2-32° raises d_min enough that the guard lets
-    the dichotomy through (215 boxes each time), and the answers are still wrong:
-    a = −5967, +8189 and +7997 ppm, M₂₀ = 4 in all three, and cubic **P** where
-    the truth is **I**.  Each run costs 300-620 s.  So the ceiling is not what
-    stands between this package and this pattern; it is only what stands first.
+    **Two recorded no-goes died here, and neither by being argued with.**
+    WP-1026's "truncating 2θ was measured and does not work — recorded so the
+    next session does not spend the hour again" was measured with the 2θ-ordered
+    search-line selection WP-1039 later replaced.  And this row's own closing
+    sentence — "a search-line selection that ranked on something other than 2θ
+    order would change this row's outcome, which makes it an engine question" —
+    turned out to be exactly right, and the engine question had two answers
+    rather than one.  *A recorded no-go inherits the defects of the run that
+    produced it.*
 
-    The obstruction underneath is the peak list, again, and in a third form.
-    This pattern begins at **0.76° 2θ**, and of the first twenty picked lines —
-    which is what ``DEFAULT_SEARCH_LINES`` hands the engines — the true NAC cell
-    explains only **six**, while CaF₂, its known impurity, explains **none**.  So
-    the search is built from twenty lines that are mostly low-angle artifact, and
-    the engines are solving for a metric that fits them.  Over the whole list the
-    true cell does fine: 268 of 285.  A search-line selection that ranked on
-    something other than 2θ order would change this row's outcome, which makes it
-    an engine question (WP-1030) rather than an acceptance one.
+    **The gate is untouched by any of this, which is the half that matters.**
+    One engine is not agreement, so the cell is ``low``, ``best_or_none()`` is
+    still ``None``, and ``INDEX_ABSTAINED`` still says so.  A capability gain
+    that quietly relaxed the confidence rule would be worth less than nothing.
     """
     peaks, res = nac_index
 
     assert len(peaks.usable()) > 200, "the pattern should be line-rich"
-    assert res.candidates == []
-    assert res.best_or_none() is None
 
-    # the search declined rather than concluded, and the stats say how completely
-    assert res.search_complete.get("cubic") is False
+    # the ceiling premise, unchanged: the exhaustive engine never starts
     assert res.engine_stats.get("dichotomy.cubic.boxes") == 0.0, (
         "the dichotomy now explores boxes here — the reflection ceiling may have "
         "moved, and this row's premise with it")
+    assert res.search_complete.get("cubic") is False
+
+    # the cell that is nevertheless found, and by which engine.  **Two
+    # descriptions of one metric**: identical axes, different centring, which
+    # ``dedup_groups`` keeps apart on purpose — "the same metric with two
+    # different centrings is two different lattices (one predicts half the lines
+    # of the other) and merging them would silently drop a hypothesis the figures
+    # of merit are there to choose between".
+    assert len(res.candidates) == 2, [(c.centring, c.cell[0])
+                                      for c in res.candidates]
+    by_centring = {c.centring: c for c in res.candidates}
+    assert set(by_centring) == {"P", "I"}
+    for cand in res.candidates:
+        assert cand.found_by == ["svd"], cand.found_by
+        assert cand.system == "cubic"
+        da = cand.cell[0] / A_NAC - 1.0
+        assert abs(da) < 2.0e-4, f"a = {cand.cell[0]:.5f} ({da * 1e6:+.0f} ppm)"
+
+    # and the whole profile picks between them, which is what it is for: the I
+    # description predicts nothing that is not seen, the P description of the
+    # same axes predicts 92 reflections the pattern does not contain
+    assert by_centring["I"].lebail.predicted_but_absent == 0, (
+        f"{by_centring['I'].lebail.predicted_but_absent} of "
+        f"{by_centring['I'].lebail.n_reflections}")
+    assert by_centring["P"].lebail.predicted_but_absent > 50
+
+    # **A known ranking defect, pinned rather than hidden** (WP-1040 task 3).
+    # The panel *has* the answer — `m_rev` is 356.1 for I against 0.69 for P, a
+    # 516× separation, exactly the reversed-member behaviour Oishi-Tomiyasu was
+    # adopted for — but `borda_scores` weighs every member alike, so the four
+    # forward-looking members (M₂₀ 2.60 vs 1.57, F_N 10.5 vs 7.8, and the two
+    # indexed fractions) outvote the three reversed ones 4-3 and the looser
+    # centring leads.  Balancing the two directions gives a tie rather than the
+    # right answer, so the fix is a magnitude-aware aggregate and it needs
+    # measuring across every row — filed, not attempted here.  **When it lands,
+    # this assertion inverts.**
+    assert res.candidates[0].centring == "P", (
+        "the panel now leads with the centring that predicts nothing absent — "
+        "good; invert this assertion and delete the borda note with it")
+
+    # …and it is still not promoted, on caveats that name why
+    best = res.candidates[0]
+    assert all(c.confidence == "low" for c in res.candidates)
+    assert "engines_disagree" in best.confidence_caveats
+    assert res.best_or_none() is None
     codes = {d.code for d in res.diagnostics}
     assert {"INDEX_SEARCH_INCOMPLETE", "INDEX_ABSTAINED"} <= codes, sorted(codes)
 
@@ -1326,8 +1367,13 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
     assert best.confidence == "low"
     assert set(best.confidence_caveats) == {"fom_panel_disagrees"}, (
         f"the caveat list moved: {sorted(best.confidence_caveats)}")
-    assert set(best.found_by) == {"dichotomy", "trial_error"}, (
-        f"only {best.found_by} found the certified cell")
+    # …and in WP-1040 the third engine joined them, which is why this is quoted
+    # from the **live registry** rather than spelled out: on the absolute lab
+    # anchor every engine that runs must find the certified lattice, and a fourth
+    # engine that cannot should fail this row instead of being written out of it.
+    from pxrdref.indexing.engines import engine_names
+    assert set(best.found_by) == set(engine_names()), (
+        f"only {best.found_by} found the certified cell, of {engine_names()}")
     assert res.best_or_none() is None
 
 
@@ -1734,8 +1780,19 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     assert best.shift_coefficient == pytest.approx(0.034, abs=0.006)
     assert best.fom_value("m20") > 500.0
 
-    # and the trap: the residual the screen leaves is not the window the search
-    # needs, and declaring it returns no candidate at all
+    # and the trap, **which one engine no longer falls into** (WP-1040 task 3).
+    # Declaring the residual scatter (0.0078°) rather than the amplitude
+    # (0.038°) gives the search a window 4.3× too tight to span the shift, and
+    # until the zero-error column landed that returned nothing at all.  It now
+    # returns the certified cell at **+5 ppm**, because `search_svd` no longer
+    # needs the window to span a shift it can *measure*: Coelho's Ze column
+    # fits it inside the search and `_keep` centres the matching window on the
+    # corrected positions.  The engine's own reported Ze is +0.033°, against
+    # +0.0359° from harmonic pairs and +0.0367° against the certificate.
+    #
+    # The σ_sys semantics filed to WP-1028 are **not** thereby fixed — the two
+    # engines that cannot model a shift still need the wider window, which is
+    # why the `found_by` assertion below is the whole point of this block.
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
@@ -1746,6 +1803,101 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
                       sigma_sys_deg=float(screen.sigma_sys_deg))
     tight = index_pattern(_without_the_off_lattice_lines(lab6_peaks),
                           data=data, instrument=ins, spec=spec)
-    assert tight.candidates == [], (
-        "the post-correction residual now indexes — re-read the docstring, the "
-        "σ_sys semantics may have been fixed")
+    assert tight.candidates, (
+        "a window 4.3× too tight now finds nothing again — if the zero-error "
+        "column changed, this is where it shows first")
+    recovered = tight.candidates[0]
+    assert recovered.found_by == ["svd"], (
+        f"{recovered.found_by} — only the engine that fits a zero error should "
+        "reach a cell through a window this tight")
+    assert recovered.cell[0] / A_SRM660C - 1.0 == pytest.approx(0.0, abs=2e-5)
+    assert tight.engine_stats.get("svd.cubic.ze_deg") == pytest.approx(
+        0.033, abs=0.006), tight.engine_stats
+    # and it is still not promoted: one engine is not agreement
+    assert recovered.confidence == "low"
+    assert tight.best_or_none() is None
+
+
+#: The zero error Coelho's column recovers on each bundled dataset whose shift
+#: WP-1038's reflection-pair screen also detects, beside the two numbers it is
+#: checked against.  Three methods, no shared input: the reference-based screen
+#: sees certified positions, the pair screen sees only harmonic pairs among the
+#: observed lines, and the column sees only a candidate lattice.
+#: ``(cell, system, centring, trim, from_pairs, against_reference)``.
+SVD_ZERO_ERROR_ROWS = {
+    "lab6": ((A_SRM660C,) * 3 + (90.0, 90.0, 90.0), "cubic", "P", 0,
+             0.0359, 0.0367),
+    "corundum": ((A_SRM676A, A_SRM676A, C_SRM676A, 90.0, 90.0, 120.0),
+                 "trigonal", "R", 1, -0.0670, -0.0650),
+}
+
+
+def _assert_svd_zero_error_agrees(peaks, name: str):
+    """WP-1040 task 3's check, shared by the two dataset rows below.
+
+    Started **at** the certified cell, so this measures the *column* and not the
+    search — the search's own use of it is asserted on synthetic data in
+    ``test_indexing_engines.py``, where the injected shift is known exactly.
+    """
+    from pxrdref.indexing.engines import SearchSpec, search_line_order
+    from pxrdref.indexing.qspace import af_from_cell, metric_basis
+    from pxrdref.indexing.quality import screen_shift_from_pairs
+    from pxrdref.indexing.svd import svd_trial
+
+    cell, system, centring, trim, from_pairs, reference = SVD_ZERO_ERROR_ROWS[name]
+
+    screen = screen_shift_from_pairs(peaks.two_theta(), peaks.two_theta_esd())
+    assert screen.source == "reflection_pairs", screen.pairs.declined_reason
+    const = next(t.coefficient for t in screen.templates if t.name == "constant")
+    assert const == pytest.approx(from_pairs, abs=0.005), name
+
+    spec = SearchSpec(systems=(system,))
+    sel = search_line_order(peaks, spec)
+    out = svd_trial(af_from_cell(cell), peaks.q()[sel], peaks.two_theta()[sel],
+                    peaks.intensity()[sel], metric_basis(system), centring,
+                    peaks.wavelength, sigma=peaks.q_esd()[sel], trim=trim)
+    assert out.converged, (name, out.why)
+    assert out.ze == pytest.approx(const, abs=0.005), (
+        f"{name}: SVD Ze {out.ze:+.4f}° against {const:+.4f}° from harmonic "
+        "pairs — two methods sharing no input")
+    assert out.ze == pytest.approx(reference, abs=0.005), (
+        f"{name}: SVD Ze {out.ze:+.4f}° against {reference:+.4f}° measured "
+        "against reference positions")
+    # a magnitude, not a cause: this column *is* the ``constant`` template, and
+    # the pair screen measured that these data cannot separate it from cos θ
+    assert not screen.separable
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
+def test_the_svd_zero_error_is_a_third_road_to_the_anchors_shift(lab6_peaks):
+    """Coelho's Ze column against WP-1038's screen, on the absolute anchor.
+
+    Three methods measure one quantity here and **none of them sees what the
+    others do** — the same device as the cross-backend Jacobian matrix and
+    ``direction="both"``, so agreement is evidence about the *shift* rather than
+    about any one method.  Measured: **+0.0329°** against **+0.0359°** from
+    harmonic pairs and **+0.0367°** against the certified positions.
+
+    This is also where the column reaches and the pair screen does not.  A bare
+    twenty-line list supplies too few harmonic pairs to concentrate — which is
+    the published bethanechol failure the pairs suite reproduces — while this
+    needs none of them, only a candidate lattice.
+    """
+    _assert_svd_zero_error_agrees(lab6_peaks, "lab6")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-qarr")
+def test_the_svd_zero_error_is_a_third_road_to_corundums_shift(corundum_peaks):
+    """The same three-way check on the lab specimen with the larger shift.
+
+    **−0.0666°** against **−0.0670°** from pairs and **−0.0650°** measured
+    against the certificate.  Corundum needs ``trim=1``: its list opens on the
+    5.17° edge artifact, 3.9× beyond the longest d the lattice allows, and that
+    one line breaks eq. (4)'s weighting outright (``svd.py`` rule 4).  The
+    zero-error column does not rescue it and is not supposed to — **a line no
+    lattice can index is not a shifted line**, and a correction that absorbed it
+    would be the failure the whole gate exists to prevent.
+    """
+    _assert_svd_zero_error_agrees(corundum_peaks, "corundum")

@@ -1063,12 +1063,16 @@ def budget_exhausted_diagnostic(total_seconds: float,
 # ----------------------------------------------------------------------
 # The ceiling a caller can compute before running (WP-1037)
 # ----------------------------------------------------------------------
-#: Engines whose worst-case cost :func:`estimate_ceiling` models.  Both take
+#: Engines whose worst-case cost :func:`estimate_ceiling` models.  All three take
 #: ``budget_seconds`` per system as a hard per-system ceiling, and trial_error
-#: adds the dominant-zone probe.  A third registered engine that is not in this
-#: set comes back in ``CeilingEstimate.unmodelled`` rather than silently
-#: costing zero.
-MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "trial_error"})
+#: adds the dominant-zone probe.  A registered engine that is not in this set
+#: comes back in ``CeilingEstimate.unmodelled`` rather than silently costing zero.
+#:
+#: ``svd`` is in here rather than unmodelled because its ladder reads the budget
+#: between volume rungs and its trim retry (WP-1040) shares the **same** Budget
+#: object as the search — a second one would have made the engine cost
+#: 2·``budget_seconds`` per system and quietly falsified this whole arithmetic.
+MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "svd", "trial_error"})
 
 #: Measured seconds per Le Bail validation fit on the eight-dataset known-cell
 #: corpus (WP-1037 task 0, darwin/arm64 M4): 0.6–8.5 s on single-phase lab and

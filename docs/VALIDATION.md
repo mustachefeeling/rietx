@@ -605,6 +605,26 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Diagnostics:** `INDEX_SHIFT_FROM_PAIRS`
 
+#### `test_the_svd_zero_error_is_a_third_road_to_the_anchors_shift`
+
+`certificate` `characterisation` · dataset `srm660c`
+
+**Claims:** a systematic 2theta shift measured a THIRD way -- as one design column solved with the metric inside the search -- agrees with both of the package's existing roads to it
+
+**Referenced to:** Coelho (2003) sec. 2.3 eq. (7): a zero error enters Q through Ze (pi/360)(4/lambda^2) sin(2theta), appended to the SVD design matrix.  It sees neither certified positions (the reference-based screen, +0.0367 deg) nor harmonic pairs (WP-1038, +0.0359 deg on the constant template) -- only a candidate lattice -- so the three share no input
+
+**Measured:** +0.0329 deg, within 0.003 of both.  Started AT the certified cell, so this measures the COLUMN and not the search; the search's own use of it is asserted against an exactly known injected shift in test_indexing_engines.py.  It also reaches where the pair screen declines -- a bare 20-line list supplies too few pairs to concentrate, the published bethanechol failure, and this needs none
+
+#### `test_the_svd_zero_error_is_a_third_road_to_corundums_shift`
+
+`certificate` `characterisation` · dataset `srm676a`
+
+**Claims:** the same three-way agreement on the lab specimen with the larger shift, and the line the column is NOT allowed to rescue
+
+**Referenced to:** as above, against -0.0670 deg from harmonic pairs and -0.0650 deg measured against the SRM 676a certificate
+
+**Measured:** -0.0666 deg, within 0.002 of both.  Needs trim=1: the list opens on a 5.17 deg edge artifact 3.9x beyond the longest d the lattice allows, which breaks eq. (4)'s weighting outright.  A line no lattice can index is not a shifted line, and the column does not pretend otherwise
+
 #### `test_one_shift_is_measured_from_a_multi_phase_pattern`
 
 `characterisation` · dataset `qarr`
@@ -745,15 +765,15 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Measured:** tetragonal I ranked first, a +207 ppm and c +1906 ppm, 66 of 68 lines; the P twin ties on n_indexed and loses on predicted_seen_fraction 0.59 against 0.31.  predicted_but_absent = 7 (4_1 screw and glides on top of the centring); low, best_or_none() None
 
-#### `test_short_wavelength_data_must_be_truncated_before_it_can_be_indexed`
+#### `test_short_wavelength_data_is_indexed_only_by_the_engine_that_enumerates_nothing`
 
 `characterisation` · dataset `nac`
 
-**Claims:** a short-wavelength pattern cannot be indexed as measured, and the null result says 'incomplete' rather than 'nothing exists'
+**Claims:** a short-wavelength pattern defeats an exhaustive box search and is still indexed, by the one engine that enumerates no box -- and one engine is not agreement, so the gate still declines it
 
-**Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call.  The row pins the SHAPE of the failure, because a null that distinguishes 'we did not finish' from 'there is nothing' is the whole design
+**Referenced to:** lambda = 0.4139 A to 57.4 deg gives d_min = 0.43 A, at which a 10.25 A cubic cell exceeds engines.reflection_ceiling_ok -- the crash guard in front of every generate_reflections call -- so the dichotomy rejects its first box.  search_svd sizes its prediction set from the CURRENT trial metric and Coelho's N_c/N_o gate holds it to <= 4x the observed line count, so that resolution never arises for it
 
-**Measured:** zero boxes explored, 0.15 s, no candidate, search_complete[cubic] False.  Truncating 2theta was measured and does NOT rescue it: 2-18/25/32 deg give 215 boxes but a -5967/+8189/+7997 ppm, M20 = 4 and cubic P where the truth is I, at 300-620 s each.  Underneath, the true cell explains 6 of the first 20 picked lines (CaF2 none) though 268 of 285 overall -- a search-line selection question, filed to WP-1030
+**Measured:** zero boxes explored by the dichotomy, premise unchanged; search_svd returns a = 10.2512 A cubic I, +19 ppm from the certified 10.2510 and the RIGHT CENTRING, 223 of 285 lines, chi2_red 0.10, Le Bail Rwp 0.154 with predicted_but_absent 0 of 837.  Still low / best_or_none() None on engines_disagree.  This row asserted the opposite until WP-1040, and two recorded no-goes died with it: WP-1026's 2theta-truncation no-go was measured with the 2theta-ordered line selection WP-1039 replaced (its runs gave cubic P at -5967/+8189/+7997 ppm), and this row's own closing sentence predicted that a different selection would change its outcome.  A recorded no-go inherits the defects of the run that produced it
 
 **Diagnostics:** `INDEX_SEARCH_INCOMPLETE`, `INDEX_ABSTAINED`
 

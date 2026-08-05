@@ -55,64 +55,64 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1034](wp/1034-panel-layout.md), 2026-08-05** — the model editor
-and the text document are tabs beside the plot, and the full-window mode they
-each had is now the panel *column* expanding, tab strip and all; before it, the
-same day, [1033](wp/1033-plot-range-regions.md),
-[1039](wp/1039-search-line-count.md) and [1032](wp/1032-gui-repairs.md), and on
-2026-08-04 [1038](wp/1038-shift-reflection-pairs.md),
-[1037](wp/1037-indexing-time-ceiling.md) and
-[1036](wp/1036-crystal-system-settings.md). Narratives and numbers in
-[milestones/v1.0.md](milestones/v1.0.md) § "How v1.0 is getting here".
+**In flight: [1040](wp/1040-engine-svd-index.md)** (2026-08-05) — a **third
+indexing engine**: Coelho's iterative SVD, proposing a metric at random and
+alternating "assign each line to its nearest calculated one" with "re-solve A..F
+from that assignment" until the assignment stops changing. **No tolerance to
+search with**, failing on a bad starting basin where the other two fail on a wide
+domain and a poisoned base line — so `high` now means all three agree. WP-1023's
+Monte Carlo no-go is narrowed, not overturned: it scored *unrefined* random cells.
+**11-BM NAC is now indexed as measured** (a = 10.2512 Å cubic **I**, +19 ppm)
+where the row asserted it could not be, and the gate still declines it. **The
+zero-error column (task 3) did the opposite of what was predicted**: it does not
+raise the hit rate — bethanechol A-D are blocked by 7 impurity lines in 20, not by
+their zeroshift — it stops a *converged* answer being wrong (an injected 0.10°
+lands 3.5 % out in one pass and 1e-4 out in three), and its fitted Ze agrees with
+1038's pair screen to **0.003°** seeing neither references nor pairs. The
+acceptance run then caught a **regression three datasets had missed**: a dedup key
+spanning the centring loop without carrying the centring. **All 1040 still owes**
+is the eight-dataset scoreboard, handed to 1041.
 
-**1034's decision was taken without numbers, and task 1 fetched them first.**
-WP-1013's argument against a text *tab* — that a 340–560 px sidebar undoes the
-`.pxt` column alignment — is true at the 340 px floor and **false at the 560 px
-ceiling**: the fields a rectangular selection must hit end at 546 px, and only
-the trailing comments need 756. Same shape for the model pane, whose atom table
-needs 472. The decision stood; what the measurement bought was the *condition*,
-and the reflow, the wrap and the full-window layout are that condition made
-concrete.
+**Last closed: [1034](wp/1034-panel-layout.md), 2026-08-05** — the model editor and
+the text document are tabs beside the plot, their full-window mode now the panel
+*column* expanding; before it the same day, [1033](wp/1033-plot-range-regions.md),
+[1039](wp/1039-search-line-count.md), [1032](wp/1032-gui-repairs.md). Narratives in
+[milestones/v1.0.md](milestones/v1.0.md).
 
-The method lesson is now eight sessions running (1030 → 1036 → 1037 → 1038 →
-1039 → 1032 → 1033 → 1034): **instrument before ranking, and let the by-hand
-acceptance run judge.** Its GUI form is the browser pass, which has found a
-defect jsdom cannot see every time — this round, four, of which the sharpest is
-that **a defect can be invisible until two panels share a screen**: the header
-printed a fit's Rwp beside a plot saying there was none.
+The method lesson is eight sessions running (1030 → … → 1040): **instrument before
+ranking, and let the by-hand acceptance run judge** — 1040's own "nothing
+regressed" was written on three datasets and the 38-row run refuted it. It repeats
+1039's withdrawal twice: **a recorded no-go inherits the defects of the run that
+produced it**, and **a prediction is not a measurement.**
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark.
-2. [1040](wp/1040-engine-svd-index.md),
-   [1041](wp/1041-indexing-benchmark-gallery.md) and
-   [1042](wp/1042-anytime-results-quick-default.md) — written 2026-08-04 from the
-   source literature ([LITERATURE.md](LITERATURE.md)); 1042's `### Inherited`
-   carries 1037's measured streaming argument, and 1040's and 1041's now carry
-   1039's. **Neither 1038 nor 1039 moved the eight datasets off abstention**, and
-   each cleared exactly one caveat: what still blocks `high` is 1026's and 1041's.
-   1041 also inherits the scoreboard's *numbers*, which are stale — SRM 660c's
-   caveat set has changed twice since they were recorded.
-3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**:
-   the bethanechol global score, now unblocked by 1030. Its `### Inherited`
-   carries what 1030 measured and what the harness still lacks.
-4. [1035](wp/1035-symmetry-surfaced.md) — the last of the 2026-08-04 use
-   session (1032, 1033 and 1034 closed). Behind 1028/1026 because **it does not
-   move the bar**; unblocked, and its `### Inherited` says what 1036 settled
-   beneath it and what 1034 left under the model editor.
+2. [1041](wp/1041-indexing-benchmark-gallery.md) and
+   [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+   1042's `### Inherited` carries 1037's streaming argument. 1041's scoreboard
+   *numbers* are stale twice over and it **inherits three defects measured in
+   1040**: `trial_error._solution_key` is scale-invariant *and* carries no
+   centring, and `borda_scores` weighs all seven panel members alike, so it leads
+   with the wrong centring where `m_rev` separates them 516×. Fix all three
+   before recording counts.
+3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+   bethanechol global score. 1040 measured there is no pending fix to wait for.
+4. [1035](wp/1035-symmetry-surfaced.md) — the last of the 2026-08-04 use session,
+   behind 1028/1026 because **it does not move the bar**; its `### Inherited` says
+   what 1036 settled and what 1034 left under the editor.
 5. [1016](wp/1016-sequential-series-panel.md) then
    [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last two panels; 1017
    waits on 1032–1035, which change the controls it documents.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
+7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so
    the freeze covers an exercised surface.
 
-**The bar** (milestone row below): full validation matrix green; GUI
-end-to-end on 11-BM NAC matching the API-driven acceptance; indexing graded
-against the **individual** program globals in Bergmann et al. 2004 (McMaille +5,
-Crysfire +6 are the ones to beat — the old "≥ +9" was Table 5's `first_4`
-row, an oracle over four programs that no single entry reaches), abstaining on
-the mixture fixtures.
+**The bar** (milestone row below): full validation matrix green; GUI end-to-end on
+11-BM NAC matching the API-driven acceptance; indexing graded against the
+**individual** program globals in Bergmann et al. 2004 (McMaille +5, Crysfire +6
+to beat — the old "≥ +9" was Table 5's `first_4` oracle, which no single entry
+reaches), abstaining on the mixture fixtures.
 
 ## Milestones
 
@@ -440,7 +440,7 @@ per concurrent session, or only one session commits.
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
-| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ⬜ | 1020, 1024 (1038 soft) |
+| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ⬜ | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 
