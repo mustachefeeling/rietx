@@ -158,11 +158,13 @@ ITO13, DICVOL91, TREOR90, McMaille) and **+12** (best of all); ITO13 alone score
 the reason the number has to be generated before it is quoted anywhere else. It
 was measured with **`trial_error` only, at 30 s per engine × system** — not the
 three-engine consensus a real call runs, and at a budget the paper's own programs
-were not held to. A full run can only score the same or better, since a second
-engine can put the truth first where the first did not. What the qualified figure
-*does* support is the shape: **one set of ten, and it is the set the cell was
-fitted to.** Every run also reported `search_complete = False`, so the mandated
-monoclinic domain was never covered by any of them.
+were not held to. A full run moves it in **both** directions and neither is
+predictable: another engine can rank the truth first where this one did not, and
+consensus re-ranks the merged panel by Borda, so a rival that *all three* engines
+found can displace a truth only one of them did. Which is why the score has to be
+run, not reasoned. What the qualified figure *does* support is the shape: **one
+set of ten, and it is the set the cell was fitted to.** Every run also reported
+`search_complete = False`, so the mandated monoclinic domain was never covered.
 
 **The diagnosis, which is what to act on.** It is not the impurities and not the
 matching window. Median |ΔQ| between each set's lines and the published cell,
