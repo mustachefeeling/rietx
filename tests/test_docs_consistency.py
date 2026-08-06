@@ -41,28 +41,32 @@ _STATUS_RE = re.compile(
 _INHERITED_PRUNE_EPOCH = "2026-07-31"
 
 # Always-loaded documents: measured size + headroom, pinned by the pass that
-# achieved it (WP-1031, 2026-07-31: CLAUDE.md landed at 601 lines, ROADMAP at
-# 494).  Raising a cap is a decision about every future session's fixed cost —
-# make it in a commit that says so, not as a side effect.
+# achieved it.  Raising a cap is a decision about every future session's fixed
+# cost — make it in a commit that says so, not as a side effect.  Do not
+# delete facts to fit a cap: move narrative to the WP file or the milestone
+# record (the assertion message says where).
 #
-# 700 -> 720 on 2026-08-05, by two sessions on one day, and the decision rather
-# than the arithmetic: WP-1016, WP-1035 and WP-1041 all landed standing rules
-# against a file already at 700, which is where WP-1032-1035 had taken WP-1031's
-# 99 lines of headroom.  Both sessions paid what they could first — 1035 by reflow
-# and by deleting two restatements, 1016 by tightening four passages and removing
-# the GUI paragraph's duplication of `gui/CLAUDE.md` — and what is left is measured
-# fact compressed to a clause plus a pointer.
-#
-# **This buys twelve lines, not a habit.**  The file is ~100 lines past the size
-# the last consolidation achieved, and the next WP that needs room here should do
-# the consolidation rather than the raise: measured at the 1016 close, the bullet
-# lists wrap at ~74 columns against a 79-column body, which is **25 lines** of
-# slack that costs no facts at all to spend.
+# History: WP-1031 (2026-07-31) landed CLAUDE.md at 601 and ROADMAP at 494;
+# 2026-08-05 raised 700 -> 720 with the written warning that it bought twelve
+# lines, not a habit, and that the next WP needing room should consolidate.
+# WP-1060 (2026-08-06) was that consolidation: the indexing dossier moved to
+# src/pxrdref/indexing/CLAUDE.md (auto-loads with its subtree), ROADMAP's
+# closed-WP narratives moved to the milestone record, Current numbers became
+# a measurement recipe — CLAUDE.md landed at 553, ROADMAP at 337 — and every
+# always-loaded rulebook is now capped at landed + headroom.  The admission
+# rule the caps enforce: a line enters one of these files only as a standing
+# rule a stranger needs in six months, evidence compressed to one clause plus
+# a pointer (protocol rule 4); a new indexing rule lands in the indexing
+# rulebook and earns a root clause only if it changes behavior outside
+# indexing/.
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 720,
-    "docs/ROADMAP.md": 650,
+    "CLAUDE.md": 600,
+    "docs/ROADMAP.md": 400,
+    "gui/CLAUDE.md": 580,
+    "tests/CLAUDE.md": 180,
+    "src/pxrdref/indexing/CLAUDE.md": 250,
 }
-CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (landed at 33)
+CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 
 
 def _wp_files() -> list[Path]:
