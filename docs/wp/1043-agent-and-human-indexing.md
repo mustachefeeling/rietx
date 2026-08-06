@@ -32,6 +32,28 @@ per-candidate quantities.** Both were measured against the bundled **plotly
   drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
   probability*.
 
+### Decided by the user, 2026-08-06 — one output, not two
+
+The WP as first written proposed a **gate for unattended use and an evidence view
+beside it**. The user's answer collapses that into one thing, and it is the
+governing sentence here:
+
+> What humans would work best with is a list of **all** given results, and
+> stats/FoMs for each one, along with a **visual check against the diffraction
+> data**. This would also work best for LLM reasoning — give them all the
+> information, and let the user, human or machine, be the judge.
+
+So the ranked list with per-candidate evidence is the **primary** answer, and the
+grade is one field on it rather than a filter in front of it. Three consequences:
+
+- `best_or_none()` stays, and stays as strict as it is — but it is a convenience
+  for a caller that has *declared* it wants one cell, never the shape of the answer.
+- Every candidate that was computed is reported, with what was computable about it
+  and what was not. A candidate is not dropped for scoring badly.
+- **The visual check is part of the deliverable, not documentation of it.** The
+  gallery's per-candidate tick rows and Le Bail panel are the shape; the work is
+  making one reachable from a result rather than only from the acceptance suite.
+
 ### The thesis this WP serves
 
 The package's premise is that a well-designed *output* plus LLM reasoning beats a
@@ -92,6 +114,24 @@ table covers*. The engines are exercised on low symmetry only synthetically.
 
 So a claim like "never wrong, and silent more often than right" is currently a
 statement about high-symmetry lattices, and should say so until the corpus moves.
+
+**Where the missing data is** (corpus search, 2026-08-06 — the user asked for the
+literature to be checked before anything is requested). **NBS Monograph 25** is the
+answer for the peak-list axis: §20 alone carries 16 orthorhombic and 18 monoclinic
+patterns, and its 21 sections hold **29 triclinic** ones. US Government publication,
+so public domain; same institution as the SRM standards already in `tests/data/`;
+and it is *DICVOL04's own test corpus*, so taking it means adopting a published
+protocol and inheriting a comparison baseline — Boultif & Louër (2004) §5 print the
+per-pattern times this package is already quoted against (ten triclinic sets under
+2 s, ten at 60-360 s, three at 1215 / 3307 / 3770 s). The catch is that a Monograph
+entry is a **peak list, not a profile**, so those rows report `not_validated` and
+exercise the engines without exercising `validate_by_lebail`.
+
+For profiles the corpus is thinner than it looks. CONOGRAPH's benchmark
+(Oishi-Tomiyasu 2014, Table 2) spans 25 patterns including 3 orthorhombic and 5
+triclinic — but every one is credited to a named individual, and the only publicly
+released members are the **SDPDRR-2** samples, which are monoclinic and cubic. So
+this is two acquisitions, not one, and the Monograph is the one to do first.
 
 ### What an agent needs that a gate cannot give
 

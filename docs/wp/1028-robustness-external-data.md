@@ -194,12 +194,34 @@ pattern whose first channel is on a rising edge**.
 
 Why it is filed here and not fixed in 1041: it is a library behaviour change on
 the path every external pattern takes, it would move acceptance numbers on four
-datasets, and 1041 was closing. Candidate fixes to weigh — an edge guard of ~1
-FWHM where the background envelope has no left-hand support; adding
-`position_at_bound` to `PEAK_UNUSABLE_FLAGS`; or a dedicated `edge_artifact`
-flag, which is the one that keeps the reporting honest since these components are
-real intensity, just not lines. **Do not simply crop the pattern** — that discards
+datasets, and 1041 was closing. **Do not simply crop the pattern** — that discards
 a real low-angle line on a specimen that has one.
+
+**The fix is decided and measured (user's call, 2026-08-06: "prefer simple and
+robust"). Repair the envelope, then flag what survives — not an edge guard.**
+
+The cause is one line of `background.background_envelope`: each knot's x is its
+window's **centre**, so the first knot sits half a window (~1.5°) inside the data
+and `np.interp` **clamps flat** below it. Against a falling background the clamp
+sits far under the truth, and the whole first 1.5° reads as positive net. It is a
+flat-extrapolation artifact, not a threshold that needs raising: on all seven
+round-robin patterns `y[0]` is 1.5-2× `env[0]`, putting z = 4.7-6.9σ on the first
+channel against a 5σ bar.
+
+So anchor one extra knot at each **data edge**, linearly extrapolated from the two
+nearest — four lines, no new tunable. Measured across the seven: false edge lines
+**5 → 1**, and **no line away from the edge is lost on any pattern** (zincite
+50→50, zircon 50→50, cpd-1a 34→34; the rest fall by exactly their artifact count).
+Brucite's survivor drops 6.07σ → 5.01σ. An edge guard was rejected for scoring the
+same on the artifacts and worse on a genuine first line, which it cannot tell apart.
+
+Then the second half, and it is the half that generalises: a line inside the span
+where the envelope is **extrapolated rather than interpolated** is standing on a
+background nobody measured, so it carries a flag saying exactly that. Report, do
+not refuse ([1043](1043-agent-and-human-indexing.md)) — these components are real
+intensity, just not lines, and the consumer that can weigh that should be given
+the chance. `position_at_bound` is not the flag to reuse: it caught two of the
+five and means something else.
 
 *Method note worth keeping: this was found by eye, in one figure, after every
 green test had missed it. It is the argument for the gallery existing.*

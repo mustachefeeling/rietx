@@ -49,12 +49,13 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
-— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — **on the
-tree with `main`'s WP-1041 merged in**.
+2026-08-06 at the **WP-1041** close, darwin/arm64 M4, worktree `indexer`, venv
+`[dev,jax]` — jax 0.11.0, **no torch** — **on the tree with `main`'s WP-1016
+merged in**. WP-1016's own `[dev]` figures (1727 / 108 fast) do not compare: the
+extras move ~40 rows from skip to pass, which is most of the skip column.
 
-- fast **1727 / 108** in **5:22**, full **1819 / 117** in **34:24**, both on this merged tree. The same fast selection read **3:07-4:11** pre-merge and the full one **24:13**, so quote the range and never the figure — 1041 measured the same file at 46:59 under load. **The parents' deltas do not sum**: 1016 added 19 test functions and 1041 net 11 against a measured +29 fast / +30 full over 1035's 1698 / 1789 — `test_indexing_plots.py` collects 4 items from 3 functions, so a `def test_` count is not a test count. The closing-sum check holds within one lineage; across a merge only the re-measurement counts (`tests/CLAUDE.md`).
-- frontend (vitest): **376** (347 at 1035), `svelte-check` clean, `test_gui_*.py` collect **104**; 1041 touched no `gui/` file, so the dist digest is unchanged.
+- fast **1800 / 67** in **2:49**, full **1901 / 72** in **48:59** — and that full figure is an **upper bound, not a measurement**: a second full suite from another session was running throughout, and comparable trees read 24-34 min uncontended. Quote the range, never the figure. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`); the within-merge sum does check out here (1041's pre-merge 1780 fast + 1016's 20 = 1800), but a `def test_` count is not a test count — `test_indexing_plots.py` collects 4 items from 3 functions.
+- frontend: `test_gui_*.py` collect **105** (10 + 4 + 8 + 83), measured here. vitest **376** and `svelte-check` clean are **inherited from WP-1016 unmeasured** — 1041 touched no `gui/` file and the dist digest is unchanged, so there is nothing for it to have moved.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
