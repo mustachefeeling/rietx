@@ -61,35 +61,20 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** (The WP-1043 repair the hook demanded landed
-2026-08-06: its handover log is reconstructed post hoc in that file, and the
-flag is clear.)
+**In flight: [1060](wp/1060-docs-ci-consolidation.md)** — the trim WP: docs to
+what is load-bearing, CI to what the evidence supports, hand-typed numbers to
+measurement recipes. The WP-1043 handover repair the hook demanded landed
+2026-08-06 (reconstructed post hoc in that file).
 
-**Closed 2026-08-06: [1061](wp/1061-workflow-robustness.md)** — a missed
-`/wp-handover` stops being silent rot. `.claude/hooks/session_start.py`
-(stdlib-only, never the venv it checks, `startup|clear` not `resume`) reports
-repo state, venv resolution and the missed-handover scan at two severities;
-the same-day miss is the documented blind spot, so a quiet report is a prompt,
-never proof. `/wp-start` encodes the start ritual, `/wp-handover` gained
-repair mode, and the hook's first live run found the WP-1043 miss above before
-it was wired in. [1060](wp/1060-docs-ci-consolidation.md), the trim half of
-the same review, is still open.
-
-**Also closed 2026-08-06: [1044](wp/1044-gui-view-cursor-theme.md)** — four GUI
-defects reported from use, of which the two that read as unrelated were one
-sentence of plotly's autorange: a redraw carried no `range`, so it re-autoranged
-over the peak markers and the mask shapes, which span the *whole pattern*. Hence
-**the view is handed back on every draw** (WP-1015's camera rule, one panel
-over), and **a `ui` key belongs to whatever it is about** — the theme is the
-person's, so it moved to `/api/settings` and out of the mutating-verb 409 —
-the question 1029 filed to **1003**. [1017](wp/1017-gui-manual-onboarding.md)'s
-`### Inherited` carries the three sentences it made wrong.
+**Closed 2026-08-06**: [1061](wp/1061-workflow-robustness.md) — the missed
+handover is self-detecting (session-start hook, `/wp-start`, repair mode) —
+and [1044](wp/1044-gui-view-cursor-theme.md) — the view is handed back on
+every draw, and a `ui` key belongs to whatever it is about. Narratives, like
+every close's: [milestones/v1.0.md](milestones/v1.0.md).
 
 **The running theme: a number that is not regenerated is a number nobody
 re-measures.** A prediction is not a measurement (1041); nor is an inherited
-claim (1016), a reported cause (1044 — three of its four defects named one,
-one was right), or a remembered ritual (1061).
-Narratives: [milestones/v1.0.md](milestones/v1.0.md).
+claim (1016), a reported cause (1044), or a remembered ritual (1061).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -188,14 +173,6 @@ abstaining on the mixture fixtures.
 [0408](wp/0408-torch-mps-backend.md) on 2026-07-24; the number is left unused so
 the history stays readable.)
 
-0605 closed 2026-07-28 with a measured **no-go on the batched rewrite** and its
-task-0 cache graduated to production (1.23× on the SRM 660c protocol,
-bit-identical): the 2.4×-at-fixed-work figure was a microbenchmark fact, not a
-fit fact — the FCJ padded plane is a 0.58× *regression*, and the win that
-survives (symmetric rows, exactly bit-equal) is the starting point for the
-v2-fenced `vmap` series, not for a single-pattern rewrite. Grounds and the
-reopening conditions are in the WP's answers/handover.
-
 ### v1.0 — hardening, human GUI & release (GUI WPs added 2026-07-29)
 
 Order: backend API first (1004–1007, each independently useful without the
@@ -229,19 +206,6 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |
 
-**1032–1035 came from a use session** (2026-08-04, eleven observations plus one
-question), the same provenance as 1029 and cut by *size* rather than by screen
-region: 1032 is nine hour-sized repairs, 1034 is the one redesign, and neither
-is allowed to hold the other hostage. **1032 and 1033 are strictly sequential
-because both edit `Plot.svelte`** — the dependency column says so even though
-the features are independent, for the reason the 1018 interleaving already
-taught (one worktree per concurrent session, or only one session commits). The
-question that started 1035 turned up [1036](wp/1036-crystal-system-settings.md),
-which is not a GUI WP at all — and 1035 then found that the same question had a
-*second* answer nobody had asked for: `PATCH /api/structure` accepted a model
-whose parameter table cannot be built, because `Refinement.edit` snapshots
-without ever building one. All four are closed; the set is complete.
-
 ### v1.0 — indexing (added 2026-07-29)
 
 Unit-cell determination from a pattern, and the peak picking it needs. Added
@@ -257,181 +221,6 @@ other), then consensus (1024), space groups (1025), acceptance (1026), GUI
 (1027). [1030](wp/1030-engine-scaling-low-symmetry.md) was added 2026-07-30 and
 sits between 1026 and its own grade: the benchmark cannot be scored until a
 monoclinic search finishes.
-
-**[1018](wp/1018-peak-picking.md) closed 2026-07-30**, and the row that had
-carried the 🔄 glyph ("landed but not finished") is the only one that ever has.
-What closed it is the **σ pull calibration** — the gate the whole downstream
-tolerance model rests on, because every indexing tolerance is a multiple of the
-σ(2θ) `pick_peaks` reports, and Rwp, χ² and eyeball overlays cannot see a σ that
-is uniformly 40 % too small. Measured over ~1300 fitted lines per configuration,
-from 100 fixed-seed Poisson realisations of a forward-model LaB₆ pattern:
-`(2θ_fit − 2θ_true)/σ_fit` has **mean +0.032 / std 0.971** on a synchrotron
-single line and **−0.083 / 0.980** on a lab Cu Kα doublet, against `|mean| <
-0.15` and `std ∈ [0.85, 1.20]` written before the measurement. So the reported σ
-is the right scale, and 1019/1020 may now tune against it.
-
-The gate found **two more defects** — six in total for this WP, and *not one of
-the six was visible by reading the code*. Both new ones are doublet physics. A
-marginally resolved Kα2 has **no maximum**, so the alias filter cannot see it,
-but it does have a curvature shoulder: it cleared the 5σ seeder, sat outside the
-half-FWHM grouping gap, formed a **singleton group**, and came back as a line
-with an esd — and the ΔBIC prune cannot refuse it, because a singleton is judged
-against "no peak at all" and there genuinely is intensity there. That was one
-spurious line per pattern and a **−21 mean σ pull** on the LaB₆ 110 reflection.
-And the doublet amplitude ratio is not `weight`: each line diffracts at its own
-Bragg angle, so it carries its own **Lorentz-polarisation** factor, and holding
-the bare weight dragged the fitted Kα1 position down by 2e-4° (mean pull −0.26 →
-−0.19).
-
-Two results outlast the WP. **Sizing rule: 200 groups is enough for a `std` bar
-and not for a `mean` bar** — at pull std 1 the standard error of the mean over
-200 groups is 0.07, half the 0.15 bar, and a 200-group subsample of this very
-ensemble read −0.15 where the converged value is −0.08; the test now asserts
-`3·SE < bar` before asserting the bar, so an undersized ensemble fails loudly
-instead of passing by luck. And **the remaining −0.08σ doublet bias is a
-measurement, not a to-do**: 2e-5°, a fortieth of a channel, with four candidate
-mechanisms excluded by substitution (exact background, isolated reflection,
-per-line widths, model-σ weights) and the estimator shown unbiased to ±0.02 in
-isolation — so what is left is in the detection-seeded window, two orders below
-the systematic-error scale 1019 exists to model.
-
-**[1019](wp/1019-indexing-data-quality.md) closed the same day**, and its
-deliverable is a *gate*: `assess_peak_list` judges a peak list fit to index or
-**abstains with a reason**, and `fit_shift_model` attributes a systematic 2θ shift
-to a zero-point error, a displaced specimen or a transparent one — or declines to,
-which is the half that matters, since every program the 2004 benchmark paper
-surveys fits one constant "zeropoint" instead.
-
-Its founding question was one the plan had not resolved: **what is knowable from a
-peak list alone.** Everything except the shift is a property of the list. The
-shift is not — with no cell there is nothing to deviate from — so the screen is
-*conditional* on reference positions, and with none the report says
-`shift.source == "unavailable"` rather than reporting a zero shift it never
-measured. What *is* computable with no data at all is the separability geometry of
-the three templates over the angles sampled: a statement about the experiment
-rather than the specimen, readable before a specimen is loaded.
-
-Four measurements, and two of them overturned something:
-
-- **"The cell stands when the cause is ambiguous" is true only with the word
-  *competitive* in it.** Over 10-25° 2θ with a 0.10° cos θ displacement, all three
-  templates' predicted corrections differ by 0.046° — nearly half the shift, a
-  0.2 % cell error if the wrong one is applied. But the template that disagrees is
-  the one the data *rejects*, and over the two that fit comparably the spread is
-  0.0011°. The plan's conclusion survives; its reasoning is narrowed, and
-  `prediction_spread_deg` now reports the number instead of a docstring asserting
-  the claim.
-- **A measured no-go: dominant zone and dominant row are not detectable from a
-  census.** Neither is a summary statistic — a dominant zone is the statement that
-  the low-angle lines satisfy a *two-dimensional* quadratic form, a dominant row an
-  arithmetic progression k²B among the low Q values. Each is a search. The obvious
-  census (Ito's most-repeated Q difference) was written, measured and removed: it
-  scores dominant-zone cells at +0.9σ and +0.8σ against a permutation null while
-  scoring a *general* monoclinic cell at +3.3σ, and against a uniform null a
-  **cubic** list scores +15.6σ — it detects commensurability, not zones. A test
-  asserts the diagnostic code's absence so it cannot creep back, and the engines
-  (1021/1022) have been told they own the detection.
-- **Smith's volume envelope needed two scalings, and the second was found by the
-  envelope excluding the right answer**: with the Laue orbit factor alone,
-  corundum's bound came out at 125 Å³ against a true 255 Å³, because R-centring
-  extinguishes two thirds of hkl. Centring is part of the answer (1025's extinction
-  symbol), so the default is the worst case each system allows — the one failure a
-  search bound may not have is excluding the true cell — and the envelope is
-  reported per system, since they span 96×.
-- **`constant` and `cos θ` stay 0.96 collinear even over 10-140°**, so
-  separability is decided on the residual-SS ratio against real data and never on
-  the geometry alone.
-
-One item was left open for the user rather than a session: the per-system envelope
-scaling is *derived* here, not published, and a clean copy of Smith (1977) would
-let the derived factors be checked against the paper's — the WP-0501 b₂
-transposition being the precedent for why that check is worth asking for.
-
-**Closed 2026-07-30, and the answer was that the question had a false premise.**
-The paper arrived and is **triclinic-only**: it publishes *no* per-system factors,
-so there is nothing to check the derived scalings against, and its own closing
-paragraph names systematic absences as the obstacle to extending the method to
-monoclinic and orthorhombic and leaves it unsolved. Our two constants (0.60,
-0.0052) are exactly the paper's and reproduce its printed 13.39/17.24/21.32. What
-the check *did* find is a defect nobody was looking for — the relation is a
-least-squares **mean line** (−29 % to +32 % about a 10.6 % average), not the
-upper envelope this package calls it, and used as a hard search ceiling it
-excludes the true cell below a detection fraction of 0.713, which is that same
-−29 %. See "Current focus" and [1030](wp/1030-engine-scaling-low-symmetry.md).
-The precedent held, in other words, but not in the direction it was invoked for:
-asking for the paper was right, and the thing it caught was a status claim rather
-than a transposed coefficient.
-
-**[1020](wp/1020-indexing-core.md) closed the same day** — five modules, 40
-tests, an eleventh manual chapter, and **no engine**: the Q-space quadratic form
-and its symmetry-allowed subspaces, weighted candidate refinement with an optional
-shift column, Niggli/Delaunay reduction with two-opinion Bravais determination over
-a tolerance sweep, the figure-of-merit **panel** scored in both directions, and
-HNF derivative-lattice ambiguity with the reflections that would break each tie.
-1021-1023 now have everything they share.  Full suite after all three WPs: 1251
-passed / 70 skipped / 0 failed, including the `slow` real-data acceptance.
-
-**Its lesson is about tests, not about crystallography: three of its four defects
-passed the test that should have caught them.**
-
-- The metric subspace was derived from the **transposed** rotations, and the
-  dimension test passed. CLAUDE.md's "reciprocal-space action is Rᵀ" is about
-  *hkl*; a tensor contracting with h twice is invariant under U → R·U·Rᵀ, and G\*
-  is one. The transposed call returns the *direct* metric's invariants — the same
-  dimension in every system, because the transposed set is a group too, so the
-  WP's own acceptance criterion (1/2/2/2/3/4/6) was satisfied by the wrong
-  subspace, with F = −A for hexagonal where the reciprocal metric has F = +A. What
-  catches it is asserting the **true** metric lies in the span.
-- A Gauss-Newton sign error that is locally correct: flipping only the θ block
-  still solves for θ, and leaves the shift column with the wrong relative sign —
-  s = −11.65 for an injected +0.05°.
-- **M₂₀ was not invariant under a unimodular setting change, by 5 %**, because
-  N_poss counts predictions up to the N-th observed line and that line *is* a
-  prediction, so a strict comparison depends on fp rounding (N_poss 20 vs 19,
-  M₂₀ 76.43 vs 80.45).
-- And a perfect cell scored **M₂₀ = 0**: the figure divides by ⟨ΔQ⟩, which → 0 when
-  a candidate fits within fp noise, so the obvious zero-guard ranked the right
-  answer last. The mean is now floored at the median σ — a meaning rather than an
-  epsilon, since a discrepancy below the measurement precision is not knowable, and
-  per-line σ is what this package has and 1968 did not.
-
-Two things it declined to do. **Four published figures of merit are not
-implemented** — the Oishi-Tomiyasu reversed/symmetric de Wolff pair, WRIP20 and
-McM₂₀ — because their formulas cannot be written from memory with correct
-attribution, and guessing one while citing its paper is the WP-0501 b₂ failure in a
-new costume; the panel's *argument* (coverage in both directions) is fully
-implemented, which is what the measured §D result demands. And **1020 emits no
-diagnostics at all**, deliberately: it has no answer to qualify, so
-`INDEX_BRAVAIS_AMBIGUOUS` belongs to 1024 where a `CellCandidate` exists to carry
-it.
-
-1018's earlier value was already banked, and it is the v0.5 method result in
-a new costume: **four defects, none of them visible by reading the code.** A
-resolved Kα1/Kα2 doublet manufactured one spurious line per reflection (each
-group is fitted independently *with its own full doublet*, so the Kα2 maximum
-comes back as a real line — structural to per-group fitting, and any future
-change to grouping must keep the alias filter); the first curvature seeder was
-useless because differentiating twice amplifies noise by ~1/step², so a
-per-channel-σ threshold passed essentially every noise dip; a shoulder seed
-landing alone formed a *singleton* group that the ΔBIC gate never judged, so a
-false positive became a line with an esd and no evidence; and
-`background_envelope` is a rolling *low* quantile, ≈1.28σ below the true
-background, which quietly turned a nominal 5σ detection threshold into ≈3.7σ.
-Against that, the thing that *was* verified by reading — the analytic group
-Jacobian — agreed with central differences to 2.5e-07 on every column first
-time. Reading finds the algebra; only running finds the four above.
-
-**A process note that outlasts the WP.** 1018, [1004](wp/1004-parameter-plan-api.md)
-and [1006](wp/1006-run-control.md) were developed *concurrently in one working
-directory*, and both other WPs' commits ran `git add -A` while 1018's files were
-uncommitted — so `indexing/peaks.py`, `peakfit.py`, `pick.py`, `diagnostics.py`
-and most of `schemas/indexing.py` are committed inside `f63556c`, `e46ead2` and
-`62d6a76`, whose messages say WP-1004 / WP-1006. Nothing was lost and the tree
-is green; the history was left interleaved deliberately, because the swept files
-sit *inside* those commits, so untangling means surgery on three already-closed
-WPs' commits to fix a comment in `git log`. **`git log -- src/pxrdref/indexing/`
-will mislead you — start from `068149e`.** The rule this buys: one `git worktree`
-per concurrent session, or only one session commits.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -459,18 +248,6 @@ per concurrent session, or only one session commits.
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ⬜ | — (1007 soft) |
 | [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
 
-**1036 came from a GUI question and was not a GUI WP.** The cell ties assumed
-b-unique monoclinic and hexagonal axes for R groups, and held a symmetry-fixed
-angle at its *stored* value rather than at 90°/120°. Its task 1 was the sweep
-that decided how much that mattered, and **the answer went both ways**: zero of
-28 existing inputs reach a broken branch, so nothing shipped moved — but all
-three are reachable from a plain CIF, because `read_small_structure` picks the R
-setting from the **cell**, not from the symbol. The draft premise that a bare
-`R -3 c` always resolves to `:H` was wrong, and measuring it is what caught
-that. The lesson to carry: the free-parameter *count* was correct in every
-broken case, so the degrees-of-freedom test guarding this had been passing on
-the wrong subspace — WP-1020's transposed-rotation trap, one rank down.
-
 **1028 came from outside.** Every item in it was hit by driving the package
 end-to-end over nine unfamiliar refinement targets from a third-party paper
 (branch `wpem-benchmark`, pushed and deliberately **not** merged), and none of
@@ -489,27 +266,6 @@ existing suites can test, because they only ever read files we chose — and the
 benchmark that found these measured every *failure* but reasoned one *cause*,
 which is its own lesson about reading a diff for an attribution.
 
-Three decisions worth keeping visible, because each is a place the obvious
-implementation is wrong:
-
-- **Three engines, and the confidence is their agreement.** Both source papers
-  conclude that no single indexing program wins and that running several is
-  what raises the success rate — which is the device this package already uses
-  for correctness elsewhere (`direction="both"` flagging
-  `SEQUENTIAL_PATH_DEPENDENT`, the per-column cross-backend Jacobian matrix).
-  The engines share only the Q form and the tolerance model.
-- **Coverage is scored in both directions, and that is measured, not
-  aesthetic.** On the guiLLeMot MnSb_34 screen, ranking on share-of-observed-
-  intensity alone puts a 390-line phase first with 9 % of its own lines
-  present, above the truth at 56.5 %. A cell that indexes everything and
-  predicts a forest is the classic false positive and one number cannot see it.
-- **A restricted search is never a verdict about the sample.** Measured on the
-  same branch: a two-parameter engine scores 47–60 % on single-phase
-  orthorhombic/monoclinic patterns and 82–100 % on genuinely
-  tetragonal/hexagonal ones, so a real mixture at 69 % sits in the overlap —
-  and a "at least two phases" claim built on that ambiguity was **withdrawn**.
-  Hence `systems_searched` on the result, and `INDEX_SYSTEMS_NOT_COVERED`.
-
 Prior art lives at the annotated tag **`guillemot-study`** (commit 97ba88d, also
 on branch `guillemot-example-refinements`): `studies/guillemot/index_hl2.py` is
 engine B in miniature, `audit_tools.py` measured the findings above, and
@@ -526,19 +282,6 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ⬜ | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ⬜ | 1052 |
-
-**1050/1051 came from a literature review** (2026-07-30, Toby 2024 *J. Appl.
-Cryst.* **57**, 175 and Tian 2013 *J. Appl. Cryst.* **46**, 255 — SrRietveld).
-1050 is Toby's worst-fit-parameter mechanism made strictly stronger by what
-this package has and GSAS-II lacks: reusable analytic Jacobian columns (his ±δ
-FD, per-type δ heuristics and sign test all collapse into one Gauss-Newton
-score gain), plus collinearity gates so his own stated failure mode comes back
-as an unresolved group, never a confident singleton. 1051 is the one part of
-SrRietveld not already superseded here: its diverge-then-escalate scheme,
-which our chain has only two leaky rungs of — including a measured hygiene
-defect where a doubly-diverged pattern still seeds its successor. The review's
-third adoption, weighted Δ/σ difference curves as the default Rietveld panel,
-was small enough to land directly (commit `732535d`).
 
 **1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
 and `suggest()` only *inform* a caller (the no-autopilot fence), then whether
