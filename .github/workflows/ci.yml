@@ -21,6 +21,17 @@ name: CI
 # builds the manual under -W and asserts VALIDATION.md matches its generator,
 # so those two are code as far as the tests are concerned.
 #
+# Every job skips the push run for a PR merge commit (the `if:` below): the
+# pull_request run already tested that tree, so the post-merge rerun was pure
+# double payment (~9-22 billed min per merged PR, measured 2026-08-06).  NOT
+# PR-only triggers — 23 of the last 60 direct-to-main commits touch code and
+# would go untested until Sunday.  Accepted risks, stated rather than assumed:
+# (a) merging after main moved lands a combined tree untested until the next
+# tested push or the weekly; (b) a push bundling direct commits under a merge
+# head commit is skipped whole — rare, and it heals at the next tested push
+# since CI tests trees, not diffs.  A switch to squash merges makes the
+# condition match nothing, which fails toward extra runs, never lost coverage.
+#
 # When the repo goes public, standard runners become free and all of this
 # shaping can be undone — see docs/wp/1003-api-freeze-pypi.md.
 
@@ -50,6 +61,7 @@ env:
 
 jobs:
   lint:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -63,6 +75,7 @@ jobs:
       - run: .venv/bin/python -m ruff check src tests examples
 
   fast:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     name: fast suite (py3.13, numpy)
     runs-on: ubuntu-latest
     timeout-minutes: 20

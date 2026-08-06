@@ -19,6 +19,11 @@ name: GUI frontend
 # `gui/scripts/build_info.py` rather than in JavaScript.
 #
 # Goes to zero when the repo goes public (see docs/wp/1003-api-freeze-pypi.md).
+#
+# The `if:` on the job skips the push run for a PR merge commit — the
+# pull_request run already tested that tree.  Accepted risks and the
+# squash-merge failure direction: the header comment in ci.yml, which this
+# condition mirrors verbatim.
 
 on:
   push:
@@ -37,6 +42,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')
     name: build, diff, test
     runs-on: ubuntu-latest
     timeout-minutes: 15
