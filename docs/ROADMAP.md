@@ -23,7 +23,8 @@ a work session loads only what it needs:
 
 1. **Start** from "Current focus" below (or the WP the user names). Read that
    one WP file — self-contained on top of CLAUDE.md. Open DESIGN.md only at
-   sections the WP links; do not read other WP files.
+   sections the WP links; do not read other WP files. `/wp-start` encodes
+   this.
    **On arrival at a WP, prune its `### Inherited` first**: fold still-true
    entries into Context or Tasks, delete stale ones (say why in your handover
    entry). The section is a mailbox, emptied on every visit and deleted —
@@ -36,7 +37,9 @@ a work session loads only what it needs:
    synced, forward references pushed into the `### Inherited` of any affected
    WP that is not closed and not yours (a handover log reaches only your own
    successor on the same WP), rule 4 applied to anything this session wrote
-   into a CLAUDE.md, working tree clean and pushed.
+   into a CLAUDE.md, working tree clean and pushed. A missed handover is
+   detected at the next session start (`.claude/hooks/session_start.py`) and
+   repaired before new work.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
    (root, `gui/`, `tests/`) only as a standing rule a stranger needs in six
    months — a few lines, evidence compressed to one clause plus a pointer to
