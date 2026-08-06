@@ -6,6 +6,15 @@ Run the end-of-WP-session checklist (docs/ROADMAP.md § Session protocol,
 steps 3–5). Work through every item; do not skip one silently — if an item
 does not apply, say why in one line.
 
+**Repair mode** — when invoked for work a *previous* session left
+un-handed-over (the session-start hook's `repair first` flag): reconstruct
+the missing entry from `git log --stat` over that WP's commits and the
+current state of its checklist, date it with the commits' own date (never
+today's), and mark it "(reconstructed post hoc)". A reconstruction records
+what the commits show, not what the session might have known — where the
+diff does not say why, say so rather than inventing a rationale. All other
+steps below run unchanged.
+
 1. **Identify the active WP** from this session's `git log` (`WP-NNNN:`
    prefixes). If more than one WP was touched, confirm with the user before
    proceeding.
