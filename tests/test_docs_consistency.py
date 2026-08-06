@@ -163,7 +163,8 @@ _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
 def _planning_docs() -> list[Path]:
     docs = [ROOT / "CLAUDE.md"]
-    for extra in ("gui/CLAUDE.md", "tests/CLAUDE.md", "src/pxrdref/gui/CLAUDE.md"):
+    for extra in ("gui/CLAUDE.md", "tests/CLAUDE.md", "src/pxrdref/gui/CLAUDE.md",
+                  "src/pxrdref/indexing/CLAUDE.md"):
         if (ROOT / extra).is_file():
             docs.append(ROOT / extra)
     docs += sorted((ROOT / "docs").glob("*.md"))
