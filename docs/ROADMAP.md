@@ -539,6 +539,18 @@ following them actually converges a fit is a measurable claim — 1052 runs the
 AGENT_PROTOCOL §9 loop mechanically in CI, 1053 puts real models behind the shipped
 `refine_json` surface and scores them on the same planted-cause episodes.
 
+**1060/1061 (2026-08-06) came from a measured review of the repo's own
+process**: three surveys found the docs ballooning (docs/src 0.24 → 0.78 since
+v0.3, most-touched directory) while the tests have earned their keep (~13
+documented heavy-layer catches), CI paying twice per merged PR, and the session
+workflow hanging on a *remembered* `/wp-handover`. 1060 trims what the evidence
+indicts; 1061 makes the missed handover self-detecting at the next session
+start.
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ⬜ | — |
+
 ## v2+ (seams pre-built, implementations fenced out)
 
 Fundamental Parameters Approach as a differentiable convolution stack
