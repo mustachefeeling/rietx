@@ -11,6 +11,16 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1060](1060-docs-ci-consolidation.md) (closed 2026-08-06) — three more
+free-tier CI shapings for the going-public un-shaping list.** The workflow
+headers already say "undo on going public"; 1060 added: the job-level `if`
+skipping the merged-PR push run in `ci.yml`/`gui.yml`, the dispatch-only
+macOS job in `monthly.yml` (whose goldens guard now lives locally in
+`test_backend_shim.py` and stays either way), and the weekly `pythons`
+matrix trimmed to the 3.11/3.14 edges. Publishing makes standard runners
+free: the first two conditions can simply be deleted, and the matrix can
+grow back to the full support window in one nightly.
+
 **From [1016](1016-sequential-series-panel.md) (closed 2026-08-05) — one
 deliberate omission this WP has to decide, and three surfaces to cover.**
 

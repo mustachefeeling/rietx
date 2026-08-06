@@ -61,16 +61,17 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight: [1060](wp/1060-docs-ci-consolidation.md)** — the trim WP: docs to
-what is load-bearing, CI to what the evidence supports, hand-typed numbers to
-measurement recipes. The WP-1043 handover repair the hook demanded landed
-2026-08-06 (reconstructed post hoc in that file).
-
-**Closed 2026-08-06**: [1061](wp/1061-workflow-robustness.md) — the missed
-handover is self-detecting (session-start hook, `/wp-start`, repair mode) —
-and [1044](wp/1044-gui-view-cursor-theme.md) — the view is handed back on
-every draw, and a `ui` key belongs to whatever it is about. Narratives, like
-every close's: [milestones/v1.0.md](milestones/v1.0.md).
+**Nothing in flight.** Closed 2026-08-06, narratives in
+[milestones/v1.0.md](milestones/v1.0.md):
+[1060](wp/1060-docs-ci-consolidation.md) — the always-loaded docs trimmed to
+caps a test pins (CLAUDE.md 553/600, ROADMAP 337/400, the indexing dossier
+now `src/pxrdref/indexing/CLAUDE.md`), CI stripped of the merged-PR double
+run, the macOS cron and the rotting price totals, counts replaced by the
+§ Numbers recipe; [1061](wp/1061-workflow-robustness.md) — the missed
+handover is self-detecting (hook, `/wp-start`, repair mode; the WP-1043
+repair it demanded also landed 2026-08-06); and
+[1044](wp/1044-gui-view-cursor-theme.md) — the view is handed back on every
+draw, and a `ui` key belongs to whatever it is about.
 
 **The running theme: a number that is not regenerated is a number nobody
 re-measures.** A prediction is not a measurement (1041); nor is an inherited
@@ -299,7 +300,7 @@ start.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ⬜ | — |
+| [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ✅ 2026-08-06 | — |
 | [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ✅ 2026-08-06 | — |
 
 ## v2+ (seams pre-built, implementations fenced out)

@@ -1,6 +1,6 @@
 # WP-1060 — Docs/CI consolidation: trim what the evidence indicts
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-06 — closed at eleven of eleven, acceptance green (close entry below)
 Depends on: — (touches `.claude/commands/wp-handover.md`, as does 1061; different
 steps, lands in either order)
 
@@ -63,14 +63,14 @@ the old caps stay green throughout.
 
 ## Tasks
 
-- [ ] 1. Fix the stale acceptance line: `docs/milestones/v1.0.md:24-26` still
+- [x] 1. Fix the stale acceptance line: `docs/milestones/v1.0.md:24-26` still
   carries the uncorrected "≥ +9 bethanechol" bar; restate per the corrected
   version at ROADMAP:110-114 (the `first_4` oracle correction).
-- [ ] 2. One authority for the Current-focus cap: ROADMAP:47-48,
+- [x] 2. One authority for the Current-focus cap: ROADMAP:47-48,
   CLAUDE.md:470 and `.claude/commands/wp-handover.md:31` all say "~40 lines"
   while the test enforces 60; all three become "within `CURRENT_FOCUS_CAP`
   (tests/test_docs_consistency.py)".
-- [ ] 3. CI, stop paying twice per merged PR: keep both triggers on `ci.yml`
+- [x] 3. CI, stop paying twice per merged PR: keep both triggers on `ci.yml`
   and `gui.yml`; add to each job
   `if: github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request')`.
   NOT PR-only triggers — measured, 23 of the last 60 direct-to-main commits
@@ -82,7 +82,7 @@ the old caps stay green throughout.
   condition match nothing, which fails toward extra runs, never lost
   coverage. `docs.yml` unchanged (1 min; the push leg is most commits' only
   CI).
-- [ ] 4. CI, monthly macOS → dispatch-only: `if: github.event_name ==
+- [x] 4. CI, monthly macOS → dispatch-only: `if: github.event_name ==
   'workflow_dispatch'` on the `macos` job (keep all steps + `full_macos`
   input). Grounds: the dev machine is darwin/arm64 and runs fast suite +
   goldens on every local run; the hosted runner is measurably not the capture
@@ -92,18 +92,18 @@ the old caps stay green throughout.
   golden files load. Known pre-existing limitation: if the dev machine stops
   being darwin/arm64 the goldens run nowhere; the guard makes that visible
   locally. Torch job untouched.
-- [ ] 5. CI, weekly matrix → `["3.11", "3.14"]` (3.12 is the dev venv,
+- [x] 5. CI, weekly matrix → `["3.11", "3.14"]` (3.12 is the dev venv,
   exercised daily; 3.13 runs per-push; keep the support-window boundaries).
   Full-job `timeout-minutes` 90 → 120 (measured drift 44:21 → 77:52; a drift
   past 120 should fail loudly, not get another silent raise).
-- [ ] 6. CI, price comments become rules + dated ranges: keep the stable
+- [x] 6. CI, price comments become rules + dated ranges: keep the stable
   rules (2000 free min/mo, billed rounded up, macOS 10×, "price a job before
   adding it") and at most one dated per-job *range*; drop every
   cross-workflow monthly total in favor of "read totals from the Actions
   usage page / `gh run list`, never from comments", citing the measured rot
   (303 written vs ≈495). Same treatment in `tests/CLAUDE.md` § CI and
   `docs/DESIGN.md` ~504.
-- [ ] 7. CLAUDE.md indexing block (~497-692) → ~25-line digest at root + new
+- [x] 7. CLAUDE.md indexing block (~497-692) → ~25-line digest at root + new
   subsystem rulebook `src/pxrdref/indexing/CLAUDE.md`. The dossier's *rules*
   (compressed, one-clause evidence + pointer each) move to the new rulebook,
   which auto-loads exactly when a session works under `indexing/` (the
@@ -125,7 +125,7 @@ the old caps stay green throughout.
   clause dropped from root, verify it lands in the rulebook or already exists
   in v1.0.md / its WP file; anything found nowhere else moves verbatim in the
   same commit.
-- [ ] 8. CLAUDE.md testing rules + protocol restatement compressed: lines
+- [x] 8. CLAUDE.md testing rules + protocol restatement compressed: lines
   24-47 keep `--dist loadgroup` rationale (~4 lines),
   wall-clock-as-a-range + extras-with-any-count, say-which-numbers-moved,
   and one compressed budget clause ("a wall-clock budget in a test is a
@@ -135,7 +135,7 @@ the old caps stay green throughout.
   protocol + two clauses (commit prefix; "rules, not findings"). Promote ONE
   line from tests/CLAUDE.md that bites sessions which never load it: "a
   worktree needs its own venv" (into Commands, after the setup line).
-- [ ] 9. `### Current numbers` → ~6-line `### Numbers` (measure, never
+- [x] 9. `### Current numbers` → ~6-line `### Numbers` (measure, never
   quote): local fast-suite command is the recipe (never add `-q` — addopts
   has one, `-qq` prints no summary); full-suite counts + `--durations` from
   the latest weekly `full` job log (`gh run list --workflow weekly.yml`,
@@ -147,11 +147,11 @@ the old caps stay green throughout.
   retention, up to 7 days stale, one platform/venv point — cross-venv claims
   still need the local recipe. Grepped 2026-08-06: no test parses the
   section; closed-WP mentions are frozen archive.
-- [ ] 10. ROADMAP, move closed-WP narrative to the milestone record: blocks
+- [x] 10. ROADMAP, move closed-WP narrative to the milestone record: blocks
   at ~185-191, 254-427, 455-514, 528-540 (verify — lines will have moved) go
   to `docs/milestones/v1.0.md` § "How v1.0 is getting here"; re-base links;
   rewrite Current focus to ~35 lines.
-- [ ] 11. Pin the caps (LAST): `SIZE_CAPS` CLAUDE.md 720 → landed+~50
+- [x] 11. Pin the caps (LAST): `SIZE_CAPS` CLAUDE.md 720 → landed+~50
   (expect ~580), ROADMAP 650 → landed+~60 (expect ~400); NEW caps for the
   so-far-uncapped always-loaded rulebooks at landed+headroom —
   `gui/CLAUDE.md` (494 today), `tests/CLAUDE.md` (145),
@@ -184,6 +184,37 @@ they name (CLAUDE.md invariants, `docs/wp/1030`, `1036`, `1037`, `1040`,
 `1041`, `docs/milestones/v1.0.md` appendix).
 
 ## Handover log
+
+- **2026-08-06 (close)** — all eleven tasks landed as eleven commits on
+  `wp1060-docs-ci-consolidation`, one commit per task, in checklist order.
+  Measured at close in the main checkout's venv (`[dev,jax,torch]`, jax
+  0.11.0, torch 2.13.0, darwin/arm64 M4): fast **1892 / 5** in 2:47 (the
+  1061/1044-merge baseline: 1888 / 5 in 2:54–3:20), passed+skipped moving by
+  exactly this WP's **+4** — the golden-platform shim guard (+1 pass here, a
+  *named skip* off darwin/arm64) and three new `SIZE_CAPS` parametrizations
+  of the existing cap test (+3 passes). **The full selection was not re-run**:
+  none of the four is slow-marked or venv-conditional, so it moves by the
+  same +4; per the new § Numbers recipe the next weekly `full` log is the
+  measurement. Sizes at close: CLAUDE.md 720 → **553** (cap 600), ROADMAP
+  594 → **337** (cap 400, Current focus 44/60), new rulebook
+  `src/pxrdref/indexing/CLAUDE.md` **212** (cap 250), gui 528 (cap 580),
+  tests 150 (cap 180). Frontend counts inherited unmeasured — no `gui/`
+  source file changed (`gui.yml` only). CI: the merged-PR double run skipped
+  by job-level `if` (accepted risks in ci.yml's header; squash merges fail
+  toward extra runs), macOS cron leg dispatch-only with its guard moved
+  local, weekly matrix at the 3.11/3.14 edges, full-job timeout 90 → 120
+  with the fail-loudly note, and written totals replaced by the
+  read-spend-from-the-usage-page rule (303-vs-≈495 as grounds).
+  **Next**: after the first post-merge *PR* lands, `gh run list --limit 10`
+  should show the merge push's CI skipped and a direct code push still
+  tested; `workflow_dispatch` on monthly.yml still offers macOS +
+  `full_macos` (asserted by YAML parse, not yet by a live dispatch).
+  **Gotchas**: ROADMAP's 0605 paragraph was *deleted*, not moved — v0.6.md
+  § WP-0605 already carries it; the moved ROADMAP narratives sit under a
+  dated marker at the bottom of v1.0.md's narrative section, links re-based;
+  `docs.yml`'s per-job estimate was deliberately left (per-job, not
+  cross-workflow). This session also executed the WP-1043 handover repair
+  *before* branching (that WP's own log, commit `86e6cdb` on main).
 
 - **2026-08-06** — created, from the approved two-WP plan (trim + workflow
   robustness, this one the trim). Planning session measured everything cited
