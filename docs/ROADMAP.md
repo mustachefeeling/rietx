@@ -41,10 +41,12 @@ a work session loads only what it needs:
    detected at the next session start (`.claude/hooks/session_start.py`) and
    repaired before new work.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
-   (root, `gui/`, `tests/`) only as a standing rule a stranger needs in six
-   months — a few lines, evidence compressed to one clause plus a pointer to
-   the WP or milestone record that holds the measurement. Counts and timings
-   go only in Commands → "Current numbers", **replaced, never appended**.
+   (root, `gui/`, `tests/`, `src/pxrdref/indexing/`) only as a standing rule
+   a stranger needs in six months — a few lines, evidence compressed to one
+   clause plus a pointer to the WP or milestone record that holds the
+   measurement. Counts and timings a session measures go in its WP handover
+   entry (root CLAUDE.md § Numbers holds the *recipe*; the dated history is
+   the v1.0 appendix diary).
 5. **WP closes** (✅/🛑): rewrite "Current focus" for the successor and MOVE
    the outgoing narrative to the in-flight milestone record
    (`milestones/v1.0.md` § "How v1.0 is getting here"). Current focus stays

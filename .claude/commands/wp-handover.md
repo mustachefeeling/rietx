@@ -29,13 +29,14 @@ steps below run unchanged.
 5. **Push forward references**: anything learned that changes work in a WP
    that is not closed and not this one goes into *that* WP's `### Inherited`
    section, naming this WP as the source.
-6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`): every
-   added line must be a standing rule (protocol rule 4 — evidence compressed
-   to a clause plus a pointer), never a dated finding. Refresh
-   `### Current numbers` by **replacement** if any count or timing moved,
-   and run the count check: passed+skipped moved by exactly the tests this
-   session added, in both the fast and full selections, and any new skip is
-   named as a skip, not a pass.
+6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
+   `src/pxrdref/indexing/`): every added line must be a standing rule
+   (protocol rule 4 — evidence compressed to a clause plus a pointer), never
+   a dated finding. Counts and timings this session measured go **in the
+   handover entry** (root CLAUDE.md § Numbers is a recipe, not a ledger),
+   and run the count check there: passed+skipped moved by exactly the tests
+   this session added, in both the fast and full selections, and any new
+   skip is named as a skip, not a pass.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
    section, rewrite ROADMAP's "Current focus" for the successor (within
    `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
