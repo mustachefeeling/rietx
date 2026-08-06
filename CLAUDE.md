@@ -52,7 +52,7 @@ Replaced at every handover, never appended (history: the v1.0 appendix). Measure
 WP-1041's `[dev,jax]` figures (1800 / 67 fast) do not compare: the extras move
 ~40 rows from skip to pass, most of the skip column.
 
-- fast **PENDING**, full **PENDING**. Quote the range, never the figure — an unmerged `[dev]` tree read 5:04 and 37:14 an hour earlier with a second suite running, and 1041 measured its own full selection at 48:59 the same way against 24-34 min uncontended. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`): 1044 added 2 tests to a 1729 / 108 `[dev]` fast selection and 1041 added its own under different extras, so the two deltas cannot be summed.
+- fast **1750 / 108** in **2:56**, full **1845 / 117** in **23:17**, both uncontended. Quote the range, never the figure: the same selections read 5:04 and 37:14 on this branch an hour earlier *with a second suite running*, and 1041 measured its own full selection at 48:59 that way. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`) — 1044 added 2 tests to a 1729 / 108 `[dev]` tree and 1041 added its own under `[dev,jax]`, so those deltas cannot be summed. The **totals** do cross-check: 1858 fast items here against 1041's 1867 on `[dev,jax]`, an 11-item gap that is exactly the modules a `[dev]` venv collapses to one skip each.
 - frontend (vitest): **390** (376 at 1016 — 1044 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** — 105 of them measured independently by 1041 on `main`, plus 1044's two.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).

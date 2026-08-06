@@ -124,10 +124,20 @@ row for the same region; the armed cursor is `col-resize` and returns to
   `test_gui_server.py` +2 and its in-flight 409 row now also says what is *not*
   refused.
 
-  **Measured green on the final tree**: fast **1729 / 108** in 5:04, full
-  **1821 / 117** in 37:14 (venv `[dev]`, no jax/torch, with a second full suite
-  running in another worktree — so the wall clock is a range, not a figure).
-  Passed+skipped moved by exactly the two tests added, in both selections.
+  **Measured green twice.** Before merging `main`: fast **1729 / 108** in 5:04,
+  full **1821 / 117** in 37:14, where passed+skipped moved by exactly the two
+  tests added, in both selections — the closing-sum check, within one lineage.
+  After merging `main`'s 1041/1040 (which is what the numbers block now quotes):
+  fast **1750 / 108** in 2:56, full **1845 / 117** in 23:17, both uncontended and
+  both venv `[dev]`. The wall clock more than halved on the same tests, which is
+  the range rule's whole point — the first pair shared the machine with another
+  worktree's suite.
+
+  **The WP was renumbered from 1043 to 1044 at the merge**: the indexer session
+  opened its own `1043-agent-and-human-indexing.md` while this branch was in
+  flight. The five commits before the renumber still carry `WP-1043:` subjects;
+  history rewriting was not available, so the number is settled by the renumber
+  commit and by every file it touched.
 
   **Gotchas for whoever is next in this file.**
   - **The fixture's fit is in memory.** A freshly opened `.pxrd` has no result,
