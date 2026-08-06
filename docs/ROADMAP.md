@@ -58,10 +58,9 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Act on the standing repair flag first: the session-start
-hook fires `⚠ WP-1043 … repair first` from every checkout (2026-08-06 sessions
-landed `WP-1043:` commits; the file has no `## Handover log`) — open with
-`/wp-handover` repair mode; details in that WP's `### Inherited`.
+**Nothing in flight.** (The WP-1043 repair the hook demanded landed
+2026-08-06: its handover log is reconstructed post hoc in that file, and the
+flag is clear.)
 
 **Closed 2026-08-06: [1061](wp/1061-workflow-robustness.md)** — a missed
 `/wp-handover` stops being silent rot. `.claude/hooks/session_start.py`

@@ -32,21 +32,6 @@ per-candidate quantities.** Both were measured against the bundled **plotly
   drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
   probability*.
 
-**From [1061](1061-workflow-robustness.md), 2026-08-06 — this WP's handover log
-is missing, and the session-start hook now flags it.** The 2026-08-06 sessions
-that landed `WP-1043:` commits on `main` (the gallery review's three findings;
-the full bethanechol run; the Le Bail validator retraction merged as PR #38)
-left no handover entries — this file has no `## Handover log` section at all —
-so `.claude/hooks/session_start.py` fires `⚠ WP-1043 … repair first
-(/wp-handover, repair mode)` from every checkout. First act of the next session
-here (or of whichever session sees the flag first): reconstruct the entries per
-repair mode from `git log --stat`, dated with the commits' own date and marked
-"(reconstructed post hoc)", adding the missing `## Handover log` section in the
-process. One trap: PR #37's history carries five commits *prefixed* `WP-1043:`
-(`913b694`…`6e5be4b`) that are **WP-1044's work**, renumbered in `cb314ae`
-after main landed a WP-1043 of its own — reconstruct from the indexing commits
-only; the GUI ones belong to 1044's record.
-
 ### Decided by the user, 2026-08-06 — one output, not two
 
 The WP as first written proposed a **gate for unattended use and an evidence view
@@ -335,3 +320,42 @@ What replaces it: the structure-free fit is the right validator because a cell i
 a hypothesis about **positions**, and the fit lets that hypothesis be checked
 against the whole profile as two discrete counts. Le Bail over Pawley is then a
 cost choice — no extra θ block per candidate — not a claim about discrimination.
+
+## Handover log
+
+- **2026-08-06 (reconstructed post hoc)** — written by the repair session that
+  1061's session-start hook sent here: this section did not exist, so the hook
+  fired `repair first` from every checkout. Reconstructed from `git log --stat`
+  over this WP's commits and the checklist's current state; dated with the
+  commits' own date. The prefix trap from 1061's note, preserved:
+  `913b694`…`6e5be4b` also say `WP-1043:` but are **WP-1044's work**,
+  renumbered in `cb314ae` — not recorded here. What the three commits show:
+  - **`6a49034` — the WP opened.** This file (the fluorite refusal
+    measurement, the corpus-skew table, the user's one-output design call, the
+    bethanechol re-measurement), its ROADMAP queue row and Current-focus note —
+    plus 28 docstring lines on `validate_by_lebail` recording the magnetite
+    Le Bail-vs-Pawley table under the mechanism *"a validator has to be
+    constrained to be a validator"*, retracted the same day (below).
+  - **`da99a45` — the −16 requalified as a floor.** This file only: the
+    bethanechol score was measured `trial_error`-only at 30 s per
+    engine×system, so a full three-engine consensus run moves it in both
+    directions and the number must be generated before it is quoted
+    (§ Measured: bethanechol).
+  - **`37c9989` (PR #38, merged `560cb4e`) — the retraction.**
+    `validate_by_lebail`'s docstring rewritten (the evidence is the two
+    discrete counts; structure-free because at indexing time there is no
+    structure; Le Bail over Pawley is a cost choice), the gallery glossary and
+    the magnetite acceptance row's docstring and assertion message aligned
+    with it, task 3 rewritten to "find why the detector is blind — an Rwp
+    ratio in the gate is ruled out", and § Retracted appended with the three
+    grounds. The measurements stand; only the mechanism was withdrawn. Why the
+    mechanism was believed for part of a day the diffs do not say.
+
+  **Checklist**: nothing ticked, and that is correct — all seven tasks are
+  open. The commits authored and corrected this WP's record (plus one
+  docstring); no task landed, so Status stays ⬜. **Next**: the task list from
+  the top; task 3's magnetite measurement (fitted background and FWHM of both
+  members of the pair) is the open question the retraction left behind.
+  **Gotchas**: this repair consumed 1061's `### Inherited` entry, which asked
+  for exactly this reconstruction; the plotly esd entry above it still applies
+  to the evidence view and stays.
