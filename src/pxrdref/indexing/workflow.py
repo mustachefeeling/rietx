@@ -309,33 +309,39 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     picture asks for one, and every caller who wants a verdict is unaffected —
     ``index_pattern`` among them, which stores the verdict on the candidate.
 
-    **Le Bail and not Pawley, and the reason is discrimination rather than
-    parameter economy.**  The obvious argument — a candidate can predict 163
-    reflections on a 23-line pattern, so Pawley would refine more intensities
-    than there are lines — is true and is *not* the reason, because Pawley
-    handles it without complaint.  Measured on magnetite, where the correct cubic
-    **F** cell and its wrong primitive **P** rival share a metric:
+    **What the validation asks is discrete, and it is not this fit's Rwp.**  A
+    cell is a hypothesis about *where lines can be* and about nothing else, so
+    the question is a counting one: is there a reflection under every observed
+    peak, and is there intensity under every predicted reflection.  Those are the
+    two counts returned here (``unmatched_observed``, ``predicted_but_absent``).
+    The fit exists to place the reflections over the whole profile and to give
+    those counts a fitted background and width law to be counted against — a
+    candidate that makes sense fits many peaks at once, and one that does not
+    leaves the mismatch somewhere the counts can see it.
 
-    =========  ==================  ==================
-    validator  correct F (52 hkl)  wrong P (163 hkl)
-    =========  ==================  ==================
-    Le Bail    Rwp **0.2545**      Rwp **0.7884**
-    Pawley     Rwp 0.1799          Rwp **0.1784**
-    =========  ==================  ==================
+    **Structure-free because at indexing time there is no structure**, so the
+    per-hkl intensities have to be free: a Rietveld validation would test the
+    lattice and a structure hypothesis at once and could refute a right cell for
+    a wrong structure.  That freedom is the point *and* the limit — free
+    intensities carry no information about the cell, so ``rwp`` is reported for a
+    reader and is **not evidence on its own**.  WP-1020 said the same thing when
+    it kept ``lebail_rwp`` out of the FoM panel: the statistic *rewards
+    flexibility*, and a cell predicting more reflections has more of it.  Reading
+    a fit statistic as the evidence for a correction is the habit CLAUDE.md's
+    "never an Rwp comparison as its evidence" rule exists to break.
 
-    Le Bail separates them **3.1×**; Pawley ranks the *wrong* cell marginally
-    **better** and converges cleanly on both.  That is the whole argument: Le
-    Bail re-partitions the intensity that is *observed*, so a phantom reflection
-    can only ever be given intensity the pattern actually contains, while
-    Pawley's free parameters can manufacture whatever a phantom needs.  An
-    oversized cell therefore always wins on a Pawley Rwp, and the more oversized
-    it is the better it wins.  **A validator has to be constrained to be a
-    validator** — swapping in the more general fit destroys the test.
-
-    (It also sharpens the blind spot one rank down: on this pair
-    ``predicted_but_absent`` reads 2 for the correct cell and **0** for the wrong
-    one, so the detector is silent exactly where Rwp is decisive.  Read the two
-    together; neither alone is enough.)
+    **Le Bail rather than Pawley is a cost choice, not a discrimination one.**
+    Both extractions leave one free intensity per reflection, and the intensities
+    are arbitrary in both: this partition hands overlapping reflections whatever
+    share of ``max(y_obs − y_bkg, 0)`` the current profile ratio asks for, which
+    is no more constrained than a least-squares intensity is.  What it costs is
+    nothing in θ, where Pawley appends a
+    :class:`~pxrdref.model.forward.PawleyBlock` and its overlap restraints for
+    every candidate validated.  (A previous revision argued the opposite — that
+    Le Bail is the *constrained* fit and therefore the discriminating one — from
+    a measured magnetite Rwp pair.  The numbers were real, the mechanism was not
+    established, and it contradicted both this module's own detector and
+    WP-1020's panel decision; WP-1043 carries the retraction.)
 
     Single-phase by construction, and that is a measured constraint rather than a
     simplification: ``CompiledModel.lebail_update`` partitions
