@@ -87,15 +87,22 @@ claim (1016), a reported cause (1044), or a remembered ritual (1061).
    ranked list carrying every candidate's stats plus a visual check, the grade a
    field on it, not a gate with an evidence view beside it. Holds the fluorite
    abstention (18 clean cubic lines all three engines index at −5 ppm), the corpus
-   skew, and the **bethanechol re-measurement** — −16 against a +9 bar, below the
-   worst program in the paper, and the old "silence" claim measured false.
-3. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
-   its `### Inherited` carries 1037's streaming argument and 1016's third writer
-   of the run record's progress fields.
-4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
-   bethanechol score, now measured in 1043; what is left is making it generated.
-5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+   skew, and the **bethanechol re-measurement** — a −16 *floor*, below ITO13's
+   −14 (the worst individual global in the table), and the old "silence" claim
+   measured false. Corpus expansion deferred post-v1 (user, 2026-08-06).
+3. [1042](wp/1042-anytime-results-quick-default.md) — revised 2026-08-06: the
+   system-major scheduler (the engine-major loop is why a deadline cuts whole
+   engines, and with them consensus), streaming, `quick` as the default; volume
+   tightening deferred to the v2+ fence.
+4. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
+   GUI and agent schema (one `SearchSpec`, bijection meta-test) + analogue
+   priors that steer the search and never gate it (user, 2026-08-06).
+5. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+   bethanechol score, now measured in 1043; what is left is making it generated —
+   a manual runner beside `tests/indexing_gallery.py`, not a slow pytest row
+   (constraints in 1043 § bethanechol).
+6. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by both
    1016 and 1041; read it first.
 
@@ -243,6 +250,7 @@ monoclinic search finishes.
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
 | [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ⬜ | 1041, 1026 (1028 soft) |
+| [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ⬜ | 1027, 1042 (1043 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -323,6 +331,14 @@ the full Bayesian extinction-symbol posterior (Markvardsen et al. 2001 — the
 Conograph topograph lineage (Oishi-Tomiyasu's reversed/symmetric M_N *is* in
 scope, as a figure of merit); derivative-lattice ambiguity above index 4; and
 structure solution from an indexed cell.
+
+Added to this fence 2026-08-06 (user: v1 wants a robust engine, not a headline —
+push further testing post-v1): the **low-symmetry real-data corpus** — NBS
+Monograph 25, public domain, 16 orthorhombic + 29 triclinic peak-list patterns,
+DICVOL04's own test corpus (sourcing notes in WP-1043 § corpus; until it lands,
+every indexing-scoreboard summary says "high-symmetry" out loud), plus the
+SDPDRR-2/CONOGRAPH profile acquisitions; and **Boultif-Louër volume tightening**
+(the gated design is recorded in WP-1042 § Deferred).
 
 No WP files for v2+ on purpose — the fence is a scope-discipline decision
 ([DESIGN.md](DESIGN.md#locked-decisions)), and pre-writing packages invites

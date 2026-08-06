@@ -12,26 +12,6 @@ why, and leaves the judgement to whoever asked — a gate for unattended use, an
 
 ## Context
 
-### Inherited
-
-**From [1016](1016-sequential-series-panel.md) via the closed
-[1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — two measured facts about
-drawing an esd, inherited here because this WP is the one that will surface
-per-candidate quantities.** Both were measured against the bundled **plotly
-3.7.0** and neither transfers to matplotlib unchecked — but the reasoning does.
-
-- **A `null` in `error_y.array` does not leave a gap.** plotly draws the bar's two
-  caps at the point with zero height between them — byte-identical to a `0` — so a
-  quantity with no esd renders as one measured exactly, which is a confident-wrong
-  singleton in picture form. The fix is a second, invisible trace carrying bars
-  only over the points that *have* an esd. Directly relevant here: some candidates
-  carry `cov_af` and some do not, so any evidence view that plots a fitted cell
-  parameter with its esd has exactly this problem.
-- **An esd smaller than a pixel must be left invisible.** Measured: σ(a) = 6.5e-6 Å
-  against a 4.8e-3 Å axis over 189 px is a 0.5 px bar, and 0.5 px is what was
-  drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
-  probability*.
-
 ### Decided by the user, 2026-08-06 — one output, not two
 
 The WP as first written proposed a **gate for unattended use and an evidence view
@@ -53,6 +33,14 @@ grade is one field on it rather than a filter in front of it. Three consequences
 - **The visual check is part of the deliverable, not documentation of it.** The
   gallery's per-candidate tick rows and Le Bail panel are the shape; the work is
   making one reachable from a result rather than only from the acceptance suite.
+  It has its own task below.
+
+A second user call the same day scopes the whole queue: **v1 wants a functional
+and robust engine, not a headline feature, and further testing beyond the
+existing corpus is post-v1** — the NBS Monograph 25 harvest moved to the ROADMAP
+fence (§ corpus below keeps the finding). This WP is the output half of that
+call; the input half — search controls and analogue priors, GUI and agent alike
+— is [WP-1045](1045-indexing-search-controls.md).
 
 ### The thesis this WP serves
 
@@ -82,11 +70,21 @@ to report it.
 **The bar is real and it is about the wrong thing.** Twenty lines is where M₂₀,
 F₂₀ and Smith's volume envelope are *defined*, so it is a precondition for
 **scoring**. It is not a precondition for **searching**: a search needs enough
-lines to over-determine the metric, which is 1 free parameter for cubic, 2 for
-tetragonal/hexagonal/trigonal, 3 for orthorhombic, 4 for monoclinic, 6 for
-triclinic (`METRIC_DOF`, already in `schemas/indexing.py` and already consulted
-for a *different* check). Eighteen lines against one free parameter is
-eighteen-fold over-determined. Conflating the two preconditions is the defect.
+lines to over-determine the metric — 1 free parameter for cubic up to 6 for
+triclinic. Eighteen lines against one free parameter is eighteen-fold
+over-determined. Conflating the two preconditions is the defect — and the
+searchability half **already has its authority**: `MIN_LINES_PER_DOF` (5 lines
+per free metric parameter) and the per-system `supported` computation in
+`quality.py` exist today; the flat `n < PEAK_MIN_USABLE_LINES` abstention just
+short-circuits them. The fix reuses that authority; it must not add a second
+searchability criterion beside it.
+
+**Ranking below the scoring bar is well-defined, and here is why.** Whether a
+figure of merit is computable is a property of the *peak list* (its line count),
+not of any candidate — so below twenty lines the FoM panel shrinks by the same
+members for every candidate, uniformly, and Borda still ranks over the members
+that remain. The evidence view records which members ranked; each absent figure
+is reported absent with its reason, never silently zero.
 
 ### Measured: the corpus tests the easy half of the problem
 
@@ -103,35 +101,26 @@ Difficulty scales with free metric parameters. The real-data acceptance corpus:
 | triclinic | 6 | **0** |
 
 **Nine of ten datasets sit at ≤ 2 free metric parameters.** Centrings are better
-spread (5 P, 2 I, 2 F, 1 R) but that is the easy axis.
+spread (5 P, 2 I, 2 F, 1 R) but that is the easy axis. Coelho (2003) Table 6
+publishes contamination rates for orthorhombic / monoclinic / triclinic, and we
+hold **0 / 1 / 0** datasets in those systems — the engines are exercised on low
+symmetry only synthetically. So a claim like "never wrong, and silent more often
+than right" is currently a statement about high-symmetry lattices, and every
+summary must say so until the corpus moves.
 
-This has a sharp consequence already recorded in the contamination row: Coelho
-(2003) Table 6 publishes rates for orthorhombic / monoclinic / triclinic, and we
-hold **0 / 1 / 0** datasets in those systems. The WP-1041 row says the rates are
-"not comparable" because one cubic lattice is not an ensemble of structures —
-true, and the deeper reason is that *we have no real data in any system that
-table covers*. The engines are exercised on low symmetry only synthetically.
-
-So a claim like "never wrong, and silent more often than right" is currently a
-statement about high-symmetry lattices, and should say so until the corpus moves.
-
-**Where the missing data is** (corpus search, 2026-08-06 — the user asked for the
-literature to be checked before anything is requested). **NBS Monograph 25** is the
-answer for the peak-list axis: §20 alone carries 16 orthorhombic and 18 monoclinic
-patterns, and its 21 sections hold **29 triclinic** ones. US Government publication,
-so public domain; same institution as the SRM standards already in `tests/data/`;
-and it is *DICVOL04's own test corpus*, so taking it means adopting a published
-protocol and inheriting a comparison baseline — Boultif & Louër (2004) §5 print the
-per-pattern times this package is already quoted against (ten triclinic sets under
-2 s, ten at 60-360 s, three at 1215 / 3307 / 3770 s). The catch is that a Monograph
-entry is a **peak list, not a profile**, so those rows report `not_validated` and
-exercise the engines without exercising `validate_by_lebail`.
-
-For profiles the corpus is thinner than it looks. CONOGRAPH's benchmark
-(Oishi-Tomiyasu 2014, Table 2) spans 25 patterns including 3 orthorhombic and 5
-triclinic — but every one is credited to a named individual, and the only publicly
-released members are the **SDPDRR-2** samples, which are monoclinic and cubic. So
-this is two acquisitions, not one, and the Monograph is the one to do first.
+**Where the missing data is — recorded for post-v1** (corpus search, 2026-08-06;
+harvest deferred to the ROADMAP fence by the user's scope call). **NBS Monograph
+25** is the answer for the peak-list axis: §20 alone carries 16 orthorhombic and
+18 monoclinic patterns, its 21 sections hold **29 triclinic** ones, it is public
+domain, from the same institution as the SRM standards already in `tests/data/`,
+and it is *DICVOL04's own test corpus* — taking it means adopting a published
+protocol and inheriting Boultif & Louër (2004) §5's per-pattern times. The catch:
+a Monograph entry is a **peak list, not a profile**, so those rows would report
+`not_validated` and never exercise `validate_by_lebail`. For profiles the corpus
+is thinner than it looks: CONOGRAPH's benchmark (Oishi-Tomiyasu 2014, Table 2)
+spans 25 patterns, but the only publicly released members are the SDPDRR-2
+samples — monoclinic and cubic — so profiles are a second acquisition, and the
+Monograph is the one to do first when the fence lifts.
 
 ### Measured: bethanechol, and a stale claim of silence
 
@@ -150,9 +139,12 @@ against the published `7.137, 8.875, 16.408, 90, 90, 93.84`, so −340 / +56 / +
 ppm and β out by 0.012°. `dichotomy` and `svd` return 12 candidates without it.
 
 Scored over the paper's whole protocol: **−16**, the truth first on set F in *both*
-modes and absent on the other eighteen runs. The published bar is **+9** (best of
-ITO13, DICVOL91, TREOR90, McMaille) and **+12** (best of all); ITO13 alone scored
-−14, so this is **below the worst single program in the table**.
+modes and absent on the other eighteen runs. The bar is the **individual program
+globals** of Bergmann et al. 2004 Table 5 — ITO13 −14, DICVOL91 −8, TREOR90 −4,
+McMaille +5, Crysfire +6 (the "+9" this WP first quoted was that table's
+`first_4` oracle over four programs, which no single entry reaches; the
+milestone criterion was restated by WP-1026 and the ROADMAP carries it). −16
+sits below ITO13's −14, the worst entry in the table.
 
 **Read that −16 as a floor, not as the package's score**, and the distinction is
 the reason the number has to be generated before it is quoted anywhere else. It
@@ -186,12 +178,14 @@ base line: `trial_error` solves the metric *exactly* from a few assumed indices,
 its accuracy is set by those few lines rather than by an average over twenty. A
 14× worse base line is enough.
 
-Two things follow for this WP. The score is a **benchmark**, not an acceptance
-assertion — a full run is ~20 min of search — so it needs a runner like
-`tests/indexing_gallery.py`, generated rather than typed, or it will rot exactly as
-the claim above did. And bethanechol is the sharpest case for the evidence view:
-on set F the package holds the published cell at **rank 1** and, with no profile to
-validate against, still cannot promote it past `low`.
+Two things follow. **Making the score generated is the WP-1026 reopen's task**
+(ROADMAP queue), with one constraint decided here: the runner is a manual module
+beside `tests/indexing_gallery.py` (a full run is ~20 min of search — a
+slow-marked pytest row that size would double the full suite), and the
+acceptance suite keeps only the transcription checks and asserts no score. And
+bethanechol is the sharpest case for the evidence view: on set F the package
+holds the published cell at **rank 1** and, with no profile to validate against,
+still cannot promote it past `low`.
 
 ### What an agent needs that a gate cannot give
 
@@ -212,6 +206,23 @@ either collapsed or withheld:
 * what the search covered — `systems_searched` and `search_complete` exist and are
   the model for the rest.
 
+### The visual check: two plotting facts that constrain it
+
+(folded from `### Inherited` — measured by 1041 against the bundled **plotly
+3.7.0**; neither transfers to matplotlib unchecked, but the reasoning does)
+
+- **A `null` in `error_y.array` does not leave a gap.** plotly draws the bar's two
+  caps at the point with zero height between them — byte-identical to a `0` — so a
+  quantity with no esd renders as one measured exactly, a confident-wrong
+  singleton in picture form. The fix is a second, invisible trace carrying bars
+  only over the points that *have* an esd. Directly relevant here: some candidates
+  carry `cov_af` and some do not, so any evidence view that plots a fitted cell
+  parameter with its esd has exactly this problem.
+- **An esd smaller than a pixel must be left invisible.** Measured: σ(a) = 6.5e-6 Å
+  against a 4.8e-3 Å axis over 189 px is a 0.5 px bar, and 0.5 px is what was
+  drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
+  probability*.
+
 ## Non-goals
 
 - Loosening the **gate**. `high` should stay as strict as it is; unattended use is
@@ -220,18 +231,37 @@ either collapsed or withheld:
 - Retuning `borda_scores`, or landing an aggregate. WP-1041 measured and refuted
   the candidates; that question needs a new panel member, not another sweep.
 - New engines.
+- The corpus harvest (NBS Monograph 25, SDPDRR-2 profiles) — post-v1, ROADMAP
+  fence.
+- The bethanechol runner — the WP-1026 reopen's task (constraint recorded above).
+- Search controls and priors — [WP-1045](1045-indexing-search-controls.md).
 
 ## Tasks
 
-- [ ] **Separate "can this be searched" from "can this be scored".** A list with
-      at least `METRIC_DOF[system] + margin` usable lines is searchable; twenty
-      remains the bar for the figures of merit. Below twenty the search runs and
-      every figure that is undefined is reported **absent with its reason**, never
-      silently zero or quietly omitted.
+- [ ] **Separate "can this be searched" from "can this be scored" — by reusing
+      the existing authority.** `MIN_LINES_PER_DOF` and the per-system
+      `supported` computation in `quality.py` decide searchability, per system;
+      twenty (`PEAK_MIN_USABLE_LINES`) remains the bar for the figures of merit
+      only. Below twenty the search runs over the supported systems and every
+      figure that is undefined is reported **absent with its reason**, never
+      silently zero or quietly omitted. No second searchability criterion.
 - [ ] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
       each caveat with its `refuting`/`capping` kind, the Le Bail Rwp and both
-      detector counts, which figures were computable, and what the search covered.
-      No new physics — this is surfacing what the pipeline already knows.
+      detector counts, which figures were computable (and which panel members
+      ranked, when the panel is reduced), and what the search covered. No new
+      physics — this is surfacing what the pipeline already knows.
+- [ ] **The evidence reaches the agent.** The view is serialized through
+      `agent.refine_json`'s indexing arm and `agent.tool_definition()` (the arm
+      still carries no `cell` key); whether the schema change is additive or a
+      version bump is decided here, deliberately, before WP-1003 freezes the
+      contract.
+- [ ] **The visual check, reachable from a result.** Lift the gallery's
+      per-candidate rendering — tick rows against the pattern, the Le Bail
+      panel — into `viz/` as a function of (result, pattern);
+      `python -m tests.indexing_gallery` becomes a consumer of it, not the
+      owner. matplotlib at the API like `plot()`; the GUI panel (WP-1045)
+      consumes the same per-candidate data, where the two plotly esd facts
+      above apply.
 - [ ] **Find why the detector is blind on magnetite's rival, and do not reach for
       Rwp instead.** `predicted_but_absent` reads **0 of 163** on a cell whose
       reflections mostly fall where the pattern is flat; that number should be
@@ -248,17 +278,11 @@ either collapsed or withheld:
       scoring on it.
 - [ ] Re-measure the fluorite row: it currently asserts an abstention that this WP
       makes wrong. It should assert that a short clean list is **searched, ranked
-      and reported unscored**, and that the certified cell comes back at rank 1.
-- [ ] **Corpus coverage**: add at least one orthorhombic and one triclinic
-      real-data set, so the low-symmetry half of the problem is measured rather
-      than assumed. Start from **NBS Monograph 25** (public domain, 16 O and 29
-      Tric, and DICVOL04's own test corpus — see above). Until then, every summary
-      that quotes the scoreboard says "high-symmetry" out loud.
-- [ ] **Make the bethanechol score generated, then move it.** It is −16 against a
-      +9 bar and it is currently typed into a WP, which is precisely how the claim
-      it replaced went stale. A runner beside `tests/indexing_gallery.py`,
-      re-measured by running it, `slow`-marked; the acceptance suite keeps the
-      transcription checks and asserts no score.
+      by the reduced panel and reported unscored**, and that the certified cell
+      comes back at rank 1.
+- [ ] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
+      (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
+      until the corpus moves — which is post-v1.
 - [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
       read (the gate) and what a reasoning consumer should read (the evidence),
       with the fluorite case as the worked example of why they differ — and
@@ -266,9 +290,11 @@ either collapsed or withheld:
 
 ## Acceptance
 
-A clean 18-line cubic pattern is indexed, ranked and reported with its figures
-marked uncomputable — no abstention. The gate's own verdicts are unchanged on
-every existing acceptance row. `docs/VALIDATION.md` regenerates.
+A clean 18-line cubic pattern is searched over its supported systems, ranked by
+the reduced panel and reported with its figures marked uncomputable — no
+abstention — and a per-candidate visual check is producible from the result plus
+its pattern. The gate's own verdicts are unchanged on every existing acceptance
+row. `docs/VALIDATION.md` regenerates.
 
 ```sh
 .venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
@@ -280,8 +306,9 @@ every existing acceptance row. `docs/VALIDATION.md` regenerates.
 
 - WP-1041's handover — the gallery, the scoreboard, and the contamination curve
   that exposed the `n_unindexed` limit.
-- `PEAK_MIN_USABLE_LINES` and `METRIC_DOF` in `schemas/indexing.py` — the two
-  preconditions this WP separates.
+- `PEAK_MIN_USABLE_LINES`, `METRIC_DOF` and `MIN_LINES_PER_DOF` in
+  `schemas/indexing.py` — the preconditions this WP separates, and the
+  searchability authority it reuses.
 - `indexing/workflow.py` — `validate_by_lebail`'s docstring says what the
   structure-free fit is for: the two discrete counts, not its Rwp.
 - WP-1020 — `lebail_rwp` is not a FoM panel member, because it rewards
@@ -323,6 +350,21 @@ cost choice — no extra θ block per candidate — not a claim about discrimina
 
 ## Handover log
 
+- **2026-08-06 (second entry)** — plan revised in the user review session (no
+  code touched), on two user calls: **one output** already governed the WP;
+  **post-v1 testing** now scopes it — the NBS Monograph 25 harvest moved to the
+  ROADMAP fence (the corpus-search finding stays recorded in Context), and the
+  bethanechol runner moved to the WP-1026 reopen with its shape pinned (manual
+  module, not a slow pytest row). Fixes from the review: the "+9 bar" framing
+  replaced by the restated milestone bar (individual program globals; −16 is
+  below ITO13's −14); searchability now explicitly reuses `MIN_LINES_PER_DOF`
+  and `quality.py`'s per-system `supported` rather than inventing a second
+  criterion; the below-20 ranking rule stated (the panel shrinks uniformly, so
+  Borda holds); the visual check promoted from a Context clause to a task, with
+  1041's two plotly esd facts folded in from `### Inherited` (now deleted); and
+  the evidence view gained its agent-surface task (`refine_json` arm + the
+  schema-contract decision, before the WP-1003 freeze). Input-side controls and
+  analogue priors split to WP-1045.
 - **2026-08-06 (reconstructed post hoc)** — written by the repair session that
   1061's session-start hook sent here: this section did not exist, so the hook
   fired `repair first` from every checkout. Reconstructed from `git log --stat`
