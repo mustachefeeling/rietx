@@ -446,6 +446,40 @@ per column — core 308 px, detail 231 — reflowed by `lib/resize.ts:seriesComp
 beside `modelStacks`, because the reorder buttons are the last column and the
 panel's main verb.
 
+**The view, the armed cursor and the theme's scope** (WP-1044,
+`lib/plot.ts:heldRanges`, `Plot.svelte`, `session.settings`) is the pass that
+answered four defects reported from use, and three rules came out of it. **A
+redraw is not a reason to move the axes** — `react` gets a layout with no
+`range`, so plotly re-autoranges over *everything drawn*, and what is drawn is
+not only the fetched window: the peak markers span the whole pattern and so do
+the mask shapes, which are `xref: "x"` and take part in the autorange (WP-1033's
+own finding one step further). Measured in Chrome, a drag to 9.97-14.66° came
+back 4.57-24.85 with a peak list, 3.99-24.88 with an excluded region at 4-5° and
+3.00-24.94 with a fitted range — so the zoom worked only on a plot with nothing
+else on it, and every peak edit threw it away (on the raw view there is not even
+a window fetch to land back in). The repair is WP-1015's camera rule one panel
+over — **the view is handed back on every draw**, read off `_fullLayout`
+immediately before the react, `autorange === false` being exactly "the user has
+said" — plus the window a redraw refetches following the axis, `doubleClick:
+"autosize"` (plotly's default *reset* means "back to the range the plot was
+drawn with", which is now the zoom itself), and an **untracked** knob comparison,
+because `view()` is called from the fetch effect too and a tracked read there
+made choosing Δ over Δ/σ a refetch. Beside it: a payload is not a knob — the
+repaint effect reads `held` untracked, or every fetch costs a second identical
+react (counted: 2 per zoom drag, 6 at boot). **An armed range gesture must say so
+under the pointer**: plotly's `updateFx` gives the drag layer one cursor for
+every dragmode that is not `pan`, so `select` and `zoom` are pointer-identical;
+`col-resize` goes on the plot-area **rect**, where an inherited cursor loses to
+it without a specificity fight. And **a `ui` key belongs to whatever it is about**
+— a width or Simple/Advanced is the project's (four phases, so the table wants to
+be wide), a theme is the *person's*, so it lives in `GET`/`POST /api/settings`
+over `state_dir/settings.json` beside the recent list, with `ProjectDoc.ui`'s
+exact grammar (top-level merge, `null` drops, persisted on the verb) at app
+scope. In `ProjectDoc.ui` it was re-read per project, so dark lasted until the
+next `Open…`; out of there it also stops being refused mid-run, which is the
+finding WP-1029 recorded and could not fix from inside `POST /api/project` (the
+project's *other* `ui` keys still ride that route).
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

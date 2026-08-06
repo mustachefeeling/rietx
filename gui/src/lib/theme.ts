@@ -7,11 +7,21 @@
  * stay decided through that switch.  Collapsing the two would make the toggle
  * silently mean "override until the next sunset".
  *
- * The choice is persisted in `ProjectDoc.ui` like every other GUI setting
- * (WP-1005: on the verb, not on save).  What lands in the DOM is the *resolved*
- * value, as `data-theme` on the root element — so every consumer, CSS and
- * CodeMirror alike, reads one answer and none of them re-derives it from
- * `matchMedia`.
+ * The choice is persisted on the verb (WP-1005) like every other GUI setting,
+ * but **not in the project** (WP-1044): it goes to `/api/settings`, the app's
+ * own `ui` dict in the state directory beside the recent list.  It landed in
+ * `ProjectDoc.ui` first, and that made `readUi` re-read it per project — so
+ * choosing dark and opening a second project came back `system`, measured in a
+ * browser.  A width or Simple/Advanced is plausibly the project's; a theme is a
+ * fact about the person and the room they are in.  Two things fall out: it
+ * survives the project, the port and the browser profile, and it is settable
+ * while a run is in flight, since the app store is not behind WP-1008's
+ * mutating-verb 409 (the finding WP-1029 recorded and could not fix from
+ * inside `POST /api/project`).
+ *
+ * What lands in the DOM is the *resolved* value, as `data-theme` on the root
+ * element — so every consumer, CSS and CodeMirror alike, reads one answer and
+ * none of them re-derives it from `matchMedia`.
  */
 
 export type ThemeChoice = "system" | "light" | "dark";

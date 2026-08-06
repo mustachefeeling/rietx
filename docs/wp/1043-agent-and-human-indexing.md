@@ -33,15 +33,19 @@ per-candidate quantities.** Both were measured against the bundled **plotly
   probability*.
 
 **From [1061](1061-workflow-robustness.md), 2026-08-06 — this WP's handover log
-is missing, and the session-start hook now flags it.** The two 2026-08-06
-sessions that landed `WP-1043:` commits on `main` (the gallery review's three
-findings; the full bethanechol run) left no handover entries — this file has no
-`## Handover log` section at all — so `.claude/hooks/session_start.py` fires
-`⚠ WP-1043 … repair first (/wp-handover, repair mode)` from every checkout.
-First act of the next session here (or of whichever session sees the flag
-first): reconstruct the entries per repair mode from `git log --stat`, dated
-with the commits' own date and marked "(reconstructed post hoc)", adding the
-missing `## Handover log` section in the process.
+is missing, and the session-start hook now flags it.** The 2026-08-06 sessions
+that landed `WP-1043:` commits on `main` (the gallery review's three findings;
+the full bethanechol run; the Le Bail validator retraction merged as PR #38)
+left no handover entries — this file has no `## Handover log` section at all —
+so `.claude/hooks/session_start.py` fires `⚠ WP-1043 … repair first
+(/wp-handover, repair mode)` from every checkout. First act of the next session
+here (or of whichever session sees the flag first): reconstruct the entries per
+repair mode from `git log --stat`, dated with the commits' own date and marked
+"(reconstructed post hoc)", adding the missing `## Handover log` section in the
+process. One trap: PR #37's history carries five commits *prefixed* `WP-1043:`
+(`913b694`…`6e5be4b`) that are **WP-1044's work**, renumbered in `cb314ae`
+after main landed a WP-1043 of its own — reconstruct from the indexing commits
+only; the GUI ones belong to 1044's record.
 
 ### Decided by the user, 2026-08-06 — one output, not two
 
@@ -212,10 +216,12 @@ either collapsed or withheld:
 
 * which caveats fired, and whether each is refuting or capping — present, but the
   distinction is not in the serialized answer;
-* **Le Bail Rwp**, which on magnetite separates the correct cell from its wrong
-  rival 3.1× (0.2545 against 0.7884) *while* `predicted_but_absent` reads 2 and
-  **0** — i.e. the fit statistic is decisive exactly where the gated detector is
-  blind. The gate reads the detector and not the Rwp;
+* **the validation's Rwp and both detector counts together** — on magnetite the
+  detector is backwards (`predicted_but_absent` reads 2 on the correct cell and
+  **0** on its wrong rival) while Rwp reads 0.2545 against 0.7884. A reasoner
+  given both can see the detector has failed here; the gate, reading one number,
+  cannot. That is an argument for *surfacing* Rwp, not for scoring on it —
+  see the retraction below;
 * which figures of merit were computable and which were not, rather than a refusal
   to compute any;
 * what the search covered — `systems_searched` and `search_complete` exist and are
@@ -241,11 +247,20 @@ either collapsed or withheld:
       each caveat with its `refuting`/`capping` kind, the Le Bail Rwp and both
       detector counts, which figures were computable, and what the search covered.
       No new physics — this is surfacing what the pipeline already knows.
-- [ ] **The gate reads Rwp.** Measured on magnetite: `predicted_but_absent` is 0
-      on the wrong cell and 2 on the right one, while Le Bail Rwp is 0.79 against
-      0.25. Decide whether a Rwp ratio between rival candidates becomes a caveat,
-      and measure it across the corpus before wiring it (WP-1041's lesson: a
-      margin is comparable within a member, not across members).
+- [ ] **Find why the detector is blind on magnetite's rival, and do not reach for
+      Rwp instead.** `predicted_but_absent` reads **0 of 163** on a cell whose
+      reflections mostly fall where the pattern is flat; that number should be
+      large, so the detector — not the fit statistic — is what is broken here.
+      The unmeasured suspects are in the fit the detector reads: `validation_plan`
+      frees the background and all five width terms, so a rival needing 163
+      reflections can pay for them with a raised background or inflated widths,
+      and every predicted position then sits on "intensity". Measure the fitted
+      background and FWHM of both members of the pair before changing anything.
+      **Wiring an Rwp ratio into the gate is the wrong fix** and is ruled out
+      here: WP-1020 kept `lebail_rwp` off the FoM panel because it *rewards
+      flexibility*, and CLAUDE.md forbids an Rwp comparison as a correction's
+      evidence. Surfacing it to a reasoner (above) is a different act from
+      scoring on it.
 - [ ] Re-measure the fluorite row: it currently asserts an abstention that this WP
       makes wrong. It should assert that a short clean list is **searched, ranked
       and reported unscored**, and that the certified cell comes back at rank 1.
@@ -282,5 +297,41 @@ every existing acceptance row. `docs/VALIDATION.md` regenerates.
   that exposed the `n_unindexed` limit.
 - `PEAK_MIN_USABLE_LINES` and `METRIC_DOF` in `schemas/indexing.py` — the two
   preconditions this WP separates.
-- `indexing/workflow.py` — `validate_by_lebail`'s docstring carries the measured
-  Le Bail-vs-Pawley table that says why the validator must stay constrained.
+- `indexing/workflow.py` — `validate_by_lebail`'s docstring says what the
+  structure-free fit is for: the two discrete counts, not its Rwp.
+- WP-1020 — `lebail_rwp` is not a FoM panel member, because it rewards
+  flexibility. The same sentence is why the retraction below was needed.
+
+## Retracted, 2026-08-06 — "a validator has to be constrained to be a validator"
+
+Commit `6a49034` recorded, in `validate_by_lebail`'s docstring and its own
+message, that Le Bail is preferred to Pawley **because it is the constrained
+fit**: Le Bail re-partitions observed intensity, so a phantom reflection can only
+take intensity the pattern contains, while Pawley's free parameters manufacture
+whatever a phantom needs. The evidence was one measured pair (magnetite's cubic F
+truth and its primitive rival): Le Bail 0.2545 against 0.7884, Pawley 0.1799
+against 0.1784.
+
+**The measurements stand; the mechanism was wrong, and it contradicted three
+things this repo had already written down.**
+
+- **Le Bail's intensities are as arbitrary as Pawley's.** The partition gives
+  overlapping reflections whatever share of `max(y_obs − y_bkg, 0)` the current
+  profile ratio asks for — one free intensity per reflection, unconstrained by
+  any structure. `tests/test_acceptance_indexing.py` says so in the same breath
+  it quotes these numbers: *"a Le Bail extraction with seven free intensities per
+  observed line can put intensity wherever it is asked to."*
+- **The story predicts the opposite of the measurement.** If a phantom can only
+  take intensity that exists, phantoms cost ~nothing and Le Bail Rwp should
+  *not* separate the pair — which is exactly CLAUDE.md's reason that Layer 0's
+  `unmatched_calc` cannot serve as the absent-reflection detector ("Le Bail
+  extraction assigns ~nothing to a phantom reflection"). The 0.79 is therefore
+  unexplained, not explained, and the open task above is to explain it.
+- **It was an Rwp comparison used as a correction's evidence**, which is the one
+  form of argument CLAUDE.md names and forbids, and WP-1020 had already declined
+  to rank on this very statistic.
+
+What replaces it: the structure-free fit is the right validator because a cell is
+a hypothesis about **positions**, and the fit lets that hypothesis be checked
+against the whole profile as two discrete counts. Le Bail over Pawley is then a
+cost choice — no extra θ block per candidate — not a claim about discrimination.

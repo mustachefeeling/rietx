@@ -58,25 +58,36 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Act on the standing repair flag first, then the queue:
-the session-start hook fires `⚠ WP-1043 … repair first` from every checkout —
-two 2026-08-06 sessions landed `WP-1043:` commits and the file has no
-`## Handover log` section — so the next session opens with `/wp-handover`
-repair mode (details in that WP's `### Inherited`).
+**Nothing in flight.** Act on the standing repair flag first: the session-start
+hook fires `⚠ WP-1043 … repair first` from every checkout (2026-08-06 sessions
+landed `WP-1043:` commits; the file has no `## Handover log`) — open with
+`/wp-handover` repair mode; details in that WP's `### Inherited`.
 
 **Closed 2026-08-06: [1061](wp/1061-workflow-robustness.md)** — a missed
 `/wp-handover` stops being silent rot. `.claude/hooks/session_start.py`
 (stdlib-only, never the venv it checks, `startup|clear` not `resume`) reports
-at session start: repo state, venv resolution read from the editable `.pth`
-pointer without importing, and the missed-handover scan at two severities —
-repair for an open WP with commits after its newest day-dated entry, a soft
-note for a closed one; the same-day miss is the documented blind spot, so a
-quiet report is a prompt, never proof. `/wp-start` encodes the start ritual,
-`/wp-handover` gained repair mode, and the hook's first live run found the
-WP-1043 miss above before it was even wired in.
-[1060](wp/1060-docs-ci-consolidation.md), the trim half of the same process
-review, is still open and lands independently. Narratives:
-[milestones/v1.0.md](milestones/v1.0.md).
+repo state, venv resolution and the missed-handover scan at two severities;
+the same-day miss is the documented blind spot, so a quiet report is a prompt,
+never proof. `/wp-start` encodes the start ritual, `/wp-handover` gained
+repair mode, and the hook's first live run found the WP-1043 miss above before
+it was wired in. [1060](wp/1060-docs-ci-consolidation.md), the trim half of
+the same review, is still open.
+
+**Also closed 2026-08-06: [1044](wp/1044-gui-view-cursor-theme.md)** — four GUI
+defects reported from use, of which the two that read as unrelated were one
+sentence of plotly's autorange: a redraw carried no `range`, so it re-autoranged
+over the peak markers and the mask shapes, which span the *whole pattern*. Hence
+**the view is handed back on every draw** (WP-1015's camera rule, one panel
+over), and **a `ui` key belongs to whatever it is about** — the theme is the
+person's, so it moved to `/api/settings` and out of the mutating-verb 409 —
+the question 1029 filed to **1003**. [1017](wp/1017-gui-manual-onboarding.md)'s
+`### Inherited` carries the three sentences it made wrong.
+
+**The running theme: a number that is not regenerated is a number nobody
+re-measures.** A prediction is not a measurement (1041); nor is an inherited
+claim (1016), a reported cause (1044 — three of its four defects named one,
+one was right), or a remembered ritual (1061).
+Narratives: [milestones/v1.0.md](milestones/v1.0.md).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -211,6 +222,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
+| [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |

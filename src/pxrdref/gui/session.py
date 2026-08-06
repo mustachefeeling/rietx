@@ -418,6 +418,65 @@ class GuiSession:
         p.save()
         return {"saved": str(p.path), "updated_utc": p.doc.updated_utc}
 
+    def settings(self) -> dict:
+        """The **app's** own `ui` keys — the ones that belong to the person.
+
+        A second `ui` dict, deliberately, and the line between the two is what
+        the key is *about* (WP-1044).  A column width, Simple/Advanced, a stored
+        splitter position are facts about a project: it has four phases, so the
+        table wants to be wide.  A theme is a fact about the person and the room
+        they are in, and `ProjectDoc.ui` gave the wrong answer for it — measured,
+        choosing dark and then opening a second project came back `system`,
+        because ``readUi`` re-reads the choice off whichever document is open and
+        a fresh project has never been told.
+
+        It lives in the state directory beside ``recent.json`` for the same
+        reason that list does: it survives the project, the port a client
+        happens to be served on, and the browser profile it was chosen in.  The
+        dict is **open** exactly as ``ProjectDoc.ui`` is — the frontend owns the
+        keys — and an unreadable or hand-mangled file is an empty one, never an
+        error, because no setting here is worth refusing to start over.
+        """
+        try:
+            raw = json.loads((self.state_dir / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw = {}
+        ui = raw.get("ui") if isinstance(raw, dict) else None
+        return {"ui": ui if isinstance(ui, dict) else {}}
+
+    def settings_patch(self, body: dict) -> dict:
+        """Merge `ui` keys into the app settings and persist them at once.
+
+        Same grammar as :meth:`project_patch` one scope up — top-level merge, a
+        ``null`` value drops a key, settings persist on the verb rather than on
+        a later save — so a client that knows one knows the other.  It takes no
+        project and no lock: nothing here can disagree with a run in flight.
+        """
+        unknown = set(body) - {"ui"}
+        if unknown:
+            raise GuiError(f"unknown setting(s): {sorted(unknown)}; app settings "
+                           "are the frontend's own 'ui' keys",
+                           where=sorted(unknown))
+        patch = body.get("ui") or {}
+        if not isinstance(patch, dict):
+            raise GuiError("'ui' maps key → value", where=["ui"])
+        ui = self.settings()["ui"]
+        for key, value in patch.items():
+            if value is None:
+                ui.pop(key, None)
+            else:
+                ui[key] = value
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            (self.state_dir / "settings.json").write_text(
+                json.dumps({"ui": ui}, indent=2), encoding="utf-8")
+        except OSError:
+            # a read-only home costs the *persistence*, not the choice: the
+            # client applied it before it asked, exactly as `_remember` treats
+            # an unwritable recent list
+            pass
+        return {"ui": ui}
+
     def recent(self) -> list[dict]:
         """Recently opened projects, newest first (missing ones filtered out)."""
         try:
