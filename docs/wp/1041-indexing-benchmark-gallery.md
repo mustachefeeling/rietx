@@ -193,6 +193,34 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
 
 ## Handover log
 
+- **2026-08-06 (fourth session, post-close — the merge, and the review's answers)**
+  — nothing here reopens a task; this is the merge with `main`'s WP-1016 plus the
+  four answers the user gave to the gallery review. **Done:** conflicts resolved in
+  four always-loaded docs (both sides kept in 1003's mailbox and the v1.0 record;
+  main's `Current numbers` taken, then replaced by re-measurement); the mailbox
+  section 1016 posted into this closed WP was consumed and forwarded to 1043,
+  since a closed WP may not carry one. **Re-measured, because counts do not
+  sum across a merge:** fast **1800 / 67**, full **1901 / 72** on `[dev,jax]` —
+  and the full wall clock is recorded as an *upper bound*, a second full suite
+  having run throughout. `test_gui_*.py` collect **105**; vitest 376 is marked
+  inherited rather than restated, because this branch touched no `gui/` file and I
+  did not run it.
+
+  **The one substantive find, and it is this WP's own theme catching this WP.**
+  The bethanechol note — "0 candidates at 240 s, still 0 in manual mode at 900 s …
+  the honest report is silence" — is a **WP-1026 measurement dated 2026-07-30**,
+  carried verbatim through 1037/1038/1039/1041, all of which touched the engines.
+  Re-measured: every run returns 12 candidates and `trial_error` returns the
+  published cell at **rank 1** on set F in 76 s. We *do* score badly (−16 against
+  the paper's +9 bar), but for a different reason than the note gives, and the
+  diagnosis is in [1043](1043-agent-and-human-indexing.md). The acceptance note now
+  carries only the stable half and asserts no score. **Gotcha for whoever touches
+  this next: the score must be *generated* before it is quoted anywhere** — typing
+  it into a caption is exactly what produced the claim it replaces.
+
+  The gallery artifact was republished to its existing URL, since the page a reader
+  would share was the thing carrying the false claim.
+
 - **2026-08-05 (third session, branch `wp1041-benchmark-gallery` off the merged
   `main`)** — **nine of nine; the WP's remaining tasks are done.** The theme of
   the session is one sentence: *a number that is not regenerated is a number
