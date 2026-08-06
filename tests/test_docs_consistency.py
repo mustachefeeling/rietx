@@ -148,7 +148,10 @@ def test_inherited_is_h3_and_closed_wps_have_consumed_theirs():
         )
         glyph, date = _status_of(path)
         if glyph in {"✅", "🛑"} and date and date > _INHERITED_PRUNE_EPOCH:
-            assert "### Inherited" not in text, (
+            # heading-anchored like the H2 check above: a WP that *mentions*
+            # the section name in prose (1061 is about the handover protocol)
+            # is not carrying a mailbox
+            assert not re.search(r"^### Inherited\b", text, re.M), (
                 f"{path.name}: closed {date} but still carries '### Inherited' — "
                 "fold what was consumed into Context and delete the section "
                 "(protocol step 1)"

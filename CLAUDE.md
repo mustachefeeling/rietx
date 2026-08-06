@@ -49,13 +49,13 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-06 at the **WP-1041** close, darwin/arm64 M4, worktree `indexer`, venv
-`[dev,jax]` — jax 0.11.0, **no torch** — **on the tree with `main`'s WP-1016
-merged in**. WP-1016's own `[dev]` figures (1727 / 108 fast) do not compare: the
-extras move ~40 rows from skip to pass, which is most of the skip column.
+2026-08-06 at the **WP-1061** close, darwin/arm64 M4, **main checkout**, venv
+`[dev,jax,torch]` — jax 0.11.0, torch 2.13.0 — so the extras empty most of the
+skip column and nothing here compares to WP-1041's `[dev,jax]` figures (1800 / 67
+fast, 1901 / 72 full — an upper bound measured under contention, 24-34 min uncontended).
 
-- fast **1800 / 67** in **2:49**, full **1901 / 72** in **48:59** — and that full figure is an **upper bound, not a measurement**: a second full suite from another session was running throughout, and comparable trees read 24-34 min uncontended. Quote the range, never the figure. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`); the within-merge sum does check out here (1041's pre-merge 1780 fast + 1016's 20 = 1800), but a `def test_` count is not a test count — `test_indexing_plots.py` collects 4 items from 3 functions.
-- frontend: `test_gui_*.py` collect **105** (10 + 4 + 8 + 83), measured here. vitest **376** and `svelte-check` clean are **inherited from WP-1016 unmeasured** — 1041 touched no `gui/` file and the dist digest is unchanged, so there is nothing for it to have moved.
+- fast **1886 / 5** in **3:01–3:20**, measured twice on one tree: with `test_workflow_hooks.py` and without it (**1880 / 5**) — passed+skipped moved by exactly the 6 tests WP-1061 added, all passes, no new skips. The **full selection was not run this session** (the WP's acceptance names the fast one; the file carries no slow marks, so its full delta is the same +6).
+- frontend: `test_gui_*.py` collect **105** (10 + 4 + 8 + 83), vitest **376**, `svelte-check` clean — all **inherited from WP-1041/1016 unmeasured**: 1061 touched no `gui/` file and the dist digest is unchanged.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 

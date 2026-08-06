@@ -58,35 +58,25 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Pick up the queue below.
+**Nothing in flight.** Act on the standing repair flag first, then the queue:
+the session-start hook fires `⚠ WP-1043 … repair first` from every checkout —
+two 2026-08-06 sessions landed `WP-1043:` commits and the file has no
+`## Handover log` section — so the next session opens with `/wp-handover`
+repair mode (details in that WP's `### Inherited`).
 
-**Closed 2026-08-05: [1041](wp/1041-indexing-benchmark-gallery.md) +
-[1040](wp/1040-engine-svd-index.md)** — the indexing milestone's evidence is
-**generated**, not typed. Every acceptance row leaves PNGs (38 over 16 datasets,
-closing the last exception to `tests/CLAUDE.md`'s plotting rule);
-`tests/indexing_gallery.py` writes a sidecar per dataset from which the scoreboard
-and `tests/output/indexing_gallery.html` are built. **The scoreboard's shape
-changed: nine datasets — 6 truth-first, 2 found-below-first, 1 refused
-pre-search, 0 promoted.** The old "eight datasets: five right, one refused, two
-fail" named *nine* and had no bucket for what this package produces most; brucite
-and magnetite were **prose no run reproduced**, and both now rank the truth first.
-Sharpest new result — **magnetite**: the panel ranks the cubic F truth first and
-the *gate grades it below its own P rival*, because a d-glide refutes the correct
-cell while the rival's over-parameterised Le Bail fit leaves nothing detectably
-absent.
-
-**Also closed 2026-08-05: [1016](wp/1016-sequential-series-panel.md)** — an
-in-situ ramp is drivable from the GUI, built around the fact that **a smooth curve
-is exactly what a poisoned chain produces**. It found its own charter wrong
-(WP-1008 said `SequentialRefinement` took `events=`/`cancel=`; it took neither),
-so the library gained both per pattern and a cancelled series **returns** what
-completed. The series lives *beside* the project; persistence deferred to
-**1003**, and the GUI is complete but for [1017](wp/1017-gui-manual-onboarding.md).
-
-**The theme both share: a number that is not regenerated is a number nobody
-re-measures.** 1041 found four stale records no test could see. **A prediction is
-not a measurement**, and 1016 adds the inverse: **nor is an inherited claim.**
-Narratives: [milestones/v1.0.md](milestones/v1.0.md).
+**Closed 2026-08-06: [1061](wp/1061-workflow-robustness.md)** — a missed
+`/wp-handover` stops being silent rot. `.claude/hooks/session_start.py`
+(stdlib-only, never the venv it checks, `startup|clear` not `resume`) reports
+at session start: repo state, venv resolution read from the editable `.pth`
+pointer without importing, and the missed-handover scan at two severities —
+repair for an open WP with commits after its newest day-dated entry, a soft
+note for a closed one; the same-day miss is the documented blind spot, so a
+quiet report is a prompt, never proof. `/wp-start` encodes the start ritual,
+`/wp-handover` gained repair mode, and the hook's first live run found the
+WP-1043 miss above before it was even wired in.
+[1060](wp/1060-docs-ci-consolidation.md), the trim half of the same process
+review, is still open and lands independently. Narratives:
+[milestones/v1.0.md](milestones/v1.0.md).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -553,7 +543,7 @@ start.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ⬜ | — |
-| [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ⬜ | — |
+| [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ✅ 2026-08-06 | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 

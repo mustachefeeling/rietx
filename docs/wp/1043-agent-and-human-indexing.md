@@ -32,6 +32,17 @@ per-candidate quantities.** Both were measured against the bundled **plotly
   drawn. Scaling it to be seen would be WP-1029's *an exaggeration is not a
   probability*.
 
+**From [1061](1061-workflow-robustness.md), 2026-08-06 — this WP's handover log
+is missing, and the session-start hook now flags it.** The two 2026-08-06
+sessions that landed `WP-1043:` commits on `main` (the gallery review's three
+findings; the full bethanechol run) left no handover entries — this file has no
+`## Handover log` section at all — so `.claude/hooks/session_start.py` fires
+`⚠ WP-1043 … repair first (/wp-handover, repair mode)` from every checkout.
+First act of the next session here (or of whichever session sees the flag
+first): reconstruct the entries per repair mode from `git log --stat`, dated
+with the commits' own date and marked "(reconstructed post hoc)", adding the
+missing `## Handover log` section in the process.
+
 ### Decided by the user, 2026-08-06 — one output, not two
 
 The WP as first written proposed a **gate for unattended use and an evidence view
