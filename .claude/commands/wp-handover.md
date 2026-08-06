@@ -37,8 +37,9 @@ steps below run unchanged.
    session added, in both the fast and full selections, and any new skip is
    named as a skip, not a pass.
 7. **If the WP is closing** (✅/🛑): delete its consumed `### Inherited`
-   section, rewrite ROADMAP's "Current focus" for the successor (≤40 lines),
-   and MOVE the outgoing focus narrative to the in-flight milestone record
+   section, rewrite ROADMAP's "Current focus" for the successor (within
+   `CURRENT_FOCUS_CAP`, tests/test_docs_consistency.py), and MOVE the
+   outgoing focus narrative to the in-flight milestone record
    (`docs/milestones/v1.0.md` § "How v1.0 is getting here").
 8. **Sweep session memory notes**: anything in the assistant memory
    directory that corrects or extends the repo record gets ported into the

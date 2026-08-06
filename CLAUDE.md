@@ -466,8 +466,9 @@ recent list, and is therefore not behind the 409 (WP-1044).
 Planning docs are split so a session loads only what it needs — do not read
 them all:
 
-- `docs/ROADMAP.md` — the index: session protocol, a ≤40-line "Current
-  focus", milestone table, WP index.
+- `docs/ROADMAP.md` — the index: session protocol, a "Current focus" capped
+  within `CURRENT_FOCUS_CAP` (tests/test_docs_consistency.py), milestone
+  table, WP index.
 - `docs/wp/NNNN-*.md` — one **self-contained** WP per task (context, commit-
   sized checklist, acceptance command, handover log).
 - `docs/DESIGN.md` — design record; read only the section a WP links.

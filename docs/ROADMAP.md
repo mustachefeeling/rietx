@@ -48,7 +48,8 @@ a work session loads only what it needs:
 5. **WP closes** (✅/🛑): rewrite "Current focus" for the successor and MOVE
    the outgoing narrative to the in-flight milestone record
    (`milestones/v1.0.md` § "How v1.0 is getting here"). Current focus stays
-   under ~40 lines and repeats nothing a closed WP's own file already says.
+   within `CURRENT_FOCUS_CAP` (tests/test_docs_consistency.py) and repeats
+   nothing a closed WP's own file already says.
 6. **Milestone ships**: finish `milestones/vX.Y.md` with the measured
    acceptance block, flip the milestone row here, check README's claims.
 
