@@ -6,7 +6,7 @@ core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `pxrdref`.
 ## Commands
 
 ```sh
-uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once)
+uv venv --python 3.12 && uv pip install -e ".[dev]"   # setup (once); a WORKTREE needs its own venv — main's .venv imports main's src (tests/CLAUDE.md)
 uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch backends
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~8-15 min, incl. real-data acceptance (counts: Current numbers)
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min
@@ -27,20 +27,15 @@ either — it is what honours the `xdist_group` marks that keep a shared fixture
 on one worker (see `tests/CLAUDE.md`); plain `--dist load` ignores them and
 silently refits.
 
-Headline testing rules — operating detail and evidence in `tests/CLAUDE.md`,
-the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
+Headline testing rules — operating detail and evidence (xdist group ordering,
+budget narrowing, quoting counts) in `tests/CLAUDE.md`; the dated measurement
+diary is `docs/milestones/v1.0.md` § Appendix:
 
 - **Quote wall clock as a range, never as a figure** — machine state moves it further
   than most changes do; compare runs, not records. And **quote the extras with any
   count**: a bare "N tests" means nothing without the venv it was measured in.
-- **One dataset, one group**: runtime is set by the longest xdist group, and a group
-  ordering is a measurement with a shelf life — re-read `--durations` rather than the
-  last session's sentence about it.
-- **A wall-clock budget inside a test is a runaway guard, never a timer** — if the
-  declared budget is not several times the serial time, the assertion is a load
-  sensor. The budget a test depends on may be one rank down, in the library.
-- **When a budget fix makes something slow, narrow the scope, never the budget** —
-  and never a silent cap.
+- **A wall-clock budget in a test is a runaway guard, never a timer** — and the
+  budget may live one rank down, in the library.
 - **Say which numbers moved**: after adding N tests, passed+skipped moves by exactly
   N in both selections, and a new skip is not a new pass.
 
@@ -485,11 +480,10 @@ them all:
   subsystem rulebooks; they load with their subtrees, so nothing here
   restates them.
 
-**Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority. In
-short: read the active WP file and nothing else; commit per checklist item
-prefixed `WP-NNNN:`; end every session that touched a WP with
-`/wp-handover`; a CLAUDE.md takes **rules, not findings**.
-`tests/test_docs_consistency.py` enforces the mechanical parts.
+**Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority
+(`tests/test_docs_consistency.py` enforces the mechanical parts). Two clauses
+to carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a
+CLAUDE.md takes **rules, not findings**.
 
 Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the
 milestone table in ROADMAP carries the acceptance one-liners — neither is
