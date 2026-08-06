@@ -149,13 +149,20 @@ cell at rank 1 in 76 s** — reduced `7.1346, 8.8755, 16.4091, 90, 90, 93.828`
 against the published `7.137, 8.875, 16.408, 90, 90, 93.84`, so −340 / +56 / +67
 ppm and β out by 0.012°. `dichotomy` and `svd` return 12 candidates without it.
 
-Scored over the paper's whole protocol (ten sets × two modes, `trial_error`, 30 s
-per engine × system): **−16**, where the truth is first on set F in *both* modes
-and absent on the other eighteen runs. The published bar is **+9** (best of ITO13,
-DICVOL91, TREOR90, McMaille) and **+12** (best of all). ITO13 alone scored −14, so
-we are currently **below the worst single program in the paper**. Every run also
-reported `search_complete = False`: the mandated monoclinic domain was never
-covered by any of them.
+Scored over the paper's whole protocol: **−16**, the truth first on set F in *both*
+modes and absent on the other eighteen runs. The published bar is **+9** (best of
+ITO13, DICVOL91, TREOR90, McMaille) and **+12** (best of all); ITO13 alone scored
+−14, so this is **below the worst single program in the table**.
+
+**Read that −16 as a floor, not as the package's score**, and the distinction is
+the reason the number has to be generated before it is quoted anywhere else. It
+was measured with **`trial_error` only, at 30 s per engine × system** — not the
+three-engine consensus a real call runs, and at a budget the paper's own programs
+were not held to. A full run can only score the same or better, since a second
+engine can put the truth first where the first did not. What the qualified figure
+*does* support is the shape: **one set of ten, and it is the set the cell was
+fitted to.** Every run also reported `search_complete = False`, so the mandated
+monoclinic domain was never covered by any of them.
 
 **The diagnosis, which is what to act on.** It is not the impurities and not the
 matching window. Median |ΔQ| between each set's lines and the published cell,
