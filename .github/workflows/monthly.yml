@@ -4,11 +4,11 @@ name: monthly
 # this repo is private on a free plan: 2000 Actions minutes/month, and **macOS
 # bills at a 10x multiplier** — 5 wall-clock minutes there costs 50.
 #
-#   macOS (fast suite + goldens)   4:12 -> 5 min x10 = 50 billed
-#   torch agreement matrix        15:59 -> 16 min x1 = 16 billed
-#                                                    = 66 billed min/run
+#   macOS (fast suite + goldens)   4:12 -> 5 min x10 = 50 billed, dispatch-only
+#   torch agreement matrix        15:59 -> 16 min x1 = 16 billed, on the cron
 #
-# Weekly would be 284/month for the same coverage; monthly is 66.  Neither job
+# The scheduled run bills the torch line only; macOS runs when dispatched
+# (WP-1060 — grounds on the job).  Neither job
 # guards a fast-moving surface: the goldens' capture platform does not change,
 # and torch is an experimental backend, not a supported runtime.
 #
@@ -45,6 +45,14 @@ env:
 
 jobs:
   macos:
+    # Dispatch-only since WP-1060: the dev machine *is* darwin/arm64 and runs
+    # the fast suite + goldens on every local run, while this runner is
+    # measurably not the capture machine (one ulp off on toy_rich — the step
+    # below only warns), so the cron leg bought ~70 of the workflow's ~86
+    # monthly billed minutes for coverage the goldens' own platform already
+    # has.  tests/test_backend_shim.py's on-the-golden-platform guard is the
+    # local half of this trade: it fails there if the goldens would skip.
+    if: github.event_name == 'workflow_dispatch'
     name: macOS (goldens' capture platform)
     runs-on: macos-latest
     timeout-minutes: 90

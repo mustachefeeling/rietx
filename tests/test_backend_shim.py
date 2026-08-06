@@ -664,6 +664,34 @@ def test_every_committed_golden_is_gated():
         f"only in STATES {sorted(set(STATES) - on_disk)}")
 
 
+def test_on_the_golden_platform_the_gate_actually_runs():
+    """On ``GOLDEN_PLATFORM``, prove the gate above asserts rather than skips.
+
+    The monthly macOS CI job is dispatch-only (WP-1060): the hosted runner is
+    measurably not the capture machine — one ulp off on ``toy_rich`` — so its
+    goldens step only ever warned.  That leaves ``GOLDEN_PLATFORM``, in
+    practice the dev machine, as the only place the bit patterns are checked.
+    This guard fails *here* if the gate's skip conditions would fire where
+    they must not: every golden present and loadable on the platform the pin
+    names.  Known pre-existing limitation, made visible rather than fixed: if
+    the dev machine stops being darwin/arm64 the goldens run nowhere, and
+    this guard's own skip — named below, counted in every local run — is what
+    says so.
+    """
+    if _platform_now() != GOLDEN_PLATFORM:
+        pytest.skip(
+            f"not on {'/'.join(GOLDEN_PLATFORM)} — the goldens assert nowhere but "
+            "there; if this is the dev machine, the WP-1060 known limitation is "
+            "live: re-capture the set and move GOLDEN_PLATFORM")
+    for name in STATES:
+        path = GOLDEN_DIR / f"{name}.npz"
+        assert path.exists(), (
+            f"golden {path.name} missing on {'/'.join(GOLDEN_PLATFORM)} — the gate "
+            "above would skip, and nowhere else checks these bits")
+        with np.load(path) as ref:
+            assert ref.files, f"golden {path.name} loads but holds no arrays"
+
+
 if __name__ == "__main__":
     # Capture goldens.  Named states only by default is deliberate: these files
     # are environment-pinned bit patterns, and re-capturing a state that did not
