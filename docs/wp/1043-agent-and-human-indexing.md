@@ -133,6 +133,57 @@ triclinic — but every one is credited to a named individual, and the only publ
 released members are the **SDPDRR-2** samples, which are monoclinic and cubic. So
 this is two acquisitions, not one, and the Monograph is the one to do first.
 
+### Measured: bethanechol, and a stale claim of silence
+
+The user asked why this package does badly on its one monoclinic real-data
+benchmark. Re-measured 2026-08-06 on the merged tree, and **the first thing found
+was that the repo's own answer was false**. The gallery note and the acceptance
+suite said, from a WP-1026 measurement dated 2026-07-30 and carried forward
+verbatim through four WPs that all touched the engines: *"every engine exhausts
+its budget without finishing that domain (0 candidates at 240 s, still 0 in manual
+mode at 900 s) … the honest report is silence."*
+
+There is no silence. **Every run returns 12 candidates**, and on set F under the
+paper's own manual-mode conditions `search_trial_error` returns the **published
+cell at rank 1 in 76 s** — reduced `7.1346, 8.8755, 16.4091, 90, 90, 93.828`
+against the published `7.137, 8.875, 16.408, 90, 90, 93.84`, so −340 / +56 / +67
+ppm and β out by 0.012°. `dichotomy` and `svd` return 12 candidates without it.
+
+Scored over the paper's whole protocol (ten sets × two modes, `trial_error`, 30 s
+per engine × system): **−16**, where the truth is first on set F in *both* modes
+and absent on the other eighteen runs. The published bar is **+9** (best of ITO13,
+DICVOL91, TREOR90, McMaille) and **+12** (best of all). ITO13 alone scored −14, so
+we are currently **below the worst single program in the paper**. Every run also
+reported `search_complete = False`: the mandated monoclinic domain was never
+covered by any of them.
+
+**The diagnosis, which is what to act on.** It is not the impurities and not the
+matching window. Median |ΔQ| between each set's lines and the published cell,
+against the median window the search used:
+
+| set | λ | med window (Q) | med \|ΔQ\| to truth | ratio | lines inside window |
+|---|---|---|---|---|---|
+| F | 0.6995 | 6.11e-4 | **6.45e-6** | **0.01** | 20/20 |
+| E | 1.5406 | 2.76e-4 | 9.23e-5 | 0.33 | 20/20 |
+| Db | 1.5418 | 3.06e-4 | 1.93e-4 | 0.63 | 20/20 |
+| Aa | 1.5418 | 2.44e-4 | 5.47e-4 | 2.24 | 12/20 |
+
+F is the set the published cell was **refined against**, so it reproduces it to 1 %
+of the window — and F is the only one of the ten we solve, which makes that single
+success partly circular. E is the same compound, also impurity-free, with **all
+twenty lines inside the window**, and we miss it at 33 %. So the engine that
+carries this benchmark is the one CLAUDE.md already describes as poisoned by a bad
+base line: `trial_error` solves the metric *exactly* from a few assumed indices, so
+its accuracy is set by those few lines rather than by an average over twenty. A
+14× worse base line is enough.
+
+Two things follow for this WP. The score is a **benchmark**, not an acceptance
+assertion — a full run is ~20 min of search — so it needs a runner like
+`tests/indexing_gallery.py`, generated rather than typed, or it will rot exactly as
+the claim above did. And bethanechol is the sharpest case for the evidence view:
+on set F the package holds the published cell at **rank 1** and, with no profile to
+validate against, still cannot promote it past `low`.
+
 ### What an agent needs that a gate cannot give
 
 The gate returns `low`/`medium`/`high` and `best_or_none()`. An agent that can
@@ -180,11 +231,18 @@ either collapsed or withheld:
       and reported unscored**, and that the certified cell comes back at rank 1.
 - [ ] **Corpus coverage**: add at least one orthorhombic and one triclinic
       real-data set, so the low-symmetry half of the problem is measured rather
-      than assumed. Until then, every summary that quotes the scoreboard says
-      "high-symmetry" out loud.
+      than assumed. Start from **NBS Monograph 25** (public domain, 16 O and 29
+      Tric, and DICVOL04's own test corpus — see above). Until then, every summary
+      that quotes the scoreboard says "high-symmetry" out loud.
+- [ ] **Make the bethanechol score generated, then move it.** It is −16 against a
+      +9 bar and it is currently typed into a WP, which is precisely how the claim
+      it replaced went stale. A runner beside `tests/indexing_gallery.py`,
+      re-measured by running it, `slow`-marked; the acceptance suite keeps the
+      transcription checks and asserts no score.
 - [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
       read (the gate) and what a reasoning consumer should read (the evidence),
-      with the fluorite case as the worked example of why they differ.
+      with the fluorite case as the worked example of why they differ — and
+      bethanechol set F as the case where the truth is *already* at rank 1.
 
 ## Acceptance
 

@@ -658,13 +658,20 @@ def test_every_set_is_twenty_ascending_lines(bench):
              "Red = a line the published cell cannot explain, i.e. an impurity. "
              "Difficulty falls down the figure, and F (bottom, synchrotron, zero "
              "unexplained) is the set the published cell was solved from. "
-             "WE DO NOT REPORT A SCORE ON THIS BENCHMARK, and that is measured "
-             "rather than unfinished: the paper's protocol fixes the search "
-             "domain at 20 A axes and V_max 2000 A^3 in monoclinic, and on set F "
-             "-- the EASIEST of the ten -- every engine exhausts its budget "
-             "without finishing that domain (0 candidates at 240 s, still 0 in "
-             "manual mode at 900 s). A score computed over a smaller domain "
-             "would be a different experiment, so the honest report is silence.")
+             "THE SCORE IS NOT ASSERTED HERE -- a full run is ten sets x two "
+             "modes x three engines, ~20 min of pure search, which belongs in a "
+             "benchmark run and not in an acceptance suite. What it measured on "
+             "2026-08-06 is in WP-1043, and it is the honest headline: we score "
+             "BELOW the worst single program in the paper. The one result to "
+             "carry here is the diagnosis, because it is stable and the score is "
+             "not -- F is the set the published cell was REFINED AGAINST, so its "
+             "lines reproduce that cell to 1 % of the matching window, and F is "
+             "the only set of the ten we solve. E is the same compound, also "
+             "impurity-free, whose lines reproduce it to 33 % of the window; all "
+             "twenty are inside the window and we still miss it. So what "
+             "separates our one success from our nine failures is neither the "
+             "impurities nor the tolerance: it is how exactly the answer "
+             "reproduces the few base lines an exact solve is built on.")
 
 
 @pytest.mark.parametrize("raw,corrected", [("Aa", "Ca"), ("Ab", "Cb"),
