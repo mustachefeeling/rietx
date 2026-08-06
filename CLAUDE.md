@@ -30,31 +30,30 @@ silently refits.
 Headline testing rules — operating detail and evidence in `tests/CLAUDE.md`,
 the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
-- **Quote wall clock as a range, never as a figure** — machine state moves it
-  further than most changes do; compare runs, not records. And **quote the
-  extras with any count**: a bare "N tests" means nothing without the venv it
-  was measured in.
-- **One dataset, one group**: runtime is set by the longest xdist group, and
-  a group ordering is a measurement with a shelf life — re-read `--durations`
-  rather than the last session's sentence about it.
-- **A wall-clock budget inside a test is a runaway guard, never a timer** —
-  if the declared budget is not several times the serial time, the assertion
-  is a load sensor. The budget a test depends on may be one rank down, in
-  the library.
-- **When a budget fix makes something slow, narrow the scope, never the
-  budget** — and never a silent cap.
-- **Say which numbers moved**: after adding N tests, passed+skipped moves by
-  exactly N in both selections, and a new skip is not a new pass.
+- **Quote wall clock as a range, never as a figure** — machine state moves it further
+  than most changes do; compare runs, not records. And **quote the extras with any
+  count**: a bare "N tests" means nothing without the venv it was measured in.
+- **One dataset, one group**: runtime is set by the longest xdist group, and a group
+  ordering is a measurement with a shelf life — re-read `--durations` rather than the
+  last session's sentence about it.
+- **A wall-clock budget inside a test is a runaway guard, never a timer** — if the
+  declared budget is not several times the serial time, the assertion is a load
+  sensor. The budget a test depends on may be one rank down, in the library.
+- **When a budget fix makes something slow, narrow the scope, never the budget** —
+  and never a silent cap.
+- **Say which numbers moved**: after adding N tests, passed+skipped moves by exactly
+  N in both selections, and a new skip is not a new pass.
 
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
 2026-08-06 at the **WP-1044** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
-— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — on
-`main` (which now carries 1016 and 1041) plus 1044.
+— **no jax, no torch** — **on the tree with `main`'s WP-1041/1040 merged in**.
+WP-1041's `[dev,jax]` figures (1800 / 67 fast) do not compare: the extras move
+~40 rows from skip to pass, most of the skip column.
 
-- fast **1729 / 108** in **5:04**, full **1821 / 117** in **37:14**. 1044 added exactly two tests and **passed+skipped moved by exactly two in both selections** against 1016's 1727 / 108 and 1819 / 117 — the closing-sum check, holding within one lineage. Both were measured with a **second full suite running in another worktree**, which is what the range rule is about: the same fast selection read 5:22 at 1016 and **3:07-4:11** before that merge, and the full one 34:24 and 24:13, while 1041 measured one file at 46:59 under load. Quote the range, never the figure. (Across a *merge* the deltas do not sum at all and only a re-measurement counts — `tests/CLAUDE.md`.)
-- frontend (vitest): **390** (376 at 1016 — 1044 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** (105 before 1044's two; the 1016 line said 104, which this re-measurement corrects — `def test_` counts and collected counts are different numbers).
+- fast **PENDING**, full **PENDING**. Quote the range, never the figure — an unmerged `[dev]` tree read 5:04 and 37:14 an hour earlier with a second suite running, and 1041 measured its own full selection at 48:59 the same way against 24-34 min uncontended. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`): 1044 added 2 tests to a 1729 / 108 `[dev]` fast selection and 1041 added its own under different extras, so the two deltas cannot be summed.
+- frontend (vitest): **390** (376 at 1016 — 1044 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** — 105 of them measured independently by 1041 on `main`, plus 1044's two.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -207,13 +206,12 @@ The **GUI** (WP-1008…1016, 1029, 1032-1035, 1044) is `pxrdref gui [PROJECT.pxr
 — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
 — the session/wire split, the server contract, the `.pxt` document, the editors,
 the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
-`gui/`. Three rules matter outside the GUI too: mutating verbs
-return **409 while a run is in flight** (frozen-per-stage discreteness enforced
-structurally); the **run state is not an event** — `EventKind` is closed, and
-`live/events.jsonl` stays the one stream `watch` tails; and a **project** setting
-is one that is about *the project* — the theme is the person's and lives in
-`/api/settings` beside the recent list, which is also why it is not behind the
-409 (WP-1044).
+`gui/`. Three rules matter outside the GUI too: mutating verbs return **409 while
+a run is in flight** (frozen-per-stage discreteness enforced structurally); the
+**run state is not an event** — `EventKind` is closed, and `live/events.jsonl`
+stays the one stream `watch` tails; and a **project setting is one that is about
+the project** — the theme is the person's, lives in `/api/settings` beside the
+recent list, and is therefore not behind the 409 (WP-1044).
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
@@ -617,9 +615,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice` *and its centring*, never sorted axes, or a correct answer in
-  another setting reads as a miss (WP-1040's monoclinic row) and a P description of
-  one cell reads as its own I truth (WP-1041's harness, on NAC).
+  `reduce.same_lattice`, *its centring*, **and the dataset's own accuracy band**,
+  never sorted axes. Drop any of the three and a wrong answer reads as right: sorted
+  axes miss a correct answer in another setting (WP-1040's monoclinic row), no
+  centring reads a P description as its own I truth (NAC), and `same_lattice` alone
+  falls back to a deliberately loose 5e-3 that calls FAP's +966 ppm leader and its
+  +258 ppm cross-code cell the same answer (WP-1041).
 - **Removing a redundant search must not remove its prunes**, and only real data will
   say that you did: the centred passes are redundant *as searches* (each centred trial
   set is a subset of the primitive one) and not as *filters*; the prunes being monotone
@@ -632,8 +633,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
   only the extinction screen separates the two. Choose acceptance datasets **by
   space group** — SRM 660c (P m -3 m) is the control that proved it.
-- The scoreboard across eight known-cell datasets is *never wrong, and silent more
-  often than right*; never round it up (counts: WP-1041).
+- The known-cell scoreboard is *never wrong, and silent more often than right* —
+  **never round it up**, and **keep the found-but-not-first bucket**: the truth *in
+  the list* under a wrong leader is what this package produces most, and collapsing
+  it into right-or-wrong is how the old board named nine datasets under a total of
+  eight. It is **generated** by `tests/indexing_gallery.py`, so re-measure by running
+  the suite; counts live in the v1.0 dossier, never retyped here (WP-1041).
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And

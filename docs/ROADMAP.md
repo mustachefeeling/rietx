@@ -55,48 +55,56 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1044](wp/1044-gui-view-cursor-theme.md), 2026-08-06** — four
-defects reported from use, of which the two that read as unrelated were one
-sentence of plotly's autorange: a redraw carried no `range`, so it re-autoranged
-over the peak markers and the mask shapes, which span the *whole pattern*. Hence
-**the view is handed back on every draw** (WP-1015's camera rule, one panel over)
-and a `ui` key belongs to whatever it is *about* — the theme is the person's and
-moved to `/api/settings`, out of the mutating-verb 409 with it. Before it,
-**[1016](wp/1016-sequential-series-panel.md), 2026-08-05**: an in-situ ramp is
+**Nothing in flight.** Pick up the queue below.
+
+**Closed 2026-08-06: [1044](wp/1044-gui-view-cursor-theme.md)** — four GUI defects
+reported from use, of which the two that read as unrelated were one sentence of
+plotly's autorange: a redraw carried no `range`, so it re-autoranged over the peak
+markers and the mask shapes, which span the *whole pattern*. Hence **the view is
+handed back on every draw** (WP-1015's camera rule, one panel over), and **a `ui`
+key belongs to whatever it is about** — the theme is the person's, so it moved to
+`/api/settings` and out of the mutating-verb 409 with it, which is the question
+1029 filed to **1003** and could not fix from inside `POST /api/project`.
+[1017](wp/1017-gui-manual-onboarding.md)'s `### Inherited` carries the three
+sentences it made wrong.
+
+**Closed 2026-08-05: [1041](wp/1041-indexing-benchmark-gallery.md) +
+[1040](wp/1040-engine-svd-index.md)** — indexing's evidence is **generated**, not
+typed: every acceptance row leaves PNGs and a JSON sidecar, from which the
+scoreboard and the gallery page are built. Its shape changed with it — **nine
+datasets: 6 truth-first, 2 found-below-first, 1 refused pre-search, 0 promoted**,
+where the old three buckets had no room for what this package produces most.
+And **[1016](wp/1016-sequential-series-panel.md)**, same day: an in-situ ramp is
 drivable from the GUI, built on **a smooth curve is exactly what a poisoned chain
-produces**; the series lives *beside* the project, persistence deferred to
-**1003**. The GUI is complete but for [1017](wp/1017-gui-manual-onboarding.md),
-whose `### Inherited` now carries three sentences 1044 made wrong.
+produces**; the series lives beside the project, persistence deferred to **1003**.
 
-**In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** — the gallery, opened
-by clearing its inherited defects (one shared `engines.solution_key`, an opt-in
-Le Bail result, `viz/indexing.py`'s three renderers). Two rows turned over, and
-**its recorded design for the panel aggregate is refuted** — a log-sum scores 5 of
-6, exactly Borda's, because summing raw logs weights each member by its dynamic
-range; `fom.log_sum_scores` ships tested and unwired. Open: tasks 5-9.
-**[1040](wp/1040-engine-svd-index.md) stays 🔄**, its one open item being 1041's
-scoreboard.
-
-Narratives: [milestones/v1.0.md](milestones/v1.0.md). Twelve sessions running
-(1030 → … → 1041, 1016, 1044): **instrument before ranking, and let the by-hand
-run judge** — 1041 is the sharpest case, two green tests asserting what a filter's
-own artefacts produced. **A prediction is not a measurement**, 1016 adds the
-inverse (**nor is an inherited claim**), and 1044 adds the third: **nor is a
-reported cause** — three of its four defects named one, and only one was right.
+**The theme all three share: a number that is not regenerated is a number nobody
+re-measures.** 1041 found four stale records no test could see. **A prediction is
+not a measurement**, 1016 adds the inverse (**nor is an inherited claim**), and
+1044 the third: **nor is a reported cause** — three of its four defects named one
+and only one was right. Narratives: [milestones/v1.0.md](milestones/v1.0.md).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
-   we did not author; every item was hit by a real external benchmark.
-2. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
+   we did not author; every item was hit by a real external benchmark, and its
+   `### Inherited` carries the left-edge peak defect found by eye in 1041's
+   gallery — cause measured, fix decided, 5 false lines → 1 with none lost.
+2. [1043](wp/1043-agent-and-human-indexing.md) — **the user's design call**: one
+   ranked list carrying every candidate's stats plus a visual check, the grade a
+   field on it, not a gate with an evidence view beside it. Holds the fluorite
+   abstention (18 clean cubic lines all three engines index at −5 ppm), the corpus
+   skew, and the **bethanechol re-measurement** — −16 against a +9 bar, below the
+   worst program in the paper, and the old "silence" claim measured false.
+3. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
    its `### Inherited` carries 1037's streaming argument and 1016's third writer
-   of the run record's progress fields. (1041 is in flight above.)
-3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
-   bethanechol global score. 1040 measured there is no pending fix to wait for.
-4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
-5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
-   freeze covers an exercised surface. Both carry an `### Inherited` this
-   session filled; read it first.
+   of the run record's progress fields.
+4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+   bethanechol score, now measured in 1043; what is left is making it generated.
+5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+   freeze covers an exercised surface. Its `### Inherited` was filled by both
+   1016 and 1041; read it first.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -434,9 +442,10 @@ per concurrent session, or only one session commits.
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |
 | [1038](wp/1038-shift-reflection-pairs.md) | Pre-indexing 2θ shift from reflection pairs | ✅ 2026-08-04 | 1019, 1024 |
 | [1039](wp/1039-search-line-count.md) | Which lines a search is driven by (was: how many) | ✅ 2026-08-05 | 1037 (1038 soft) |
-| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | 🔄 2026-08-05 — landed; zero-error column + scoreboard open | 1020, 1024 (1038 soft) |
-| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | 🔄 2026-08-05 — dedup key + renderers landed; aggregate and benchmark open | 1026 |
+| [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ✅ 2026-08-05 — landed with the zero-error column; scoreboard re-measured in 1041 | 1020, 1024 (1038 soft) |
+| [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
+| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ⬜ | 1041, 1026 (1028 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

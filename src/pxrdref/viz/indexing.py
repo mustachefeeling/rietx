@@ -134,7 +134,8 @@ def plot_peak_list(peaks, data=None, *, path: str | None = None,
 
 
 def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
-                    n: int = 5, dpi: int = 150, title: str | None = None):
+                    n: int = 5, dpi: int = 150, title: str | None = None,
+                    q_match=None):
     """Ranked candidates as tick rows against the observed lines.
 
     **The forward and reverse directions are both visible, which is the whole
@@ -144,10 +145,25 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     positive this package ranks a panel to avoid — is the row that is mostly
     hollow, and no figure of merit has to be trusted for a reader to see it.
 
-    Observed lines the top row does not claim are marked on the observed row
-    itself.  Each candidate is scored on the positions it actually claims
-    (:func:`pxrdref.indexing.engines.scored_positions`), so a candidate carrying a
-    fitted shift is not drawn against lines it never said it fitted.
+    **``q_match`` is the window the search matched with, and passing the wrong
+    one makes the picture contradict the number printed beside it.**  CLAUDE.md's
+    rule — the matching window is an argument separate from the per-line σ —
+    applies here for the same reason it applies to :func:`fom.fom_panel`: on a
+    pattern with a shift allowance the search asked "is this the same line" in a
+    *widened* window, and asking it again in the raw σ answers a different
+    question.  Measured on 11-BM NAC, which carries the default 0.05° allowance:
+    with ``q_match=None`` this figure labelled a row "224/285 indexed" from the
+    candidate's own field and drew **213 of 285 as unindexed** in the same
+    legend.  ``None`` means ``peaks.q_esd()``, which is the identity when no
+    allowance applies; callers with a result in hand should pass
+    :func:`pxrdref.indexing.engines.match_window`.
+
+    Each candidate is matched on the positions it actually claims
+    (:func:`pxrdref.indexing.engines.scored_positions`), so one carrying a fitted
+    shift is not marked down for the correction it declared.  The ticks are
+    *drawn* at the uncorrected predicted positions, since the shifts this
+    package fits are 0.03-0.07° against a 100°+ axis — sub-pixel, where the
+    match is not.
     """
     from ..indexing.engines import scored_positions
     from ..indexing.fom import MATCH_SIGMA, match_lines, predicted_lines
@@ -157,8 +173,8 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     if not shown:
         raise ValueError("plot_candidates needs at least one candidate")
 
-    q_obs = peaks.q()
-    q_esd = peaks.q_esd()
+    q_esd = peaks.q_esd() if q_match is None else np.asarray(q_match,
+                                                             dtype=np.float64)
     tt_obs = peaks.two_theta()
     inten = peaks.intensity()
     tt_lo = float(peaks.two_theta_min)
@@ -177,28 +193,46 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
     for row, cand in enumerate(shown):
         colour = (CANDIDATE_COLORS[row] if row < len(CANDIDATE_COLORS) else DIFF)
         _hkl, q_pred = predicted_lines(cand.cell, cand.system, cand.centring,
-                                       peaks.wavelength, tt_hi,
-                                       two_theta_min=tt_lo)
+                                       peaks.wavelength, tt_hi)
         tt_pred = _two_theta_of_q(q_pred, peaks.wavelength)
-        # each prediction: is an observed line sitting under it?
-        if len(q_obs) and len(q_pred):
-            gap = np.abs(np.asarray(q_pred)[:, None] - q_obs[None, :])
+        # each prediction: is an observed line sitting under it?  Against the
+        # positions *this* candidate claims, in the window the search used.
+        q_claim, _tt_claim = scored_positions(peaks, cand)
+        if len(q_claim) and len(q_pred):
+            gap = np.abs(np.asarray(q_pred)[:, None] - q_claim[None, :])
             j = np.argmin(gap, axis=1)
             seen = gap[np.arange(len(q_pred)), j] <= MATCH_SIGMA * np.maximum(
                 q_esd[j], 1e-300)
         else:
             seen = np.zeros(len(q_pred), dtype=bool)
+        # drawn over the plotted range, matched over the panel's.  Enumerating
+        # from ``tt_lo`` instead put the *boundary* prediction outside the set —
+        # and ``PeakList.two_theta_min`` is the first line's own position, so
+        # every candidate figure read its first observed line as unindexed.
+        inview = tt_pred >= tt_lo
         y = -float(row)
-        axt.vlines(tt_pred[seen], y - 0.30, y + 0.30, lw=1.0, color=colour,
-                   zorder=3)
-        axt.vlines(tt_pred[~seen], y - 0.18, y + 0.18, lw=0.8, color=colour,
-                   alpha=0.30, zorder=2)
-        share = float(np.mean(seen)) if len(seen) else 0.0
-        m20 = cand.fom_value("m20") if hasattr(cand, "fom_value") else None
+        axt.vlines(tt_pred[seen & inview], y - 0.30, y + 0.30, lw=1.0,
+                   color=colour, zorder=3)
+        axt.vlines(tt_pred[~seen & inview], y - 0.18, y + 0.18, lw=0.8,
+                   color=colour, alpha=0.30, zorder=2)
+        # **The share is quoted from the panel, not recomputed here.**  The two
+        # enumerate over different ranges on purpose — the panel stops at the
+        # last *observed* line (``fom.fom_panel``) while the picture must cover
+        # the axis it draws — so recomputing gives a number a few points from
+        # ``predicted_seen_fraction`` and prints it in a figure whose whole
+        # claim is that it agrees with the panel (measured on NAC: 43 % drawn
+        # against the panel's 46 %).  The ticks show the lattice over the range;
+        # the number is the one that was ranked on.
+        fom_value = getattr(cand, "fom_value", None)
+        share = fom_value("predicted_seen_fraction") if fom_value else None
+        if share is None:
+            share = float(np.mean(seen)) if len(seen) else 0.0
+        m20 = fom_value("m20") if fom_value else None
         label = (f"#{row + 1} {cand.system} {cand.centring}  "
                  f"a={cand.cell[0]:.4f} V={cand.volume:.1f} Å³  "
                  f"{cand.n_indexed}/{cand.n_lines} indexed, "
-                 f"{share:.0%} of {len(tt_pred)} predicted seen")
+                 f"{share:.0%} of predicted lines seen "
+                 f"({int(inview.sum())} drawn)")
         if m20 is not None:
             label += f", M20={m20:.1f}"
         # ``confidence`` defaults to ``"low"`` on an *ungated* candidate, so
@@ -208,17 +242,26 @@ def plot_candidates(candidates: Sequence, peaks, *, path: str | None = None,
         conf = getattr(cand, "confidence", None)
         caveats = list(getattr(cand, "confidence_caveats", ()) or ())
         if conf and (conf != "low" or caveats):
-            label += f"  [{conf}" + (f": {', '.join(caveats)}]" if caveats
-                                     else "]")
-        axt.text(tt_lo, y + 0.40, label, fontsize=7.5, color=DIFF, va="bottom")
+            # capped: a candidate can carry six caveats, and a label wider than
+            # the axes is a label nobody reads.  The count is kept, so a reader
+            # knows there are more rather than being shown a truncated set as
+            # though it were the whole one.
+            shown_caveats = caveats[:3]
+            more = len(caveats) - len(shown_caveats)
+            text = ", ".join(shown_caveats) + (f", +{more} more" if more else "")
+            label += f"  [{conf}" + (f": {text}]" if caveats else "]")
+        axt.text(0.004, y + 0.40, label, fontsize=7.5, color=DIFF, va="bottom",
+                 transform=axt.get_yaxis_transform())
 
-    # observed lines the best candidate does not claim
+    # observed lines the best candidate does not claim.  ``scored_positions``
+    # is duck-typed on ``shift_template``/``shift_coefficient``, which a
+    # ``CellCandidate`` carries directly — the previous ``hasattr(best, "fit")``
+    # guard was never true on one, so this silently drew every shift-carrying
+    # candidate against positions it had not claimed.
     best = shown[0]
-    q_claim, _tt_claim = scored_positions(peaks, best.__dict__.get("fit")) \
-        if hasattr(best, "fit") else (q_obs, tt_obs)
+    q_claim, _tt_claim = scored_positions(peaks, best)
     _hkl0, q_pred0 = predicted_lines(best.cell, best.system, best.centring,
-                                     peaks.wavelength, tt_hi,
-                                     two_theta_min=tt_lo)
+                                     peaks.wavelength, tt_hi)
     idx, _d = match_lines(q_claim, q_esd, q_pred0, k_sigma=MATCH_SIGMA)
     missed = idx < 0
     if missed.any():

@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 
 from pxrdref.crystallography.symmetry import generate_reflections
-from pxrdref.indexing.engines import SearchSpec, to_cell_candidate
+from pxrdref.indexing.engines import SearchSpec, match_window, to_cell_candidate
 from pxrdref.indexing.trial_error import search_trial_error
 from pxrdref.schemas.indexing import PeakList
 
@@ -113,11 +113,22 @@ def test_the_candidate_rows_show_both_directions(bcc_candidates, bcc_peaks):
         f"the supercell row drew {seen_n[i_forest]} seen and "
         f"{absent_n[i_forest]} absent: a forest must look like one")
 
-    # the caption quotes the same counts the ticks were drawn from
+    # The caption's *drawn* count is the ticks, and its *share* is the panel's
+    # own ``predicted_seen_fraction`` rather than a recomputation.  The two
+    # enumerate over different ranges by design — the panel stops at the last
+    # observed line and the picture covers the axis it draws — so a caption that
+    # recomputed the share printed a number a few points off the one the
+    # candidate was ranked on (measured on 11-BM NAC: 43 % drawn against the
+    # panel's 46 %), in a figure whose whole claim is that it agrees with the
+    # panel.  Both halves are asserted, because only quoting one lets the other
+    # drift.
     captions = [t.get_text() for t in axt.texts]
     assert len(captions) == len(bcc_candidates)
     total = seen_n[i_truth] + absent_n[i_truth]
-    assert f"of {total} predicted seen" in captions[i_truth], captions[i_truth]
+    assert f"({total} drawn)" in captions[i_truth], captions[i_truth]
+    panel_share = truth[0].fom_value("predicted_seen_fraction")
+    assert f"{panel_share:.0%} of predicted lines seen" in captions[i_truth], (
+        captions[i_truth])
     # rank order fixes the colour, so two galleries of one dataset compare
     assert rows[0].get_color()[0].tolist()[:3] == pytest.approx(
         _rgb(CANDIDATE_COLORS[0]), abs=1e-6)
@@ -127,6 +138,225 @@ def _rgb(hex_colour: str) -> list[float]:
     from matplotlib.colors import to_rgb
 
     return list(to_rgb(hex_colour))
+
+
+#: The same lattice displaced by a constant 0.04° 2θ, with a per-line σ ten times
+#: smaller — corundum's situation in miniature (there the two are 0.0045° and a
+#: 0.05° allowance, an 11× gap).  A search *must* open its window to the
+#: systematic to find anything, so the window and the measurement genuinely
+#: differ, which is what makes this fixture able to tell them apart.
+SHIFTED_DEG = 0.04
+SHIFTED_ESD = 0.004
+SHIFTED_ALLOWANCE = 0.05
+
+
+@pytest.fixture(scope="module")
+def shifted_peaks() -> PeakList:
+    refl = generate_reflections("I m -3 m", CELL, LAM, 90.0)
+    tt = np.degrees(2.0 * np.arcsin(LAM / (2.0 * np.asarray(refl.d))))
+    inten = np.asarray(refl.multiplicity, dtype=np.float64)
+    order = np.argsort(tt)
+    return PeakList.from_positions(tt[order] + SHIFTED_DEG, LAM,
+                                   intensity=inten[order],
+                                   two_theta_esd=SHIFTED_ESD)
+
+
+@pytest.fixture(scope="module")
+def shifted_search(shifted_peaks):
+    spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                      max_volume=1500.0, sigma_sys_deg=SHIFTED_ALLOWANCE,
+                      budget_seconds=120.0)
+    result = search_trial_error(shifted_peaks, spec=spec)
+    cands = [to_cell_candidate(c, shifted_peaks, k_sigma=spec.k_sigma,
+                               n_unindexed=spec.n_unindexed,
+                               q_match=match_window(shifted_peaks, spec))
+             for c in result.candidates[:3]]
+    return cands, spec
+
+
+def test_the_tick_rows_match_in_the_window_the_search_used(shifted_search,
+                                                           shifted_peaks):
+    """The picture's own legend must not contradict the label beside it.
+
+    ``plot_candidates`` asks *is this the same line* once per prediction, and
+    CLAUDE.md's rule is that the answer depends on the **matching window**, not
+    on the per-line σ: a search that had to open its window to a systematic
+    selected its candidate under the wide one, so re-asking under the narrow one
+    judges it by a criterion it was never selected under.
+
+    Measured, this was not a subtlety.  On 11-BM NAC — which carries the default
+    0.05° allowance — the figure labelled its top row ``224/285 indexed`` from
+    the candidate's own field and drew ``not indexed by #1 (213)`` in the same
+    legend, a direct contradiction inside one picture.  Here the two counts are
+    asserted to close against the observed total, in both directions: with the
+    search's window they agree, and with the raw σ they do not — which is what
+    makes this a test of the window rather than of arithmetic.
+    """
+    from pxrdref.viz import plot_candidates
+
+    cands, spec = shifted_search
+    best = cands[0]
+    n_obs = len(shifted_peaks.usable())
+    OUT.mkdir(exist_ok=True)
+
+    fig = plot_candidates(cands, shifted_peaks,
+                          q_match=match_window(shifted_peaks, spec),
+                          path=str(OUT / "indexing_candidates_shifted.png"))
+    missed = _missed_count(fig)
+    assert missed is not None, "the top row indexed everything; no window to test"
+    assert best.n_indexed + missed == n_obs, (
+        f"the figure drew {missed} unindexed against a label claiming "
+        f"{best.n_indexed} of {n_obs} indexed")
+
+    # and the defect this replaced: the raw σ is 10x narrower than the window
+    # the search used, so it refuses lines the candidate was selected on
+    narrow = plot_candidates(cands, shifted_peaks,
+                             q_match=shifted_peaks.q_esd())
+    assert _missed_count(narrow) > missed, (
+        "the raw-σ window found no more unindexed lines than the search's — "
+        "this fixture no longer separates the two")
+
+
+def _missed_count(fig) -> int:
+    """The ``not indexed by #1 (N)`` the figure actually drew, 0 when absent."""
+    labels = [t.get_text() for t in fig.get_axes()[0].get_legend().get_texts()]
+    for text in labels:
+        if text.startswith("not indexed by #1"):
+            return int(text.split("(")[1].rstrip(")"))
+    return 0
+
+
+# ----------------------------------------------------------------------
+# the gallery's declaration tables, and the one test the scoreboard turns on
+# ----------------------------------------------------------------------
+def test_every_gallery_table_names_a_declared_dataset():
+    """Four tables key on the same stems; a typo in one silently drops a row.
+
+    ``DATASETS`` says what a dataset is, ``PAGE_ORDER`` places it,
+    ``TRUTHS`` gives it a known cell and ``SCOREBOARD_STEMS`` counts it.  A
+    scoreboard stem with no truth is the dangerous one: its verdict computes as
+    ``unknown``, so it silently leaves the count instead of failing — which is
+    the same class of defect as the arithmetic this scoreboard replaced.
+    """
+    from tests import indexing_gallery as g
+
+    assert set(g.PAGE_ORDER) == set(g.DATASETS), (
+        set(g.PAGE_ORDER) ^ set(g.DATASETS))
+    assert len(g.PAGE_ORDER) == len(set(g.PAGE_ORDER)), "duplicate in PAGE_ORDER"
+    assert set(g.TRUTHS) <= set(g.DATASETS), set(g.TRUTHS) - set(g.DATASETS)
+    assert set(g.SCOREBOARD_STEMS) <= set(g.TRUTHS), (
+        f"{set(g.SCOREBOARD_STEMS) - set(g.TRUTHS)} would be counted as "
+        "'unknown' and vanish from the scoreboard rather than fail")
+
+    # every run names a specimen that exists, and every specimen is placed
+    unknown = {k: v["specimen"] for k, v in g.DATASETS.items()
+               if v["specimen"] not in g.SPECIMENS}
+    assert not unknown, f"runs naming an undeclared specimen: {unknown}"
+    assert set(g.SPECIMEN_ORDER) == set(g.SPECIMENS), (
+        set(g.SPECIMEN_ORDER) ^ set(g.SPECIMENS))
+    placed = {v["specimen"] for v in g.DATASETS.values()}
+    assert placed == set(g.SPECIMENS), (
+        f"specimens with no run: {set(g.SPECIMENS) - placed}")
+    for key, spec in g.SPECIMENS.items():
+        for field in ("title", "space_group", "cell", "tier", "provenance",
+                      "why"):
+            assert spec.get(field), f"{key} has no {field}"
+
+
+def test_no_run_is_dropped_from_the_page(tmp_path, monkeypatch):
+    """A run the grouper cannot place gets its own section, never silence.
+
+    Measured: the first version keyed grouping off the *sidecar's* copy of the
+    declaration, so editing the tables without re-running the 23-minute
+    acceptance suite silently dropped four of sixteen runs — the page simply
+    rendered fewer datasets and said nothing.  Both halves are fixed and both
+    are asserted: declarations are re-read live, and an unplaceable run still
+    renders.
+    """
+    from tests import indexing_gallery as g
+
+    rendered = [({"stem": "known", "specimen": "lab6"}, "<div>A</div>"),
+                ({"stem": "orphan", "specimen": "not_a_specimen"},
+                 "<div>B</div>")]
+    html = "".join(g._group_by_specimen(rendered))
+    assert "<div>A</div>" in html and "<div>B</div>" in html, (
+        "a run whose specimen is undeclared was dropped from the page")
+
+
+def test_an_undeclared_dataset_cannot_reach_the_gallery(bcc_peaks):
+    """``draw`` raises on an unknown stem rather than writing an unlabelled card.
+
+    A silent skip is what puts a dataset in the suite and not in the summary,
+    which is precisely how the scoreboard came to describe nine datasets under a
+    total of eight.
+    """
+    from tests import indexing_gallery as g
+
+    with pytest.raises(KeyError, match="no entry"):
+        g.draw("a_dataset_nobody_declared", peaks=bcc_peaks)
+
+
+def test_the_truth_test_is_the_lattice_and_the_centring(bcc_candidates):
+    """Two centrings of one metric are two lattices, and only one is the truth.
+
+    ``same_lattice`` compares Niggli-reduced A..F, so it *deliberately* calls a
+    setting change equality — and a primitive description of a centred lattice
+    reduces to the same metric.  Without the centring clause both NAC candidates
+    scored as the truth on identical axes, and the scoreboard would have counted
+    a wrong answer as right.  The same lesson is recorded one rank down in
+    ``engines.solution_key`` and one rank up in WP-1040's monoclinic row.
+    """
+    from pxrdref.indexing.qspace import af_from_cell
+    from tests import indexing_gallery as g
+
+    af = [float(v) for v in af_from_cell(CELL)]
+    ranking = [{"centring": "P", "af": af, "cell": list(CELL)},
+               {"centring": "I", "af": af, "cell": list(CELL)}]
+    assert "lab6" in g.TRUTHS, "this test needs a declared cubic truth"
+
+    original = g.TRUTHS["lab6"]
+    try:
+        g.TRUTHS["lab6"] = (CELL, "I", 1e-3)
+        assert g.truth_rank("lab6", ranking) == 2, (
+            "the P row reduces to the same metric; matching it would read a "
+            "wrong centring as the truth")
+        g.TRUTHS["lab6"] = (CELL, "P", 1e-3)
+        assert g.truth_rank("lab6", ranking) == 1
+    finally:
+        g.TRUTHS["lab6"] = original
+
+    assert g.truth_rank("no_such_stem", ranking) is None
+
+
+def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
+    """A cell inside ``same_lattice``'s fallback and outside its dataset's band
+    is **not** the truth, and FAP is the dataset that says so.
+
+    ``CELL_EQUALITY_RELATIVE`` is 5e-3, deliberately loose so a dedup comparison
+    is never *tightened* by the absence of a covariance.  Reused as a truth test
+    it calls FAP's +966 ppm leader and its +258 ppm cross-code cell the same
+    lattice — and the scoreboard then reports "ranked first" for the one dataset
+    whose acceptance row asserts the cross-code cell is *not* first.
+    """
+    from pxrdref.indexing.qspace import af_from_cell
+    from pxrdref.indexing.reduce import CELL_EQUALITY_RELATIVE
+    from tests import indexing_gallery as g
+
+    cell, _centring, rtol = g.TRUTHS["fap"]
+    assert rtol < CELL_EQUALITY_RELATIVE, (
+        f"FAP's band {rtol} is not tighter than the dedup fallback "
+        f"{CELL_EQUALITY_RELATIVE}; the truth test cannot separate its "
+        "candidates")
+
+    off = (cell[0] * 1.000966, cell[1] * 1.000966, cell[2] * 1.000266,
+           *cell[3:])
+    good = (cell[0] * 1.000258, cell[1] * 1.000258, cell[2] * 1.000325,
+            *cell[3:])
+    ranking = [{"centring": "P", "af": [float(v) for v in af_from_cell(c)],
+                "cell": list(c)} for c in (off, good)]
+    assert g.truth_rank("fap", ranking) == 2, (
+        "the +966 ppm leader was accepted as the truth; FAP's row says it is "
+        "the +258 ppm cell that is the cross-code answer")
 
 
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,
