@@ -550,6 +550,7 @@ start.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ⬜ | — |
+| [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ⬜ | — |
 
 ## v2+ (seams pre-built, implementations fenced out)
 
