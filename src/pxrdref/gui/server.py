@@ -192,6 +192,10 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/project"): lambda s, q, b: s.project_patch(b),
     ("POST", "/api/project/save"): lambda s, q, b: s.project_save(),
     ("GET", "/api/recent"): lambda s, q, b: {"recent": s.recent()},
+    # the app's own `ui` keys, beside the recent list because both are the
+    # *person's* rather than a project's (WP-1044)
+    ("GET", "/api/settings"): lambda s, q, b: s.settings(),
+    ("POST", "/api/settings"): lambda s, q, b: s.settings_patch(b),
 
     ("GET", "/api/params"): lambda s, q, b: s.params(),
     ("PATCH", "/api/params"): lambda s, q, b: s.params_patch(b),

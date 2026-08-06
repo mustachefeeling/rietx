@@ -57,33 +57,32 @@ size caps on this file and CLAUDE.md.
 
 **Nothing in flight.** Pick up the queue below.
 
+**Closed 2026-08-06: [1044](wp/1044-gui-view-cursor-theme.md)** — four GUI defects
+reported from use, of which the two that read as unrelated were one sentence of
+plotly's autorange: a redraw carried no `range`, so it re-autoranged over the peak
+markers and the mask shapes, which span the *whole pattern*. Hence **the view is
+handed back on every draw** (WP-1015's camera rule, one panel over), and **a `ui`
+key belongs to whatever it is about** — the theme is the person's, so it moved to
+`/api/settings` and out of the mutating-verb 409 with it, which is the question
+1029 filed to **1003** and could not fix from inside `POST /api/project`.
+[1017](wp/1017-gui-manual-onboarding.md)'s `### Inherited` carries the three
+sentences it made wrong.
+
 **Closed 2026-08-05: [1041](wp/1041-indexing-benchmark-gallery.md) +
-[1040](wp/1040-engine-svd-index.md)** — the indexing milestone's evidence is
-**generated**, not typed. Every acceptance row leaves PNGs (38 over 16 datasets,
-closing the last exception to `tests/CLAUDE.md`'s plotting rule);
-`tests/indexing_gallery.py` writes a sidecar per dataset from which the scoreboard
-and `tests/output/indexing_gallery.html` are built. **The scoreboard's shape
-changed: nine datasets — 6 truth-first, 2 found-below-first, 1 refused
-pre-search, 0 promoted.** The old "eight datasets: five right, one refused, two
-fail" named *nine* and had no bucket for what this package produces most; brucite
-and magnetite were **prose no run reproduced**, and both now rank the truth first.
-Sharpest new result — **magnetite**: the panel ranks the cubic F truth first and
-the *gate grades it below its own P rival*, because a d-glide refutes the correct
-cell while the rival's over-parameterised Le Bail fit leaves nothing detectably
-absent.
+[1040](wp/1040-engine-svd-index.md)** — indexing's evidence is **generated**, not
+typed: every acceptance row leaves PNGs and a JSON sidecar, from which the
+scoreboard and the gallery page are built. Its shape changed with it — **nine
+datasets: 6 truth-first, 2 found-below-first, 1 refused pre-search, 0 promoted**,
+where the old three buckets had no room for what this package produces most.
+And **[1016](wp/1016-sequential-series-panel.md)**, same day: an in-situ ramp is
+drivable from the GUI, built on **a smooth curve is exactly what a poisoned chain
+produces**; the series lives beside the project, persistence deferred to **1003**.
 
-**Also closed 2026-08-05: [1016](wp/1016-sequential-series-panel.md)** — an
-in-situ ramp is drivable from the GUI, built around the fact that **a smooth curve
-is exactly what a poisoned chain produces**. It found its own charter wrong
-(WP-1008 said `SequentialRefinement` took `events=`/`cancel=`; it took neither),
-so the library gained both per pattern and a cancelled series **returns** what
-completed. The series lives *beside* the project; persistence deferred to
-**1003**, and the GUI is complete but for [1017](wp/1017-gui-manual-onboarding.md).
-
-**The theme both share: a number that is not regenerated is a number nobody
+**The theme all three share: a number that is not regenerated is a number nobody
 re-measures.** 1041 found four stale records no test could see. **A prediction is
-not a measurement**, and 1016 adds the inverse: **nor is an inherited claim.**
-Narratives: [milestones/v1.0.md](milestones/v1.0.md).
+not a measurement**, 1016 adds the inverse (**nor is an inherited claim**), and
+1044 the third: **nor is a reported cause** — three of its four defects named one
+and only one was right. Narratives: [milestones/v1.0.md](milestones/v1.0.md).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -218,6 +217,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
+| [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |

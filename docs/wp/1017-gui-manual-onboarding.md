@@ -39,6 +39,24 @@ real UI.
 
 ### Inherited
 
+From **[1044](1044-gui-view-cursor-theme.md)**, 2026-08-06 — **three sentences
+in this manual are now wrong, and one gesture wants documenting.**
+
+- **The theme is not a project setting.** It lives in the app's own store
+  (`/api/settings`, beside the recent list), so it follows the person across
+  projects, ports and browser profiles — and it is the one setting that is *not*
+  refused while a run is in flight. The note below saying a `ui` drag is refused
+  mid-run still holds for the widths and Simple/Advanced; it no longer holds for
+  the theme. The control is also in the header of the **empty state** now, which
+  is the screen a first-time user starts on — worth using in the onboarding tour.
+- **Zoom is a fetch and it now stays where it is put.** A drag refetches that 2θ
+  window at full point budget, a peak edit or a knob keeps the view (it used to
+  reset it), and **double-click means "all of it"** — that is the sentence to
+  teach, because the modebar's home button is easy to miss.
+- **The armed range/exclude gesture has its own cursor** (`col-resize`); the
+  screenshot of the strip should show it armed at least once, since "arming
+  changes what a drag means" is the least discoverable thing on the plot.
+
 From **[1016](1016-sequential-series-panel.md)** (closed 2026-08-05) — **there
 are nine tabs now, and the ninth is the one panel whose subject is a *method***.
 Four things to document rather than list.

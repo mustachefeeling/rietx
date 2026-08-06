@@ -71,6 +71,23 @@ measurement tool, make it private, or land a successor aggregate first — but i
 must not be frozen *by accident* as a supported ranking API, because it is not
 the ranking. Same question, smaller: the constants are exported beside it.
 
+**From [1044](1044-gui-view-cursor-theme.md), 2026-08-06 — one new route pair,
+and the `ui`-only question below is now smaller rather than open.** `GET`/`POST
+/api/settings` is the **app's** `ui` dict, in `state_dir/settings.json` beside
+`recent.json`, with `POST /api/project`'s exact grammar at app scope (top-level
+merge, `null` drops a key, persisted on the verb) — so the freeze covers two
+`ui` scopes and the rule that tells them apart: a key belongs to whichever thing
+it is *about*. The theme moved there because `ProjectDoc.ui` re-read it per
+project (measured: dark, open a second project, back to `system`), and its
+`ui.theme` key is now simply unread — an existing project's stored value is
+inert, deliberately not migrated. Two consequences for the questions already
+here. The **"a `ui`-only patch is not model state"** question loses its
+motivating example: `/api/settings` takes no lock, so a theme is settable
+mid-run and *asserted* to be, while `simple`/`console_height`/`side_width`/
+`model_columns` still ride `POST /api/project` and still 409 — the question is
+now only about those four. And the freeze should decide whether an app-level
+store is the right home for anything else a client currently keeps per project.
+
 **From the 2026-08-04 use session (WP-1032…1036) — two freeze-relevant surface
 changes and one that touches a question already in this mailbox.**
 [1035](1035-symmetry-surfaced.md) makes a phase's **space group editable**

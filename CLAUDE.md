@@ -30,32 +30,30 @@ silently refits.
 Headline testing rules — operating detail and evidence in `tests/CLAUDE.md`,
 the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 
-- **Quote wall clock as a range, never as a figure** — machine state moves it
-  further than most changes do; compare runs, not records. And **quote the
-  extras with any count**: a bare "N tests" means nothing without the venv it
-  was measured in.
-- **One dataset, one group**: runtime is set by the longest xdist group, and
-  a group ordering is a measurement with a shelf life — re-read `--durations`
-  rather than the last session's sentence about it.
-- **A wall-clock budget inside a test is a runaway guard, never a timer** —
-  if the declared budget is not several times the serial time, the assertion
-  is a load sensor. The budget a test depends on may be one rank down, in
-  the library.
-- **When a budget fix makes something slow, narrow the scope, never the
-  budget** — and never a silent cap.
-- **Say which numbers moved**: after adding N tests, passed+skipped moves by
-  exactly N in both selections, and a new skip is not a new pass.
+- **Quote wall clock as a range, never as a figure** — machine state moves it further
+  than most changes do; compare runs, not records. And **quote the extras with any
+  count**: a bare "N tests" means nothing without the venv it was measured in.
+- **One dataset, one group**: runtime is set by the longest xdist group, and a group
+  ordering is a measurement with a shelf life — re-read `--durations` rather than the
+  last session's sentence about it.
+- **A wall-clock budget inside a test is a runaway guard, never a timer** — if the
+  declared budget is not several times the serial time, the assertion is a load
+  sensor. The budget a test depends on may be one rank down, in the library.
+- **When a budget fix makes something slow, narrow the scope, never the budget** —
+  and never a silent cap.
+- **Say which numbers moved**: after adding N tests, passed+skipped moves by exactly
+  N in both selections, and a new skip is not a new pass.
 
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-06 at the **WP-1041** close, darwin/arm64 M4, worktree `indexer`, venv
-`[dev,jax]` — jax 0.11.0, **no torch** — **on the tree with `main`'s WP-1016
-merged in**. WP-1016's own `[dev]` figures (1727 / 108 fast) do not compare: the
-extras move ~40 rows from skip to pass, which is most of the skip column.
+2026-08-06 at the **WP-1044** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
+— **no jax, no torch** — **on the tree with `main`'s WP-1041/1040 merged in**.
+WP-1041's `[dev,jax]` figures (1800 / 67 fast) do not compare: the extras move
+~40 rows from skip to pass, most of the skip column.
 
-- fast **1800 / 67** in **2:49**, full **1901 / 72** in **48:59** — and that full figure is an **upper bound, not a measurement**: a second full suite from another session was running throughout, and comparable trees read 24-34 min uncontended. Quote the range, never the figure. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`); the within-merge sum does check out here (1041's pre-merge 1780 fast + 1016's 20 = 1800), but a `def test_` count is not a test count — `test_indexing_plots.py` collects 4 items from 3 functions.
-- frontend: `test_gui_*.py` collect **105** (10 + 4 + 8 + 83), measured here. vitest **376** and `svelte-check` clean are **inherited from WP-1016 unmeasured** — 1041 touched no `gui/` file and the dist digest is unchanged, so there is nothing for it to have moved.
+- fast **1750 / 108** in **2:56**, full **1845 / 117** in **23:17**, both uncontended. Quote the range, never the figure: the same selections read 5:04 and 37:14 on this branch an hour earlier *with a second suite running*, and 1041 measured its own full selection at 48:59 that way. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`) — 1044 added 2 tests to a 1729 / 108 `[dev]` tree and 1041 added its own under `[dev,jax]`, so those deltas cannot be summed. The **totals** do cross-check: 1858 fast items here against 1041's 1867 on `[dev,jax]`, an 11-item gap that is exactly the modules a `[dev]` venv collapses to one skip each.
+- frontend (vitest): **390** (376 at 1016 — 1044 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** — 105 of them measured independently by 1041 on `main`, plus 1044's two.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -204,14 +202,16 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1016, 1029, 1032-1035) is `pxrdref gui [PROJECT.pxrd]` —
-stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
+The **GUI** (WP-1008…1016, 1029, 1032-1035, 1044) is `pxrdref gui [PROJECT.pxrd]`
+— stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
 — the session/wire split, the server contract, the `.pxt` document, the editors,
 the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
-`gui/`. Two rules matter outside the GUI too: mutating verbs
-return **409 while a run is in flight** (frozen-per-stage discreteness enforced
-structurally), and the **run state is not an event** — `EventKind` is closed, and
-`live/events.jsonl` stays the one stream `watch` tails.
+`gui/`. Three rules matter outside the GUI too: mutating verbs return **409 while
+a run is in flight** (frozen-per-stage discreteness enforced structurally); the
+**run state is not an event** — `EventKind` is closed, and `live/events.jsonl`
+stays the one stream `watch` tails; and a **project setting is one that is about
+the project** — the theme is the person's, lives in `/api/settings` beside the
+recent list, and is therefore not behind the 409 (WP-1044).
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ
