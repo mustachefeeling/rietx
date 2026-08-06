@@ -1295,10 +1295,18 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     truth and is silent on the rival, and the rival ends **medium** where the
     truth is **low**.
 
-    Rwp is not fooled — 0.25 against 0.79 — which is the case for reading the
-    detectors and the fit statistic together rather than either alone.  The gate
-    still abstains, so nothing wrong is returned; what this row pins is that the
-    *reason* it abstains is not the reason a reader would guess.
+    Rwp separates the pair where the detector does not — 0.25 against 0.79 — and
+    the row pins that separation **as an unexplained fact, not as a discriminator
+    to rank on**.  It should not be read as "Rwp is the trustworthy one": a Le
+    Bail Rwp rewards flexibility, which is why WP-1020 kept ``lebail_rwp`` off
+    the FoM panel, and the direction here is the opposite of what that predicts.
+    Something in this fit — the freed background and widths are the untested
+    suspects — is paying for 163 reflections; until that is measured (WP-1043),
+    what the pair demonstrates is that the **detector** is blind here, and the
+    honest use of the Rwp is as one more thing a reader is shown.
+
+    The gate still abstains, so nothing wrong is returned; what this row pins is
+    that the *reason* it abstains is not the reason a reader would guess.
     """
     res = magnetite_index
     assert res.candidates
@@ -1330,8 +1338,8 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         "should leave nothing detectably absent")
     assert rival.lebail.n_reflections > 3 * best.lebail.n_reflections
     assert rival.lebail.rwp > 2.0 * best.lebail.rwp, (
-        "Rwp is the statistic that is not fooled; if it were, this row would "
-        "be reporting a defect with no detector left")
+        "the unexplained separation this row pins — see the docstring; it is "
+        "not a licence to rank on a Le Bail Rwp")
     assert "predicted_but_absent" in best.confidence_caveats
     assert "predicted_but_absent" not in rival.confidence_caveats
 

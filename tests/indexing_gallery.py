@@ -943,12 +943,15 @@ GLOSSARY = (
      "each reflection's intensity as a least-squares parameter alongside the "
      "cell; <b>Le Bail</b> instead re-partitions the observed intensity among "
      "overlapping reflections each cycle, which needs no extra parameters and "
-     "cannot go singular on overlaps. Validation here is <b>Le Bail</b>, because "
-     "a candidate cell can predict hundreds of reflections on a 25-line pattern "
-     "and Pawley would be fitting more parameters than there are lines. It is "
-     "also single-phase by construction: two phases were measured at Rwp "
-     "742–9281 % against 7.5–24.8 % for one. The package does have a Pawley mode "
-     "— it is just not what validates a candidate."),
+     "cannot go singular on overlaps — and a candidate cell can predict hundreds "
+     "of reflections on a 25-line pattern. That is the whole reason validation "
+     "here is <b>Le Bail</b>: it is cheaper and better conditioned. <b>Neither "
+     "constrains the intensities</b> — both leave one free per reflection, "
+     "answerable to no structure — which is why the evidence is the two detector "
+     "counts and not the fit's Rwp. It is also single-phase by construction: two "
+     "phases were measured at Rwp 742–9281 % against 7.5–24.8 % for one. The "
+     "package does have a Pawley mode — it is just not what validates a "
+     "candidate."),
 )
 
 
