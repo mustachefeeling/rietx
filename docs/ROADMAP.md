@@ -89,19 +89,19 @@ Narratives: [milestones/v1.0.md](milestones/v1.0.md).
 
 1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
    we did not author; every item was hit by a real external benchmark, and its
-   `### Inherited` now also carries a peak-picking defect found by eye in 1041's
-   gallery (the pattern's rising left edge picked as a line on 4 of 6 patterns).
-2. [1043](wp/1043-agent-and-human-indexing.md) — **new, from the gallery
-   review**: the package refuses a clean 18-line cubic pattern that all three
-   engines index at −5 ppm in under a second, because the 20-line bar is a
-   *scoring* precondition enforced as a *searching* one. Also files the corpus
-   skew — 9 of 10 real datasets sit at ≤ 2 free metric parameters, and there is
-   no orthorhombic or triclinic data at all.
+   `### Inherited` carries the left-edge peak defect found by eye in 1041's
+   gallery — cause measured, fix decided, 5 false lines → 1 with none lost.
+2. [1043](wp/1043-agent-and-human-indexing.md) — **the user's design call**: one
+   ranked list carrying every candidate's stats plus a visual check, the grade a
+   field on it, not a gate with an evidence view beside it. Holds the fluorite
+   abstention (18 clean cubic lines all three engines index at −5 ppm), the corpus
+   skew, and the **bethanechol re-measurement** — −16 against a +9 bar, below the
+   worst program in the paper, and the old "silence" claim measured false.
 3. [1042](wp/1042-anytime-results-quick-default.md) — from the source literature;
    its `### Inherited` carries 1037's streaming argument and 1016's third writer
    of the run record's progress fields.
 4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
-   bethanechol global score. 1040 measured there is no pending fix to wait for.
+   bethanechol score, now measured in 1043; what is left is making it generated.
 5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
 6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by both
