@@ -1,15 +1,16 @@
 name: weekly
 
 # Everything the 5-minute per-push gate leaves out, once a week instead of
-# once a night.  This replaced a **nightly** full-suite job that billed 45
-# minutes a night — 1350 a month, two thirds of a free-tier private repo's
-# entire 2000-minute allowance, before a single push.  Weekly costs 237.
+# once a night.  This replaced a **nightly** full-suite job that billed two
+# thirds of a free-tier private repo's entire 2000-minute allowance before a
+# single push (billed = rounded up per job, Linux 1x).
 #
-# Measured 2026-07-29 (billed = rounded up per job, Linux 1x):
+#   full suite incl. slow acceptance   44-78 min (2026-07-29 -> 2026-08-06)
+#   fast py3.11 / py3.14               ~2-4 min each
 #
-#   full suite incl. slow acceptance   44:21  -> 45 min
-#   fast py3.11 / py3.12 / py3.14      ~2-4 min each -> 4 + 2 + 4
-#                                                      = 55 billed min/run
+# No run or monthly totals here — a cross-workflow total written in a comment
+# rots (one sat at 303 against a measured ≈495); read spend from the Actions
+# usage page or `gh run list`, never from comments.
 #
 # The full-suite job installs `[dev,jax]`, so it *is* the jax coverage — a
 # separate jax job would re-pay the ~10 billed minutes those rows cost.  They

@@ -11,8 +11,10 @@ name: GUI frontend
 #   node setup + npm ci + build + git diff + vitest   ~1.5 min -> 3 billed min
 #
 # It triggers only on paths that can invalidate the dist, so a physics-only or
-# docs-only push pays nothing.  At an aggressive 40 GUI-touching pushes a month
-# that is ~120 minutes against a scheduled spend of ~303 (ci/weekly/monthly).
+# docs-only push pays nothing.  (No monthly totals here: a cross-workflow
+# total written in a comment rots — one sat at 303 against a measured ≈495.
+# Read spend from the Actions usage page or `gh run list`, never from
+# comments.)
 # The per-push `ci.yml` is unchanged: `tests/test_gui_dist.py` recomputes the
 # source digest in **stdlib Python**, needs no node, and runs in milliseconds —
 # which is the point of defining the digest in

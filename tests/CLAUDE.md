@@ -122,13 +122,18 @@ and never a silent cap.
 
 CI runs the same commands (`.github/`), on cadences set by a **free-tier
 budget** — 2000 Actions minutes/month on a private repo, billed per job
-rounded up, so an over-budget config buys a month with no CI rather than a
-bill. Per push: ruff + the fast suite on 3.13, Linux, skipped for docs-only
-pushes (5 billed min; docs-only pushes get `docs.yml`, 1 min, which runs
-`tests/test_docs_consistency.py`). Weekly: the full suite plus
-3.11/3.12/3.14 (55). Monthly: macOS and `[torch]` (66 — macOS bills at
-**10×**). **Before adding a job, price it**: the first version of this
-matrix cost 21 minutes per push and 1350 a month, which did not fit.
+rounded up (macOS at **10×**), so an over-budget config buys a month with no
+CI rather than a bill. Per push: ruff + the fast suite on 3.13, Linux,
+skipped for docs-only pushes and for a PR merge commit's push run (the
+pull_request run already tested that tree); docs-only pushes get `docs.yml`,
+which runs `tests/test_docs_consistency.py`. Weekly: the full suite plus the
+support-window edges 3.11/3.14. Monthly: `[torch]`; macOS is
+dispatch-only (the goldens' guard in `test_backend_shim.py` is the local
+half of that trade). **Before adding a job, price it** — the first version
+of this matrix cost 21 minutes per push, which did not fit. **Read spend
+from the Actions usage page or `gh run list`, never from comments or this
+file**: a written cross-workflow total rots — one sat at 303 against a
+measured ≈495.
 
 Two consequences for local work:
 

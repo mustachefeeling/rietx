@@ -4,13 +4,15 @@ name: monthly
 # this repo is private on a free plan: 2000 Actions minutes/month, and **macOS
 # bills at a 10x multiplier** — 5 wall-clock minutes there costs 50.
 #
-#   macOS (fast suite + goldens)   4:12 -> 5 min x10 = 50 billed, dispatch-only
-#   torch agreement matrix        15:59 -> 16 min x1 = 16 billed, on the cron
+#   macOS (fast suite + goldens)   ~4-7 min x10 (2026-07-29 -> 2026-08-06), dispatch-only
+#   torch agreement matrix         ~16 min x1, on the cron
 #
 # The scheduled run bills the torch line only; macOS runs when dispatched
 # (WP-1060 — grounds on the job).  Neither job
 # guards a fast-moving surface: the goldens' capture platform does not change,
-# and torch is an experimental backend, not a supported runtime.
+# and torch is an experimental backend, not a supported runtime.  No monthly
+# totals in comments — they rot; read spend from the Actions usage page or
+# `gh run list`.
 #
 # What each job is *for* — neither duplicates the weekly Linux run:
 #
