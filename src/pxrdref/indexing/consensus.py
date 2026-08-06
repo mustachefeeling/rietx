@@ -65,12 +65,11 @@ from .engines import (
     EngineResult,
     SearchSpec,
     dedup_groups,
-    effective_sigma_sys,
+    match_window,
     rank_candidates,
     to_cell_candidate,
 )
 from .fom import fom_panel_disagrees
-from .qspace import sigma_effective
 
 #: Candidates that get the **expensive** per-candidate checks — geometrical
 #: ambiguity (which enumerates 55 derivative lattices and predicts reflections for
@@ -215,9 +214,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # the same window the engines assigned with, re-derived from the same two
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
-    sigma_sys, _assumed = effective_sigma_sys(spec, quality)
-    q_match = sigma_effective(peaks.q_esd(), peaks.two_theta(),
-                              peaks.wavelength, sigma_sys)
+    q_match = match_window(peaks, spec, quality)
     ranked = rank_candidates(merged, peaks, k_sigma=spec.k_sigma,
                              n_unindexed=spec.n_unindexed,
                              max_candidates=spec.max_candidates

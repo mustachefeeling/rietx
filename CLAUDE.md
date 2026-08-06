@@ -49,12 +49,13 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
-— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — **on the
-tree with `main`'s WP-1041 merged in**.
+2026-08-06 at the **WP-1041** close, darwin/arm64 M4, worktree `indexer`, venv
+`[dev,jax]` — jax 0.11.0, **no torch** — **on the tree with `main`'s WP-1016
+merged in**. WP-1016's own `[dev]` figures (1727 / 108 fast) do not compare: the
+extras move ~40 rows from skip to pass, which is most of the skip column.
 
-- fast **1727 / 108** in **5:22**, full **1819 / 117** in **34:24**, both on this merged tree. The same fast selection read **3:07-4:11** pre-merge and the full one **24:13**, so quote the range and never the figure — 1041 measured the same file at 46:59 under load. **The parents' deltas do not sum**: 1016 added 19 test functions and 1041 net 11 against a measured +29 fast / +30 full over 1035's 1698 / 1789 — `test_indexing_plots.py` collects 4 items from 3 functions, so a `def test_` count is not a test count. The closing-sum check holds within one lineage; across a merge only the re-measurement counts (`tests/CLAUDE.md`).
-- frontend (vitest): **376** (347 at 1035), `svelte-check` clean, `test_gui_*.py` collect **104**; 1041 touched no `gui/` file, so the dist digest is unchanged.
+- fast **1800 / 67** in **2:49**, full **1901 / 72** in **48:59** — and that full figure is an **upper bound, not a measurement**: a second full suite from another session was running throughout, and comparable trees read 24-34 min uncontended. Quote the range, never the figure. **Across a merge only the re-measurement counts** (`tests/CLAUDE.md`); the within-merge sum does check out here (1041's pre-merge 1780 fast + 1016's 20 = 1800), but a `def test_` count is not a test count — `test_indexing_plots.py` collects 4 items from 3 functions.
+- frontend: `test_gui_*.py` collect **105** (10 + 4 + 8 + 83), measured here. vitest **376** and `svelte-check` clean are **inherited from WP-1016 unmeasured** — 1041 touched no `gui/` file and the dist digest is unchanged, so there is nothing for it to have moved.
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -614,9 +615,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
   inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice` *and its centring*, never sorted axes, or a correct answer in
-  another setting reads as a miss (WP-1040's monoclinic row) and a P description of
-  one cell reads as its own I truth (WP-1041's harness, on NAC).
+  `reduce.same_lattice`, *its centring*, **and the dataset's own accuracy band**,
+  never sorted axes. Drop any of the three and a wrong answer reads as right: sorted
+  axes miss a correct answer in another setting (WP-1040's monoclinic row), no
+  centring reads a P description as its own I truth (NAC), and `same_lattice` alone
+  falls back to a deliberately loose 5e-3 that calls FAP's +966 ppm leader and its
+  +258 ppm cross-code cell the same answer (WP-1041).
 - **Removing a redundant search must not remove its prunes**, and only real data will
   say that you did: the centred passes are redundant *as searches* (each centred trial
   set is a subset of the primitive one) and not as *filters*; the prunes being monotone
@@ -629,8 +633,12 @@ the v1.0 record's appendix ("the CLAUDE.md indexing dossier"), constants in `ind
   so a space-group extinction (corundum's R-3c c-glide) refutes a correct cell, and
   only the extinction screen separates the two. Choose acceptance datasets **by
   space group** — SRM 660c (P m -3 m) is the control that proved it.
-- The scoreboard across eight known-cell datasets is *never wrong, and silent more
-  often than right*; never round it up (counts: WP-1041).
+- The known-cell scoreboard is *never wrong, and silent more often than right* —
+  **never round it up**, and **keep the found-but-not-first bucket**: the truth *in
+  the list* under a wrong leader is what this package produces most, and collapsing
+  it into right-or-wrong is how the old board named nine datasets under a total of
+  eight. It is **generated** by `tests/indexing_gallery.py`, so re-measure by running
+  the suite; counts live in the v1.0 dossier, never retyped here (WP-1041).
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And

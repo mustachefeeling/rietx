@@ -309,6 +309,34 @@ def validate_by_lebail(candidate: CellCandidate, data: PatternData,
     picture asks for one, and every caller who wants a verdict is unaffected —
     ``index_pattern`` among them, which stores the verdict on the candidate.
 
+    **Le Bail and not Pawley, and the reason is discrimination rather than
+    parameter economy.**  The obvious argument — a candidate can predict 163
+    reflections on a 23-line pattern, so Pawley would refine more intensities
+    than there are lines — is true and is *not* the reason, because Pawley
+    handles it without complaint.  Measured on magnetite, where the correct cubic
+    **F** cell and its wrong primitive **P** rival share a metric:
+
+    =========  ==================  ==================
+    validator  correct F (52 hkl)  wrong P (163 hkl)
+    =========  ==================  ==================
+    Le Bail    Rwp **0.2545**      Rwp **0.7884**
+    Pawley     Rwp 0.1799          Rwp **0.1784**
+    =========  ==================  ==================
+
+    Le Bail separates them **3.1×**; Pawley ranks the *wrong* cell marginally
+    **better** and converges cleanly on both.  That is the whole argument: Le
+    Bail re-partitions the intensity that is *observed*, so a phantom reflection
+    can only ever be given intensity the pattern actually contains, while
+    Pawley's free parameters can manufacture whatever a phantom needs.  An
+    oversized cell therefore always wins on a Pawley Rwp, and the more oversized
+    it is the better it wins.  **A validator has to be constrained to be a
+    validator** — swapping in the more general fit destroys the test.
+
+    (It also sharpens the blind spot one rank down: on this pair
+    ``predicted_but_absent`` reads 2 for the correct cell and **0** for the wrong
+    one, so the detector is silent exactly where Rwp is decisive.  Read the two
+    together; neither alone is enough.)
+
     Single-phase by construction, and that is a measured constraint rather than a
     simplification: ``CompiledModel.lebail_update`` partitions
     ``max(y_obs − y_bkg, 0)`` per phase with nothing to arbitrate two phases

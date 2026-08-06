@@ -669,6 +669,36 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Diagnostics:** `INDEX_SHIFT_ALLOWANCE`
 
+#### `test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank`
+
+`characterisation` · dataset `srm660c` · survives 2 starts
+
+**Claims:** the contamination curve: k injected impurity lines cost the certified cell its GRADE by arithmetic long before they cost it its RANK
+
+**Referenced to:** Le Bail (2004) Powder Diffr. 19, 249 SS V states the fractions -- under 35 % impurity lines by number the correct cell is generally first, at 35-50 % it may be found but usually not first, provided impurity intensity stays under 15 %.  Coelho (2003) Table 6 is deliberately NOT the reference: its rates are over an ensemble of different structures in systems with three to six free metric parameters, this is one cubic lattice with one, and cubic does not appear in that table
+
+**Measured:** the truth indexes EXACTLY its own 25 lines at every k and never an injected one, so indexed_fraction is 25/(25+k) and the 0.9 bar falls between k = 2 (0.926, high) and k = 3 (0.893, low on indexed_fraction_low).  Rank is far more robust than grade, and how robust depends on a budget the user does not have -- first at k = 6/9/12/15/18 is 8/8, 8/8, 8/8, 2/8, 1/8 with n_unindexed = k and 8/8, 5/8, 2/8, 1/8, 0/8 with n_unindexed = 3 (eight seeds each).  The second column is the honest one and is the absolute budget showing as a contamination limit: when it misses it returns the truth NOWHERE, not second.  The first column is NOT monotone past k = 12 -- k = 21 returns 8/8 -- because M20 of the truth runs ~160, ~300, then 3-5 once more than twenty injected lines mean the first twenty of the list are mostly impurity, at which point the member is noise for every candidate alike
+
+#### `test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it`
+
+`characterisation` · dataset `qarr`
+
+**Claims:** the c-multiple supercells that WP-1026 measured ABOVE brucite's truth now sit below it, separated by the reversed coverage member alone
+
+**Referenced to:** A literature cell for the mineral (Zigan & Rothbauer, P -3 m 1, a = 3.142, c = 4.766 A), never a certificate for this specimen -- whose a sits +1750 ppm from it, 30x the goniometer-radius floor.  So the bar is 3e-3 and asserts lattice type and centring, never a ppm figure.  WP-1026's measurement was taken before WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third engine and WP-1041's dedup key, and was never a row, so it was never re-run
+
+**Measured:** truth ranked FIRST (was: every one of twelve candidates a supercell, c x 3.002 first, the truth in none of them).  a = 3.1475, c = 4.7698.  Forward coverage cannot separate them -- 31, 31 and 32 of 37 lines, the supercells indexing MORE -- while predicted_seen_fraction reads 0.86 against 0.43 and 0.32, near the exact 1/2 and 1/3 an exact supercell must give.  Still low on indexed_fraction_low (31/37) and predicted_but_absent (1 of 29, the 6_3 screw); best_or_none() returns None
+
+#### `test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival`
+
+`characterisation` · dataset `qarr`
+
+**Claims:** the panel ranks the cubic F truth first and the GATE grades it below its own primitive rival -- a measured inversion, not a tolerance
+
+**Referenced to:** A literature cell (F d -3 m, a = 8.3941 A), so 1e-3 and no ppm claim.  The inversion is referenced to nothing external: it is asserted structurally, as the presence of predicted_but_absent on the correct cell and its ABSENCE on the wrong one, with Rwp as the statistic that is not fooled
+
+**Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 21 of 23, so the reversed member is the whole separation.  The gate then gives F low and P medium: F d -3 m's d-glide refutes the CORRECT cell (2 of 52) while P's Le Bail fit predicts 163 reflections on a 23-line pattern and reports ZERO absent -- an extraction with seven free intensities per observed line puts intensity wherever it is asked.  Rwp 0.25 against 0.79.  best_or_none() returns None either way
+
 #### `test_the_unflagged_tail_components_escape_for_three_different_reasons`
 
 `characterisation` · dataset `srm660c`

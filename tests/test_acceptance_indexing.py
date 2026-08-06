@@ -76,6 +76,7 @@ from pxrdref.schemas.indexing import (
     PEAK_ASSUMED_ESD_DEG,
     PeakList,
 )
+from tests import indexing_gallery as gallery
 
 DATA = pathlib.Path(__file__).parent / "data"
 BENCH = DATA / "bethanechol_indexing.json"
@@ -215,40 +216,61 @@ def _qarr(name: str):
 def corundum_peaks():
     from pxrdref.indexing.pick import pick_peaks
     data, ins = _qarr("corundum.prn")
-    return pick_peaks(data, ins)
+    peaks = pick_peaks(data, ins)
+    gallery.draw("corundum_peaks", peaks=peaks, data=data,
+                 note="the phantom components are the faint ticks; they sit "
+                      "0.17-0.24 deg below a line more than 4x stronger")
+    return peaks
 
 
 def _index_corundum(peaks, **spec_kw):
+    """``(result, spec)`` — the spec travels because the gallery needs the window
+    the search matched in (``engines.match_window``)."""
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _qarr("corundum.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED,
                       **spec_kw)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec), spec
 
 
 @pytest.fixture(scope="module")
 def corundum_index(corundum_peaks):
     """Step 1 of the protocol: index with nothing declared. ~45-50 s."""
-    return _index_corundum(corundum_peaks), A_SRM676A, C_SRM676A
+    res, spec = _index_corundum(corundum_peaks)
+    data, ins = _qarr("corundum.prn")
+    gallery.draw("corundum", peaks=corundum_peaks, data=data, result=res,
+                 instrument=ins, spec=spec)
+    return res, A_SRM676A, C_SRM676A
 
 
 @pytest.fixture(scope="module")
 def corundum_index_with_shift(corundum_peaks):
     """Step 2: the same search with the shift template declared. ~45-50 s."""
-    return (_index_corundum(corundum_peaks, shift_template="cos_theta"),
-            A_SRM676A, C_SRM676A)
+    res, spec = _index_corundum(corundum_peaks, shift_template="cos_theta")
+    data, ins = _qarr("corundum.prn")
+    gallery.draw("corundum_shift", peaks=corundum_peaks, data=data, result=res,
+                 instrument=ins, spec=spec)
+    return res, A_SRM676A, C_SRM676A
 
 
 @pytest.fixture(scope="module")
 def qpa_mixture_index():
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.pick import pick_peaks
     data, ins = _qarr("cpd-1a.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(data=data, instrument=ins, spec=spec)
+    res = index_pattern(data=data, instrument=ins, spec=spec)
+    # this row hands ``index_pattern`` the *pattern* rather than a list, so the
+    # gallery picks the same lines the run picked rather than being handed them
+    gallery.draw("cpd1a", peaks=pick_peaks(data, ins), data=data, result=res,
+                 instrument=ins, spec=spec,
+                 note="three phases; no single lattice explains the list, and "
+                      "the tick rows are what that looks like")
+    return res
 
 
 # ----------------------------------------------------------------------
@@ -274,7 +296,8 @@ QARR_PHASES = {
 }
 
 
-def _index_qarr_phase(name: str, systems: tuple[str, ...]):
+def _index_qarr_phase(name: str, systems: tuple[str, ...],
+                      filename: str | None = None):
     """Index one pure phase over a **declared** subset of crystal systems.
 
     The restriction is not a shortcut, it is the price of the honest budget.
@@ -290,12 +313,15 @@ def _index_qarr_phase(name: str, systems: tuple[str, ...]):
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     from pxrdref.indexing.pick import pick_peaks
-    data, ins = _qarr(f"{name}.prn")
+    data, ins = _qarr(filename or f"{name}.prn")
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=systems, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw(name, peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec)
+    return res
 
 
 @pytest.fixture(scope="module")
@@ -309,6 +335,33 @@ def zircon_index():
     """Tetragonal **I** — the only row that recovers a centring.  Tetragonal
     only, which is also where its I-against-P comparison lives."""
     return _index_qarr_phase("zircon", ("tetragonal",))
+
+
+#: Brucite and magnetite, the two datasets WP-1026 **measured and did not land**.
+#: Their numbers have been quoted in three documents ever since, from a run that
+#: predates WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third
+#: engine and WP-1041's dedup key.  They are rows now, in their own groups, for
+#: the reason the no-silent-caps rule exists: a scoreboard whose two failures are
+#: prose is a scoreboard nothing reproduces.
+#:
+#: Literature cells, so ``consistency`` tier and never a ppm claim — brucite is
+#: the specimen this package learned that on, its *a* sitting **+1750 ppm** from
+#: Zigan & Rothbauer (1750 ppm is 30× the goniometer floor, and the search
+#: recovers 3.1475 against their 3.142, i.e. it reproduces the *specimen*).
+A_BRUCITE, C_BRUCITE = 3.142, 4.766          # Zigan & Rothbauer, P -3 m 1
+A_MAGNETITE = 8.3941                          # F d -3 m
+
+
+@pytest.fixture(scope="module")
+def brucite_index():
+    """Trigonal/hexagonal P from a lab pattern. ~100-210 s."""
+    return _index_qarr_phase("brucite", ("trigonal", "hexagonal"))
+
+
+@pytest.fixture(scope="module")
+def magnetite_index():
+    """Cubic **F**, and the pair that grades backwards. ~12 s."""
+    return _index_qarr_phase("magnetite", ("cubic",), filename="magnetit.prn")
 
 
 #: NAC (Na₂Ca₃Al₂F₁₄), the 11-BM synchrotron standard, cubic I2₁3 a = 10.2510.
@@ -331,7 +384,13 @@ def nac_index():
     spec = SearchSpec(systems=("cubic",), max_volume=1200.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return peaks, index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("nac", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="the unindexed observed lines on the top row are the CaF2 "
+                      "impurity, which is why this pattern's *correct* cell "
+                      "leaves 188 of them")
+    return peaks, res
 
 
 #: GSAS's own converged cell for `FAP.XRA` (`FAP.EXP`), which is the reference
@@ -365,7 +424,10 @@ def fap_index():
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=("hexagonal", "trigonal"), max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("fap", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec)
+    return res
 
 
 #: Budget for the unidentified-pattern search.  Deliberately small: the row
@@ -389,7 +451,11 @@ def hl2_index():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS,
                       budget_seconds=HL2_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    return peaks, index_pattern(peaks, spec=spec)
+    res = index_pattern(peaks, spec=spec)
+    # no ``data``: this row is a bare position list, which is what the stem plot
+    # in the peak figure shows and why there is no Le Bail panel to draw
+    gallery.draw("hl2", peaks=peaks, result=res, spec=spec)
+    return peaks, res
 
 
 @pytest.fixture(scope="module")
@@ -409,6 +475,10 @@ def qarr_fluorite():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
     res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("fluorite", peaks=peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="18 usable lines against PEAK_MIN_USABLE_LINES = 20 — the "
+                      "picture is the whole row, and there is nothing else to draw")
     return peaks, assess_peak_list(peaks), res
 
 
@@ -446,7 +516,12 @@ def lab6_peaks():
     """The picked line list, ~1 s.  Shared by the fast rows and the searches."""
     from pxrdref.indexing.pick import pick_peaks
     data, ins = _lab6_inputs()
-    return pick_peaks(data, ins)
+    peaks = pick_peaks(data, ins)
+    gallery.draw("lab6_peaks", peaks=peaks, data=data,
+                 note="the tail components this list carries are unflagged — they "
+                      "are among the solid ticks, not the faint ones, which is "
+                      "exactly why three rows exist about them")
+    return peaks
 
 
 def _cubic_positions(a: float, wavelength: float, two_theta_max: float
@@ -515,7 +590,13 @@ def lab6_index(lab6_peaks):
     data, ins = _lab6_inputs()
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    return index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+    gallery.draw("lab6", peaks=lab6_peaks, data=data, result=res, instrument=ins,
+                 spec=spec,
+                 note="rows 2 and 3 are both centrings of the a*sqrt(2) supercell, "
+                      "found by every engine — the tick rows are where an "
+                      "isospectral rival stops being an abstraction")
+    return res
 
 
 @pytest.fixture(scope="module")
@@ -544,7 +625,13 @@ def lab6_calibrated(lab6_peaks):
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=float(screen.allowance_deg))
-    return index_pattern(trimmed, data=data, instrument=ins, spec=spec), screen
+    res = index_pattern(trimmed, data=data, instrument=ins, spec=spec)
+    gallery.draw("lab6_calibrated", peaks=trimmed, data=data, result=res,
+                 instrument=ins, spec=spec,
+                 note=f"drawn on the *trimmed* list ({len(trimmed.usable())} usable "
+                      f"against {len(lab6_peaks.usable())}); the shift was measured "
+                      f"against the certificate, allowance {screen.allowance_deg:.4f} deg")
+    return res, screen
 
 
 # ----------------------------------------------------------------------
@@ -556,6 +643,36 @@ def test_every_set_is_twenty_ascending_lines(bench):
         tt = np.array(s["two_theta"])
         assert len(tt) == 20, name
         assert np.all(np.diff(tt) > 0), f"{name} is not ascending"
+
+    # the benchmark's picture, drawn from the row that proves the transcription:
+    # ten sets against the cell the paper solved, with the lines it cannot
+    # explain marked.  Those counts are the paper's own and are asserted three
+    # rows below — this is the same statement in a form a reader can scan.
+    gallery.draw_benchmark_sets(
+        "bethanechol",
+        {name: np.array(s["two_theta"]) for name, s in bench["sets"].items()},
+        {name: _predicted(bench, name) for name in bench["sets"]},
+        note="Rows: A/B are the two raw ICDD entries, C/D the same lines with "
+             "the paper's 0.100 deg zeroshift removed, E/F a synchrotron "
+             "remeasurement; the second letter marks the I >= 5 % intensity cut. "
+             "Red = a line the published cell cannot explain, i.e. an impurity. "
+             "Difficulty falls down the figure, and F (bottom, synchrotron, zero "
+             "unexplained) is the set the published cell was solved from. "
+             "THE SCORE IS NOT ASSERTED HERE -- a full run is ten sets x two "
+             "modes x three engines, ~20 min of pure search, which belongs in a "
+             "benchmark run and not in an acceptance suite. What one engine at a "
+             "30 s budget measured on 2026-08-06 is in WP-1043 -- a FLOOR of -16 "
+             "against a published bar of +9, so below the worst single program in "
+             "the table. The one result to carry here is the diagnosis, because "
+             "it is stable where that floor is not -- F is the set the published "
+             "cell was REFINED AGAINST, so its "
+             "lines reproduce that cell to 1 % of the matching window, and F is "
+             "the only set of the ten we solve. E is the same compound, also "
+             "impurity-free, whose lines reproduce it to 33 % of the window; all "
+             "twenty are inside the window and we still miss it. So what "
+             "separates our one success from our nine failures is neither the "
+             "impurities nor the tolerance: it is how exactly the answer "
+             "reproduces the few base lines an exact solve is built on.")
 
 
 @pytest.mark.parametrize("raw,corrected", [("Aa", "Ca"), ("Ab", "Cb"),
@@ -1090,6 +1207,139 @@ def test_a_centred_tetragonal_lattice_is_recovered_with_its_centring(zircon_inde
     assert res.best_or_none() is None
 
 
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-brucite")
+def test_the_supercells_that_used_to_outrank_brucite_now_sit_below_it(
+        brucite_index):
+    """WP-1026's first recorded failure, re-measured — and it is no longer one.
+
+    That session found **every one of twelve candidates a supercell**, with
+    c × 3.002 ranked first at ``predicted_seen_fraction`` = 0.333 (exactly ⅓, the
+    signature) and the true cell in none of them.  The measurement was left as
+    prose in three documents and never became a row, so it was never re-run
+    across WP-1030's prunes, WP-1039's search-line ordering, WP-1040's third
+    engine or WP-1041's dedup key.  Re-measured here: **the truth is ranked
+    first**, and the c × 2 and c × 3 supercells are still found and sit below it.
+
+    That is what a panel scored in both directions is supposed to do, and the
+    member that does it is visible in the numbers: the truth shows **0.86** of
+    its own predicted lines against the c × 2 cell's 0.43 and the c × 3 cell's
+    0.32 — very close to the 1/2 and 1/3 an exact supercell must give, which is
+    what makes it a signature rather than a threshold.  Forward coverage cannot
+    separate them at all: 31, 31 and 32 of 37 lines, i.e. the supercells index
+    *more*.
+
+    The cell recovered is the **specimen's**, not the mineral's: a = 3.1475
+    against Zigan & Rothbauer's 3.142 is +1750 ppm, 30× the goniometer-radius
+    floor, which is the measurement that made every round-robin row here assert
+    lattice type and centring and nothing in ppm.  So the band is 3e-3, and it
+    is a consistency check rather than an accuracy claim.
+
+    Still not promoted, on caveats that name something real: 31 of 37 lines is
+    under the 0.9 bar, and P 6/m m m predicts one reflection P -3 m 1's own
+    symmetry forbids.
+    """
+    res = brucite_index
+    assert res.candidates
+    best = res.candidates[0]
+
+    assert best.system in ("hexagonal", "trigonal") and best.centring == "P", (
+        f"ranked first: {best.system} {best.centring}")
+    assert abs(best.cell[0] / A_BRUCITE - 1.0) < 3e-3, best.cell[0]
+    assert abs(best.cell[2] / C_BRUCITE - 1.0) < 3e-3, best.cell[2]
+    # the specimen really is off the literature cell, in the direction recorded
+    assert best.cell[0] > A_BRUCITE, (
+        "brucite's specimen sits above Zigan & Rothbauer's a; if it no longer "
+        "does, the peak list moved, not the mineral")
+
+    # the supercells WP-1026 found *above* the truth are still in the list
+    supercells = [c for c in res.candidates[1:]
+                  if abs(c.cell[0] / best.cell[0] - 1.0) < 5e-3
+                  and c.cell[2] > 1.5 * best.cell[2]]
+    assert supercells, (
+        "no c-multiple supercell was returned at all — this row can no longer "
+        "say that the ranking puts them below the truth")
+    for cell in supercells:
+        ratio = cell.cell[2] / best.cell[2]
+        assert abs(ratio - round(ratio)) < 5e-3, ratio
+        # forward coverage does not separate them; the reversed member does
+        assert cell.n_indexed >= best.n_indexed - 1
+        assert (best.fom_value("predicted_seen_fraction")
+                > 1.5 * cell.fom_value("predicted_seen_fraction"))
+
+    assert best.confidence == "low"
+    assert res.best_or_none() is None
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-magnetite")
+def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
+        magnetite_index):
+    """WP-1026's other recorded failure — and the ranking is right where the
+    **gate** is backwards.
+
+    Re-measured, the cubic **F** truth is ranked first at −334 ppm and the
+    primitive description of the identical metric is second, which is the panel
+    working: ``predicted_seen_fraction`` reads 0.46 against 0.19, since three
+    quarters of what a P cell predicts on an F lattice is not there.
+
+    **The gate then grades them the wrong way round, and the mechanism is one
+    this package already documents at half strength.**  CLAUDE.md says to read a
+    ``predicted_but_absent`` firing as "this cell predicts lines the pattern
+    lacks" and never as "this cell is too big", because a *space-group*
+    extinction refutes a correct cell — F d -3 m's d-glide does exactly that
+    here, 2 of 52.  What is new is the other half: the P rival's Le Bail fit
+    predicts **163** reflections on a 23-line pattern and reports **zero**
+    absent, because a Le Bail extraction with seven free intensities per observed
+    line can put intensity wherever it is asked to.  So the detector fires on the
+    truth and is silent on the rival, and the rival ends **medium** where the
+    truth is **low**.
+
+    Rwp is not fooled — 0.25 against 0.79 — which is the case for reading the
+    detectors and the fit statistic together rather than either alone.  The gate
+    still abstains, so nothing wrong is returned; what this row pins is that the
+    *reason* it abstains is not the reason a reader would guess.
+    """
+    res = magnetite_index
+    assert res.candidates
+    best = res.candidates[0]
+
+    assert best.system == "cubic" and best.centring == "F", (
+        f"ranked first: {best.system} {best.centring}")
+    assert abs(best.cell[0] / A_MAGNETITE - 1.0) < 1e-3, best.cell[0]
+
+    rivals = [c for c in res.candidates[1:] if c.centring == "P"
+              and abs(c.cell[0] / best.cell[0] - 1.0) < 1e-3]
+    assert rivals, "the primitive description of the same metric was merged away"
+    rival = rivals[0]
+
+    # the panel ranks them right, on the reversed member
+    assert (best.fom_value("predicted_seen_fraction")
+            > 2.0 * rival.fom_value("predicted_seen_fraction"))
+    assert best.n_indexed == rival.n_indexed, (
+        "forward coverage should be identical — if it is not, this row is no "
+        "longer about the reversed direction")
+
+    # …and the gate grades them backwards, for the reason in the docstring
+    assert best.lebail is not None and rival.lebail is not None
+    assert best.lebail.predicted_but_absent > 0, (
+        "F d -3 m's d-glide should refute the *correct* cell here")
+    assert rival.lebail.predicted_but_absent == 0, (
+        f"{rival.lebail.predicted_but_absent} of "
+        f"{rival.lebail.n_reflections}: the over-parameterised Le Bail fit "
+        "should leave nothing detectably absent")
+    assert rival.lebail.n_reflections > 3 * best.lebail.n_reflections
+    assert rival.lebail.rwp > 2.0 * best.lebail.rwp, (
+        "Rwp is the statistic that is not fooled; if it were, this row would "
+        "be reporting a defect with no detector left")
+    assert "predicted_but_absent" in best.confidence_caveats
+    assert "predicted_but_absent" not in rival.confidence_caveats
+
+    # nothing wrong is returned either way
+    assert res.best_or_none() is None
+    assert rival.confidence != "high" and best.confidence != "high"
+
+
 def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
         nac_index):
     """The 11-BM synchrotron pattern **is** indexed as measured — by two engines.
@@ -1168,16 +1418,26 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
     # is written out because the margins are the argument (measured WP-1041):
     #
     #   member                        P        I     wins by
-    #   m20                       2.297    1.432    P, 1.6x
-    #   f_n                       8.571    6.685    P, 1.3x
+    #   m20                       2.596   1.5664    P, 1.7x
+    #   f_n                     10.5334   7.7884    P, 1.4x
     #   indexed_fraction          0.786   0.7825    P, 1.004x
     #   indexed_intensity_frac   0.9656   0.9655    P, 1.0001x
     #   predicted_seen_fraction   0.462   0.8352    I, 1.8x
-    #   m_rev                    0.6907    356.1    I, 516x
-    #   m_sym                     1.285      408    I, 318x
+    #   m_rev                    0.6907  356.131    I, 516x
+    #   m_sym                    1.4524  446.264    I, 307x
+    #
+    # **Re-measured on the merged tree** (WP-1041, task 6).  The first version of
+    # this table was measured before `main`'s WP-1035 was merged in and three of
+    # its seven rows had moved by up to 13 % — m20, f_n and m_sym, i.e. exactly
+    # the three that floor their discrepancy on sigma, and m20 and M-tilde by the
+    # *same* factor 1.130, which is what identifies the floor rather than the
+    # lattice as what moved.  The four window-dependent members did not move at
+    # all.  `tests/CLAUDE.md` says to re-measure after a merge and the counts were;
+    # a table inside a comment is a measurement too.  Nothing the table argues
+    # changed: still 4-3, still those two margins, still those two separations.
     #
     # `borda_scores` weighs every member alike, so P takes it 4-3 — on two
-    # margins of 0.4 % and 0.01 %, against separations of 516x and 318x the
+    # margins of 0.4 % and 0.01 %, against separations of 516x and 307x the
     # other way.  A near-tie counting as a full win *is* the defect; the panel
     # already holds the answer, which is the reversed-member behaviour
     # Oishi-Tomiyasu was adopted for, and Le Bail confirms it (I predicts 0 of
@@ -1223,11 +1483,18 @@ def test_the_cross_code_cell_is_found_but_not_ranked_first(fap_index):
     refinement suite's ±300 ppm, for the reason that constant records.
 
     The candidate that meets that band is present, is the one **both engines
-    agree on**, and indexes 181 of 185 lines: a = +232 ppm, c = +363 ppm.  It is
-    not ranked first.  Above it sits a cell 1218 ppm out that indexes *fewer*
-    lines (167) but scores a higher M₂₀ — the ordering M₂₀ produces when a
+    agree on**, and indexes 178 of 185 lines: a = +258 ppm, c = +325 ppm.  It is
+    **ranked fourth**.  Above it sit three cells 966-1396 ppm out that index
+    *fewer* lines (152) but score a higher M₂₀ — the ordering M₂₀ produces when a
     slightly wrong metric matches a subset of lines more tightly than the right
     one matches all of them.
+
+    (Re-measured on the merged tree, WP-1041 task 8.  The figures here were
+    +232/+363 ppm, 181 of 185, one leader at 1218 ppm indexing 167 — recorded
+    before ``main``'s WP-1035 was merged, like the NAC panel table above.  The
+    row's *assertions* did not move, because they were written about membership
+    and refusal rather than about rank, which is the point the next paragraph
+    makes and the reason this drift cost nothing.)
 
     So the assertion is deliberately about *membership and refusal*, not about
     rank: the correct cell is reachable, and the gate declines to hand back the
@@ -1501,6 +1768,19 @@ def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
     assert exceptions == 1, (
         f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
 
+    # the picture the generic renderers cannot draw, because these components
+    # are **unflagged** — plot_peak_list gives them the same tick as a real line,
+    # which is the finding.  What separates them is the signed distance to the
+    # certified lattice and the 90° crossover, so that is what is plotted.
+    tt = peaks.two_theta()
+    dev = _certified_deviation(peaks, tt)
+    gallery.draw_deviation(
+        "lab6_peaks", "certified_deviation", tt, dev, split_deg=90.0,
+        marked=np.abs(dev) >= LAB6_OFF_LATTICE_DEG,
+        marked_label="off-lattice component",
+        title="SRM 660c: signed distance to the nearest certified LaB6 line — "
+              "the real lines run +0.010 to +0.041°, the survivors −0.16 to +0.19°")
+
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_a_certified_shift_is_recovered_from_the_peak_list_alone(lab6_peaks):
@@ -1755,6 +2035,182 @@ def test_the_isospectral_rival_is_ranked_beside_the_truth(lab6_index):
         assert cand.confidence != "high"
         assert "geometric_ambiguity" not in cand.confidence_caveats
     assert res.best_or_none() is None
+
+
+#: The contamination sweep's grid.  Deliberately short — the row asserts a
+#: *shape* that the full curve (measured in the WP handover over eleven k and
+#: eight seeds) already established, and three of these four points are what
+#: bracket the knee.  Each run is a cubic-only LaB6 search, ~7 s.
+CONTAMINATION_KS = (0, 2, 3, 6)
+CONTAMINATION_SEEDS = (1000, 1001)
+#: Minimum separation (° 2θ) between an injected line and any certified
+#: position.  An "impurity" landing on a real line is not an impurity, and at
+#: 0.30° it is well clear of both the ~0.04° systematic and the ~0.09° FWHM.
+CONTAMINATION_MIN_SEP = 0.30
+
+
+def _contaminate(peaks, k: int, seed: int, allowed: np.ndarray):
+    """``(peak list, injected positions)`` — k lines no certified position explains.
+
+    Intensities are drawn from the **weaker half** of the observed lines, which
+    is what keeps the injected total inside Le Bail (2004) §V's stated regime
+    (impurity intensity < 15 % of the total); measured here it runs 0-18 % across
+    the grid, so the regime is reported rather than assumed.
+    """
+    rng = np.random.default_rng(seed)
+    tt_base, inten_base = peaks.two_theta(), peaks.intensity()
+    extra: list[float] = []
+    tries = 0
+    while len(extra) < k and tries < 6000:
+        tries += 1
+        x = float(rng.uniform(tt_base.min(), tt_base.max()))
+        if np.min(np.abs(allowed - x)) < CONTAMINATION_MIN_SEP:
+            continue
+        if extra and np.min(np.abs(np.array(extra) - x)) < CONTAMINATION_MIN_SEP:
+            continue
+        extra.append(x)
+    assert len(extra) == k, f"only placed {len(extra)} of {k} impurity lines"
+    weak = np.sort(inten_base)[: max(1, len(inten_base) // 2)]
+    extra_i = rng.choice(weak, size=k) if k else np.array([])
+    tt = np.concatenate([tt_base, np.array(extra)])
+    it = np.concatenate([inten_base, extra_i])
+    order = np.argsort(tt)
+    return PeakList.from_positions(
+        tt[order], peaks.wavelength, intensity=it[order],
+        two_theta_esd=float(np.median(peaks.two_theta_esd()))), np.array(extra)
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-lab6")
+def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
+        lab6_peaks):
+    """The contamination sweep: what k injected impurity lines actually break.
+
+    Coelho (2003) Table 6 and Le Bail (2004) §V both publish impurity-robustness
+    rates, and this package had **no real-data contamination measurement at all**
+    — three synthetic tests and an A/B control on ``n_unindexed``.  This row is
+    that measurement, on the one bundled list whose answer is certified.
+
+    **What breaks is the grade, and it breaks by arithmetic rather than by the
+    search failing.**  At every k on this grid the truth indexes *exactly* its own
+    25 lines and never an injected one, so ``indexed_fraction`` is 25/(25+k) by
+    construction — 1.00, 0.93, 0.89, 0.81 — and the 0.9 bar is crossed between
+    k = 2 and k = 3.  That is where ``high`` becomes ``low``, on
+    ``indexed_fraction_low``, while the *ranking* is untouched.  A reader who sees
+    the confidence fall should therefore look at how many lines are unexplained,
+    not at whether the cell is wrong.
+
+    **The rank is far more robust than the grade, and how robust depends on a
+    budget the user does not have.**  The full curve, eleven k and eight seeds
+    each, is in the WP-1041 handover.  Two protocols, because ``n_unindexed`` is
+    how many lines a candidate may leave unexplained and CLAUDE.md records that
+    it is *absolute*:
+
+    ======  ===========================  ===========================
+    k       first, ``n_unindexed`` = k   first, ``n_unindexed`` = 3
+    ======  ===========================  ===========================
+    6       8/8                          8/8
+    9       8/8                          5/8
+    12      8/8                          2/8
+    15      2/8                          1/8
+    18      1/8                          0/8
+    ======  ===========================  ===========================
+
+    The right-hand column is the experiment a user actually runs, since nobody
+    indexing an unknown phase knows k — and it is *the absolute budget showing up
+    as a contamination limit*, not a search weakness: told it may leave 3 lines
+    unindexed on a list carrying 12 impurities, the search cannot reach the
+    answer, and when it misses it returns the truth **nowhere** rather than
+    second (``found`` equals ``first`` in that column at every k).
+
+    **Do not read the left-hand column past k = 12 as robustness.**  It is not
+    monotone — k = 21 comes back 8/8 — and the mechanism is visible in M₂₀ of the
+    truth itself: ~160 at k = 15, ~300 at k = 18, and **3-5** at k = 21, once
+    more than twenty injected lines mean the first twenty of the contaminated
+    list are mostly impurity.  At that point M₂₀ is noise for every candidate
+    alike and the reversed members decide alone.  A curve that turns over because
+    a member stopped meaning anything is a measurement about the member.
+
+    **Against the published rates, one comparison is fair and one is not.**  Le
+    Bail's statement — under 35 % impurity lines by number the correct cell is
+    generally first, at 35-50 % it may be found but usually not first, provided
+    impurity intensity stays under 15 % — is about *fractions*, and the
+    budget-matched column lands on it exactly: 8/8 first at 32.4 % by number
+    (11-13 % by intensity), then 2/8 first but 8/8 still **found** at 37.5 %,
+    which is that sentence's second clause.  Coelho's Table 6 rates (3 lines →
+    84 % orthorhombic / 91 % monoclinic / 67 % triclinic) are **not** comparable
+    and must not be quoted beside these: they are success rates over an ensemble
+    of *different structures* in systems with three, four and six free metric
+    parameters, where this is one cubic lattice with **one**.  Cubic does not
+    appear in that table, and this row is not evidence about the systems that do.
+    """
+    from pxrdref.indexing import index_pattern
+    from pxrdref.indexing.engines import SearchSpec
+    from pxrdref.indexing.qspace import af_from_cell
+    from pxrdref.indexing.reduce import same_lattice
+
+    clean = _without_the_off_lattice_lines(lab6_peaks)
+    n_clean = len(clean.usable())
+    allowed = _cubic_positions(A_SRM660C, clean.wavelength, clean.two_theta_max)
+    af_truth = af_from_cell((A_SRM660C,) * 3 + (90.0, 90.0, 90.0))
+    # **The pattern is passed, and it has to be.**  Without it there is no
+    # whole-profile validation, every candidate is capped ``not_validated``, and
+    # the grade can never reach ``high`` for a reason that has nothing to do with
+    # contamination — which is how the first version of this row came to assert a
+    # knee it could not have observed.  The curve above was measured with
+    # validation on; the row runs the same protocol.
+    data, instrument = _lab6_inputs()
+
+    seen: dict[int, list[dict]] = {}
+    for k in CONTAMINATION_KS:
+        for seed in CONTAMINATION_SEEDS:
+            peaks, injected = _contaminate(clean, k, seed, allowed)
+            spec = SearchSpec(systems=("cubic",), max_volume=300.0,
+                              budget_seconds=REAL_DATA_BUDGET_SECONDS,
+                              n_unindexed=max(REAL_DATA_N_UNINDEXED, k))
+            res = index_pattern(peaks, data=data, instrument=instrument,
+                                spec=spec)
+            rank, truth = None, None
+            for i, c in enumerate(res.candidates):
+                if c.centring == "P" and same_lattice(np.asarray(c.af),
+                                                      af_truth)[0]:
+                    rank, truth = i + 1, c
+                    break
+            assert truth is not None, (
+                f"k={k} seed={seed}: the certified lattice is not in the list at "
+                f"all, over {len(res.candidates)} candidates")
+            seen.setdefault(k, []).append(
+                {"rank": rank, "n_indexed": truth.n_indexed,
+                 "n_lines": truth.n_lines,
+                 "confidence": truth.confidence,
+                 "caveats": set(truth.confidence_caveats),
+                 "injected": len(injected)})
+
+    for k, runs in seen.items():
+        for r in runs:
+            # the sharp one: an injected line is never absorbed into the cell
+            assert r["n_indexed"] == n_clean, (
+                f"k={k}: the truth indexed {r['n_indexed']} of {r['n_lines']} — "
+                f"it should index its own {n_clean} lines and no impurity")
+            assert r["n_lines"] == n_clean + k
+            assert r["rank"] == 1, f"k={k}: truth ranked {r['rank']}"
+
+    # …so the grade is decided by 25/(25+k) against the 0.9 bar, and nothing else
+    for k, runs in seen.items():
+        expected_high = n_clean / (n_clean + k) >= 0.9
+        for r in runs:
+            low_flag = "indexed_fraction_low" in r["caveats"]
+            assert low_flag is not expected_high, (
+                f"k={k}: indexed_fraction {n_clean}/{n_clean + k} = "
+                f"{n_clean / (n_clean + k):.3f} against the 0.9 bar, but "
+                f"indexed_fraction_low is {low_flag}")
+            assert (r["confidence"] == "high") is expected_high, (
+                f"k={k}: confidence {r['confidence']} with caveats {r['caveats']}")
+
+    # the knee is inside this grid, which is what makes the row a calibration
+    # rather than two anecdotes at the same grade
+    grades = {k: runs[0]["confidence"] for k, runs in seen.items()}
+    assert grades[0] == "high" and grades[max(CONTAMINATION_KS)] == "low", grades
 
 
 @pytest.mark.slow

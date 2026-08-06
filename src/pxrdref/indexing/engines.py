@@ -779,6 +779,24 @@ def indexes_the_search_lines(line_index: np.ndarray, search: np.ndarray,
     return hit >= len(search) - n_unindexed
 
 
+def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
+    """The σ(Q) the *search* matched with — the one authority, three callers.
+
+    ``q_esd`` is what the measurement resolves and this is what a line was
+    allowed to move by, and the two differ by the shift allowance
+    (:func:`effective_sigma_sys`).  Ranking, or drawing, in the tighter one
+    judges candidates by a criterion they were never selected under — the rule
+    ``fom.fom_panel`` states for ``q_match``, now stated once here so
+    :mod:`~pxrdref.indexing.consensus` and :mod:`pxrdref.viz.indexing` cannot
+    derive it two ways.
+    """
+    from .qspace import sigma_effective
+
+    sigma_sys, _assumed = effective_sigma_sys(spec or SearchSpec(), quality)
+    return sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
+                           sigma_sys)
+
+
 def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
     """(Q, 2θ) a candidate is **scored against** — corrected by its own shift.
 
@@ -1243,7 +1261,8 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
            "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
-           "estimate_ceiling", "indexes_the_search_lines", "refine_with_shift",
+           "estimate_ceiling", "indexes_the_search_lines", "match_window",
+           "refine_with_shift",
            "scored_positions", "search_line_order", "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",

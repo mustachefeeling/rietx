@@ -40,6 +40,25 @@ panels now share; `project.fitted_mask` likewise became a function beside the
 method. Freezing the method without the function would leave the shared authority
 un-frozen.
 
+**From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — two more
+surface changes, and unlike `log_sum_scores` below both are wired and load-bearing.**
+
+- **`pxrdref.indexing.engines.match_window(peaks, spec=None, quality=None)`** is a
+  new public export: the σ(Q) the *search* matched with, which is `q_esd` widened
+  by the shift allowance. It exists because `consensus` and `viz.indexing` were
+  deriving it two ways and the second was wrong. Freeze it as the **one authority**
+  — a third caller re-deriving it is the defect it was created to prevent.
+- **`viz.indexing.plot_candidates` gained `q_match=`**, defaulting to
+  `peaks.q_esd()`. The default is the identity when no allowance applies, so it is
+  backward compatible, but *a caller with a result in hand should always pass
+  `match_window`* — the default silently draws a figure whose legend contradicts
+  its own labels on any pattern carrying an allowance. If the freeze wants a
+  narrower surface, the alternative is to take the `IndexingResult` instead of the
+  window; either way the parameter cannot simply be dropped.
+
+`tests/indexing_gallery.py` is a test helper and deliberately **not** public
+surface, despite being the thing that generates the scoreboard.
+
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — one new public
 export that is deliberately unwired, and the freeze has to decide about it.**
 `pxrdref.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,

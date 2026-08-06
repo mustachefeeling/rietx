@@ -166,6 +166,91 @@ Rietveld ties intensities to atoms and has no such freedom.
 
 ### Inherited
 
+**From the WP-1041 gallery review, 2026-08-05 — a peak-picking defect found by
+LOOKING at the pictures, and it is a class rather than the one-off this repo has
+recorded twice.** The user read the picked-peak figures and asked whether the
+pattern's **rising left edge** is sometimes taken for a peak. Measured, on every
+bundled round-robin pattern (all start at 5.00° 2θ):
+
+| dataset | lowest picked line | gap from first channel | flags | on the known lattice? |
+|---|---|---|---|---|
+| brucite | 4.979° | −0.01 FWHM | `position_at_bound` | **no** |
+| corundum | 5.169° | 0.10 FWHM | **none** | **no** |
+| fluorite | 5.153° | 0.11 FWHM | **none** | **no** |
+| magnetite | 5.706° | 0.31 FWHM | `position_at_bound` | **no** |
+
+Four of six, and **all four reach `PeakList.usable()`** — `position_at_bound` is
+not in `PEAK_UNUSABLE_FLAGS`, and two of them carry no flag at all. The two
+patterns that escape (zincite, zircon) are the two whose first real line is far
+from the start; LaB6 escapes because its data begins at 20.3°, not because the
+picker is better there.
+
+The cause is already named in the codebase for the corundum case — the background
+is a rolling low quantile (`background.background_envelope`) and *cannot be
+estimated at the first channel*, so a monotonic rise reads as prominence over an
+extrapolated flat background. What is new is that it was recorded as one dataset's
+artifact (sized into `REAL_DATA_N_UNINDEXED = 3`) when it is a **property of any
+pattern whose first channel is on a rising edge**.
+
+Why it is filed here and not fixed in 1041: it is a library behaviour change on
+the path every external pattern takes, it would move acceptance numbers on four
+datasets, and 1041 was closing. **Do not simply crop the pattern** — that discards
+a real low-angle line on a specimen that has one.
+
+**The fix is decided and measured (user's call, 2026-08-06: "prefer simple and
+robust"). Repair the envelope, then flag what survives — not an edge guard.**
+
+The cause is one line of `background.background_envelope`: each knot's x is its
+window's **centre**, so the first knot sits half a window (~1.5°) inside the data
+and `np.interp` **clamps flat** below it. Against a falling background the clamp
+sits far under the truth, and the whole first 1.5° reads as positive net. It is a
+flat-extrapolation artifact, not a threshold that needs raising: on all seven
+round-robin patterns `y[0]` is 1.5-2× `env[0]`, putting z = 4.7-6.9σ on the first
+channel against a 5σ bar.
+
+So anchor one extra knot at each **data edge**, linearly extrapolated from the two
+nearest — four lines, no new tunable. Measured across the seven: false edge lines
+**5 → 1**, and **no line away from the edge is lost on any pattern** (zincite
+50→50, zircon 50→50, cpd-1a 34→34; the rest fall by exactly their artifact count).
+Brucite's survivor drops 6.07σ → 5.01σ. An edge guard was rejected for scoring the
+same on the artifacts and worse on a genuine first line, which it cannot tell apart.
+
+Then the second half, and it is the half that generalises: a line inside the span
+where the envelope is **extrapolated rather than interpolated** is standing on a
+background nobody measured, so it carries a flag saying exactly that. Report, do
+not refuse ([1043](1043-agent-and-human-indexing.md)) — these components are real
+intensity, just not lines, and the consumer that can weigh that should be given
+the chance. `position_at_bound` is not the flag to reuse: it caught two of the
+five and means something else.
+
+*Method note worth keeping: this was found by eye, in one figure, after every
+green test had missed it. It is the argument for the gallery existing.*
+
+**From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — indexing
+robustness under contamination is now measured, so do not re-derive it, and one
+result changes what "survives a stranger's pattern" means for the gate.**
+
+A sweep injecting k impurity lines into the certified LaB6 list is
+`test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank`. Two
+things transfer to this WP:
+
+- **What contamination breaks is the *grade*, not the answer, and by arithmetic.**
+  The truth indexes exactly its own 25 lines at every k and never an injected one,
+  so `indexed_fraction` = 25/(25+k) and the 0.9 bar falls between k = 2 and k = 3.
+  A stranger's pattern with a few extra lines therefore drops to `low` on
+  `indexed_fraction_low` while the cell is still right and still first. That is
+  worth a diagnostic-wording check when you write yours: the caveat names the
+  symptom, not the cause.
+- **The real limit is `n_unindexed`, and it is an absolute budget.** Told it may
+  leave 3 lines unindexed on a list carrying 12 impurities, the search returns the
+  truth **nowhere** rather than second — first-rank rate 8/8 at k = 6, 5/8 at 9,
+  2/8 at 12, 0/8 at 18. A stranger's multi-phase pattern is exactly this case, and
+  the fix is not a tolerance.
+
+Also relevant to "no silent stall": the whole indexing acceptance suite is 41 rows
+and 22-26 min, and its budgets are runaway guards with ≥8× headroom measured, not
+timers.
+
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — your §"the payoff"
 paragraph is half withdrawn, and the σ_sys item you were filed is unchanged.**
 `best_or_none()` no longer returns a cell on the calibrated LaB6 protocol: it did
