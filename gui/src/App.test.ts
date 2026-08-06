@@ -497,7 +497,7 @@ function server(routes: Record<string, (call: Call) =>
 
 /** The routes a mounted shell asks for before anyone has clicked anything.
  *
- * `appUi` is the *person's* settings store (WP-1043), which is a different
+ * `appUi` is the *person's* settings store (WP-1044), which is a different
  * scope from `project.doc.ui` and answers a different question — the theme is
  * about the screen, a column width is about the project. */
 function boot(project: any = PROJECT, run: any = IDLE_RUN,
@@ -1365,14 +1365,14 @@ describe("disclosure and the command palette", () => {
     // …and `color-scheme` with it, which is what the unstyled native controls read
     expect(document.documentElement.style.colorScheme).toBe("dark");
 
-    // …to the *app's* settings, not the project's (WP-1043)
+    // …to the *app's* settings, not the project's (WP-1044)
     const post = stub.calls.find((call) => call.method === "POST" && call.path === "/api/settings");
     expect(post?.body).toEqual({ ui: { theme: "dark" } });
     expect(stub.calls.some((call) => call.method === "POST" && call.path === "/api/project"))
       .toBe(false);
   });
 
-  it("restores the person's theme, and the project has no say in it (WP-1043)", async () => {
+  it("restores the person's theme, and the project has no say in it (WP-1044)", async () => {
     // The defect: `readUi` re-read the choice off whichever document was open,
     // so a project that had never been told reset it — measured in Chrome,
     // choosing dark and opening a second project came back `system`. The
@@ -3001,7 +3001,7 @@ describe("what is fitted, shaded and selectable (WP-1033)", () => {
   });
 });
 
-describe("the view survives a redraw (WP-1043)", () => {
+describe("the view survives a redraw (WP-1044)", () => {
   /** plotly's own record of where the axes are, which jsdom has no layout to
    *  build.  `autorange: false` is what plotly writes on a zoom or pan drag,
    *  and it is the whole question this panel asks the library. */

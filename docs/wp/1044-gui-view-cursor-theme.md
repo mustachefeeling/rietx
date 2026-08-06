@@ -1,4 +1,4 @@
-# WP-1043 — GUI defects found by use: the view, the armed cursor, the theme
+# WP-1044 — GUI defects found by use: the view, the armed cursor, the theme
 
 Milestone: v1.0 · Status: ✅ 2026-08-06 — all four landed, each against a browser
 measurement; three of the four reports named a cause and only one was right

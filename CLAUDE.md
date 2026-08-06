@@ -49,12 +49,12 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-06 at the **WP-1043** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
+2026-08-06 at the **WP-1044** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
 — **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — on
-`main` (which now carries 1016 and 1041) plus 1043.
+`main` (which now carries 1016 and 1041) plus 1044.
 
-- fast **1729 / 108** in **5:04**, full **1821 / 117** in **37:14**. 1043 added exactly two tests and **passed+skipped moved by exactly two in both selections** against 1016's 1727 / 108 and 1819 / 117 — the closing-sum check, holding within one lineage. Both were measured with a **second full suite running in another worktree**, which is what the range rule is about: the same fast selection read 5:22 at 1016 and **3:07-4:11** before that merge, and the full one 34:24 and 24:13, while 1041 measured one file at 46:59 under load. Quote the range, never the figure. (Across a *merge* the deltas do not sum at all and only a re-measurement counts — `tests/CLAUDE.md`.)
-- frontend (vitest): **390** (376 at 1016 — 1043 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** (105 before 1043's two; the 1016 line said 104, which this re-measurement corrects — `def test_` counts and collected counts are different numbers).
+- fast **1729 / 108** in **5:04**, full **1821 / 117** in **37:14**. 1044 added exactly two tests and **passed+skipped moved by exactly two in both selections** against 1016's 1727 / 108 and 1819 / 117 — the closing-sum check, holding within one lineage. Both were measured with a **second full suite running in another worktree**, which is what the range rule is about: the same fast selection read 5:22 at 1016 and **3:07-4:11** before that merge, and the full one 34:24 and 24:13, while 1041 measured one file at 46:59 under load. Quote the range, never the figure. (Across a *merge* the deltas do not sum at all and only a re-measurement counts — `tests/CLAUDE.md`.)
+- frontend (vitest): **390** (376 at 1016 — 1044 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** (105 before 1044's two; the 1016 line said 104, which this re-measurement corrects — `def test_` counts and collected counts are different numbers).
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
@@ -203,7 +203,7 @@ separate arms (`result` / `series` / `indexing`) because they are different
 
 ### GUI
 
-The **GUI** (WP-1008…1016, 1029, 1032-1035, 1043) is `pxrdref gui [PROJECT.pxrd]`
+The **GUI** (WP-1008…1016, 1029, 1032-1035, 1044) is `pxrdref gui [PROJECT.pxrd]`
 — stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
 — the session/wire split, the server contract, the `.pxt` document, the editors,
 the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
@@ -213,7 +213,7 @@ structurally); the **run state is not an event** — `EventKind` is closed, and
 `live/events.jsonl` stays the one stream `watch` tails; and a **project** setting
 is one that is about *the project* — the theme is the person's and lives in
 `/api/settings` beside the recent list, which is also why it is not behind the
-409 (WP-1043).
+409 (WP-1044).
 
 ## Invariants (do not break)
 - **Frozen-per-stage discreteness**: the hkl list, symmetry-op subsets, FCJ

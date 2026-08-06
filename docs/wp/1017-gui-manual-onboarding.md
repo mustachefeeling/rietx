@@ -39,7 +39,7 @@ real UI.
 
 ### Inherited
 
-From **[1043](1043-gui-view-cursor-theme.md)**, 2026-08-06 — **three sentences
+From **[1044](1044-gui-view-cursor-theme.md)**, 2026-08-06 — **three sentences
 in this manual are now wrong, and one gesture wants documenting.**
 
 - **The theme is not a project setting.** It lives in the app's own store

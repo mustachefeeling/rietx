@@ -88,7 +88,7 @@ export const api = {
   version: () => call("GET", "/api/version"),
   recent: () => call("GET", "/api/recent"),
 
-  /** The app's own `ui` keys — the person's, not a project's (WP-1043).  Same
+  /** The app's own `ui` keys — the person's, not a project's (WP-1044).  Same
    *  grammar as `patchProject`'s `ui`: a top-level merge, `null` drops a key,
    *  and it persists on the verb rather than on a save. */
   settings: () => call("GET", "/api/settings"),

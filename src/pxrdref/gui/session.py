@@ -422,7 +422,7 @@ class GuiSession:
         """The **app's** own `ui` keys — the ones that belong to the person.
 
         A second `ui` dict, deliberately, and the line between the two is what
-        the key is *about* (WP-1043).  A column width, Simple/Advanced, a stored
+        the key is *about* (WP-1044).  A column width, Simple/Advanced, a stored
         splitter position are facts about a project: it has four phases, so the
         table wants to be wide.  A theme is a fact about the person and the room
         they are in, and `ProjectDoc.ui` gave the wrong answer for it — measured,

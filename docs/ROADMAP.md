@@ -55,7 +55,7 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Last closed: [1043](wp/1043-gui-view-cursor-theme.md), 2026-08-06** — four
+**Last closed: [1044](wp/1044-gui-view-cursor-theme.md), 2026-08-06** — four
 defects reported from use, of which the two that read as unrelated were one
 sentence of plotly's autorange: a redraw carried no `range`, so it re-autoranged
 over the peak markers and the mask shapes, which span the *whole pattern*. Hence
@@ -66,7 +66,7 @@ moved to `/api/settings`, out of the mutating-verb 409 with it. Before it,
 drivable from the GUI, built on **a smooth curve is exactly what a poisoned chain
 produces**; the series lives *beside* the project, persistence deferred to
 **1003**. The GUI is complete but for [1017](wp/1017-gui-manual-onboarding.md),
-whose `### Inherited` now carries three sentences 1043 made wrong.
+whose `### Inherited` now carries three sentences 1044 made wrong.
 
 **In flight: [1041](wp/1041-indexing-benchmark-gallery.md)** — the gallery, opened
 by clearing its inherited defects (one shared `engines.solution_key`, an opt-in
@@ -78,10 +78,10 @@ range; `fom.log_sum_scores` ships tested and unwired. Open: tasks 5-9.
 scoreboard.
 
 Narratives: [milestones/v1.0.md](milestones/v1.0.md). Twelve sessions running
-(1030 → … → 1041, 1016, 1043): **instrument before ranking, and let the by-hand
+(1030 → … → 1041, 1016, 1044): **instrument before ranking, and let the by-hand
 run judge** — 1041 is the sharpest case, two green tests asserting what a filter's
 own artefacts produced. **A prediction is not a measurement**, 1016 adds the
-inverse (**nor is an inherited claim**), and 1043 adds the third: **nor is a
+inverse (**nor is an inherited claim**), and 1044 adds the third: **nor is a
 reported cause** — three of its four defects named one, and only one was right.
 
 **Queue** (ordering arguments in the v1.0 tables below):
@@ -209,7 +209,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1033](wp/1033-plot-range-regions.md) | 2θ limits and excluded regions, visible and selectable | ✅ 2026-08-05 | **1032** (same file), 1005, 1009 |
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
-| [1043](wp/1043-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
+| [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
 | [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |

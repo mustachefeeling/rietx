@@ -281,7 +281,7 @@ describe("which curves are drawn (WP-1032)", () => {
   });
 });
 
-describe("handing the view back (WP-1043)", () => {
+describe("handing the view back (WP-1044)", () => {
   const LIVE = { yaxis: true, yaxis2: true };
   const full = (over: Record<string, any> = {}) => ({
     xaxis: { autorange: false, range: [9.97, 14.66] },

@@ -203,7 +203,7 @@
   /** The `ui` keys this frontend owns, read back off the document it saved them
    *  to — one place, so a new key cannot be persisted and then never restored.
    *
-   *  The theme is **not** among them and that is the point (WP-1043): these are
+   *  The theme is **not** among them and that is the point (WP-1044): these are
    *  facts about a project (it has four phases, so the table wants to be wide),
    *  and re-reading a theme per project is what made choosing dark last until
    *  the next `Open…`. It lives in `/api/settings`, loaded once at boot. */
@@ -463,7 +463,7 @@
     return THEME_CHOICES[(THEME_CHOICES.indexOf(themeChoice) + 1) % THEME_CHOICES.length];
   }
 
-  /** The app's own `ui` keys — the person's, not a project's (WP-1043).
+  /** The app's own `ui` keys — the person's, not a project's (WP-1044).
    *
    *  Applied before it is sent, and a refusal costs the *persistence* rather
    *  than the choice: the state directory may be read-only (the server treats
@@ -590,7 +590,7 @@
       version = await api.version();
       capabilities = await api.capabilities();
       // the person's settings, before the project's: the theme is applied on
-      // the first paint rather than after one in the wrong one (WP-1043)
+      // the first paint rather than after one in the wrong one (WP-1044)
       try {
         themeChoice = readChoice((await api.settings()).ui?.theme);
       } catch {
@@ -711,7 +711,7 @@
       </div>
     {/if}
     <!-- outside the `{#if project}` above, because a theme is not the
-         project's (WP-1043): the empty state is a screen too, and it is the
+         project's (WP-1044): the empty state is a screen too, and it is the
          one a first-time user starts on -->
     <div class="segmented theme" role="group" aria-label="theme">
       {#each THEME_CHOICES as choice (choice)}

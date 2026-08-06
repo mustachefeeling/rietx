@@ -446,7 +446,7 @@ per column — core 308 px, detail 231 — reflowed by `lib/resize.ts:seriesComp
 beside `modelStacks`, because the reorder buttons are the last column and the
 panel's main verb.
 
-**The view, the armed cursor and the theme's scope** (WP-1043,
+**The view, the armed cursor and the theme's scope** (WP-1044,
 `lib/plot.ts:heldRanges`, `Plot.svelte`, `session.settings`) is the pass that
 answered four defects reported from use, and three rules came out of it. **A
 redraw is not a reason to move the axes** — `react` gets a layout with no

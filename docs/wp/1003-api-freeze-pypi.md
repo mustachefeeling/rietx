@@ -52,7 +52,7 @@ measurement tool, make it private, or land a successor aggregate first — but i
 must not be frozen *by accident* as a supported ranking API, because it is not
 the ranking. Same question, smaller: the constants are exported beside it.
 
-**From [1043](1043-gui-view-cursor-theme.md), 2026-08-06 — one new route pair,
+**From [1044](1044-gui-view-cursor-theme.md), 2026-08-06 — one new route pair,
 and the `ui`-only question below is now smaller rather than open.** `GET`/`POST
 /api/settings` is the **app's** `ui` dict, in `state_dir/settings.json` beside
 `recent.json`, with `POST /api/project`'s exact grammar at app scope (top-level

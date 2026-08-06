@@ -8,7 +8,7 @@
  * silently mean "override until the next sunset".
  *
  * The choice is persisted on the verb (WP-1005) like every other GUI setting,
- * but **not in the project** (WP-1043): it goes to `/api/settings`, the app's
+ * but **not in the project** (WP-1044): it goes to `/api/settings`, the app's
  * own `ui` dict in the state directory beside the recent list.  It landed in
  * `ProjectDoc.ui` first, and that made `readUi` re-read it per project — so
  * choosing dark and opening a second project came back `system`, measured in a

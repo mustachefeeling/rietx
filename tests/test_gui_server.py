@@ -250,7 +250,7 @@ def app_settings(tmp_path):
 
 def test_app_settings_are_the_persons_and_outlive_the_project(app_settings, tmp_path,
                                                               pattern_file):
-    """WP-1043 — `/api/settings` is a second `ui` dict, at app scope.
+    """WP-1044 — `/api/settings` is a second `ui` dict, at app scope.
 
     The line between the two is what the key is *about*: a column width is a
     fact about a project (it has four phases), a theme is a fact about the
@@ -1896,7 +1896,7 @@ def test_mutating_verbs_refuse_while_a_run_is_in_flight(blocked):
     assert params["live"] is True
     assert client.get("/api/history")[0] == 200
 
-    # The app's own settings are **not** among them (WP-1043), and that is the
+    # The app's own settings are **not** among them (WP-1044), and that is the
     # finding WP-1029 recorded and could not fix from inside `POST /api/project`:
     # a theme is not model state, so refusing it mid-run with "this verb would
     # change the model a compiled stage was built from" was both a refusal
