@@ -124,6 +124,11 @@ row for the same region; the armed cursor is `col-resize` and returns to
   `test_gui_server.py` +2 and its in-flight 409 row now also says what is *not*
   refused.
 
+  **Measured green on the final tree**: fast **1729 / 108** in 5:04, full
+  **1821 / 117** in 37:14 (venv `[dev]`, no jax/torch, with a second full suite
+  running in another worktree — so the wall clock is a range, not a figure).
+  Passed+skipped moved by exactly the two tests added, in both selections.
+
   **Gotchas for whoever is next in this file.**
   - **The fixture's fit is in memory.** A freshly opened `.pxrd` has no result,
     so the plot draws the *raw* pattern — where the relayout handler returns

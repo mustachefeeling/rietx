@@ -49,12 +49,12 @@ the dated measurement diary in `docs/milestones/v1.0.md` § Appendix:
 ### Current numbers
 
 Replaced at every handover, never appended (history: the v1.0 appendix). Measured
-2026-08-05 at the **WP-1016** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
-— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — **on the
-tree with `main`'s WP-1041 merged in**.
+2026-08-06 at the **WP-1043** close, darwin/arm64 M4, `worktree-gui`, venv `[dev]`
+— **no jax, no torch**, so WP-1041's `[dev,jax]` figures do not compare — on
+`main` (which now carries 1016 and 1041) plus 1043.
 
-- fast **1727 / 108** in **5:22**, full **1819 / 117** in **34:24**, both on this merged tree. The same fast selection read **3:07-4:11** pre-merge and the full one **24:13**, so quote the range and never the figure — 1041 measured the same file at 46:59 under load. **The parents' deltas do not sum**: 1016 added 19 test functions and 1041 net 11 against a measured +29 fast / +30 full over 1035's 1698 / 1789 — `test_indexing_plots.py` collects 4 items from 3 functions, so a `def test_` count is not a test count. The closing-sum check holds within one lineage; across a merge only the re-measurement counts (`tests/CLAUDE.md`).
-- frontend (vitest): **376** (347 at 1035), `svelte-check` clean, `test_gui_*.py` collect **104**; 1041 touched no `gui/` file, so the dist digest is unchanged.
+- fast **1729 / 108** in **5:04**, full **1821 / 117** in **37:14**. 1043 added exactly two tests and **passed+skipped moved by exactly two in both selections** against 1016's 1727 / 108 and 1819 / 117 — the closing-sum check, holding within one lineage. Both were measured with a **second full suite running in another worktree**, which is what the range rule is about: the same fast selection read 5:22 at 1016 and **3:07-4:11** before that merge, and the full one 34:24 and 24:13, while 1041 measured one file at 46:59 under load. Quote the range, never the figure. (Across a *merge* the deltas do not sum at all and only a re-measurement counts — `tests/CLAUDE.md`.)
+- frontend (vitest): **390** (376 at 1016 — 1043 added 6 pure and 6 panel), `svelte-check` clean, `test_gui_*.py` collect **107** (105 before 1043's two; the 1016 line said 104, which this re-measurement corrects — `def test_` counts and collected counts are different numbers).
 - **A module-level `importorskip` collapses its module into one skip**, so
   `--collect-only` undercounts and passed+skipped is venv-dependent (`tests/CLAUDE.md`).
 
