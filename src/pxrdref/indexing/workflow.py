@@ -175,7 +175,15 @@ def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
     Chebyshev model, so a sloping background is not mistaken for intensity.  The
     same fact is the test's limit — a badly-fitted background makes the count
     unreliable, which is why the module docstring reads the count beside Rwp
-    rather than alone.
+    rather than alone.  **Measured how bad that gets** (WP-1043, magnetite's P
+    rival): the count's inputs are the *candidate's own fit's* to buy, and a
+    wrong candidate needing intensity under 163 predicted reflections bought it
+    by driving the co-refined background **negative** (mean −11 counts —
+    nothing floors it at the physical zero), at which point net cleared 3σ at
+    every channel and zero of 163 read absent; with the correct candidate's
+    background under the same positions, 8-14 absences return.  The acceptance
+    row regenerates that pathology, and the repair direction — inputs the
+    candidate cannot buy — is recorded there, with an Rwp ratio ruled out.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     net = np.asarray(y_obs, dtype=np.float64) - np.asarray(y_background,

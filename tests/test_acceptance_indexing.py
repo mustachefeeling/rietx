@@ -1322,15 +1322,26 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     truth and is silent on the rival, and the rival ends **medium** where the
     truth is **low**.
 
-    Rwp separates the pair where the detector does not — 0.25 against 0.79 — and
-    the row pins that separation **as an unexplained fact, not as a discriminator
-    to rank on**.  It should not be read as "Rwp is the trustworthy one": a Le
-    Bail Rwp rewards flexibility, which is why WP-1020 kept ``lebail_rwp`` off
-    the FoM panel, and the direction here is the opposite of what that predicts.
-    Something in this fit — the freed background and widths are the untested
-    suspects — is paying for 163 reflections; until that is measured (WP-1043),
-    what the pair demonstrates is that the **detector** is blind here, and the
-    honest use of the Rwp is as one more thing a reader is shown.
+    **Measured (WP-1043): the detector's inputs are the candidate's to buy,
+    and the background is the one it buys.**  The validation frees the
+    background with no physical floor, and the rival's own fit drives it
+    **negative** — mean −11 counts on a pattern whose 5th percentile is 9 — so
+    net-above-background clears 3σ at 100 % of channels and nothing can read
+    absent.  The decomposition is a 2×2 swap: with the *truth's* background
+    under the rival's positions the absences return (8 of 163 at the fit's
+    widths, 14 at the peak list's measured 0.54°, both fits also inflating
+    their width terms 2-3× against a bound), while swapping widths alone
+    restores none — the background dominates, and the sign is the finding:
+    the WP guessed "a raised background", but a raised background makes
+    *more* absences, not fewer.  The formerly unexplained Rwp separation
+    (0.25 against 0.79) is the same fact seen by a different instrument — the
+    corrupted fit that blinds the detector is the fit Rwp reads — which is
+    why surfacing Rwp to a reader is honest while wiring an Rwp ratio into
+    the gate stays ruled out (WP-1020: a Le Bail Rwp rewards flexibility).
+    And a repaired detector would read **14 of 163** here, not "most of 163":
+    on a lab pattern this flat-poor the count separates the pair without
+    slamming it, a bound worth knowing before anyone redesigns the detector
+    around this row.
 
     The gate still abstains, so nothing wrong is returned; what this row pins is
     that the *reason* it abstains is not the reason a reader would guess.
@@ -1365,9 +1376,26 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         "should leave nothing detectably absent")
     assert rival.lebail.n_reflections > 3 * best.lebail.n_reflections
     assert rival.lebail.rwp > 2.0 * best.lebail.rwp, (
-        "the unexplained separation this row pins — see the docstring; it is "
-        "not a licence to rank on a Le Bail Rwp")
+        "the separation the docstring explains — same root cause as the "
+        "detector's blindness, and not a licence to rank on a Le Bail Rwp")
     assert "predicted_but_absent" in best.confidence_caveats
+
+    # the mechanism, regenerated rather than quoted (WP-1043): re-fit the
+    # rival and read the background its own validation bought
+    from pxrdref.indexing.pick import pick_peaks
+    from pxrdref.indexing.workflow import validate_by_lebail
+    data, ins = _qarr("magnetit.prn")
+    peaks = pick_peaks(data, ins)
+    _val, rival_fit = validate_by_lebail(rival, data, ins, peaks=peaks,
+                                         with_result=True)
+    bkg = np.asarray(rival_fit.y_background)
+    net = np.asarray(rival_fit.y_obs) - bkg
+    assert bkg.mean() < 0.0, (
+        f"the bought input: the rival's co-refined background should sit "
+        f"below zero (measured mean −11 counts), got {bkg.mean():.1f}")
+    assert np.mean(net > 3.0 * np.asarray(rival_fit.sigma)) > 0.99, (
+        "with a negative background every channel reads as net intensity, "
+        "and a detector asking 'is there nothing here' can never fire")
     assert "predicted_but_absent" not in rival.confidence_caveats
 
     # nothing wrong is returned either way

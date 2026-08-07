@@ -296,7 +296,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       owner. matplotlib at the API like `plot()`; the GUI panel (WP-1045)
       consumes the same per-candidate data, where the two plotly esd facts
       above apply.
-- [ ] **Find why the detector is blind on magnetite's rival, and do not reach for
+- [x] **Find why the detector is blind on magnetite's rival, and do not reach for
       Rwp instead.** `predicted_but_absent` reads **0 of 163** on a cell whose
       reflections mostly fall where the pattern is flat; that number should be
       large, so the detector — not the fit statistic — is what is broken here.
@@ -310,6 +310,22 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       flexibility*, and CLAUDE.md forbids an Rwp comparison as a correction's
       evidence. Surfacing it to a reasoner (above) is a different act from
       scoring on it.
+      **Measured 2026-08-07, and the sign is the finding**: the rival's own
+      fit drives the co-refined background **negative** (mean −11.4 counts,
+      min −27.3, on a pattern whose 5th percentile is 9; nothing floors it at
+      the physical zero) — a *raised* background would have made **more**
+      absences, not fewer.  Net > 3σ at 100 % of channels, so the detector
+      cannot fire.  The 2×2 swap: truth's background under the rival's
+      positions restores 8 (fit widths) / 14 (measured 0.54° width) of 163;
+      swapping widths alone (both fits inflate 2-3×, terms pegged at bounds)
+      restores none.  The Rwp separation (0.25/0.79) is the same corrupted
+      fit read by a different instrument — surfaced, never ranked on.  A
+      repaired detector reads **14 of 163** here, not "most of 163" — a bound
+      to know before redesigning around this row.  The acceptance row
+      regenerates the negative background; the fix (candidate-independent
+      inputs: a floored or pattern-owned background, the peak list's measured
+      width) is recorded, not landed — it re-measures every
+      `predicted_but_absent` count in the tree and is follow-on work.
 - [x] Re-measure the fluorite row: it currently asserts an abstention that this WP
       makes wrong. It should assert that a short clean list is **searched, ranked
       by the reduced panel and reported unscored**, and that the certified cell
