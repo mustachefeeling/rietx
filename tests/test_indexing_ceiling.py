@@ -273,13 +273,20 @@ def test_a_binding_ceiling_returns_a_complete_and_consistent_result(
     assert res.provenance.notes["total_budget_seconds"] == "2"
 
 
-def test_no_ceiling_means_no_new_notes_key(cubic_peaks):
-    """The default is bit-identical: a run with no declared ceiling writes the
-    same provenance notes it always did."""
+def test_full_means_no_ceiling_and_quick_is_what_default_means(cubic_peaks):
+    """Since WP-1042 the default **is** a ceiling (`quick`), so the no-ceiling
+    state is a declaration: `preset="full"` writes no `total_budget_seconds`
+    note — the absence is the record — while a default run writes quick's."""
     peaks, _cell = cubic_peaks
-    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)))
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+                        preset="full")
+    assert res.preset == "full"
     assert "total_budget_seconds" not in res.provenance.notes
     assert "INDEX_BUDGET_EXHAUSTED" not in {d.code for d in res.diagnostics}
+
+    quick = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)))
+    assert quick.preset == "quick"
+    assert "total_budget_seconds" in quick.provenance.notes
 
 
 # ----------------------------------------------------------------------

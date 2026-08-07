@@ -48,6 +48,18 @@ from .backend.api import (
 # module docstring on derivation over restatement.
 from .background.diagnostics import _KBETA
 from .history.events import EVENT_SCHEMA_VERSION
+
+# The plans arm iterates PLAN_INFO, not PLAN_PRESETS: the two are held in
+# bijection by tests/test_params_surface.py, so quoting the one that carries the
+# four facts a chooser needs keeps the arm complete without a second assertion
+# about the same pair (WP-1007's inherited note from WP-1004).  The search
+# presets follow the identical pattern one registry over (WP-1042, bijection
+# held by tests/test_indexing_scheduler.py).
+from .indexing.engines import (
+    DEFAULT_SEARCH_PRESET,
+    SEARCH_PRESET_INFO,
+    SEARCH_PRESETS,
+)
 from .io.readers import PATTERN_FORMATS
 from .optimize.least_squares import SOLVERS
 from .refine import _VERSION
@@ -55,11 +67,6 @@ from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import SCHEMA_VERSION, Base, Mode
 from .schemas.instrument import _KA_DOUBLETS, _RADIATIONS
 from .schemas.project import PROJECT_FORMAT_VERSION
-
-# The plans arm iterates PLAN_INFO, not PLAN_PRESETS: the two are held in
-# bijection by tests/test_params_surface.py, so quoting the one that carries the
-# four facts a chooser needs keeps the arm complete without a second assertion
-# about the same pair (WP-1007's inherited note from WP-1004).
 from .strategy.staged import PLAN_INFO
 
 
@@ -88,6 +95,25 @@ class PlanCapability(Base):
     description: str
     modes: list[Mode]
     when_to_use: str
+
+
+class SearchPresetCapability(Base):
+    """An indexing search preset (WP-1042): the ceiling and the measured cost.
+
+    ``total_budget_seconds`` is the whole-run ceiling the preset fills in
+    (``None`` = unbounded — ``estimate_ceiling`` is then the worst-case
+    arithmetic); ``typical_seconds`` is the **measured** range over the
+    known-cell corpus, which is a different kind of number and says so by
+    being a range.
+    """
+
+    name: str
+    title: str
+    description: str
+    when_to_use: str
+    default: bool
+    total_budget_seconds: float | None
+    typical_seconds: tuple[float, float]
 
 
 class AnodeCapability(Base):
@@ -135,6 +161,7 @@ class Capabilities(Base):
     backends: list[BackendCapability] = Field(default_factory=list)
     solvers: list[str] = Field(default_factory=list)
     plans: list[PlanCapability] = Field(default_factory=list)
+    search_presets: list[SearchPresetCapability] = Field(default_factory=list)
     modes: list[Mode] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
@@ -163,6 +190,14 @@ def capabilities() -> Capabilities:
                               modes=list(info.modes),
                               when_to_use=info.when_to_use)
                for name, info in sorted(PLAN_INFO.items())],
+        search_presets=[
+            SearchPresetCapability(
+                name=name, title=info.title, description=info.description,
+                when_to_use=info.when_to_use,
+                default=name == DEFAULT_SEARCH_PRESET,
+                total_budget_seconds=SEARCH_PRESETS[name],
+                typical_seconds=info.typical_seconds)
+            for name, info in sorted(SEARCH_PRESET_INFO.items())],
         modes=list(get_args(Mode)),
         anodes=[_anode(name) for name in sorted(_RADIATIONS)],
         reader_formats=[

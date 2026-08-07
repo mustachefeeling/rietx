@@ -1194,6 +1194,11 @@ class IndexingResult(Base):
     wavelength: float = 0.0
     n_usable_lines: int = 0
     provenance: Provenance
+    #: which search preset governed the run's ceiling (WP-1042):
+    #: ``engines.SEARCH_PRESETS`` names, or ``"custom"`` when the caller's own
+    #: ``total_budget_seconds`` did, or ``None`` on a result recorded before
+    #: presets existed.  The ceiling itself is in ``provenance.notes``.
+    preset: str | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 

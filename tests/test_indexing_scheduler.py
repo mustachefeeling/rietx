@@ -154,6 +154,74 @@ def test_merge_engine_units_dedups_diagnostics_and_refuses_misuse():
 
 
 # ----------------------------------------------------------------------
+# presets: quick is the default, and the registry is held in bijection
+# ----------------------------------------------------------------------
+def test_preset_registry_and_info_are_in_bijection():
+    """The PLAN_PRESETS/PLAN_INFO pattern one registry over: a preset added
+    without a row of guidance is a preset nobody can be told when to use."""
+    from pxrdref.indexing.engines import (
+        DEFAULT_SEARCH_PRESET,
+        QUICK_TOTAL_BUDGET_SECONDS,
+        SEARCH_PRESET_INFO,
+        SEARCH_PRESETS,
+    )
+
+    assert set(SEARCH_PRESETS) == set(SEARCH_PRESET_INFO)
+    assert DEFAULT_SEARCH_PRESET in SEARCH_PRESETS
+    assert SEARCH_PRESETS["quick"] == QUICK_TOTAL_BUDGET_SECONDS
+    assert SEARCH_PRESETS["full"] is None
+    for info in SEARCH_PRESET_INFO.values():
+        assert info.title and info.description and info.when_to_use
+        lo, hi = info.typical_seconds
+        assert 0.0 < lo < hi
+
+
+def test_quick_is_the_default_and_never_overrides_a_declared_ceiling(
+        cubic_peaks, monkeypatch):
+    """The flip (WP-1042): a run that declares nothing gets quick's ceiling
+    and records preset='quick'; a declared spec ceiling is never overridden
+    and records 'custom'; 'full' bounds nothing and says so by omission."""
+    from pxrdref.indexing.engines import QUICK_TOTAL_BUDGET_SECONDS
+
+    peaks, _cell = cubic_peaks
+    log: list = []
+    _patch_registry(monkeypatch, {"e1": _stub("e1", log)})
+
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)))
+    assert res.preset == "quick"
+    assert res.provenance.notes["preset"] == "quick"
+    assert res.provenance.notes["total_budget_seconds"] == (
+        f"{QUICK_TOTAL_BUDGET_SECONDS:g}")
+
+    res = index_pattern(peaks, spec=SearchSpec(
+        systems=("cubic",), total_budget_seconds=3600.0))
+    assert res.preset == "custom"
+    assert res.provenance.notes["total_budget_seconds"] == "3600"
+
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+                        preset="full")
+    assert res.preset == "full"
+    assert "total_budget_seconds" not in res.provenance.notes
+
+    with pytest.raises(ValueError, match="unknown search preset"):
+        index_pattern(peaks, preset="fastest")
+
+
+def test_a_single_engine_run_says_what_low_means(cubic_peaks, monkeypatch):
+    """INDEX_SINGLE_ENGINE is a diagnostic, not a caveat: the low it explains
+    is produced by grade() structurally, before any caveat is consulted."""
+    peaks, _cell = cubic_peaks
+    log: list = []
+    _patch_registry(monkeypatch, {"e1": _stub("e1", log),
+                                  "e2": _stub("e2", log)})
+    res = index_pattern(peaks, engines=("e1",),
+                        spec=SearchSpec(systems=("cubic",)))
+    assert "INDEX_SINGLE_ENGINE" in {d.code for d in res.diagnostics}
+    both = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)))
+    assert "INDEX_SINGLE_ENGINE" not in {d.code for d in both.diagnostics}
+
+
+# ----------------------------------------------------------------------
 # the deferred probe
 # ----------------------------------------------------------------------
 def test_probe_false_skips_the_in_engine_probe(cubic_peaks, monkeypatch):
@@ -217,7 +285,7 @@ def test_remaining_seconds_streams_only_under_a_ceiling(cubic_peaks,
                                          total_budget_seconds=3600.0),
                   events=with_ceiling.append)
     without: list = []
-    index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+    index_pattern(peaks, spec=SearchSpec(systems=("cubic",)), preset="full",
                   events=without.append)
     lad = [e["data"] for e in with_ceiling if e["kind"].startswith("stage_")]
     assert lad and all("remaining_seconds" in d and "elapsed_seconds" in d

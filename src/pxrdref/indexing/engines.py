@@ -1171,11 +1171,34 @@ def incomplete_diagnostic(engine: str, systems: Sequence[str],
                               if s in METRIC_DOF) + ")"))
 
 
+def single_engine_diagnostic(name: str) -> Diagnostic:
+    """``INDEX_SINGLE_ENGINE`` — one engine ran, so ``low`` means something else.
+
+    A **diagnostic, not a caveat**, and the distinction is structural (WP-1042):
+    ``grade`` returns ``low`` whenever fewer than two engines stand behind a
+    candidate, so every candidate of a one-engine run is ``low`` before any
+    caveat is consulted — a *capping* caveat could not explain a floor the
+    grade produces itself.  This statement is result-level: it tells the reader
+    that ``low`` here means "unconfirmed by construction", not "refuted".
+    """
+    return Diagnostic(
+        level="info", code="INDEX_SINGLE_ENGINE",
+        message=(f"only the {name} engine ran, and agreement between "
+                 "independent searches is what confidence measures here — so "
+                 "every candidate grades low structurally (fewer than two "
+                 "finders), which means 'unconfirmed', not 'refuted'"),
+        where=[f"engines: {name}"],
+        suggestion=("run the default engine set for a gradeable answer; a "
+                    "single-engine run is a probe, and its ranking is still "
+                    "the panel's"))
+
+
 def budget_exhausted_diagnostic(total_seconds: float,
                                 engines_not_run: Sequence[str],
                                 systems_truncated: Sequence[str],
                                 systems_not_reached: Sequence[str],
-                                candidates_not_validated: int) -> Diagnostic:
+                                candidates_not_validated: int,
+                                ceiling_hit: bool = True) -> Diagnostic:
     """``INDEX_BUDGET_EXHAUSTED`` — the declared whole-run ceiling bound.
 
     Written only when the *clock* stopped the run
@@ -1185,6 +1208,12 @@ def budget_exhausted_diagnostic(total_seconds: float,
     truncated one said less, and one never reached said nothing at all — plus
     the candidates whose validation never ran (they read ``not_validated``,
     which is the honest cap, never ``validation_failed``).
+
+    ``ceiling_hit=False`` (WP-1042) is the slice-only case: the whole-run clock
+    never expired, but one or more validation fits exhausted the equal slice
+    of the remaining clock the ceiling's arithmetic gave them — the ceiling
+    still bound the answer, and saying "the run hit its ceiling" would be
+    false, so the message says which of the two happened.
     """
     where = []
     if engines_not_run:
@@ -1197,15 +1226,109 @@ def budget_exhausted_diagnostic(total_seconds: float,
         where.append(f"{candidates_not_validated} candidate(s) not validated")
     return Diagnostic(
         level="warning", code="INDEX_BUDGET_EXHAUSTED",
-        message=(f"the run hit its declared ceiling of {total_seconds:g} s, so "
-                 "the answer covers what was reached rather than the whole "
-                 "requested search"),
+        message=((f"the run hit its declared ceiling of {total_seconds:g} s, "
+                  "so the answer covers what was reached rather than the "
+                  "whole requested search") if ceiling_hit else
+                 (f"the declared ceiling of {total_seconds:g} s bound the "
+                  "shortlist's validation: one or more fits exhausted their "
+                  "slice of the remaining clock and their candidates read "
+                  "not_validated")),
         where=where,
         suggestion=("what was reached is still ranked and gated honestly — "
                     "read systems_searched and search_complete before treating "
                     "an absence as evidence.  Raise total_budget_seconds, or "
                     "narrow systems= to where the answer can live, which costs "
                     "exponentially less than more time buys"))
+
+
+# ----------------------------------------------------------------------
+# Search presets (WP-1042)
+# ----------------------------------------------------------------------
+#: Whole-run ceiling (seconds) the ``quick`` preset fills into
+#: ``SearchSpec.total_budget_seconds`` when the caller has not declared one.
+#: Chosen from the task-0 re-measure under the system-major scheduler
+#: (WP-1042 handover, darwin/arm64 M4): the high-symmetry known-cell corpus
+#: lands its **graded shortlist** in 1-24 s, so the ceiling is not what makes
+#: the default responsive — streaming is — and its job is the other end:
+#: bounding the newly searchable short lists (a 15-line list used to hang a
+#: GUI click for minutes) and the unbudgeted validation tail.  120 s lets
+#: every corpus dataset except the two slowest complete *everything*; what a
+#: binding ceiling cuts is the trailing low-symmetry systems, loudly
+#: (``INDEX_BUDGET_EXHAUSTED``), which is the documented cost of
+#: cheapest-first ordering.
+QUICK_TOTAL_BUDGET_SECONDS = 120.0
+#: The preset ``index_pattern`` resolves when the caller names none.
+DEFAULT_SEARCH_PRESET = "quick"
+
+#: name → the whole-run ceiling it fills in (``None`` = unbounded, today's
+#: pre-WP-1042 behaviour).  Held in bijection with :data:`SEARCH_PRESET_INFO`
+#: by a meta-test (the ``PLAN_PRESETS``/``PLAN_INFO`` pattern), and quoted live
+#: by ``capabilities()`` and the agent schema — never restated.
+SEARCH_PRESETS: dict[str, float | None] = {
+    "quick": QUICK_TOTAL_BUDGET_SECONDS,
+    "full": None,
+}
+
+
+@dataclass(frozen=True)
+class SearchPresetInfo:
+    """What a search preset is for, in the words a chooser needs.
+
+    The ``PLAN_INFO`` pattern one registry over: beside the registry rather
+    than in a UI or a docs page, because every consumer needs the same facts
+    and a preset added without a row here is a preset nobody can be told when
+    to use.  ``typical_seconds`` is **measured** (the WP-1042 task-0 corpus
+    re-measure; dated history in the v1.0 appendix diary) and must be
+    re-measured when the default protocol changes; the worst case is stated in
+    ``description`` because it is a different *kind* of number per preset — a
+    bounded preset's worst case is its own ceiling plus
+    :data:`CEILING_GRANULARITY_SECONDS`, an unbounded one's is
+    :func:`estimate_ceiling`'s spec arithmetic.
+    """
+
+    title: str
+    description: str
+    when_to_use: str
+    typical_seconds: tuple[float, float]
+
+
+SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
+    "quick": SearchPresetInfo(
+        title="Quick (default)",
+        description=(
+            "All registered engines, all requested systems in SYSTEM_ORDER, "
+            "with a whole-run ceiling of "
+            f"{QUICK_TOTAL_BUDGET_SECONDS:g} s covering search, probe and "
+            "validation — the worst case is that ceiling plus one "
+            "cooperative-check granularity.  Nothing is narrowed: no engine "
+            "dropped, no system dropped, no search box shrunk.  A run that "
+            "hits the ceiling reports what was truncated or not reached "
+            "(INDEX_BUDGET_EXHAUSTED) rather than having silently searched "
+            "less, and what a binding ceiling cuts is the trailing "
+            "low-symmetry systems — the documented cost of cheapest-first "
+            "ordering."),
+        when_to_use=(
+            "the default: a first look at anything, and every interactive "
+            "call — the graded shortlist for completed systems streams "
+            "seconds in, and the ceiling keeps a short or pathological list "
+            "from hanging the run"),
+        typical_seconds=(1.0, 120.0),
+    ),
+    "full": SearchPresetInfo(
+        title="Full (no ceiling)",
+        description=(
+            "The same engines and systems with no whole-run ceiling — only "
+            "the per-(engine × system) budget_seconds bounds the search, so "
+            "the worst case is estimate_ceiling()'s arithmetic on the spec "
+            "and validation runs unbudgeted.  This is the pre-1.0 default "
+            "behaviour."),
+        when_to_use=(
+            "when a quick run reported truncated or not-reached systems and "
+            "the answer may live there — typically low-symmetry searches, "
+            "which are irreducibly slow"),
+        typical_seconds=(1.0, 240.0),
+    ),
+}
 
 
 # ----------------------------------------------------------------------

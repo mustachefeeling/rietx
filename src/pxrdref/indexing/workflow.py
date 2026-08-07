@@ -559,6 +559,7 @@ def index_pattern(peaks: PeakList | None = None, *,
                   data: PatternData | None = None,
                   instrument: Instrument | None = None,
                   spec=None,
+                  preset: str | None = None,
                   engines: Sequence[str] | None = None,
                   quality=None,
                   shift_from_pairs: bool = True,
@@ -597,6 +598,19 @@ def index_pattern(peaks: PeakList | None = None, *,
     and one never reached (absent) — and ``INDEX_BUDGET_EXHAUSTED`` names them.
     ``estimate_ceiling`` is the pre-run arithmetic for choosing the value.
 
+    ``preset`` names a row of ``engines.SEARCH_PRESETS`` and defaults to
+    ``"quick"`` (WP-1042): all engines, all requested systems, and a whole-run
+    ceiling of ``QUICK_TOTAL_BUDGET_SECONDS`` filled into
+    ``spec.total_budget_seconds`` **only when the caller left it None** — a
+    declared spec field is never overridden, the same rule as
+    :func:`_adopt_measured_shift`.  ``preset="full"`` is the pre-1.0
+    behaviour: no ceiling beyond ``budget_seconds`` per (engine × system).
+    The result records which preset governed (``IndexingResult.preset`` —
+    ``"custom"`` when the caller's own ceiling did), and under a declared
+    ceiling each validation fit draws an equal **slice** of the remaining
+    clock, so one heavy candidate cannot starve the rest of the shortlist
+    (measured: unbudgeted fits were 74 of fap's 84 s).
+
     **The (engine × system) units run system-major** (WP-1042): every engine
     finishes one system before any engine starts the next, in ``SYSTEM_ORDER``
     (cheapest metric first).  A binding deadline therefore sacrifices trailing
@@ -625,6 +639,8 @@ def index_pattern(peaks: PeakList | None = None, *,
     from .consensus import CONSENSUS_CHECK_TOP, apply_gate, checked_indices, consensus
     from .diagnostics import candidate_diagnostics, index_diagnostics
     from .engines import (
+        DEFAULT_SEARCH_PRESET,
+        SEARCH_PRESETS,
         SYSTEM_ORDER,
         Deadline,
         Progress,
@@ -633,6 +649,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         engine_names,
         get_engine,
         merge_engine_units,
+        single_engine_diagnostic,
     )
     from .pick import pick_peaks
     from .quality import assess_peak_list
@@ -645,6 +662,20 @@ def index_pattern(peaks: PeakList | None = None, *,
                 "profile it does not know")
         peaks = pick_peaks(data, instrument)
     spec = spec or SearchSpec()
+    preset_name = DEFAULT_SEARCH_PRESET if preset is None else preset
+    if preset_name not in SEARCH_PRESETS:
+        raise ValueError(f"unknown search preset {preset_name!r}; "
+                         f"available: {', '.join(SEARCH_PRESETS)}")
+    ran_preset = preset_name
+    if spec.total_budget_seconds is None:
+        ceiling = SEARCH_PRESETS[preset_name]
+        if ceiling is not None:
+            spec = replace(spec, total_budget_seconds=float(ceiling))
+    else:
+        # the caller's own ceiling governed, not the preset's — a declared
+        # spec field is never overridden, and the record must not name a
+        # preset that decided nothing
+        ran_preset = "custom"
     if quality is None:
         quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
                                    pair_seed=spec.seed)
@@ -666,7 +697,7 @@ def index_pattern(peaks: PeakList | None = None, *,
     provenance = Provenance(
         package_version=_VERSION, created_utc=_utcnow(),
         report_thresholds_version=THRESHOLDS_VERSION,
-        notes=_spec_notes(spec, names, quality))
+        notes=_spec_notes(spec, names, quality, ran_preset))
     stream = as_event_stream(events)
     if stream is not None:
         extra = ({"total_budget_seconds": float(spec.total_budget_seconds)}
@@ -691,7 +722,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         result = IndexingResult(
             engines_run=[], systems_searched=[], quality=quality,
             wavelength=peaks.wavelength, n_usable_lines=len(peaks.usable()),
-            validated=False, provenance=provenance,
+            validated=False, provenance=provenance, preset=ran_preset,
             diagnostics=list(quality.diagnostics))
         out = result.model_copy(update={
             "diagnostics": list(result.diagnostics)
@@ -755,30 +786,51 @@ def index_pattern(peaks: PeakList | None = None, *,
 
     outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
                         cancel=run_cancel)
+    if len(names) == 1:
+        outcome.diagnostics.append(single_engine_diagnostic(names[0]))
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
+    slices_expired = 0
     if validate and data is not None and instrument is not None:
         progress.add(len(checked))
-        for i in checked:
+        for pos, i in enumerate(checked):
             if run_cancel is not None and bool(run_cancel):
                 break
             cand = outcome.candidates[i]
             label = f"validate:{cand.system} {cand.centring}"
             progress.start(label, system=cand.system, validation=True)
+            # budgeted validation (WP-1042): under a declared ceiling each fit
+            # draws an equal slice of the remaining clock, so one heavy
+            # candidate cannot starve the rest of the shortlist (unbudgeted
+            # fits measured 74 of fap's 84 s).  A fast fit's surplus flows to
+            # the later slices, which re-divide what actually remains.
+            fit_cancel = run_cancel
+            slice_deadline = None
+            if deadline is not None:
+                slice_deadline = Deadline(
+                    max(deadline.remaining, 1e-3) / (len(checked) - pos),
+                    cancel=run_cancel)
+                fit_cancel = slice_deadline
             try:
                 cand.lebail = validate_by_lebail(
                     cand, data, instrument, peaks=peaks,
-                    two_theta_limits=two_theta_limits, cancel=run_cancel)
+                    two_theta_limits=two_theta_limits, cancel=fit_cancel)
             except RefinementCancelled:
                 # a truncated fit is not evidence about the candidate: leave
-                # ``lebail = None`` (reads ``not_validated``, capping) and stop
+                # ``lebail = None``, which reads ``not_validated`` (capping)
                 progress.end(label, validation=True, status="cancelled")
+                if slice_deadline is not None \
+                        and not slice_deadline.cancelled_by_user():
+                    # only this candidate's slice ran out — the next still
+                    # gets its share of what remains
+                    slices_expired += 1
+                    continue
                 break
             progress.end(label, validation=True, status=cand.lebail.status)
         validated = True
 
-    if deadline is not None and deadline.expired() \
-            and not deadline.cancelled_by_user():
+    if deadline is not None and not deadline.cancelled_by_user() \
+            and (deadline.expired() or slices_expired):
         requested = ordered_systems
         outcome.diagnostics.append(budget_exhausted_diagnostic(
             float(spec.total_budget_seconds),
@@ -789,7 +841,8 @@ def index_pattern(peaks: PeakList | None = None, *,
                                  if s not in outcome.systems_searched],
             candidates_not_validated=sum(
                 1 for i in checked if outcome.candidates[i].lebail is None)
-            if validated else 0))
+            if validated else 0,
+            ceiling_hit=deadline.expired()))
 
     # the gate's ``checked`` is what the enumeration actually covered, not what
     # was scheduled: under a fired token the two differ, and a candidate whose
@@ -810,6 +863,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         fom_panel_disagrees=outcome.fom_panel_disagrees, quality=quality,
         validated=validated, wavelength=peaks.wavelength,
         n_usable_lines=len(peaks.usable()), provenance=provenance,
+        preset=ran_preset,
         diagnostics=list(quality.diagnostics) + outcome.diagnostics
         + _pair_shift_diagnostics(quality))
     out = result.model_copy(update={
@@ -830,11 +884,16 @@ def _emit_end(stream, result) -> None:
                 validated=result.validated)
 
 
-def _spec_notes(spec, names: Sequence[str], quality) -> dict[str, str]:
+def _spec_notes(spec, names: Sequence[str], quality,
+                preset: str) -> dict[str, str]:
     """The search's own settings, recorded so a run is reproducible from what it
     reports — including ``seed``, which is the only field a stochastic engine
-    would need and which is therefore recorded whether one ran or not."""
+    would need and which is therefore recorded whether one ran or not.
+    ``preset`` is the name that governed the ceiling (WP-1042), so the two keys
+    read together: ``full`` writes no ``total_budget_seconds`` because it sets
+    none."""
     return {
+        "preset": preset,
         "engines": ", ".join(names),
         "systems": ", ".join(spec.systems),
         "d_axis_range_A": f"{spec.min_d_axis:g}-{spec.max_d_axis:g}",
@@ -843,8 +902,8 @@ def _spec_notes(spec, names: Sequence[str], quality) -> dict[str, str]:
         "k_sigma": f"{spec.k_sigma:g}",
         "sigma_sys_deg": f"{spec.sigma_sys_deg:g}",
         "budget_seconds": f"{spec.budget_seconds:g}",
-        # only when declared, so a default run's notes are byte-identical to
-        # every run recorded before the field existed
+        # only when one is set — under ``full`` there is nothing to record,
+        # and the absence *is* the record
         **({"total_budget_seconds": f"{spec.total_budget_seconds:g}"}
            if spec.total_budget_seconds is not None else {}),
         "seed": str(spec.seed),

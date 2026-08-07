@@ -83,6 +83,9 @@ from .diagnostics import (
 from .dichotomy import search_dichotomy
 from .engines import (
     CENTRINGS,
+    DEFAULT_SEARCH_PRESET,
+    SEARCH_PRESET_INFO,
+    SEARCH_PRESETS,
     SYSTEM_ORDER,
     Budget,
     EngineCandidate,
@@ -162,6 +165,9 @@ from .workflow import (
 __all__ = [
     "CENTRINGS",
     "DECISIVE_DELTA_BIC",
+    "DEFAULT_SEARCH_PRESET",
+    "SEARCH_PRESETS",
+    "SEARCH_PRESET_INFO",
     "SYSTEM_ORDER",
     "AbsenceClass",
     "BravaisScreen",
