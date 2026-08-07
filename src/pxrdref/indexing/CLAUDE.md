@@ -96,11 +96,10 @@ On real data with no measured shift, `high` is *unreachable* by design
   queue, its metric seeds svd's basin (outside the N_c/N_o gate; the box
   still binds), and the stated cell is checked the engines' own way,
   entering as finder `"prior"` — merged when an engine found the lattice,
-  else appended **after** the ranked list, never in the Borda ranking (IIA
-  — that is what makes "a wrong prior changes no rank" structural).
-  `"prior"` is absent from `engines_run`, so the agreement caveat grades it
-  with no new vocabulary. Traps met: `PRIOR_DRIFT_MAX`,
-  `same_lattice`-never-cell-tuples (stories: WP-1045).
+  else appended **after** the ranked list, never in the Borda ranking (IIA —
+  what makes "a wrong prior changes no rank" structural); absent from
+  `engines_run`, so the agreement caveat grades it with no new vocabulary.
+  Traps met: `PRIOR_DRIFT_MAX`, `same_lattice`-never-cell-tuples (WP-1045).
 
 ## Engines and the FoM panel
 
