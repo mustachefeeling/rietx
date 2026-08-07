@@ -1303,6 +1303,15 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
     # see the correction at all, and whether it left its derivation's domain.
     diagnostics = diagnostics + _roughness_regime_diagnostics(model, values)
 
+    # The two robustness statements that are about the *run* rather than a
+    # parameter, so they are Diagnostics here rather than GuardFindings (which
+    # exist to carry paths — these have none).  Both cover the silent-failure
+    # case a batch caller hits: a status of "converged" that is true of the
+    # solver and false of the answer (WP-1028 §§(c),(d)).
+    diagnostics = (diagnostics
+                   + _far_from_data_diagnostics(model, y_calc, y_bkg, stats)
+                   + _max_iter_diagnostics(stage_results))
+
     return RefinementResult(
         status=status, mode=mode,
         parameters=params, statistics=stats,
@@ -1521,6 +1530,102 @@ def _restraint_tension_diagnostics(report, structure: Structure) -> list[Diagnos
                        "should override the prior (raise sigma so it does)",
         ))
     return out
+
+
+#: Rwp above which a fit is reported as a **model/data mismatch** rather than
+#: a converged refinement.  Not a quality bar — an honestly bad Rietveld fit
+#: lands at 0.2-0.5 — and its placement is fixed at both ends by measurement
+#: rather than taste (WP-1028 §(c)):
+#:
+#: * **Rwp = 1 is exactly "no better than y_calc ≡ 0"**, since Σw·Δ² = Σw·y_obs²
+#:   there.  That is not the ceiling of the broken cases, it is their
+#:   *attractor*: with the cell 3 % off, every reflection sits outside its
+#:   frozen evaluation window, the only escape the solver has is to drive the
+#:   scale to zero, and it converges — ``status="converged"`` — at Rwp
+#:   0.99999.  A bar at 1.0 would miss the commonest failure by 1e-5.
+#: * The failures that do exceed it exceed it enormously: 72.25 on a Le Bail
+#:   fit from the source paper's own starting cells, 2.6e3 on a three-phase
+#:   one.
+#:
+#: So 0.8 sits in a gap three orders of magnitude wide at the top and ~0.3
+#: wide at the bottom, and catches the zero-scale attractor that is the whole
+#: point.
+MODEL_FAR_FROM_DATA_RWP = 0.8
+
+
+def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
+                               stats) -> list[Diagnostic]:
+    """``MODEL_FAR_FROM_DATA``: the answer is not a refinement of this model.
+
+    The defect this exists for is a *silent* one — the refinement does not
+    error at Rwp = 7225 %, it returns ``status="converged"`` with the profile
+    terms pinned to bounds, and a batch caller reads the status and believes
+    it (WP-1028 §(c)).  ``report/layer2.py`` has emitted
+    ``reindex_or_recheck_cell`` since v0.2, but at that Rwp nobody builds a
+    report.
+
+    The **cause is measured, not asserted**: the diagnostic reports what share
+    of the observed above-background intensity the model actually put
+    somewhere, because the signature of the frozen-window failure is that the
+    calculated pattern is nearly all background — every reflection is being
+    evaluated outside the window it was compiled with, so it contributes
+    nothing anywhere.  A model that is merely *wrong* still has peaks.
+    """
+    if stats.rwp <= MODEL_FAR_FROM_DATA_RWP:
+        return []
+    import numpy as np
+
+    bragg_calc = float(np.sum(np.asarray(y_calc) - np.asarray(y_bkg)))
+    obs_excess = float(np.sum(np.asarray(model.y_obs) - np.asarray(y_bkg)))
+    share = ""
+    if obs_excess > 0.0:
+        share = (f"; the model accounts for {bragg_calc / obs_excess:.1%} of "
+                 f"the observed above-background intensity")
+    return [Diagnostic(
+        level="error", code="MODEL_FAR_FROM_DATA",
+        message=(f"Rwp = {stats.rwp:.1%} — this is a mismatch between the "
+                 f"model and the data, not a converged refinement{share}"),
+        where=[],
+        suggestion="do not read the status, the parameter values or their "
+                   "esds: check the cell (the method needs it within ~1 %, "
+                   "and further off puts every reflection outside its frozen "
+                   "evaluation window), the wavelength, the zero shift and "
+                   "the 2θ range, then re-index if the cell is the doubt",
+    )]
+
+
+def _max_iter_diagnostics(stage_results: list[StageResult]) -> list[Diagnostic]:
+    """``STAGE_MAX_ITER``: a stage stopped on its budget, not on convergence.
+
+    ``StageResult.status`` has carried ``"max_iter"`` all along, but folded
+    into a per-stage record nobody reads in a batch run — while the *result's*
+    status can still say ``converged`` because it is the last stage's.  The
+    measured cost of leaving it silent: three identical NaCl/Li₂CO₃ mixtures,
+    same models and parameter counts, ran 39 s, 858 s and 2838 s — a 73×
+    spread with no difference in the answer (WP-1028 §(d)).
+
+    The default cap is **not** lowered here: ``max_nfev = max_iter × n_par``
+    is what lets a legitimately hard stage finish, and the stages that stall
+    are the degenerate groups AGENT_PROTOCOL §3 already enumerates, so the
+    honest fix is saying which stage hit it rather than cutting everyone's
+    budget.
+    """
+    hit = [s.name for s in stage_results if s.status == "max_iter"]
+    if not hit:
+        return []
+    return [Diagnostic(
+        level="warning", code="STAGE_MAX_ITER",
+        message=("stage " + ", ".join(repr(n) for n in hit)
+                 + (" stopped on its iteration budget rather than converging"
+                    if len(hit) == 1 else
+                    " stopped on their iteration budgets rather than converging")),
+        where=[],
+        suggestion="the parameters freed there are probably degenerate "
+                   "(AGENT_PROTOCOL §3) rather than merely slow: free fewer "
+                   "at once, or check the diagnostics for a correlation or "
+                   "bound hit in the same stage — raising max_iter buys "
+                   "solver evaluations, not a different minimum",
+    )]
 
 
 #: below this modelled depression at the lowest fitted angle, a refined

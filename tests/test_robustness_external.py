@@ -96,6 +96,26 @@ def test_untouched_species_record_no_diagnostic(tmp_path):
     assert diags == []
 
 
+@pytest.mark.parametrize("dispersion_on", [True, False],
+                         ids=["dispersion-on", "dispersion-none"])
+def test_normalised_species_compile_under_both_dispersion_settings(
+        tmp_path, dispersion_on):
+    # the defect fired at the first stage compile, from *two* lookups —
+    # resolve_dispersion with the block on, normalize_species either way —
+    # so the fix is asserted at compile, under both settings
+    from pxrdref.model.forward import compile_model
+
+    structure = Structure.from_cif(_nacl_cif(tmp_path, na="Na+1", cl="Cl1"))
+    structure.phases[0].scale.value = 5e-3
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    if not dispersion_on:
+        ins.source.dispersion = None
+    tt = np.arange(20.0, 60.0, 0.05)
+    pattern = PatternData(two_theta=tt.tolist(),
+                          intensity=np.zeros_like(tt).tolist())
+    compile_model(structure, ins, pattern, mode="rietveld")
+
+
 # ----------------------------------------------------------------------
 # (b) generate_reflections refuses a petabyte grid before allocating it
 # ----------------------------------------------------------------------
@@ -127,21 +147,116 @@ def test_the_grid_limit_clears_every_physical_cell():
     assert len(refl.hkl) > 0
 
 
-@pytest.mark.parametrize("dispersion_on", [True, False],
-                         ids=["dispersion-on", "dispersion-none"])
-def test_normalised_species_compile_under_both_dispersion_settings(
-        tmp_path, dispersion_on):
-    # the defect fired at the first stage compile, from *two* lookups —
-    # resolve_dispersion with the block on, normalize_species either way —
-    # so the fix is asserted at compile, under both settings
-    from pxrdref.model.forward import compile_model
+# ----------------------------------------------------------------------
+# (c) a fit that is nowhere near the data says so, instead of "converged"
+# (d) a stage that stopped on its budget says so, instead of nothing
+# ----------------------------------------------------------------------
 
-    structure = Structure.from_cif(_nacl_cif(tmp_path, na="Na+1", cl="Cl1"))
-    structure.phases[0].scale.value = 5e-3
+
+def _nacl_pattern(tmp_path, *, cell_error=0.0):
+    """A synthetic NaCl pattern, and a structure whose cell is off by a factor.
+
+    ``cell_error=0.03`` reproduces §(c): a starting cell 3 % off puts every
+    reflection outside the window it was compiled with.
+    """
+    from pxrdref.model.forward import compile_model
+    from pxrdref.params.vector import ParameterTable
+
+    truth = Structure.from_cif(_nacl_cif(tmp_path))
+    truth.phases[0].scale.value = 20.0
     ins = Instrument.bragg_brentano(radiation="CuKa")
-    if not dispersion_on:
-        ins.source.dispersion = None
-    tt = np.arange(20.0, 60.0, 0.05)
-    pattern = PatternData(two_theta=tt.tolist(),
-                          intensity=np.zeros_like(tt).tolist())
-    compile_model(structure, ins, pattern, mode="rietveld")
+    ins.profile.w.value = 4e-3
+    tt = np.arange(25.0, 75.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, blank, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    # counting noise, so the exact-cell case is a *fit* rather than an
+    # identity — a zero residual makes several statistics degenerate
+    y = np.random.default_rng(20281028).poisson(np.maximum(y, 1.0)).astype(float)
+    pattern = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    start = Structure.from_cif(_nacl_cif(tmp_path))
+    start.phases[0].scale.value = 20.0
+    for name in ("a", "b", "c"):
+        p = getattr(start.phases[0].cell, name)
+        p.value *= 1.0 + cell_error
+    return start, ins, pattern
+
+
+@pytest.mark.parametrize("max_iter, expect_status",
+                         [(5, "max_iter"), (50, "converged")])
+def test_a_fit_nowhere_near_the_data_is_reported_however_the_solver_exited(
+        tmp_path, max_iter, expect_status):
+    # the defect is the *converged* row: the refinement does not error, it
+    # returns status="converged" and a batch caller believes it
+    from pxrdref import Refinement
+    from pxrdref.strategy.staged import Stage
+
+    start, ins, pattern = _nacl_pattern(tmp_path, cell_error=0.03)
+    ref = Refinement(start, ins)
+    result = ref.run_stage(pattern, Stage(name="scale",
+                                          turn_on=["phases.*.scale"],
+                                          max_iter=max_iter))
+
+    assert result.status == expect_status
+    far = [d for d in result.diagnostics if d.code == "MODEL_FAR_FROM_DATA"]
+    assert len(far) == 1
+    assert far[0].level == "error"
+    # the cause is *measured*, not asserted: with every reflection outside its
+    # frozen window the calculated pattern is nearly all background
+    assert "above-background intensity" in far[0].message
+    assert "frozen" in far[0].suggestion
+
+
+def test_the_bar_sits_below_the_zero_scale_attractor_not_above_it():
+    # Rwp = 1 is exactly "no better than y_calc = 0", and driving the scale to
+    # zero is the escape a windowed-out model converges to — measured 0.99999
+    # on the reproduction above, so a threshold at 1.0 misses it by 1e-5
+    from pxrdref.refine import MODEL_FAR_FROM_DATA_RWP
+
+    assert MODEL_FAR_FROM_DATA_RWP < 0.99999
+    # and still far above an honestly bad Rietveld fit (0.2-0.5 measured)
+    assert MODEL_FAR_FROM_DATA_RWP > 0.5
+
+
+def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
+    from pxrdref import Refinement
+    from pxrdref.strategy.staged import Stage
+
+    start, ins, pattern = _nacl_pattern(tmp_path)          # exact cell
+    ref = Refinement(start, ins)
+    result = ref.run_stage(pattern, Stage(name="scale",
+                                          turn_on=["phases.*.scale"],
+                                          max_iter=20))
+
+    assert result.statistics.rwp < 0.01
+    codes = {d.code for d in result.diagnostics}
+    assert "MODEL_FAR_FROM_DATA" not in codes
+    assert "STAGE_MAX_ITER" not in codes
+
+
+def test_a_stage_that_stopped_on_its_budget_is_surfaced_as_a_diagnostic():
+    # StageResult.status has always carried "max_iter"; what was missing is a
+    # diagnostic, because the *result's* status is the last stage's and can
+    # still read "converged"
+    from pxrdref.refine import _max_iter_diagnostics
+    from pxrdref.schemas.results import StageResult
+
+    def stage(name, status):
+        return StageResult(name=name, status=status, n_iterations=1,
+                           cost_initial=1.0, cost_final=1.0)
+
+    assert _max_iter_diagnostics([stage("scale", "converged")]) == []
+
+    one = _max_iter_diagnostics([stage("scale", "converged"),
+                                 stage("profile", "max_iter")])
+    assert [d.code for d in one] == ["STAGE_MAX_ITER"]
+    assert "'profile'" in one[0].message and "budget rather" in one[0].message
+
+    both = _max_iter_diagnostics([stage("scale", "max_iter"),
+                                  stage("profile", "max_iter")])
+    assert "'scale', 'profile'" in both[0].message
+    assert "budgets rather" in both[0].message
+

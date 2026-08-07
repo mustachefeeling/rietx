@@ -334,8 +334,8 @@ size.
       and `O-2` forms; keep `normalize_element` strict elsewhere. Assert the
       fix with `dispersion` both on *and* `None`, since both lookups reject
       these forms (§(a))
-- [ ] hkl-range guard in `generate_reflections` + diagnostic naming the cell
-- [ ] `MODEL_FAR_FROM_DATA` diagnostic; surface `max_iter` stage outcomes
+- [x] hkl-range guard in `generate_reflections` + diagnostic naming the cell
+- [x] `MODEL_FAR_FROM_DATA` diagnostic; surface `max_iter` stage outcomes
 - [ ] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
       parameters for the same reachable-zero bug)
 - [ ] `compute_qpa`: skip below two phases, diagnose instead of raising
