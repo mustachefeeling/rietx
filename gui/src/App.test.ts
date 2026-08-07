@@ -3640,3 +3640,150 @@ describe("the series panel", () => {
     expect(put?.body.carry).toEqual(["phases.*", "instrument.zero_shift"]);
   });
 });
+
+describe("the search controls (WP-1045)", () => {
+  // the document serves the block complete (pydantic defaults filled), so the
+  // form carries no default of its own
+  const CONTROLS = {
+    search: { systems: null, centrings: null, min_d_axis: 2, max_d_axis: 25,
+      min_volume: 15, max_volume: null, n_unindexed: 2, n_search_lines: 20,
+      k_sigma: 3, shift_allowance_deg: 0, shift_template: null,
+      budget_seconds: 30, total_budget_seconds: null, preset: null,
+      max_candidates: 12, seed: 0, prior_cells: null, prior_spacegroups: null },
+    engines: null, validate_candidates: true, check_top: null,
+  };
+  const VOCAB_CAPS = {
+    ...CAPABILITIES,
+    indexing_engines: [
+      { name: "dichotomy", description: "exhaustive branch-and-bound" },
+      { name: "svd", description: "iterative assignment" },
+      { name: "trial_error", description: "exact solve over assumed indices" },
+    ],
+    crystal_systems: ["cubic", "hexagonal", "trigonal", "tetragonal",
+                      "orthorhombic", "monoclinic", "triclinic"],
+    centrings: { cubic: ["P", "I", "F"], hexagonal: ["P"],
+                 trigonal: ["P", "R"], tetragonal: ["P", "I"],
+                 orthorhombic: ["P", "C", "I", "F"], monoclinic: ["P", "C"],
+                 triclinic: ["P"] },
+    search_presets: [
+      { name: "quick", title: "Quick (default)", description: "",
+        when_to_use: "", default: true, total_budget_seconds: 120,
+        typical_seconds: [1, 126] },
+      { name: "full", title: "Full (no ceiling)", description: "",
+        when_to_use: "", default: false, total_budget_seconds: null,
+        typical_seconds: [4, 440] },
+    ],
+    shift_templates: ["constant", "cos_theta", "sin_2theta"],
+  };
+  const INDEXING_PROJECT = {
+    ...PROJECT, doc: { ...PROJECT.doc, indexing: CONTROLS },
+  };
+
+  function controlsBoot() {
+    let indexing: any = CONTROLS;
+    return {
+      ...boot(INDEXING_PROJECT),
+      "/api/capabilities": () => ({ body: VOCAB_CAPS }),
+      "/api/project": (call: Call) => {
+        if (call.method === "POST" && call.body.indexing)
+          indexing = call.body.indexing;
+        return { body: { ...INDEXING_PROJECT,
+                         doc: { ...INDEXING_PROJECT.doc, indexing } } };
+      },
+    };
+  }
+
+  function numInput(labelStart: string): HTMLInputElement {
+    const label = [...host.querySelectorAll<HTMLElement>("label.num")]
+      .find((l) => l.textContent!.trim().startsWith(labelStart))!;
+    return label.querySelector("input, select") as HTMLInputElement;
+  }
+
+  it("states every control from the document and the live vocabularies", async () => {
+    const stub = server(controlsBoot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const details = host.querySelector("details.search")!;
+    expect(details).toBeTruthy();
+    // one checkbox per registered engine, one per crystal system — quoted
+    // from capabilities, so a fourth engine appears with no GUI change
+    const engineBoxes = [...details.querySelectorAll(".block")[0]
+      .querySelectorAll('input[type="checkbox"]')];
+    expect(engineBoxes.length).toBe(3);
+    const systemBoxes = [...details.querySelectorAll(".block")[1]
+      .querySelectorAll('input[type="checkbox"]')];
+    expect(systemBoxes.length).toBe(7);
+    // the preset select offers the registry plus "default — quick"
+    const preset = numInput("preset") as unknown as HTMLSelectElement;
+    expect([...preset.options].map((o) => o.value)).toEqual(["", "quick", "full"]);
+    // every numeric control is present and titled (no mute fields)
+    for (const start of ["min axis", "max axis", "min volume", "max volume",
+                         "unindexed allowed", "search lines", "k·σ window",
+                         "shift allowance", "max candidates", "seed",
+                         "budget / slice", "total budget", "check top"]) {
+      const input = numInput(start);
+      expect(input, start).toBeTruthy();
+      expect(input.closest("label")!.title.length, start).toBeGreaterThan(20);
+    }
+  });
+
+  it("commits an edit as one whole-object patch on the verb", async () => {
+    const stub = server(controlsBoot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const box = numInput("unindexed allowed");
+    box.value = "4";
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+
+    const post = stub.calls.find(
+      (c) => c.method === "POST" && c.path === "/api/project" && c.body.indexing);
+    expect(post).toBeTruthy();
+    expect(post!.body.indexing.search.n_unindexed).toBe(4);
+    // the rest of the block travels with it — a partial merge could let two
+    // half-specs disagree
+    expect(post!.body.indexing.search.n_search_lines).toBe(20);
+    expect(post!.body.indexing.validate_candidates).toBe(true);
+  });
+
+  it("adds a typed prior cell, and refuses a malformed one locally", async () => {
+    const stub = server(controlsBoot());
+    vi.stubGlobal("fetch", stub.fetcher);
+    app = mount(App, { target: host });
+    await flush();
+    button("Peaks")!.click();
+    await flush();
+
+    const input = [...host.querySelectorAll<HTMLInputElement>("input")]
+      .find((i) => i.placeholder.startsWith("a b c"))!;
+    input.value = "4.76 4.76 12.99 90 90 120";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+
+    const post = stub.calls.find(
+      (c) => c.method === "POST" && c.path === "/api/project" && c.body.indexing);
+    expect(post!.body.indexing.search.prior_cells).toEqual(
+      [[4.76, 4.76, 12.99, 90, 90, 120]]);
+
+    const before = stub.calls.length;
+    input.value = "4.76 4.76";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flush();
+    // refused in the form's own error line, with no round trip
+    expect(host.textContent).toContain("six numbers");
+    expect(stub.calls.filter(
+      (c) => c.method === "POST" && c.path === "/api/project").length)
+      .toBe(stub.calls.slice(0, before).filter(
+        (c) => c.method === "POST" && c.path === "/api/project").length);
+  });
+});

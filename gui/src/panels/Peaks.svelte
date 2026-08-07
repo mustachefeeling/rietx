@@ -17,6 +17,17 @@
    */
   import { api } from "../api";
   import {
+    CONTROL_FIELDS,
+    SEARCH_FIELDS,
+    controlsDigest,
+    controlsFromDoc,
+    foldSnapshots,
+    parsePriorCell,
+    priorCellText,
+    type IndexingControls,
+  } from "../lib/controls";
+  import { clone } from "../lib/model";
+  import {
     caveatTone,
     cellText,
     collectTo,
@@ -35,6 +46,9 @@
     extinction = null,
     run,
     busy,
+    capabilities = null,
+    doc = null,
+    snapshots = [],
     hovered = null,
     say = () => {},
     onpeaks = () => {},
@@ -42,12 +56,19 @@
     onzoom = () => {},
     onmoved = () => {},
     onhover = () => {},
+    onproject = () => {},
   }: {
     peaks: PeaksPayload | null;
     indexAnswer: any;
     extinction?: any;
     run: RunState | null;
     busy: boolean;
+    /** `/api/capabilities` — the live vocabularies the form renders from */
+    capabilities?: any;
+    /** the project document; `doc.indexing` is the form's one authority */
+    doc?: any;
+    /** streamed `consensus:<system>` snapshots of the run in flight */
+    snapshots?: Array<Record<string, any>>;
     /** the line the pointer is over, in the plot or in this table (WP-1032) */
     hovered?: number | null;
     say?: (line: string) => void;
@@ -56,12 +77,156 @@
     onzoom?: (lo: number, hi: number) => void;
     onmoved?: () => void;
     onhover?: (index: number | null) => void;
+    /** the document changed server-side (a controls patch landed) */
+    onproject?: () => void;
   } = $props();
 
   let failure = $state("");
   let expanded = $state<number | null>(null);
   /** the typed-2θ add box — the non-pointer route to `add_peak` */
   let addAt = $state("");
+
+  // ------------------------------------------------------------------
+  // the search controls (WP-1045): ProjectDoc.indexing rendered as a form.
+  // The document is the authority; `draft` is the buffer an input edits and
+  // every commit is a whole-object POST /api/project {indexing} — settings
+  // persist on the verb, and the server's 409 guards a run in flight.
+  // ------------------------------------------------------------------
+  /** the form's refusal, in the verb's words — deliberately not `failure`
+   *  (a verb's refusal and a panel's load error must not share one field) */
+  let controlsError = $state("");
+  let draft = $state<IndexingControls | null>(null);
+  let priorText = $state("");
+  let sgText = $state("");
+  $effect(() => {
+    // re-sync from the document whenever it moves (the head is the signal)
+    draft = doc ? clone(controlsFromDoc(doc)) : null;
+  });
+
+  const caps = $derived(capabilities ?? {});
+  const systemsVocab = $derived<string[]>(caps.crystal_systems ?? []);
+  const enginesVocab = $derived<Array<{ name: string; description: string }>>(
+    caps.indexing_engines ?? []);
+  const presetsVocab = $derived<Array<Record<string, any>>>(
+    caps.search_presets ?? []);
+  const centringsVocab = $derived<Record<string, string[]>>(
+    caps.centrings ?? {});
+  const templatesVocab = $derived<string[]>(caps.shift_templates ?? []);
+  const defaultPreset = $derived<string>(
+    presetsVocab.find((p) => p.default)?.name ?? "quick");
+  const digest = $derived(controlsDigest(draft, defaultPreset));
+  const shortlists = $derived(foldSnapshots(snapshots ?? []));
+  const field = (name: string) =>
+    [...SEARCH_FIELDS, ...CONTROL_FIELDS].find((f) => f.name === name)!;
+
+  async function commit() {
+    if (!draft) return;
+    controlsError = "";
+    try {
+      await api.patchProject({ indexing: draft });
+      say(`project.doc.indexing = …  # ${digest || "defaults"}`);
+      onproject();
+    } catch (error) {
+      controlsError = (error as Error).message;
+      onproject(); // re-sync the draft from the document the server kept
+    }
+  }
+
+  function setSearch(name: string, value: unknown) {
+    if (!draft) return;
+    (draft.search as any)[name] = value;
+    commit();
+  }
+
+  /** empty input → null (package default) for the optional numbers */
+  function numOrNull(text: string): number | null {
+    const v = Number(text);
+    return text.trim() === "" || !Number.isFinite(v) ? null : v;
+  }
+
+  function toggleSystem(system: string) {
+    if (!draft) return;
+    const all = systemsVocab;
+    const on = new Set(draft.search.systems ?? all);
+    if (on.has(system)) on.delete(system);
+    else on.add(system);
+    if (on.size === 0) {
+      controlsError = "at least one crystal system must stay searchable";
+      return;
+    }
+    draft.search.systems =
+      on.size === all.length ? null : all.filter((s) => on.has(s));
+    commit();
+  }
+
+  function toggleCentring(system: string, letter: string) {
+    if (!draft) return;
+    const allowed = centringsVocab[system] ?? [];
+    const on = new Set(draft.search.centrings?.[system] ?? allowed);
+    if (on.has(letter)) on.delete(letter);
+    else on.add(letter);
+    if (on.size === 0) {
+      controlsError = `${system} needs at least one centring — drop the `
+        + "system instead";
+      return;
+    }
+    const centrings = { ...(draft.search.centrings ?? {}) };
+    if (on.size === allowed.length) delete centrings[system];
+    else centrings[system] = allowed.filter((c) => on.has(c));
+    draft.search.centrings =
+      Object.keys(centrings).length ? centrings : null;
+    commit();
+  }
+
+  function toggleEngine(name: string) {
+    if (!draft) return;
+    const all = enginesVocab.map((e) => e.name);
+    const on = new Set(draft.engines ?? all);
+    if (on.has(name)) on.delete(name);
+    else on.add(name);
+    if (on.size === 0) {
+      controlsError = "at least one engine must run";
+      return;
+    }
+    draft.engines = on.size === all.length ? null : all.filter((e) => on.has(e));
+    commit();
+  }
+
+  function addPriorCell() {
+    if (!draft) return;
+    const parsed = parsePriorCell(priorText);
+    if (typeof parsed === "string") {
+      controlsError = parsed;
+      return;
+    }
+    priorText = "";
+    draft.search.prior_cells = [...(draft.search.prior_cells ?? []), parsed];
+    commit();
+  }
+
+  function removePriorCell(index: number) {
+    if (!draft) return;
+    const kept = (draft.search.prior_cells ?? []).filter((_, i) => i !== index);
+    draft.search.prior_cells = kept.length ? kept : null;
+    commit();
+  }
+
+  function addPriorSg() {
+    if (!draft || !sgText.trim()) return;
+    // validated server-side (gemmi) — a refusal comes back in the verb's words
+    draft.search.prior_spacegroups =
+      [...(draft.search.prior_spacegroups ?? []), sgText.trim()];
+    sgText = "";
+    commit();
+  }
+
+  function removePriorSg(index: number) {
+    if (!draft) return;
+    const kept =
+      (draft.search.prior_spacegroups ?? []).filter((_, i) => i !== index);
+    draft.search.prior_spacegroups = kept.length ? kept : null;
+    commit();
+  }
 
   const rows = $derived(peaks?.peaks ?? []);
   const unusable = $derived(peaks?.unusable_flags ?? []);
@@ -169,6 +334,204 @@
     {/if}
   </div>
   {#if failure}<p class="bad small">{failure}</p>{/if}
+
+  {#if draft}
+    <details class="search">
+      <summary>
+        Search controls
+        {#if digest}<span class="muted small">· {digest}</span>{/if}
+      </summary>
+
+      <div class="grid" class:frozen={busy}>
+        <div class="block" title={field("engines").title}>
+          <span class="lab">{field("engines").label}</span>
+          {#each enginesVocab as e (e.name)}
+            <label class="opt" title={e.description}>
+              <input type="checkbox" disabled={busy}
+                checked={draft.engines === null || draft.engines.includes(e.name)}
+                onchange={() => toggleEngine(e.name)} />
+              {e.name}
+            </label>
+          {/each}
+        </div>
+
+        <div class="block" title={field("systems").title}>
+          <span class="lab">{field("systems").label}</span>
+          {#each systemsVocab as s (s)}
+            {@const on = draft.search.systems === null
+              || draft.search.systems.includes(s)}
+            <span class="sys">
+              <label class="opt">
+                <input type="checkbox" disabled={busy} checked={on}
+                  onchange={() => toggleSystem(s)} />
+                {s}
+              </label>
+              {#if on && (centringsVocab[s]?.length ?? 0) > 1}
+                {#each centringsVocab[s] as letter (letter)}
+                  {@const cOn = !draft.search.centrings?.[s]
+                    || draft.search.centrings[s].includes(letter)}
+                  <button class="chip act tiny" class:out={!cOn} disabled={busy}
+                    title={field("centrings").title}
+                    onclick={() => toggleCentring(s, letter)}>{letter}</button>
+                {/each}
+              {/if}
+            </span>
+          {/each}
+        </div>
+
+        <div class="row">
+          <label class="num" title={field("preset").title}>
+            {field("preset").label}
+            <select disabled={busy}
+              value={draft.search.preset ?? ""}
+              onchange={(ev) => setSearch("preset",
+                (ev.currentTarget as HTMLSelectElement).value || null)}>
+              <option value="">default — {defaultPreset}</option>
+              {#each presetsVocab as p (p.name)}
+                <option value={p.name} title={p.when_to_use}>{p.title}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="num" title={field("total_budget_seconds").title}>
+            {field("total_budget_seconds").label}
+            <input type="text" inputmode="decimal" disabled={busy}
+              value={draft.search.total_budget_seconds ?? ""}
+              onchange={(ev) => setSearch("total_budget_seconds",
+                numOrNull((ev.currentTarget as HTMLInputElement).value))} />
+          </label>
+          <label class="num" title={field("budget_seconds").title}>
+            {field("budget_seconds").label}
+            <input type="text" inputmode="decimal" disabled={busy}
+              value={draft.search.budget_seconds}
+              onchange={(ev) => setSearch("budget_seconds",
+                numOrNull((ev.currentTarget as HTMLInputElement).value)
+                  ?? draft!.search.budget_seconds)} />
+          </label>
+          <label class="num" title={field("validate_candidates").title}>
+            {field("validate_candidates").label}
+            <input type="checkbox" disabled={busy}
+              checked={draft.validate_candidates}
+              onchange={(ev) => {
+                draft!.validate_candidates =
+                  (ev.currentTarget as HTMLInputElement).checked;
+                commit();
+              }} />
+          </label>
+          <label class="num" title={field("check_top").title}>
+            {field("check_top").label}
+            <input type="text" inputmode="numeric" disabled={busy}
+              value={draft.check_top ?? ""}
+              onchange={(ev) => {
+                draft!.check_top =
+                  numOrNull((ev.currentTarget as HTMLInputElement).value);
+                commit();
+              }} />
+          </label>
+        </div>
+
+        <div class="row">
+          {#each [["min_d_axis", draft.search.min_d_axis],
+                  ["max_d_axis", draft.search.max_d_axis],
+                  ["min_volume", draft.search.min_volume]] as [name, value] (name)}
+            <label class="num" title={field(name as string).title}>
+              {field(name as string).label}
+              <input type="text" inputmode="decimal" disabled={busy}
+                value={value}
+                onchange={(ev) => setSearch(name as string,
+                  numOrNull((ev.currentTarget as HTMLInputElement).value)
+                    ?? value)} />
+            </label>
+          {/each}
+          <label class="num" title={field("max_volume").title}>
+            {field("max_volume").label}
+            <input type="text" inputmode="decimal" disabled={busy}
+              value={draft.search.max_volume ?? ""}
+              onchange={(ev) => setSearch("max_volume",
+                numOrNull((ev.currentTarget as HTMLInputElement).value))} />
+          </label>
+        </div>
+
+        <div class="row">
+          {#each [["n_unindexed", draft.search.n_unindexed],
+                  ["n_search_lines", draft.search.n_search_lines],
+                  ["k_sigma", draft.search.k_sigma],
+                  ["shift_allowance_deg", draft.search.shift_allowance_deg],
+                  ["max_candidates", draft.search.max_candidates],
+                  ["seed", draft.search.seed]] as [name, value] (name)}
+            <label class="num" title={field(name as string).title}>
+              {field(name as string).label}
+              <input type="text" inputmode="decimal" disabled={busy}
+                value={value}
+                onchange={(ev) => setSearch(name as string,
+                  numOrNull((ev.currentTarget as HTMLInputElement).value)
+                    ?? value)} />
+            </label>
+          {/each}
+          <label class="num" title={field("shift_template").title}>
+            {field("shift_template").label}
+            <select disabled={busy}
+              value={draft.search.shift_template ?? ""}
+              onchange={(ev) => setSearch("shift_template",
+                (ev.currentTarget as HTMLSelectElement).value || null)}>
+              <option value="">none</option>
+              {#each templatesVocab as t (t)}<option value={t}>{t}</option>{/each}
+            </select>
+          </label>
+        </div>
+
+        <div class="block" title={field("prior_cells").title}>
+          <span class="lab">{field("prior_cells").label}</span>
+          {#each draft.search.prior_cells ?? [] as cell, i (i)}
+            <span class="chip note">{priorCellText(cell)}
+              <button class="ghost tiny" disabled={busy}
+                title="drop this prior"
+                onclick={() => removePriorCell(i)}>×</button></span>
+          {/each}
+          <input class="add" type="text" disabled={busy}
+            placeholder="a b c α β γ…" bind:value={priorText}
+            onkeydown={(ev) => ev.key === "Enter" && addPriorCell()} />
+          <button class="tiny" disabled={busy || !priorText.trim()}
+            onclick={addPriorCell}>add</button>
+        </div>
+
+        <div class="block" title={field("prior_spacegroups").title}>
+          <span class="lab">{field("prior_spacegroups").label}</span>
+          {#each draft.search.prior_spacegroups ?? [] as sg, i (sg + i)}
+            <span class="chip note">{sg}
+              <button class="ghost tiny" disabled={busy}
+                title="drop this prior"
+                onclick={() => removePriorSg(i)}>×</button></span>
+          {/each}
+          <input class="add" type="text" disabled={busy}
+            placeholder="e.g. R -3 c" bind:value={sgText}
+            onkeydown={(ev) => ev.key === "Enter" && addPriorSg()} />
+          <button class="tiny" disabled={busy || !sgText.trim()}
+            onclick={addPriorSg}>add</button>
+        </div>
+      </div>
+      {#if controlsError}<p class="bad small">{controlsError}</p>{/if}
+    </details>
+  {/if}
+
+  {#if shortlists.length}
+    <div class="stream">
+      <h2>{indexing ? "Streaming — completed systems" : "Streamed shortlists"}</h2>
+      {#each shortlists as snap (snap.system)}
+        <p class="small tabular">
+          <strong>{snap.system}</strong>
+          {#if !snap.candidates.length}
+            <span class="muted">— nothing of this symmetry fits</span>
+          {:else}
+            {#each snap.candidates.slice(0, 3) as c, i (i)}
+              <span class="chip note" title="streamed grade — conservative: it
+can rise when validation and ambiguity run, never fall">
+                {cellText(c.cell)} <em>{c.confidence}</em></span>
+            {/each}
+          {/if}
+        </p>
+      {/each}
+    </div>
+  {/if}
 
   {#if !peaks?.peaks}
     <p class="muted note">
@@ -453,6 +816,92 @@ convention, not a measurement"
   .add {
     width: 90px;
     font: var(--mono);
+  }
+
+  /* -- the search-controls disclosure (WP-1045) ---------------------- */
+  details.search {
+    flex: 0 0 auto;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 2px 8px 4px;
+  }
+
+  details.search summary {
+    cursor: pointer;
+    font-size: 12px;
+    user-select: none;
+  }
+
+  .grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 6px 0 2px;
+  }
+
+  /* the 409 is the server's; this is only its shadow on the pointer */
+  .grid.frozen {
+    opacity: 0.6;
+  }
+
+  .block {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .lab {
+    color: var(--muted);
+    font-size: 11px;
+    min-width: 108px;
+  }
+
+  .opt {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .sys {
+    display: inline-flex;
+    gap: 2px;
+    align-items: center;
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    font-size: 12px;
+  }
+
+  .num {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .num input[type="text"] {
+    width: 76px;
+    font: var(--mono);
+  }
+
+  .num input[type="checkbox"] {
+    align-self: flex-start;
+  }
+
+  .chip.act.out {
+    opacity: 0.4;
+  }
+
+  .stream {
+    flex: 0 0 auto;
   }
 
   h2 {
