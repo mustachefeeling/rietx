@@ -1186,22 +1186,29 @@ CLAIMS: tuple[Claim, ...] = (
     # ---- the round-robin pure phases, NAC, FAP and the unknown ----------
     Claim(
         "test_acceptance_indexing",
-        "test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern",
+        "test_a_short_clean_list_is_searched_ranked_and_reported_unscored",
         "qarr", ("characterisation",),
-        "a pattern with too few lines is refused before any engine starts, and "
-        "the bar is where the figures of merit are defined rather than chosen",
+        "a pattern with too few lines to score is searched anyway, over the "
+        "systems its line count supports, and reported unscored with the "
+        "certified cell ranked first",
         reference="CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka "
-                  "that lattice yields only 18 usable lines against "
-                  "PEAK_MIN_USABLE_LINES = 20.  The bar is not arbitrary: M20, "
-                  "F20 and Smith's volume envelope are all DEFINED on twenty "
-                  "lines, so below it the package would be quoting figures "
-                  "outside their own definitions.  The counterintuitive "
-                  "direction -- high symmetry makes a pattern easy to index "
-                  "until it makes it too sparse to index at all",
-        measured="18 usable; supports_indexing False; systems_searched EMPTY; "
-                 "0 candidates in 0.1 s; INDEX_DATA_INSUFFICIENT and "
-                 "INDEX_ABSTAINED both raised",
-        diagnostics=("INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"),
+                  "that lattice yields fewer than twenty usable lines.  "
+                  "Twenty is where M20 and F20 are DEFINED -- a scoring bar, "
+                  "not a searching one (WP-1043): seventeen lines are "
+                  "seventeen-fold over-determined for a cubic metric, and the "
+                  "pre-1043 gate's abstention here refused a question the "
+                  "engines answer at -5 ppm each when asked directly.  High "
+                  "symmetry makes a pattern easy to index right up until it "
+                  "makes it too sparse to SCORE -- no longer too sparse to "
+                  "search",
+        measured="17 usable; supports_indexing True with m20/f_n absent for "
+                 "cause; four systems searched to completion; 12 candidates, "
+                 "certified cell first at -18 ppm, caveats exactly "
+                 "[fom_panel_reduced] so the grade holds at medium and "
+                 "best_or_none() still refuses -- the capping caveat is what "
+                 "keeps a 17-line high unreachable",
+        diagnostics=("INDEX_PANEL_REDUCED", "INDEX_ABSTAINED",
+                     "!INDEX_DATA_INSUFFICIENT"),
     ),
     Claim(
         "test_acceptance_indexing",

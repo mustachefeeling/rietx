@@ -306,7 +306,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       flexibility*, and CLAUDE.md forbids an Rwp comparison as a correction's
       evidence. Surfacing it to a reasoner (above) is a different act from
       scoring on it.
-- [ ] Re-measure the fluorite row: it currently asserts an abstention that this WP
+- [x] Re-measure the fluorite row: it currently asserts an abstention that this WP
       makes wrong. It should assert that a short clean list is **searched, ranked
       by the reduced panel and reported unscored**, and that the certified cell
       comes back at rank 1.

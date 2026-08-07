@@ -74,6 +74,7 @@ from pxrdref.indexing.quality import assess_peak_list, fit_shift_model
 from pxrdref.schemas.indexing import (
     PAIR_MIN_Z,
     PEAK_ASSUMED_ESD_DEG,
+    PEAK_MIN_USABLE_LINES,
     PeakList,
 )
 from tests import indexing_gallery as gallery
@@ -460,11 +461,13 @@ def hl2_index():
 
 @pytest.fixture(scope="module")
 def qarr_fluorite():
-    """``(peaks, quality report, result)`` for CaF₂ — and it never searches.
+    """``(peaks, quality report, result)`` for CaF₂ — the searched short list.
 
-    Left **fast** and ungrouped on purpose: the whole row is that no engine
-    starts, so it costs a peak pick (~0.1 s) and nothing else.  A `slow` mark
-    here would be claiming a cost this row does not have.
+    A real search since WP-1043 (measured once at ~3.5 min wall: four systems
+    to completion plus Le Bail validation of the shortlist), where the
+    pre-1043 quality gate abstained before any engine started and the fixture
+    cost a peak pick.  Its consumer is therefore ``slow``-marked and grouped —
+    the mark now claims a cost the row really has.
     """
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
@@ -477,8 +480,10 @@ def qarr_fluorite():
     res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
     gallery.draw("fluorite", peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec,
-                 note="18 usable lines against PEAK_MIN_USABLE_LINES = 20 — the "
-                      "picture is the whole row, and there is nothing else to draw")
+                 note="fewer usable lines than the twenty the classical "
+                      "figures need — searched anyway since WP-1043: the "
+                      "reduced panel ranks the certified cell first, held at "
+                      "medium by fom_panel_reduced")
     return peaks, assess_peak_list(peaks), res
 
 
@@ -1077,35 +1082,57 @@ def test_a_three_phase_mixture_abstains(qpa_mixture_index):
         assert cand.confidence != "high"
 
 
-def test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern(qarr_fluorite):
-    """Fluorite abstains **before any engine starts**, and the reason is sound.
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-fluorite")
+def test_a_short_clean_list_is_searched_ranked_and_reported_unscored(
+        qarr_fluorite):
+    """Fluorite is searched now, and the certified cell comes back ranked first.
 
     CaF₂ is Fm-3m with a = 5.4631 Å, and over this round robin's 5-150° Cu Kα
-    range that lattice simply does not produce many lines: ``pick_peaks`` finds
-    **18** usable, against ``PEAK_MIN_USABLE_LINES`` = 20.  So
-    ``assess_peak_list`` refuses, ``systems_searched`` is **empty**, and the run
-    costs 0.1 s rather than a minute of searching.
+    range that lattice yields fewer than twenty usable lines — so before
+    WP-1043 the quality gate abstained here without starting an engine,
+    conflating "can this be scored" (twenty lines, where M₂₀ and F₂₀ are
+    defined) with "can this be searched" (``MIN_LINES_PER_DOF``: seventeen
+    lines are seventeen-fold over-determined for a cubic metric).  Measured on
+    the split: all four requested systems searched to completion, twelve
+    candidates, the certified cell **first** at −18 ppm, and the answer
+    reported *unscored* — the classical figures absent with their reasons and
+    the reduced panel doing the ranking.
 
-    Two things make this worth a row rather than a footnote.  It is the
-    *counterintuitive* direction — high symmetry is what makes a pattern easy to
-    index right up until it makes the pattern too sparse to index at all — and
-    the bar is not arbitrary: M₂₀, F₂₀ and Smith's volume envelope are all
-    **defined** on twenty lines, so below that the package would be reporting
-    figures of merit outside their own definitions.  WP-1024's handover warned
-    that two spikes were debugged before someone checked ``quality.n_usable``
-    first; this row is that warning made executable.
+    The capping caveat is load-bearing, and this row is its measurement: rank
+    1 carries **no other caveat** (validated, every engine agrees, search
+    complete, shift measured from pairs), so without ``fom_panel_reduced``
+    this change would have minted a ``high`` singleton from seventeen lines —
+    the gate-loosening the WP's non-goal forbids.  ``best_or_none()`` still
+    refuses, and unattended use is exactly as strict as the abstention made
+    it, with the whole ranked answer now behind it for anyone who can reason.
     """
     peaks, report, res = qarr_fluorite
-    assert len(peaks.usable()) < 20
-    assert not report.supports_indexing
-    assert report.abstained_reason and "20" in report.abstained_reason
+    assert len(peaks.usable()) < PEAK_MIN_USABLE_LINES
 
-    assert res.candidates == []
-    assert res.systems_searched == [], (
-        "an engine ran on a list the quality gate had already refused")
-    assert res.best_or_none() is None
+    # searched, not refused — the split's whole content
+    assert report.supports_indexing and report.abstained_reason is None
+    assert set(report.fom_undefined) == {"m20", "f_n"}
+    assert set(res.systems_searched) == set(REAL_DATA_SYSTEMS)
+    assert all(res.search_complete[s] for s in res.systems_searched)
     codes = {d.code for d in res.diagnostics}
-    assert {"INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"} <= codes, sorted(codes)
+    assert "INDEX_DATA_INSUFFICIENT" not in codes, sorted(codes)
+    assert "INDEX_PANEL_REDUCED" in codes, sorted(codes)
+
+    # the certified cell, ranked first by the reduced panel
+    assert res.candidates
+    top = res.candidates[0]
+    assert top.system == "cubic" and top.centring == "F"
+    assert top.cell[0] == pytest.approx(5.4631, rel=1e-4)
+    assert [f.name for f in top.fom] == [
+        "indexed_fraction", "indexed_intensity_fraction",
+        "predicted_seen_fraction", "m_rev", "m_sym"]
+
+    # unscored ⇒ capped, and by nothing else
+    assert top.confidence_caveats == ["fom_panel_reduced"]
+    assert top.confidence == "medium"
+    assert res.best_or_none() is None
+    assert "INDEX_ABSTAINED" in codes
 
 
 @pytest.mark.slow
