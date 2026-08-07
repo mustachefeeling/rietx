@@ -61,17 +61,18 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**In flight:** [1043](wp/1043-agent-and-human-indexing.md) — indexing reports
-instead of refusing, started 2026-08-07. Searchability separated from
-scorability by reusing `MIN_LINES_PER_DOF` (fluorite's 18 clean cubic lines are
-searched, ranked by the reduced panel and reported unscored — today they are
-refused despite all three engines holding the certified cell at rank 1 at
-−5 ppm); a per-candidate machine-readable evidence view, serialized through the
-agent arm before the WP-1003 freeze; the visual check reachable from a result
-rather than only from the acceptance suite; the magnetite detector blindness
-measured before it is fixed; and 1028's six-component escapee census acted on.
-The predecessor's close narrative is in
-[milestones/v1.0.md](milestones/v1.0.md).
+**Nothing in flight.** Closed 2026-08-07, narrative in
+[milestones/v1.0.md](milestones/v1.0.md):
+[1043](wp/1043-agent-and-human-indexing.md) — indexing reports instead of
+refusing, and three of its measurements corrected the premise they were filed
+under: the `fom_panel_reduced` cap is load-bearing (fluorite's rank-1 cell
+carries no other caveat, so `high` from 17 lines was one caveat away); the
+magnetite detector is blinded by a **negative** co-refined background, not a
+raised one; and the blind aberration flags beat the certificate probe they
+replaced, reaching the slot-swap tail two cancelling systematics hide —
+`high` at −2 ppm on SRM 660c now needs no certificate at the trim step. The
+evidence view rides the agent's `evidence` arm (decided additive), and
+`viz.plot_indexing` draws the visual check from a result alone.
 
 **The running theme: a number that is not regenerated is a number nobody
 re-measures.** A prediction is not a measurement (1041); nor is an inherited
@@ -241,7 +242,7 @@ monoclinic search finishes.
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ✅ 2026-08-05 — landed with the zero-error column; scoreboard re-measured in 1041 | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
-| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | 🔄 | 1041, 1026 (1028 soft) |
+| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ✅ 2026-08-07 | 1041, 1026 (1028 soft) |
 | [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ⬜ | 1027, 1042 (1043 soft) |
 
 | WP | Title | Status | Depends on |

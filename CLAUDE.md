@@ -188,7 +188,9 @@ task union, errors as a structured `{ok:false, error:{code,…}}` envelope (neve
 traceback), and `agent.tool_definition()` exporting the JSON Schema with the
 backend/solver/plan/**engine** names quoted from the live registries — a meta-test
 fails if a registry member is missing from the schema. The four answers live in
-separate arms (`result` / `series` / `indexing`) because they are different
+separate arms (`result` / `series` / `indexing` — the last with its
+`evidence` companion, the same answer projected for a reasoning consumer with
+caveat kinds and absent-for-cause figures, WP-1043) because they are different
 *shapes*, and for indexing the shape is the rule: the serialized answer carries no
 `cell` key either.
 

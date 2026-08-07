@@ -1,6 +1,6 @@
 # WP-1043 — Indexing for an agent and for a human: report, don't refuse
 
-Milestone: v1.0 · Status: 🔄 2026-08-07
+Milestone: v1.0 · Status: ✅ 2026-08-07
 Depends on: 1041 (closed), 1026 (closed) · 1028 soft (peak-picking edge artifact)
 
 ## Goal
@@ -416,6 +416,60 @@ against the whole profile as two discrete counts. Le Bail over Pawley is then a
 cost choice — no extra θ block per candidate — not a claim about discrimination.
 
 ## Handover log
+
+- **2026-08-07 — closed, nine of nine, and three of the measurements corrected
+  the premise they were filed under.** Branch `wp1043-agent-and-human-indexing`
+  off the (then unmerged) 1028 tip; eleven commits — one per task plus the
+  arrival prune and PR housekeeping (PR #39 opened and merged for 1028's close
+  on the user's instruction; the stray `uv.lock` was the user's test detritus,
+  reverted).
+
+  **Done, with the three corrected premises.** (1) The searchable/scorable
+  split landed as designed — but the capping caveat `fom_panel_reduced` turned
+  out to be *load-bearing*, not decorative: fluorite's rank-1 cell carries no
+  other caveat, so without it the change would have minted a `high` singleton
+  from 17 lines. (2) The magnetite detector measurement inverted the filed
+  cause: the rival's fit pays for its 163 reflections by driving the
+  co-refined background **negative** (a *raised* background — the WP's guess —
+  makes more absences, not fewer); widths (2-3×, bound-pegged) are secondary;
+  honest candidate-independent inputs read 14 of 163, not "large". The repair
+  (inputs the candidate cannot buy) is recorded, not landed — it re-measures
+  every `predicted_but_absent` count in the tree. (3) The census fix beat the
+  probe it replaced: the blind flags reach the 43.5° slot-swap tail that
+  aliases onto a certified position (axial shift cancels the displacement
+  there), which the certificate probe *never reached* — the calibrated
+  protocol now trims answer-free, its screen's leftover scatter drops 0.0078°
+  → 0.0025°, and `high` at −2 ppm holds. Also: the evidence view
+  (`IndexingResult.evidence()`, agent `evidence` arm, **decided additive** —
+  grounds on `AgentSuccess.evidence`), `viz.plot_indexing` from (result,
+  pattern) with the window rebuilt from provenance notes, the gallery its
+  consumer, the AGENT_PROTOCOL §7f split, and the high-symmetry qualifier on
+  every scoreboard quote.
+
+  **Numbers, `[dev,jax,torch,docs]` venv on darwin/arm64** (same venv as
+  1028's close): fast selection **1932 passed, 5 skipped in 2:50** against
+  1028's 1924 + 5 — +8, exactly this session's +9 new tests (core 1, quality
+  1, consensus 4, plots 2, agent 1) minus the fluorite row moving fast → slow
+  now that it really searches. No new skip. Ruff clean. GUI: 390 vitest,
+  svelte-check 0 errors, dist rebuilt (pxt.ts gained the two PeakFlag words).
+  The full suite would not run as one background job here (the environment
+  killed it twice before start), so the close is measured as 1028's was:
+  fast selection + `test_acceptance_indexing.py` **41 passed in 18:05**
+  (count unchanged — renames only) + `test_acceptance_qpa_roundrobin.py`
+  **12 passed in 1:31**, both alone.
+
+  **Next**: 1042 heads the queue. The detector repair (candidate-independent
+  background/width inputs for `absent_reflections`) is measured, designed and
+  unowned — it should be scheduled deliberately, not folded into a passing WP.
+
+  **Gotchas.** The tight-window control in the calibrated row is pinned to the
+  *probe* screen's 0.0078° on purpose — the flag-trimmed screen's 0.0025° is
+  past what WP-1040's zero-error rescue was measured to reach, and running the
+  control there would silently re-measure that claim. The aberration flags are
+  informational; adding either to `PEAK_UNUSABLE_FLAGS` would change every
+  search on the six other lab patterns (11 unverified hits measured) and
+  re-open every count this session pinned. And the GUI's `/api/index` remains
+  unbudgeted, which now matters (1042's Inherited has the measurement).
 
 - **2026-08-06 (second entry)** — plan revised in the user review session (no
   code touched), on two user calls: **one output** already governed the WP;
