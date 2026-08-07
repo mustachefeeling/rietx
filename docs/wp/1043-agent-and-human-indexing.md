@@ -289,7 +289,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       a new kind"; the one deployed consumer (the GUI) derives caveat kinds
       from the live constant, so a capping addition costs it nothing; grounds
       recorded on `AgentSuccess.evidence`.
-- [ ] **The visual check, reachable from a result.** Lift the gallery's
+- [x] **The visual check, reachable from a result.** Lift the gallery's
       per-candidate rendering — tick rows against the pattern, the Le Bail
       panel — into `viz/` as a function of (result, pattern);
       `python -m tests.indexing_gallery` becomes a consumer of it, not the

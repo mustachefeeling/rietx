@@ -353,6 +353,91 @@ def plot_validation(validation, result=None, *, path: str | None = None,
     return fig
 
 
+def _window_from_result(result, peaks) -> np.ndarray:
+    """The σ(Q) the search matched with, rebuilt from what the result records.
+
+    ``index_pattern`` writes ``sigma_sys_deg`` into ``provenance.notes`` on
+    every run precisely so a run is reproducible from what it reports; that
+    plus the quality report's shift screen feed the same
+    :func:`~pxrdref.indexing.engines.effective_sigma_sys` the search read.  So
+    a picture drawn from a result matches in the window the candidates were
+    selected under — CLAUDE.md's rule that a fitted σ is the wrong matching
+    window, honoured with **no spec in hand** (WP-1043: the visual check is
+    reachable from a result, not only from the suite that ran the search).
+    """
+    from ..indexing.engines import SearchSpec, match_window
+
+    notes = getattr(getattr(result, "provenance", None), "notes", None) or {}
+    try:
+        sigma_sys = float(notes.get("sigma_sys_deg", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        sigma_sys = 0.0
+    return match_window(peaks, SearchSpec(sigma_sys_deg=sigma_sys),
+                        getattr(result, "quality", None))
+
+
+def plot_indexing(result, peaks, *, data=None, instrument=None,
+                  candidate: int = 0, n: int = 5, validation=None,
+                  path: str | None = None, dpi: int = 150):
+    """The whole visual check, as a function of (result, pattern) — WP-1043.
+
+    The user's design call made the picture part of the deliverable: one
+    ranked list with stats *plus a visual check against the diffraction data*.
+    Until this function the check lived only in ``tests/indexing_gallery.py``,
+    which owned the composition (window reconstruction, top-candidate refit);
+    now the gallery is a consumer of this call, not the owner.
+
+    Returns ``{name: Figure}`` in drawing order, with up to three entries
+    matching what the inputs allow:
+
+    * ``"peaks"`` — always: the search's real input (over the profile when
+      ``data`` is given).
+    * ``"candidates"`` — when the result carries any: the ranked tick rows,
+      matched in the **window the search used**, reconstructed from the
+      result's own provenance notes (:func:`_window_from_result`).
+    * ``"validation"`` — the Le Bail panel for ``candidates[candidate]``.
+      Pass ``validation=(LeBailValidation, RefinementResult)`` from
+      ``validate_by_lebail(..., with_result=True)`` to draw a fit already in
+      hand; or pass ``data`` **and** ``instrument`` to run that fit here; or
+      neither, and the stored positions-only panel is drawn when the
+      candidate carries one.
+
+    ``path`` is a stem: each figure is saved as ``f"{path}_{name}.png"``.
+    Figures are returned open either way — closing is the caller's, exactly
+    as :func:`pxrdref.plot` behaves.
+    """
+    figures: dict = {}
+    figures["peaks"] = plot_peak_list(peaks, data, dpi=dpi)
+
+    cands = list(getattr(result, "candidates", ()) or ())
+    if cands:
+        if not 0 <= candidate < len(cands):
+            raise ValueError(f"candidate {candidate} is out of range for "
+                             f"{len(cands)} candidate(s)")
+        figures["candidates"] = plot_candidates(
+            cands, peaks, n=n, dpi=dpi,
+            q_match=_window_from_result(result, peaks))
+        chosen = cands[candidate]
+        if validation is None and data is not None and instrument is not None:
+            from ..indexing.workflow import validate_by_lebail
+
+            validation = validate_by_lebail(chosen, data, instrument,
+                                            peaks=peaks, with_result=True)
+        if validation is not None:
+            val, fit = validation
+            figures["validation"] = plot_validation(val, fit, dpi=dpi)
+        elif chosen.lebail is not None:
+            # positions only — strictly worse than the fit panel and drawn
+            # anyway: the two detector lists are what separate a wrong metric
+            # from an oversized one, and they need no refit
+            figures["validation"] = plot_validation(chosen.lebail, dpi=dpi)
+
+    if path is not None:
+        for name, fig in figures.items():
+            fig.savefig(f"{path}_{name}.png")
+    return figures
+
+
 def _validation_title(validation) -> str:
     return (f"Le Bail validation of {validation.space_group}: "
             f"Rwp={validation.rwp:.4f}, GoF={validation.gof:.2f}, "
@@ -361,5 +446,5 @@ def _validation_title(validation) -> str:
             f"observed  [{validation.status}]")
 
 
-__all__ = ["CANDIDATE_COLORS", "plot_candidates", "plot_peak_list",
-           "plot_validation"]
+__all__ = ["CANDIDATE_COLORS", "plot_candidates", "plot_indexing",
+           "plot_peak_list", "plot_validation"]
