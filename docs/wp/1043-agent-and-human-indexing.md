@@ -1,6 +1,6 @@
 # WP-1043 — Indexing for an agent and for a human: report, don't refuse
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: 🔄 2026-08-07
 Depends on: 1041 (closed), 1026 (closed) · 1028 soft (peak-picking edge artifact)
 
 ## Goal
@@ -187,6 +187,28 @@ bethanechol is the sharpest case for the evidence view: on set F the package
 holds the published cell at **rank 1** and, with no profile to validate against,
 still cannot promote it past `low`.
 
+### Folded from 1028 (closed 2026-08-07): the peak list is the last gatekeeper
+
+Measured 2026-07-30 on SRM 660c LaB6 — 1028 § (k) has the full text; the two
+search-bound entries went to [1045](1045-indexing-search-controls.md).
+`pick.py`'s `not_separable` screen misses six components on that pattern, and
+**no one knob reaches them** — they fail three different conditions: four are
+simply too far (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` =
+1.5), one fails `reseeded()` because the detection seed slid into the tail and
+the new component took the real line (slot labels swapped), and one sits on a
+group whose fit is not refuted (χ²_red 1.38), which the screen's own docstring
+calls a deliberate keep. What they *are* is settled: five are axial-divergence
+tails (the sign flips at 90° 2θ, which nothing else in a Bragg-Brentano
+pattern does) and one is a Kα2 residual that `detect_peaks` dropped and
+`fit_group` re-created at 3 % of the parent's area. The cost is on the answer
+— 125 ppm on a certified cell (−127 with them in, −2 with them out), and a
+shift fit consistent with zero where the truth is +0.037° — and the prize is
+this WP's own subject: with them removed and the systematic measured rather
+than assumed, the gate reached **`high` at −2 ppm**, M₂₀ = 1120, zero caveats,
+the first time `high` has been reached on real data. The census is pinned by
+`test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
+fix has a table to move rather than a threshold to guess at.
+
 ### What an agent needs that a gate cannot give
 
 The gate returns `low`/`medium`/`high` and `best_or_none()`. An agent that can
@@ -205,6 +227,14 @@ either collapsed or withheld:
   to compute any;
 * what the search covered — `systems_searched` and `search_complete` exist and are
   the model for the rest.
+
+Two 1041 measurements to carry into any caveat wording this WP writes:
+contamination breaks the **grade**, not the answer (the truth indexes exactly
+its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k) and the
+0.9 bar falls between k = 2 and 3 — the caveat names the symptom, not the
+cause), and `n_unindexed` is an **absolute budget**, not a tolerance (told it
+may leave 3 unindexed on a list carrying 12 impurities, the search returns the
+truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 
 ### The visual check: two plotting facts that constrain it
 
@@ -280,6 +310,12 @@ either collapsed or withheld:
       makes wrong. It should assert that a short clean list is **searched, ranked
       by the reduced panel and reported unscored**, and that the certified cell
       comes back at rank 1.
+- [ ] **Act on 1028's escapee census** (Context § the peak list is the last
+      gatekeeper): make the six unflagged tail components reachable — five
+      axial-divergence tails and a re-created Kα2 residual, each with a settled
+      cause — so the 125 ppm they cost a certified cell is removable without
+      hand-editing the peak list. The pinned census test is the table the fix
+      has to move, not a threshold to guess at.
 - [ ] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
       (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
       until the corpus moves — which is post-v1.
@@ -287,43 +323,6 @@ either collapsed or withheld:
       read (the gate) and what a reasoning consumer should read (the evidence),
       with the fluorite case as the worked example of why they differ — and
       bethanechol set F as the case where the truth is *already* at rank 1.
-
-### Inherited
-
-**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — the peak
-list is what stands between this pipeline and a blind certified answer, and the
-census of what escapes is already written.** Measured 2026-07-30 on SRM 660c
-LaB6; 1028's § (k) has the full text and the other two bounds went to
-[1045](1045-indexing-search-controls.md).
-
-`pick.py`'s `not_separable` screen misses six components on that pattern, and
-**no one knob reaches them** — they fail three different conditions: four are
-simply too far (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` = 1.5),
-one fails `reseeded()` because the detection seed slid into the tail and the new
-component took the real line, so the slot labels are swapped, and one sits on a
-group whose fit is **not refuted** (χ²_red 1.38), which the screen's own
-docstring calls a deliberate keep. What they *are* is settled: five are
-axial-divergence tails (the sign flips at 90° 2θ, which nothing else in a
-Bragg-Brentano pattern does) and one is a Kα2 residual that `detect_peaks`
-dropped and `fit_group` re-created at 3 % of the parent's area.
-
-Two reasons it lands here rather than staying a peak-picking chore. The **cost
-is on the answer**: 125 ppm on a certified cell (−127 with them in, −2 with them
-out), and a shift fit consistent with zero where the truth is +0.037°. And the
-prize is this WP's own subject — with these removed and the systematic measured
-rather than assumed, the gate reached **`high` at −2 ppm**, M₂₀ = 1120, zero
-caveats, the first time `high` has been reached on real data. The census is
-pinned by
-`test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
-fix has a table to move rather than a threshold to guess at.
-
-Also worth carrying into any caveat wording this WP writes, both measured by
-1041: contamination breaks the **grade**, not the answer (the truth indexes
-exactly its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k)
-and the 0.9 bar falls between k = 2 and 3 — the caveat names the symptom, not
-the cause), and `n_unindexed` is an **absolute budget**, not a tolerance (told
-it may leave 3 unindexed on a list carrying 12 impurities, the search returns
-the truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 
 ## Acceptance
 
