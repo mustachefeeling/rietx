@@ -882,6 +882,20 @@ class CompiledModel:
         intensity block before the first least-squares run (never between runs,
         which would overwrite the refined values).
 
+        **y_bragg spans every phase, and that is what makes the partition a
+        partition** (WP-1028 §(g)).  The shares Σ_p Σ_k I_k·Ω_k / y_bragg sum to
+        exactly 1 at every channel, so the whole of ``net`` is handed out once.
+        Building the denominator per phase — as this did before v1.0 — makes
+        *each* phase claim the entire observed excess in its own windows, so
+        wherever two phases overlap the same counts are issued twice.  Measured
+        on a synthetic LaB₆ + CaF₂ pattern: Σ y_bragg settles at **1.79 ×** the
+        observed excess.  Note the shape of that failure, because the WP that
+        filed it described a different one — it converges, to a *fixed*
+        overcount, rather than inflating without bound; the Rwp table it was
+        filed with (742-3334 % at two phases, 2.6e5 % at three) is the
+        overcount compounding through the profile stages that follow, not the
+        partition running away by itself.
+
         Runs *between* least-squares solves, so it may commit to the at-rest
         buffers — but it threads the intensity vectors functionally through its
         own cycles and writes each phase's buffer exactly once at the end.
@@ -891,27 +905,37 @@ class CompiledModel:
         xp = get_backend()
         sl = values["instrument.geometry.axial_sl"]
         hl = values["instrument.geometry.axial_hl"]
+        n_lines = len(self.line_wavelengths)
         intens = [np.asarray(cp.hkl_intensity, dtype=np.float64) for cp in self.phases]
         for _ in range(n_cycles):
             bkg = self.background(values)
             net = xp.maximum(self.y_obs - bkg, 0.0)
+
+            # pass 1 — every phase's profiles, and the *total* Bragg curve they
+            # are shares of.  One pass per phase would be cheaper by nothing:
+            # the profiles are needed again below either way.
+            all_peaks, all_profs = [], []
+            y_bragg = xp.zeros_like(self.tt)
             for ip, cp in enumerate(self.phases):
                 peaks = self.phase_peaks(ip, values, intens[ip])
-                n = len(cp.reflections)
-                n_lines = len(self.line_wavelengths)
                 profs: list[list[np.ndarray | None]] = []
-                y_bragg = xp.zeros_like(self.tt)
                 for il, (pos, gamma, eta, intensity) in enumerate(peaks):
                     row: list[np.ndarray | None] = []
-                    for k in range(n):
+                    for k in range(len(cp.reflections)):
                         om = self._reflection_profile(cp, il, k, pos[k], gamma[k], eta[k], sl, hl)
                         row.append(om)
                         if om is not None:
                             i0, i1 = int(cp.win[il, k, 0]), int(cp.win[il, k, 1])
                             y_bragg = xp.window_add(y_bragg, i0, i1, intensity[k] * om)
                     profs.append(row)
+                all_peaks.append(peaks)
+                all_profs.append(profs)
+
+            # pass 2 — each reflection takes its share of net out of the total
+            for ip, cp in enumerate(self.phases):
+                peaks, profs = all_peaks[ip], all_profs[ip]
                 new_int = intens[ip].copy()
-                for k in range(n):
+                for k in range(len(cp.reflections)):
                     num = 0.0
                     den = 0.0
                     for il in range(n_lines):

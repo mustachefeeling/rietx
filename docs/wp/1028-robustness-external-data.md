@@ -170,6 +170,29 @@ partition and not the starting point. Either damp the per-phase update, refuse
 `mode="lebail"` above one phase with a clear error, or document the fence.
 Rietveld ties intensities to atoms and has no such freedom.
 
+**Resolved 2026-08-07, and it was none of those three: the partition was not a
+partition.** `y_bragg`, the denominator each reflection's share is taken
+against, was built **inside** the per-phase loop, so every phase divided by its
+*own* calculated curve and multiplied by the *whole* observed excess — wherever
+two phases overlap, the same counts were issued twice. The shares now sum to 1
+across all phases at every channel, which is the fixed point Le Bail et al.
+(1988) describes; the fix is one pass boundary moved (profiles and the total
+first, shares second) and no new tunable.
+
+Measured on a synthetic LaB₆ + CaF₂ pattern, Σ calculated Bragg / Σ observed
+excess: **1.79 → 1.0000**, with one phase 1.0000 both before and after — and
+the bit-identity goldens pass, so the single-phase path really is untouched.
+
+**Two corrections to what was filed here, both of the "a reported cause is not
+a measurement" shape.** The overcount **converges**; it does not "inflate one
+another without bound" — the ratio is identical after 1 cycle and after 8
+(pinned by `test_the_overcount_is_a_fixed_point_not_a_runaway`). And the Rwp
+table above is therefore *downstream* of the partition rather than a direct
+reading of it: a fixed 1.79× overcount does not by itself give 742 %, so those
+figures are the overcount compounding through the profile stages that follow.
+The table is left standing because it is what was observed; only its
+attribution is corrected.
+
 ### (h) Two caller-protocol requirements nothing states
 
 - **A Le Bail refinement needs an outer fixed-point loop.** One
@@ -362,7 +385,9 @@ size.
 - [x] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
       parameters for the same reachable-zero bug)
 - [x] `compute_qpa`: skip below two phases, diagnose instead of raising
-- [ ] Le Bail multiphase: damp, refuse, or fence — decide and record
+- [x] Le Bail multiphase: ~~damp, refuse, or fence~~ — the partition
+      denominator now spans every phase, which is what makes it a
+      partition; 1.79 → 1.0000 on two phases, 1.0000 unchanged on one
 - [ ] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
       precondition (may land first, independently — it is documentation)
 - [ ] Envelope edge knots: anchor a knot at each data edge, linearly

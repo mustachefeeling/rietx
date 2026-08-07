@@ -319,6 +319,66 @@ def test_the_march_bound_holds_through_the_parameter_table():
 
 
 # ----------------------------------------------------------------------
+# (g) the Le Bail partition hands out the observed excess exactly once
+# ----------------------------------------------------------------------
+
+
+def _lebail_partition_ratio(n_phases, *, n_cycles=3):
+    """Σ (calculated Bragg) / Σ (observed above background) after partitioning.
+
+    A partition hands out each channel's excess exactly once, so this is 1.0
+    at any phase count.  Before the fix the denominator was built per phase,
+    so every phase claimed the whole excess in its own windows and the ratio
+    settled above 1 wherever phases overlap.
+    """
+    from pxrdref.model.forward import compile_model
+    from pxrdref.params.vector import ParameterTable
+    from tests.test_qpa import _caf2_phase, make_lab6
+
+    s = make_lab6()
+    if n_phases > 1:
+        s.phases.append(_caf2_phase())
+    for phase in s.phases:
+        phase.scale.value = 1.0
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.profile.w.value = 5e-3
+    tt = np.arange(20.0, 80.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    truth = compile_model(s, ins, blank, mode="rietveld")
+    t0 = ParameterTable(s, ins)
+    y = truth.evaluate(t0.decode(t0.x0()))
+
+    pattern = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+    model = compile_model(s, ins, pattern, mode="lebail")
+    table = ParameterTable(s, ins)
+    values = table.decode(table.x0())
+    net = np.asarray(model.y_obs) - model.background(values)
+    model.lebail_update(values, n_cycles=n_cycles)
+    bragg = model.evaluate(values) - model.background(values)
+    return float(bragg.sum() / net.sum())
+
+
+def test_the_lebail_partition_is_a_partition_at_two_phases():
+    # the defect: the denominator spanned one phase, so two overlapping phases
+    # were each issued the same counts — measured 1.79x on this pattern
+    assert _lebail_partition_ratio(2) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_the_single_phase_partition_is_unchanged():
+    # one phase has nothing to overlap with, so the fix must be a no-op here
+    assert _lebail_partition_ratio(1) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_the_overcount_is_a_fixed_point_not_a_runaway():
+    # worth pinning because the WP filed this as "inflate one another without
+    # bound": the ratio is the same after 1 cycle and after 8, so what the
+    # partition does is converge to the *wrong* answer, not diverge
+    assert _lebail_partition_ratio(2, n_cycles=1) == \
+        pytest.approx(_lebail_partition_ratio(2, n_cycles=8), abs=1e-6)
+
+
+# ----------------------------------------------------------------------
 # (f) QPA degrades to a diagnostic instead of raising from _build_result
 # ----------------------------------------------------------------------
 
