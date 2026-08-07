@@ -530,6 +530,15 @@ def test_a_short_clean_list_is_searched_ranked_and_capped():
         assert "fom_panel_reduced" in cand.confidence_caveats
     assert result.best_or_none() is None
 
+    # the evidence view agrees with the result it projects, by construction
+    ev = result.evidence()
+    assert ev.fom_undefined == result.quality.fom_undefined
+    assert set(ev.fom_ranked) == set(names)
+    assert set(ev.candidates[0].fom) == set(ev.fom_ranked)
+    assert all(any(c.name == "fom_panel_reduced" and c.kind == "capping"
+                   for c in cand.caveats)
+               for cand in ev.candidates)
+
 
 def test_restriction_honors_an_explicit_unsupported_request():
     """Two edges of :func:`_restrict_to_supported`, asserted on the function.
@@ -553,6 +562,73 @@ def test_restriction_honors_an_explicit_unsupported_request():
 
     overlap = SearchSpec(systems=("cubic", "monoclinic"))
     assert _restrict_to_supported(overlap, below_bar).systems == ("cubic",)
+
+
+def test_the_evidence_view_is_a_projection_with_caveat_kinds():
+    """WP-1043: the gate's inputs, serialized — not a second copy of them.
+
+    The refuting/capping split lived only in ``INDEX_REFUTING_CAVEATS``, a
+    package constant no JSON consumer can see, so the serialized answer could
+    name ``predicted_but_absent`` and ``not_validated`` in the same list
+    without saying that one argues against the cell and the other only says a
+    question was never asked.  ``evidence()`` computes the view from the live
+    fields on each call, so the two representations cannot disagree."""
+    from typing import get_args
+
+    from pxrdref.refine import _VERSION
+    from pxrdref.schemas.common import Provenance
+    from pxrdref.schemas.indexing import IndexingEvidence
+
+    refuted = _candidate(
+        TRUE_A, confidence="low",
+        confidence_caveats=["predicted_but_absent", "not_validated"],
+        lebail=LeBailValidation(rwp=0.379, gof=2.1, space_group="P m -3 m",
+                                n_reflections=153, predicted_but_absent=117,
+                                unmatched_observed=0))
+    unreached = _candidate(
+        4.9, confidence="medium", confidence_caveats=["fom_panel_reduced"],
+        lebail=None, fom=[])
+    result = IndexingResult(
+        candidates=[refuted, unreached], engines_run=sorted(engine_names()),
+        systems_searched=["cubic"], search_complete={"cubic": True},
+        validated=True, wavelength=LAM, n_usable_lines=17,
+        provenance=Provenance(package_version=_VERSION,
+                              created_utc="2026-08-07T00:00:00Z"))
+
+    ev = result.evidence()
+    assert [c.index for c in ev.candidates] == [0, 1]
+    kinds = {c.name: c.kind for c in ev.candidates[0].caveats}
+    assert kinds == {"predicted_but_absent": "refuting",
+                     "not_validated": "capping"}
+    assert ev.candidates[1].caveats[0].kind == "capping"
+
+    # the three whole-profile figures travel together, and an unreached
+    # validation is None — absent for cause, never zero
+    first = ev.candidates[0]
+    assert (first.validated, first.lebail_rwp, first.predicted_but_absent,
+            first.unmatched_observed) == (True, 0.379, 117, 0)
+    second = ev.candidates[1]
+    assert (second.validated, second.lebail_rwp, second.predicted_but_absent,
+            second.unmatched_observed) == (False, None, None, None)
+
+    # panel membership comes from the first candidate that carries one
+    assert ev.fom_ranked == [f.name for f in refuted.fom]
+    assert ev.candidates[0].fom == {f.name: f.value for f in refuted.fom}
+    assert ev.systems_searched == ["cubic"]
+
+    # every member of the closed vocabulary gets a kind, and the partition is
+    # exactly the refuting constant — so a new caveat cannot arrive unkinded
+    all_caveats = _candidate(TRUE_A,
+                             confidence_caveats=sorted(get_args(IndexCaveat)))
+    every = {c.name: c.kind
+             for c in IndexingResult(
+                 candidates=[all_caveats], provenance=result.provenance,
+             ).evidence().candidates[0].caveats}
+    assert {n for n, k in every.items() if k == "refuting"} \
+        == set(INDEX_REFUTING_CAVEATS)
+
+    # the view is a schema: it survives the JSON round trip intact
+    assert IndexingEvidence.model_validate_json(ev.model_dump_json()) == ev
 
 
 def test_a_restricted_search_is_not_a_verdict_about_the_specimen():

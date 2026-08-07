@@ -275,7 +275,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       only. Below twenty the search runs over the supported systems and every
       figure that is undefined is reported **absent with its reason**, never
       silently zero or quietly omitted. No second searchability criterion.
-- [ ] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
+- [x] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
       each caveat with its `refuting`/`capping` kind, the Le Bail Rwp and both
       detector counts, which figures were computable (and which panel members
       ranked, when the panel is reduced), and what the search covered. No new
