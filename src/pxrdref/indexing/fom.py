@@ -31,7 +31,11 @@ from functools import lru_cache
 
 import numpy as np
 
-from ..schemas.indexing import FigureOfMerit, q_of_two_theta
+from ..schemas.indexing import (
+    PEAK_MIN_USABLE_LINES,
+    FigureOfMerit,
+    q_of_two_theta,
+)
 
 #: How many σ_eff an observed and a predicted line may differ by and still count
 #: as the same line.  Three, because σ(2θ) is *calibrated* — WP-1018's pull
@@ -41,8 +45,11 @@ from ..schemas.indexing import FigureOfMerit, q_of_two_theta
 MATCH_SIGMA = 3.0
 #: Lines the classical figures of merit are defined on.  Not a round number: both
 #: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are defined on the first twenty, and
-#: Smith's volume envelope is quoted at N = 20.
-FOM_N = 20
+#: Smith's volume envelope is quoted at N = 20.  The *same* twenty as
+#: :data:`~pxrdref.schemas.indexing.PEAK_MIN_USABLE_LINES` — an alias, not a
+#: second bar, so the scoring precondition cannot drift from the figures it is
+#: about (WP-1043).
+FOM_N = PEAK_MIN_USABLE_LINES
 
 
 def lattice_group(system: str, centring: str = "P") -> str:
@@ -551,6 +558,31 @@ def _reversed_pair(q_obs: np.ndarray, q_esd: np.ndarray, q_pred: np.ndarray,
     )
 
 
+def panel_undefined(n_usable: int) -> dict[str, str]:
+    """Panel members undefined on a list of this length, name → reason.
+
+    The one authority for "can this list be **scored**", which WP-1043 separated
+    from "can it be searched" (``MIN_LINES_PER_DOF`` and the per-system
+    ``supported`` computation in ``quality.py`` own the second question).
+    Whether a figure is computable is a property of the *peak list* — its line
+    count — not of any candidate, so below :data:`FOM_N` the panel shrinks by
+    the same members for every candidate, uniformly, and Borda still ranks over
+    the members that remain.  A figure computed on fewer lines would not be the
+    published quantity (an M on 18 lines is not M₂₀ and no published threshold
+    transfers), so each is reported **absent with its reason** — recorded on
+    ``DataQualityReport.fom_undefined`` — never computed at a different N and
+    never silently zero.
+    """
+    if n_usable >= FOM_N:
+        return {}
+    return {
+        "m20": (f"{n_usable} usable lines, below the {FOM_N} de Wolff's M20 "
+                "is defined on (de Wolff 1968)"),
+        "f_n": (f"{n_usable} usable lines, below the {FOM_N} Smith & Snyder's "
+                "F20 is defined on (Smith & Snyder 1979)"),
+    }
+
+
 def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
               two_theta_obs: np.ndarray, two_theta_esd: np.ndarray,
               cell: tuple[float, ...], system: str, centring: str,
@@ -595,7 +627,11 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
     match = q_esd if q_match is None else q_match
     m_rev, m_sym = _reversed_pair(q_obs, q_esd, q_raw, m_raw, k_sigma=k_sigma,
                                   n_unindexed=n_unindexed)
-    return [
+    # the scoring bar (WP-1043): members undefined at this line count are left
+    # out of every candidate's panel alike — the same members for all, so Borda
+    # still ranks — and their reasons travel on the quality report, never here
+    undefined = panel_undefined(len(np.asarray(q_obs)))
+    members = [
         m20(q_obs, q_esd, q_pred, k_sigma=k_sigma, n_unindexed=n_unindexed),
         f_n(two_theta_obs, two_theta_esd, tt_pred, k_sigma=k_sigma,
             n_unindexed=n_unindexed),
@@ -606,6 +642,7 @@ def fom_panel(q_obs: np.ndarray, q_esd: np.ndarray, intensity: np.ndarray,
         m_rev,
         m_sym,
     ]
+    return [f for f in members if f.name not in undefined]
 
 
 def borda_scores(panels: list[list[FigureOfMerit]]) -> np.ndarray:
@@ -790,5 +827,6 @@ __all__ = ["AGGREGATE_EXCLUDES", "AGGREGATE_FLOOR_RTOL", "FOM_N",
            "fom_panel", "fom_panel_disagrees", "indexed_fraction",
            "lattice_group", "lattice_reflections", "laue_multiplicity",
            "log_sum_scores", "m20",
-           "match_lines", "n_cal", "nearest_discrepancy", "predicted_lines",
+           "match_lines", "n_cal", "nearest_discrepancy", "panel_undefined",
+           "predicted_lines",
            "predicted_seen_fraction", "q_of_two_theta", "trimmed_mean"]

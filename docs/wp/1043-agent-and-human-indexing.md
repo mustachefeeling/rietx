@@ -268,7 +268,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 
 ## Tasks
 
-- [ ] **Separate "can this be searched" from "can this be scored" — by reusing
+- [x] **Separate "can this be searched" from "can this be scored" — by reusing
       the existing authority.** `MIN_LINES_PER_DOF` and the per-system
       `supported` computation in `quality.py` decide searchability, per system;
       twenty (`PEAK_MIN_USABLE_LINES`) remains the bar for the figures of merit

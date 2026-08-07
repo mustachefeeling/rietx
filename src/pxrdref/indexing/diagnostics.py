@@ -68,15 +68,20 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
 
     if len(usable) < PEAK_MIN_USABLE_LINES:
         out.append(Diagnostic(
-            level="error", code="PEAK_LIST_TOO_SHORT",
-            message=(f"{len(usable)} usable lines; the figures of merit the "
-                     f"engines rank on (M20, F20) and Smith's volume envelope "
-                     f"are all defined on {PEAK_MIN_USABLE_LINES}"),
+            level="warning", code="PEAK_LIST_TOO_SHORT",
+            message=(f"{len(usable)} usable lines; the classical figures of "
+                     f"merit (M20, F20) and Smith's volume envelope are "
+                     f"defined on {PEAK_MIN_USABLE_LINES}, so this list can be "
+                     "searched but not scored (WP-1043)"),
             where=[f"2θ {peaks.two_theta_min:.2f}-{peaks.two_theta_max:.2f}°"],
-            suggestion=("extend the 2θ range, count longer, or lower "
-                        "PEAK_MIN_HEIGHT_SIGMA — but a list this short cannot "
-                        "be scored, so indexing it would return a rank order "
-                        "with no evidence behind it")))
+            suggestion=("the search runs over the systems the line count "
+                        "supports (MIN_LINES_PER_DOF per system) and ranks on "
+                        "the reduced panel — coverage in both directions and "
+                        "the reversed figures — with confidence capped by the "
+                        "fom_panel_reduced caveat.  To score against published "
+                        "thresholds, extend the 2θ range, count longer, or "
+                        "lower PEAK_MIN_HEIGHT_SIGMA until twenty lines are "
+                        "usable")))
 
     if peaks.source == "positions":
         out.append(Diagnostic(
@@ -214,6 +219,26 @@ def quality_diagnostics(report: DataQualityReport, peaks: PeakList,
                         "count longer, or re-pick with a lower "
                         "PEAK_MIN_HEIGHT_SIGMA.  Running a search anyway "
                         "returns a rank order with nothing behind it")))
+    elif report.fom_undefined:
+        absent = "; ".join(f"{name}: {why}"
+                           for name, why in sorted(report.fom_undefined.items()))
+        out.append(Diagnostic(
+            level="warning", code="INDEX_PANEL_REDUCED",
+            message=(f"{report.n_usable} usable lines is below the "
+                     f"{PEAK_MIN_USABLE_LINES} the classical figures of merit "
+                     f"are defined on, so the ranking panel is reduced — "
+                     f"absent: {absent}"),
+            where=where_range,
+            suggestion=("the search still runs, over "
+                        f"{', '.join(report.systems_supported) or 'no system'} "
+                        "(the systems MIN_LINES_PER_DOF supports at this line "
+                        "count), and Borda ranks on the members that remain — "
+                        "the same members for every candidate, so the order "
+                        "means what it always does.  Each absent figure is "
+                        "reported with its reason on quality.fom_undefined "
+                        "rather than computed at a different N, where it would "
+                        "not be the published quantity; confidence is capped "
+                        "by the fom_panel_reduced caveat")))
 
     if np.isfinite(report.relative_sigma_q_median):
         level = ("warning" if report.relative_sigma_q_median

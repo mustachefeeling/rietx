@@ -163,11 +163,19 @@ PEAK_ASYMMETRY_MIN_SIGMA = 4.0
 # ----------------------------------------------------------------------
 # List level
 # ----------------------------------------------------------------------
-#: Usable lines below which the list is reported too short to index.  Twenty is
-#: not a round number: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are both defined
-#: on the first twenty lines, and Smith's (1977) volume envelope is quoted at
-#: N = 20, so a shorter list cannot be scored by the figures of merit the
-#: engines rank on.
+#: Usable lines below which the list cannot be **scored** — the bar for the
+#: figures of merit only, never for the search (WP-1043).  Twenty is not a round
+#: number: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are both defined on the first
+#: twenty lines, and Smith's (1977) volume envelope is quoted at N = 20.  It is
+#: **not** a precondition for searching — a search needs enough lines to
+#: over-determine the metric, which is :data:`MIN_LINES_PER_DOF`'s per-system
+#: question (18 lines against cubic's one free parameter is eighteen-fold
+#: over-determined).  Conflating the two was measured to refuse a question the
+#: package answers perfectly: fluorite's 18 clean lines, which all three engines
+#: index at −5 ppm.  Below this bar the panel shrinks by the same members for
+#: every candidate (``fom.panel_undefined``), each absent figure is reported
+#: with its reason on ``DataQualityReport.fom_undefined``, and the
+#: ``fom_panel_reduced`` caveat caps confidence at ``"medium"``.
 PEAK_MIN_USABLE_LINES = 20
 # ----------------------------------------------------------------------
 # Data quality (WP-1019)
@@ -344,10 +352,17 @@ Confidence = Literal["high", "medium", "low"]
 #: ``validation_failed`` — the Le Bail fit raised or diverged, which is evidence
 #: about the candidate and is kept distinct from ``not_validated`` (no fit was
 #: attempted): absence of a test and a failed test are not the same statement.
+#: ``fom_panel_reduced`` — the list is below :data:`PEAK_MIN_USABLE_LINES`, so
+#: the panel that ranked this candidate lacks the classical figures
+#: (``DataQualityReport.fom_undefined`` names them with reasons); the ranking
+#: stands, the scoring does not, and ``"high"`` stays exactly as unreachable as
+#: the pre-WP-1043 abstention made it — capping, not refuting, because a short
+#: list is not evidence *against* a cell.
 IndexCaveat = Literal[
     "engines_disagree",
     "geometric_ambiguity",
     "fom_panel_disagrees",
+    "fom_panel_reduced",
     "not_validated",
     "validation_failed",
     "predicted_but_absent",
@@ -931,10 +946,17 @@ class ShiftScreen(Base):
 class DataQualityReport(Base):
     """Is this peak list fit to index, and what does it already say?
 
-    ``supports_indexing`` is read by ``index_pattern`` before any budget is
-    spent, and **abstention is a result**: a list that cannot support a search
-    comes back with ``supports_indexing = False`` and a reason, never as an
-    exception and never as a ranked list of cells with nothing behind it.
+    ``supports_indexing`` answers "can this list be **searched**" — the
+    per-system :data:`MIN_LINES_PER_DOF` question plus the precision floor —
+    and is read by ``index_pattern`` before any budget is spent.  **Abstention
+    is a result**: a list that cannot support a search in any system comes back
+    with ``supports_indexing = False`` and a reason, never as an exception and
+    never as a ranked list of cells with nothing behind it.  "Can it be
+    **scored**" is a separate, weaker precondition (WP-1043): a list short of
+    :data:`PEAK_MIN_USABLE_LINES` is still searched over
+    ``systems_supported``, with the undefined figures named in
+    ``fom_undefined`` and confidence capped by the ``fom_panel_reduced``
+    caveat.
 
     Every threshold this verdict rests on is a module constant in
     ``schemas/indexing.py`` with its reasoning, and ``thresholds_version``
@@ -961,6 +983,12 @@ class DataQualityReport(Base):
     lines_per_dof: dict[str, float] = Field(default_factory=dict)
     #: systems this list can support a search in at all
     systems_supported: list[str] = Field(default_factory=list)
+    #: figures of merit undefined on this list, name → reason (WP-1043).  A
+    #: property of the *peak list* — its line count — not of any candidate, so
+    #: the panel shrinks by exactly these members for every candidate alike and
+    #: Borda ranks over what remains.  Filled from ``fom.panel_undefined``, the
+    #: one authority; empty at or above :data:`PEAK_MIN_USABLE_LINES`.
+    fom_undefined: dict[str, str] = Field(default_factory=dict)
     #: Smith (1977) envelope on the unit-cell volume, Å³, from d at the N-th
     #: line — the default ``max_volume`` for a search, **per system** because the
     #: bound differs by up to 96× across them (a cubic F lattice shows ~96× fewer

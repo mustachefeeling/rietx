@@ -100,6 +100,7 @@ from ..schemas.indexing import (
     ShiftScreen,
     ShiftTemplateFit,
 )
+from .fom import panel_undefined
 
 #: Reflections per Laue orbit, averaged over general hkl, relative to triclinic
 #: (where a Friedel pair is the whole orbit).  Smith's envelope counts *distinct
@@ -450,11 +451,14 @@ def assess_peak_list(peaks: PeakList, *,
                             max_collinearity=template_collinearity(tt),
                             source="unavailable")
 
+    # searchability, not scorability (WP-1043): a list short of the twenty the
+    # classical figures are defined on is still *searched* — over the systems
+    # ``MIN_LINES_PER_DOF`` supports, with the undefined figures named on
+    # ``fom_undefined`` — because scoring is the panel's precondition, never the
+    # search's.  Fluorite's 18 clean cubic lines (18× over-determined) were
+    # refused for a whole milestone by exactly this conflation.
     reason = None
-    if n < PEAK_MIN_USABLE_LINES:
-        reason = (f"{n} usable lines, below the {PEAK_MIN_USABLE_LINES} that "
-                  "M20, F20 and Smith's volume envelope are defined on")
-    elif not supported:
+    if not supported:
         reason = (f"{n} usable lines is fewer than {MIN_LINES_PER_DOF:g} per "
                   "metric degree of freedom in every crystal system")
     elif rel_sigma > MAX_RELATIVE_SIGMA_Q and peaks.source == "fitted":
@@ -471,6 +475,7 @@ def assess_peak_list(peaks: PeakList, *,
         relative_sigma_q_median=rel_sigma,
         sigma_over_spacing=float(np.median(q_esd) / max(spacing, 1e-300)),
         lines_per_dof=per_dof, systems_supported=supported,
+        fom_undefined=panel_undefined(n),
         volume_envelope=envelope, shift=shift,
         supports_indexing=reason is None, abstained_reason=reason)
     return report.model_copy(update={

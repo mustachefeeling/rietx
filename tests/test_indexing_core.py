@@ -46,6 +46,7 @@ from pxrdref.indexing.qspace import (
 )
 from pxrdref.schemas.indexing import (
     METRIC_DOF,
+    PEAK_MIN_USABLE_LINES,
     FigureOfMerit,
     q_esd_of_two_theta,
     q_of_two_theta,
@@ -363,7 +364,10 @@ def test_the_matching_window_and_the_measurement_are_separate_inputs():
     a statement about what the measurement resolves — so an assumed allowance must
     never reach them.
     """
-    q, q_esd, tt, esd_tt, cell = _panel_inputs(esd_deg=0.002)
+    # 120° so the list clears PEAK_MIN_USABLE_LINES (22 lines) and the classical
+    # members are in the panel at all — WP-1043 drops them below twenty
+    q, q_esd, tt, esd_tt, cell = _panel_inputs(two_theta_max=120.0,
+                                               esd_deg=0.002)
     # every line displaced by 0.05° 2θ, which is 11 × the fitted σ: the corundum
     # regime, where the truth indexes nothing inside its own error bars
     tt_off = tt + 0.05
@@ -388,7 +392,8 @@ def test_the_matching_window_and_the_measurement_are_separate_inputs():
 
 
 def test_every_figure_of_merit_carries_its_blind_spot():
-    q, q_esd, tt, esd_tt, cell = _panel_inputs()
+    # 120° so all seven members are present (22 lines ≥ PEAK_MIN_USABLE_LINES)
+    q, q_esd, tt, esd_tt, cell = _panel_inputs(two_theta_max=120.0)
     panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
                       LAM)
     assert [f.name for f in panel] == [
@@ -401,6 +406,33 @@ def test_every_figure_of_merit_carries_its_blind_spot():
     round_tripped = [FigureOfMerit.model_validate_json(f.model_dump_json())
                      for f in panel]
     assert [f.blind_spot for f in round_tripped] == [f.blind_spot for f in panel]
+
+
+def test_below_twenty_lines_the_panel_shrinks_by_the_same_members_uniformly():
+    """WP-1043: scoring is the panel's precondition, never the search's.
+
+    Below :data:`PEAK_MIN_USABLE_LINES` the classical figures are not the
+    published quantities (an M on 14 lines is not M₂₀), so they are **absent
+    with a reason** — never computed at a different N, never silently zero —
+    and the members that remain are the same for every candidate, which is
+    what lets Borda still rank.
+    """
+    from pxrdref.indexing.fom import panel_undefined
+
+    q, q_esd, tt, esd_tt, cell = _panel_inputs()          # 14 lines at 90°
+    assert len(q) < PEAK_MIN_USABLE_LINES
+    panel = fom_panel(q, q_esd, np.ones_like(q), tt, esd_tt, cell, "cubic", "P",
+                      LAM)
+    assert [f.name for f in panel] == [
+        "indexed_fraction", "indexed_intensity_fraction",
+        "predicted_seen_fraction", "m_rev", "m_sym"]
+
+    undefined = panel_undefined(len(q))
+    assert set(undefined) == {"m20", "f_n"}
+    for reason in undefined.values():
+        assert str(len(q)) in reason and str(PEAK_MIN_USABLE_LINES) in reason
+    # at the bar, nothing is undefined and the panel is whole again
+    assert panel_undefined(PEAK_MIN_USABLE_LINES) == {}
 
 
 def test_the_laue_multiplicity_is_the_orbit_it_claims_to_count():

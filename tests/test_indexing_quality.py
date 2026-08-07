@@ -212,12 +212,39 @@ def test_reference_length_mismatch_is_an_error_not_a_broadcast():
 # ----------------------------------------------------------------------
 # The gate
 # ----------------------------------------------------------------------
-def test_short_list_abstains():
+def test_short_list_is_searchable_but_not_scorable():
+    """WP-1043's split: six lines over-determine a cubic metric six-fold, so the
+    list supports a *search* (in the systems ``MIN_LINES_PER_DOF`` admits) while
+    the classical figures stay undefined — reported absent with reasons, never
+    computed at a different N.  The pre-1043 gate abstained here, conflating the
+    two preconditions; fluorite's 18 clean lines were refused the same way."""
     report = assess_peak_list(_peak_list(np.linspace(20.0, 60.0, 6)))
+    assert report.supports_indexing
+    assert report.abstained_reason is None
+    assert report.systems_supported == ["cubic"]
+    assert set(report.fom_undefined) == {"m20", "f_n"}
+    for reason in report.fom_undefined.values():
+        assert str(PEAK_MIN_USABLE_LINES) in reason
+    codes = {x.code for x in report.diagnostics}
+    assert "INDEX_DATA_INSUFFICIENT" not in codes
+    d = next(x for x in report.diagnostics if x.code == "INDEX_PANEL_REDUCED")
+    assert d.level == "warning"
+    assert "cubic" in d.suggestion
+
+
+def test_a_list_below_every_systems_support_abstains():
+    """Abstention is about searchability: with fewer lines than
+    ``MIN_LINES_PER_DOF`` in every system the metric is not over-determined
+    anywhere, and that — not the scoring bar — is what refuses a search."""
+    report = assess_peak_list(_peak_list(np.linspace(20.0, 60.0, 4)))
     assert not report.supports_indexing
-    assert str(PEAK_MIN_USABLE_LINES) in report.abstained_reason
+    assert report.systems_supported == []
+    assert "metric degree of freedom" in report.abstained_reason
     d = next(x for x in report.diagnostics if x.code == "INDEX_DATA_INSUFFICIENT")
     assert d.level == "error"
+    # the scoring bar is also unmet, but abstention already says more, so the
+    # reduced-panel warning stays out of the way
+    assert not any(x.code == "INDEX_PANEL_REDUCED" for x in report.diagnostics)
 
 
 def _fitted(tt: np.ndarray, esd: float) -> PeakList:
