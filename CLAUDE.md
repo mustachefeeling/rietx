@@ -279,6 +279,29 @@ recent list, and is therefore not behind the 409 (WP-1044).
   symmetry, not normalised — the table has no diagnostics channel, so an edit
   there could not be made visible, and it is held at its stored value, which is
   how a monoclinic β = 93.2° once survived under an orthorhombic symbol.
+- **A silent correction is a reader's to make, never a table's — and only where
+  the deviation is a *report* rather than a contradiction.** The rule above
+  fixes *where*: `ParameterTable` has no diagnostics channel, `structure_from_cif`
+  does, so a stranger's file is repaired at read with the substitution recorded
+  as a `Diagnostic` (species: `CIF_SPECIES_NORMALISED`, cell angle:
+  `CIF_CELL_ANGLE_CORRECTED`) while both lookups and the table stay strict.
+  What decides *whether* is magnitude, because the reader cannot see intent: up
+  to `cif.CIF_ANGLE_CORRECT_MAX_DEG` a fixed angle is an experimenter quoting a
+  refined value (β = 90.002(3) under `P m m m`) and snapping costs ≤ 830 ppm in
+  d; past it the symbol and the angle contradict each other (β = 93.2 — an
+  orthorhombic cell cannot have it), one of the two is wrong, and choosing is
+  the caller's, so the value is left byte-for-byte and still raises (WP-1028).
+- **A softplus `min=0.0` is safe wherever zero is the *off state*, and a bug
+  wherever the physics divides.** `internal_bounds` maps any lower bound ≤ 1e-12
+  to −∞ and `log(1+e^u)` underflows to exactly 0.0 below u ≈ −745, so "strictly
+  positive" is a promise the transform does not keep. Thirteen of the fourteen
+  parameters declaring it are fine — a zero width is no broadening, extinction 0
+  is E ≡ 1 — because their identity *is* zero; `PreferredOrientation.r`'s
+  identity is interior (r = 1) with a pole at the bound, and it fed the solver
+  NaNs for a whole budget without raising. So the pattern to check on a new
+  parameter is not "softplus with min=0" but "softplus with min=0 **and** a pole
+  at zero", which needs a real floor (`MARCH_R_MIN`), plus a validator, because
+  a stored `min: 0.0` outlives the default.
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).

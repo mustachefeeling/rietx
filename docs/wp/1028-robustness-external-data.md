@@ -1,6 +1,6 @@
 # WP-1028 — Robustness on data and CIFs we did not author
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-07
 Depends on: — (1007 soft: it restructures guard *reporting*, this adds guards)
 
 <!--
@@ -325,65 +325,31 @@ pointing at the space group that leaves it free); above it, leave the value
 byte-for-byte and let the existing raise stand. The band's two edges are pinned
 by test against `SYMMETRY_ANGLE_TOL_DEG` below and the measured 3.2° case above.
 
-### (k) Indexing-side guards and bounds — filed here, not yet scheduled
+### (k) Indexing-side guards and bounds — handed off, 2026-08-07
 
 Three items of this WP's shape (a guard, a bound, a default), measured
-2026-07-30 on the certified SRM 660c LaB6 pattern. The *gate/grade* redesign
-moved to [1043](1043-agent-and-human-indexing.md); these bounds did not. The
-prize is on record: with the off-lattice components removed and the systematic
-measured rather than assumed, the gate reached `high` at **−2 ppm**
-(M₂₀ = 1120, zero caveats) — what stands between the pipeline and a blind
-certified answer is a peak list, not arithmetic.
+2026-07-30 on the certified SRM 660c LaB6 pattern. They were filed here because
+they *are* guards and bounds; they are not landing here because every one of
+them belongs to a surface an open indexing WP is about to change, and a bound
+fixed under a different WP's redesign is a bound fixed twice. Moved verbatim,
+with their measurements, into:
 
-- **`volume_envelope` is a mean line used as a ceiling.** Checked against
-  Smith (1977): average discrepancy 10.6 %, deviations −29 % to +32 %, and low
-  is the ordinary case because missing weak lines produce it. With p the
-  fraction of possible lines detected the bound stands at 1.4025·p × truth, so
-  it **excludes the true cell below p = 0.713** — and 28.7 % is Smith's own
-  quoted worst case, so there is no margin at all. `VOLUME_ENVELOPE_SLACK`
-  = 1.5 exists but only in `consensus.py` to *flag* an already-found
-  candidate; the fatal uses have none — re-verified on arrival 2026-08-07:
-  `dichotomy.py:612`, `trial_error.py:297,502` and `svd.py:756` all feed the
-  raw envelope as a hard search ceiling. The guard test
-  (`test_volume_envelope_contains_the_true_volume`) feeds a complete line list
-  (p = 1.0) and is blind to the calibration — a regression test needs an
-  *incomplete* one. Docstrings were corrected 2026-07-30; the behaviour fix is
-  still owed.
-- **`sigma_sys_deg` means two things, and only one of them indexes.**
-  `ShiftScreen.sigma_sys_deg` is the residual the winning template *leaves*
-  (0.0078° there); `SearchSpec.sigma_sys_deg` must span the uncorrected shift
-  itself (+0.037°, 4.3× larger) because the search matches **uncorrected**
-  positions — `refine_with_shift` runs only after a candidate survives. So the
-  obvious protocol ("measure the systematic on a standard, declare it") finds
-  **nothing**, silently. Rename one, or let a declared template *correct* the
-  observed positions before matching. Pinned in
-  `test_what_the_unflagged_tail_components_cost_the_certified_cell`. (WP-1045
-  is about to make `SearchSpec` the one mirrored surface — if it lands first,
-  this naming decision belongs there.)
-- **`pick.py`'s `not_separable` screen misses six components, for three
-  different reasons** — four too far (1.73-2.99 fitted FWHM against
-  `PEAK_SATELLITE_NEAR_FWHM` = 1.5), one failing `reseeded()` with the slot
-  labels swapped, one on an unrefuted group (χ²_red 1.38, the screen's
-  documented deliberate keep) — so no one knob reaches them. What they are is
-  settled: five axial-divergence tails (the sign flips at 90° 2θ, which
-  nothing else in a Bragg-Brentano pattern does), one a Kα2 alias re-created
-  by `fit_group` at 3 % of the parent's area. Cost, measured: **125 ppm on a
-  certified cell** (−127 with them in, −2 with them out). The census is pinned
-  by `test_the_unflagged_tail_components_escape_for_three_different_reasons` —
-  a fix has a table to move, not a threshold to guess at.
+- **[1045](1045-indexing-search-controls.md)** — `sigma_sys_deg` meaning two
+  different things (the residual a template *leaves*, 0.0078°, against the
+  amplitude a window must *span*, 0.037°; declaring the first finds nothing,
+  silently), and `volume_envelope` used as a hard search ceiling when Smith
+  (1977) fitted it as a mean line (it excludes the true cell below p = 0.713,
+  and the existing `VOLUME_ENVELOPE_SLACK` is applied only where it does not
+  matter). Both are `SearchSpec` fields, and 1045 is what makes `SearchSpec`
+  one mirrored surface.
+- **[1043](1043-agent-and-human-indexing.md)** — `pick.py`'s six unflagged tail
+  components, which cost **125 ppm on a certified cell** and are what stands
+  between this pipeline and a blind certified answer. 1043 owns the evidence
+  view they are evidence in, and the payoff (`high` at −2 ppm, zero caveats —
+  the first `high` on real data) is its subject rather than this WP's.
 
-Two measured facts to keep beside any diagnostic wording written in this WP:
-contamination breaks the **grade**, not the answer (the truth indexes exactly
-its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k) and
-the 0.9 bar falls between k = 2 and 3 — a caveat should name the symptom, not
-the cause), and `n_unindexed` is an **absolute budget**, not a tolerance
-(allowed 3 on a list carrying 12 impurities, the truth comes back **nowhere**:
-first-rank 8/8 at k = 6, 0/8 at 18 — a stranger's multi-phase pattern is
-exactly this case). And `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05° is added in
-quadrature to every line's σ, flattening a measured 100× precision contrast to
-1.005 — if that allowance is revisited, the *shape* (flat quadrature against a
-multiplicative widening that preserves the ordering) matters as much as the
-size.
+The gate/grade redesign those bounds were filed beside had already moved to
+1043.
 
 ### Landing a new code (mechanics from WP-1007/1014)
 
@@ -397,9 +363,14 @@ size.
   constructor wants a `RENDERINGS` row. `code` is deliberately an open
   vocabulary, not a `Literal`.
 - `MODEL_FAR_FROM_DATA` and the surfaced `max_iter` outcome are the two that
-  are not per-parameter — decide `GuardFinding` with empty `paths` against
-  `Diagnostic` emitted from `_build_result`, and say which in the handover.
-  `value` is `None`-able precisely for the numberless case.
+  are not per-parameter — **decided 2026-08-07: `Diagnostic` emitted from
+  `_build_result`, not `GuardFinding` with empty `paths`.** `GuardFinding`
+  exists to carry paths a client can click through to a parameter; a finding
+  with none is the wrong shape for it, and both of these are statements about
+  the *run*. Same for `QPA_UNAVAILABLE` — though that one *does* name paths
+  (the dead scales), it is emitted where the QPA is computed rather than from
+  `check_guards`, which never sees it. So five codes landed here without a
+  `RENDERINGS` row, correctly: nothing added a `GuardFinding` constructor.
 - **The GUI upload route is the front door for files nobody here authored.**
   `imports.preview_pattern` turns reader
   `ValueError/OSError/RuntimeError/KeyError/IndexError` into a 400 quoting the
@@ -451,11 +422,12 @@ size.
 - [x] Cell-angle disagreement in an external CIF: reader-side `Diagnostic`
       recording the correction as provenance; `ParameterTable` stays strict
       (§(j))
-- [ ] Tests: one regression per item, from the reproductions in the branch
+- [x] Tests: one regression per item — `tests/test_robustness_external.py`,
+      32 rows, one section per item, every one failing before its fix
 
-(§(k) is filed, not scheduled: its three bounds stay in Context until a
-session picks them up or [1045](1045-indexing-search-controls.md) claims the
-`sigma_sys_deg` naming.)
+(§(k) was handed to [1045](1045-indexing-search-controls.md) and
+[1043](1043-agent-and-human-indexing.md) rather than landing here — the
+grounds are in that section.)
 
 ## Acceptance
 
@@ -488,6 +460,60 @@ the library defects are promoted here. Nothing in the branch is a dependency —
 this WP is self-contained.
 
 ## Handover log
+
+- **2026-08-07** — **all ten items (a)-(j) landed; §(k) stays filed, not
+  scheduled.** Branch `wp1028-robustness-external-data`, ten commits, one per
+  item plus the arrival prune.
+
+  **Done.** (a) `normalize_cif_species` rewrites the sign-first charge and the
+  site-label type symbol onto the canonical grammar, only when the result
+  resolves in the Waasmaier-Kirfel table, recording `CIF_SPECIES_NORMALISED`;
+  both lookups stay strict. (b) `MAX_HKL_GRID_POINTS = 3e7` refuses a collapsed
+  cell before `np.meshgrid`. (c)/(d) `MODEL_FAR_FROM_DATA` and `STAGE_MAX_ITER`
+  as `Diagnostic`s from `_build_result`. (e) `MARCH_R_MIN/MAX = 0.15/6`, with a
+  validator that repairs a stored `min: 0.0`. (f) `compute_qpa` returns `None`
+  and the caller emits `QPA_UNAVAILABLE`; single-phase is 100 % by definition
+  and never reaches that path. (g) the Le Bail partition denominator spans every
+  phase. (h) the AGENT_PROTOCOL Le Bail block corrected and measured. (i)
+  envelope edge knots + the `background_extrapolated` flag. (j)
+  `CIF_CELL_ANGLE_CORRECTED` up to `CIF_ANGLE_CORRECT_MAX_DEG = 0.1`.
+
+  **Numbers, `[dev,jax,torch,docs]` venv on darwin/arm64** (jax, torch and
+  sphinx all import here, so no module-level `importorskip` fires and collected
+  == passed+skipped): fast selection **1924 passed, 5 skipped in 3:56**, against
+  main's 1897 collected — +32, exactly this session's new module
+  `tests/test_robustness_external.py`, all passes and no new skip. Ruff clean.
+  GUI: 390 vitest, svelte-check 0 errors, dist rebuilt.
+
+  **Three things a reader should not take on trust from the WP text above, all
+  re-measured here.** §(g)'s filed cause was wrong in shape — the multiphase
+  overcount **converges** to a fixed 1.79× rather than inflating without bound,
+  so the 742-3334 % Rwp table is downstream of the partition, not a reading of
+  it. §(e)'s "audit other softplus `min=0.0` parameters" came back with exactly
+  one instance, and the reason generalises better than a list: the bug is
+  "softplus `min=0` **and a pole at zero**", and `r` is the only parameter whose
+  identity is interior. §(i)'s decided numbers reproduced exactly (5 → 1 edge
+  lines, 0 lost away from the edge) **but only when positions are matched within
+  0.05°** — a set comparison of raw positions reads sub-tolerance shifts as
+  losses and says three patterns lost lines.
+
+  **Gotchas for the next session.** A new `PeakFlag` is a failing parity test
+  until `gui/src/lib/pxt.ts` restates it *and* the committed dist is rebuilt
+  (`npm --prefix gui ci` first — the workspace ships without `node_modules`).
+  `REAL_DATA_N_UNINDEXED = 3` in `tests/test_acceptance_indexing.py` is
+  justified by a comment naming corundum's 5.17° edge artifact as one of its
+  three; §(i) removed that artifact, so the comment is stale even where the
+  number still passes — the sweep behind it (2 fails, 3 works, 5-6 lose the
+  cell) was run with the artifact present and would want redoing before anyone
+  leans on it. And `MODEL_FAR_FROM_DATA_RWP` is 0.8 rather than the obvious 1.0
+  because Rwp = 1 is not the ceiling of the broken cases but their **attractor**:
+  a windowed-out model's only escape is driving the scale to zero, which
+  *converges* at 0.99999.
+
+  **Next**: §(k)'s three indexing bounds are the only unscheduled work left here
+  (`volume_envelope` used as a ceiling when it is a mean line, `sigma_sys_deg`
+  meaning two things, `pick.py`'s six escapees) — and the `sigma_sys_deg` naming
+  belongs in [1045](1045-indexing-search-controls.md) if that lands first.
 
 - **2026-07-30** — §(a)'s *attribution* withdrawn (still ⬜; no code touched).
   The defect is real and unchanged; blaming WP-1001 was not. Gotcha for

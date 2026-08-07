@@ -288,6 +288,43 @@ either collapsed or withheld:
       with the fluorite case as the worked example of why they differ — and
       bethanechol set F as the case where the truth is *already* at rank 1.
 
+### Inherited
+
+**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — the peak
+list is what stands between this pipeline and a blind certified answer, and the
+census of what escapes is already written.** Measured 2026-07-30 on SRM 660c
+LaB6; 1028's § (k) has the full text and the other two bounds went to
+[1045](1045-indexing-search-controls.md).
+
+`pick.py`'s `not_separable` screen misses six components on that pattern, and
+**no one knob reaches them** — they fail three different conditions: four are
+simply too far (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` = 1.5),
+one fails `reseeded()` because the detection seed slid into the tail and the new
+component took the real line, so the slot labels are swapped, and one sits on a
+group whose fit is **not refuted** (χ²_red 1.38), which the screen's own
+docstring calls a deliberate keep. What they *are* is settled: five are
+axial-divergence tails (the sign flips at 90° 2θ, which nothing else in a
+Bragg-Brentano pattern does) and one is a Kα2 residual that `detect_peaks`
+dropped and `fit_group` re-created at 3 % of the parent's area.
+
+Two reasons it lands here rather than staying a peak-picking chore. The **cost
+is on the answer**: 125 ppm on a certified cell (−127 with them in, −2 with them
+out), and a shift fit consistent with zero where the truth is +0.037°. And the
+prize is this WP's own subject — with these removed and the systematic measured
+rather than assumed, the gate reached **`high` at −2 ppm**, M₂₀ = 1120, zero
+caveats, the first time `high` has been reached on real data. The census is
+pinned by
+`test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
+fix has a table to move rather than a threshold to guess at.
+
+Also worth carrying into any caveat wording this WP writes, both measured by
+1041: contamination breaks the **grade**, not the answer (the truth indexes
+exactly its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k)
+and the 0.9 bar falls between k = 2 and 3 — the caveat names the symptom, not
+the cause), and `n_unindexed` is an **absolute budget**, not a tolerance (told
+it may leave 3 unindexed on a list carrying 12 impurities, the search returns
+the truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
+
 ## Acceptance
 
 A clean 18-line cubic pattern is searched over its supported systems, ranked by

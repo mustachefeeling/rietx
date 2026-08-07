@@ -96,6 +96,41 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
       fields; `docs/AGENT_PROTOCOL.md` gains a "state what you know" row with a
       structural-analogue worked example.
 
+### Inherited
+
+**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — two search
+bounds it filed and did not schedule, both of which are `SearchSpec`'s business
+once this WP makes `SearchSpec` the one mirrored surface.** Measured 2026-07-30
+on the certified SRM 660c LaB6 pattern; 1028's § (k) has the full text.
+
+- **`sigma_sys_deg` means two different things and only one of them indexes.**
+  `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
+  *leaves* (0.0078° there). Declare that as `SearchSpec.sigma_sys_deg` and the
+  search returns **no candidate at all**, because it matches against
+  **uncorrected** positions — `refine_with_shift` runs only after a candidate
+  survives — so the window must still span the shift itself (+0.037°, 4.3×
+  larger). The docstrings do not distinguish them, so the obvious protocol
+  ("measure the systematic on a standard, declare it") fails *silently* by
+  finding nothing. This lands here because a control you are about to expose in
+  a GUI form and an agent schema must not have two meanings: either rename one,
+  or let a declared template correct the observed positions before matching.
+  Pinned by
+  `test_what_the_unflagged_tail_components_cost_the_certified_cell`.
+- **`volume_envelope` is a least-squares *mean line* used as a hard search
+  ceiling.** Checked against Smith (1977): average discrepancy 10.6 %,
+  deviations −29 % to +32 %, and low is the *ordinary* case because missing
+  weak lines produce it. With p the fraction of possible lines detected the
+  bound stands at 1.4025·p × truth, so it **excludes the true cell below
+  p = 0.713** — and 28.7 % is Smith's own quoted worst case, so there is no
+  margin against the worst pattern in his calibration set.
+  `VOLUME_ENVELOPE_SLACK = 1.5` exists but only in `consensus.py`, to *flag* an
+  already-found candidate; the fatal uses have none (re-verified 2026-08-07:
+  `dichotomy.py:612`, `trial_error.py:297,502`, `svd.py:756` all feed the raw
+  envelope). The guard test `test_volume_envelope_contains_the_true_volume`
+  feeds a complete line list at p = 1.0 and is blind to the calibration, so a
+  regression test needs an *incomplete* one. Docstrings were corrected
+  2026-07-30 to say "estimate"; the behaviour fix is still owed.
+
 ## Acceptance
 
 A poisoned prior costs time, never truth: on a scoreboard dataset, a wrong prior
