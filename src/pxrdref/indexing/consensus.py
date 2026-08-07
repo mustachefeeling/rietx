@@ -298,15 +298,34 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
             to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                               n_unindexed=spec.n_unindexed, q_match=q_match)
             for c in tail]
-    checked = set(checked_indices(out.candidates, out.engines_run, top=top))
-    for i, cand in enumerate(out.candidates):
+    for cand in out.candidates:
         cand.bravais = bravais_opinion(cand.cell, cand.centring,
                                        cell_esd=np.asarray(cand.cell_esd))
-        if ambiguity and i in checked \
+    if ambiguity:
+        enumerate_ambiguity(out, peaks, top=top, cancel=cancel)
+    return out
+
+
+def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
+                        top: int = CONSENSUS_CHECK_TOP, cancel=None) -> None:
+    """The geometrical-ambiguity pass over the checked candidates, in place.
+
+    Split out of :func:`consensus` in WP-1045 so ``index_pattern`` can run it
+    **after** the budgeted validation: whole-profile validation is the
+    mandatory check, and this enumeration — measured at 45 s of a
+    ceiling-bound corundum run, with one candidate's 55-lattice sweep
+    uninterruptible — consumed the whole validation reserve whenever it ran
+    first.  ``cancel`` is read between candidates; one the clock stops before
+    stays out of ``ambiguity_checked``, which the gate reads as an unasked
+    question (capping), never a clean answer.
+    """
+    checked = set(checked_indices(outcome.candidates, outcome.engines_run,
+                                  top=top))
+    for i, cand in enumerate(outcome.candidates):
+        if i in checked and i not in outcome.ambiguity_checked \
                 and not (cancel is not None and bool(cancel)):
             cand.ambiguity = _partners(cand, peaks)
-            out.ambiguity_checked.append(i)
-    return out
+            outcome.ambiguity_checked.append(i)
 
 
 def _partners(cand: CellCandidate, peaks: PeakList):

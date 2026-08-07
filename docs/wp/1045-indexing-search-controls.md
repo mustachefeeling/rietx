@@ -171,9 +171,17 @@ hardcoded fraction — it lands with this WP's budget/preset controls.
       (`search_volume_ceiling`, the one authority), with a regression test
       that feeds an *incomplete* line list (raw envelope 0.94× truth at
       p = 0.6 on the corundum-setting cell).
-- [ ] The validation-share design question, measured then decided (§ Context):
-      does `quick` reserve a slice of the ceiling for validation, and if so
-      how is that stated on the control surface?
+- [x] The validation-share design question, measured then decided (§ Context):
+      **yes** — `VALIDATION_RESERVE_FRACTION = 0.08` of a declared ceiling,
+      taken only when validation will run, plus ambiguity deferred to *after*
+      validation (`consensus.enumerate_ambiguity`; the enumeration — 45 s on
+      ceiling-bound corundum, one sweep uninterruptible — otherwise consumed
+      the reserve first while validation is the mandatory check). Measured on
+      the three heavy qarr patterns: validated fits went 0/0/0 →
+      2/6/3 at the same 120 s wall (a fit costs 0.3–1.9 s against 11–60 s
+      for a trailing search system — a ~30:1 trade). Stated on the surface
+      through the constant, the `quick` preset's description, and
+      `INDEX_BUDGET_EXHAUSTED`'s existing three-state reading.
 
 ## Acceptance
 

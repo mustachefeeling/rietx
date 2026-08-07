@@ -695,12 +695,25 @@ def index_pattern(peaks: PeakList | None = None, *,
     # the whole-run clock, if one was declared: a Deadline both *is* the token
     # every cooperative check reads (so it binds the engines, the probe and the
     # validation fits alike) and *carries* the caller's own token, so either
-    # stops the run and cancelled_by_user() says which did
+    # stops the run and cancelled_by_user() says which did.  When validation
+    # is going to run, the *search* gets a nested deadline ending a reserve
+    # early (WP-1045): measured on three heavy patterns, the search consumed
+    # the whole ceiling and validation got zero fits, while a fit costs
+    # 0.3-1.9 s against 11-60 s for a trailing system — scheduling within the
+    # ceiling, which itself never moves
     deadline = None
     run_cancel = cancel
+    search_cancel = cancel
     if spec.total_budget_seconds is not None:
+        from .engines import VALIDATION_RESERVE_FRACTION
+
         deadline = Deadline(spec.total_budget_seconds, cancel=cancel)
         run_cancel = deadline
+        search_cancel = deadline
+        if validate and data is not None and instrument is not None:
+            reserve = VALIDATION_RESERVE_FRACTION * spec.total_budget_seconds
+            search_cancel = Deadline(spec.total_budget_seconds - reserve,
+                                     cancel=deadline)
 
     provenance = Provenance(
         package_version=_VERSION, created_utc=_utcnow(),
@@ -760,17 +773,17 @@ def index_pattern(peaks: PeakList | None = None, *,
         unit_kwargs["trial_error"]["probe"] = False
     units: dict[str, list] = {name: [] for name in names}
     for system in ordered_systems:
-        if run_cancel is not None and bool(run_cancel):
+        if search_cancel is not None and bool(search_cancel):
             break
         for name in names:
-            if run_cancel is not None and bool(run_cancel):
+            if search_cancel is not None and bool(search_cancel):
                 break
             unit_spec = replace(spec, systems=(system,))
             units[name].append(get_engine(name)(
-                peaks, spec=unit_spec, quality=quality, cancel=run_cancel,
+                peaks, spec=unit_spec, quality=quality, cancel=search_cancel,
                 progress=progress, **unit_kwargs[name]))
         if stream is not None \
-                and not (run_cancel is not None and bool(run_cancel)):
+                and not (search_cancel is not None and bool(search_cancel)):
             # a *completed* system has been through consensus and streams
             # graded (WP-1042); a system the token interrupted has not, and
             # its candidates stay provisional in the log
@@ -781,16 +794,17 @@ def index_pattern(peaks: PeakList | None = None, *,
                if units[name]]
     trial = next((r for r in results if r.engine == "trial_error"), None)
     if (trial is not None and not trial.candidates and trial.systems_searched
-            and not (run_cancel is not None and bool(run_cancel))):
+            and not (search_cancel is not None and bool(search_cancel))):
         # the deferred probe: once, over the systems the engine entered, and
         # only when the whole harvest is empty — a cancelled run's silence is
-        # explained by the token, not by an index table
+        # explained by the token, not by an index table.  Search phase, so it
+        # runs against the search's own deadline, not the reserve
         from .trial_error import dominant_zone_probe
 
         t0 = time.monotonic()
         hit = dominant_zone_probe(peaks, systems=trial.systems_searched,
                                   spec=spec, quality=quality,
-                                  cancel=run_cancel, progress=progress)
+                                  cancel=search_cancel, progress=progress)
         trial.stats["probe.seconds"] = round(time.monotonic() - t0, 3)
         if hit is not None:
             trial.diagnostics.append(hit)
@@ -803,8 +817,16 @@ def index_pattern(peaks: PeakList | None = None, *,
 
         prior_cands, prior_reports = build_prior_candidates(
             peaks, spec, quality)
+    # ambiguity is deferred to *after* validation (WP-1045): the enumeration
+    # is the other unbudgeted per-candidate tail (measured, 45 s of a
+    # ceiling-bound corundum run, one candidate's sweep uninterruptible), and
+    # run first it consumed the whole validation reserve — while validation
+    # is the mandatory check.  Ordering two independent per-candidate
+    # computations changes no answer, only which one a stopped clock leaves
+    # unasked
     outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
-                        cancel=run_cancel, priors=prior_cands)
+                        cancel=run_cancel, priors=prior_cands,
+                        ambiguity=False)
     if len(names) == 1:
         outcome.diagnostics.append(single_engine_diagnostic(names[0]))
     if prior_reports:
@@ -853,8 +875,20 @@ def index_pattern(peaks: PeakList | None = None, *,
             progress.end(label, validation=True, status=cand.lebail.status)
         validated = True
 
+    # the deferred ambiguity pass, on whatever clock validation left — read
+    # between candidates, so a fired token leaves the question unasked
+    # (capping) rather than half-answered
+    from .consensus import enumerate_ambiguity
+
+    enumerate_ambiguity(outcome, peaks, top=top, cancel=run_cancel)
+
+    # the reserve boundary is part of the ceiling's scheduling: a search it
+    # stopped is a budget statement exactly as the ceiling itself is
+    search_expired = (search_cancel is not None
+                      and search_cancel is not run_cancel
+                      and bool(search_cancel))
     if deadline is not None and not deadline.cancelled_by_user() \
-            and (deadline.expired() or slices_expired):
+            and (deadline.expired() or search_expired or slices_expired):
         requested = ordered_systems
         outcome.diagnostics.append(budget_exhausted_diagnostic(
             float(spec.total_budget_seconds),
@@ -866,7 +900,7 @@ def index_pattern(peaks: PeakList | None = None, *,
             candidates_not_validated=sum(
                 1 for i in checked if outcome.candidates[i].lebail is None)
             if validated else 0,
-            ceiling_hit=deadline.expired()))
+            ceiling_hit=deadline.expired() or search_expired))
 
     # the gate's ``checked`` is what the enumeration actually covered, not what
     # was scheduled: under a fired token the two differ, and a candidate whose

@@ -1315,13 +1315,32 @@ def budget_exhausted_diagnostic(total_seconds: float,
 #: cooperative granularity), the truth's own system completes inside the
 #: ceiling on every one, and what a binding ceiling cuts is the trailing
 #: low-symmetry systems — loudly (``INDEX_BUDGET_EXHAUSTED``), the documented
-#: cost of cheapest-first ordering.  A measured consequence to know: on the
-#: heavier patterns the search consumes the whole ceiling and validation gets
-#: **no** fits — every candidate then reads ``not_validated`` (capping),
-#: which is honest and is the cue to rerun ``preset="full"``.
+#: cost of cheapest-first ordering.  The starvation this used to carry — on
+#: the heavier patterns the search consumed the whole ceiling and validation
+#: got **no** fits — is why :data:`VALIDATION_RESERVE_FRACTION` exists
+#: (WP-1045): the search now stops a reserve early whenever validation is
+#: going to run, so the first click's shortlist arrives whole-profile-checked.
 QUICK_TOTAL_BUDGET_SECONDS = 120.0
 #: The preset ``index_pattern`` resolves when the caller names none.
 DEFAULT_SEARCH_PRESET = "quick"
+
+#: Fraction of a whole-run ceiling the *search* may not consume when
+#: whole-profile validation is going to run — the validation reserve
+#: (WP-1045).  Measured before it existed: on three heavy qarr patterns
+#: (corundum, zincite, brucite) the search consumed the full 120 s ceiling on
+#: every run and validation got **zero** fits, while a validation fit costs
+#: 0.3–1.9 s and a trailing search *system* costs 11–60 s.  8 % (9.6 s at the
+#: default ceiling) covers the measured worst checked shortlist (3 × 1.9 s)
+#: with margin for the equal-slice arithmetic, and costs at most a sixth of
+#: one trailing system — and the deferred ambiguity pass runs on whatever the
+#: fits leave, because validation is the mandatory check and the enumeration
+#: is the one the gate already reads conservatively when unasked.  Scheduling
+#: within the ceiling, never a change to it: the run still ends at
+#: ``total_budget_seconds``, the search merely stops early enough that
+#: "validated by Le Bail" is part of the first click's answer rather than the
+#: rerun's.  No reserve when nothing will validate (``validate=False`` or no
+#: pattern): the search keeps every second.
+VALIDATION_RESERVE_FRACTION = 0.08
 
 #: name → the whole-run ceiling it fills in (``None`` = unbounded, today's
 #: pre-WP-1042 behaviour).  Held in bijection with :data:`SEARCH_PRESET_INFO`
@@ -1387,8 +1406,8 @@ SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
             "behaviour."),
         when_to_use=(
             "when a quick run reported truncated or not-reached systems (or "
-            "starved validation) and the answer may live there — typically "
-            "low-symmetry searches, which are irreducibly slow"),
+            "validation slices that ran dry) and the answer may live there — "
+            "typically low-symmetry searches, which are irreducibly slow"),
         typical_seconds=(4.0, 440.0),
     ),
 }
