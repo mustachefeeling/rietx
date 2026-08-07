@@ -487,7 +487,7 @@ Anisotropic strain, and the matrix's canonical inadmissibility result — an imp
 
 ### `tests/test_acceptance_indexing.py`
 
-The only externally *graded* feature in the package. Bergmann et al. (2004) published both the data and every program's score, so the bar here is what ITO13, DICVOL91, TREOR90 and McMaille actually achieved rather than a tolerance chosen in this repo. The fixture is checked against three statements that paper makes in prose and never tabulates before anything is graded against it.
+The only externally *graded* feature in the package. Bergmann et al. (2004) published both the data and every program's score, so the bar here is what ITO13, DICVOL91, TREOR90 and McMaille actually achieved rather than a tolerance chosen in this repo. The fixture is checked against three statements that paper makes in prose and never tabulates before anything is graded against it. One qualifier belongs on every summary drawn from these rows (WP-1043): the real-data corpus sits at <= 2 free metric parameters in nine of ten datasets (0 orthorhombic, 1 monoclinic, 0 triclinic), so any 'never wrong' claim is a claim about **high-symmetry lattices** until the corpus moves — which is post-v1 by the user's scope call.
 
 #### `test_every_set_is_twenty_ascending_lines`
 

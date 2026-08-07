@@ -850,7 +850,8 @@ PIPELINE = (
      "unless the answer is <code>high</code> — and <code>high</code> requires "
      "<i>zero</i> caveats and <i>every</i> engine that ran finding the lattice. "
      "That is why the scoreboard below shows six correct answers and zero "
-     "promotions: <b>never wrong, and silent more often than right.</b>"),
+     "promotions: <b>never wrong, and silent more often than right</b> — on a "
+     "corpus of high-symmetry lattices (see the scoreboard's qualifier)."),
 )
 
 
@@ -1258,6 +1259,11 @@ handed back as <em>the answer</em> rather than as a ranked candidate.</p>
 computed from the run — the truth's rank is a <code>same_lattice</code> test on
 the reduced A..F vector, <em>and</em> the centring, <em>and</em> the dataset's own
 accuracy band. Drop any of the three and a wrong answer reads as right.</p>
+<p class="warn">One qualifier travels with every claim on this board (WP-1043):
+nine of ten known-cell datasets sit at &le; 2 free metric parameters (4 cubic;
+0 orthorhombic, 1 monoclinic, 0 triclinic), so "never wrong" is a statement
+about <b>high-symmetry lattices</b> — the engines meet low symmetry only
+synthetically until the corpus moves, which is post-v1.</p>
 </section>"""
 
 

@@ -336,7 +336,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       cause — so the 125 ppm they cost a certified cell is removable without
       hand-editing the peak list. The pinned census test is the table the fix
       has to move, not a threshold to guess at.
-- [ ] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
+- [x] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
       (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
       until the corpus moves — which is post-v1.
 - [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
