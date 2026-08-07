@@ -242,6 +242,17 @@ _MAX_CENTRING: dict[str, int] = {
 }
 
 
+#: Factor between Smith's mean-line volume estimate and anything that treats it
+#: as a bound.  Two consumers, one boundary: the engines' search ceiling is
+#: ``VOLUME_ENVELOPE_SLACK ×`` the envelope (WP-1045 — the raw mean line
+#: excludes the true cell below p = 0.71 line-completeness, and 1 − 0.71 is
+#: Smith's own worst case, so as a hard ceiling it carried no margin against
+#: the worst pattern in its own calibration set), and consensus reports
+#: ``volume_unphysical`` only for a candidate *clear of the same slack* — so a
+#: cell the search could reach is never flagged for having been reached.
+VOLUME_ENVELOPE_SLACK = 1.5
+
+
 def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
                     *, centring_multiplicity: int | None = None) -> float:
     """Smith's (1977) volume estimate from the N-th line, Å³.
@@ -261,9 +272,11 @@ def volume_envelope(d_n: float, n_lines: int, system: str = "triclinic",
     stands in ratio 1.40·p to the truth, so it *excludes the true cell* below
     p = 0.71, and 1 − 0.71 is Smith's own worst case.  As a hard ceiling it
     therefore carries no margin against the worst pattern in its own calibration
-    set.  :data:`~pxrdref.indexing.consensus.VOLUME_ENVELOPE_SLACK` exists for
-    this and is currently applied only when *flagging* a found candidate, not at
-    the search ceiling in the engines — see WP-1030.
+    set.  :data:`VOLUME_ENVELOPE_SLACK` is what turns the mean line into an
+    envelope, and since WP-1045 every engine's search ceiling applies it
+    (:func:`~pxrdref.indexing.engines.search_volume_ceiling`); the function
+    itself stays the raw estimate, because the report records what Smith's
+    formula *measured* and the slack is its consumer's calibration.
 
     The paper is **triclinic-only and publishes no per-system factors**; the two
     scalings below are this package's derivation, and there is nothing in Smith
@@ -482,5 +495,6 @@ def assess_peak_list(peaks: PeakList, *,
         "diagnostics": quality_diagnostics(report, peaks)})
 
 
-__all__ = ["assess_peak_list", "fit_shift_model", "screen_shift_from_pairs",
-           "shift_template_basis", "template_collinearity", "volume_envelope"]
+__all__ = ["VOLUME_ENVELOPE_SLACK", "assess_peak_list", "fit_shift_model",
+           "screen_shift_from_pairs", "shift_template_basis",
+           "template_collinearity", "volume_envelope"]

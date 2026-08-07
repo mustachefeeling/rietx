@@ -712,6 +712,38 @@ def effective_shift_allowance(spec: SearchSpec,
     return DEFAULT_UNKNOWN_SHIFT_DEG, True
 
 
+#: Search ceiling (Å³) when neither the caller nor a data-quality report
+#: supplies one — deliberately generous, because a ceiling with no evidence
+#: behind it must only ever exclude the absurd.
+DEFAULT_VOLUME_CEILING = 8000.0
+
+
+def search_volume_ceiling(spec: SearchSpec, quality, system: str) -> float:
+    """The volume a *search* prunes at for one system — the one authority.
+
+    A caller's declared ``max_volume`` is returned verbatim: explicit
+    narrowing is the caller's own act (the no-silent-caps rule), and it is
+    already recorded in ``spec_notes``.  The fallback is the data-quality
+    report's Smith envelope **with**
+    :data:`~pxrdref.indexing.quality.VOLUME_ENVELOPE_SLACK`, because the
+    envelope is a least-squares *mean line*, not a bound: deviations run 29 %
+    low on Smith's own calibration set and low is the ordinary case (missing
+    weak lines produce it — with p the fraction of possible lines detected the
+    raw line stands at 1.40·p × truth, excluding the true cell below
+    p = 0.71).  Until WP-1045 all four engine call sites fed the raw envelope,
+    so the slack existed only where consensus *flags* a found candidate — a
+    calibrated exclusion of the right answer, invisible to the complete-list
+    guard test (blind at p = 1).
+    """
+    if quality is not None and system in quality.volume_envelope:
+        from .quality import VOLUME_ENVELOPE_SLACK
+
+        fallback = VOLUME_ENVELOPE_SLACK * float(quality.volume_envelope[system])
+    else:
+        fallback = DEFAULT_VOLUME_CEILING
+    return spec.volume_limit(system, fallback)
+
+
 def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
     """``INDEX_SHIFT_ALLOWANCE`` — the search widened its own tolerance, and by how
     much.  Reported because it is the difference between a cell and no cell, and
@@ -1492,12 +1524,14 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "SAME_SOLUTION_RTOL", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",
-           "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
+           "DEFAULT_UNKNOWN_SHIFT_DEG", "DEFAULT_VOLUME_CEILING",
+           "budget_exhausted_diagnostic",
            "dedup_candidates", "dedup_groups",
            "effective_shift_allowance", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
            "merge_engine_units", "refine_with_shift",
-           "scored_positions", "search_line_order", "shift_allowance_diagnostic",
+           "scored_positions", "search_line_order", "search_volume_ceiling",
+           "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "solution_key",

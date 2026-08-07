@@ -57,6 +57,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     search_line_order,
+    search_volume_ceiling,
     shift_allowance_diagnostic,
     solution_key,
     trial_hkl,
@@ -302,10 +303,7 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
                            system=system)
         budget = Budget(spec.budget_seconds, cancel)
         basis = metric_basis(system)
-        vol_max = spec.volume_limit(
-            system, float(quality.volume_envelope[system])
-            if quality is not None and system in quality.volume_envelope
-            else 8000.0)
+        vol_max = search_volume_ceiling(spec, quality, system)
         found, stats, complete = _search_system(
             peaks, system, basis, spec, budget, q_all, sigma, tt_all, tt_max,
             vol_max)
@@ -509,10 +507,7 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
             progress.add(1)
             progress.start(f"probe:{system}", engine="trial_error",
                            system=system, probe=True)
-        vol_max = spec.volume_limit(
-            system, float(quality.volume_envelope[system])
-            if quality is not None and system in quality.volume_envelope
-            else 8000.0)
+        vol_max = search_volume_ceiling(spec, quality, system)
         hit: Diagnostic | None = None
         for wider in DOMINANT_ZONE_PROBE_LADDER:
             budget = Budget(min(spec.budget_seconds, DOMINANT_ZONE_PROBE_SECONDS),

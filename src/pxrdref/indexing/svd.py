@@ -178,6 +178,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     search_line_order,
+    search_volume_ceiling,
     shift_allowance_diagnostic,
     solution_key,
 )
@@ -755,9 +756,7 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
     # ``SYSTEM_ORDER`` is a stable integer and decorrelates the systems' streams.
     rng = np.random.default_rng(
         (int(spec.seed), SYSTEM_ORDER.index(system), int(trim)))
-    fallback = (float(quality.volume_envelope[system])
-                if quality is not None and system in quality.volume_envelope
-                else 8000.0)
+    vol_ceiling = search_volume_ceiling(spec, quality, system)
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
     zes: list[float] = []
@@ -768,7 +767,7 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
         gate_lo, gate_hi = volume_window(len(q_search), system, centring, q_max,
                                          seed=spec.seed)
         v_lo = max(spec.min_volume, gate_lo)
-        v_hi = min(spec.volume_limit(system, fallback), gate_hi)
+        v_hi = min(vol_ceiling, gate_hi)
         if not (v_lo < v_hi):
             continue
         v1 = v_lo

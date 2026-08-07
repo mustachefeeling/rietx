@@ -74,6 +74,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     search_line_order,
+    search_volume_ceiling,
     shift_allowance_diagnostic,
     trial_hkl,
 )
@@ -609,10 +610,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
                            system=system)
         budget = Budget(spec.budget_seconds, cancel)
         basis = metric_basis(system)
-        vol_max = spec.volume_limit(
-            system, float(quality.volume_envelope[system])
-            if quality is not None and system in quality.volume_envelope
-            else 8000.0)
+        vol_max = search_volume_ceiling(spec, quality, system)
         found, (n_boxes, n_rows), complete = _search_one(
             basis, system, spec.centrings_for(system), spec, budget, q_all,
             sigma, q_search, tol_search, peaks.wavelength, tt_max,

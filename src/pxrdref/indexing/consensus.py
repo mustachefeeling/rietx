@@ -71,6 +71,13 @@ from .engines import (
 )
 from .fom import fom_panel_disagrees
 
+# Re-exported from its WP-1045 home beside ``volume_envelope`` itself: the
+# engines' search ceiling and this module's ``volume_unphysical`` flag apply
+# the *same* slack, so a cell the search could reach is never flagged for
+# having been reached — the flag fires only when a caller widened
+# ``max_volume`` past the slack too.
+from .quality import VOLUME_ENVELOPE_SLACK
+
 #: Candidates that get the **expensive** per-candidate checks — geometrical
 #: ambiguity (which enumerates 55 derivative lattices and predicts reflections for
 #: each) and Le Bail validation (a refinement, ~0.6 s measured).  Three, plus
@@ -79,13 +86,6 @@ from .fom import fom_panel_disagrees
 #: which is one rule read by both call sites so "which candidates were checked"
 #: has exactly one answer.
 CONSENSUS_CHECK_TOP = 3
-#: Volume above the data's own Smith (1977) envelope at which a candidate is
-#: reported ``volume_unphysical``.  The envelope is a *statistical* bound on the
-#: cell N lines can support, not a hard limit, so a candidate is only refused when
-#: it is clear of it — a factor rather than the bound itself.  A search only
-#: reaches here at all if the caller widened ``max_volume`` past the envelope the
-#: quality report supplied.
-VOLUME_ENVELOPE_SLACK = 1.5
 
 
 @dataclass
