@@ -298,10 +298,14 @@ class SearchSpecSpec(Base):
     k_sigma: float = Field(3.0, gt=0.0, description=(
         "matching window in units of each line's own sigma; 3 is a calibrated "
         "99.7 % window, not a knob"))
-    sigma_sys_deg: float = Field(0.0, ge=0.0, description=(
+    shift_allowance_deg: float = Field(0.0, ge=0.0, description=(
         "systematic 2theta allowance (deg) you have MEASURED, e.g. from an "
-        "internal standard. Leave 0 and the engines assume 0.05 deg and say so "
-        "with INDEX_SHIFT_ALLOWANCE — which caps confidence, because a cell found "
+        "internal standard — the shift's AMPLITUDE the matching window must "
+        "span (ShiftScreen.allowance_deg), never the residual scatter a "
+        "template leaves (ShiftScreen.sigma_sys_deg): the two differ 4.3x on "
+        "a certified pattern and declaring the scatter finds no cell at all. "
+        "Leave 0 and the engines assume 0.05 deg and say so with "
+        "INDEX_SHIFT_ALLOWANCE — which caps confidence, because a cell found "
         "inside a widened window absorbs the shift (+1400 ppm measured)"))
     shift_template: str | None = Field(None, description=(
         "'constant' | 'cos_theta' | 'sin_2theta' — re-fit a surviving candidate "
@@ -360,7 +364,7 @@ class SearchSpecSpec(Base):
             min_d_axis=self.min_d_axis, max_d_axis=self.max_d_axis,
             min_volume=self.min_volume, max_volume=self.max_volume,
             n_unindexed=self.n_unindexed, n_search_lines=self.n_search_lines,
-            k_sigma=self.k_sigma, sigma_sys_deg=self.sigma_sys_deg,
+            k_sigma=self.k_sigma, shift_allowance_deg=self.shift_allowance_deg,
             shift_template=self.shift_template,
             budget_seconds=self.budget_seconds,
             total_budget_seconds=self.total_budget_seconds,

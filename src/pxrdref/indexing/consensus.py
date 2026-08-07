@@ -34,7 +34,7 @@ engines widen their matching window by an *assumed*
 ``DEFAULT_UNKNOWN_SHIFT_DEG`` when no shift has been measured, which raises
 ``shift_allowance_assumed`` — and a cell found inside a widened window absorbs the
 shift (measured, +1400 ppm on a certified pattern).  Declaring a calibrated
-``sigma_sys_deg``, or handing ``assess_peak_list`` reference positions from an
+``shift_allowance_deg``, or handing ``assess_peak_list`` reference positions from an
 internal standard, is what makes the caveat go away.  That is the same posture as
 Layer 1's abstention: the ceiling moves when the evidence arrives, not when the
 constant is raised.  Closing it on real data is WP-1026.

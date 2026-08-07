@@ -449,7 +449,7 @@ def _adopt_measured_shift(spec, quality):
 
     Measuring the shift's **magnitude** and naming its **cause** are separate
     permissions, and this function is where the second one is refused.  The
-    magnitude reaches the search through ``effective_sigma_sys`` and needs no
+    magnitude reaches the search through ``effective_shift_allowance`` and needs no
     template; adopting a template additionally tells ``refine_with_shift`` which
     *shape* to fit once a candidate survives, and fitting the wrong shape biases
     the cell it corrects.
@@ -900,7 +900,7 @@ def _spec_notes(spec, names: Sequence[str], quality,
         "n_unindexed": str(spec.n_unindexed),
         "n_search_lines": str(spec.n_search_lines),
         "k_sigma": f"{spec.k_sigma:g}",
-        "sigma_sys_deg": f"{spec.sigma_sys_deg:g}",
+        "shift_allowance_deg": f"{spec.shift_allowance_deg:g}",
         "budget_seconds": f"{spec.budget_seconds:g}",
         # only when one is set — under ``full`` there is nothing to record,
         # and the absence *is* the record

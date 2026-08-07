@@ -126,18 +126,18 @@ def test_merge_engine_units_folds_disjoint_systems():
     u1 = EngineResult(engine="e", systems_searched=("cubic",),
                       search_complete={"cubic": True},
                       stats={"cubic.seconds": 1.0, "candidates.raw": 3.0,
-                             "sigma_sys_deg": 0.05})
+                             "shift_allowance_deg": 0.05})
     u2 = EngineResult(engine="e", systems_searched=("tetragonal",),
                       search_complete={"tetragonal": False},
                       stats={"tetragonal.seconds": 2.0, "candidates.raw": 4.0,
-                             "sigma_sys_deg": 0.05})
+                             "shift_allowance_deg": 0.05})
     merged = merge_engine_units([u1, u2])
     assert merged.engine == "e"
     assert merged.systems_searched == ("cubic", "tetragonal")
     assert merged.search_complete == {"cubic": True, "tetragonal": False}
     # summed, not last-write-wins: each unit counted its own harvest
     assert merged.stats["candidates.raw"] == 7.0
-    assert merged.stats["sigma_sys_deg"] == 0.05
+    assert merged.stats["shift_allowance_deg"] == 0.05
     assert merged.stats["cubic.seconds"] == 1.0
 
 

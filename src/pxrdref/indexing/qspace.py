@@ -311,20 +311,23 @@ class CandidateFit:
 
 
 def sigma_effective(q_esd: np.ndarray, two_theta: np.ndarray, wavelength: float,
-                    sigma_sys_deg: float = 0.0) -> np.ndarray:
+                    allowance_deg: float = 0.0) -> np.ndarray:
     """Per-line σ(Q) with a systematic floor added **in quadrature**.
 
-    σ_sys is a degrees-2θ quantity (WP-1019's residual scatter after the shift
-    template), so it is propagated into Q by the same exact derivative σ(Q) uses
+    What the engines feed in is the shift **allowance** — the amplitude a
+    window must span (``effective_shift_allowance``), never the residual
+    scatter a template leaves; the two differ 4.3× on SRM 660c and this
+    parameter carried the scatter's name until WP-1045.  It is a degrees-2θ
+    quantity, so it is propagated into Q by the same exact derivative σ(Q) uses
     and only then combined.  Combining in 2θ and propagating afterwards would give
     the same answer here; doing it in Q keeps one propagation function in the
     package (``schemas.indexing.q_esd_of_two_theta``) rather than two.
     """
     from ..schemas.indexing import q_esd_of_two_theta
     base = np.asarray(q_esd, dtype=np.float64)
-    if sigma_sys_deg <= 0.0:
+    if allowance_deg <= 0.0:
         return base
-    extra = q_esd_of_two_theta(two_theta, np.full_like(base, sigma_sys_deg),
+    extra = q_esd_of_two_theta(two_theta, np.full_like(base, allowance_deg),
                               wavelength)
     return np.sqrt(base ** 2 + extra ** 2)
 

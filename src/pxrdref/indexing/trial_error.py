@@ -48,7 +48,7 @@ from .engines import (
     SearchSpec,
     assign_lines,
     dedup_candidates,
-    effective_sigma_sys,
+    effective_shift_allowance,
     incomplete_diagnostic,
     indexes_the_search_lines,
     provisional_payload,
@@ -275,8 +275,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys, assumed = effective_sigma_sys(spec, quality)
-    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
+    allowance, assumed = effective_shift_allowance(spec, quality)
+    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     tt_max = float(peaks.two_theta_max)
 
     systems = [s for s in SYSTEM_ORDER if s in spec.systems]
@@ -326,9 +326,9 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
                                         max_candidates=spec.max_candidates,
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
-    result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
+    result.stats["shift_allowance_deg"] = round(allowance, 5)
     if assumed:
-        result.diagnostics.append(shift_allowance_diagnostic(sigma_sys))
+        result.diagnostics.append(shift_allowance_diagnostic(allowance))
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("trial_error", incomplete, spec.budget_seconds))
@@ -561,8 +561,8 @@ def dominant_zone_probe(peaks: PeakList, *, systems: list[str] | tuple[str, ...]
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys, _assumed = effective_sigma_sys(spec, quality)
-    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
+    allowance, _assumed = effective_shift_allowance(spec, quality)
+    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     return _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all,
                                 float(peaks.two_theta_max), list(systems),
                                 quality, cancel, progress=progress)

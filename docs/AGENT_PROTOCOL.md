@@ -474,7 +474,7 @@ Five things about that sequence are load-bearing:
    measured systematic shift it is currently unreachable to get `high` on real
    lab data at all — both engines widen their matching window by an *assumed*
    allowance and say so — and the fix is evidence (an internal standard, a
-   calibrated `sigma_sys_deg`), not a bigger constant.
+   calibrated `shift_allowance_deg`), not a bigger constant.
 3. **Go through `structure_from_candidate`.** It supplies the mandatory dummy
    atom and, more importantly, defaults the space group to the **absence-free
    lattice group**. A plausible-looking space group would hide exactly the
@@ -764,7 +764,8 @@ engines here add an assumed 0.05° in quadrature and say so with
 `INDEX_SHIFT_ALLOWANCE`. **Corollary for the agent: a cell found under a widened
 window has absorbed the shift (+1400 ppm measured), so re-fit it with
 `shift_template` before quoting it — and the way to earn `high` confidence is to
-supply a measured `sigma_sys_deg` from an internal standard, not to widen
+supply a measured `shift_allowance_deg` — the shift's amplitude, not the
+residual scatter a template leaves — from an internal standard, not to widen
 further.**
 
 **8.17 "Is there intensity here?" is not one question — it depends on what else

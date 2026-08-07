@@ -230,7 +230,16 @@ class SearchSpec:
     n_unindexed: int = DEFAULT_N_UNINDEXED
     n_search_lines: int = DEFAULT_SEARCH_LINES
     k_sigma: float = MATCH_SIGMA
-    sigma_sys_deg: float = 0.0
+    #: systematic 2θ **allowance** the matching window must span (°), the
+    #: quantity :class:`~pxrdref.schemas.indexing.ShiftScreen` calls
+    #: ``allowance_deg`` — **never** its ``sigma_sys_deg``, the residual scatter
+    #: the winning template leaves.  This field was named ``sigma_sys_deg`` too
+    #: until WP-1045, and the collision made the obvious calibration protocol
+    #: (measure the screen on a standard, declare its number here) fail
+    #: *silently*: matching happens against **uncorrected** positions, so
+    #: declaring the 4.3×-smaller scatter finds nothing at all (SRM 660c,
+    #: 0.0078° vs 0.037° — the story in :func:`effective_shift_allowance`).
+    shift_allowance_deg: float = 0.0
     shift_template: str | None = None
     budget_seconds: float = DEFAULT_BUDGET_SECONDS
     #: whole-run wall-clock ceiling (WP-1037), or ``None`` to let the preset
@@ -668,7 +677,8 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     return order[np.argsort(q[order])]
 
 
-def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
+def effective_shift_allowance(spec: SearchSpec,
+                              quality=None) -> tuple[float, bool]:
     """The systematic allowance to use, and whether it was **assumed**.
 
     Three cases, in priority order: the caller declared one; the data-quality
@@ -688,10 +698,13 @@ def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
     SRM 660c the two are 0.0078° and 0.037°: declaring the smaller finds
     **nothing**, declaring the larger recovers the certificate.  The
     ``lab6_calibrated`` fixture computed the right quantity by hand for exactly
-    this reason; the screen now computes it once.
+    this reason; the screen now computes it once.  The same collision lived in
+    the *declared* field's name until WP-1045 — ``SearchSpec.sigma_sys_deg``
+    invited exactly the wrong number — so both this function and that field now
+    say "allowance", and the only ``sigma_sys_deg`` left is the screen's scatter.
     """
-    if spec.sigma_sys_deg > 0.0:
-        return float(spec.sigma_sys_deg), False
+    if spec.shift_allowance_deg > 0.0:
+        return float(spec.shift_allowance_deg), False
     if (quality is not None and quality.shift is not None
             and quality.shift.source in TRUSTED_SHIFT_SOURCES
             and quality.shift.allowance_deg > 0.0):
@@ -699,18 +712,18 @@ def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
     return DEFAULT_UNKNOWN_SHIFT_DEG, True
 
 
-def shift_allowance_diagnostic(sigma_sys: float) -> Diagnostic:
+def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
     """``INDEX_SHIFT_ALLOWANCE`` — the search widened its own tolerance, and by how
     much.  Reported because it is the difference between a cell and no cell, and
     because it biases the cell it finds."""
     return Diagnostic(
         level="info", code="INDEX_SHIFT_ALLOWANCE",
-        message=(f"no systematic 2θ shift has been measured, so {sigma_sys:.3f}° "
+        message=(f"no systematic 2θ shift has been measured, so {allowance_deg:.3f}° "
                  "was added in quadrature to every line's fitted σ.  Measured on "
                  "a certified pattern, the fitted σ alone is ~11× too tight: the "
                  "true cell indexed no lines at all and the search returned "
                  "nothing"),
-        where=[f"σ_sys = {sigma_sys:.3f}° 2θ (assumed)"],
+        where=[f"σ_sys = {allowance_deg:.3f}° 2θ (assumed)"],
         suggestion=("the cell a widened search finds absorbs the shift, so refine "
                     "the winner with a shift template "
                     "(refine_candidate(..., shift_template=...), or pass "
@@ -827,7 +840,7 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
 
     ``q_esd`` is what the measurement resolves and this is what a line was
     allowed to move by, and the two differ by the shift allowance
-    (:func:`effective_sigma_sys`).  Ranking, or drawing, in the tighter one
+    (:func:`effective_shift_allowance`).  Ranking, or drawing, in the tighter one
     judges candidates by a criterion they were never selected under — the rule
     ``fom.fom_panel`` states for ``q_match``, now stated once here so
     :mod:`~pxrdref.indexing.consensus` and :mod:`pxrdref.viz.indexing` cannot
@@ -835,9 +848,10 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
     """
     from .qspace import sigma_effective
 
-    sigma_sys, _assumed = effective_sigma_sys(spec or SearchSpec(), quality)
+    allowance, _assumed = effective_shift_allowance(spec or SearchSpec(),
+                                                    quality)
     return sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
-                           sigma_sys)
+                           allowance)
 
 
 def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
@@ -994,7 +1008,7 @@ def merge_engine_units(units: Sequence[EngineResult]) -> EngineResult:
     everything downstream of it, still wants one answer per engine, and this is
     that fold.  Everything is a union of disjoint per-system facts except the
     engine-level stats: ``candidates.raw`` is **summed** (each unit counted its
-    own harvest), while ``sigma_sys_deg`` and ``seed`` are identical across
+    own harvest), while ``shift_allowance_deg`` and ``seed`` are identical across
     units by construction (one spec, one quality report), so last-write-wins is
     exact for them.  Diagnostics dedup on (code, message) — every unit repeats
     the engine-level ones (``INDEX_SHIFT_ALLOWANCE``) in identical words, and N
@@ -1480,7 +1494,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",
            "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
            "dedup_candidates", "dedup_groups",
-           "effective_sigma_sys", "engine_descriptions", "engine_names",
+           "effective_shift_allowance", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
            "merge_engine_units", "refine_with_shift",
            "scored_positions", "search_line_order", "shift_allowance_diagnostic",
