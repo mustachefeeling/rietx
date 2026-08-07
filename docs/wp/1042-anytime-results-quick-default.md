@@ -116,6 +116,20 @@ what was not reached (WP-1037's states) rather than having silently searched
 less. The slower preset is today's behaviour (no ceiling); the preset that ran
 is recorded on the result.
 
+### The default's second constituency
+
+(folded from `### Inherited`, 2026-08-07; source: WP-1043's close)
+
+Since the searchable/scorable split, a short peak list is *searched* over its
+supported systems where it used to abstain in 0.1 s. Measured: the GUI test's
+15-line synthetic pattern went from instant abstention to a multi-minute
+unbudgeted run (five supported systems × three engines, plus validation) that
+outlived a 60 s timeout, and the fluorite acceptance row now costs ~3.5 min
+where it cost a peak pick. The GUI's `/api/index` passes no
+`total_budget_seconds` at all. So `quick`-as-default is no longer only about
+long searches finishing early — it is what keeps the newly searchable short
+lists from hanging a first click.
+
 ### The honest cost of cost-ordering
 
 With a binding total deadline, system-major scheduling means the systems that get
@@ -217,20 +231,6 @@ it up.
       sidecars. Measured time-to-shortlist goes in this WP's handover and the
       v1.0 appendix diary as a **range**, never as a timed test — a wall-clock
       budget in a test is a runaway guard, not a timer.
-
-### Inherited
-
-**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the
-unbudgeted default gained a second constituency.** Since the
-searchable/scorable split, a short peak list is *searched* over its supported
-systems where it used to abstain in 0.1 s. Measured: the GUI test's 15-line
-synthetic pattern went from instant abstention to a multi-minute unbudgeted
-run (five supported systems × three engines, plus validation) that outlived a
-60 s timeout, and the fluorite acceptance row now costs ~3.5 min where it
-cost a peak pick. The GUI's `/api/index` passes no `total_budget_seconds` at
-all. So `quick`-as-default is no longer only about long searches finishing
-early — it is what keeps the newly searchable short lists from hanging a
-first click.
 
 ## Acceptance
 
