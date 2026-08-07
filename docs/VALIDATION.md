@@ -699,15 +699,17 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Measured:** cubic F first at -334 ppm, its P description of identical axes second; predicted_seen_fraction 0.46 against 0.19 and n_indexed identical at 21 of 23, so the reversed member is the whole separation.  The gate then gives F low and P medium: F d -3 m's d-glide refutes the CORRECT cell (2 of 52) while P's Le Bail fit predicts 163 reflections on a 23-line pattern and reports ZERO absent.  WP-1043 measured why: the detector's inputs are the candidate's to buy -- the rival's own fit drives the co-refined background NEGATIVE (mean -11 counts; no physical floor in the validation plan), so net clears 3 sigma at 100 % of channels and nothing can read absent; with the truth's background under the same positions 8-14 absences return, while swapping widths alone (inflated 2-3x in both fits) restores none.  Rwp 0.25 against 0.79 is the same corrupted fit seen by a different instrument, so it stays surfaced and never ranked on.  best_or_none() returns None either way
 
-#### `test_the_unflagged_tail_components_escape_for_three_different_reasons`
+#### `test_the_tail_components_escape_not_separable_and_are_flagged_by_cause`
 
 `characterisation` · dataset `srm660c`
 
-**Claims:** the not_separable screen misses six components on this pattern, and the census -- not any one threshold -- is what is pinned
+**Claims:** the not_separable screen misses six components on this pattern -- and since WP-1043 the cause-specific flags reach all six blind, one MORE than the certificate probe itself reaches
 
-**Referenced to:** The screen asks three questions (re-seeded, inside the neighbour's profile at <=25 % of its area, group still refuted).  Thirteen components face them here; the six survivors fail three DIFFERENT conditions, so widening PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a knob rather than a measurement
+**Referenced to:** The screen asks three questions (re-seeded, inside the neighbour's profile at <=25 % of its area, group still refuted).  Thirteen components face them here; the six survivors fail three DIFFERENT conditions, so widening PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a knob rather than a measurement.  WP-1043's screens are not that knob: axial_tail is ONE-SIDED (the offset's sign must match the aberration's 90-degree flip) and kalpha2_residual sits at the mate's PREDICTED doublet position -- physics signatures, informational flags, components kept usable
 
-**Measured:** 4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection seed slid into the tail and the new component took the real line), 1 on a group whose fit is not refuted (chi2_red 1.38)
+**Measured:** 4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection seed slid into the tail and the new component took the real line), 1 on a group whose fit is not refuted (chi2_red 1.38).  WP-1043: all six flagged by cause (5 axial_tail, 1 kalpha2_residual), all six still usable.  The flag trim reaches ONE MORE component than the certificate probe: the 43.5 deg tail sits at dev -0.003 because the axial shift cancels the specimen displacement there, so an answer-based probe reads it as on-lattice while the side test does not -- dropping it takes the calibrated screen's leftover scatter from 0.0078 to 0.0025 deg.  Across the six other real lab patterns the screens reach 11 further usable components nobody has verified, which is why the flags report instead of refusing
+
+**Diagnostics:** `PEAK_AXIAL_TAIL`, `PEAK_KALPHA2_RESIDUAL`
 
 #### `test_the_surviving_components_sit_on_the_axial_divergence_side`
 

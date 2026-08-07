@@ -1070,19 +1070,37 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_the_unflagged_tail_components_escape_for_three_different_reasons",
+        "test_the_tail_components_escape_not_separable_and_are_flagged_by_cause",
         "srm660c", ("characterisation",),
-        "the not_separable screen misses six components on this pattern, and "
-        "the census -- not any one threshold -- is what is pinned",
+        "the not_separable screen misses six components on this pattern -- "
+        "and since WP-1043 the cause-specific flags reach all six blind, "
+        "one MORE than the certificate probe itself reaches",
         reference="The screen asks three questions (re-seeded, inside the "
                   "neighbour's profile at <=25 % of its area, group still "
                   "refuted).  Thirteen components face them here; the six "
                   "survivors fail three DIFFERENT conditions, so widening "
                   "PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a "
-                  "knob rather than a measurement",
+                  "knob rather than a measurement.  WP-1043's screens are "
+                  "not that knob: axial_tail is ONE-SIDED (the offset's sign "
+                  "must match the aberration's 90-degree flip) and "
+                  "kalpha2_residual sits at the mate's PREDICTED doublet "
+                  "position -- physics signatures, informational flags, "
+                  "components kept usable",
         measured="4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection "
                  "seed slid into the tail and the new component took the real "
-                 "line), 1 on a group whose fit is not refuted (chi2_red 1.38)",
+                 "line), 1 on a group whose fit is not refuted (chi2_red "
+                 "1.38).  WP-1043: all six flagged by cause (5 axial_tail, "
+                 "1 kalpha2_residual), all six still usable.  The flag trim "
+                 "reaches ONE MORE component than the certificate probe: the "
+                 "43.5 deg tail sits at dev -0.003 because the axial shift "
+                 "cancels the specimen displacement there, so an answer-based "
+                 "probe reads it as on-lattice while the side test does not "
+                 "-- dropping it takes the calibrated screen's leftover "
+                 "scatter from 0.0078 to 0.0025 deg.  Across the six other "
+                 "real lab patterns the screens reach 11 further usable "
+                 "components nobody has verified, which is why the flags "
+                 "report instead of refusing",
+        diagnostics=("PEAK_AXIAL_TAIL", "PEAK_KALPHA2_RESIDUAL"),
     ),
     Claim(
         "test_acceptance_indexing",

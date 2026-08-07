@@ -47,7 +47,12 @@ import numpy as np
 from ..indexing.diagnostics import peak_diagnostics
 from ..indexing.peakfit import GroupFit, fit_group, fit_group_at, group_profile
 from ..indexing.peaks import Detection, PeakGroup, detect_peaks, predicted_fwhm
-from ..indexing.pick import flag_ghosts, peaks_of_group, pick_peaks_with_state
+from ..indexing.pick import (
+    flag_ghosts,
+    flag_kalpha2_residuals,
+    peaks_of_group,
+    pick_peaks_with_state,
+)
 from ..model.profiles.fcj import fcj_extent_deg
 from ..schemas.indexing import (
     PEAK_UNUSABLE_FLAGS,
@@ -525,21 +530,26 @@ class PeakEditor:
             peak.origin = carry.origin
             if carry.excluded and "excluded" not in peak.flags:
                 peak.flags = [*peak.flags, "excluded"]
-        doc.peaks = _spliced(doc.peaks, g, fresh, self.det)
+        doc.peaks = _spliced(doc.peaks, g, fresh, self.det,
+                             self.instrument.source.lines)
         meta.gamma_g, meta.gamma_l = float(fit.gamma_g), float(fit.gamma_l)
         meta.from_reseed = [bool(b) for b in fit.reseeded()]
         return doc
 
 
 def _spliced(peaks: PeakList, g: int, fresh: list[ObservedPeak],
-             det: Detection) -> PeakList:
+             det: Detection, lines=()) -> PeakList:
     """The list with group ``g`` replaced by ``fresh``, marks and diagnostics
     recomputed for exactly the spliced components."""
     merged = [p for p in peaks.peaks if p.group != g] + list(fresh)
     merged.sort(key=lambda p: p.two_theta)
     if fresh:
         new_ids = {id(p) for p in fresh}
-        flag_ghosts(merged, peaks.wavelength, det,
-                    only={i for i, p in enumerate(merged) if id(p) in new_ids})
+        only = {i for i, p in enumerate(merged) if id(p) in new_ids}
+        flag_ghosts(merged, peaks.wavelength, det, only=only)
+        # the same one-group restriction, for the same reason: recomputing the
+        # Kα2-residual mark on edited components must not resurrect one a user
+        # cleared on an untouched line (WP-1043)
+        flag_kalpha2_residuals(merged, lines, only=only)
     out = peaks.model_copy(update={"peaks": merged})
     return out.model_copy(update={"diagnostics": peak_diagnostics(out, det)})

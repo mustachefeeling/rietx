@@ -23,6 +23,7 @@ from ..background import contamination_flags_from_peaks
 from ..model.forward import PAWLEY_OVERLAP_FWHM_FRAC
 from ..schemas.indexing import (
     PEAK_ASYMMETRY_MIN_SIGMA,
+    PEAK_AXIAL_TAIL_MAX_FWHM,
     PEAK_REFUTED_SIGMA,
     PEAK_SATELLITE_MAX_RATIO,
     PEAK_SATELLITE_NEAR_FWHM,
@@ -83,6 +84,8 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
     peaks = _peaks_from_fits(fits, lam0)
     if flag_contamination and peaks:
         flag_ghosts(peaks, lam0, det)
+    if peaks:
+        flag_kalpha2_residuals(peaks, instrument.source.lines)
     _flag_extrapolated_background(peaks, det.two_theta)
 
     pl = PeakList(
@@ -161,10 +164,47 @@ def _flags_for(fit: GroupFit, j: int) -> list[PeakFlag]:
         flags.append("unresolved_shoulder")
     if _not_separable(fit, j):
         flags.append("not_separable")
+    if _axial_tail(fit, j):
+        flags.append("axial_tail")
     t = fit.asymmetry_t[j]
     if np.isfinite(t) and abs(t) >= PEAK_ASYMMETRY_MIN_SIGMA:
         flags.append("asymmetry_unmodelled")
     return flags
+
+
+def _axial_tail(fit: GroupFit, j: int) -> bool:
+    """Does component ``j`` sit on the axial-divergence **tail side** of a much
+    stronger group-mate?
+
+    The aberration's signature is the *sign*: axial divergence throws a peak's
+    tail toward low 2θ below 90° and toward high 2θ above it, and nothing else
+    in a powder pattern flips at 90° — WP-1028's census proved the side on
+    every escaped component, and WP-1043 turned that proof into this screen.
+    One-sided by construction (the same offset on the anti-tail side is never
+    flagged), which is what separates it from widening
+    ``PEAK_SATELLITE_NEAR_FWHM`` — the knob the census ruled out.  Weakness
+    reuses ``PEAK_SATELLITE_MAX_RATIO``; the reach is
+    ``PEAK_AXIAL_TAIL_MAX_FWHM``, spanning the census's measured 0.8-3.0 FWHM.
+
+    **Reported, not refused** — the flag is absent from
+    ``PEAK_UNUSABLE_FLAGS``: the side test is evidence, not proof, and a real
+    weak line can sit there too (measured, the screen reaches 11 unverified
+    usable components across the six other real lab patterns).  Measured on
+    SRM 660c it catches exactly the five tails, worth 125 ppm of
+    certified-cell bias, and excluding the flagged components is what took the
+    gate to ``high`` at −2 ppm.
+    """
+    if fit.n < 2:
+        return False
+    strongest = int(np.argmax(fit.intensity))
+    if strongest == j or fit.intensity[strongest] <= 0.0:
+        return False
+    if fit.intensity[j] >= PEAK_SATELLITE_MAX_RATIO * fit.intensity[strongest]:
+        return False
+    sep = float(fit.two_theta[j] - fit.two_theta[strongest])
+    tail_side = -1.0 if fit.two_theta[strongest] < 90.0 else 1.0
+    return bool(np.sign(sep) == tail_side
+                and abs(sep) < PEAK_AXIAL_TAIL_MAX_FWHM * fit.fwhm)
 
 
 def _not_separable(fit: GroupFit, j: int) -> bool:
@@ -231,6 +271,55 @@ def _unresolved(fit: GroupFit, j: int) -> bool:
     return bool(np.min(np.abs(others - fit.two_theta[j])) < gap)
 
 
+def flag_kalpha2_residuals(peaks: list[ObservedPeak], lines, *,
+                           only: set[int] | None = None) -> None:
+    """Mark components sitting at a strong group-mate's **Kα2 maximum**.
+
+    ``detect_peaks`` drops Kα2 *candidates* before any fit
+    (``PEAK_KALPHA2_ALIAS``), but a wide group can re-create one afterwards:
+    measured on SRM 660c (WP-1028's census, acted on by WP-1043), a re-seed
+    pass landed a component on its mate's Kα2 position at 3 % of its area —
+    the residual of a *modelled* doublet, not an unmodelled line — and escaped
+    every screen because it was neither a detection (the alias screen never
+    saw it) nor refuted (its group fits well).  The position here is
+    **predicted** from the declared doublet splitting, not found by a distance
+    knob: δ(2θ) = 2·(λ₂/λ₁ − 1)·tanθ at the mate's angle, within the mate's
+    own FWHM.
+
+    **Reported, not refused** — absent from ``PEAK_UNUSABLE_FLAGS`` for the
+    same reason as ``axial_tail``: a real line can coincide with an alias
+    position in one pattern, and the consumer that can weigh it decides.
+    ``only`` restricts marking exactly as :func:`flag_ghosts`' does, for the
+    same one-group-refit reason.  No-op on a single-line source: there is no
+    doublet to leave a residual.
+    """
+    if len(lines) < 2:
+        return
+    ratio = lines[1].wavelength / lines[0].wavelength
+    by_group: dict[int, list[int]] = {}
+    for k, p in enumerate(peaks):
+        by_group.setdefault(p.group, []).append(k)
+    for members in by_group.values():
+        if len(members) < 2:
+            continue
+        strongest = max(members, key=lambda k: peaks[k].intensity)
+        strong = peaks[strongest]
+        if strong.intensity <= 0.0:
+            continue
+        theta = np.radians(strong.two_theta / 2.0)
+        alias = strong.two_theta + np.degrees(
+            2.0 * (ratio - 1.0) * np.tan(theta))
+        for k in members:
+            p = peaks[k]
+            if (k == strongest
+                    or p.intensity >= PEAK_SATELLITE_MAX_RATIO * strong.intensity
+                    or abs(p.two_theta - alias) >= strong.fwhm
+                    or (only is not None and k not in only)
+                    or "kalpha2_residual" in p.flags):
+                continue
+            p.flags = [*p.flags, "kalpha2_residual"]
+
+
 def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
                 det: Detection, *, only: set[int] | None = None) -> None:
     """Mark Kβ / W Lα ghosts in place, using the shared background rule.
@@ -260,5 +349,5 @@ def flag_ghosts(peaks: list[ObservedPeak], wavelength: float,
             peaks[k].flags = [*peaks[k].flags, name]
 
 
-__all__ = ["flag_ghosts", "peaks_of_group", "pick_peaks",
-           "pick_peaks_with_state"]
+__all__ = ["flag_ghosts", "flag_kalpha2_residuals", "peaks_of_group",
+           "pick_peaks", "pick_peaks_with_state"]

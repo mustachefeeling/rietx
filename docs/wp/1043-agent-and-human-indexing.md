@@ -330,12 +330,23 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       makes wrong. It should assert that a short clean list is **searched, ranked
       by the reduced panel and reported unscored**, and that the certified cell
       comes back at rank 1.
-- [ ] **Act on 1028's escapee census** (Context § the peak list is the last
+- [x] **Act on 1028's escapee census** (Context § the peak list is the last
       gatekeeper): make the six unflagged tail components reachable — five
       axial-divergence tails and a re-created Kα2 residual, each with a settled
       cause — so the 125 ppm they cost a certified cell is removable without
       hand-editing the peak list. The pinned census test is the table the fix
       has to move, not a threshold to guess at.
+      **Landed as two cause-specific informational flags** (`axial_tail`:
+      one-sided, signed by the 90° flip; `kalpha2_residual`: at the mate's
+      predicted doublet position). On SRM 660c they catch exactly the six —
+      and one of them (the 43.5° slot-swap tail, aliased onto a certified
+      position by two cancelling systematics) the certificate probe itself
+      could never reach, so the flag trim beats the answer-based trim it
+      replaces and takes the calibrated screen's leftover scatter 0.0078° →
+      0.0025°. Kept usable (report, don't refuse): across the other real lab
+      patterns the screens reach 11 unverified components, and refusing them
+      blind risks losing real lines. `high` at −2 ppm now reached from the
+      pattern alone at the trim step.
 - [x] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
       (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
       until the corpus moves — which is post-v1.

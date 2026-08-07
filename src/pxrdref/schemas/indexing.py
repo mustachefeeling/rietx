@@ -419,7 +419,26 @@ PeakFlag = Literal[
     "asymmetry_unmodelled",
     "not_separable",
     "background_extrapolated",
+    "axial_tail",
+    "kalpha2_residual",
 ]
+
+#: FWHM multiple within which a weak component may be read as a stronger
+#: group-mate's **axial-divergence tail** (WP-1043, acting on WP-1028's
+#: census).  3.5 spans the measured census — the farthest SRM 660c tail sits
+#: 2.99 fitted FWHM out — with margin.  This is nevertheless not the distance
+#: knob the census ruled out (widening ``PEAK_SATELLITE_NEAR_FWHM`` reaches
+#: four of six): the screen is **one-sided**, requiring the offset's sign to
+#: match the aberration's 90° flip — tails point to low 2θ below 90° and to
+#: high 2θ above it, and nothing else in a powder pattern flips there — which
+#: is a physics signature ``PEAK_SATELLITE_NEAR_FWHM`` could never express.
+#: Both flags this screen family writes are deliberately absent from
+#: :data:`PEAK_UNUSABLE_FLAGS`: measured across the six real lab patterns the
+#: screens hit 11 further usable components nobody has verified, so refusing
+#: them blind risks losing real lines — the flag reports the evidence and the
+#: consumer judges, the same rule as ``background_extrapolated`` and the
+#: WP-1043 gate itself.
+PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 
 #: Flags that take a line out of :meth:`PeakList.usable`.  ``sigma_assumed``
 #: and ``unresolved_shoulder`` are deliberately absent: those lines are still

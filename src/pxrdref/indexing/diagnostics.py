@@ -122,6 +122,43 @@ def peak_diagnostics(peaks: PeakList, detection: Detection | None = None,
                         "declared instrument profile rather than the specimen — "
                         "undeclared axial divergence reproduces this exactly")))
 
+    tails = [p for p in peaks.peaks if "axial_tail" in p.flags]
+    if tails:
+        out.append(Diagnostic(
+            level="info", code="PEAK_AXIAL_TAIL",
+            message=(f"{len(tails)} weak component(s) sit on the "
+                     "axial-divergence tail side of a much stronger group-mate "
+                     "— the low-2θ side below 90° and the high-2θ side above "
+                     "it, the one sign flip nothing else in a powder pattern "
+                     "has (WP-1043)"),
+            where=[f"{p.two_theta:.4f}°" for p in tails],
+            suggestion=("kept usable: the side test is evidence, not proof, "
+                        "and a real weak line can sit there too.  Measured on "
+                        "SRM 660c, five such components carried 125 ppm of "
+                        "certified-cell bias, and excluding exactly the "
+                        "flagged ones (use_for_indexing=False) plus measuring "
+                        "the shift took the gate to high at −2 ppm — so on a "
+                        "well-aligned Bragg-Brentano pattern excluding them "
+                        "is usually right, but look at the group's fit first "
+                        "on a pattern whose answer you do not know")))
+
+    residuals = [p for p in peaks.peaks if "kalpha2_residual" in p.flags]
+    if residuals:
+        out.append(Diagnostic(
+            level="info", code="PEAK_KALPHA2_RESIDUAL",
+            message=(f"{len(residuals)} weak component(s) sit at a strong "
+                     "group-mate's predicted Kα2 maximum at a few per cent of "
+                     "its area — the residual of a *modelled* doublet, "
+                     "re-created by a re-seed pass after detection dropped "
+                     "the alias candidate (WP-1043)"),
+            where=[f"{p.two_theta:.4f}°" for p in residuals],
+            suggestion=("kept usable for the same reason as axial_tail — a "
+                        "real line can coincide with an alias position in one "
+                        "pattern.  It is not a lattice line of anything: "
+                        "exclude it before indexing unless the pattern gives "
+                        "you a reason to believe a genuine reflection hides "
+                        "under the doublet")))
+
     ghosts = [p for p in peaks.peaks
               if {"ghost_kbeta", "ghost_tungsten"} & set(p.flags)]
     if ghosts:
