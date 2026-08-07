@@ -88,6 +88,52 @@ real data with no measured shift, `high` is currently *unreachable* by design
   `schemas.indexing.candidate_evidence`, shared with `evidence()` — never
   fork it. All added `data` on existing kinds; a new kind is a version bump.
 
+## The control surface and the priors (WP-1045)
+
+- **One spec, three chairs.** `SearchSpecSpec` (`schemas/indexing.py`, the
+  pydantic twin of `SearchSpec`) is what the agent request carries, what
+  `ProjectDoc.indexing` embeds (the GUI form edits it; the index run reads
+  the document), and what `to_spec()` maps — held field-for-field by
+  `tests/test_search_controls.py` (dataclass↔model by `dataclasses.fields`,
+  defaults by `SearchSpecSpec().to_spec() == SearchSpec()`, `to_spec`
+  coverage per field, `index_pattern`'s signature against declared
+  exceptions) and by `gui/src/lib/controls.test.ts` replaying the committed
+  corpus `tests/data/gui/index_controls.json`. `_spec_notes` records
+  **every** spec field (optional narrowings only when declared), so identical
+  controls in two chairs produce byte-identical notes — asserted literally.
+  Vocabularies are served by `capabilities()` (engines with descriptions,
+  `SYSTEM_ORDER` — the order is information — `CENTRINGS`,
+  `SHIFT_TEMPLATES`), never restated in a client.
+- **The declared allowance is named for what it is**:
+  `SearchSpec.shift_allowance_deg` (was `sigma_sys_deg` until WP-1045 — the
+  name collision with `ShiftScreen.sigma_sys_deg`, the residual *scatter*,
+  made the measure-on-a-standard protocol fail silently by declaring the
+  4.3×-smaller number). `effective_shift_allowance` is the resolver; the
+  only `sigma_sys_deg` left is the screen's scatter.
+- **The envelope enters a search only through its slack**
+  (`search_volume_ceiling`, the one authority all four engine call sites
+  use): a declared `max_volume` verbatim, else `VOLUME_ENVELOPE_SLACK ×`
+  Smith's mean line (which excludes the true cell below p = 0.71
+  line-completeness — pinned at p = 0.6, where the raw envelope reads 0.94×
+  the corundum-setting cell). The slack lives in `quality.py` beside the
+  formula; consensus flags `volume_unphysical` above the *same* boundary, so
+  a cell the search could reach is never flagged for having been reached.
+- **A prior steers, never gates** (`priors.py`, three rules pinned by
+  `tests/test_indexing_priors.py`). Its system jumps the queue and its
+  metric seeds `search_svd`'s starting basin (one deliberate Table-1 start
+  per centring, before the random ladder and outside the N_c/N_o gate — a
+  statistic about random starts; the caller's box still binds in `_keep`).
+  The stated cell is checked the engines' own way and joins consensus as
+  finder `"prior"` — merged into an engine candidate when one lattice, else
+  appended **after** the ranked list: prior-only candidates never enter the
+  Borda ranking (Borda violates IIA, so this is what makes "a wrong prior
+  changes no rank" structural). `"prior"` is absent from `engines_run`, so
+  `engines_disagree` grades a prior-only candidate down with no new gate
+  vocabulary. Two traps live in constants: the check itself can basin-hop
+  (`PRIOR_DRIFT_MAX` — a wrong prior once walked to the truth and claimed
+  confirmation), and a seeded find legitimately arrives in another setting
+  (`same_lattice`, never cell tuples — WP-1040's trap, hit again).
+
 ## Engines and the FoM panel
 
 Everything the engines share is `engines.py` — one `SearchSpec`, one

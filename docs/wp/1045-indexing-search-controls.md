@@ -141,28 +141,36 @@ hardcoded fraction — it lands with this WP's budget/preset controls.
 
 ## Tasks
 
-- [ ] The bijection meta-test: GUI form fields ↔ agent schema ↔
+- [x] The bijection meta-test: GUI form fields ↔ agent schema ↔
       `SearchSpec`/`index_pattern` kwargs, with enums quoted from the live
-      registries (the `capabilities()` meta-test is the template).
-- [ ] Expose the existing inventory in the GUI panel (disclosure per
+      registries (the `capabilities()` meta-test is the template) —
+      `tests/test_search_controls.py` + `gui/src/lib/controls.test.ts` over
+      the committed corpus `tests/data/gui/index_controls.json`.
+- [x] Expose the existing inventory in the GUI panel (disclosure per
       gui/CLAUDE.md) — preset control included — and round-trip it through the
-      project document; give the panel its consumer for the streamed
-      per-system graded shortlists.
-- [ ] `prior_cells` / `prior_spacegroups` on `SearchSpec`: schedule reordering
-      + engine seeding + `INDEX_PRIOR_USED`; the steer-never-gate rule pinned by
-      a test — a deliberately wrong prior on a scoreboard dataset changes no
-      final rank and no grade, only when things were searched.
-- [ ] `agent.refine_json`'s index task and `tool_definition()` accept the same
-      fields; `docs/AGENT_PROTOCOL.md` gains a "state what you know" row with a
-      structural-analogue worked example.
-- [ ] Resolve `sigma_sys_deg`'s two meanings *before* the field is exposed:
-      either rename (template-residual scatter vs matching window), or let a
-      declared template correct the observed positions before matching so the
-      measured-on-a-standard protocol indexes (§ Context; the pin already
-      exists).
-- [ ] Apply `VOLUME_ENVELOPE_SLACK` at the three engines' fatal uses, with a
-      regression test that feeds an *incomplete* line list (the existing guard
-      is blind at p = 1.0).
+      project document (`ProjectDoc.indexing`, whole-object on the verb); give
+      the panel its consumer for the streamed per-system graded shortlists.
+- [x] `prior_cells` / `prior_spacegroups` on `SearchSpec`: schedule reordering
+      + engine seeding (svd's starting basin — the one engine with a start)
+      + `INDEX_PRIOR_USED`; the steer-never-gate rule pinned by
+      a test — a deliberately wrong prior changes no
+      final rank and no grade, only when things were searched
+      (`tests/test_indexing_priors.py`; structural, not statistical:
+      prior-only candidates never enter the Borda ranking).
+- [x] `agent.refine_json`'s index task and `tool_definition()` accept the same
+      fields (the shared `SearchSpecSpec` + `check_top`);
+      `docs/AGENT_PROTOCOL.md` gains the "state what you know" passage with
+      the calcite structural-analogue worked example and the
+      `INDEX_PRIOR_USED` row.
+- [x] Resolve `sigma_sys_deg`'s two meanings *before* the field is exposed:
+      renamed — `SearchSpec.shift_allowance_deg` (and
+      `effective_shift_allowance`, the stats key, the note, the agent field,
+      `--shift-allowance`); the only `sigma_sys_deg` left is the screen's
+      scatter.
+- [x] Apply `VOLUME_ENVELOPE_SLACK` at the three engines' fatal uses
+      (`search_volume_ceiling`, the one authority), with a regression test
+      that feeds an *incomplete* line list (raw envelope 0.94× truth at
+      p = 0.6 on the corundum-setting cell).
 - [ ] The validation-share design question, measured then decided (§ Context):
       does `quick` reserve a slice of the ceiling for validation, and if so
       how is that stated on the control surface?
@@ -177,7 +185,8 @@ identical controls produce identical `spec_notes`.
 
 ```sh
 .venv/bin/python -m pytest tests/test_indexing_engines.py tests/test_indexing_consensus.py \
-    tests/test_agent_surface.py tests/test_capabilities.py -n auto
+    tests/test_search_controls.py tests/test_indexing_priors.py \
+    tests/test_agent_surface.py tests/test_capabilities.py -n auto --dist loadgroup
 npm --prefix gui test && npm --prefix gui run check
 .venv/bin/python -m pytest -n auto --dist loadgroup
 .venv/bin/python -m ruff check src tests examples
