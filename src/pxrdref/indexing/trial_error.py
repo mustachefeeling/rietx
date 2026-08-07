@@ -51,6 +51,7 @@ from .engines import (
     effective_sigma_sys,
     incomplete_diagnostic,
     indexes_the_search_lines,
+    provisional_payload,
     rank_candidates,
     refine_with_shift,
     reflection_ceiling_ok,
@@ -317,7 +318,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
         if progress is not None:
             progress.end(f"trial_error:{system}", engine="trial_error",
                          system=system, n_candidates=len(found),
-                         complete=complete)
+                         complete=complete,
+                         provisional=provisional_payload(found))
 
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,

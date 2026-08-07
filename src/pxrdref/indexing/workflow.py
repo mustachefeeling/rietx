@@ -508,6 +508,53 @@ def _restrict_to_supported(spec, quality):
     return replace(spec, systems=allowed)
 
 
+def _stream_system_snapshot(progress, system: str, units: dict, names,
+                            peaks, spec, quality, top: int) -> None:
+    """Grade what every completed system holds so far, and stream it (WP-1042).
+
+    Runs as its **own ladder unit** (``consensus:<system>``, ``add``-ed like the
+    probe and validation units, on the existing kinds — no
+    ``EVENT_SCHEMA_VERSION`` move), because it is real work the run does, and
+    only when a stream is listening: an event-less run pays nothing.
+
+    What it emits is the cumulative ranked list over every system completed so
+    far, each candidate in the WP-1043 evidence shape
+    (:func:`~pxrdref.schemas.indexing.candidate_evidence` — shared, never
+    forked), graded by the same gate as the final answer with two questions
+    deliberately still open: nothing is validated yet and no ambiguity has
+    been enumerated (``consensus(..., ambiguity=False)`` — the enumeration is
+    the measured long pole, 45 s of a 105 s corundum run).  Both read as
+    capping caveats, so a streamed grade can only *rise* when the full
+    consensus and validation run — never fall.  Raw candidates from units of a
+    system still in progress are different: they have been through no
+    consensus at all, and ride the search units' ``provisional`` field with no
+    confidence at all (``engines.provisional_payload``).
+    """
+    from ..schemas.indexing import candidate_evidence
+    from .consensus import apply_gate, consensus
+    from .engines import merge_engine_units
+
+    results = [merge_engine_units(units[name]) for name in names
+               if units[name]]
+    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
+                        ambiguity=False)
+    apply_gate(outcome.candidates, engines_run=outcome.engines_run,
+               panel_disagrees=outcome.fom_panel_disagrees, validated=False,
+               search_complete=outcome.search_complete,
+               shift_allowance_assumed=outcome.shift_allowance_assumed,
+               checked=outcome.ambiguity_checked, quality=quality)
+    m20 = [c.fom_value("m20") for c in outcome.candidates]
+    m20 = [v for v in m20 if v is not None]
+    label = f"consensus:{system}"
+    progress.add(1)
+    progress.start(label, system=system, consensus=True)
+    progress.end(label, system=system, consensus=True,
+                 n_candidates=len(outcome.candidates),
+                 best_m20=round(max(m20), 2) if m20 else None,
+                 candidates=[candidate_evidence(i, c).model_dump(mode="json")
+                             for i, c in enumerate(outcome.candidates)])
+
+
 def index_pattern(peaks: PeakList | None = None, *,
                   data: PatternData | None = None,
                   instrument: Instrument | None = None,
@@ -634,7 +681,8 @@ def index_pattern(peaks: PeakList | None = None, *,
     # counts become known — never a second per-engine ladder beside it, which
     # is what made a progress bar jump (two writers, one ``n_stages``)
     ordered_systems = [s for s in SYSTEM_ORDER if s in spec.systems]
-    progress = Progress(stream, total=len(names) * len(ordered_systems))
+    progress = Progress(stream, total=len(names) * len(ordered_systems),
+                        deadline=deadline)
 
     if not quality.supports_indexing:
         # abstention *is* the result: the gate has already decided the data cannot
@@ -679,6 +727,13 @@ def index_pattern(peaks: PeakList | None = None, *,
             units[name].append(get_engine(name)(
                 peaks, spec=unit_spec, quality=quality, cancel=run_cancel,
                 progress=progress, **unit_kwargs[name]))
+        if stream is not None \
+                and not (run_cancel is not None and bool(run_cancel)):
+            # a *completed* system has been through consensus and streams
+            # graded (WP-1042); a system the token interrupted has not, and
+            # its candidates stay provisional in the log
+            _stream_system_snapshot(progress, system, units, names, peaks,
+                                    spec, quality, top)
 
     results = [merge_engine_units(units[name]) for name in names
                if units[name]]

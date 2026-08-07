@@ -483,29 +483,70 @@ class Progress:
 
     ``stream=None`` is a working no-op, so a direct engine call in a unit test
     neither needs a stream nor emits anything.
+
+    Every emission also carries the run's **progress facts** (WP-1042):
+    ``elapsed_seconds`` since the ladder was built, and ``remaining_seconds``
+    when a whole-run :class:`Deadline` was declared — added fields on the
+    existing kinds, not a new kind, so ``EVENT_SCHEMA_VERSION`` holds.
     """
 
-    __slots__ = ("stream", "total", "done")
+    __slots__ = ("stream", "total", "done", "deadline", "_t0")
 
-    def __init__(self, stream=None, total: int = 0) -> None:
+    def __init__(self, stream=None, total: int = 0, deadline=None) -> None:
         self.stream = stream
         self.total = int(total)
         self.done = 0
+        self.deadline = deadline
+        self._t0 = time.monotonic()
 
     def add(self, n: int) -> None:
         """Revise the total: ``n`` more units now known to be coming."""
         self.total += int(n)
 
+    def _facts(self) -> dict:
+        facts = {"elapsed_seconds": round(time.monotonic() - self._t0, 2)}
+        if self.deadline is not None:
+            remaining = self.deadline.remaining
+            if remaining != float("inf"):
+                facts["remaining_seconds"] = round(remaining, 2)
+        return facts
+
     def start(self, stage: str, **data) -> None:
         if self.stream is not None:
             self.stream.emit("stage_start", stage=stage, index=self.done + 1,
-                             n_stages=self.total, **data)
+                             n_stages=self.total, **self._facts(), **data)
 
     def end(self, stage: str, **data) -> None:
         self.done += 1
         if self.stream is not None:
             self.stream.emit("stage_end", stage=stage, index=self.done,
-                             n_stages=self.total, **data)
+                             n_stages=self.total, **self._facts(), **data)
+
+
+#: Cells a just-finished (engine × system) unit streams as provisional.  Three:
+#: enough to show a search is converging on something, few enough that a
+#: 21-unit run stays a readable log.
+PROVISIONAL_STREAM_TOP = 3
+
+
+def provisional_payload(cands: Sequence[EngineCandidate]) -> list[dict]:
+    """The few cells a just-finished search unit streams (WP-1042).
+
+    Deliberately **without** a confidence field, and each entry labelled
+    ``provisional``: rank comes from Borda over the FoM panel *after* the
+    cross-engine merge, dedup, the Bravais screen and the gate, and a freshly
+    found engine candidate has been through none of those.  A consumer may
+    show these; it must not order a shortlist by them.  A **completed**
+    system's candidates stream graded instead — the per-system consensus
+    snapshot in :func:`~pxrdref.indexing.workflow.index_pattern`, which uses
+    the WP-1043 evidence shape.
+    """
+    top = sorted(cands, key=lambda c: (-c.n_indexed, c.volume))
+    return [{"cell": [round(float(v), 6) for v in c.cell],
+             "system": c.system, "centring": c.centring,
+             "n_indexed": int(c.n_indexed),
+             "volume": round(float(c.volume), 2), "provisional": True}
+            for c in top[:PROVISIONAL_STREAM_TOP]]
 
 
 # ----------------------------------------------------------------------
@@ -1298,6 +1339,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
            "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES",
+           "PROVISIONAL_STREAM_TOP", "provisional_payload",
            "SAME_SOLUTION_RTOL", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",

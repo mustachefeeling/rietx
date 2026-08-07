@@ -193,7 +193,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
               spec: SearchSpec | None = None,
               quality: DataQualityReport | None = None,
               top: int = CONSENSUS_CHECK_TOP,
-              cancel=None) -> ConsensusOutcome:
+              cancel=None, ambiguity: bool = True) -> ConsensusOutcome:
     """Merge, rank, classify and enumerate ambiguity — everything but validation.
 
     Order matters and it is the WP's: reduce and merge (so ``found_by`` is
@@ -208,6 +208,13 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     measured at 45 of a 105 s ceiling-bound corundum run; everything else here
     is noise).  A skipped candidate stays out of ``ambiguity_checked``, which
     is what makes the gate read it honestly.
+
+    ``ambiguity=False`` (WP-1042) skips the enumeration entirely — it is what
+    makes this callable per **completed system** mid-run, since everything else
+    here is the cheap part.  ``ambiguity_checked`` then stays empty and the
+    gate reads every candidate as unchecked (a capping caveat), so a streamed
+    grade is conservative: it can rise when the full consensus runs, never
+    fall.
     """
     spec = spec or SearchSpec()
     merged = merge_engine_candidates(results)
@@ -262,7 +269,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     for i, cand in enumerate(out.candidates):
         cand.bravais = bravais_opinion(cand.cell, cand.centring,
                                        cell_esd=np.asarray(cand.cell_esd))
-        if i in checked and not (cancel is not None and bool(cancel)):
+        if ambiguity and i in checked \
+                and not (cancel is not None and bool(cancel)):
             cand.ambiguity = _partners(cand, peaks)
             out.ambiguity_checked.append(i)
     return out

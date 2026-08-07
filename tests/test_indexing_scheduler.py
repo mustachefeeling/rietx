@@ -173,6 +173,61 @@ def test_probe_false_skips_the_in_engine_probe(cubic_peaks, monkeypatch):
     assert calls == [1]
 
 
+def test_a_completed_system_streams_graded_candidates(cubic_peaks):
+    """The streaming contract, on real engines: a completed system's snapshot
+    rides the ladder as its own ``consensus:<system>`` unit, each candidate in
+    the WP-1043 evidence shape and graded conservatively (nothing can stream
+    ``high`` — validation and ambiguity are still open questions); raw unit
+    candidates ride ``provisional`` with no confidence at all; and every
+    ladder emission carries ``elapsed_seconds``.  No new event kind anywhere."""
+    peaks, _cell = cubic_peaks
+    events: list = []
+    res = index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+                        events=events.append)
+    assert res.candidates, "the synthetic cubic list must index"
+    assert {e["kind"] for e in events} <= {"index_start", "stage_start",
+                                           "stage_end", "index_end"}
+    ends = [e["data"] for e in events if e["kind"] == "stage_end"]
+    snaps = [d for d in ends if d.get("consensus")]
+    assert [d["system"] for d in snaps] == ["cubic"]
+    assert snaps[0]["n_candidates"] >= 1
+    for cand in snaps[0]["candidates"]:
+        assert cand["confidence"] in ("low", "medium")
+        assert {"cell", "system", "caveats", "found_by"} <= set(cand)
+    unit_ends = [d for d in ends if d.get("engine") and not d.get("probe")]
+    assert unit_ends
+    for d in unit_ends:
+        for p in d.get("provisional", []):
+            assert p["provisional"] and "confidence" not in p
+    ladder = [e["data"] for e in events if e["kind"].startswith("stage_")]
+    assert ladder and all("elapsed_seconds" in d for d in ladder)
+
+
+def test_remaining_seconds_streams_only_under_a_ceiling(cubic_peaks,
+                                                        monkeypatch):
+    """The other progress fact: ``remaining_seconds`` appears exactly when a
+    whole-run ceiling was declared.  Stub engines, so the only ladder units
+    are the snapshots — which also pins that a snapshot with no candidates is
+    still a well-formed emission."""
+    peaks, _cell = cubic_peaks
+    log: list = []
+    _patch_registry(monkeypatch, {"e1": _stub("e1", log)})
+    with_ceiling: list = []
+    index_pattern(peaks, spec=SearchSpec(systems=("cubic",),
+                                         total_budget_seconds=3600.0),
+                  events=with_ceiling.append)
+    without: list = []
+    index_pattern(peaks, spec=SearchSpec(systems=("cubic",)),
+                  events=without.append)
+    lad = [e["data"] for e in with_ceiling if e["kind"].startswith("stage_")]
+    assert lad and all("remaining_seconds" in d and "elapsed_seconds" in d
+                       for d in lad)
+    lad = [e["data"] for e in without if e["kind"].startswith("stage_")]
+    assert lad and all("remaining_seconds" not in d for d in lad)
+    assert all(d["n_candidates"] == 0 and d["candidates"] == []
+               for d in lad if d.get("consensus") and "n_candidates" in d)
+
+
 def test_the_scheduler_asks_the_probe_once_over_entered_systems(
         cubic_peaks, monkeypatch):
     """The scheduler half: per-system units silence their own probes, and the

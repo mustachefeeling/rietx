@@ -1085,6 +1085,35 @@ class CandidateEvidence(Base):
     ambiguity_partners: int = 0
 
 
+def candidate_evidence(index: int, c: CellCandidate) -> CandidateEvidence:
+    """One candidate's evidence-view row — the **one** projection (WP-1042/43).
+
+    Shared by :meth:`IndexingResult.evidence` and the per-system streaming
+    snapshot the scheduler emits, so the shape a candidate takes mid-run can
+    never fork from the shape the answer reports — the two WPs deliberately
+    share this schema rather than each writing its own dict.
+    """
+    return CandidateEvidence(
+        index=index, cell=c.cell, cell_esd=c.cell_esd,
+        system=c.system, centring=c.centring, volume=c.volume,
+        confidence=c.confidence,
+        caveats=[CaveatEvidence(
+            name=v, kind=("refuting" if v in INDEX_REFUTING_CAVEATS
+                          else "capping"))
+                 for v in c.confidence_caveats],
+        found_by=list(c.found_by),
+        n_indexed=c.n_indexed, n_lines=c.n_lines,
+        fom={f.name: f.value for f in c.fom},
+        validated=c.lebail is not None,
+        lebail_status=None if c.lebail is None else c.lebail.status,
+        lebail_rwp=None if c.lebail is None else c.lebail.rwp,
+        predicted_but_absent=(None if c.lebail is None
+                              else c.lebail.predicted_but_absent),
+        unmatched_observed=(None if c.lebail is None
+                            else c.lebail.unmatched_observed),
+        ambiguity_partners=len(c.ambiguity))
+
+
 class IndexingEvidence(Base):
     """The reasoning consumer's view of an :class:`IndexingResult` (WP-1043).
 
@@ -1205,29 +1234,8 @@ class IndexingResult(Base):
                 break
         q = self.quality
         return IndexingEvidence(
-            candidates=[
-                CandidateEvidence(
-                    index=i, cell=c.cell, cell_esd=c.cell_esd,
-                    system=c.system, centring=c.centring, volume=c.volume,
-                    confidence=c.confidence,
-                    caveats=[CaveatEvidence(
-                        name=v, kind=("refuting"
-                                      if v in INDEX_REFUTING_CAVEATS
-                                      else "capping"))
-                             for v in c.confidence_caveats],
-                    found_by=list(c.found_by),
-                    n_indexed=c.n_indexed, n_lines=c.n_lines,
-                    fom={f.name: f.value for f in c.fom},
-                    validated=c.lebail is not None,
-                    lebail_status=(None if c.lebail is None
-                                   else c.lebail.status),
-                    lebail_rwp=None if c.lebail is None else c.lebail.rwp,
-                    predicted_but_absent=(None if c.lebail is None
-                                          else c.lebail.predicted_but_absent),
-                    unmatched_observed=(None if c.lebail is None
-                                        else c.lebail.unmatched_observed),
-                    ambiguity_partners=len(c.ambiguity))
-                for i, c in enumerate(self.candidates)],
+            candidates=[candidate_evidence(i, c)
+                        for i, c in enumerate(self.candidates)],
             systems_searched=list(self.systems_searched),
             search_complete=dict(self.search_complete),
             systems_supported=([] if q is None
