@@ -29,7 +29,10 @@ this is the capabilities pattern once more: the GUI form, the agent schema and
 `SearchSpec`/`index_pattern` are held in bijection by a meta-test — a field
 exposed in one and absent in another is a test failure, not a drift. Enums are
 quoted live: engines from `engine_names()`, systems from `SYSTEM_ORDER`,
-presets from `SEARCH_PRESETS` once WP-1042 lands it.
+presets from `SEARCH_PRESETS` (landed, WP-1042). Two of the three views
+already expose the preset — `SearchSpecSpec.preset` on the agent and
+`pxrdref index --preset` on the CLI, both validating against the live
+registry — so the mirroring here absorbs them, never re-invents them.
 
 **2. A prior steers, never gates.** An agent (or a human with a database hit)
 often holds a structural analogue — an isostructural compound whose cell and
@@ -71,7 +74,62 @@ reachable must round-trip the project document as a project setting.
 The panel extends WP-1027's indexing panel; mutating verbs return 409 while a
 run is in flight (gui/CLAUDE.md); control state is a *project* setting
 (`project.json`), not history. Provisional candidates and the evidence view are
-what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
+what the panel *shows* (WP-1042/1043); this WP is what the panel *asks* — but
+the showing half has two gaps that are this WP's scope: the GUI has no preset
+control and no consumer for the streamed per-system graded shortlists (each
+`consensus:<system>` `stage_end` carries them in the WP-1043 evidence shape).
+
+The panel's data and pictures already exist (WP-1043): consume
+`IndexingResult.evidence()` (every caveat with its refuting/capping kind, the
+figures that ranked beside `quality.fom_undefined`'s absent-for-cause ones,
+the three whole-profile numbers together) and `viz.plot_indexing(result,
+peaks, …)` (tick rows + Le Bail panel from a result alone, matching window
+rebuilt from `provenance.notes`) — never re-derive either. Any esd the panel
+plots inherits 1041's two plotly facts: a `null` in `error_y.array` draws
+byte-identical to a zero-height bar, and an esd smaller than a pixel must
+stay invisible. Candidates carry `cov_af` unevenly — exactly the null-bar
+case.
+
+### Two search bounds that are `SearchSpec`'s business (measured in 1028)
+
+Both measured 2026-07-30 on the certified SRM 660c LaB6 pattern; 1028 § (k)
+has the full text. Both become *this* WP's to fix the moment `SearchSpec` is
+the one mirrored surface, because a control exposed in a form and a schema
+must not carry a hidden second meaning.
+
+- **`sigma_sys_deg` means two different things and only one of them indexes.**
+  `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
+  *leaves* (0.0078° on the certificate-probe trim; 1043's flag trim reads
+  0.0025° — the probe's list still held the aliased 43.5° tail, inflating the
+  residual 3×; the shift amplitude is identical under both). Declare that as
+  `SearchSpec.sigma_sys_deg` and the search returns **no candidate at all**:
+  it matches against **uncorrected** positions (`refine_with_shift` runs only
+  after a candidate survives), so the window must still span the shift itself
+  (+0.037°, 4.3× larger). The obvious protocol — measure the systematic on a
+  standard, declare it — fails *silently*. Pinned by
+  `test_what_the_unflagged_tail_components_cost_the_certified_cell`.
+- **`volume_envelope` is a least-squares *mean line* used as a hard search
+  ceiling.** Against Smith (1977): average discrepancy 10.6 %, deviations
+  −29 % to +32 %, and low is the *ordinary* case (missing weak lines produce
+  it). With p the fraction of possible lines detected the bound stands at
+  1.4025·p × truth, so it **excludes the true cell below p = 0.713** — and
+  28.7 % is Smith's own quoted worst case, so there is no margin.
+  `VOLUME_ENVELOPE_SLACK = 1.5` exists but only in `consensus.py`, to *flag*
+  an already-found candidate; the fatal uses feed the raw envelope
+  (re-verified 2026-08-07 on this tree: `dichotomy.py:613`,
+  `trial_error.py:306,513`, `svd.py:758`). The guard test
+  `test_volume_envelope_contains_the_true_volume` feeds a complete line list
+  at p = 1.0 and is blind to the calibration. Docstrings were corrected
+  2026-07-30 to say "estimate"; the behaviour fix is owed here.
+
+### Open design question: validation starvation under `quick` (from 1042)
+
+Measured on 5 of 6 heavy corpus runs: the search consumes the whole ceiling
+and validation gets zero fits — honest (`not_validated` + the budget
+diagnostic's slice wording), but a `quick` first click then never sees the
+mandatory whole-profile check. Whether `quick` should *reserve* a validation
+share is a control-surface decision that needs a measured design, not a
+hardcoded fraction — it lands with this WP's budget/preset controls.
 
 ## Non-goals
 
@@ -87,7 +145,9 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
       `SearchSpec`/`index_pattern` kwargs, with enums quoted from the live
       registries (the `capabilities()` meta-test is the template).
 - [ ] Expose the existing inventory in the GUI panel (disclosure per
-      gui/CLAUDE.md) and round-trip it through the project document.
+      gui/CLAUDE.md) — preset control included — and round-trip it through the
+      project document; give the panel its consumer for the streamed
+      per-system graded shortlists.
 - [ ] `prior_cells` / `prior_spacegroups` on `SearchSpec`: schedule reordering
       + engine seeding + `INDEX_PRIOR_USED`; the steer-never-gate rule pinned by
       a test — a deliberately wrong prior on a scoreboard dataset changes no
@@ -95,71 +155,17 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
 - [ ] `agent.refine_json`'s index task and `tool_definition()` accept the same
       fields; `docs/AGENT_PROTOCOL.md` gains a "state what you know" row with a
       structural-analogue worked example.
-
-### Inherited
-
-**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
-the control surface already has three controls and one open design
-question.** `SearchSpecSpec.preset` (agent) and `pxrdref index --preset`
-(CLI) exist and validate against the live `SEARCH_PRESETS` registry — the
-one-surface mirroring here must absorb them, not re-invent them; the GUI has
-neither a preset control nor a consumer for the streamed per-system graded
-shortlists (each `consensus:<system>` `stage_end` carries them in the WP-1043
-evidence shape) — both are this WP's natural scope. The open question is
-**validation starvation under `quick`**: measured on 5 of 6 heavy corpus
-runs, the search consumes the whole ceiling and validation gets zero fits
-(honest — `not_validated` + the budget diagnostic's slice wording), so
-whether `quick` should *reserve* a validation share is a control-surface
-decision that needs a measured design, not a hardcoded fraction.
-
-**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the panel
-this WP builds has its data and its pictures already.**
-`IndexingResult.evidence()` is the per-candidate data the GUI panel should
-consume (every caveat with its refuting/capping kind, the figures that ranked
-beside `quality.fom_undefined`'s absent-for-cause ones, the three
-whole-profile numbers together), and `viz.plot_indexing(result, peaks, …)`
-draws the tick rows and the Le Bail panel from a result alone, rebuilding the
-matching window from `provenance.notes` — the GUI should consume both, never
-re-derive either. The two plotly esd facts 1041 measured (a `null` in
-`error_y.array` draws byte-identical to a zero-height bar; an esd smaller
-than a pixel must stay invisible) apply to any esd this panel plots —
-candidates carry `cov_af` unevenly, which is exactly the null-bar case.
-
-**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — two search
-bounds it filed and did not schedule, both of which are `SearchSpec`'s business
-once this WP makes `SearchSpec` the one mirrored surface.** Measured 2026-07-30
-on the certified SRM 660c LaB6 pattern; 1028's § (k) has the full text.
-
-- **`sigma_sys_deg` means two different things and only one of them indexes.**
-  `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
-  *leaves* (0.0078° there on the certificate-probe trim; 1043's flag trim
-  reads 0.0025°, because the probe's list still held the aliased 43.5° tail
-  that inflated the residual 3× — the amplitude below is identical under
-  both). Declare that as `SearchSpec.sigma_sys_deg` and the
-  search returns **no candidate at all**, because it matches against
-  **uncorrected** positions — `refine_with_shift` runs only after a candidate
-  survives — so the window must still span the shift itself (+0.037°, 4.3×
-  larger). The docstrings do not distinguish them, so the obvious protocol
-  ("measure the systematic on a standard, declare it") fails *silently* by
-  finding nothing. This lands here because a control you are about to expose in
-  a GUI form and an agent schema must not have two meanings: either rename one,
-  or let a declared template correct the observed positions before matching.
-  Pinned by
-  `test_what_the_unflagged_tail_components_cost_the_certified_cell`.
-- **`volume_envelope` is a least-squares *mean line* used as a hard search
-  ceiling.** Checked against Smith (1977): average discrepancy 10.6 %,
-  deviations −29 % to +32 %, and low is the *ordinary* case because missing
-  weak lines produce it. With p the fraction of possible lines detected the
-  bound stands at 1.4025·p × truth, so it **excludes the true cell below
-  p = 0.713** — and 28.7 % is Smith's own quoted worst case, so there is no
-  margin against the worst pattern in his calibration set.
-  `VOLUME_ENVELOPE_SLACK = 1.5` exists but only in `consensus.py`, to *flag* an
-  already-found candidate; the fatal uses have none (re-verified 2026-08-07:
-  `dichotomy.py:612`, `trial_error.py:297,502`, `svd.py:756` all feed the raw
-  envelope). The guard test `test_volume_envelope_contains_the_true_volume`
-  feeds a complete line list at p = 1.0 and is blind to the calibration, so a
-  regression test needs an *incomplete* one. Docstrings were corrected
-  2026-07-30 to say "estimate"; the behaviour fix is still owed.
+- [ ] Resolve `sigma_sys_deg`'s two meanings *before* the field is exposed:
+      either rename (template-residual scatter vs matching window), or let a
+      declared template correct the observed positions before matching so the
+      measured-on-a-standard protocol indexes (§ Context; the pin already
+      exists).
+- [ ] Apply `VOLUME_ENVELOPE_SLACK` at the three engines' fatal uses, with a
+      regression test that feeds an *incomplete* line list (the existing guard
+      is blind at p = 1.0).
+- [ ] The validation-share design question, measured then decided (§ Context):
+      does `quick` reserve a slice of the ceiling for validation, and if so
+      how is that stated on the control surface?
 
 ## Acceptance
 
