@@ -1,6 +1,6 @@
 # WP-1045 — Indexing search controls: one surface for the GUI and the agent
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-08
 Depends on: 1027, 1042 (1043 soft)
 
 ## Goal
@@ -211,6 +211,51 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-08-08** — the whole WP in one session (started 2026-08-07 on the
+  1042-merged main; 13 commits). **Done — all seven tasks**, each with its
+  checkbox's detail above; the shape of the session:
+  the two 1028 fixes first (they change `SearchSpec` semantics the surface
+  then exposes), then the shared model + meta-tests, then priors, then the
+  GUI, then the docs, then the validation reserve. Highlights a successor
+  should know exist: `tests/test_search_controls.py` (the bijection +
+  the literal two-chairs acceptance, byte-identical `spec_notes`),
+  `tests/test_indexing_priors.py` (steer-never-gate pinned structurally),
+  `gui/src/lib/controls.ts` + `controls.test.ts` replaying the committed
+  corpus `tests/data/gui/index_controls.json`, `indexing/priors.py`,
+  `consensus.enumerate_ambiguity` (ambiguity now runs *after* validation),
+  and four new `capabilities()` vocabulary arms.
+  **Measured** (main checkout venv `[dev,jax,torch]`, darwin/arm64 M4):
+  full **2086 passed / 6 skipped in 31:07** at `-n 4` — against 1042's
+  same-venv 2052 / 6, **+34 exactly** (16 search-controls, 14 priors, 2
+  quality, 1 scheduler, 1 capabilities), all passes, no new skips; fast
+  measured 1977+2-then-fixed → the green tree's fast selection is those
+  same +34 over the merge-base's. `-n auto` was killed twice at ~46 % on a
+  swap-exhausted machine (23 of 24.5 GB) — `-n 4` finished; treat that as
+  machine state, not a suite property. vitest **390 → 401** (+8
+  `controls.test.ts`, +3 App mount tests), `svelte-check` clean, dist
+  rebuilt. `test_acceptance_indexing.py` standalone after the engine
+  changes: 41 passed in 22:20. Scoreboard regenerated **unchanged**: 7
+  first / 2 below first / 0 refused. Validation-reserve evidence: bare
+  quick on corundum/zincite/brucite validated **0/0/0** (walls
+  120.6/122.3/120.4 s; a fit costs 0.3–1.9 s against 11–60 s per trailing
+  search system); the first attempt (5 %, ambiguity first) recovered only
+  brucite — corundum's ambiguity enumeration (45 s in 1042's record, one
+  candidate's sweep uninterruptible) ate the reserve — and the shipped 8 %
+  + validation-first gives **[0,1] / [0,1,2,3,4,6] / [0,1,2]** at
+  120.2/120.1/112.7 s, the truth's own validation included on every one.
+  **Next**: nothing in flight here. For successors: the panel's `centrings`
+  chips and the priors editors have not been driven in a real browser
+  (WP-1017's concern, noted in its Inherited); `prior_spacegroups`
+  validate via gemmi only server-side.
+  **Gotchas**: the indexing dossier's 250-line cap was *full* on arrival —
+  a new rule section pays by compressing older ones (facts kept, narrative
+  to the records); the prior *check* can basin-hop and claim confirmation
+  (`PRIOR_DRIFT_MAX` bounds it to 10 % in volume); compare any seeded find
+  with `same_lattice`, never cell tuples (WP-1040's trap, hit again on the
+  monoclinic seed); `_ROUND_TRIP` in `test_search_controls.py` needs a row
+  per new `SearchSpec` field — the coverage assert forces it, which is the
+  point; and `viz._window_from_result` reads the provenance note under its
+  new name with a legacy fallback for pre-1045 results (pinned).
 - **2026-08-06** — created in the 1042/1043 review session from the user's
   design call (controls + agent mirror + analogue priors). Split so 1043 keeps
   the output half (evidence, visual check) and this WP the input half; sized

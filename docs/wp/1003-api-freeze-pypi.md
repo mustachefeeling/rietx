@@ -11,6 +11,25 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1045](1045-indexing-search-controls.md), closed 2026-08-08 — the
+control surface moved house and two names changed, all pre-freeze on
+purpose; the freeze ratifies the new shapes.** `SearchSpecSpec` now lives in
+`schemas/indexing.py` (agent re-exports it — the `StageSpec` precedent) and
+gained `centrings`, `prior_cells`, `prior_spacegroups`; `IndexingControls`
+(search + engines + validate_candidates + check_top) sits beside it and is
+embedded as `ProjectDoc.indexing` — a **project-format** surface, though no
+format-version bump was taken (additive with defaults; old documents read
+back with the defaults, pinned). Renames the freeze should know were
+deliberate: `SearchSpec.sigma_sys_deg` → `shift_allowance_deg` (with the
+CLI flag `--sigma-sys` → `--shift-allowance`, the agent field, the engine
+stats key and the provenance note — `viz` reads the old note key as a
+legacy fallback, pinned). `capabilities()` gained four arms
+(`indexing_engines`, `crystal_systems`, `centrings`, `shift_templates`);
+`IndexRequest` gained `check_top`; `index_pattern` behaviour under a
+ceiling changed additively (`VALIDATION_RESERVE_FRACTION`, ambiguity after
+validation — `consensus.enumerate_ambiguity` is a new public name).
+`INDEX_PRIOR_USED` joined the open diagnostic vocabulary.
+
 **From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
 the default changed and the surface grew, both for the freeze to ratify.**
 `index_pattern` gained `preset=` and resolves `"quick"` (a 120 s whole-run
