@@ -280,11 +280,15 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
       detector counts, which figures were computable (and which panel members
       ranked, when the panel is reduced), and what the search covered. No new
       physics — this is surfacing what the pipeline already knows.
-- [ ] **The evidence reaches the agent.** The view is serialized through
+- [x] **The evidence reaches the agent.** The view is serialized through
       `agent.refine_json`'s indexing arm and `agent.tool_definition()` (the arm
       still carries no `cell` key); whether the schema change is additive or a
       version bump is decided here, deliberately, before WP-1003 freezes the
-      contract.
+      contract. **Decided: additive, `SCHEMA_VERSION` stays 0.1** — a defaulted
+      field plus one new *capping* caveat is the events rule's "new field, not
+      a new kind"; the one deployed consumer (the GUI) derives caveat kinds
+      from the live constant, so a capping addition costs it nothing; grounds
+      recorded on `AgentSuccess.evidence`.
 - [ ] **The visual check, reachable from a result.** Lift the gallery's
       per-candidate rendering — tick rows against the pattern, the Le Bail
       panel — into `viz/` as a function of (result, pattern);

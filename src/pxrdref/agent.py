@@ -60,7 +60,7 @@ from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
 from .report.schemas import FitReport
 from .schemas.common import Base, Mode
-from .schemas.indexing import IndexingResult, PeakList
+from .schemas.indexing import IndexingEvidence, IndexingResult, PeakList
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 
@@ -354,8 +354,11 @@ class IndexRequest(Base):
     and is blind to lines beyond them, to impurity content, and to reflections
     predicted where there is no intensity.
 
-    Read ``indexing.candidates`` and each one's ``confidence_caveats``; call
-    ``best_or_none()`` for a singleton and expect ``None`` more often than not.
+    Read the ``evidence`` arm first (WP-1043) — every candidate with each
+    caveat's refuting/capping kind, the figures that ranked beside the ones
+    absent for cause, and the whole-profile numbers together — then
+    ``indexing.candidates`` for the full record; call ``best_or_none()`` for a
+    singleton and expect ``None`` more often than not.
     """
 
     task: Literal["index"]
@@ -446,6 +449,18 @@ class AgentSuccess(Base):
     series: SeriesResult | None = None
     indexing: IndexingResult | None = None
     report: FitReport | None = None
+    #: the indexing arm's companion (WP-1043), present exactly when
+    #: ``indexing`` is: the same answer projected for a consumer that reasons —
+    #: each caveat with its refuting/capping kind (a split that otherwise
+    #: lives only in a package constant no JSON reader can see), the ranked
+    #: figures beside the ones absent for cause, the three whole-profile
+    #: numbers together, and what the search covered.  ``report`` is this
+    #: field's twin one arm over.  Additive by decision (WP-1043):
+    #: a defaulted field plus one new capping caveat in the vocabulary is the
+    #: events rule's "new field, not a new kind", the one deployed consumer
+    #: (the GUI) derives caveat kinds from the live constant so a capping
+    #: addition costs it nothing, and SCHEMA_VERSION therefore does not move.
+    evidence: IndexingEvidence | None = None
 
 
 class AgentFailure(Base):
@@ -491,11 +506,14 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
     if isinstance(req, IndexRequest):
         from .indexing import index_pattern
 
-        return AgentSuccess(indexing=index_pattern(
+        answer = index_pattern(
             req.peaks, data=req.pattern, instrument=req.instrument,
             spec=req.search.to_spec(), engines=req.engines,
             validate=req.validate_candidates,
-            two_theta_limits=req.two_theta_limits))
+            two_theta_limits=req.two_theta_limits)
+        # evidence() is a projection computed here, at serialisation time,
+        # from the answer beside it — the two arms cannot disagree
+        return AgentSuccess(indexing=answer, evidence=answer.evidence())
 
     # staged.resolve_plan applies the same preset→mode mapping fit() uses
     # (mccusker_default becomes profile_only under lebail, pawley_default under
@@ -586,10 +604,13 @@ _TOOL_DESCRIPTION = (
     + " and ".join(engine_names())
     + " and gating confidence on their agreement. Read diagnostics before any "
     "statistic — a warning there outranks Rwp (docs/AGENT_PROTOCOL.md is the "
-    "operating protocol). An indexing answer has NO single cell: read "
-    "indexing.candidates and each one's confidence_caveats, and expect "
-    "best_or_none() to be null unless both engines agreed and nothing refuted "
-    "them. Returns {ok: true, result|series|indexing, report} or "
+    "operating protocol). An indexing answer has NO single cell: read the "
+    "evidence arm first (every candidate with each caveat's refuting/capping "
+    "kind, the figures that ranked beside the ones absent for cause, and the "
+    "Le Bail Rwp with both detector counts), then indexing.candidates for the "
+    "full record, and expect best_or_none() to be null unless every engine "
+    "agreed and nothing refuted or capped them. Returns "
+    "{ok: true, result|series|indexing, evidence, report} or "
     "{ok: false, error} with error.code in " + "/".join(ERROR_CODES) + ".")
 
 
