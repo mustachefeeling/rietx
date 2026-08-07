@@ -33,6 +33,12 @@ Event kinds (closed set, versioned with the schema):
   consensus), so a consumer treats ``n_stages`` as the current best claim
   rather than a constant.  Revising a field's *value* is not a change of its
   meaning, so the additivity rule below holds and the version does not move.
+  WP-1042 rides the same rule: every ladder emission carries
+  ``elapsed_seconds`` (+ ``remaining_seconds`` under a declared ceiling), a
+  finished search unit's ``stage_end`` carries ``provisional`` cells with no
+  confidence field, and each completed system adds a ``consensus:<system>``
+  unit whose ``stage_end`` carries the graded shortlist in the WP-1043
+  evidence shape — added fields and added *units*, no new kind;
 
 Every line carries ``t`` (Unix seconds) so a tail of the file doubles as a
 progress bar; ``pxrdref watch`` renders it as the console pane.

@@ -193,7 +193,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
               spec: SearchSpec | None = None,
               quality: DataQualityReport | None = None,
               top: int = CONSENSUS_CHECK_TOP,
-              cancel=None) -> ConsensusOutcome:
+              cancel=None, ambiguity: bool = True) -> ConsensusOutcome:
     """Merge, rank, classify and enumerate ambiguity — everything but validation.
 
     Order matters and it is the WP's: reduce and merge (so ``found_by`` is
@@ -208,6 +208,13 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     measured at 45 of a 105 s ceiling-bound corundum run; everything else here
     is noise).  A skipped candidate stays out of ``ambiguity_checked``, which
     is what makes the gate read it honestly.
+
+    ``ambiguity=False`` (WP-1042) skips the enumeration entirely — it is what
+    makes this callable per **completed system** mid-run, since everything else
+    here is the cheap part.  ``ambiguity_checked`` then stays empty and the
+    gate reads every candidate as unchecked (a capping caveat), so a streamed
+    grade is conservative: it can rise when the full consensus runs, never
+    fall.
     """
     spec = spec or SearchSpec()
     merged = merge_engine_candidates(results)
@@ -229,11 +236,6 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         for system in result.systems_searched:
             if system not in systems:
                 systems.append(system)
-        for system, complete in result.search_complete.items():
-            # a system is complete only if *every* engine that searched it
-            # exhausted its domain: the weaker claim is the honest one
-            out.search_complete[system] = (
-                out.search_complete.get(system, True) and bool(complete))
         for key, value in result.stats.items():
             out.engine_stats[f"{result.engine}.{key}"] = float(value)
         # deduplicated on (code, message): every engine widens its window by the
@@ -248,6 +250,16 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         if any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in result.diagnostics):
             out.shift_allowance_assumed = True
     out.systems_searched = systems
+    # a system is complete only if **every** engine that ran both entered it
+    # and exhausted its domain (WP-1042).  The second half is the new one:
+    # under the system-major scheduler a deadline can stop the run with a
+    # system entered by some engines and never reached by another, and that
+    # engine's silence there is not evidence — before this rule such a system
+    # read "searched to completion" whenever the engines that did enter it
+    # finished, and the budget diagnostic had nothing to name.
+    out.search_complete = {
+        s: all(bool(r.search_complete.get(s, False)) for r in results)
+        for s in systems}
 
     out.candidates = [
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
@@ -257,7 +269,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     for i, cand in enumerate(out.candidates):
         cand.bravais = bravais_opinion(cand.cell, cand.centring,
                                        cell_esd=np.asarray(cand.cell_esd))
-        if i in checked and not (cancel is not None and bool(cancel)):
+        if ambiguity and i in checked \
+                and not (cancel is not None and bool(cancel)):
             cand.ambiguity = _partners(cand, peaks)
             out.ambiguity_checked.append(i)
     return out

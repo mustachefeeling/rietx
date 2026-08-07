@@ -1,6 +1,6 @@
 # WP-1042 — Anytime results, and `quick` as the default
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-07
 Depends on: WP-1037
 
 ## Goal
@@ -116,6 +116,20 @@ what was not reached (WP-1037's states) rather than having silently searched
 less. The slower preset is today's behaviour (no ceiling); the preset that ran
 is recorded on the result.
 
+### The default's second constituency
+
+(folded from `### Inherited`, 2026-08-07; source: WP-1043's close)
+
+Since the searchable/scorable split, a short peak list is *searched* over its
+supported systems where it used to abstain in 0.1 s. Measured: the GUI test's
+15-line synthetic pattern went from instant abstention to a multi-minute
+unbudgeted run (five supported systems × three engines, plus validation) that
+outlived a 60 s timeout, and the fluorite acceptance row now costs ~3.5 min
+where it cost a peak pick. The GUI's `/api/index` passes no
+`total_budget_seconds` at all. So `quick`-as-default is no longer only about
+long searches finishing early — it is what keeps the newly searchable short
+lists from hanging a first click.
+
 ### The honest cost of cost-ordering
 
 With a binding total deadline, system-major scheduling means the systems that get
@@ -189,48 +203,42 @@ it up.
 
 ## Tasks
 
-- [ ] **Task 0 — does the system-major schedule actually deliver a shortlist in
+- [x] **Task 0 — does the system-major schedule actually deliver a shortlist in
       seconds?** Using WP-1037's instrumentation, record time to first
       *completed cheap system* (all engines done, consensus over it) and time to
       final ranked list per dataset, against the baseline above. If the answer
       is "no for low symmetry", that is the finding — report it, do not tune
-      around it.
-- [ ] **The scheduler**: (engine × system) units run system-major over
-      `SYSTEM_ORDER`, consulting `Deadline.remaining`; a deadline truncates
-      trailing *systems* for every engine equally, never whole engines, so
-      consensus never loses a finder to the clock. `consensus()` callable per
-      completed system.
-- [ ] Progress facts streamed on WP-1037's ladder; provisional candidates
+      around it. *(Measured table in the handover; yes for high symmetry —
+      0.5–5.4 s to a graded shortlist on lab6/fap/fluorite/hl2 — and the truth's
+      own system arrives when its search completes, e.g. corundum's trigonal at
+      ~180 s of a ~405 s run.)*
+- [x] **The scheduler**: (engine × system) units run system-major over
+      `SYSTEM_ORDER`, consulting the deadline between units; a deadline
+      truncates trailing *systems* for every engine equally, never whole
+      engines, so consensus never loses a finder to the clock. `consensus()`
+      callable per completed system (`ambiguity=False`).
+- [x] Progress facts streamed on WP-1037's ladder; provisional candidates
       streamed as `data` fields on existing kinds, **without** a confidence
-      field and labelled provisional in the schema; completed-system candidates
-      stream graded.
-- [ ] `SEARCH_PRESETS` / `SEARCH_PRESET_INFO` in bijection (mirroring
+      field and labelled provisional; completed-system candidates stream
+      graded, in the shared WP-1043 evidence shape (`candidate_evidence`).
+- [x] `SEARCH_PRESETS` / `SEARCH_PRESET_INFO` in bijection (mirroring
       `PLAN_PRESETS`/`PLAN_INFO` and its meta-test), each carrying worst case
       **and** the measured typical range; `capabilities()` gains a
       `search_presets` arm quoted from the live registry.
-- [ ] `quick` becomes the default; `IndexingResult` records which preset ran;
-      `INDEX_SINGLE_ENGINE` for explicit one-engine runs;
+- [x] `quick` becomes the default; `IndexingResult` records which preset ran
+      (`"custom"` when the caller's own ceiling governed);
+      `INDEX_SINGLE_ENGINE` for one-engine runs; validation fits draw equal
+      slices of the remaining clock under a ceiling;
       `estimate_ceiling`'s measured constants re-measured under the new
       default.
-- [ ] **The re-measure**: every acceptance row, `validation_matrix.py`,
+- [x] **The re-measure**: every acceptance row, `validation_matrix.py`,
       `docs/VALIDATION.md`, and the generated scoreboard re-run from its
       sidecars. Measured time-to-shortlist goes in this WP's handover and the
       v1.0 appendix diary as a **range**, never as a timed test — a wall-clock
-      budget in a test is a runaway guard, not a timer.
-
-### Inherited
-
-**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the
-unbudgeted default gained a second constituency.** Since the
-searchable/scorable split, a short peak list is *searched* over its supported
-systems where it used to abstain in 0.1 s. Measured: the GUI test's 15-line
-synthetic pattern went from instant abstention to a multi-minute unbudgeted
-run (five supported systems × three engines, plus validation) that outlived a
-60 s timeout, and the fluorite acceptance row now costs ~3.5 min where it
-cost a peak pick. The GUI's `/api/index` passes no `total_budget_seconds` at
-all. So `quick`-as-default is no longer only about long searches finishing
-early — it is what keeps the newly searchable short lists from hanging a
-first click.
+      budget in a test is a runaway guard, not a timer. *(41/41 acceptance
+      rows green; scoreboard 7 first / 2 below / 0 refused; VALIDATION.md
+      byte-identical — the rows declare their protocol, so the flip moved no
+      Claim.)*
 
 ## Acceptance
 
@@ -261,6 +269,91 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
   a user-facing mode. `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
 
 ## Handover log
+
+- **2026-08-07 (close)** — all six tasks in one session, eight commits on
+  `wp1042-anytime-results-quick-default`. `### Inherited` folded into Context
+  on arrival (still true; it became the "second constituency" section and the
+  quick-fluorite row below is its payoff). Every number below: darwin/arm64
+  M4, this checkout's `[dev,jax,torch]` venv, serial unless said otherwise.
+
+  **Task 0 — time-to-shortlist under the system-major scheduler** (acceptance
+  protocols, `preset="full"`; "graded" = the first `consensus:<system>`
+  snapshot with candidates, read from the run's own stream):
+
+  | dataset | total | first provisional | first graded (system) |
+  |---|---|---|---|
+  | nac | 91.0 | 1.5 | 2.4 (cubic) |
+  | lab6-calibrated | 4.2 | 0.1 | 0.6 (cubic) |
+  | magnetite | 6.2 | 0.1 | 0.7 (cubic) |
+  | lab6 | 55.7 | 0.1 | 0.5 (cubic) |
+  | zircon | 52.6 | 23.5 | 34.4 (tetragonal) |
+  | fap | 58.9 | 0.8 | 5.4 (hexagonal) |
+  | hl2 | 88.6 | 0.5 | 3.1 (cubic) |
+  | fluorite | 227.8 | 0.1 | 0.9 (cubic) |
+  | zincite | 58.8 | 18.9 | 24.8 (hexagonal) |
+  | brucite | 75.3 | 29.2 | 34.6 (hexagonal) |
+  | cpd-1a | 152.0 | 24.2 | 32.7 (hexagonal) |
+  | corundum+shift | 439.8 | 83.2 | 91.9 (hexagonal) |
+
+  Read against WP-1037's baseline (time-to-first-visible = end of the last
+  engine's last system): zincite's truth-bearing hexagonal shortlist now
+  arrives at 24.8 s of a 58.8 s run where the baseline was 165.8 of 177.3;
+  fluorite 0.9 of 227.8; and a live-logged corundum run put its trigonal
+  (truth) snapshot at ~180 s of 404.5. **The acceptance criterion's
+  low-symmetry half stands as designed**: nothing regresses (41/41 rows), and
+  the sacrifice under a binding ceiling is trailing low-symmetry systems,
+  loudly. Under the **quick default** (no spec at all): six corpus runs land
+  115.4–125.9 s wall — ceiling + cooperative granularity — with the truth's
+  own system completing inside the ceiling on every one (zincite truth graded
+  at 10.1 s, fluorite finishing whole at 115.4 with `medium` matching its
+  full run).
+
+  **Three findings beyond the plan.** (1) *Search starves validation under
+  quick*: on 5 of 6 heavy corpus runs the search consumed the whole ceiling
+  and validation got zero fits — honest (`not_validated` + the budget
+  diagnostic) but a design question for the control surface: whether quick
+  should reserve a validation share (forwarded to WP-1045). (2) *Corundum's
+  dichotomy units now cost 77–200 s per system on current main* (hexagonal
+  77, trigonal 83, tetragonal 200, live-logged) — pre-existing, not this
+  WP's diff (per-system calls don't change engine internals); the WP-1037
+  baseline predates the third engine and WP-1043's peak-list flags, and the
+  acceptance fixtures' "~45-50 s" docstring figures are stale. (3) *The
+  Claims did not move*: `docs/VALIDATION.md` regenerates byte-identical
+  because every acceptance row declares its protocol (`preset="full"`) — the
+  flip changes defaults, never declared protocols, which is the
+  declare-your-settings rule doing exactly its job.
+
+  **The re-measure**: `tests/test_acceptance_indexing.py` 41 passed in 22:43
+  (`-n auto --dist loadgroup`, contended only by itself); scoreboard
+  **regenerated** from the fresh sidecars: 9 known-cell (high-symmetry)
+  datasets — **7 first / 2 below first (nac rank 2, fap rank 4) / 0 refused /
+  0 promoted** — the "1 refused" of WP-1041's 6/2/1/0 is fluorite, moved to
+  `first` by WP-1043's searchable/scorable split and confirmed here by
+  regeneration rather than retyping. `MEASURED_TYPICAL_SECONDS` re-measured
+  to 4–440 s (unbounded runs, three engines); `MEASURED_VALIDATION_SECONDS`
+  left standing (nothing that feeds it changed; quick now bounds it by
+  slices). lab6-calibrated still returns the documented three-`high` state
+  (truth rank 1 at −2 ppm plus the two a·√2 supercell descriptions;
+  `best_or_none()` None) — asserted by its own acceptance row since WP-1041,
+  reproduced unchanged.
+
+  **In flight / next**: nothing — the WP closes complete. The queue's next is
+  WP-1045, whose `### Inherited` carries this WP's two forwards (the
+  preset/streaming surface to absorb, the validation-starvation design
+  question); WP-1026's criterion-1 runner, WP-1017's manual and WP-1003's
+  freeze each got their own mailbox note.
+
+  **Gotchas for successors**: the registered engine contract grew
+  `probe=` only on `search_trial_error` (the scheduler special-cases the
+  deferral by name in `workflow.py`; a stub registered *as* `trial_error`
+  must accept it); engine registration order is dichotomy, svd, trial_error
+  (import order — the ladder shows svd's units second); a preset never
+  overrides a declared `spec.total_budget_seconds` (the result then records
+  `preset="custom"`); snapshot grades are deliberately conservative (no
+  ambiguity, no validation — both capping) so a streamed grade can only
+  rise; and both the GUI console and `pxrdref watch` collapse array payloads
+  to `[N]`, so the streamed `candidates`/`provisional` fields do not flood a
+  transcript.
 
 - **2026-08-06** — plan revised against the merged tree (user review session;
   no code touched). `### Inherited` folded into Context and deleted. Stale

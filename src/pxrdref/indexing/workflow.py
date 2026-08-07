@@ -71,6 +71,7 @@ intensities fits better.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import replace
 
@@ -507,10 +508,58 @@ def _restrict_to_supported(spec, quality):
     return replace(spec, systems=allowed)
 
 
+def _stream_system_snapshot(progress, system: str, units: dict, names,
+                            peaks, spec, quality, top: int) -> None:
+    """Grade what every completed system holds so far, and stream it (WP-1042).
+
+    Runs as its **own ladder unit** (``consensus:<system>``, ``add``-ed like the
+    probe and validation units, on the existing kinds — no
+    ``EVENT_SCHEMA_VERSION`` move), because it is real work the run does, and
+    only when a stream is listening: an event-less run pays nothing.
+
+    What it emits is the cumulative ranked list over every system completed so
+    far, each candidate in the WP-1043 evidence shape
+    (:func:`~pxrdref.schemas.indexing.candidate_evidence` — shared, never
+    forked), graded by the same gate as the final answer with two questions
+    deliberately still open: nothing is validated yet and no ambiguity has
+    been enumerated (``consensus(..., ambiguity=False)`` — the enumeration is
+    the measured long pole, 45 s of a 105 s corundum run).  Both read as
+    capping caveats, so a streamed grade can only *rise* when the full
+    consensus and validation run — never fall.  Raw candidates from units of a
+    system still in progress are different: they have been through no
+    consensus at all, and ride the search units' ``provisional`` field with no
+    confidence at all (``engines.provisional_payload``).
+    """
+    from ..schemas.indexing import candidate_evidence
+    from .consensus import apply_gate, consensus
+    from .engines import merge_engine_units
+
+    results = [merge_engine_units(units[name]) for name in names
+               if units[name]]
+    outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
+                        ambiguity=False)
+    apply_gate(outcome.candidates, engines_run=outcome.engines_run,
+               panel_disagrees=outcome.fom_panel_disagrees, validated=False,
+               search_complete=outcome.search_complete,
+               shift_allowance_assumed=outcome.shift_allowance_assumed,
+               checked=outcome.ambiguity_checked, quality=quality)
+    m20 = [c.fom_value("m20") for c in outcome.candidates]
+    m20 = [v for v in m20 if v is not None]
+    label = f"consensus:{system}"
+    progress.add(1)
+    progress.start(label, system=system, consensus=True)
+    progress.end(label, system=system, consensus=True,
+                 n_candidates=len(outcome.candidates),
+                 best_m20=round(max(m20), 2) if m20 else None,
+                 candidates=[candidate_evidence(i, c).model_dump(mode="json")
+                             for i, c in enumerate(outcome.candidates)])
+
+
 def index_pattern(peaks: PeakList | None = None, *,
                   data: PatternData | None = None,
                   instrument: Instrument | None = None,
                   spec=None,
+                  preset: str | None = None,
                   engines: Sequence[str] | None = None,
                   quality=None,
                   shift_from_pairs: bool = True,
@@ -549,6 +598,27 @@ def index_pattern(peaks: PeakList | None = None, *,
     and one never reached (absent) — and ``INDEX_BUDGET_EXHAUSTED`` names them.
     ``estimate_ceiling`` is the pre-run arithmetic for choosing the value.
 
+    ``preset`` names a row of ``engines.SEARCH_PRESETS`` and defaults to
+    ``"quick"`` (WP-1042): all engines, all requested systems, and a whole-run
+    ceiling of ``QUICK_TOTAL_BUDGET_SECONDS`` filled into
+    ``spec.total_budget_seconds`` **only when the caller left it None** — a
+    declared spec field is never overridden, the same rule as
+    :func:`_adopt_measured_shift`.  ``preset="full"`` is the pre-1.0
+    behaviour: no ceiling beyond ``budget_seconds`` per (engine × system).
+    The result records which preset governed (``IndexingResult.preset`` —
+    ``"custom"`` when the caller's own ceiling did), and under a declared
+    ceiling each validation fit draws an equal **slice** of the remaining
+    clock, so one heavy candidate cannot starve the rest of the shortlist
+    (measured: unbudgeted fits were 74 of fap's 84 s).
+
+    **The (engine × system) units run system-major** (WP-1042): every engine
+    finishes one system before any engine starts the next, in ``SYSTEM_ORDER``
+    (cheapest metric first).  A binding deadline therefore sacrifices trailing
+    systems for every engine *equally* — a completed system holds all engines'
+    answers, which is what the agreement gate needs — where the engine-major
+    loop this replaced truncated whole engines, so which candidates kept their
+    finders depended on which engine the clock happened to catch.
+
     **Abstention is checked before any budget is spent, and it is about
     searchability, not scorability** (WP-1043).  A peak list that cannot support
     a search *in any system* (``MIN_LINES_PER_DOF``) comes back with the
@@ -569,6 +639,8 @@ def index_pattern(peaks: PeakList | None = None, *,
     from .consensus import CONSENSUS_CHECK_TOP, apply_gate, checked_indices, consensus
     from .diagnostics import candidate_diagnostics, index_diagnostics
     from .engines import (
+        DEFAULT_SEARCH_PRESET,
+        SEARCH_PRESETS,
         SYSTEM_ORDER,
         Deadline,
         Progress,
@@ -576,6 +648,8 @@ def index_pattern(peaks: PeakList | None = None, *,
         budget_exhausted_diagnostic,
         engine_names,
         get_engine,
+        merge_engine_units,
+        single_engine_diagnostic,
     )
     from .pick import pick_peaks
     from .quality import assess_peak_list
@@ -588,6 +662,20 @@ def index_pattern(peaks: PeakList | None = None, *,
                 "profile it does not know")
         peaks = pick_peaks(data, instrument)
     spec = spec or SearchSpec()
+    preset_name = DEFAULT_SEARCH_PRESET if preset is None else preset
+    if preset_name not in SEARCH_PRESETS:
+        raise ValueError(f"unknown search preset {preset_name!r}; "
+                         f"available: {', '.join(SEARCH_PRESETS)}")
+    ran_preset = preset_name
+    if spec.total_budget_seconds is None:
+        ceiling = SEARCH_PRESETS[preset_name]
+        if ceiling is not None:
+            spec = replace(spec, total_budget_seconds=float(ceiling))
+    else:
+        # the caller's own ceiling governed, not the preset's — a declared
+        # spec field is never overridden, and the record must not name a
+        # preset that decided nothing
+        ran_preset = "custom"
     if quality is None:
         quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
                                    pair_seed=spec.seed)
@@ -609,7 +697,7 @@ def index_pattern(peaks: PeakList | None = None, *,
     provenance = Provenance(
         package_version=_VERSION, created_utc=_utcnow(),
         report_thresholds_version=THRESHOLDS_VERSION,
-        notes=_spec_notes(spec, names, quality))
+        notes=_spec_notes(spec, names, quality, ran_preset))
     stream = as_event_stream(events)
     if stream is not None:
         extra = ({"total_budget_seconds": float(spec.total_budget_seconds)}
@@ -623,8 +711,9 @@ def index_pattern(peaks: PeakList | None = None, *,
     # (engine × system), plus probe and validation units add()-ed when their
     # counts become known — never a second per-engine ladder beside it, which
     # is what made a progress bar jump (two writers, one ``n_stages``)
-    n_systems = len([s for s in SYSTEM_ORDER if s in spec.systems])
-    progress = Progress(stream, total=len(names) * n_systems)
+    ordered_systems = [s for s in SYSTEM_ORDER if s in spec.systems]
+    progress = Progress(stream, total=len(names) * len(ordered_systems),
+                        deadline=deadline)
 
     if not quality.supports_indexing:
         # abstention *is* the result: the gate has already decided the data cannot
@@ -633,7 +722,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         result = IndexingResult(
             engines_run=[], systems_searched=[], quality=quality,
             wavelength=peaks.wavelength, n_usable_lines=len(peaks.usable()),
-            validated=False, provenance=provenance,
+            validated=False, provenance=provenance, preset=ran_preset,
             diagnostics=list(quality.diagnostics))
         out = result.model_copy(update={
             "diagnostics": list(result.diagnostics)
@@ -641,44 +730,108 @@ def index_pattern(peaks: PeakList | None = None, *,
         _emit_end(stream, out)
         return out
 
-    results = []
-    for name in names:
-        # per-(engine × system) progress is emitted by the engines themselves
-        # through ``progress`` — the per-engine stage pair that used to sit
-        # here is *replaced*, not nested (WP-1037's trap 2)
+    # ------------------------------------------------------------------
+    # the scheduler (WP-1042): (engine × system) units, system-major
+    # ------------------------------------------------------------------
+    # Every engine finishes one system before any engine starts the next, so a
+    # binding deadline sacrifices trailing *systems* for every engine equally
+    # rather than whole engines — under the engine-major loop this replaces,
+    # which candidates kept their finders depended on which engine the clock
+    # happened to catch, and a candidate found only by the engine that ran
+    # first graded ``low`` structurally.  ``SYSTEM_ORDER`` stays the one
+    # authority for the order (cheapest metric first); per-(engine × system)
+    # progress is still emitted by the engines themselves through ``progress``
+    # (the per-engine stage pair was *replaced*, not nested — WP-1037's trap 2).
+    unit_kwargs: dict[str, dict] = {name: {} for name in names}
+    if "trial_error" in unit_kwargs:
+        # its dominant-zone probe explains a *whole-run* silence, which a
+        # per-system unit cannot know — deferred below, asked once
+        unit_kwargs["trial_error"]["probe"] = False
+    units: dict[str, list] = {name: [] for name in names}
+    for system in ordered_systems:
         if run_cancel is not None and bool(run_cancel):
             break
-        engine_result = get_engine(name)(peaks, spec=spec, quality=quality,
-                                         cancel=run_cancel, progress=progress)
-        results.append(engine_result)
+        for name in names:
+            if run_cancel is not None and bool(run_cancel):
+                break
+            unit_spec = replace(spec, systems=(system,))
+            units[name].append(get_engine(name)(
+                peaks, spec=unit_spec, quality=quality, cancel=run_cancel,
+                progress=progress, **unit_kwargs[name]))
+        if stream is not None \
+                and not (run_cancel is not None and bool(run_cancel)):
+            # a *completed* system has been through consensus and streams
+            # graded (WP-1042); a system the token interrupted has not, and
+            # its candidates stay provisional in the log
+            _stream_system_snapshot(progress, system, units, names, peaks,
+                                    spec, quality, top)
+
+    results = [merge_engine_units(units[name]) for name in names
+               if units[name]]
+    trial = next((r for r in results if r.engine == "trial_error"), None)
+    if (trial is not None and not trial.candidates and trial.systems_searched
+            and not (run_cancel is not None and bool(run_cancel))):
+        # the deferred probe: once, over the systems the engine entered, and
+        # only when the whole harvest is empty — a cancelled run's silence is
+        # explained by the token, not by an index table
+        from .trial_error import dominant_zone_probe
+
+        t0 = time.monotonic()
+        hit = dominant_zone_probe(peaks, systems=trial.systems_searched,
+                                  spec=spec, quality=quality,
+                                  cancel=run_cancel, progress=progress)
+        trial.stats["probe.seconds"] = round(time.monotonic() - t0, 3)
+        if hit is not None:
+            trial.diagnostics.append(hit)
 
     outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
                         cancel=run_cancel)
+    if len(names) == 1:
+        outcome.diagnostics.append(single_engine_diagnostic(names[0]))
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
+    slices_expired = 0
     if validate and data is not None and instrument is not None:
         progress.add(len(checked))
-        for i in checked:
+        for pos, i in enumerate(checked):
             if run_cancel is not None and bool(run_cancel):
                 break
             cand = outcome.candidates[i]
             label = f"validate:{cand.system} {cand.centring}"
             progress.start(label, system=cand.system, validation=True)
+            # budgeted validation (WP-1042): under a declared ceiling each fit
+            # draws an equal slice of the remaining clock, so one heavy
+            # candidate cannot starve the rest of the shortlist (unbudgeted
+            # fits measured 74 of fap's 84 s).  A fast fit's surplus flows to
+            # the later slices, which re-divide what actually remains.
+            fit_cancel = run_cancel
+            slice_deadline = None
+            if deadline is not None:
+                slice_deadline = Deadline(
+                    max(deadline.remaining, 1e-3) / (len(checked) - pos),
+                    cancel=run_cancel)
+                fit_cancel = slice_deadline
             try:
                 cand.lebail = validate_by_lebail(
                     cand, data, instrument, peaks=peaks,
-                    two_theta_limits=two_theta_limits, cancel=run_cancel)
+                    two_theta_limits=two_theta_limits, cancel=fit_cancel)
             except RefinementCancelled:
                 # a truncated fit is not evidence about the candidate: leave
-                # ``lebail = None`` (reads ``not_validated``, capping) and stop
+                # ``lebail = None``, which reads ``not_validated`` (capping)
                 progress.end(label, validation=True, status="cancelled")
+                if slice_deadline is not None \
+                        and not slice_deadline.cancelled_by_user():
+                    # only this candidate's slice ran out — the next still
+                    # gets its share of what remains
+                    slices_expired += 1
+                    continue
                 break
             progress.end(label, validation=True, status=cand.lebail.status)
         validated = True
 
-    if deadline is not None and deadline.expired() \
-            and not deadline.cancelled_by_user():
-        requested = [s for s in SYSTEM_ORDER if s in spec.systems]
+    if deadline is not None and not deadline.cancelled_by_user() \
+            and (deadline.expired() or slices_expired):
+        requested = ordered_systems
         outcome.diagnostics.append(budget_exhausted_diagnostic(
             float(spec.total_budget_seconds),
             engines_not_run=[n for n in names if n not in outcome.engines_run],
@@ -688,7 +841,8 @@ def index_pattern(peaks: PeakList | None = None, *,
                                  if s not in outcome.systems_searched],
             candidates_not_validated=sum(
                 1 for i in checked if outcome.candidates[i].lebail is None)
-            if validated else 0))
+            if validated else 0,
+            ceiling_hit=deadline.expired()))
 
     # the gate's ``checked`` is what the enumeration actually covered, not what
     # was scheduled: under a fired token the two differ, and a candidate whose
@@ -709,6 +863,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         fom_panel_disagrees=outcome.fom_panel_disagrees, quality=quality,
         validated=validated, wavelength=peaks.wavelength,
         n_usable_lines=len(peaks.usable()), provenance=provenance,
+        preset=ran_preset,
         diagnostics=list(quality.diagnostics) + outcome.diagnostics
         + _pair_shift_diagnostics(quality))
     out = result.model_copy(update={
@@ -729,11 +884,16 @@ def _emit_end(stream, result) -> None:
                 validated=result.validated)
 
 
-def _spec_notes(spec, names: Sequence[str], quality) -> dict[str, str]:
+def _spec_notes(spec, names: Sequence[str], quality,
+                preset: str) -> dict[str, str]:
     """The search's own settings, recorded so a run is reproducible from what it
     reports — including ``seed``, which is the only field a stochastic engine
-    would need and which is therefore recorded whether one ran or not."""
+    would need and which is therefore recorded whether one ran or not.
+    ``preset`` is the name that governed the ceiling (WP-1042), so the two keys
+    read together: ``full`` writes no ``total_budget_seconds`` because it sets
+    none."""
     return {
+        "preset": preset,
         "engines": ", ".join(names),
         "systems": ", ".join(spec.systems),
         "d_axis_range_A": f"{spec.min_d_axis:g}-{spec.max_d_axis:g}",
@@ -742,8 +902,8 @@ def _spec_notes(spec, names: Sequence[str], quality) -> dict[str, str]:
         "k_sigma": f"{spec.k_sigma:g}",
         "sigma_sys_deg": f"{spec.sigma_sys_deg:g}",
         "budget_seconds": f"{spec.budget_seconds:g}",
-        # only when declared, so a default run's notes are byte-identical to
-        # every run recorded before the field existed
+        # only when one is set — under ``full`` there is nothing to record,
+        # and the absence *is* the record
         **({"total_budget_seconds": f"{spec.total_budget_seconds:g}"}
            if spec.total_budget_seconds is not None else {}),
         "seed": str(spec.seed),

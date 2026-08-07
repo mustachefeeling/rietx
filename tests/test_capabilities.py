@@ -69,6 +69,27 @@ def test_every_solver_mode_and_plan_appears(caps):
     assert len(PLAN_INFO["profile_only"].modes) == 2
 
 
+def test_every_search_preset_appears_with_its_ceiling(caps):
+    """WP-1042: the search_presets arm quotes the live registry, never a
+    restatement — same meta-test as plans, one registry over."""
+    from pxrdref.indexing.engines import (
+        DEFAULT_SEARCH_PRESET,
+        SEARCH_PRESET_INFO,
+        SEARCH_PRESETS,
+    )
+
+    assert {p.name for p in caps.search_presets} == set(SEARCH_PRESETS)
+    for cap in caps.search_presets:
+        info = SEARCH_PRESET_INFO[cap.name]
+        assert (cap.title, cap.description, cap.when_to_use) == \
+               (info.title, info.description, info.when_to_use)
+        assert cap.total_budget_seconds == SEARCH_PRESETS[cap.name]
+        assert cap.typical_seconds == info.typical_seconds
+        assert cap.default == (cap.name == DEFAULT_SEARCH_PRESET)
+    # exactly one default, and it is the one index_pattern resolves
+    assert sum(p.default for p in caps.search_presets) == 1
+
+
 def test_every_anode_appears_with_its_lines_and_kbeta(caps):
     assert {a.name for a in caps.anodes} == set(_RADIATIONS)
     by_name = {a.name: a for a in caps.anodes}

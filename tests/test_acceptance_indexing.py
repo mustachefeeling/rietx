@@ -233,7 +233,8 @@ def _index_corundum(peaks, **spec_kw):
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED,
                       **spec_kw)
-    return index_pattern(peaks, data=data, instrument=ins, spec=spec), spec
+    return index_pattern(peaks, data=data, instrument=ins, spec=spec,
+                         preset="full"), spec
 
 
 @pytest.fixture(scope="module")
@@ -264,7 +265,7 @@ def qpa_mixture_index():
     data, ins = _qarr("cpd-1a.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(data=data, instrument=ins, spec=spec)
+    res = index_pattern(data=data, instrument=ins, spec=spec, preset="full")
     # this row hands ``index_pattern`` the *pattern* rather than a list, so the
     # gallery picks the same lines the run picked rather than being handed them
     gallery.draw("cpd1a", peaks=pick_peaks(data, ins), data=data, result=res,
@@ -319,7 +320,8 @@ def _index_qarr_phase(name: str, systems: tuple[str, ...],
     spec = SearchSpec(systems=systems, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw(name, peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec)
     return res
@@ -385,7 +387,8 @@ def nac_index():
     spec = SearchSpec(systems=("cubic",), max_volume=1200.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw("nac", peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec,
                  note="the unindexed observed lines on the top row are the CaF2 "
@@ -425,7 +428,8 @@ def fap_index():
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=("hexagonal", "trigonal"), max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw("fap", peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec)
     return res
@@ -452,7 +456,7 @@ def hl2_index():
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS,
                       budget_seconds=HL2_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(peaks, spec=spec)
+    res = index_pattern(peaks, spec=spec, preset="full")
     # no ``data``: this row is a bare position list, which is what the stem plot
     # in the peak figure shows and why there is no Le Bail panel to draw
     gallery.draw("hl2", peaks=peaks, result=res, spec=spec)
@@ -477,7 +481,8 @@ def qarr_fluorite():
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=700.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(peaks, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw("fluorite", peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec,
                  note="fewer usable lines than the twenty the classical "
@@ -614,7 +619,8 @@ def lab6_index(lab6_peaks):
     data, ins = _lab6_inputs()
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
-    res = index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec)
+    res = index_pattern(lab6_peaks, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw("lab6", peaks=lab6_peaks, data=data, result=res, instrument=ins,
                  spec=spec,
                  note="rows 2 and 3 are both centrings of the a*sqrt(2) supercell, "
@@ -651,7 +657,8 @@ def lab6_calibrated(lab6_peaks):
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=float(screen.allowance_deg))
-    res = index_pattern(trimmed, data=data, instrument=ins, spec=spec)
+    res = index_pattern(trimmed, data=data, instrument=ins, spec=spec,
+                        preset="full")
     gallery.draw("lab6_calibrated", peaks=trimmed, data=data, result=res,
                  instrument=ins, spec=spec,
                  note=f"drawn on the *trimmed* list ({len(trimmed.usable())} usable "
@@ -2298,7 +2305,7 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
                               budget_seconds=REAL_DATA_BUDGET_SECONDS,
                               n_unindexed=max(REAL_DATA_N_UNINDEXED, k))
             res = index_pattern(peaks, data=data, instrument=instrument,
-                                spec=spec)
+                                spec=spec, preset="full")
             rank, truth = None, None
             for i, c in enumerate(res.candidates):
                 if c.centring == "P" and same_lattice(np.asarray(c.af),
@@ -2476,7 +2483,8 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
                       sigma_sys_deg=float(probe_screen.sigma_sys_deg))
-    tight = index_pattern(probe, data=data, instrument=ins, spec=spec)
+    tight = index_pattern(probe, data=data, instrument=ins, spec=spec,
+                          preset="full")
     assert tight.candidates, (
         "a window 4.3× too tight now finds nothing again — if the zero-error "
         "column changed, this is where it shows first")

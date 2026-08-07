@@ -11,6 +11,17 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
+the default changed and the surface grew, both for the freeze to ratify.**
+`index_pattern` gained `preset=` and resolves `"quick"` (a 120 s whole-run
+ceiling) when the caller declares nothing — a *behaviour* default the freeze
+locks in, stated in AGENT_PROTOCOL §7d; `IndexingResult` gained `preset`
+(additive, defaults `None` on old records); `SearchSpecSpec` (agent) gained
+`preset`; `capabilities()` gained the `search_presets` arm; and the event
+ladder gained additive `data` fields plus `consensus:<system>` units
+(`EVENT_SCHEMA_VERSION` stayed 2 under the events rule — same judgement to
+ratify or bump deliberately as 1043's below).
+
 **From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — three
 additive surface extensions the freeze must ratify, not discover.**
 `AgentSuccess` gained the `evidence` arm (`IndexingEvidence`, present exactly

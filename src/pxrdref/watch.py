@@ -75,7 +75,7 @@ async function pollEvents() {
         const e = JSON.parse(l);
         const t = new Date(e.t * 1000).toLocaleTimeString();
         const data = Object.entries(e.data).map(
-          ([k, v]) => `${k}=${typeof v === 'number' ? +v.toPrecision(6) : JSON.stringify(v)}`
+          ([k, v]) => `${k}=${typeof v === 'number' ? +v.toPrecision(6) : Array.isArray(v) ? `[${v.length}]` : JSON.stringify(v)}`
         ).join(' ');
         return `${t} <span class="k">${e.kind.padEnd(11)}</span> ${data}`;
       } catch { return l; }

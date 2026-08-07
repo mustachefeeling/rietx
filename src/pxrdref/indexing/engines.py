@@ -233,9 +233,11 @@ class SearchSpec:
     sigma_sys_deg: float = 0.0
     shift_template: str | None = None
     budget_seconds: float = DEFAULT_BUDGET_SECONDS
-    #: whole-run wall-clock ceiling (WP-1037), or ``None`` for today's behaviour.
-    #: ``budget_seconds`` is **per (engine × system)** — a default run is
-    #: 2 × 7 × 30 s of search before the probe and the validation fits, and
+    #: whole-run wall-clock ceiling (WP-1037), or ``None`` to let the preset
+    #: decide — since WP-1042 ``index_pattern`` fills the ``quick`` default's
+    #: ceiling in when this is ``None`` (``preset="full"`` declines one).
+    #: ``budget_seconds`` is **per (engine × system)** — an unbounded run is
+    #: 3 × 7 × 30 s of search before the probe and the validation fits, and
     #: nothing used to state that.  This is the bound a caller actually means:
     #: ``index_pattern`` wraps it in a :class:`Deadline` that every existing
     #: cooperative check reads, the run returns a complete
@@ -483,29 +485,70 @@ class Progress:
 
     ``stream=None`` is a working no-op, so a direct engine call in a unit test
     neither needs a stream nor emits anything.
+
+    Every emission also carries the run's **progress facts** (WP-1042):
+    ``elapsed_seconds`` since the ladder was built, and ``remaining_seconds``
+    when a whole-run :class:`Deadline` was declared — added fields on the
+    existing kinds, not a new kind, so ``EVENT_SCHEMA_VERSION`` holds.
     """
 
-    __slots__ = ("stream", "total", "done")
+    __slots__ = ("stream", "total", "done", "deadline", "_t0")
 
-    def __init__(self, stream=None, total: int = 0) -> None:
+    def __init__(self, stream=None, total: int = 0, deadline=None) -> None:
         self.stream = stream
         self.total = int(total)
         self.done = 0
+        self.deadline = deadline
+        self._t0 = time.monotonic()
 
     def add(self, n: int) -> None:
         """Revise the total: ``n`` more units now known to be coming."""
         self.total += int(n)
 
+    def _facts(self) -> dict:
+        facts = {"elapsed_seconds": round(time.monotonic() - self._t0, 2)}
+        if self.deadline is not None:
+            remaining = self.deadline.remaining
+            if remaining != float("inf"):
+                facts["remaining_seconds"] = round(remaining, 2)
+        return facts
+
     def start(self, stage: str, **data) -> None:
         if self.stream is not None:
             self.stream.emit("stage_start", stage=stage, index=self.done + 1,
-                             n_stages=self.total, **data)
+                             n_stages=self.total, **self._facts(), **data)
 
     def end(self, stage: str, **data) -> None:
         self.done += 1
         if self.stream is not None:
             self.stream.emit("stage_end", stage=stage, index=self.done,
-                             n_stages=self.total, **data)
+                             n_stages=self.total, **self._facts(), **data)
+
+
+#: Cells a just-finished (engine × system) unit streams as provisional.  Three:
+#: enough to show a search is converging on something, few enough that a
+#: 21-unit run stays a readable log.
+PROVISIONAL_STREAM_TOP = 3
+
+
+def provisional_payload(cands: Sequence[EngineCandidate]) -> list[dict]:
+    """The few cells a just-finished search unit streams (WP-1042).
+
+    Deliberately **without** a confidence field, and each entry labelled
+    ``provisional``: rank comes from Borda over the FoM panel *after* the
+    cross-engine merge, dedup, the Bravais screen and the gate, and a freshly
+    found engine candidate has been through none of those.  A consumer may
+    show these; it must not order a shortlist by them.  A **completed**
+    system's candidates stream graded instead — the per-system consensus
+    snapshot in :func:`~pxrdref.indexing.workflow.index_pattern`, which uses
+    the WP-1043 evidence shape.
+    """
+    top = sorted(cands, key=lambda c: (-c.n_indexed, c.volume))
+    return [{"cell": [round(float(v), 6) for v in c.cell],
+             "system": c.system, "centring": c.centring,
+             "n_indexed": int(c.n_indexed),
+             "volume": round(float(c.volume), 2), "provisional": True}
+            for c in top[:PROVISIONAL_STREAM_TOP]]
 
 
 # ----------------------------------------------------------------------
@@ -941,6 +984,49 @@ def solution_key(af: np.ndarray, centring: str = "") -> tuple[object, ...]:
             *np.round(a / (scale * SAME_SOLUTION_RTOL)).astype(np.int64))
 
 
+def merge_engine_units(units: Sequence[EngineResult]) -> EngineResult:
+    """Fold one engine's per-system unit results into the single
+    :class:`EngineResult` consensus reads (WP-1042's system-major scheduler).
+
+    The scheduler runs (engine × system) units — ``spec.systems`` restricted to
+    one system per call — so a binding deadline sacrifices trailing *systems*
+    for every engine equally instead of whole engines.  Consensus, and
+    everything downstream of it, still wants one answer per engine, and this is
+    that fold.  Everything is a union of disjoint per-system facts except the
+    engine-level stats: ``candidates.raw`` is **summed** (each unit counted its
+    own harvest), while ``sigma_sys_deg`` and ``seed`` are identical across
+    units by construction (one spec, one quality report), so last-write-wins is
+    exact for them.  Diagnostics dedup on (code, message) — every unit repeats
+    the engine-level ones (``INDEX_SHIFT_ALLOWANCE``) in identical words, and N
+    copies of one statement would read as N problems (the same rule
+    ``consensus`` applies across engines).
+    """
+    if not units:
+        raise ValueError("merge_engine_units needs at least one unit result")
+    engines = {u.engine for u in units}
+    if len(engines) > 1:
+        raise ValueError(
+            f"one merge per engine: got units from {sorted(engines)}")
+    out = EngineResult(engine=units[0].engine)
+    raw = 0.0
+    for unit in units:
+        out.candidates.extend(unit.candidates)
+        out.systems_searched += tuple(s for s in unit.systems_searched
+                                      if s not in out.systems_searched)
+        out.search_complete.update(unit.search_complete)
+        for key, value in unit.stats.items():
+            if key == "candidates.raw":
+                raw += float(value)
+            else:
+                out.stats[key] = value
+        for diag in unit.diagnostics:
+            if not any(d.code == diag.code and d.message == diag.message
+                       for d in out.diagnostics):
+                out.diagnostics.append(diag)
+    out.stats["candidates.raw"] = raw
+    return out
+
+
 def dedup_groups(cands: Sequence[EngineCandidate],
                  ) -> list[list[EngineCandidate]]:
     """Group candidates that are the same lattice, best-fitting member first.
@@ -1087,11 +1173,34 @@ def incomplete_diagnostic(engine: str, systems: Sequence[str],
                               if s in METRIC_DOF) + ")"))
 
 
+def single_engine_diagnostic(name: str) -> Diagnostic:
+    """``INDEX_SINGLE_ENGINE`` — one engine ran, so ``low`` means something else.
+
+    A **diagnostic, not a caveat**, and the distinction is structural (WP-1042):
+    ``grade`` returns ``low`` whenever fewer than two engines stand behind a
+    candidate, so every candidate of a one-engine run is ``low`` before any
+    caveat is consulted — a *capping* caveat could not explain a floor the
+    grade produces itself.  This statement is result-level: it tells the reader
+    that ``low`` here means "unconfirmed by construction", not "refuted".
+    """
+    return Diagnostic(
+        level="info", code="INDEX_SINGLE_ENGINE",
+        message=(f"only the {name} engine ran, and agreement between "
+                 "independent searches is what confidence measures here — so "
+                 "every candidate grades low structurally (fewer than two "
+                 "finders), which means 'unconfirmed', not 'refuted'"),
+        where=[f"engines: {name}"],
+        suggestion=("run the default engine set for a gradeable answer; a "
+                    "single-engine run is a probe, and its ranking is still "
+                    "the panel's"))
+
+
 def budget_exhausted_diagnostic(total_seconds: float,
                                 engines_not_run: Sequence[str],
                                 systems_truncated: Sequence[str],
                                 systems_not_reached: Sequence[str],
-                                candidates_not_validated: int) -> Diagnostic:
+                                candidates_not_validated: int,
+                                ceiling_hit: bool = True) -> Diagnostic:
     """``INDEX_BUDGET_EXHAUSTED`` — the declared whole-run ceiling bound.
 
     Written only when the *clock* stopped the run
@@ -1101,6 +1210,12 @@ def budget_exhausted_diagnostic(total_seconds: float,
     truncated one said less, and one never reached said nothing at all — plus
     the candidates whose validation never ran (they read ``not_validated``,
     which is the honest cap, never ``validation_failed``).
+
+    ``ceiling_hit=False`` (WP-1042) is the slice-only case: the whole-run clock
+    never expired, but one or more validation fits exhausted the equal slice
+    of the remaining clock the ceiling's arithmetic gave them — the ceiling
+    still bound the answer, and saying "the run hit its ceiling" would be
+    false, so the message says which of the two happened.
     """
     where = []
     if engines_not_run:
@@ -1113,15 +1228,114 @@ def budget_exhausted_diagnostic(total_seconds: float,
         where.append(f"{candidates_not_validated} candidate(s) not validated")
     return Diagnostic(
         level="warning", code="INDEX_BUDGET_EXHAUSTED",
-        message=(f"the run hit its declared ceiling of {total_seconds:g} s, so "
-                 "the answer covers what was reached rather than the whole "
-                 "requested search"),
+        message=((f"the run hit its declared ceiling of {total_seconds:g} s, "
+                  "so the answer covers what was reached rather than the "
+                  "whole requested search") if ceiling_hit else
+                 (f"the declared ceiling of {total_seconds:g} s bound the "
+                  "shortlist's validation: one or more fits exhausted their "
+                  "slice of the remaining clock and their candidates read "
+                  "not_validated")),
         where=where,
         suggestion=("what was reached is still ranked and gated honestly — "
                     "read systems_searched and search_complete before treating "
                     "an absence as evidence.  Raise total_budget_seconds, or "
                     "narrow systems= to where the answer can live, which costs "
                     "exponentially less than more time buys"))
+
+
+# ----------------------------------------------------------------------
+# Search presets (WP-1042)
+# ----------------------------------------------------------------------
+#: Whole-run ceiling (seconds) the ``quick`` preset fills into
+#: ``SearchSpec.total_budget_seconds`` when the caller has not declared one.
+#: Chosen from the task-0 re-measure under the system-major scheduler
+#: (WP-1042 handover, darwin/arm64 M4, ``[dev,jax,torch]`` venv): graded per-system
+#: shortlists stream 0.5-35 s in across the known-cell corpus, so the ceiling
+#: is not what makes the default responsive — streaming is — and its job is
+#: the other end: bounding the newly searchable short lists (a 15-line list
+#: used to hang a GUI click for minutes, and quick-fluorite now finishes
+#: whole at ~115 s) and the unbudgeted validation tail.  Measured under this
+#: value, the six corpus quick runs land at 115-126 s wall (ceiling +
+#: cooperative granularity), the truth's own system completes inside the
+#: ceiling on every one, and what a binding ceiling cuts is the trailing
+#: low-symmetry systems — loudly (``INDEX_BUDGET_EXHAUSTED``), the documented
+#: cost of cheapest-first ordering.  A measured consequence to know: on the
+#: heavier patterns the search consumes the whole ceiling and validation gets
+#: **no** fits — every candidate then reads ``not_validated`` (capping),
+#: which is honest and is the cue to rerun ``preset="full"``.
+QUICK_TOTAL_BUDGET_SECONDS = 120.0
+#: The preset ``index_pattern`` resolves when the caller names none.
+DEFAULT_SEARCH_PRESET = "quick"
+
+#: name → the whole-run ceiling it fills in (``None`` = unbounded, today's
+#: pre-WP-1042 behaviour).  Held in bijection with :data:`SEARCH_PRESET_INFO`
+#: by a meta-test (the ``PLAN_PRESETS``/``PLAN_INFO`` pattern), and quoted live
+#: by ``capabilities()`` and the agent schema — never restated.
+SEARCH_PRESETS: dict[str, float | None] = {
+    "quick": QUICK_TOTAL_BUDGET_SECONDS,
+    "full": None,
+}
+
+
+@dataclass(frozen=True)
+class SearchPresetInfo:
+    """What a search preset is for, in the words a chooser needs.
+
+    The ``PLAN_INFO`` pattern one registry over: beside the registry rather
+    than in a UI or a docs page, because every consumer needs the same facts
+    and a preset added without a row here is a preset nobody can be told when
+    to use.  ``typical_seconds`` is **measured** (the WP-1042 task-0 corpus
+    re-measure; dated history in the v1.0 appendix diary) and must be
+    re-measured when the default protocol changes; the worst case is stated in
+    ``description`` because it is a different *kind* of number per preset — a
+    bounded preset's worst case is its own ceiling plus
+    :data:`CEILING_GRANULARITY_SECONDS`, an unbounded one's is
+    :func:`estimate_ceiling`'s spec arithmetic.
+    """
+
+    title: str
+    description: str
+    when_to_use: str
+    typical_seconds: tuple[float, float]
+
+
+SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
+    "quick": SearchPresetInfo(
+        title="Quick (default)",
+        description=(
+            "All registered engines, all requested systems in SYSTEM_ORDER, "
+            "with a whole-run ceiling of "
+            f"{QUICK_TOTAL_BUDGET_SECONDS:g} s covering search, probe and "
+            "validation — the worst case is that ceiling plus one "
+            "cooperative-check granularity.  Nothing is narrowed: no engine "
+            "dropped, no system dropped, no search box shrunk.  A run that "
+            "hits the ceiling reports what was truncated or not reached "
+            "(INDEX_BUDGET_EXHAUSTED) rather than having silently searched "
+            "less, and what a binding ceiling cuts is the trailing "
+            "low-symmetry systems — the documented cost of cheapest-first "
+            "ordering."),
+        when_to_use=(
+            "the default: a first look at anything, and every interactive "
+            "call — the graded shortlist for completed systems streams "
+            "seconds in, and the ceiling keeps a short or pathological list "
+            "from hanging the run"),
+        typical_seconds=(1.0, 126.0),
+    ),
+    "full": SearchPresetInfo(
+        title="Full (no ceiling)",
+        description=(
+            "The same engines and systems with no whole-run ceiling — only "
+            "the per-(engine × system) budget_seconds bounds the search, so "
+            "the worst case is estimate_ceiling()'s arithmetic on the spec "
+            "and validation runs unbudgeted.  This is the pre-1.0 default "
+            "behaviour."),
+        when_to_use=(
+            "when a quick run reported truncated or not-reached systems (or "
+            "starved validation) and the answer may live there — typically "
+            "low-symmetry searches, which are irreducibly slow"),
+        typical_seconds=(4.0, 440.0),
+    ),
+}
 
 
 # ----------------------------------------------------------------------
@@ -1149,12 +1363,16 @@ MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "svd", "trial_error"}
 #: pattern validation was 74 s of an 84 s run — eight fits, none budgeted.
 MEASURED_VALIDATION_SECONDS: tuple[float, float] = (0.6, 44.0)
 
-#: Measured wall clock of a whole ``index_pattern`` run on the same corpus
-#: (WP-1037 task 0, acceptance-suite protocols): runs that actually search land
-#: in this band; the abstaining runs (quality gate, too-symmetric patterns)
-#: finish under a second.  Quoted beside the arithmetic worst case because the
-#: two differ by ~10× and a ceiling ten times the typical gets ignored.
-MEASURED_TYPICAL_SECONDS: tuple[float, float] = (3.0, 180.0)
+#: Measured wall clock of a whole **unbounded** (``preset="full"``) run on the
+#: acceptance-protocol corpus (re-measured WP-1042 task 0, three engines,
+#: system-major scheduler, darwin/arm64 M4 ``[dev,jax,torch]``): runs that actually
+#: search land in this band — the top of it is corundum, whose dichotomy units
+#: alone now cost 77-200 s per system — and the abstaining runs finish under a
+#: second.  Quoted beside the arithmetic worst case because the two differ by
+#: ~3-100× and a ceiling ten times the typical gets ignored.  The ``quick``
+#: default does not live in this band: its ceiling bounds the whole run at
+#: ``QUICK_TOTAL_BUDGET_SECONDS`` plus one cooperative granularity.
+MEASURED_TYPICAL_SECONDS: tuple[float, float] = (4.0, 440.0)
 
 #: How far past a declared ceiling a run can land: the longest stretch between
 #: cooperative reads of the deadline.  In the searches that is one box or one
@@ -1213,7 +1431,8 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
 
     See :class:`CeilingEstimate` for which terms are arithmetic and which are
     measured.  The arithmetic: ``budget_seconds`` is per (engine × system)
-    (a default call is 2 × 7 × 30 s = 21 min of search ceiling), the
+    (an unbounded three-engine call is 3 × 7 × 30 s = 10.5 min of search
+    ceiling — the ``quick`` default's whole-run ceiling cuts across it), the
     dominant-zone probe adds up to ``len(ladder)`` rungs of
     ``min(budget_seconds, probe_seconds)`` for each low-DOF system, and
     validation runs one Le Bail fit per checked candidate (worst case
@@ -1255,6 +1474,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "SEARCH_POOL_MULTIPLE",
            "MAX_PREDICTED_REFLECTIONS", "MEASURED_TYPICAL_SECONDS",
            "MEASURED_VALIDATION_SECONDS", "MODELLED_ENGINES",
+           "PROVISIONAL_STREAM_TOP", "provisional_payload",
            "SAME_SOLUTION_RTOL", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",
@@ -1262,7 +1482,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
-           "refine_with_shift",
+           "merge_engine_units", "refine_with_shift",
            "scored_positions", "search_line_order", "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",

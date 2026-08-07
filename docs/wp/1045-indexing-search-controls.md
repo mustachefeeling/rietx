@@ -98,6 +98,20 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
 
 ### Inherited
 
+**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
+the control surface already has three controls and one open design
+question.** `SearchSpecSpec.preset` (agent) and `pxrdref index --preset`
+(CLI) exist and validate against the live `SEARCH_PRESETS` registry — the
+one-surface mirroring here must absorb them, not re-invent them; the GUI has
+neither a preset control nor a consumer for the streamed per-system graded
+shortlists (each `consensus:<system>` `stage_end` carries them in the WP-1043
+evidence shape) — both are this WP's natural scope. The open question is
+**validation starvation under `quick`**: measured on 5 of 6 heavy corpus
+runs, the search consumes the whole ceiling and validation gets zero fits
+(honest — `not_validated` + the budget diagnostic's slice wording), so
+whether `quick` should *reserve* a validation share is a control-surface
+decision that needs a measured design, not a hardcoded fraction.
+
 **From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the panel
 this WP builds has its data and its pictures already.**
 `IndexingResult.evidence()` is the per-candidate data the GUI panel should

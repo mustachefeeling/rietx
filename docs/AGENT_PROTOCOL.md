@@ -355,7 +355,8 @@ result.
 | `INDEX_BRAVAIS_AMBIGUOUS` | Refine in the higher symmetry because it was reported. The stated system is the conservative one; refine there and *test* the higher one, never the reverse. A disagreement between gemmi and spglib is information, not a bug — their tolerances are different kinds of number (a Le Page obliquity in degrees against a `symprec` in Å) and disagreement is what genuine pseudosymmetry looks like |
 | `INDEX_VOLUME_UNPHYSICAL` | Quote the cell. It is outside what these data can support — below a single atom's exclusion volume, or clear of Smith's (1977) envelope for the number of lines observed |
 | `INDEX_NOT_VALIDATED` | Read a `medium` as a near-`high`. No pattern was supplied, so nothing tested any candidate against the whole profile, and the figure-of-merit panel is blind to lines beyond the first twenty, to impurity content and to predicted-but-absent reflections. Pass `data=` and `instrument=` |
-| `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The declared `total_budget_seconds` bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). A user cancellation never writes this code: a stopped run is not a budget statement |
+| `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The ceiling (`quick`'s default, or a declared `total_budget_seconds`) bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). Units run system-major (WP-1042), so what a binding ceiling cuts is trailing low-symmetry *systems* for every engine equally, never a whole engine — a candidate from a completed system keeps all its finders. The message also distinguishes the slice-only case: the run finished under its ceiling but one or more validation fits exhausted their equal slice of the remaining clock. A user cancellation never writes this code: a stopped run is not a budget statement |
+| `INDEX_SINGLE_ENGINE` | (info) Read `low` as "refuted". One engine ran, and agreement between independent searches is what confidence measures — so every candidate of a one-engine run grades `low` *structurally* (fewer than two finders), which means "unconfirmed by construction". It is a diagnostic rather than a caveat because a capping caveat cannot explain a floor `grade()` produces before caveats are consulted. Re-run with the default engine set for a gradeable answer |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
 
 ### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
@@ -418,20 +419,27 @@ refine a structure against a pattern but could not find the cell, so an unknown
 phase was out of reach entirely. `index_pattern` is a peer of `refine` and the
 loop between them closes:
 
-**How long will this take?** Ask before running:
+**How long will this take?** Since WP-1042 the default answers this itself:
+`index_pattern` resolves the **`quick` preset** — every engine, every requested
+system, and a whole-run ceiling (`SEARCH_PRESETS["quick"]`) covering search,
+probe and validation, with each validation fit drawing an equal slice of the
+remaining clock. Nothing is narrowed; a run that hits the ceiling says so
+(`INDEX_BUDGET_EXHAUSTED`, §7c) rather than having silently searched less, and
+what it cuts is the trailing low-symmetry systems — cheapest-first ordering's
+documented cost. Progress and a graded shortlist for every *completed* system
+stream on the event ladder as the run goes (`events=`), so the useful answer
+usually arrives seconds in, long before the run ends. `preset="full"` is the
+unbounded pre-1.0 behaviour — reach for it when a quick run reports truncated
+or not-reached systems and the answer may live there. For the arithmetic, ask
 `pxrdref.indexing.engines.estimate_ceiling(spec)` (CLI: `pxrdref index
---ceiling`). `budget_seconds` (default 30) is per **(engine × system)** — a
-default two-engine, seven-system call is up to 420 s of search, plus the
-dominant-zone probe (up to 360 s) and one *unbudgeted* Le Bail fit per checked
-candidate (measured 0.6–44 s each) — arithmetic worst case ≈ 1300 s against a
-measured typical of 3–180 s, because searches usually finish their systems
-early. To bound the whole run, set `SearchSpec.total_budget_seconds` (CLI:
-`--total-budget`): the result still arrives complete over what was reached,
-and `INDEX_BUDGET_EXHAUSTED` (§7c) names what was not. Budgets are runaway
-guards, not timers — this package's record has six point measurements where a
-longer run never bought a better answer, and one where too little budget
-reported a wrong centring, so bound generously and read the three states
-rather than shrinking the search.
+--ceiling`): `budget_seconds` (default 30) is per **(engine × system)**, the
+worst case is that arithmetic plus the probe plus per-fit validation (measured
+0.6–44 s each), against measured typicals an order of magnitude lower, because
+searches usually finish their systems early. Budgets are runaway guards, not
+timers — this package's record has six point measurements where a longer run
+never bought a better answer, and one where too little budget reported a wrong
+centring, so bound generously and read the three states rather than shrinking
+the search.
 
 ```python
 peaks  = pxrdref.pick_peaks(data, instrument)           # fitted positions + σ

@@ -39,6 +39,17 @@ real UI.
 
 ### Inherited
 
+**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
+the Index button's behaviour changed under the manual's feet.** A GUI index
+run now resolves the `quick` preset (a 120 s whole-run ceiling — the fix for
+the first-click hang the 15-line lists caused), streams
+`elapsed_seconds`/`remaining_seconds` and per-completed-system graded
+shortlists on the run's stage events, and can report
+`INDEX_BUDGET_EXHAUSTED` with validation starved on heavy patterns. The
+manual's indexing section should say what the ceiling means, that `low` from
+a truncated run is "unconfirmed", and that the full search is one
+`preset="full"` rerun away (a control WP-1045 owns adding to the panel).
+
 From **[1044](1044-gui-view-cursor-theme.md)**, 2026-08-06 — **three sentences
 in this manual are now wrong, and one gesture wants documenting.**
 

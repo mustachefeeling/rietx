@@ -55,7 +55,13 @@ from .backend.api import BACKEND_NAMES
 
 # importing the package (not ``.indexing.engines``) is what registers the engines,
 # so the names quoted below are the ones ``index_pattern`` would actually run
-from .indexing import SYSTEM_ORDER, engine_descriptions, engine_names
+from .indexing import (
+    SEARCH_PRESET_INFO,
+    SEARCH_PRESETS,
+    SYSTEM_ORDER,
+    engine_descriptions,
+    engine_names,
+)
 from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
 from .report.schemas import FitReport
@@ -96,6 +102,14 @@ _ENGINE_DESC = (
     + "). Default: all of them, and keep it — 'high' confidence *means* every "
     "engine that ran found the same lattice, so naming a subset narrows what "
     "the answer is able to say")
+_PRESET_DESC = (
+    "search preset governing the whole-run ceiling, from the live registry ("
+    + "; ".join(f"'{name}': {SEARCH_PRESET_INFO[name].title}"
+                for name in sorted(SEARCH_PRESETS))
+    + "). Default 'quick', which fills total_budget_seconds when you left it "
+    "unset; 'full' runs unbounded (the pre-1.0 behaviour). Setting your own "
+    "total_budget_seconds overrides the preset's and the result records "
+    "preset='custom'")
 _SYSTEM_DESC = (
     "crystal systems to search (default: all, in decreasing symmetry — "
     + ", ".join(SYSTEM_ORDER)
@@ -305,7 +319,9 @@ class SearchSpecSpec(Base):
         "together. The run still returns a complete IndexingResult over what "
         "was reached; systems_searched/search_complete distinguish searched, "
         "truncated and not reached, and INDEX_BUDGET_EXHAUSTED names them. "
-        "None (default) bounds nothing beyond the per-slice budget_seconds"))
+        "None (default) leaves the ceiling to `preset`; setting it overrides "
+        "the preset's and the result records preset='custom'"))
+    preset: str | None = Field(None, description=_PRESET_DESC)
     max_candidates: int = Field(12, ge=1)
     seed: int = 0
 
@@ -326,6 +342,14 @@ class SearchSpecSpec(Base):
         if v is not None and v not in SHIFT_TEMPLATES:
             raise ValueError(f"unknown shift template {v!r}; "
                              f"available: {', '.join(SHIFT_TEMPLATES)}")
+        return v
+
+    @field_validator("preset")
+    @classmethod
+    def _known_preset(cls, v):
+        if v is not None and v not in SEARCH_PRESETS:
+            raise ValueError(f"unknown search preset {v!r}; "
+                             f"available: {', '.join(SEARCH_PRESETS)}")
         return v
 
     def to_spec(self):
@@ -508,7 +532,8 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
 
         answer = index_pattern(
             req.peaks, data=req.pattern, instrument=req.instrument,
-            spec=req.search.to_spec(), engines=req.engines,
+            spec=req.search.to_spec(), preset=req.search.preset,
+            engines=req.engines,
             validate=req.validate_candidates,
             two_theta_limits=req.two_theta_limits)
         # evidence() is a projection computed here, at serialisation time,
