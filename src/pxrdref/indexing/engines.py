@@ -233,9 +233,11 @@ class SearchSpec:
     sigma_sys_deg: float = 0.0
     shift_template: str | None = None
     budget_seconds: float = DEFAULT_BUDGET_SECONDS
-    #: whole-run wall-clock ceiling (WP-1037), or ``None`` for today's behaviour.
-    #: ``budget_seconds`` is **per (engine × system)** — a default run is
-    #: 2 × 7 × 30 s of search before the probe and the validation fits, and
+    #: whole-run wall-clock ceiling (WP-1037), or ``None`` to let the preset
+    #: decide — since WP-1042 ``index_pattern`` fills the ``quick`` default's
+    #: ceiling in when this is ``None`` (``preset="full"`` declines one).
+    #: ``budget_seconds`` is **per (engine × system)** — an unbounded run is
+    #: 3 × 7 × 30 s of search before the probe and the validation fits, and
     #: nothing used to state that.  This is the bound a caller actually means:
     #: ``index_pattern`` wraps it in a :class:`Deadline` that every existing
     #: cooperative check reads, the run returns a complete
@@ -1420,7 +1422,8 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
 
     See :class:`CeilingEstimate` for which terms are arithmetic and which are
     measured.  The arithmetic: ``budget_seconds`` is per (engine × system)
-    (a default call is 2 × 7 × 30 s = 21 min of search ceiling), the
+    (an unbounded three-engine call is 3 × 7 × 30 s = 10.5 min of search
+    ceiling — the ``quick`` default's whole-run ceiling cuts across it), the
     dominant-zone probe adds up to ``len(ladder)`` rungs of
     ``min(budget_seconds, probe_seconds)`` for each low-DOF system, and
     validation runs one Le Bail fit per checked candidate (worst case

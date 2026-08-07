@@ -203,27 +203,32 @@ it up.
 
 ## Tasks
 
-- [ ] **Task 0 — does the system-major schedule actually deliver a shortlist in
+- [x] **Task 0 — does the system-major schedule actually deliver a shortlist in
       seconds?** Using WP-1037's instrumentation, record time to first
       *completed cheap system* (all engines done, consensus over it) and time to
       final ranked list per dataset, against the baseline above. If the answer
       is "no for low symmetry", that is the finding — report it, do not tune
-      around it.
-- [ ] **The scheduler**: (engine × system) units run system-major over
-      `SYSTEM_ORDER`, consulting `Deadline.remaining`; a deadline truncates
-      trailing *systems* for every engine equally, never whole engines, so
-      consensus never loses a finder to the clock. `consensus()` callable per
-      completed system.
-- [ ] Progress facts streamed on WP-1037's ladder; provisional candidates
+      around it. *(Measured table in the handover; yes for high symmetry —
+      0.5–5.4 s to a graded shortlist on lab6/fap/fluorite/hl2 — and the truth's
+      own system arrives when its search completes, e.g. corundum's trigonal at
+      ~180 s of a ~405 s run.)*
+- [x] **The scheduler**: (engine × system) units run system-major over
+      `SYSTEM_ORDER`, consulting the deadline between units; a deadline
+      truncates trailing *systems* for every engine equally, never whole
+      engines, so consensus never loses a finder to the clock. `consensus()`
+      callable per completed system (`ambiguity=False`).
+- [x] Progress facts streamed on WP-1037's ladder; provisional candidates
       streamed as `data` fields on existing kinds, **without** a confidence
-      field and labelled provisional in the schema; completed-system candidates
-      stream graded.
-- [ ] `SEARCH_PRESETS` / `SEARCH_PRESET_INFO` in bijection (mirroring
+      field and labelled provisional; completed-system candidates stream
+      graded, in the shared WP-1043 evidence shape (`candidate_evidence`).
+- [x] `SEARCH_PRESETS` / `SEARCH_PRESET_INFO` in bijection (mirroring
       `PLAN_PRESETS`/`PLAN_INFO` and its meta-test), each carrying worst case
       **and** the measured typical range; `capabilities()` gains a
       `search_presets` arm quoted from the live registry.
-- [ ] `quick` becomes the default; `IndexingResult` records which preset ran;
-      `INDEX_SINGLE_ENGINE` for explicit one-engine runs;
+- [x] `quick` becomes the default; `IndexingResult` records which preset ran
+      (`"custom"` when the caller's own ceiling governed);
+      `INDEX_SINGLE_ENGINE` for one-engine runs; validation fits draw equal
+      slices of the remaining clock under a ceiling;
       `estimate_ceiling`'s measured constants re-measured under the new
       default.
 - [ ] **The re-measure**: every acceptance row, `validation_matrix.py`,
