@@ -110,15 +110,19 @@ def _index(argv: list[str]) -> int:
                    help="shortest principal d-spacing in Å (default 2)")
     p.add_argument("--budget", type=float, default=None,
                    help="wall-clock seconds per (engine x crystal system) slice "
-                        "of the search (default 30 — so a default two-engine, "
-                        "seven-system run is up to 2x7x30 s of search, before "
-                        "the probe and validation; --ceiling prints the "
-                        "arithmetic)")
+                        "of the search (default 30 — so an unbounded "
+                        "three-engine, seven-system run is up to 3x7x30 s of "
+                        "search, before the probe and validation; --ceiling "
+                        "prints the arithmetic)")
     p.add_argument("--total-budget", type=float, default=None,
                    help="wall-clock ceiling for the WHOLE run — search, probe "
                         "and validation. The run returns what was reached and "
                         "INDEX_BUDGET_EXHAUSTED names the systems truncated or "
-                        "not reached")
+                        "not reached. Overrides the preset's ceiling")
+    p.add_argument("--preset", default=None,
+                   help="search preset (default 'quick': every engine and "
+                        "system under a whole-run ceiling, truncation reported; "
+                        "'full': no ceiling, the pre-1.0 behaviour)")
     p.add_argument("--ceiling", action="store_true",
                    help="print the pre-run cost ceiling for these options — "
                         "worst-case arithmetic and the measured typical range — "
@@ -163,7 +167,7 @@ def _index(argv: list[str]) -> int:
         return 0
 
     result = index_pattern(data=data, instrument=instrument,
-                           spec=spec, engines=engine_names,
+                           spec=spec, preset=args.preset, engines=engine_names,
                            validate=not args.no_validate)
     _print_index(result)
     if args.json:
