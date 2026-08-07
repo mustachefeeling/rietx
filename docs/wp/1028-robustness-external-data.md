@@ -119,6 +119,29 @@ the fit (Rwp 30.8 % → 13.2 %). r = 1 is the identity and a March coefficient
 outside that range describes a texture no powder mount produces, so a default
 floor costs nothing.
 
+**The audit this asked for came back clean, and the reason is worth keeping
+(2026-08-07).** Fourteen softplus parameters declare `min=0.0`
+(`Parameter.positive`, roughness `b`/`c`, `air_scatter`, phase `scale`,
+`extinction`, the four size/strain widths, `r`). Every one of them except `r`
+has **zero as its identity**: extinction 0 ⇒ E ≡ 1, a zero width ⇒ no
+broadening, `air_scatter` 0 ⇒ no pedestal, a zero scale ⇒ the phase
+contributes nothing. `r` is the only one whose identity is **interior**
+(r = 1) with a **singularity at the bound**, because the March factor divides
+by it. So the bug is not "softplus with min=0" — it is "softplus with min=0
+*and* a pole at zero", and that pattern has exactly one instance. (Extinction's
+own 1/x asymptote is already evaluated on a clamped `xsafe`.) The rule that
+follows is small enough to state: a softplus `min=0.0` is fine wherever zero
+is the off state, and needs a real floor wherever the physics divides.
+
+Two implementation notes. `params.transforms.internal_bounds` maps any lower
+bound ≤ 1e-12 to **−∞**, and `log(1+e^u)` underflows to exactly 0.0 below
+u ≈ −745 — that pair is the whole mechanism, and a positive bound breaks it
+because the internal bound becomes finite. And the broken bound **outlives the
+default**: a project or history node written before the fix carries
+`min: 0.0` explicitly and would deserialize straight back into the stall, so
+`PreferredOrientation` repairs a bound at or below the softplus floor in a
+validator, and leaves any positive bound a caller chose alone.
+
 ### (f) `compute_qpa` raises where it should diagnose
 
 `optimize/qpa.py:189` raises `ValueError: phase scales give a non-positive
@@ -336,9 +359,9 @@ size.
       these forms (§(a))
 - [x] hkl-range guard in `generate_reflections` + diagnostic naming the cell
 - [x] `MODEL_FAR_FROM_DATA` diagnostic; surface `max_iter` stage outcomes
-- [ ] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
+- [x] Floor `PreferredOrientation.r` (and audit other softplus `min=0.0`
       parameters for the same reachable-zero bug)
-- [ ] `compute_qpa`: skip below two phases, diagnose instead of raising
+- [x] `compute_qpa`: skip below two phases, diagnose instead of raising
 - [ ] Le Bail multiphase: damp, refuse, or fence — decide and record
 - [ ] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
       precondition (may land first, independently — it is documentation)

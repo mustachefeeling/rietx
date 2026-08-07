@@ -1281,7 +1281,11 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         wavelength = model.line_wavelengths[0] if model.line_wavelengths else None
         qpa = compute_qpa(structure, values, scale_cov, multiplicities,
                           wavelength=wavelength)
-        diagnostics = diagnostics + microabsorption_diagnostics(qpa)
+        if qpa is None:
+            diagnostics = diagnostics + _qpa_unavailable_diagnostics(
+                structure, values)
+        else:
+            diagnostics = diagnostics + microabsorption_diagnostics(qpa)
 
     # Soft-restraint summary (bond/angle/value deviations).  Rietveld-only, so
     # model.restraints is None outside it and this is naturally skipped.  A
@@ -1591,6 +1595,31 @@ def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
                    "and further off puts every reflection outside its frozen "
                    "evaluation window), the wavelength, the zero shift and "
                    "the 2θ range, then re-index if the cell is the doubt",
+    )]
+
+
+def _qpa_unavailable_diagnostics(structure: Structure,
+                                 values: dict[str, float]) -> list[Diagnostic]:
+    """``QPA_UNAVAILABLE``: the scales cannot form weight fractions.
+
+    W_p ∝ S_p·(ZMV)_p renormalised, so a non-positive Σ S·ZMV has no
+    renormalisation to do.  This is reported rather than raised because QPA is
+    one field of a result, and raising from inside the result builder took a
+    whole 157-pattern sequential run down with one bad pattern (WP-1028 §(f)).
+    """
+    dead = [f"phases.{ip}.scale" for ip in range(len(structure.phases))
+            if values.get(f"phases.{ip}.scale", 0.0) <= 0.0]
+    return [Diagnostic(
+        level="warning", code="QPA_UNAVAILABLE",
+        where=dead,
+        message=("the refined phase scales give a non-positive Σ S·ZMV, so "
+                 "weight fractions cannot be formed"
+                 + (f" ({', '.join(dead)} at or below zero)" if dead else "")),
+        suggestion="this is a statement about the fit, not the specimen: a "
+                   "phase scale at zero means that phase contributed nothing, "
+                   "so check whether it belongs in the model, whether its "
+                   "starting cell put its peaks where the data has none, and "
+                   "the other diagnostics from this run",
     )]
 
 

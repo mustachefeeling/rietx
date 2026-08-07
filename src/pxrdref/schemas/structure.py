@@ -14,9 +14,27 @@ Conventions
 
 from __future__ import annotations
 
+import math
+
 from pydantic import Field, model_validator
 
 from .common import Base, Parameter
+
+#: the lower bound below which ``params.transforms.internal_bounds`` treats a
+#: softplus parameter as *unbounded* below, which is what lets its physical
+#: value underflow to exactly zero
+_SOFTPLUS_FLOOR = 1e-12
+
+#: March coefficient bounds.  r = 1 is the identity, r < 1 / r > 1 map to
+#: platy / needle habit (the mapping flips between reflection and transmission
+#: geometry — see :mod:`pxrdref.model.preferred_orientation`), and a value
+#: outside this range describes a texture no powder mount produces.  The floor
+#: is what makes the softplus bound reachable at all: see
+#: :class:`PreferredOrientation`.  Measured on a 90 wt % NaCl mixture where r
+#: underflowed to zero: the stall went away *and* the fit improved, Rwp 30.8 %
+#: → 13.2 % (WP-1028 §(e)).
+MARCH_R_MIN = 0.15
+MARCH_R_MAX = 6.0
 
 
 class Cell(Base):
@@ -112,17 +130,48 @@ class PreferredOrientation(Base):
     and **defaults to 1.0, vary=False** — r ≡ 1 is exactly the no-correction
     case, so a phase carrying this block but not refining it is bit-identical
     to one without it.
+
+    **The strictness is a promise softplus alone does not keep** (WP-1028
+    §(e)).  ``min=0.0`` maps to an internal bound of −∞ (``internal_bounds``
+    treats any lower bound at or under 1e-12 as absent), and ``log(1+e^u)``
+    underflows to *exactly* 0.0 below u ≈ −745.  The March factor divides by
+    r, so the residual becomes inf/NaN, nothing raises, and TRF grinds its
+    whole budget on garbage — measured, a 3-second stage that had not
+    returned after ten minutes.  So the bound is :data:`MARCH_R_MIN`, which
+    makes the internal bound finite and the underflow unreachable.  It is
+    physics, not a fudge: r = 1 is the identity, and a March coefficient
+    outside 0.15-6 describes a texture no powder mount produces.
     """
 
     axis: tuple[int, int, int]
     r: Parameter = Field(
-        default_factory=lambda: Parameter(value=1.0, vary=False, min=0.0, transform="softplus")
+        default_factory=lambda: Parameter(value=1.0, vary=False, min=MARCH_R_MIN,
+                                          max=MARCH_R_MAX, transform="softplus")
     )
 
     @model_validator(mode="after")
     def _axis_nonzero(self) -> "PreferredOrientation":
         if all(h == 0 for h in self.axis):
             raise ValueError("preferred-orientation axis (0,0,0) has no direction")
+        return self
+
+    @model_validator(mode="after")
+    def _r_bound_is_reachable(self) -> "PreferredOrientation":
+        """Repair a lower bound that softplus cannot actually enforce.
+
+        Only fires on a bound *at or below* the softplus floor — the value
+        that promises "strictly positive" and delivers zero.  Any positive
+        bound a caller chose is left alone, because a positive bound already
+        maps to a finite internal one and the underflow cannot happen.  This
+        exists because the broken bound outlives the default: a JSON project
+        or a history node written before this fix carries ``min: 0.0``
+        explicitly, and would deserialize straight back into the stall.
+        """
+        if self.r.min <= _SOFTPLUS_FLOOR:
+            self.r.min = MARCH_R_MIN
+        if not math.isfinite(self.r.max):
+            self.r.max = MARCH_R_MAX
+        self.r.value = min(max(self.r.value, self.r.min), self.r.max)
         return self
 
 

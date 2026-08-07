@@ -41,7 +41,7 @@ Cl1 {cl} 0.5 0.5 0.5 1
 
 def _nacl_cif(tmp_path, na="Na", cl="Cl"):
     path = tmp_path / "nacl.cif"
-    path.write_text(NACL_CIF.format(na=na, cl=cl))
+    path.write_text(NACL_CIF.format(na=na, cl=cl), encoding="utf-8")
     return str(path)
 
 
@@ -235,6 +235,146 @@ def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
     codes = {d.code for d in result.diagnostics}
     assert "MODEL_FAR_FROM_DATA" not in codes
     assert "STAGE_MAX_ITER" not in codes
+
+
+# ----------------------------------------------------------------------
+# (e) March-Dollase r cannot underflow to zero and divide the residual
+# ----------------------------------------------------------------------
+
+
+def test_a_zero_lower_bound_lets_softplus_underflow_to_exactly_zero():
+    # the mechanism, asserted where it lives: min=0.0 maps to an internal
+    # bound of −∞, and log(1+e^u) is exactly 0.0 below u ≈ −745
+    from pxrdref.params.transforms import internal_bounds, to_physical
+    from pxrdref.schemas.structure import MARCH_R_MIN
+
+    assert internal_bounds(0.0, np.inf, "softplus")[0] == -np.inf
+    assert to_physical(-800.0, "softplus") == 0.0
+
+    # a positive bound makes it finite, and the floor is then unreachable
+    lo, _ = internal_bounds(MARCH_R_MIN, 6.0, "softplus")
+    assert np.isfinite(lo)
+    assert to_physical(lo, "softplus") == pytest.approx(MARCH_R_MIN)
+
+
+def test_the_march_factor_is_what_a_zero_r_destroys():
+    # A = r²cos²α + sin²α/r, term = A^(−3/2).  At r = 0 the bracket is inf off
+    # the axis (→ term 0, silently wrong) and 0 *on* it (→ NaN), and every
+    # derivative column is NaN — so the residual is garbage and nothing raises
+    from pxrdref.model.preferred_orientation import march_term, march_term_and_dr
+
+    cos2 = np.array([0.0, 0.5, 1.0])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        term = march_term(cos2, 0.0)
+        _, dterm = march_term_and_dr(cos2, 0.0)
+    assert np.isnan(term[-1])          # scattering vector along the axis
+    assert np.all(np.isnan(dterm))     # the whole Jacobian column
+
+
+def test_a_zero_bound_is_repaired_even_when_it_comes_from_a_stored_document():
+    # the broken bound outlives the default: a project or history node written
+    # before the fix carries min=0.0 explicitly
+    from pxrdref import Parameter
+    from pxrdref.schemas.structure import MARCH_R_MAX, MARCH_R_MIN, PreferredOrientation
+
+    po = PreferredOrientation(
+        axis=(0, 0, 1),
+        r=Parameter(value=0.8, vary=True, min=0.0, transform="softplus"))
+    assert (po.r.min, po.r.max) == (MARCH_R_MIN, MARCH_R_MAX)
+    assert po.r.value == pytest.approx(0.8)      # the value is not disturbed
+
+    back = PreferredOrientation.model_validate_json(po.model_dump_json())
+    assert back.r.min == MARCH_R_MIN
+
+    # a positive bound a caller chose is left alone — it already maps to a
+    # finite internal bound, so the underflow cannot happen there
+    tight = PreferredOrientation(
+        axis=(0, 0, 1),
+        r=Parameter(value=0.8, min=0.5, max=2.0, transform="softplus"))
+    assert (tight.r.min, tight.r.max) == (0.5, 2.0)
+
+
+def test_the_march_bound_holds_through_the_parameter_table():
+    from pxrdref import Instrument, Parameter
+    from pxrdref.params.vector import ParameterTable
+    from pxrdref.schemas.structure import MARCH_R_MIN, PreferredOrientation
+    from tests.test_coordinates import make_rutile
+
+    s = make_rutile()
+    s.phases[0].preferred_orientation = PreferredOrientation(
+        axis=(0, 0, 1),
+        r=Parameter(value=1.0, vary=True, min=0.0, transform="softplus"))
+    table = ParameterTable(s, Instrument.debye_scherrer(wavelength=1.5406))
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.*.preferred_orientation.r"], True)
+
+    lo, hi = table.bounds()
+    k = table.free_paths.index("phases.0.preferred_orientation.r")
+    # the solver sees a finite lower bound, so it can no longer reach a zero r
+    assert np.isfinite(lo[k]) and np.isfinite(hi[k])
+    x = table.x0().copy()
+    x[k] = lo[k]
+    assert table.decode(x)["phases.0.preferred_orientation.r"] == \
+        pytest.approx(MARCH_R_MIN)
+
+
+# ----------------------------------------------------------------------
+# (f) QPA degrades to a diagnostic instead of raising from _build_result
+# ----------------------------------------------------------------------
+
+
+def _decoded(structure):
+    from pxrdref.params.vector import ParameterTable
+
+    table = ParameterTable(structure,
+                           Instrument.debye_scherrer(wavelength=1.5406))
+    return table.decode(table.x0())
+
+
+def test_a_single_phase_is_a_hundred_percent_whatever_its_scale_did(tmp_path):
+    # the computation should never have been on the critical path here: one
+    # phase is 100 % by definition, and the scale is a brightness
+    from pxrdref.optimize.qpa import compute_qpa
+
+    structure = Structure.from_cif(_nacl_cif(tmp_path))
+    structure.phases[0].scale.value = 0.0
+    qpa = compute_qpa(structure, _decoded(structure))
+
+    assert qpa is not None
+    assert [r.weight_fraction for r in qpa.phases] == [1.0]
+    # σ(W) stays absent: the fraction is a definition, not a measurement
+    assert qpa.phases[0].weight_fraction_stderr is None
+
+
+def test_a_dead_scale_in_a_mixture_returns_no_qpa_rather_than_raising(tmp_path):
+    from pxrdref.optimize.qpa import compute_qpa
+
+    structure = Structure.from_cif(_nacl_cif(tmp_path))
+    structure.phases.append(
+        Structure.from_cif(_nacl_cif(tmp_path)).phases[0].model_copy(deep=True))
+    structure.phases[1].name = "phase_2"
+    for phase in structure.phases:
+        phase.scale.value = 0.0
+
+    assert compute_qpa(structure, _decoded(structure)) is None
+
+
+def test_the_missing_qpa_arrives_as_a_diagnostic_naming_the_dead_scales(
+        tmp_path):
+    from pxrdref.refine import _qpa_unavailable_diagnostics
+
+    structure = Structure.from_cif(_nacl_cif(tmp_path))
+    structure.phases.append(
+        Structure.from_cif(_nacl_cif(tmp_path)).phases[0].model_copy(deep=True))
+    structure.phases[1].name = "phase_2"
+    values = _decoded(structure) | {"phases.0.scale": 0.0,
+                                    "phases.1.scale": 0.0}
+
+    diags = _qpa_unavailable_diagnostics(structure, values)
+    assert [d.code for d in diags] == ["QPA_UNAVAILABLE"]
+    assert diags[0].where == ["phases.0.scale", "phases.1.scale"]
+    # a statement about the fit, not the specimen
+    assert "not the specimen" in diags[0].suggestion
 
 
 def test_a_stage_that_stopped_on_its_budget_is_surfaced_as_a_diagnostic():
