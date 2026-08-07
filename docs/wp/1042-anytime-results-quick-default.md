@@ -337,6 +337,12 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
   `best_or_none()` None) — asserted by its own acceptance row since WP-1041,
   reproduced unchanged.
 
+  **In flight / next**: nothing — the WP closes complete. The queue's next is
+  WP-1045, whose `### Inherited` carries this WP's two forwards (the
+  preset/streaming surface to absorb, the validation-starvation design
+  question); WP-1026's criterion-1 runner, WP-1017's manual and WP-1003's
+  freeze each got their own mailbox note.
+
   **Gotchas for successors**: the registered engine contract grew
   `probe=` only on `search_trial_error` (the scheduler special-cases the
   deferral by name in `workflow.py`; a stub registered *as* `trial_error`
