@@ -1249,15 +1249,20 @@ def budget_exhausted_diagnostic(total_seconds: float,
 #: Whole-run ceiling (seconds) the ``quick`` preset fills into
 #: ``SearchSpec.total_budget_seconds`` when the caller has not declared one.
 #: Chosen from the task-0 re-measure under the system-major scheduler
-#: (WP-1042 handover, darwin/arm64 M4): the high-symmetry known-cell corpus
-#: lands its **graded shortlist** in 1-24 s, so the ceiling is not what makes
-#: the default responsive — streaming is — and its job is the other end:
-#: bounding the newly searchable short lists (a 15-line list used to hang a
-#: GUI click for minutes) and the unbudgeted validation tail.  120 s lets
-#: every corpus dataset except the two slowest complete *everything*; what a
-#: binding ceiling cuts is the trailing low-symmetry systems, loudly
-#: (``INDEX_BUDGET_EXHAUSTED``), which is the documented cost of
-#: cheapest-first ordering.
+#: (WP-1042 handover, darwin/arm64 M4, ``[dev]`` venv): graded per-system
+#: shortlists stream 0.5-35 s in across the known-cell corpus, so the ceiling
+#: is not what makes the default responsive — streaming is — and its job is
+#: the other end: bounding the newly searchable short lists (a 15-line list
+#: used to hang a GUI click for minutes, and quick-fluorite now finishes
+#: whole at ~115 s) and the unbudgeted validation tail.  Measured under this
+#: value, the six corpus quick runs land at 115-126 s wall (ceiling +
+#: cooperative granularity), the truth's own system completes inside the
+#: ceiling on every one, and what a binding ceiling cuts is the trailing
+#: low-symmetry systems — loudly (``INDEX_BUDGET_EXHAUSTED``), the documented
+#: cost of cheapest-first ordering.  A measured consequence to know: on the
+#: heavier patterns the search consumes the whole ceiling and validation gets
+#: **no** fits — every candidate then reads ``not_validated`` (capping),
+#: which is honest and is the cue to rerun ``preset="full"``.
 QUICK_TOTAL_BUDGET_SECONDS = 120.0
 #: The preset ``index_pattern`` resolves when the caller names none.
 DEFAULT_SEARCH_PRESET = "quick"
@@ -1314,7 +1319,7 @@ SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
             "call — the graded shortlist for completed systems streams "
             "seconds in, and the ceiling keeps a short or pathological list "
             "from hanging the run"),
-        typical_seconds=(1.0, 120.0),
+        typical_seconds=(1.0, 126.0),
     ),
     "full": SearchPresetInfo(
         title="Full (no ceiling)",
@@ -1325,10 +1330,10 @@ SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
             "and validation runs unbudgeted.  This is the pre-1.0 default "
             "behaviour."),
         when_to_use=(
-            "when a quick run reported truncated or not-reached systems and "
-            "the answer may live there — typically low-symmetry searches, "
-            "which are irreducibly slow"),
-        typical_seconds=(1.0, 240.0),
+            "when a quick run reported truncated or not-reached systems (or "
+            "starved validation) and the answer may live there — typically "
+            "low-symmetry searches, which are irreducibly slow"),
+        typical_seconds=(4.0, 440.0),
     ),
 }
 
@@ -1358,12 +1363,16 @@ MODELLED_ENGINES: frozenset[str] = frozenset({"dichotomy", "svd", "trial_error"}
 #: pattern validation was 74 s of an 84 s run — eight fits, none budgeted.
 MEASURED_VALIDATION_SECONDS: tuple[float, float] = (0.6, 44.0)
 
-#: Measured wall clock of a whole ``index_pattern`` run on the same corpus
-#: (WP-1037 task 0, acceptance-suite protocols): runs that actually search land
-#: in this band; the abstaining runs (quality gate, too-symmetric patterns)
-#: finish under a second.  Quoted beside the arithmetic worst case because the
-#: two differ by ~10× and a ceiling ten times the typical gets ignored.
-MEASURED_TYPICAL_SECONDS: tuple[float, float] = (3.0, 180.0)
+#: Measured wall clock of a whole **unbounded** (``preset="full"``) run on the
+#: acceptance-protocol corpus (re-measured WP-1042 task 0, three engines,
+#: system-major scheduler, darwin/arm64 M4 ``[dev]``): runs that actually
+#: search land in this band — the top of it is corundum, whose dichotomy units
+#: alone now cost 77-200 s per system — and the abstaining runs finish under a
+#: second.  Quoted beside the arithmetic worst case because the two differ by
+#: ~3-100× and a ceiling ten times the typical gets ignored.  The ``quick``
+#: default does not live in this band: its ceiling bounds the whole run at
+#: ``QUICK_TOTAL_BUDGET_SECONDS`` plus one cooperative granularity.
+MEASURED_TYPICAL_SECONDS: tuple[float, float] = (4.0, 440.0)
 
 #: How far past a declared ceiling a run can land: the longest stretch between
 #: cooperative reads of the deadline.  In the searches that is one box or one
