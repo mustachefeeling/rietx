@@ -385,7 +385,14 @@ PEAK_ASSUMED_ESD_DEG = 0.02
 #: separated from its neighbour by half a FWHM.  ``position_at_bound`` — the fit
 #: pushed to :data:`PEAK_POSITION_BOUND_FWHM`, i.e. detection put the seed in
 #: the wrong place.  ``asymmetry_unmodelled`` — see
-#: :data:`PEAK_ASYMMETRY_MIN_SIGMA`.
+#: :data:`PEAK_ASYMMETRY_MIN_SIGMA`.  ``background_extrapolated`` — the line
+#: stands where the background envelope was extrapolated rather than measured
+#: (WP-1028 §(i)): its prominence is over a level nobody observed, so it is
+#: real intensity that may not be a line.  Report, do not refuse — the
+#: consumer that can weigh that should be given the chance — so it is
+#: deliberately **not** in :data:`PEAK_UNUSABLE_FLAGS`, and it is a flag of its
+#: own rather than a reuse of ``position_at_bound``, which means something
+#: else and caught only two of the five cases that motivated this.
 PeakFlag = Literal[
     "ghost_kbeta",
     "ghost_tungsten",
@@ -396,6 +403,7 @@ PeakFlag = Literal[
     "position_at_bound",
     "asymmetry_unmodelled",
     "not_separable",
+    "background_extrapolated",
 ]
 
 #: Flags that take a line out of :meth:`PeakList.usable`.  ``sigma_assumed``

@@ -251,6 +251,34 @@ robust"). Repair the envelope, then flag what survives — not an edge guard.**
    `position_at_bound` is not the flag to reuse: it caught two of the five and
    means something else.
 
+**Landed 2026-08-07, and the decided numbers reproduced exactly.** Re-measured
+across the same seven with `pick_peaks` + `PeakList.usable()`: false edge lines
+(a usable line within 1.5° of the first channel) **5 → 1**, **zero** lines lost
+away from the edge on any pattern — matching positions within 0.05°, which
+matters because the raw position lists differ by sub-tolerance shifts
+everywhere and a set comparison reads those as losses. `y[0]/env[0]` falls from
+1.62-2.09 to **1.36-1.76** across the seven, so the envelope is closer to the
+truth at the edge without being exact — brucite's survivor is what that
+remainder looks like. (The absolute usable counts here are 18-68 rather than
+the 34-50 quoted above; that figure came from a differently-configured call.
+The *invariant* the note asserted — unchanged away from the edge — holds:
+zincite 27 → 27, zircon 68 → 68, cpd-1a 36 → 36.)
+
+The flag is `background_extrapolated`, and `background.diagnostics.
+envelope_measured_span` is the one authority on where interpolation actually
+happens, kept beside the envelope so the two cannot drift. On the seven it
+fires on exactly two lines: brucite's 5.179° survivor and one corundum line at
+150.088° past the *upper* edge — the right-hand half of the same defect, which
+nobody had looked for. Both stay in `usable()`.
+
+Two knock-ons for whoever touches this next. A new `PeakFlag` member is a
+failing parity test until `gui/src/lib/pxt.ts` restates it and the committed
+dist is rebuilt (`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`
+caught it, which is the meta-test working). And `REAL_DATA_N_UNINDEXED = 3` in
+`tests/test_acceptance_indexing.py` is sized on a comment that names the
+corundum 5.17° edge artifact as one of its three — that artifact is now gone,
+so the comment is stale even where the number still passes.
+
 This is a library behaviour change on the path every external pattern takes and
 it moves picker output on four acceptance datasets — run
 `tests/test_acceptance_indexing.py` before closing (CLAUDE.md rule; the
@@ -392,10 +420,10 @@ size.
       precondition — both were already written; what this session owed was
       *correcting* the block, since §(g)'s fix made "do not use it above one
       phase" false, and measuring the seeding claim (571× on cycle one)
-- [ ] Envelope edge knots: anchor a knot at each data edge, linearly
+- [x] Envelope edge knots: anchor a knot at each data edge, linearly
       extrapolated from the two nearest; across the round-robin seven, false
       edge lines 5 → 1 with no non-edge line lost (§(i))
-- [ ] Flag lines standing on extrapolated envelope span — a new flag, not
+- [x] Flag lines standing on extrapolated envelope span — a new flag, not
       `position_at_bound`; then `tests/test_acceptance_indexing.py`
       (`REAL_DATA_N_UNINDEXED` sizing moves) (§(i))
 - [ ] Cell-angle disagreement in an external CIF: reader-side `Diagnostic`

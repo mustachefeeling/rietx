@@ -83,6 +83,7 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
     peaks = _peaks_from_fits(fits, lam0)
     if flag_contamination and peaks:
         flag_ghosts(peaks, lam0, det)
+    _flag_extrapolated_background(peaks, det.two_theta)
 
     pl = PeakList(
         peaks=peaks, wavelength=lam0,
@@ -91,6 +92,32 @@ def pick_peaks_with_state(data: PatternData, instrument: Instrument, *,
         source="fitted")
     return pl.model_copy(update={
         "diagnostics": peak_diagnostics(pl, det)}), det, fits
+
+
+def _flag_extrapolated_background(peaks: list[ObservedPeak],
+                                  two_theta: np.ndarray) -> None:
+    """Flag lines standing where the background envelope was extrapolated.
+
+    The envelope's knots sit at window *centres*, so the outermost half-window
+    at each end of the pattern has no measured background under it — the level
+    there comes from extending the two nearest knots (WP-1028 §(i)).  A line's
+    prominence is measured against that level, so a line inside the
+    extrapolated span is standing on a background nobody observed.
+
+    **Reported, not refused**: these are real intensity, just not necessarily
+    lines, and the consumer that can weigh that should be given the chance
+    (the same rule the indexing gate follows).  The flag is therefore absent
+    from :data:`~pxrdref.schemas.indexing.PEAK_UNUSABLE_FLAGS`.
+    """
+    from ..background.diagnostics import envelope_measured_span
+
+    if not peaks or len(two_theta) < 3:
+        return
+    lo, hi = envelope_measured_span(two_theta)
+    for peak in peaks:
+        if (peak.two_theta < lo or peak.two_theta > hi) and \
+                "background_extrapolated" not in peak.flags:
+            peak.flags = [*peak.flags, "background_extrapolated"]
 
 
 def _peaks_from_fits(fits: list[GroupFit], wavelength: float

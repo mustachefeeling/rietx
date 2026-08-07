@@ -8,6 +8,8 @@ suite carries no third-party data; the measured stories live in the WP file.
 
 from __future__ import annotations
 
+from typing import get_args
+
 import numpy as np
 import pytest
 
@@ -316,6 +318,65 @@ def test_the_march_bound_holds_through_the_parameter_table():
     x[k] = lo[k]
     assert table.decode(x)["phases.0.preferred_orientation.r"] == \
         pytest.approx(MARCH_R_MIN)
+
+
+# ----------------------------------------------------------------------
+# (i) the background envelope is extrapolated to the data edges, and a line
+#     standing on extrapolated background says so
+# ----------------------------------------------------------------------
+
+
+def test_the_envelope_no_longer_clamps_flat_below_its_first_knot():
+    # the mechanism: each knot's x is its window's *centre*, so the first sits
+    # half a window inside the data and np.interp clamps flat below it.  On a
+    # falling background that clamp is far under the truth and the whole first
+    # half-window reads as positive net
+    from pxrdref.background.diagnostics import background_envelope, envelope_measured_span
+
+    tt = np.arange(5.0, 60.0, 0.02)
+    truth = 1000.0 * np.exp(-(tt - 5.0) / 25.0)      # a falling background
+    env = background_envelope(tt, truth)
+    lo, _ = envelope_measured_span(tt)
+
+    assert lo > tt[0] + 1.0              # the first knot really is inside
+    # the envelope tracks the falling truth at the very first channel rather
+    # than sitting at the first knot's (much lower) level
+    assert env[0] == pytest.approx(truth[0], rel=0.05)
+    assert env[0] > truth[np.searchsorted(tt, lo)]
+
+
+def test_extrapolating_to_the_edges_only_extends():
+    from pxrdref.background.diagnostics import _extrapolate_to_edges
+
+    xs, ys = [2.0, 4.0, 6.0], [10.0, 8.0, 6.0]
+    x2, y2 = _extrapolate_to_edges(list(xs), list(ys), 1.0, 7.0)
+    assert x2 == [1.0, 2.0, 4.0, 6.0, 7.0]
+    assert y2 == pytest.approx([11.0, 10.0, 8.0, 6.0, 5.0])
+
+    # an edge already covered by a knot is left alone — a no-op, not a duplicate
+    same_x, same_y = _extrapolate_to_edges(list(xs), list(ys), 2.0, 6.0)
+    assert (same_x, same_y) == (xs, ys)
+
+
+def test_a_line_on_extrapolated_background_is_flagged_and_still_usable():
+    # report, don't refuse: the component is real intensity, just measured
+    # against a background nobody observed, so the flag is deliberately not in
+    # PEAK_UNUSABLE_FLAGS and is not a reuse of position_at_bound
+    from pxrdref.schemas.indexing import PEAK_UNUSABLE_FLAGS, PeakFlag
+
+    assert "background_extrapolated" in get_args(PeakFlag)
+    assert "background_extrapolated" not in PEAK_UNUSABLE_FLAGS
+
+
+def test_the_measured_span_matches_the_envelope_knots():
+    # the two must not drift apart: the span is where interpolation happens,
+    # which is exactly the first and last window centres
+    from pxrdref.background.diagnostics import envelope_measured_span
+
+    tt = np.arange(5.0, 150.0, 0.02)
+    lo, hi = envelope_measured_span(tt)
+    assert tt[0] < lo < tt[0] + 3.0
+    assert tt[-1] - 3.0 < hi <= tt[-1]
 
 
 # ----------------------------------------------------------------------
