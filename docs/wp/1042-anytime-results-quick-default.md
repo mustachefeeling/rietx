@@ -274,7 +274,7 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
   `wp1042-anytime-results-quick-default`. `### Inherited` folded into Context
   on arrival (still true; it became the "second constituency" section and the
   quick-fluorite row below is its payoff). Every number below: darwin/arm64
-  M4, this checkout's `[dev]` venv, serial unless said otherwise.
+  M4, this checkout's `[dev,jax,torch]` venv, serial unless said otherwise.
 
   **Task 0 — time-to-shortlist under the system-major scheduler** (acceptance
   protocols, `preset="full"`; "graded" = the first `consensus:<system>`

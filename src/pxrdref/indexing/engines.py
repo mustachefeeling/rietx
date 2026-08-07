@@ -1249,7 +1249,7 @@ def budget_exhausted_diagnostic(total_seconds: float,
 #: Whole-run ceiling (seconds) the ``quick`` preset fills into
 #: ``SearchSpec.total_budget_seconds`` when the caller has not declared one.
 #: Chosen from the task-0 re-measure under the system-major scheduler
-#: (WP-1042 handover, darwin/arm64 M4, ``[dev]`` venv): graded per-system
+#: (WP-1042 handover, darwin/arm64 M4, ``[dev,jax,torch]`` venv): graded per-system
 #: shortlists stream 0.5-35 s in across the known-cell corpus, so the ceiling
 #: is not what makes the default responsive — streaming is — and its job is
 #: the other end: bounding the newly searchable short lists (a 15-line list
@@ -1365,7 +1365,7 @@ MEASURED_VALIDATION_SECONDS: tuple[float, float] = (0.6, 44.0)
 
 #: Measured wall clock of a whole **unbounded** (``preset="full"``) run on the
 #: acceptance-protocol corpus (re-measured WP-1042 task 0, three engines,
-#: system-major scheduler, darwin/arm64 M4 ``[dev]``): runs that actually
+#: system-major scheduler, darwin/arm64 M4 ``[dev,jax,torch]``): runs that actually
 #: search land in this band — the top of it is corundum, whose dichotomy units
 #: alone now cost 77-200 s per system — and the abstaining runs finish under a
 #: second.  Quoted beside the arithmetic worst case because the two differ by
