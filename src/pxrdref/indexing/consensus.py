@@ -193,7 +193,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
               spec: SearchSpec | None = None,
               quality: DataQualityReport | None = None,
               top: int = CONSENSUS_CHECK_TOP,
-              cancel=None, ambiguity: bool = True) -> ConsensusOutcome:
+              cancel=None, ambiguity: bool = True,
+              priors: Sequence[EngineCandidate] = ()) -> ConsensusOutcome:
     """Merge, rank, classify and enumerate ambiguity — everything but validation.
 
     Order matters and it is the WP's: reduce and merge (so ``found_by`` is
@@ -215,9 +216,29 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     gate reads every candidate as unchecked (a capping caveat), so a streamed
     grade is conservative: it can rise when the full consensus runs, never
     fall.
+
+    ``priors`` (WP-1045) are checked prior cells (finder ``"prior"``, from
+    ``priors.build_prior_candidates``).  They join the *merge* — a prior that
+    is an engine candidate's lattice adds a ``found_by`` member and nothing
+    else — but a prior-only lattice **never enters the Borda ranking**: it is
+    ranked among its own kind and appended after the engine candidates.
+    Borda violates independence of irrelevant alternatives, so this is what
+    makes "a wrong prior changes no rank" structural rather than an empirical
+    hope.  ``"prior"`` is deliberately absent from ``engines_run``, so the
+    ordinary agreement caveat grades a prior-only candidate down with no new
+    gate vocabulary.
     """
+    from .priors import PRIOR_FINDER
+
     spec = spec or SearchSpec()
-    merged = merge_engine_candidates(results)
+    carrier: list[EngineResult] = []
+    if priors:
+        holder = EngineResult(engine=PRIOR_FINDER)
+        holder.candidates = list(priors)
+        carrier = [holder]
+    merged = merge_engine_candidates([*results, *carrier])
+    prior_only = [c for c in merged if c.found_by == [PRIOR_FINDER]]
+    merged = [c for c in merged if c.found_by != [PRIOR_FINDER]]
     # the same window the engines assigned with, re-derived from the same two
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
@@ -265,6 +286,18 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                           n_unindexed=spec.n_unindexed, q_match=q_match)
         for c in ranked]
+    if prior_only:
+        # ranked among their own kind only, appended after every engine
+        # candidate: a prior may not displace what the engines found
+        tail = rank_candidates(prior_only, peaks, k_sigma=spec.k_sigma,
+                               n_unindexed=spec.n_unindexed,
+                               max_candidates=spec.max_candidates
+                               or DEFAULT_MAX_CANDIDATES,
+                               q_match=q_match)
+        out.candidates += [
+            to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
+                              n_unindexed=spec.n_unindexed, q_match=q_match)
+            for c in tail]
     checked = set(checked_indices(out.candidates, out.engines_run, top=top))
     for i, cand in enumerate(out.candidates):
         cand.bravais = bravais_opinion(cand.cell, cand.centring,

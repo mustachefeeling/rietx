@@ -79,6 +79,8 @@ _ROUND_TRIP = {
     "preset": "quick",
     "max_candidates": 7,
     "seed": 3,
+    "prior_cells": [(4.76, 4.76, 12.99, 90.0, 90.0, 120.0)],
+    "prior_spacegroups": ["R -3 c"],
 }
 
 
@@ -93,7 +95,9 @@ def test_to_spec_carries_every_field():
         n_unindexed=1, n_search_lines=18, k_sigma=2.5,
         shift_allowance_deg=0.03, shift_template="constant",
         budget_seconds=12.0, total_budget_seconds=77.0,
-        max_candidates=7, seed=3)
+        max_candidates=7, seed=3,
+        prior_cells=((4.76, 4.76, 12.99, 90.0, 90.0, 120.0),),
+        prior_spacegroups=("R -3 c",))
 
 
 def test_the_models_defaults_are_the_dataclasss_defaults():

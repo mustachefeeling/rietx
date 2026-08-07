@@ -684,6 +684,14 @@ def index_pattern(peaks: PeakList | None = None, *,
     names = tuple(engines) if engines is not None else engine_names()
     top = CONSENSUS_CHECK_TOP if check_top is None else check_top
 
+    # analogue priors steer the queue (WP-1045): the systems they name run
+    # first, everything else keeps SYSTEM_ORDER — reordered, never narrowed
+    jumped: list[str] = []
+    if spec.prior_cells or spec.prior_spacegroups:
+        from .priors import prior_systems
+
+        jumped = prior_systems(spec)
+
     # the whole-run clock, if one was declared: a Deadline both *is* the token
     # every cooperative check reads (so it binds the engines, the probe and the
     # validation fits alike) and *carries* the caller's own token, so either
@@ -712,6 +720,9 @@ def index_pattern(peaks: PeakList | None = None, *,
     # counts become known — never a second per-engine ladder beside it, which
     # is what made a progress bar jump (two writers, one ``n_stages``)
     ordered_systems = [s for s in SYSTEM_ORDER if s in spec.systems]
+    if jumped:
+        ordered_systems = (jumped
+                           + [s for s in ordered_systems if s not in jumped])
     progress = Progress(stream, total=len(names) * len(ordered_systems),
                         deadline=deadline)
 
@@ -784,10 +795,23 @@ def index_pattern(peaks: PeakList | None = None, *,
         if hit is not None:
             trial.diagnostics.append(hit)
 
+    prior_cands, prior_reports = [], []
+    if spec.prior_cells or spec.prior_spacegroups:
+        # the stated cells, checked the engines' own way — what survives
+        # joins consensus as finder "prior", never as an engine
+        from .priors import build_prior_candidates
+
+        prior_cands, prior_reports = build_prior_candidates(
+            peaks, spec, quality)
     outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
-                        cancel=run_cancel)
+                        cancel=run_cancel, priors=prior_cands)
     if len(names) == 1:
         outcome.diagnostics.append(single_engine_diagnostic(names[0]))
+    if prior_reports:
+        from .priors import prior_used_diagnostic
+
+        outcome.diagnostics.append(prior_used_diagnostic(
+            prior_reports, jumped, outcome.candidates))
     checked = checked_indices(outcome.candidates, outcome.engines_run, top=top)
     validated = False
     slices_expired = 0
@@ -910,6 +934,11 @@ def _spec_notes(spec, names: Sequence[str], quality,
         "total_budget_seconds": (
             None if spec.total_budget_seconds is None
             else f"{spec.total_budget_seconds:g}"),
+        "prior_cells": None if not spec.prior_cells else "; ".join(
+            "(" + ", ".join(f"{v:g}" for v in c) + ")"
+            for c in spec.prior_cells),
+        "prior_spacegroups": (None if not spec.prior_spacegroups
+                              else "; ".join(spec.prior_spacegroups)),
     }
     return {
         "preset": preset,

@@ -257,6 +257,16 @@ class SearchSpec:
     #: seeded RNG for the stochastic engine; recorded in every result so a run
     #: is reproducible from what it reports
     seed: int = 0
+    #: analogue priors (WP-1045, ``indexing/priors.py``): cells and space-group
+    #: symbols an isostructural compound suggests.  A prior *steers* — its
+    #: system jumps the queue, its metric seeds ``search_svd``'s starting
+    #: basin, and the cell itself is checked against the peak list, entering
+    #: consensus as finder ``"prior"`` — and never *gates*: no system dropped,
+    #: no range changed, prior-only candidates appended after the ranked list
+    #: so a wrong prior costs time, never truth.  ``INDEX_PRIOR_USED`` records
+    #: what was supplied and what it changed.
+    prior_cells: tuple[tuple[float, float, float, float, float, float], ...] = ()
+    prior_spacegroups: tuple[str, ...] = ()
 
     def centrings_for(self, system: str) -> tuple[str, ...]:
         if self.centrings is not None and system in self.centrings:

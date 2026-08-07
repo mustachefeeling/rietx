@@ -183,6 +183,7 @@ from .engines import (
     solution_key,
 )
 from .fom import LINE_COINCIDENCE_RTOL
+from .priors import prior_seed_afs
 from .qspace import (
     af_from_cell,
     cell_from_af,
@@ -763,9 +764,30 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
     calls = 0
     complete = True
 
+    # analogue priors seed the starting basin (WP-1045): each prior metric of
+    # this system is one deliberate Table-1 start per centring, run BEFORE the
+    # random ladder and outside the N_c/N_o volume gate — that gate is a
+    # statistic about random starts, and a stated cell is not a random start.
+    # The caller's own box still binds: ``_keep`` holds a seeded candidate to
+    # the same ``vol_max`` and the same acceptance bar as every other one, so
+    # a prior can spend calls, never widen what is searchable.
+    prior_afs = prior_seed_afs(spec, system)
+
     for centring in spec.centrings_for(system):
         gate_lo, gate_hi = volume_window(len(q_search), system, centring, q_max,
                                          seed=spec.seed)
+        for af_p in prior_afs:
+            if budget.expired():
+                return found, _stats(calls, budget, zes), False
+            out = svd_trial(_project(af_p, basis), q_search, tt_search,
+                            i_search, basis, centring, peaks.wavelength,
+                            sigma=sig_search, trim=trim)
+            calls += 1
+            if out.converged and _keep(
+                    out.af, basis, system, centring, spec, peaks, q_all,
+                    sigma, tt_all, tt_max, search_lines, seen, found,
+                    vol_ceiling, ze=out.ze) > -np.inf:
+                zes.append(out.ze)
         v_lo = max(spec.min_volume, gate_lo)
         v_hi = min(vol_ceiling, gate_hi)
         if not (v_lo < v_hi):

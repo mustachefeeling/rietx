@@ -1117,6 +1117,44 @@ class SearchSpecSpec(Base):
         "unbounded pre-1.0 behaviour, one rerun away"))
     max_candidates: int = Field(12, ge=1)
     seed: int = 0
+    prior_cells: list[tuple[float, float, float, float, float, float]] | None = \
+        Field(None, description=(
+            "structural-analogue cells (a, b, c in Å; alpha, beta, gamma in "
+            "deg) to try FIRST — each one's crystal system jumps the search "
+            "queue, its metric seeds the stochastic engine's starting basin, "
+            "and the cell itself is checked against the peak list, entering "
+            "the answer as finder 'prior' only if it indexes the search "
+            "lines. A prior STEERS, never gates: no system dropped, no range "
+            "changed, prior-only candidates appended after the ranked list — "
+            "a wrong prior costs time, not truth — and INDEX_PRIOR_USED "
+            "records what was supplied and what it changed"))
+    prior_spacegroups: list[str] | None = Field(None, description=(
+        "space-group symbols from a structural analogue (e.g. 'R -3 c'): "
+        "each contributes its crystal system to the queue jump and, beside a "
+        "matching prior cell, its centring. What a powder measures is the "
+        "extinction symbol, so the symbol steers the search rather than "
+        "labelling the answer"))
+
+    @field_validator("prior_cells")
+    @classmethod
+    def _sane_prior_cells(cls, v):
+        for cell in v or ():
+            a, b, c, al, be, ga = cell
+            if min(a, b, c) <= 0.0:
+                raise ValueError(f"prior cell {cell} has a non-positive axis")
+            if not all(0.0 < x < 180.0 for x in (al, be, ga)):
+                raise ValueError(f"prior cell {cell} has an angle outside "
+                                 "(0, 180) degrees")
+        return v
+
+    @field_validator("prior_spacegroups")
+    @classmethod
+    def _known_prior_spacegroups(cls, v):
+        for symbol in v or ():
+            from ..indexing.priors import spacegroup_prior
+
+            spacegroup_prior(symbol)  # raises naming the symbol
+        return v
 
     @field_validator("systems")
     @classmethod
@@ -1183,7 +1221,9 @@ class SearchSpecSpec(Base):
             shift_template=self.shift_template,
             budget_seconds=self.budget_seconds,
             total_budget_seconds=self.total_budget_seconds,
-            max_candidates=self.max_candidates, seed=self.seed)
+            max_candidates=self.max_candidates, seed=self.seed,
+            prior_cells=tuple(tuple(c) for c in self.prior_cells or ()),
+            prior_spacegroups=tuple(self.prior_spacegroups or ()))
 
 
 class IndexingControls(Base):

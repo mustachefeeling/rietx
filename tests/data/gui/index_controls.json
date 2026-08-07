@@ -76,6 +76,8 @@
   "total_budget_seconds",
   "preset",
   "max_candidates",
-  "seed"
+  "seed",
+  "prior_cells",
+  "prior_spacegroups"
  ]
 }

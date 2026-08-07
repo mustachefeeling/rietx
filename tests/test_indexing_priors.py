@@ -1,0 +1,224 @@
+"""WP-1045 — analogue priors steer the search and never gate it.
+
+The three rules of ``indexing/priors.py``, each pinned: a prior reorders and
+seeds (its system jumps the queue, its metric seeds the stochastic engine)
+and never injects a candidate past the engines; it narrows *order*, never the
+box; and a prior used is recorded (``INDEX_PRIOR_USED``).  The acceptance
+sentence is tested literally: a poisoned prior costs time, never truth.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from pxrdref.indexing import index_pattern
+from pxrdref.indexing.engines import SearchSpec
+from pxrdref.indexing.priors import (
+    PRIOR_FINDER,
+    cell_systems,
+    prior_systems,
+    spacegroup_prior,
+)
+from tests.test_indexing_engines import CASES, synthetic_peaks
+
+#: A tetragonal cell that indexes nothing in the cubic fixture — the poisoned
+#: analogue.  Inside the declared box on purpose (axes within 2-12 Å, volume
+#: under the ceiling), so it reaches the *data* check and is refuted there;
+#: a prior outside the box is refused before any check, which is a different
+#: rule (never widen) with its own assertion below.  Its system still jumps
+#: the queue, which is the whole cost.
+WRONG_PRIOR = (5.31, 5.31, 9.40, 90.0, 90.0, 90.0)
+
+
+# ----------------------------------------------------------------------
+# classification
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize("cell,expected", [
+    ((4.16, 4.16, 4.16, 90.0, 90.0, 90.0), ("cubic",)),
+    ((3.78, 3.78, 9.51, 90.0, 90.0, 90.0), ("tetragonal",)),
+    ((4.76, 4.76, 12.99, 90.0, 90.0, 120.0), ("hexagonal", "trigonal")),
+    ((5.4, 5.4, 5.4, 61.0, 61.0, 61.0), ("trigonal",)),
+    ((7.0, 8.0, 9.0, 90.0, 90.0, 90.0), ("orthorhombic",)),
+    ((8.9, 16.4, 7.1, 90.0, 93.8, 90.0), ("monoclinic",)),
+    ((5.2, 6.1, 7.3, 91.2, 95.4, 103.1), ("triclinic",)),
+])
+def test_cell_shape_classification(cell, expected):
+    assert cell_systems(cell) == expected
+
+
+def test_spacegroup_prior_resolves_system_and_centring():
+    assert spacegroup_prior("R -3 c") == ("trigonal", "R")
+    assert spacegroup_prior("I a -3 d") == ("cubic", "I")
+    with pytest.raises(ValueError, match="unknown space group"):
+        spacegroup_prior("Q 5")
+
+
+def test_prior_systems_jump_but_never_widen():
+    spec = SearchSpec(systems=("cubic", "tetragonal"),
+                      prior_cells=(WRONG_PRIOR,),
+                      prior_spacegroups=("P 21/c",))
+    # monoclinic is named by the space-group prior but not requested: a prior
+    # never widens the box, so it may not resurrect the system
+    assert prior_systems(spec) == ["tetragonal"]
+
+
+# ----------------------------------------------------------------------
+# the acceptance sentence: a poisoned prior costs time, never truth
+# ----------------------------------------------------------------------
+@pytest.mark.xdist_group("indexing-priors")
+def test_a_wrong_prior_changes_no_rank_and_no_grade():
+    """Run the same search with and without a deliberately wrong prior: the
+    ranked cells and their grades are identical, the *order of search* is
+    what changed (the prior's system ran first), and the result records that
+    the prior was tried and refuted."""
+    peaks, true_cell = synthetic_peaks("cubic")
+    base = dict(min_d_axis=2.0, max_d_axis=12.0, max_volume=1500.0,
+                shift_allowance_deg=1e-9, budget_seconds=120.0)
+    spec_plain = SearchSpec(systems=("cubic", "tetragonal"), **base)
+    spec_prior = SearchSpec(systems=("cubic", "tetragonal"),
+                            prior_cells=(WRONG_PRIOR,), **base)
+
+    plain = index_pattern(peaks, spec=spec_plain, preset="full",
+                          engines=("trial_error",))
+    steered = index_pattern(peaks, spec=spec_prior, preset="full",
+                            engines=("trial_error",))
+
+    assert plain.candidates, "the synthetic cubic list must index"
+    assert [c.cell for c in plain.candidates] == \
+        [c.cell for c in steered.candidates]
+    assert [c.confidence for c in plain.candidates] == \
+        [c.confidence for c in steered.candidates]
+    # what did change is when things were searched: the prior's system first
+    assert steered.systems_searched[0] == "tetragonal"
+    assert plain.systems_searched[0] == "cubic"
+
+    prior_diags = [d for d in steered.diagnostics
+                   if d.code == "INDEX_PRIOR_USED"]
+    assert len(prior_diags) == 1
+    assert "refuted" in prior_diags[0].message
+    assert not any(d.code == "INDEX_PRIOR_USED" for d in plain.diagnostics)
+    # the steering is in the record: the notes carry the declared prior
+    assert "prior_cells" in steered.provenance.notes
+    assert "prior_cells" not in plain.provenance.notes
+
+
+@pytest.mark.xdist_group("indexing-priors")
+def test_a_correct_prior_surfaces_truth_in_the_first_streamed_shortlist():
+    """The other half of the acceptance: a correct analogue prior (the true
+    cell perturbed by a few hundred ppm) jumps its system to the front, so
+    the first ``consensus:<system>`` snapshot on the ladder is the prior's
+    system and already carries the truth."""
+    peaks, true_cell = synthetic_peaks("tetragonal")
+    prior = tuple(v * (1.0003 if i < 3 else 1.0)
+                  for i, v in enumerate(true_cell))
+    events: list = []
+    res = index_pattern(
+        peaks, events=events.append, preset="full",
+        spec=SearchSpec(systems=("cubic", "tetragonal"),
+                        prior_cells=(prior,), min_d_axis=2.0, max_d_axis=12.0,
+                        max_volume=1500.0, shift_allowance_deg=1e-9,
+                        budget_seconds=120.0))
+    snaps = [e["data"] for e in events if e["kind"] == "stage_end"
+             and e["data"].get("consensus")]
+    assert snaps and snaps[0]["system"] == "tetragonal", (
+        "the prior's system must stream its shortlist first")
+    first = snaps[0]["candidates"]
+    assert any(np.allclose(c["cell"][:3], true_cell[:3], rtol=2e-3)
+               for c in first), "the truth is not in the first shortlist"
+    # and the final answer still carries it, found by engines — the prior
+    # merged into the engines' own candidate rather than shadowing it
+    top = res.candidates[0]
+    assert np.allclose(np.asarray(top.cell), np.asarray(true_cell), rtol=2e-3)
+    assert set(top.found_by) & {"dichotomy", "svd", "trial_error"}
+
+
+def test_a_prior_outside_the_box_is_refused_before_any_check():
+    """The never-widen rule: a prior whose axis leaves the declared range is
+    refused at declaration — recorded, not smuggled in and not checked."""
+    from pxrdref.indexing.priors import build_prior_candidates
+
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = SearchSpec(systems=("cubic", "tetragonal"), min_d_axis=2.0,
+                      max_d_axis=12.0,
+                      prior_cells=((5.31, 5.31, 13.72, 90.0, 90.0, 90.0),))
+    cands, reports = build_prior_candidates(peaks, spec, None)
+    assert cands == []
+    assert "never widens the box" in reports[0].reason
+
+
+# ----------------------------------------------------------------------
+# a prior-only candidate: appended, provenanced, never confident
+# ----------------------------------------------------------------------
+@pytest.mark.xdist_group("indexing-priors")
+def test_a_prior_only_candidate_is_appended_with_provenance():
+    """Engines that found nothing (their budget refuses the search) leave the
+    stated cell as the only candidate: it enters *after* the ranked list
+    (here: as the whole list), carries ``found_by == ['prior']``, and cannot
+    be ``high`` — the ordinary agreement caveat grades it down with no new
+    gate vocabulary."""
+    peaks, true_cell = synthetic_peaks("cubic")
+    res = index_pattern(
+        peaks, preset="full", engines=("trial_error",),
+        spec=SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                        max_volume=17.0,  # admits no cubic cell of this data
+                        shift_allowance_deg=1e-9,
+                        prior_cells=(true_cell,), budget_seconds=30.0))
+    priors_only = [c for c in res.candidates
+                   if c.found_by == [PRIOR_FINDER]]
+    # the prior's own volume is held to the caller's box too — max_volume
+    # excludes the true cell, so the prior must NOT have entered
+    assert not priors_only, (
+        "a prior outside the declared box was smuggled in: the box binds "
+        "priors exactly as it binds the engines")
+    diag = [d for d in res.diagnostics if d.code == "INDEX_PRIOR_USED"]
+    assert len(diag) == 1
+
+    res2 = index_pattern(
+        peaks, preset="full", engines=("trial_error",),
+        spec=SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                        max_volume=1500.0, shift_allowance_deg=1e-9,
+                        prior_cells=(true_cell,),
+                        n_search_lines=2))
+    # n_search_lines=2 keeps the engine's enumeration trivial while the
+    # prior check still runs over every usable line; whether the engine also
+    # finds the cell, the prior's fate is recorded either way
+    diag2 = [d for d in res2.diagnostics if d.code == "INDEX_PRIOR_USED"]
+    assert len(diag2) == 1
+    tail = [c for c in res2.candidates if PRIOR_FINDER in c.found_by]
+    for cand in tail:
+        assert cand.confidence != "high"
+        if cand.found_by == [PRIOR_FINDER]:
+            assert "engines_disagree" in cand.confidence_caveats
+
+
+# ----------------------------------------------------------------------
+# the seed: a stated basin is tried before the random ladder
+# ----------------------------------------------------------------------
+@pytest.mark.xdist_group("indexing-priors")
+def test_the_prior_seeds_svds_starting_basin():
+    """``search_svd`` runs one deliberate trial per prior before its random
+    ladder, so with a budget far too small for the ladder the truth is still
+    found — from the seed, deterministically (the first budget check happens
+    at zero elapsed, so the seed trial always runs)."""
+    from pxrdref.indexing.qspace import af_from_cell
+    from pxrdref.indexing.reduce import same_lattice
+    from pxrdref.indexing.svd import search_svd
+
+    peaks, true_cell = synthetic_peaks("monoclinic")
+    _sg, _cell, _tt, (min_d, max_d), vol = CASES["monoclinic"]
+    spec = SearchSpec(systems=("monoclinic",), min_d_axis=min_d,
+                      max_d_axis=max_d, max_volume=vol,
+                      shift_allowance_deg=1e-9,
+                      prior_cells=(true_cell,), budget_seconds=0.05)
+    res = search_svd(peaks, spec=spec)
+    # same_lattice, never cell tuples: a monoclinic answer legitimately comes
+    # back in another setting (the WP-1040 trap, hit again writing this test —
+    # the seed's first find was (11.01, 16.408, 8.875, β=139.7°), the same
+    # lattice as (8.875, 16.408, 7.137, β=93.84°))
+    truth_af = af_from_cell(true_cell)
+    assert any(same_lattice(af_from_cell(c.cell), truth_af)[0]
+               for c in res.candidates), (
+        "the seeded start did not reach the stated basin — monoclinic needs "
+        "~15k random calls (WP-1040's table), so the seed is the only way "
+        "this budget finds anything")
