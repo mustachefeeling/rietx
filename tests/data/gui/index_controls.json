@@ -1,0 +1,81 @@
+{
+ "control_fields": [
+  "engines",
+  "validate_candidates",
+  "check_top"
+ ],
+ "enums": {
+  "centrings": {
+   "cubic": [
+    "P",
+    "I",
+    "F"
+   ],
+   "hexagonal": [
+    "P"
+   ],
+   "monoclinic": [
+    "P",
+    "C"
+   ],
+   "orthorhombic": [
+    "P",
+    "C",
+    "I",
+    "F"
+   ],
+   "tetragonal": [
+    "P",
+    "I"
+   ],
+   "triclinic": [
+    "P"
+   ],
+   "trigonal": [
+    "P",
+    "R"
+   ]
+  },
+  "engines": [
+   "dichotomy",
+   "svd",
+   "trial_error"
+  ],
+  "presets": [
+   "full",
+   "quick"
+  ],
+  "shift_templates": [
+   "constant",
+   "cos_theta",
+   "sin_2theta"
+  ],
+  "systems": [
+   "cubic",
+   "hexagonal",
+   "trigonal",
+   "tetragonal",
+   "orthorhombic",
+   "monoclinic",
+   "triclinic"
+  ]
+ },
+ "search_fields": [
+  "systems",
+  "centrings",
+  "min_d_axis",
+  "max_d_axis",
+  "min_volume",
+  "max_volume",
+  "n_unindexed",
+  "n_search_lines",
+  "k_sigma",
+  "shift_allowance_deg",
+  "shift_template",
+  "budget_seconds",
+  "total_budget_seconds",
+  "preset",
+  "max_candidates",
+  "seed"
+ ]
+}

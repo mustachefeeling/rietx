@@ -66,7 +66,13 @@ from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
 from .report.schemas import FitReport
 from .schemas.common import Base, Mode
-from .schemas.indexing import IndexingEvidence, IndexingResult, PeakList
+from .schemas.indexing import (  # noqa: F401 — re-exports (WP-1045)
+    IndexingControls,
+    IndexingEvidence,
+    IndexingResult,
+    PeakList,
+    SearchSpecSpec,
+)
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
 
@@ -110,12 +116,13 @@ _PRESET_DESC = (
     "unset; 'full' runs unbounded (the pre-1.0 behaviour). Setting your own "
     "total_budget_seconds overrides the preset's and the result records "
     "preset='custom'")
-_SYSTEM_DESC = (
-    "crystal systems to search (default: all, in decreasing symmetry — "
-    + ", ".join(SYSTEM_ORDER)
-    + "). A restricted search is not a verdict: the result reports "
-    "systems_searched and INDEX_SYSTEMS_NOT_COVERED rather than concluding "
-    "anything about the specimen")
+_SEARCH_DESC = (
+    "search bounds and budgets — one spec every engine reads, so their "
+    "agreement means one search. systems: default all, in decreasing "
+    "symmetry (" + ", ".join(SYSTEM_ORDER)
+    + "); a restricted search is not a verdict — the result reports "
+    "systems_searched and INDEX_SYSTEMS_NOT_COVERED rather than "
+    "concluding anything about the specimen. preset: " + _PRESET_DESC)
 
 
 class SharingSpec(Base):
@@ -263,114 +270,6 @@ class SequentialRefineRequest(_RequestBase):
         return self
 
 
-class SearchSpecSpec(Base):
-    """Mirrors ``indexing.engines.SearchSpec``; every engine reads the same one.
-
-    Flat and complete rather than a handful of convenience knobs, because the
-    engines' **agreement** is the confidence and that only means something if they
-    were given identical bounds: a per-engine option would make ``high`` a
-    statement about two different searches.
-    """
-
-    systems: list[str] | None = Field(None, description=_SYSTEM_DESC)
-    min_d_axis: float = Field(2.0, gt=0.0, description=(
-        "shortest principal d-spacing (Å) to consider — a bound on d(100), which "
-        "for an oblique cell is slightly stronger than a bound on a"))
-    max_d_axis: float = Field(25.0, gt=0.0, description=(
-        "longest principal d-spacing (Å); raising it costs exponentially, since "
-        "domain size is what an exhaustive search pays for"))
-    min_volume: float = Field(15.0, gt=0.0)
-    max_volume: float | None = Field(None, description=(
-        "cell-volume ceiling (Å³); None takes Smith's (1977) per-system envelope "
-        "from the data-quality report, which differs by up to 96x across systems"))
-    n_unindexed: int = Field(2, ge=0, description=(
-        "search lines a cell may leave unindexed and still be accepted. Raising "
-        "it MANUFACTURES cells — every tolerated line is one more coincidence a "
-        "wrong metric is allowed — so 2 is a default and 4 is a statement about "
-        "the specimen"))
-    n_search_lines: int = Field(20, ge=2, description=(
-        "observed lines the search is DRIVEN by — the strongest N, scored "
-        "afterwards against every usable line. Raising it is not free and not "
-        "safe: a cell must index all but n_unindexed of THESE, an absolute "
-        "budget, so every extra foreign line admitted can refute the true cell "
-        "rather than merely rank it lower (measured: a 68-line list loses its "
-        "certified lattice entirely at 32)"))
-    k_sigma: float = Field(3.0, gt=0.0, description=(
-        "matching window in units of each line's own sigma; 3 is a calibrated "
-        "99.7 % window, not a knob"))
-    shift_allowance_deg: float = Field(0.0, ge=0.0, description=(
-        "systematic 2theta allowance (deg) you have MEASURED, e.g. from an "
-        "internal standard — the shift's AMPLITUDE the matching window must "
-        "span (ShiftScreen.allowance_deg), never the residual scatter a "
-        "template leaves (ShiftScreen.sigma_sys_deg): the two differ 4.3x on "
-        "a certified pattern and declaring the scatter finds no cell at all. "
-        "Leave 0 and the engines assume 0.05 deg and say so with "
-        "INDEX_SHIFT_ALLOWANCE — which caps confidence, because a cell found "
-        "inside a widened window absorbs the shift (+1400 ppm measured)"))
-    shift_template: str | None = Field(None, description=(
-        "'constant' | 'cos_theta' | 'sin_2theta' — re-fit a surviving candidate "
-        "with this shift column, which is the fix for the allowance above; a "
-        "shift is only identifiable against reference positions and a candidate "
-        "cell is what supplies them"))
-    budget_seconds: float = Field(30.0, gt=0.0, description=(
-        "wall clock per (engine x crystal system) SLICE of the search, not per "
-        "run: a default two-engine, seven-system call is up to 2x7x30 s of "
-        "search before the probe and validation. An engine stopped by it "
-        "reports search_complete[system] = false, and a negative result there "
-        "is not evidence. total_budget_seconds is the whole-run bound"))
-    total_budget_seconds: float | None = Field(None, gt=0.0, description=(
-        "wall-clock ceiling for the WHOLE run — search, probe and validation "
-        "together. The run still returns a complete IndexingResult over what "
-        "was reached; systems_searched/search_complete distinguish searched, "
-        "truncated and not reached, and INDEX_BUDGET_EXHAUSTED names them. "
-        "None (default) leaves the ceiling to `preset`; setting it overrides "
-        "the preset's and the result records preset='custom'"))
-    preset: str | None = Field(None, description=_PRESET_DESC)
-    max_candidates: int = Field(12, ge=1)
-    seed: int = 0
-
-    @field_validator("systems")
-    @classmethod
-    def _known_systems(cls, v):
-        for name in v or ():
-            if name not in SYSTEM_ORDER:
-                raise ValueError(f"unknown crystal system {name!r}; "
-                                 f"available: {', '.join(SYSTEM_ORDER)}")
-        return v
-
-    @field_validator("shift_template")
-    @classmethod
-    def _known_template(cls, v):
-        from .schemas.indexing import SHIFT_TEMPLATES
-
-        if v is not None and v not in SHIFT_TEMPLATES:
-            raise ValueError(f"unknown shift template {v!r}; "
-                             f"available: {', '.join(SHIFT_TEMPLATES)}")
-        return v
-
-    @field_validator("preset")
-    @classmethod
-    def _known_preset(cls, v):
-        if v is not None and v not in SEARCH_PRESETS:
-            raise ValueError(f"unknown search preset {v!r}; "
-                             f"available: {', '.join(SEARCH_PRESETS)}")
-        return v
-
-    def to_spec(self):
-        from .indexing import SearchSpec
-
-        return SearchSpec(
-            systems=tuple(self.systems) if self.systems else SYSTEM_ORDER,
-            min_d_axis=self.min_d_axis, max_d_axis=self.max_d_axis,
-            min_volume=self.min_volume, max_volume=self.max_volume,
-            n_unindexed=self.n_unindexed, n_search_lines=self.n_search_lines,
-            k_sigma=self.k_sigma, shift_allowance_deg=self.shift_allowance_deg,
-            shift_template=self.shift_template,
-            budget_seconds=self.budget_seconds,
-            total_budget_seconds=self.total_budget_seconds,
-            max_candidates=self.max_candidates, seed=self.seed)
-
-
 class IndexRequest(Base):
     """Unit-cell determination → ``indexing`` (an ``IndexingResult``).
 
@@ -400,12 +299,17 @@ class IndexRequest(Base):
         "required with `pattern`; also what makes the cell's Bragg-Brentano "
         "systematic quantifiable (INDEX_CELL_SYSTEMATIC_UNQUANTIFIED)"))
     engines: list[str] | None = Field(None, description=_ENGINE_DESC)
-    search: SearchSpecSpec = Field(default_factory=SearchSpecSpec)
+    search: SearchSpecSpec = Field(default_factory=SearchSpecSpec,
+                                   description=_SEARCH_DESC)
     two_theta_limits: tuple[float, float] | None = None
     validate_candidates: bool = Field(True, description=(
         "run the whole-profile Le Bail validation when a pattern is available; "
         "turning it off caps every candidate at medium, so do it only to save "
         "time on a first look"))
+    check_top: int | None = Field(None, ge=1, description=(
+        "candidates given the expensive per-candidate checks (geometrical "
+        "ambiguity + Le Bail validation); None = the package default plus "
+        "every candidate the gate could promote"))
 
     @field_validator("engines")
     @classmethod
@@ -538,7 +442,7 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
             req.peaks, data=req.pattern, instrument=req.instrument,
             spec=req.search.to_spec(), preset=req.search.preset,
             engines=req.engines,
-            validate=req.validate_candidates,
+            validate=req.validate_candidates, check_top=req.check_top,
             two_theta_limits=req.two_theta_limits)
         # evidence() is a projection computed here, at serialisation time,
         # from the answer beside it — the two arms cannot disagree

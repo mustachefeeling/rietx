@@ -388,8 +388,10 @@ def test_schemas_quote_every_live_registry_member():
     reach.
     """
     text = json.dumps(ag.request_schema())
+    from pxrdref.indexing import SEARCH_PRESETS
+
     for name in (*BACKEND_NAMES, *SOLVERS, *PLAN_PRESETS, *engine_names(),
-                 *SYSTEM_ORDER):
+                 *SYSTEM_ORDER, *SEARCH_PRESETS):
         assert name in text, f"{name!r} missing from the exported schema"
 
 

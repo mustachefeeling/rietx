@@ -891,21 +891,39 @@ def _spec_notes(spec, names: Sequence[str], quality,
     would need and which is therefore recorded whether one ran or not.
     ``preset`` is the name that governed the ceiling (WP-1042), so the two keys
     read together: ``full`` writes no ``total_budget_seconds`` because it sets
-    none."""
+    none.  Since WP-1045 **every** ``SearchSpec`` field is here — the optional
+    narrowings (``centrings``, ``max_volume``, ``shift_template``) only when
+    declared, because for those the absence *is* the record (the envelope came
+    from the quality report beside this, and no template was adopted) — so two
+    chairs handing identical controls to this run produce identical notes,
+    which is what the WP's acceptance asserts.
+    """
+    optional = {
+        "max_volume": None if spec.max_volume is None else (
+            f"{spec.max_volume:g}" if not isinstance(spec.max_volume, dict)
+            else ", ".join(f"{s}:{v:g}"
+                           for s, v in sorted(spec.max_volume.items()))),
+        "centrings": None if spec.centrings is None else (
+            "; ".join(f"{s}:{''.join(spec.centrings_for(s))}"
+                      for s in sorted(spec.centrings))),
+        "shift_template": spec.shift_template,
+        "total_budget_seconds": (
+            None if spec.total_budget_seconds is None
+            else f"{spec.total_budget_seconds:g}"),
+    }
     return {
         "preset": preset,
         "engines": ", ".join(names),
         "systems": ", ".join(spec.systems),
         "d_axis_range_A": f"{spec.min_d_axis:g}-{spec.max_d_axis:g}",
+        "min_volume": f"{spec.min_volume:g}",
         "n_unindexed": str(spec.n_unindexed),
         "n_search_lines": str(spec.n_search_lines),
         "k_sigma": f"{spec.k_sigma:g}",
         "shift_allowance_deg": f"{spec.shift_allowance_deg:g}",
         "budget_seconds": f"{spec.budget_seconds:g}",
-        # only when one is set — under ``full`` there is nothing to record,
-        # and the absence *is* the record
-        **({"total_budget_seconds": f"{spec.total_budget_seconds:g}"}
-           if spec.total_budget_seconds is not None else {}),
+        "max_candidates": str(spec.max_candidates),
+        **{k: v for k, v in optional.items() if v is not None},
         "seed": str(spec.seed),
         "indexing_thresholds_version": quality.thresholds_version,
     }
