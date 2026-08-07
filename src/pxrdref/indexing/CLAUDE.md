@@ -158,7 +158,10 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   the list* under a wrong leader is what this package produces most, and collapsing
   it into right-or-wrong is how the old board named nine datasets under a total of
   eight. It is **generated** by `tests/indexing_gallery.py`, so re-measure by running
-  the suite; counts live in the v1.0 dossier, never retyped here (WP-1041).
+  the suite; counts live in the v1.0 dossier, never retyped here (WP-1041). And
+  **say "high-symmetry" whenever the board is quoted** (WP-1043): nine of ten
+  known-cell datasets sit at ≤ 2 free metric parameters, so every claim from it
+  is about high-symmetry lattices until the corpus moves — post-v1.
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And

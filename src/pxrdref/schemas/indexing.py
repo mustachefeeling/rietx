@@ -163,11 +163,19 @@ PEAK_ASYMMETRY_MIN_SIGMA = 4.0
 # ----------------------------------------------------------------------
 # List level
 # ----------------------------------------------------------------------
-#: Usable lines below which the list is reported too short to index.  Twenty is
-#: not a round number: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are both defined
-#: on the first twenty lines, and Smith's (1977) volume envelope is quoted at
-#: N = 20, so a shorter list cannot be scored by the figures of merit the
-#: engines rank on.
+#: Usable lines below which the list cannot be **scored** — the bar for the
+#: figures of merit only, never for the search (WP-1043).  Twenty is not a round
+#: number: de Wolff's M₂₀ and Smith & Snyder's F₂₀ are both defined on the first
+#: twenty lines, and Smith's (1977) volume envelope is quoted at N = 20.  It is
+#: **not** a precondition for searching — a search needs enough lines to
+#: over-determine the metric, which is :data:`MIN_LINES_PER_DOF`'s per-system
+#: question (18 lines against cubic's one free parameter is eighteen-fold
+#: over-determined).  Conflating the two was measured to refuse a question the
+#: package answers perfectly: fluorite's 18 clean lines, which all three engines
+#: index at −5 ppm.  Below this bar the panel shrinks by the same members for
+#: every candidate (``fom.panel_undefined``), each absent figure is reported
+#: with its reason on ``DataQualityReport.fom_undefined``, and the
+#: ``fom_panel_reduced`` caveat caps confidence at ``"medium"``.
 PEAK_MIN_USABLE_LINES = 20
 # ----------------------------------------------------------------------
 # Data quality (WP-1019)
@@ -344,10 +352,17 @@ Confidence = Literal["high", "medium", "low"]
 #: ``validation_failed`` — the Le Bail fit raised or diverged, which is evidence
 #: about the candidate and is kept distinct from ``not_validated`` (no fit was
 #: attempted): absence of a test and a failed test are not the same statement.
+#: ``fom_panel_reduced`` — the list is below :data:`PEAK_MIN_USABLE_LINES`, so
+#: the panel that ranked this candidate lacks the classical figures
+#: (``DataQualityReport.fom_undefined`` names them with reasons); the ranking
+#: stands, the scoring does not, and ``"high"`` stays exactly as unreachable as
+#: the pre-WP-1043 abstention made it — capping, not refuting, because a short
+#: list is not evidence *against* a cell.
 IndexCaveat = Literal[
     "engines_disagree",
     "geometric_ambiguity",
     "fom_panel_disagrees",
+    "fom_panel_reduced",
     "not_validated",
     "validation_failed",
     "predicted_but_absent",
@@ -404,7 +419,26 @@ PeakFlag = Literal[
     "asymmetry_unmodelled",
     "not_separable",
     "background_extrapolated",
+    "axial_tail",
+    "kalpha2_residual",
 ]
+
+#: FWHM multiple within which a weak component may be read as a stronger
+#: group-mate's **axial-divergence tail** (WP-1043, acting on WP-1028's
+#: census).  3.5 spans the measured census — the farthest SRM 660c tail sits
+#: 2.99 fitted FWHM out — with margin.  This is nevertheless not the distance
+#: knob the census ruled out (widening ``PEAK_SATELLITE_NEAR_FWHM`` reaches
+#: four of six): the screen is **one-sided**, requiring the offset's sign to
+#: match the aberration's 90° flip — tails point to low 2θ below 90° and to
+#: high 2θ above it, and nothing else in a powder pattern flips there — which
+#: is a physics signature ``PEAK_SATELLITE_NEAR_FWHM`` could never express.
+#: Both flags this screen family writes are deliberately absent from
+#: :data:`PEAK_UNUSABLE_FLAGS`: measured across the six real lab patterns the
+#: screens hit 11 further usable components nobody has verified, so refusing
+#: them blind risks losing real lines — the flag reports the evidence and the
+#: consumer judges, the same rule as ``background_extrapolated`` and the
+#: WP-1043 gate itself.
+PEAK_AXIAL_TAIL_MAX_FWHM = 3.5
 
 #: Flags that take a line out of :meth:`PeakList.usable`.  ``sigma_assumed``
 #: and ``unresolved_shoulder`` are deliberately absent: those lines are still
@@ -931,10 +965,17 @@ class ShiftScreen(Base):
 class DataQualityReport(Base):
     """Is this peak list fit to index, and what does it already say?
 
-    ``supports_indexing`` is read by ``index_pattern`` before any budget is
-    spent, and **abstention is a result**: a list that cannot support a search
-    comes back with ``supports_indexing = False`` and a reason, never as an
-    exception and never as a ranked list of cells with nothing behind it.
+    ``supports_indexing`` answers "can this list be **searched**" — the
+    per-system :data:`MIN_LINES_PER_DOF` question plus the precision floor —
+    and is read by ``index_pattern`` before any budget is spent.  **Abstention
+    is a result**: a list that cannot support a search in any system comes back
+    with ``supports_indexing = False`` and a reason, never as an exception and
+    never as a ranked list of cells with nothing behind it.  "Can it be
+    **scored**" is a separate, weaker precondition (WP-1043): a list short of
+    :data:`PEAK_MIN_USABLE_LINES` is still searched over
+    ``systems_supported``, with the undefined figures named in
+    ``fom_undefined`` and confidence capped by the ``fom_panel_reduced``
+    caveat.
 
     Every threshold this verdict rests on is a module constant in
     ``schemas/indexing.py`` with its reasoning, and ``thresholds_version``
@@ -961,6 +1002,12 @@ class DataQualityReport(Base):
     lines_per_dof: dict[str, float] = Field(default_factory=dict)
     #: systems this list can support a search in at all
     systems_supported: list[str] = Field(default_factory=list)
+    #: figures of merit undefined on this list, name → reason (WP-1043).  A
+    #: property of the *peak list* — its line count — not of any candidate, so
+    #: the panel shrinks by exactly these members for every candidate alike and
+    #: Borda ranks over what remains.  Filled from ``fom.panel_undefined``, the
+    #: one authority; empty at or above :data:`PEAK_MIN_USABLE_LINES`.
+    fom_undefined: dict[str, str] = Field(default_factory=dict)
     #: Smith (1977) envelope on the unit-cell volume, Å³, from d at the N-th
     #: line — the default ``max_volume`` for a search, **per system** because the
     #: bound differs by up to 96× across them (a cubic F lattice shows ~96× fewer
@@ -973,6 +1020,99 @@ class DataQualityReport(Base):
     abstained_reason: str | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+class CaveatEvidence(Base):
+    """One caveat, carrying the half the gate never serialized: its **kind**.
+
+    ``confidence_caveats`` is a bare name list, and whether a member *refutes*
+    the cell or merely *caps* its grade lives in
+    :data:`INDEX_REFUTING_CAVEATS` — a package constant a JSON consumer cannot
+    see.  An agent told ``predicted_but_absent`` and ``not_validated`` in the
+    same breath needs to know the first argues against the cell and the second
+    only says a question was never asked; that distinction is what this model
+    puts in the answer (WP-1043).
+    """
+
+    name: IndexCaveat
+    kind: Literal["refuting", "capping"]
+
+
+class CandidateEvidence(Base):
+    """One candidate's evidence, collected for a consumer that can reason.
+
+    **No new physics** — every field is a projection of
+    :class:`CellCandidate`, assembled so the inputs to the gate's judgement
+    arrive together instead of scattered (WP-1043).  The magnetite pair is the
+    argument for the three whole-profile figures sitting side by side: on the
+    correct cell ``predicted_but_absent`` reads 2 and on its wrong rival **0**
+    — the detector is backwards there — while Rwp reads 0.2545 against 0.7884.
+    A reasoner given both can see the detector has failed; the gate, reading
+    one number, cannot.  That is an argument for *surfacing* Rwp, never for
+    scoring on it: WP-1020 kept ``lebail_rwp`` off the ranking panel because
+    it rewards flexibility, and the retraction recorded in WP-1043 is what
+    reading it as evidence cost once already.
+    """
+
+    #: position in ``IndexingResult.candidates`` — candidates arrive ranked,
+    #: so 0 is the panel's first choice, and this index is what
+    #: adopt/extinction calls address
+    index: int
+    cell: tuple[float, float, float, float, float, float]
+    cell_esd: tuple[float, float, float, float, float, float]
+    system: str
+    centring: str
+    volume: float
+    confidence: Confidence
+    #: every caveat with its refuting/capping kind — the field
+    #: ``confidence_caveats`` withholds
+    caveats: list[CaveatEvidence] = Field(default_factory=list)
+    found_by: list[str] = Field(default_factory=list)
+    n_indexed: int = 0
+    n_lines: int = 0
+    #: the panel members that ranked this candidate, name → value.  Which
+    #: members exist is a property of the peak list, not of the candidate —
+    #: ``IndexingEvidence.fom_undefined`` names the absent ones with reasons
+    fom: dict[str, float] = Field(default_factory=dict)
+    #: ``True`` when a Le Bail fit ran on *this* candidate — distinct from
+    #: ``IndexingResult.validated`` (a pattern was supplied at all): under a
+    #: budget the shortlist can be validated only partway down
+    validated: bool = False
+    lebail_status: str | None = None
+    lebail_rwp: float | None = None
+    predicted_but_absent: int | None = None
+    unmatched_observed: int | None = None
+    ambiguity_partners: int = 0
+
+
+class IndexingEvidence(Base):
+    """The reasoning consumer's view of an :class:`IndexingResult` (WP-1043).
+
+    The gate returns three levels and ``best_or_none()``; a consumer that can
+    reason wants the *inputs* to that judgement.  This is those inputs in one
+    machine-readable place: per candidate the caveats with kinds, the ranked
+    figures beside the names of the ones that could not be computed, and the
+    three whole-profile numbers together; result-wide, what the search
+    covered and what the list supports.  Everything here is a projection —
+    built by :meth:`IndexingResult.evidence` from the fields the result
+    already carries, so the two can never disagree.
+    """
+
+    candidates: list[CandidateEvidence] = Field(default_factory=list)
+    #: what the search covered — tried, and per system whether the domain was
+    #: exhausted (the two answer different questions; see ``IndexingResult``)
+    systems_searched: list[str] = Field(default_factory=list)
+    search_complete: dict[str, bool] = Field(default_factory=dict)
+    #: what the peak list supports at all (``MIN_LINES_PER_DOF``)
+    systems_supported: list[str] = Field(default_factory=list)
+    n_usable_lines: int = 0
+    #: panel members that ranked every candidate — uniform by construction
+    fom_ranked: list[str] = Field(default_factory=list)
+    #: members undefined on this list, name → reason — absent for cause is a
+    #: different statement from silently zero (WP-1043)
+    fom_undefined: dict[str, str] = Field(default_factory=dict)
+    #: was a pattern supplied, i.e. could Le Bail validation run at all
+    validated: bool = False
 
 
 class IndexingResult(Base):
@@ -1047,6 +1187,55 @@ class IndexingResult(Base):
         if len(high) != 1:
             return None
         return None if high[0].ambiguity else high[0]
+
+    def evidence(self) -> IndexingEvidence:
+        """The machine-readable evidence view (WP-1043).
+
+        A projection, never a second copy that could disagree: every field is
+        computed from this result on each call.  ``fom_ranked`` is read from
+        the first candidate carrying a panel — membership is uniform by
+        construction (a property of the peak list), and a candidate with an
+        *empty* panel hit the reflection ceiling, which its
+        ``indexed_fraction_low`` caveat already reports.
+        """
+        ranked: list[str] = []
+        for c in self.candidates:
+            if c.fom:
+                ranked = [f.name for f in c.fom]
+                break
+        q = self.quality
+        return IndexingEvidence(
+            candidates=[
+                CandidateEvidence(
+                    index=i, cell=c.cell, cell_esd=c.cell_esd,
+                    system=c.system, centring=c.centring, volume=c.volume,
+                    confidence=c.confidence,
+                    caveats=[CaveatEvidence(
+                        name=v, kind=("refuting"
+                                      if v in INDEX_REFUTING_CAVEATS
+                                      else "capping"))
+                             for v in c.confidence_caveats],
+                    found_by=list(c.found_by),
+                    n_indexed=c.n_indexed, n_lines=c.n_lines,
+                    fom={f.name: f.value for f in c.fom},
+                    validated=c.lebail is not None,
+                    lebail_status=(None if c.lebail is None
+                                   else c.lebail.status),
+                    lebail_rwp=None if c.lebail is None else c.lebail.rwp,
+                    predicted_but_absent=(None if c.lebail is None
+                                          else c.lebail.predicted_but_absent),
+                    unmatched_observed=(None if c.lebail is None
+                                        else c.lebail.unmatched_observed),
+                    ambiguity_partners=len(c.ambiguity))
+                for i, c in enumerate(self.candidates)],
+            systems_searched=list(self.systems_searched),
+            search_complete=dict(self.search_complete),
+            systems_supported=([] if q is None
+                               else list(q.systems_supported)),
+            n_usable_lines=self.n_usable_lines,
+            fom_ranked=ranked,
+            fom_undefined={} if q is None else dict(q.fom_undefined),
+            validated=self.validated)
 
 
 class ExtinctionCandidate(Base):

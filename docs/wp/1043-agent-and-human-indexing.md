@@ -1,6 +1,6 @@
 # WP-1043 — Indexing for an agent and for a human: report, don't refuse
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-07
 Depends on: 1041 (closed), 1026 (closed) · 1028 soft (peak-picking edge artifact)
 
 ## Goal
@@ -187,6 +187,28 @@ bethanechol is the sharpest case for the evidence view: on set F the package
 holds the published cell at **rank 1** and, with no profile to validate against,
 still cannot promote it past `low`.
 
+### Folded from 1028 (closed 2026-08-07): the peak list is the last gatekeeper
+
+Measured 2026-07-30 on SRM 660c LaB6 — 1028 § (k) has the full text; the two
+search-bound entries went to [1045](1045-indexing-search-controls.md).
+`pick.py`'s `not_separable` screen misses six components on that pattern, and
+**no one knob reaches them** — they fail three different conditions: four are
+simply too far (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` =
+1.5), one fails `reseeded()` because the detection seed slid into the tail and
+the new component took the real line (slot labels swapped), and one sits on a
+group whose fit is not refuted (χ²_red 1.38), which the screen's own docstring
+calls a deliberate keep. What they *are* is settled: five are axial-divergence
+tails (the sign flips at 90° 2θ, which nothing else in a Bragg-Brentano
+pattern does) and one is a Kα2 residual that `detect_peaks` dropped and
+`fit_group` re-created at 3 % of the parent's area. The cost is on the answer
+— 125 ppm on a certified cell (−127 with them in, −2 with them out), and a
+shift fit consistent with zero where the truth is +0.037° — and the prize is
+this WP's own subject: with them removed and the systematic measured rather
+than assumed, the gate reached **`high` at −2 ppm**, M₂₀ = 1120, zero caveats,
+the first time `high` has been reached on real data. The census is pinned by
+`test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
+fix has a table to move rather than a threshold to guess at.
+
 ### What an agent needs that a gate cannot give
 
 The gate returns `low`/`medium`/`high` and `best_or_none()`. An agent that can
@@ -205,6 +227,14 @@ either collapsed or withheld:
   to compute any;
 * what the search covered — `systems_searched` and `search_complete` exist and are
   the model for the rest.
+
+Two 1041 measurements to carry into any caveat wording this WP writes:
+contamination breaks the **grade**, not the answer (the truth indexes exactly
+its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k) and the
+0.9 bar falls between k = 2 and 3 — the caveat names the symptom, not the
+cause), and `n_unindexed` is an **absolute budget**, not a tolerance (told it
+may leave 3 unindexed on a list carrying 12 impurities, the search returns the
+truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 
 ### The visual check: two plotting facts that constrain it
 
@@ -238,31 +268,35 @@ either collapsed or withheld:
 
 ## Tasks
 
-- [ ] **Separate "can this be searched" from "can this be scored" — by reusing
+- [x] **Separate "can this be searched" from "can this be scored" — by reusing
       the existing authority.** `MIN_LINES_PER_DOF` and the per-system
       `supported` computation in `quality.py` decide searchability, per system;
       twenty (`PEAK_MIN_USABLE_LINES`) remains the bar for the figures of merit
       only. Below twenty the search runs over the supported systems and every
       figure that is undefined is reported **absent with its reason**, never
       silently zero or quietly omitted. No second searchability criterion.
-- [ ] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
+- [x] `IndexingResult` gains a machine-readable **evidence** view: per candidate,
       each caveat with its `refuting`/`capping` kind, the Le Bail Rwp and both
       detector counts, which figures were computable (and which panel members
       ranked, when the panel is reduced), and what the search covered. No new
       physics — this is surfacing what the pipeline already knows.
-- [ ] **The evidence reaches the agent.** The view is serialized through
+- [x] **The evidence reaches the agent.** The view is serialized through
       `agent.refine_json`'s indexing arm and `agent.tool_definition()` (the arm
       still carries no `cell` key); whether the schema change is additive or a
       version bump is decided here, deliberately, before WP-1003 freezes the
-      contract.
-- [ ] **The visual check, reachable from a result.** Lift the gallery's
+      contract. **Decided: additive, `SCHEMA_VERSION` stays 0.1** — a defaulted
+      field plus one new *capping* caveat is the events rule's "new field, not
+      a new kind"; the one deployed consumer (the GUI) derives caveat kinds
+      from the live constant, so a capping addition costs it nothing; grounds
+      recorded on `AgentSuccess.evidence`.
+- [x] **The visual check, reachable from a result.** Lift the gallery's
       per-candidate rendering — tick rows against the pattern, the Le Bail
       panel — into `viz/` as a function of (result, pattern);
       `python -m tests.indexing_gallery` becomes a consumer of it, not the
       owner. matplotlib at the API like `plot()`; the GUI panel (WP-1045)
       consumes the same per-candidate data, where the two plotly esd facts
       above apply.
-- [ ] **Find why the detector is blind on magnetite's rival, and do not reach for
+- [x] **Find why the detector is blind on magnetite's rival, and do not reach for
       Rwp instead.** `predicted_but_absent` reads **0 of 163** on a cell whose
       reflections mostly fall where the pattern is flat; that number should be
       large, so the detector — not the fit statistic — is what is broken here.
@@ -276,54 +310,50 @@ either collapsed or withheld:
       flexibility*, and CLAUDE.md forbids an Rwp comparison as a correction's
       evidence. Surfacing it to a reasoner (above) is a different act from
       scoring on it.
-- [ ] Re-measure the fluorite row: it currently asserts an abstention that this WP
+      **Measured 2026-08-07, and the sign is the finding**: the rival's own
+      fit drives the co-refined background **negative** (mean −11.4 counts,
+      min −27.3, on a pattern whose 5th percentile is 9; nothing floors it at
+      the physical zero) — a *raised* background would have made **more**
+      absences, not fewer.  Net > 3σ at 100 % of channels, so the detector
+      cannot fire.  The 2×2 swap: truth's background under the rival's
+      positions restores 8 (fit widths) / 14 (measured 0.54° width) of 163;
+      swapping widths alone (both fits inflate 2-3×, terms pegged at bounds)
+      restores none.  The Rwp separation (0.25/0.79) is the same corrupted
+      fit read by a different instrument — surfaced, never ranked on.  A
+      repaired detector reads **14 of 163** here, not "most of 163" — a bound
+      to know before redesigning around this row.  The acceptance row
+      regenerates the negative background; the fix (candidate-independent
+      inputs: a floored or pattern-owned background, the peak list's measured
+      width) is recorded, not landed — it re-measures every
+      `predicted_but_absent` count in the tree and is follow-on work.
+- [x] Re-measure the fluorite row: it currently asserts an abstention that this WP
       makes wrong. It should assert that a short clean list is **searched, ranked
       by the reduced panel and reported unscored**, and that the certified cell
       comes back at rank 1.
-- [ ] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
+- [x] **Act on 1028's escapee census** (Context § the peak list is the last
+      gatekeeper): make the six unflagged tail components reachable — five
+      axial-divergence tails and a re-created Kα2 residual, each with a settled
+      cause — so the 125 ppm they cost a certified cell is removable without
+      hand-editing the peak list. The pinned census test is the table the fix
+      has to move, not a threshold to guess at.
+      **Landed as two cause-specific informational flags** (`axial_tail`:
+      one-sided, signed by the 90° flip; `kalpha2_residual`: at the mate's
+      predicted doublet position). On SRM 660c they catch exactly the six —
+      and one of them (the 43.5° slot-swap tail, aliased onto a certified
+      position by two cancelling systematics) the certificate probe itself
+      could never reach, so the flag trim beats the answer-based trim it
+      replaces and takes the calibrated screen's leftover scatter 0.0078° →
+      0.0025°. Kept usable (report, don't refuse): across the other real lab
+      patterns the screens reach 11 unverified components, and refusing them
+      blind risks losing real lines. `high` at −2 ppm now reached from the
+      pattern alone at the trim step.
+- [x] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
       (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
       until the corpus moves — which is post-v1.
-- [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
+- [x] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
       read (the gate) and what a reasoning consumer should read (the evidence),
       with the fluorite case as the worked example of why they differ — and
       bethanechol set F as the case where the truth is *already* at rank 1.
-
-### Inherited
-
-**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — the peak
-list is what stands between this pipeline and a blind certified answer, and the
-census of what escapes is already written.** Measured 2026-07-30 on SRM 660c
-LaB6; 1028's § (k) has the full text and the other two bounds went to
-[1045](1045-indexing-search-controls.md).
-
-`pick.py`'s `not_separable` screen misses six components on that pattern, and
-**no one knob reaches them** — they fail three different conditions: four are
-simply too far (1.73-2.99 fitted FWHM against `PEAK_SATELLITE_NEAR_FWHM` = 1.5),
-one fails `reseeded()` because the detection seed slid into the tail and the new
-component took the real line, so the slot labels are swapped, and one sits on a
-group whose fit is **not refuted** (χ²_red 1.38), which the screen's own
-docstring calls a deliberate keep. What they *are* is settled: five are
-axial-divergence tails (the sign flips at 90° 2θ, which nothing else in a
-Bragg-Brentano pattern does) and one is a Kα2 residual that `detect_peaks`
-dropped and `fit_group` re-created at 3 % of the parent's area.
-
-Two reasons it lands here rather than staying a peak-picking chore. The **cost
-is on the answer**: 125 ppm on a certified cell (−127 with them in, −2 with them
-out), and a shift fit consistent with zero where the truth is +0.037°. And the
-prize is this WP's own subject — with these removed and the systematic measured
-rather than assumed, the gate reached **`high` at −2 ppm**, M₂₀ = 1120, zero
-caveats, the first time `high` has been reached on real data. The census is
-pinned by
-`test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
-fix has a table to move rather than a threshold to guess at.
-
-Also worth carrying into any caveat wording this WP writes, both measured by
-1041: contamination breaks the **grade**, not the answer (the truth indexes
-exactly its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k)
-and the 0.9 bar falls between k = 2 and 3 — the caveat names the symptom, not
-the cause), and `n_unindexed` is an **absolute budget**, not a tolerance (told
-it may leave 3 unindexed on a list carrying 12 impurities, the search returns
-the truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 
 ## Acceptance
 
@@ -386,6 +416,60 @@ against the whole profile as two discrete counts. Le Bail over Pawley is then a
 cost choice — no extra θ block per candidate — not a claim about discrimination.
 
 ## Handover log
+
+- **2026-08-07 — closed, nine of nine, and three of the measurements corrected
+  the premise they were filed under.** Branch `wp1043-agent-and-human-indexing`
+  off the (then unmerged) 1028 tip; eleven commits — one per task plus the
+  arrival prune and PR housekeeping (PR #39 opened and merged for 1028's close
+  on the user's instruction; the stray `uv.lock` was the user's test detritus,
+  reverted).
+
+  **Done, with the three corrected premises.** (1) The searchable/scorable
+  split landed as designed — but the capping caveat `fom_panel_reduced` turned
+  out to be *load-bearing*, not decorative: fluorite's rank-1 cell carries no
+  other caveat, so without it the change would have minted a `high` singleton
+  from 17 lines. (2) The magnetite detector measurement inverted the filed
+  cause: the rival's fit pays for its 163 reflections by driving the
+  co-refined background **negative** (a *raised* background — the WP's guess —
+  makes more absences, not fewer); widths (2-3×, bound-pegged) are secondary;
+  honest candidate-independent inputs read 14 of 163, not "large". The repair
+  (inputs the candidate cannot buy) is recorded, not landed — it re-measures
+  every `predicted_but_absent` count in the tree. (3) The census fix beat the
+  probe it replaced: the blind flags reach the 43.5° slot-swap tail that
+  aliases onto a certified position (axial shift cancels the displacement
+  there), which the certificate probe *never reached* — the calibrated
+  protocol now trims answer-free, its screen's leftover scatter drops 0.0078°
+  → 0.0025°, and `high` at −2 ppm holds. Also: the evidence view
+  (`IndexingResult.evidence()`, agent `evidence` arm, **decided additive** —
+  grounds on `AgentSuccess.evidence`), `viz.plot_indexing` from (result,
+  pattern) with the window rebuilt from provenance notes, the gallery its
+  consumer, the AGENT_PROTOCOL §7f split, and the high-symmetry qualifier on
+  every scoreboard quote.
+
+  **Numbers, `[dev,jax,torch,docs]` venv on darwin/arm64** (same venv as
+  1028's close): fast selection **1932 passed, 5 skipped in 2:50** against
+  1028's 1924 + 5 — +8, exactly this session's +9 new tests (core 1, quality
+  1, consensus 4, plots 2, agent 1) minus the fluorite row moving fast → slow
+  now that it really searches. No new skip. Ruff clean. GUI: 390 vitest,
+  svelte-check 0 errors, dist rebuilt (pxt.ts gained the two PeakFlag words).
+  The full suite would not run as one background job here (the environment
+  killed it twice before start), so the close is measured as 1028's was:
+  fast selection + `test_acceptance_indexing.py` **41 passed in 18:05**
+  (count unchanged — renames only) + `test_acceptance_qpa_roundrobin.py`
+  **12 passed in 1:31**, both alone.
+
+  **Next**: 1042 heads the queue. The detector repair (candidate-independent
+  background/width inputs for `absent_reflections`) is measured, designed and
+  unowned — it should be scheduled deliberately, not folded into a passing WP.
+
+  **Gotchas.** The tight-window control in the calibrated row is pinned to the
+  *probe* screen's 0.0078° on purpose — the flag-trimmed screen's 0.0025° is
+  past what WP-1040's zero-error rescue was measured to reach, and running the
+  control there would silently re-measure that claim. The aberration flags are
+  informational; adding either to `PEAK_UNUSABLE_FLAGS` would change every
+  search on the six other lab patterns (11 unverified hits measured) and
+  re-open every count this session pinned. And the GUI's `/api/index` remains
+  unbudgeted, which now matters (1042's Inherited has the measurement).
 
 - **2026-08-06 (second entry)** — plan revised in the user review session (no
   code touched), on two user calls: **one output** already governed the WP;

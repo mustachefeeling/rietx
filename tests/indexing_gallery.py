@@ -402,11 +402,12 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
     the ranked-candidate tick rows, and ``data`` + ``instrument`` add the Le Bail
     obs/calc/diff panel for the top candidate.
 
-    **Pass the ``spec`` the search ran under.**  It is what
-    :func:`~pxrdref.indexing.engines.match_window` needs to reproduce the window
-    the search matched in, and without it the tick rows are drawn in the raw
-    per-line σ — which on any pattern carrying a shift allowance contradicts the
-    candidate's own ``n_indexed`` in the same figure.
+    **The pictures are :func:`pxrdref.viz.plot_indexing`'s since WP-1043** —
+    this module is a consumer of that call, not the owner of the composition —
+    and the matching window is therefore reconstructed from the result's own
+    provenance notes.  ``spec`` is accepted for the callers that pass it and no
+    longer read: the notes are written from the spec that actually ran, so the
+    reconstruction cannot disagree with it.
 
     Never raises on a missing picture — a search that abstained has no candidates
     to rank and no fit to draw, and that is the row's *point* rather than a
@@ -419,16 +420,17 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
             "reaching the gallery must say what it is and what is asserted "
             "about it, or the summary page silently omits it")
 
-    from pxrdref.viz.indexing import plot_candidates, plot_peak_list, plot_validation
+    from pxrdref.viz.indexing import plot_indexing, plot_peak_list
 
     OUTPUT.mkdir(exist_ok=True)
     figures: list[str] = []
     card: dict[str, Any] = {"stem": stem, **DATASETS[stem], "note": note,
                             "figures": figures}
 
-    name = f"indexing_{stem}_peaks.png"
-    _close(plot_peak_list(peaks, data, path=str(OUTPUT / name)))
-    figures.append(name)
+    if result is None:
+        name = f"indexing_{stem}_peaks.png"
+        _close(plot_peak_list(peaks, data, path=str(OUTPUT / name)))
+        figures.append(name)
     usable = peaks.usable()
     card["n_usable"] = len(usable)
     card["n_picked"] = len(peaks.peaks)
@@ -458,18 +460,27 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
         "n_indexed": int(c.n_indexed), "confidence": c.confidence,
     } for c in cands]
 
+    # the pictures are plot_indexing's (WP-1043).  The refit pair is computed
+    # here first, because the sidecar records its numbers and checks them
+    # against the verdict index_pattern stored; the drawing then reuses the
+    # same fit rather than running a second one.
+    pair = None
+    if cands and validate and data is not None and instrument is not None:
+        from pxrdref.indexing.workflow import validate_by_lebail
+
+        pair = validate_by_lebail(cands[0], data, instrument, peaks=peaks,
+                                  with_result=True)
+    figs = plot_indexing(result, peaks, data=data, n=n, validation=pair)
+    for key, fig in figs.items():
+        name = f"indexing_{stem}_{key}.png"
+        fig.savefig(OUTPUT / name)
+        _close(fig)
+        figures.append(name)
+
     if not cands:
         card["outcome"] = "abstained — no candidate"
         _write(stem, card)
         return card
-
-    from pxrdref.indexing.engines import match_window
-
-    name = f"indexing_{stem}_candidates.png"
-    _close(plot_candidates(cands, peaks, n=n, path=str(OUTPUT / name),
-                           q_match=match_window(peaks, spec,
-                                                getattr(result, "quality", None))))
-    figures.append(name)
 
     best = cands[0]
     card["ranked_first"] = {
@@ -498,48 +509,25 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
             "status": best.lebail.status,
         }
 
-    if validate and data is not None and instrument is not None:
-        card.update(_validation_panel(stem, best, peaks, data, instrument, figures))
-    elif best.lebail is not None:
-        # positions only.  Strictly worse than the fit panel and drawn anyway:
-        # the two detector lists are what separate a wrong metric from an
-        # oversized one, and they need no refit.
-        name = f"indexing_{stem}_validation.png"
-        _close(plot_validation(best.lebail, path=str(OUTPUT / name)))
-        figures.append(name)
+    if pair is not None:
+        # the refit is compared against the verdict ``index_pattern`` already
+        # stored.  They agree exactly when nothing is stochastic between them,
+        # and a disagreement is worth knowing about rather than worth drawing
+        # over — recorded in the sidecar, never asserted by a picture writer.
+        validation, _vresult = pair
+        card["validation_refit"] = {
+            "rwp": round(float(validation.rwp), 4),
+            "predicted_but_absent": int(validation.predicted_but_absent),
+            "unmatched_observed": int(validation.unmatched_observed),
+        }
+        if best.lebail is not None:
+            card["validation_refit"]["reproduces_stored"] = bool(
+                validation.predicted_but_absent
+                == best.lebail.predicted_but_absent
+                and abs(validation.rwp - best.lebail.rwp) < 1e-9)
 
     _write(stem, card)
     return card
-
-
-def _validation_panel(stem, best, peaks, data, instrument, figures) -> dict:
-    """The obs/calc/diff panel behind the gate, and the check that it is the same fit.
-
-    The refit is compared against the verdict ``index_pattern`` already stored.
-    They agree exactly when nothing is stochastic between them, and a
-    disagreement is worth knowing about rather than worth drawing over — so it is
-    recorded in the sidecar instead of asserted here, where a picture-drawing
-    helper has no business failing a row.
-    """
-    from pxrdref.indexing.workflow import validate_by_lebail
-    from pxrdref.viz.indexing import plot_validation
-
-    validation, result = validate_by_lebail(
-        best, data, instrument, peaks=peaks, with_result=True)
-    name = f"indexing_{stem}_validation.png"
-    _close(plot_validation(validation, result, path=str(OUTPUT / name)))
-    figures.append(name)
-
-    out: dict[str, Any] = {"validation_refit": {
-        "rwp": round(float(validation.rwp), 4),
-        "predicted_but_absent": int(validation.predicted_but_absent),
-        "unmatched_observed": int(validation.unmatched_observed),
-    }}
-    if best.lebail is not None:
-        out["validation_refit"]["reproduces_stored"] = bool(
-            validation.predicted_but_absent == best.lebail.predicted_but_absent
-            and abs(validation.rwp - best.lebail.rwp) < 1e-9)
-    return out
 
 
 #: The scoreboard's vocabulary, and it is deliberately **four** buckets rather
@@ -862,7 +850,8 @@ PIPELINE = (
      "unless the answer is <code>high</code> — and <code>high</code> requires "
      "<i>zero</i> caveats and <i>every</i> engine that ran finding the lattice. "
      "That is why the scoreboard below shows six correct answers and zero "
-     "promotions: <b>never wrong, and silent more often than right.</b>"),
+     "promotions: <b>never wrong, and silent more often than right</b> — on a "
+     "corpus of high-symmetry lattices (see the scoreboard's qualifier)."),
 )
 
 
@@ -1270,6 +1259,11 @@ handed back as <em>the answer</em> rather than as a ranked candidate.</p>
 computed from the run — the truth's rank is a <code>same_lattice</code> test on
 the reduced A..F vector, <em>and</em> the centring, <em>and</em> the dataset's own
 accuracy band. Drop any of the three and a wrong answer reads as right.</p>
+<p class="warn">One qualifier travels with every claim on this board (WP-1043):
+nine of ten known-cell datasets sit at &le; 2 free metric parameters (4 cubic;
+0 orthorhombic, 1 monoclinic, 0 triclinic), so "never wrong" is a statement
+about <b>high-symmetry lattices</b> — the engines meet low symmetry only
+synthetically until the corpus moves, which is post-v1.</p>
 </section>"""
 
 

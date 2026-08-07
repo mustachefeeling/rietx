@@ -1047,33 +1047,60 @@ CLAIMS: tuple[Claim, ...] = (
                   "ppm claim.  The inversion is referenced to nothing external: "
                   "it is asserted structurally, as the presence of "
                   "predicted_but_absent on the correct cell and its ABSENCE on "
-                  "the wrong one, with Rwp as the statistic that is not fooled",
+                  "the wrong one -- and since WP-1043 the mechanism is "
+                  "regenerated, not quoted",
         measured="cubic F first at -334 ppm, its P description of identical "
                  "axes second; predicted_seen_fraction 0.46 against 0.19 and "
                  "n_indexed identical at 21 of 23, so the reversed member is "
                  "the whole separation.  The gate then gives F low and P "
                  "medium: F d -3 m's d-glide refutes the CORRECT cell (2 of "
                  "52) while P's Le Bail fit predicts 163 reflections on a "
-                 "23-line pattern and reports ZERO absent -- an extraction "
-                 "with seven free intensities per observed line puts intensity "
-                 "wherever it is asked.  Rwp 0.25 against 0.79.  "
-                 "best_or_none() returns None either way",
+                 "23-line pattern and reports ZERO absent.  WP-1043 measured "
+                 "why: the detector's inputs are the candidate's to buy -- "
+                 "the rival's own fit drives the co-refined background "
+                 "NEGATIVE (mean -11 counts; no physical floor in the "
+                 "validation plan), so net clears 3 sigma at 100 % of "
+                 "channels and nothing can read absent; with the truth's "
+                 "background under the same positions 8-14 absences return, "
+                 "while swapping widths alone (inflated 2-3x in both fits) "
+                 "restores none.  Rwp 0.25 against 0.79 is the same corrupted "
+                 "fit seen by a different instrument, so it stays surfaced "
+                 "and never ranked on.  best_or_none() returns None either "
+                 "way",
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_the_unflagged_tail_components_escape_for_three_different_reasons",
+        "test_the_tail_components_escape_not_separable_and_are_flagged_by_cause",
         "srm660c", ("characterisation",),
-        "the not_separable screen misses six components on this pattern, and "
-        "the census -- not any one threshold -- is what is pinned",
+        "the not_separable screen misses six components on this pattern -- "
+        "and since WP-1043 the cause-specific flags reach all six blind, "
+        "one MORE than the certificate probe itself reaches",
         reference="The screen asks three questions (re-seeded, inside the "
                   "neighbour's profile at <=25 % of its area, group still "
                   "refuted).  Thirteen components face them here; the six "
                   "survivors fail three DIFFERENT conditions, so widening "
                   "PEAK_SATELLITE_NEAR_FWHM would reach four of six and be a "
-                  "knob rather than a measurement",
+                  "knob rather than a measurement.  WP-1043's screens are "
+                  "not that knob: axial_tail is ONE-SIDED (the offset's sign "
+                  "must match the aberration's 90-degree flip) and "
+                  "kalpha2_residual sits at the mate's PREDICTED doublet "
+                  "position -- physics signatures, informational flags, "
+                  "components kept usable",
         measured="4 too far (1.73-2.99 FWHM), 1 not re-seeded (the detection "
                  "seed slid into the tail and the new component took the real "
-                 "line), 1 on a group whose fit is not refuted (chi2_red 1.38)",
+                 "line), 1 on a group whose fit is not refuted (chi2_red "
+                 "1.38).  WP-1043: all six flagged by cause (5 axial_tail, "
+                 "1 kalpha2_residual), all six still usable.  The flag trim "
+                 "reaches ONE MORE component than the certificate probe: the "
+                 "43.5 deg tail sits at dev -0.003 because the axial shift "
+                 "cancels the specimen displacement there, so an answer-based "
+                 "probe reads it as on-lattice while the side test does not "
+                 "-- dropping it takes the calibrated screen's leftover "
+                 "scatter from 0.0078 to 0.0025 deg.  Across the six other "
+                 "real lab patterns the screens reach 11 further usable "
+                 "components nobody has verified, which is why the flags "
+                 "report instead of refusing",
+        diagnostics=("PEAK_AXIAL_TAIL", "PEAK_KALPHA2_RESIDUAL"),
     ),
     Claim(
         "test_acceptance_indexing",
@@ -1186,22 +1213,29 @@ CLAIMS: tuple[Claim, ...] = (
     # ---- the round-robin pure phases, NAC, FAP and the unknown ----------
     Claim(
         "test_acceptance_indexing",
-        "test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern",
+        "test_a_short_clean_list_is_searched_ranked_and_reported_unscored",
         "qarr", ("characterisation",),
-        "a pattern with too few lines is refused before any engine starts, and "
-        "the bar is where the figures of merit are defined rather than chosen",
+        "a pattern with too few lines to score is searched anyway, over the "
+        "systems its line count supports, and reported unscored with the "
+        "certified cell ranked first",
         reference="CaF2 is Fm-3m with a = 5.4631 A, and over 5-150 deg Cu Ka "
-                  "that lattice yields only 18 usable lines against "
-                  "PEAK_MIN_USABLE_LINES = 20.  The bar is not arbitrary: M20, "
-                  "F20 and Smith's volume envelope are all DEFINED on twenty "
-                  "lines, so below it the package would be quoting figures "
-                  "outside their own definitions.  The counterintuitive "
-                  "direction -- high symmetry makes a pattern easy to index "
-                  "until it makes it too sparse to index at all",
-        measured="18 usable; supports_indexing False; systems_searched EMPTY; "
-                 "0 candidates in 0.1 s; INDEX_DATA_INSUFFICIENT and "
-                 "INDEX_ABSTAINED both raised",
-        diagnostics=("INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"),
+                  "that lattice yields fewer than twenty usable lines.  "
+                  "Twenty is where M20 and F20 are DEFINED -- a scoring bar, "
+                  "not a searching one (WP-1043): seventeen lines are "
+                  "seventeen-fold over-determined for a cubic metric, and the "
+                  "pre-1043 gate's abstention here refused a question the "
+                  "engines answer at -5 ppm each when asked directly.  High "
+                  "symmetry makes a pattern easy to index right up until it "
+                  "makes it too sparse to SCORE -- no longer too sparse to "
+                  "search",
+        measured="17 usable; supports_indexing True with m20/f_n absent for "
+                 "cause; four systems searched to completion; 12 candidates, "
+                 "certified cell first at -18 ppm, caveats exactly "
+                 "[fom_panel_reduced] so the grade holds at medium and "
+                 "best_or_none() still refuses -- the capping caveat is what "
+                 "keeps a 17-line high unreachable",
+        diagnostics=("INDEX_PANEL_REDUCED", "INDEX_ABSTAINED",
+                     "!INDEX_DATA_INSUFFICIENT"),
     ),
     Claim(
         "test_acceptance_indexing",
@@ -1469,7 +1503,12 @@ SUITE_INTROS: dict[str, str] = {
         "here is what ITO13, DICVOL91, TREOR90 and McMaille actually achieved "
         "rather than a tolerance chosen in this repo. The fixture is checked "
         "against three statements that paper makes in prose and never "
-        "tabulates before anything is graded against it.",
+        "tabulates before anything is graded against it. One qualifier "
+        "belongs on every summary drawn from these rows (WP-1043): the "
+        "real-data corpus sits at <= 2 free metric parameters in nine of ten "
+        "datasets (0 orthorhombic, 1 monoclinic, 0 triclinic), so any "
+        "'never wrong' claim is a claim about **high-symmetry lattices** "
+        "until the corpus moves — which is post-v1 by the user's scope call.",
     "test_acceptance_srm660c":
         "The absolute lab anchor. NIST's own SRM 660c certification "
         "measurement, refined against the cell recomputed for this dataset's "

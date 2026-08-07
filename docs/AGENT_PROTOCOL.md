@@ -318,14 +318,17 @@ are read on the peak list, not on a `RefinementResult`.
 
 | Code | What it means you must not do |
 |---|---|
-| `PEAK_LIST_TOO_SHORT` | Index it anyway. Below 20 usable lines nothing (M₂₀, F₂₀, Smith's volume envelope) is defined, so a rank order would have no evidence behind it |
-| `INDEX_DATA_INSUFFICIENT` | Spend a search budget. The gate has already decided the data cannot support one, and it names which of the three reasons applies (line count, lines per metric degree of freedom, or σ(Q)/Q) |
+| `PEAK_LIST_TOO_SHORT` | Read the answer as *scored*. Below 20 usable lines the classical figures (M₂₀, F₂₀, Smith's envelope) are undefined, so the search still runs — over the systems the line count supports — but ranks on the reduced panel, and nothing in the answer is comparable to a published threshold. (Before WP-1043 this code refused the search outright; that conflated scoring with searching, and it refused fluorite's 18 clean lines that all three engines index at −5 ppm) |
+| `INDEX_DATA_INSUFFICIENT` | Spend a search budget. The gate has already decided the data cannot support a search *in any system*, and it names which of the two reasons applies (lines per metric degree of freedom, or σ(Q)/Q) |
+| `INDEX_PANEL_REDUCED` | Treat an absent figure as zero, or compute your own M on fewer lines and quote it as M₂₀. Each absent member is named with its reason on `quality.fom_undefined`; the members that remain rank every candidate alike, so the *order* means what it always does — the `fom_panel_reduced` caveat (capping) is what says the scoring does not |
 | `PEAK_SIGMA_ASSUMED` | Quote a precision, or weight lines by 1/σ² as if that meant something — every σ in the list is the same assumed constant. Re-pick from the pattern if you have it. **You may still index it**: an assumed σ is not grounds for refusing, so the σ(Q)/Q abstention below does not run on such a list (it would be quoting a precision this package invented) |
 | `PEAK_NOT_SEPARABLE` | Treat the flagged component as a line, or as noise. It is neither: the fit believes in it as *shape* and disbelieves it as a *line*, so it stays in `peaks` (removing it from the model displaces the real line beside it) and is excluded from `usable()`. If many fire, suspect a **mis-declared instrument profile** rather than a crowded pattern — undeclared axial divergence reproduces the whole effect |
 | `PEAK_POSITION_PRECISION` | (info/warning) Ignore it when choosing a tolerance: it *is* the resolving power of the list, and it bounds every tolerance downstream |
 | `INDEX_SHIFT_DETECTED` | Absorb the shift into the cell. The named template is the physical cause; correct the instrument (`zero_shift`, `sample_displacement`, `sample_transparency`) rather than the lattice |
 | `INDEX_SHIFT_MODEL_AMBIGUOUS` | Pick one cause from this data. The magnitude is measured and the cell is safe to `prediction_spread_deg`; the *cause* is not identified, and extending the 2θ range is the only fix |
 | `PEAK_KALPHA2_ALIAS` | Assume the dropped candidates were noise — each is at a stronger line's Bragg-predicted Kα2 position, and a genuine coincident line is indistinguishable from an alias in one pattern |
+| `PEAK_AXIAL_TAIL` | (info) Read the flagged components as lattice lines — or exclude them without looking. Each sits on the axial-divergence **tail side** of a much stronger group-mate (low-2θ below 90°, high-2θ above — the one sign flip nothing else has), and they stay *usable* because the side test is evidence, not proof. Measured on SRM 660c (WP-1043): five such components carried 125 ppm of certified-cell bias, and excluding exactly the flagged ones plus measuring the shift took the gate to `high` at −2 ppm — so on a well-aligned Bragg-Brentano pattern, excluding them before indexing is usually right |
+| `PEAK_KALPHA2_RESIDUAL` | (info) Treat it as a line of anything. It sits at a strong group-mate's **predicted** Kα2 maximum at a few per cent of its area — the residual of a *modelled* doublet, re-created by a re-seed pass after detection dropped the alias. Kept usable only because a genuine reflection can coincide with an alias position; exclude it before indexing unless you have a reason to believe one does |
 | `PEAK_UNRESOLVED_SHOULDER` | Quote one of a pair as an independent line. Their σ already carries the correlation |
 | `PEAK_CONTAMINATION_LINE` | Subtract it. Ghosts are flagged and excluded from `usable()`, never stripped |
 | `PEAK_ASYMMETRY_UNMODELLED` | Trust the *positions* of the flagged lines. An unmodelled one-sided aberration biases a centroid in one direction, which σ cannot see — and the low-angle lines are the ones indexing depends on most |
@@ -485,6 +488,63 @@ The reverse direction closes too. When a refinement's Layer 2 emits
 `reindex_or_recheck_cell` — peak offsets beyond the linearisation radius, i.e. the
 cell is wrong rather than slightly off — that action now has something to call:
 pick peaks and run `index_pattern` on the same data.
+
+---
+
+## 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
+
+The gate exists for **unattended** use: a machine that cannot weigh evidence
+must never be handed one cell confidently, so `best_or_none()` stays as strict
+as it is and nothing in this section loosens it. But the gate's three levels
+compress the judgement's *inputs*, and a consumer that can reason — an LLM in
+a tool loop, or a human at a screen — wants the inputs, not only the verdict.
+The design call this section serves: give them all the information, and let
+the judge, human or machine, be the judge.
+
+**What a reasoning consumer reads**: `result.evidence()` — the `evidence` arm
+of `refine_json`'s answer. Per candidate: every caveat with its
+`refuting`/`capping` **kind** (the split `confidence_caveats` alone withholds);
+the panel members that ranked, with values, beside `fom_undefined` — the
+figures that could not be computed, each *absent with its reason*, never
+silently zero; and the whole-profile numbers together — `lebail_rwp` and both
+detector counts, surfaced so a reader can see when a detector has failed (as
+it measurably does on magnetite's rival, whose fit buys a negative background
+— §7c's row), and never a thing to score on. Result-wide: what the search
+covered (`systems_searched` + `search_complete`) against what the list
+supports (`systems_supported`). The visual check is part of the answer, not
+documentation of it: `pxrdref.viz.plot_indexing(result, peaks, data=...,
+instrument=...)` draws the ranked tick rows and the Le Bail panel from the
+result alone.
+
+**Worked example — fluorite, why the two reads differ.** Seventeen usable
+lines on certified CaF₂ (Fm-3m, a = 5.4631 Å). The unattended read:
+`best_or_none()` is `None` — correct, and exactly as strict as ever, because
+the `fom_panel_reduced` caveat (capping) holds every below-twenty-line
+candidate at `medium`. The reasoning read: the certified cell at rank 1 at
+−18 ppm, found by every engine that ran, Le Bail-validated `converged`, four
+systems searched to completion, and the *only* caveat on it is the reduced
+panel — M₂₀/F₂₀ absent for cause, the coverage and reversed members all
+ranked. A consumer that can weigh that is entitled to adopt the cell with its
+eyes open; before WP-1043 the same list was refused outright — the old gate
+conflated scoring (twenty lines, where M₂₀/F₂₀ are *defined*) with searching
+(`MIN_LINES_PER_DOF` per system: seventeen lines are seventeen-fold
+over-determined for a cubic metric), and neither consumer got anything.
+
+**Worked example — bethanechol set F, the truth already at rank 1.** On the
+one externally graded benchmark, the published P2₁/n cell comes back ranked
+**first** on set F (measured 2026-08-06: `trial_error` under the paper's own
+manual-mode conditions, −340/+56/+67 ppm with β out by 0.012°) — and the sets
+are bare positions, so there is no profile to validate against and a
+single-engine find grades `low`: the gate can never promote it. The evidence
+view is where that answer *exists* for a consumer — rank 1, its figures, and
+caveats that say precisely what was not checked. An unattended pipeline
+correctly gets nothing; a reasoner gets the answer with its qualifications
+attached.
+
+One qualifier on everything above, and on any scoreboard number you quote:
+nine of ten real-data corpus datasets sit at **≤ 2 free metric parameters**
+(0 orthorhombic, 1 monoclinic, 0 triclinic), so every measured claim here is
+about high-symmetry lattices until the corpus moves — post-v1 by scope call.
 
 ---
 
@@ -821,13 +881,17 @@ summaries; history ids live per entry, never per run), and `"index"` (a peak lis
 or a pattern → `indexing`, an `IndexingResult`).
 
 `"index"` answers in its own arm because its answer is a different *shape*: there
-is no cell in it.  Read `indexing.candidates` and each one's
-`confidence_caveats`; `best_or_none()` is the only singleton and it is null far
-more often than not (§7d).  Its `search` object mirrors the one option surface
-every engine reads — set `max_volume` and `n_unindexed` once and both engines mean
-the same thing, which is what makes their agreement evidence.
+is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
+candidate with each caveat's refuting/capping kind, the ranked figures beside
+the ones absent for cause, and the whole-profile numbers together — then
+`indexing.candidates` for the full record; `best_or_none()` is the only
+singleton and it is null far more often than not (§7d).  Its `search` object
+mirrors the one option surface every engine reads — set `max_volume` and
+`n_unindexed` once and every engine means the same thing, which is what makes
+their agreement evidence.
 
-The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …, "report": …}`
+The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …,
+"evidence": …, "report": …}`
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),

@@ -175,7 +175,15 @@ def absent_reflections(two_theta: np.ndarray, y_obs: np.ndarray,
     Chebyshev model, so a sloping background is not mistaken for intensity.  The
     same fact is the test's limit — a badly-fitted background makes the count
     unreliable, which is why the module docstring reads the count beside Rwp
-    rather than alone.
+    rather than alone.  **Measured how bad that gets** (WP-1043, magnetite's P
+    rival): the count's inputs are the *candidate's own fit's* to buy, and a
+    wrong candidate needing intensity under 163 predicted reflections bought it
+    by driving the co-refined background **negative** (mean −11 counts —
+    nothing floors it at the physical zero), at which point net cleared 3σ at
+    every channel and zero of 163 read absent; with the correct candidate's
+    background under the same positions, 8-14 absences return.  The acceptance
+    row regenerates that pathology, and the repair direction — inputs the
+    candidate cannot buy — is recorded there, with an Rwp ratio ruled out.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     net = np.asarray(y_obs, dtype=np.float64) - np.asarray(y_background,
@@ -472,6 +480,33 @@ def _adopt_measured_shift(spec, quality):
     return replace(spec, shift_template=shift.best)
 
 
+def _restrict_to_supported(spec, quality):
+    """Below the scoring bar, search only the systems the line count supports.
+
+    WP-1043's split, the search half: a list short of the twenty the classical
+    figures are defined on is still searched, but over
+    ``quality.systems_supported`` — the per-system :data:`MIN_LINES_PER_DOF`
+    authority — rather than the full request, because a system with fewer lines
+    per metric DOF than that is not over-determined and any cell found there
+    would be fitting noise.  No second searchability criterion: this reuses the
+    computation ``assess_peak_list`` already makes.
+
+    At or above the bar nothing changes — a caller's declared systems are
+    honored exactly as before.  And a caller whose declared systems share
+    *nothing* with the supported set is honored too, the same never-overridden
+    rule as :func:`_adopt_measured_shift`: the quality diagnostics still say
+    those systems are under-determined, but an explicit request is not silently
+    replaced by an empty search.
+    """
+    if not getattr(quality, "fom_undefined", None):
+        return spec
+    supported = set(getattr(quality, "systems_supported", ()) or ())
+    allowed = tuple(s for s in spec.systems if s in supported)
+    if not allowed or allowed == tuple(spec.systems):
+        return spec
+    return replace(spec, systems=allowed)
+
+
 def index_pattern(peaks: PeakList | None = None, *,
                   data: PatternData | None = None,
                   instrument: Instrument | None = None,
@@ -514,10 +549,16 @@ def index_pattern(peaks: PeakList | None = None, *,
     and one never reached (absent) — and ``INDEX_BUDGET_EXHAUSTED`` names them.
     ``estimate_ceiling`` is the pre-run arithmetic for choosing the value.
 
-    **Abstention is checked before any budget is spent.**  A peak list that cannot
-    support a search comes back with the candidates empty and
-    ``INDEX_DATA_INSUFFICIENT`` from the quality gate, never as an exception and
-    never as a ranked list with nothing behind it.
+    **Abstention is checked before any budget is spent, and it is about
+    searchability, not scorability** (WP-1043).  A peak list that cannot support
+    a search *in any system* (``MIN_LINES_PER_DOF``) comes back with the
+    candidates empty and ``INDEX_DATA_INSUFFICIENT`` from the quality gate,
+    never as an exception and never as a ranked list with nothing behind it.  A
+    list that is merely short of the twenty lines the classical figures of
+    merit are defined on is **searched anyway**, over the supported systems
+    only (:func:`_restrict_to_supported`), ranked by the reduced panel, and
+    capped by the ``fom_panel_reduced`` caveat — each absent figure named with
+    its reason on ``quality.fom_undefined``.
     """
     from ..history.events import as_event_stream
     from ..optimize.cancel import RefinementCancelled
@@ -551,6 +592,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         quality = assess_peak_list(peaks, shift_from_pairs=shift_from_pairs,
                                    pair_seed=spec.seed)
     spec = _adopt_measured_shift(spec, quality)
+    spec = _restrict_to_supported(spec, quality)
     names = tuple(engines) if engines is not None else engine_names()
     top = CONSENSUS_CHECK_TOP if check_top is None else check_top
 

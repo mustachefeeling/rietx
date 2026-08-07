@@ -74,6 +74,7 @@ from pxrdref.indexing.quality import assess_peak_list, fit_shift_model
 from pxrdref.schemas.indexing import (
     PAIR_MIN_Z,
     PEAK_ASSUMED_ESD_DEG,
+    PEAK_MIN_USABLE_LINES,
     PeakList,
 )
 from tests import indexing_gallery as gallery
@@ -460,11 +461,13 @@ def hl2_index():
 
 @pytest.fixture(scope="module")
 def qarr_fluorite():
-    """``(peaks, quality report, result)`` for CaF₂ — and it never searches.
+    """``(peaks, quality report, result)`` for CaF₂ — the searched short list.
 
-    Left **fast** and ungrouped on purpose: the whole row is that no engine
-    starts, so it costs a peak pick (~0.1 s) and nothing else.  A `slow` mark
-    here would be claiming a cost this row does not have.
+    A real search since WP-1043 (measured once at ~3.5 min wall: four systems
+    to completion plus Le Bail validation of the shortlist), where the
+    pre-1043 quality gate abstained before any engine started and the fixture
+    cost a peak pick.  Its consumer is therefore ``slow``-marked and grouped —
+    the mark now claims a cost the row really has.
     """
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
@@ -477,8 +480,10 @@ def qarr_fluorite():
     res = index_pattern(peaks, data=data, instrument=ins, spec=spec)
     gallery.draw("fluorite", peaks=peaks, data=data, result=res, instrument=ins,
                  spec=spec,
-                 note="18 usable lines against PEAK_MIN_USABLE_LINES = 20 — the "
-                      "picture is the whole row, and there is nothing else to draw")
+                 note="fewer usable lines than the twenty the classical "
+                      "figures need — searched anyway since WP-1043: the "
+                      "reduced panel ranks the certified cell first, held at "
+                      "medium by fom_panel_reduced")
     return peaks, assess_peak_list(peaks), res
 
 
@@ -518,7 +523,8 @@ def lab6_peaks():
     data, ins = _lab6_inputs()
     peaks = pick_peaks(data, ins)
     gallery.draw("lab6_peaks", peaks=peaks, data=data,
-                 note="the tail components this list carries are unflagged — they "
+                 note="the tail components this list carried unflagged until "
+                      "WP-1043 — they "
                       "are among the solid ticks, not the faint ones, which is "
                       "exactly why three rows exist about them")
     return peaks
@@ -550,14 +556,32 @@ def _without_the_off_lattice_lines(peaks):
 
     A *probe*, not a proposal.  It answers "what do these components cost?" by
     using the answer to identify them, which no user indexing an unknown phase
-    can do — and the package's own screen cannot reach them either, for three
-    different reasons measured in
-    ``test_the_unflagged_tail_components_escape_for_three_different_reasons``.
+    can do — and it reaches only **five** of the census six: the 43.5° tail
+    aliases onto a certified position (the axial shift cancels the specimen
+    displacement there), so an answer-based probe cannot see it at all.  Since
+    WP-1043 the cause-specific flags reach all six blind; this probe's
+    remaining jobs are the deviation figure, the census row's comparison, and
+    the tight-window control measured under its screen.
     """
     kept = [p for p in peaks.peaks
             if not p.usable
             or abs(_certified_deviation(peaks, np.array([p.two_theta]))[0])
             < LAB6_OFF_LATTICE_DEG]
+    return peaks.model_copy(update={"peaks": kept})
+
+
+def _without_the_flagged_aberrations(peaks):
+    """The list with the components the **blind** screens flagged removed.
+
+    WP-1043's payoff step: ``axial_tail`` and ``kalpha2_residual`` identify
+    the tail components from the pattern alone, so this trim needs no
+    certificate.  Flagged-but-unusable components stay in the list (they are
+    already out of ``usable()``, and removing a shape displaces the real line
+    it repairs — the ``not_separable`` rule).
+    """
+    kept = [p for p in peaks.peaks
+            if not p.usable
+            or not ({"axial_tail", "kalpha2_residual"} & set(p.flags))]
     return peaks.model_copy(update={"peaks": kept})
 
 
@@ -603,16 +627,18 @@ def lab6_index(lab6_peaks):
 def lab6_calibrated(lab6_peaks):
     """``(result, screen)`` for the fully calibrated protocol. ~4 s.
 
-    Everything the gate can be given, given: the off-lattice components removed,
-    the systematic **measured** against the certificate rather than assumed, and
-    the template that names its cause declared.  Cubic only — the point of this
-    fixture is what the *gate* does once the evidence exists, and a four-system
-    search costs 35 s to reach the identical cell (measured: 4.156772 either way).
+    Everything the gate can be given, given: the aberration components removed
+    **by their flags** (WP-1043 — the pattern alone supplies them, and they
+    reach one component the certificate probe cannot; the census row asserts
+    exactly that), the systematic **measured** against the certificate rather
+    than assumed, and the template that names its cause declared.  Cubic only — the point of this fixture is what the *gate* does
+    once the evidence exists, and a four-system search costs 35 s to reach the
+    identical cell (measured: 4.156772 either way).
     """
     from pxrdref.indexing import index_pattern
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
-    trimmed = _without_the_off_lattice_lines(lab6_peaks)
+    trimmed = _without_the_flagged_aberrations(lab6_peaks)
     tt = trimmed.two_theta()
     screen = fit_shift_model(tt, _certified_deviation(trimmed, tt),
                              trimmed.two_theta_esd())
@@ -1077,35 +1103,57 @@ def test_a_three_phase_mixture_abstains(qpa_mixture_index):
         assert cand.confidence != "high"
 
 
-def test_a_phase_can_be_too_symmetric_to_index_from_its_own_pattern(qarr_fluorite):
-    """Fluorite abstains **before any engine starts**, and the reason is sound.
+@pytest.mark.slow
+@pytest.mark.xdist_group("indexing-acceptance-fluorite")
+def test_a_short_clean_list_is_searched_ranked_and_reported_unscored(
+        qarr_fluorite):
+    """Fluorite is searched now, and the certified cell comes back ranked first.
 
     CaF₂ is Fm-3m with a = 5.4631 Å, and over this round robin's 5-150° Cu Kα
-    range that lattice simply does not produce many lines: ``pick_peaks`` finds
-    **18** usable, against ``PEAK_MIN_USABLE_LINES`` = 20.  So
-    ``assess_peak_list`` refuses, ``systems_searched`` is **empty**, and the run
-    costs 0.1 s rather than a minute of searching.
+    range that lattice yields fewer than twenty usable lines — so before
+    WP-1043 the quality gate abstained here without starting an engine,
+    conflating "can this be scored" (twenty lines, where M₂₀ and F₂₀ are
+    defined) with "can this be searched" (``MIN_LINES_PER_DOF``: seventeen
+    lines are seventeen-fold over-determined for a cubic metric).  Measured on
+    the split: all four requested systems searched to completion, twelve
+    candidates, the certified cell **first** at −18 ppm, and the answer
+    reported *unscored* — the classical figures absent with their reasons and
+    the reduced panel doing the ranking.
 
-    Two things make this worth a row rather than a footnote.  It is the
-    *counterintuitive* direction — high symmetry is what makes a pattern easy to
-    index right up until it makes the pattern too sparse to index at all — and
-    the bar is not arbitrary: M₂₀, F₂₀ and Smith's volume envelope are all
-    **defined** on twenty lines, so below that the package would be reporting
-    figures of merit outside their own definitions.  WP-1024's handover warned
-    that two spikes were debugged before someone checked ``quality.n_usable``
-    first; this row is that warning made executable.
+    The capping caveat is load-bearing, and this row is its measurement: rank
+    1 carries **no other caveat** (validated, every engine agrees, search
+    complete, shift measured from pairs), so without ``fom_panel_reduced``
+    this change would have minted a ``high`` singleton from seventeen lines —
+    the gate-loosening the WP's non-goal forbids.  ``best_or_none()`` still
+    refuses, and unattended use is exactly as strict as the abstention made
+    it, with the whole ranked answer now behind it for anyone who can reason.
     """
     peaks, report, res = qarr_fluorite
-    assert len(peaks.usable()) < 20
-    assert not report.supports_indexing
-    assert report.abstained_reason and "20" in report.abstained_reason
+    assert len(peaks.usable()) < PEAK_MIN_USABLE_LINES
 
-    assert res.candidates == []
-    assert res.systems_searched == [], (
-        "an engine ran on a list the quality gate had already refused")
-    assert res.best_or_none() is None
+    # searched, not refused — the split's whole content
+    assert report.supports_indexing and report.abstained_reason is None
+    assert set(report.fom_undefined) == {"m20", "f_n"}
+    assert set(res.systems_searched) == set(REAL_DATA_SYSTEMS)
+    assert all(res.search_complete[s] for s in res.systems_searched)
     codes = {d.code for d in res.diagnostics}
-    assert {"INDEX_DATA_INSUFFICIENT", "INDEX_ABSTAINED"} <= codes, sorted(codes)
+    assert "INDEX_DATA_INSUFFICIENT" not in codes, sorted(codes)
+    assert "INDEX_PANEL_REDUCED" in codes, sorted(codes)
+
+    # the certified cell, ranked first by the reduced panel
+    assert res.candidates
+    top = res.candidates[0]
+    assert top.system == "cubic" and top.centring == "F"
+    assert top.cell[0] == pytest.approx(5.4631, rel=1e-4)
+    assert [f.name for f in top.fom] == [
+        "indexed_fraction", "indexed_intensity_fraction",
+        "predicted_seen_fraction", "m_rev", "m_sym"]
+
+    # unscored ⇒ capped, and by nothing else
+    assert top.confidence_caveats == ["fom_panel_reduced"]
+    assert top.confidence == "medium"
+    assert res.best_or_none() is None
+    assert "INDEX_ABSTAINED" in codes
 
 
 @pytest.mark.slow
@@ -1295,15 +1343,26 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
     truth and is silent on the rival, and the rival ends **medium** where the
     truth is **low**.
 
-    Rwp separates the pair where the detector does not — 0.25 against 0.79 — and
-    the row pins that separation **as an unexplained fact, not as a discriminator
-    to rank on**.  It should not be read as "Rwp is the trustworthy one": a Le
-    Bail Rwp rewards flexibility, which is why WP-1020 kept ``lebail_rwp`` off
-    the FoM panel, and the direction here is the opposite of what that predicts.
-    Something in this fit — the freed background and widths are the untested
-    suspects — is paying for 163 reflections; until that is measured (WP-1043),
-    what the pair demonstrates is that the **detector** is blind here, and the
-    honest use of the Rwp is as one more thing a reader is shown.
+    **Measured (WP-1043): the detector's inputs are the candidate's to buy,
+    and the background is the one it buys.**  The validation frees the
+    background with no physical floor, and the rival's own fit drives it
+    **negative** — mean −11 counts on a pattern whose 5th percentile is 9 — so
+    net-above-background clears 3σ at 100 % of channels and nothing can read
+    absent.  The decomposition is a 2×2 swap: with the *truth's* background
+    under the rival's positions the absences return (8 of 163 at the fit's
+    widths, 14 at the peak list's measured 0.54°, both fits also inflating
+    their width terms 2-3× against a bound), while swapping widths alone
+    restores none — the background dominates, and the sign is the finding:
+    the WP guessed "a raised background", but a raised background makes
+    *more* absences, not fewer.  The formerly unexplained Rwp separation
+    (0.25 against 0.79) is the same fact seen by a different instrument — the
+    corrupted fit that blinds the detector is the fit Rwp reads — which is
+    why surfacing Rwp to a reader is honest while wiring an Rwp ratio into
+    the gate stays ruled out (WP-1020: a Le Bail Rwp rewards flexibility).
+    And a repaired detector would read **14 of 163** here, not "most of 163":
+    on a lab pattern this flat-poor the count separates the pair without
+    slamming it, a bound worth knowing before anyone redesigns the detector
+    around this row.
 
     The gate still abstains, so nothing wrong is returned; what this row pins is
     that the *reason* it abstains is not the reason a reader would guess.
@@ -1338,9 +1397,26 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
         "should leave nothing detectably absent")
     assert rival.lebail.n_reflections > 3 * best.lebail.n_reflections
     assert rival.lebail.rwp > 2.0 * best.lebail.rwp, (
-        "the unexplained separation this row pins — see the docstring; it is "
-        "not a licence to rank on a Le Bail Rwp")
+        "the separation the docstring explains — same root cause as the "
+        "detector's blindness, and not a licence to rank on a Le Bail Rwp")
     assert "predicted_but_absent" in best.confidence_caveats
+
+    # the mechanism, regenerated rather than quoted (WP-1043): re-fit the
+    # rival and read the background its own validation bought
+    from pxrdref.indexing.pick import pick_peaks
+    from pxrdref.indexing.workflow import validate_by_lebail
+    data, ins = _qarr("magnetit.prn")
+    peaks = pick_peaks(data, ins)
+    _val, rival_fit = validate_by_lebail(rival, data, ins, peaks=peaks,
+                                         with_result=True)
+    bkg = np.asarray(rival_fit.y_background)
+    net = np.asarray(rival_fit.y_obs) - bkg
+    assert bkg.mean() < 0.0, (
+        f"the bought input: the rival's co-refined background should sit "
+        f"below zero (measured mean −11 counts), got {bkg.mean():.1f}")
+    assert np.mean(net > 3.0 * np.asarray(rival_fit.sigma)) > 0.99, (
+        "with a negative background every channel reads as net intensity, "
+        "and a detector asking 'is there nothing here' can never fire")
     assert "predicted_but_absent" not in rival.confidence_caveats
 
     # nothing wrong is returned either way
@@ -1684,9 +1760,23 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
 
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
-def test_the_unflagged_tail_components_escape_for_three_different_reasons(
+def test_the_tail_components_escape_not_separable_and_are_flagged_by_cause(
         lab6_peaks):
     """Six components survive the ``not_separable`` screen, and no one knob explains it.
+
+    **Acted on by WP-1043**: the six are no longer *unflagged* — the
+    cause-specific screens mark all six from the pattern alone
+    (``axial_tail``: one-sided, signed by the 90° flip; ``kalpha2_residual``:
+    at the mate's predicted doublet position) while ``not_separable``'s census
+    below stands unchanged, three conditions and all.  The flags are
+    **informational** — the components stay usable, because across the other
+    real lab patterns the same screens reach eleven unverified components and
+    refusing them blind risks losing real lines.  The end of this test asserts
+    the payoff: the flag trim reaches everything the certificate probe
+    reaches, **plus the slot-swap tail the probe cannot see** — it aliases
+    onto a certified position because the axial shift cancels the specimen
+    displacement there — which is what makes the calibrated protocol's first
+    step answer-free and *better* than the answer-based probe it replaces.
 
     The screen (``indexing/pick.py``) asks three questions of a weak component
     sharing a group with a strong one: was it put there by a re-seed pass, is it
@@ -1738,6 +1828,37 @@ def test_the_unflagged_tail_components_escape_for_three_different_reasons(
         "the distance condition is no longer what lets most of them through; "
         "re-measure the census before trusting the docstring above")
 
+    # WP-1043: every survivor now carries its cause — five tails, one Kα2
+    # residual — while staying usable (reported, not refused)
+    for weak, _strong in survivors:
+        assert {"axial_tail", "kalpha2_residual"} & set(weak.flags), (
+            f"{weak.two_theta:.4f}° survives every screen unflagged — the "
+            "census regressed to its pre-WP-1043 state")
+        assert weak.usable, (
+            f"{weak.two_theta:.4f}° was refused, not reported: the aberration "
+            "flags are deliberately informational")
+    codes = {d.code for d in peaks.diagnostics}
+    assert {"PEAK_AXIAL_TAIL", "PEAK_KALPHA2_RESIDUAL"} <= codes
+
+    # the payoff, asserted rather than narrated: the blind flags reach every
+    # component the certificate probe reaches — and **one more the probe
+    # cannot see**.  The 43.5° tail sits at dev −0.003° because the axial
+    # shift (≈ −0.04°) cancels the specimen displacement (≈ +0.04°), so the
+    # probe reads it as on-lattice; the flag reads the *side*, which no
+    # cancellation hides.  Dropping it is what takes the calibrated screen's
+    # leftover scatter from 0.0078° to 0.0025°.
+    by_flag = {p.two_theta
+               for p in _without_the_flagged_aberrations(peaks).peaks}
+    by_probe = {p.two_theta
+                for p in _without_the_off_lattice_lines(peaks).peaks}
+    assert by_flag <= by_probe, (
+        f"the flag trim kept lines the probe drops: "
+        f"{sorted(by_flag - by_probe)}")
+    swap = sorted(by_probe - by_flag)
+    assert len(swap) == 1 and abs(swap[0] - 43.5) < 0.1, (
+        f"the two trims should differ by exactly the 43.5° slot-swap tail "
+        f"(the one aliased onto a certified position), got {swap}")
+
 
 @pytest.mark.xdist_group("indexing-acceptance-lab6")
 def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
@@ -1776,10 +1897,10 @@ def test_the_surviving_components_sit_on_the_axial_divergence_side(lab6_peaks):
     assert exceptions == 1, (
         f"expected exactly one Kα2 residual, found {exceptions} at {kalpha2}")
 
-    # the picture the generic renderers cannot draw, because these components
-    # are **unflagged** — plot_peak_list gives them the same tick as a real line,
-    # which is the finding.  What separates them is the signed distance to the
-    # certified lattice and the 90° crossover, so that is what is plotted.
+    # the picture the generic renderers could not draw while these components
+    # were unflagged (pre-WP-1043); the flags now mark them, and this figure
+    # remains because it shows what the flags cannot — the signed *cost*:
+    # distance to the certified lattice, split at the 90° crossover.
     tt = peaks.two_theta()
     dev = _certified_deviation(peaks, tt)
     gallery.draw_deviation(
@@ -2235,8 +2356,11 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
 
     It costs three things, and naming them is the point of the row:
 
-    1. the five off-lattice components removed — **using the certificate**, which
-       no user of an unknown phase can do;
+    1. the aberration components removed — **by their flags** since WP-1043
+       (before it this step used the certificate, which no user of an unknown
+       phase can do — and which reached only five of the six: the flags also
+       drop the 43.5° tail that aliases onto a certified position, taking the
+       screen's leftover scatter from 0.0078° to 0.0025°);
     2. the systematic **measured** rather than assumed, which clears
        ``shift_allowance_assumed``, the caveat WP-1024 identified as the reason
        ``high`` was unreachable on lab data;
@@ -2252,12 +2376,15 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
 
     **What the σ_sys argument means, measured the hard way.**  The obvious number
     to declare is the one ``ShiftScreen`` calls ``sigma_sys_deg`` — the scatter
-    the winning template *leaves* (0.0078° here).  Declare that and the search
-    finds **nothing**, because it matches against uncorrected positions: the
-    template is fitted by ``refine_with_shift`` only after a candidate survives,
-    so the window still has to span the shift itself.  What the search needs is
-    the shift's **amplitude** (0.037°), and this fixture declares that.  The two
-    quantities differ by 4.3× and only one of them indexes; filed to WP-1028.
+    the winning template *leaves* (0.0025° on the flag-trimmed list; 0.0078° on
+    the certificate-probe trim, where the 43.5° tail — aliased onto a certified
+    position by two cancelling systematics — inflated it 3×).  Declare that and
+    the search finds **nothing**, because it matches against uncorrected
+    positions: the template is fitted by ``refine_with_shift`` only after a
+    candidate survives, so the window still has to span the shift itself.  What
+    the search needs is the shift's **amplitude** (0.038°, identical under both
+    trims), and this fixture declares that.  The two quantities differ by 4.3×
+    (probe) to 15× (flags) and only one of them indexes; filed to WP-1028.
     """
     res, screen = lab6_calibrated
 
@@ -2333,12 +2460,23 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     from pxrdref.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     assert screen.sigma_sys_deg < 0.3 * abs(best.shift_coefficient)
+    # The control runs at the **probe-trimmed** screen's leftover scatter
+    # (0.0078°) — the condition WP-1040 measured the rescue under.  The
+    # calibrated fixture's own screen is flag-trimmed since WP-1043 and leaves
+    # 0.0025°: the 43.5° tail (aliased onto a certified position by two
+    # cancelling systematics, so only the flag reaches it) was the outlier
+    # inflating the residual 3×.  0.0025° is 15× under the amplitude and past
+    # what the zero-error column was measured to rescue — running the control
+    # there would silently re-measure WP-1040's claim instead of pinning it.
+    probe = _without_the_off_lattice_lines(lab6_peaks)
+    probe_screen = fit_shift_model(
+        probe.two_theta(), _certified_deviation(probe, probe.two_theta()),
+        probe.two_theta_esd())
     spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
-                      sigma_sys_deg=float(screen.sigma_sys_deg))
-    tight = index_pattern(_without_the_off_lattice_lines(lab6_peaks),
-                          data=data, instrument=ins, spec=spec)
+                      sigma_sys_deg=float(probe_screen.sigma_sys_deg))
+    tight = index_pattern(probe, data=data, instrument=ins, spec=spec)
     assert tight.candidates, (
         "a window 4.3× too tight now finds nothing again — if the zero-error "
         "column changed, this is where it shows first")

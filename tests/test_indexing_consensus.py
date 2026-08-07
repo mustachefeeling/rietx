@@ -41,12 +41,14 @@ from pxrdref.indexing.consensus import (
 )
 from pxrdref.indexing.engines import SearchSpec, engine_names
 from pxrdref.indexing.workflow import (
+    _restrict_to_supported,
     absent_reflections,
     structure_from_candidate,
     validate_by_lebail,
 )
 from pxrdref.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
+    PEAK_MIN_USABLE_LINES,
     BravaisOpinion,
     CellCandidate,
     FigureOfMerit,
@@ -62,8 +64,10 @@ TRUE_A = 4.1566
 #: 2θ range of the synthetic pattern every measured number here is quoted at.
 #: 145° rather than 100° for a reason the data-quality gate enforces: a cubic cell
 #: shows 15 lines to 100° and 23 to 145°, and below
-#: ``PEAK_MIN_USABLE_LINES = 20`` the list cannot be scored at all, so a shorter
-#: pattern tests the abstention rather than the search.
+#: ``PEAK_MIN_USABLE_LINES = 20`` the list cannot be *scored* — the classical
+#: figures leave the panel and the ``fom_panel_reduced`` caveat caps confidence
+#: (WP-1043) — so a shorter pattern tests the reduced-panel path rather than
+#: the scored one this module's numbers are quoted on.
 TT_MAX = 145.0
 
 
@@ -280,6 +284,18 @@ def test_an_assumed_tolerance_caps_confidence_on_its_own():
     assert _gate(cand)[1] == "high"
 
 
+def test_a_reduced_panel_caps_confidence_on_its_own():
+    """WP-1043: below the scoring bar the ranking stands and ``high`` does not —
+    the same reachability the old abstention gave unattended use, kept without
+    refusing the search.  Capping rather than refuting, because a short list is
+    not evidence *against* a cell."""
+    cand = _candidate(TRUE_A)
+    caveats, verdict = _gate(cand, panel_reduced=True)
+    assert caveats == ["fom_panel_reduced"]
+    assert verdict == "medium"
+    assert "fom_panel_reduced" not in INDEX_REFUTING_CAVEATS
+
+
 def test_an_unchecked_candidate_cannot_reach_high():
     """Not enumerating the ambiguity is not the same as finding none.
 
@@ -477,6 +493,142 @@ def test_a_peaks_only_run_abstains_by_declaration(cubic_peaks):
     assert top.confidence_caveats == ["not_validated"]
     codes = {d.code for d in result.diagnostics}
     assert {"INDEX_NOT_VALIDATED", "INDEX_ABSTAINED"} <= codes
+
+
+def test_a_short_clean_list_is_searched_ranked_and_capped():
+    """The fluorite defect in miniature (WP-1043): fifteen clean cubic lines
+    are fifteen-fold over-determined for a one-parameter metric, and the
+    pre-1043 gate refused to search them because twenty is where the classical
+    figures are *scored*.  Now the search runs — restricted to the systems
+    ``MIN_LINES_PER_DOF`` supports — the reduced panel ranks, each absent
+    figure carries its reason, and the ``fom_panel_reduced`` caveat caps the
+    grade instead of a refusal standing in front of the answer."""
+    peaks = _peak_list((TRUE_A,) * 3 + (90.0,) * 3, two_theta_max=100.0)
+    assert len(peaks.usable()) < PEAK_MIN_USABLE_LINES
+    result = index_pattern(
+        peaks, spec=SearchSpec(systems=("cubic", "monoclinic"), min_d_axis=2.0,
+                               max_d_axis=12.0, max_volume=1500.0,
+                               budget_seconds=120.0, sigma_sys_deg=1e-9))
+    # searched, not abstained — and only where the line count supports it:
+    # monoclinic needs 20 lines at 5 per DOF, so the request is narrowed
+    assert result.quality.supports_indexing
+    assert result.systems_searched == ["cubic"]
+    codes = {d.code for d in result.diagnostics}
+    assert "INDEX_DATA_INSUFFICIENT" not in codes
+    assert "INDEX_PANEL_REDUCED" in codes
+    # ranked by the reduced panel, the truth first, reasons on the report
+    assert result.candidates
+    top = result.candidates[0]
+    assert top.cell[0] == pytest.approx(TRUE_A, abs=2e-3)
+    names = [f.name for f in top.fom]
+    assert "m20" not in names and "f_n" not in names
+    assert "indexed_fraction" in names
+    assert set(result.quality.fom_undefined) == {"m20", "f_n"}
+    # capped, uniformly: the grade is a field on the answer, not a gate in
+    # front of it — and ``high`` stays exactly as unreachable as before
+    for cand in result.candidates:
+        assert "fom_panel_reduced" in cand.confidence_caveats
+    assert result.best_or_none() is None
+
+    # the evidence view agrees with the result it projects, by construction
+    ev = result.evidence()
+    assert ev.fom_undefined == result.quality.fom_undefined
+    assert set(ev.fom_ranked) == set(names)
+    assert set(ev.candidates[0].fom) == set(ev.fom_ranked)
+    assert all(any(c.name == "fom_panel_reduced" and c.kind == "capping"
+                   for c in cand.caveats)
+               for cand in ev.candidates)
+
+
+def test_restriction_honors_an_explicit_unsupported_request():
+    """Two edges of :func:`_restrict_to_supported`, asserted on the function.
+
+    A caller whose declared systems share *nothing* with the supported set is
+    not silently handed an empty search — the same never-overridden rule as
+    ``_adopt_measured_shift`` — and at or above the scoring bar the spec is
+    untouched even when a declared system is under-determined, because that is
+    the measured pre-1043 behaviour every acceptance row was quoted on."""
+    from types import SimpleNamespace
+
+    below_bar = SimpleNamespace(fom_undefined={"m20": "…", "f_n": "…"},
+                                systems_supported=["cubic", "tetragonal"])
+    no_overlap = SearchSpec(systems=("monoclinic",))
+    assert _restrict_to_supported(no_overlap, below_bar) is no_overlap
+
+    at_bar = SimpleNamespace(fom_undefined={},
+                             systems_supported=["cubic"])
+    unrestricted = SearchSpec()
+    assert _restrict_to_supported(unrestricted, at_bar) is unrestricted
+
+    overlap = SearchSpec(systems=("cubic", "monoclinic"))
+    assert _restrict_to_supported(overlap, below_bar).systems == ("cubic",)
+
+
+def test_the_evidence_view_is_a_projection_with_caveat_kinds():
+    """WP-1043: the gate's inputs, serialized — not a second copy of them.
+
+    The refuting/capping split lived only in ``INDEX_REFUTING_CAVEATS``, a
+    package constant no JSON consumer can see, so the serialized answer could
+    name ``predicted_but_absent`` and ``not_validated`` in the same list
+    without saying that one argues against the cell and the other only says a
+    question was never asked.  ``evidence()`` computes the view from the live
+    fields on each call, so the two representations cannot disagree."""
+    from typing import get_args
+
+    from pxrdref.refine import _VERSION
+    from pxrdref.schemas.common import Provenance
+    from pxrdref.schemas.indexing import IndexingEvidence
+
+    refuted = _candidate(
+        TRUE_A, confidence="low",
+        confidence_caveats=["predicted_but_absent", "not_validated"],
+        lebail=LeBailValidation(rwp=0.379, gof=2.1, space_group="P m -3 m",
+                                n_reflections=153, predicted_but_absent=117,
+                                unmatched_observed=0))
+    unreached = _candidate(
+        4.9, confidence="medium", confidence_caveats=["fom_panel_reduced"],
+        lebail=None, fom=[])
+    result = IndexingResult(
+        candidates=[refuted, unreached], engines_run=sorted(engine_names()),
+        systems_searched=["cubic"], search_complete={"cubic": True},
+        validated=True, wavelength=LAM, n_usable_lines=17,
+        provenance=Provenance(package_version=_VERSION,
+                              created_utc="2026-08-07T00:00:00Z"))
+
+    ev = result.evidence()
+    assert [c.index for c in ev.candidates] == [0, 1]
+    kinds = {c.name: c.kind for c in ev.candidates[0].caveats}
+    assert kinds == {"predicted_but_absent": "refuting",
+                     "not_validated": "capping"}
+    assert ev.candidates[1].caveats[0].kind == "capping"
+
+    # the three whole-profile figures travel together, and an unreached
+    # validation is None — absent for cause, never zero
+    first = ev.candidates[0]
+    assert (first.validated, first.lebail_rwp, first.predicted_but_absent,
+            first.unmatched_observed) == (True, 0.379, 117, 0)
+    second = ev.candidates[1]
+    assert (second.validated, second.lebail_rwp, second.predicted_but_absent,
+            second.unmatched_observed) == (False, None, None, None)
+
+    # panel membership comes from the first candidate that carries one
+    assert ev.fom_ranked == [f.name for f in refuted.fom]
+    assert ev.candidates[0].fom == {f.name: f.value for f in refuted.fom}
+    assert ev.systems_searched == ["cubic"]
+
+    # every member of the closed vocabulary gets a kind, and the partition is
+    # exactly the refuting constant — so a new caveat cannot arrive unkinded
+    all_caveats = _candidate(TRUE_A,
+                             confidence_caveats=sorted(get_args(IndexCaveat)))
+    every = {c.name: c.kind
+             for c in IndexingResult(
+                 candidates=[all_caveats], provenance=result.provenance,
+             ).evidence().candidates[0].caveats}
+    assert {n for n, k in every.items() if k == "refuting"} \
+        == set(INDEX_REFUTING_CAVEATS)
+
+    # the view is a schema: it survives the JSON round trip intact
+    assert IndexingEvidence.model_validate_json(ev.model_dump_json()) == ev
 
 
 def test_a_restricted_search_is_not_a_verdict_about_the_specimen():

@@ -231,10 +231,24 @@ def test_mutating_peak_verbs_refuse_while_a_run_is_in_flight(served, client):
 # indexing: the run machine, the answer, the gate
 # ----------------------------------------------------------------------
 def test_index_rides_the_run_state_machine(served, client):
+    # Flag the list down to four usable lines — below MIN_LINES_PER_DOF in
+    # every system — so the quality gate still abstains and the run completes
+    # in one poll.  Since WP-1043 a short-but-searchable list (this pattern's
+    # 15 usable lines included) is *searched* over the systems its line count
+    # supports; that path belongs to the acceptance suite, not to the run
+    # machine, and unbudgeted it would outlive every timeout here.
+    _, doc = client.get("/api/peaks")
+    usable = [p["index"] for p in doc["peaks"] if p["usable"]]
+    assert len(usable) > 4
+    for i in usable[4:]:
+        status, _flagged = client.post(
+            "/api/peaks/flag", {"index": i, "use_for_indexing": False})
+        assert status == 200
+
     status, frame = client.post("/api/index", {})
     assert status == 200 and frame["run"]["kind"] == "index"
     frame = _wait_idle(client)
-    # the synthetic pattern abstains at the quality gate — abstention is a
+    # the flagged-down list abstains at the quality gate — abstention is a
     # *result*, and the machine must report a completed run, not a failure
     assert frame["run"]["status"] == "completed"
     assert frame["run"]["node_id"] is None  # an indexing run commits no node

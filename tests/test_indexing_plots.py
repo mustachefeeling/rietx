@@ -359,6 +359,72 @@ def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
         "the +258 ppm cell that is the cross-code answer")
 
 
+def _result_of(candidates, peaks, *, sigma_sys_note="0.05"):
+    from pxrdref.schemas.common import Provenance
+    from pxrdref.schemas.indexing import IndexingResult
+
+    return IndexingResult(
+        candidates=list(candidates), engines_run=["trial_error"],
+        systems_searched=["cubic"], wavelength=LAM,
+        n_usable_lines=len(peaks.usable()),
+        provenance=Provenance(
+            package_version="test", created_utc="2026-08-07T00:00:00Z",
+            notes={"sigma_sys_deg": sigma_sys_note}))
+
+
+def test_plot_indexing_composes_the_gallery_from_a_result_alone(
+        bcc_candidates, bcc_peaks, tmp_path):
+    """WP-1043: the visual check is a function of (result, pattern).
+
+    Until this call the composition lived in ``tests/indexing_gallery.py``
+    only, so a user holding an ``IndexingResult`` could not draw the check the
+    user's design call made part of the deliverable.  The matching window is
+    reconstructed from the result's **own provenance notes** — the search
+    records ``sigma_sys_deg`` for exactly this — so the tick rows match in the
+    window the candidates were selected under, with no spec in hand.
+    """
+    from pxrdref.indexing.engines import SearchSpec, match_window
+    from pxrdref.viz import plot_indexing
+    from pxrdref.viz.indexing import _window_from_result
+
+    result = _result_of(bcc_candidates, bcc_peaks)
+    figs = plot_indexing(result, bcc_peaks, path=str(tmp_path / "row"))
+    # no fit inputs and no stored validation → the two evidence figures
+    assert list(figs) == ["peaks", "candidates"]
+    for name, fig in figs.items():
+        assert (tmp_path / f"row_{name}.png").stat().st_size > 0
+        fig.clf()
+
+    # the window is the search's, not the raw σ — and the two differ, which
+    # is the whole point of reconstructing it
+    expected = match_window(bcc_peaks, SearchSpec(sigma_sys_deg=0.05), None)
+    assert np.allclose(_window_from_result(result, bcc_peaks), expected)
+    assert not np.allclose(expected, bcc_peaks.q_esd())
+
+
+def test_plot_indexing_draws_the_stored_validation_without_a_refit(
+        bcc_candidates, bcc_peaks):
+    """The positions-only panel needs no pattern: a stored ``lebail`` verdict
+    carries both detector lists, and a candidate index past the list is
+    addressed, never clamped."""
+    from pxrdref.schemas.indexing import LeBailValidation
+    from pxrdref.viz import plot_indexing
+
+    stored = bcc_candidates[0].model_copy(update={"lebail": LeBailValidation(
+        rwp=0.21, gof=1.4, space_group="I m -3 m", n_reflections=23,
+        predicted_but_absent=2, unmatched_observed=1,
+        predicted_but_absent_two_theta=[41.2, 77.9],
+        unmatched_observed_two_theta=[55.1])})
+    result = _result_of([stored, *bcc_candidates[1:]], bcc_peaks)
+    figs = plot_indexing(result, bcc_peaks)
+    assert list(figs) == ["peaks", "candidates", "validation"]
+    for fig in figs.values():
+        fig.clf()
+
+    with pytest.raises(ValueError, match="out of range"):
+        plot_indexing(result, bcc_peaks, candidate=99)
+
+
 def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,
                                                              bcc_peaks):
     """``confidence`` defaults to ``"low"``, so printing it unconditionally puts

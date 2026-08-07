@@ -561,16 +561,18 @@ def test_q_must_not_drift_from_two_theta():
 
 
 def test_short_list_is_a_result_not_an_exception():
-    """Abstention is a *result*: an unindexably short list comes back carrying
-    ``PEAK_LIST_TOO_SHORT``, because the figures of merit the engines rank on
-    are all defined on twenty lines."""
+    """A short list comes back carrying ``PEAK_LIST_TOO_SHORT`` — a *warning*
+    since WP-1043, because the twenty-line bar belongs to the figures of merit
+    only: the list is searchable (over the systems its line count supports)
+    and merely cannot be scored against published thresholds."""
     instrument = _instrument()
     y_true, grid, truth = _forward(instrument, tt_lo=20.0, tt_hi=45.0)
     peaks = pick_peaks(_noisy(y_true, grid, 21), instrument)
     assert 0 < len(peaks.usable()) < PEAK_MIN_USABLE_LINES
     assert len(truth) < PEAK_MIN_USABLE_LINES
     d = next(d for d in peaks.diagnostics if d.code == "PEAK_LIST_TOO_SHORT")
-    assert d.level == "error"
+    assert d.level == "warning"
+    assert "searched but not scored" in d.message
 
 
 def test_synchrotron_width_default_on_lab_data_is_reported():

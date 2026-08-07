@@ -63,16 +63,16 @@ size caps on this file and CLAUDE.md.
 
 **Nothing in flight.** Closed 2026-08-07, narrative in
 [milestones/v1.0.md](milestones/v1.0.md):
-[1028](wp/1028-robustness-external-data.md) — a stranger's CIF or pattern now
-either refines or names its cause, across ten items and 32 regressions. Three
-of them corrected the cause they were *filed* with: the multiphase Le Bail
-overcount converges (1.79×) rather than diverging, and its denominator simply
-spanned one phase; Rwp = 1 is the broken-fit **attractor**, not its ceiling, so
-the divergence bar sits below it; and thirteen of fourteen softplus `min=0`
-parameters are fine because zero is their identity — the pattern to watch is a
-pole at the bound. Also landed: the left-edge peak defect 1041 found by eye,
-plus the `background_extrapolated` flag that reports a line standing on
-unmeasured background instead of refusing it.
+[1043](wp/1043-agent-and-human-indexing.md) — indexing reports instead of
+refusing, and three of its measurements corrected the premise they were filed
+under: the `fom_panel_reduced` cap is load-bearing (fluorite's rank-1 cell
+carries no other caveat, so `high` from 17 lines was one caveat away); the
+magnetite detector is blinded by a **negative** co-refined background, not a
+raised one; and the blind aberration flags beat the certificate probe they
+replaced, reaching the slot-swap tail two cancelling systematics hide —
+`high` at −2 ppm on SRM 660c now needs no certificate at the trim step. The
+evidence view rides the agent's `evidence` arm (decided additive), and
+`viz.plot_indexing` draws the visual check from a result alone.
 
 **The running theme: a number that is not regenerated is a number nobody
 re-measures.** A prediction is not a measurement (1041); nor is an inherited
@@ -80,31 +80,22 @@ claim (1016), a reported cause (1044, 1028), or a remembered ritual (1061).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1043](wp/1043-agent-and-human-indexing.md) — **the user's design call**: one
-   ranked list carrying every candidate's stats plus a visual check, the grade a
-   field on it, not a gate with an evidence view beside it. Holds the fluorite
-   abstention (18 clean cubic lines all three engines index at −5 ppm), the corpus
-   skew, and the **bethanechol re-measurement** — a −16 *floor*, below ITO13's
-   −14 (the worst individual global in the table), and the old "silence" claim
-   measured false. Corpus expansion deferred post-v1 (user, 2026-08-06); its
-   `### Inherited` now also carries 1028's `pick.py` escapee census, worth
-   125 ppm on a certified cell.
-2. [1042](wp/1042-anytime-results-quick-default.md) — revised 2026-08-06: the
+1. [1042](wp/1042-anytime-results-quick-default.md) — revised 2026-08-06: the
    system-major scheduler (the engine-major loop is why a deadline cuts whole
    engines, and with them consensus), streaming, `quick` as the default; volume
    tightening deferred to the v2+ fence.
-3. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
+2. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
    GUI and agent schema (one `SearchSpec`, bijection meta-test) + analogue
    priors that steer the search and never gate it (user, 2026-08-06). Its
    `### Inherited` now carries 1028's two search bounds — `sigma_sys_deg`
    meaning two different things, and `volume_envelope` used as a ceiling when
    Smith fitted it as a mean line.
-4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+3. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol score, now measured in 1043; what is left is making it generated —
    a manual runner beside `tests/indexing_gallery.py`, not a slow pytest row
    (constraints in 1043 § bethanechol).
-5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
-6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+4. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+5. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by both
    1016 and 1041; read it first.
 
@@ -251,7 +242,7 @@ monoclinic search finishes.
 | [1040](wp/1040-engine-svd-index.md) | Engine C (second attempt): SVD-Index | ✅ 2026-08-05 — landed with the zero-error column; scoreboard re-measured in 1041 | 1020, 1024 (1038 soft) |
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ⬜ | 1037 |
-| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ⬜ | 1041, 1026 (1028 soft) |
+| [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ✅ 2026-08-07 | 1041, 1026 (1028 soft) |
 | [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ⬜ | 1027, 1042 (1043 soft) |
 
 | WP | Title | Status | Depends on |

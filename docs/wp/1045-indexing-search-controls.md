@@ -98,6 +98,19 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
 
 ### Inherited
 
+**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the panel
+this WP builds has its data and its pictures already.**
+`IndexingResult.evidence()` is the per-candidate data the GUI panel should
+consume (every caveat with its refuting/capping kind, the figures that ranked
+beside `quality.fom_undefined`'s absent-for-cause ones, the three
+whole-profile numbers together), and `viz.plot_indexing(result, peaks, …)`
+draws the tick rows and the Le Bail panel from a result alone, rebuilding the
+matching window from `provenance.notes` — the GUI should consume both, never
+re-derive either. The two plotly esd facts 1041 measured (a `null` in
+`error_y.array` draws byte-identical to a zero-height bar; an esd smaller
+than a pixel must stay invisible) apply to any esd this panel plots —
+candidates carry `cov_af` unevenly, which is exactly the null-bar case.
+
 **From [1028](1028-robustness-external-data.md), closed 2026-08-07 — two search
 bounds it filed and did not schedule, both of which are `SearchSpec`'s business
 once this WP makes `SearchSpec` the one mirrored surface.** Measured 2026-07-30
@@ -105,7 +118,10 @@ on the certified SRM 660c LaB6 pattern; 1028's § (k) has the full text.
 
 - **`sigma_sys_deg` means two different things and only one of them indexes.**
   `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
-  *leaves* (0.0078° there). Declare that as `SearchSpec.sigma_sys_deg` and the
+  *leaves* (0.0078° there on the certificate-probe trim; 1043's flag trim
+  reads 0.0025°, because the probe's list still held the aliased 43.5° tail
+  that inflated the residual 3× — the amplitude below is identical under
+  both). Declare that as `SearchSpec.sigma_sys_deg` and the
   search returns **no candidate at all**, because it matches against
   **uncorrected** positions — `refine_with_shift` runs only after a candidate
   survives — so the window must still span the shift itself (+0.037°, 4.3×

@@ -301,6 +301,31 @@ def test_index_answer_carries_no_singleton_field(indexed):
         assert forbidden not in idx
 
 
+def test_index_answer_carries_the_evidence_view(indexed):
+    """WP-1043: the gate's inputs reach the JSON consumer, kinds included.
+
+    The refuting/capping split used to live only in ``INDEX_REFUTING_CAVEATS``,
+    a package constant no JSON reader can see; the ``evidence`` arm is that
+    judgement's inputs serialized — computed from the answer beside it at
+    dispatch time, so the two arms cannot disagree."""
+    ev = indexed["evidence"]
+    assert ev is not None
+    idx = indexed["indexing"]
+    assert len(ev["candidates"]) == len(idx["candidates"])
+    top = ev["candidates"][0]
+    assert top["index"] == 0
+    assert top["caveats"] == [{"name": "not_validated", "kind": "capping"}]
+    # this list clears the scoring bar: the full panel ranked, nothing absent
+    assert ev["fom_undefined"] == {}
+    assert "m20" in ev["fom_ranked"]
+    assert set(top["fom"]) == set(ev["fom_ranked"])
+    # no whole-profile fit ran (peaks only): absent for cause, never zero
+    assert top["validated"] is False and top["lebail_rwp"] is None
+    # and the API-shape rule holds here too: no singleton key
+    for forbidden in ("cell", "best", "solution"):
+        assert forbidden not in ev
+
+
 def test_index_reports_the_truth_ranked_first_and_qualified(indexed):
     top = indexed["indexing"]["candidates"][0]
     assert top["system"] == "cubic" and top["centring"] == "P"

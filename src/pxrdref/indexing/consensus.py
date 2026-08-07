@@ -283,6 +283,7 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
                 search_complete: dict[str, bool],
                 shift_allowance_assumed: bool,
                 checked: bool = True,
+                panel_reduced: bool = False,
                 min_indexed_fraction: float = INDEX_MIN_INDEXED_FRACTION,
                 volume_max: float | None = None) -> list[IndexCaveat]:
     """Every reason this candidate is not ``"high"``, from the closed vocabulary.
@@ -317,6 +318,12 @@ def caveats_for(cand: CellCandidate, *, engines_run: Sequence[str],
         out.append("geometric_ambiguity")
     if panel_disagrees:
         out.append("fom_panel_disagrees")
+    if panel_reduced:
+        # below the scoring bar (WP-1043): the panel that ranked this candidate
+        # lacks the classical figures, so ``high`` stays exactly as unreachable
+        # as the old abstention made it — capping, because a short list is not
+        # evidence against the cell
+        out.append("fom_panel_reduced")
     if not validated or cand.lebail is None:
         out.append("not_validated")
     elif cand.lebail.status in ("failed", "diverged"):
@@ -381,6 +388,7 @@ def apply_gate(candidates: Sequence[CellCandidate], *,
     disagree about a verdict there is only one of.
     """
     was_checked = set(range(len(candidates)) if checked is None else checked)
+    panel_reduced = quality is not None and bool(quality.fom_undefined)
     for i, cand in enumerate(candidates):
         volume_max = None
         if quality is not None:
@@ -389,7 +397,7 @@ def apply_gate(candidates: Sequence[CellCandidate], *,
             cand, engines_run=engines_run, panel_disagrees=panel_disagrees,
             validated=validated, search_complete=search_complete,
             shift_allowance_assumed=shift_allowance_assumed,
-            checked=i in was_checked,
+            checked=i in was_checked, panel_reduced=panel_reduced,
             min_indexed_fraction=min_indexed_fraction, volume_max=volume_max)
         cand.confidence = grade(cand.confidence_caveats, cand.found_by,
                                 engines_run)

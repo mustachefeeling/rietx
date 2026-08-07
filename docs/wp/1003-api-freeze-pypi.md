@@ -11,6 +11,18 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — three
+additive surface extensions the freeze must ratify, not discover.**
+`AgentSuccess` gained the `evidence` arm (`IndexingEvidence`, present exactly
+when `indexing` is), `IndexCaveat` gained the capping member
+`fom_panel_reduced`, and `PeakFlag` gained `axial_tail` /
+`kalpha2_residual` (both informational — deliberately absent from
+`PEAK_UNUSABLE_FLAGS`). All three were judged the events rule's "new field,
+not a new kind"; `SCHEMA_VERSION` stayed 0.1 and the grounds live on
+`AgentSuccess.evidence`'s docstring. The freeze should either ratify that
+judgement or bump deliberately — the decision record is there to be
+disagreed with, not rediscovered.
+
 **From [1060](1060-docs-ci-consolidation.md) (closed 2026-08-06) — three more
 free-tier CI shapings for the going-public un-shaping list.** The workflow
 headers already say "undo on going public"; 1060 added: the job-level `if`
