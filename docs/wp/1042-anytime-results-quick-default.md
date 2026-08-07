@@ -1,6 +1,6 @@
 # WP-1042 — Anytime results, and `quick` as the default
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-07
 Depends on: WP-1037
 
 ## Goal
@@ -231,11 +231,14 @@ it up.
       slices of the remaining clock under a ceiling;
       `estimate_ceiling`'s measured constants re-measured under the new
       default.
-- [ ] **The re-measure**: every acceptance row, `validation_matrix.py`,
+- [x] **The re-measure**: every acceptance row, `validation_matrix.py`,
       `docs/VALIDATION.md`, and the generated scoreboard re-run from its
       sidecars. Measured time-to-shortlist goes in this WP's handover and the
       v1.0 appendix diary as a **range**, never as a timed test — a wall-clock
-      budget in a test is a runaway guard, not a timer.
+      budget in a test is a runaway guard, not a timer. *(41/41 acceptance
+      rows green; scoreboard 7 first / 2 below / 0 refused; VALIDATION.md
+      byte-identical — the rows declare their protocol, so the flip moved no
+      Claim.)*
 
 ## Acceptance
 
@@ -266,6 +269,85 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
   a user-facing mode. `/Users/yue/zotero-linker/derived/NWFJ8YEB/`
 
 ## Handover log
+
+- **2026-08-07 (close)** — all six tasks in one session, eight commits on
+  `wp1042-anytime-results-quick-default`. `### Inherited` folded into Context
+  on arrival (still true; it became the "second constituency" section and the
+  quick-fluorite row below is its payoff). Every number below: darwin/arm64
+  M4, this checkout's `[dev]` venv, serial unless said otherwise.
+
+  **Task 0 — time-to-shortlist under the system-major scheduler** (acceptance
+  protocols, `preset="full"`; "graded" = the first `consensus:<system>`
+  snapshot with candidates, read from the run's own stream):
+
+  | dataset | total | first provisional | first graded (system) |
+  |---|---|---|---|
+  | nac | 91.0 | 1.5 | 2.4 (cubic) |
+  | lab6-calibrated | 4.2 | 0.1 | 0.6 (cubic) |
+  | magnetite | 6.2 | 0.1 | 0.7 (cubic) |
+  | lab6 | 55.7 | 0.1 | 0.5 (cubic) |
+  | zircon | 52.6 | 23.5 | 34.4 (tetragonal) |
+  | fap | 58.9 | 0.8 | 5.4 (hexagonal) |
+  | hl2 | 88.6 | 0.5 | 3.1 (cubic) |
+  | fluorite | 227.8 | 0.1 | 0.9 (cubic) |
+  | zincite | 58.8 | 18.9 | 24.8 (hexagonal) |
+  | brucite | 75.3 | 29.2 | 34.6 (hexagonal) |
+  | cpd-1a | 152.0 | 24.2 | 32.7 (hexagonal) |
+  | corundum+shift | 439.8 | 83.2 | 91.9 (hexagonal) |
+
+  Read against WP-1037's baseline (time-to-first-visible = end of the last
+  engine's last system): zincite's truth-bearing hexagonal shortlist now
+  arrives at 24.8 s of a 58.8 s run where the baseline was 165.8 of 177.3;
+  fluorite 0.9 of 227.8; and a live-logged corundum run put its trigonal
+  (truth) snapshot at ~180 s of 404.5. **The acceptance criterion's
+  low-symmetry half stands as designed**: nothing regresses (41/41 rows), and
+  the sacrifice under a binding ceiling is trailing low-symmetry systems,
+  loudly. Under the **quick default** (no spec at all): six corpus runs land
+  115.4–125.9 s wall — ceiling + cooperative granularity — with the truth's
+  own system completing inside the ceiling on every one (zincite truth graded
+  at 10.1 s, fluorite finishing whole at 115.4 with `medium` matching its
+  full run).
+
+  **Three findings beyond the plan.** (1) *Search starves validation under
+  quick*: on 5 of 6 heavy corpus runs the search consumed the whole ceiling
+  and validation got zero fits — honest (`not_validated` + the budget
+  diagnostic) but a design question for the control surface: whether quick
+  should reserve a validation share (forwarded to WP-1045). (2) *Corundum's
+  dichotomy units now cost 77–200 s per system on current main* (hexagonal
+  77, trigonal 83, tetragonal 200, live-logged) — pre-existing, not this
+  WP's diff (per-system calls don't change engine internals); the WP-1037
+  baseline predates the third engine and WP-1043's peak-list flags, and the
+  acceptance fixtures' "~45-50 s" docstring figures are stale. (3) *The
+  Claims did not move*: `docs/VALIDATION.md` regenerates byte-identical
+  because every acceptance row declares its protocol (`preset="full"`) — the
+  flip changes defaults, never declared protocols, which is the
+  declare-your-settings rule doing exactly its job.
+
+  **The re-measure**: `tests/test_acceptance_indexing.py` 41 passed in 22:43
+  (`-n auto --dist loadgroup`, contended only by itself); scoreboard
+  **regenerated** from the fresh sidecars: 9 known-cell (high-symmetry)
+  datasets — **7 first / 2 below first (nac rank 2, fap rank 4) / 0 refused /
+  0 promoted** — the "1 refused" of WP-1041's 6/2/1/0 is fluorite, moved to
+  `first` by WP-1043's searchable/scorable split and confirmed here by
+  regeneration rather than retyping. `MEASURED_TYPICAL_SECONDS` re-measured
+  to 4–440 s (unbounded runs, three engines); `MEASURED_VALIDATION_SECONDS`
+  left standing (nothing that feeds it changed; quick now bounds it by
+  slices). lab6-calibrated still returns the documented three-`high` state
+  (truth rank 1 at −2 ppm plus the two a·√2 supercell descriptions;
+  `best_or_none()` None) — asserted by its own acceptance row since WP-1041,
+  reproduced unchanged.
+
+  **Gotchas for successors**: the registered engine contract grew
+  `probe=` only on `search_trial_error` (the scheduler special-cases the
+  deferral by name in `workflow.py`; a stub registered *as* `trial_error`
+  must accept it); engine registration order is dichotomy, svd, trial_error
+  (import order — the ladder shows svd's units second); a preset never
+  overrides a declared `spec.total_budget_seconds` (the result then records
+  `preset="custom"`); snapshot grades are deliberately conservative (no
+  ambiguity, no validation — both capping) so a streamed grade can only
+  rise; and both the GUI console and `pxrdref watch` collapse array payloads
+  to `[N]`, so the streamed `candidates`/`provisional` fields do not flood a
+  transcript.
 
 - **2026-08-06** — plan revised against the merged tree (user review session;
   no code touched). `### Inherited` folded into Context and deleted. Stale

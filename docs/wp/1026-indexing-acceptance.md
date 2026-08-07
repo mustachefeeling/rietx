@@ -71,6 +71,15 @@ tests whose correct answer is *"we do not know"*.
 
 ### Inherited
 
+**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
+`quick` is now `index_pattern`'s default, so the criterion-1 manual runner
+must declare its protocol.** A bethanechol run built beside
+`tests/indexing_gallery.py` that passes no `preset` gets a 120 s whole-run
+ceiling and truncated low-symmetry systems; the benchmark's graded score
+needs `preset="full"` (or its own ceiling) declared, the same rule the
+acceptance rows now follow. The re-measured scoreboard (2026-08-07, in 1042's
+handover) is 9 datasets: 7 first / 2 below first / 0 refused.
+
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — this WP's
 scoreboard is superseded, and two of its three failure claims were never true of
 any tree it shipped on.** The handover entry below is left as written, because a
