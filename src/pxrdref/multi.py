@@ -31,6 +31,7 @@ from .refine import (
     _absorption_record,
     _constraint_diagnostics,
     _guard_diagnostics,
+    _qpa_unavailable_diagnostics,
     _resolve_specimen_absorption,
     _utcnow,
 )
@@ -254,6 +255,8 @@ class MultiHistogramRefinement:
                             GuardReport(background_correlations=[finding])))
             if qpa is not None:
                 diags.extend(microabsorption_diagnostics(qpa))
+            else:
+                diags.extend(_qpa_unavailable_diagnostics(struct, values))
             # specimen absorption, per histogram — each may sit at its own
             # wavelength and geometry, hence its own µR/µt.  Only the failure
             # modes are surfaced here; the applied value lives on

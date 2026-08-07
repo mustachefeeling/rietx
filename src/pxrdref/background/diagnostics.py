@@ -128,6 +128,19 @@ def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
     lands on background channels; the per-window values are interpolated back
     onto the grid.  Unlike a Whittaker/arPLS baseline this has no smoothing
     parameter to choose, which is what makes it usable *for* choosing one.
+
+    **Each knot's x is its window's centre, so the outermost knots sit half a
+    window inside the data and the edges must be extrapolated, not clamped**
+    (WP-1028 §(i)).  ``np.interp`` clamps flat outside its knot range; against
+    a falling background that clamp sits far under the truth, and the whole
+    first half-window reads as positive net — enough for the peak picker to
+    find a line on the pattern's rising left edge.  Measured across the seven
+    bundled round-robin patterns: ``y[0]`` was 1.5-2× ``env[0]``, putting
+    z = 4.7-6.9σ on the very first channel against a 5σ bar, and **five** such
+    false lines survived to ``PeakList.usable()``.  So a knot is anchored at
+    each *data edge*, linearly extrapolated from the two nearest — no new
+    tunable, and no cropping, which would discard a real low-angle line on a
+    specimen that has one.
     """
     tt = np.asarray(two_theta, dtype=np.float64)
     yy = np.asarray(y, dtype=np.float64)
@@ -142,7 +155,50 @@ def background_envelope(two_theta: np.ndarray, y: np.ndarray, *,
         ys.append(float(np.percentile(seg, quantile)))
     if len(xs) < 2:
         return np.full_like(tt, float(np.median(yy)))
+    xs, ys = _extrapolate_to_edges(xs, ys, float(tt[0]), float(tt[-1]))
     return np.interp(tt, np.asarray(xs), np.asarray(ys))
+
+
+def envelope_measured_span(two_theta: np.ndarray, *,
+                           window_deg: float = 3.0) -> tuple[float, float]:
+    """The 2θ range over which :func:`background_envelope` *interpolates*.
+
+    Outside it the envelope is extrapolated from the two nearest knots, so a
+    line standing there has its prominence measured over a background level
+    nobody observed.  Same window arithmetic as the envelope itself, kept
+    beside it so the two cannot drift apart; the span is the first and last
+    window *centres*, which is exactly where the knots are.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    if len(tt) < 3:
+        return float(tt[0]), float(tt[-1])
+    step = float(np.median(np.diff(tt)))
+    w = max(int(window_deg / max(step, 1e-12)), 5)
+    stride = max(w // 2, 1)
+    centres = [float(tt[s:s + w].mean()) for s in range(0, len(tt), stride)
+               if len(tt[s:s + w]) >= 3]
+    if len(centres) < 2:
+        return float(tt[0]), float(tt[-1])
+    return centres[0], centres[-1]
+
+
+def _extrapolate_to_edges(xs: list[float], ys: list[float],
+                          lo: float, hi: float) -> tuple[list[float], list[float]]:
+    """Anchor a knot at each data edge, linearly from the two nearest knots.
+
+    Only extends — an edge already covered by a knot is left alone, so this is
+    a no-op on a pattern whose windows happen to reach the ends.
+    """
+    if lo < xs[0]:
+        slope = (ys[1] - ys[0]) / (xs[1] - xs[0]) if xs[1] != xs[0] else 0.0
+        xs = [lo, *xs]
+        ys = [ys[0] + slope * (lo - xs[1]), *ys]
+    if hi > xs[-1]:
+        slope = ((ys[-1] - ys[-2]) / (xs[-1] - xs[-2])
+                 if xs[-1] != xs[-2] else 0.0)
+        ys = [*ys, ys[-1] + slope * (hi - xs[-1])]
+        xs = [*xs, hi]
+    return xs, ys
 
 
 def diagnose(data: PatternData, *, wavelength: float | None = None,

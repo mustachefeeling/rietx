@@ -7,7 +7,7 @@ import re
 
 import gemmi
 
-from ..schemas.common import Parameter
+from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from .adp import U_NAMES, u_equivalent
 
@@ -17,8 +17,119 @@ def _strip_su(value: str) -> float:
     return float(re.sub(r"\(\d+\)", "", value))
 
 
+#: Largest disagreement between a stored cell angle and the value its space
+#: group fixes that :func:`structure_from_cif` will **correct and record**
+#: rather than leave for ``ParameterTable`` to refuse (WP-1028 §(j)).
+#:
+#: Chosen by what the two cases look like, not by comfort.  Below it the
+#: deviation is the size of a *reported* angle — an experimenter quoting a
+#: refined β = 90.002(3) under an orthorhombic symbol is reporting a
+#: measurement, not a mistake, and at 0.1° the d-spacing consequence is 830 ppm
+#: (linear in the deviation; see ``symmetry.SYMMETRY_ANGLE_TOL_DEG``, which
+#: sizes it at 8.3 ppm per 1e-3°).  Above it the disagreement is *structural* —
+#: the case WP-1036 found in the wild was a monoclinic β = 93.2° under an
+#: orthorhombic symbol, 3.2° out — and there the symbol and the angle
+#: contradict each other with no way for a reader to know which is wrong.  So a
+#: large deviation is left exactly as written and still raises where it always
+#: did, because choosing between "the angle is wrong" and "the symbol is wrong"
+#: is the caller's to make.
+CIF_ANGLE_CORRECT_MAX_DEG = 0.1
+
+#: the grammar both form-factor lookups parse: an element symbol plus an
+#: optional *trailing* charge (``Cl1-``) — see ``scattering.normalize_species``
+#: and ``dispersion.normalize_element``, which share it deliberately
+_CANONICAL_SPECIES = re.compile(r"^([A-Za-z]{1,2})(\d*[+-])?$")
+_SIGN_FIRST_CHARGE = re.compile(r"^([A-Za-z]{1,2})([+-])(\d+)$")
+_SITE_LABEL = re.compile(r"^([A-Za-z]{1,2})(\d+)$")
+
+
+def _correct_symmetry_angles(sg, angles: dict[str, float], path: str,
+                             diagnostics: list[Diagnostic] | None,
+                             ) -> dict[str, float]:
+    """Snap a symmetry-fixed cell angle onto its exact value, recording it.
+
+    ``ParameterTable`` **refuses** a symmetry-fixed angle that disagrees with
+    its space group, and rightly: it has no diagnostics channel, so an edit
+    there could not be made visible, and an invisible edit to a stored cell is
+    worse than a raise (WP-1036).  A *reader* does have that channel, which is
+    why the correction belongs here — the same argument, and the same
+    mechanism, as :func:`normalize_cif_species` one field over.
+
+    Only deviations up to :data:`CIF_ANGLE_CORRECT_MAX_DEG` are corrected.  A
+    larger one is left exactly as written, so it still raises where it always
+    did: past that size the symbol and the angle contradict each other, and
+    which of the two is wrong is not a reader's call.
+    """
+    from .symmetry import SYMMETRY_ANGLE_TOL_DEG, cell_constraints
+
+    out = dict(angles)
+    for name, target in cell_constraints(sg).fixed_angles.items():
+        delta = out[name] - target
+        if abs(delta) <= SYMMETRY_ANGLE_TOL_DEG:
+            continue
+        if abs(delta) > CIF_ANGLE_CORRECT_MAX_DEG:
+            continue                      # structural disagreement — leave it
+        out[name] = target
+        if diagnostics is not None:
+            diagnostics.append(Diagnostic(
+                level="warning", code="CIF_CELL_ANGLE_CORRECTED",
+                where=[f"phases.0.cell.{name}"],
+                message=(f"{path} stores {name} = {angles[name]}° under space "
+                         f"group {sg.xhm()!r}, whose symmetry fixes it at "
+                         f"{target}°; read as {target}° "
+                         f"({delta:+.6g}° corrected)"),
+                suggestion="the deviation is information about the specimen or "
+                           "the refinement that produced this file, not noise: "
+                           "if it is real, the symmetry is lower than the "
+                           "symbol claims and the phase wants the space group "
+                           "that leaves this angle free",
+            ))
+    return out
+
+
+def normalize_cif_species(species: str) -> tuple[str, str | None]:
+    """Map the two wild CIF type-symbol forms onto the canonical grammar.
+
+    Both form-factor lookups parse an element symbol with an optional
+    *trailing* charge (``"Cl1-"``); two forms found in real repositories fail
+    that grammar: a **sign-first charge** (``"O-2"``, ``"Ni+3"`` — ICSD
+    exports) and a **site label in the type-symbol column** (``"O1"``,
+    ``"Cl1"`` — AMCSD-derived files).  This rewrites those onto the canonical
+    form, keeping the ion when one was written (``"O-2"`` → ``"O2-"``, so an
+    ionic f₀ still resolves) and only when the result actually resolves in
+    the Waasmaier-Kirfel table — a symbol this function cannot help
+    (``"Wat"``, ``"D"``) passes through verbatim to fail with the lookup's
+    own message rather than be half-rewritten.
+
+    Returns ``(species, note)`` where ``note`` names the form that was
+    rewritten, or is ``None`` when the input is untouched.  Lives here rather
+    than in the lookups because the CIF reader is where a substitution can be
+    recorded as provenance; ``scattering.normalize_species`` and
+    ``dispersion.normalize_element`` stay strict for hand-built structures.
+    """
+    from .scattering import normalize_species
+
+    s = species.strip()
+    if _CANONICAL_SPECIES.match(s):
+        return species, None
+    if m := _SIGN_FIRST_CHARGE.match(s):
+        candidate = f"{m.group(1).capitalize()}{m.group(3)}{m.group(2)}"
+        note = "sign-first charge"
+    elif m := _SITE_LABEL.match(s):
+        candidate = m.group(1).capitalize()
+        note = "site label in the type-symbol column"
+    else:
+        return species, None
+    try:
+        normalize_species(candidate)
+    except KeyError:
+        return species, None
+    return candidate, note
+
+
 def structure_from_cif(path: str, *, phase_name: str | None = None,
-                       aniso: bool = False) -> Structure:
+                       aniso: bool = False,
+                       diagnostics: list[Diagnostic] | None = None) -> Structure:
     """Read the first data block of a CIF into a single-phase :class:`Structure`.
 
     Uses gemmi's small-molecule reader, which resolves the space group from
@@ -32,6 +143,13 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     parameters a refinement plan will free.  Sites without an aniso loop keep
     their isotropic value either way, so a mixed file yields a mixed
     structure.
+
+    Species are passed through :func:`normalize_cif_species`, so the two wild
+    type-symbol forms (``"O1"``, ``"O-2"``) arrive refinable instead of
+    failing at the first stage compile.  Pass ``diagnostics=`` a list to
+    record what changed: each distinct rewritten form appends one
+    ``CIF_SPECIES_NORMALISED`` diagnostic naming the substitution, with
+    ``where`` carrying every affected atom path.
     """
     small = gemmi.read_small_structure(path)
     if not small.sites:
@@ -52,7 +170,8 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
 
     cell = small.cell
     atoms: list[Atom] = []
-    for site in small.sites:
+    rewrites: dict[str, tuple[str, str, list[str]]] = {}
+    for j, site in enumerate(small.sites):
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
         if not u_iso:
@@ -62,7 +181,11 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
             u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
         b_iso = u_iso * 8.0 * math.pi ** 2
-        species = site.type_symbol or site.element.name
+        raw = site.type_symbol or site.element.name
+        species, note = normalize_cif_species(raw)
+        if note is not None:
+            rewrites.setdefault(raw, (species, note, []))[2].append(
+                f"phases.0.atoms.{j}.species")
         atoms.append(Atom(
             label=site.label,
             species=species,
@@ -76,6 +199,17 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
                    if aniso and has_aniso else None),
         ))
 
+    if diagnostics is not None:
+        for raw, (canonical, note, where) in rewrites.items():
+            diagnostics.append(Diagnostic(
+                level="info", code="CIF_SPECIES_NORMALISED",
+                message=(f"species {raw!r} in {path} read as "
+                         f"{canonical!r} ({note})"),
+                where=where))
+
+    angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
+    angles = _correct_symmetry_angles(sg, angles, path, diagnostics)
+
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),
         space_group=sg.xhm(),
@@ -83,9 +217,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             a=Parameter(value=cell.a, min=0.1),
             b=Parameter(value=cell.b, min=0.1),
             c=Parameter(value=cell.c, min=0.1),
-            alpha=Parameter(value=cell.alpha),
-            beta=Parameter(value=cell.beta),
-            gamma=Parameter(value=cell.gamma),
+            alpha=Parameter(value=angles["alpha"]),
+            beta=Parameter(value=angles["beta"]),
+            gamma=Parameter(value=angles["gamma"]),
         ),
         atoms=atoms,
     )

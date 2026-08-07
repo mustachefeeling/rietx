@@ -326,7 +326,8 @@ def microabsorption_diagnostics(qpa: QuantitativePhaseAnalysis) -> list[Diagnost
 
 def compute_qpa(structure: Structure, values: dict[str, float],
                 scale_cov=None, multiplicities=None,
-                wavelength: float | None = None) -> QuantitativePhaseAnalysis:
+                wavelength: float | None = None,
+                ) -> QuantitativePhaseAnalysis | None:
     """Assemble the per-phase QPA rows from a decoded parameter dict.
 
     ``values`` is the physical value dict from ``ParameterTable.decode`` (refined
@@ -343,6 +344,17 @@ def compute_qpa(structure: Structure, values: dict[str, float],
     mixture average µ̄, which a phase of unknown size would corrupt); partial
     input or an unavailable µ records ``microabsorption_skipped`` instead of
     guessing, and the uncorrected fractions are always reported either way.
+
+    Returns ``None`` when the scales cannot form fractions at all (WP-1028
+    §(f)).  This used to raise from inside ``_build_result``, which meant one
+    pattern whose scale hit zero destroyed **all 157 refinements** of a
+    ``refine_sequential`` run — a fit that produced a bad number took down
+    fits that had produced good ones.  A refinement that converged badly is a
+    result; QPA is one *field* of it, and a field that cannot be computed is
+    absent, not fatal.  The caller turns the ``None`` into a
+    ``QPA_UNAVAILABLE`` diagnostic naming the phases.  A **single-phase**
+    model never reaches that path: its answer is 100 % by definition, so the
+    scale — a brightness, not a composition — cannot make it unanswerable.
     """
     zmvs, scales = [], []
     for ip, phase in enumerate(structure.phases):
@@ -356,7 +368,15 @@ def compute_qpa(structure: Structure, values: dict[str, float],
         mult = multiplicities[ip] if multiplicities is not None else None
         zmvs.append(phase_zmv(phase.space_group, cell, atoms, multiplicities=mult))
         scales.append(values[f"{base}.scale"])
-    w, sigma_corr, _ = weight_fractions([z.zmv for z in zmvs], scales, scale_cov)
+
+    if sum(z.zmv * s for z, s in zip(zmvs, scales)) <= 0.0:
+        if len(structure.phases) > 1:
+            return None
+        # one phase is 100 % whatever its scale did; σ(W) is meaningless here
+        # (the fraction is a definition, not a measurement), so it stays None
+        w, sigma_corr = np.array([1.0]), None
+    else:
+        w, sigma_corr, _ = weight_fractions([z.zmv for z in zmvs], scales, scale_cov)
     rows = [
         PhaseQuantity(
             name=phase.name,

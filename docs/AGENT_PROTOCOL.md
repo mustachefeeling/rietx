@@ -98,19 +98,30 @@ third-party lab data (2026-07-29):
   the plan until Rwp stops moving — and **keep the best pass, not the last**: the
   alternation is not a descent on one objective, so a later pass can come back
   worse (seen on Tb2BaCoO5, 17.3 % → 18.7 %).
-- **Do not use it above one phase.** `lebail_update` partitions
-  `max(y_obs − y_bkg, 0)` per phase with nothing to arbitrate two phases claiming
-  the same channel, so they inflate one another. Measured Rwp by phase count:
-  1 phase converges (7.5-24.8 %), **2 phases 742-9 281 %, 3 phases 2.6e5 %**. It
-  survives seeding both the widths and the background, so it is the partition and
-  not the starting point. For a multi-phase pattern go straight to Rietveld,
-  where atoms tie the intensities and the freedom does not exist.
+- **Seed the background before the first pass, always — and this is the one
+  that bites hardest.** `auto_background` chooses the knot spacing or the
+  Chebyshev *order* but starts every coefficient at **0.0**, so the modelled
+  background is identically zero, and the first `lebail_update` runs *before*
+  the background has ever been fitted. The partition is then handed
+  `max(y_obs − 0, 0)` — the whole pedestal — and gives it to the Bragg
+  reflections. Measured on a synthetic pattern whose background is 5× its
+  strongest peak: cycle one claims **571×** the true Bragg intensity. Seed the
+  constant term (a low percentile of `y_obs`) before a Le Bail run.
 
-Also: `auto_background` chooses the *order* but starts every coefficient at
-**0.0**, and the first `lebail_update` runs before the background has ever been
-fitted. On a pattern whose background is several times its strongest peak the
-whole pedestal is handed to the Bragg reflections on cycle one. Seed the
-constant term (a low percentile of `y_obs`) before a Le Bail run.
+**Multi-phase Le Bail was broken until v1.0 and is now supported** (WP-1028
+§(g), fixed 2026-08-07). This section used to say "do not use it above one
+phase", and the reason was a defect rather than the method: `lebail_update`
+built its partition denominator per phase, so each phase claimed the entire
+observed excess in its own windows and overlapping phases were issued the same
+counts twice. The shares now sum to 1 across all phases at every channel —
+measured Σ calculated / Σ observed excess **1.79 → 1.0000** on LaB₆ + CaF₂,
+with the single-phase path bit-identical. Two caveats survive the fix and are
+about the method, not the bug: the intensities of two phases whose reflections
+*coincide* are not separately determined by the data (the partition splits them
+by the current model, which is a starting value and not a measurement), and the
+Rwp figures the old note quoted (742-9 281 % at two phases) were the overcount
+compounding through the later profile stages, so treat a high multi-phase Le
+Bail Rwp as a reason to look at the seeding above, not as this defect returning.
 
 ---
 
@@ -285,6 +296,11 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
 | `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series — it is where the chain stopped, not where the ramp ended |
 | `CONSTRAINT_ACTIVE` | (info, `solver="lm"` only) Read the constrained coefficients as free-fit measurements. The driver truncated steps against a linear-inequality constraint (the Stephens cone) in the answer-producing stage, so the optimum sits on or near a constraint face: admissible, not measured. Vary the start before quoting — and note this is the *only* signal a declared constraint was active rather than merely present |
+| `QPA_UNAVAILABLE` | Read `result.qpa is None` as "this specimen is single-phase" or as any statement about composition. The refined scales gave a non-positive Σ S·ZMV, so there are no fractions to renormalise — `where` names the scales that died. It is reported rather than raised on purpose: QPA is one field of a result, and raising took a whole 157-pattern sequential run down with one bad pattern |
+| `MODEL_FAR_FROM_DATA` | (error) Read `status`, the parameter values or their esds at all. Rwp is past the point where the model is no better than predicting zero everywhere, so this is a mismatch between model and data, not a converged refinement — and the solver may well say `converged`, because driving the phase scale to zero *is* a minimum once the cell is far enough off that every reflection sits outside its frozen evaluation window. The message quotes the share of above-background intensity the model actually accounts for (0.2 % on the reproduction); check the cell (~1 % precondition, §1), wavelength, zero shift and 2θ range, then re-index |
+| `STAGE_MAX_ITER` | Read the result's `status` as covering every stage — it is the *last* stage's, so a middle stage can stop on its iteration budget while the fit reports `converged`. The named stages did not converge; they ran out. Raising `max_iter` buys solver evaluations, not a different minimum — the stages that stall are the degenerate groups in §3 (measured: three identical mixtures, same models and parameter counts, 39 s / 858 s / 2838 s with no difference in the answer) |
+| `CIF_CELL_ANGLE_CORRECTED` | (warning — from the reader, same channel as `CIF_SPECIES_NORMALISED`) Assume the cell is the file's. A symmetry-fixed angle disagreed with its space group by a *reportable* amount (up to 0.1°) and was read at the exact value, because `ParameterTable` refuses such a cell and has no channel to say why. The deviation is information: if it is real, the symmetry is lower than the symbol claims. A disagreement beyond 0.1° is **not** corrected — it still raises, because the symbol and the angle contradict each other and choosing between them is yours |
+| `CIF_SPECIES_NORMALISED` | (info — from the reader: pass `Structure.from_cif(..., diagnostics=[])` to collect it; it is not on `result.diagnostics`) Assume the model's species are the file's literal type symbols. The reader rewrote a wild form — a site label in the type-symbol column (`O1`) or a sign-first charge (`O-2`) — onto the canonical grammar, keeping the ion when one was written; each message names its substitution and `where` lists the atoms it touched |
 
 ```python
 codes = {d.code for d in result.diagnostics}

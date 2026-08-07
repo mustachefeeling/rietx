@@ -26,6 +26,12 @@ import numpy as np
 
 from .lattice import d_spacings, two_theta_deg
 
+#: ceiling on the (2h+1)(2k+1)(2l+1) enumeration grid ``generate_reflections``
+#: may allocate — ~30M points is ≈ 1 GB of transient int64, far above any
+#: physical powder problem (a 100 Å cell at d_min = 1 Å needs 8.1e6) and far
+#: below the PiB-scale grids a collapsed cell implies
+MAX_HKL_GRID_POINTS = 30_000_000
+
 
 def get_spacegroup(symbol: str) -> gemmi.SpaceGroup:
     """Resolve an H-M symbol (or IT number given as a string) via gemmi."""
@@ -297,6 +303,22 @@ def generate_reflections(sg_symbol: str,
     hmax = int(np.floor(a / d_min)) + 1
     kmax = int(np.floor(b / d_min)) + 1
     lmax = int(np.floor(c / d_min)) + 1
+
+    # refuse before allocating: a collapsed or mis-scaled cell (or a
+    # wavelength typed in the wrong unit) implies index ranges whose grid
+    # would be petabytes — measured 63747 × 63747 × 81527 = 2.35 PiB on a
+    # real external CIF (WP-1028 §(b)), which killed the process instead of
+    # naming the cause
+    n_grid = (2 * hmax + 1) * (2 * kmax + 1) * (2 * lmax + 1)
+    if n_grid > MAX_HKL_GRID_POINTS:
+        raise ValueError(
+            f"refusing to enumerate reflections for cell a={a:g}, b={b:g}, "
+            f"c={c:g} Å at d_min={d_min:.4g} Å (λ={wavelength:g} Å, "
+            f"2θ_max={two_theta_max:g}°): index ranges ±{hmax}, ±{kmax}, "
+            f"±{lmax} span {n_grid:.2e} grid points "
+            f"(limit {MAX_HKL_GRID_POINTS:.0e}). A cell this large relative "
+            f"to d_min usually means a collapsed or mis-scaled cell, or a "
+            f"wavelength/2θ range implying an unphysical resolution.")
 
     rng_h = np.arange(-hmax, hmax + 1)
     rng_k = np.arange(-kmax, kmax + 1)

@@ -61,48 +61,50 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Closed 2026-08-06, narratives in
+**Nothing in flight.** Closed 2026-08-07, narrative in
 [milestones/v1.0.md](milestones/v1.0.md):
-[1060](wp/1060-docs-ci-consolidation.md) — the always-loaded docs trimmed to
-caps a test pins (CLAUDE.md 553/600, ROADMAP 337/400, the indexing dossier
-now `src/pxrdref/indexing/CLAUDE.md`), CI stripped of the merged-PR double
-run, the macOS cron and the rotting price totals, counts replaced by the
-§ Numbers recipe; [1061](wp/1061-workflow-robustness.md) — the missed
-handover is self-detecting (hook, `/wp-start`, repair mode; the WP-1043
-repair it demanded also landed 2026-08-06); and
-[1044](wp/1044-gui-view-cursor-theme.md) — the view is handed back on every
-draw, and a `ui` key belongs to whatever it is about.
+[1028](wp/1028-robustness-external-data.md) — a stranger's CIF or pattern now
+either refines or names its cause, across ten items and 32 regressions. Three
+of them corrected the cause they were *filed* with: the multiphase Le Bail
+overcount converges (1.79×) rather than diverging, and its denominator simply
+spanned one phase; Rwp = 1 is the broken-fit **attractor**, not its ceiling, so
+the divergence bar sits below it; and thirteen of fourteen softplus `min=0`
+parameters are fine because zero is their identity — the pattern to watch is a
+pole at the bound. Also landed: the left-edge peak defect 1041 found by eye,
+plus the `background_extrapolated` flag that reports a line standing on
+unmeasured background instead of refusing it.
 
 **The running theme: a number that is not regenerated is a number nobody
 re-measures.** A prediction is not a measurement (1041); nor is an inherited
-claim (1016), a reported cause (1044), or a remembered ritual (1061).
+claim (1016), a reported cause (1044, 1028), or a remembered ritual (1061).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1028](wp/1028-robustness-external-data.md) — robustness on data and CIFs
-   we did not author; every item was hit by a real external benchmark, and its
-   `### Inherited` carries the left-edge peak defect found by eye in 1041's
-   gallery — cause measured, fix decided, 5 false lines → 1 with none lost.
-2. [1043](wp/1043-agent-and-human-indexing.md) — **the user's design call**: one
+1. [1043](wp/1043-agent-and-human-indexing.md) — **the user's design call**: one
    ranked list carrying every candidate's stats plus a visual check, the grade a
    field on it, not a gate with an evidence view beside it. Holds the fluorite
    abstention (18 clean cubic lines all three engines index at −5 ppm), the corpus
    skew, and the **bethanechol re-measurement** — a −16 *floor*, below ITO13's
    −14 (the worst individual global in the table), and the old "silence" claim
-   measured false. Corpus expansion deferred post-v1 (user, 2026-08-06).
-3. [1042](wp/1042-anytime-results-quick-default.md) — revised 2026-08-06: the
+   measured false. Corpus expansion deferred post-v1 (user, 2026-08-06); its
+   `### Inherited` now also carries 1028's `pick.py` escapee census, worth
+   125 ppm on a certified cell.
+2. [1042](wp/1042-anytime-results-quick-default.md) — revised 2026-08-06: the
    system-major scheduler (the engine-major loop is why a deadline cuts whole
    engines, and with them consensus), streaming, `quick` as the default; volume
    tightening deferred to the v2+ fence.
-4. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
+3. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
    GUI and agent schema (one `SearchSpec`, bijection meta-test) + analogue
-   priors that steer the search and never gate it (user, 2026-08-06).
-5. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+   priors that steer the search and never gate it (user, 2026-08-06). Its
+   `### Inherited` now carries 1028's two search bounds — `sigma_sys_deg`
+   meaning two different things, and `volume_envelope` used as a ceiling when
+   Smith fitted it as a mean line.
+4. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol score, now measured in 1043; what is left is making it generated —
    a manual runner beside `tests/indexing_gallery.py`, not a slow pytest row
    (constraints in 1043 § bethanechol).
-6. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
-7. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+5. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
+6. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by both
    1016 and 1041; read it first.
 
@@ -254,7 +256,7 @@ monoclinic search finishes.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ⬜ | — (1007 soft) |
+| [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ✅ 2026-08-07 | — (1007 soft) |
 | [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
 
 **1028 came from outside.** Every item in it was hit by driving the package
