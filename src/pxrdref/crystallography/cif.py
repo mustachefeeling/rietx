@@ -7,7 +7,7 @@ import re
 
 import gemmi
 
-from ..schemas.common import Parameter
+from ..schemas.common import Diagnostic, Parameter
 from ..schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 from .adp import U_NAMES, u_equivalent
 
@@ -17,8 +17,57 @@ def _strip_su(value: str) -> float:
     return float(re.sub(r"\(\d+\)", "", value))
 
 
+#: the grammar both form-factor lookups parse: an element symbol plus an
+#: optional *trailing* charge (``Cl1-``) — see ``scattering.normalize_species``
+#: and ``dispersion.normalize_element``, which share it deliberately
+_CANONICAL_SPECIES = re.compile(r"^([A-Za-z]{1,2})(\d*[+-])?$")
+_SIGN_FIRST_CHARGE = re.compile(r"^([A-Za-z]{1,2})([+-])(\d+)$")
+_SITE_LABEL = re.compile(r"^([A-Za-z]{1,2})(\d+)$")
+
+
+def normalize_cif_species(species: str) -> tuple[str, str | None]:
+    """Map the two wild CIF type-symbol forms onto the canonical grammar.
+
+    Both form-factor lookups parse an element symbol with an optional
+    *trailing* charge (``"Cl1-"``); two forms found in real repositories fail
+    that grammar: a **sign-first charge** (``"O-2"``, ``"Ni+3"`` — ICSD
+    exports) and a **site label in the type-symbol column** (``"O1"``,
+    ``"Cl1"`` — AMCSD-derived files).  This rewrites those onto the canonical
+    form, keeping the ion when one was written (``"O-2"`` → ``"O2-"``, so an
+    ionic f₀ still resolves) and only when the result actually resolves in
+    the Waasmaier-Kirfel table — a symbol this function cannot help
+    (``"Wat"``, ``"D"``) passes through verbatim to fail with the lookup's
+    own message rather than be half-rewritten.
+
+    Returns ``(species, note)`` where ``note`` names the form that was
+    rewritten, or is ``None`` when the input is untouched.  Lives here rather
+    than in the lookups because the CIF reader is where a substitution can be
+    recorded as provenance; ``scattering.normalize_species`` and
+    ``dispersion.normalize_element`` stay strict for hand-built structures.
+    """
+    from .scattering import normalize_species
+
+    s = species.strip()
+    if _CANONICAL_SPECIES.match(s):
+        return species, None
+    if m := _SIGN_FIRST_CHARGE.match(s):
+        candidate = f"{m.group(1).capitalize()}{m.group(3)}{m.group(2)}"
+        note = "sign-first charge"
+    elif m := _SITE_LABEL.match(s):
+        candidate = m.group(1).capitalize()
+        note = "site label in the type-symbol column"
+    else:
+        return species, None
+    try:
+        normalize_species(candidate)
+    except KeyError:
+        return species, None
+    return candidate, note
+
+
 def structure_from_cif(path: str, *, phase_name: str | None = None,
-                       aniso: bool = False) -> Structure:
+                       aniso: bool = False,
+                       diagnostics: list[Diagnostic] | None = None) -> Structure:
     """Read the first data block of a CIF into a single-phase :class:`Structure`.
 
     Uses gemmi's small-molecule reader, which resolves the space group from
@@ -32,6 +81,13 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
     parameters a refinement plan will free.  Sites without an aniso loop keep
     their isotropic value either way, so a mixed file yields a mixed
     structure.
+
+    Species are passed through :func:`normalize_cif_species`, so the two wild
+    type-symbol forms (``"O1"``, ``"O-2"``) arrive refinable instead of
+    failing at the first stage compile.  Pass ``diagnostics=`` a list to
+    record what changed: each distinct rewritten form appends one
+    ``CIF_SPECIES_NORMALISED`` diagnostic naming the substitution, with
+    ``where`` carrying every affected atom path.
     """
     small = gemmi.read_small_structure(path)
     if not small.sites:
@@ -52,7 +108,8 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
 
     cell = small.cell
     atoms: list[Atom] = []
-    for site in small.sites:
+    rewrites: dict[str, tuple[str, str, list[str]]] = {}
+    for j, site in enumerate(small.sites):
         has_aniso = site.aniso.nonzero()
         u_iso = site.u_iso
         if not u_iso:
@@ -62,7 +119,11 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             u_eq = (site.aniso.u11 + site.aniso.u22 + site.aniso.u33) / 3.0
             u_iso = u_eq if u_eq > 0 else 0.5 / (8.0 * math.pi ** 2)
         b_iso = u_iso * 8.0 * math.pi ** 2
-        species = site.type_symbol or site.element.name
+        raw = site.type_symbol or site.element.name
+        species, note = normalize_cif_species(raw)
+        if note is not None:
+            rewrites.setdefault(raw, (species, note, []))[2].append(
+                f"phases.0.atoms.{j}.species")
         atoms.append(Atom(
             label=site.label,
             species=species,
@@ -75,6 +136,14 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
                                        site.aniso.u12, site.aniso.u13, site.aniso.u23])
                    if aniso and has_aniso else None),
         ))
+
+    if diagnostics is not None:
+        for raw, (canonical, note, where) in rewrites.items():
+            diagnostics.append(Diagnostic(
+                level="info", code="CIF_SPECIES_NORMALISED",
+                message=(f"species {raw!r} in {path} read as "
+                         f"{canonical!r} ({note})"),
+                where=where))
 
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),

@@ -424,10 +424,12 @@ class Structure(Base):
 
     @classmethod
     def from_cif(cls, path: str, *, phase_name: str | None = None,
-                 aniso: bool = False) -> "Structure":
+                 aniso: bool = False, diagnostics: list | None = None,
+                 ) -> "Structure":
         from ..crystallography.cif import structure_from_cif
 
-        return structure_from_cif(path, phase_name=phase_name, aniso=aniso)
+        return structure_from_cif(path, phase_name=phase_name, aniso=aniso,
+                                  diagnostics=diagnostics)
 
     def to_cif(self, path: str) -> None:
         from ..crystallography.cif import structure_to_cif

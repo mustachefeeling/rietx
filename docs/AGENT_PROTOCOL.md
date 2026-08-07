@@ -285,6 +285,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
 | `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series — it is where the chain stopped, not where the ramp ended |
 | `CONSTRAINT_ACTIVE` | (info, `solver="lm"` only) Read the constrained coefficients as free-fit measurements. The driver truncated steps against a linear-inequality constraint (the Stephens cone) in the answer-producing stage, so the optimum sits on or near a constraint face: admissible, not measured. Vary the start before quoting — and note this is the *only* signal a declared constraint was active rather than merely present |
+| `CIF_SPECIES_NORMALISED` | (info — from the reader: pass `Structure.from_cif(..., diagnostics=[])` to collect it; it is not on `result.diagnostics`) Assume the model's species are the file's literal type symbols. The reader rewrote a wild form — a site label in the type-symbol column (`O1`) or a sign-first charge (`O-2`) — onto the canonical grammar, keeping the ion when one was written; each message names its substitution and `where` lists the atoms it touched |
 
 ```python
 codes = {d.code for d in result.diagnostics}

@@ -330,7 +330,7 @@ size.
 
 ## Tasks
 
-- [ ] Normalise CIF species at read with a recording `Diagnostic`; cover `O1`
+- [x] Normalise CIF species at read with a recording `Diagnostic`; cover `O1`
       and `O-2` forms; keep `normalize_element` strict elsewhere. Assert the
       fix with `dispersion` both on *and* `None`, since both lookups reject
       these forms (§(a))
