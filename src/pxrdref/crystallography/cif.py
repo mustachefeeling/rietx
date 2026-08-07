@@ -17,12 +17,74 @@ def _strip_su(value: str) -> float:
     return float(re.sub(r"\(\d+\)", "", value))
 
 
+#: Largest disagreement between a stored cell angle and the value its space
+#: group fixes that :func:`structure_from_cif` will **correct and record**
+#: rather than leave for ``ParameterTable`` to refuse (WP-1028 §(j)).
+#:
+#: Chosen by what the two cases look like, not by comfort.  Below it the
+#: deviation is the size of a *reported* angle — an experimenter quoting a
+#: refined β = 90.002(3) under an orthorhombic symbol is reporting a
+#: measurement, not a mistake, and at 0.1° the d-spacing consequence is 830 ppm
+#: (linear in the deviation; see ``symmetry.SYMMETRY_ANGLE_TOL_DEG``, which
+#: sizes it at 8.3 ppm per 1e-3°).  Above it the disagreement is *structural* —
+#: the case WP-1036 found in the wild was a monoclinic β = 93.2° under an
+#: orthorhombic symbol, 3.2° out — and there the symbol and the angle
+#: contradict each other with no way for a reader to know which is wrong.  So a
+#: large deviation is left exactly as written and still raises where it always
+#: did, because choosing between "the angle is wrong" and "the symbol is wrong"
+#: is the caller's to make.
+CIF_ANGLE_CORRECT_MAX_DEG = 0.1
+
 #: the grammar both form-factor lookups parse: an element symbol plus an
 #: optional *trailing* charge (``Cl1-``) — see ``scattering.normalize_species``
 #: and ``dispersion.normalize_element``, which share it deliberately
 _CANONICAL_SPECIES = re.compile(r"^([A-Za-z]{1,2})(\d*[+-])?$")
 _SIGN_FIRST_CHARGE = re.compile(r"^([A-Za-z]{1,2})([+-])(\d+)$")
 _SITE_LABEL = re.compile(r"^([A-Za-z]{1,2})(\d+)$")
+
+
+def _correct_symmetry_angles(sg, angles: dict[str, float], path: str,
+                             diagnostics: list[Diagnostic] | None,
+                             ) -> dict[str, float]:
+    """Snap a symmetry-fixed cell angle onto its exact value, recording it.
+
+    ``ParameterTable`` **refuses** a symmetry-fixed angle that disagrees with
+    its space group, and rightly: it has no diagnostics channel, so an edit
+    there could not be made visible, and an invisible edit to a stored cell is
+    worse than a raise (WP-1036).  A *reader* does have that channel, which is
+    why the correction belongs here — the same argument, and the same
+    mechanism, as :func:`normalize_cif_species` one field over.
+
+    Only deviations up to :data:`CIF_ANGLE_CORRECT_MAX_DEG` are corrected.  A
+    larger one is left exactly as written, so it still raises where it always
+    did: past that size the symbol and the angle contradict each other, and
+    which of the two is wrong is not a reader's call.
+    """
+    from .symmetry import SYMMETRY_ANGLE_TOL_DEG, cell_constraints
+
+    out = dict(angles)
+    for name, target in cell_constraints(sg).fixed_angles.items():
+        delta = out[name] - target
+        if abs(delta) <= SYMMETRY_ANGLE_TOL_DEG:
+            continue
+        if abs(delta) > CIF_ANGLE_CORRECT_MAX_DEG:
+            continue                      # structural disagreement — leave it
+        out[name] = target
+        if diagnostics is not None:
+            diagnostics.append(Diagnostic(
+                level="warning", code="CIF_CELL_ANGLE_CORRECTED",
+                where=[f"phases.0.cell.{name}"],
+                message=(f"{path} stores {name} = {angles[name]}° under space "
+                         f"group {sg.xhm()!r}, whose symmetry fixes it at "
+                         f"{target}°; read as {target}° "
+                         f"({delta:+.6g}° corrected)"),
+                suggestion="the deviation is information about the specimen or "
+                           "the refinement that produced this file, not noise: "
+                           "if it is real, the symmetry is lower than the "
+                           "symbol claims and the phase wants the space group "
+                           "that leaves this angle free",
+            ))
+    return out
 
 
 def normalize_cif_species(species: str) -> tuple[str, str | None]:
@@ -145,6 +207,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
                          f"{canonical!r} ({note})"),
                 where=where))
 
+    angles = {"alpha": cell.alpha, "beta": cell.beta, "gamma": cell.gamma}
+    angles = _correct_symmetry_angles(sg, angles, path, diagnostics)
+
     phase = Phase(
         name=phase_name or (small.name or "phase_1"),
         space_group=sg.xhm(),
@@ -152,9 +217,9 @@ def structure_from_cif(path: str, *, phase_name: str | None = None,
             a=Parameter(value=cell.a, min=0.1),
             b=Parameter(value=cell.b, min=0.1),
             c=Parameter(value=cell.c, min=0.1),
-            alpha=Parameter(value=cell.alpha),
-            beta=Parameter(value=cell.beta),
-            gamma=Parameter(value=cell.gamma),
+            alpha=Parameter(value=angles["alpha"]),
+            beta=Parameter(value=angles["beta"]),
+            gamma=Parameter(value=angles["gamma"]),
         ),
         atoms=atoms,
     )

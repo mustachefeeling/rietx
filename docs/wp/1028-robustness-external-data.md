@@ -303,6 +303,28 @@ is recorded as provenance instead of applied silently — `ParameterTable` stays
 strict (it has no diagnostics channel, which is why 1036 refused rather than
 normalised).
 
+**Landed 2026-08-07, and the one decision this needed was a *size*.** The
+reader corrects and records; `ParameterTable` is untouched and still refuses.
+But "correct it" cannot be unconditional, because two very different files
+reach this code and the reader cannot tell them apart by intent — only by
+magnitude:
+
+- A **reported** angle (β = 90.002 under `P m m m`) is an experimenter quoting
+  a refined value. The symbol is almost certainly right; snapping to 90° costs
+  at most 830 ppm of d-spacing (at the 0.1° edge; linear, and 8.3 ppm at
+  1e-3°) and buys a model that refines instead of raising.
+- A **structural** disagreement (β = 93.2 under `P m m m`, the case WP-1036
+  actually found) is the symbol and the angle contradicting each other. An
+  orthorhombic cell *cannot* have β = 93.2, so one of the two is wrong and a
+  reader has no basis to pick — snapping it would silently discard a genuinely
+  monoclinic cell.
+
+Hence `CIF_ANGLE_CORRECT_MAX_DEG = 0.1`: below it, correct and emit
+`CIF_CELL_ANGLE_CORRECTED` (warning, `where` on the angle's path, suggestion
+pointing at the space group that leaves it free); above it, leave the value
+byte-for-byte and let the existing raise stand. The band's two edges are pinned
+by test against `SYMMETRY_ANGLE_TOL_DEG` below and the measured 3.2° case above.
+
 ### (k) Indexing-side guards and bounds — filed here, not yet scheduled
 
 Three items of this WP's shape (a guard, a bound, a default), measured
@@ -426,7 +448,7 @@ size.
 - [x] Flag lines standing on extrapolated envelope span — a new flag, not
       `position_at_bound`; then `tests/test_acceptance_indexing.py`
       (`REAL_DATA_N_UNINDEXED` sizing moves) (§(i))
-- [ ] Cell-angle disagreement in an external CIF: reader-side `Diagnostic`
+- [x] Cell-angle disagreement in an external CIF: reader-side `Diagnostic`
       recording the correction as provenance; `ParameterTable` stays strict
       (§(j))
 - [ ] Tests: one regression per item, from the reproductions in the branch

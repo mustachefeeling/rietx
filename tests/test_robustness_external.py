@@ -119,6 +119,86 @@ def test_normalised_species_compile_under_both_dispersion_settings(
 
 
 # ----------------------------------------------------------------------
+# (j) a symmetry-fixed angle an external CIF reports is corrected and named,
+#     where a reader has a diagnostics channel and ParameterTable does not
+# ----------------------------------------------------------------------
+
+ORTHO_CIF = """\
+data_ortho
+_symmetry_space_group_name_H-M 'P m m m'
+_cell_length_a 5.0
+_cell_length_b 6.0
+_cell_length_c 7.0
+_cell_angle_alpha 90
+_cell_angle_beta {beta}
+_cell_angle_gamma 90
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+Na1 Na 0 0 0 1
+"""
+
+
+def _ortho_cif(tmp_path, beta):
+    path = tmp_path / "ortho.cif"
+    path.write_text(ORTHO_CIF.format(beta=beta), encoding="utf-8")
+    return str(path)
+
+
+def test_a_reported_refined_angle_is_corrected_and_named(tmp_path):
+    # the realistic external case: an experimenter quoting a refined
+    # beta = 90.002(3) under an orthorhombic symbol is reporting a
+    # measurement, not making a mistake — and before this it raised at the
+    # first parameters()/set_vary/stage compile rather than refining
+    from pxrdref.params.vector import ParameterTable
+
+    diags = []
+    structure = Structure.from_cif(_ortho_cif(tmp_path, 90.002),
+                                   diagnostics=diags)
+    assert structure.phases[0].cell.beta.value == 90.0
+    assert [d.code for d in diags] == ["CIF_CELL_ANGLE_CORRECTED"]
+    assert diags[0].where == ["phases.0.cell.beta"]
+    assert "90.002" in diags[0].message and "+0.002" in diags[0].message
+    # and the correction is what lets the model reach a table at all
+    ParameterTable(structure, Instrument.bragg_brentano(radiation="CuKa"))
+
+
+def test_a_structural_disagreement_is_left_alone_and_still_raises(tmp_path):
+    # a monoclinic beta under an orthorhombic symbol: the symbol and the angle
+    # contradict each other, and which is wrong is not a reader's call
+    from pxrdref.params.vector import ParameterTable
+
+    diags = []
+    structure = Structure.from_cif(_ortho_cif(tmp_path, 93.2), diagnostics=diags)
+    assert structure.phases[0].cell.beta.value == pytest.approx(93.2)
+    assert diags == []
+    with pytest.raises(ValueError, match="fixes beta"):
+        ParameterTable(structure, Instrument.bragg_brentano(radiation="CuKa"))
+
+
+def test_an_exact_angle_is_neither_touched_nor_reported(tmp_path):
+    diags = []
+    structure = Structure.from_cif(_ortho_cif(tmp_path, 90.0), diagnostics=diags)
+    assert structure.phases[0].cell.beta.value == 90.0
+    assert diags == []
+
+
+def test_the_correction_band_separates_a_report_from_a_mis_declaration():
+    from pxrdref.crystallography.cif import CIF_ANGLE_CORRECT_MAX_DEG
+    from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+
+    # wide enough to cover a refined-and-reported angle, and strictly above
+    # the tolerance that decides whether there is anything to correct at all
+    assert SYMMETRY_ANGLE_TOL_DEG < CIF_ANGLE_CORRECT_MAX_DEG
+    # narrow enough that the 3.2° case WP-1036 found in the wild is excluded
+    assert CIF_ANGLE_CORRECT_MAX_DEG < 3.2
+
+
+# ----------------------------------------------------------------------
 # (b) generate_reflections refuses a petabyte grid before allocating it
 # ----------------------------------------------------------------------
 
