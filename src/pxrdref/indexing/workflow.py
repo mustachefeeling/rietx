@@ -71,6 +71,7 @@ intensities fits better.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from dataclasses import replace
 
@@ -549,6 +550,14 @@ def index_pattern(peaks: PeakList | None = None, *,
     and one never reached (absent) — and ``INDEX_BUDGET_EXHAUSTED`` names them.
     ``estimate_ceiling`` is the pre-run arithmetic for choosing the value.
 
+    **The (engine × system) units run system-major** (WP-1042): every engine
+    finishes one system before any engine starts the next, in ``SYSTEM_ORDER``
+    (cheapest metric first).  A binding deadline therefore sacrifices trailing
+    systems for every engine *equally* — a completed system holds all engines'
+    answers, which is what the agreement gate needs — where the engine-major
+    loop this replaced truncated whole engines, so which candidates kept their
+    finders depended on which engine the clock happened to catch.
+
     **Abstention is checked before any budget is spent, and it is about
     searchability, not scorability** (WP-1043).  A peak list that cannot support
     a search *in any system* (``MIN_LINES_PER_DOF``) comes back with the
@@ -576,6 +585,7 @@ def index_pattern(peaks: PeakList | None = None, *,
         budget_exhausted_diagnostic,
         engine_names,
         get_engine,
+        merge_engine_units,
     )
     from .pick import pick_peaks
     from .quality import assess_peak_list
@@ -623,8 +633,8 @@ def index_pattern(peaks: PeakList | None = None, *,
     # (engine × system), plus probe and validation units add()-ed when their
     # counts become known — never a second per-engine ladder beside it, which
     # is what made a progress bar jump (two writers, one ``n_stages``)
-    n_systems = len([s for s in SYSTEM_ORDER if s in spec.systems])
-    progress = Progress(stream, total=len(names) * n_systems)
+    ordered_systems = [s for s in SYSTEM_ORDER if s in spec.systems]
+    progress = Progress(stream, total=len(names) * len(ordered_systems))
 
     if not quality.supports_indexing:
         # abstention *is* the result: the gate has already decided the data cannot
@@ -641,16 +651,52 @@ def index_pattern(peaks: PeakList | None = None, *,
         _emit_end(stream, out)
         return out
 
-    results = []
-    for name in names:
-        # per-(engine × system) progress is emitted by the engines themselves
-        # through ``progress`` — the per-engine stage pair that used to sit
-        # here is *replaced*, not nested (WP-1037's trap 2)
+    # ------------------------------------------------------------------
+    # the scheduler (WP-1042): (engine × system) units, system-major
+    # ------------------------------------------------------------------
+    # Every engine finishes one system before any engine starts the next, so a
+    # binding deadline sacrifices trailing *systems* for every engine equally
+    # rather than whole engines — under the engine-major loop this replaces,
+    # which candidates kept their finders depended on which engine the clock
+    # happened to catch, and a candidate found only by the engine that ran
+    # first graded ``low`` structurally.  ``SYSTEM_ORDER`` stays the one
+    # authority for the order (cheapest metric first); per-(engine × system)
+    # progress is still emitted by the engines themselves through ``progress``
+    # (the per-engine stage pair was *replaced*, not nested — WP-1037's trap 2).
+    unit_kwargs: dict[str, dict] = {name: {} for name in names}
+    if "trial_error" in unit_kwargs:
+        # its dominant-zone probe explains a *whole-run* silence, which a
+        # per-system unit cannot know — deferred below, asked once
+        unit_kwargs["trial_error"]["probe"] = False
+    units: dict[str, list] = {name: [] for name in names}
+    for system in ordered_systems:
         if run_cancel is not None and bool(run_cancel):
             break
-        engine_result = get_engine(name)(peaks, spec=spec, quality=quality,
-                                         cancel=run_cancel, progress=progress)
-        results.append(engine_result)
+        for name in names:
+            if run_cancel is not None and bool(run_cancel):
+                break
+            unit_spec = replace(spec, systems=(system,))
+            units[name].append(get_engine(name)(
+                peaks, spec=unit_spec, quality=quality, cancel=run_cancel,
+                progress=progress, **unit_kwargs[name]))
+
+    results = [merge_engine_units(units[name]) for name in names
+               if units[name]]
+    trial = next((r for r in results if r.engine == "trial_error"), None)
+    if (trial is not None and not trial.candidates and trial.systems_searched
+            and not (run_cancel is not None and bool(run_cancel))):
+        # the deferred probe: once, over the systems the engine entered, and
+        # only when the whole harvest is empty — a cancelled run's silence is
+        # explained by the token, not by an index table
+        from .trial_error import dominant_zone_probe
+
+        t0 = time.monotonic()
+        hit = dominant_zone_probe(peaks, systems=trial.systems_searched,
+                                  spec=spec, quality=quality,
+                                  cancel=run_cancel, progress=progress)
+        trial.stats["probe.seconds"] = round(time.monotonic() - t0, 3)
+        if hit is not None:
+            trial.diagnostics.append(hit)
 
     outcome = consensus(results, peaks, spec=spec, quality=quality, top=top,
                         cancel=run_cancel)
@@ -678,7 +724,7 @@ def index_pattern(peaks: PeakList | None = None, *,
 
     if deadline is not None and deadline.expired() \
             and not deadline.cancelled_by_user():
-        requested = [s for s in SYSTEM_ORDER if s in spec.systems]
+        requested = ordered_systems
         outcome.diagnostics.append(budget_exhausted_diagnostic(
             float(spec.total_budget_seconds),
             engines_not_run=[n for n in names if n not in outcome.engines_run],

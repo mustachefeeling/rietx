@@ -255,13 +255,21 @@ def _admissible(af: np.ndarray, a_lo: float, a_hi: float, vol_min: float,
 
 def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
                        quality=None, cancel=None,
-                       progress=None) -> EngineResult:
+                       progress=None, probe: bool = True) -> EngineResult:
     """Assign trial indices to base lines, solve exactly, check against all lines.
 
     Deterministic and seed-free: the base sets come from ``combinations`` over the
     lowest-Q lines and the labels from a table ordered by ‖m‖, so the same peak
     list gives bit-identical results and the *set* of candidates does not depend on
     the order the lines arrived in.
+
+    ``probe=False`` defers the dominant-zone probe to the caller (WP-1042): the
+    probe explains a **whole-run** silence, and a call the scheduler has
+    restricted to one system cannot know one — left on, every empty system of a
+    run that found its cell elsewhere would be probed, which is neither what
+    the probe means nor a cost ``estimate_ceiling``'s typicals budgeted.
+    :func:`dominant_zone_probe` is the deferred ask, made once, over the
+    systems the engine actually entered.
     """
     spec = spec or SearchSpec()
     q_all = peaks.q()
@@ -322,7 +330,8 @@ def search_trial_error(peaks: PeakList, *, spec: SearchSpec | None = None,
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("trial_error", incomplete, spec.budget_seconds))
-    if not result.candidates and not (cancel is not None and bool(cancel)):
+    if probe and not result.candidates \
+            and not (cancel is not None and bool(cancel)):
         # the probe explains a silence, so a cancelled run — whose silence the
         # token explains — skips it.  Probed systems are the *entered* ones:
         # probing a system the search never reached would quietly claim it.
@@ -535,6 +544,28 @@ def _dominant_zone_probe(peaks: PeakList, spec: SearchSpec, q_all: np.ndarray,
     return None
 
 
+def dominant_zone_probe(peaks: PeakList, *, systems: list[str] | tuple[str, ...],
+                        spec: SearchSpec | None = None, quality=None,
+                        cancel=None, progress=None) -> Diagnostic | None:
+    """The silence-explaining probe, callable on its own (WP-1042).
+
+    ``search_trial_error`` runs it itself when its whole call came back empty;
+    the system-major scheduler slices the engine into per-system units, passes
+    ``probe=False`` to each, and asks here **once** — after the run, over the
+    ``systems`` the engine actually entered, and only when the merged harvest
+    is empty.  Probing a system the search never reached would quietly claim
+    it, which is the same not-started-⇒-not-claimed rule the engines follow.
+    """
+    spec = spec or SearchSpec()
+    q_all = peaks.q()
+    tt_all = peaks.two_theta()
+    sigma_sys, _assumed = effective_sigma_sys(spec, quality)
+    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
+    return _dominant_zone_probe(peaks, spec, q_all, sigma, tt_all,
+                                float(peaks.two_theta_max), list(systems),
+                                quality, cancel, progress=progress)
+
+
 register_engine(
     "trial_error", search_trial_error,
     "assumes trial indices for a few base lines and solves the metric exactly, "
@@ -542,4 +573,5 @@ register_engine(
     "by a bad base line rather than by a wide domain")
 
 __all__ = ["BASE_INDEX_MAX", "BASE_POOL_MIN", "DOMINANT_ZONE_PROBE_SECONDS",
-           "MAX_ASSIGN_PER_BASE", "index_table", "search_trial_error"]
+           "MAX_ASSIGN_PER_BASE", "dominant_zone_probe", "index_table",
+           "search_trial_error"]

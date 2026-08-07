@@ -229,11 +229,6 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         for system in result.systems_searched:
             if system not in systems:
                 systems.append(system)
-        for system, complete in result.search_complete.items():
-            # a system is complete only if *every* engine that searched it
-            # exhausted its domain: the weaker claim is the honest one
-            out.search_complete[system] = (
-                out.search_complete.get(system, True) and bool(complete))
         for key, value in result.stats.items():
             out.engine_stats[f"{result.engine}.{key}"] = float(value)
         # deduplicated on (code, message): every engine widens its window by the
@@ -248,6 +243,16 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         if any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in result.diagnostics):
             out.shift_allowance_assumed = True
     out.systems_searched = systems
+    # a system is complete only if **every** engine that ran both entered it
+    # and exhausted its domain (WP-1042).  The second half is the new one:
+    # under the system-major scheduler a deadline can stop the run with a
+    # system entered by some engines and never reached by another, and that
+    # engine's silence there is not evidence — before this rule such a system
+    # read "searched to completion" whenever the engines that did enter it
+    # finished, and the budget diagnostic had nothing to name.
+    out.search_complete = {
+        s: all(bool(r.search_complete.get(s, False)) for r in results)
+        for s in systems}
 
     out.candidates = [
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,

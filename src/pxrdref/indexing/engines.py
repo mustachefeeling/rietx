@@ -941,6 +941,49 @@ def solution_key(af: np.ndarray, centring: str = "") -> tuple[object, ...]:
             *np.round(a / (scale * SAME_SOLUTION_RTOL)).astype(np.int64))
 
 
+def merge_engine_units(units: Sequence[EngineResult]) -> EngineResult:
+    """Fold one engine's per-system unit results into the single
+    :class:`EngineResult` consensus reads (WP-1042's system-major scheduler).
+
+    The scheduler runs (engine × system) units — ``spec.systems`` restricted to
+    one system per call — so a binding deadline sacrifices trailing *systems*
+    for every engine equally instead of whole engines.  Consensus, and
+    everything downstream of it, still wants one answer per engine, and this is
+    that fold.  Everything is a union of disjoint per-system facts except the
+    engine-level stats: ``candidates.raw`` is **summed** (each unit counted its
+    own harvest), while ``sigma_sys_deg`` and ``seed`` are identical across
+    units by construction (one spec, one quality report), so last-write-wins is
+    exact for them.  Diagnostics dedup on (code, message) — every unit repeats
+    the engine-level ones (``INDEX_SHIFT_ALLOWANCE``) in identical words, and N
+    copies of one statement would read as N problems (the same rule
+    ``consensus`` applies across engines).
+    """
+    if not units:
+        raise ValueError("merge_engine_units needs at least one unit result")
+    engines = {u.engine for u in units}
+    if len(engines) > 1:
+        raise ValueError(
+            f"one merge per engine: got units from {sorted(engines)}")
+    out = EngineResult(engine=units[0].engine)
+    raw = 0.0
+    for unit in units:
+        out.candidates.extend(unit.candidates)
+        out.systems_searched += tuple(s for s in unit.systems_searched
+                                      if s not in out.systems_searched)
+        out.search_complete.update(unit.search_complete)
+        for key, value in unit.stats.items():
+            if key == "candidates.raw":
+                raw += float(value)
+            else:
+                out.stats[key] = value
+        for diag in unit.diagnostics:
+            if not any(d.code == diag.code and d.message == diag.message
+                       for d in out.diagnostics):
+                out.diagnostics.append(diag)
+    out.stats["candidates.raw"] = raw
+    return out
+
+
 def dedup_groups(cands: Sequence[EngineCandidate],
                  ) -> list[list[EngineCandidate]]:
     """Group candidates that are the same lattice, best-fitting member first.
@@ -1262,7 +1305,7 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "dedup_candidates", "dedup_groups",
            "effective_sigma_sys", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
-           "refine_with_shift",
+           "merge_engine_units", "refine_with_shift",
            "scored_positions", "search_line_order", "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
