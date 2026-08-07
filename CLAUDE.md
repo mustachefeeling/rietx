@@ -543,6 +543,13 @@ there), measured stories in the v1.0 record's appendix:
 - **Confidence is engines agreeing** — three, failing differently (wide
   domain / poisoned base line / bad starting basin), so adding one raises the
   bar rather than diluting it; and the FoM panel ranks, never scores.
+- **`quick` is `index_pattern`'s default** (WP-1042): all engines, all
+  requested systems run **system-major** under a whole-run ceiling, with
+  progress and a graded shortlist per completed system streamed on the event
+  ladder — so the GUI, CLI and agent inherit a bounded, anytime first click. A
+  caller's own `total_budget_seconds` is never overridden (the result records
+  `preset="custom"`); `preset="full"` is the unbounded pre-1.0 run, and a test
+  asserting a complete search declares it explicitly.
 - **Run `tests/test_acceptance_indexing.py` before closing anything that
   touches an engine** — a real ranking regression once sat under 115 green
   fast indexing tests (WP-1030).

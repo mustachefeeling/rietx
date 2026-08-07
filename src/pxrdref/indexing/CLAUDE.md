@@ -53,6 +53,41 @@ exactly one peak-position parameter, from the candidate's own shift template. An
 real data with no measured shift, `high` is currently *unreachable* by design
 (`shift_allowance_assumed`); the fix is evidence, not a bigger constant (WP-1026).
 
+## The scheduler, the presets and the stream (WP-1042)
+
+- **(engine × system) units run system-major** — `index_pattern` calls each
+  engine with `spec.systems` restricted to one system, all engines finish a
+  system before any starts the next (`SYSTEM_ORDER` stays the one authority),
+  and `merge_engine_units` folds each engine's units back into the one
+  `EngineResult` consensus reads. The point is the deadline: a binding ceiling
+  cuts trailing *systems* for every engine equally, never a whole engine, so a
+  candidate from a completed system keeps every finder. Two consequences are
+  load-bearing: a system is **complete only if every engine that ran entered
+  and exhausted it** (`consensus` — a partially covered system used to read
+  complete with nothing to name it), and trial_error's dominant-zone probe is
+  **deferred** (`probe=False` per unit; `dominant_zone_probe` asked once, over
+  the entered systems, only on an empty merged harvest — the probe explains a
+  *whole-run* silence, and left per-unit it would fire on every empty system
+  of a run that found its cell elsewhere).
+- **`quick` is the default preset**: every engine, every requested system, a
+  whole-run ceiling (`SEARCH_PRESETS`/`SEARCH_PRESET_INFO`, bijection by
+  meta-test, quoted live by `capabilities()` and the agent schema), and
+  validation fits each drawing an equal **slice** of the remaining clock.
+  Nothing is narrowed — a binding ceiling reports, and what it cuts is the
+  trailing low-symmetry systems, cheapest-first ordering's documented cost. A
+  declared `total_budget_seconds` is never overridden and records
+  `preset="custom"`; `"full"` is the unbounded pre-1.0 behaviour, and **a test
+  asserting a complete search declares it** (the acceptance rows all do).
+- **What streams is graded conservatively or not at all.** Facts ride every
+  ladder emission (`elapsed_seconds`, `remaining_seconds` under a ceiling); a
+  finished unit streams ≤3 `provisional` cells with **no confidence field**; a
+  *completed* system streams the cumulative ranked list as its own
+  `consensus:<system>` ladder unit through the real gate with validation and
+  ambiguity still open (`ambiguity=False`, both capping) — a streamed grade
+  can rise at the end, never fall. Candidate shape:
+  `schemas.indexing.candidate_evidence`, shared with `evidence()` — never
+  fork it. All added `data` on existing kinds; a new kind is a version bump.
+
 ## Engines and the FoM panel
 
 Everything the engines share is `engines.py` — one `SearchSpec`, one
