@@ -225,9 +225,9 @@ def test_the_form_corpus_quotes_the_live_registries():
     }
     CORPUS.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(corpus, indent=1, sort_keys=True) + "\n"
-    if not CORPUS.exists() or CORPUS.read_text() != text:
-        CORPUS.write_text(text)
-    assert json.loads(CORPUS.read_text()) == corpus
+    if not CORPUS.exists() or CORPUS.read_text(encoding="utf-8") != text:
+        CORPUS.write_text(text, encoding="utf-8")
+    assert json.loads(CORPUS.read_text(encoding="utf-8")) == corpus
 
 
 # ----------------------------------------------------------------------

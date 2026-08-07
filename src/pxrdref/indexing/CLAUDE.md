@@ -196,14 +196,13 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   only the extinction screen separates the two. Choose acceptance datasets **by
   space group** — SRM 660c (P m -3 m) is the control that proved it.
 - The known-cell scoreboard is *never wrong, and silent more often than right* —
-  **never round it up**, and **keep the found-but-not-first bucket**: the truth *in
-  the list* under a wrong leader is what this package produces most, and collapsing
-  it into right-or-wrong is how the old board named nine datasets under a total of
-  eight. It is **generated** by `tests/indexing_gallery.py`, so re-measure by running
+  **never round it up**, and **keep the found-but-not-first bucket** (collapsing it
+  into right-or-wrong is how the old board named nine datasets under a total of
+  eight). It is **generated** by `tests/indexing_gallery.py` — re-measure by running
   the suite; counts live in the v1.0 dossier, never retyped here (WP-1041). And
   **say "high-symmetry" whenever the board is quoted** (WP-1043): nine of ten
-  known-cell datasets sit at ≤ 2 free metric parameters, so every claim from it
-  is about high-symmetry lattices until the corpus moves — post-v1.
+  known-cell datasets sit at ≤ 2 free metric parameters — until the corpus moves,
+  post-v1, every claim from it is about high-symmetry lattices.
 - **An ambiguity partner must be refuted by the lines it needs and the data lack**
   (asymmetric: the partner's extra predictions, never the parent's own absences), or
   every derivative lattice is reported and the gate can never promote. And
@@ -214,21 +213,18 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies
   the gate its agreement.
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
-  `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above). `volume_envelope`
-  is a mean line, not an envelope — WP-1030's.
+  `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above).
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches 3770 s
   on hard triclinic patterns and McMaille "hours, if not a night", against our
-  measured 0.7–177 s. Buy responsiveness with ordering and reporting, never by
-  shrinking the box. **`budget_seconds` is per (engine × system)**, with the
-  probe and Le Bail validation on top and *outside* it, so the whole-run bound is
-  `SearchSpec.total_budget_seconds`, enforced as a `Deadline` that *is* the cancel
-  token (it nests under every cooperative check with no engine changes);
-  `estimate_ceiling` is the pre-run arithmetic and `INDEX_BUDGET_EXHAUSTED` names the
-  three states a bound run leaves (searched / truncated / not reached). A truncated
-  validation reads `not_validated`, never `validation_failed` (1037). And **a Monte
-  Carlo indexer must refine each proposal; scoring raw random cells does not rank** —
-  WP-1023 ranked corundum's truth 29 053 of 200 001 unrefined, where `search_svd`,
-  iterating each to a fixed assignment, returns it alone.
+  0.7–177 s. Buy responsiveness with ordering and reporting, never by shrinking
+  the box. **`budget_seconds` is per (engine × system)** — probe and validation on
+  top — so the whole-run bound is `total_budget_seconds`, a `Deadline` that *is*
+  the cancel token; `estimate_ceiling` is the pre-run arithmetic,
+  `INDEX_BUDGET_EXHAUSTED` names the three states (searched/truncated/not reached),
+  and a truncated validation reads `not_validated`, never `validation_failed`
+  (1037). And **a Monte Carlo indexer must refine each proposal; raw random cells
+  do not rank** — WP-1023 ranked corundum's truth 29 053 of 200 001 unrefined,
+  where `search_svd`, iterating to a fixed assignment, returns it alone.
 - **Coelho's N_c/N_o gate bounds the *volume*, it is not a per-trial verdict**
   (WP-1040, `svd.volume_window`): N_c ∝ V, so one probe gives κ and the gate is
   V ∈ [N_o/3κ, 4N_o/κ] — it held the truth on all nine corpus datasets and is most
@@ -240,15 +236,13 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   `n_unindexed` rescues one dataset and costs the rest — a **retry after silence**.
 - **The 2θ shift is solved *before* indexing — but a zero-error *column* inside the
   search is what stops a converged answer being wrong** (WP-1038; WP-1040 task 3,
-  `svd.zero_error_column`). A cell found inside a widened window absorbs the shift,
-  which is why DICVOL04 solves it first and McMaille refuses to scan the zeropoint.
-  Coelho §2.3's column is the other half, and it does *not* raise the hit rate: at an
-  injected 0.10°, started **at** the truth, one pass lands 3.5 % out where §2.4's
+  `svd.zero_error_column`). Coelho §2.3's column does *not* raise the hit rate: at
+  an injected 0.10°, started **at** the truth, one pass lands 3.5 % out where §2.4's
   three land 1e-4 out and report the shift to 1 % (corundum 0 candidates → the truth
-  ranked first, nothing regressed). It agrees with the pair screen to **0.003°** needing
-  neither references nor pairs — and still may not correct a cell, being the `constant`
-  template *by construction*: **a shift measured without an attribution sizes windows,
-  and only a declared template moves a cell.**
+  ranked first, nothing regressed). It agrees with the pair screen to **0.003°**
+  needing neither references nor pairs — and still may not correct a cell, being the
+  `constant` template *by construction*: **a shift measured without an attribution
+  sizes windows, and only a declared template moves a cell.**
 - **A search is driven by the *strongest* N lines, and "enumerate liberally" is a
   rule this package cannot have** (WP-1039, `engines.search_line_order`). *Which*
   twenty beats *how many* (NAC: 6 of the truth's lines in 2θ order, 18 by intensity
