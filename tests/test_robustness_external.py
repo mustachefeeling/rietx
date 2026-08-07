@@ -96,6 +96,37 @@ def test_untouched_species_record_no_diagnostic(tmp_path):
     assert diags == []
 
 
+# ----------------------------------------------------------------------
+# (b) generate_reflections refuses a petabyte grid before allocating it
+# ----------------------------------------------------------------------
+
+
+def test_a_collapsed_cell_is_refused_before_the_grid_is_allocated():
+    # the real case allocated 2.35 PiB and killed the process; the guard has
+    # to fire before np.meshgrid, so the test's only budget is the raise
+    from pxrdref.crystallography.symmetry import generate_reflections
+
+    with pytest.raises(ValueError, match="grid points") as err:
+        generate_reflections("P 1", (56800.0, 56800.0, 72600.0,
+                                     90.0, 90.0, 90.0),
+                             wavelength=1.5406, two_theta_max=120.0)
+    # the message names the cell and the likely cause, not just the size
+    assert "56800" in str(err.value)
+    assert "collapsed or mis-scaled" in str(err.value)
+
+
+def test_the_grid_limit_clears_every_physical_cell():
+    from pxrdref.crystallography.symmetry import MAX_HKL_GRID_POINTS, generate_reflections
+
+    # a 100 Å protein-scale cell at d_min ≈ 1 Å implies a 201³ grid — the
+    # refusal must sit far above any physical powder problem, so pin the
+    # limit against that arithmetic, and enumerate a small P1 cell for real
+    assert 201 ** 3 < MAX_HKL_GRID_POINTS
+    refl = generate_reflections("P 1", (25.0, 25.0, 25.0, 90.0, 90.0, 90.0),
+                                wavelength=1.5406, two_theta_max=40.0)
+    assert len(refl.hkl) > 0
+
+
 @pytest.mark.parametrize("dispersion_on", [True, False],
                          ids=["dispersion-on", "dispersion-none"])
 def test_normalised_species_compile_under_both_dispersion_settings(
