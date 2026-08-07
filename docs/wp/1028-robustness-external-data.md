@@ -438,11 +438,18 @@ Every item has a test that fails before the fix. Plus:
 .venv/bin/python -m ruff check src tests examples
 ```
 
-And once §(i) lands (it moves picker output on four acceptance datasets):
+And, because §(i) moves picker output on four acceptance datasets and
+§§(e)/(f) reach the March-Dollase and QPA paths the round robin exercises —
+**one at a time**, never concurrently (two `-n auto` suites compete for cores,
+and a real-data row has reported a different centring under load):
 
 ```sh
-.venv/bin/python -m pytest tests/test_acceptance_indexing.py
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py -n auto --dist loadgroup
+.venv/bin/python -m pytest tests/test_acceptance_qpa_roundrobin.py -n auto --dist loadgroup
 ```
+
+Measured at close, 2026-08-07: **41 passed in 21:01** and **12 passed in
+1:28**.
 
 ## References
 
@@ -484,6 +491,20 @@ this WP is self-contained.
   main's 1897 collected — +32, exactly this session's new module
   `tests/test_robustness_external.py`, all passes and no new skip. Ruff clean.
   GUI: 390 vitest, svelte-check 0 errors, dist rebuilt.
+
+  **The two acceptance suites §(i) and §(e)/(f) could move, both run alone.**
+  `tests/test_acceptance_indexing.py` **41 passed in 21:01** — nothing
+  regressed, and `REAL_DATA_N_UNINDEXED = 3` still holds with corundum's edge
+  artifact gone (which is why the comment justifying it is now stale rather
+  than wrong). `tests/test_acceptance_qpa_roundrobin.py` **12 passed in 1:28**
+  — brucite's March-Dollase r = 0.67 sits well inside the new 0.15-6 bound, so
+  the floor costs the round robin nothing.
+
+  **Method note worth keeping: do not run two `-n auto` acceptance suites at
+  once.** Started concurrently, they compete for the same cores, and
+  `tests/CLAUDE.md`'s own record has a real-data row reporting a *different
+  centring* under load. The second was killed and re-run alone rather than
+  trusted.
 
   **Three things a reader should not take on trust from the WP text above, all
   re-measured here.** §(g)'s filed cause was wrong in shape — the multiphase
