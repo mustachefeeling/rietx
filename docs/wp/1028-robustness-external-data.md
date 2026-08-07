@@ -164,322 +164,167 @@ Rietveld ties intensities to atoms and has no such freedom.
   its strongest peak the whole pedestal goes to the Bragg reflections on cycle
   one.
 
-### Inherited
+### (i) The picker takes a rising left edge for a peak — the envelope repair is decided
 
-**From the WP-1041 gallery review, 2026-08-05 — a peak-picking defect found by
-LOOKING at the pictures, and it is a class rather than the one-off this repo has
-recorded twice.** The user read the picked-peak figures and asked whether the
-pattern's **rising left edge** is sometimes taken for a peak. Measured, on every
-bundled round-robin pattern (all start at 5.00° 2θ):
+Found by eye in WP-1041's gallery review (2026-08-05), in one figure, after
+every green test had missed it — and it is a class, not the one-off this repo
+had recorded twice. On four of the six bundled round-robin patterns (brucite,
+corundum, fluorite, magnetite — all start at 5.00° 2θ) the lowest picked line
+sits 0.31 FWHM or less from the first channel, lies on no known lattice, and
+**reaches `PeakList.usable()`**: two carry no flag at all, and the other two
+carry only `position_at_bound`, which is not in `PEAK_UNUSABLE_FLAGS`. Zincite
+and zircon escape only because their first real line is far from the start;
+LaB6 because its data begins at 20.3°. It had been recorded as one dataset's
+artifact (sized into `REAL_DATA_N_UNINDEXED = 3`) when it is a property of any
+pattern whose first channel is on a rising edge.
 
-| dataset | lowest picked line | gap from first channel | flags | on the known lattice? |
-|---|---|---|---|---|
-| brucite | 4.979° | −0.01 FWHM | `position_at_bound` | **no** |
-| corundum | 5.169° | 0.10 FWHM | **none** | **no** |
-| fluorite | 5.153° | 0.11 FWHM | **none** | **no** |
-| magnetite | 5.706° | 0.31 FWHM | `position_at_bound` | **no** |
-
-Four of six, and **all four reach `PeakList.usable()`** — `position_at_bound` is
-not in `PEAK_UNUSABLE_FLAGS`, and two of them carry no flag at all. The two
-patterns that escape (zincite, zircon) are the two whose first real line is far
-from the start; LaB6 escapes because its data begins at 20.3°, not because the
-picker is better there.
-
-The cause is already named in the codebase for the corundum case — the background
-is a rolling low quantile (`background.background_envelope`) and *cannot be
-estimated at the first channel*, so a monotonic rise reads as prominence over an
-extrapolated flat background. What is new is that it was recorded as one dataset's
-artifact (sized into `REAL_DATA_N_UNINDEXED = 3`) when it is a **property of any
-pattern whose first channel is on a rising edge**.
-
-Why it is filed here and not fixed in 1041: it is a library behaviour change on
-the path every external pattern takes, it would move acceptance numbers on four
-datasets, and 1041 was closing. **Do not simply crop the pattern** — that discards
-a real low-angle line on a specimen that has one.
+The cause is one line of `background.background_envelope`: each knot's x is its
+window's **centre**, so the first knot sits half a window (~1.5°) inside the
+data and `np.interp` **clamps flat** below it. Against a falling background the
+clamp sits far under the truth and the whole first 1.5° reads as positive net —
+on all seven round-robin patterns `y[0]` is 1.5-2× `env[0]`, z = 4.7-6.9σ on
+the first channel against a 5σ bar. A flat-extrapolation artifact, not a
+threshold that needs raising.
 
 **The fix is decided and measured (user's call, 2026-08-06: "prefer simple and
 robust"). Repair the envelope, then flag what survives — not an edge guard.**
 
-The cause is one line of `background.background_envelope`: each knot's x is its
-window's **centre**, so the first knot sits half a window (~1.5°) inside the data
-and `np.interp` **clamps flat** below it. Against a falling background the clamp
-sits far under the truth, and the whole first 1.5° reads as positive net. It is a
-flat-extrapolation artifact, not a threshold that needs raising: on all seven
-round-robin patterns `y[0]` is 1.5-2× `env[0]`, putting z = 4.7-6.9σ on the first
-channel against a 5σ bar.
+1. Anchor one extra knot at each **data edge**, linearly extrapolated from the
+   two nearest — four lines, no new tunable. Measured across the seven: false
+   edge lines **5 → 1**, and no line away from the edge is lost on any pattern
+   (zincite 50→50, zircon 50→50, cpd-1a 34→34; the rest fall by exactly their
+   artifact count). Brucite's survivor drops 6.07σ → 5.01σ. An edge guard was
+   rejected for scoring the same on the artifacts and worse on a genuine first
+   line, which it cannot tell apart. **Do not crop the pattern** — that
+   discards a real low-angle line on a specimen that has one.
+2. A line standing where the envelope is **extrapolated rather than
+   interpolated** is on a background nobody measured, so it carries a new flag
+   saying exactly that — report, don't refuse
+   ([1043](1043-agent-and-human-indexing.md)): the component is real intensity,
+   and the consumer that can weigh that should be given the chance.
+   `position_at_bound` is not the flag to reuse: it caught two of the five and
+   means something else.
 
-So anchor one extra knot at each **data edge**, linearly extrapolated from the two
-nearest — four lines, no new tunable. Measured across the seven: false edge lines
-**5 → 1**, and **no line away from the edge is lost on any pattern** (zincite
-50→50, zircon 50→50, cpd-1a 34→34; the rest fall by exactly their artifact count).
-Brucite's survivor drops 6.07σ → 5.01σ. An edge guard was rejected for scoring the
-same on the artifacts and worse on a genuine first line, which it cannot tell apart.
+This is a library behaviour change on the path every external pattern takes and
+it moves picker output on four acceptance datasets — run
+`tests/test_acceptance_indexing.py` before closing (CLAUDE.md rule; the
+`REAL_DATA_N_UNINDEXED` sizing is exactly what moves).
 
-Then the second half, and it is the half that generalises: a line inside the span
-where the envelope is **extrapolated rather than interpolated** is standing on a
-background nobody measured, so it carries a flag saying exactly that. Report, do
-not refuse ([1043](1043-agent-and-human-indexing.md)) — these components are real
-intensity, just not lines, and the consumer that can weigh that should be given
-the chance. `position_at_bound` is not the flag to reuse: it caught two of the
-five and means something else.
+### (j) A symmetry-fixed angle in an external CIF raises where a reader could diagnose
 
-*Method note worth keeping: this was found by eye, in one figure, after every
-green test had missed it. It is the argument for the gallery existing.*
-
-**From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — indexing
-robustness under contamination is now measured, so do not re-derive it, and one
-result changes what "survives a stranger's pattern" means for the gate.**
-
-A sweep injecting k impurity lines into the certified LaB6 list is
-`test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank`. Two
-things transfer to this WP:
-
-- **What contamination breaks is the *grade*, not the answer, and by arithmetic.**
-  The truth indexes exactly its own 25 lines at every k and never an injected one,
-  so `indexed_fraction` = 25/(25+k) and the 0.9 bar falls between k = 2 and k = 3.
-  A stranger's pattern with a few extra lines therefore drops to `low` on
-  `indexed_fraction_low` while the cell is still right and still first. That is
-  worth a diagnostic-wording check when you write yours: the caveat names the
-  symptom, not the cause.
-- **The real limit is `n_unindexed`, and it is an absolute budget.** Told it may
-  leave 3 lines unindexed on a list carrying 12 impurities, the search returns the
-  truth **nowhere** rather than second — first-rank rate 8/8 at k = 6, 5/8 at 9,
-  2/8 at 12, 0/8 at 18. A stranger's multi-phase pattern is exactly this case, and
-  the fix is not a tolerance.
-
-Also relevant to "no silent stall": the whole indexing acceptance suite is 41 rows
-and 22-26 min, and its budgets are runaway guards with ≥8× headroom measured, not
-timers.
-
-**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — your §"the payoff"
-paragraph is half withdrawn, and the σ_sys item you were filed is unchanged.**
-`best_or_none()` no longer returns a cell on the calibrated LaB6 protocol: it did
-so only while `trial_error`'s dedup key was scale-invariant and could return one
-cubic candidate per search, which denied the a·√2 supercell its vote. With
-`engines.solution_key` fixed, all three engines find the truth *and* both centrings
-of that supercell, and all three reach `high`. The certified cell's own `high` and
-its −2 ppm are untouched — only the uniqueness is gone, and it was a bug's doing.
-The paragraph in Context is corrected in place; nothing else in this WP moves. The
-`sigma_sys_deg` naming item you own (the residual the template *leaves*, 0.0078°,
-against the amplitude a window must span, 0.037°) is untouched and still filed here.
-
-**From [1036](1036-crystal-system-settings.md), closed 2026-08-04 — a new
-refusal on the path every external CIF takes, and 1036 established that a plain
-CIF can trip it.**
-
-`ParameterTable._collect` now calls
+Since WP-1036, `ParameterTable._collect` calls
 `crystallography.symmetry.check_cell_angles(sg, angles)`, which **raises** when
-a symmetry-fixed angle disagrees with the value its space group demands, beyond
-`SYMMETRY_ANGLE_TOL_DEG = 1e-3`°. 1036 swept the 3 CIFs this repo ships plus the
-14 COD entries this benchmark pulls and found **zero** disagreements, so nothing
-here breaks today — but that is 17 files *we* chose, and this WP's whole subject
-is files we did not. The reader does not enforce consistency: a CIF declaring
-`P m m m` with `_cell_angle_beta 93.2` loads and stores 93.2 verbatim, which is
-how 1036 established all three defects are reachable from a plain CIF.
+a symmetry-fixed angle disagrees with its space group beyond
+`SYMMETRY_ANGLE_TOL_DEG = 1e-3`°. The 17 files this repo chose carry zero
+disagreements; the realistic external case is a file quoting a *refined*
+β = 90.002(3) under an orthorhombic symbol — an experimenter reporting a
+measurement, not a mistake — which now raises at the first `parameters()` /
+`set_vary` / stage compile rather than refining. Neither half of the fix is
+raising the tolerance: 1036 chose 1e-3° by consequence (a fixed angle wrong by
+δ biases d-spacings by 8.3 ppm per 1e-3°), and the deviation is real
+information about the specimen or the refinement that produced the file. The
+useful outcome is a **reader-side `Diagnostic` naming it**:
+`structure_from_cif`, beside §(a)'s species normalisation, where a correction
+is recorded as provenance instead of applied silently — `ParameterTable` stays
+strict (it has no diagnostics channel, which is why 1036 refused rather than
+normalised).
 
-The realistic external case is not that malformed one. It is a file quoting a
-*refined* β = 90.002(3) under an orthorhombic symbol — an experimenter
-reporting a measurement, not a mistake — which exceeds 1e-3° and will now raise
-at the first `parameters()` / `set_vary` / stage compile rather than refine.
+### (k) Indexing-side guards and bounds — filed here, not yet scheduled
 
-Two things to weigh, and **neither is raising the tolerance**: 1036 chose 1e-3°
-by consequence, not by comfort (a fixed angle wrong by δ biases d-spacings by
-8.3 ppm per 1e-3°), so widening it re-admits the bias it exists to stop. And
-the deviation is real information about the specimen or the refinement that
-produced the file, so the useful outcome here is a **diagnostic naming it**
-rather than a bare raise. Note where that has to live: 1036 refused rather than
-normalised precisely because `ParameterTable` has no diagnostics channel — a
-*reader* does, so if a real external corpus turns up files in this state the fix
-belongs in `structure_from_cif`, alongside item (a)'s species normalisation,
-where a correction can be recorded as provenance instead of applied silently.
+Three items of this WP's shape (a guard, a bound, a default), measured
+2026-07-30 on the certified SRM 660c LaB6 pattern. The *gate/grade* redesign
+moved to [1043](1043-agent-and-human-indexing.md); these bounds did not. The
+prize is on record: with the off-lattice components removed and the systematic
+measured rather than assumed, the gate reached `high` at **−2 ppm**
+(M₂₀ = 1120, zero caveats) — what stands between the pipeline and a blind
+certified answer is a peak list, not arithmetic.
 
-**From the 2026-07-30 assessment session — a bound that can exclude the right
-answer, which is this WP's shape exactly ("a guard, a bound, a default").**
-`indexing.quality.volume_envelope` is documented and used as an **upper envelope**
-on the cell volume and is fed straight into the engines as a hard search ceiling
-(`dichotomy.py:487`, `trial_error.py:274,455`). Checked against Smith (1977): it
-is a least-squares **mean line**, average discrepancy 10.6 %, deviations −29 % to
-+32 %, and the low side is the ordinary case because it is what missing weak
-lines produce. With p the fraction of possible lines detected the bound stands in
-ratio 1.4025·p to the truth, so it **excludes the true cell below p = 0.713** —
-and 28.7 % is Smith's own quoted worst case, so there is no margin at all against
-the worst pattern in his calibration set.
+- **`volume_envelope` is a mean line used as a ceiling.** Checked against
+  Smith (1977): average discrepancy 10.6 %, deviations −29 % to +32 %, and low
+  is the ordinary case because missing weak lines produce it. With p the
+  fraction of possible lines detected the bound stands at 1.4025·p × truth, so
+  it **excludes the true cell below p = 0.713** — and 28.7 % is Smith's own
+  quoted worst case, so there is no margin at all. `VOLUME_ENVELOPE_SLACK`
+  = 1.5 exists but only in `consensus.py` to *flag* an already-found
+  candidate; the fatal uses have none — re-verified on arrival 2026-08-07:
+  `dichotomy.py:612`, `trial_error.py:297,502` and `svd.py:756` all feed the
+  raw envelope as a hard search ceiling. The guard test
+  (`test_volume_envelope_contains_the_true_volume`) feeds a complete line list
+  (p = 1.0) and is blind to the calibration — a regression test needs an
+  *incomplete* one. Docstrings were corrected 2026-07-30; the behaviour fix is
+  still owed.
+- **`sigma_sys_deg` means two things, and only one of them indexes.**
+  `ShiftScreen.sigma_sys_deg` is the residual the winning template *leaves*
+  (0.0078° there); `SearchSpec.sigma_sys_deg` must span the uncorrected shift
+  itself (+0.037°, 4.3× larger) because the search matches **uncorrected**
+  positions — `refine_with_shift` runs only after a candidate survives. So the
+  obvious protocol ("measure the systematic on a standard, declare it") finds
+  **nothing**, silently. Rename one, or let a declared template *correct* the
+  observed positions before matching. Pinned in
+  `test_what_the_unflagged_tail_components_cost_the_certified_cell`. (WP-1045
+  is about to make `SearchSpec` the one mirrored surface — if it lands first,
+  this naming decision belongs there.)
+- **`pick.py`'s `not_separable` screen misses six components, for three
+  different reasons** — four too far (1.73-2.99 fitted FWHM against
+  `PEAK_SATELLITE_NEAR_FWHM` = 1.5), one failing `reseeded()` with the slot
+  labels swapped, one on an unrefuted group (χ²_red 1.38, the screen's
+  documented deliberate keep) — so no one knob reaches them. What they are is
+  settled: five axial-divergence tails (the sign flips at 90° 2θ, which
+  nothing else in a Bragg-Brentano pattern does), one a Kα2 alias re-created
+  by `fit_group` at 3 % of the parent's area. Cost, measured: **125 ppm on a
+  certified cell** (−127 with them in, −2 with them out). The census is pinned
+  by `test_the_unflagged_tail_components_escape_for_three_different_reasons` —
+  a fix has a table to move, not a threshold to guess at.
 
-Three things to know before fixing it. `VOLUME_ENVELOPE_SLACK = 1.5` already
-exists but is applied only in `consensus.py:302` to *flag* an already-found
-candidate — the fatal use has no slack, which is inverted. The test that guards
-it (`test_volume_envelope_contains_the_true_volume`) feeds `generate_reflections`,
-a complete line list at p = 1.0, so it validates the geometry in the most
-favourable regime and is blind to the calibration; a regression here needs an
-*incomplete* line list. And the docstrings and manual were corrected on
-2026-07-30 to say "estimate" with the numbers, so the false claim is gone but the
-**behaviour is unchanged** — the fix is still owed. Search-scope aspects are in
-[1030](1030-engine-scaling-low-symmetry.md); the guard-and-default aspect is
-yours if 1030 does not reach it first.
+Two measured facts to keep beside any diagnostic wording written in this WP:
+contamination breaks the **grade**, not the answer (the truth indexes exactly
+its own 25 lines at every injected k, so `indexed_fraction` = 25/(25+k) and
+the 0.9 bar falls between k = 2 and 3 — a caveat should name the symptom, not
+the cause), and `n_unindexed` is an **absolute budget**, not a tolerance
+(allowed 3 on a list carrying 12 impurities, the truth comes back **nowhere**:
+first-rank 8/8 at k = 6, 0/8 at 18 — a stranger's multi-phase pattern is
+exactly this case). And `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05° is added in
+quadrature to every line's σ, flattening a measured 100× precision contrast to
+1.005 — if that allowance is revisited, the *shape* (flat quadrature against a
+multiplicative widening that preserves the ordering) matters as much as the
+size.
 
-**From WP-1026 (2026-07-30, third session) — a refuting caveat that fires on
-correct cells, which is a robustness statement rather than an indexing one.**
-`predicted_but_absent` is one of the five `INDEX_REFUTING_CAVEATS`, and it is
-counted against the candidate's **lattice** group, because that is the only model
-that exists before `determine_extinction_symbol` runs. So every phase whose space
-group has extinctions beyond its centring refutes its own correct cell. Measured
-end to end on the certified SRM 676a corundum pattern: the cell is recovered to
-+101 ppm in a and +16 ppm in c, ranked first with the right centring, and carries
-`predicted_but_absent = 12` — the R-3c c-glide, seen through the lattice R-3m.
-The candidate is graded `low` and `best_or_none()` returns None.
+### Landing a new code (mechanics from WP-1007/1014)
 
-Three things before touching it. It is exactly the blind spot
-`fom.predicted_seen_fraction`'s docstring already states ("legitimately absent
-reflections count against a *correct* cell"), promoted to a caveat that refutes —
-so the fix is not new knowledge, it is making the gate act on knowledge the panel
-already carries. The screen that *can* separate the two cases exists
-(`indexing/extinction.py`, WP-1025) and costs ~2 s plus ~0.1 s per class, but
-`index_pattern` does not run it, so this is an integration decision with a price,
-not a new measurement. And the honest interim behaviour is arguably what happens
-now — abstaining on a cell the package cannot yet distinguish from an oversized
-one — so if you leave it, say so in the caveat's own text rather than in a
-handover log.
-
-**That caveat now has its control, and it means what its name says (WP-1026,
-2026-07-30, fourth session).** NIST SRM 660c LaB6 is **P m -3 m**, which
-extinguishes nothing, and indexed end to end it carries `predicted_but_absent`
-**0 of 30** with `predicted_seen_fraction` **1.000**, against corundum's 11-12
-and 0.86. So the entry above is confirmed rather than merely argued: the caveat
-tracks space-group absences seen through the lattice group, and reading a firing
-as "this cell is too big" is the mistake. `test_a_certified_cubic_cell_is_
-recovered_with_no_extinction_caveat` is that control and will fail if a fix
-changes the meaning rather than the coverage.
-
-**Three more from the same session, all measured on that pattern, all of the
-shape this WP owns — a guard, a bound, a default.**
-
-- **`indexing/pick.py`'s `not_separable` screen misses six components, and no one
-  knob reaches them.** Thirteen weak components share a group with a strong one
-  here; seven are flagged and six survive, failing **three different** conditions:
-  four are simply *too far* (1.73-2.99 fitted FWHM, against
-  `PEAK_SATELLITE_NEAR_FWHM` = 1.5); one fails `reseeded()` because the detection
-  seed slid into the tail and the *new* component took the real line, so the slot
-  labels are the wrong way round; and one sits on a group whose fit is **not
-  refuted** (χ²_red 1.38), which the screen's own docstring calls a deliberate
-  keep. Widening 1.5 would reach four of six and is a knob, not a measurement.
-  What the survivors *are* is settled: five are axial-divergence tails — the sign
-  flips at 90° 2θ, which nothing else in a Bragg-Brentano pattern does — and one
-  is a Kα2 residual on a mate's resolved second line, i.e. an alias
-  `detect_peaks` dropped (`PEAK_KALPHA2_ALIAS`, 23 dropped here) that `fit_group`
-  re-created at 3 % of the parent's area. Cost, measured: **125 ppm on a
-  certified cell** (−127 with them in, −2 with them out) and a shift fit
-  consistent with zero where the truth is +0.037°. The census is pinned by
-  `test_the_unflagged_tail_components_escape_for_three_different_reasons`, so a
-  fix has a table to move rather than a threshold to guess at.
-- **An assumed allowance destroys the weighting the peak fitter measured, and
-  that is a second cost nobody had priced.** `DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05°
-  is added *in quadrature to every line's σ*, so on this pattern the real lines
-  (σ ≈ 0.0005°) and the tail components (σ ≈ 0.005°) go from a **100×** precision
-  contrast to **1.005**. That is why `fit_shift_model`, which weights by each
-  line's own σ, recovers the displacement anyway (+0.0367 ± 0.0015° against a
-  parameter-free geometric prediction of +0.0415°) while the *search*, on the
-  identical list, fits +0.009 ± 0.016°. If the allowance is ever revisited, the
-  question is not only whether 0.05° is the right size but whether a flat
-  quadrature addition is the right *shape* — a multiplicative widening would
-  preserve the ordering.
-- **`sigma_sys_deg` means two different things to the screen and to the search,
-  and only one of them indexes.** `ShiftScreen.sigma_sys_deg` is the scatter the
-  winning template *leaves* (0.0078° here). Declare that as `SearchSpec.
-  sigma_sys_deg` and the search returns **no candidate at all**, because it
-  matches against **uncorrected** positions — `refine_with_shift` fits the
-  template only after a candidate survives — so the window still has to span the
-  shift itself (+0.037°). The two differ by 4.3×, the docstrings do not
-  distinguish them, and the obvious protocol ("measure the systematic on a
-  standard, declare it") therefore fails silently by finding nothing. Either
-  rename one, or let a declared template *correct* the observed positions before
-  matching. Pinned in `test_what_the_unflagged_tail_components_cost_the_
-  certified_cell`.
-
-**And the payoff, so the size of the prize is on record: with those three
-handled the gate reaches `high`.** Same pattern, off-lattice components removed
-and the systematic measured rather than assumed: **a = 4.156772 Å, −2 ppm** from
-the certification CIF, M₂₀ = 1120, **zero caveats** on that candidate — the first
-time `high` has been reached on real data. The pipeline's arithmetic is sound to
-the part per million; what stands between it and a *blind* certified answer is a
-peak list.
-
-**The half of that sentence about `best_or_none()` is withdrawn (WP-1041,
-2026-08-05).** It returned a cell only because a dedup bug was suppressing two
-rivals: all three engines also find both centrings of the a·√2 supercell, and with
-`engines.solution_key` fixed those reach `high` too, so the "exactly one high
-candidate" rule declines. The certified cell's own `high` is untouched; what the
-row now shows is that the *gate* never separated the truth from its supercell —
-`caveats_for` reads `predicted_but_absent` (0 for all three here) and never
-`unmatched_observed` (17 against 91 and 136). Fixing that is WP-1041's, not this
-WP's; it is noted here only so this paragraph is not read as still true.
-
-**A geometrical ambiguity the enumeration cannot reach from one side (WP-1026,
-same session).** `ambiguity.ambiguity_partners` enumerates **derivative**
-lattices — sublattices of index 2-4, i.e. supercells — so a rival with *smaller*
-volume is not in the enumeration at all. One exists for the commonest lattice
-there is: tetragonal P at (a/√2, a) gives Q = (2h² + 2k² + l²)/a², and
-2(h²+k²)+l² represents **exactly** the integers h²+k²+l² does (both miss
-precisely 4ⁿ(8m+7)), so it is isospectral with cubic P *everywhere* — not within
-a tolerance. Measured: 0 partners reported from the cubic side, while from the
-tetragonal side the cubic **is** found (index 2, **zero** discriminating
-reflections, the report correctly saying nothing in range separates them). Both
-engines find the rival on the real pattern. Why it matters here rather than only
-being untidy: the gate refuses `high` to a candidate with an ambiguity partner,
-so whichever of an isospectral pair happens to be the larger cell can be
-promoted while its equal cannot — a confident singleton produced by the
-enumeration's direction rather than by the data. Two rows pin it
-(`test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival` asserts the
-0 partners *and* says in place that the fix is to delete that assertion).
-
-From **WP-1014** (import & in-GUI editing, landed 2026-07-30): **the upload route
-is now the front door for files nobody here authored**, which makes it this WP's
-most interesting surface. `imports.preview_pattern` catches
-`ValueError/OSError/RuntimeError/KeyError/IndexError` from the reader and turns
-them into a 400 quoting the parser (with the staging path scrubbed out); anything
-outside that set becomes a 500 with a type name, which is the shape of failure
-worth hunting here. Two known-good behaviours to keep: a filename is reduced to its
-leaf (`../../../etc/lab6.cif` stages as `lab6.cif`), and the size cap is checked
-against the *declared* `Content-Length` before a byte is read.
-
-Also relevant: `_as_structure` now refuses an atom species with no
-Waasmaier-Kirfel entry, naming the atom. Real CIFs carry `D`, `Wat`, `OH` and
-worse, so **how often that fires on external files is a measurement this WP can
-make** — and if it fires on files that ought to work, the fix is a species-mapping
-step at import, not removing the check (it only moves the failure from stage
-compile to the field it was typed in).
-
-From **WP-1007** (landed 2026-07-30) — **`GuardFinding` now exists, so the codes
-this WP adds have a home**, and the note that asked for an open vocabulary was
-honoured: `GuardFinding(code, paths, value, message)` in `strategy/staged.py`,
-`code` a plain `str` and not a `Literal` closed over the original six. Three
-practical consequences:
-
-- Add a guard by adding a **constructor classmethod** to `GuardFinding` (that is
-  where the format string belongs — the same text used to be written at three
-  call sites) and a branch in `refine._guard_diagnostics`. `paths` is a tuple and
-  it *must* be populated: `Diagnostic.where` is now built from it, and this WP's
-  own findings (an hkl-range refusal, a non-positive ΣS·ZMV) are exactly the kind
-  a client wants to click through to a parameter.
-- **`str(finding)` is a published surface.** `tests/test_capabilities.py` pins the
-  rendered strings as *literals*; a new constructor wants a row in its
-  `RENDERINGS` table.
-- `MODEL_FAR_FROM_DATA` and the surfaced `max_iter` outcome are the two that are
-  not per-parameter — decide whether they are `GuardFinding`s with an empty
-  `paths` or `Diagnostic`s emitted directly from `_build_result`, and say which in
-  the handover. `value` is `None`-able precisely for the numberless case (a
-  parameter at its bound uses it that way).
-
-Also from **WP-1007**: `PreferredOrientation` is now exported from
-`pxrdref.__init__` — that half of this WP's note is done, so its task list is
-only the `r` floor. And `capabilities().features` carries `preferred_orientation`
-derived from `Phase.model_fields`, so nothing there needs editing when you touch
-the block.
+- `GuardFinding(code, paths, value, message)` lives in `strategy/staged.py`;
+  add a guard as a **constructor classmethod** there plus a branch in
+  `refine._guard_diagnostics`. `paths` must be populated — `Diagnostic.where`
+  is built from it, and this WP's findings (an hkl-range refusal, a
+  non-positive ΣS·ZMV) are exactly what a client clicks through to a
+  parameter. `str(finding)` is a published surface:
+  `tests/test_capabilities.py` pins the rendered strings as literals, so a new
+  constructor wants a `RENDERINGS` row. `code` is deliberately an open
+  vocabulary, not a `Literal`.
+- `MODEL_FAR_FROM_DATA` and the surfaced `max_iter` outcome are the two that
+  are not per-parameter — decide `GuardFinding` with empty `paths` against
+  `Diagnostic` emitted from `_build_result`, and say which in the handover.
+  `value` is `None`-able precisely for the numberless case.
+- **The GUI upload route is the front door for files nobody here authored.**
+  `imports.preview_pattern` turns reader
+  `ValueError/OSError/RuntimeError/KeyError/IndexError` into a 400 quoting the
+  parser (staging path scrubbed); anything outside that set is a 500 with a
+  type name — the shape of failure worth hunting here. Keep: a filename is
+  reduced to its leaf, and the size cap is checked against the declared
+  `Content-Length` before a byte is read. `_as_structure` refuses a species
+  with no Waasmaier-Kirfel entry, naming the atom — real CIFs carry `D`,
+  `Wat`, `OH` and worse, so how often that fires on external files is a
+  measurement this WP can make; if it fires on files that ought to work, the
+  fix is a species-mapping step at import, not removing the check.
+- `PreferredOrientation` is exported from `pxrdref.__init__` and
+  `capabilities().features["preferred_orientation"]` derives itself from
+  `Phase.model_fields` — §(e)'s remaining work is only the `r` floor.
 
 ## Non-goals
 
 - No new *physics*. Every item is a guard, a bound, a default or a message.
 - Not `GuardReport` → `GuardFinding` restructuring — **done in WP-1007**
-  (2026-07-30); the codes added here land in that vocabulary, see `### Inherited`.
+  (2026-07-30); the codes added here land in that vocabulary, see § Landing a
+  new code.
 - Not the QPA texture bias (see the Inherited note in WP-1004/1007 chain and
   the spherical-harmonics v2 fence) — that is accuracy, not robustness.
 
@@ -497,7 +342,20 @@ the block.
 - [ ] Le Bail multiphase: damp, refuse, or fence — decide and record
 - [ ] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
       precondition (may land first, independently — it is documentation)
+- [ ] Envelope edge knots: anchor a knot at each data edge, linearly
+      extrapolated from the two nearest; across the round-robin seven, false
+      edge lines 5 → 1 with no non-edge line lost (§(i))
+- [ ] Flag lines standing on extrapolated envelope span — a new flag, not
+      `position_at_bound`; then `tests/test_acceptance_indexing.py`
+      (`REAL_DATA_N_UNINDEXED` sizing moves) (§(i))
+- [ ] Cell-angle disagreement in an external CIF: reader-side `Diagnostic`
+      recording the correction as provenance; `ParameterTable` stays strict
+      (§(j))
 - [ ] Tests: one regression per item, from the reproductions in the branch
+
+(§(k) is filed, not scheduled: its three bounds stay in Context until a
+session picks them up or [1045](1045-indexing-search-controls.md) claims the
+`sigma_sys_deg` naming.)
 
 ## Acceptance
 
@@ -506,6 +364,12 @@ Every item has a test that fails before the fix. Plus:
 ```sh
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow" -q
 .venv/bin/python -m ruff check src tests examples
+```
+
+And once §(i) lands (it moves picker output on four acceptance datasets):
+
+```sh
+.venv/bin/python -m pytest tests/test_acceptance_indexing.py
 ```
 
 ## References
