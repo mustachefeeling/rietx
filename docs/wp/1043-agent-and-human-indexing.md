@@ -339,7 +339,7 @@ truth **nowhere**: first-rank 8/8 at k = 6, 0/8 at 18).
 - [x] **Say "high-symmetry" out loud**: every summary that quotes the scoreboard
       (gallery header, VALIDATION.md, AGENT_PROTOCOL) carries the qualifier
       until the corpus moves — which is post-v1.
-- [ ] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
+- [x] `docs/AGENT_PROTOCOL.md` gains the split: what an unattended operator should
       read (the gate) and what a reasoning consumer should read (the evidence),
       with the fluorite case as the worked example of why they differ — and
       bethanechol set F as the case where the truth is *already* at rank 1.

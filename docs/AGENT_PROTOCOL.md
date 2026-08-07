@@ -489,6 +489,63 @@ pick peaks and run `index_pattern` on the same data.
 
 ---
 
+## 7f. Two consumers, one answer: the gate and the evidence (WP-1043)
+
+The gate exists for **unattended** use: a machine that cannot weigh evidence
+must never be handed one cell confidently, so `best_or_none()` stays as strict
+as it is and nothing in this section loosens it. But the gate's three levels
+compress the judgement's *inputs*, and a consumer that can reason — an LLM in
+a tool loop, or a human at a screen — wants the inputs, not only the verdict.
+The design call this section serves: give them all the information, and let
+the judge, human or machine, be the judge.
+
+**What a reasoning consumer reads**: `result.evidence()` — the `evidence` arm
+of `refine_json`'s answer. Per candidate: every caveat with its
+`refuting`/`capping` **kind** (the split `confidence_caveats` alone withholds);
+the panel members that ranked, with values, beside `fom_undefined` — the
+figures that could not be computed, each *absent with its reason*, never
+silently zero; and the whole-profile numbers together — `lebail_rwp` and both
+detector counts, surfaced so a reader can see when a detector has failed (as
+it measurably does on magnetite's rival, whose fit buys a negative background
+— §7c's row), and never a thing to score on. Result-wide: what the search
+covered (`systems_searched` + `search_complete`) against what the list
+supports (`systems_supported`). The visual check is part of the answer, not
+documentation of it: `pxrdref.viz.plot_indexing(result, peaks, data=...,
+instrument=...)` draws the ranked tick rows and the Le Bail panel from the
+result alone.
+
+**Worked example — fluorite, why the two reads differ.** Seventeen usable
+lines on certified CaF₂ (Fm-3m, a = 5.4631 Å). The unattended read:
+`best_or_none()` is `None` — correct, and exactly as strict as ever, because
+the `fom_panel_reduced` caveat (capping) holds every below-twenty-line
+candidate at `medium`. The reasoning read: the certified cell at rank 1 at
+−18 ppm, found by every engine that ran, Le Bail-validated `converged`, four
+systems searched to completion, and the *only* caveat on it is the reduced
+panel — M₂₀/F₂₀ absent for cause, the coverage and reversed members all
+ranked. A consumer that can weigh that is entitled to adopt the cell with its
+eyes open; before WP-1043 the same list was refused outright — the old gate
+conflated scoring (twenty lines, where M₂₀/F₂₀ are *defined*) with searching
+(`MIN_LINES_PER_DOF` per system: seventeen lines are seventeen-fold
+over-determined for a cubic metric), and neither consumer got anything.
+
+**Worked example — bethanechol set F, the truth already at rank 1.** On the
+one externally graded benchmark, the published P2₁/n cell comes back ranked
+**first** on set F (measured 2026-08-06: `trial_error` under the paper's own
+manual-mode conditions, −340/+56/+67 ppm with β out by 0.012°) — and the sets
+are bare positions, so there is no profile to validate against and a
+single-engine find grades `low`: the gate can never promote it. The evidence
+view is where that answer *exists* for a consumer — rank 1, its figures, and
+caveats that say precisely what was not checked. An unattended pipeline
+correctly gets nothing; a reasoner gets the answer with its qualifications
+attached.
+
+One qualifier on everything above, and on any scoreboard number you quote:
+nine of ten real-data corpus datasets sit at **≤ 2 free metric parameters**
+(0 orthorhombic, 1 monoclinic, 0 triclinic), so every measured claim here is
+about high-symmetry lattices until the corpus moves — post-v1 by scope call.
+
+---
+
 ## 8. Seventeen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
@@ -822,13 +879,17 @@ summaries; history ids live per entry, never per run), and `"index"` (a peak lis
 or a pattern → `indexing`, an `IndexingResult`).
 
 `"index"` answers in its own arm because its answer is a different *shape*: there
-is no cell in it.  Read `indexing.candidates` and each one's
-`confidence_caveats`; `best_or_none()` is the only singleton and it is null far
-more often than not (§7d).  Its `search` object mirrors the one option surface
-every engine reads — set `max_volume` and `n_unindexed` once and both engines mean
-the same thing, which is what makes their agreement evidence.
+is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
+candidate with each caveat's refuting/capping kind, the ranked figures beside
+the ones absent for cause, and the whole-profile numbers together — then
+`indexing.candidates` for the full record; `best_or_none()` is the only
+singleton and it is null far more often than not (§7d).  Its `search` object
+mirrors the one option surface every engine reads — set `max_volume` and
+`n_unindexed` once and every engine means the same thing, which is what makes
+their agreement evidence.
 
-The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …, "report": …}`
+The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …,
+"evidence": …, "report": …}`
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),
