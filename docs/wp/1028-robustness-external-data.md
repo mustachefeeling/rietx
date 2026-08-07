@@ -388,8 +388,10 @@ size.
 - [x] Le Bail multiphase: ~~damp, refuse, or fence~~ — the partition
       denominator now spans every phase, which is what makes it a
       partition; 1.79 → 1.0000 on two phases, 1.0000 unchanged on one
-- [ ] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
-      precondition (may land first, independently — it is documentation)
+- [x] AGENT_PROTOCOL: Le Bail fixed-point loop + the width/background seeding
+      precondition — both were already written; what this session owed was
+      *correcting* the block, since §(g)'s fix made "do not use it above one
+      phase" false, and measuring the seeding claim (571× on cycle one)
 - [ ] Envelope edge knots: anchor a knot at each data edge, linearly
       extrapolated from the two nearest; across the round-robin seven, false
       edge lines 5 → 1 with no non-edge line lost (§(i))

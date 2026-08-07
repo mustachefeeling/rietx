@@ -98,19 +98,30 @@ third-party lab data (2026-07-29):
   the plan until Rwp stops moving — and **keep the best pass, not the last**: the
   alternation is not a descent on one objective, so a later pass can come back
   worse (seen on Tb2BaCoO5, 17.3 % → 18.7 %).
-- **Do not use it above one phase.** `lebail_update` partitions
-  `max(y_obs − y_bkg, 0)` per phase with nothing to arbitrate two phases claiming
-  the same channel, so they inflate one another. Measured Rwp by phase count:
-  1 phase converges (7.5-24.8 %), **2 phases 742-9 281 %, 3 phases 2.6e5 %**. It
-  survives seeding both the widths and the background, so it is the partition and
-  not the starting point. For a multi-phase pattern go straight to Rietveld,
-  where atoms tie the intensities and the freedom does not exist.
+- **Seed the background before the first pass, always — and this is the one
+  that bites hardest.** `auto_background` chooses the knot spacing or the
+  Chebyshev *order* but starts every coefficient at **0.0**, so the modelled
+  background is identically zero, and the first `lebail_update` runs *before*
+  the background has ever been fitted. The partition is then handed
+  `max(y_obs − 0, 0)` — the whole pedestal — and gives it to the Bragg
+  reflections. Measured on a synthetic pattern whose background is 5× its
+  strongest peak: cycle one claims **571×** the true Bragg intensity. Seed the
+  constant term (a low percentile of `y_obs`) before a Le Bail run.
 
-Also: `auto_background` chooses the *order* but starts every coefficient at
-**0.0**, and the first `lebail_update` runs before the background has ever been
-fitted. On a pattern whose background is several times its strongest peak the
-whole pedestal is handed to the Bragg reflections on cycle one. Seed the
-constant term (a low percentile of `y_obs`) before a Le Bail run.
+**Multi-phase Le Bail was broken until v1.0 and is now supported** (WP-1028
+§(g), fixed 2026-08-07). This section used to say "do not use it above one
+phase", and the reason was a defect rather than the method: `lebail_update`
+built its partition denominator per phase, so each phase claimed the entire
+observed excess in its own windows and overlapping phases were issued the same
+counts twice. The shares now sum to 1 across all phases at every channel —
+measured Σ calculated / Σ observed excess **1.79 → 1.0000** on LaB₆ + CaF₂,
+with the single-phase path bit-identical. Two caveats survive the fix and are
+about the method, not the bug: the intensities of two phases whose reflections
+*coincide* are not separately determined by the data (the partition splits them
+by the current model, which is a starting value and not a measurement), and the
+Rwp figures the old note quoted (742-9 281 % at two phases) were the overcount
+compounding through the later profile stages, so treat a high multi-phase Le
+Bail Rwp as a reason to look at the seeding above, not as this defect returning.
 
 ---
 

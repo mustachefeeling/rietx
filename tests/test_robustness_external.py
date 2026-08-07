@@ -370,6 +370,41 @@ def test_the_single_phase_partition_is_unchanged():
     assert _lebail_partition_ratio(1) == pytest.approx(1.0, abs=1e-6)
 
 
+def test_an_unseeded_background_hands_the_pedestal_to_the_reflections():
+    # (h): auto_background picks the knot spacing but starts every coefficient
+    # at 0.0, and the first lebail_update runs before the background has ever
+    # been fitted — so the partition is handed max(y_obs − 0, 0).  This is a
+    # caller-protocol requirement (AGENT_PROTOCOL §2), pinned rather than
+    # fixed: seeding every background would change where every fit starts
+    from pxrdref.background.auto import auto_background
+    from pxrdref.model.forward import compile_model
+    from pxrdref.params.vector import ParameterTable
+    from tests.test_qpa import make_lab6
+
+    s = make_lab6()
+    s.phases[0].scale.value = 1.0
+    ins = Instrument.bragg_brentano(radiation="CuKa")
+    ins.profile.w.value = 5e-3
+    tt = np.arange(20.0, 80.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    t0 = ParameterTable(s, ins)
+    peaks = compile_model(s, ins, blank, mode="rietveld").evaluate(t0.decode(t0.x0()))
+    y = peaks + 5.0 * peaks.max()          # background 5× the strongest peak
+    pattern = PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+
+    ins.background = auto_background(pattern)
+    assert all(c.value == 0.0 for c in ins.background.coefficients)
+
+    model = compile_model(s, ins, pattern, mode="lebail")
+    table = ParameterTable(s, ins)
+    values = table.decode(table.x0())
+    assert np.max(model.background(values)) == 0.0
+    model.lebail_update(values, n_cycles=1)
+    claimed = (model.evaluate(values) - model.background(values)).sum()
+    assert claimed > 100.0 * peaks.sum()   # measured ~571×
+
+
 def test_the_overcount_is_a_fixed_point_not_a_runaway():
     # worth pinning because the WP filed this as "inflate one another without
     # bound": the ratio is the same after 1 cycle and after 8, so what the
