@@ -358,6 +358,7 @@ result.
 | `INDEX_BUDGET_EXHAUSTED` | Read the answer as covering the requested search. The ceiling (`quick`'s default, or a declared `total_budget_seconds`) bound, and the result covers what was *reached*: `systems_searched` + `search_complete` distinguish three states — searched (present, `True`), truncated (present, `False`), and not reached (absent; the diagnostic's `where` names them) — and candidates whose validation never ran read `not_validated` (capping), never `validation_failed` (refuting). Units run system-major (WP-1042), so what a binding ceiling cuts is trailing low-symmetry *systems* for every engine equally, never a whole engine — a candidate from a completed system keeps all its finders. The message also distinguishes the slice-only case: the run finished under its ceiling but one or more validation fits exhausted their equal slice of the remaining clock. A user cancellation never writes this code: a stopped run is not a budget statement |
 | `INDEX_SINGLE_ENGINE` | (info) Read `low` as "refuted". One engine ran, and agreement between independent searches is what confidence measures — so every candidate of a one-engine run grades `low` *structurally* (fewer than two finders), which means "unconfirmed by construction". It is a diagnostic rather than a caveat because a capping caveat cannot explain a floor `grade()` produces before caveats are consulted. Re-run with the default engine set for a gradeable answer |
 | `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` | Quote a Bragg-Brentano cell to its esd. The esd is a *precision* from the line positions; the goniometer radius alone carries **≈ ±85 ppm** that no esd reports, because the data cannot identify it (Rwp moves 0.029 points across 180–320 mm) |
+| `INDEX_PRIOR_USED` | (info) Read the answer as unsteered. It *was* steered — this diagnostic names each declared prior and its fate (confirmed by engines / entered unconfirmed / refuted / refused at the box) — but steering changed only *when* things were searched and what seeded the stochastic engine, never a range, a system set, or a rank: prior-only candidates are appended **after** the ranked list and never enter the Borda ranking. A candidate whose `found_by` is `["prior"]` alone is stated-and-unconfirmed — the ordinary agreement caveat grades it down, so treat it as your own hypothesis checked against the lines, not as a finding (WP-1045) |
 
 ### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
 
@@ -440,6 +441,40 @@ timers — this package's record has six point measurements where a longer run
 never bought a better answer, and one where too little budget reported a wrong
 centring, so bound generously and read the three states rather than shrinking
 the search.
+
+**State what you know.** You often hold something the search does not: an
+isostructural analogue from a database hit, a homologue's cell, a family's
+space group. Declare it (WP-1045) — `SearchSpec.prior_cells` /
+`prior_spacegroups`, the same fields on the agent request's `search` and in
+the GUI's Search controls — and the search runs the prior's crystal system
+*first*, seeds the stochastic engine's starting basin with the stated metric,
+and checks the cell itself against the lines. Three facts make this safe to
+do liberally: a prior **steers, never gates** (no system dropped, no range
+changed, prior-only candidates appended after the ranked list — a wrong
+prior costs time, not truth, and that sentence is pinned by test); a *real*
+prior is then found by the engines themselves, so `found_by` and the grade
+keep their meaning; and `INDEX_PRIOR_USED` records what you assumed and what
+it changed, so assumed knowledge can never read as measured knowledge. A
+worked example — you suspect the specimen is isostructural with calcite
+(R -3 c, a = 4.99 Å, c = 17.06 Å):
+
+```python
+idx = pxrdref.index_pattern(
+    peaks, data=data, instrument=instrument,
+    spec=pxrdref.indexing.SearchSpec(
+        prior_cells=((4.99, 4.99, 17.06, 90.0, 90.0, 120.0),),
+        prior_spacegroups=("R -3 c",)))   # trigonal jumps the queue; the
+                                          # centring steers the prior's check
+# or, as the one JSON call (§9c):
+# {"task": "index", "peaks": ..., "search": {
+#      "prior_cells": [[4.99, 4.99, 17.06, 90, 90, 120]],
+#      "prior_spacegroups": ["R -3 c"]}}
+```
+
+If the analogue is right, the truth arrives in the *first* streamed
+per-system shortlist instead of after the whole sweep; if it is wrong, the
+final list is the one you would have had anyway, plus the record that the
+prior was tried.
 
 ```python
 peaks  = pxrdref.pick_peaks(data, instrument)           # fitted positions + σ
