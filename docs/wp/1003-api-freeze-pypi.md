@@ -11,6 +11,22 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
+*meaning* is in question, and freezing it would ratify a behaviour nobody
+intended.** `engines.DEFAULT_MAX_CANDIDATES = 12` is documented as "a cap, not a
+ranking: the panel ranks, and 1024 consensus-merges". Measured on the
+bethanechol benchmark, it **is** a ranking: it truncates each engine's *own*
+Borda before consensus ever ranks, so on set F the published lattice — found by
+both `svd` and `trial_error` — is returned first at a 5 s budget and is **absent
+from the result** at 30 s. Filed as
+[1046](1046-candidate-cap-before-ranking.md), with the second half measured too:
+raising it 12 → 60 over the benchmark's whole manual half is **net zero** (F
+enters at rank 3, Db is displaced from first). So the freeze should either
+follow 1046 or state explicitly that the cap's number is frozen while its
+*documented meaning* is known to be wrong. This is a docstring-and-semantics
+question, not a signature one — the field itself is already public on
+`SearchSpec`/`SearchSpecSpec`.
+
 **From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — a new
 read-only surface for the freeze to ratify.** `Refinement.suggest(data, *,
 top_n, include, exclude, mode, two_theta_limits, report)` →

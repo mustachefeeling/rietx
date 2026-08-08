@@ -336,6 +336,18 @@ E is a new laboratory measurement (λ = 1.54056 Å) and F a synchrotron one
 global runs over twenty numbers in ±20.  (The WP file described six sets; that
 was a misreading of the table and is corrected here.)
 
+**Two consumers, and the split is deliberate.**
+`tests/test_acceptance_indexing.py` *proves the fixture* — the zeroshift
+arithmetic, the I ≥ 5 % subsetting and the paper's own impurity counts, three
+statements it makes in prose and never tabulates — and asserts **no score**.
+`tests/bethanechol_benchmark.py` *runs the benchmark*: `python -m
+tests.bethanechol_benchmark` grades the twenty runs by the paper's ±1 rule and
+writes `tests/output/bethanechol_benchmark.json`.  It is a module you run rather
+than a `slow` row because a full protocol is tens of minutes of pure search for a
+number that moves only when an engine moves.  Both read the *same* helpers (the
+runner's), so the file that is certified and the file that is graded cannot
+drift apart.
+
 **Only the printed tables are used.**  No program was run, no output parsed, and
 none of the eleven programs' code was consulted — the CLAUDE.md licensing fence.
 Intensities are not carried at all: the paper's table is positions only (it

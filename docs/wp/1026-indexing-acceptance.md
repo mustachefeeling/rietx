@@ -1,6 +1,7 @@
 # WP-1026 — Indexing acceptance: the bethanechol benchmark and known cells
 
-Milestone: v1.0 · Status: ✅ 2026-07-31 — criterion 1 deferred to 1030
+Milestone: v1.0 · Status: ✅ 2026-08-08 — reopened for criterion 1, which is now
+generated: global **−8** of ±20, ties DICVOL91
 Depends on: 1024 (1025 soft)
 
 ## Goal
@@ -69,260 +70,31 @@ tests whose correct answer is *"we do not know"*.
   shift-model and impurity behaviours. **No new tier is needed**, which is
   itself a check that the existing vocabulary holds.
 
-### Inherited
+### Criterion 1, reopened 2026-08-08 — the constraints the mailbox carried
 
-**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
-`quick` is now `index_pattern`'s default, so the criterion-1 manual runner
-must declare its protocol.** A bethanechol run built beside
-`tests/indexing_gallery.py` that passes no `preset` gets a 120 s whole-run
-ceiling and truncated low-symmetry systems; the benchmark's graded score
-needs `preset="full"` (or its own ceiling) declared, the same rule the
-acceptance rows now follow. The re-measured scoreboard (2026-08-07, in 1042's
-handover) is 9 datasets: 7 first / 2 below first / 0 refused.
+The `### Inherited` section is consumed here; what governed the reopen is folded
+into these five lines, and everything else in it belonged to criteria 2 and 3,
+which closed 2026-07-31 (the handover entries below hold their measurements).
 
-**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — this WP's
-scoreboard is superseded, and two of its three failure claims were never true of
-any tree it shipped on.** The handover entry below is left as written, because a
-dated entry is a record; **do not quote its scoreboard.** Re-measured:
-
-| | 1026 (2026-07-31) | 1041 (2026-08-05) |
-|---|---|---|
-| datasets | "eight", nine named | **nine**, counted |
-| truth ranked first | 5 | **6** |
-| truth found below first | (no bucket) | **2** — NAC rank 2, FAP rank 4 |
-| refused before searching | 1 | **1** — fluorite |
-| fail | 2 — brucite, magnetite | **0** |
-| promoted | 0 | **0** |
-
-Two structural defects, not arithmetic slips. The buckets had no room for *the
-truth is in the list and something else leads it*, which is what this package
-produces most — so FAP was counted as "right" by a sentence saying it is second,
-and NAC was described inside the failure bucket without being counted, which is
-where "eight" over nine names came from. And **brucite and magnetite were prose**:
-measured once, never acceptance rows, so never re-run while WP-1030's prunes,
-WP-1039's search-line ordering, WP-1040's third engine and WP-1041's dedup key
-changed the answer. Both now rank the truth **first**. They are rows now, and the
-scoreboard is *generated* from the acceptance run (`tests/indexing_gallery.py`),
-so the next re-measurement is a suite run rather than an edit.
-
-**From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — "ranked first" is
-a weaker measurement than criterion 2 assumes, and the fix for it is refuted.**
-Criterion 2 grades on the truth being *ranked first*, which makes it a measurement
-of `borda_scores` as much as of the engines. Measured on six known-cell datasets,
-Borda ranks the truth first on **5 of 6** — and so does every alternative tried: a
-log-sum over the panel (misses corundum instead of NAC), a standardised log-sum
-(degenerates to Borda at two candidates), and gate-status-first ordering (misses
-zincite, because `predicted_but_absent` fires on its correct cell's extinctions).
-Only a weighting of `m_rev` fitted on two datasets reaches 6/6. So: when you
-re-run criterion 2, **report the rank of the truth and not only whether it led**,
-and read a "not first" as a statement about the aggregate rather than the search —
-the cell is usually in the list. The refutation and its numbers are in 1041's
-handover log; `fom.log_sum_scores` is the instrument, tested and unwired.
-
-**From WP-1039, closed 2026-08-05 — one of your findings is fixed and one of your
-conclusions is withdrawn.**
-
-- **`DEFAULT_SEARCH_LINES` is settled, and the answer was selection, not count.**
-  Your NAC figure reproduced exactly (six of the true cell's lines in the first
-  twenty against 268 of 285); the cause was the *rank*, not the number, and
-  `engines.search_line_order` now takes the strongest N with a Q tiebreak. Note for
-  any list you add here: the bethanechol sets are position-only, so they select
-  exactly as before and none of your benchmark rows moves.
-- **"Truncating NAC's 2θ was measured and does not work — do not spend that hour
-  again" is withdrawn.** It was measured with the broken selection. Redone: ≤ 32°
-  now ranks the truth **first**, cubic **I**, a = 10.25108 Å at −22 ppm, in 10.5 s,
-  against your recorded −5967/+8189/+7997 ppm, M₂₀ = 4, cubic **P** at 300–620 s.
-  The gate still declines it on `indexed_fraction_low` (91 of 129), correctly. NAC
-  at *full* range remains blocked, and that obstruction is now demonstrated rather
-  than assumed to be `reflection_ceiling_ok` — zero boxes explored under every rule
-  and every N, which is still your inherited item.
-- **A caveat you relied on is gone**: SRM 660c no longer reports
-  `engines_disagree`. Both engines find the certified cell once `trial_error`'s
-  base pool is drawn from the selection; `fom_panel_disagrees` is the only survivor.
-- **`n_search_lines` and `n_unindexed` are one knob, not two** — the acceptance test
-  is an absolute budget over the driven set, so a foreign line admitted *refutes*
-  the truth rather than ranking it lower. Do not raise either to make a row pass.
-
-**From the 2026-08-04 source-literature review (WP-1037…1042 created, no code
-changed).** Three things bear on this WP:
-
-- **The bar has been restated in the ROADMAP**, which had still been quoting
-  "≥ +9" — your own restatement (grade against the *individual* program globals:
-  ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6) is now in both
-  the milestone row and Current focus. Grade against those.
-- **`DEFAULT_SEARCH_LINES` is no longer yours** — it moved to
-  [WP-1039](1039-search-line-count.md), with a published answer: Conograph
-  searches on 48 lines and *proves* the asymmetry (a false line costs only
-  computation, a missing line costs success). Your NAC finding — six of the true
-  cell's lines in the first twenty against 268 of 285 over the whole list — is
-  quoted there as the motivating defect.
-- **Le Bail (2004) §VII is worth reading before criterion 1.** It reports that
-  the bethanechol ICDD entries carry a **−0.10° 2θ zeropoint** and that *"any
-  self-calibration from these original data failed to estimate"* it — McMaille
-  indexes them only when told the zeropoint. That is consistent with this WP's
-  own `max_collinearity` 1.0000 finding, and it means a poor score on the ICDD
-  sets may be the data, not the package. `/Users/yue/zotero-linker/derived/7AEVVGH6/`;
-  see `docs/LITERATURE.md` for the corpus.
-
-**From WP-1030, closed 2026-07-31 — criterion 1 is unblocked, and three of the
-failures you handed over now have a tool but not a measurement.** This WP is
-marked ✅ with criterion 1 deferred; reopening it for that criterion is the
-intended next step, and everything below is the state it should start from.
-
-- **The monoclinic search finishes, in both of the paper's modes.** d ∈ [5, 20]
-  (manual) completes in 11–24 s, d ∈ [2, 20] (default) in 32 s, both ranking
-  the published cell first. The default-mode row is the new one: it previously
-  expired incomplete at 300 s with zero candidates. **So the global benchmark
-  score is now a matter of running the harness that already exists** — and note
-  that the harness is less complete than WP-1030's Context claimed: the ten
-  sets, the reconstructed Table 5 and the published-score self-check are
-  landed, but a per-set scoring function that grades *this package's* result
-  against the ±1 rule is **not**, and the module docstring's "deliberately
-  absent" table (its lines ~24-51) has to be rewritten rather than deleted.
-- **A candidate cell is a lattice, not a tuple.** The bethanechol truth comes
-  back as its `c + a` setting — (8.875, 16.408, 11.0099, β 139.70°), the
-  published volume — so any scoring harness that compares sorted axis lengths
-  will score a correct answer as a miss. Use `reduce.same_lattice`.
-- **`M^Rev` and `M^Sym` are in the panel now**, and they are the figures your
-  handover named as "the obvious thing to test against" the FAP inversion. On a
-  synthetic doubled axis `M^Rev` separates truth from supercell **64-74×**
-  where M₂₀ separates them 1.8×. Whether that turns the FAP ranking round, and
-  whether it demotes the brucite and magnetite supercells, are claims about
-  `fap_index` and two unlanded rows (95 s, 218 s) — i.e. yours, not the
-  engine's. The panel is now **seven** members, so any test asserting its
-  length or Borda arithmetic needs re-reading.
-- **`DEFAULT_SEARCH_LINES` still takes the first twenty lines in 2θ order**,
-  and on `11BM_NAC.fxye` (starting at 0.76° 2θ) that is the wrong twenty — six
-  of the true cell's lines against 268 of 285 over the whole list. Untouched by
-  WP-1030: it is a peak-list selection question, not a search-cost one.
-- **NAC still cannot be searched at its own d_min**, and no prune added in 1030
-  reaches it: the obstruction is `reflection_ceiling_ok` at d_min = 0.43 Å,
-  which is a *reflection-count* limit rather than a domain-size one. The
-  instruction to state the scope in terms of d_min rather than 2θ stands.
-- **Dong, Wu & Chen (1999) is still not held.** It remains the unblock for a
-  *measured* `shift.source`, and so for the `shift_allowance_assumed` caveat
-  that makes `high` unreachable on real lab data.
-
-From **WP-1024**: `best_or_none()` is the only singleton accessor and
-`systems_searched` is on the result — the abstention tests below assert on
-those, not on a `.cell` attribute that does not exist.
-
-**From WP-1024 (landed 2026-07-30) — `index_pattern` exists, and the thing you own
-is now a named, gated caveat rather than a loose observation.** Four things:
-
-- **`high` confidence is currently unreachable on real lab data, by construction.**
-  With no measured shift both engines widen their window by
-  `DEFAULT_UNKNOWN_SHIFT_DEG` and the gate raises `shift_allowance_assumed`, which
-  caps every candidate at `medium`. So **your acceptance bar cannot be "returns
-  `high`" unless you also supply the evidence that clears the caveat** — a
-  calibrated `sigma_sys_deg`, or reference positions to `assess_peak_list` from a
-  certified cell. On the bundled corundum pattern you *have* a certified cell, so
-  the honest protocol is: index with the assumed allowance (expect `medium` at
-  best), then measure the shift against the certificate, then re-index with it
-  declared. That sequence is itself the deliverable — it is what a user with a
-  standard would do — and the caveat is what makes the two runs distinguishable.
-  Do **not** close the gap by widening the constant or dropping the caveat; the
-  +1400 ppm bias it protects against is measured.
-- **The synthetic protocol to copy is in `tests/test_indexing_consensus.py`**, and
-  one detail of it will bite: a cubic cell shows 15 lines to 100° 2θ and 23 to
-  145°, so with `PEAK_MIN_USABLE_LINES = 20` a short pattern comes back
-  `supports_indexing=False` and the run abstains **before any engine starts**. Two
-  spikes were debugged before noticing the gate was working correctly. Check
-  `quality.n_usable` first on any real dataset that returns nothing.
-- **`predicted_but_absent` is the acceptance assertion worth building on**, not
-  Rwp. Measured: an oversized cell scores Le Bail Rwp 0.379 against a correct
-  0.216 — a gap smaller than the spread between specimens — while
-  `predicted_but_absent` is 117/153 against 0/28. A real-data suite that asserts on
-  Rwp is asserting on the weakest of the three detectors.
-- **Validation costs ~0.6 s per candidate and ambiguity ~0.5 s**, on the top-3-plus-
-  consensus subset (`consensus.checked_indices`). Budget a real-data acceptance
-  accordingly and give it `@pytest.mark.slow`; the module fixture group name to
-  follow is `indexing-consensus`'s.
-
-**From WP-1025 (landed 2026-07-30) — the extinction screen exists, it has already
-made two real-data claims, and neither is in the validation matrix.** Three things:
-
-- **`tests/test_extinction_symbol.py` asserts on FAP and on NAC** (leading class
-  `P 63 - -` listing {P 6₃, P 6₃/m, P 6₃22}; `I - - -` listing six groups including
-  the true I 2₁3), marked `slow`, ~2 s each. The matrix guard only collects
-  `test_acceptance_*.py`, so **those rows are invisible to `docs/VALIDATION.md`**.
-  Decide deliberately: register them (they are `characterisation` claims — "the
-  answer is a class, and the true group is inside it" — plus a `consistency` row
-  against the GSAS-II tutorial's own space group), or state why a screen assertion
-  is not an acceptance assertion. Do not leave it decided by which file it landed in.
-- **The screen needs a *pattern*, so the bethanechol sets cannot run it.** Its
-  evidence is a Le Bail fit's residual at forbidden positions, and those six sets
-  are bare 2θ lists. The benchmark scores the cell; the extinction symbol is a
-  separate claim that only your two profile datasets can carry.
-- **Its cost model is the one to copy**: one shared profile fit (~2 s) plus ~0.1 s
-  per class, so a hexagonal screen is 2.2 s and an orthorhombic-P one (71 classes)
-  ~10 s. The module fixture group name is `extinction-symbol`.
-
-From **WP-1023**: if its spike returned no-go and engine C was dropped, the
-`found_by == all engines` assertions here are against two engines, not three.
-
-From **WP-1018**: peak lists shared by more than one test module belong in
-`tests/conftest.py` with a matching `@pytest.mark.xdist_group` on **every**
-consumer — but **measure with `--durations` first**: a peak list is seconds, and
-a module-scoped fixture is right when only one module uses it. Over-sharing
-fails silently (a second worker rebuilds it).
-
-**From WP-1023 (2026-07-30) — the real-data obstruction is measured, and it is
-yours to close.** Running the two landed engines on the bundled qarr corundum
-pattern (Cu Kα, certified 4.7593 / 12.9917 Å, R-3c, 32 fitted lines) recovered
-**nothing** from either. The cause is not the search:
-
-- fitted per-line σ has a median of **0.0056° 2θ**, while the pattern's lines sit a
-  median **0.060°** from the certified cell's positions — a cos θ specimen
-  displacement of −0.065°, i.e. an **11σ** systematic. At 3σ the certified cell
-  indexes *zero* lines;
-- both engines now add `engines.DEFAULT_UNKNOWN_SHIFT_DEG` = 0.05° in quadrature
-  when no shift has been **measured** (the normal state at index time), report it
-  with `INDEX_SHIFT_ALLOWANCE`, and consume `SearchSpec.shift_template` via
-  `engines.refine_with_shift` to correct an accepted candidate;
-- **at 0.05° that is still not enough**: trial-and-error finds nothing and dichotomy
-  ranks a wrong 618 Å³ cell first. At 0.08° trial-and-error recovers a = 4.7659 Å
-  against the certified 4.7593 (+1400 ppm — the shift absorbed into the cell, which
-  is exactly why the template must be fitted afterwards).
-
-So the acceptance suite's first job is not a benchmark score, it is this: **make a
-certified pattern index, and record what it took.** Two routes are open and neither
-has been tried — a shift-invariant matching criterion (Q *ratios* or differences
-rather than absolute Q sidesteps the systematic entirely), or a two-pass search that
-fits a shift from the best partial candidate and re-searches with it. Do not close it
-by raising the constant until a second real pattern says the same number; one
-dataset is not a calibration. The engines' synthetic recovery is solid (cubic
-through monoclinic, truth ranked first, both engines) so a failure here is about the
-data, not the search.
-
-**RESOLVED 2026-07-30, and neither route was needed — the diagnosis above was
-wrong.** The last sentence was the useful one: the failure was about the data, but
-about the *peak list* rather than the tolerance. `detect_peaks` was correct (41
-groups, **one seed each**, the real lines); `fit_group`'s ΔBIC re-seed pass then
-returned **63** components, adding a phantom ~1 FWHM below every strong peak at
-~10 % of its area, carrying a small esd so it read downstream as a well-measured
-line. ΔBIC could not refuse it, and not because the threshold was wrong: it asks
-whether the data prefer n+1 components to n, which is the same question as "is there
-a line here" only while the n-component model is *capable of fitting*. On the
-corundum 104 line χ²_red is 17.4 at n = 1 and 4.6 at n = 2 — both refuted, so any
-extra component wins.
-
-Ruled out by measurement before landing anything: axial asymmetry (declaring FCJ
-apertures moves 63 → 56 components and takes χ²_red from 2.9 to 10.7), the width
-bounds (Γ_G, Γ_L are nowhere near them), and the background envelope (it tracks the
-quiet regions to a few counts). The defect is general, not a corundum quirk —
-satellites were 4-21 % of picked lines across all eight bundled real datasets, worst
-on lab Bragg-Brentano and least on synchrotron.
-
-The fix is a `not_separable` flag in `pick.py` (`_not_separable`), which keeps the
-component in the *model* — removing it displaces the real line by 0.010° — and bars
-it from `usable()`. Measured after: satellites 0-7 %, and **both engines rank the
-certified cell first** at `n_unindexed = 3` (dichotomy a = 4.7591 Å against the
-certified 4.759355 — +5 ppm; trial-and-error a = 4.7631). The `n_unindexed` sweep is
-itself a result and confirms CLAUDE.md's warning: at 2 neither engine finds it (the
-list still carries one 5.17° edge artifact and two surviving satellites), at 3 both
-rank it first, and at 5-6 dichotomy **loses it entirely** — raising the tolerance
-manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not touched.
+- **The score is a *runner*, not a `slow` pytest row** — the shape WP-1043 pinned
+  (§ *Measured: bethanechol*): a manual module beside `tests/indexing_gallery.py`,
+  because a full run is tens of minutes of pure search and would land on the
+  weekly job's critical path. The acceptance suite keeps the transcription checks
+  and asserts **no score**.
+- **The runner must declare `preset="full"`** ([1042](1042-anytime-results-quick-default.md)):
+  `quick` is `index_pattern`'s default and its 120 s whole-run ceiling truncates
+  trailing low-symmetry systems, so a graded run under it scores the clock.
+- **The bar is the *individual* program globals** — ITO13 −14, DICVOL91 −8,
+  TREOR90 −4, McMaille +5, Crysfire 2003 +6. "≥ +9" was Table 5's `first_4`
+  oracle over four programs, which no single entry reaches.
+- **1043's −16 is a floor, not a score, and must not be quoted as one**: it was
+  measured `trial_error`-only at 30 s per engine × system, and a three-engine
+  consensus run moves it in **both** directions (another engine can rank the truth
+  first; Borda can let a rival all three found displace a truth only one did).
+- **A candidate cell is a lattice, not a tuple** ([1030](1030-engine-scaling-low-symmetry.md)):
+  the truth returns in its `c + a` setting, so any harness comparing axis lengths
+  scores a correct answer as a miss. This one bit exactly as filed — see the
+  2026-08-08 handover entry.
 
 ## Non-goals
 
@@ -350,12 +122,20 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
       folder of datalab-org/guillemot (MIT), which is *not* vendored here; the
       peak table is our own derived product, carried with attribution, and the
       pattern it came from is unidentified — that is the point of the fixture.
-- [~] `tests/test_acceptance_indexing.py`: landed with sixteen fast rows and
-      three `slow` ones. The A/B shift-model assertions are **done** and are the
-      strongest thing in the file. The **global score is not reported, and that
-      is a measured no-go** (see the handover log, 2026-07-30): the paper's own
-      monoclinic domain does not finish inside any budget tried, and a score over
-      a narrower domain is not comparable with Table 5.
+- [x] `tests/test_acceptance_indexing.py`: the A/B shift-model assertions are
+      **done** and are the strongest thing in the file. The **global score is
+      not asserted here**, on purpose and permanently — it is generated by the
+      runner below, and this file keeps the transcription checks plus three fast
+      rows pinning what the score depends on that is *not* the search (the
+      domain, the ±1 arithmetic, the lattice match). The docstring's
+      "0 candidates … the honest report is silence" table is **withdrawn**
+      (WP-1043 re-measured twelve candidates; and E is solved too).
+- [x] `tests/bethanechol_benchmark.py` — the runner (2026-08-08). Ten sets × two
+      modes, the domain read out of the fixture rather than retyped,
+      `preset="full"` declared, the ±1 rule read from the fixture's own `scoring`
+      block, `--budget` / `--max-candidates` overrides recorded in the artifact,
+      and a per-run `reachable`, `nearest` and `search_complete` beside every
+      score. Writes `tests/output/bethanechol_benchmark.json`.
 - [~] Known cells: **corundum done, and done twice** (SRM 676a: nothing declared
       ⇒ trigonal R ranked first at a +101 / c +16 ppm; `shift_template` declared ⇒
       −73 / −126 ppm with the specimen displacement recovered from the pattern.
@@ -433,7 +213,13 @@ manufactures better-scoring wrong cells. `DEFAULT_UNKNOWN_SHIFT_DEG` was not tou
 .venv/bin/python -m pytest tests/test_validation_matrix.py -q
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"        # no regressions
 .venv/bin/python -m ruff check src tests examples
+.venv/bin/python -m tests.bethanechol_benchmark                          # criterion 1
 ```
+
+The last one is the graded benchmark and is **not** part of any pytest
+selection — it is ~1 h of pure search. Run it **alone**: every engine bound is
+wall-clock, so a suite running beside it changes the answer rather than just the
+timing.
 
 Criteria, all measured and recorded in `docs/milestones/v1.0.md`:
 
@@ -443,9 +229,21 @@ Criteria, all measured and recorded in `docs/milestones/v1.0.md`:
    program's score — no entry in Table 5 reaches +9, the individual globals being
    ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5 and Crysfire 2003 +6 (itself a
    suite). Grade against the individual globals; keep `first_4` and `best_of_all`
-   as context. **Blocked on [1030](1030-engine-scaling-low-symmetry.md)** — the
-   paper's own monoclinic domain does not finish, and adopting a protocol means
-   adopting it whole.
+   as context, and read them per mode — their own split is default +2 / manual +7
+   and +2 / +10, so *nobody* scores well in default mode.
+   **Met 2026-08-08 — generated, not asserted.** `python -m
+   tests.bethanechol_benchmark` prints the per-set table and writes
+   `tests/output/bethanechol_benchmark.json`; the measured global, its per-mode
+   subtotals and the run's cost are in the 2026-08-08 handover entry, and the
+   *narrative* is in `docs/milestones/v1.0.md`. Two things the criterion did not
+   anticipate and the record must carry with the number: the protocol's own
+   **ceiling** (six of ten sets cannot be won in default mode at all, because our
+   `DEFAULT_N_UNINDEXED = 2` is below their impurity count — a −1 the search
+   never had a say in), and the score's **non-monotonicity in the search budget**,
+   filed as [1046](1046-candidate-cap-before-ranking.md).
+   The former blocker is withdrawn: the monoclinic domain does not *finish*
+   (`search_complete` is False on every monoclinic run, reported beside every
+   score) but it does return twelve candidates, and the truth is among them.
 2. Every known-cell dataset recovers its cell — lab data within the ±85 ppm
    radius floor, LaB6 within 3e-4 Å, NAC and FAP within their stated tolerances.
    **Restated 2026-07-31, and this is the criterion the WP closes *against*
@@ -497,6 +295,150 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   ```
 
 ## Handover log
+
+*Newest first from here. The entries below 2026-08-08 run oldest-first — a
+legacy of this WP's July sessions, left as written because a dated entry is a
+record.*
+
+- **2026-08-08 — reopened for criterion 1, and it closes with a generated
+  number: −8.** Branch `wp1026-bethanechol-score`. `### Inherited` consumed on
+  arrival into § *Criterion 1, reopened* (five constraints kept: the runner's
+  shape, `preset="full"`, the restated bar, 1043's −16-is-a-floor, and
+  lattice-not-tuple); everything else in that mailbox belonged to criteria 2
+  and 3, which closed 2026-07-31 and whose measurements are in the entries
+  below. One constraint was **not** in the mailbox and had to be fetched from
+  1043 § *Measured: bethanechol* — 1043 recorded the runner's shape in the
+  ROADMAP queue and never wrote it here.
+
+  **1. The score.** `python -m tests.bethanechol_benchmark`, package defaults,
+  `preset="full"`, ten sets × two modes:
+
+  | | default | manual | both |
+  |---|---|---|---|
+  | this package | **−4** | **−4** | **−8** |
+  | protocol ceiling | −2 | +10 | +8 |
+  | published `first_4` | +2 | +7 | +9 |
+  | published `best_of_all` | +2 | +10 | +12 |
+
+  **−8 is exactly DICVOL91's published global**, above ITO13's −14, below
+  TREOR90 −4, McMaille +5 and Crysfire 2003 +6. Three of the ten sets are
+  solved — **Bb, Db and E, in *both* modes**, truth at rank 1, found by **both**
+  `svd` and `trial_error`, 20 of 20 lines indexed, reduced cell 0.24-0.29 % from
+  the published one. Cost **60.6 min** of search (default 46.3, manual 14.3) on
+  darwin/arm64, `[dev,jax,torch]`; the artifact is
+  `tests/output/bethanechol_benchmark.json` (gitignored).
+
+  **2. The ceiling is the number to quote beside the global**, and it is not
+  about the search. `n_unindexed` is an absolute budget over the driven lines,
+  so a set whose truth leaves more lines unexplained than the mode tolerates
+  **cannot** be returned however good the search is. At our
+  `DEFAULT_N_UNINDEXED = 2`, six of the ten sets are unwinnable in default mode
+  (unexplained counts: Aa/Ca 7, Ba/Da 4, Ab/Cb 3, Bb/Db/E/F 0), so the default
+  ceiling is −2 and we scored −4 — **one winnable run lost, and it is F**.
+  Manual mode tolerates eight, every set is reachable, and there we scored −4
+  against a ceiling of +10: seven winnable runs lost. Note the published oracle
+  is only +2 in default mode too — nobody scores well there.
+
+  **3. The harness was scoring a correct answer as a miss, exactly as WP-1030
+  filed.** The published cell returns in its `c + a` setting —
+  (7.1346, 16.4091, 11.7530, β 131.107°) against a published
+  (8.875, 16.408, 7.137, β 93.84°), same lattice, same volume to 0.1 Å³, **not
+  one axis in common** — and `indexing_gallery.rank_of_lattice` applied its band
+  to the *conventional* cell. Rank 1 scored −1. The band is on the **reduced**
+  cell now. Nine high-symmetry datasets could not see this: their conventional
+  setting is unique; a monoclinic one is not.
+
+  **`same_lattice` came out of that comparison at the same time**, and the
+  mechanism is worth carrying: its fixed 5e-3 is *componentwise relative on
+  reduced A..F*, so on the off-diagonals it is an angle test of tightness
+  ≈1/(90°−γ). Measured on set E — 1274 ppm on lengths, 0.016° on the reduced
+  angle, plainly the same lattice — every diagonal component sits at ≤ 0.0026
+  and **F alone reaches 0.0063**, so it was refused. Two bands stacked means the
+  tighter one silently decides, and which one that is differs by dataset.
+
+  **Re-scored from the sidecars of one acceptance run** (no second search — that
+  is what storing the ranking is for): **one** row moved, `corundum_shift`
+  None → 1, and it is a knife-edge rather than a semantic change — that
+  candidate is **150.1 ppm** out against a declared 150 ppm band, and the new
+  form round-trips *both* sides through the same af→reduced→cell arithmetic
+  where the old compared a round-tripped candidate against a literal tuple. The
+  known-cell scoreboard's counts are unchanged: **7 first / 2 present / 0 absent
+  / 0 refused over 9**.
+
+  **4. `TRUTH_BAND` is measured, not chosen, and it decides four of the twenty
+  runs.** Take the published cell, predict its own lines over each set's range,
+  add the paper's +0.100° zeropoint, refit the metric with the indices held: the
+  cell moves **−6400 / −5190 / −4990 ppm** and the reduced angle only 0.023°.
+  That is the accuracy a *correct* answer has on the raw ICDD entries — the
+  answers the paper scores +1 — so any band under ~6500 ppm scores the
+  benchmark's central difficulty as a miss. 1 % is that floor with 1.6×
+  headroom. It is not academic: Bb and Db match at **2426-2935 ppm**, so a
+  ppm-grade band, or the old `same_lattice` gate, would have scored those four
+  runs −1 and reported **−12**.
+
+  **5. The score is non-monotonic in the search budget, and that is a defect,
+  filed as [1046](1046-candidate-cap-before-ranking.md).** On set F manual mode
+  the truth is rank 1 at 5 s and 15 s and **absent** at 30 s and 60 s; repeats
+  at one budget agree exactly, so it is not load truncation. Raise
+  `max_candidates` from 12 to 60 at the same 30 s budget and it returns at rank
+  3, found by both engines. `rank_candidates` runs the panel and Borda over
+  *each engine's own harvest* and truncates there; a longer search enlarges that
+  pool, the truth falls below twelfth in both engines' orderings, and the
+  consensus ranking — the one reported — never sees it.
+  `DEFAULT_MAX_CANDIDATES`'s docstring says "a cap, not a ranking". It is a
+  ranking. **This is what costs F**, the easiest set of the ten.
+
+  **And raising it is *not* the fix — measured, because the runner made the
+  counterfactual a fifteen-minute question.** The whole manual half re-run at
+  `--max-candidates 60`, same 30 s budget, scores **−4: identical to cap 12**.
+  The composition is the finding — F enters at rank 3 (absent before) and **Db
+  is displaced from rank 1 to rank 2** by rivals admitted alongside it. So the
+  cap hides a candidate the panel rates highly *and* the merged ranking cannot
+  hold a truth at first once the pool grows; fixing only the cap trades one
+  dataset's +1 for another's. 1046's tasks are split into those two halves, and
+  the ROADMAP queue entry says so rather than promising a one-line win — which
+  is what its first draft, written before this run, did say.
+
+  **6. 1043's −16 is superseded, and both of its own qualifications were
+  right.** It warned the figure was `trial_error`-only at 30 s and that a full
+  consensus run would move it *in both directions*. It did: three sets solved
+  where it had one, and F — the one it solved — lost. Its diagnosis ("F is the
+  only set of the ten we solve", "E we miss at 33 % of the window") is
+  withdrawn; E is solved in both modes. The acceptance module's docstring
+  carried a *third* stale claim — "0 candidates … the honest report is silence"
+  — which 1043 had already refuted in prose without editing the file. All three
+  are rewritten there, and the reason the score is now a runner is precisely
+  that none of them was ever regenerated.
+
+  **7. Counts and costs, and one cost that is not mine to fix.** All
+  `[dev,jax,torch]`, darwin/arm64. Fast suite: **2039 passed / 5 skipped**
+  against main's **2021 / 5** measured the same way in the same session, i.e.
+  **+18 passes and no new skip**, wall clock 2:46-3:29 across the two runs. The
+  +18 is exactly accounted for: **3** new fast acceptance rows, and **15** from
+  the three new `validation_matrix` Claims, which carry five per-claim checks
+  each (66 → 69 claims). Full suite on this branch: **2146 passed / 6 skipped in
+  26:03**, no failures. Main's full-suite figure was **not** re-measured — every
+  row this session added is non-slow, so the full selection moves by the same
+  18 and main's would be 2128 / 6; that one is a derivation, not a measurement,
+  and is flagged as such rather than quoted as a count. (The sixth skip is the
+  full selection's own and is on main too.)
+  `tests/test_acceptance_indexing.py` is **44 passed in 28:54 serial**
+  — against the **5-6 min** this WP last recorded. I added three *fast* rows and
+  no slow ones, so that growth belongs to 1041/1042/1043; per `tests/CLAUDE.md`
+  a group ordering is a measurement with a shelf life, so **read `--durations`
+  on the next full run** rather than either sentence. The benchmark runner is
+  deliberately outside every pytest selection and is not in those figures.
+
+  **Gotchas for whoever runs this next.** Run the benchmark **alone** — every
+  engine bound is wall-clock, so a suite beside it changes the answer and not
+  merely the timing (this run shared the machine only with sub-second doc
+  checks). `--append` resumes from the artifact, and the artifact is rewritten
+  after every run, because a full protocol is an hour. And the two modes cost
+  very differently per set: 4-5 min default (all seven systems), 1.5 min manual.
+
+  **Next:** [1046](1046-candidate-cap-before-ranking.md) is the one thing that
+  would move this number without touching a search; then
+  [1017](1017-gui-manual-onboarding.md) and [1003](1003-api-freeze-pypi.md).
 
 - **2026-07-29** — created from the indexing plan. The bethanechol benchmark
   is the reason this milestone can be graded rather than merely demonstrated:

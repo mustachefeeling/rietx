@@ -11,6 +11,7 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m pytest -n auto --dist loadgroup    # full suite ~15-30 min, incl. real-data acceptance (counts: § Numbers)
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # skip acceptance, ~1-3 min
 .venv/bin/python -m pytest tests/test_cross_backend.py # Jacobian agreement matrix; rows self-skip without their backend
+.venv/bin/python -m tests.bethanechol_benchmark        # the graded indexing benchmark (~1 h; run it ALONE — engine budgets are wall-clock)
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual

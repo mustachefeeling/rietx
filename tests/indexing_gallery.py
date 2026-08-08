@@ -338,19 +338,19 @@ TRUTH_ANGLE_DEG = 0.5
 def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
     """1-based rank of the declared truth in a stored ``ranking``, or ``None``.
 
-    **The centring is half the test, and leaving it out is the mistake this
-    package has now made at three ranks.**  ``same_lattice`` compares A..F after
-    Niggli reduction, so a *setting* change is equality — which is what it is
-    for — but a primitive description of a centred lattice reduces to the same
-    metric with a different content, and calling that a match reads a wrong
-    answer as right.  Measured: without the centring clause both NAC candidates
-    scored as the truth, and only one of them is (``engines.solution_key``
-    carries the same lesson one rank down, WP-1040's monoclinic row a rank up).
+    **Two conditions, both necessary: the centring, and the dataset's own band on
+    the Niggli-reduced cell.**  Reducing is what makes a *setting* change equality
+    rather than a miss — the half of ``reduce.same_lattice`` worth keeping — and
+    :data:`TRUTHS` has why the band is not redundant with it, with the FAP
+    measurement that says so.
 
-    Three conditions, all necessary: the centring, ``same_lattice`` on the
-    reduced A..F (which makes a *setting* change equality, as it should), and the
-    dataset's own band on the conventional cell — see :data:`TRUTHS` for why the
-    third is not redundant, and for the FAP measurement that says so.
+    **The centring is the other half, and leaving it out is the mistake this
+    package has now made at three ranks**: a primitive description of a centred
+    lattice reduces to the same metric with a different content, and calling that
+    a match reads a wrong answer as right.  Measured: without the centring clause
+    both NAC candidates scored as the truth, and only one of them is
+    (``engines.solution_key`` carries the same lesson one rank down, WP-1040's
+    monoclinic row a rank up).
 
     It reads the **stored** ranking rather than live candidates on purpose.  The
     A..F vectors are seven numbers a candidate already has, so keeping them costs
@@ -358,22 +358,61 @@ def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
     scoreboard from sidecars already on disk instead of needing a 23-minute
     acceptance run — which is exactly the loop this was first written without.
     """
-    import numpy as np
-
-    from pxrdref.indexing.qspace import af_from_cell
-    from pxrdref.indexing.reduce import same_lattice
-
     if stem not in TRUTHS:
         return None
     cell, centring, rtol = TRUTHS[stem]
-    af_true = af_from_cell(cell)
+    return rank_of_lattice(ranking, cell, centring, rtol)
+
+
+def rank_of_lattice(ranking: list[dict[str, Any]], cell: tuple[float, ...],
+                    centring: str, rtol: float) -> int | None:
+    """The three-condition comparison itself, for a truth declared inline.
+
+    Split out of :func:`truth_rank` for the bethanechol benchmark
+    (``tests/bethanechol_benchmark.py``), whose truth is one published cell read
+    from the fixture rather than a :data:`TRUTHS` row — **so that there is one
+    implementation of "is this candidate that lattice" and not two.**  Two is how
+    this package has been wrong at three ranks already (the centring clause, the
+    5e-3 fallback, sorted axes); a second scorer written beside this one would be
+    free to drop a condition silently.
+
+    **The band is measured on the reduced cell, and that is not a detail.**  It
+    was applied to the *conventional* one until WP-1026's reopen, where the
+    bethanechol benchmark caught it: the published monoclinic cell comes back as
+    its ``c + a`` setting — (7.135, 16.409, 11.753, β 131.11°) for a published
+    (8.875, 16.408, 7.137, β 93.84°), the same lattice and the same volume to
+    0.1 Å³ — so an axis-by-axis conventional comparison called a **correct answer
+    ranked first** a miss, and would have scored the benchmark −1 where the paper
+    scores +1.  A monoclinic conventional setting is not unique (three
+    unique-axis choices, and β free to any ``c + na``); a reduced one is.  The
+    high-symmetry datasets in :data:`TRUTHS` cannot see the difference — their
+    conventional setting *is* unique, which is why this survived nine of them.
+
+    **And ``same_lattice`` itself is no longer stacked on top of the band**,
+    because its fixed 5e-3 is a *componentwise relative* bound on reduced A..F,
+    and on the off-diagonals that is an angle test whose tightness is set by how
+    far the reduced angle sits from 90°: F ∝ cos γ\\*, so the relative error in F
+    is roughly Δγ/(90° − γ), an amplification of 1/3.84° here and unbounded as a
+    lattice approaches orthogonality.  Measured on bethanechol set E, whose
+    answer is 1274 ppm out on lengths and 0.016° on the reduced angle — plainly
+    the same lattice, and what the paper scores +1 — every diagonal component
+    sits at ≤ 0.0026 and **F alone reaches 0.0063**, so ``same_lattice`` refuses
+    it.  A benchmark that must accept a cell biased by an uncorrected zeropoint
+    (measured below, and in ``tests/bethanechol_benchmark.py``) cannot be gated
+    on a constant tuned so it never tightens a *dedup* χ².  Reduce, then apply
+    the declared band: one bound, visible, per dataset.
+    """
+    import numpy as np
+
+    from pxrdref.indexing.qspace import af_from_cell, cell_from_af
+    from pxrdref.indexing.reduce import reduced_af
+
+    want = cell_from_af(reduced_af(af_from_cell(cell)))
     for i, row in enumerate(ranking):
         if row.get("centring") != centring:
             continue
-        if not same_lattice(np.asarray(row["af"], dtype=float), af_true)[0]:
-            continue
-        got = row.get("cell")
-        if got is not None and not _cell_within(got, cell, rtol):
+        af_got = np.asarray(row["af"], dtype=float)
+        if not _cell_within(cell_from_af(reduced_af(af_got)), want, rtol):
             continue
         return i + 1
     return None
