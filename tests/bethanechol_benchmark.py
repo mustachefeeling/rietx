@@ -411,6 +411,15 @@ def table(report: dict[str, Any]) -> str:
             flags.append("y" if r["reachable"] else "n")
         lines.append(row + "   " + "/".join(flags))
     lines.append("-" * len(head))
+    # per mode, because the paper's own grid is per mode and the two modes are
+    # not comparable work: manual is monoclinic-only with eight unindexed lines
+    # tolerated, default is all seven systems with the package's own two
+    sub = f"{'':<4}"
+    for m in modes:
+        rows = [r for r in report["records"] if r["mode"] == m]
+        sub += (f"{sum(r['score'] for r in rows):+d} of "
+                f"{sum(1 if r['reachable'] else -1 for r in rows):+d}").rjust(22)
+    lines.append(sub + "   subtotal / ceiling")
     lines.append(f"{'':<4}{'global':>10} {report['global']:+d}"
                  f"   over {report['n_runs']} runs, ceiling "
                  f"{report['ceiling']:+d}"
@@ -422,9 +431,14 @@ def table(report: dict[str, Any]) -> str:
     lines.append("published individual globals: "
                  + ", ".join(f"{k} {v:+d}" for k, v in ind.items()
                              if not k.startswith("_")))
-    lines.append(f"published oracles: first_4 "
-                 f"{report['published']['first_4']['global']:+d}, best_of_all "
-                 f"{report['published']['best_of_all']['global']:+d}")
+    for key in ("first_4", "best_of_all"):
+        per_set = report["published"][key]["per_set"]
+        # the published per_set values are [default, manual] pairs, so the
+        # oracles' own per-mode split is transcribed data, not our arithmetic
+        d = sum(v[0] for v in per_set.values())
+        m = sum(v[1] for v in per_set.values())
+        lines.append(f"published {key}: {report['published'][key]['global']:+d}"
+                     f"  (default {d:+d}, manual {m:+d})")
     return "\n".join(lines)
 
 
