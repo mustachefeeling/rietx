@@ -63,29 +63,30 @@ size caps on this file and CLAUDE.md.
 
 **Nothing in flight.** Closed 2026-08-08, narrative in
 [milestones/v1.0.md](milestones/v1.0.md):
-[1045](wp/1045-indexing-search-controls.md) — one indexing control surface
-for every chair, and analogue priors that steer without gating. The same
-`SearchSpecSpec` now sits behind the agent request, the project document
-(the GUI's Search-controls form edits it, the index run reads it) and
-`to_spec()`, held three ways by meta-test with a committed corpus for the
-form's leg; `_spec_notes` records every spec field, so identical controls in
-two chairs produce byte-identical notes — asserted literally. A stated
-analogue cell jumps its system up the queue, seeds svd's basin, and enters
-the answer only through the engines' own bar as finder `"prior"`, never in
-the Borda ranking — a wrong prior measurably changes no rank and no grade.
-Two 1028 traps closed on the way (`shift_allowance_deg`; the envelope only
-through its slack — raw, it excluded the corundum-setting truth at p = 0.6
-completeness), and `quick`'s first click now arrives *validated*: an 8 %
-reserve plus ambiguity deferred behind the mandatory check took the three
-heavy patterns' validated fits from 0/0/0 to 2/6/3 at the same 120 s wall.
+[1050](wp/1050-suggest-next-parameter.md) — `Refinement.suggest()` ranks
+every held-but-refinable parameter by exact Gauss-Newton gain from one
+Jacobian evaluation: no solve, no history node, no mutation. Two gates
+through `block_projection_r2` keep it honest — a candidate the free block
+absorbs is non-separable, and pairwise-collinear survivors merge into one
+unresolved group with a *joint* gain — so `best_or_none()` answers `None`
+rather than break a tie the data cannot (measured: a planted 0.02° zero
+shift comes back as the {zero_shift, sample_displacement} pair, and the
+exact-identity width pairs tie by construction). The session's measured
+redesign: the one-build plan failed its own negative control — probe seeds
+in the shared state broadened every peak, χ²_red 7.1 *at the truth values* —
+so the residual is never seeded and floor candidates' columns come from a
+second build (unseeded floor columns are fp garbage, not merely small).
+Calibration in `SUGGEST_MIN_GAIN`'s comment: converged max gain 5.7 vs
+floor 9.10 vs smallest injected top ≈2.5×10³. The agent grew its fifth
+task, the first no-solve one; the manual finally cites Toby 2024.
 
-**The running theme: a control surface is a promise every chair must keep,
-and only a meta-test keeps it.** 1042's stream, 1043's evidence, 1045's
-controls — one model, registries quoted live, tests that fail when a chair
-lags: the prior fields were *forced* into the agent schema, the document,
-the GUI corpus and the notes by the bijection before any behavior ran. Its
-older half still stands: a number not regenerated is a number nobody
-re-measures (1041, 1016, 1044, 1028, 1061).
+**The running theme: never a confident singleton, now in its fourth seat.**
+Indexing's `best_or_none()` (1021), Layer 1's non-separable verdicts, the
+extinction symbol's ranked classes — and now the parameter question itself:
+1050 reports the tie Toby's per-derivative ranking would silently break.
+The 1045 theme's other half still stands: a number not regenerated is a
+number nobody re-measures (1041, 1016, 1044, 1028, 1061) — 1050's floor
+constant carries its own measured calibration for exactly that reason.
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
@@ -99,7 +100,7 @@ re-measures (1041, 1016, 1044, 1028, 1061).
    has the onboarding notes).
 3. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by
-   1016, 1041, 1043, 1042 and 1045; read it first.
+   1016, 1041, 1043, 1042, 1045 and 1050; read it first.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -282,7 +283,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
-| [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ⬜ | — (before 1003 if frozen) |
+| [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ✅ | — (before 1003 if frozen) |
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ⬜ | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ⬜ | 1052 |

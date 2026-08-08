@@ -121,6 +121,25 @@ rejected-kinds memory, two-rejection stop, round cap). E5/E6/E8 may surface
 incidental sub-cause actions above the floor; assertions are scoped to what matters
 (no *position* kind applied), and rejections are budgeted, not forbidden.
 
+### Inherited
+
+**From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 —
+`suggest()` exists, and the planted-state lending runs the other way.**
+`tests/test_suggest.py` already exercises single-cause states built from
+the layers suite's `_truth()` (zero shift, W error, X error,
+absorbed-candidate, converged control) — reuse those alongside this WP's
+episodes. Two measured facts belong in any scoring rule: a planted single
+cause does **not** generally yield a resolved singleton — the truth
+fixture's zero shift honestly returns the unresolved
+{zero_shift, sample_displacement} pair, and the exact-identity width pairs
+({profile.x, lor_size}, {profile.u, gauss_strain}, {profile.y, lor_strain})
+tie by construction — so "the top group *contains* the planted cause"
+is success, not a miss. And the Layer-2 `refine_profile_widths` emitter gap
+this WP first observed is re-verified and now has its measured counterpart:
+`suggest()` *does* rank U/V/W (a W error returns `instrument.profile.w`
+resolved), so the two methods' disagreement on instrument widths is real
+and expected, not a bug in either.
+
 ## Non-goals
 
 - No autopilot API anywhere in `src/` (the WP-1050 fence, restated above).

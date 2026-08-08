@@ -11,6 +11,21 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — a new
+read-only surface for the freeze to ratify.** `Refinement.suggest(data, *,
+top_n, include, exclude, mode, two_theta_limits, report)` →
+`SuggestionResult` (`schemas/suggest.py`: `ParameterCandidate`,
+`CandidateGroup`, three gate constants with measured calibration; all three
+models package-exported). The *shape* is the contract: no `.best`, only a
+gated `best_or_none()`; `action_kind` a plain `str` pinned to Layer 2's
+`ActionKind` by meta-test, because schemas cannot import report. The agent
+request union grew its fifth arm (`task="suggest"`, the first no-solve
+task): `_BackendBase` (backend only) split out of `_RequestBase` so
+solver/plan on it fail by name, `AgentSuccess.suggestion` joined the
+exactly-one-of invariant, and `test_agent_surface.py` pins
+`len(oneOf) == len(_TASK_TAGS) == 5`.
+`optimize.statistics.one_parameter_gains` is new one rank down.
+
 **From [1045](1045-indexing-search-controls.md), closed 2026-08-08 — the
 control surface moved house and two names changed, all pre-freeze on
 purpose; the freeze ratifies the new shapes.** `SearchSpecSpec` now lives in

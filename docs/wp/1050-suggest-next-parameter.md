@@ -1,6 +1,6 @@
 # WP-1050 — `Refinement.suggest()`: which parameter to free next
 
-Milestone: v1.0 (proposed 2026-07-30) · Status: ⬜
+Milestone: v1.0 (proposed 2026-07-30) · Status: ✅ 2026-08-08 — shipped: gains proven against lstsq, both negative controls hold, the probe residual never seeded (the session's measured redesign), agent task + manual landed
 Depends on: — (1004 landed). Must land **before** 1003 if `suggest()` ships in
 the frozen API.
 
@@ -108,37 +108,37 @@ move); agent task; manual.
 
 ## Tasks
 
-- [ ] `optimize/statistics.py`: `one_parameter_gains` + shared-QR refactor;
+- [x] `optimize/statistics.py`: `one_parameter_gains` + shared-QR refactor;
       brute-force property test against explicit lstsq of `[F | j]` on random
       matrices. `block_projection_r2` behaviour unchanged.
-- [ ] `schemas/suggest.py`: models + constants (measured-rationale comments);
+- [x] `schemas/suggest.py`: models + constants (measured-rationale comments);
       JSON round-trip tests, `extra="forbid"`.
-- [ ] `strategy/suggest.py`: `build_suggestion` (score, gate, group, rank,
+- [x] `strategy/suggest.py`: `build_suggestion` (score, gate, group, rank,
       summary, Layer-2 cross-reference); synthetic-matrix tests.
-- [ ] `refine.py`: `Refinement.suggest()` (enumeration, per-family seeding,
+- [x] `refine.py`: `Refinement.suggest()` (enumeration, per-family seeding,
       model-copy compile, lebail/pawley carry); `__init__.py` exports.
-- [ ] Misfit-injection tests (reuse `_truth` from
+- [x] Misfit-injection tests (reuse `_truth` from
       `tests/test_fitreport_layers.py`): converged → `best_or_none() is
       None`; injected zero shift ranks top; Layer-2 agreement recorded;
       W-vs-gauss_size comes back one group, `resolved=False`; candidate
       absorbed by free set is not a winner; softplus-floor candidate found
       with `seeded=True`; read-only assertion (history/vary/values/result_
       untouched); lebail mode-fixed paths never enumerate.
-- [ ] `agent.py`: read-only `suggest` task — the first no-solve task. Split
+- [x] `agent.py`: read-only `suggest` task — the first no-solve task. Split
       `_BackendBase` out of `_RequestBase` (no solver/plan fields, so passing
       them errors loudly under `extra="forbid"`); `AgentSuccess.suggestion`,
       invariant "exactly one of result/series/suggestion" (indexing's answer
       arms join that invariant too); `_TOOL_DESCRIPTION`; meta-test updates
       (`test_agent_surface.py:375` pins `len(schema["oneOf"]) ==
       len(ag._TASK_TAGS) == 4` since the `index` task — this WP moves it to 5).
-- [ ] Manual: `docs/manual/estimation.md` subsection (gain equation with
+- [x] Manual: `docs/manual/estimation.md` subsection (gain equation with
       *Source:* `pxrdref.optimize.statistics.one_parameter_gains`), `toby2024`
       bib entry — owed since the 2026-07-30 review session (`732535d`): the
       weighted Δ/σ docstrings in `viz/` cite Toby 2024 deliberately without a
       bib entry because `tests/test_manual.py` fails an *uncited* entry, so the
       entry lands here together with its citing subsection — `conf.py`
       substitution for `SUGGEST_MIN_GAIN` + a chapter use.
-- [ ] Acceptance run + obs/calc/diff PNGs to `tests/output/`.
+- [x] Acceptance run + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance
 
@@ -169,6 +169,48 @@ group, not a winner).
 
 ## Handover log
 
+- **2026-08-08 (close)** — **✅ all eight items, one commit each**
+  (`0ddde46…267bdc7` on `wp1050-suggest-next-parameter`). Done:
+  `one_parameter_gains` shares `_span_basis`/`_off_span` with
+  `block_projection_r2` (same expressions, so that function is bit-identical)
+  and is proven against explicit lstsq of `[F | j]`, groups included; a
+  projection-rounding floor (‖j̃‖ ≤ √m·ε·‖j‖) makes an absorbed column score
+  0.0 where the raw formula returned a measured-looking 0.19 from noise.
+  Schemas carry the calibration in `SUGGEST_MIN_GAIN`'s comment; strategy
+  gates both through `block_projection_r2` (absorption directly, pairwise ρ²
+  on the pre-projected matrix); the agent's fifth task is its first no-solve
+  one (`_BackendBase` split — solver/plan on it fail by name); manual
+  subsection + toby2024/rao1948/frisch1933/lovell1963 all cited.
+  **The design deviation a successor must know**: this file's one-build plan
+  failed its own negative control — seeds applied to the shared probe state
+  broadened every peak, putting χ²_red at 7.1 *at the truth values* and
+  handing every width parameter a ~3×10⁴ gain. So `suggest()` evaluates
+  residual, free block and live columns at the **unseeded** current state and
+  runs a *second* build only for floor candidates, taking just their columns
+  and dp/du from it. The seeds stay necessary (an unseeded softplus-floor
+  column is fp garbage — dp/du ≈ 1e-12 puts the FD chain's perturbation
+  below the model's own rounding — not merely small); they just may never
+  touch the residual.
+  **Measured tie structure** (pinned in tests, not the WP's guess):
+  {zero_shift, sample_displacement} and the exact-identity pairs
+  {profile.x, lor_size}, {profile.u, gauss_strain}, {profile.y, lor_strain}
+  come back unresolved; W vs gauss_size *separates* over 18–125° 2θ, and the
+  predicted "W-vs-gauss_size one group" appears instead as gauss_size
+  non-separable (R² 0.957) once U, V, W are free — wrong in the letter,
+  right in the spirit.
+  **Counts** (this checkout's `[dev]` venv, darwin/arm64): fast selection
+  2021 passed + 5 skipped vs main's measured 1979 + 5 — moved by exactly the
+  42 tests added (40 in `tests/test_suggest.py`, 2 in
+  `tests/test_agent_surface.py`), no new skips; wall clock 2:46–2:52 across
+  the two runs. The full selection was not re-run locally: no slow row was
+  touched and all 42 land in the fast selection, so full moves by the same
+  +42 — confirm against the next weekly `full` log ([dev,jax], Linux).
+  Manual builds `-W` clean; ruff clean. Eight obs/calc/diff
+  PNGs (`suggest_*.png` + zooms) in `tests/output/`, visually inspected:
+  truth is white noise at GoF 1.00, zero-shift shows the ±100σ antisymmetric
+  signature the tie scored.
+  Next: nothing here — the GUI panel is 1017's (non-goal), closed-loop
+  scoring is 1052/1053's; their mailboxes are fed.
 - **2026-07-30** — created from the Toby 2024 / SrRietveld literature review;
   design verified against the tree (model-copy compile, per-family seeds,
   Pawley aux block, ActionKind layering, agent oneOf pin).
