@@ -285,6 +285,22 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
     return tt, y, sig
 
 
+def looks_binary(h: Head) -> bool:
+    """Whether ``h`` came from a file no text reader should try to decode.
+
+    A NUL byte in the first :data:`HEAD_BYTES` — the test every ``file(1)``-like
+    heuristic starts from, and enough here because the alternative is not "guess
+    better" but "fall through to the ASCII-column reader", which is what turned
+    a Bruker binary into a bare ``UnicodeDecodeError``.
+
+    **One carve-out: a byte-order mark means text, never binary.**  ASCII-range
+    UTF-16LE decodes as *valid* UTF-8 with interleaved NULs, Windows vendor
+    software genuinely exports it, and calling such a file binary would be the
+    confidently-wrong-message class this seam exists to remove.
+    """
+    return b"\x00" in h.raw and not h.bom
+
+
 def head(path: str | Path, n: int = HEAD_BYTES) -> Head:
     """The first ``n`` bytes of ``path``, decoded for a sniff.
 

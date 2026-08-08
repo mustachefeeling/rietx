@@ -28,6 +28,7 @@ from .base import (
     ReaderOption,
     ascending,
     head,
+    looks_binary,
     multiscan_default,
     reader_options_for,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "ReaderOption",
     "ascending",
     "head",
+    "looks_binary",
     "multiscan_default",
     "read_gsas",
     "read_pdcif",

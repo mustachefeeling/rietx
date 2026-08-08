@@ -259,6 +259,38 @@ def test_a_project_keeps_the_repairs_in_memory_and_out_of_project_json(tmp_path)
         "PATTERN_SCAN_REVERSED"]
 
 
+def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
+    """The failure this seam exists to remove.
+
+    ``xy`` used to be the *total* fallback, so opening a Bruker binary reached
+    ``read_text`` and raised a bare ``UnicodeDecodeError`` — a message about
+    codecs, from a user who asked to open a diffraction pattern.  Now nothing
+    claims it and the refusal names the formats this build does read, built
+    from the registry so a format added tomorrow appears in it.
+    """
+    p = tmp_path / "d8.raw"
+    p.write_bytes(b"RAW4.00\x00" + bytes(range(256)) * 8)
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    message = str(refusal.value)
+    assert "d8.raw" in message and "looks binary" in message
+    for fmt in PATTERN_FORMATS:
+        assert fmt.title in message
+
+
+def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path):
+    """The one carve-out, and it is not hypothetical: ASCII-range UTF-16LE is
+    *valid* UTF-8 with interleaved NULs, and Windows vendor software exports it.
+    Before this such a file died with "no numeric data found", so the reach is
+    strictly new."""
+    p = tmp_path / "windows.xy"
+    p.write_bytes("﻿10 1\n20 2\n30 3\n".encode("utf-16-le"))
+
+    assert identify_format(p).name == "xy"
+    assert pr.read_pattern(p).two_theta == [10.0, 20.0, 30.0]
+
+
 def test_the_registry_order_is_the_dispatch_order():
     """The first format whose ``matches`` returns True reads the file, so the
     tuple's order is behaviour and ``xy`` being last is the whole of why

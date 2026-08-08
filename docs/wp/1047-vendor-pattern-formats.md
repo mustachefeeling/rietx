@@ -415,7 +415,7 @@ that belong to it), never mid-format.
 - [x] 3. Diagnostics channel + the `ascending()` monotonicity policy +
       `READER_OPTION_IGNORED` + `PATTERN_MULTISCAN_DEFAULTED` + codes in
       `docs/AGENT_PROTOCOL.md`; preview payload and CLI print.
-- [ ] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16
+- [x] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16
       decode in `_read_xy`); `identify_format`'s message built from the
       registry; grep for tests assuming it never raises.
 - [ ] 5. The truncation-fuzz harness; widen `imports.py:221`.

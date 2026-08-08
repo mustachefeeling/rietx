@@ -25,6 +25,8 @@ from .formats import (
     READER_OPTIONS,
     PatternFormat,
     ReaderOption,
+    head,
+    looks_binary,
     read_pdcif,
     reader_options_for,
 )
@@ -72,9 +74,20 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
 
 
 def identify_format(path: str | Path) -> PatternFormat:
-    """Which registered format claims ``path`` — the dispatch, written once."""
+    """Which registered format claims ``path`` — the dispatch, written once.
+
+    Reachable as a refusal since ``xy`` stopped being total: a file no format
+    claims is one this build cannot read, and saying **which formats it can**
+    is the whole difference between a message and a traceback.  Built from the
+    registry rather than written out, so a format added tomorrow appears in it.
+    """
     p = Path(path)
     for fmt in PATTERN_FORMATS:
         if fmt.matches(p):
             return fmt
-    raise ValueError(f"no reader claims {p}")  # pragma: no cover - xy is total
+    why = " (it looks binary)" if looks_binary(head(p)) else ""
+    known = ", ".join(f"{f.title} [{', '.join(f.extensions) or 'any'}]"
+                      for f in PATTERN_FORMATS)
+    raise ValueError(
+        f"{p.name} is not a powder pattern this build can read{why}. "
+        f"Supported: {known}")
