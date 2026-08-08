@@ -63,44 +63,43 @@ size caps on this file and CLAUDE.md.
 
 **Nothing in flight.** Closed 2026-08-08, narrative in
 [milestones/v1.0.md](milestones/v1.0.md):
-[1050](wp/1050-suggest-next-parameter.md) — `Refinement.suggest()` ranks
-every held-but-refinable parameter by exact Gauss-Newton gain from one
-Jacobian evaluation: no solve, no history node, no mutation. Two gates
-through `block_projection_r2` keep it honest — a candidate the free block
-absorbs is non-separable, and pairwise-collinear survivors merge into one
-unresolved group with a *joint* gain — so `best_or_none()` answers `None`
-rather than break a tie the data cannot (measured: a planted 0.02° zero
-shift comes back as the {zero_shift, sample_displacement} pair, and the
-exact-identity width pairs tie by construction). The session's measured
-redesign: the one-build plan failed its own negative control — probe seeds
-in the shared state broadened every peak, χ²_red 7.1 *at the truth values* —
-so the residual is never seeded and floor candidates' columns come from a
-second build (unseeded floor columns are fp garbage, not merely small).
-Calibration in `SUGGEST_MIN_GAIN`'s comment: converged max gain 5.7 vs
-floor 9.10 vs smallest injected top ≈2.5×10³. The agent grew its fifth
-task, the first no-solve one; the manual finally cites Toby 2024.
+[1026](wp/1026-indexing-acceptance.md) — reopened for criterion 1, which now
+**exists as a generated number: −8 of ±20**, exactly DICVOL91's published
+global, above ITO13's −14 and below TREOR90 −4 / McMaille +5 / Crysfire +6.
+`python -m tests.bethanechol_benchmark` runs the paper's whole protocol (ten
+sets × two modes, domain quoted from the fixture, `preset="full"`) in ~61 min
+and is deliberately outside every pytest selection — **run it alone**, engine
+bounds are wall-clock. Three sets solve in both modes, truth rank 1, both
+engines. Two numbers travel with the global: the protocol's **ceiling** (+8,
+because `DEFAULT_N_UNINDEXED = 2` makes six of ten sets unwinnable in default
+mode — a −1 no search can prevent), and the **band**, set by measuring what
+the paper's own 0.100° zeropoint does to a correct cell (−6400 ppm), without
+which four more runs score −1. And the harness had been scoring a correct
+answer as a miss: the truth returns as its `c + a` setting, so the scoreboard's
+band moved to the *reduced* cell — nine high-symmetry datasets could not see it.
 
-**The running theme: never a confident singleton, now in its fourth seat.**
-Indexing's `best_or_none()` (1021), Layer 1's non-separable verdicts, the
-extinction symbol's ranked classes — and now the parameter question itself:
-1050 reports the tie Toby's per-derivative ranking would silently break.
-The 1045 theme's other half still stands: a number not regenerated is a
-number nobody re-measures (1041, 1016, 1044, 1028, 1061) — 1050's floor
-constant carries its own measured calibration for exactly that reason.
+**The running theme, and it is the 1045 one rather than the singleton one: a
+number not regenerated is a number nobody re-measures.** 1043's −16 was
+correctly flagged as a floor and moved in *both* directions once generated;
+"every engine returns 0 candidates, the honest report is silence" survived four
+WPs that all touched the engines; "F is the only set of the ten we solve" was
+false in both halves. The score is a runner for exactly that reason (1041,
+1016, 1044, 1028, 1061 — and now 1026).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
-   bethanechol score, now measured in 1043; what is left is making it generated —
-   a manual runner beside `tests/indexing_gallery.py`, not a slow pytest row
-   (constraints in 1043 § bethanechol; the runner must declare
-   `preset="full"`, 1042).
+1. [1046](wp/1046-candidate-cap-before-ranking.md) — small, fully diagnosed, and
+   the one thing that moves the graded number without touching a search: the
+   per-engine `max_candidates` truncates each engine's *own* Borda before
+   consensus ranks, so on set F the truth is rank 1 at a 5 s budget and absent
+   at 30 s. Its docstring says "a cap, not a ranking"; it is a ranking.
 2. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs,
    the Peaks tab now carrying 1045's Search controls (its `### Inherited`
    has the onboarding notes).
 3. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by
-   1016, 1041, 1043, 1042, 1045 and 1050; read it first.
+   1016, 1041, 1043, 1042, 1045 and 1050; read it first — and note 1046 changes
+   what a frozen `DEFAULT_MAX_CANDIDATES` would mean.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -236,7 +235,7 @@ monoclinic search finishes.
 | [1023](wp/1023-engine-montecarlo.md) | Engine C — whole-profile Monte Carlo (spike, then decide) | 🛑 no-go 2026-07-30 | — |
 | [1024](wp/1024-indexing-consensus.md) | Consensus, `index_pattern`, Le Bail validation, agent & CLI | ✅ 2026-07-30 | 1021–1023 |
 | [1025](wp/1025-extinction-symbol.md) | Extinction symbol / space-group determination | ✅ 2026-07-30 | 1024 |
-| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ | 1024 (1025 soft) |
+| [1026](wp/1026-indexing-acceptance.md) | Acceptance: bethanechol benchmark + known cells | ✅ 2026-08-08 — criterion 1 generated: global **−8** of ±20 (ties DICVOL91), runner beside the gallery | 1024 (1025 soft) |
 | [1027](wp/1027-gui-peak-picker.md) | GUI peak picker + indexing panel | ✅ 2026-08-01 | 1010, 1011, 1018–1024 |
 | [1030](wp/1030-engine-scaling-low-symmetry.md) | Engine cost at low symmetry + the two missing figures of merit | ✅ 2026-07-31 | 1020–1022 (1026 soft) |
 | [1037](wp/1037-indexing-time-ceiling.md) | Indexing: a stated time ceiling and honest progress | ✅ 2026-08-04 | 1024 (1021, 1022 soft) |

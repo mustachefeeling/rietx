@@ -1,6 +1,7 @@
 # WP-1026 — Indexing acceptance: the bethanechol benchmark and known cells
 
-Milestone: v1.0 · Status: ✅ 2026-07-31 — criterion 1 deferred to 1030
+Milestone: v1.0 · Status: ✅ 2026-08-08 — reopened for criterion 1, which is now
+generated: global **−8** of ±20, ties DICVOL91
 Depends on: 1024 (1025 soft)
 
 ## Goal
@@ -294,6 +295,128 @@ Quote wall clock as a **range**, never a figure (CLAUDE.md).
   ```
 
 ## Handover log
+
+*Newest first from here. The entries below 2026-08-08 run oldest-first — a
+legacy of this WP's July sessions, left as written because a dated entry is a
+record.*
+
+- **2026-08-08 — reopened for criterion 1, and it closes with a generated
+  number: −8.** Branch `wp1026-bethanechol-score`. `### Inherited` consumed on
+  arrival into § *Criterion 1, reopened* (five constraints kept: the runner's
+  shape, `preset="full"`, the restated bar, 1043's −16-is-a-floor, and
+  lattice-not-tuple); everything else in that mailbox belonged to criteria 2
+  and 3, which closed 2026-07-31 and whose measurements are in the entries
+  below. One constraint was **not** in the mailbox and had to be fetched from
+  1043 § *Measured: bethanechol* — 1043 recorded the runner's shape in the
+  ROADMAP queue and never wrote it here.
+
+  **1. The score.** `python -m tests.bethanechol_benchmark`, package defaults,
+  `preset="full"`, ten sets × two modes:
+
+  | | default | manual | both |
+  |---|---|---|---|
+  | this package | **−4** | **−4** | **−8** |
+  | protocol ceiling | −2 | +10 | +8 |
+  | published `first_4` | +2 | +7 | +9 |
+  | published `best_of_all` | +2 | +10 | +12 |
+
+  **−8 is exactly DICVOL91's published global**, above ITO13's −14, below
+  TREOR90 −4, McMaille +5 and Crysfire 2003 +6. Three of the ten sets are
+  solved — **Bb, Db and E, in *both* modes**, truth at rank 1, found by **both**
+  `svd` and `trial_error`, 20 of 20 lines indexed, reduced cell 0.24-0.29 % from
+  the published one. Cost **60.6 min** of search (default 46.3, manual 14.3) on
+  darwin/arm64, `[dev,jax,torch]`; the artifact is
+  `tests/output/bethanechol_benchmark.json` (gitignored).
+
+  **2. The ceiling is the number to quote beside the global**, and it is not
+  about the search. `n_unindexed` is an absolute budget over the driven lines,
+  so a set whose truth leaves more lines unexplained than the mode tolerates
+  **cannot** be returned however good the search is. At our
+  `DEFAULT_N_UNINDEXED = 2`, six of the ten sets are unwinnable in default mode
+  (unexplained counts: Aa/Ca 7, Ba/Da 4, Ab/Cb 3, Bb/Db/E/F 0), so the default
+  ceiling is −2 and we scored −4 — **one winnable run lost, and it is F**.
+  Manual mode tolerates eight, every set is reachable, and there we scored −4
+  against a ceiling of +10: seven winnable runs lost. Note the published oracle
+  is only +2 in default mode too — nobody scores well there.
+
+  **3. The harness was scoring a correct answer as a miss, exactly as WP-1030
+  filed.** The published cell returns in its `c + a` setting —
+  (7.1346, 16.4091, 11.7530, β 131.107°) against a published
+  (8.875, 16.408, 7.137, β 93.84°), same lattice, same volume to 0.1 Å³, **not
+  one axis in common** — and `indexing_gallery.rank_of_lattice` applied its band
+  to the *conventional* cell. Rank 1 scored −1. The band is on the **reduced**
+  cell now. Nine high-symmetry datasets could not see this: their conventional
+  setting is unique; a monoclinic one is not.
+
+  **`same_lattice` came out of that comparison at the same time**, and the
+  mechanism is worth carrying: its fixed 5e-3 is *componentwise relative on
+  reduced A..F*, so on the off-diagonals it is an angle test of tightness
+  ≈1/(90°−γ). Measured on set E — 1274 ppm on lengths, 0.016° on the reduced
+  angle, plainly the same lattice — every diagonal component sits at ≤ 0.0026
+  and **F alone reaches 0.0063**, so it was refused. Two bands stacked means the
+  tighter one silently decides, and which one that is differs by dataset.
+
+  **Re-scored from the sidecars of one acceptance run** (no second search — that
+  is what storing the ranking is for): **one** row moved, `corundum_shift`
+  None → 1, and it is a knife-edge rather than a semantic change — that
+  candidate is **150.1 ppm** out against a declared 150 ppm band, and the new
+  form round-trips *both* sides through the same af→reduced→cell arithmetic
+  where the old compared a round-tripped candidate against a literal tuple. The
+  known-cell scoreboard's counts are unchanged: **7 first / 2 present / 0 absent
+  / 0 refused over 9**.
+
+  **4. `TRUTH_BAND` is measured, not chosen, and it decides four of the twenty
+  runs.** Take the published cell, predict its own lines over each set's range,
+  add the paper's +0.100° zeropoint, refit the metric with the indices held: the
+  cell moves **−6400 / −5190 / −4990 ppm** and the reduced angle only 0.023°.
+  That is the accuracy a *correct* answer has on the raw ICDD entries — the
+  answers the paper scores +1 — so any band under ~6500 ppm scores the
+  benchmark's central difficulty as a miss. 1 % is that floor with 1.6×
+  headroom. It is not academic: Bb and Db match at **2426-2935 ppm**, so a
+  ppm-grade band, or the old `same_lattice` gate, would have scored those four
+  runs −1 and reported **−12**.
+
+  **5. The score is non-monotonic in the search budget, and that is a defect,
+  filed as [1046](1046-candidate-cap-before-ranking.md).** On set F manual mode
+  the truth is rank 1 at 5 s and 15 s and **absent** at 30 s and 60 s; repeats
+  at one budget agree exactly, so it is not load truncation. Raise
+  `max_candidates` from 12 to 60 at the same 30 s budget and it returns at rank
+  3, found by both engines. `rank_candidates` runs the panel and Borda over
+  *each engine's own harvest* and truncates there; a longer search enlarges that
+  pool, the truth falls below twelfth in both engines' orderings, and the
+  consensus ranking — the one reported — never sees it.
+  `DEFAULT_MAX_CANDIDATES`'s docstring says "a cap, not a ranking". It is a
+  ranking. **This is what costs F**, the easiest set of the ten.
+
+  **6. 1043's −16 is superseded, and both of its own qualifications were
+  right.** It warned the figure was `trial_error`-only at 30 s and that a full
+  consensus run would move it *in both directions*. It did: three sets solved
+  where it had one, and F — the one it solved — lost. Its diagnosis ("F is the
+  only set of the ten we solve", "E we miss at 33 % of the window") is
+  withdrawn; E is solved in both modes. The acceptance module's docstring
+  carried a *third* stale claim — "0 candidates … the honest report is silence"
+  — which 1043 had already refuted in prose without editing the file. All three
+  are rewritten there, and the reason the score is now a runner is precisely
+  that none of them was ever regenerated.
+
+  **7. Costs, and one that is not mine to fix.**
+  `tests/test_acceptance_indexing.py` is **28:54 serial** on this machine today
+  against the **5-6 min** this WP last recorded. I added three *fast* rows and
+  no slow ones, so that growth belongs to 1041/1042/1043 — and per
+  `tests/CLAUDE.md`, a group ordering is a measurement with a shelf life: **read
+  `--durations` on the next full run** rather than either sentence. The
+  benchmark runner is deliberately outside every pytest selection.
+
+  **Gotchas for whoever runs this next.** Run the benchmark **alone** — every
+  engine bound is wall-clock, so a suite beside it changes the answer and not
+  merely the timing (this run shared the machine only with sub-second doc
+  checks). `--append` resumes from the artifact, and the artifact is rewritten
+  after every run, because a full protocol is an hour. And the two modes cost
+  very differently per set: 4-5 min default (all seven systems), 1.5 min manual.
+
+  **Next:** [1046](1046-candidate-cap-before-ranking.md) is the one thing that
+  would move this number without touching a search; then
+  [1017](1017-gui-manual-onboarding.md) and [1003](1003-api-freeze-pypi.md).
 
 - **2026-07-29** — created from the indexing plan. The bethanechol benchmark
   is the reason this milestone can be graded rather than merely demonstrated:
