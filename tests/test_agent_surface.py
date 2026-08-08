@@ -369,10 +369,39 @@ def test_unknown_crystal_system_quotes_the_live_order(cubic_peaks_json):
 # ----------------------------------------------------------------------
 # schema export for tool-calling
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+# task="suggest" — the first no-solve task (WP-1050)
+# ----------------------------------------------------------------------
+def test_suggest_answers_in_its_own_arm(request_parts):
+    structure, instrument, pattern = request_parts
+    out = ag.refine_json(dict(task="suggest", structure=structure,
+                              instrument=instrument, pattern=pattern))
+    assert out["ok"] is True, out.get("error")
+    assert (out["result"] is None and out["series"] is None
+            and out["indexing"] is None)
+    sug = out["suggestion"]
+    assert sug["n_evaluated"] > 0
+    assert sug["noise_floor"] >= 9.0 * max(sug["chi2_red"], 1.0) * 0.999
+    for group in sug["groups"]:
+        assert group["resolved"] == (len(group["members"]) == 1)
+
+
+def test_suggest_refuses_solver_and_plan(request_parts):
+    """The no-solve task has no solver/plan; extra='forbid' names them."""
+    structure, instrument, pattern = request_parts
+    out = ag.refine_json(dict(task="suggest", structure=structure,
+                              instrument=instrument, pattern=pattern,
+                              solver="lm", plan="mccusker_default"))
+    assert out["ok"] is False
+    assert out["error"]["code"] == "INVALID_REQUEST"
+    wheres = {d["where"] for d in out["error"]["details"]}
+    assert {"solver", "plan"} <= wheres
+
+
 def test_request_schema_is_a_discriminated_union():
     schema = ag.request_schema()
     assert schema["discriminator"]["propertyName"] == "task"
-    assert len(schema["oneOf"]) == len(ag._TASK_TAGS) == 4
+    assert len(schema["oneOf"]) == len(ag._TASK_TAGS) == 5
 
 
 def test_schemas_quote_every_live_registry_member():
@@ -410,7 +439,8 @@ def test_response_schema_covers_every_answer_arm():
     text = json.dumps(ag.response_schema())
     for code in ag.ERROR_CODES:
         assert code in text
-    for arm in ("SeriesResult", "RefinementResult", "IndexingResult"):
+    for arm in ("SeriesResult", "RefinementResult", "IndexingResult",
+                "SuggestionResult"):
         assert arm in text, arm
 
 
