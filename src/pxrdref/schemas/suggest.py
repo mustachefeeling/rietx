@@ -25,6 +25,11 @@ from .common import Base
 #: is the 3σ point of χ²₁ (P[χ²₁ > 9] ≈ 0.0027).  ``max(·, 1)`` is
 #: ``normal_covariance``'s ``chi2_floor`` convention one module over: an
 #: imperfect model's locally-good χ² must not *deflate* the floor.
+#: Calibrated on the layers suite's truth fixture (``tests/test_suggest.py``,
+#: WP-1050): at the converged state the largest candidate gain measured is
+#: 5.7 at χ²_red 1.011 — the floor of 9.10 clears it by 1.6× — while the
+#: smallest injected-single-cause *top* gain in the misfit suite is ≈2.5×10³,
+#: so the two sides of this gate sit ~440× apart.
 SUGGEST_MIN_GAIN = 9.0
 
 #: R² of a candidate's Jacobian column on the span of the currently-free

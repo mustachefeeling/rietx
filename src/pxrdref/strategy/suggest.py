@@ -34,17 +34,24 @@ from ..schemas.suggest import (
     SuggestionResult,
 )
 
-#: Probe seeds, per family — a candidate sitting on a transform floor has a
-#: dead internal column (softplus dp/du → 0 at p ≈ 0; a Stephens block at
-#: S ≡ 0 has the *opposite* pathology, √Σ's unbounded slope), so its leverage
-#: is measured at the seed the corresponding stage would actually start from,
-#: and the candidate comes back ``seeded=True``.  The values quote the stage
-#: literals in ``strategy/staged.py`` (extinction's ``seed=1e-3``,
-#: ``_ROUGHNESS_STAGE``'s measured ``0.3`` — both ends of the Suortti
-#: transform are the identity, so a token 1e-3 is a genuinely dead
-#: *correction* there — and the sample-broadening stage's
-#: ``strain_seed=1000.0``): the probe predicts that solve, so it must start
-#: where that solve would.
+#: Probe seeds, per family.  A floor candidate cannot be scored at its stored
+#: value: a softplus column at p ≈ 0 comes out of the scalar-FD chain as
+#: rounding noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
+#: model evaluation's own fp noise — and the gain statistic, being
+#: scale-invariant, would amplify that noise to a measured-looking number), a
+#: Stephens block at S ≡ 0 sits on √Σ's unbounded slope (an FD there returns
+#: an h-dependent value, not a derivative), and Suortti roughness at b = 0 is
+#: the *identity*, a column of exact zeros — for which 1e-3 is still a dead
+#: correction, hence the measured 0.3 of ``_ROUGHNESS_STAGE``.  So those
+#: columns are evaluated at the seed the corresponding stage would start its
+#: solve from (the ``strategy/staged.py`` literals: ``seed=1e-3``, roughness
+#: ``0.3``, ``strain_seed=1000.0``) and the candidate reports ``seeded=True``.
+#: The seeds live in a **second** probe build whose only contribution is
+#: those columns — never in the shared residual: measured on the layers
+#: suite's truth fixture, seeding the shared state instead broadens every
+#: peak, moves probe χ²_red from 1.01 to 7.1, and hands every width
+#: parameter a spurious gain ≈ 3×10⁴ at a *converged* fit
+#: (``Refinement.suggest`` implements the split and tells the same story).
 SUGGEST_SEED_SOFTPLUS = 1e-3
 SUGGEST_SEED_ROUGHNESS = 0.3
 SUGGEST_SEED_STEPHENS = 1000.0

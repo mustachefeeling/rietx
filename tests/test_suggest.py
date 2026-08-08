@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+import pxrdref as pr
 from pxrdref.optimize.statistics import block_projection_r2, one_parameter_gains
 from pxrdref.schemas.suggest import (
     SUGGEST_MIN_GAIN,
@@ -12,6 +13,8 @@ from pxrdref.schemas.suggest import (
     ParameterCandidate,
     SuggestionResult,
 )
+from pxrdref.strategy.suggest import SUGGEST_SEED_SOFTPLUS
+from tests.test_fitreport_layers import _report_for, _truth
 
 
 # ----------------------------------------------------------------------
@@ -323,3 +326,152 @@ def test_pairwise_r2_via_nuisance_matches_projected_correlation():
     b = jac[:, 4] - q @ (q.T @ jac[:, 4])
     rho2 = float(a @ b) ** 2 / (float(a @ a) * float(b @ b))
     assert r2 == pytest.approx(rho2, rel=1e-12)
+
+
+# ----------------------------------------------------------------------
+# misfit injection — the layers suite's truth fixture, one planted cause
+# each.  The module fixture is shared, so the whole file pins one worker.
+# ----------------------------------------------------------------------
+pytestmark = pytest.mark.xdist_group("suggest")
+
+
+@pytest.fixture(scope="module")
+def truth():
+    return _truth()
+
+
+def _refinement(truth, free=("phases.*.scale", "instrument.background.*")):
+    """A Refinement at the truth state (deep-copied by __init__) + the data."""
+    structure, ins, data = truth
+    r = pr.Refinement(structure, ins)
+    r.set_vary(["*"], False)
+    for glob in free:
+        r.set_vary([glob])
+    return r, data
+
+
+def _member_paths(res):
+    return [m.path for g in res.groups for m in g.members]
+
+
+def test_converged_state_suggests_nothing(truth):
+    """Negative control: at the truth values nothing clears the floor.
+
+    Calibration recorded in SUGGEST_MIN_GAIN's comment: the largest converged
+    gain measured here is 5.7 against a floor of 9.10 (χ²_red 1.011)."""
+    r, data = _refinement(truth)
+    res = r.suggest(data)
+    assert res.groups == [] and res.best_or_none() is None
+    assert res.chi2_red == pytest.approx(1.0, abs=0.1)
+    assert "converged" in res.summary
+    assert res.n_evaluated > 10  # it looked, and found nothing — not vice versa
+
+
+def test_injected_zero_shift_ranks_top_as_its_honest_tie(truth):
+    """A 0.02° zero shift puts {zero_shift, sample_displacement} on top —
+    unresolved, because at these weights the two are not separable, which is
+    the tie Toby's per-derivative ranking would have silently broken."""
+    r, data = _refinement(truth)
+    r.instrument.zero_shift.value = 0.02
+    res = r.suggest(data, exclude=["instrument.geometry.axial_*"])
+    assert not any("axial" in p for p in _member_paths(res))
+    top = res.groups[0]
+    assert {m.path for m in top.members} == {
+        "instrument.zero_shift", "instrument.geometry.sample_displacement"}
+    assert not top.resolved and res.best_or_none() is None
+    assert top.gain > 100 * res.noise_floor  # ~4 orders above a converged state
+
+
+def test_zero_shift_layer2_agreement_recorded(truth):
+    """The FitReport's refine_zero_shift action lands on the candidate."""
+    structure, ins, data = truth
+    r, _ = _refinement(truth)
+    r.instrument.zero_shift.value = 0.02
+    report = _report_for(r.structure, r.instrument, data)
+    assert "refine_zero_shift" in [a.kind for a in report.suggested_actions]
+    res = r.suggest(data, report=report,
+                    exclude=["instrument.geometry.axial_*"])
+    by_path = {m.path: m for g in res.groups for m in g.members}
+    assert by_path["instrument.zero_shift"].action_kind == "refine_zero_shift"
+
+
+def test_injected_w_error_resolved_and_identity_pairs_tie(truth):
+    """A W error yields a *resolved* W winner, while the exact-identity pair
+    (instrument X vs phase lor_size — both Lorentzian FWHM/cosθ) comes back
+    as one unresolved group whatever the injection."""
+    r, data = _refinement(truth)
+    r.instrument.profile.w.value = 6e-3
+    res = r.suggest(data)
+    best = res.best_or_none()
+    assert best is not None and best.path == "instrument.profile.w"
+    ties = [{m.path for m in g.members} for g in res.groups if not g.resolved]
+    assert {"instrument.profile.x", "phases.0.lor_size"} in ties
+
+
+def test_candidate_absorbed_by_free_set_is_not_a_winner(truth):
+    """With U,V,W free, gauss_size (variance ∝ 1/cos² = U+W's span) is
+    non-separable: whatever it would fit, the free set already reaches."""
+    r, data = _refinement(truth, free=(
+        "phases.*.scale", "instrument.background.*", "instrument.profile.u",
+        "instrument.profile.v", "instrument.profile.w"))
+    r.instrument.profile.w.value = 6e-3
+    res = r.suggest(data)
+    absorbed = {p.path: p for p in res.non_separable}
+    assert "phases.0.gauss_size" in absorbed
+    assert absorbed["phases.0.gauss_size"].absorption > 0.95
+    assert "phases.0.gauss_size" not in _member_paths(res)
+
+
+def test_softplus_floor_candidate_found_with_seeded_flag(truth):
+    """An X error must surface lor_size even though it sits at the softplus
+    floor where its unseeded column is fp noise — via the second, seeded
+    probe build, reported as seeded=True from the stage seed."""
+    r, data = _refinement(truth)
+    r.instrument.profile.x.value = 9e-3
+    res = r.suggest(data)
+    top = res.groups[0]
+    assert {m.path for m in top.members} == {
+        "instrument.profile.x", "phases.0.lor_size"}
+    lor = next(m for m in top.members if m.path == "phases.0.lor_size")
+    assert lor.seeded and lor.seed_value == SUGGEST_SEED_SOFTPLUS
+    assert not top.resolved  # the identity pair again — never a fake winner
+
+
+def test_suggest_is_read_only(truth):
+    """No history node, no model/value/vary/result mutation, no leaked seed."""
+    r, data = _refinement(truth)
+    r.instrument.profile.x.value = 9e-3   # forces the seeded second build
+    before_vals = {row.path: row.value for row in r.parameters()}
+    before_vary = {row.path: row.vary for row in r.parameters()}
+    free_before = list(r._free_paths)
+    r.suggest(data)
+    assert r.history is None and r.result_ is None and r._model is None
+    assert list(r._free_paths) == free_before
+    assert {row.path: row.value for row in r.parameters()} == before_vals
+    assert {row.path: row.vary for row in r.parameters()} == before_vary
+    # the seed went into probe copies, never into the working models
+    assert r.structure.phases[0].lor_size.value == 0.0
+
+
+def test_lebail_mode_fixed_paths_never_enumerate(truth):
+    """In Le Bail mode no .atoms./.scale/.source.lines. path is a candidate,
+    and everything refinable-but-held was either scored or skipped."""
+    r, data = _refinement(truth, free=("instrument.background.*",))
+    res = r.suggest(data, mode="lebail")
+    reported = (_member_paths(res) + [p.path for p in res.non_separable]
+                + res.skipped)
+    assert reported and not any(
+        ".atoms." in p or p.endswith(".scale") or ".source.lines." in p
+        for p in reported)
+    held = [row for row in r.parameters(mode="lebail")
+            if row.refinable and not row.vary]
+    assert res.n_evaluated + len(res.skipped) == len(held)
+
+
+def test_include_glob_limits_enumeration(truth):
+    r, data = _refinement(truth)
+    r.instrument.zero_shift.value = 0.02
+    res = r.suggest(data, include="instrument.geometry.*")
+    reported = (_member_paths(res) + [p.path for p in res.non_separable]
+                + res.skipped)
+    assert reported and all(p.startswith("instrument.geometry.") for p in reported)
