@@ -88,14 +88,17 @@ false in both halves. The score is a runner for exactly that reason (1041,
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1046](wp/1046-candidate-cap-before-ranking.md) — small, fully diagnosed, and
-   the one thing that moves the graded number without touching a search: the
-   per-engine `max_candidates` truncates each engine's *own* Borda before
-   consensus ranks, so on set F the truth is rank 1 at a 5 s budget and absent
-   at 30 s. Its docstring says "a cap, not a ranking"; it is a ranking.
-2. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs,
+1. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs,
    the Peaks tab now carrying 1045's Search controls (its `### Inherited`
    has the onboarding notes).
+2. [1046](wp/1046-candidate-cap-before-ranking.md) — fully diagnosed, and
+   **measured not to be a one-line win**: the per-engine `max_candidates`
+   truncates each engine's *own* Borda before consensus ranks (on set F the
+   truth is rank 1 at a 5 s budget and absent at 30 s), but raising it 12 → 60
+   over the whole manual half is **net zero** — F enters at rank 3 and Db is
+   displaced from first by the rivals that came with it. So the cap hides a
+   candidate *and* the ranking cannot hold the truth up once it is admitted;
+   whoever takes this needs both halves.
 3. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by
    1016, 1041, 1043, 1042, 1045 and 1050; read it first — and note 1046 changes

@@ -39,6 +39,26 @@ consensus-merges*", is the thing to fix or the thing to honour. As it stands the
 cap **is** a ranking, applied by the layer whose ordering the design says is not
 authoritative.
 
+**Raising it is measured, and it is not the fix.** WP-1026 ran the benchmark's
+whole manual half both ways at the package's 30 s budget — ten sets, the paper's
+±1 rule:
+
+| set | cap 12 | cap 60 |
+|---|---|---|
+| Bb | rank 1 (+1) | rank 1 (+1) |
+| Db | rank 1 (+1) | **rank 2 (0)** |
+| E | rank 1 (+1) | rank 1 (+1) |
+| F | **absent (−1)** | **rank 3 (0)** |
+| global | **−4** | **−4** |
+
+Net zero, and the composition is the finding: F enters the reported list, and Db
+is **displaced from first** by rivals that were admitted alongside it. So this WP
+has two halves and only the first was visible from set F alone — the cap hides a
+candidate the panel rates highly, *and* the merged ranking cannot hold the truth
+at rank 1 once the pool grows. Fixing only the cap trades one dataset's +1 for
+another's. That is the same shape as WP-1041's refuted aggregates: a margin is
+comparable within a panel member, not across a pool that changed size.
+
 Two things to know before choosing a fix:
 
 - **Raising it is not free but is not expensive either**: at cap 200 the same set
@@ -62,15 +82,21 @@ Two things to know before choosing a fix:
 
 ## Tasks
 
-- [ ] Reproduce the table above from the runner
-      (`python -m tests.bethanechol_benchmark --sets F --modes manual
-      --budget 30 --max-candidates 60`) and on one known-cell dataset, so the
-      claim is not benchmark-specific.
-- [ ] Decide: raise the per-engine cap, apply it after consensus ranks, or keep
-      it and emit a diagnostic naming how many candidates were dropped. Whichever
-      it is, `DEFAULT_MAX_CANDIDATES`'s docstring stops claiming it is not a
-      ranking.
-- [ ] Re-measure the bethanechol global with the decision in place, and the
+- [ ] Reproduce the budget table on one **known-cell** dataset, so the claim is
+      not benchmark-specific — WP-1041 already records two datasets where the
+      truth is found but does not lead (NAC rank 2, FAP rank 4), and whether
+      either is the cap is unmeasured.
+- [ ] Decide the *reporting* half: raise the per-engine cap, apply it after
+      consensus ranks, or keep it and emit a diagnostic naming how many
+      candidates were dropped. Whichever it is,
+      `DEFAULT_MAX_CANDIDATES`'s docstring stops claiming it is not a ranking.
+- [ ] Then the *ranking* half, which the measurement above says cannot be
+      skipped: with a larger pool the merged Borda demotes a truth it used to
+      lead with (Db, rank 1 → 2). Note WP-1041 measured and **refuted** the
+      obvious aggregates; this needs a panel member that separates, not another
+      weighting sweep.
+- [ ] Re-measure the bethanechol global with both decisions in place
+      (`python -m tests.bethanechol_benchmark`, ~1 h, run it alone) and the
       known-cell scoreboard (`tests/indexing_gallery.py` regenerates it).
 
 ## Acceptance

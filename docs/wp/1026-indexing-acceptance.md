@@ -388,6 +388,17 @@ record.*
   `DEFAULT_MAX_CANDIDATES`'s docstring says "a cap, not a ranking". It is a
   ranking. **This is what costs F**, the easiest set of the ten.
 
+  **And raising it is *not* the fix — measured, because the runner made the
+  counterfactual a fifteen-minute question.** The whole manual half re-run at
+  `--max-candidates 60`, same 30 s budget, scores **−4: identical to cap 12**.
+  The composition is the finding — F enters at rank 3 (absent before) and **Db
+  is displaced from rank 1 to rank 2** by rivals admitted alongside it. So the
+  cap hides a candidate the panel rates highly *and* the merged ranking cannot
+  hold a truth at first once the pool grows; fixing only the cap trades one
+  dataset's +1 for another's. 1046's tasks are split into those two halves, and
+  the ROADMAP queue entry says so rather than promising a one-line win — which
+  is what its first draft, written before this run, did say.
+
   **6. 1043's −16 is superseded, and both of its own qualifications were
   right.** It warned the figure was `trial_error`-only at 30 s and that a full
   consensus run would move it *in both directions*. It did: three sets solved
