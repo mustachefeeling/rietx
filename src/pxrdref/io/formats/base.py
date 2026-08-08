@@ -49,6 +49,11 @@ class PatternFormat:
     matches: Callable[[Path], bool]
     read: Callable[..., PatternData]
     options: tuple[str, ...] = field(default_factory=tuple)
+    #: why this format is recognised **in order to be refused**, or ``None`` for
+    #: one that reads.  One field rather than a side table, so ``capabilities()``
+    #: stays honest without ``reader_formats`` meaning two things: an entry says
+    #: for itself whether it is a reader or a refusal.
+    refuses: str | None = None
 
 
 @dataclass(frozen=True)

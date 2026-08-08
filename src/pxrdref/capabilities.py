@@ -155,6 +155,11 @@ class ReaderCapability(Base):
     #: Names only; what each one *means* is :class:`ReaderOptionCapability`,
     #: which is build-wide rather than per format
     options: list[str]
+    #: set when this entry is a format the build **recognises in order to
+    #: decline** — a ``.dif`` peak list is not a profile — carrying why.  A
+    #: client reads it to tell "we can open this" from "we know what this is
+    #: and it is the wrong kind of file", which are different answers
+    refuses: str | None = None
 
 
 class ReaderOptionCapability(Base):
@@ -254,7 +259,8 @@ def capabilities() -> Capabilities:
         reader_formats=[
             ReaderCapability(name=f.name, title=f.title,
                              extensions=list(f.extensions), sniff=f.sniff,
-                             sigma=f.sigma, options=list(f.options))
+                             sigma=f.sigma, options=list(f.options),
+                             refuses=f.refuses)
             for f in PATTERN_FORMATS],
         reader_options=[
             ReaderOptionCapability(name=o.name, kind=o.kind, help=o.help)

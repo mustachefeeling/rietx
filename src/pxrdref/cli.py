@@ -83,8 +83,12 @@ def _index(argv: list[str]) -> int:
         description="Determine the unit cell of an unknown phase from a powder "
                     "pattern. Prints every candidate with its confidence and the "
                     "reasons it is not higher; exits 1 if no cell reached the gate.")
-    p.add_argument("pattern", help="pattern file (.xy/.xye/.fxye/.prn/.dat, or a "
-                                   "pd-CIF)")
+    # from the registry, because this string was already stale once: it named
+    # five extensions and no pdCIF suffix while three readers were registered
+    from .io.readers import PATTERN_FORMATS
+    p.add_argument("pattern", help="pattern file — " + ", ".join(
+        sorted({e for f in PATTERN_FORMATS if f.refuses is None
+                for e in f.extensions})) + ", or any two/three-column ASCII")
     p.add_argument("--wavelength", type=float, required=True,
                    help="primary wavelength in Å. A single line: for a lab Kα "
                         "doublet build the Instrument in python "

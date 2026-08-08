@@ -186,6 +186,151 @@ def test_the_default_scan_is_never_a_silent_one(tmp_path):
     assert quiet == []
 
 
+# ---------------------------------------------------------------------- chi
+def write_chi(path, x_label, tt, y, *, declared=None, n_datasets=1):
+    count = len(tt) if declared is None else declared
+    head_lines = [path.stem + ".tif", x_label, "Intensity",
+                  f"       {count}" + (f"  {n_datasets}" if n_datasets else "")]
+    rows = [f"  {a:.6f}  {b:.6f}" for a, b in zip(tt, y)]
+    path.write_text("\n".join(head_lines + rows) + "\n", encoding="utf-8")
+    return path
+
+
+def test_the_chi_point_count_line_is_no_longer_read_as_a_data_point(tmp_path):
+    """The regression this reader exists for.
+
+    ``.chi`` line 4 is ``<npoints> [<ndatasets>]``, and ``2000 1`` is a
+    perfectly good pair of floats — so the ASCII-column fallback appended it as
+    a point at x = 2000, y = 1.  A phantom datum thousands of degrees outside
+    the pattern, which survives every plot and quietly widens the fitted range.
+    """
+    tt = [10.0, 10.01, 10.02]
+    p = write_chi(tmp_path / "ceo2.chi", "2-Theta Angle (Degrees)", tt,
+                  [1.0, 2.0, 3.0], n_datasets=1)
+
+    assert identify_format(p).name == "chi"
+    data = pr.read_pattern(p)
+    assert data.two_theta == tt              # three points, not four
+    assert 3.0 not in data.two_theta         # the count line is not a datum
+
+    # and the fallback really would have taken it: the same bytes, read as xy
+    from pxrdref.io.formats.xy import read_xy
+    assert len(read_xy(p).two_theta) == len(tt) + 1
+
+
+@pytest.mark.parametrize("label,what", [
+    ("q (nm^-1)", "scattering vector"),
+    ("Q_A^-1", "scattering vector"),
+    ("d (Angstrom)", "d-spacing"),
+    ("d-spacing", "d-spacing"),
+])
+def test_an_axis_that_is_recognisably_not_two_theta_is_refused(tmp_path, label, what):
+    """Reading a q axis as 2θ gives a confident wrong cell from values that
+    parse perfectly — the exact failure class this package refuses.  The
+    conversion needs a wavelength the file does not carry, so inventing one
+    would be worse than declining."""
+    p = write_chi(tmp_path / "int.chi", label, [1.0, 2.0], [1.0, 2.0])
+    with pytest.raises(ValueError) as exc:
+        pr.read_pattern(p)
+    assert repr(label) in str(exc.value) and what in str(exc.value)
+
+
+def test_a_two_theta_label_wins_over_the_d_in_degrees(tmp_path):
+    """"2-Theta Angle (Degrees)" must not be read as a d axis by its own
+    spelling — which is why the 2θ recogniser is consulted first."""
+    p = write_chi(tmp_path / "ok.chi", "2-Theta Angle (Degrees)", [1.0, 2.0],
+                  [1.0, 2.0])
+    notes: list = []
+    pr.read_pattern(p, diagnostics=notes)
+    assert notes == []
+
+
+def test_an_unrecognisable_axis_is_read_as_two_theta_and_says_so(tmp_path):
+    """Unrecognisable is not the same as recognisably wrong: most files really
+    are 2θ, so this reads — but the assumption is stated, with the label."""
+    p = write_chi(tmp_path / "odd.chi", "Angle", [1.0, 2.0], [1.0, 2.0])
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert [d.code for d in notes] == ["CHI_X_AXIS_ASSUMED"]
+    assert "'Angle'" in notes[0].message
+    assert data.metadata["x_label"] == "Angle"   # verbatim, never normalised
+
+
+def test_the_count_gate_is_what_keeps_an_xy_with_a_prose_header_out(tmp_path):
+    """The shape gate alone is not decisive — a three-line prose header over a
+    lone integer passes it — so line 4's own claim is checked against the rows
+    that follow.  That read is O(N) and is the one stated exemption to the
+    bounded-head rule; it runs only behind the shape gate."""
+    tt, y = [10.0, 10.01, 10.02], [1.0, 2.0, 3.0]
+    honest = write_chi(tmp_path / "real.chi", "2-Theta", tt, y)
+    lying = write_chi(tmp_path / "prose.xy", "2-Theta", tt, y, declared=999)
+
+    assert identify_format(honest).name == "chi"
+    assert identify_format(lying).name == "xy"   # falls through, as it should
+
+
+# ---------------------------------------------------------------------- dif
+PEAK_LIST = """\
+Quartz, SiO2
+  D-SPACING   INTENSITY   H  K  L
+     4.25510      16.29    1  0  0
+     3.34350     100.00    1  0  1
+     2.45680       9.15    1  1  0
+     2.28150       8.09    1  0  2
+     2.23670       4.29    1  1  1
+"""
+
+
+def test_a_peak_list_is_refused_by_name_rather_than_refined_against(tmp_path):
+    """~30 delta functions are not a profile, and Rwp will not say so.
+
+    The ASCII fallback reads a ``.dif`` perfectly happily; the refinement that
+    follows fits every background coefficient, every width and every scale to a
+    picture of a diffractogram.  So the file is claimed *in order to be
+    declined*, and the refusal names what to do instead.
+    """
+    p = tmp_path / "quartz.dif"
+    p.write_text(PEAK_LIST, encoding="utf-8")
+
+    fmt = identify_format(p)
+    assert fmt.name == "dif_peaklist" and fmt.refuses
+    with pytest.raises(ValueError) as exc:
+        pr.read_pattern(p)
+    assert "quartz.dif" in str(exc.value) and "peak list" in str(exc.value)
+    assert "index_pattern" in str(exc.value)   # the tool that does take positions
+
+
+def test_the_evidence_is_the_hkl_columns_not_the_suffix(tmp_path):
+    """A real profile someone named ``.dif`` still opens: the suffix is a
+    filename and the Miller indices are the format."""
+    p = tmp_path / "actually_a_scan.dif"
+    p.write_text("\n".join(f"{10 + i * 0.02:.4f} {i}" for i in range(60)),
+                 encoding="utf-8")
+
+    assert identify_format(p).name == "xy"
+    assert len(pr.read_pattern(p).two_theta) == 60
+
+
+def test_a_peak_list_under_another_suffix_is_not_claimed(tmp_path):
+    """The converse, stated so the pair is symmetric: matching needs *both*, so
+    this reader cannot start claiming ASCII files with integer columns."""
+    p = tmp_path / "quartz.txt"
+    p.write_text(PEAK_LIST, encoding="utf-8")
+    assert identify_format(p).name != "dif_peaklist"
+
+
+def test_a_refusal_is_an_entry_in_capabilities_not_a_side_table():
+    """``reader_formats`` would mean two things if refusals lived elsewhere; the
+    field says which an entry is, so a client can tell "we can open this" from
+    "we know what this is and it is the wrong kind of file"."""
+    caps = pr.capabilities()
+    by_name = {r.name: r for r in caps.reader_formats}
+    assert by_name["dif_peaklist"].refuses
+    assert all(by_name[f.name].refuses is None
+               for f in PATTERN_FORMATS if f.refuses is None)
+
+
 # --------------------------------------------------------------------- head
 def test_the_head_read_is_bounded_and_reports_the_mark(tmp_path):
     """A sniff may not cost O(file): the predecessor decoded a whole file and

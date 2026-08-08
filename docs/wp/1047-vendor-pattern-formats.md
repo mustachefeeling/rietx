@@ -419,10 +419,10 @@ that belong to it), never mid-format.
       decode in `_read_xy`); `identify_format`'s message built from the
       registry; grep for tests assuming it never raises.
 - [x] 5. The truncation-fuzz harness; widen `imports.py:221`.
-- [ ] 6. `.chi` — reader, the two-gate `matches` (shape from `head()`, count
+- [x] 6. `.chi` — reader, the two-gate `matches` (shape from `head()`, count
       as the stated exemption), axis policy. Regression test that today's
       phantom point is gone.
-- [ ] 7. `.dif` — `PatternFormat.refuses` + `ReaderCapability.refuses`.
+- [x] 7. `.dif` — `PatternFormat.refuses` + `ReaderCapability.refuses`.
 - [ ] 8. `.ras` — reader, the `scan` option, `ScanInfo` / `list_scans` /
       `fmt.scans` with the biconditional meta-test
       (`"scan" in options ⟺ scans is not None`), `METADATA_KEYS`, the

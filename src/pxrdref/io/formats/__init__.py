@@ -32,12 +32,14 @@ from .base import (
     multiscan_default,
     reader_options_for,
 )
+from .chi import CHI, read_chi
+from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
 from .pdcif import PDCIF, read_pdcif
 from .xy import XY, read_xy
 
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (PDCIF, GSAS, XY)
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (PDCIF, GSAS, CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
@@ -50,6 +52,8 @@ __all__ = [
     "head",
     "looks_binary",
     "multiscan_default",
+    "read_chi",
+    "read_dif",
     "read_gsas",
     "read_pdcif",
     "read_xy",
