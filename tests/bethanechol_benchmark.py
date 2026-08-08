@@ -49,11 +49,13 @@ engine × system) is the only bound here, it is recorded in every record, and
 ``search_complete`` is reported beside every score.
 
 **A candidate cell is a lattice, not a tuple.**  The published cell comes back in
-other settings — WP-1030 met it as ``c + a`` at β = 139.70° with the published
-volume — so the match is :func:`indexing_gallery.rank_of_lattice`: the centring,
-``reduce.same_lattice`` on the reduced A..F, *and* a band on the conventional
-cell.  One implementation, shared with the known-cell scoreboard, because
-dropping any one condition reads a wrong answer as right.
+other settings — WP-1030 met it as ``c + a`` at β = 139.70°, and this runner's
+own first result was (7.1346, 16.4091, 11.7530, β 131.107°) for a published
+(8.875, 16.408, 7.137, β 93.84°), the same lattice with not one axis in common —
+so the match is :func:`indexing_gallery.rank_of_lattice`: the centring, and
+:data:`TRUTH_BAND` on the **Niggli-reduced** cell.  One implementation, shared
+with the known-cell scoreboard; comparing conventional axes scored that correct
+rank-1 answer −1 until this benchmark caught it.
 
 What the score can and cannot say
 ---------------------------------
@@ -72,6 +74,16 @@ statement about the protocol, and ``reachable`` records it per run.  And
 cell sits closest to the published one, so a −1 that missed by 200 ppm and a −1
 that found nothing resembling the answer are distinguishable in the artifact
 rather than identical in the table.
+
+And one knob exists because the first graded run needed it.  ``--max-candidates``
+overrides ``SearchSpec.max_candidates``, the **per-engine** cap applied before
+consensus ranks.  Measured on set F in manual mode: at a 30 s budget both engines
+find the published lattice and the consensus panel puts it **3rd**, but at the
+package default of 12 it is absent from the result entirely — each engine's own
+Borda over its own larger harvest drops it below twelfth, and consensus never
+sees it.  The graded run uses the package defaults, because the paper's default
+mode *is* "the programs' default values"; the override is how the score's
+sensitivity to that cap is measured rather than argued.
 """
 
 from __future__ import annotations
@@ -178,7 +190,8 @@ def best_offset(bench: dict, name: str,
 
 
 def spec_for(bench: dict, mode: str, *,
-             budget_seconds: float | None = None) -> SearchSpec:
+             budget_seconds: float | None = None,
+             max_candidates: int | None = None) -> SearchSpec:
     """The paper's search domain for one mode, read out of the fixture.
 
     ``default`` is "the programs' default values … in all crystal symmetries"
@@ -204,6 +217,8 @@ def spec_for(bench: dict, mode: str, *,
         raise ValueError(f"unknown mode {mode!r}; the paper has two")
     if budget_seconds is not None:
         spec = replace(spec, budget_seconds=float(budget_seconds))
+    if max_candidates is not None:
+        spec = replace(spec, max_candidates=int(max_candidates))
     return spec
 
 
@@ -257,11 +272,13 @@ def _nearest(ranking: list[dict[str, Any]], cell: tuple[float, ...]
 
 
 def run_one(bench: dict, name: str, mode: str, *,
-            budget_seconds: float | None = None) -> dict[str, Any]:
+            budget_seconds: float | None = None,
+            max_candidates: int | None = None) -> dict[str, Any]:
     """One (set, mode) run, scored.  Everything the table needs is in the dict."""
     tt, lam = positions(bench, name)
     peaks = PeakList.from_positions(tt, wavelength=lam)
-    spec = spec_for(bench, mode, budget_seconds=budget_seconds)
+    spec = spec_for(bench, mode, budget_seconds=budget_seconds,
+                    max_candidates=max_candidates)
     t0 = time.perf_counter()
     result = index_pattern(peaks, spec=spec, preset=PRESET)
     elapsed = time.perf_counter() - t0
@@ -282,6 +299,7 @@ def run_one(bench: dict, name: str, mode: str, *,
         "elapsed_s": round(elapsed, 1),
         "preset": result.preset,
         "budget_seconds": spec.budget_seconds,
+        "max_candidates": spec.max_candidates,
         "engines_run": list(result.engines_run),
         "systems_searched": list(result.systems_searched),
         "search_complete": dict(result.search_complete),
@@ -304,32 +322,65 @@ def run_one(bench: dict, name: str, mode: str, *,
 def run(bench: dict | None = None, *, sets: list[str] | None = None,
         modes: list[str] | None = None,
         budget_seconds: float | None = None,
+        max_candidates: int | None = None,
+        out: pathlib.Path | None = None,
+        records: list[dict[str, Any]] | None = None,
         verbose: bool = True) -> dict[str, Any]:
-    """The whole protocol (or the slice named), scored, as one report dict."""
+    """The whole protocol (or the slice named), scored, as one report dict.
+
+    ``out`` is rewritten after **every** run rather than once at the end, and
+    ``records`` seeds it with runs already on disk (``--append``): the paper's
+    *default* mode searches all seven systems and costs far more per set than its
+    monoclinic-only manual mode, so the protocol is naturally run in two sittings
+    and a report that only exists if the last search returns is a report you
+    re-run from scratch after any interruption.
+    """
     bench = bench if bench is not None else load()
     sets = sets or list(bench["sets"])
     modes = modes or ["default", "manual"]
-    records = []
-    for name in sets:
-        for mode in modes:
+    records = list(records or [])
+    done = {(r["set"], r["mode"]) for r in records}
+    for mode in modes:
+        for name in sets:
+            if (name, mode) in done:
+                if verbose:
+                    print(f"  {name:>2s} {mode:<8s} … already in the artifact")
+                continue
             if verbose:
                 print(f"  {name:>2s} {mode:<8s} …", end="", flush=True)
-            rec = run_one(bench, name, mode, budget_seconds=budget_seconds)
+            rec = run_one(bench, name, mode, budget_seconds=budget_seconds,
+                          max_candidates=max_candidates)
             records.append(rec)
             if verbose:
                 near = rec["nearest"]
                 print(f" {rec['elapsed_s']:6.1f} s  rank="
                       f"{rec['truth_rank'] or '-':>3}  score={rec['score']:+d}"
                       f"  nearest={near['max_rel_length_ppm'] if near else '-'} ppm")
+            if out is not None:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(json.dumps(_report(bench, records, budget_seconds,
+                                                  max_candidates), indent=1),
+                               encoding="utf-8")
+    return _report(bench, records, budget_seconds, max_candidates)
+
+
+def _report(bench, records, budget_seconds, max_candidates):
     return {
         "records": records,
         "global": sum(r["score"] for r in records),
+        # the best score the protocol *allows* this package: a set whose truth
+        # leaves more lines unindexed than the mode tolerates cannot be returned
+        # however good the search is, so it is a -1 the search never had a say in
+        "ceiling": sum(1 if r["reachable"] else -1 for r in records),
         "n_runs": len(records),
-        "complete_protocol": (sorted(sets) == sorted(bench["sets"])
-                              and sorted(modes) == ["default", "manual"]),
+        "complete_protocol": (
+            {(r["set"], r["mode"]) for r in records}
+            == {(n, m) for n in bench["sets"] for m in ("default", "manual")}),
         "published": bench["scoring"]["published"],
         "preset": PRESET,
         "truth_band": TRUTH_BAND,
+        "budget_seconds": budget_seconds,
+        "max_candidates": max_candidates,
     }
 
 
@@ -361,9 +412,12 @@ def table(report: dict[str, Any]) -> str:
         lines.append(row + "   " + "/".join(flags))
     lines.append("-" * len(head))
     lines.append(f"{'':<4}{'global':>10} {report['global']:+d}"
-                 f"   over {report['n_runs']} runs"
+                 f"   over {report['n_runs']} runs, ceiling "
+                 f"{report['ceiling']:+d}"
                  + ("" if report["complete_protocol"] else "  (PARTIAL — not the "
                     "paper's protocol, not comparable with Table 5)"))
+    lines.append("ceiling = +1 per reachable run, −1 per run whose truth leaves "
+                 "more lines unindexed than the mode tolerates")
     ind = report["published"]["individual_globals"]
     lines.append("published individual globals: "
                  + ", ".join(f"{k} {v:+d}" for k, v in ind.items()
@@ -384,18 +438,31 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--budget", type=float, default=None,
                    help="budget_seconds per (engine x system); default is the "
                         "package's own DEFAULT_BUDGET_SECONDS")
+    p.add_argument("--max-candidates", type=int, default=None,
+                   help="override SearchSpec.max_candidates, the PER-ENGINE cap "
+                        "applied before consensus ranks; the package default of "
+                        "12 discards candidates the consensus panel then rates "
+                        "highly (WP-1026, set F)")
+    p.add_argument("--append", action="store_true",
+                   help="seed from the runs already in --out and skip them; the "
+                        "protocol's two modes cost very differently and are "
+                        "naturally run in two sittings")
     p.add_argument("--out", type=pathlib.Path, default=ARTIFACT)
     args = p.parse_args(argv)
 
     bench = load()
     print(f"bethanechol benchmark — preset={PRESET}, "
-          f"budget={args.budget or 'package default'} s per (engine x system)")
+          f"budget={args.budget or 'package default'} s per (engine x system), "
+          f"max_candidates={args.max_candidates or 'package default'}")
+    prior = []
+    if args.append and args.out.exists():
+        prior = json.loads(args.out.read_text(encoding="utf-8"))["records"]
+        print(f"appending to {len(prior)} run(s) already in {args.out}")
     report = run(bench, sets=args.sets, modes=args.modes,
-                 budget_seconds=args.budget)
+                 budget_seconds=args.budget, records=prior,
+                 max_candidates=args.max_candidates, out=args.out)
     print()
     print(table(report))
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, indent=1), encoding="utf-8")
     print(f"\nwritten: {args.out}")
     return 0
 

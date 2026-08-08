@@ -128,14 +128,13 @@ legitimately contributes a fraction.
 **But the panel ranks; it does not score** (WP-1041) — a margin is comparable within a
 member, not across them, so a raw log-sum merely re-weights the panel by each member's
 dynamic range: 5 of 6 datasets, exactly Borda's, failing on a different one.
-`fom.log_sum_scores` carries the measurement and stays **unwired**.
-Two things the panel needs from its caller (WP-1026):
-the **matching window** is an argument (`fom_panel(..., q_match=)`) separate from the
-per-line σ, because coverage members must ask the same "is this the same line"
-question the *search* asked while M₂₀ and F_N floor their discrepancy on what the
-measurement resolves; and a candidate carrying a fitted shift is scored on
-`engines.scored_positions`, the **corrected** lines it claims, or the panel marks it
-down for its own correction.
+`fom.log_sum_scores` carries the measurement and stays **unwired**. Two things the
+panel needs from its caller (WP-1026): the **matching window** is an argument
+(`fom_panel(..., q_match=)`) separate from the per-line σ, because coverage members
+must ask the same "is this the same line" question the *search* asked while M₂₀ and
+F_N floor their discrepancy on what the measurement resolves; and a candidate carrying
+a fitted shift is scored on `engines.scored_positions`, the **corrected** lines it
+claims, or the panel marks it down for its own correction.
 
 ## The search window and the shift
 
@@ -175,13 +174,15 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   satellites, then `_box_key` skipping unrefined leaves).
 - **Profile an engine before ranking what to fix in it: a cost model reasoned from
   the algorithm's structure is not a profile** (WP-1030's ranking came out nearly
-  inverted). Corollary: **a candidate cell is a lattice, not a tuple** — compare with
-  `reduce.same_lattice`, *its centring*, **and the dataset's own accuracy band**,
-  never sorted axes. Drop any of the three and a wrong answer reads as right: sorted
-  axes miss a correct answer in another setting (WP-1040's monoclinic row), no
-  centring reads a P description as its own I truth (NAC), and `same_lattice` alone
-  falls back to a deliberately loose 5e-3 that calls FAP's +966 ppm leader and its
-  +258 ppm cross-code cell the same answer (WP-1041).
+  inverted). Corollary: **a candidate cell is a lattice, not a tuple** — reduce both
+  sides, then compare the **centring** and the **dataset's own band** on the *reduced*
+  cell (`indexing_gallery.rank_of_lattice`, the one implementation). Each weaker form
+  has read a right answer as wrong or a wrong one as right: sorted axes miss another
+  setting (WP-1040), no centring reads a P description as its own I truth (NAC), a
+  *conventional*-cell band scored bethanechol's rank-1 answer −1 because a monoclinic
+  setting is not unique (WP-1026), and `same_lattice` is **not** a band — its 5e-3 is
+  componentwise on A..F, so near 90° it is arbitrarily tight (WP-1026) while alone it
+  merges FAP's +966 ppm leader with its +258 ppm cross-code cell (WP-1041).
 - **Removing a redundant search must not remove its prunes**, and only real data will
   say that you did: the centred passes are redundant *as searches* (each centred trial
   set is a subset of the primitive one) and not as *filters*; the prunes being monotone
@@ -207,10 +208,9 @@ The measured stories are in the v1.0 record's appendix; constants in this packag
   every derivative lattice is reported and the gate can never promote. And
   `ambiguity_partners` walks sublattices only, so a *smaller*-volume isospectral
   rival is invisible — tetragonal P (a/√2, a) vs cubic P a.
-- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is provenance
-  about the input, never handed to anything that applies a centring. Reduction needs
-  the *relative* ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies
-  the gate its agreement.
+- **A Niggli-reduced cell is primitive**: `ReducedCell.centring` is provenance about the
+  input, never handed to anything that applies a centring. Reduction needs the *relative*
+  ε (`NIGGLI_EPS_RELATIVE`) or one lattice splits into two and denies the gate agreement.
 - **An assumed precision may never refuse to index** (`from_positions` lists get no
   `MAX_RELATIVE_SIGMA_Q` vote; the shift-allowance half is above).
 - **This package is not slow at indexing, it is silent** — DICVOL04 reaches 3770 s
