@@ -410,13 +410,19 @@ record.*
   are rewritten there, and the reason the score is now a runner is precisely
   that none of them was ever regenerated.
 
-  **7. Counts and costs, and one cost that is not mine to fix.** Fast suite
-  `[dev,jax,torch]`, darwin/arm64: **2039 passed / 5 skipped** against main's
-  **2021 / 5** measured the same way in the same session, i.e. **+18 passes and
-  no new skip**, wall clock 2:46-3:29 across the two runs. The +18 is exactly
-  accounted for: **3** new fast acceptance rows, and **15** from the three new
-  `validation_matrix` Claims, which carry five per-claim checks each (66 → 69
-  claims). `tests/test_acceptance_indexing.py` is **44 passed in 28:54 serial**
+  **7. Counts and costs, and one cost that is not mine to fix.** All
+  `[dev,jax,torch]`, darwin/arm64. Fast suite: **2039 passed / 5 skipped**
+  against main's **2021 / 5** measured the same way in the same session, i.e.
+  **+18 passes and no new skip**, wall clock 2:46-3:29 across the two runs. The
+  +18 is exactly accounted for: **3** new fast acceptance rows, and **15** from
+  the three new `validation_matrix` Claims, which carry five per-claim checks
+  each (66 → 69 claims). Full suite on this branch: **2146 passed / 6 skipped in
+  26:03**, no failures. Main's full-suite figure was **not** re-measured — every
+  row this session added is non-slow, so the full selection moves by the same
+  18 and main's would be 2128 / 6; that one is a derivation, not a measurement,
+  and is flagged as such rather than quoted as a count. (The sixth skip is the
+  full selection's own and is on main too.)
+  `tests/test_acceptance_indexing.py` is **44 passed in 28:54 serial**
   — against the **5-6 min** this WP last recorded. I added three *fast* rows and
   no slow ones, so that growth belongs to 1041/1042/1043; per `tests/CLAUDE.md`
   a group ordering is a measurement with a shelf life, so **read `--durations`
