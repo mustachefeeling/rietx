@@ -160,3 +160,47 @@ confident wrong singleton. Layer 2 turns attributions into actions,
 testing candidate model extensions with Hamilton's ℛ-ratio test
 {cite}`hamilton1965` and ΔBIC {cite}`schwarz1978`; its thresholds are
 versioned (currently {{ THRESHOLDS_VERSION }}).
+
+## Which parameter to free next
+
+`Refinement.suggest()` ranks every held-but-refinable parameter by the χ²
+reduction one Gauss-Newton solve would obtain from freeing it, at the cost
+of a single Jacobian evaluation and no solve. With $F$ the currently-free
+columns, $P_F$ the orthogonal projector onto their span, $r$ the weighted
+residual and $J_j$ a held parameter's column,
+
+```{math}
+:label: est-suggest
+
+\tilde{\jmath} = (I - P_F)\, J_j, \qquad
+\tilde{r} = (I - P_F)\, r, \qquad
+\Delta\chi^2_j \;=\; \frac{(\tilde{\jmath}^{\top} \tilde{r})^2}
+                          {\tilde{\jmath}^{\top} \tilde{\jmath}},
+```
+
+*Source:* `pxrdref.optimize.statistics.one_parameter_gains`
+
+which is Rao's score statistic {cite}`rao1948` applied to the linearised
+model, computed through the Frisch-Waugh-Lovell projection identity
+{cite}`frisch1933,lovell1963`. It is exactly the drop in $\sum w\Delta^2$
+that a least-squares solve of $[F \mid J_j]$ achieves over $F$ alone, it is
+invariant under any rescaling of the column (so no per-parameter step
+heuristics), and at a converged minimum $J^\top r \approx 0$ makes every
+gain vanish. GSAS-II's answer to the same recipe problem {cite}`toby2024`
+obtains its ranking by ±δ finite differences with per-type δ heuristics and
+a sign-consistency test, because its analytic derivatives are locked inside
+Hessian assembly; exact columns at the current state make all three
+workarounds unnecessary.
+
+Under the null hypothesis a gain is distributed as
+$\chi^2_1 \cdot \chi^2_{\mathrm{red}}$, so a candidate is quotable only
+above a noise floor of {{ SUGGEST_MIN_GAIN }} · max(χ²_red, 1) — the 3σ
+point of $\chi^2_1$, with the same floor-at-one convention as the
+covariance scale. Two gates keep the ranking honest (the Layer-1
+discipline one call over): a candidate whose column the free block absorbs
+is reported non-separable rather than scored — the same projection also
+caps the $1/(1-R^2)$ inflation of near-collinear gains — and candidates
+whose projected columns are pairwise indistinguishable come back as one
+unresolved *group* carrying a joint gain: a tie, never a winner. As with
+indexing there is no `.best`; `best_or_none()` answers `None` whenever the
+evidence does not choose one parameter.

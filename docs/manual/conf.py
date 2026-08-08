@@ -26,6 +26,7 @@ from pxrdref.optimize.qpa import BRINDLEY_MU_R_FENCE
 from pxrdref.report.layer2 import IMPURITY_SIGMA
 from pxrdref.report.schemas import THRESHOLDS_VERSION
 from pxrdref.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
+from pxrdref.schemas.suggest import SUGGEST_MIN_GAIN
 
 project = "pxrd-refine theory manual"
 author = "pxrd-refine developers"
@@ -55,6 +56,7 @@ myst_substitutions = {
     "NODES_PER_FWHM": NODES_PER_FWHM,
     "PAWLEY_OVERLAP_FWHM_FRAC": PAWLEY_OVERLAP_FWHM_FRAC,
     "SKIP_EXTENT_FWHM_RATIO": SKIP_EXTENT_FWHM_RATIO,
+    "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
     "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
     "WINDOW_FWHM_MULT": WINDOW_FWHM_MULT,

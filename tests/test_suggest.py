@@ -383,7 +383,14 @@ def test_injected_zero_shift_ranks_top_as_its_honest_tie(truth):
 
 
 def test_zero_shift_layer2_agreement_recorded(truth):
-    """The FitReport's refine_zero_shift action lands on the candidate."""
+    """The FitReport's refine_zero_shift action lands on the candidate — and
+    every recorded kind is in the Layer-2 vocabulary: ``action_kind`` is a
+    plain str because schemas cannot import report, so this meta-assertion
+    (``typing.get_args(ActionKind)``) is what pins it."""
+    from typing import get_args
+
+    from pxrdref.report.schemas import ActionKind
+
     structure, ins, data = truth
     r, _ = _refinement(truth)
     r.instrument.zero_shift.value = 0.02
@@ -393,6 +400,9 @@ def test_zero_shift_layer2_agreement_recorded(truth):
                     exclude=["instrument.geometry.axial_*"])
     by_path = {m.path: m for g in res.groups for m in g.members}
     assert by_path["instrument.zero_shift"].action_kind == "refine_zero_shift"
+    vocabulary = get_args(ActionKind)
+    for m in by_path.values():
+        assert m.action_kind is None or m.action_kind in vocabulary
 
 
 def test_injected_w_error_resolved_and_identity_pairs_tie(truth):
