@@ -39,6 +39,18 @@ real UI.
 
 ### Inherited
 
+**From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — the
+"what next?" panel this WP's non-goal deferred now has its engine.**
+`Refinement.suggest()` is read-only (no history node, no mutation), so a
+GUI verb wrapping it does not belong behind the run-in-flight 409 that
+mutating verbs carry — the WP-1044 theme-setting reasoning, one verb over —
+though it costs two compiles plus two Jacobian builds, so it is a click,
+never a keystroke. `SuggestionResult.summary` is one deterministic sentence
+built for exactly this surface; groups carry `resolved`/`seeded`/
+`absorption` and the Layer-2 `action_kind` agreement for richer rendering,
+and an unresolved group must render as the tie it is, never as its top
+member.
+
 **From [1045](1045-indexing-search-controls.md), closed 2026-08-08 — the
 Peaks tab gained the Search controls disclosure, and nobody has watched a
 person use it.** The form renders `ProjectDoc.indexing` (engines/systems

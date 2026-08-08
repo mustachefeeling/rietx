@@ -141,6 +141,26 @@ def background_absorption(jac: np.ndarray, free_paths: list[str]) -> dict[str, f
     return block_projection_r2(jac, bg, targets)
 
 
+def _span_basis(jac: np.ndarray, cols: list[int]) -> np.ndarray:
+    """Orthonormal basis (thin QR) for the span of the selected columns.
+
+    The one QR both :func:`block_projection_r2` and
+    :func:`one_parameter_gains` build their projections from — extracted so
+    the two statistics cannot disagree about how a span is orthogonalised.
+    """
+    q, _ = np.linalg.qr(jac[:, cols])
+    return q
+
+
+def _off_span(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """``v`` minus its projection onto the orthonormal columns of ``q``.
+
+    Works for a vector or a whole matrix of columns; ``q`` must come from
+    :func:`_span_basis` (orthonormal), so the projector is ``q qᵀ``.
+    """
+    return v - q @ (q.T @ v)
+
+
 def block_projection_r2(jac: np.ndarray, block: list[int],
                         targets: list[tuple[int, str]],
                         nuisance: list[int] | None = None) -> dict[str, float]:
@@ -169,17 +189,95 @@ def block_projection_r2(jac: np.ndarray, block: list[int],
         return {}
     jac = np.asarray(jac)
     if nuisance:
-        qn, _ = np.linalg.qr(jac[:, nuisance])
-        jac = jac - qn @ (qn.T @ jac)
-    q, _ = np.linalg.qr(jac[:, block])
+        jac = _off_span(_span_basis(jac, nuisance), jac)
+    q = _span_basis(jac, block)
     out: dict[str, float] = {}
     for k, path in targets:
         j = jac[:, k]
         denom = float(j @ j)
         if denom <= 0.0:
             continue
-        resid = j - q @ (q.T @ j)
+        resid = _off_span(q, j)
         out[path] = float(np.clip(1.0 - float(resid @ resid) / denom, 0.0, 1.0))
+    return out
+
+
+def one_parameter_gains(jac: np.ndarray, resid: np.ndarray, block: list[int],
+                        targets: list[tuple[int | list[int], str]],
+                        ) -> dict[str, float]:
+    """Predicted Δχ² from freeing each target at the current point, keyed.
+
+    The Rao score test (Rao, 1948, Proc. Camb. Phil. Soc. 44, 50) applied to
+    the Gauss-Newton linearisation: with the currently-free columns ``F``
+    projected out of both the candidate column and the residual
+    (Frisch & Waugh, 1933, Econometrica 1, 387; Lovell, 1963,
+    J. Am. Statist. Assoc. 58, 993),
+
+        j̃ = (I − P_F) J_j,   r̃ = (I − P_F) r,
+        Δχ²_j = (j̃ᵀ r̃)² / (j̃ᵀ j̃)
+
+    is exactly the drop in Σr² that one linearised solve of ``[F | j]`` would
+    achieve over ``F`` alone — the property test asserts that identity against
+    an explicit lstsq.  It is scale-invariant (rescaling the column by any
+    dp/du cancels), so no per-parameter finite-difference step heuristics are
+    needed (contrast Toby, 2024, J. Appl. Cryst. 57, 175, which probes ±δ
+    because GSAS-II's analytic derivatives are locked inside Hessian
+    assembly), and at a converged minimum jᵀr ≈ 0 makes every gain ≈ 0, so no
+    sign-consistency test is needed either.  Under H₀ (the parameter's true
+    gain is zero) the statistic is ~χ²₁·χ²_red, which is what makes a noise
+    floor of a few times χ²_red meaningful.
+
+    A target's first element may be a *list* of column indices: the joint
+    gain ‖P_{span(J̃_G)} r̃‖² of freeing the whole group at once (~χ²_k·χ²_red
+    under H₀), computed by least squares so a rank-deficient group — the
+    usual reason it *is* a group — never overcounts.
+
+    ``jac`` and ``resid`` are the solver's weighted rows — penalty and
+    restraint rows included, for the same reason :func:`background_absorption`
+    demands the full layout.  ``block`` indexes the currently-free columns;
+    empty means nothing is projected out.  A zero-norm single column is
+    skipped rather than scored (no leverage at this state, same convention as
+    :func:`block_projection_r2`).  A column absorbed by span(F) *to within
+    projection rounding* (‖j̃‖ ≤ √m·ε·‖j‖) scores exactly 0.0: past that
+    floor j̃ is noise, and (j̃ᵀr̃)²/(j̃ᵀj̃) on noise returns a number of order
+    ‖r̃‖² that looks like a measured gain (measured: 0.19 on a σ ≈ 1 synthetic
+    residual, against a true 0).  The floor is fp diagnosis, not policy — the
+    caller's absorption gate handles merely ill-separated columns.
+    """
+    jac = np.asarray(jac)
+    r = np.asarray(resid, dtype=np.float64)
+    q = _span_basis(jac, block) if block else None
+    if q is not None:
+        r = _off_span(q, r)
+    noise2 = len(jac) * np.finfo(np.float64).eps ** 2
+
+    out: dict[str, float] = {}
+    for cols, key in targets:
+        if isinstance(cols, (int, np.integer)):
+            j = jac[:, cols]
+            raw = float(j @ j)
+            if raw <= 0.0:
+                continue
+            jt = _off_span(q, j) if q is not None else j
+            denom = float(jt @ jt)
+            if denom <= noise2 * raw:
+                out[key] = 0.0
+                continue
+            num = float(jt @ r)
+            out[key] = num * num / denom
+        else:
+            jg = jac[:, list(cols)]
+            raw = np.einsum("ij,ij->j", jg, jg)
+            if q is not None:
+                jg = _off_span(q, jg)
+            proj = np.einsum("ij,ij->j", jg, jg)
+            jg = jg[:, proj > noise2 * raw]  # drop absorbed/dead members
+            if jg.shape[1] == 0:
+                out[key] = 0.0
+                continue
+            beta, *_ = np.linalg.lstsq(jg, r, rcond=None)
+            fitted = jg @ beta
+            out[key] = float(fitted @ fitted)
     return out
 
 

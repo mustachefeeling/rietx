@@ -13,6 +13,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
+    from .schemas.suggest import SuggestionResult
 
 from .backend.api import backend_dtype_note
 from .history.events import as_event_stream
@@ -423,6 +424,158 @@ class Refinement:
             action=NodeAction(kind="set_value", values=dict(values)),
             state=self.snapshot())
         self._head_id = node.id
+
+    def suggest(self, data: PatternData, *, top_n: int = 5,
+                include: "str | list[str]" = "*",
+                exclude: "list[str] | tuple[str, ...]" = (),
+                mode: Mode | None = None,
+                two_theta_limits: tuple[float, float] | None = None,
+                report=None) -> "SuggestionResult":
+        """Which held parameter should be freed next?  Ranked, gated, read-only.
+
+        Every held-but-refinable parameter (the :meth:`parameters` surface:
+        locked, tied and mode-fixed rows never enumerate) matching
+        ``include``/``exclude`` is scored by its exact Gauss-Newton
+        one-parameter gain at the current state — one combined probe table
+        (free ∪ candidates), one Jacobian build, no solve — then gated for
+        absorption by the free set and grouped by pairwise collinearity, so a
+        tie comes back as one unresolved :class:`CandidateGroup`, never a
+        confident winner (:meth:`SuggestionResult.best_or_none` returns
+        ``None`` rather than defend one).
+
+        Read-only means literally: the probe table is applied to **deep
+        copies** of the models before compiling, no history node is recorded
+        (*considering* freeing is not a refinement move), and
+        ``result_``/working state are untouched.
+
+        Candidates sitting on a transform floor are probed from their
+        family's stage seed (``seeded=True``, ``seed_value`` says from
+        where), and the seeds live in a **second** build whose only
+        contribution is those candidates' columns: the residual, the free
+        block and every live column come from the unseeded current state.
+        Measured on the layers suite's truth fixture, seeding the shared
+        state instead broadens every peak, moves the probe χ²_red from ~1 to
+        7.1, and hands every width parameter a spurious gain ≈ 3×10⁴ at a
+        converged fit — the confident wrong answer this method exists to
+        never give.  ``chi2_red`` and ``noise_floor`` are therefore the
+        *current state's*, seeds excluded.
+
+        ``report`` takes a :class:`~pxrdref.report.FitReport` (or its
+        ``suggested_actions``): candidates whose path matches an action's
+        paths are annotated with the action's kind — two independent methods
+        agreeing.  Layer 2 speaks a closed template vocabulary while the
+        leverage ranking covers every table entry, so a top candidate with no
+        ``action_kind`` (an instrument width, an atom DOF) is an expected
+        disagreement, not an inconsistency.
+        """
+        from .params.transforms import dphys_dinternal
+        from .strategy.suggest import (
+            SUGGEST_SEED_ROUGHNESS,
+            SUGGEST_SEED_SOFTPLUS,
+            SUGGEST_SEED_STEPHENS,
+            Candidate,
+            build_suggestion,
+        )
+
+        mode = mode or self._mode
+        limits = two_theta_limits or self._two_theta_limits
+        includes = [include] if isinstance(include, str) else list(include)
+        excludes = list(exclude)
+
+        table = self._working_table()
+        # the free block must be the set a stage in `mode` would actually
+        # leave free — mirror _run_stage's mode-fixed drop
+        for path in [p for p in table.free_paths if mode_fixed_path(p, mode)]:
+            table.set_vary([path], False)
+        free_before = set(table.free_paths)
+
+        import fnmatch
+
+        cand_paths = [
+            row.path for row in self.parameters(mode=mode)
+            if row.refinable and not row.vary
+            and any(fnmatch.fnmatchcase(row.path, g) for g in includes)
+            and not any(fnmatch.fnmatchcase(row.path, g) for g in excludes)]
+        if cand_paths:
+            table.set_vary(cand_paths, True)
+
+        from .optimize.least_squares import _jacobian_for, _make_residual
+
+        def probe():
+            """Compile the table's state on model copies; return (jac, resid, x0)."""
+            structure = self.structure.model_copy(deep=True)
+            instrument = self.instrument.model_copy(deep=True)
+            table.apply_to_models(structure, instrument)
+            model = compile_model(structure, instrument, data, mode=mode,
+                                  two_theta_limits=limits,
+                                  free_paths=set(table.free_paths))
+            carried = False
+            if (self._model is not None and mode in ("lebail", "pawley")
+                    and self._model.mode == mode):
+                _carry_lebail(self._model, model)
+                carried = True
+            elif mode in ("lebail", "pawley") and self._pending_reflections:
+                # a checkout's pending intensities seed the probe too — but
+                # they stay pending: the next *stage* consumes them, not this
+                _restore_lebail(self._pending_reflections, model)
+                carried = True
+            cycles = Stage("suggest", []).lebail_cycles
+            if mode == "lebail":
+                model.lebail_update(table.decode(table.x0()), n_cycles=cycles)
+            elif mode == "pawley":
+                if not carried:
+                    model.lebail_update(table.decode(table.x0()),
+                                        n_cycles=cycles)
+                model.build_pawley_restraint()
+            x0 = table.x0()
+            if model.pawley is not None:
+                x0 = np.concatenate([x0, model.pawley_x0()])
+            return (_jacobian_for(model, table, self._backend)(x0),
+                    _make_residual(model, table)(x0), x0)
+
+        # build 1 — the honest current state: residual, free block, and every
+        # candidate column whose physical derivative is quotable there
+        jac, resid, x0 = probe()
+        fp = table.free_paths
+
+        # build 2 — floor candidates only.  A softplus column at its floor is
+        # fp noise (dp/du ≈ 1e-12 puts the chain's perturbation below the
+        # model's own rounding), a Stephens block at S ≡ 0 has √'s unbounded
+        # slope, and Suortti roughness at b = 0 is the identity with a column
+        # of exact zeros — so those columns (and only those) are taken from
+        # the seeded state a stage would actually start such a solve at.
+        seeded: dict[str, float] = {}
+        rough = [p for p in cand_paths
+                 if p.startswith("instrument.geometry.surface_roughness.")]
+        for p in table.seed_softplus(rough, SUGGEST_SEED_ROUGHNESS):
+            seeded[p] = SUGGEST_SEED_ROUGHNESS
+        for p in table.seed_softplus(cand_paths, SUGGEST_SEED_SOFTPLUS):
+            seeded[p] = SUGGEST_SEED_SOFTPLUS
+        strain = [p for p in cand_paths if ".microstrain.dof." in p]
+        entries = {e.path: e for e in table.entries}
+        for p in table.seed_stephens(strain, SUGGEST_SEED_STEPHENS):
+            seeded[p] = entries[p].value
+        if seeded:
+            jac2, _, x2 = probe()
+            for i, p in enumerate(fp):
+                if p in seeded:
+                    jac[:, i] = jac2[:, i]
+                    x0[i] = x2[i]  # dp/du is the seeded point's too
+        free_idx = [i for i, p in enumerate(fp) if p in free_before]
+        # in Pawley mode the intensity block co-refines with anything, so it
+        # belongs to the free block, not to the candidates
+        free_idx += list(range(len(fp), jac.shape[1]))
+        candidates = [
+            Candidate(path=p, index=i,
+                      dp_du=dphys_dinternal(float(x0[i]), entries[p].transform),
+                      seeded=p in seeded, seed_value=seeded.get(p))
+            for i, p in enumerate(fp) if p not in free_before]
+        chi2_red = float(resid @ resid) / max(len(resid) - len(free_idx), 1)
+        actions = () if report is None else getattr(
+            report, "suggested_actions", report)
+        return build_suggestion(jac, resid, free_idx, candidates,
+                                chi2_red=chi2_red, top_n=top_n,
+                                actions=actions)
 
     @classmethod
     def from_node(cls, tree: RefinementTree, node_id: str, *,

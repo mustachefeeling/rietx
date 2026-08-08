@@ -5,9 +5,10 @@ serialized result or a structured error out, never a raw traceback.  The
 envelope is deliberate:
 
 - success: ``{"ok": true, "result": …, "series": …, "report": …}`` — exactly
-  one of ``result``/``series`` is set, so a consumer branches on which, and
-  the two top-level result types (a refinement vs a warm-started series,
-  WP-0505) stay structurally distinct instead of being coerced into one.
+  one of ``result``/``series``/``indexing``/``suggestion`` is set, so a
+  consumer branches on which, and the top-level result types (a refinement, a
+  warm-started series, an indexing answer, a ranked suggestion) stay
+  structurally distinct instead of being coerced into one.
 - failure: ``{"ok": false, "error": {code, message, suggestion, details}}`` —
   the same grammar as :class:`~pxrdref.schemas.common.Diagnostic`, so an agent
   has one vocabulary for "the fit warns" and "the call failed".  Three codes,
@@ -30,6 +31,13 @@ for the same reason those two are distinct: an
 and its **shape** is load-bearing — it has no ``.cell``, so a consumer must go
 through ``candidates`` or ``best_or_none()`` and cannot be handed a confident wrong
 singleton by the envelope either.
+
+``task="suggest"`` (WP-1050) is the fifth branch and the first **no-solve**
+one: one Jacobian evaluation ranks every held-but-refinable parameter by its
+predicted Δχ², gated so a tie of collinear candidates is one unresolved group.
+It answers with a ``suggestion`` arm, extends the backend-only base (a task
+with no solver and no plan refuses those fields loudly), and is read-only —
+no history, no mutation, which is why it is safe to call between fits.
 
 ``request_schema()`` / ``response_schema()`` / ``tool_definition()`` export
 the JSON Schemas an LLM tool-calling loop needs.  The backend, solver,
@@ -82,6 +90,7 @@ from .schemas.plan import PlanSpec, StageSpec  # noqa: F401
 from .schemas.results import RefinementResult
 from .schemas.sequential import SeriesResult
 from .schemas.structure import Structure
+from .schemas.suggest import SuggestionResult
 from .strategy.staged import PLAN_PRESETS
 
 # ----------------------------------------------------------------------
@@ -141,10 +150,16 @@ class SharingSpec(Base):
                           shared=list(self.shared))
 
 
-class _RequestBase(Base):
+class _BackendBase(Base):
+    """A task that evaluates the model but need not *solve* anything.
+
+    Split from :class:`_RequestBase` for ``task="suggest"`` (WP-1050): a
+    no-solve task has a Jacobian backend but no solver and no plan, and under
+    ``extra="forbid"`` passing either is a loud, field-named error rather
+    than a silently ignored knob.
+    """
+
     backend: str = Field("numpy", description=_BACKEND_DESC)
-    solver: str = Field("trf", description=_SOLVER_DESC)
-    plan: str | PlanSpec = Field("mccusker_default", description=_PLAN_DESC)
 
     @field_validator("backend")
     @classmethod
@@ -153,6 +168,11 @@ class _RequestBase(Base):
             raise ValueError(f"unknown backend {v!r}; "
                              f"available: {', '.join(BACKEND_NAMES)}")
         return v
+
+
+class _RequestBase(_BackendBase):
+    solver: str = Field("trf", description=_SOLVER_DESC)
+    plan: str | PlanSpec = Field("mccusker_default", description=_PLAN_DESC)
 
     @field_validator("solver")
     @classmethod
@@ -334,11 +354,38 @@ class IndexRequest(Base):
         return self
 
 
+class SuggestRequest(_BackendBase):
+    """Which parameter to free next → ``suggestion`` (a ``SuggestionResult``).
+
+    The first **no-solve** task: one Jacobian evaluation at the state the
+    models arrive in (their ``vary`` flags are the currently-free set), no
+    least squares, no history — so it carries a backend but neither solver
+    nor plan, and passing those errors loudly.  Expect
+    ``suggestion.best_or_none()`` to be null whenever the evidence does not
+    pick one parameter: a converged model suggests nothing, and candidates
+    the data cannot separate come back as one unresolved group rather than a
+    winner (the indexing contract, one task over).
+    """
+
+    task: Literal["suggest"]
+    structure: Structure
+    instrument: Instrument
+    pattern: PatternData
+    mode: Mode = "rietveld"
+    two_theta_limits: tuple[float, float] | None = None
+    top_n: int = Field(5, ge=1, description="ranked groups to return")
+    include: str | list[str] = Field("*", description=(
+        "dot-path fnmatch globs a candidate must match — same semantics as a "
+        "stage's turn_on"))
+    exclude: list[str] = Field(default_factory=list, description=(
+        "dot-path globs to leave out of the candidate set"))
+
+
 #: discriminated on ``task`` so a validation failure names one branch's
-#: fields, not four branches' worth of noise
+#: fields, not five branches' worth of noise
 AgentRequest = Annotated[
     Union[RefineRequest, MultiRefineRequest, SequentialRefineRequest,
-          IndexRequest],
+          IndexRequest, SuggestRequest],
     Field(discriminator="task")]
 _REQUEST: TypeAdapter = TypeAdapter(AgentRequest)
 
@@ -367,19 +414,21 @@ class AgentError(Base):
 
 
 class AgentSuccess(Base):
-    """Exactly one of ``result``/``series``/``indexing`` is set (which one says
-    what ran).
+    """Exactly one of ``result``/``series``/``indexing``/``suggestion`` is set
+    (which one says what ran).
 
-    Three arms rather than one coerced type, because the three answers are
+    Four arms rather than one coerced type, because the four answers are
     structurally different and pretending otherwise is what loses information: a
     joint fit has no history ids *by declaration*, a series has one pair per
-    pattern, and an indexing run has **no single cell at all**.
+    pattern, an indexing run has **no single cell at all**, and a suggestion is
+    a ranked, gated list whose only singleton accessor may answer ``None``.
     """
 
     ok: Literal[True] = True
     result: RefinementResult | None = None
     series: SeriesResult | None = None
     indexing: IndexingResult | None = None
+    suggestion: SuggestionResult | None = None
     report: FitReport | None = None
     #: the indexing arm's companion (WP-1043), present exactly when
     #: ``indexing`` is: the same answer projected for a consumer that reasons —
@@ -402,7 +451,8 @@ class AgentFailure(Base):
 
 _RESPONSE: TypeAdapter = TypeAdapter(Union[AgentSuccess, AgentFailure])
 
-_TASK_TAGS = ("refine", "refine_multi", "refine_sequential", "index")
+_TASK_TAGS = ("refine", "refine_multi", "refine_sequential", "index",
+              "suggest")
 
 
 def _failure(code: str, message: str, *, suggestion: str | None = None,
@@ -447,6 +497,19 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
         # evidence() is a projection computed here, at serialisation time,
         # from the answer beside it — the two arms cannot disagree
         return AgentSuccess(indexing=answer, evidence=answer.evidence())
+
+    # suggest second, for the same reason: a no-solve task has no plan to
+    # resolve, and its read-only contract means no history either
+    if isinstance(req, SuggestRequest):
+        from .refine import Refinement
+
+        ref = Refinement(req.structure, req.instrument, backend=req.backend,
+                         history=False)
+        suggestion = ref.suggest(
+            req.pattern, top_n=req.top_n, include=req.include,
+            exclude=tuple(req.exclude), mode=req.mode,
+            two_theta_limits=req.two_theta_limits)
+        return AgentSuccess(suggestion=suggestion)
 
     # staged.resolve_plan applies the same preset→mode mapping fit() uses
     # (mccusker_default becomes profile_only under lebail, pawley_default under
@@ -535,7 +598,11 @@ _TOOL_DESCRIPTION = (
     "task='index' determines the unit cell of an unknown phase from a peak list "
     "or a pattern, running "
     + " and ".join(engine_names())
-    + " and gating confidence on their agreement. Read diagnostics before any "
+    + " and gating confidence on their agreement; task='suggest' ranks the "
+    "held parameters of a model by predicted chi-squared gain from one "
+    "Jacobian evaluation (no fit, no mutation) — use it between fits to "
+    "decide what to free next, and read an unresolved group as 'the data "
+    "cannot separate these'. Read diagnostics before any "
     "statistic — a warning there outranks Rwp (docs/AGENT_PROTOCOL.md is the "
     "operating protocol). An indexing answer has NO single cell: read the "
     "evidence arm first (every candidate with each caveat's refuting/capping "
@@ -543,7 +610,7 @@ _TOOL_DESCRIPTION = (
     "Le Bail Rwp with both detector counts), then indexing.candidates for the "
     "full record, and expect best_or_none() to be null unless every engine "
     "agreed and nothing refuted or capped them. Returns "
-    "{ok: true, result|series|indexing, evidence, report} or "
+    "{ok: true, result|series|indexing|suggestion, evidence, report} or "
     "{ok: false, error} with error.code in " + "/".join(ERROR_CODES) + ".")
 
 

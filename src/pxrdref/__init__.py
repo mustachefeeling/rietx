@@ -53,6 +53,7 @@ from .schemas.params import ParameterRow, TieSpec
 from .schemas.plan import PlanSpec, StageSpec
 from .schemas.project import DataRef, ProjectDoc
 from .schemas.sequential import SeriesEntry, SeriesResult, Trajectory
+from .schemas.suggest import CandidateGroup, ParameterCandidate, SuggestionResult
 from .sequential import SequentialRefinement, refine_sequential
 from .strategy.staged import (
     PLAN_INFO,
@@ -68,6 +69,7 @@ __all__ = [
     "Atom",
     "agent",
     "CancelToken",
+    "CandidateGroup",
     "Cell",
     "CellCandidate",
     "DataRef",
@@ -84,6 +86,7 @@ __all__ = [
     "PLAN_PRESETS",
     "LeBailValidation",
     "Parameter",
+    "ParameterCandidate",
     "ParameterRow",
     "PatternData",
     "PeakList",
@@ -111,6 +114,7 @@ __all__ = [
     "TieSpec",
     "Trajectory",
     "SuggestedAction",
+    "SuggestionResult",
     "auto_background",
     "build_report",
     "capabilities",
