@@ -14,7 +14,7 @@ from pxrdref.schemas.suggest import (
     SuggestionResult,
 )
 from pxrdref.strategy.suggest import SUGGEST_SEED_SOFTPLUS
-from tests.test_fitreport_layers import _report_for, _truth
+from tests.test_fitreport_layers import _report_for, _result_for, _truth
 
 
 # ----------------------------------------------------------------------
@@ -485,3 +485,37 @@ def test_include_glob_limits_enumeration(truth):
     reported = (_member_paths(res) + [p.path for p in res.non_separable]
                 + res.skipped)
     assert reported and all(p.startswith("instrument.geometry.") for p in reported)
+
+
+def test_injected_states_render_for_inspection(truth):
+    """obs/calc/diff PNGs of every planted state to tests/output/ (gitignored),
+    full range + a low-angle zoom — a summary number hides locally-bad fits."""
+    from pathlib import Path
+
+    from pxrdref.viz.plots import plot_result
+
+    out = Path(__file__).parent / "output"
+    out.mkdir(exist_ok=True)
+    structure, ins, data = truth
+
+    def injected(**edits):
+        instrument = ins.model_copy(deep=True)
+        for attr, value in edits.items():
+            if attr == "zero_shift":
+                instrument.zero_shift.value = value
+            else:
+                getattr(instrument.profile, attr).value = value
+        return instrument
+
+    cases = {
+        "suggest_truth": ins,
+        "suggest_zero_shift": injected(zero_shift=0.02),
+        "suggest_w_error": injected(w=6e-3),
+        "suggest_x_error": injected(x=9e-3),
+    }
+    for name, instrument in cases.items():
+        result, _, _ = _result_for(structure, instrument, data)
+        plot_result(result, path=str(out / f"{name}.png"))
+        plot_result(result, path=str(out / f"{name}_zoom.png"),
+                    two_theta_range=(18.0, 45.0))
+        assert (out / f"{name}.png").exists()

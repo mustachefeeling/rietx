@@ -70,8 +70,8 @@ def _truth(lo=18.0, hi=125.0, step=0.02, seed=17):
     return structure, ins, data
 
 
-def _report_for(structure, ins, data, **kw):
-    """Build the full report for a *given* (unrefined) model state."""
+def _result_for(structure, ins, data):
+    """A RefinementResult evaluated at a *given* (unrefined) model state."""
     table = ParameterTable(structure, ins)
     model = compile_model(structure, ins, data, mode="rietveld")
     values = table.decode(table.x0())
@@ -96,6 +96,12 @@ def _report_for(structure, ins, data, **kw):
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=model.background(values).tolist(),
         sigma=model.sigma.tolist(), ticks=ticks)
+    return result, model, values
+
+
+def _report_for(structure, ins, data, **kw):
+    """Build the full report for a *given* (unrefined) model state."""
+    result, model, values = _result_for(structure, ins, data)
     return build_report(result, model=model, values=values, **kw)
 
 
