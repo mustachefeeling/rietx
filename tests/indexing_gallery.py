@@ -338,20 +338,19 @@ TRUTH_ANGLE_DEG = 0.5
 def truth_rank(stem: str, ranking: list[dict[str, Any]]) -> int | None:
     """1-based rank of the declared truth in a stored ``ranking``, or ``None``.
 
-    **The centring is half the test, and leaving it out is the mistake this
-    package has now made at three ranks.**  ``same_lattice`` compares A..F after
-    Niggli reduction, so a *setting* change is equality — which is what it is
-    for — but a primitive description of a centred lattice reduces to the same
-    metric with a different content, and calling that a match reads a wrong
-    answer as right.  Measured: without the centring clause both NAC candidates
-    scored as the truth, and only one of them is (``engines.solution_key``
-    carries the same lesson one rank down, WP-1040's monoclinic row a rank up).
+    **Two conditions, both necessary: the centring, and the dataset's own band on
+    the Niggli-reduced cell.**  Reducing is what makes a *setting* change equality
+    rather than a miss — the half of ``reduce.same_lattice`` worth keeping — and
+    :data:`TRUTHS` has why the band is not redundant with it, with the FAP
+    measurement that says so.
 
-    Two conditions, both necessary: the centring, and the dataset's own band on
-    the **Niggli-reduced** cell — reduced, so that a *setting* change is equality
-    rather than a miss, which is what ``reduce.same_lattice`` is for and is half
-    of what it does.  See :data:`TRUTHS` for why the band is not redundant with
-    the reduction, and for the FAP measurement that says so.
+    **The centring is the other half, and leaving it out is the mistake this
+    package has now made at three ranks**: a primitive description of a centred
+    lattice reduces to the same metric with a different content, and calling that
+    a match reads a wrong answer as right.  Measured: without the centring clause
+    both NAC candidates scored as the truth, and only one of them is
+    (``engines.solution_key`` carries the same lesson one rank down, WP-1040's
+    monoclinic row a rank up).
 
     It reads the **stored** ranking rather than live candidates on purpose.  The
     A..F vectors are seven numbers a candidate already has, so keeping them costs
