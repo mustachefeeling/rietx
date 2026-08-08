@@ -119,6 +119,144 @@ def test_gain_at_linear_minimum_is_zero():
 
 
 # ----------------------------------------------------------------------
+# build_suggestion — synthetic matrices with planted structure
+# ----------------------------------------------------------------------
+def _build(jac, r, free, cands, chi2_red=1.0, **kw):
+    from pxrdref.strategy.suggest import Candidate, build_suggestion
+    return build_suggestion(
+        jac, r, free,
+        [Candidate(path=p, index=i, dp_du=d, **extra)
+         for p, i, d, extra in cands],
+        chi2_red=chi2_red, **kw)
+
+
+def _planted(seed=31, m=200, n_free=3, n_cand=4, signal=None):
+    """Random free block + candidates, residual carrying `signal` of cand 0."""
+    rng = np.random.default_rng(seed)
+    jac = rng.standard_normal((m, n_free + n_cand))
+    r = rng.standard_normal(m)
+    if signal:
+        r += signal * jac[:, n_free] / np.linalg.norm(jac[:, n_free])
+    return jac, r
+
+
+def test_build_planted_signal_wins_resolved():
+    """The candidate whose direction the residual contains ranks first."""
+    jac, r = _planted(signal=30.0)
+    res = _build(jac, r, [0, 1, 2],
+                 [(f"c{i}", 3 + i, 1.0, {}) for i in range(4)])
+    best = res.best_or_none()
+    assert best is not None and best.path == "c0"
+    assert res.groups[0].resolved and res.groups[0].gain > res.noise_floor
+    assert res.n_evaluated == 4 and not res.skipped
+
+
+def test_build_collinear_pair_is_one_unresolved_group():
+    """Two candidates sharing a direction come back as a tie, not a winner."""
+    rng = np.random.default_rng(37)
+    m = 200
+    jac = rng.standard_normal((m, 5))
+    jac[:, 4] = jac[:, 3] + 1e-4 * rng.standard_normal(m)
+    r = rng.standard_normal(m) + 30.0 * jac[:, 3] / np.linalg.norm(jac[:, 3])
+    res = _build(jac, r, [0, 1, 2],
+                 [("instrument.profile.w", 3, 1.0, {}),
+                  ("phases.0.gauss_size", 4, 1.0, {})])
+    assert res.best_or_none() is None
+    assert len(res.groups) == 1 and not res.groups[0].resolved
+    assert {pc.path for pc in res.groups[0].members} == {
+        "instrument.profile.w", "phases.0.gauss_size"}
+    # the joint gain is what the data measures: ≈ either single gain, never ≈ 2×
+    singles = [pc.gain for pc in res.groups[0].members]
+    assert res.groups[0].gain == pytest.approx(max(singles), rel=0.05)
+
+
+def test_build_absorbed_candidate_never_wins():
+    """A candidate the free block can imitate is non-separable, whatever its
+    apparent gain — the 1/(1−R²) blow-up must not buy it the top slot."""
+    rng = np.random.default_rng(41)
+    m = 200
+    jac = rng.standard_normal((m, 5))
+    jac[:, 3] = jac[:, 0] + 0.05 * rng.standard_normal(m)   # ≈ in span(F)
+    r = rng.standard_normal(m) + 5.0 * jac[:, 0] / np.linalg.norm(jac[:, 0])
+    res = _build(jac, r, [0, 1, 2],
+                 [("absorbed", 3, 1.0, {}), ("clean", 4, 1.0, {})])
+    assert [pc.path for pc in res.non_separable] == ["absorbed"]
+    assert res.non_separable[0].absorption > 0.95
+    assert all(pc.path != "absorbed"
+               for g in res.groups for pc in g.members)
+
+
+def test_build_converged_suggests_nothing():
+    """r ⟂ every column: groups empty, best None, summary says converged."""
+    rng = np.random.default_rng(43)
+    jac = rng.standard_normal((150, 5))
+    q, _ = np.linalg.qr(jac)
+    r = rng.standard_normal(150)
+    r -= q @ (q.T @ r)
+    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, 1.0, {}) for i in range(3)])
+    assert res.groups == [] and res.best_or_none() is None
+    assert "converged" in res.summary
+
+
+def test_build_zero_column_skipped_seed_reported():
+    jac, r = _planted(signal=30.0)
+    jac[:, 4] = 0.0
+    r += 25.0 * jac[:, 5] / np.linalg.norm(jac[:, 5])   # seeded one has signal too
+    res = _build(jac, r, [0, 1, 2],
+                 [("c0", 3, 1.0, {}),
+                  ("dead.path", 4, 1.0, {}),
+                  ("seeded.path", 5, 0.02,
+                   {"seeded": True, "seed_value": 1e-3})])
+    assert res.skipped == ["dead.path"]
+    assert res.n_evaluated == 2
+    by_path = {pc.path: pc for g in res.groups for pc in g.members}
+    assert by_path["seeded.path"].seeded
+    assert by_path["seeded.path"].seed_value == 1e-3
+
+
+def test_build_gradient_physical_units():
+    """gradient = 2(Jᵀr)_j / dp_du, sign preserved."""
+    jac, r = _planted(signal=30.0)
+    dp_du = 0.25
+    res = _build(jac, r, [0, 1, 2], [("c0", 3, dp_du, {})])
+    expected = 2.0 * float(jac[:, 3] @ r) / dp_du
+    pc = res.groups[0].members[0]
+    assert pc.gradient == pytest.approx(expected, rel=1e-12)
+
+
+def test_build_action_kind_cross_reference():
+    """Two-way fnmatch against Layer-2 action paths, first match wins."""
+    class FakeAction:
+        def __init__(self, kind, paths):
+            self.kind, self.parameter_paths = kind, paths
+
+    jac, r = _planted(signal=30.0)
+    res = _build(jac, r, [0, 1, 2],
+                 [("instrument.zero_shift", 3, 1.0, {}),
+                  ("phases.0.cell.a", 4, 1.0, {})],
+                 actions=[FakeAction("refine_zero_shift",
+                                     ["instrument.zero_shift"]),
+                          FakeAction("refine_cell", ["phases.*.cell.*"])])
+    by_path = {pc.path: pc for g in res.groups for pc in g.members}
+    assert by_path["instrument.zero_shift"].action_kind == "refine_zero_shift"
+    if "phases.0.cell.a" in by_path:          # only if it cleared the floor
+        assert by_path["phases.0.cell.a"].action_kind == "refine_cell"
+
+
+def test_build_top_n_truncates_groups():
+    rng = np.random.default_rng(47)
+    m = 300
+    jac = rng.standard_normal((m, 8))
+    r = rng.standard_normal(m)
+    for k in range(2, 8):                     # every candidate carries signal
+        r += 20.0 * jac[:, k] / np.linalg.norm(jac[:, k])
+    res = _build(jac, r, [0, 1], [(f"c{i}", 2 + i, 1.0, {}) for i in range(6)],
+                 top_n=2)
+    assert len(res.groups) == 2
+    assert res.n_evaluated == 6
+
+
+# ----------------------------------------------------------------------
 # schemas — round-trip, forbid, and the best_or_none gate
 # ----------------------------------------------------------------------
 def _candidate(path="instrument.zero_shift", gain=120.0, **kw):
