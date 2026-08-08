@@ -34,6 +34,21 @@ from ..schemas.suggest import (
     SuggestionResult,
 )
 
+#: Probe seeds, per family — a candidate sitting on a transform floor has a
+#: dead internal column (softplus dp/du → 0 at p ≈ 0; a Stephens block at
+#: S ≡ 0 has the *opposite* pathology, √Σ's unbounded slope), so its leverage
+#: is measured at the seed the corresponding stage would actually start from,
+#: and the candidate comes back ``seeded=True``.  The values quote the stage
+#: literals in ``strategy/staged.py`` (extinction's ``seed=1e-3``,
+#: ``_ROUGHNESS_STAGE``'s measured ``0.3`` — both ends of the Suortti
+#: transform are the identity, so a token 1e-3 is a genuinely dead
+#: *correction* there — and the sample-broadening stage's
+#: ``strain_seed=1000.0``): the probe predicts that solve, so it must start
+#: where that solve would.
+SUGGEST_SEED_SOFTPLUS = 1e-3
+SUGGEST_SEED_ROUGHNESS = 0.3
+SUGGEST_SEED_STEPHENS = 1000.0
+
 
 @dataclass(frozen=True)
 class Candidate:
