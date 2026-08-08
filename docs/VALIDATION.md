@@ -539,6 +539,36 @@ The only externally *graded* feature in the package. Bergmann et al. (2004) publ
 
 **Measured:** 3 unexplained of 20 in every 46-1964 set, 7 in 43-1748, 0 in both new measurements
 
+#### `test_the_runner_adopts_the_paper_s_domain_from_the_fixture`
+
+`identity` `cross_code` · dataset `bethanechol`
+
+**Claims:** the graded runner searches the paper's own domain, field by field, in both modes -- read from the transcribed fixture rather than retyped
+
+**Referenced to:** adopting a protocol means adopting it whole: a score over a narrower domain is not comparable with Table 5, and the failure would be silent because a narrowed run still produces a number.  Default is 'the programs' default values ... in all crystal symmetries' with V <= 2000 A^3 and axes <= 20 A; manual is the paper's 'special conditions' block
+
+**Measured:** default: max_d_axis 20, max_volume 2000, all 7 systems, n_unindexed at the package default; manual: monoclinic only, 800-1200 A^3, 5-20 A, n_unindexed 8
+
+#### `test_the_scoring_rule_is_the_paper_s_and_reads_it_from_the_fixture`
+
+`identity` `cross_code` · dataset `bethanechol`
+
+**Claims:** the +-1 arithmetic is the paper's, including the bucket our engines can reach and the paper has no name for
+
+**Referenced to:** '+1 correct cell ranked first, 0 in the top ten, -1 not found', from the text preceding Table 5.  The three values are read from the fixture's scoring block, so the rule this package grades itself by is the transcribed one
+
+**Measured:** rank 1 -> +1; ranks 2..10 -> 0; rank 11 and absent -> -1 (consensus returns twelve, and the rule has no 11th bucket)
+
+#### `test_the_published_cell_is_recognised_in_the_setting_the_search_returns`
+
+`identity` `characterisation` · dataset `bethanechol`
+
+**Claims:** a correct answer in another setting is scored correct, and a supercell or a foreign metric or a wrong centring is not
+
+**Referenced to:** a candidate cell is a lattice, not a tuple.  The search returns the published cell as its c + a setting -- (7.1346, 16.4091, 11.7530, beta 131.107) for a published (8.875, 16.408, 7.137, beta 93.84), same lattice, same volume to 0.1 A^3, not one axis in common -- and comparing conventional axes scored that rank-1 answer -1 until this benchmark caught it (WP-1026 reopen).  The match reduces both sides first, then applies the centring and the band
+
+**Measured:** the returned setting matches at rank 2 of a planted list; a doubled axis, a foreign metric and a C-centred description of the same metric all fail
+
 #### `test_a_bare_position_list_says_its_sigma_was_assumed`
 
 `characterisation` · dataset `bethanechol`
