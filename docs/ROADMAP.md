@@ -255,6 +255,7 @@ monoclinic search finishes.
 |---|---|---|---|
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ✅ 2026-08-07 | — (1007 soft) |
 | [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
+| [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | ⬜ | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
 
 **1028 came from outside.** Every item in it was hit by driving the package
 end-to-end over nine unfamiliar refinement targets from a third-party paper
