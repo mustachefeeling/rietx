@@ -3,8 +3,15 @@ misfit-injection cases that keep it from handing back a confident singleton."""
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from pxrdref.optimize.statistics import block_projection_r2, one_parameter_gains
+from pxrdref.schemas.suggest import (
+    SUGGEST_MIN_GAIN,
+    CandidateGroup,
+    ParameterCandidate,
+    SuggestionResult,
+)
 
 
 # ----------------------------------------------------------------------
@@ -109,6 +116,61 @@ def test_gain_at_linear_minimum_is_zero():
     gains = one_parameter_gains(jac, r, [0, 1], [(2, "a"), (3, "b")])
     assert gains["a"] == pytest.approx(0.0, abs=1e-20)
     assert gains["b"] == pytest.approx(0.0, abs=1e-20)
+
+
+# ----------------------------------------------------------------------
+# schemas — round-trip, forbid, and the best_or_none gate
+# ----------------------------------------------------------------------
+def _candidate(path="instrument.zero_shift", gain=120.0, **kw):
+    return ParameterCandidate(path=path, gain=gain, gradient=-3.4e2, **kw)
+
+
+def _result(groups, **kw):
+    kw.setdefault("chi2_red", 2.5)
+    kw.setdefault("noise_floor", SUGGEST_MIN_GAIN * 2.5)
+    kw.setdefault("summary", "test")
+    return SuggestionResult(groups=groups, **kw)
+
+
+def test_suggestion_result_json_round_trip():
+    res = _result(
+        [CandidateGroup(members=[_candidate(action_kind="refine_zero_shift")],
+                        gain=120.0, resolved=True),
+         CandidateGroup(members=[_candidate("instrument.profile.w", 40.0),
+                                 _candidate("phases.0.gauss_size", 38.0,
+                                            seeded=True, seed_value=1e-3)],
+                        gain=41.0, resolved=False)],
+        non_separable=[_candidate("phases.0.scale", 5.0, absorption=0.99)],
+        skipped=["phases.0.extinction"], n_evaluated=5)
+    back = SuggestionResult.model_validate_json(res.model_dump_json())
+    assert back == res
+    assert back.groups[1].members[1].seed_value == 1e-3
+
+
+def test_suggestion_schemas_forbid_extras():
+    for cls, kwargs in [
+        (ParameterCandidate, dict(path="p", gain=1.0, gradient=0.0)),
+        (CandidateGroup, dict(members=[_candidate()], gain=1.0, resolved=True)),
+        (SuggestionResult, dict(chi2_red=1.0, noise_floor=9.0, summary="s")),
+    ]:
+        with pytest.raises(ValidationError):
+            cls(**kwargs, unexpected=1)
+
+
+def test_candidate_group_needs_a_member():
+    with pytest.raises(ValidationError):
+        CandidateGroup(members=[], gain=0.0, resolved=True)
+
+
+def test_best_or_none_gates():
+    """Empty list and unresolved-top both refuse; a resolved top answers."""
+    assert _result([]).best_or_none() is None
+    tie = CandidateGroup(members=[_candidate(), _candidate("instrument.profile.w")],
+                         gain=50.0, resolved=False)
+    assert _result([tie]).best_or_none() is None
+    win = CandidateGroup(members=[_candidate()], gain=120.0, resolved=True)
+    best = _result([win, tie]).best_or_none()
+    assert best is not None and best.path == "instrument.zero_shift"
 
 
 def test_pairwise_r2_via_nuisance_matches_projected_correlation():
