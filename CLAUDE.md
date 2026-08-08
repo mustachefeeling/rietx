@@ -233,6 +233,20 @@ recent list, and is therefore not behind the 409 (WP-1044).
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
+- **A pattern reader may repair a file only where it can say that it did**
+  (WP-1047, `io/formats/`, one module per format). `read_pattern(...,
+  diagnostics=[])` is `structure_from_cif`'s channel; `base.ascending()` is the
+  one place report-vs-contradiction meets 2θ order — descending reversed,
+  equal-y duplicate dropped, both reported; **differing-y duplicate and
+  non-monotone ranges raise**, so a multi-range file's ranges are *scans*
+  selected by `scan=`, never concatenated (GSAS-II concatenates, mixing two step
+  sizes and counting times into one weighting regime). A reader raises
+  `ValueError`/`OSError` **naming the file**, never its parser's exception
+  (`test_readers_robust.py` truncates every real fixture at 20 offsets).
+  `PatternFormat.options` ⊆ `READER_OPTIONS` is the only allowlist (a typo
+  raises; an option this format lacks is dropped *and reported*); `DataRef`
+  records the **effective** options; and `xy` is not total — a NUL in the first
+  4 kB is refused by name unless behind a BOM, UTF-16LE being valid UTF-8.
 - **Every weighted residual in the package divides by
   `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
   montage, Layer 0 and both GUI windows (`session.curve_window` is shared by the

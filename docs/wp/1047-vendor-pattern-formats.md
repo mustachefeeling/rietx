@@ -1,6 +1,8 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: 🔄 2026-08-08 — tasks 1-7 of 17: the whole
+seam (formats package, option vocabulary, diagnostics channel, xy de-totalised,
+truncation fuzz) plus `.chi` and the `.dif` refusal. Five vendor formats left.
 Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
 inherits the `DataRef` option-vocabulary note
 
@@ -533,6 +535,70 @@ multi-scan file reopens on the scan it was created from.
   `src/pxrdref/gui/imports.py`, `src/pxrdref/capabilities.py` — the seams.
 
 ## Handover log
+
+- **2026-08-08 (session 2)** — **tasks 1-7 of 17 landed**, on branch
+  `wp1047-vendor-formats` (6 commits off `main` @ `fad8a6d`). No `### Inherited`
+  to prune: this WP was created the same day and nothing had been mailed to it.
+
+  **Done.** (1) `io/formats/`, one module per format; `readers.py` the front
+  door; `head()` replaces `_looks_gsas`'s whole-file decode — a pure refactor
+  measured at *zero* test movement. (2) `READER_OPTIONS`/`reader_options_for`/
+  `read_pattern(**options)`, threaded through project, imports, series, server,
+  session, textdoc and the wizard; `Project.create(block=)` → `reader_options=`;
+  `DataRef` records **effective** options; allowlist meta-test. (3) the
+  `diagnostics=` channel + `ascending()` + `READER_OPTION_IGNORED` +
+  `multiscan_default`, with codes in AGENT_PROTOCOL, the preview payload, the
+  CLI print and `Project.data_diagnostics` (in memory, no `project.json`
+  field). (4) `xy` de-totalised; `identify_format`'s message from the registry;
+  UTF-16 BOM = text. (5) `tests/test_readers_robust.py`. (6) `.chi`. (7) `.dif`
+  + `PatternFormat.refuses`/`ReaderCapability.refuses`.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin, `-m "not slow"`: 2039 → **2094
+  passed, 5 skipped**. +55, no new skips, accounted for line by line: +1
+  allowlist meta-test, +22 (task 3: 21 in the new `test_readers.py`, 1
+  preview), +18 (task 4's 2 and the 16 in `test_readers_robust.py`), +12
+  (`.chi` 8, `.dif` 4), +2 (the upload route's two refusal rows, added with the
+  docs). Task 1 moved it by zero, which is what "pure refactor" had to mean.
+  vitest **401**,
+  svelte-check clean, ruff clean, dist rebuilt. The acceptance command's
+  `-m "not slow"` leg and its four named files all pass; the **slow** leg was
+  not run this session.
+
+  **In flight: nothing** — the tree is clean, pushed, and shippable at the WP's
+  own stated boundary (after task 5).
+
+  **Next**: task 8 `.ras`, which also introduces `scan` and carries the
+  `PROJECT_FORMAT_VERSION` minor bump; then 9-14 the remaining formats, 15-16
+  the instrument hint and scan picker, 17 the rest of the docs. Docs already
+  done for what landed: three root-CLAUDE.md rules compressed into one bullet
+  (the file sat at **exactly** its 600-line cap afterwards — budget for that),
+  ATTRIBUTION's new "Format specifications" section, AGENT_PROTOCOL rows for
+  five codes, README's reader row, `cli.py`'s help built from the registry,
+  ROADMAP focus + glyph, the v1.0 narrative, and the four-point note in
+  WP-1003's `### Inherited` (which also supersedes the stale `block=` sentence
+  in its own body).
+
+  **Gotchas for the successor.**
+  - **Retire the WP's risks in its stated order before writing any vendor
+    reader.** Fixture licences are per *file*, not per repo, and what
+    "scrambled" scrambled in `TwoTheta_scan_scrambled.raw` decides whether the
+    `.raw` acceptance line may claim values or only structure. GitHub was
+    reachable from this session, so the fixtures are obtainable.
+  - `multiscan_default` exists and is unit-tested but has **no caller yet** —
+    `.ras` is its first. Same for the `scan` entry in `READER_OPTIONS`, which
+    is deliberately *absent* until then: the allowlist meta-test
+    (`set(READER_OPTIONS) == ⋃ fmt.options`) fails if you add one without the
+    other, in either order.
+  - `ascending(..., fmt=)` takes the format so the non-monotone refusal names
+    `scan=` **only** where the option exists; a multi-scan reader gets that
+    sentence for free by declaring `options=("scan", …)`.
+  - The GUI wizard renders **one control per reader option** from
+    `capabilities().reader_options`, so `.ras` gets its scan picker with no
+    frontend change — but the dist is committed, so rebuild it
+    (`npm --prefix gui run build`) whenever server-side payloads change shape.
+  - `git add -p` **hangs** in this harness (no interactive stdin). It cost two
+    minutes; use explicit paths.
+
 
 - **2026-08-08** — created from the reviewed plan; the review's amendments
   folded in place: the Kα weighted mean in the λ match, the

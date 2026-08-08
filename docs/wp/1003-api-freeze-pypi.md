@@ -11,6 +11,30 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
+reader surface the freeze covers has changed shape, and one signature broke on
+purpose.** Four things to fold into the freeze rather than re-derive:
+
+1. **`read_pattern(path, *, diagnostics=None, **options)`** — the `block=`
+   keyword this file recorded as "additive" is gone as a *named* parameter. It
+   is now one entry in `io.readers.READER_OPTIONS`, the build-wide allowlist,
+   with `PatternFormat.options` naming the subset each format honours and
+   `reader_options_for` the single authority that coerces and filters. Freeze
+   the pair, not the keyword: a format added after the freeze adds an option
+   without touching the signature.
+2. **`Project.create(block=)` became `reader_options=`** — dropped, not
+   shimmed, deliberately: the freeze had not landed, a shim would be a second
+   authority, and every call site was in this repo. If the freeze wants a
+   deprecation path for anything, this is the precedent to reverse.
+3. **`DataRef.options` records the *effective* options** (what the parse used,
+   not what was requested), and its vocabulary grows with the formats — so a
+   `scan` entry lands when the multi-scan readers do, which is the
+   `PROJECT_FORMAT_VERSION` minor bump WP-1047 task 8 carries. The **major**
+   gate already opens such a project correctly.
+4. **Additive schema fields, no bump** (the events rule): `ReaderCapability`
+   gained `refuses` and `Capabilities` gained a `reader_options` arm. Confirm
+   that reading rather than re-litigating it.
+
 **From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
 *meaning* is in question, and freezing it would ratify a behaviour nobody
 intended.** `engines.DEFAULT_MAX_CANDIDATES = 12` is documented as "a cap, not a
@@ -369,7 +393,9 @@ decisions and one new surface:
   unknown field), and `io.readers.PATTERN_FORMATS` / `identify_format` — the
   reader dispatch is now a registry two other things quote, so freezing
   `capabilities()`'s reader arm freezes the registry's field names by proxy.
-  `read_pattern` also gained a `block=` keyword (additive).
+  `read_pattern`'s keyword surface is now `READER_OPTIONS` — see this
+  file's `### Inherited` note from WP-1047, which supersedes the
+  `block=` sentence that stood here.
 - **Decide whether `RefinementState` grows `excluded_regions`.** It does not
   carry them today, so **a history node cannot say what was excluded when it
   ran** — and excluding a region does not change the pattern fingerprint, so

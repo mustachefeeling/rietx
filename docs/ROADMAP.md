@@ -61,54 +61,32 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Closed 2026-08-08, narrative in
-[milestones/v1.0.md](milestones/v1.0.md):
-[1026](wp/1026-indexing-acceptance.md) — reopened for criterion 1, which now
-**exists as a generated number: −8 of ±20**, exactly DICVOL91's published
-global, above ITO13's −14 and below TREOR90 −4 / McMaille +5 / Crysfire +6.
-`python -m tests.bethanechol_benchmark` runs the paper's whole protocol (ten
-sets × two modes, domain quoted from the fixture, `preset="full"`) in ~61 min
-and is deliberately outside every pytest selection — **run it alone**, engine
-bounds are wall-clock. Three sets solve in both modes, truth rank 1, both
-engines. Two numbers travel with the global: the protocol's **ceiling** (+8,
-because `DEFAULT_N_UNINDEXED = 2` makes six of ten sets unwinnable in default
-mode — a −1 no search can prevent), and the **band**, set by measuring what
-the paper's own 0.100° zeropoint does to a correct cell (−6400 ppm), without
-which four more runs score −1. And the harness had been scoring a correct
-answer as a miss: the truth returns as its `c + a` setting, so the scoreboard's
-band moved to the *reduced* cell — nine high-symmetry datasets could not see it.
+**[1047](wp/1047-vendor-pattern-formats.md) — vendor pattern formats.** Tasks
+**1-7 of 17** landed; the WP's own stated session boundary (after task 5) is
+past and the tree is shippable as it stands.
 
-**The running theme, and it is the 1045 one rather than the singleton one: a
-number not regenerated is a number nobody re-measures.** 1043's −16 was
-correctly flagged as a floor and moved in *both* directions once generated;
-"every engine returns 0 candidates, the honest report is silence" survived four
-WPs that all touched the engines; "F is the only set of the ten we solve" was
-false in both halves. The score is a runner for exactly that reason (1041,
-1016, 1044, 1028, 1061 — and now 1026).
+What exists now: `io/formats/`, one module per format, because a format's spec
+citation, parser, sniff/σ prose, options and **licence fence** are one fact each
+and ten fences in one file drift. `readers.py` is the front door only, so no
+call site moved. `read_pattern(path, *, diagnostics=None, **options)` against
+the `READER_OPTIONS` allowlist — which is what makes a *typo* (raises) different
+from an option this format does not take (dropped, `READER_OPTION_IGNORED`) —
+with `Project.create(block=)` dropped for `reader_options=` and `DataRef`
+recording the **effective** options. `base.ascending()` is the one place
+report-vs-contradiction meets 2θ order. `xy` is no longer total, so a binary
+vendor file is refused **by name** built from the registry. `.chi` reads (its
+`npoints` line was being appended as a phantom datum at x = 2000) and `.dif`
+peak lists are refused via `PatternFormat.refuses`.
 
-**Queue** (ordering arguments in the v1.0 tables below):
-
-1. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs,
-   the Peaks tab now carrying 1045's Search controls (its `### Inherited`
-   has the onboarding notes).
-2. [1046](wp/1046-candidate-cap-before-ranking.md) — fully diagnosed, and
-   **measured not to be a one-line win**: the per-engine `max_candidates`
-   truncates each engine's *own* Borda before consensus ranks (on set F the
-   truth is rank 1 at a 5 s budget and absent at 30 s), but raising it 12 → 60
-   over the whole manual half is **net zero** — F enters at rank 3 and Db is
-   displaced from first by the rivals that came with it. So the cap hides a
-   candidate *and* the ranking cannot hold the truth up once it is admitted;
-   whoever takes this needs both halves.
-3. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
-   freeze covers an exercised surface. Its `### Inherited` was filled by
-   1016, 1041, 1043, 1042, 1045 and 1050; read it first — and note 1046 changes
-   what a frozen `DEFAULT_MAX_CANDIDATES` would mean.
-
-**The bar** (milestone row below): full validation matrix green; GUI end-to-end on
-11-BM NAC matching the API-driven acceptance; indexing graded against the
-**individual** program globals in Bergmann et al. 2004 (McMaille +5, Crysfire +6
-to beat — "≥ +9" was Table 5's `first_4` oracle, which no entry reaches), and
-abstaining on the mixture fixtures.
+**Next**, in the WP's order, and each independent enough to stop between:
+task 8 `.ras` (which also introduces `scan` — the `PROJECT_FORMAT_VERSION`
+minor bump rides with it), 9 `.uxd`, 10 `.xrdml`, 11 `.rasx`, 12 `.brml`,
+13-14 Bruker `.raw`, 15-16 the instrument hint and scan picker, 17 the
+remaining docs. **Retire the risks in the WP's stated order before writing any
+of those readers** — fixture licences are per *file*, not per repo, and what
+"scrambled" scrambled in the one real Bruker binary decides whether its
+acceptance line may claim values or only structure. Network to GitHub was
+reachable this session, so the fixtures are obtainable.
 
 ## Milestones
 
@@ -255,7 +233,7 @@ monoclinic search finishes.
 |---|---|---|---|
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ✅ 2026-08-07 | — (1007 soft) |
 | [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
-| [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | ⬜ | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
+| [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | 🔄 | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
 
 **1028 came from outside.** Every item in it was hit by driving the package
 end-to-end over nine unfamiliar refinement targets from a third-party paper

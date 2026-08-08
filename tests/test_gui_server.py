@@ -472,6 +472,25 @@ def test_an_upload_is_claimed_by_content_not_by_extension(
     assert payload["sha256"] == __import__("hashlib").sha256(raw).hexdigest()
 
 
+@pytest.mark.parametrize("name,body,expect", [
+    # a peak list is recognised in order to be declined (WP-1047)
+    ("quartz.dif", b"Q\n D-SPACING INTENSITY H K L\n 4.2 16.0 1 0 0\n"
+                   b" 3.3 100.0 1 0 1\n 2.4 9.0 1 1 0\n", "peak list"),
+    # a binary vendor file no longer reaches a decoder and dies as a codec error
+    ("d8.raw", b"RAW4.00\x00" + bytes(range(256)) * 8, "not a powder pattern"),
+])
+def test_a_file_this_build_cannot_honestly_read_is_refused_by_name(
+        blank, name, body, expect):
+    """The upload route is where a stranger's file arrives, so it is where
+    "we know what this is and it is the wrong kind of file" has to be a
+    sentence rather than a 500."""
+    _, client = blank
+    status, payload = client.upload("pattern", body, filename=name)
+    assert status == 400, payload
+    assert expect in payload["error"]["message"]
+    assert name in payload["error"]["message"]
+
+
 def test_a_staged_pdcif_is_re_read_for_another_block_without_re_uploading(blank):
     """``block`` is why the *reader call* is part of a data reference (WP-1005).
 

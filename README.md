@@ -76,7 +76,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Bounded least squares — scipy TRF (default) or **bounded LM** (`solver="lm"`, carries linear-inequality constraints), **analytic Jacobian**, esds with Bérar-Lelann inflation | ✅ |
 | Staged plans (`mccusker_default`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, …) | ✅ |
 | **FitReport Layers 0-2**: diagnostics → gated misfit attribution → typed actions | ✅ |
-| `.xy` / `.xye` / GSAS raw / pdCIF readers; instrument-profile files | ✅ |
+| `.xy` / `.xye` / GSAS raw / pdCIF / FIT2D `.chi` readers, dispatched on content; a `.dif` peak list and a binary vendor file are refused **by name**; instrument-profile files | ✅ |
 | Branchable history DAG: checkout, branch, **merge, cherry-pick**, replay | ✅ |
 | matplotlib plots, **VLM montage**, plotly HTML viewer, `pxrdref watch` live view | ✅ |
 | Atomic-coordinate refinement (Wyckoff/site-symmetry constraints), anisotropic ADPs | ✅ |
@@ -198,7 +198,7 @@ result.plot(path="fit.png")                               # obs/calc/diff/ticks
 ### Laboratory data
 
 ```python
-data = pr.read_pattern("sample.xrdml.xy")
+data = pr.read_pattern("sample.xy")   # or .xye / .chi / GSAS raw / pdCIF
 instrument = pr.Instrument.bragg_brentano(radiation="CuKa",      # Kα1/Kα2 doublet
                                           monochromator_two_theta=26.6)
 # also "CrKa" / "FeKa" / "CoKa" / "MoKa" / "AgKa", or any of them suffixed "1"

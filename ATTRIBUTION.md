@@ -214,6 +214,24 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | BGMN / Profex | GPL | Studied (papers/docs only). **No code ported.** |
 | xrayutilities | GPL-2.0 | Studied (papers/docs only). **No code ported.** |
 
+## Format specifications (WP-1047)
+
+A file format is an **interface**, not an expression: there is exactly one
+number that is "the offset of nSteps", one string that is a magic marker, one
+element path that holds the intensities. Those facts are merger, so they may be
+written down from any description — including a source whose licence would bar
+a port — and implemented independently. The practice this project follows is to
+extract the facts into a written table first, noting which source each came
+from, and then write the parser **with the source file closed**, in this repo's
+idioms. No line of any reader below is transcribed.
+
+| Format | Specification consulted | Note |
+|---|---|---|
+| pdCIF | IUCr pdCIF dictionary; Toby (2003), *J. Appl. Cryst.* **36**, 1240 | Parsed through gemmi, so only the *tag preference order* is ours. |
+| GSAS raw (FXYE/ESD/STD) | Larson & Von Dreele (2004), LAUR 86-748, §"Powder data file formats" | Documentation only; see the GSAS-II row above for why no code is ported. |
+| FIT2D / pyFAI `.chi` | Hammersley (1997/2016), *FIT2D: An Introduction and Overview*, ESRF Internal Report ESRF97HA02T, §"CHI file format" | The four-line header. The x-axis-label policy (refuse a recognisably q or d axis) is this project's, not the format's — the format does not standardise the label at all. |
+| `.dif` peak lists | Bruker DIFFRAC-AT output; RRUFF calculated-powder tables | Recognised **in order to be refused**; there is no parser to attribute. |
+
 ## Bundled frontend code (redistributed in the wheel)
 
 Every other row above is either studied or installed by the user's own package
