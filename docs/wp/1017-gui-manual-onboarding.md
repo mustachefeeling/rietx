@@ -39,6 +39,22 @@ real UI.
 
 ### Inherited
 
+**From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
+import wizard's pattern step changed shape, so any screenshot or walkthrough
+of it written before this lands will be wrong.** Two changes: (a) the single
+"data block" input is gone; the step now renders **one control per reader
+option the claimed format declares**, from
+`capabilities().reader_options` — so a multi-scan vendor format grows a `scan`
+picker with no frontend change, and the chapter should describe the mechanism
+rather than enumerate the controls. (b) The preview now shows the reader's own
+**diagnostics** (a scan stored high→low and reversed, a duplicated point
+dropped, an option that did not apply). That strip is the teachable moment the
+onboarding chapter wants: it is where a student sees that opening a file is a
+decision with consequences, before it becomes a project. Also worth a sentence:
+a binary vendor file and a `.dif` peak list are now refused **by name**, so
+"why won't my file open?" has an answer the app gives rather than one the
+manual has to.
+
 **From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — the
 "what next?" panel this WP's non-goal deferred now has its engine.**
 `Refinement.suggest()` is read-only (no history node, no mutation), so a

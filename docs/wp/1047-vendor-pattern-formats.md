@@ -553,16 +553,34 @@ multi-scan file reopens on the scan it was created from.
   UTF-16 BOM = text. (5) `tests/test_readers_robust.py`. (6) `.chi`. (7) `.dif`
   + `PatternFormat.refuses`/`ReaderCapability.refuses`.
 
-  **Counts**, `[dev,jax,torch]` venv, darwin, `-m "not slow"`: 2039 → **2094
-  passed, 5 skipped**. +55, no new skips, accounted for line by line: +1
-  allowlist meta-test, +22 (task 3: 21 in the new `test_readers.py`, 1
-  preview), +18 (task 4's 2 and the 16 in `test_readers_robust.py`), +12
-  (`.chi` 8, `.dif` 4), +2 (the upload route's two refusal rows, added with the
-  docs). Task 1 moved it by zero, which is what "pure refactor" had to mean.
-  vitest **401**,
-  svelte-check clean, ruff clean, dist rebuilt. The acceptance command's
-  `-m "not slow"` leg and its four named files all pass; the **slow** leg was
-  not run this session.
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection (`-m "not slow"`):
+  2039 → **2094 passed, 5 skipped**, +55 with no new skips, and the +55 is the
+  file arithmetic exactly — `test_readers.py` 35, `test_readers_robust.py` 16,
+  `test_capabilities.py` 1, `test_gui_server.py` 3 (one plain + one
+  parametrized ×2). Per task: +1, +22, +18, +12, +2. Task 1 moved it by
+  **zero**, which is what "pure refactor" had to mean. Full selection:
+  **2201 passed, 6 skipped** — green including every real-data acceptance row.
+  The full selection's *before* count was not measured (only the fast one was
+  taken at session start), so its +55 is **inferred**, not observed: no new
+  test carries `@pytest.mark.slow` (checked) and the fast delta is exactly 55.
+  The five fast skips are unchanged in kind — four `test_cross_backend.py`
+  "no axial columns in this config", one `test_structure3d.py` multi-block CIF;
+  the sixth in the full selection is a slow-only row that skips on `main` too.
+  vitest **401**, svelte-check clean, ruff clean, dist rebuilt.
+
+  **Wall clock**, as a range and not a figure: the fast selection ran 170-190 s
+  on a quiet machine and 485 s while other work shared it; the full selection
+  27:45, one measurement.
+
+  **One loose end, named rather than buried.** A fast-selection run that
+  *overlapped* the full suite (four concurrent pytest processes, 895 s against
+  a normal ~190 s) reported **1 failed**; the test's name was lost because that
+  invocation was piped through a `grep` for skip lines. Two clean runs before
+  and after it are green at 2094/5, and the full suite is green, so nothing is
+  known to be broken — but the failure was not identified, and the load
+  condition is precisely the one `tests/CLAUDE.md` documents as making a
+  wall-clock budget behave as a load sensor. If a successor sees an unexplained
+  failure under `-n auto`, check what else was running before believing it.
 
   **In flight: nothing** — the tree is clean, pushed, and shippable at the WP's
   own stated boundary (after task 5).
@@ -574,9 +592,10 @@ multi-scan file reopens on the scan it was created from.
   (the file sat at **exactly** its 600-line cap afterwards — budget for that),
   ATTRIBUTION's new "Format specifications" section, AGENT_PROTOCOL rows for
   five codes, README's reader row, `cli.py`'s help built from the registry,
-  ROADMAP focus + glyph, the v1.0 narrative, and the four-point note in
-  WP-1003's `### Inherited` (which also supersedes the stale `block=` sentence
-  in its own body).
+  ROADMAP focus + glyph, the v1.0 narrative, the four-point note in WP-1003's
+  `### Inherited` (which also supersedes the stale `block=` sentence in its own
+  body), and a note to WP-1017 that the import wizard's pattern step changed
+  shape — one control per reader option, plus a reader-diagnostics strip.
 
   **Gotchas for the successor.**
   - **Retire the WP's risks in its stated order before writing any vendor
