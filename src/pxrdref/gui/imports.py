@@ -220,12 +220,13 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
         fmt = identify_format(upload.path)
     except ValueError as exc:
         raise UploadRefused(str(exc)) from None
+    notes: list = []
     try:
-        options = reader_options_for(fmt, reader_options or {})
+        options = reader_options_for(fmt, reader_options or {}, diagnostics=notes)
     except ValueError as exc:
         raise UploadRefused(str(exc), where=["reader_options"]) from None
     try:
-        data = read_pattern(upload.path, **options)
+        data = read_pattern(upload.path, diagnostics=notes, **options)
     except (ValueError, OSError, RuntimeError, KeyError, IndexError) as exc:
         raise UploadRefused(
             f"{upload.filename} looks like {fmt.title} but could not be read: "
@@ -244,6 +245,11 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
         "format": {"name": fmt.name, "title": fmt.title, "sniff": fmt.sniff,
                    "sigma": fmt.sigma, "options": list(fmt.options)},
         "reader_options": {k: str(v) for k, v in options.items()},
+        # what the reader repaired or assumed.  The wizard is where a human
+        # should see a repair — a project records no such field, because these
+        # are a deterministic function of bytes + reader + options and all three
+        # are already in ``DataRef``
+        "diagnostics": [d.model_dump() for d in notes],
         "n_points": int(tt.size),
         "two_theta_range": [float(tt[0]), float(tt[-1])],
         "step": float(np.median(steps)) if steps.size else None,

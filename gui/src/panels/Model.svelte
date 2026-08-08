@@ -687,6 +687,15 @@
                 <span class="muted">{opt.help}</span>
               </label>
             {/each}
+            <!-- what the reader repaired or assumed: a reversed scan, a dropped
+                 duplicate, an option that did not apply. The wizard is where a
+                 human should see a repair, before it becomes a project. -->
+            {#each wiz.pattern.diagnostics ?? [] as note (note.code + note.message)}
+              <p class="tiny {note.level === 'error' ? 'bad'
+                            : note.level === 'warning' ? 'warn' : 'info'}">
+                <span class="mono">{note.code}</span> {note.message}
+              </p>
+            {/each}
           {/if}
         </li>
 

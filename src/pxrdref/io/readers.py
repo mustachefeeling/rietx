@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..schemas.common import Diagnostic
 from ..schemas.pattern import PatternData
 from .formats import (
     PATTERN_FORMATS,
@@ -40,7 +41,8 @@ __all__ = [
 ]
 
 
-def read_pattern(path: str | Path, **options: Any) -> PatternData:
+def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = None,
+                 **options: Any) -> PatternData:
     """Read any supported pattern file, dispatching on *content* first.
 
     GSAS raw files are recognised by their ``BANK`` record rather than by
@@ -54,10 +56,19 @@ def read_pattern(path: str | Path, **options: Any) -> PatternData:
     will claim the file: an option this format does not take is dropped, while
     an option *no* format takes is a typo and raises.  See
     :func:`~pxrdref.io.formats.base.reader_options_for` for that distinction.
+
+    ``diagnostics``, when a list is passed, collects what the reader **repaired
+    or assumed** — a scan stored high→low and reversed, a duplicated point
+    dropped, an option that did not apply.  It is the same channel
+    :func:`~pxrdref.crystallography.cif.structure_from_cif` takes and exists
+    for the same reason: a reader is the one layer that may silently correct a
+    stranger's file, and it may only do so where it can say that it did.
+    Returning a bare :class:`PatternData` was an accident, not a design.
     """
     p = Path(path)
     fmt = identify_format(p)
-    return fmt.read(p, **reader_options_for(fmt, options))
+    kwargs = reader_options_for(fmt, options, diagnostics=diagnostics)
+    return fmt.read(p, diagnostics=diagnostics, **kwargs)
 
 
 def identify_format(path: str | Path) -> PatternFormat:

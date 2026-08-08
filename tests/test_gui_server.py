@@ -490,6 +490,17 @@ def test_a_staged_pdcif_is_re_read_for_another_block_without_re_uploading(blank)
     assert second["reader_options"] == {"block": "calc"}
 
 
+def test_the_preview_carries_what_the_reader_repaired(blank):
+    """The wizard is where a human should see a repair — before the file
+    becomes a project and its point order becomes everything downstream."""
+    _, client = blank
+    raw = b"30 3\n20 2\n10 1\n"
+    status, preview = client.upload("pattern", raw, filename="down.xy")
+    assert status == 200, preview
+    assert [d["code"] for d in preview["diagnostics"]] == ["PATTERN_SCAN_REVERSED"]
+    assert preview["two_theta_range"] == [10.0, 30.0]
+
+
 def test_the_aniso_checkbox_is_offered_only_when_the_cif_carries_a_loop(blank):
     """The opt-in mirrors an invariant, so the UI has to know if it is inert."""
     _, client = blank

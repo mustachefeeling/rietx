@@ -12,8 +12,9 @@ from pathlib import Path
 
 import numpy as np
 
+from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat
+from .base import PatternFormat, ascending
 
 #: pdCIF tag alternatives, in preference order
 _PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
@@ -24,7 +25,8 @@ _PDCIF_SU = ("_pd_proc_intensity_total_su", "_pd_proc_intensity_total_esd",
              "_pd_meas_intensity_total_su", "_pd_meas_intensity_total_esd")
 
 
-def read_pdcif(path: str | Path, *, block: str | None = None) -> PatternData:
+def read_pdcif(path: str | Path, *, block: str | None = None,
+               diagnostics: list[Diagnostic] | None = None) -> PatternData:
     """Read a powder pattern from a pdCIF file.
 
     ``block`` selects a data block by substring match on its name (a pdCIF
@@ -66,6 +68,8 @@ def read_pdcif(path: str | Path, *, block: str | None = None) -> PatternData:
         if wt is not None and len(wt) == len(y) and np.all(wt > 0):
             sigma = 1.0 / np.sqrt(wt)
 
+    tt, y, sigma = ascending(tt, y, sigma, path=p, fmt=PDCIF,
+                             diagnostics=diagnostics)
     return PatternData(
         two_theta=tt.tolist(), intensity=y.tolist(),
         sigma=None if sigma is None else sigma.tolist(),

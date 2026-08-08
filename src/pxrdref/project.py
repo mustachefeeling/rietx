@@ -41,7 +41,7 @@ from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .io.readers import identify_format, read_pattern, reader_options_for
 from .refine import _VERSION, Refinement
-from .schemas.common import Mode
+from .schemas.common import Diagnostic, Mode
 from .schemas.history import NodeAction
 from .schemas.instrument import Instrument
 from .schemas.pattern import PatternData
@@ -82,11 +82,21 @@ class Project:
     """
 
     def __init__(self, path: str | Path, doc: ProjectDoc, data: PatternData,
-                 refinement: Refinement):
+                 refinement: Refinement,
+                 data_diagnostics: list[Diagnostic] | None = None):
         self.path = Path(path)
         self.doc = doc
         self.data = data
         self.refinement = refinement
+        #: what the reader repaired or assumed on the *last* read of the pattern
+        #: — a reversed scan, a dropped duplicate, an option that did not apply.
+        #: In memory only, and deliberately **not** a ``project.json`` field:
+        #: they are a deterministic function of bytes + reader + options, all
+        #: three of which ``DataRef`` already records, so storing them would be
+        #: a second authority.  Putting the repairs in the reader also puts them
+        #: under the fingerprint check, so changing one later fires the existing
+        #: "a reader change, not a corrupt project" message.
+        self.data_diagnostics: list[Diagnostic] = list(data_diagnostics or [])
 
     # ------------------------------------------------------------------
     # construction
@@ -129,8 +139,9 @@ class Project:
             shutil.copyfile(src, copied)  # bytes, not a re-serialisation
 
         fmt = identify_format(copied)
-        options = reader_options_for(fmt, reader_options or {})
-        data = read_pattern(copied, **options)
+        notes: list[Diagnostic] = []
+        options = reader_options_for(fmt, reader_options or {}, diagnostics=notes)
+        data = read_pattern(copied, diagnostics=notes, **options)
         if excluded_regions:
             data.excluded_regions = [tuple(r) for r in excluded_regions]
 
@@ -163,7 +174,7 @@ class Project:
 
         (root / LIVE_DIR).mkdir(exist_ok=True)
         (root / EXPORTS_DIR).mkdir(exist_ok=True)
-        project = cls(root, doc, data, ref)
+        project = cls(root, doc, data, ref, notes)
         project.save()
         return project
 
@@ -214,7 +225,9 @@ class Project:
                 f"(sha256 {actual_sha[:8]}, recorded {ref_doc.sha256[:8]}); the "
                 "history was fitted against the recorded bytes")
 
-        data = read_pattern(pattern_path, **_reader_options(ref_doc))
+        notes: list[Diagnostic] = []
+        data = read_pattern(pattern_path, diagnostics=notes,
+                            **_reader_options(ref_doc))
         actual_fp = fingerprint(data.two_theta, data.intensity)
         if actual_fp != ref_doc.fingerprint:
             raise ValueError(
@@ -241,7 +254,7 @@ class Project:
                 f"{history_path}: no node to resume from; the log has no records")
 
         ref = Refinement.from_node(tree, "head", backend=backend, solver=solver)
-        return cls(root, doc, data, ref)
+        return cls(root, doc, data, ref, notes)
 
     # ------------------------------------------------------------------
     # persistence

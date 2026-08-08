@@ -17,15 +17,17 @@ from pathlib import Path
 
 import numpy as np
 
+from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, head
+from .base import PatternFormat, ascending, head
 
 
 def looks_gsas(p: Path) -> bool:
     return bool(re.search(r"^BANK\s+\d+", head(p).text, re.M))
 
 
-def read_gsas(path: str | Path) -> PatternData:
+def read_gsas(path: str | Path, *,
+              diagnostics: list[Diagnostic] | None = None) -> PatternData:
     """GSAS raw powder data, CONST or ESD/FXYE variants."""
     p = Path(path)
     lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -86,7 +88,9 @@ def read_gsas(path: str | Path) -> PatternData:
         good = np.asarray(sigma) > 0
         tt, y = tt[good], y[good]
         sigma = np.asarray(sigma)[good].tolist()
-    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(), sigma=sigma,
+    tt, y, sig = ascending(tt, y, sigma, path=p, fmt=GSAS, diagnostics=diagnostics)
+    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                       sigma=None if sig is None else sig.tolist(),
                        metadata={"source_file": p.name, "format": f"gsas-{type_flag.lower()}"})
 
 

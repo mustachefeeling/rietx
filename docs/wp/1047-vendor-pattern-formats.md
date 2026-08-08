@@ -412,7 +412,7 @@ that belong to it), never mid-format.
       thread through project, imports, series, server, session, textdoc,
       wizard; drop `Project.create(block=)`; `DataRef` records effective
       options. Meta-test on the allowlist union.
-- [ ] 3. Diagnostics channel + the `ascending()` monotonicity policy +
+- [x] 3. Diagnostics channel + the `ascending()` monotonicity policy +
       `READER_OPTION_IGNORED` + `PATTERN_MULTISCAN_DEFAULTED` + codes in
       `docs/AGENT_PROTOCOL.md`; preview payload and CLI print.
 - [ ] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16

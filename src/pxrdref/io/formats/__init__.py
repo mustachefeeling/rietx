@@ -26,7 +26,9 @@ from .base import (
     Head,
     PatternFormat,
     ReaderOption,
+    ascending,
     head,
+    multiscan_default,
     reader_options_for,
 )
 from .gsas import GSAS, read_gsas
@@ -43,7 +45,9 @@ __all__ = [
     "Head",
     "PatternFormat",
     "ReaderOption",
+    "ascending",
     "head",
+    "multiscan_default",
     "read_gsas",
     "read_pdcif",
     "read_xy",

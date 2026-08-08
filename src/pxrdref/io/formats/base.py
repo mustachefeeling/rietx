@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
+
+from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
 
 
@@ -98,7 +101,8 @@ READER_OPTIONS: dict[str, ReaderOption] = {
 }
 
 
-def reader_options_for(fmt: PatternFormat, requested: dict[str, Any]) -> dict[str, Any]:
+def reader_options_for(fmt: PatternFormat, requested: dict[str, Any], *,
+                       diagnostics: list[Diagnostic] | None = None) -> dict[str, Any]:
     """The options ``fmt`` will actually be called with — coerced and filtered.
 
     One authority, because three callers ask the same question and each would
@@ -106,6 +110,11 @@ def reader_options_for(fmt: PatternFormat, requested: dict[str, Any]) -> dict[st
     before dispatching, ``Project`` when recording what the parse *used*, and
     the GUI when a staged file is re-read.  ``None`` means "not specified" and
     is dropped, so ``block=None`` still reads the first block that parses.
+
+    A dropped option is **reported, not silent**: a GUI is free to ignore
+    ``READER_OPTION_IGNORED`` (carrying a value across a change of file is what
+    a form does), and an API caller who passed ``scan=2`` against a single-scan
+    format is not, because they believed they had selected something.
     """
     out: dict[str, Any] = {}
     for name, value in requested.items():
@@ -113,10 +122,44 @@ def reader_options_for(fmt: PatternFormat, requested: dict[str, Any]) -> dict[st
         if option is None:
             raise ValueError(f"unknown reader option {name!r}; read_pattern takes "
                              f"{sorted(READER_OPTIONS)}")
-        if value is None or name not in fmt.options:
+        if value is None:
+            continue
+        if name not in fmt.options:
+            if diagnostics is not None:
+                diagnostics.append(Diagnostic(
+                    level="info", code="READER_OPTION_IGNORED",
+                    message=(f"{name}={value!r} was not applied: {fmt.title} takes "
+                             f"{list(fmt.options) or 'no reader options'}, so the "
+                             "file was read as if it had not been given"),
+                    where=[name],
+                    suggestion=("drop the option, or check that the file is the "
+                                "format you meant to open — identify_format names "
+                                "the reader that claimed it")))
             continue
         out[name] = option.coerce(value)
     return out
+
+
+def multiscan_default(n_scans: int, requested: int | None, *, path: str | Path,
+                      diagnostics: list[Diagnostic] | None = None) -> None:
+    """Say so when scan 0 of several was taken because nobody chose.
+
+    Reading one of a file's scans is a *choice*, and a default that only the GUI
+    preview reveals leaves the API and the CLI blind.  Same rule as
+    ``INDEX_SHIFT_ALLOWANCE`` one seam over: an assumed selection must never
+    look like a deliberate one.  Silent when the file holds one scan (there is
+    nothing to choose) or when ``scan`` was given (the choice was made).
+    """
+    if n_scans <= 1 or requested is not None or diagnostics is None:
+        return
+    diagnostics.append(Diagnostic(
+        level="warning", code="PATTERN_MULTISCAN_DEFAULTED",
+        message=(f"{Path(path).name} holds {n_scans} scans and none was named; "
+                 f"scan 0 of {n_scans} was read. The others are not in this "
+                 "pattern"),
+        where=["scan"],
+        suggestion=(f"pass scan=<0…{n_scans - 1}> to choose, or list_scans(path) "
+                    "to see what each one is")))
 
 
 #: How much of a file a *sniff* may look at.  Every text dispatch goes through
@@ -151,6 +194,95 @@ class Head:
     #: encoding: ASCII-range UTF-16LE is *valid* UTF-8 with interleaved NULs, so
     #: a mark is what separates "Windows vendor export" from "binary".
     bom: bool
+
+
+def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
+              path: str | Path, fmt: PatternFormat | None = None,
+              diagnostics: list[Diagnostic] | None = None,
+              ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """``PatternData``'s strictly-increasing 2θ, or a refusal — never a guess.
+
+    Several formats store a scan measured high→low, and the root CLAUDE.md rule
+    fixes what to do about it: a silent correction is a reader's to make, and
+    only where the deviation is a **report** rather than a **contradiction**.
+    Applied case by case, that is the whole of this function:
+
+    ==============================  ==============  ==========================
+    deviation                       verdict         action
+    ==============================  ==============  ==========================
+    strictly descending             report          reverse; the measurement is
+                                                    the same one, stored
+                                                    backwards, and reversing is
+                                                    lossless
+    duplicate 2θ, equal intensity   report          drop the repeat — a format
+                                                    artefact, no datum lost
+    duplicate 2θ, different y       contradiction   raise: averaging invents a
+                                                    datum and dropping picks one
+    non-monotone (stitched ranges,  contradiction   raise: concatenate, sort or
+    restarts)                                       separate is the caller's
+                                                    call, not the reader's
+    non-constant step               neither         nothing — SRM 660c is 24
+                                                    stitched regions and legal
+    ==============================  ==============  ==========================
+
+    The non-monotone refusal names the ``scan`` option **only for a format that
+    has one**, which is why it takes ``fmt``: telling someone to select a scan
+    in a file that cannot hold several is a wrong instruction, not a vague one.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    y = np.asarray(intensity, dtype=np.float64)
+    sig = None if sigma is None else np.asarray(sigma, dtype=np.float64)
+    name = Path(path).name
+
+    step = np.diff(tt)
+    # ``<= 0`` with at least one strict descent, so that a descending scan which
+    # also repeats a point is reversed and *then* meets the duplicate rule below
+    # — the mirror of an ascending one, handled by the same code
+    if tt.size > 1 and np.all(step <= 0) and np.any(step < 0):
+        tt, y = tt[::-1], y[::-1]
+        sig = None if sig is None else sig[::-1]
+        step = np.diff(tt)
+        if diagnostics is not None:
+            diagnostics.append(Diagnostic(
+                level="info", code="PATTERN_SCAN_REVERSED",
+                message=(f"{name} stores its points from high 2θ to low; they "
+                         "were reversed. The same measurement, stored backwards "
+                         "— reversing loses nothing"),
+                where=["two_theta"]))
+
+    if tt.size > 1 and not np.all(step > 0):
+        repeat = np.flatnonzero(step == 0.0)
+        if repeat.size and np.all(step >= 0):
+            differing = repeat[y[repeat] != y[repeat + 1]]
+            if differing.size:
+                i = int(differing[0])
+                raise ValueError(
+                    f"{name}: 2θ = {tt[i]:.6g}° appears twice with different "
+                    f"intensities ({y[i]:.6g} and {y[i + 1]:.6g}), and "
+                    f"{differing.size} such point(s) in all. Averaging them "
+                    "would invent a datum and dropping one would pick a "
+                    "measurement arbitrarily, so neither is the reader's to do")
+            keep = np.ones(tt.size, dtype=bool)
+            keep[repeat + 1] = False
+            tt, y = tt[keep], y[keep]
+            sig = None if sig is None else sig[keep]
+            if diagnostics is not None:
+                diagnostics.append(Diagnostic(
+                    level="info", code="PATTERN_DUPLICATE_POINTS",
+                    message=(f"{name} repeats {int(repeat.size)} 2θ value(s) with "
+                             "the same intensity; the repeats were dropped"),
+                    where=["two_theta"]))
+        else:
+            i = int(np.flatnonzero(step <= 0)[0])
+            extra = (" — if these are separate ranges, name one with scan="
+                     if fmt is not None and "scan" in fmt.options else "")
+            raise ValueError(
+                f"{name}: 2θ does not run in one direction — it goes "
+                f"{tt[i]:.6g}° → {tt[i + 1]:.6g}° at point {i}. Concatenating, "
+                "sorting or separating such ranges are three different "
+                f"measurements and choosing between them is yours{extra}")
+
+    return tt, y, sig
 
 
 def head(path: str | Path, n: int = HEAD_BYTES) -> Head:

@@ -13,11 +13,13 @@ from pathlib import Path
 
 import numpy as np
 
+from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat
+from .base import PatternFormat, ascending
 
 
-def read_xy(path: str | Path) -> PatternData:
+def read_xy(path: str | Path, *,
+            diagnostics: list[Diagnostic] | None = None) -> PatternData:
     p = Path(path)
     rows = []
     for line in p.read_text(encoding="utf-8").splitlines():
@@ -35,9 +37,12 @@ def read_xy(path: str | Path) -> PatternData:
         raise ValueError(f"no numeric data found in {p}")
     n_cols = min(len(r) for r in rows)
     arr = np.array([r[:n_cols] for r in rows], dtype=np.float64)
-    sigma = arr[:, 2].tolist() if n_cols >= 3 and np.any(arr[:, 2] > 0) else None
-    return PatternData(two_theta=arr[:, 0].tolist(), intensity=arr[:, 1].tolist(),
-                       sigma=sigma, metadata={"source_file": p.name})
+    sigma = arr[:, 2] if n_cols >= 3 and np.any(arr[:, 2] > 0) else None
+    tt, y, sig = ascending(arr[:, 0], arr[:, 1], sigma, path=p, fmt=XY,
+                           diagnostics=diagnostics)
+    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                       sigma=None if sig is None else sig.tolist(),
+                       metadata={"source_file": p.name})
 
 
 XY = PatternFormat(
