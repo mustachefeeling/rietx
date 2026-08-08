@@ -65,7 +65,7 @@ from .engines import (
     SearchSpec,
     assign_lines,
     dedup_candidates,
-    effective_sigma_sys,
+    effective_shift_allowance,
     incomplete_diagnostic,
     indexes_the_search_lines,
     provisional_payload,
@@ -74,6 +74,7 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     search_line_order,
+    search_volume_ceiling,
     shift_allowance_diagnostic,
     trial_hkl,
 )
@@ -569,15 +570,15 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
 
     ``quality`` is a :class:`~pxrdref.schemas.indexing.DataQualityReport`; its
     per-system Smith volume envelope becomes the default ``max_volume``, and its
-    ``shift.sigma_sys_deg`` the systematic floor added to every line's σ.  Pass
+    ``shift.allowance_deg`` the systematic floor added to every line's σ.  Pass
     it whenever one exists — the alternative is a hard-coded tolerance, which is
     exactly what per-line σ replaced.
     """
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys, assumed = effective_sigma_sys(spec, quality)
-    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
+    allowance, assumed = effective_shift_allowance(spec, quality)
+    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     tt_max = float(peaks.two_theta_max)
 
     search = search_line_order(peaks, spec)
@@ -609,10 +610,7 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
                            system=system)
         budget = Budget(spec.budget_seconds, cancel)
         basis = metric_basis(system)
-        vol_max = spec.volume_limit(
-            system, float(quality.volume_envelope[system])
-            if quality is not None and system in quality.volume_envelope
-            else 8000.0)
+        vol_max = search_volume_ceiling(spec, quality, system)
         found, (n_boxes, n_rows), complete = _search_one(
             basis, system, spec.centrings_for(system), spec, budget, q_all,
             sigma, q_search, tol_search, peaks.wavelength, tt_max,
@@ -637,9 +635,9 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
                                         max_candidates=spec.max_candidates,
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
-    result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
+    result.stats["shift_allowance_deg"] = round(allowance, 5)
     if assumed:
-        result.diagnostics.append(shift_allowance_diagnostic(sigma_sys))
+        result.diagnostics.append(shift_allowance_diagnostic(allowance))
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("dichotomy", incomplete, spec.budget_seconds))

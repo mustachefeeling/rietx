@@ -230,7 +230,16 @@ class SearchSpec:
     n_unindexed: int = DEFAULT_N_UNINDEXED
     n_search_lines: int = DEFAULT_SEARCH_LINES
     k_sigma: float = MATCH_SIGMA
-    sigma_sys_deg: float = 0.0
+    #: systematic 2θ **allowance** the matching window must span (°), the
+    #: quantity :class:`~pxrdref.schemas.indexing.ShiftScreen` calls
+    #: ``allowance_deg`` — **never** its ``sigma_sys_deg``, the residual scatter
+    #: the winning template leaves.  This field was named ``sigma_sys_deg`` too
+    #: until WP-1045, and the collision made the obvious calibration protocol
+    #: (measure the screen on a standard, declare its number here) fail
+    #: *silently*: matching happens against **uncorrected** positions, so
+    #: declaring the 4.3×-smaller scatter finds nothing at all (SRM 660c,
+    #: 0.0078° vs 0.037° — the story in :func:`effective_shift_allowance`).
+    shift_allowance_deg: float = 0.0
     shift_template: str | None = None
     budget_seconds: float = DEFAULT_BUDGET_SECONDS
     #: whole-run wall-clock ceiling (WP-1037), or ``None`` to let the preset
@@ -248,6 +257,16 @@ class SearchSpec:
     #: seeded RNG for the stochastic engine; recorded in every result so a run
     #: is reproducible from what it reports
     seed: int = 0
+    #: analogue priors (WP-1045, ``indexing/priors.py``): cells and space-group
+    #: symbols an isostructural compound suggests.  A prior *steers* — its
+    #: system jumps the queue, its metric seeds ``search_svd``'s starting
+    #: basin, and the cell itself is checked against the peak list, entering
+    #: consensus as finder ``"prior"`` — and never *gates*: no system dropped,
+    #: no range changed, prior-only candidates appended after the ranked list
+    #: so a wrong prior costs time, never truth.  ``INDEX_PRIOR_USED`` records
+    #: what was supplied and what it changed.
+    prior_cells: tuple[tuple[float, float, float, float, float, float], ...] = ()
+    prior_spacegroups: tuple[str, ...] = ()
 
     def centrings_for(self, system: str) -> tuple[str, ...]:
         if self.centrings is not None and system in self.centrings:
@@ -668,7 +687,8 @@ def search_line_order(peaks: PeakList, spec: SearchSpec) -> np.ndarray:
     return order[np.argsort(q[order])]
 
 
-def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
+def effective_shift_allowance(spec: SearchSpec,
+                              quality=None) -> tuple[float, bool]:
     """The systematic allowance to use, and whether it was **assumed**.
 
     Three cases, in priority order: the caller declared one; the data-quality
@@ -688,10 +708,13 @@ def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
     SRM 660c the two are 0.0078° and 0.037°: declaring the smaller finds
     **nothing**, declaring the larger recovers the certificate.  The
     ``lab6_calibrated`` fixture computed the right quantity by hand for exactly
-    this reason; the screen now computes it once.
+    this reason; the screen now computes it once.  The same collision lived in
+    the *declared* field's name until WP-1045 — ``SearchSpec.sigma_sys_deg``
+    invited exactly the wrong number — so both this function and that field now
+    say "allowance", and the only ``sigma_sys_deg`` left is the screen's scatter.
     """
-    if spec.sigma_sys_deg > 0.0:
-        return float(spec.sigma_sys_deg), False
+    if spec.shift_allowance_deg > 0.0:
+        return float(spec.shift_allowance_deg), False
     if (quality is not None and quality.shift is not None
             and quality.shift.source in TRUSTED_SHIFT_SOURCES
             and quality.shift.allowance_deg > 0.0):
@@ -699,18 +722,50 @@ def effective_sigma_sys(spec: SearchSpec, quality=None) -> tuple[float, bool]:
     return DEFAULT_UNKNOWN_SHIFT_DEG, True
 
 
-def shift_allowance_diagnostic(sigma_sys: float) -> Diagnostic:
+#: Search ceiling (Å³) when neither the caller nor a data-quality report
+#: supplies one — deliberately generous, because a ceiling with no evidence
+#: behind it must only ever exclude the absurd.
+DEFAULT_VOLUME_CEILING = 8000.0
+
+
+def search_volume_ceiling(spec: SearchSpec, quality, system: str) -> float:
+    """The volume a *search* prunes at for one system — the one authority.
+
+    A caller's declared ``max_volume`` is returned verbatim: explicit
+    narrowing is the caller's own act (the no-silent-caps rule), and it is
+    already recorded in ``spec_notes``.  The fallback is the data-quality
+    report's Smith envelope **with**
+    :data:`~pxrdref.indexing.quality.VOLUME_ENVELOPE_SLACK`, because the
+    envelope is a least-squares *mean line*, not a bound: deviations run 29 %
+    low on Smith's own calibration set and low is the ordinary case (missing
+    weak lines produce it — with p the fraction of possible lines detected the
+    raw line stands at 1.40·p × truth, excluding the true cell below
+    p = 0.71).  Until WP-1045 all four engine call sites fed the raw envelope,
+    so the slack existed only where consensus *flags* a found candidate — a
+    calibrated exclusion of the right answer, invisible to the complete-list
+    guard test (blind at p = 1).
+    """
+    if quality is not None and system in quality.volume_envelope:
+        from .quality import VOLUME_ENVELOPE_SLACK
+
+        fallback = VOLUME_ENVELOPE_SLACK * float(quality.volume_envelope[system])
+    else:
+        fallback = DEFAULT_VOLUME_CEILING
+    return spec.volume_limit(system, fallback)
+
+
+def shift_allowance_diagnostic(allowance_deg: float) -> Diagnostic:
     """``INDEX_SHIFT_ALLOWANCE`` — the search widened its own tolerance, and by how
     much.  Reported because it is the difference between a cell and no cell, and
     because it biases the cell it finds."""
     return Diagnostic(
         level="info", code="INDEX_SHIFT_ALLOWANCE",
-        message=(f"no systematic 2θ shift has been measured, so {sigma_sys:.3f}° "
+        message=(f"no systematic 2θ shift has been measured, so {allowance_deg:.3f}° "
                  "was added in quadrature to every line's fitted σ.  Measured on "
                  "a certified pattern, the fitted σ alone is ~11× too tight: the "
                  "true cell indexed no lines at all and the search returned "
                  "nothing"),
-        where=[f"σ_sys = {sigma_sys:.3f}° 2θ (assumed)"],
+        where=[f"σ_sys = {allowance_deg:.3f}° 2θ (assumed)"],
         suggestion=("the cell a widened search finds absorbs the shift, so refine "
                     "the winner with a shift template "
                     "(refine_candidate(..., shift_template=...), or pass "
@@ -827,7 +882,7 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
 
     ``q_esd`` is what the measurement resolves and this is what a line was
     allowed to move by, and the two differ by the shift allowance
-    (:func:`effective_sigma_sys`).  Ranking, or drawing, in the tighter one
+    (:func:`effective_shift_allowance`).  Ranking, or drawing, in the tighter one
     judges candidates by a criterion they were never selected under — the rule
     ``fom.fom_panel`` states for ``q_match``, now stated once here so
     :mod:`~pxrdref.indexing.consensus` and :mod:`pxrdref.viz.indexing` cannot
@@ -835,9 +890,10 @@ def match_window(peaks: PeakList, spec=None, quality=None) -> np.ndarray:
     """
     from .qspace import sigma_effective
 
-    sigma_sys, _assumed = effective_sigma_sys(spec or SearchSpec(), quality)
+    allowance, _assumed = effective_shift_allowance(spec or SearchSpec(),
+                                                    quality)
     return sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
-                           sigma_sys)
+                           allowance)
 
 
 def scored_positions(peaks: PeakList, fit) -> tuple[np.ndarray, np.ndarray]:
@@ -994,7 +1050,7 @@ def merge_engine_units(units: Sequence[EngineResult]) -> EngineResult:
     everything downstream of it, still wants one answer per engine, and this is
     that fold.  Everything is a union of disjoint per-system facts except the
     engine-level stats: ``candidates.raw`` is **summed** (each unit counted its
-    own harvest), while ``sigma_sys_deg`` and ``seed`` are identical across
+    own harvest), while ``shift_allowance_deg`` and ``seed`` are identical across
     units by construction (one spec, one quality report), so last-write-wins is
     exact for them.  Diagnostics dedup on (code, message) — every unit repeats
     the engine-level ones (``INDEX_SHIFT_ALLOWANCE``) in identical words, and N
@@ -1259,13 +1315,32 @@ def budget_exhausted_diagnostic(total_seconds: float,
 #: cooperative granularity), the truth's own system completes inside the
 #: ceiling on every one, and what a binding ceiling cuts is the trailing
 #: low-symmetry systems — loudly (``INDEX_BUDGET_EXHAUSTED``), the documented
-#: cost of cheapest-first ordering.  A measured consequence to know: on the
-#: heavier patterns the search consumes the whole ceiling and validation gets
-#: **no** fits — every candidate then reads ``not_validated`` (capping),
-#: which is honest and is the cue to rerun ``preset="full"``.
+#: cost of cheapest-first ordering.  The starvation this used to carry — on
+#: the heavier patterns the search consumed the whole ceiling and validation
+#: got **no** fits — is why :data:`VALIDATION_RESERVE_FRACTION` exists
+#: (WP-1045): the search now stops a reserve early whenever validation is
+#: going to run, so the first click's shortlist arrives whole-profile-checked.
 QUICK_TOTAL_BUDGET_SECONDS = 120.0
 #: The preset ``index_pattern`` resolves when the caller names none.
 DEFAULT_SEARCH_PRESET = "quick"
+
+#: Fraction of a whole-run ceiling the *search* may not consume when
+#: whole-profile validation is going to run — the validation reserve
+#: (WP-1045).  Measured before it existed: on three heavy qarr patterns
+#: (corundum, zincite, brucite) the search consumed the full 120 s ceiling on
+#: every run and validation got **zero** fits, while a validation fit costs
+#: 0.3–1.9 s and a trailing search *system* costs 11–60 s.  8 % (9.6 s at the
+#: default ceiling) covers the measured worst checked shortlist (3 × 1.9 s)
+#: with margin for the equal-slice arithmetic, and costs at most a sixth of
+#: one trailing system — and the deferred ambiguity pass runs on whatever the
+#: fits leave, because validation is the mandatory check and the enumeration
+#: is the one the gate already reads conservatively when unasked.  Scheduling
+#: within the ceiling, never a change to it: the run still ends at
+#: ``total_budget_seconds``, the search merely stops early enough that
+#: "validated by Le Bail" is part of the first click's answer rather than the
+#: rerun's.  No reserve when nothing will validate (``validate=False`` or no
+#: pattern): the search keeps every second.
+VALIDATION_RESERVE_FRACTION = 0.08
 
 #: name → the whole-run ceiling it fills in (``None`` = unbounded, today's
 #: pre-WP-1042 behaviour).  Held in bijection with :data:`SEARCH_PRESET_INFO`
@@ -1331,8 +1406,8 @@ SEARCH_PRESET_INFO: dict[str, SearchPresetInfo] = {
             "behaviour."),
         when_to_use=(
             "when a quick run reported truncated or not-reached systems (or "
-            "starved validation) and the answer may live there — typically "
-            "low-symmetry searches, which are irreducibly slow"),
+            "validation slices that ran dry) and the answer may live there — "
+            "typically low-symmetry searches, which are irreducibly slow"),
         typical_seconds=(4.0, 440.0),
     ),
 }
@@ -1478,12 +1553,14 @@ __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
            "SAME_SOLUTION_RTOL", "SYSTEM_ORDER",
            "Budget", "CeilingEstimate", "Deadline", "EngineCandidate",
            "EngineResult", "Progress", "SearchSpec", "assign_lines",
-           "DEFAULT_UNKNOWN_SHIFT_DEG", "budget_exhausted_diagnostic",
+           "DEFAULT_UNKNOWN_SHIFT_DEG", "DEFAULT_VOLUME_CEILING",
+           "budget_exhausted_diagnostic",
            "dedup_candidates", "dedup_groups",
-           "effective_sigma_sys", "engine_descriptions", "engine_names",
+           "effective_shift_allowance", "engine_descriptions", "engine_names",
            "estimate_ceiling", "indexes_the_search_lines", "match_window",
            "merge_engine_units", "refine_with_shift",
-           "scored_positions", "search_line_order", "shift_allowance_diagnostic",
+           "scored_positions", "search_line_order", "search_volume_ceiling",
+           "shift_allowance_diagnostic",
            "shift_from_pairs_diagnostic",
            "get_engine", "incomplete_diagnostic", "predicted_reflection_count",
            "reflection_ceiling_ok", "register_engine", "solution_key",

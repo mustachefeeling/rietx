@@ -61,46 +61,45 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Nothing in flight.** Closed 2026-08-07, narrative in
+**Nothing in flight.** Closed 2026-08-08, narrative in
 [milestones/v1.0.md](milestones/v1.0.md):
-[1042](wp/1042-anytime-results-quick-default.md) — the system-major
-scheduler, streaming, and `quick` as the default. A deadline now cuts
-trailing *systems* for every engine equally (never a whole engine, so
-consensus never loses a finder to the clock), every completed system streams
-its graded shortlist through the real gate (conservative: a streamed grade
-can rise, never fall), and a bare `index_pattern` call runs `quick` — a
-measured 120 s ceiling, truncation loud, `preset="full"` one rerun away.
-Measured: truth-system shortlists at 0.5–35 s across the corpus (zincite
-24.8 s where the engine-major baseline showed nothing until 165.8);
-41/41 acceptance rows green with protocols now *declared*; the scoreboard
-regenerated to 7 first / 2 below first / 0 refused. Two forwards: quick can
-starve validation on heavy patterns (design question in 1045's Inherited),
-and corundum's dichotomy units cost 77–200 s/system on the current tree.
+[1045](wp/1045-indexing-search-controls.md) — one indexing control surface
+for every chair, and analogue priors that steer without gating. The same
+`SearchSpecSpec` now sits behind the agent request, the project document
+(the GUI's Search-controls form edits it, the index run reads it) and
+`to_spec()`, held three ways by meta-test with a committed corpus for the
+form's leg; `_spec_notes` records every spec field, so identical controls in
+two chairs produce byte-identical notes — asserted literally. A stated
+analogue cell jumps its system up the queue, seeds svd's basin, and enters
+the answer only through the engines' own bar as finder `"prior"`, never in
+the Borda ranking — a wrong prior measurably changes no rank and no grade.
+Two 1028 traps closed on the way (`shift_allowance_deg`; the envelope only
+through its slack — raw, it excluded the corundum-setting truth at p = 0.6
+completeness), and `quick`'s first click now arrives *validated*: an 8 %
+reserve plus ambiguity deferred behind the mandatory check took the three
+heavy patterns' validated fits from 0/0/0 to 2/6/3 at the same 120 s wall.
 
-**The running theme: a number that is not regenerated is a number nobody
-re-measures.** A prediction is not a measurement (1041); nor is an inherited
-claim (1016), a reported cause (1044, 1028), or a remembered ritual (1061).
-1042's instance: the flip moved no Claim because every acceptance row now
-declares its protocol — a default is not a protocol.
+**The running theme: a control surface is a promise every chair must keep,
+and only a meta-test keeps it.** 1042's stream, 1043's evidence, 1045's
+controls — one model, registries quoted live, tests that fail when a chair
+lags: the prior fields were *forced* into the agent schema, the document,
+the GUI corpus and the notes by the bijection before any behavior ran. Its
+older half still stands: a number not regenerated is a number nobody
+re-measures (1041, 1016, 1044, 1028, 1061).
 
 **Queue** (ordering arguments in the v1.0 tables below):
 
-1. [1045](wp/1045-indexing-search-controls.md) — search controls mirrored across
-   GUI and agent schema (one `SearchSpec`, bijection meta-test) + analogue
-   priors that steer the search and never gate it (user, 2026-08-06). Its
-   `### Inherited` now carries 1042's preset/streaming surface and the
-   validation-starvation design question, plus 1028's two search bounds —
-   `sigma_sys_deg` meaning two different things, and `volume_envelope` used as
-   a ceiling when Smith fitted it as a mean line.
-2. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
+1. [1026](wp/1026-indexing-acceptance.md) — **reopen for criterion 1 only**: the
    bethanechol score, now measured in 1043; what is left is making it generated —
    a manual runner beside `tests/indexing_gallery.py`, not a slow pytest row
    (constraints in 1043 § bethanechol; the runner must declare
    `preset="full"`, 1042).
-3. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs now.
-4. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
+2. [1017](wp/1017-gui-manual-onboarding.md) — the GUI's last WP; nine tabs,
+   the Peaks tab now carrying 1045's Search controls (its `### Inherited`
+   has the onboarding notes).
+3. [1003](wp/1003-api-freeze-pypi.md) — freeze + PyPI, deliberately last so the
    freeze covers an exercised surface. Its `### Inherited` was filled by
-   1016, 1041, 1043 and 1042; read it first.
+   1016, 1041, 1043, 1042 and 1045; read it first.
 
 **The bar** (milestone row below): full validation matrix green; GUI end-to-end on
 11-BM NAC matching the API-driven acceptance; indexing graded against the
@@ -246,7 +245,7 @@ monoclinic search finishes.
 | [1041](wp/1041-indexing-benchmark-gallery.md) | The indexing benchmark gallery | ✅ 2026-08-05 — PNGs on every row, scoreboard generated (9: 6/2/1/0), contamination curve, aggregate refuted | 1026 |
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ✅ 2026-08-07 | 1037 |
 | [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ✅ 2026-08-07 | 1041, 1026 (1028 soft) |
-| [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ⬜ | 1027, 1042 (1043 soft) |
+| [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ✅ | 1027, 1042 (1043 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|

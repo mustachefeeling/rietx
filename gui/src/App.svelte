@@ -153,6 +153,11 @@
   let peaksData = $state<PeaksPayload | null>(null);
   /** the last indexing answer, with the server's per-candidate adopt verdicts */
   let indexAnswer = $state<any>(null);
+  /** streamed per-system graded shortlists (WP-1042/1045): every
+   *  `consensus:<system>` stage_end of the run in flight, folded by the panel.
+   *  Cleared on `index_start`, kept after the run ends — the anytime answer
+   *  remains readable beside the final one. */
+  let indexSnapshots = $state<Array<Record<string, any>>>([]);
   /** the last extinction screen — cleared whenever the candidates renumber,
    *  which the server enforces too (a new index run 409s the stale GET) */
   let extinction = $state<any>(null);
@@ -619,7 +624,14 @@
     // so a reload does not announce the outcome of a run that ended before it.
     let seen: string | null = null;
     return follow(
-      (event: EngineEvent) => say(consoleLine(event)),
+      (event: EngineEvent) => {
+        say(consoleLine(event));
+        // the streamed shortlist consumer (WP-1045): a completed system's
+        // consensus snapshot is data on an existing kind, never a new one
+        if (event.kind === "index_start") indexSnapshots = [];
+        else if (event.kind === "stage_end" && event.data?.consensus)
+          indexSnapshots = [...indexSnapshots, event.data];
+      },
       (frame: RunState) => {
         run = frame;
         const key = `${frame.state}:${frame.run.status ?? ""}:${frame.run.node_id ?? ""}`;
@@ -801,6 +813,8 @@
         </div>
         <div class="panel" class:hidden={tab !== "peaks"}>
           <Peaks peaks={peaksData} {indexAnswer} {extinction} {run} {busy} {say}
+            {capabilities} doc={project?.doc ?? null}
+            snapshots={indexSnapshots} onproject={loadProject}
             hovered={hoveredPeak} onhover={(i) => (hoveredPeak = i)}
             onpeaks={(p) => (peaksData = p)}
             onindexed={(a) => (indexAnswer = a)}

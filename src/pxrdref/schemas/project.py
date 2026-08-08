@@ -27,6 +27,7 @@ from typing import Any
 from pydantic import Field, field_validator
 
 from .common import Base, Mode
+from .indexing import IndexingControls
 from .plan import PlanSpec
 
 #: Bumped when a field's *meaning* changes, not when one is added.  ``open``
@@ -127,6 +128,15 @@ class ProjectDoc(Base):
     #: when it ran.  Until it can, this document is the only record, which is
     #: why it lives here rather than being recoverable from the head node.
     excluded_regions: list[tuple[float, float]] = Field(default_factory=list)
+
+    #: the next indexing run's controls (WP-1045) — the same
+    #: :class:`~pxrdref.schemas.indexing.SearchSpecSpec` the agent request
+    #: carries, plus engines/validation options, so the GUI form and an agent
+    #: call are two views of one spec.  A project setting like ``mode``: what
+    #: the next ``/api/index`` run will be *called* with, persisted on the
+    #: verb.  ``two_theta_limits`` above already governs indexing too, which
+    #: is why the controls carry no copy of it.
+    indexing: IndexingControls = Field(default_factory=IndexingControls)
 
     history_file: str = "history.jsonl"
 

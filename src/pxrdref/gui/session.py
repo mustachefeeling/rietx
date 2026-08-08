@@ -362,13 +362,22 @@ class GuiSession:
         """
         self._require_idle()
         p = self._need_project()
-        unknown = set(body) - {"mode", "two_theta_limits", "excluded_regions", "ui"}
+        unknown = set(body) - {"mode", "two_theta_limits", "excluded_regions",
+                               "indexing", "ui"}
         if unknown:
             raise GuiError(f"unknown setting(s): {sorted(unknown)}; the plan has "
                            "its own route and the model lives in the history",
                            where=sorted(unknown))
         if "mode" in body:
             p.doc.mode = body["mode"]
+        if "indexing" in body:
+            # whole-object replace, like the plan: the form pushes the block
+            # it edited, and a partial merge would let two half-specs disagree
+            from ..schemas.indexing import IndexingControls
+
+            with self._settings_refusal("indexing"):
+                p.doc.indexing = IndexingControls.model_validate(
+                    body["indexing"] or {})
         if "two_theta_limits" in body:
             limits = body["two_theta_limits"]
             with self._settings_refusal("two_theta_limits"):
@@ -977,6 +986,12 @@ class GuiSession:
             peak_list = None if peak_doc is None else peak_doc.peaks
             limits = (tuple(p.doc.two_theta_limits)
                       if p.doc.two_theta_limits else None)
+            # the document is the authority on the controls (WP-1045), the
+            # same way mode and limits reach fit/run_stage through the
+            # project rather than through this verb's body
+            controls = p.doc.indexing
+            run_engines = (tuple(controls.engines)
+                           if controls.engines else None)
 
             def call(stream, token):
                 from ..indexing.workflow import index_pattern
@@ -984,6 +999,11 @@ class GuiSession:
                 result = index_pattern(
                     peak_list, data=p.data,
                     instrument=p.refinement.instrument,
+                    spec=controls.search.to_spec(),
+                    preset=controls.search.preset,
+                    engines=run_engines,
+                    validate=controls.validate_candidates,
+                    check_top=controls.check_top,
                     two_theta_limits=limits, events=stream, cancel=token)
                 with self._cond:
                     self._index_result = result
@@ -995,7 +1015,7 @@ class GuiSession:
 
             summarize = _summarize_index
             label = "index"
-            n_stages = len(engine_names())
+            n_stages = len(run_engines or engine_names())
         elif kind == "extinction":
             # WP-1025 served (WP-1027): rank the extinction classes of one
             # candidate.  Deliberately *not* gated on the adopt verdict — on

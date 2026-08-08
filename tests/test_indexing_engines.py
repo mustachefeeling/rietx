@@ -125,7 +125,7 @@ def spec_for(system: str, **overrides) -> SearchSpec:
     """
     _sg, _cell, _tt, (min_d, max_d), vol = CASES[system]
     kwargs = dict(systems=(system,), min_d_axis=min_d, max_d_axis=max_d,
-                  max_volume=vol, sigma_sys_deg=1e-9,
+                  max_volume=vol, shift_allowance_deg=1e-9,
                   budget_seconds=BUDGET_SECONDS.get(system, DEFAULT_TEST_BUDGET))
     kwargs.update(overrides)
     return SearchSpec(**kwargs)
@@ -270,15 +270,15 @@ def test_a_centring_that_fits_the_trial_cap_keeps_its_search():
     an incomplete search rather than silently.
     """
     from pxrdref.indexing import dichotomy as D
-    from pxrdref.indexing.engines import effective_sigma_sys
+    from pxrdref.indexing.engines import effective_shift_allowance
     from pxrdref.indexing.qspace import sigma_effective
 
     peaks, _cell = synthetic_peaks("cubic")
     spec = spec_for("cubic")
     # the trial set is sized on the whole pattern, exactly as _search_one does
-    sigma_sys, _assumed = effective_sigma_sys(spec, None)
+    allowance, _assumed = effective_shift_allowance(spec, None)
     sigma = sigma_effective(peaks.q_esd(), peaks.two_theta(), peaks.wavelength,
-                            sigma_sys)
+                            allowance)
     n = D._max_index(spec, float(peaks.q().max() + spec.k_sigma * sigma.max()))
     sizes = {c: int(len(trial_hkl(n, c))) for c in ("P", "I", "F")}
     assert sizes["F"] < sizes["I"] < sizes["P"], sizes
@@ -930,7 +930,7 @@ def test_the_c_26_crop_28_construction_is_indexed_at_the_base_table():
     peaks = _long_axis_peaks(26.0, 28.0, 70.0)
     spec = SearchSpec(systems=("tetragonal",), max_d_axis=34.0,
                       max_volume=1500.0, budget_seconds=DEFAULT_TEST_BUDGET,
-                      sigma_sys_deg=1e-9)
+                      shift_allowance_deg=1e-9)
     result = search_trial_error(peaks, spec=spec)
 
     assert result.candidates, "the base table does reach this cell — it was the "\
@@ -986,7 +986,7 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
                       max_volume=1500.0,
                       budget_seconds=max(DEFAULT_TEST_BUDGET,
                                          DOMINANT_ZONE_PROBE_SECONDS),
-                      sigma_sys_deg=1e-9)
+                      shift_allowance_deg=1e-9)
 
     result = search_trial_error(peaks, spec=spec)
     assert not result.candidates, "the base table should not reach these indices"
@@ -1022,7 +1022,7 @@ def test_the_two_engines_agree_on_the_same_list():
 def test_the_shift_allowance_is_assumed_declared_and_reported():
     """An assumed precision must never look like a measured one.
 
-    ``effective_sigma_sys`` has three cases in priority order — declared by the
+    ``effective_shift_allowance`` has three cases in priority order — declared by the
     caller, *measured* by the data-quality screen, or assumed — and only the third
     sets the "assumed" flag that puts ``INDEX_SHIFT_ALLOWANCE`` in the result.  This
     is the same rule ``PeakList.from_positions`` follows for σ(2θ), one level up.
@@ -1036,40 +1036,40 @@ def test_the_shift_allowance_is_assumed_declared_and_reported():
     """
     from pxrdref.indexing.engines import (
         DEFAULT_UNKNOWN_SHIFT_DEG,
-        effective_sigma_sys,
+        effective_shift_allowance,
         shift_allowance_diagnostic,
     )
     from pxrdref.schemas.indexing import ShiftScreen
 
     plain = SearchSpec()
-    assert effective_sigma_sys(plain) == (DEFAULT_UNKNOWN_SHIFT_DEG, True)
-    assert effective_sigma_sys(SearchSpec(sigma_sys_deg=0.02)) == (0.02, False)
+    assert effective_shift_allowance(plain) == (DEFAULT_UNKNOWN_SHIFT_DEG, True)
+    assert effective_shift_allowance(SearchSpec(shift_allowance_deg=0.02)) == (0.02, False)
 
     class _Q:
         shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, allowance_deg=0.048,
                             source="measured")
-    assert effective_sigma_sys(plain, _Q()) == (0.048, False)
+    assert effective_shift_allowance(plain, _Q()) == (0.048, False)
 
     # both trusted sources are measurements; they differ in failure mode, not
     # in whether the number may be used (TRUSTED_SHIFT_SOURCES)
     class _Pairs:
         shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.004, allowance_deg=0.077,
                             source="reflection_pairs")
-    assert effective_sigma_sys(plain, _Pairs()) == (0.077, False)
+    assert effective_shift_allowance(plain, _Pairs()) == (0.077, False)
 
     # the scatter alone is not the window: a screen that carries only the
     # residual σ has not measured what the search needs, and the 4.3× gap
     # between them is the difference between a cell and no cell on SRM 660c
     class _ScatterOnly:
         shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, source="measured")
-    assert effective_sigma_sys(plain, _ScatterOnly()) == (
+    assert effective_shift_allowance(plain, _ScatterOnly()) == (
         DEFAULT_UNKNOWN_SHIFT_DEG, True)
 
     # an *unavailable* screen is not a measurement, even when it carries a number
     class _Unavailable:
         shift = ShiftScreen(n_lines=20, sigma_sys_deg=0.011, allowance_deg=0.048,
                             source="unavailable")
-    assert effective_sigma_sys(plain, _Unavailable()) == (
+    assert effective_shift_allowance(plain, _Unavailable()) == (
         DEFAULT_UNKNOWN_SHIFT_DEG, True)
 
     diag = shift_allowance_diagnostic(DEFAULT_UNKNOWN_SHIFT_DEG)
@@ -1639,7 +1639,7 @@ def test_the_first_pass_carries_no_zero_error_and_no_impurity_cut():
 
 def test_the_measured_zero_error_never_writes_the_reported_cell():
     """A shift measured **without an attribution** may size a window and nothing
-    more — ``effective_sigma_sys``'s rule, applied to this engine's own number.
+    more — ``effective_shift_allowance``'s rule, applied to this engine's own number.
 
     Coelho's column is the ``constant`` template by construction, and WP-1038
     measured that ``constant`` and ``cos_theta`` concentrate within one pair of
@@ -1661,8 +1661,8 @@ def test_the_measured_zero_error_never_writes_the_reported_cell():
     system = "tetragonal"
     injected = 0.05
     peaks, true_cell = _shifted_case(system, injected)
-    plain = search_svd(peaks, spec=spec_for(system, sigma_sys_deg=0.06))
-    declared = search_svd(peaks, spec=spec_for(system, sigma_sys_deg=0.06,
+    plain = search_svd(peaks, spec=spec_for(system, shift_allowance_deg=0.06))
+    declared = search_svd(peaks, spec=spec_for(system, shift_allowance_deg=0.06,
                                                shift_template="constant"))
     assert plain.candidates and declared.candidates
 

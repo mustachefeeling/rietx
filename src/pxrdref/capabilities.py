@@ -56,15 +56,19 @@ from .history.events import EVENT_SCHEMA_VERSION
 # presets follow the identical pattern one registry over (WP-1042, bijection
 # held by tests/test_indexing_scheduler.py).
 from .indexing.engines import (
+    CENTRINGS,
     DEFAULT_SEARCH_PRESET,
     SEARCH_PRESET_INFO,
     SEARCH_PRESETS,
+    SYSTEM_ORDER,
+    engine_descriptions,
 )
 from .io.readers import PATTERN_FORMATS
 from .optimize.least_squares import SOLVERS
 from .refine import _VERSION
 from .report.schemas import THRESHOLDS_VERSION
 from .schemas.common import SCHEMA_VERSION, Base, Mode
+from .schemas.indexing import SHIFT_TEMPLATES
 from .schemas.instrument import _KA_DOUBLETS, _RADIATIONS
 from .schemas.project import PROJECT_FORMAT_VERSION
 from .strategy.staged import PLAN_INFO
@@ -116,6 +120,15 @@ class SearchPresetCapability(Base):
     typical_seconds: tuple[float, float]
 
 
+class EngineCapability(Base):
+    """An indexing search engine, with the one-line description registration
+    carries (WP-1045) — quoted so a client's engine checkboxes and the agent
+    schema cannot name different sets."""
+
+    name: str
+    description: str
+
+
 class AnodeCapability(Base):
     """A laboratory anode this package knows the emission wavelengths of."""
 
@@ -162,6 +175,15 @@ class Capabilities(Base):
     solvers: list[str] = Field(default_factory=list)
     plans: list[PlanCapability] = Field(default_factory=list)
     search_presets: list[SearchPresetCapability] = Field(default_factory=list)
+    #: the indexing control vocabularies (WP-1045), quoted from the live
+    #: registries so the GUI form, the agent schema and ``SearchSpec`` cannot
+    #: disagree about what may be asked for
+    indexing_engines: list[EngineCapability] = Field(default_factory=list)
+    #: ``SYSTEM_ORDER`` verbatim — the order *is* information (cheapest first)
+    crystal_systems: list[str] = Field(default_factory=list)
+    #: Bravais centrings each system admits, ``engines.CENTRINGS`` verbatim
+    centrings: dict[str, list[str]] = Field(default_factory=dict)
+    shift_templates: list[str] = Field(default_factory=list)
     modes: list[Mode] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
@@ -198,6 +220,13 @@ def capabilities() -> Capabilities:
                 total_budget_seconds=SEARCH_PRESETS[name],
                 typical_seconds=info.typical_seconds)
             for name, info in sorted(SEARCH_PRESET_INFO.items())],
+        indexing_engines=[
+            EngineCapability(name=name, description=desc)
+            for name, desc in sorted(engine_descriptions().items())],
+        crystal_systems=list(SYSTEM_ORDER),
+        centrings={system: list(letters)
+                   for system, letters in CENTRINGS.items()},
+        shift_templates=list(SHIFT_TEMPLATES),
         modes=list(get_args(Mode)),
         anodes=[_anode(name) for name in sorted(_RADIATIONS)],
         reader_formats=[

@@ -47,7 +47,7 @@ def bcc_peaks() -> PeakList:
 @pytest.fixture(scope="module")
 def bcc_candidates(bcc_peaks):
     spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
-                      max_volume=1500.0, sigma_sys_deg=1e-9,
+                      max_volume=1500.0, shift_allowance_deg=1e-9,
                       budget_seconds=120.0)
     result = search_trial_error(bcc_peaks, spec=spec)
     return [to_cell_candidate(c, bcc_peaks, k_sigma=spec.k_sigma,
@@ -164,7 +164,7 @@ def shifted_peaks() -> PeakList:
 @pytest.fixture(scope="module")
 def shifted_search(shifted_peaks):
     spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
-                      max_volume=1500.0, sigma_sys_deg=SHIFTED_ALLOWANCE,
+                      max_volume=1500.0, shift_allowance_deg=SHIFTED_ALLOWANCE,
                       budget_seconds=120.0)
     result = search_trial_error(shifted_peaks, spec=spec)
     cands = [to_cell_candidate(c, shifted_peaks, k_sigma=spec.k_sigma,
@@ -359,7 +359,8 @@ def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
         "the +258 ppm cell that is the cross-code answer")
 
 
-def _result_of(candidates, peaks, *, sigma_sys_note="0.05"):
+def _result_of(candidates, peaks, *, allowance_note="0.05",
+               note_key="shift_allowance_deg"):
     from pxrdref.schemas.common import Provenance
     from pxrdref.schemas.indexing import IndexingResult
 
@@ -369,7 +370,7 @@ def _result_of(candidates, peaks, *, sigma_sys_note="0.05"):
         n_usable_lines=len(peaks.usable()),
         provenance=Provenance(
             package_version="test", created_utc="2026-08-07T00:00:00Z",
-            notes={"sigma_sys_deg": sigma_sys_note}))
+            notes={note_key: allowance_note}))
 
 
 def test_plot_indexing_composes_the_gallery_from_a_result_alone(
@@ -380,8 +381,8 @@ def test_plot_indexing_composes_the_gallery_from_a_result_alone(
     only, so a user holding an ``IndexingResult`` could not draw the check the
     user's design call made part of the deliverable.  The matching window is
     reconstructed from the result's **own provenance notes** — the search
-    records ``sigma_sys_deg`` for exactly this — so the tick rows match in the
-    window the candidates were selected under, with no spec in hand.
+    records ``shift_allowance_deg`` for exactly this — so the tick rows match
+    in the window the candidates were selected under, with no spec in hand.
     """
     from pxrdref.indexing.engines import SearchSpec, match_window
     from pxrdref.viz import plot_indexing
@@ -397,9 +398,15 @@ def test_plot_indexing_composes_the_gallery_from_a_result_alone(
 
     # the window is the search's, not the raw σ — and the two differ, which
     # is the whole point of reconstructing it
-    expected = match_window(bcc_peaks, SearchSpec(sigma_sys_deg=0.05), None)
+    expected = match_window(bcc_peaks, SearchSpec(shift_allowance_deg=0.05),
+                            None)
     assert np.allclose(_window_from_result(result, bcc_peaks), expected)
     assert not np.allclose(expected, bcc_peaks.q_esd())
+
+    # a result recorded before WP-1045 carries the note under its old name —
+    # the reader falls back rather than silently rebuilding a tighter window
+    legacy = _result_of(bcc_candidates, bcc_peaks, note_key="sigma_sys_deg")
+    assert np.allclose(_window_from_result(legacy, bcc_peaks), expected)
 
 
 def test_plot_indexing_draws_the_stored_validation_without_a_refit(

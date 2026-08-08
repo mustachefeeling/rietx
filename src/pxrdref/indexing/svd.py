@@ -169,7 +169,7 @@ from .engines import (
     SearchSpec,
     assign_lines,
     dedup_candidates,
-    effective_sigma_sys,
+    effective_shift_allowance,
     incomplete_diagnostic,
     indexes_the_search_lines,
     provisional_payload,
@@ -178,10 +178,12 @@ from .engines import (
     reflection_ceiling_ok,
     register_engine,
     search_line_order,
+    search_volume_ceiling,
     shift_allowance_diagnostic,
     solution_key,
 )
 from .fom import LINE_COINCIDENCE_RTOL
+from .priors import prior_seed_afs
 from .qspace import (
     af_from_cell,
     cell_from_af,
@@ -655,8 +657,8 @@ def search_svd(peaks: PeakList, *, spec: SearchSpec | None = None,
     spec = spec or SearchSpec()
     q_all = peaks.q()
     tt_all = peaks.two_theta()
-    sigma_sys, assumed = effective_sigma_sys(spec, quality)
-    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, sigma_sys)
+    allowance, assumed = effective_shift_allowance(spec, quality)
+    sigma = sigma_effective(peaks.q_esd(), tt_all, peaks.wavelength, allowance)
     inten = peaks.intensity()
     tt_max = float(peaks.two_theta_max)
 
@@ -718,10 +720,10 @@ def search_svd(peaks: PeakList, *, spec: SearchSpec | None = None,
                                         max_candidates=spec.max_candidates,
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
-    result.stats["sigma_sys_deg"] = round(sigma_sys, 5)
+    result.stats["shift_allowance_deg"] = round(allowance, 5)
     result.stats["seed"] = float(spec.seed)
     if assumed:
-        result.diagnostics.append(shift_allowance_diagnostic(sigma_sys))
+        result.diagnostics.append(shift_allowance_diagnostic(allowance))
     if incomplete:
         result.diagnostics.append(
             incomplete_diagnostic("svd", incomplete, spec.budget_seconds))
@@ -755,20 +757,39 @@ def _search_system(peaks: PeakList, system: str, spec: SearchSpec,
     # ``SYSTEM_ORDER`` is a stable integer and decorrelates the systems' streams.
     rng = np.random.default_rng(
         (int(spec.seed), SYSTEM_ORDER.index(system), int(trim)))
-    fallback = (float(quality.volume_envelope[system])
-                if quality is not None and system in quality.volume_envelope
-                else 8000.0)
+    vol_ceiling = search_volume_ceiling(spec, quality, system)
     found: list[EngineCandidate] = []
     seen: set[tuple[int, ...]] = set()
     zes: list[float] = []
     calls = 0
     complete = True
 
+    # analogue priors seed the starting basin (WP-1045): each prior metric of
+    # this system is one deliberate Table-1 start per centring, run BEFORE the
+    # random ladder and outside the N_c/N_o volume gate — that gate is a
+    # statistic about random starts, and a stated cell is not a random start.
+    # The caller's own box still binds: ``_keep`` holds a seeded candidate to
+    # the same ``vol_max`` and the same acceptance bar as every other one, so
+    # a prior can spend calls, never widen what is searchable.
+    prior_afs = prior_seed_afs(spec, system)
+
     for centring in spec.centrings_for(system):
         gate_lo, gate_hi = volume_window(len(q_search), system, centring, q_max,
                                          seed=spec.seed)
+        for af_p in prior_afs:
+            if budget.expired():
+                return found, _stats(calls, budget, zes), False
+            out = svd_trial(_project(af_p, basis), q_search, tt_search,
+                            i_search, basis, centring, peaks.wavelength,
+                            sigma=sig_search, trim=trim)
+            calls += 1
+            if out.converged and _keep(
+                    out.af, basis, system, centring, spec, peaks, q_all,
+                    sigma, tt_all, tt_max, search_lines, seen, found,
+                    vol_ceiling, ze=out.ze) > -np.inf:
+                zes.append(out.ze)
         v_lo = max(spec.min_volume, gate_lo)
-        v_hi = min(spec.volume_limit(system, fallback), gate_hi)
+        v_hi = min(vol_ceiling, gate_hi)
         if not (v_lo < v_hi):
             continue
         v1 = v_lo
@@ -855,7 +876,7 @@ def _keep(af, basis, system, centring, spec, peaks, q_all, sigma, tt_all,
     assumed attribution* — Coelho's column is the ``constant`` template and
     nothing in the data distinguishes it from ``cos_theta`` over a short range
     (WP-1038, ``template_collinearity``).  The package already has the rule for
-    that case and it is ``effective_sigma_sys``'s: **a shift measured without an
+    that case and it is ``effective_shift_allowance``'s: **a shift measured without an
     attribution sizes windows; only a template the caller declared corrects a
     cell.**  So the assignment runs in corrected space, where it belongs — the
     question "is this the same line" is asked of positions the shift has been

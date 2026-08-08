@@ -127,10 +127,12 @@ def _index(argv: list[str]) -> int:
                    help="print the pre-run cost ceiling for these options — "
                         "worst-case arithmetic and the measured typical range — "
                         "and exit without searching")
-    p.add_argument("--sigma-sys", type=float, default=None,
-                   help="a MEASURED systematic 2θ allowance in degrees; without "
-                        "one the engines assume 0.05° and cap confidence, because "
-                        "a cell found in a widened window absorbs the shift")
+    p.add_argument("--shift-allowance", type=float, default=None,
+                   help="a MEASURED systematic 2θ allowance in degrees — the "
+                        "shift's amplitude a window must span, not the residual "
+                        "scatter a template leaves; without one the engines "
+                        "assume 0.05° and cap confidence, because a cell found "
+                        "in a widened window absorbs the shift")
     p.add_argument("--no-validate", action="store_true",
                    help="skip the whole-profile Le Bail validation (caps every "
                         "candidate at medium)")
@@ -155,7 +157,7 @@ def _index(argv: list[str]) -> int:
     for name, value in (("min_d_axis", args.min_d), ("max_d_axis", args.max_d),
                         ("budget_seconds", args.budget),
                         ("total_budget_seconds", args.total_budget),
-                        ("sigma_sys_deg", args.sigma_sys)):
+                        ("shift_allowance_deg", args.shift_allowance)):
         if value is not None:
             spec_kw[name] = value
     spec = SearchSpec(**spec_kw)

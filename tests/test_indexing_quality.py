@@ -26,6 +26,7 @@ from pxrdref.indexing.diagnostics import quality_diagnostics
 from pxrdref.indexing.quality import (
     _LAUE_ORBIT_FACTOR,
     _MAX_CENTRING,
+    VOLUME_ENVELOPE_SLACK,
     assess_peak_list,
     fit_shift_model,
     shift_template_basis,
@@ -369,6 +370,60 @@ def test_volume_envelope_contains_the_true_volume(sg, cell, system):
     assert envelope > cell_volume(*cell), (
         f"{sg}: envelope {envelope:.0f} Å³ excludes the true "
         f"{cell_volume(*cell):.0f} Å³")
+
+
+@pytest.mark.parametrize("sg,cell,system", [
+    ("R -3 c", (4.7591, 4.7591, 12.9894, 90.0, 90.0, 120.0), "trigonal"),
+    ("P 1", (7.0, 8.0, 9.0, 85.0, 95.0, 100.0), "triclinic"),
+])
+def test_the_search_ceiling_survives_an_incomplete_line_list(sg, cell, system):
+    """The raw envelope is a mean line, and missing lines are the ordinary case.
+
+    The guard above feeds a *complete* generated list (p = 1) and is therefore
+    blind to Smith's own calibration: his fit averages 10.6 % discrepancy with
+    deviations to 29 % **low**, and a list missing weak lines pushes its
+    twentieth line deeper in d, shrinking d₂₀³.  Measured here at p = 0.6
+    (keep six lines in ten, deterministically) the raw envelope *excludes* the
+    certified corundum-setting cell — 0.94× its volume — so until WP-1045 an
+    engine defaulting to the raw envelope pruned the true cell before scoring
+    it.  ``search_volume_ceiling`` is the fix: the envelope enters the search
+    only through ``VOLUME_ENVELOPE_SLACK``, while a caller's own
+    ``max_volume`` passes verbatim (explicit narrowing is the caller's act,
+    recorded in ``spec_notes``, never "corrected").
+    """
+    from types import SimpleNamespace
+
+    from pxrdref.crystallography.lattice import cell_volume
+    from pxrdref.indexing.engines import (
+        DEFAULT_VOLUME_CEILING,
+        SearchSpec,
+        search_volume_ceiling,
+    )
+
+    refl = generate_reflections(sg, cell, LAM, 160.0)
+    d = np.sort(refl.d)[::-1]
+    kept = d[(np.arange(len(d)) % 10) < 6]
+    n = min(PEAK_MIN_USABLE_LINES, len(kept))
+    raw = volume_envelope(float(kept[n - 1]), n, system)
+    truth = cell_volume(*cell)
+    assert raw < truth, (
+        f"{sg}: the raw envelope ({raw:.0f} Å³) no longer excludes the true "
+        f"{truth:.0f} Å³ at p = 0.6 — this test needs a case where the trap "
+        "is real, or it pins nothing")
+
+    quality = SimpleNamespace(volume_envelope={system: raw})
+    ceiling = search_volume_ceiling(SearchSpec(), quality, system)
+    assert ceiling == pytest.approx(VOLUME_ENVELOPE_SLACK * raw)
+    assert ceiling > truth, (
+        f"{sg}: ceiling {ceiling:.0f} Å³ still excludes the true {truth:.0f}")
+
+    # a declared max_volume is the caller's own act — verbatim, no slack
+    declared = search_volume_ceiling(
+        SearchSpec(max_volume=123.0), quality, system)
+    assert declared == 123.0
+    # and with no evidence at all, the generous default
+    assert search_volume_ceiling(SearchSpec(), None, system) == (
+        DEFAULT_VOLUME_CEILING)
 
 
 def test_triclinic_envelope_constant_is_smiths():

@@ -18,7 +18,7 @@ Four kinds of claim, and they are not interchangeable:
   genuine mixture, and a multiphase claim built on that ambiguity was withdrawn;
   this test is that retraction made permanent.
 
-Every search here declares ``sigma_sys_deg`` explicitly.  The peak lists carry
+Every search here declares ``shift_allowance_deg`` explicitly.  The peak lists carry
 *exact* positions, so the systematic allowance the engines assume for real data
 (``DEFAULT_UNKNOWN_SHIFT_DEG``) is pure looseness — and it would also change what
 is being measured, since it caps confidence on its own.  Declaring the physics
@@ -444,7 +444,7 @@ def test_index_pattern_recovers_the_cell_and_refutes_its_supercells(lab6_pattern
         data=lab6_pattern, instrument=_instrument(),
         spec=SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
                         max_volume=1500.0, budget_seconds=120.0,
-                        sigma_sys_deg=1e-9))
+                        shift_allowance_deg=1e-9))
     best = result.best_or_none()
     assert best is not None, [c.confidence_caveats for c in result.candidates]
     assert best.cell[0] == pytest.approx(TRUE_A, abs=2e-4)
@@ -484,7 +484,7 @@ def test_a_peaks_only_run_abstains_by_declaration(cubic_peaks):
         cubic_peaks,
         spec=SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
                         max_volume=1500.0, budget_seconds=120.0,
-                        sigma_sys_deg=1e-9))
+                        shift_allowance_deg=1e-9))
     assert result.candidates and result.best_or_none() is None
     assert not result.validated
     top = result.candidates[0]
@@ -508,7 +508,7 @@ def test_a_short_clean_list_is_searched_ranked_and_capped():
     result = index_pattern(
         peaks, spec=SearchSpec(systems=("cubic", "monoclinic"), min_d_axis=2.0,
                                max_d_axis=12.0, max_volume=1500.0,
-                               budget_seconds=120.0, sigma_sys_deg=1e-9))
+                               budget_seconds=120.0, shift_allowance_deg=1e-9))
     # searched, not abstained — and only where the line count supports it:
     # monoclinic needs 20 lines at 5 per DOF, so the request is narrowed
     assert result.quality.supports_indexing
@@ -645,7 +645,7 @@ def test_a_restricted_search_is_not_a_verdict_about_the_specimen():
     peaks = _peak_list((7.0, 8.0, 9.0, 90.0, 90.0, 90.0), "P m m m",
                        two_theta_max=45.0)
     common = dict(min_d_axis=2.0, max_d_axis=12.0, max_volume=1500.0,
-                  budget_seconds=180.0, sigma_sys_deg=1e-9)
+                  budget_seconds=180.0, shift_allowance_deg=1e-9)
 
     restricted = index_pattern(
         peaks, spec=SearchSpec(systems=("cubic", "tetragonal", "hexagonal"),

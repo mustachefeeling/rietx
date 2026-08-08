@@ -34,7 +34,7 @@ engines widen their matching window by an *assumed*
 ``DEFAULT_UNKNOWN_SHIFT_DEG`` when no shift has been measured, which raises
 ``shift_allowance_assumed`` — and a cell found inside a widened window absorbs the
 shift (measured, +1400 ppm on a certified pattern).  Declaring a calibrated
-``sigma_sys_deg``, or handing ``assess_peak_list`` reference positions from an
+``shift_allowance_deg``, or handing ``assess_peak_list`` reference positions from an
 internal standard, is what makes the caveat go away.  That is the same posture as
 Layer 1's abstention: the ceiling moves when the evidence arrives, not when the
 constant is raised.  Closing it on real data is WP-1026.
@@ -71,6 +71,13 @@ from .engines import (
 )
 from .fom import fom_panel_disagrees
 
+# Re-exported from its WP-1045 home beside ``volume_envelope`` itself: the
+# engines' search ceiling and this module's ``volume_unphysical`` flag apply
+# the *same* slack, so a cell the search could reach is never flagged for
+# having been reached — the flag fires only when a caller widened
+# ``max_volume`` past the slack too.
+from .quality import VOLUME_ENVELOPE_SLACK
+
 #: Candidates that get the **expensive** per-candidate checks — geometrical
 #: ambiguity (which enumerates 55 derivative lattices and predicts reflections for
 #: each) and Le Bail validation (a refinement, ~0.6 s measured).  Three, plus
@@ -79,13 +86,6 @@ from .fom import fom_panel_disagrees
 #: which is one rule read by both call sites so "which candidates were checked"
 #: has exactly one answer.
 CONSENSUS_CHECK_TOP = 3
-#: Volume above the data's own Smith (1977) envelope at which a candidate is
-#: reported ``volume_unphysical``.  The envelope is a *statistical* bound on the
-#: cell N lines can support, not a hard limit, so a candidate is only refused when
-#: it is clear of it — a factor rather than the bound itself.  A search only
-#: reaches here at all if the caller widened ``max_volume`` past the envelope the
-#: quality report supplied.
-VOLUME_ENVELOPE_SLACK = 1.5
 
 
 @dataclass
@@ -193,7 +193,8 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
               spec: SearchSpec | None = None,
               quality: DataQualityReport | None = None,
               top: int = CONSENSUS_CHECK_TOP,
-              cancel=None, ambiguity: bool = True) -> ConsensusOutcome:
+              cancel=None, ambiguity: bool = True,
+              priors: Sequence[EngineCandidate] = ()) -> ConsensusOutcome:
     """Merge, rank, classify and enumerate ambiguity — everything but validation.
 
     Order matters and it is the WP's: reduce and merge (so ``found_by`` is
@@ -215,9 +216,29 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     gate reads every candidate as unchecked (a capping caveat), so a streamed
     grade is conservative: it can rise when the full consensus runs, never
     fall.
+
+    ``priors`` (WP-1045) are checked prior cells (finder ``"prior"``, from
+    ``priors.build_prior_candidates``).  They join the *merge* — a prior that
+    is an engine candidate's lattice adds a ``found_by`` member and nothing
+    else — but a prior-only lattice **never enters the Borda ranking**: it is
+    ranked among its own kind and appended after the engine candidates.
+    Borda violates independence of irrelevant alternatives, so this is what
+    makes "a wrong prior changes no rank" structural rather than an empirical
+    hope.  ``"prior"`` is deliberately absent from ``engines_run``, so the
+    ordinary agreement caveat grades a prior-only candidate down with no new
+    gate vocabulary.
     """
+    from .priors import PRIOR_FINDER
+
     spec = spec or SearchSpec()
-    merged = merge_engine_candidates(results)
+    carrier: list[EngineResult] = []
+    if priors:
+        holder = EngineResult(engine=PRIOR_FINDER)
+        holder.candidates = list(priors)
+        carrier = [holder]
+    merged = merge_engine_candidates([*results, *carrier])
+    prior_only = [c for c in merged if c.found_by == [PRIOR_FINDER]]
+    merged = [c for c in merged if c.found_by != [PRIOR_FINDER]]
     # the same window the engines assigned with, re-derived from the same two
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
@@ -265,15 +286,46 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                           n_unindexed=spec.n_unindexed, q_match=q_match)
         for c in ranked]
-    checked = set(checked_indices(out.candidates, out.engines_run, top=top))
-    for i, cand in enumerate(out.candidates):
+    if prior_only:
+        # ranked among their own kind only, appended after every engine
+        # candidate: a prior may not displace what the engines found
+        tail = rank_candidates(prior_only, peaks, k_sigma=spec.k_sigma,
+                               n_unindexed=spec.n_unindexed,
+                               max_candidates=spec.max_candidates
+                               or DEFAULT_MAX_CANDIDATES,
+                               q_match=q_match)
+        out.candidates += [
+            to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
+                              n_unindexed=spec.n_unindexed, q_match=q_match)
+            for c in tail]
+    for cand in out.candidates:
         cand.bravais = bravais_opinion(cand.cell, cand.centring,
                                        cell_esd=np.asarray(cand.cell_esd))
-        if ambiguity and i in checked \
+    if ambiguity:
+        enumerate_ambiguity(out, peaks, top=top, cancel=cancel)
+    return out
+
+
+def enumerate_ambiguity(outcome: ConsensusOutcome, peaks: PeakList, *,
+                        top: int = CONSENSUS_CHECK_TOP, cancel=None) -> None:
+    """The geometrical-ambiguity pass over the checked candidates, in place.
+
+    Split out of :func:`consensus` in WP-1045 so ``index_pattern`` can run it
+    **after** the budgeted validation: whole-profile validation is the
+    mandatory check, and this enumeration — measured at 45 s of a
+    ceiling-bound corundum run, with one candidate's 55-lattice sweep
+    uninterruptible — consumed the whole validation reserve whenever it ran
+    first.  ``cancel`` is read between candidates; one the clock stops before
+    stays out of ``ambiguity_checked``, which the gate reads as an unasked
+    question (capping), never a clean answer.
+    """
+    checked = set(checked_indices(outcome.candidates, outcome.engines_run,
+                                  top=top))
+    for i, cand in enumerate(outcome.candidates):
+        if i in checked and i not in outcome.ambiguity_checked \
                 and not (cancel is not None and bool(cancel)):
             cand.ambiguity = _partners(cand, peaks)
-            out.ambiguity_checked.append(i)
-    return out
+            outcome.ambiguity_checked.append(i)
 
 
 def _partners(cand: CellCandidate, peaks: PeakList):

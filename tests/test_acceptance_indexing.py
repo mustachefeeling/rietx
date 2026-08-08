@@ -656,7 +656,7 @@ def lab6_calibrated(lab6_peaks):
     spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
-                      sigma_sys_deg=float(screen.allowance_deg))
+                      shift_allowance_deg=float(screen.allowance_deg))
     res = index_pattern(trimmed, data=data, instrument=ins, spec=spec,
                         preset="full")
     gallery.draw("lab6_calibrated", peaks=trimmed, data=data, result=res,
@@ -2392,6 +2392,9 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     the search needs is the shift's **amplitude** (0.038°, identical under both
     trims), and this fixture declares that.  The two quantities differ by 4.3×
     (probe) to 15× (flags) and only one of them indexes; filed to WP-1028.
+    Since WP-1045 the spec field is named ``shift_allowance_deg``, so the wrong
+    number no longer shares the argument's name — the declaration below now
+    reads ``shift_allowance_deg=screen.allowance_deg``, one quantity, one name.
     """
     res, screen = lab6_calibrated
 
@@ -2482,7 +2485,7 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     spec = SearchSpec(systems=("cubic",), max_volume=300.0, budget_seconds=REAL_DATA_BUDGET_SECONDS,
                       n_unindexed=REAL_DATA_N_UNINDEXED,
                       shift_template="cos_theta",
-                      sigma_sys_deg=float(probe_screen.sigma_sys_deg))
+                      shift_allowance_deg=float(probe_screen.sigma_sys_deg))
     tight = index_pattern(probe, data=data, instrument=ins, spec=spec,
                           preset="full")
     assert tight.candidates, (

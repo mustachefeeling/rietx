@@ -1,6 +1,6 @@
 # WP-1045 — Indexing search controls: one surface for the GUI and the agent
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-08
 Depends on: 1027, 1042 (1043 soft)
 
 ## Goal
@@ -29,7 +29,10 @@ this is the capabilities pattern once more: the GUI form, the agent schema and
 `SearchSpec`/`index_pattern` are held in bijection by a meta-test — a field
 exposed in one and absent in another is a test failure, not a drift. Enums are
 quoted live: engines from `engine_names()`, systems from `SYSTEM_ORDER`,
-presets from `SEARCH_PRESETS` once WP-1042 lands it.
+presets from `SEARCH_PRESETS` (landed, WP-1042). Two of the three views
+already expose the preset — `SearchSpecSpec.preset` on the agent and
+`pxrdref index --preset` on the CLI, both validating against the live
+registry — so the mirroring here absorbs them, never re-invents them.
 
 **2. A prior steers, never gates.** An agent (or a human with a database hit)
 often holds a structural analogue — an isostructural compound whose cell and
@@ -71,7 +74,62 @@ reachable must round-trip the project document as a project setting.
 The panel extends WP-1027's indexing panel; mutating verbs return 409 while a
 run is in flight (gui/CLAUDE.md); control state is a *project* setting
 (`project.json`), not history. Provisional candidates and the evidence view are
-what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
+what the panel *shows* (WP-1042/1043); this WP is what the panel *asks* — but
+the showing half has two gaps that are this WP's scope: the GUI has no preset
+control and no consumer for the streamed per-system graded shortlists (each
+`consensus:<system>` `stage_end` carries them in the WP-1043 evidence shape).
+
+The panel's data and pictures already exist (WP-1043): consume
+`IndexingResult.evidence()` (every caveat with its refuting/capping kind, the
+figures that ranked beside `quality.fom_undefined`'s absent-for-cause ones,
+the three whole-profile numbers together) and `viz.plot_indexing(result,
+peaks, …)` (tick rows + Le Bail panel from a result alone, matching window
+rebuilt from `provenance.notes`) — never re-derive either. Any esd the panel
+plots inherits 1041's two plotly facts: a `null` in `error_y.array` draws
+byte-identical to a zero-height bar, and an esd smaller than a pixel must
+stay invisible. Candidates carry `cov_af` unevenly — exactly the null-bar
+case.
+
+### Two search bounds that are `SearchSpec`'s business (measured in 1028)
+
+Both measured 2026-07-30 on the certified SRM 660c LaB6 pattern; 1028 § (k)
+has the full text. Both become *this* WP's to fix the moment `SearchSpec` is
+the one mirrored surface, because a control exposed in a form and a schema
+must not carry a hidden second meaning.
+
+- **`sigma_sys_deg` means two different things and only one of them indexes.**
+  `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
+  *leaves* (0.0078° on the certificate-probe trim; 1043's flag trim reads
+  0.0025° — the probe's list still held the aliased 43.5° tail, inflating the
+  residual 3×; the shift amplitude is identical under both). Declare that as
+  `SearchSpec.sigma_sys_deg` and the search returns **no candidate at all**:
+  it matches against **uncorrected** positions (`refine_with_shift` runs only
+  after a candidate survives), so the window must still span the shift itself
+  (+0.037°, 4.3× larger). The obvious protocol — measure the systematic on a
+  standard, declare it — fails *silently*. Pinned by
+  `test_what_the_unflagged_tail_components_cost_the_certified_cell`.
+- **`volume_envelope` is a least-squares *mean line* used as a hard search
+  ceiling.** Against Smith (1977): average discrepancy 10.6 %, deviations
+  −29 % to +32 %, and low is the *ordinary* case (missing weak lines produce
+  it). With p the fraction of possible lines detected the bound stands at
+  1.4025·p × truth, so it **excludes the true cell below p = 0.713** — and
+  28.7 % is Smith's own quoted worst case, so there is no margin.
+  `VOLUME_ENVELOPE_SLACK = 1.5` exists but only in `consensus.py`, to *flag*
+  an already-found candidate; the fatal uses feed the raw envelope
+  (re-verified 2026-08-07 on this tree: `dichotomy.py:613`,
+  `trial_error.py:306,513`, `svd.py:758`). The guard test
+  `test_volume_envelope_contains_the_true_volume` feeds a complete line list
+  at p = 1.0 and is blind to the calibration. Docstrings were corrected
+  2026-07-30 to say "estimate"; the behaviour fix is owed here.
+
+### Open design question: validation starvation under `quick` (from 1042)
+
+Measured on 5 of 6 heavy corpus runs: the search consumes the whole ceiling
+and validation gets zero fits — honest (`not_validated` + the budget
+diagnostic's slice wording), but a `quick` first click then never sees the
+mandatory whole-profile check. Whether `quick` should *reserve* a validation
+share is a control-surface decision that needs a measured design, not a
+hardcoded fraction — it lands with this WP's budget/preset controls.
 
 ## Non-goals
 
@@ -83,83 +141,47 @@ what the panel *shows* (WP-1042/1043); this WP is what the panel *asks*.
 
 ## Tasks
 
-- [ ] The bijection meta-test: GUI form fields ↔ agent schema ↔
+- [x] The bijection meta-test: GUI form fields ↔ agent schema ↔
       `SearchSpec`/`index_pattern` kwargs, with enums quoted from the live
-      registries (the `capabilities()` meta-test is the template).
-- [ ] Expose the existing inventory in the GUI panel (disclosure per
-      gui/CLAUDE.md) and round-trip it through the project document.
-- [ ] `prior_cells` / `prior_spacegroups` on `SearchSpec`: schedule reordering
-      + engine seeding + `INDEX_PRIOR_USED`; the steer-never-gate rule pinned by
-      a test — a deliberately wrong prior on a scoreboard dataset changes no
-      final rank and no grade, only when things were searched.
-- [ ] `agent.refine_json`'s index task and `tool_definition()` accept the same
-      fields; `docs/AGENT_PROTOCOL.md` gains a "state what you know" row with a
-      structural-analogue worked example.
-
-### Inherited
-
-**From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
-the control surface already has three controls and one open design
-question.** `SearchSpecSpec.preset` (agent) and `pxrdref index --preset`
-(CLI) exist and validate against the live `SEARCH_PRESETS` registry — the
-one-surface mirroring here must absorb them, not re-invent them; the GUI has
-neither a preset control nor a consumer for the streamed per-system graded
-shortlists (each `consensus:<system>` `stage_end` carries them in the WP-1043
-evidence shape) — both are this WP's natural scope. The open question is
-**validation starvation under `quick`**: measured on 5 of 6 heavy corpus
-runs, the search consumes the whole ceiling and validation gets zero fits
-(honest — `not_validated` + the budget diagnostic's slice wording), so
-whether `quick` should *reserve* a validation share is a control-surface
-decision that needs a measured design, not a hardcoded fraction.
-
-**From [1043](1043-agent-and-human-indexing.md), closed 2026-08-07 — the panel
-this WP builds has its data and its pictures already.**
-`IndexingResult.evidence()` is the per-candidate data the GUI panel should
-consume (every caveat with its refuting/capping kind, the figures that ranked
-beside `quality.fom_undefined`'s absent-for-cause ones, the three
-whole-profile numbers together), and `viz.plot_indexing(result, peaks, …)`
-draws the tick rows and the Le Bail panel from a result alone, rebuilding the
-matching window from `provenance.notes` — the GUI should consume both, never
-re-derive either. The two plotly esd facts 1041 measured (a `null` in
-`error_y.array` draws byte-identical to a zero-height bar; an esd smaller
-than a pixel must stay invisible) apply to any esd this panel plots —
-candidates carry `cov_af` unevenly, which is exactly the null-bar case.
-
-**From [1028](1028-robustness-external-data.md), closed 2026-08-07 — two search
-bounds it filed and did not schedule, both of which are `SearchSpec`'s business
-once this WP makes `SearchSpec` the one mirrored surface.** Measured 2026-07-30
-on the certified SRM 660c LaB6 pattern; 1028's § (k) has the full text.
-
-- **`sigma_sys_deg` means two different things and only one of them indexes.**
-  `ShiftScreen.sigma_sys_deg` is the scatter the winning shift template
-  *leaves* (0.0078° there on the certificate-probe trim; 1043's flag trim
-  reads 0.0025°, because the probe's list still held the aliased 43.5° tail
-  that inflated the residual 3× — the amplitude below is identical under
-  both). Declare that as `SearchSpec.sigma_sys_deg` and the
-  search returns **no candidate at all**, because it matches against
-  **uncorrected** positions — `refine_with_shift` runs only after a candidate
-  survives — so the window must still span the shift itself (+0.037°, 4.3×
-  larger). The docstrings do not distinguish them, so the obvious protocol
-  ("measure the systematic on a standard, declare it") fails *silently* by
-  finding nothing. This lands here because a control you are about to expose in
-  a GUI form and an agent schema must not have two meanings: either rename one,
-  or let a declared template correct the observed positions before matching.
-  Pinned by
-  `test_what_the_unflagged_tail_components_cost_the_certified_cell`.
-- **`volume_envelope` is a least-squares *mean line* used as a hard search
-  ceiling.** Checked against Smith (1977): average discrepancy 10.6 %,
-  deviations −29 % to +32 %, and low is the *ordinary* case because missing
-  weak lines produce it. With p the fraction of possible lines detected the
-  bound stands at 1.4025·p × truth, so it **excludes the true cell below
-  p = 0.713** — and 28.7 % is Smith's own quoted worst case, so there is no
-  margin against the worst pattern in his calibration set.
-  `VOLUME_ENVELOPE_SLACK = 1.5` exists but only in `consensus.py`, to *flag* an
-  already-found candidate; the fatal uses have none (re-verified 2026-08-07:
-  `dichotomy.py:612`, `trial_error.py:297,502`, `svd.py:756` all feed the raw
-  envelope). The guard test `test_volume_envelope_contains_the_true_volume`
-  feeds a complete line list at p = 1.0 and is blind to the calibration, so a
-  regression test needs an *incomplete* one. Docstrings were corrected
-  2026-07-30 to say "estimate"; the behaviour fix is still owed.
+      registries (the `capabilities()` meta-test is the template) —
+      `tests/test_search_controls.py` + `gui/src/lib/controls.test.ts` over
+      the committed corpus `tests/data/gui/index_controls.json`.
+- [x] Expose the existing inventory in the GUI panel (disclosure per
+      gui/CLAUDE.md) — preset control included — and round-trip it through the
+      project document (`ProjectDoc.indexing`, whole-object on the verb); give
+      the panel its consumer for the streamed per-system graded shortlists.
+- [x] `prior_cells` / `prior_spacegroups` on `SearchSpec`: schedule reordering
+      + engine seeding (svd's starting basin — the one engine with a start)
+      + `INDEX_PRIOR_USED`; the steer-never-gate rule pinned by
+      a test — a deliberately wrong prior changes no
+      final rank and no grade, only when things were searched
+      (`tests/test_indexing_priors.py`; structural, not statistical:
+      prior-only candidates never enter the Borda ranking).
+- [x] `agent.refine_json`'s index task and `tool_definition()` accept the same
+      fields (the shared `SearchSpecSpec` + `check_top`);
+      `docs/AGENT_PROTOCOL.md` gains the "state what you know" passage with
+      the calcite structural-analogue worked example and the
+      `INDEX_PRIOR_USED` row.
+- [x] Resolve `sigma_sys_deg`'s two meanings *before* the field is exposed:
+      renamed — `SearchSpec.shift_allowance_deg` (and
+      `effective_shift_allowance`, the stats key, the note, the agent field,
+      `--shift-allowance`); the only `sigma_sys_deg` left is the screen's
+      scatter.
+- [x] Apply `VOLUME_ENVELOPE_SLACK` at the three engines' fatal uses
+      (`search_volume_ceiling`, the one authority), with a regression test
+      that feeds an *incomplete* line list (raw envelope 0.94× truth at
+      p = 0.6 on the corundum-setting cell).
+- [x] The validation-share design question, measured then decided (§ Context):
+      **yes** — `VALIDATION_RESERVE_FRACTION = 0.08` of a declared ceiling,
+      taken only when validation will run, plus ambiguity deferred to *after*
+      validation (`consensus.enumerate_ambiguity`; the enumeration — 45 s on
+      ceiling-bound corundum, one sweep uninterruptible — otherwise consumed
+      the reserve first while validation is the mandatory check). Measured on
+      the three heavy qarr patterns: validated fits went 0/0/0 →
+      2/6/3 at the same 120 s wall (a fit costs 0.3–1.9 s against 11–60 s
+      for a trailing search system — a ~30:1 trade). Stated on the surface
+      through the constant, the `quick` preset's description, and
+      `INDEX_BUDGET_EXHAUSTED`'s existing three-state reading.
 
 ## Acceptance
 
@@ -171,7 +193,8 @@ identical controls produce identical `spec_notes`.
 
 ```sh
 .venv/bin/python -m pytest tests/test_indexing_engines.py tests/test_indexing_consensus.py \
-    tests/test_agent_surface.py tests/test_capabilities.py -n auto
+    tests/test_search_controls.py tests/test_indexing_priors.py \
+    tests/test_agent_surface.py tests/test_capabilities.py -n auto --dist loadgroup
 npm --prefix gui test && npm --prefix gui run check
 .venv/bin/python -m pytest -n auto --dist loadgroup
 .venv/bin/python -m ruff check src tests examples
@@ -188,6 +211,51 @@ npm --prefix gui test && npm --prefix gui run check
 
 ## Handover log
 
+- **2026-08-08** — the whole WP in one session (started 2026-08-07 on the
+  1042-merged main; 13 commits). **Done — all seven tasks**, each with its
+  checkbox's detail above; the shape of the session:
+  the two 1028 fixes first (they change `SearchSpec` semantics the surface
+  then exposes), then the shared model + meta-tests, then priors, then the
+  GUI, then the docs, then the validation reserve. Highlights a successor
+  should know exist: `tests/test_search_controls.py` (the bijection +
+  the literal two-chairs acceptance, byte-identical `spec_notes`),
+  `tests/test_indexing_priors.py` (steer-never-gate pinned structurally),
+  `gui/src/lib/controls.ts` + `controls.test.ts` replaying the committed
+  corpus `tests/data/gui/index_controls.json`, `indexing/priors.py`,
+  `consensus.enumerate_ambiguity` (ambiguity now runs *after* validation),
+  and four new `capabilities()` vocabulary arms.
+  **Measured** (main checkout venv `[dev,jax,torch]`, darwin/arm64 M4):
+  full **2086 passed / 6 skipped in 31:07** at `-n 4` — against 1042's
+  same-venv 2052 / 6, **+34 exactly** (16 search-controls, 14 priors, 2
+  quality, 1 scheduler, 1 capabilities), all passes, no new skips; fast
+  measured 1977+2-then-fixed → the green tree's fast selection is those
+  same +34 over the merge-base's. `-n auto` was killed twice at ~46 % on a
+  swap-exhausted machine (23 of 24.5 GB) — `-n 4` finished; treat that as
+  machine state, not a suite property. vitest **390 → 401** (+8
+  `controls.test.ts`, +3 App mount tests), `svelte-check` clean, dist
+  rebuilt. `test_acceptance_indexing.py` standalone after the engine
+  changes: 41 passed in 22:20. Scoreboard regenerated **unchanged**: 7
+  first / 2 below first / 0 refused. Validation-reserve evidence: bare
+  quick on corundum/zincite/brucite validated **0/0/0** (walls
+  120.6/122.3/120.4 s; a fit costs 0.3–1.9 s against 11–60 s per trailing
+  search system); the first attempt (5 %, ambiguity first) recovered only
+  brucite — corundum's ambiguity enumeration (45 s in 1042's record, one
+  candidate's sweep uninterruptible) ate the reserve — and the shipped 8 %
+  + validation-first gives **[0,1] / [0,1,2,3,4,6] / [0,1,2]** at
+  120.2/120.1/112.7 s, the truth's own validation included on every one.
+  **Next**: nothing in flight here. For successors: the panel's `centrings`
+  chips and the priors editors have not been driven in a real browser
+  (WP-1017's concern, noted in its Inherited); `prior_spacegroups`
+  validate via gemmi only server-side.
+  **Gotchas**: the indexing dossier's 250-line cap was *full* on arrival —
+  a new rule section pays by compressing older ones (facts kept, narrative
+  to the records); the prior *check* can basin-hop and claim confirmation
+  (`PRIOR_DRIFT_MAX` bounds it to 10 % in volume); compare any seeded find
+  with `same_lattice`, never cell tuples (WP-1040's trap, hit again on the
+  monoclinic seed); `_ROUND_TRIP` in `test_search_controls.py` needs a row
+  per new `SearchSpec` field — the coverage assert forces it, which is the
+  point; and `viz._window_from_result` reads the provenance note under its
+  new name with a legacy fallback for pre-1045 results (pinned).
 - **2026-08-06** — created in the 1042/1043 review session from the user's
   design call (controls + agent mirror + analogue priors). Split so 1043 keeps
   the output half (evidence, visual check) and this WP the input half; sized

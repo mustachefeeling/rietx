@@ -246,7 +246,7 @@ def test_backend_unavailable_is_its_own_code(request_parts, monkeypatch):
 def cubic_peaks_json():
     """A 23-line cubic peak list as plain JSON — enough lines to pass the gate.
 
-    The σ is *declared*, and ``sigma_sys_deg`` is declared too in the request
+    The σ is *declared*, and ``shift_allowance_deg`` is declared too in the request
     below: exact synthetic positions carry no systematic, so inheriting the
     engines' assumed allowance would test looseness rather than the surface (the
     declare-your-physics rule, DESIGN.md §Testing & validation policy).
@@ -269,7 +269,7 @@ def indexed(cubic_peaks_json):
     out = ag.refine_json({
         "task": "index", "peaks": cubic_peaks_json,
         "search": {"systems": ["cubic"], "max_d_axis": 12.0,
-                   "max_volume": 1500.0, "sigma_sys_deg": 1e-9,
+                   "max_volume": 1500.0, "shift_allowance_deg": 1e-9,
                    "budget_seconds": 60.0}})
     assert out["ok"] is True, out.get("error")
     return out
@@ -388,8 +388,10 @@ def test_schemas_quote_every_live_registry_member():
     reach.
     """
     text = json.dumps(ag.request_schema())
+    from pxrdref.indexing import SEARCH_PRESETS
+
     for name in (*BACKEND_NAMES, *SOLVERS, *PLAN_PRESETS, *engine_names(),
-                 *SYSTEM_ORDER):
+                 *SYSTEM_ORDER, *SEARCH_PRESETS):
         assert name in text, f"{name!r} missing from the exported schema"
 
 

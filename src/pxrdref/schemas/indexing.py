@@ -30,7 +30,7 @@ from __future__ import annotations
 from typing import Literal
 
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from .common import Base, Diagnostic, Provenance
 
@@ -1020,6 +1020,248 @@ class DataQualityReport(Base):
     abstained_reason: str | None = None
     thresholds_version: str = INDEXING_THRESHOLDS_VERSION
     diagnostics: list[Diagnostic] = Field(default_factory=list)
+
+
+# ----------------------------------------------------------------------
+# the search controls — one spec behind every chair (WP-1045)
+# ----------------------------------------------------------------------
+class SearchSpecSpec(Base):
+    """Mirrors ``indexing.engines.SearchSpec``; every engine reads the same one.
+
+    Flat and complete rather than a handful of convenience knobs, because the
+    engines' **agreement** is the confidence and that only means something if
+    they were given identical bounds: a per-engine option would make ``high``
+    a statement about two different searches.
+
+    **This is the one control surface** (WP-1045).  It lived in ``agent.py``
+    (WP-1024) until the GUI needed the same fields; now the agent re-exports
+    it (the ``StageSpec``/``PlanSpec`` precedent), the project document embeds
+    it (``ProjectDoc.indexing``), and the GUI form renders it — held
+    field-for-field against the frozen dataclass by
+    ``tests/test_search_controls.py``, so a control added to one chair fails
+    a test until every chair has it.  Vocabulary validators import the live
+    registries lazily (engines register on package import, and
+    ``engines.py`` imports this module); the neutral descriptions here are
+    deliberate — the live-quoted ones belong to the surface that *exports* a
+    schema (``agent.py``'s field descriptions), never to the shared model.
+    """
+
+    systems: list[str] | None = Field(None, description=(
+        "crystal systems to search; None = all seven, run in decreasing "
+        "symmetry order because a cubic answer costs seconds and a triclinic "
+        "search costs minutes, so whoever gets the cubic answer first can "
+        "stop"))
+    centrings: dict[str, list[str]] | None = Field(None, description=(
+        "Bravais centrings to try, per system (e.g. {'cubic': ['P', 'I']}); "
+        "None or an absent system = every centring that system admits. An "
+        "empty list is refused — omitting the key is how a system keeps its "
+        "full set, and skipping a system entirely is `systems`' job"))
+    min_d_axis: float = Field(2.0, gt=0.0, description=(
+        "shortest principal d-spacing (Å) to consider — a bound on d(100), which "
+        "for an oblique cell is slightly stronger than a bound on a"))
+    max_d_axis: float = Field(25.0, gt=0.0, description=(
+        "longest principal d-spacing (Å); raising it costs exponentially, since "
+        "domain size is what an exhaustive search pays for"))
+    min_volume: float = Field(15.0, gt=0.0)
+    max_volume: float | None = Field(None, description=(
+        "cell-volume ceiling (Å³), taken verbatim — explicit narrowing is the "
+        "caller's own act. None takes Smith's (1977) per-system envelope from "
+        "the data-quality report (which differs by up to 96x across systems), "
+        "with the calibration slack the engines apply to a mean line"))
+    n_unindexed: int = Field(2, ge=0, description=(
+        "search lines a cell may leave unindexed and still be accepted. Raising "
+        "it MANUFACTURES cells — every tolerated line is one more coincidence a "
+        "wrong metric is allowed — so 2 is a default and 4 is a statement about "
+        "the specimen"))
+    n_search_lines: int = Field(20, ge=2, description=(
+        "observed lines the search is DRIVEN by — the strongest N, scored "
+        "afterwards against every usable line. Raising it is not free and not "
+        "safe: a cell must index all but n_unindexed of THESE, an absolute "
+        "budget, so every extra foreign line admitted can refute the true cell "
+        "rather than merely rank it lower (measured: a 68-line list loses its "
+        "certified lattice entirely at 32)"))
+    k_sigma: float = Field(3.0, gt=0.0, description=(
+        "matching window in units of each line's own sigma; 3 is a calibrated "
+        "99.7 % window, not a knob"))
+    shift_allowance_deg: float = Field(0.0, ge=0.0, description=(
+        "systematic 2theta allowance (deg) you have MEASURED, e.g. from an "
+        "internal standard — the shift's AMPLITUDE the matching window must "
+        "span (ShiftScreen.allowance_deg), never the residual scatter a "
+        "template leaves (ShiftScreen.sigma_sys_deg): the two differ 4.3x on "
+        "a certified pattern and declaring the scatter finds no cell at all. "
+        "Leave 0 and the engines assume 0.05 deg and say so with "
+        "INDEX_SHIFT_ALLOWANCE — which caps confidence, because a cell found "
+        "inside a widened window absorbs the shift (+1400 ppm measured)"))
+    shift_template: str | None = Field(None, description=(
+        "'constant' | 'cos_theta' | 'sin_2theta' — re-fit a surviving candidate "
+        "with this shift column, which is the fix for the allowance above; a "
+        "shift is only identifiable against reference positions and a candidate "
+        "cell is what supplies them"))
+    budget_seconds: float = Field(30.0, gt=0.0, description=(
+        "wall clock per (engine x crystal system) SLICE of the search, not per "
+        "run: a default two-engine, seven-system call is up to 2x7x30 s of "
+        "search before the probe and validation. An engine stopped by it "
+        "reports search_complete[system] = false, and a negative result there "
+        "is not evidence. total_budget_seconds is the whole-run bound"))
+    total_budget_seconds: float | None = Field(None, gt=0.0, description=(
+        "wall-clock ceiling for the WHOLE run — search, probe and validation "
+        "together. The run still returns a complete IndexingResult over what "
+        "was reached; systems_searched/search_complete distinguish searched, "
+        "truncated and not reached, and INDEX_BUDGET_EXHAUSTED names them. "
+        "None (default) leaves the ceiling to `preset`; setting it overrides "
+        "the preset's and the result records preset='custom'"))
+    preset: str | None = Field(None, description=(
+        "search preset governing the whole-run ceiling, from the live "
+        "SEARCH_PRESETS registry. None resolves to the default ('quick', a "
+        "measured ceiling with truncation reported loudly); 'full' is the "
+        "unbounded pre-1.0 behaviour, one rerun away"))
+    max_candidates: int = Field(12, ge=1)
+    seed: int = 0
+    prior_cells: list[tuple[float, float, float, float, float, float]] | None = \
+        Field(None, description=(
+            "structural-analogue cells (a, b, c in Å; alpha, beta, gamma in "
+            "deg) to try FIRST — each one's crystal system jumps the search "
+            "queue, its metric seeds the stochastic engine's starting basin, "
+            "and the cell itself is checked against the peak list, entering "
+            "the answer as finder 'prior' only if it indexes the search "
+            "lines. A prior STEERS, never gates: no system dropped, no range "
+            "changed, prior-only candidates appended after the ranked list — "
+            "a wrong prior costs time, not truth — and INDEX_PRIOR_USED "
+            "records what was supplied and what it changed"))
+    prior_spacegroups: list[str] | None = Field(None, description=(
+        "space-group symbols from a structural analogue (e.g. 'R -3 c'): "
+        "each contributes its crystal system to the queue jump and, beside a "
+        "matching prior cell, its centring. What a powder measures is the "
+        "extinction symbol, so the symbol steers the search rather than "
+        "labelling the answer"))
+
+    @field_validator("prior_cells")
+    @classmethod
+    def _sane_prior_cells(cls, v):
+        for cell in v or ():
+            a, b, c, al, be, ga = cell
+            if min(a, b, c) <= 0.0:
+                raise ValueError(f"prior cell {cell} has a non-positive axis")
+            if not all(0.0 < x < 180.0 for x in (al, be, ga)):
+                raise ValueError(f"prior cell {cell} has an angle outside "
+                                 "(0, 180) degrees")
+        return v
+
+    @field_validator("prior_spacegroups")
+    @classmethod
+    def _known_prior_spacegroups(cls, v):
+        for symbol in v or ():
+            from ..indexing.priors import spacegroup_prior
+
+            spacegroup_prior(symbol)  # raises naming the symbol
+        return v
+
+    @field_validator("systems")
+    @classmethod
+    def _known_systems(cls, v):
+        from ..indexing.engines import SYSTEM_ORDER
+
+        for name in v or ():
+            if name not in SYSTEM_ORDER:
+                raise ValueError(f"unknown crystal system {name!r}; "
+                                 f"available: {', '.join(SYSTEM_ORDER)}")
+        return v
+
+    @field_validator("centrings")
+    @classmethod
+    def _known_centrings(cls, v):
+        from ..indexing.engines import CENTRINGS, SYSTEM_ORDER
+
+        for system, letters in (v or {}).items():
+            if system not in SYSTEM_ORDER:
+                raise ValueError(f"unknown crystal system {system!r}; "
+                                 f"available: {', '.join(SYSTEM_ORDER)}")
+            allowed = CENTRINGS.get(system, ("P",))
+            if not letters:
+                raise ValueError(
+                    f"empty centring list for {system!r} — a system with no "
+                    "centrings would be silently skipped; omit the key to "
+                    "keep its full set, or drop the system from `systems`")
+            for c in letters:
+                if c not in allowed:
+                    raise ValueError(
+                        f"centring {c!r} is not admitted by {system} "
+                        f"(available: {', '.join(allowed)})")
+        return v
+
+    @field_validator("shift_template")
+    @classmethod
+    def _known_template(cls, v):
+        if v is not None and v not in SHIFT_TEMPLATES:
+            raise ValueError(f"unknown shift template {v!r}; "
+                             f"available: {', '.join(SHIFT_TEMPLATES)}")
+        return v
+
+    @field_validator("preset")
+    @classmethod
+    def _known_preset(cls, v):
+        from ..indexing.engines import SEARCH_PRESETS
+
+        if v is not None and v not in SEARCH_PRESETS:
+            raise ValueError(f"unknown search preset {v!r}; "
+                             f"available: {', '.join(SEARCH_PRESETS)}")
+        return v
+
+    def to_spec(self):
+        from ..indexing.engines import SYSTEM_ORDER, SearchSpec
+
+        return SearchSpec(
+            systems=tuple(self.systems) if self.systems else SYSTEM_ORDER,
+            centrings=({k: tuple(v) for k, v in self.centrings.items()}
+                       if self.centrings else None),
+            min_d_axis=self.min_d_axis, max_d_axis=self.max_d_axis,
+            min_volume=self.min_volume, max_volume=self.max_volume,
+            n_unindexed=self.n_unindexed, n_search_lines=self.n_search_lines,
+            k_sigma=self.k_sigma, shift_allowance_deg=self.shift_allowance_deg,
+            shift_template=self.shift_template,
+            budget_seconds=self.budget_seconds,
+            total_budget_seconds=self.total_budget_seconds,
+            max_candidates=self.max_candidates, seed=self.seed,
+            prior_cells=tuple(tuple(c) for c in self.prior_cells or ()),
+            prior_spacegroups=tuple(self.prior_spacegroups or ()))
+
+
+class IndexingControls(Base):
+    """Everything an indexing *run* is asked with that is not the data itself.
+
+    ``SearchSpecSpec`` plus the ``index_pattern`` call options that are not
+    ``SearchSpec`` fields.  The project document embeds this (control state is
+    a project setting, persisted on the verb), the agent request carries the
+    same fields, and ``tests/test_search_controls.py`` holds all three to
+    ``index_pattern``'s own signature.  ``two_theta_limits`` is deliberately
+    absent: the project document already owns it (one authority per fact).
+    """
+
+    search: SearchSpecSpec = Field(default_factory=SearchSpecSpec)
+    engines: list[str] | None = Field(None, description=(
+        "indexing engines to run; None = all registered, and keep it — "
+        "'high' confidence MEANS every engine that ran found the same "
+        "lattice, so naming a subset narrows what the answer can say"))
+    validate_candidates: bool = Field(True, description=(
+        "run the whole-profile Le Bail validation when a pattern is "
+        "available; turning it off caps every candidate at medium, so do it "
+        "only to save time on a first look"))
+    check_top: int | None = Field(None, ge=1, description=(
+        "candidates given the expensive per-candidate checks (geometrical "
+        "ambiguity + Le Bail validation); None = the package default plus "
+        "every candidate the gate could promote, which never removes a "
+        "candidate that might grade high"))
+
+    @field_validator("engines")
+    @classmethod
+    def _known_engines(cls, v):
+        from ..indexing.engines import engine_names
+
+        for name in v or ():
+            if name not in engine_names():
+                raise ValueError(f"unknown indexing engine {name!r}; "
+                                 f"available: {', '.join(engine_names())}")
+        return v
 
 
 class CaveatEvidence(Base):

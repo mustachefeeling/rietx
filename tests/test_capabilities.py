@@ -90,6 +90,27 @@ def test_every_search_preset_appears_with_its_ceiling(caps):
     assert sum(p.default for p in caps.search_presets) == 1
 
 
+def test_the_indexing_control_vocabularies_quote_the_live_registries(caps):
+    """WP-1045: the GUI form's checkboxes and selects read these arms, so a
+    registered engine (or system, centring, template) missing from them is an
+    engine a human cannot ask for — the same meta-test as plans and presets,
+    over the four vocabularies the control surface renders."""
+    from pxrdref.indexing.engines import (
+        CENTRINGS,
+        SYSTEM_ORDER,
+        engine_descriptions,
+    )
+    from pxrdref.schemas.indexing import SHIFT_TEMPLATES
+
+    assert {e.name for e in caps.indexing_engines} == \
+        set(engine_descriptions())
+    for cap in caps.indexing_engines:
+        assert cap.description == engine_descriptions()[cap.name]
+    assert caps.crystal_systems == list(SYSTEM_ORDER)  # order IS information
+    assert caps.centrings == {s: list(v) for s, v in CENTRINGS.items()}
+    assert caps.shift_templates == list(SHIFT_TEMPLATES)
+
+
 def test_every_anode_appears_with_its_lines_and_kbeta(caps):
     assert {a.name for a in caps.anodes} == set(_RADIATIONS)
     by_name = {a.name: a for a in caps.anodes}

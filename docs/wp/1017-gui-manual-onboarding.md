@@ -39,6 +39,23 @@ real UI.
 
 ### Inherited
 
+**From [1045](1045-indexing-search-controls.md), closed 2026-08-08 — the
+Peaks tab gained the Search controls disclosure, and nobody has watched a
+person use it.** The form renders `ProjectDoc.indexing` (engines/systems
+checkboxes with per-system centring chips, preset and shift-template
+selects, the numeric bounds and budgets, two prior editors), every control
+carries a `title` (its only documentation today), commits are whole-object
+on the verb, and streamed per-system shortlists render during a run. Three
+onboarding concerns filed unexamined: the centring chips inside the systems
+row and the six-number prior-cell input have never been driven in a real
+browser (the WP-1027 playwright route is the tool); the priors story —
+"state what you know", the calcite example in AGENT_PROTOCOL §7d — is
+exactly onboarding material and exists only in the operator guide; and a
+`prior_spacegroups` typo is refused server-side in gemmi's words, which the
+manual should set expectations for. Also note validation starvation under
+`quick` is *gone* (the 1042 note below predates the reserve): heavy
+patterns now stream `INDEX_BUDGET_EXHAUSTED` with a validated shortlist.
+
 **From [1042](1042-anytime-results-quick-default.md), closed 2026-08-07 —
 the Index button's behaviour changed under the manual's feet.** A GUI index
 run now resolves the `quick` preset (a 120 s whole-run ceiling — the fix for

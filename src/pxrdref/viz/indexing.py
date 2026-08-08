@@ -356,10 +356,11 @@ def plot_validation(validation, result=None, *, path: str | None = None,
 def _window_from_result(result, peaks) -> np.ndarray:
     """The σ(Q) the search matched with, rebuilt from what the result records.
 
-    ``index_pattern`` writes ``sigma_sys_deg`` into ``provenance.notes`` on
-    every run precisely so a run is reproducible from what it reports; that
+    ``index_pattern`` writes ``shift_allowance_deg`` into ``provenance.notes``
+    on every run precisely so a run is reproducible from what it reports; that
     plus the quality report's shift screen feed the same
-    :func:`~pxrdref.indexing.engines.effective_sigma_sys` the search read.  So
+    :func:`~pxrdref.indexing.engines.effective_shift_allowance` the search
+    read.  So
     a picture drawn from a result matches in the window the candidates were
     selected under — CLAUDE.md's rule that a fitted σ is the wrong matching
     window, honoured with **no spec in hand** (WP-1043: the visual check is
@@ -369,10 +370,12 @@ def _window_from_result(result, peaks) -> np.ndarray:
 
     notes = getattr(getattr(result, "provenance", None), "notes", None) or {}
     try:
-        sigma_sys = float(notes.get("sigma_sys_deg", 0.0) or 0.0)
+        # results recorded before WP-1045 wrote the key under the old name
+        raw = notes.get("shift_allowance_deg", notes.get("sigma_sys_deg", 0.0))
+        allowance = float(raw or 0.0)
     except (TypeError, ValueError):
-        sigma_sys = 0.0
-    return match_window(peaks, SearchSpec(sigma_sys_deg=sigma_sys),
+        allowance = 0.0
+    return match_window(peaks, SearchSpec(shift_allowance_deg=allowance),
                         getattr(result, "quality", None))
 
 

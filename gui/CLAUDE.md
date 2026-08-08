@@ -480,6 +480,31 @@ next `Open…`; out of there it also stops being refused mid-run, which is the
 finding WP-1029 recorded and could not fix from inside `POST /api/project` (the
 project's *other* `ui` keys still ride that route).
 
+The **search controls** (WP-1045, `gui/src/lib/controls.ts`, the Peaks
+panel's disclosure) are `ProjectDoc.indexing` rendered as a form — the same
+`SearchSpecSpec` the agent request carries, so the two chairs are two views
+of one spec. Five rules. **The document is the authority and the commit is
+whole-object**: every change POSTs the entire `indexing` block on the verb (a
+partial merge could let two half-specs disagree), and the draft re-syncs from
+the document on every head move — including after a refusal, so the form
+never shows a value the server refused. **Vocabularies come from
+`/api/capabilities`** (`indexing_engines`, `crystal_systems` in search order,
+`centrings`, `shift_templates`, `search_presets`), never from literals — a
+fourth engine appears with no GUI change. **The field inventory is the
+bijection's GUI leg**: `controls.ts` declares every field with its widget
+kind, label and `title` (WP-1029's no-mute-fields rule, pinned), and
+`controls.test.ts` replays the committed corpus
+`tests/data/gui/index_controls.json` (the fnmatch mechanism — python owns the
+model, TS proves the form states it). **A prior cell is parsed locally**
+(six numbers, refused with a reason in the form's own error field — which is
+deliberately not the peak verbs' failure field), while a prior space-group
+symbol is validated server-side and refused in gemmi's words. And **the
+streamed shortlists are the shell's to fold**: `consensus:<system>`
+`stage_end` frames collect in App (cleared on `index_start`, kept after the
+run so the anytime answer stays readable beside the final one) and render
+with the conservative-grade caveat in the tooltip — a streamed grade can
+rise, never fall.
+
 The **peak picker and indexing panel** (WP-1027, `src/pxrdref/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**

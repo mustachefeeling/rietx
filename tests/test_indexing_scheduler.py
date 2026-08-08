@@ -126,18 +126,18 @@ def test_merge_engine_units_folds_disjoint_systems():
     u1 = EngineResult(engine="e", systems_searched=("cubic",),
                       search_complete={"cubic": True},
                       stats={"cubic.seconds": 1.0, "candidates.raw": 3.0,
-                             "sigma_sys_deg": 0.05})
+                             "shift_allowance_deg": 0.05})
     u2 = EngineResult(engine="e", systems_searched=("tetragonal",),
                       search_complete={"tetragonal": False},
                       stats={"tetragonal.seconds": 2.0, "candidates.raw": 4.0,
-                             "sigma_sys_deg": 0.05})
+                             "shift_allowance_deg": 0.05})
     merged = merge_engine_units([u1, u2])
     assert merged.engine == "e"
     assert merged.systems_searched == ("cubic", "tetragonal")
     assert merged.search_complete == {"cubic": True, "tetragonal": False}
     # summed, not last-write-wins: each unit counted its own harvest
     assert merged.stats["candidates.raw"] == 7.0
-    assert merged.stats["sigma_sys_deg"] == 0.05
+    assert merged.stats["shift_allowance_deg"] == 0.05
     assert merged.stats["cubic.seconds"] == 1.0
 
 
@@ -205,6 +205,47 @@ def test_quick_is_the_default_and_never_overrides_a_declared_ceiling(
 
     with pytest.raises(ValueError, match="unknown search preset"):
         index_pattern(peaks, preset="fastest")
+
+
+def test_the_search_stops_a_validation_reserve_early(cubic_peaks, monkeypatch):
+    """WP-1045: when whole-profile validation is going to run under a ceiling,
+    the search's deadline ends ``VALIDATION_RESERVE_FRACTION`` early.
+
+    Measured before the reserve existed: on three heavy qarr patterns the
+    search consumed the whole 120 s ceiling on every run and validation got
+    **zero** fits, while a fit costs 0.3-1.9 s against 11-60 s for a trailing
+    search system.  The ceiling itself never moves — this is scheduling
+    within it — and when nothing will validate (no pattern, or
+    ``validate=False``) the search keeps every second.
+    """
+    from pxrdref.indexing.engines import VALIDATION_RESERVE_FRACTION
+    from tests.test_refine_synthetic import perturbed_models, synthesize
+
+    peaks, _cell = cubic_peaks
+    seen: list[float] = []
+
+    def spy(p, *, spec, quality=None, cancel=None, progress=None):
+        seen.append(float("inf") if cancel is None else cancel.remaining)
+        result = EngineResult(engine="e1")
+        result.systems_searched = tuple(spec.systems)
+        result.search_complete[spec.systems[0]] = True
+        return result
+
+    _patch_registry(monkeypatch, {"e1": spy})
+    data = synthesize()
+    _structure, instrument = perturbed_models()
+    boundary = 100.0 * (1.0 - VALIDATION_RESERVE_FRACTION)
+
+    index_pattern(peaks, data=data, instrument=instrument,
+                  spec=SearchSpec(systems=("cubic",),
+                                  total_budget_seconds=100.0))
+    assert seen and seen[0] <= boundary + 1.0
+
+    seen.clear()
+    index_pattern(peaks, data=data, instrument=instrument, validate=False,
+                  spec=SearchSpec(systems=("cubic",),
+                                  total_budget_seconds=100.0))
+    assert seen and seen[0] > boundary + 1.0
 
 
 def test_a_single_engine_run_says_what_low_means(cubic_peaks, monkeypatch):
