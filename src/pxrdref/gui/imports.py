@@ -35,8 +35,11 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import struct
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,6 +56,21 @@ UPLOAD_KINDS = ("pattern", "cif", "instrument")
 #: Points in a preview curve.  Enough to see the peaks and the background of a
 #: 40 000-point pattern in a wizard step; the real plot fetches its own windows.
 PREVIEW_POINTS = 900
+
+#: What a failed read may throw before this route calls it a refusal.
+#:
+#: The **invariant** is that a reader raises ``ValueError`` or ``OSError`` and
+#: names the file — enforced at each parser's own boundary and asserted by
+#: ``tests/test_readers_robust.py``, which truncates every real fixture at
+#: twenty offsets.  The rest of this tuple is a net, not a licence: the vendor
+#: formats are containers, so a parser that forgets to convert would throw
+#: ``struct.error``, ``zipfile.BadZipFile`` or ``ET.ParseError`` — and the last
+#: subclasses ``SyntaxError``, so it escapes as a **500** on an upload route
+#: rather than as "this file could not be read".  A localhost server handed a
+#: browser's bytes should degrade to a 400, and the harness is what keeps the
+#: net from quietly becoming the mechanism.
+READER_FAILURES = (ValueError, OSError, RuntimeError, KeyError, IndexError,
+                   struct.error, zipfile.BadZipFile, ET.ParseError)
 
 
 class UploadRefused(ValueError):
@@ -227,7 +245,7 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
         raise UploadRefused(str(exc), where=["reader_options"]) from None
     try:
         data = read_pattern(upload.path, diagnostics=notes, **options)
-    except (ValueError, OSError, RuntimeError, KeyError, IndexError) as exc:
+    except READER_FAILURES as exc:
         raise UploadRefused(
             f"{upload.filename} looks like {fmt.title} but could not be read: "
             f"{type(exc).__name__}: {scrub(str(exc), upload)}") from None

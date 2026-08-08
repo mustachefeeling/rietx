@@ -418,7 +418,7 @@ that belong to it), never mid-format.
 - [x] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16
       decode in `_read_xy`); `identify_format`'s message built from the
       registry; grep for tests assuming it never raises.
-- [ ] 5. The truncation-fuzz harness; widen `imports.py:221`.
+- [x] 5. The truncation-fuzz harness; widen `imports.py:221`.
 - [ ] 6. `.chi` — reader, the two-gate `matches` (shape from `head()`, count
       as the stated exemption), axis policy. Regression test that today's
       phantom point is gone.

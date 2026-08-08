@@ -64,12 +64,12 @@ def read_gsas(path: str | Path, *,
         type_flag = "FXYE"
 
     if type_flag == "FXYE":
-        arr = np.array(values, dtype=np.float64).reshape(-1, 3)
+        arr = _reshape(values, 3, p, type_flag)
         tt = arr[:, 0] / 100.0  # centidegrees → degrees
         y = arr[:, 1]
         sig = arr[:, 2]
     elif type_flag == "ESD":
-        arr = np.array(values, dtype=np.float64).reshape(-1, 2)
+        arr = _reshape(values, 2, p, type_flag)
         tt = (c1 + c2 * np.arange(len(arr))) / 100.0
         y, sig = arr[:, 0], arr[:, 1]
     else:  # STD: counts only, Poisson esd
@@ -92,6 +92,23 @@ def read_gsas(path: str | Path, *,
     return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
                        sigma=None if sig is None else sig.tolist(),
                        metadata={"source_file": p.name, "format": f"gsas-{type_flag.lower()}"})
+
+
+def _reshape(values: list[float], width: int, p: Path, flag: str) -> np.ndarray:
+    """``values`` as N rows of ``width``, or a refusal that names the file.
+
+    numpy's own complaint is ``cannot reshape array of size 527 into shape
+    (3)`` — a true statement about an array, from a user who asked to open a
+    diffraction pattern.  Converting here is the general rule (a reader raises
+    ``ValueError``/``OSError`` **naming the file**) applied at this parser's own
+    boundary; a truncated file is the ordinary way to reach it.
+    """
+    if width and len(values) % width:
+        raise ValueError(
+            f"{p.name}: the {flag} bank holds {len(values)} numbers, which is "
+            f"not a whole number of {width}-column rows — the file is truncated "
+            "or its bank record disagrees with its data")
+    return np.array(values, dtype=np.float64).reshape(-1, width)
 
 
 GSAS = PatternFormat(
