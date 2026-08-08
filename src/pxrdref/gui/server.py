@@ -284,14 +284,20 @@ UPLOAD_ROUTES: dict[tuple[str, str], str] = {
 def _upload_options(query: dict) -> dict:
     """The reader keywords an upload may carry, off the query string.
 
-    ``aniso`` is the checkbox that mirrors ``structure_from_cif(aniso=)`` and
-    ``block`` names a pdCIF data block — both are *re-read* options, which is why
-    they belong on the upload route rather than only on the commit that follows.
+    Two vocabularies meet here: ``aniso`` and ``phase_name`` are the CIF
+    reader's, while the pattern reader's come from
+    :data:`~pxrdref.io.readers.READER_OPTIONS` rather than a literal list — so a
+    format that adds ``scan`` is reachable from this route with no edit here.
+    All of them are *re-read* options, which is why they belong on the upload
+    route and not only on the commit that follows.  Values stay strings;
+    ``reader_options_for`` is the one place that coerces them.
     """
+    from ..io.readers import READER_OPTIONS
+
     options: dict[str, Any] = {}
     if query.get("aniso"):
         options["aniso"] = query["aniso"][0].lower() not in ("", "0", "false")
-    for key in ("phase_name", "block"):
+    for key in ("phase_name", *READER_OPTIONS):
         if query.get(key) and query[key][0]:
             options[key] = query[key][0]
     return options

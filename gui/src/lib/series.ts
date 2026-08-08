@@ -24,7 +24,8 @@ export interface SeriesPattern {
   label: string;
   x: number | null;
   reader: string;
-  block: string | null;
+  /** the *effective* reader keywords this member was read with */
+  reader_options: Record<string, string>;
   n_points: number;
   two_theta_range: [number, number];
   /** the *file* carried esds — a mixed series is fitted under two weightings */
@@ -89,7 +90,8 @@ export function asRequest(patterns: SeriesPattern[]): Array<Record<string, unkno
     // `null` and `undefined` are the same answer here — no coordinate — and the
     // server reads a missing key as "index is the axis"
     ...(p.x === null ? {} : { x: p.x }),
-    ...(p.block ? { block: p.block } : {}),
+    ...(p.reader_options && Object.keys(p.reader_options).length
+      ? { reader_options: p.reader_options } : {}),
   }));
 }
 

@@ -241,7 +241,9 @@ class GuiSession:
                     "?upload=<token> to re-read one already staged",
                     where=["upload"])
             if kind == "pattern":
-                return preview_pattern(staged, block=opts.get("block"))
+                from ..io.readers import READER_OPTIONS
+                return preview_pattern(staged, reader_options={
+                    k: v for k, v in opts.items() if k in READER_OPTIONS})
             if kind == "cif":
                 return preview_cif(staged, aniso=bool(opts.get("aniso")),
                                    phase_name=opts.get("phase_name"))
@@ -272,7 +274,8 @@ class GuiSession:
         structure = _as_structure(body.get("structure"), self.uploads)
         instrument = _as_instrument(body.get("instrument"), self.uploads)
         kw: dict[str, Any] = {}
-        for key in ("mode", "two_theta_limits", "excluded_regions", "block", "ui"):
+        for key in ("mode", "two_theta_limits", "excluded_regions",
+                    "reader_options", "ui"):
             if body.get(key) is not None:
                 kw[key] = body[key]
         if body.get("plan") is not None:

@@ -408,7 +408,7 @@ that belong to it), never mid-format.
 - [x] 1. Split into `io/formats/`; `readers.py` becomes the front door;
       `head()` (with BOM detection) replaces `_looks_gsas`'s whole-file
       decode. Pure refactor, **zero call-site edits**, suite green.
-- [ ] 2. `READER_OPTIONS` / `reader_options_for` / `read_pattern(**options)`;
+- [x] 2. `READER_OPTIONS` / `reader_options_for` / `read_pattern(**options)`;
       thread through project, imports, series, server, session, textdoc,
       wizard; drop `Project.create(block=)`; `DataRef` records effective
       options. Meta-test on the allowlist union.

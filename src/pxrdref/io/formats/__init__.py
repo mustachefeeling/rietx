@@ -20,7 +20,15 @@ Binary-claiming formats go first so nothing tries to decode their bytes as text.
 
 from __future__ import annotations
 
-from .base import HEAD_BYTES, Head, PatternFormat, head
+from .base import (
+    HEAD_BYTES,
+    READER_OPTIONS,
+    Head,
+    PatternFormat,
+    ReaderOption,
+    head,
+    reader_options_for,
+)
 from .gsas import GSAS, read_gsas
 from .pdcif import PDCIF, read_pdcif
 from .xy import XY, read_xy
@@ -31,10 +39,13 @@ PATTERN_FORMATS: tuple[PatternFormat, ...] = (PDCIF, GSAS, XY)
 __all__ = [
     "HEAD_BYTES",
     "PATTERN_FORMATS",
+    "READER_OPTIONS",
     "Head",
     "PatternFormat",
+    "ReaderOption",
     "head",
     "read_gsas",
     "read_pdcif",
     "read_xy",
+    "reader_options_for",
 ]

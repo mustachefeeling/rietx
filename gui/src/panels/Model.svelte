@@ -168,6 +168,9 @@
   const anodes = $derived<any[]>(capabilities?.anodes ?? []);
   const modes = $derived<string[]>(capabilities?.modes ?? ["rietveld"]);
   const plans = $derived<any[]>(capabilities?.plans ?? []);
+  /** the reader-keyword vocabulary — a control per option the format declares,
+   *  so a format that adds `scan` gets its picker with no change here */
+  const readerOptions = $derived<any[]>(capabilities?.reader_options ?? []);
   const cannotCreate = $derived(blocked(wiz));
 
   async function stage(kind: "pattern" | "cif" | "instrument", event: Event) {
@@ -193,7 +196,9 @@
   function absorb(kind: string, preview: any) {
     if (kind === "pattern") {
       wiz.pattern = preview;
-      wiz.block = preview.block ?? "";
+      // the *effective* options, so a control cleared by a change of file shows
+      // what this reader honoured rather than what the last one was asked for
+      wiz.readerOptions = { ...(preview.reader_options ?? {}) };
       if (!wiz.path) wiz.path = preview.suggested_project;
       say(`read_pattern("${preview.filename}")  # ${preview.format.name}, `
         + `${preview.n_points} points`);
@@ -667,18 +672,21 @@
               claimed by <strong>{wiz.pattern.format.name}</strong> —
               {wiz.pattern.format.sniff}. σ: {wiz.pattern.format.sigma}
             </p>
-            {#if wiz.pattern.format.options.includes("block")}
+            {#each readerOptions.filter((o: any) =>
+                wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
               <label class="inline tiny">
-                data block
-                <input class="mono" value={wiz.block} placeholder="meas"
+                {opt.name}
+                <input class="mono" value={wiz.readerOptions[opt.name] ?? ""}
+                  inputmode={opt.kind === "int" ? "numeric" : undefined}
                   onchange={(e) => {
-                    wiz.block = (e.currentTarget as HTMLInputElement).value;
-                    restage("pattern", wiz.block ? { block: wiz.block } : {});
+                    const v = (e.currentTarget as HTMLInputElement).value.trim();
+                    wiz.readerOptions = { ...wiz.readerOptions, [opt.name]: v };
+                    restage("pattern", Object.fromEntries(
+                      Object.entries(wiz.readerOptions).filter(([, s]) => s !== "")));
                   }} />
-                <span class="muted">this file has more than one; a `_calc` block is
-                  a different pattern</span>
+                <span class="muted">{opt.help}</span>
               </label>
-            {/if}
+            {/each}
           {/if}
         </li>
 

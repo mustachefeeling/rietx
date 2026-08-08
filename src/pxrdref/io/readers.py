@@ -16,33 +16,48 @@ by the Poisson fallback (review finding M5).
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from ..schemas.pattern import PatternData
-from .formats import PATTERN_FORMATS, PatternFormat, read_pdcif
+from .formats import (
+    PATTERN_FORMATS,
+    READER_OPTIONS,
+    PatternFormat,
+    ReaderOption,
+    read_pdcif,
+    reader_options_for,
+)
 
 __all__ = [
     "PATTERN_FORMATS",
+    "READER_OPTIONS",
     "PatternFormat",
+    "ReaderOption",
     "identify_format",
     "read_pattern",
     "read_pdcif",
+    "reader_options_for",
 ]
 
 
-def read_pattern(path: str | Path, *, block: str | None = None) -> PatternData:
+def read_pattern(path: str | Path, **options: Any) -> PatternData:
     """Read any supported pattern file, dispatching on *content* first.
 
     GSAS raw files are recognised by their ``BANK`` record rather than by
     suffix — the format is written with a zoo of extensions (``.fxye``,
     ``.gsas``, ``.gda``, ``.xra``, ``.raw``, …) and the record is unambiguous.
 
-    ``block`` is passed through to :func:`read_pdcif` and ignored by the other
-    formats, so a caller (or a project reopening its own pattern) can name the
-    data block without having to know which reader will claim the file.
+    ``options`` are the reader keywords in :data:`READER_OPTIONS` — ``block``
+    for a pdCIF's data block, and later the ``scan`` a multi-scan vendor file
+    holds several of.  They are named rather than positional precisely so a
+    caller (or a project reopening its own pattern) need not know which reader
+    will claim the file: an option this format does not take is dropped, while
+    an option *no* format takes is a typo and raises.  See
+    :func:`~pxrdref.io.formats.base.reader_options_for` for that distinction.
     """
     p = Path(path)
     fmt = identify_format(p)
-    return fmt.read(p, block=block) if "block" in fmt.options else fmt.read(p)
+    return fmt.read(p, **reader_options_for(fmt, options))
 
 
 def identify_format(path: str | Path) -> PatternFormat:

@@ -13,6 +13,7 @@ import codecs
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Literal
 
 from ...schemas.pattern import PatternData
 
@@ -45,6 +46,77 @@ class PatternFormat:
     matches: Callable[[Path], bool]
     read: Callable[..., PatternData]
     options: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class ReaderOption:
+    """One keyword :func:`pxrdref.read_pattern` accepts, declared as data.
+
+    Two levels exist because an option is rarely one format's — the ``scan`` of
+    a multi-scan vendor file will mean the same thing in five of them — and
+    because a caller should not have to know which reader will claim a file in
+    order to name one.  So the *vocabulary* lives here and each
+    :class:`PatternFormat` names the subset it honours.
+
+    That split is what makes a **typo** distinguishable from an option this
+    particular file's format does not take.  The first is a caller error and
+    raises; the second is normal — a UI carries a value across a file change —
+    and is dropped, but *reported* (``READER_OPTION_IGNORED``), because an API
+    caller who passed ``scan=2`` against a single-scan format believed they had
+    selected something.
+
+    ``kind`` exists because ``DataRef.options`` is ``dict[str, str]``: a scan
+    round-trips through a project as ``"2"`` and has to reach the reader as the
+    integer 2.
+    """
+
+    name: str
+    kind: Literal["str", "int"]
+    #: what the option does, in words a UI can put beside its control
+    help: str
+
+    def coerce(self, value: Any) -> Any:
+        """``value`` as this option's type, or a refusal naming the option."""
+        if self.kind == "int":
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"reader option {self.name}= takes an integer, "
+                                 f"got {value!r}") from None
+        return str(value)
+
+
+#: Every keyword ``read_pattern`` accepts, across all formats — the allowlist.
+#: A meta-test pins it equal to the union of every ``PatternFormat.options``, so
+#: neither half can grow an entry the other does not know about.
+READER_OPTIONS: dict[str, ReaderOption] = {
+    "block": ReaderOption(
+        name="block", kind="str",
+        help="the data block to read, by substring match on its name — a pdCIF "
+             "carrying both a _meas and a _calc block is a different pattern "
+             "depending on it"),
+}
+
+
+def reader_options_for(fmt: PatternFormat, requested: dict[str, Any]) -> dict[str, Any]:
+    """The options ``fmt`` will actually be called with — coerced and filtered.
+
+    One authority, because three callers ask the same question and each would
+    otherwise answer it slightly differently: :func:`pxrdref.read_pattern`
+    before dispatching, ``Project`` when recording what the parse *used*, and
+    the GUI when a staged file is re-read.  ``None`` means "not specified" and
+    is dropped, so ``block=None`` still reads the first block that parses.
+    """
+    out: dict[str, Any] = {}
+    for name, value in requested.items():
+        option = READER_OPTIONS.get(name)
+        if option is None:
+            raise ValueError(f"unknown reader option {name!r}; read_pattern takes "
+                             f"{sorted(READER_OPTIONS)}")
+        if value is None or name not in fmt.options:
+            continue
+        out[name] = option.coerce(value)
+    return out
 
 
 #: How much of a file a *sniff* may look at.  Every text dispatch goes through

@@ -487,7 +487,7 @@ def test_a_staged_pdcif_is_re_read_for_another_block_without_re_uploading(blank)
     assert status == 200, second
     assert second["upload"] == first["upload"]     # the same staged bytes
     assert second["metadata"]["block"].endswith("_calc")
-    assert second["block"] == "calc"
+    assert second["reader_options"] == {"block": "calc"}
 
 
 def test_the_aniso_checkbox_is_offered_only_when_the_cif_carries_a_loop(blank):

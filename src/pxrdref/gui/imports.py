@@ -190,7 +190,7 @@ def _safe_name(filename: str) -> str:
 # ----------------------------------------------------------------------
 # previews
 # ----------------------------------------------------------------------
-def preview_pattern(upload: Upload, *, block: str | None = None,
+def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = None,
                     suggest_in: Path | None = None) -> dict:
     """Read a staged pattern and describe it — reader included.
 
@@ -205,17 +205,25 @@ def preview_pattern(upload: Upload, *, block: str | None = None,
     than a description: it says whether the fit will weight by the file's own
     esd column or fall back to Poisson √max(y,1), which is invisible once the
     file is read.
+
+    ``reader_options`` are :data:`~pxrdref.io.readers.READER_OPTIONS` keys, and
+    the preview echoes back the **effective** ones rather than the requested
+    ones — a form carries a ``block`` across a change of file, and what the
+    control should then show is what this reader honoured.
     """
     import numpy as np
 
-    from ..io.readers import identify_format, read_pattern
+    from ..io.readers import identify_format, read_pattern, reader_options_for
     from ..viz.compare import decimation_index
 
     try:
         fmt = identify_format(upload.path)
     except ValueError as exc:
         raise UploadRefused(str(exc)) from None
-    options = {"block": block} if block is not None and "block" in fmt.options else {}
+    try:
+        options = reader_options_for(fmt, reader_options or {})
+    except ValueError as exc:
+        raise UploadRefused(str(exc), where=["reader_options"]) from None
     try:
         data = read_pattern(upload.path, **options)
     except (ValueError, OSError, RuntimeError, KeyError, IndexError) as exc:
@@ -235,7 +243,7 @@ def preview_pattern(upload: Upload, *, block: str | None = None,
         **upload.as_dict(),
         "format": {"name": fmt.name, "title": fmt.title, "sniff": fmt.sniff,
                    "sigma": fmt.sigma, "options": list(fmt.options)},
-        "block": block,
+        "reader_options": {k: str(v) for k, v in options.items()},
         "n_points": int(tt.size),
         "two_theta_range": [float(tt[0]), float(tt[-1])],
         "step": float(np.median(steps)) if steps.size else None,

@@ -94,11 +94,14 @@ describe("createBody", () => {
     expect(JSON.stringify(body)).not.toContain("/api/upload");
   });
 
-  it("carries the pdCIF block only when one was picked", () => {
+  it("carries the reader options only when one was picked", () => {
     const state = staged();
-    expect(createBody(state).block).toBeUndefined();
-    state.block = "meas";
-    expect(createBody(state).block).toBe("meas");
+    expect(createBody(state).reader_options).toBeUndefined();
+    state.readerOptions = { block: "meas" };
+    expect(createBody(state).reader_options).toEqual({ block: "meas" });
+    // a cleared control is not a request — it must not reach the server as ""
+    state.readerOptions = { block: "" };
+    expect(createBody(state).reader_options).toBeUndefined();
   });
 
   it("carries the aniso opt-in as chosen", () => {

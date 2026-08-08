@@ -135,6 +135,24 @@ def test_every_reader_format_appears_in_dispatch_order(caps):
     assert by_name["xy"].options == []
 
 
+def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):
+    """``READER_OPTIONS`` and ⋃ ``fmt.options`` are one vocabulary, two halves.
+
+    The split is what lets ``reader_options_for`` tell a **typo** (no format has
+    ever heard of it — a caller error, raises) from an option this particular
+    file's format does not take (normal; a UI carries a value across a change of
+    file, so it is dropped and reported).  That distinction is only sound while
+    the two halves agree, and nothing else would notice if one grew alone.
+    """
+    from pxrdref.io.readers import READER_OPTIONS
+
+    union = {o for fmt in PATTERN_FORMATS for o in fmt.options}
+    assert set(READER_OPTIONS) == union
+    # and the arm quotes the allowlist, so a client renders every control
+    assert [o.name for o in caps.reader_options] == sorted(READER_OPTIONS)
+    assert all(o.kind in ("str", "int") and o.help for o in caps.reader_options)
+
+
 def test_every_versioned_contract_is_a_live_value(caps):
     """Five of them since WP-1009 — and the count is why they live in the arm.
 

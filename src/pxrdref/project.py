@@ -39,7 +39,7 @@ from typing import Any
 
 from .history.store import fingerprint
 from .history.tree import RefinementTree
-from .io.readers import identify_format, read_pattern
+from .io.readers import identify_format, read_pattern, reader_options_for
 from .refine import _VERSION, Refinement
 from .schemas.common import Mode
 from .schemas.history import NodeAction
@@ -98,7 +98,7 @@ class Project:
                plan: Any = None,
                two_theta_limits: tuple[float, float] | None = None,
                excluded_regions: list[tuple[float, float]] | None = None,
-               block: str | None = None,
+               reader_options: dict[str, Any] | None = None,
                ui: dict[str, Any] | None = None,
                backend: str = "numpy", solver: str = "trf") -> "Project":
         """Create a project directory around a pattern file and a model.
@@ -108,9 +108,11 @@ class Project:
         reader's esd-column semantics intact.  A caller holding data in memory
         writes it out first, and thereby chooses the format its esds live in.
 
-        ``block`` names a pdCIF data block (several certification files carry a
-        measured *and* a calculated one); it is recorded so re-opening reads the
-        same block rather than the first that parses.
+        ``reader_options`` are :data:`~pxrdref.io.readers.READER_OPTIONS` keys —
+        today ``block``, which names a pdCIF data block (several certification
+        files carry a measured *and* a calculated one).  The **effective** ones
+        are recorded, so re-opening reproduces the reader *call* rather than
+        merely re-reading the bytes.
         """
         root = Path(path)
         src = Path(pattern)
@@ -127,7 +129,7 @@ class Project:
             shutil.copyfile(src, copied)  # bytes, not a re-serialisation
 
         fmt = identify_format(copied)
-        options = {"block": block} if block is not None and "block" in fmt.options else {}
+        options = reader_options_for(fmt, reader_options or {})
         data = read_pattern(copied, **options)
         if excluded_regions:
             data.excluded_regions = [tuple(r) for r in excluded_regions]
@@ -381,14 +383,19 @@ def _as_plan_spec(plan: Any) -> PlanSpec | None:
 
 
 def _data_ref(path: Path, data: PatternData, reader: str,
-              options: dict[str, str]) -> DataRef:
+              options: dict[str, Any]) -> DataRef:
     tt = data.two_theta
     return DataRef(
         filename=path.name,
         sha256=_sha256(path),
         fingerprint=fingerprint(data.two_theta, data.intensity),
         reader=reader,
-        options=dict(options),
+        # the **effective** options — the ones the parse actually used, which
+        # are what reopening has to replay.  A requested-but-ignored key
+        # recorded here would change nothing and mislead.  ``str`` because
+        # ``DataRef.options`` is dict[str, str]; ``reader_options_for`` coerces
+        # them back on the way in.
+        options={k: str(v) for k, v in options.items()},
         n_points=len(tt),
         two_theta_range=(tt[0], tt[-1]),
         has_sigma=data.sigma is not None,

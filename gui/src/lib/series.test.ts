@@ -16,7 +16,7 @@ import {
 
 const member = (over: Partial<SeriesPattern> = {}): SeriesPattern => ({
   upload: "tok", filename: "p.xye", label: "p", x: null, reader: "xy",
-  block: null, n_points: 10, two_theta_range: [3, 24], has_sigma: true, ...over,
+  reader_options: {}, n_points: 10, two_theta_range: [3, 24], has_sigma: true, ...over,
 });
 
 const traj = (over: Partial<Trajectory> = {}): Trajectory => ({

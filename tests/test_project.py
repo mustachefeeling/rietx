@@ -275,7 +275,8 @@ def test_the_pdcif_block_is_recorded_and_replayed(tmp_path):
     cif = DATA / "nist_srm660c_100a.cif"
     structure, ins = perturbed_models()
     project = pr.Project.create(tmp_path / "cert.pxrd", pattern=cif,
-                                structure=structure, instrument=ins, block="_calc")
+                                structure=structure, instrument=ins,
+                                reader_options={"block": "_calc"})
 
     assert project.data_ref.reader == "pdcif"
     assert project.data_ref.options == {"block": "_calc"}

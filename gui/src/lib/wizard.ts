@@ -111,8 +111,8 @@ export const PRESET_TITLES: Record<string, string> = {
 export interface WizardState {
   /** `POST /api/upload/pattern`'s answer, or null before a file is chosen */
   pattern: any | null;
-  /** the pdCIF block, when the reader has one to pick */
-  block: string;
+  /** the reader keywords this format offers, by name — `block`, `scan`, … */
+  readerOptions: Record<string, string>;
   /** `POST /api/upload/cif`'s answer */
   structure: any | null;
   aniso: boolean;
@@ -126,7 +126,7 @@ export interface WizardState {
 }
 
 export function emptyWizard(): WizardState {
-  return seedPreset({ pattern: null, block: "", structure: null, aniso: false,
+  return seedPreset({ pattern: null, readerOptions: {}, structure: null, aniso: false,
                       instrument: null, preset: "bragg_brentano", values: {},
                       path: "", mode: "rietveld", plan: "mccusker_default" },
                     "bragg_brentano");
@@ -185,7 +185,9 @@ export function createBody(state: WizardState): Record<string, unknown> {
     mode: state.mode,
     plan: state.plan,
   };
-  if (state.block) body.block = state.block;
+  const options = Object.fromEntries(
+    Object.entries(state.readerOptions).filter(([, v]) => v !== ""));
+  if (Object.keys(options).length) body.reader_options = options;
   return body;
 }
 
