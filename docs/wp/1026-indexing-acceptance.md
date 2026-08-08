@@ -410,13 +410,18 @@ record.*
   are rewritten there, and the reason the score is now a runner is precisely
   that none of them was ever regenerated.
 
-  **7. Costs, and one that is not mine to fix.**
-  `tests/test_acceptance_indexing.py` is **28:54 serial** on this machine today
-  against the **5-6 min** this WP last recorded. I added three *fast* rows and
-  no slow ones, so that growth belongs to 1041/1042/1043 — and per
-  `tests/CLAUDE.md`, a group ordering is a measurement with a shelf life: **read
-  `--durations` on the next full run** rather than either sentence. The
-  benchmark runner is deliberately outside every pytest selection.
+  **7. Counts and costs, and one cost that is not mine to fix.** Fast suite
+  `[dev,jax,torch]`, darwin/arm64: **2039 passed / 5 skipped** against main's
+  **2021 / 5** measured the same way in the same session, i.e. **+18 passes and
+  no new skip**, wall clock 2:46-3:29 across the two runs. The +18 is exactly
+  accounted for: **3** new fast acceptance rows, and **15** from the three new
+  `validation_matrix` Claims, which carry five per-claim checks each (66 → 69
+  claims). `tests/test_acceptance_indexing.py` is **44 passed in 28:54 serial**
+  — against the **5-6 min** this WP last recorded. I added three *fast* rows and
+  no slow ones, so that growth belongs to 1041/1042/1043; per `tests/CLAUDE.md`
+  a group ordering is a measurement with a shelf life, so **read `--durations`
+  on the next full run** rather than either sentence. The benchmark runner is
+  deliberately outside every pytest selection and is not in those figures.
 
   **Gotchas for whoever runs this next.** Run the benchmark **alone** — every
   engine bound is wall-clock, so a suite beside it changes the answer and not
