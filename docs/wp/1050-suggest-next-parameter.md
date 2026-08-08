@@ -78,6 +78,13 @@ stands alone):
   row.vary` + include/exclude fnmatch — locked/tied/mode-fixed excluded by
   construction (`schemas/params.py`, whose module docstring anticipated this
   caller).
+- **Layer 2 has no emitter for `refine_profile_widths`** (verified 2026-08-08:
+  the kind exists only in `report/schemas.py` and `report/apply.py`; width
+  trends map only onto `phases.*.lor_size`/`lor_strain`). So when the true
+  culprit is an instrument width (U/V/W), the leverage ranking here *will*
+  rank it while Layer 2 structurally cannot suggest it — an expected,
+  explainable disagreement, not a failure of the agreement cross-check; scope
+  the cross-check's assertion accordingly.
 
 Pieces: `optimize/statistics.one_parameter_gains(jac, resid, block, targets)`
 (shares one thin QR with `block_projection_r2` via a private helper; that
@@ -88,28 +95,6 @@ gated `best_or_none()`; constants live here, report/schemas.py pattern);
 include="*", exclude=(), mode=None, two_theta_limits=None, report=None)` —
 no history node, no mutation (*considering* freeing is not a refinement
 move); agent task; manual.
-
-### Inherited
-
-From the **2026-07-30 review session** (commit `732535d`, not a WP): the
-weighted Δ/σ default in `viz/` already cites Toby 2024 in docstrings, but
-deliberately without a bib entry — `tests/test_manual.py` fails an uncited
-bib entry, so **this WP owns** adding `toby2024` to
-`docs/manual/references.bib` together with its citing manual subsection.
-
-From **WP-0602**: `tests/test_agent_surface.py` pins the request schema at
-`len(schema["oneOf"]) == 3` — update to 4 in the same commit as the task.
-
-From **WP-1052** (2026-08-05, at creation): Layer 2 has **no emitter for
-`refine_profile_widths`** — width trends map only onto `phases.*.lor_size`/
-`lor_strain` (`report/layer2.py:54-57`; the kind exists only in the vocabulary
-and RECIPES). So when the true culprit is an instrument width (U/V/W), the
-Gauss-Newton leverage ranking here *will* rank it while Layer 2 structurally
-cannot suggest it — that is an expected, explainable disagreement, not a failure
-of the agreement cross-check; scope the cross-check's assertion accordingly.
-Also: WP-1052's `tests/test_report_loop.py` episodes (eight planted single-cause
-states built from the layers suite's `_truth()`) are a ready-made testbed for
-`suggest()` — prefer reusing them over inventing new perturbations.
 
 ## Non-goals
 
@@ -142,11 +127,17 @@ states built from the layers suite's `_truth()`) are a ready-made testbed for
 - [ ] `agent.py`: read-only `suggest` task — the first no-solve task. Split
       `_BackendBase` out of `_RequestBase` (no solver/plan fields, so passing
       them errors loudly under `extra="forbid"`); `AgentSuccess.suggestion`,
-      invariant "exactly one of result/series/suggestion"; `_TOOL_DESCRIPTION`;
-      meta-test updates (oneOf 3→4).
+      invariant "exactly one of result/series/suggestion" (indexing's answer
+      arms join that invariant too); `_TOOL_DESCRIPTION`; meta-test updates
+      (`test_agent_surface.py:375` pins `len(schema["oneOf"]) ==
+      len(ag._TASK_TAGS) == 4` since the `index` task — this WP moves it to 5).
 - [ ] Manual: `docs/manual/estimation.md` subsection (gain equation with
       *Source:* `pxrdref.optimize.statistics.one_parameter_gains`), `toby2024`
-      bib entry, `conf.py` substitution for `SUGGEST_MIN_GAIN` + a chapter use.
+      bib entry — owed since the 2026-07-30 review session (`732535d`): the
+      weighted Δ/σ docstrings in `viz/` cite Toby 2024 deliberately without a
+      bib entry because `tests/test_manual.py` fails an *uncited* entry, so the
+      entry lands here together with its citing subsection — `conf.py`
+      substitution for `SUGGEST_MIN_GAIN` + a chapter use.
 - [ ] Acceptance run + obs/calc/diff PNGs to `tests/output/`.
 
 ## Acceptance
@@ -181,3 +172,12 @@ group, not a winner).
 - **2026-07-30** — created from the Toby 2024 / SrRietveld literature review;
   design verified against the tree (model-copy compile, per-family seeds,
   Pawley aux block, ActionKind layering, agent oneOf pin).
+- **2026-08-08** — session start; Inherited pruned on arrival. The toby2024
+  bib obligation folded into the Manual task with its why (still absent from
+  `references.bib`, verified). The WP-0602 oneOf pin was stale in its numbers —
+  the `index` task already moved it to 4 (`test_agent_surface.py:375`), so the
+  agent task now says 4→5. WP-1052's Layer-2-emitter gap re-verified against
+  the tree and folded into Context; its `test_report_loop.py`-episodes offer
+  deleted as stale — WP-1052 is still ⬜, the file does not exist, and the
+  misfit tests here already build on `_truth` from
+  `tests/test_fitreport_layers.py` directly.
