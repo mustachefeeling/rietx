@@ -171,7 +171,17 @@ never a path — and they are the one route family whose body is not JSON (raw
 bytes; filename and reader options in the query string, `UPLOAD_ROUTES`). Two
 previews are judgements rather than descriptions: a pattern names the *reader*
 that claimed it in the reader's own words, and a CIF's `aniso_available` is
-**measured** by reading it a second time with `aniso=True`. `POST
+**measured** by reading it a second time with `aniso=True`. A pattern preview
+also carries an `instrument_hint` — the anode and goniometer radius its header
+already states, matched **server-side** (`imports.suggest_instrument`) because
+deciding that 1.5418 Å is a Cu doublet is a physics judgement against the
+package's radiation table, and a client-side match would be a second copy of that
+table in TypeScript; a header whose name and wavelength disagree sends **null**,
+and the form is then left alone, because a wrong pre-fill looks like it was read.
+The scan picker splits the same way for a different reason: `scan_count` rides
+along in the preview's metadata from the read that already happened, while
+*labelling* the scans costs a second walk of the ranges, so it is its own route
+(`GET /api/upload/pattern/scans`) fetched when someone opens the control. `POST
 /api/structure/aniso` exists because both directions are physics
 (`AnisoU.isotropic` on, U_eq → Biso off). Three browser-only traps are recorded in
 code: `structuredClone` **throws on a Svelte 5 `$state` proxy** (use

@@ -65,8 +65,7 @@
     emptyWizard,
     patternSummary,
     seedPreset,
-    structureSummary,
-  } from "../lib/wizard";
+    structureSummary, applyInstrumentHint, scanCount,} from "../lib/wizard";
   import { fitColumns, modelStacks } from "../lib/resize";
   import type { Theme } from "../lib/theme";
   import Splitter from "./Splitter.svelte";
@@ -199,6 +198,13 @@
       // the *effective* options, so a control cleared by a change of file shows
       // what this reader honoured rather than what the last one was asked for
       wiz.readerOptions = { ...(preview.reader_options ?? {}) };
+      // what the file already knows about its instrument. Only on a *new* file:
+      // re-reading for another scan must not undo what a person then typed
+      if (preview.instrument_hint && preview.upload !== hintedUpload) {
+        hintedUpload = preview.upload;
+        wiz = applyInstrumentHint(wiz, preview.instrument_hint);
+      }
+      scanChoices = [];
       if (!wiz.path) wiz.path = preview.suggested_project;
       say(`read_pattern("${preview.filename}")  # ${preview.format.name}, `
         + `${preview.n_points} points`);
@@ -212,6 +218,21 @@
   }
 
   /** Re-read a staged file with different options — no second upload. */
+  /** The staged pattern's scans, labelled — empty until the picker is opened. */
+  let scanChoices = $state<any[]>([]);
+  /** which upload the instrument form was seeded from, so re-reading the same
+   *  file for another scan does not overwrite what a person typed since */
+  let hintedUpload = $state("");
+
+  async function loadScans() {
+    if (scanChoices.length || !wiz.pattern) return;
+    try {
+      scanChoices = (await api.patternScans(wiz.pattern.upload)).scans ?? [];
+    } catch {
+      scanChoices = [];        // the numbered fallback below is still a picker
+    }
+  }
+
   async function restage(kind: "pattern" | "cif", options: Record<string, string>) {
     const held = kind === "pattern" ? wiz.pattern : wiz.structure;
     if (!held) return;
@@ -676,17 +697,44 @@
                 wiz.pattern.format.options.includes(o.name)) as opt (opt.name)}
               <label class="inline tiny">
                 {opt.name}
-                <input class="mono" value={wiz.readerOptions[opt.name] ?? ""}
-                  inputmode={opt.kind === "int" ? "numeric" : undefined}
-                  onchange={(e) => {
-                    const v = (e.currentTarget as HTMLInputElement).value.trim();
-                    wiz.readerOptions = { ...wiz.readerOptions, [opt.name]: v };
-                    restage("pattern", Object.fromEntries(
-                      Object.entries(wiz.readerOptions).filter(([, s]) => s !== "")));
-                  }} />
+                {#if opt.name === "scan" && scanCount(wiz.pattern) > 1}
+                  <!-- a picker, not a number box: "scan 1" tells nobody which
+                       measurement it is, which is why ScanInfo carries a label.
+                       The labels cost a second walk of the ranges, so they are
+                       fetched when this opens and the numbers stand in until -->
+                  <select class="mono" value={wiz.readerOptions.scan ?? "0"}
+                    onfocus={loadScans} onpointerdown={loadScans}
+                    onchange={(e) => {
+                      const v = (e.currentTarget as HTMLSelectElement).value;
+                      wiz.readerOptions = { ...wiz.readerOptions, scan: v };
+                      restage("pattern", Object.fromEntries(
+                        Object.entries(wiz.readerOptions).filter(([, s]) => s !== "")));
+                    }}>
+                    {#each Array.from({ length: scanCount(wiz.pattern) }, (_, i) => i) as i (i)}
+                      <option value={String(i)}>
+                        {scanChoices[i]?.label ?? `scan ${i}`}
+                      </option>
+                    {/each}
+                  </select>
+                {:else}
+                  <input class="mono" value={wiz.readerOptions[opt.name] ?? ""}
+                    inputmode={opt.kind === "int" ? "numeric" : undefined}
+                    onchange={(e) => {
+                      const v = (e.currentTarget as HTMLInputElement).value.trim();
+                      wiz.readerOptions = { ...wiz.readerOptions, [opt.name]: v };
+                      restage("pattern", Object.fromEntries(
+                        Object.entries(wiz.readerOptions).filter(([, s]) => s !== "")));
+                    }} />
+                {/if}
                 <span class="muted">{opt.help}</span>
               </label>
             {/each}
+            {#if wiz.pattern.instrument_hint}
+              <p class="muted tiny">
+                instrument seeded from the file —
+                {wiz.pattern.instrument_hint.why}
+              </p>
+            {/if}
             <!-- what the reader repaired or assumed: a reversed scan, a dropped
                  duplicate, an option that did not apply. The wizard is where a
                  human should see a repair, before it becomes a project. -->

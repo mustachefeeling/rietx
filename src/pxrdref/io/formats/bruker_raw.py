@@ -646,7 +646,12 @@ def read_bruker_raw(path: str | Path, *, scan: int | None = None,
                                 diagnostics=diagnostics)
     tt, y, sig = ascending(tt, y, sigma, path=p, fmt=BRUKER_RAW,
                            diagnostics=diagnostics)
-    alpha2 = parsed.wavelengths[2] if len(parsed.wavelengths) > 2 else 0.0
+    # recorded verbatim, **zero included**: a v4 source segment writing Kα2 = 0
+    # with its Kα-mean equal to Kα1 is the file saying the doublet was not used,
+    # which is what lets the import wizard suggest the Kα1-only radiation on
+    # evidence rather than on a guess.  A format that records no such field says
+    # nothing, and ``metadata()`` drops the None
+    alpha2 = parsed.wavelengths[2] if len(parsed.wavelengths) > 2 else None
     return pattern_data(
         p, tt, y, sig,
         source_file=p.name, format="bruker_raw", scan=index,
@@ -655,7 +660,7 @@ def read_bruker_raw(path: str | Path, *, scan: int | None = None,
         title=parsed.keys.get("COMMENT") or None,
         anode=parsed.anode,
         wavelength=found.wavelength or None,
-        wavelength_alpha2=alpha2 or None,
+        wavelength_alpha2=alpha2,
         goniometer_radius_mm=parsed.goniometer_radius_mm,
         count_time_s=found.count_time_s)
 

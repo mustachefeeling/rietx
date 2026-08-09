@@ -170,7 +170,10 @@ METADATA_KEYS: dict[str, str] = {
     "anode": "the X-ray target element the file names",
     "wavelength": "the primary wavelength in Å, as the file states it — "
                   "recorded, never used: the anode presets are the authority",
-    "wavelength_alpha2": "the Kα2 wavelength in Å, as the file states it",
+    "wavelength_alpha2": "the Kα2 wavelength in Å, as the file states it — "
+                         "**zero included**, because a file recording a zero is "
+                         "saying the doublet was not used, and a format that "
+                         "records nothing here is saying nothing",
     "intensity_unit": "the intensity unit the file *declares*. A claim, not a "
                       "measurement — see the σ note in the .ras reader",
     "count_time_s": "seconds per step, where the file gives enough to derive it",

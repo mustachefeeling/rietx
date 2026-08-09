@@ -151,6 +151,40 @@ export function seedPreset(state: WizardState, preset: string): WizardState {
   return { ...state, preset, values };
 }
 
+/**
+ * Pre-fill the instrument form from what the pattern file already knows.
+ *
+ * The *matching* happened on the server (`imports.suggest_instrument`), because
+ * deciding that 1.5418 Å is a Cu doublet is a physics judgement against the
+ * package's radiation table and a copy of that table in TypeScript would be a
+ * second authority on wavelengths. What arrives here is already a decision, so
+ * this only has to seed the form with it — and a `null` hint (the header
+ * contradicts itself) leaves the form exactly as it was, because a wrong
+ * pre-fill is worse than an empty one: it looks like it was read.
+ */
+export function applyInstrumentHint(state: WizardState, hint: any): WizardState {
+  if (!hint || typeof hint !== "object" || !PRESET_FIELDS[hint.preset]) return state;
+  const seeded = seedPreset({ ...state, values: { ...state.values } }, hint.preset);
+  const values = { ...seeded.values };
+  for (const field of PRESET_FIELDS[hint.preset]) {
+    if (hint[field.name] !== undefined && hint[field.name] !== null) {
+      values[field.name] = String(hint[field.name]);
+    }
+  }
+  return { ...seeded, values };
+}
+
+/** How many measurements the staged pattern holds — 1 when it does not say.
+ *
+ * From the preview's own metadata, which the single read already carried, so
+ * asking costs nothing. What each scan *is* costs a second walk and is fetched
+ * separately, only when someone opens the picker.
+ */
+export function scanCount(pattern: any): number {
+  const n = Number(pattern?.metadata?.scan_count);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 /** The preset arguments, empty fields dropped and numbers made numbers.
  *
  * Dropping an empty field rather than sending `null` is the point: every one of

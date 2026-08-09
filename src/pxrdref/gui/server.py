@@ -214,6 +214,11 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/structure/symmetry/preview"):
         lambda s, q, b: s.symmetry_preview(b),
     ("POST", "/api/structure/symmetry"): lambda s, q, b: s.symmetry_patch(b),
+    # the scan picker's own fetch: the preview's ``scan_count`` says *how many*
+    # from the read it already did, and this says what each one **is** — a
+    # second walk, so it is paid only when a person opens the control
+    ("GET", "/api/upload/pattern/scans"):
+        lambda s, q, b: s.upload_scans((q.get("upload") or [""])[0]),
     ("GET", "/api/instrument"): lambda s, q, b: s.instrument(),
     ("PATCH", "/api/instrument"): lambda s, q, b: s.instrument_patch(b),
 

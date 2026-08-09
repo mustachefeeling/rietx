@@ -2554,3 +2554,98 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
     assert row["n_sigma"] is None
     assert row["path_dependent"] is False       # no fence fired either
     assert row["backward"] == [4.156, 4.158, 4.171]
+
+
+# --------------------------------------------------------------------------- #
+# What the pattern file already knows (WP-1047 tasks 15-16)
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("metadata,expected", [
+    # the plain case: a name and a wavelength that agree
+    ({"anode": "Cu", "wavelength": "1.540598"},
+     {"preset": "bragg_brentano", "radiation": "CuKa"}),
+    # the weighted mean, which is what .uxd and older exports actually write.
+    # 1.5418 against Kα1 is 7.8e-4 relative — outside the tolerance — so without
+    # the mean as a candidate the commonest lab value in existence would read as
+    # a contradiction and suppress the hint entirely
+    ({"anode": "Cu", "wavelength": "1.5418", "goniometer_radius_mm": "250.0"},
+     {"preset": "bragg_brentano", "radiation": "CuKa",
+      "goniometer_radius_mm": 250.0}),
+    # Kα2 recorded as zero is the file saying the doublet was not used
+    ({"anode": "Cu", "wavelength": "1.5406", "wavelength_alpha2": "0.0"},
+     {"preset": "bragg_brentano", "radiation": "CuKa1"}),
+    # …and a real Kα2 is the doublet
+    ({"anode": "Cu", "wavelength": "1.5406", "wavelength_alpha2": "1.5444"},
+     {"preset": "bragg_brentano", "radiation": "CuKa"}),
+    # a name alone still resolves
+    ({"anode": "Mo"}, {"preset": "bragg_brentano", "radiation": "MoKa"}),
+    # a wavelength that is no Kα line is the synchrotron case, and the one where
+    # the file knows better than any preset
+    ({"wavelength": "0.4139090"},
+     {"preset": "debye_scherrer", "wavelength": 0.413909}),
+])
+def test_the_instrument_hint_reads_the_file_rather_than_asking(metadata, expected):
+    from pxrdref.gui.imports import suggest_instrument
+
+    hint = suggest_instrument(metadata)
+    assert hint is not None and {k: hint.get(k) for k in expected} == expected
+    assert hint["why"]                      # never a bare answer
+
+
+@pytest.mark.parametrize("metadata", [
+    {"anode": "Cu", "wavelength": "0.4139090"},   # a name and a λ that disagree
+    {"anode": "Cu", "wavelength": "0.70932"},     # …disagreeing by being Mo's
+    {},                                           # nothing to go on
+])
+def test_a_header_that_contradicts_itself_gets_no_hint_rather_than_a_guess(metadata):
+    """A wrong pre-fill is worse than an empty form: it looks like it was read.
+
+    The contradiction is judged *after* the weighted mean is a candidate, so a
+    convention difference is never mistaken for one.
+    """
+    from pxrdref.gui.imports import suggest_instrument
+
+    assert suggest_instrument(metadata) is None
+
+
+def test_the_preview_carries_the_hint_and_the_scan_count(blank):
+    _, client = blank
+    body = (Path(__file__).parent / "data" / "bruker_raw4_scrambled.raw").read_bytes()
+
+    status, payload = client.upload("pattern", body, filename="d8.raw")
+    assert status == 200, payload
+    assert payload["metadata"]["scan_count"] == "1"
+    # Kα2 = 0 with the Kα mean equal to Kα1: three fields agreeing that the
+    # doublet was not used, which is the branch a real file reaches
+    assert payload["instrument_hint"]["radiation"] == "CuKa1"
+
+
+def test_the_scan_picker_fetches_labels_on_its_own_route(blank):
+    """Separate from the preview on purpose: ``scan_count`` rides along on the
+    read that already happened, and *labelling* the scans costs a second walk of
+    the ranges — so it is paid when a person opens the control, not on every
+    upload of a 60 MB file."""
+    _, client = blank
+    body = (Path(__file__).parent / "data" / "rigaku_multiscan.ras").read_bytes()
+    status, payload = client.upload("pattern", body, filename="two.ras")
+    assert status == 200, payload
+    assert payload["metadata"]["scan_count"] == "2"
+
+    status, listing = client.get(
+        f"/api/upload/pattern/scans?upload={payload['upload']}")
+    assert status == 200, listing
+    assert [s["index"] for s in listing["scans"]] == [0, 1]
+    # a label a picker can show: never "scan 1", which tells nobody anything
+    assert all(s["label"] and s["n_points"] for s in listing["scans"])
+
+
+def test_listing_the_scans_of_a_format_that_has_none_is_refused_by_name(blank):
+    _, client = blank
+    status, payload = client.upload("pattern", b"10 1\n20 2\n30 3\n",
+                                    filename="plain.xy")
+    assert status == 200, payload
+
+    status, refusal = client.get(
+        f"/api/upload/pattern/scans?upload={payload['upload']}")
+    assert status == 400
+    assert "one measurement per file" in refusal["error"]["message"]

@@ -252,6 +252,36 @@ class GuiSession:
             raise GuiError(str(exc), code=exc.code, status=exc.status,
                            where=exc.where) from None
 
+    def upload_scans(self, token: str) -> dict:
+        """What there is to choose between in a staged multi-scan file.
+
+        A **separate** route from the preview on purpose.  ``scan_count`` travels
+        in the pattern's own metadata from the single read the preview already
+        did, so showing "3 scans" never costs a second parse of a 60 MB file;
+        *labelling* them does, because a label is the file's own comment or the
+        range each scan stepped through, and neither is knowable without walking
+        the ranges.  So the picker fetches this when a person opens it, and a
+        wizard that never touches the control never pays for it.
+
+        Refused rather than answered with a one-element list for a format that
+        holds one measurement per file: "this file has one scan" and "this format
+        has no scan structure" are different answers.
+        """
+        from ..io.readers import list_scans
+
+        try:
+            staged = self.uploads.get(token, "pattern")
+            return {"scans": [
+                {"index": s.index, "label": s.label, "n_points": s.n_points,
+                 "two_theta_range": list(s.two_theta_range)}
+                for s in list_scans(staged.path)]}
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=exc.where) from None
+        except (ValueError, OSError) as exc:
+            raise GuiError(str(exc), code="upload_refused", status=400,
+                           where=["scan"]) from None
+
     # ------------------------------------------------------------------
     # project
     # ------------------------------------------------------------------
