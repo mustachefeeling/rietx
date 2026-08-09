@@ -280,14 +280,14 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # what the reported list left out, at the one layer that can state it
     # exactly (WP-1046).  ``merged`` is post-dedup, so the difference counts
     # *lattices*, not repeats; the pool clause is a flag read from the stat each
-    # unit sets when its own hand-off bound bound.
+    # unit sets when its own hand-off pool bound.  ``len(ranked)`` rather than
+    # the cap, so the count is what was reported and not what was allowed.
     capped = sorted(f"{r.engine}:{key.split('.')[0]}"
                     for r in results for key, value in r.stats.items()
                     if key.endswith(".pool_capped") and value)
-    if len(merged) > reported or capped:
+    if len(merged) > len(ranked) or capped:
         out.diagnostics.append(candidates_truncated_diagnostic(
-            len(merged), min(reported, len(merged)), capped,
-            spec.engine_pool()))
+            len(merged), len(ranked), capped, spec.engine_pool()))
     # a system is complete only if **every** engine that ran both entered it
     # and exhausted its domain (WP-1042).  The second half is the new one:
     # under the system-major scheduler a deadline can stop the run with a

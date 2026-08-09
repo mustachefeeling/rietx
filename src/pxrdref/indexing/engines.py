@@ -237,6 +237,12 @@ DEFAULT_MAX_CANDIDATES = 12
 #: minimum with none.  A caller who raises ``max_candidates`` raises the pool
 #: with it, so there is still one knob.
 ENGINE_POOL_MULTIPLE = 5
+#: ``found_by`` entry for a checked analogue prior (WP-1045).  It lives here
+#: rather than in ``priors`` because :func:`agreement` — the ranking's first key
+#: — has to know which finders are *engines*, and ``priors`` imports this module.
+#: ``pxrdref.indexing.priors`` re-exports it, so it is still spelled
+#: ``priors.PRIOR_FINDER`` everywhere it was.
+PRIOR_FINDER = "prior"
 
 
 @dataclass(frozen=True)
@@ -1271,16 +1277,21 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
 
 
 def agreement(cand: EngineCandidate) -> int:
-    """Distinct engines behind this lattice — :func:`rank_candidates`'s first key.
+    """Distinct **engines** behind this lattice — :func:`rank_candidates`'s
+    first key.
 
     ``found_by`` is empty until :func:`~pxrdref.indexing.consensus.consensus`
     merges, and an unmerged candidate stands on its own engine, so this is 1
     everywhere inside a search: the key is **inert** there by construction
-    rather than by a caller remembering to switch it off.  One function because
-    the rank reads it twice and :func:`~pxrdref.indexing.consensus.grade` reads
-    the same quantity a third time.
+    rather than by a caller remembering to switch it off.
+
+    :data:`PRIOR_FINDER` is **excluded**, and that is WP-1045's rule kept
+    structural rather than re-argued: a prior steers and never gates, so a
+    stated cell an engine also found must not outrank a lattice two engines
+    reached — "a wrong prior changes no rank" has to survive the ranking key
+    changing under it.
     """
-    return len(set(cand.found_by)) or 1
+    return len({f for f in cand.found_by if f != PRIOR_FINDER}) or 1
 
 
 def _panel_for(cand: EngineCandidate, peaks: PeakList, k_sigma: float,
@@ -1680,7 +1691,8 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
 
 
 __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
-           "ENGINE_POOL_MULTIPLE", "agreement", "candidates_truncated_diagnostic",
+           "ENGINE_POOL_MULTIPLE", "PRIOR_FINDER",
+    "agreement", "candidates_truncated_diagnostic",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",

@@ -368,6 +368,21 @@ def test_agreement_outranks_the_panel_and_is_inert_until_the_merge(cubic_peaks):
     assert rank_candidates(cands, cubic_peaks)[:2] == [winner, runner_up]
 
 
+def test_a_prior_is_not_a_finder_for_the_ranking_key():
+    """WP-1045's "a wrong prior changes no rank", kept structural under
+    WP-1046's key: a stated cell an engine also found must not outrank a
+    lattice two engines reached, so :func:`agreement` counts **engines**."""
+    from types import SimpleNamespace
+
+    from pxrdref.indexing.priors import PRIOR_FINDER
+
+    assert agreement(SimpleNamespace(found_by=["svd", PRIOR_FINDER])) == 1
+    assert agreement(SimpleNamespace(found_by=["svd", "trial_error"])) == 2
+    # and a prior-only candidate is still a candidate, never a zero
+    assert agreement(SimpleNamespace(found_by=[PRIOR_FINDER])) == 1
+    assert agreement(SimpleNamespace(found_by=[])) == 1
+
+
 def test_the_reported_cap_is_applied_after_the_merge_and_says_what_it_dropped(
         cubic_peaks):
     """WP-1046 — ``max_candidates`` bounds the **reported** list, and the units
