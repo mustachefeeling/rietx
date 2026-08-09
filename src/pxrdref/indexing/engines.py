@@ -202,9 +202,53 @@ DEFAULT_UNKNOWN_SHIFT_DEG = 0.05
 #: Wall-clock seconds a single system may consume before the engine gives up on
 #: it and reports ``search_complete[system] = False``.
 DEFAULT_BUDGET_SECONDS = 30.0
-#: Candidates an engine returns per system after dedup.  A cap, not a ranking:
-#: the panel ranks, and 1024 consensus-merges.
+#: Candidates the **reported** list holds — the cap
+#: :func:`~pxrdref.indexing.consensus.consensus` applies to the merged, ranked
+#: answer, and the bound :func:`estimate_ceiling` prices validation by
+#: (:func:`~pxrdref.indexing.consensus.checked_indices` never exceeds it).
+#:
+#: **It used to be applied one layer down as well, and there it was a ranking**
+#: (WP-1046).  Each (engine × system) unit ran the panel and Borda over its own
+#: harvest and truncated *there*, before consensus ever saw the candidates —
+#: and Borda is a rank-sum over the pool being ranked, so a unit's ordering is a
+#: function of what else that unit happened to find.  Measured on bethanechol
+#: set F in the paper's manual mode: the published lattice is found by both
+#: ``svd`` and ``trial_error``, the consensus panel ranks it **3rd** — and at
+#: this constant it was **absent from the result entirely**, because a longer
+#: search enlarged each unit's pool until the truth fell below twelfth in both
+#: of them.  The score was therefore non-monotonic in the search budget: rank 1
+#: at 5 s and 15 s, gone at 30 s and 60 s, repeats agreeing exactly.  What a
+#: unit hands to the merge is :data:`ENGINE_POOL_MULTIPLE` times this now, and
+#: this number caps only the layer whose ordering the design says is
+#: authoritative.
 DEFAULT_MAX_CANDIDATES = 12
+#: How much larger a unit's hand-off pool is than the reported cap.
+#:
+#: The two numbers are separate because they buy different things.  The pool
+#: bounds the **panel cost** — ``rank_candidates`` scores
+#: ``shortlist × pool`` candidates, ~1 ms each — while the reported cap bounds
+#: the **validated** list, where a Le Bail fit is 0.6-8.5 s apiece.  Measured on
+#: set F (WP-1026's sweep): a pool of 200 cost 91.6 s against 90.7 s at 12, so
+#: the pool is nearly free and the cap is not, which is exactly why one number
+#: could not serve both.  Five because it is the multiple that makes the default
+#: pool the **measured** 60: that is the value WP-1026's sweep raised the cap to,
+#: and at it the set-F truth returns, ranked 3rd of the merged list.  Smaller
+#: multiples were not measured, so this is a value with evidence rather than a
+#: minimum with none.  A caller who raises ``max_candidates`` raises the pool
+#: with it, so there is still one knob.
+ENGINE_POOL_MULTIPLE = 5
+#: Engines that must stand behind a lattice for it to count as corroborated —
+#: :func:`~pxrdref.indexing.consensus.grade`'s own floor, and since WP-1046 also
+#: the boundary :func:`rank_candidates` sorts on.  One constant, two readers, so
+#: "the reported order mirrors the gate" is structural rather than a
+#: coincidence that could drift.
+MIN_AGREEMENT = 2
+#: ``found_by`` entry for a checked analogue prior (WP-1045).  It lives here
+#: rather than in ``priors`` because :func:`agreement` — the ranking's first key
+#: — has to know which finders are *engines*, and ``priors`` imports this module.
+#: ``pxrdref.indexing.priors`` re-exports it, so it is still spelled
+#: ``priors.PRIOR_FINDER`` everywhere it was.
+PRIOR_FINDER = "prior"
 
 
 @dataclass(frozen=True)
@@ -267,6 +311,16 @@ class SearchSpec:
     #: what was supplied and what it changed.
     prior_cells: tuple[tuple[float, float, float, float, float, float], ...] = ()
     prior_spacegroups: tuple[str, ...] = ()
+
+    def engine_pool(self) -> int:
+        """Candidates one (engine × system) unit hands to the merge.
+
+        :data:`ENGINE_POOL_MULTIPLE` × :attr:`max_candidates`, and the one
+        authority for it — every engine asks this rather than reading the
+        reported cap, so "what a unit may keep" and "what the answer reports"
+        cannot drift apart again (WP-1046).
+        """
+        return max(int(self.max_candidates), 1) * ENGINE_POOL_MULTIPLE
 
     def centrings_for(self, system: str) -> tuple[str, ...]:
         if self.centrings is not None and system in self.centrings:
@@ -1152,10 +1206,10 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
                     k_sigma: float = MATCH_SIGMA,
                     n_unindexed: int = 0,
                     max_candidates: int = DEFAULT_MAX_CANDIDATES,
-                    shortlist: int = 4,
+                    shortlist: int | None = 4,
                     q_match: np.ndarray | None = None,
                     ) -> list[EngineCandidate]:
-    """Dedup, score with the FoM panel, and rank by Borda over the whole panel.
+    """Dedup, score with the FoM panel, and rank by **agreement, then** Borda.
 
     **Ranking happens here rather than in each engine, and it is not on a
     member.**  ``indexed_fraction`` alone put a 390-line wrong phase above the
@@ -1164,19 +1218,56 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     the truth on every forward-looking figure — they lose only on
     ``predicted_seen_fraction``, and only a panel sees that.
 
+    **Whether two engines found a lattice outranks every figure of merit**
+    (WP-1046, :func:`corroborated`), and this is the package's own doctrine
+    applied to the order rather than only to the verdict: ``grade`` floors a
+    candidate below :data:`MIN_AGREEMENT` finders at ``low`` before a single
+    caveat is consulted, so a list ranked on the panel alone routinely put
+    candidates the gate refuses to promote above the one it could.  Measured:
+    on the GSAS-II fluorapatite pattern over all seven systems, the six
+    candidates above the truth were ``trial_error``-only while the truth was
+    found by all three engines; on bethanechol sets F and Db the candidate
+    displacing the truth was ``svd``-only.  It is not a panel member and not a
+    weighting — WP-1041 measured and refuted the aggregates, and every one of
+    those refutations stands.  Two properties earn it the primary position:
+    corroboration does not depend on which *other* candidates exist, so unlike
+    Borda it cannot be moved by the size of the pool (the whole subject of
+    WP-1046); and it is **inert** inside an engine, where every candidate
+    carries the same ``found_by`` and the order is the panel's exactly as
+    before.  It is deliberately **binary** — a third finder buys nothing, and
+    :func:`corroborated` carries the measurement that says why.
+
     The panel costs a reflection enumeration per candidate, so a cheap pre-rank
     picks the shortlist: **most indexed lines first, then smallest volume**. That
     order is conservative in the direction that matters — a supercell can tie the
     truth on lines indexed but never beat it, and it is larger by construction,
     so the truth cannot be shortlisted out by its own supercell.
 
+    ``shortlist=None`` scores **every** deduped candidate, and that is what
+    :func:`~pxrdref.indexing.consensus.consensus` passes (WP-1046).  The
+    pre-rank exists to bound an engine's *unbounded* harvest — a monoclinic
+    trial-and-error unit measured 1890 raw candidates — and consensus has no
+    such harvest: what reaches it is already bounded by
+    :meth:`SearchSpec.engine_pool` per unit.  Leaving the multiplier in place
+    there tied the panel's reach to the number the answer *reports*, which is
+    the defect this WP is about, one layer up and in a cheaper disguise: at
+    ``max_candidates = 12`` only 48 of a 260-lattice merge were scored at all,
+    and on bethanechol set F the published lattice was not among them.  Its
+    conservatism does not transfer either — the pre-rank is safe against a
+    candidate's *own* supercell, not against a hundred unrelated low-symmetry
+    cells that index more lines than the truth does.
+
     ``q_match`` is the σ(Q) the *search* matched with — pass the same array the
     engine assigned lines with, or the panel judges these candidates by a window
     they were never selected under (:func:`~pxrdref.indexing.fom.fom_panel`).
     """
     kept = dedup_candidates(cands)
-    kept.sort(key=lambda c: (-c.n_indexed, c.volume))
-    kept = kept[:max(shortlist * max_candidates, max_candidates)]
+    # agreement leads the cheap pre-rank too: a candidate cut here never reaches
+    # the panel, so applying the key only to the final sort would leave the same
+    # truncation deciding an order it is not entitled to decide
+    kept.sort(key=lambda c: (not corroborated(c), -c.n_indexed, c.volume))
+    if shortlist is not None:
+        kept = kept[:max(shortlist * max_candidates, max_candidates)]
     if not kept:
         return []
     for cand in kept:
@@ -1186,9 +1277,49 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     if scored:
         from .fom import borda_scores
         scores = borda_scores([c.fom for c in scored])
-        scored = [c for _s, _i, c in sorted(
-            ((-float(s), i, c) for i, (s, c) in enumerate(zip(scores, scored))))]
+        scored = [c for _a, _s, _i, c in sorted(
+            ((not corroborated(c), -float(s), i, c)
+             for i, (s, c) in enumerate(zip(scores, scored))))]
     return (scored + unscored)[:max_candidates]
+
+
+def corroborated(cand: EngineCandidate) -> bool:
+    """Do at least :data:`MIN_AGREEMENT` engines stand behind this lattice?
+
+    :func:`rank_candidates`'s first key, and **binary on purpose** (WP-1046).
+    The count itself is not a comparable quantity across crystal systems: the
+    engines' reach differs by system, so three of them meet in a cheap
+    orthorhombic domain while only two ever reach an expensive monoclinic one,
+    and ranking on the *count* rewards the easy system rather than the better
+    answer.  Measured, and it is not subtle — on bethanechol sets Bb, Db, E and
+    F in the paper's default mode, an orthorhombic cell found by all three
+    engines led every list while the published monoclinic truth, found by two,
+    fell to ranks 5, 3, 9 and 8; sets whose truth had been first.
+
+    The one statement that *is* comparable is the one the gate already makes:
+    :func:`~pxrdref.indexing.consensus.grade` floors a candidate below
+    :data:`MIN_AGREEMENT` at ``low`` before any caveat is read, everywhere, in
+    every system.  So the ranking mirrors exactly that boundary and no more —
+    within a tier the panel decides, as it always did.
+    """
+    return agreement(cand) >= MIN_AGREEMENT
+
+
+def agreement(cand: EngineCandidate) -> int:
+    """Distinct **engines** behind this lattice.
+
+    ``found_by`` is empty until :func:`~pxrdref.indexing.consensus.consensus`
+    merges, and an unmerged candidate stands on its own engine, so this is 1
+    everywhere inside a search: the key is **inert** there by construction
+    rather than by a caller remembering to switch it off.
+
+    :data:`PRIOR_FINDER` is **excluded**, and that is WP-1045's rule kept
+    structural rather than re-argued: a prior steers and never gates, so a
+    stated cell an engine also found must not outrank a lattice two engines
+    reached — "a wrong prior changes no rank" has to survive the ranking key
+    changing under it.
+    """
+    return len({f for f in cand.found_by if f != PRIOR_FINDER}) or 1
 
 
 def _panel_for(cand: EngineCandidate, peaks: PeakList, k_sigma: float,
@@ -1227,6 +1358,51 @@ def incomplete_diagnostic(engine: str, systems: Sequence[str],
                     "degrees of freedom (" +
                     ", ".join(f"{s} {METRIC_DOF[s]}" for s in systems
                               if s in METRIC_DOF) + ")"))
+
+
+def candidates_truncated_diagnostic(n_merged: int, n_reported: int,
+                                    pool_capped: Sequence[str] = (),
+                                    pool: int = 0) -> Diagnostic:
+    """``INDEX_CANDIDATES_TRUNCATED`` — what the reported list left out.
+
+    Two clauses, and they are different kinds of statement.  The **merge**
+    truncation is exact: consensus ranked ``n_merged`` distinct lattices and
+    reports the first ``n_reported``, so the difference is a count.  The
+    **pool** clause is a flag, not a count: a unit that returned a full
+    :meth:`SearchSpec.engine_pool` may have had more distinct lattices behind
+    it, and how many is not known without deduplicating a harvest the search
+    already discarded — so it names the (engine, system) units it happened to
+    and claims nothing about the size.  Under the system-major scheduler a unit
+    *is* one system, so that label is exact on the path ``index_pattern`` takes;
+    a direct multi-system engine call truncates one pooled harvest and names
+    every system it searched, because attributing the cut to one of them would
+    be a guess.
+
+    Info, not a warning.  A bounded reported list is the design (a Le Bail
+    validation is priced per candidate), and this exists because a cap that
+    says nothing reads as "everything was considered" — the no-silent-caps rule
+    one rank up.  Since WP-1046 the layer that truncates is also the layer
+    whose ranking the design calls authoritative; before it, the units
+    truncated first and that was the defect this code now reports rather than
+    hides.
+    """
+    parts = []
+    if n_merged > n_reported:
+        parts.append(f"{n_merged} distinct lattices were merged and the "
+                     f"reported list holds the top {n_reported}, so "
+                     f"{n_merged - n_reported} ranked below it")
+    if pool_capped:
+        parts.append(f"{', '.join(pool_capped)} returned a full pool of "
+                     f"{pool}, so more may have been found there than were "
+                     "handed to the merge")
+    return Diagnostic(
+        level="info", code="INDEX_CANDIDATES_TRUNCATED",
+        message="; ".join(parts) if parts else "nothing was truncated",
+        where=list(pool_capped),
+        suggestion=("raise max_candidates to report more — it also raises the "
+                    "per-unit pool, and it is what prices validation "
+                    "(estimate_ceiling), so the cost is the Le Bail fits and "
+                    "not the search"))
 
 
 def single_engine_diagnostic(name: str) -> Diagnostic:
@@ -1543,6 +1719,8 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
 
 
 __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
+           "ENGINE_POOL_MULTIPLE", "MIN_AGREEMENT", "PRIOR_FINDER",
+    "agreement", "candidates_truncated_diagnostic", "corroborated",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",

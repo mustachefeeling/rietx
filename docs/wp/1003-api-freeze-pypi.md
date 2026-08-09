@@ -11,6 +11,38 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1046](1046-candidate-cap-before-ranking.md), closed 2026-08-09 — three
+indexing-surface facts, and one question the freeze should settle.**
+
+1. **`SearchSpec.max_candidates` changed meaning without changing its name**: it
+   is the **reported** cap, applied once, by consensus, and each (engine ×
+   system) unit hands the merge `SearchSpec.engine_pool()` =
+   `ENGINE_POOL_MULTIPLE ×` it. Freeze the pair — a client that reads the field
+   as "candidates per engine" is reading the pre-1046 contract.
+   `estimate_ceiling().validation_calls` still prices `max_candidates`, and that
+   is now exactly right rather than approximately.
+2. **New names on the indexing surface**: `engines.ENGINE_POOL_MULTIPLE`,
+   `engines.MIN_AGREEMENT`, `engines.agreement`, `engines.corroborated`,
+   `SearchSpec.engine_pool()`, and one new diagnostic code
+   `INDEX_CANDIDATES_TRUNCATED` (info, with its `AGENT_PROTOCOL.md` row).
+   `PRIOR_FINDER` **moved** from `indexing.priors` to `indexing.engines` and is
+   re-exported from its old home, so both spellings work; freeze whichever you
+   prefer, but say which.
+3. **The reported order now leads with corroboration** (`engines.corroborated`,
+   binary at `MIN_AGREEMENT`), then Borda over the panel. A consumer that
+   assumed "candidates[0] is the panel's winner" is assuming the pre-1046 order;
+   what it *is* now is "corroborated first, panel-ranked within that".
+4. **Unsettled, and noticed while doing 3**: `consensus.grade` floors a
+   candidate at `low` on `len(set(found_by)) < 2`, and `found_by` may contain
+   `PRIOR_FINDER` — so a **one-engine candidate that a declared prior also
+   matched grades `medium` rather than `low`**. That is a prior changing a
+   *verdict*, which WP-1045's "a prior steers, never gates" appears to forbid;
+   the ranking key was made to exclude it (WP-1046) and the gate was left
+   alone, because changing a grade is a scoreboard-moving decision and not this
+   WP's. Settle it before the freeze: either `grade` counts engines the way
+   `agreement` does, or the rule is written down as "a prior corroborates but
+   does not confirm" with the measurement to back it.
+
 **From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
 reader surface the freeze covers has changed shape, and one signature broke on
 purpose.** Four things to fold into the freeze rather than re-derive:

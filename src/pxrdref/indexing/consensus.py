@@ -61,9 +61,11 @@ from ..schemas.indexing import (
 from .engines import (
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_MIN_VOLUME,
+    MIN_AGREEMENT,
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    candidates_truncated_diagnostic,
     dedup_groups,
     match_window,
     rank_candidates,
@@ -180,6 +182,12 @@ def checked_indices(candidates: Sequence[CellCandidate],
     One function rather than two similar loops because ambiguity enumeration and
     Le Bail validation must cover the *same* candidates: a candidate validated but
     not checked for ambiguity could reach ``high`` with an unenumerated partner.
+
+    Since WP-1046 the second set is *mostly* inside the first — agreement is the
+    ranking's leading key, so an all-engine candidate cannot sit below one with
+    fewer finders — and it is kept because "mostly" is not "always": a run with
+    more than ``top`` all-engine candidates still has some outside the head, and
+    the guarantee is what this function exists for.
     """
     want = set(range(min(top, len(candidates))))
     engines = set(engines_run)
@@ -243,11 +251,16 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
     q_match = match_window(peaks, spec, quality)
+    reported = spec.max_candidates or DEFAULT_MAX_CANDIDATES
+    # ``shortlist=None``: every merged lattice is scored, not the cheap
+    # pre-rank's top ``4 × max_candidates`` (WP-1046).  What arrives here is
+    # already bounded by each unit's ``engine_pool``, so there is no harvest to
+    # protect against — and tying the panel's reach to the number the answer
+    # reports is the same defect as truncating in the units.
     ranked = rank_candidates(merged, peaks, k_sigma=spec.k_sigma,
                              n_unindexed=spec.n_unindexed,
-                             max_candidates=spec.max_candidates
-                             or DEFAULT_MAX_CANDIDATES,
-                             q_match=q_match)
+                             max_candidates=reported,
+                             shortlist=None, q_match=q_match)
     out = ConsensusOutcome(
         engines_run=[r.engine for r in results],
         fom_panel_disagrees=fom_panel_disagrees([c.fom for c in ranked
@@ -271,6 +284,17 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         if any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in result.diagnostics):
             out.shift_allowance_assumed = True
     out.systems_searched = systems
+    # what the reported list left out, at the one layer that can state it
+    # exactly (WP-1046).  ``merged`` is post-dedup, so the difference counts
+    # *lattices*, not repeats; the pool clause is a flag read from the stat each
+    # unit sets when its own hand-off pool bound.  ``len(ranked)`` rather than
+    # the cap, so the count is what was reported and not what was allowed.
+    capped = sorted(f"{r.engine}:{key.split('.')[0]}"
+                    for r in results for key, value in r.stats.items()
+                    if key.endswith(".pool_capped") and value)
+    if len(merged) > len(ranked) or capped:
+        out.diagnostics.append(candidates_truncated_diagnostic(
+            len(merged), len(ranked), capped, spec.engine_pool()))
     # a system is complete only if **every** engine that ran both entered it
     # and exhausted its domain (WP-1042).  The second half is the new one:
     # under the system-major scheduler a deadline can stop the run with a
@@ -293,7 +317,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
                                n_unindexed=spec.n_unindexed,
                                max_candidates=spec.max_candidates
                                or DEFAULT_MAX_CANDIDATES,
-                               q_match=q_match)
+                               shortlist=None, q_match=q_match)
         out.candidates += [
             to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                               n_unindexed=spec.n_unindexed, q_match=q_match)
@@ -430,8 +454,11 @@ def grade(caveats: Sequence[str], found_by: Sequence[str],
     candidate) are the ordinary state of a peaks-only run and would otherwise
     make every answer ``low`` — which would empty the vocabulary of meaning.
     """
-    if len(set(found_by)) < 2 or any(c in INDEX_REFUTING_CAVEATS
-                                     for c in caveats):
+    # MIN_AGREEMENT rather than a literal 2 since WP-1046: this floor and
+    # ``engines.corroborated`` — the ranking's first key — are one boundary, so
+    # the reported order mirrors the gate structurally and not by coincidence
+    if len(set(found_by)) < MIN_AGREEMENT or any(c in INDEX_REFUTING_CAVEATS
+                                                 for c in caveats):
         return "low"
     if not caveats and set(found_by) >= set(engines_run):
         return "high"

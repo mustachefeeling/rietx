@@ -38,6 +38,7 @@ import numpy as np
 from ..schemas.common import Diagnostic
 from ..schemas.indexing import PeakList
 from .engines import (
+    PRIOR_FINDER,
     SYSTEM_ORDER,
     EngineCandidate,
     SearchSpec,
@@ -51,12 +52,14 @@ from .engines import (
 )
 from .qspace import af_from_cell, refine_candidate, sigma_effective
 
-#: The finder name a prior-confirmed candidate carries in ``found_by``.
-#: Deliberately **not** a registered engine: it never appears in
-#: ``engines_run``, so a prior-only candidate fails the ``found_by ⊇
-#: engines_run`` agreement test naturally (``engines_disagree``, capping) and
-#: the gate needs no new vocabulary — stated, shift-consistent, unconfirmed.
-PRIOR_FINDER = "prior"
+# The finder name a prior-confirmed candidate carries in ``found_by``,
+# re-exported from ``engines`` so it is still spelled ``priors.PRIOR_FINDER``.
+# Deliberately **not** a registered engine: it never appears in ``engines_run``,
+# so a prior-only candidate fails the ``found_by ⊇ engines_run`` agreement test
+# naturally (``engines_disagree``, capping) and the gate needs no new vocabulary
+# — stated, shift-consistent, unconfirmed.  It moved to ``engines`` in WP-1046
+# because ``engines.agreement``, the ranking's first key, must exclude it: a
+# prior steers and never gates, so it may not lift a candidate's rank either.
 
 #: Relative tolerance on axis equality and absolute tolerance (deg) on angle
 #: equality when classifying a prior cell's crystal system.  Loose on purpose:

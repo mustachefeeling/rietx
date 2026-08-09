@@ -37,9 +37,16 @@ from pxrdref.indexing.consensus import (
     CONSENSUS_CHECK_TOP,
     caveats_for,
     checked_indices,
+    consensus,
     grade,
 )
-from pxrdref.indexing.engines import SearchSpec, engine_names
+from pxrdref.indexing.engines import (
+    SearchSpec,
+    agreement,
+    corroborated,
+    engine_names,
+    rank_candidates,
+)
 from pxrdref.indexing.workflow import (
     _restrict_to_supported,
     absent_reflections,
@@ -319,6 +326,95 @@ def test_a_single_engine_is_never_agreement():
     cand = _candidate(TRUE_A, found_by=["dichotomy"])
     caveats, verdict = _gate(cand)
     assert caveats == ["engines_disagree"] and verdict == "low"
+
+
+def _cubic_search(peaks, **overrides):
+    """One dichotomy pass over the synthetic cubic list — several lattices, one
+    engine, cheap enough to run inside a fast test."""
+    from pxrdref.indexing.dichotomy import search_dichotomy
+
+    spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
+                      max_volume=1500.0, shift_allowance_deg=1e-9,
+                      budget_seconds=120.0, **overrides)
+    return spec, search_dichotomy(peaks, spec=spec)
+
+
+def test_agreement_outranks_the_panel_and_is_inert_until_the_merge(cubic_peaks):
+    """WP-1046 — the first ranking key is whether two engines found the lattice.
+
+    The package's own doctrine, applied to the order rather than only to the
+    verdict: ``grade`` floors a candidate with fewer than two finders at
+    ``low`` before any caveat is read, so a list ranked on the panel alone puts
+    candidates the gate refuses to promote above the one it could (measured, on
+    fluorapatite over seven systems the six above the truth were one engine's
+    and the truth was all three's).  Asserted as a *promotion*: whatever the
+    panel ranks second overtakes the panel's own winner on agreement alone, and
+    with the finder counts equal the panel's order comes back untouched — which
+    is why nothing changes inside an engine, where ``found_by`` is empty.
+    """
+    _spec, result = _cubic_search(cubic_peaks)
+    cands = result.candidates
+    assert len(cands) >= 2
+    # inside a search nothing is merged, so every candidate stands on one engine
+    assert {agreement(c) for c in cands} == {1}
+    order = rank_candidates(cands, cubic_peaks)
+    winner, runner_up = order[0], order[1]
+
+    winner.found_by = ["dichotomy"]
+    runner_up.found_by = ["dichotomy", "svd"]
+    assert rank_candidates(cands, cubic_peaks)[0] is runner_up
+
+    # equal agreement returns the panel's own order, unchanged
+    winner.found_by = ["dichotomy", "svd"]
+    assert rank_candidates(cands, cubic_peaks)[:2] == [winner, runner_up]
+
+    # and a THIRD finder buys nothing: the key is the gate's boundary, not a
+    # count.  Measured, this is what a count costs (WP-1046): the engines'
+    # reach differs by system, so three of them meet in a cheap orthorhombic
+    # domain while only two reach an expensive monoclinic one, and on
+    # bethanechol's default mode a count sent four published truths from rank 1
+    # to ranks 5, 3, 9 and 8 behind orthorhombic cells all three engines found.
+    runner_up.found_by = ["dichotomy", "svd", "trial_error"]
+    assert agreement(runner_up) == 3 and corroborated(runner_up)
+    assert rank_candidates(cands, cubic_peaks)[:2] == [winner, runner_up]
+
+
+def test_a_prior_is_not_a_finder_for_the_ranking_key():
+    """WP-1045's "a wrong prior changes no rank", kept structural under
+    WP-1046's key: a stated cell an engine also found must not outrank a
+    lattice two engines reached, so :func:`agreement` counts **engines**."""
+    from types import SimpleNamespace
+
+    from pxrdref.indexing.priors import PRIOR_FINDER
+
+    assert agreement(SimpleNamespace(found_by=["svd", PRIOR_FINDER])) == 1
+    assert agreement(SimpleNamespace(found_by=["svd", "trial_error"])) == 2
+    # and a prior-only candidate is still a candidate, never a zero
+    assert agreement(SimpleNamespace(found_by=[PRIOR_FINDER])) == 1
+    assert agreement(SimpleNamespace(found_by=[])) == 1
+
+
+def test_the_reported_cap_is_applied_after_the_merge_and_says_what_it_dropped(
+        cubic_peaks):
+    """WP-1046 — ``max_candidates`` bounds the **reported** list, and the units
+    hand the merge five times as many.
+
+    Both halves in one search.  The unit keeps up to ``engine_pool()`` rather
+    than the reported cap, so consensus ranks more than it reports; and the
+    truncation is stated (``INDEX_CANDIDATES_TRUNCATED``) rather than silent,
+    because a cap that says nothing reads as "everything was considered".
+    """
+    spec, result = _cubic_search(cubic_peaks, max_candidates=2)
+    assert spec.engine_pool() == 10
+    assert len(result.candidates) > spec.max_candidates
+
+    outcome = consensus([result], cubic_peaks, spec=spec, ambiguity=False)
+    assert len(outcome.candidates) == spec.max_candidates
+    truncated = [d for d in outcome.diagnostics
+                 if d.code == "INDEX_CANDIDATES_TRUNCATED"]
+    assert len(truncated) == 1
+    assert "ranked below it" in truncated[0].message
+    assert truncated[0].level == "info"
 
 
 def test_the_expensive_checks_cover_every_promotable_candidate():

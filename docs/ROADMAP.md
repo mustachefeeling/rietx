@@ -61,33 +61,30 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** WP-1047 closed on
-2026-08-09 and was the last surface to land before it: the reader seam, its
-option vocabulary and the GUI's import wizard all changed shape, and every
-decision the freeze should *confirm rather than re-derive* is already written
-into 1003's `### Inherited` (twelve points, from `read_pattern`'s signature to
-the load-bearing zero in `wavelength_alpha2`). Read that section first.
+**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Two WPs
+closed on 2026-08-09 and both are surface the freeze covers: 1047 (ten vendor
+formats read; `read_pattern`'s signature and option vocabulary) and 1046 (the
+indexing candidate cap and the ranking key). Every decision the freeze should
+*confirm rather than re-derive* is already written into 1003's `### Inherited` —
+twelve points, from `read_pattern`'s signature to the load-bearing zero in
+`wavelength_alpha2`. Read that section first.
 
-What the reader surface now is: **ten formats read** — Bruker `.raw` (v3/v4),
-`.brml`, `.uxd`; Rigaku `.ras`, `.rasx`; PANalytical `.xrdml`; pdCIF, GSAS,
-`.chi`, `.xy` — with `.dif` peak lists, Bruker RAW v1/v2, a rocking curve and a
-binary no format claims all refused **by name**. `readers.py` is a front door
-only; the parsers are one module each under `io/formats/`, whose rulebook
-(`src/pxrdref/io/CLAUDE.md`) loads with the subtree.
+**What 1046 changed, because it is a rename the freeze must not miss.**
+`SearchSpec.max_candidates` is now the **reported** cap, applied once, by
+consensus; each (engine × system) unit hands the merge `engine_pool()` =
+`ENGINE_POOL_MULTIPLE ×` it. Applied per unit it *was* a ranking, and a longer
+search could lose an answer a shorter one returned first. Alongside it,
+`engines.corroborated` — did at least `MIN_AGREEMENT` engines find this lattice
+— is now `rank_candidates`'s first key, so the reported order stops
+contradicting the gate beside it; it is **binary**, because a finder *count*
+scores the crystal system's search cost rather than the answer. One new
+diagnostic code, `INDEX_CANDIDATES_TRUNCATED`. The rules are in
+`src/pxrdref/indexing/CLAUDE.md`; the measurements are in the v1.0 record's
+appendix.
 
-**The lesson the ten formats taught**, in one line: a vendor file's own
-declaration is evidence of varying quality, and which *kind* it is decides
-whether to believe it — a **free-text** unit is measured (real Rigaku files get
-theirs wrong), a **structural** one is trusted and verified anyway, and where
-nothing settles it σ is **withheld** rather than faked. The scanned **axis** is
-trusted in no format, because most vendor files are not powder scans. And an
-attenuator's convention is **measured, never adopted**: five vendors, three
-answers, one structural test each time.
-
-**The freeze's own scope is unchanged** and its file states it. Two things worth
-carrying in: `docs/milestones/v1.0.md` § "How v1.0 is getting here" now holds
-1047's closing narrative, and the WP index below is the list of what else is
-still open.
+**The freeze's own scope is unchanged** and its file states it. Both closing
+narratives are in `docs/milestones/v1.0.md` § "How v1.0 is getting here", and
+the WP index below is the list of what else is still open.
 
 ## Milestones
 
@@ -228,7 +225,7 @@ monoclinic search finishes.
 | [1042](wp/1042-anytime-results-quick-default.md) | Anytime results, and `quick` as the default | ✅ 2026-08-07 | 1037 |
 | [1043](wp/1043-agent-and-human-indexing.md) | Indexing for an agent and for a human: report, don't refuse | ✅ 2026-08-07 | 1041, 1026 (1028 soft) |
 | [1045](wp/1045-indexing-search-controls.md) | Indexing search controls: one surface for the GUI and the agent | ✅ | 1027, 1042 (1043 soft) |
-| [1046](wp/1046-candidate-cap-before-ranking.md) | The per-engine candidate cap decides the ranking | ⬜ | 1024 (1026 soft) |
+| [1046](wp/1046-candidate-cap-before-ranking.md) | The per-engine candidate cap decides the ranking | ✅ 2026-08-09 — reported cap applied once by consensus, `corroborated` the first ranking key | 1024 (1026 soft) |
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
