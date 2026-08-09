@@ -630,11 +630,17 @@ def search_dichotomy(peaks: PeakList, *, spec: SearchSpec | None = None,
                          complete=complete,
                          provisional=provisional_payload(found))
 
+    # the hand-off pool, not the reported cap (WP-1046): truncating here to the
+    # number the answer reports made this Borda — over *this* unit's harvest —
+    # decide what consensus was allowed to rank
     result.candidates = rank_candidates(raw, peaks, k_sigma=spec.k_sigma,
                                         n_unindexed=spec.n_unindexed,
-                                        max_candidates=spec.max_candidates,
+                                        max_candidates=spec.engine_pool(),
                                         q_match=sigma)
     result.stats["candidates.raw"] = float(len(raw))
+    if len(result.candidates) >= spec.engine_pool():
+        for system in result.systems_searched:
+            result.stats[f"{system}.pool_capped"] = 1.0
     result.stats["shift_allowance_deg"] = round(allowance, 5)
     if assumed:
         result.diagnostics.append(shift_allowance_diagnostic(allowance))

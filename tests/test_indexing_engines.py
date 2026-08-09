@@ -32,7 +32,9 @@ from pxrdref.indexing.dichotomy import (
     search_dichotomy,
 )
 from pxrdref.indexing.engines import (
+    DEFAULT_MAX_CANDIDATES,
     DEFAULT_SEARCH_LINES,
+    ENGINE_POOL_MULTIPLE,
     MAX_PREDICTED_REFLECTIONS,
     SYSTEM_ORDER,
     Budget,
@@ -160,6 +162,50 @@ def test_the_engine_registry_is_live_and_described():
         assert len(engine_descriptions()[name]) > 20, name
     with pytest.raises(ValueError, match="unknown indexing engine"):
         get_engine("dicvol")
+
+
+@pytest.mark.parametrize("engine", sorted(engine_names()))
+def test_every_engine_hands_the_merge_a_pool_not_the_reported_cap(engine,
+                                                                  monkeypatch):
+    """WP-1046 — an engine truncates to :meth:`SearchSpec.engine_pool`, never to
+    the cap the *answer* reports.
+
+    The defect this pins is not that the number was small, it is that it was
+    applied by the wrong layer.  ``rank_candidates`` ranks with Borda, a
+    rank-sum over the pool being ranked, so a unit's ordering is a function of
+    what else that unit happened to find; truncating there let a longer search
+    *lose* a candidate the consensus panel rates highly — measured on
+    bethanechol set F, rank 1 at 5 s and absent at 30 s.  A conformance test
+    over the live registry rather than three copies, because the way this
+    returns is a new engine written from an old one.
+    """
+    import sys
+
+    from pxrdref.indexing import engines as eng
+
+    fn = get_engine(engine)
+    module = sys.modules[fn.__module__]
+    seen: list[int | None] = []
+    real = eng.rank_candidates
+
+    def spy(cands, peaks, **kw):
+        seen.append(kw.get("max_candidates"))
+        return real(cands, peaks, **kw)
+
+    monkeypatch.setattr(module, "rank_candidates", spy)
+    peaks, _cell = synthetic_peaks("cubic")
+    spec = spec_for("cubic", budget_seconds=2.0, max_candidates=3)
+    fn(peaks, spec=spec)
+    assert seen == [spec.engine_pool()] == [3 * ENGINE_POOL_MULTIPLE]
+
+
+def test_the_pool_is_the_reported_cap_times_the_multiple():
+    """One knob, two numbers derived from it — and the derivation is the
+    spec's, so no engine can invent its own."""
+    assert SearchSpec().max_candidates == DEFAULT_MAX_CANDIDATES
+    assert SearchSpec().engine_pool() == DEFAULT_MAX_CANDIDATES * \
+        ENGINE_POOL_MULTIPLE
+    assert SearchSpec(max_candidates=1).engine_pool() == ENGINE_POOL_MULTIPLE
 
 
 def test_metric_basis_is_in_the_echelon_form_the_theta_box_assumes():

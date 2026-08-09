@@ -64,6 +64,7 @@ from .engines import (
     EngineCandidate,
     EngineResult,
     SearchSpec,
+    candidates_truncated_diagnostic,
     dedup_groups,
     match_window,
     rank_candidates,
@@ -243,11 +244,16 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
     # inputs — ranking candidates in a *tighter* one judges them by a criterion
     # they were never selected under (``fom.fom_panel``)
     q_match = match_window(peaks, spec, quality)
+    reported = spec.max_candidates or DEFAULT_MAX_CANDIDATES
+    # ``shortlist=None``: every merged lattice is scored, not the cheap
+    # pre-rank's top ``4 × max_candidates`` (WP-1046).  What arrives here is
+    # already bounded by each unit's ``engine_pool``, so there is no harvest to
+    # protect against — and tying the panel's reach to the number the answer
+    # reports is the same defect as truncating in the units.
     ranked = rank_candidates(merged, peaks, k_sigma=spec.k_sigma,
                              n_unindexed=spec.n_unindexed,
-                             max_candidates=spec.max_candidates
-                             or DEFAULT_MAX_CANDIDATES,
-                             q_match=q_match)
+                             max_candidates=reported,
+                             shortlist=None, q_match=q_match)
     out = ConsensusOutcome(
         engines_run=[r.engine for r in results],
         fom_panel_disagrees=fom_panel_disagrees([c.fom for c in ranked
@@ -271,6 +277,17 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
         if any(d.code == "INDEX_SHIFT_ALLOWANCE" for d in result.diagnostics):
             out.shift_allowance_assumed = True
     out.systems_searched = systems
+    # what the reported list left out, at the one layer that can state it
+    # exactly (WP-1046).  ``merged`` is post-dedup, so the difference counts
+    # *lattices*, not repeats; the pool clause is a flag read from the stat each
+    # unit sets when its own hand-off bound bound.
+    capped = sorted(f"{r.engine}:{key.split('.')[0]}"
+                    for r in results for key, value in r.stats.items()
+                    if key.endswith(".pool_capped") and value)
+    if len(merged) > reported or capped:
+        out.diagnostics.append(candidates_truncated_diagnostic(
+            len(merged), min(reported, len(merged)), capped,
+            spec.engine_pool()))
     # a system is complete only if **every** engine that ran both entered it
     # and exhausted its domain (WP-1042).  The second half is the new one:
     # under the system-major scheduler a deadline can stop the run with a
@@ -293,7 +310,7 @@ def consensus(results: Sequence[EngineResult], peaks: PeakList, *,
                                n_unindexed=spec.n_unindexed,
                                max_candidates=spec.max_candidates
                                or DEFAULT_MAX_CANDIDATES,
-                               q_match=q_match)
+                               shortlist=None, q_match=q_match)
         out.candidates += [
             to_cell_candidate(c, peaks, k_sigma=spec.k_sigma,
                               n_unindexed=spec.n_unindexed, q_match=q_match)
