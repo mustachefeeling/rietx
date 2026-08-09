@@ -61,6 +61,7 @@ from ..schemas.indexing import (
 from .engines import (
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_MIN_VOLUME,
+    MIN_AGREEMENT,
     EngineCandidate,
     EngineResult,
     SearchSpec,
@@ -181,6 +182,12 @@ def checked_indices(candidates: Sequence[CellCandidate],
     One function rather than two similar loops because ambiguity enumeration and
     Le Bail validation must cover the *same* candidates: a candidate validated but
     not checked for ambiguity could reach ``high`` with an unenumerated partner.
+
+    Since WP-1046 the second set is *mostly* inside the first — agreement is the
+    ranking's leading key, so an all-engine candidate cannot sit below one with
+    fewer finders — and it is kept because "mostly" is not "always": a run with
+    more than ``top`` all-engine candidates still has some outside the head, and
+    the guarantee is what this function exists for.
     """
     want = set(range(min(top, len(candidates))))
     engines = set(engines_run)
@@ -447,8 +454,11 @@ def grade(caveats: Sequence[str], found_by: Sequence[str],
     candidate) are the ordinary state of a peaks-only run and would otherwise
     make every answer ``low`` — which would empty the vocabulary of meaning.
     """
-    if len(set(found_by)) < 2 or any(c in INDEX_REFUTING_CAVEATS
-                                     for c in caveats):
+    # MIN_AGREEMENT rather than a literal 2 since WP-1046: this floor and
+    # ``engines.corroborated`` — the ranking's first key — are one boundary, so
+    # the reported order mirrors the gate structurally and not by coincidence
+    if len(set(found_by)) < MIN_AGREEMENT or any(c in INDEX_REFUTING_CAVEATS
+                                                 for c in caveats):
         return "low"
     if not caveats and set(found_by) >= set(engines_run):
         return "high"

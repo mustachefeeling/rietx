@@ -43,6 +43,7 @@ from pxrdref.indexing.consensus import (
 from pxrdref.indexing.engines import (
     SearchSpec,
     agreement,
+    corroborated,
     engine_names,
     rank_candidates,
 )
@@ -339,7 +340,7 @@ def _cubic_search(peaks, **overrides):
 
 
 def test_agreement_outranks_the_panel_and_is_inert_until_the_merge(cubic_peaks):
-    """WP-1046 — the first ranking key is how many engines found the lattice.
+    """WP-1046 — the first ranking key is whether two engines found the lattice.
 
     The package's own doctrine, applied to the order rather than only to the
     verdict: ``grade`` floors a candidate with fewer than two finders at
@@ -365,6 +366,16 @@ def test_agreement_outranks_the_panel_and_is_inert_until_the_merge(cubic_peaks):
 
     # equal agreement returns the panel's own order, unchanged
     winner.found_by = ["dichotomy", "svd"]
+    assert rank_candidates(cands, cubic_peaks)[:2] == [winner, runner_up]
+
+    # and a THIRD finder buys nothing: the key is the gate's boundary, not a
+    # count.  Measured, this is what a count costs (WP-1046): the engines'
+    # reach differs by system, so three of them meet in a cheap orthorhombic
+    # domain while only two reach an expensive monoclinic one, and on
+    # bethanechol's default mode a count sent four published truths from rank 1
+    # to ranks 5, 3, 9 and 8 behind orthorhombic cells all three engines found.
+    runner_up.found_by = ["dichotomy", "svd", "trial_error"]
+    assert agreement(runner_up) == 3 and corroborated(runner_up)
     assert rank_candidates(cands, cubic_peaks)[:2] == [winner, runner_up]
 
 

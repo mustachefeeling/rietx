@@ -237,6 +237,12 @@ DEFAULT_MAX_CANDIDATES = 12
 #: minimum with none.  A caller who raises ``max_candidates`` raises the pool
 #: with it, so there is still one knob.
 ENGINE_POOL_MULTIPLE = 5
+#: Engines that must stand behind a lattice for it to count as corroborated —
+#: :func:`~pxrdref.indexing.consensus.grade`'s own floor, and since WP-1046 also
+#: the boundary :func:`rank_candidates` sorts on.  One constant, two readers, so
+#: "the reported order mirrors the gate" is structural rather than a
+#: coincidence that could drift.
+MIN_AGREEMENT = 2
 #: ``found_by`` entry for a checked analogue prior (WP-1045).  It lives here
 #: rather than in ``priors`` because :func:`agreement` — the ranking's first key
 #: — has to know which finders are *engines*, and ``priors`` imports this module.
@@ -1212,23 +1218,24 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     the truth on every forward-looking figure — they lose only on
     ``predicted_seen_fraction``, and only a panel sees that.
 
-    **How many engines found a lattice outranks every figure of merit**
-    (WP-1046), and this is the package's own doctrine applied to the order
-    rather than only to the verdict: ``grade`` floors a candidate with fewer
-    than two finders at ``low`` before a single caveat is consulted, and
-    ``high`` needs *every* engine that ran — so a list ranked on the panel
-    alone routinely put candidates the gate refuses to promote above the one
-    it could.  Measured: on the GSAS-II fluorapatite pattern over all seven
-    systems, the six candidates above the truth were ``trial_error``-only
-    while the truth was found by all three engines; on bethanechol sets F and
-    Db the candidate displacing the truth was ``svd``-only.  It is not a panel
-    member and not a weighting — WP-1041 measured and refuted the aggregates,
-    and every one of those refutations stands.  Two properties earn it the
-    primary position: a candidate's finder count does not depend on which
-    *other* candidates exist, so unlike Borda it cannot be moved by the size of
-    the pool (the whole subject of WP-1046); and it is **inert** inside an
-    engine, where every candidate carries the same ``found_by`` and the order
-    is the panel's exactly as before.
+    **Whether two engines found a lattice outranks every figure of merit**
+    (WP-1046, :func:`corroborated`), and this is the package's own doctrine
+    applied to the order rather than only to the verdict: ``grade`` floors a
+    candidate below :data:`MIN_AGREEMENT` finders at ``low`` before a single
+    caveat is consulted, so a list ranked on the panel alone routinely put
+    candidates the gate refuses to promote above the one it could.  Measured:
+    on the GSAS-II fluorapatite pattern over all seven systems, the six
+    candidates above the truth were ``trial_error``-only while the truth was
+    found by all three engines; on bethanechol sets F and Db the candidate
+    displacing the truth was ``svd``-only.  It is not a panel member and not a
+    weighting — WP-1041 measured and refuted the aggregates, and every one of
+    those refutations stands.  Two properties earn it the primary position:
+    corroboration does not depend on which *other* candidates exist, so unlike
+    Borda it cannot be moved by the size of the pool (the whole subject of
+    WP-1046); and it is **inert** inside an engine, where every candidate
+    carries the same ``found_by`` and the order is the panel's exactly as
+    before.  It is deliberately **binary** — a third finder buys nothing, and
+    :func:`corroborated` carries the measurement that says why.
 
     The panel costs a reflection enumeration per candidate, so a cheap pre-rank
     picks the shortlist: **most indexed lines first, then smallest volume**. That
@@ -1258,7 +1265,7 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
     # agreement leads the cheap pre-rank too: a candidate cut here never reaches
     # the panel, so applying the key only to the final sort would leave the same
     # truncation deciding an order it is not entitled to decide
-    kept.sort(key=lambda c: (-agreement(c), -c.n_indexed, c.volume))
+    kept.sort(key=lambda c: (not corroborated(c), -c.n_indexed, c.volume))
     if shortlist is not None:
         kept = kept[:max(shortlist * max_candidates, max_candidates)]
     if not kept:
@@ -1271,14 +1278,35 @@ def rank_candidates(cands: Sequence[EngineCandidate], peaks: PeakList, *,
         from .fom import borda_scores
         scores = borda_scores([c.fom for c in scored])
         scored = [c for _a, _s, _i, c in sorted(
-            ((-agreement(c), -float(s), i, c)
+            ((not corroborated(c), -float(s), i, c)
              for i, (s, c) in enumerate(zip(scores, scored))))]
     return (scored + unscored)[:max_candidates]
 
 
+def corroborated(cand: EngineCandidate) -> bool:
+    """Do at least :data:`MIN_AGREEMENT` engines stand behind this lattice?
+
+    :func:`rank_candidates`'s first key, and **binary on purpose** (WP-1046).
+    The count itself is not a comparable quantity across crystal systems: the
+    engines' reach differs by system, so three of them meet in a cheap
+    orthorhombic domain while only two ever reach an expensive monoclinic one,
+    and ranking on the *count* rewards the easy system rather than the better
+    answer.  Measured, and it is not subtle — on bethanechol sets Bb, Db, E and
+    F in the paper's default mode, an orthorhombic cell found by all three
+    engines led every list while the published monoclinic truth, found by two,
+    fell to ranks 5, 3, 9 and 8; sets whose truth had been first.
+
+    The one statement that *is* comparable is the one the gate already makes:
+    :func:`~pxrdref.indexing.consensus.grade` floors a candidate below
+    :data:`MIN_AGREEMENT` at ``low`` before any caveat is read, everywhere, in
+    every system.  So the ranking mirrors exactly that boundary and no more —
+    within a tier the panel decides, as it always did.
+    """
+    return agreement(cand) >= MIN_AGREEMENT
+
+
 def agreement(cand: EngineCandidate) -> int:
-    """Distinct **engines** behind this lattice — :func:`rank_candidates`'s
-    first key.
+    """Distinct **engines** behind this lattice.
 
     ``found_by`` is empty until :func:`~pxrdref.indexing.consensus.consensus`
     merges, and an unmerged candidate stands on its own engine, so this is 1
@@ -1691,8 +1719,8 @@ def estimate_ceiling(spec: SearchSpec | None = None, *,
 
 
 __all__ = ["CEILING_GRANULARITY_SECONDS", "CENTRINGS",
-           "ENGINE_POOL_MULTIPLE", "PRIOR_FINDER",
-    "agreement", "candidates_truncated_diagnostic",
+           "ENGINE_POOL_MULTIPLE", "MIN_AGREEMENT", "PRIOR_FINDER",
+    "agreement", "candidates_truncated_diagnostic", "corroborated",
            "DEFAULT_BUDGET_SECONDS", "DEFAULT_MAX_CANDIDATES",
            "DEFAULT_MAX_D_AXIS", "DEFAULT_MIN_D_AXIS", "DEFAULT_MIN_VOLUME",
            "DEFAULT_N_UNINDEXED", "DEFAULT_SEARCH_LINES",
