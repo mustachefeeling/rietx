@@ -152,11 +152,46 @@ _OTHER_DRIVES: dict[str, str] = {
     "divergenceslit": "a divergence-slit opening scan, not a diffraction scan",
 }
 
-#: ``ScanType`` values whose abscissa is 2θ, used only when the drive records do
-#: not agree with each other.  ``Detector Scan`` moves the detector alone and
-#: ``Locked``/``Unlocked Coupled`` move θ and 2θ together; all three step 2θ.
-_TWO_THETA_SCAN_TYPES = frozenset({"locked coupled", "unlocked coupled",
-                                   "detector scan"})
+#: The scan types the two versions name — **one table**, because they name the
+#: same things: v4 writes the words, v3 writes an enumerated code for them.  Each
+#: entry is (the abscissa is 2θ, what it is instead).  A name or code **absent**
+#: here is unknown, which reads as 2θ with the assumption reported rather than
+#: refused: v4's string vocabulary comes from three examples and v3's enum from a
+#: single source, so an unfamiliar one is this reader's ignorance, not the file's
+#: fault.  ``Detector Scan`` moves the detector alone and ``Locked``/``Unlocked
+#: Coupled`` move θ and 2θ together; all three step 2θ.
+_SCAN_TYPES: dict[str, tuple[bool, str | None]] = {
+    "locked coupled": (True, None),
+    "unlocked coupled": (True, None),
+    "unlocked coupled hr xrd": (True, None),
+    "detector scan": (True, None),
+    "rocking curve": (False, "a rocking curve about θ with the detector fixed"),
+    "chi scan": (False, "a χ tilt — one arc of a pole figure"),
+    "phi scan": (False, "a φ rotation — one ring of a pole figure"),
+    "x scan": (False, "a specimen translation in x, used to position the sample"),
+    "y scan": (False, "a specimen translation in y, used to position the sample"),
+    "z scan": (False, "a specimen height scan, used to set the sample surface"),
+    "psi scan": (False, "a ψ tilt, as measured for residual stress"),
+    "hkl scan": (False, "a scan along one hkl direction in reciprocal space"),
+    "reciprocal-space scan": (False, "a reciprocal-space map, which is a surface "
+                                     "and not a profile"),
+}
+
+#: v3's numeric spelling of the names above.
+_V3_SCAN_CODES: dict[int, str] = {
+    0: "locked coupled", 1: "unlocked coupled", 2: "detector scan",
+    3: "rocking curve", 4: "chi scan", 5: "phi scan", 6: "x scan", 7: "y scan",
+    8: "z scan", 12: "psi scan", 13: "hkl scan", 14: "reciprocal-space scan",
+    20: "unlocked coupled hr xrd",
+}
+
+
+def _scan_type_axis(name: str, *, field: str, note: str) -> _Axis:
+    """The axis a *named* scan type implies — shared by both versions."""
+    two_theta, other = _SCAN_TYPES.get(name.strip().lower(), (False, None))
+    return _Axis(stated=name, field=field, two_theta=two_theta, other=other,
+                 remedy="Export the coupled θ–2θ range instead.",
+                 note="" if two_theta else note)
 
 
 def _key(name: str) -> str:
@@ -305,10 +340,12 @@ def _v4_axis(scan_type: str, drives: tuple[_Drive, ...], start: float) -> _Axis:
     if len(candidates) != 1:
         # fall back to what the file calls the *kind* of scan.  Less specific —
         # it names the coupling rather than the axis — but it is a statement the
-        # file makes about the same thing, and it is what GSAS-II validates on
-        return _Axis(
-            stated=scan_type, field="ScanType",
-            two_theta=scan_type.lower() in _TWO_THETA_SCAN_TYPES,
+        # file makes about the same thing, and it is what GSAS-II validates on.
+        # A recognisably non-2θ type is **refused** here rather than assumed: a
+        # file saying "Rocking Curve" has told us the abscissa is not 2θ, and
+        # nothing about its drive records makes that less true
+        return _scan_type_axis(
+            scan_type, field="ScanType",
             note=(" No single drive record is flagged as the scanned one at the "
                   "range's start angle, so the scan type had to answer instead."))
     scanned = candidates[0].name
@@ -449,39 +486,14 @@ _V3_MIN_HEADER = _V3_EXTRA_RECORDS + 4
 _V3_VARYING_BITS = ("two_theta", "theta", "chi", "phi", "x", "y", "z",
                     "aux1", "aux2", "aux3", "time", "temp")
 
-#: v3's enumerated scan type.  Each entry is (name, is 2θ, what it is instead);
-#: a code absent from the table is **unknown**, which reads as 2θ with the
-#: assumption reported rather than refused — the enum has one source, so an
-#: unfamiliar code is this reader's ignorance and not the file's fault.
-_V3_SCAN_TYPES: dict[int, tuple[str, bool, str | None]] = {
-    0: ("locked coupled", True, None),
-    1: ("unlocked coupled", True, None),
-    2: ("detector scan", True, None),
-    20: ("unlocked coupled HR XRD", True, None),
-    3: ("rocking curve", False, "a rocking curve about θ with the detector fixed"),
-    4: ("chi scan", False, "a χ tilt — one arc of a pole figure"),
-    5: ("phi scan", False, "a φ rotation — one ring of a pole figure"),
-    6: ("x scan", False, "a specimen translation in x, used to position the sample"),
-    7: ("y scan", False, "a specimen translation in y, used to position the sample"),
-    8: ("z scan", False, "a specimen height scan, used to set the sample surface"),
-    12: ("psi scan", False, "a ψ tilt, as measured for residual stress"),
-    13: ("hkl scan", False, "a scan along one hkl direction in reciprocal space"),
-    14: ("reciprocal-space scan", False,
-         "a reciprocal-space map, which is a surface and not a profile"),
-}
-
-
 def _v3_axis(code: int) -> _Axis:
     """v3 states its axis as a number, which is the sixth shape this package
-    classifies — hence a table here and the shared verdict in ``check_axis``."""
-    name, two_theta, other = _V3_SCAN_TYPES.get(code, (f"scan type {code}",
-                                                       False, None))
-    return _Axis(stated=name, field="the scan type", two_theta=two_theta,
-                 other=other,
-                 remedy="Export the coupled θ–2θ range instead.",
-                 note="" if other or two_theta else
-                      (" The scan-type code is one this reader has no name for, "
-                       "and its table has a single source."))
+    classifies — hence :data:`_V3_SCAN_CODES` here and the shared verdict in
+    ``check_axis``."""
+    return _scan_type_axis(
+        _V3_SCAN_CODES.get(code, f"scan type {code}"), field="the scan type",
+        note=(" The scan-type code is one this reader has no name for, and its "
+              "table has a single source."))
 
 
 def _read_v3(buf: bytes, *, path: Path) -> _File:
@@ -555,7 +567,7 @@ def _read_v3(buf: bytes, *, path: Path) -> _File:
                 f"bytes and the file holds {len(buf)}. The file is truncated")
 
         ranges.append(_Range(
-            axis=_v3_axis(code), label=_V3_SCAN_TYPES.get(code, ("?",))[0],
+            axis=_v3_axis(code), label=_V3_SCAN_CODES.get(code, "?"),
             start=start, step=step, n_points=n_points,
             count_time_s=step_time if 0.0 < step_time < 1e6 else None,
             datum_size=record_len, data_at=data_at, end=end,

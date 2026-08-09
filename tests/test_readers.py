@@ -1686,8 +1686,18 @@ def test_the_scan_type_answers_when_no_drive_record_is_flagged(tmp_path):
     assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
     assert [x.code for x in diagnostics] == []
 
-    unknown = write_raw4(tmp_path / "unflagged_odd.raw", [dict(
+    # and a scan type that is recognisably *not* 2θ is refused there too — a
+    # file saying "Psi Scan" has told us its abscissa, and nothing about its
+    # drive records makes that less true
+    tilt = write_raw4(tmp_path / "unflagged_psi.raw", [dict(
         start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Psi Scan",
+        drives=(("2Theta", 10.0, 0),))])
+    with pytest.raises(ValueError, match="ψ tilt"):
+        pr.read_pattern(tilt)
+
+    # only an *unfamiliar* one is assumed, which is this reader's ignorance
+    unknown = write_raw4(tmp_path / "unflagged_odd.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Bespoke Sweep",
         drives=(("2Theta", 10.0, 0),))])
     diagnostics = []
     pr.read_pattern(unknown, diagnostics=diagnostics)
@@ -1932,7 +1942,7 @@ def test_a_v3_scan_type_this_reader_has_no_name_for_is_assumed_and_says_so(
 
     p = write_raw3(tmp_path / "psd.raw",
                    [dict(start=10.0, step=0.02, intensity=[100.0] * 40,
-                         scan_type=130)])
+                         scan_type=130)])          # a PSD fast scan: abscissa unclear
 
     diagnostics = []
     assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 40
