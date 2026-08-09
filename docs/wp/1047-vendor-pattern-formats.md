@@ -460,7 +460,7 @@ that belong to it), never mid-format.
       via `DataViews/RawDataView[@Start][@Length]`, **not** GSAS-II's
       `entry[2]`/`[4]`, which are not stable across files. Same bounded-read
       zip rule as 11.
-- [ ] 13. `.raw` v4 — first, establish what "scrambled" scrambled (header?
+- [x] 13. `.raw` v4 — first, establish what "scrambled" scrambled (header?
       intensities?) and record it in `tests/data/README.md`; then the TLV
       segment walker, **stride by `datumSize`** (FAIRmat's "interleaved
       float32 pairs" note is a `datumSize==8` misread; GSAS-II reads the

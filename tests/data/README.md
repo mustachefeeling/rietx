@@ -618,3 +618,56 @@ orders the scans. And its `RecordedRawDataView` has `Length="1280"` — each row
 a whole position-sensitive-detector frame — while its `ScanAxes` still declares
 `AxisId="TwoTheta"`, so the axis check passes and **only the recorded view's own
 length says the rows are not a profile**.
+
+### `bruker_raw4_scrambled.raw` — a real header whose intensities are not real
+
+`.raw` is DIFFRAC's binary: after a 61-byte preamble the file is a chain of
+`(uint32 type, uint32 length)` segments; a type of 0 or 160 marks a **range**,
+whose header ends with a nested chain of its own and is followed by `nSteps`
+records of `datumSize` bytes, of which the leading float32 is the intensity.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `bruker_raw4_scrambled.raw` | FAIRmat `readers-xrd`, `tests/data/TwoTheta_scan_scrambled.raw` | Apache-2.0 | **Real DIFFRAC.EVA header**, 7134 points, 10–85.0413° at 0.0105203°, `Locked Coupled`, LynxEye, Cu at 40 kV/40 mA, 310.003 ms/step. The only real RAW4 obtainable, and the file that shows the two other readers' bugs. Committed by that repo's own maintainer, so risk 1 is clear for it. |
+
+**Its intensities are not the measurement, and the acceptance line for `.raw`
+may therefore claim structure and metadata only.** Three measurements say so:
+
+* the lag-1 autocorrelation of the intensity series is **0.016**, and
+  `std(diff)/std(y)` is **1.403 ≈ √2** — the signature of independent values. A
+  profile stepped at 0.0105° has adjacent channels on the same peak;
+* **32.5 %** of the values are negative, and the exact minimum −164.5344696
+  repeats **1069 times**;
+* FAIRmat's own `notes/RAW_FORMAT_NOTES.md` quotes this measurement's range as
+  `[-164.53, 11291.77]` and says its first ten values match a powDLL `.xrdml`
+  export exactly. The **shipped** file's maximum is **11330.587**, so the file
+  in the repo is not the file that was validated.
+
+`tests/test_readers.py` pins all three, so a later session cannot read "7134
+real points" off the header and write an acceptance row against noise.
+
+**What the header does establish**, and where the two consulted readers go
+wrong on it:
+
+* `datumSize` is **8** here and the trailing four bytes of every one of the 7134
+  records are `int32 == 1` — a field no description explains. GSAS-II reads
+  `datumSize` and then reads `nSteps` *consecutive* float32s anyway, so it
+  consumes half the block and returns alternating value / 1e-45; FAIRmat
+  hard-codes the 8-byte stride as "interleaved float32 pairs". Both are right
+  here and wrong on a `datumSize == 4` file, which is why the reader strides by
+  the declared size and the synthesized fixtures cover 4, 8 and 12.
+* **`2Theta` occurs twice** — once as a drive record and once as the scan-axis
+  record — in a file with **one** range. GSAS-II counts that string to decide
+  how many banks a file holds, so it reports two.
+* The scanned drive is the record whose flag is non-zero **and** whose stored
+  position is the range's start angle: `2Theta` at 10.0 against `Theta` at 5.0,
+  where 10.0 is also `startAngle`. One file is not enough to trust the flag on
+  its own, which is why both statements have to agree.
+* The type-30 source segment gives Kα-mean 1.5405999, Kα1 the same, **Kα2 0.0**,
+  Kβ 1.3922200 and **ratio 0.0** — mean equal to Kα1 with no Kα2, which is
+  three fields agreeing that the doublet was not used. Relevant to task 15's
+  anode suggestion, which resolves a zero ratio to the Kα1 preset.
+* FAIRmat's notes state that tube voltage, current, counting time and the
+  wavelengths are **not in the format**; all four are, at fixed offsets in the
+  range header and in the type-30 segment. Their search was for ASCII strings,
+  and these are IEEE floats.

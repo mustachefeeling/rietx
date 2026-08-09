@@ -42,6 +42,7 @@ from .base import (
     sigma_from_scaled,
 )
 from .brml import BRML, read_brml
+from .bruker_raw import BRUKER_RAW, read_bruker_raw
 from .chi import CHI, read_chi
 from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
@@ -53,13 +54,15 @@ from .xrdml import XRDML, read_xrdml
 from .xy import XY, read_xy
 
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
-#: ``RASX`` and ``BRML`` are first because a zip's magic bytes are the strongest
-#: evidence any of these has, and the two are told apart by their manifests, not
-#: by it; ``RAS``, ``UXD`` and ``XRDML`` follow, each recognised by a
-#: first line or a root element its own spec requires, which is stronger
-#: evidence than the suffix and loose-text sniffs below them.
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (RASX, BRML, RAS, UXD, XRDML,
-                                              PDCIF, GSAS, CHI, DIF, XY)
+#: ``BRUKER_RAW`` is first: its magic bytes name the format *and* its version at
+#: offset 0, which no other entry can imitate and which no other entry needs to
+#: be told apart from.  ``RASX`` and ``BRML`` follow, sharing a zip's magic and
+#: separated by their manifests rather than by it; then ``RAS``, ``UXD`` and
+#: ``XRDML``, each recognised by a first line or a root element its own spec
+#: requires, which is stronger evidence than the suffix and loose-text sniffs
+#: below them.
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (BRUKER_RAW, RASX, BRML, RAS, UXD,
+                                              XRDML, PDCIF, GSAS, CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
@@ -79,6 +82,7 @@ __all__ = [
     "multiscan_default",
     "pattern_data",
     "read_brml",
+    "read_bruker_raw",
     "read_chi",
     "read_dif",
     "read_gsas",

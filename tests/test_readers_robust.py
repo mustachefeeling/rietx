@@ -43,6 +43,7 @@ REAL_FIXTURES = [
     ("panalytical_mesh.xrdml", "xrdml"),        # XRDML 2.1, 101 scans, listPositions
     ("rigaku_powder.rasx", "rasx"),             # a zip container: BOM'd members
     ("bruker_absorber.brml", "brml"),           # a zip of XML, 4.5 MB unread
+    ("bruker_raw4_scrambled.raw", "bruker_raw"),  # binary TLV, one range, 7134 pts
 ]
 
 #: Formats with **no vendorable real file**, built here instead.  Kept apart from
@@ -53,13 +54,23 @@ REAL_FIXTURES = [
 #: licence at all; ``.rasx`` for a different reason — a real one is vendored and
 #: truncated above, but the only real *multi-scan* archive is 2.3 MB, so the
 #: several-groups failure paths are reached synthetically
-#: (``tests/data/README.md`` names both).
-SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml"]
+#: (``tests/data/README.md`` names both).  ``raw4`` is here for a third reason
+#: again — a real one *is* vendored and truncated above, but it holds one range,
+#: and a cut through the second range of a two-range file is a different depth
+#: to fail at: the first range has already parsed and returned by then.
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
     from tests.test_readers import write_brml, write_rasx, write_uxd
+    from tests.writers_xrd import write_raw4
 
+    if kind == "raw4":
+        return write_raw4(path, [
+            dict(start=10.0, step=0.02,
+                 intensity=[500.0 + i % 7 for i in range(200)]),
+            dict(start=40.0, step=0.02,
+                 intensity=[300.0 + i % 5 for i in range(200)])])
     if kind == "uxd":
         return write_uxd(path, [dict(drive="COUPLED", marker="_2THETACOUNTS",
                                      steptime=1.0,

@@ -76,7 +76,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Bounded least squares — scipy TRF (default) or **bounded LM** (`solver="lm"`, carries linear-inequality constraints), **analytic Jacobian**, esds with Bérar-Lelann inflation | ✅ |
 | Staged plans (`mccusker_default`, `lab_bragg_brentano`, `lab_calibrate`, `lab_sample_refine`, …) | ✅ |
 | **FitReport Layers 0-2**: diagnostics → gated misfit attribution → typed actions | ✅ |
-| `.xy` / `.xye` / GSAS raw / pdCIF / FIT2D `.chi` / Rigaku `.ras` / `.rasx` / Bruker `.uxd` / `.brml` / PANalytical `.xrdml` readers, dispatched on content; a multi-scan file's scans are **selected** with `scan=`, never concatenated; a `.dif` peak list, a rocking curve and a binary vendor file are refused **by name**; instrument-profile files | ✅ |
+| `.xy` / `.xye` / GSAS raw / pdCIF / FIT2D `.chi` / Rigaku `.ras` / `.rasx` / Bruker `.uxd` / `.brml` / `.raw` / PANalytical `.xrdml` readers, dispatched on content; a multi-scan file's scans are **selected** with `scan=`, never concatenated; a `.dif` peak list, a rocking curve and a binary file no format claims are refused **by name**; instrument-profile files | ✅ |
 | Branchable history DAG: checkout, branch, **merge, cherry-pick**, replay | ✅ |
 | matplotlib plots, **VLM montage**, plotly HTML viewer, `pxrdref watch` live view | ✅ |
 | Atomic-coordinate refinement (Wyckoff/site-symmetry constraints), anisotropic ADPs | ✅ |

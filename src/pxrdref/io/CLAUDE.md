@@ -158,9 +158,13 @@ three formats that state an axis use the same three-way policy:
 The policy is `base.check_axis()` and the **classifying is not part of it**: the
 authority differs per format and is always the field that *means* the axis —
 `.chi`'s line-2 label, `.ras`'s `*MEAS_SCAN_AXIS_X`, `.uxd`'s `_DRIVE`,
-`.xrdml`'s `scan/@scanAxis` — and those are inputs of four different shapes. So
-each format classifies for itself and passes the verdict in; a fifth format adds
-a vocabulary, never a row to a shared table. One code rather than four because
+`.xrdml`'s `scan/@scanAxis`, `.raw`'s flagged drive record — and those are
+inputs of five different shapes. So each format classifies for itself and passes
+the verdict in; a sixth adds a vocabulary, never a row to a shared table. And
+where a format states the axis **twice**, both statements are asked and have to
+agree: `.raw`'s scanned drive is the record that is flagged *and* parked at the
+range's start angle, because one real file is not enough to trust either alone.
+One code rather than four because
 the operator's answer is identical in every case, and four near-duplicate rows
 in `AGENT_PROTOCOL.md` was the smell (factored WP-1047 at the fourth consumer,
 which is where the previous session said the trigger was).
@@ -183,7 +187,8 @@ what the SRM 660c acceptance allows.
 
 | format | claimed by | σ | notes |
 |---|---|---|---|
-| `rasx` | a zip holding a `Data<N>/Profile<N>.txt` member — **first**, magic bytes being the strongest evidence here | the same arithmetic as `.ras` | multi-scan; `root.xml` is the authority on order and membership, not the zip name list; every member read through a cap, because `ZipInfo.file_size` is the archive's own claim |
+| `bruker_raw` | one of four magic strings at offset 0 — **first**, being the only entry whose sniff names the format *and* its version | measured by arithmetic; v4 declares no unit at all, and gives the counting time in **ms** | multi-range; **nothing is located by counting and nothing is a fixed stride** — the data is walked to EOF and strided by the declared `datumSize`, because `2Theta` occurs twice in the single-range real file and `datumSize` is 8 there. v1/v2/v3 are named and refused |
+| `rasx` | a zip holding a `Data<N>/Profile<N>.txt` member | the same arithmetic as `.ras` | multi-scan; `root.xml` is the authority on order and membership, not the zip name list; every member read through a cap, because `ZipInfo.file_size` is the archive's own claim |
 | `brml` | a zip holding a `DataContainer.xml` **and** a `RawData<N>.xml` | derived through the absorber, √(y/a)·a | multi-scan; **every column is located from `DataViews`, never counted** — 2θ is column 2 and the intensity column 7 in the real files, so GSAS-II's fixed `entry[2]`/`[4]` is one layout's coincidence. A `RecordedRawDataView` of `Length > 1` is a detector frame and is refused |
 | `ras` | first line `*RAS_DATA_START` | measured per file (above) | multi-scan; third column is an attenuator and is **never applied** — no spec says whether column 2 is already corrected, and all five obtainable files have it constant, so `RAS_ATTENUATOR_PRESENT` names the affected 2θ range instead |
 | `uxd` | first non-`;` line begins `_FILEVERSION` | marker suffix + `_STEPTIME` | multi-range; the header snapshot must be taken when the **marker opens** the block, not at close — keys persist across ranges, so otherwise a 2 s range's σ comes from a 20 s one |
@@ -211,6 +216,11 @@ what the SRM 660c acceptance allows.
 3. One module, exporting a `PatternFormat`; add it to `PATTERN_FORMATS` in
    dispatch order and say why the position is right.
 4. Add its fixture to `test_readers_robust.py` — `REAL_FIXTURES` if it has one,
-   the synthetic arm if it cannot.
+   the synthetic arm if it cannot. A **binary** format's synthesized fixture is
+   written in `tests/writers_xrd.py` and **packs its offsets literally, never
+   from the reader's own table**: a writer that shares constants with the parser
+   can only confirm that the parser agrees with itself. Text formats' writers
+   stay inline in `test_readers.py`, where a line is self-describing and the
+   circularity does not arise.
 5. A new rule lands here; it earns a root CLAUDE.md clause only if it changes
    behaviour outside `io/`.

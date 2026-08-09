@@ -445,9 +445,14 @@ def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
     codecs, from a user who asked to open a diffraction pattern.  Now nothing
     claims it and the refusal names the formats this build does read, built
     from the registry so a format added tomorrow appears in it.
+
+    The bytes here used to *be* a Bruker header, which this build now reads —
+    so the case is written as what it always meant: a binary file no registered
+    format claims.  A Bruker binary that is merely broken is refused by its own
+    reader instead, which is a better message and a different test.
     """
     p = tmp_path / "d8.raw"
-    p.write_bytes(b"RAW4.00\x00" + bytes(range(256)) * 8)
+    p.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 8)
 
     with pytest.raises(ValueError) as refusal:
         pr.read_pattern(p)
@@ -1513,3 +1518,291 @@ def test_a_manifest_naming_a_missing_raw_data_is_refused_by_name(tmp_path):
     assert identify_format(p).name == "brml"
     with pytest.raises(ValueError, match="internally inconsistent"):
         pr.read_pattern(p)
+
+
+# --------------------------------------------------------------------------- #
+# Bruker/Siemens .raw — the binary DIFFRAC formats
+#
+# The real fixture is the only evidence about the format, and it is evidence
+# about *structure* alone: FAIRmat scrambled its intensities before publishing
+# it (tests/data/README.md carries the measurement).  So the numbers asserted
+# from it are header numbers, the synthesized files carry every value assertion,
+# and one test below pins the scrambling itself — otherwise a later session
+# reads "7134 real points from a real diffractometer" and writes an acceptance
+# row against intensities that are noise.
+# --------------------------------------------------------------------------- #
+
+RAW4 = DATA / "bruker_raw4_scrambled.raw"
+
+
+def test_the_real_v4_fixture_reports_the_header_its_instrument_wrote():
+    d = pr.read_pattern(RAW4)
+
+    assert len(d.two_theta) == 7134
+    assert d.two_theta[0] == pytest.approx(10.0)
+    assert d.two_theta[-1] == pytest.approx(85.04129916, abs=1e-6)
+    assert d.metadata["scan_axis"] == "2Theta"
+    assert d.metadata["scan_count"] == "1"
+    assert d.metadata["anode"] == "Cu"
+    assert d.metadata["sample"] == "HeOx-1001-nsp-sps-900C-10min-01-poliert"
+    # milliseconds, not seconds: 310 ms × 7134 steps is a 37-minute scan and
+    # seconds would make it 25 days
+    assert float(d.metadata["count_time_s"]) == pytest.approx(0.310003, abs=1e-6)
+    assert float(d.metadata["wavelength"]) == pytest.approx(1.5406, abs=1e-6)
+
+
+def test_the_real_v4_fixtures_intensities_are_not_a_diffraction_profile():
+    """The fixture proves structure and metadata, never values — pinned here.
+
+    A profile stepped at 0.0105° has adjacent channels on the same peak, so its
+    lag-1 autocorrelation is near one; this file's is ~0.016 and its
+    point-to-point scatter is √2 times its own spread, which is what independent
+    values look like.  Nearly a third of the intensities are negative.
+    """
+    import numpy as np
+
+    y = np.asarray(pr.read_pattern(RAW4).intensity)
+
+    assert abs(np.corrcoef(y[:-1], y[1:])[0, 1]) < 0.1
+    assert np.diff(y).std() / y.std() == pytest.approx(np.sqrt(2), abs=0.1)
+    assert (y < 0).mean() > 0.3
+
+
+def test_the_real_v4_fixture_withholds_sigma_because_no_scale_verifies():
+    """v4 declares no intensity unit anywhere, so arithmetic has to decide — and
+    on this file it decides nothing, which is the third answer and not a
+    missing one."""
+    diagnostics = []
+    d = pr.read_pattern(RAW4, diagnostics=diagnostics)
+
+    assert d.sigma is None
+    assert [x.code for x in diagnostics] == ["PATTERN_INTENSITY_SCALED"]
+
+
+def test_the_range_count_is_walked_not_counted_from_the_drive_names():
+    """``2Theta`` appears **twice** in this single-range file — once as a drive
+    record and once as the scan-axis record — so a reader that counts the string
+    to find its banks (GSAS-II does) reports two ranges where there is one."""
+    assert RAW4.read_bytes().count(b"2Theta") == 2
+    assert pr.read_pattern(RAW4).metadata["scan_count"] == "1"
+    assert len(list_scans(RAW4)) == 1
+
+
+def test_the_datum_stride_is_the_one_declared_not_a_fixed_four_or_eight(tmp_path):
+    """The bug both other readers have, in both directions.
+
+    GSAS-II reads ``datumSize`` and then reads ``nSteps`` *consecutive* float32s;
+    FAIRmat hard-codes an 8-byte stride as "interleaved float32 pairs".  Written
+    at 4 and at 8, the same intensities must come back the same.
+    """
+    from tests.writers_xrd import write_raw4
+
+    y = [100.0 + (i % 13) for i in range(300)]
+    narrow = write_raw4(tmp_path / "d4.raw",
+                        [dict(start=10.0, step=0.02, intensity=y, datum_size=4)])
+    wide = write_raw4(tmp_path / "d8.raw",
+                      [dict(start=10.0, step=0.02, intensity=y, datum_size=8)])
+    twelve = write_raw4(tmp_path / "d12.raw",
+                        [dict(start=10.0, step=0.02, intensity=y, datum_size=12)])
+
+    assert pr.read_pattern(narrow).intensity == y
+    assert pr.read_pattern(wide).intensity == y
+    assert pr.read_pattern(twelve).intensity == y
+
+
+def test_a_datum_that_cannot_hold_a_float32_is_refused(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "thin.raw",
+                   [dict(start=10.0, step=0.02, intensity=[1.0, 2.0, 3.0],
+                         datum_size=2)])
+
+    with pytest.raises(ValueError, match="datum of 2 bytes"):
+        pr.read_pattern(p)
+
+
+def test_a_second_range_is_a_scan_to_choose_between_never_a_continuation(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "two.raw", [
+        dict(start=10.0, step=0.02, intensity=[100.0 + i % 7 for i in range(200)]),
+        dict(start=40.0, step=0.05, intensity=[50.0 + i % 5 for i in range(150)]),
+    ])
+
+    diagnostics = []
+    first = pr.read_pattern(p, diagnostics=diagnostics)
+    assert len(first.two_theta) == 200
+    assert first.two_theta[0] == pytest.approx(10.0)
+    assert first.metadata["scan_count"] == "2"
+    assert "PATTERN_MULTISCAN_DEFAULTED" in [x.code for x in diagnostics]
+
+    second = pr.read_pattern(p, scan=1, diagnostics=[])
+    assert len(second.two_theta) == 150
+    assert second.two_theta[0] == pytest.approx(40.0)
+    assert [s.n_points for s in list_scans(p)] == [200, 150]
+
+    with pytest.raises(ValueError, match="scan=2 is not one of them"):
+        pr.read_pattern(p, scan=2)
+
+
+def test_a_rocking_curve_is_refused_by_what_it_actually_is(tmp_path):
+    """The drive record says the scan stepped θ with the detector fixed.  Its
+    points parse perfectly and would refine to a confidently wrong cell."""
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "rock.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Rocking Curve",
+        drives=(("2Theta", 34.0, 0), ("Theta", 10.0, 2)))])
+
+    with pytest.raises(ValueError, match="rocking curve about θ"):
+        pr.read_pattern(p)
+
+
+def test_an_unfamiliar_drive_is_read_as_two_theta_and_says_so(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "odd.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Custom Scan",
+        drives=(("Gimbal", 10.0, 2),))])
+
+    diagnostics = []
+    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert "PATTERN_X_AXIS_ASSUMED" in [x.code for x in diagnostics]
+
+
+def test_the_scan_type_answers_when_no_drive_record_is_flagged(tmp_path):
+    """The flag is one file's evidence, so it is never the only statement asked.
+
+    With nothing flagged, the file still says what *kind* of scan it is, and a
+    locked-coupled one steps 2θ whatever its drive records look like.
+    """
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "unflagged.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50,
+        drives=(("2Theta", 10.0, 0), ("Theta", 5.0, 0)))])
+
+    diagnostics = []
+    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert [x.code for x in diagnostics] == []
+
+    unknown = write_raw4(tmp_path / "unflagged_odd.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Psi Scan",
+        drives=(("2Theta", 10.0, 0),))])
+    diagnostics = []
+    pr.read_pattern(unknown, diagnostics=diagnostics)
+    assert [x.code for x in diagnostics] == ["PATTERN_X_AXIS_ASSUMED"]
+
+
+def test_the_flagged_record_must_also_sit_at_the_ranges_start_angle(tmp_path):
+    """Two statements that have to agree.  A flag on a drive parked somewhere
+    else is not the abscissa, so the scan type answers instead — and here it
+    says the scan is a coupled one, which reads."""
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "parked.raw", [dict(
+        start=10.0, step=0.01, intensity=[500.0] * 50,
+        drives=(("2Theta", 10.0, 0), ("Phi", 271.0, 2)))])
+
+    diagnostics = []
+    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert [x.code for x in diagnostics] == []
+
+
+def test_counts_take_the_poisson_fallback_and_a_rate_gets_a_derived_sigma(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    counts = write_raw4(tmp_path / "counts.raw", [dict(
+        start=10.0, step=0.02, intensity=[400.0 + i % 9 for i in range(120)])])
+    assert pr.read_pattern(counts).sigma is None       # the fallback is correct
+
+    # odd counts over a 2 s step: the stored rate is a half-integer, so it is
+    # not counts, and y·t is whole, so it is that count divided by the time
+    rate = write_raw4(tmp_path / "cps.raw", [dict(
+        start=10.0, step=0.02, step_time_ms=2000.0,
+        intensity=[(401.0 + 2 * (i % 9)) / 2.0 for i in range(120)])])
+    d = pr.read_pattern(rate)
+    assert d.sigma is not None
+    assert d.sigma[0] == pytest.approx((401.0 ** 0.5) / 2.0, rel=1e-6)
+
+
+def test_a_range_header_whose_segments_overrun_its_size_is_refused(tmp_path):
+    """The self-consistency gate: a mis-parsed length walks into the intensity
+    records and finds plausible-looking segments there, so "ended exactly where
+    it said it would" is the difference between a parse and a coincidence."""
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "overrun.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 60)],
+                   header_overrun=-20)
+
+    assert identify_format(p).name == "bruker_raw"
+    with pytest.raises(ValueError, match="overrun"):
+        pr.read_pattern(p)
+
+
+def test_a_range_declaring_more_points_than_the_file_holds_is_refused(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "short.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 60)])
+    p.write_bytes(p.read_bytes()[:-120])
+
+    with pytest.raises(ValueError, match="truncated"):
+        pr.read_pattern(p)
+
+
+@pytest.mark.parametrize("magic,version", [
+    (b"RAW ", 1), (b"RAW2", 2), (b"RAW1.01", 3),
+])
+def test_an_earlier_raw_version_is_refused_by_its_version_not_a_traceback(
+        magic, version, tmp_path):
+    p = tmp_path / f"v{version}.raw"
+    p.write_bytes(magic + b"\x00" * 4000)
+
+    assert identify_format(p).name == "bruker_raw"
+    with pytest.raises(ValueError, match=f"RAW version {version}"):
+        pr.read_pattern(p)
+
+
+def test_the_two_raw_formats_are_disjoint_in_both_directions(tmp_path):
+    """A GSAS file named ``.raw`` still reaches ``gsas``; a Bruker file named
+    ``.gsas`` still reaches ``bruker_raw``.  Magic bytes against a ``BANK``
+    record — the sets cannot overlap, and both directions are tested because
+    only one of them is the one dispatch order would fix."""
+    from tests.writers_xrd import write_raw4
+
+    gsas_named_raw = tmp_path / "gsas.raw"
+    gsas_named_raw.write_text(
+        "a title\nBANK 1 4 4 CONST 1000.0 20.0 0 0 STD\n"
+        "     100     110     120     130\n", encoding="utf-8")
+    assert identify_format(gsas_named_raw).name == "gsas"
+
+    bruker_named_gsas = write_raw4(
+        tmp_path / "bruker.gsas",
+        [dict(start=10.0, step=0.02, intensity=[100.0] * 60)])
+    assert identify_format(bruker_named_gsas).name == "bruker_raw"
+
+
+def test_a_range_stored_high_to_low_is_reversed_and_says_so(tmp_path):
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "down.raw", [dict(
+        start=40.0, step=-0.02, intensity=[100.0 + i for i in range(50)])])
+
+    diagnostics = []
+    d = pr.read_pattern(p, diagnostics=diagnostics)
+    assert d.two_theta[0] < d.two_theta[-1]
+    assert d.intensity[0] == 149.0
+    assert "PATTERN_SCAN_REVERSED" in [x.code for x in diagnostics]
+
+
+def test_the_alternate_range_marker_is_read_the_same_way(tmp_path):
+    """Two values mark a range — 0 and 160 — and neither is a segment type."""
+    from tests.writers_xrd import write_raw4
+
+    p = write_raw4(tmp_path / "marker160.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 60)],
+                   marker=160)
+
+    assert len(pr.read_pattern(p).two_theta) == 60

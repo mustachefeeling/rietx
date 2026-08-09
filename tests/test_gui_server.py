@@ -487,8 +487,15 @@ def test_an_upload_is_claimed_by_content_not_by_extension(
     # a peak list is recognised in order to be declined (WP-1047)
     ("quartz.dif", b"Q\n D-SPACING INTENSITY H K L\n 4.2 16.0 1 0 0\n"
                    b" 3.3 100.0 1 0 1\n 2.4 9.0 1 1 0\n", "peak list"),
-    # a binary vendor file no longer reaches a decoder and dies as a codec error
-    ("d8.raw", b"RAW4.00\x00" + bytes(range(256)) * 8, "not a powder pattern"),
+    # a binary file no longer reaches a decoder and dies as a codec error
+    ("scan.png", b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 8,
+     "not a powder pattern"),
+    # a *Bruker* binary is now read (WP-1047 task 13), so a broken one is
+    # refused by its own reader — a better message, and the case the matrix
+    # used to stand in for with a fake RAW4 header
+    ("d8.raw", b"RAW4.00\x00" + bytes(range(256)) * 8, "truncated"),
+    # …and one this build knows the version of but does not read is named
+    ("legacy.raw", b"RAW1.01" + bytes(4000), "RAW version 3"),
 ])
 def test_a_file_this_build_cannot_honestly_read_is_refused_by_name(
         blank, name, body, expect):
