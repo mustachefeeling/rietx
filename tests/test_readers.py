@@ -1081,3 +1081,190 @@ def test_a_comment_before_the_root_does_not_decide_the_sniff(tmp_path):
 
     assert identify_format(p).name == "xrdml"
     assert len(pr.read_pattern(p).two_theta) == 4
+
+
+# --------------------------------------------------------------------- rasx
+def write_rasx(path: Path, scans, *, manifest_only=(), omit_conditions=False,
+               root_extra="") -> Path:
+    """A minimal but manifest-shaped ``.rasx`` — the cases no fixture holds.
+
+    A zip of text files, so the circularity a binary writer has to manage does
+    not arise here: what this restates from the reader's understanding is the
+    *manifest convention*, and that is written down in the reader's docstring
+    from four real archives.
+    """
+    import zipfile
+
+    groups, members = [], {}
+    for i, scan in enumerate(scans):
+        profile = f"Profile{i}.txt"
+        conditions = f"MesurementConditions{i}.xml"
+        rows = "\n".join("\t".join(f"{v}" for v in row) for row in scan["rows"])
+        members[f"Data{i}/{profile}"] = "﻿" + rows + "\n"
+        listed = f'<ContentHashList Name="{profile}" ContentHash="0" />'
+        if not omit_conditions:
+            members[f"Data{i}/{conditions}"] = (
+                '﻿<?xml version="1.0" encoding="utf-8"?><MeasurementConditions>'
+                f'<HWConfigurations><XrayGenerator><TargetName>Cu</TargetName>'
+                f'<WavelengthKalpha1>1.540593</WavelengthKalpha1>'
+                f'</XrayGenerator></HWConfigurations><ScanInformation>'
+                f'<AxisName>{scan.get("axis", "TwoTheta")}</AxisName>'
+                f'<Step>{scan.get("step", 0.02)}</Step>'
+                f'<Speed>{scan.get("speed", 1.0)}</Speed>'
+                f'<SpeedUnit>deg/min</SpeedUnit>'
+                f'<IntensityUnit>{scan.get("unit", "counts")}</IntensityUnit>'
+                f'<SampleName>{scan.get("sample", "")}</SampleName>'
+                '</ScanInformation></MeasurementConditions>')
+            listed += f'<ContentHashList Name="{conditions}" ContentHash="0" />'
+        groups.append(f'<Data{i} Type="Profile">{listed}</Data{i}>')
+
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("root.xml", '﻿<?xml version="1.0" encoding="utf-8"?>'
+                         f'<Root Version="1.1.0.0">{"".join(groups)}{root_extra}'
+                         "</Root>")
+        for name, text in members.items():
+            archive.writestr(name, text.encode("utf-8"))
+        for name in manifest_only:
+            archive.writestr(name, "not a profile\n")
+    return path
+
+
+def test_the_real_rasx_powder_scan_reads_whole():
+    data = pr.read_pattern(DATA / "rigaku_powder.rasx")
+
+    assert len(data.two_theta) == 2726
+    assert data.two_theta[0] == 10.0 and data.two_theta[-1] == 119.0
+    assert data.metadata["scan_axis"] == "TwoTheta"
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540593"
+    assert data.metadata["count_time_s"] == "2.4"      # 0.04° ÷ 1 deg/min × 60
+
+
+def test_the_declared_unit_is_refuted_by_arithmetic_in_this_container_too():
+    """A correction to this WP's own premise, which recorded cps as *verified by
+    fixture* for `.rasx`.
+
+    Two of the three real files declare ``<IntensityUnit>counts</IntensityUnit>``
+    and store values like 170.55354309082 that no scale makes integral; the
+    third declares counts and *is* integral to the last of 7001 points.  So this
+    is the same free-text lie ``.ras`` tells, and the same arithmetic settles it
+    — which is why both formats call one function.
+    """
+    lying: list = []
+    liar = pr.read_pattern(DATA / "rigaku_powder.rasx", diagnostics=lying)
+    honest: list = []
+    truth = pr.read_pattern(DATA / "rigaku_zno_counts.rasx", diagnostics=honest)
+
+    assert liar.metadata["intensity_unit"] == truth.metadata["intensity_unit"]
+    assert [d.code for d in lying] == ["PATTERN_INTENSITY_SCALED"]
+    assert liar.sigma is None       # withheld, and said so
+    assert honest == [] and truth.sigma is None   # withheld, and correct
+    assert all(float(v).is_integer() for v in truth.intensity)
+
+
+def test_the_manifest_is_the_authority_not_the_name_list(tmp_path):
+    """A zip may carry anything; ``root.xml`` is what says which members are
+    scans and in which order."""
+    p = write_rasx(tmp_path / "two.rasx",
+                   [dict(rows=[(10.0, 5.0), (10.02, 6.0), (10.04, 7.0)]),
+                    dict(rows=[(20.0, 1.0), (20.02, 2.0), (20.04, 3.0)])],
+                   manifest_only=("Data9/Profile9.txt", "thumbnail.png"))
+
+    assert [s.index for s in list_scans(p)] == [0, 1]
+    assert pr.read_pattern(p, scan=1).two_theta == [20.0, 20.02, 20.04]
+
+
+def test_the_default_scan_of_a_rasx_is_never_silent(tmp_path):
+    p = write_rasx(tmp_path / "two.rasx",
+                   [dict(rows=[(10.0, 5.0), (10.02, 6.0)]),
+                    dict(rows=[(20.0, 1.0), (20.02, 2.0)])])
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.metadata["scan_count"] == "2"
+    assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
+
+
+def test_a_manifest_naming_a_member_the_archive_lacks_is_refused_by_name(tmp_path):
+    """The other half of "the manifest is the authority": a real profile member
+    is present, so the sniff claims the file, and the manifest still points
+    somewhere else.  Following the name list instead would read it happily."""
+    import zipfile
+
+    p = tmp_path / "hollow.rasx"
+    with zipfile.ZipFile(p, "w") as archive:
+        archive.writestr("root.xml", '<Root><Data0 Type="Profile">'
+                         '<ContentHashList Name="Profile7.txt" /></Data0></Root>')
+        archive.writestr("Data0/Profile0.txt", "10 1\n11 2\n")
+
+    assert identify_format(p).name == "rasx"
+    with pytest.raises(ValueError, match="internally inconsistent"):
+        pr.read_pattern(p)
+
+
+def test_a_member_past_the_cap_is_refused_rather_than_materialised(tmp_path,
+                                                                   monkeypatch):
+    """``ZipInfo.file_size`` is a number in the archive's own header, so it is
+    the one a bomb lies about — hence ``read(cap + 1)`` and a length test rather
+    than a size check before reading."""
+    from pxrdref.io.formats import rasx
+
+    p = write_rasx(tmp_path / "big.rasx",
+                   [dict(rows=[(10.0 + 0.01 * i, 5.0) for i in range(200)])])
+    monkeypatch.setattr(rasx, "MAX_MEMBER_BYTES", 64)
+
+    with pytest.raises(ValueError, match="larger than"):
+        pr.read_pattern(p)
+
+
+def test_a_zip_that_is_not_a_rasx_is_not_claimed(tmp_path):
+    """Zip magic says "an archive"; only a ``Data<N>/Profile<N>.txt`` member says
+    whose.  Other zip-container formats sit in the same registry, so the sniff
+    has to be about the manifest and never about the magic alone."""
+    import zipfile
+
+    p = tmp_path / "other.rasx"
+    with zipfile.ZipFile(p, "w") as archive:
+        archive.writestr("notes.txt", "not a diffraction file at all")
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "other.rasx" in str(refusal.value)
+    assert "Supported" in str(refusal.value)
+
+
+def test_the_attenuator_column_is_reported_here_exactly_as_in_ras(tmp_path):
+    """One vendor's unstated convention, not one format's — so the two
+    containers share the contract and the code."""
+    p = write_rasx(tmp_path / "attn.rasx", [dict(
+        rows=[(10.0, 5.0, 1.0), (10.02, 6.0, 10.0), (10.04, 7.0, 1.0)])])
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.intensity == [5.0, 6.0, 7.0]          # never applied
+    assert "RAS_ATTENUATOR_PRESENT" in [d.code for d in notes]
+
+
+def test_a_rocking_curve_in_a_rasx_is_refused_on_the_vendors_vocabulary(tmp_path):
+    p = write_rasx(tmp_path / "rock.rasx", [dict(
+        axis="Omega", rows=[(10.0, 5.0), (10.02, 6.0), (10.04, 7.0)])])
+
+    with pytest.raises(ValueError, match="rocking curve"):
+        pr.read_pattern(p)
+
+
+def test_a_group_with_no_conditions_still_yields_its_points(tmp_path):
+    """The points are the pattern and the header is metadata, so losing the
+    second is a thinner answer rather than no answer."""
+    p = write_rasx(tmp_path / "bare.rasx",
+                   [dict(rows=[(10.0, 5.0), (10.02, 6.0), (10.04, 7.0)])],
+                   omit_conditions=True)
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.two_theta == [10.0, 10.02, 10.04]
+    assert "anode" not in data.metadata
+    # …and the axis is unknown rather than assumed silently
+    assert [d.code for d in notes] == ["PATTERN_X_AXIS_ASSUMED"]

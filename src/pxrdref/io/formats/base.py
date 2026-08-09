@@ -496,6 +496,70 @@ def sigma_from_cps(intensity: Any, count_time_s: float) -> np.ndarray:
     return sigma_from_scaled(intensity, 1.0 / count_time_s)
 
 
+#: How close to an integer a value must be to count as one.  Counts are written
+#: as ``13.0000``, so the test is exact up to the decimal text; the tolerance is
+#: for the ``y·t`` product, where the file's stored decimals are multiplied.
+INTEGRAL_TOL = 1e-3
+
+
+def integral(values: Any) -> bool:
+    """Whether every value is a whole number — the counts test."""
+    y = np.asarray(values, dtype=np.float64)
+    return bool(y.size) and bool(np.all(np.abs(y - np.round(y)) < INTEGRAL_TOL))
+
+
+def sigma_by_arithmetic(intensity: Any, count_time_s: float | None,
+                        declared: str, *, path: str | Path,
+                        diagnostics: list[Diagnostic] | None = None,
+                        ) -> np.ndarray | None:
+    """σ where the file's own word on its intensity unit cannot be trusted.
+
+    The two Rigaku formats declare the unit in a **free-text** header field, and
+    real files get it wrong: one `.ras` declares ``counts`` and stores 84.3047,
+    which no scale in 1/1000…200 makes integral, and two of the three real
+    ``.rasx`` files do the same.  So the declaration is recorded as metadata and
+    never decides σ.  What decides is arithmetic, in the order the evidence
+    settles it:
+
+    * all-integer intensities **are** counts, whose σ is the Poisson fallback the
+      package already applies — so ``None`` here is the *correct* answer and not
+      a missing one;
+    * an all-integer ``y·t`` says the stored quantity is that count divided by
+      the counting time, and its σ is derived;
+    * anything else is undecided, and says so (``PATTERN_INTENSITY_SCALED``) —
+      the fallback is then being applied to a quantity that may already be a
+      rate, in which case the weights are wrong by √t.
+
+    Contrast the ``.uxd`` and ``.xrdml`` side of this: those declare the unit
+    *structurally* — in the token that opens the data block, in an attribute on
+    the data element — where it cannot disagree with itself, and are trusted.
+    """
+    y = np.asarray(intensity, dtype=np.float64)
+    if integral(y):
+        return None
+    if count_time_s is not None and count_time_s > 0 and integral(y * count_time_s):
+        return sigma_from_cps(y, count_time_s)
+    if diagnostics is not None:
+        derived = ("no counting time either: the header gives no scan speed with "
+                   "a unit" if count_time_s is None else
+                   f"a counting time of {count_time_s:.6g} s per step does not "
+                   "make them whole numbers either")
+        diagnostics.append(Diagnostic(
+            level="warning", code="PATTERN_INTENSITY_SCALED",
+            message=(f"{Path(path).name} declares its intensity unit as "
+                     f"{declared or 'nothing'} but the stored values are not "
+                     f"whole numbers, and {derived}. The scale could not be "
+                     "verified, so no σ was supplied and the Poisson fallback "
+                     "√max(y,1) will be applied to a quantity that may already "
+                     "be divided by a counting time — in which case the weights "
+                     "are wrong by √t"),
+            where=["sigma"],
+            suggestion=("export the scan in counts, or supply the esds yourself; "
+                        "the fit will run either way but its esds and χ² are "
+                        "only as good as the weights")))
+    return None
+
+
 def looks_binary(h: Head) -> bool:
     """Whether ``h`` came from a file no text reader should try to decode.
 
@@ -512,6 +576,20 @@ def looks_binary(h: Head) -> bool:
     return b"\x00" in h.raw and not h.bom
 
 
+def decode(raw: bytes) -> tuple[str, str, bool]:
+    """``raw`` as text, the codec that did it, and whether a mark named one.
+
+    Shared with :func:`head` rather than duplicated because the *container*
+    formats need it on bytes that never were a file: a ``.rasx`` member is a
+    UTF-8-with-BOM text file inside a zip, and decoding it as plain UTF-8 leaves
+    a zero-width space on the front of the first number.
+    """
+    for mark, codec in _BOMS:
+        if raw.startswith(mark):
+            return raw.decode(codec, errors="ignore"), codec, True
+    return raw.decode("utf-8", errors="ignore"), "utf-8", False
+
+
 def head(path: str | Path, n: int = HEAD_BYTES) -> Head:
     """The first ``n`` bytes of ``path``, decoded for a sniff.
 
@@ -523,10 +601,5 @@ def head(path: str | Path, n: int = HEAD_BYTES) -> Head:
     """
     with open(path, "rb") as fh:
         raw = fh.read(n)
-    encoding, bom = "utf-8", False
-    for mark, codec in _BOMS:
-        if raw.startswith(mark):
-            encoding, bom = codec, True
-            break
-    return Head(raw=raw, text=raw.decode(encoding, errors="ignore"),
-                encoding=encoding, bom=bom)
+    text, encoding, bom = decode(raw)
+    return Head(raw=raw, text=text, encoding=encoding, bom=bom)

@@ -101,10 +101,13 @@ makes**, and the three cases are the whole rule:
   attribute *on* the data element, where neither can disagree with itself.
   Verified anyway: every `COUNTS` block integral to the last of 3774 points, and
   every intensity in both real single-scan `.xrdml` fixtures.
-- **Free text** — measured, not trusted. `.ras` names it in
-  `*MEAS_SCAN_UNIT_Y`, and a real file declares `counts` while storing 84.3047,
-  which no scale in 1/1000…200 makes integral. So arithmetic decides: counts
-  are integers; a rate times its counting time is.
+- **Free text** — measured, not trusted, by `base.sigma_by_arithmetic`: counts
+  are integers, and a rate times its counting time is. Both Rigaku formats
+  declare the unit this way and real files get it wrong — a `.ras` declaring
+  `counts` while storing 84.3047, and **two of the three** real `.rasx` files
+  declaring counts and storing values no scale in 1/400…400 makes integral. The
+  third `.rasx` declares counts and is integral, which is the same test deciding
+  both ways within one format.
 - **Neither settles it** — σ is **withheld** with `PATTERN_INTENSITY_SCALED`,
   never faked. The caveat says the fallback is being applied to a quantity whose
   scale could not be verified.
@@ -170,6 +173,7 @@ what the SRM 660c acceptance allows.
 
 | format | claimed by | σ | notes |
 |---|---|---|---|
+| `rasx` | a zip holding a `Data<N>/Profile<N>.txt` member — **first**, magic bytes being the strongest evidence here | the same arithmetic as `.ras` | multi-scan; `root.xml` is the authority on order and membership, not the zip name list; every member read through a cap, because `ZipInfo.file_size` is the archive's own claim |
 | `ras` | first line `*RAS_DATA_START` | measured per file (above) | multi-scan; third column is an attenuator and is **never applied** — no spec says whether column 2 is already corrected, and all five obtainable files have it constant, so `RAS_ATTENUATOR_PRESENT` names the affected 2θ range instead |
 | `uxd` | first non-`;` line begins `_FILEVERSION` | marker suffix + `_STEPTIME` | multi-range; the header snapshot must be taken when the **marker opens** the block, not at close — keys persist across ranges, so otherwise a 2 s range's σ comes from a 20 s one |
 | `xrdml` | the document's first element is `<xrdMeasurements>` | one composition, `y = c·s` | multi-scan; the namespace is **versioned** (1.6 and 2.1 both current), so nothing matches on it and every lookup is by local name |

@@ -440,7 +440,7 @@ that belong to it), never mid-format.
 - [x] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
       the counts/intensities σ rule, `beamAttenuationFactors`, multi-scan.
       Tested against the JSON oracle exactly.
-- [ ] 11. `.rasx` — in-memory `ZipFile.open` with a **bounded read**
+- [x] 11. `.rasx` — in-memory `ZipFile.open` with a **bounded read**
       (`read(cap + 1)`, refuse if over — `ZipInfo.file_size` is header
       metadata and is not trusted; never `extract()`), BOM skip, the
       misspelled conditions file.

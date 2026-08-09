@@ -545,3 +545,37 @@ Two files were examined and **not** vendored, having established nothing the
 three above do not: `EJZ060_13_004_RSM.brml` (5.1 MB) and
 `Omega-2Theta_scan_high_temperature.rasx` belong to the `.brml`/`.rasx` readers,
 not this one.
+
+### `rigaku_*.rasx` — the zip container, and the premise it refuted
+
+`.rasx` is what SmartLab Studio II writes: a zip whose `root.xml` manifest lists
+one `Data<N>` group per scan, each holding a tab-separated `Profile<N>.txt` and
+a `MesurementConditions<N>.xml` (the misspelling is the vendor's). Both files
+below are real, both from FAIRmat's Apache-2.0 `readers-xrd`, and the pair is
+chosen for the σ contrast.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `rigaku_powder.rasx` | `readers-xrd`, `tests/data/TwoTheta_scan_powder.rasx` | Apache-2.0 | **Real powder scan**: 2726 points, 10–119° at 0.04°, `TwoTheta`, Cu, 1 deg/min. Declares `<IntensityUnit>counts</IntensityUnit>` and stores 170.55354309082 — the **refuting** arm. |
+| `rigaku_zno_counts.rasx` | `readers-xrd`, `tests/data/ZnO-ALD-training_001_1_0-000_0-000.rasx` | Apache-2.0 | 7001 points, 20–90° at 0.01°, `TwoThetaTheta`. Declares counts and **is** integral to the last point — the confirming arm, so the σ test is shown deciding both ways on real files of one format. |
+
+**This WP's premise that `.rasx` cps was "verified by fixture" is wrong, and the
+fixtures are what say so.** Searched on `rigaku_powder.rasx`: no scale in
+1/400…400, nor k/60, nor 60/k, nor the file's own derived counting time
+(0.04° ÷ 1 deg/min × 60 = 2.4 s) makes its intensities integral.
+`Omega-2Theta_scan_high_temperature.rasx` (not vendored) is the same case, so it
+is two of three real files. The declaration is therefore the same free-text
+claim `.ras` gets wrong — unsurprising, since the container embeds a `RASHeader`
+of the very same `*MEAS_SCAN_*` keys — and both formats decide σ by
+`base.sigma_by_arithmetic` instead.
+
+**Two real files established structure without being vendored:**
+
+* `RSM_111_sdd=350.rasx` (2.3 MB, Apache-2.0) — **401** `Data<N>` groups, each
+  with its own conditions XML, in one archive: the format's multi-scan case, and
+  the reason `root.xml` rather than the zip name list is read as the authority
+  on order and membership. Not vendored for its size; `write_rasx` in
+  `tests/test_readers.py` synthesizes the several-groups case from that
+  structure.
+* `Omega-2Theta_scan_high_temperature.rasx` — `TwoThetaOmega`, 44–49° at
+  0.0048°, the second non-integral "counts" file above.

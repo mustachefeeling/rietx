@@ -41,6 +41,7 @@ REAL_FIXTURES = [
     ("rigaku_nims.ras", "ras"),           # Rigaku text, marked sections
     ("panalytical_powder.xrdml", "xrdml"),      # XRDML 1.6, one scan, counts
     ("panalytical_mesh.xrdml", "xrdml"),        # XRDML 2.1, 101 scans, listPositions
+    ("rigaku_powder.rasx", "rasx"),             # a zip container: BOM'd members
 ]
 
 #: Formats with **no vendorable real file**, built here instead.  Kept apart from
@@ -48,18 +49,28 @@ REAL_FIXTURES = [
 #: the parser's failure paths and says nothing about the format: it is written
 #: from the same understanding the reader was, so the two agree by construction.
 #: ``.uxd`` is here because every obtainable real one is GPL or carries no
-#: licence at all (``tests/data/README.md`` names them).
-SYNTHETIC_FIXTURES = ["uxd"]
+#: licence at all; ``.rasx`` for a different reason — a real one is vendored and
+#: truncated above, but the only real *multi-scan* archive is 2.3 MB, so the
+#: several-groups failure paths are reached synthetically
+#: (``tests/data/README.md`` names both).
+SYNTHETIC_FIXTURES = ["uxd", "rasx"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
-    from tests.test_readers import write_uxd
+    from tests.test_readers import write_rasx, write_uxd
 
-    assert kind == "uxd"
-    return write_uxd(path, [dict(drive="COUPLED", marker="_2THETACOUNTS",
-                                 steptime=1.0,
-                                 rows=[(10.0 + 0.02 * i, 500 + i % 7)
-                                       for i in range(400)])])
+    if kind == "uxd":
+        return write_uxd(path, [dict(drive="COUPLED", marker="_2THETACOUNTS",
+                                     steptime=1.0,
+                                     rows=[(10.0 + 0.02 * i, 500 + i % 7)
+                                           for i in range(400)])])
+    assert kind == "rasx"
+    # two groups, so a cut lands inside a manifest, a member and the central
+    # directory at different depths
+    return write_rasx(path, [dict(rows=[(10.0 + 0.02 * i, 500 + i % 7)
+                                        for i in range(200)]),
+                             dict(rows=[(40.0 + 0.02 * i, 300 + i % 5)
+                                        for i in range(200)])])
 
 
 #: Where to cut.  Fractions rather than byte counts so the same set of offsets

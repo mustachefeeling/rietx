@@ -34,23 +34,22 @@ that states an axis shares.
 be wrong: of the real files checked while writing this, ``XRD_RIGAKU.ras``
 declares counts and holds integers (true), while ``rigaku-xrd-analysis``'s
 ``example.ras`` declares counts and holds values like 84.3047 that no scale
-makes integral (false).  So the header is recorded as metadata and never
-decides σ.  What decides is arithmetic: counts are integers, so all-integer
-intensities *are* counts; and where the header gives a counting time, all-
-integer ``y·t`` says the stored quantity is that count divided by the time.
-Where neither test is decisive the σ is not supplied and
-``PATTERN_INTENSITY_SCALED`` says the Poisson fallback is being applied to a
-quantity whose scale could not be verified — wrong by √t if it is a rate.
+makes integral (false).  So the header is recorded as metadata and never decides
+σ; :func:`base.sigma_by_arithmetic` does, and ``.rasx`` — the same vendor, the
+same free-text field, the same lie in two of three real files — shares it.  All
+this module owns is the counting time, whose *unit* has to be read.
 
 **The third column is an attenuator factor and this reader does not apply it.**
 No source states whether column 2 is already corrected for it, and the
 structural test that would settle it — whether the raw series or the product is
 the continuous one — needs a file where the column varies.  Every obtainable
-file has it constant (five checked: 1.0 in four, 0.0 in one synthetic).  So the
-reader matches the convention both other codes use, reads column 2, and says so
-whenever the column is not identically 1 (``RAS_ATTENUATOR_PRESENT``) —
+Rigaku file has it constant (five checked: 1.0 in four, 0.0 in one synthetic).
+So the reader matches the convention both other codes use, reads column 2, and
+says so whenever the column is not identically 1 (``RAS_ATTENUATOR_PRESENT``) —
 including that σ is affected, since √counts·attn ≠ √y.  Guessing here corrupts
-exactly the strong peaks Rietveld weights most.
+exactly the strong peaks Rietveld weights most.  ``.xrdml`` one module over
+*does* apply its attenuation factor, and the difference is evidence: a real file
+there has a varying factor and the structural test runs.
 """
 
 from __future__ import annotations
@@ -70,7 +69,7 @@ from .base import (
     head,
     multiscan_default,
     pattern_data,
-    sigma_from_cps,
+    sigma_by_arithmetic,
 )
 
 #: The first line of every ``.ras``; the format's own required marker, and what
@@ -82,11 +81,11 @@ _HEADER_LINE = re.compile(r'^\*(\S+)\s+"(.*)"\s*$')
 #: Axis names whose x column is a diffraction angle 2θ.  ``TwoThetaTheta`` is
 #: the coupled θ–2θ scan, ``TwoThetaOmega`` the same with an offset; both step
 #: the detector through 2θ, which is all this package needs.
-_TWO_THETA_AXES = frozenset({"twotheta", "twothetatheta", "twothetaomega"})
+RIGAKU_TWO_THETA_AXES = frozenset({"twotheta", "twothetatheta", "twothetaomega"})
 
 #: Axes that are recognisably **not** 2θ, with what each one measures — so the
 #: refusal can say what the file holds rather than only what it lacks.
-_OTHER_AXES: dict[str, str] = {
+RIGAKU_OTHER_AXES: dict[str, str] = {
     "omega": "a rocking curve (ω), which measures crystal misorientation at one "
              "fixed 2θ",
     "theta": "a θ scan with the detector fixed, not a coupled θ–2θ pattern",
@@ -105,11 +104,6 @@ _SPEED_UNIT_SECONDS: dict[str, float] = {
     "deg/min": 60.0, "degree/min": 60.0,
     "deg/sec": 1.0, "deg/s": 1.0, "degree/sec": 1.0,
 }
-
-#: How close to an integer a value must be to count as one.  Counts are written
-#: as ``13.0000``, so the test is exact up to the decimal text; the tolerance is
-#: for the ``y·t`` product, where the file's four stored decimals are multiplied.
-_INTEGRAL_TOL = 1e-3
 
 
 def _blocks(path: Path) -> list[tuple[dict[str, str], np.ndarray]]:
@@ -190,66 +184,29 @@ def _count_time_s(header: dict[str, str]) -> float | None:
     return step / speed * seconds
 
 
-def _integral(values: np.ndarray) -> bool:
-    return bool(values.size) and bool(
-        np.all(np.abs(values - np.round(values)) < _INTEGRAL_TOL))
+def rigaku_attenuator(two_theta: np.ndarray, factors: np.ndarray | None, *,
+                      path: Path, diagnostics: list[Diagnostic] | None) -> None:
+    """Say so when the attenuator column is present and not identically 1.
 
+    Never applied — see the module docstring.  Shared with ``.rasx``, which
+    carries the same third column with the same unstated convention: this is one
+    vendor's question, not one format's.  Contrast ``.xrdml``, whose attenuation
+    factor *is* applied, because one real file settles what this one cannot.
 
-def _sigma(y: np.ndarray, header: dict[str, str], *, path: Path,
-           diagnostics: list[Diagnostic] | None) -> tuple[np.ndarray | None, float | None]:
-    """σ, and the counting time it was derived from — by measurement, not by label.
-
-    Three outcomes, in the order the evidence decides them.  All-integer
-    intensities are counts, whose σ is the Poisson fallback the package already
-    applies, so ``None`` here is the *correct* answer and not a missing one.  An
-    all-integer ``y·t`` says the stored quantity is a rate, and its σ is derived.
-    Anything else is undecided, and says so.
+    The message names the 2θ range because that is what tells a user whether the
+    affected points are the peaks they care about.
     """
-    t = _count_time_s(header)
-    declared = header.get("MEAS_SCAN_UNIT_Y", "").strip() or "nothing"
-    if _integral(y):
-        return None, t
-    if t is not None and _integral(y * t):
-        return sigma_from_cps(y, t), t
-    if diagnostics is not None:
-        derived = ("no counting time either: the header gives no scan speed with "
-                   "a unit" if t is None else
-                   f"a counting time of {t:.6g} s per step does not make them "
-                   "whole numbers either")
-        diagnostics.append(Diagnostic(
-            level="warning", code="PATTERN_INTENSITY_SCALED",
-            message=(f"{path.name} declares its intensity unit as {declared} but "
-                     f"the stored values are not whole numbers, and {derived}. "
-                     "The scale could not be verified, so no σ was supplied and "
-                     "the Poisson fallback √max(y,1) will be applied to a "
-                     "quantity that may already be divided by a counting time — "
-                     "in which case the weights are wrong by √t"),
-            where=["sigma"],
-            suggestion=("export the scan in counts, or supply the esds yourself; "
-                        "the fit will run either way but its esds and χ² are "
-                        "only as good as the weights")))
-    return None, t
-
-
-def _attenuator(rows: np.ndarray, *, path: Path,
-                diagnostics: list[Diagnostic] | None) -> None:
-    """Say so when a third column is present and not identically 1.
-
-    Never applied — see the module docstring.  The message names the 2θ range
-    because that is what tells a user whether the affected points are the peaks
-    they care about.
-    """
-    if rows.shape[1] < 3 or diagnostics is None:
+    if factors is None or diagnostics is None:
         return
-    off = rows[:, 2] != 1.0
+    off = factors != 1.0
     if not off.any():
         return
-    affected = rows[off, 0]
+    affected = two_theta[off]
     diagnostics.append(Diagnostic(
         level="warning", code="RAS_ATTENUATOR_PRESENT",
         message=(f"{path.name} carries an attenuator factor that is not 1 over "
                  f"{int(off.sum())} point(s), 2θ = {affected.min():.4g}–"
-                 f"{affected.max():.4g}°, taking {len(np.unique(rows[off, 2]))} "
+                 f"{affected.max():.4g}°, taking {len(np.unique(factors[off]))} "
                  "distinct value(s). It was **not** applied: no specification "
                  "states whether the intensity column is already corrected for "
                  "it, and applying it twice or not at all are both wrong. σ is "
@@ -265,8 +222,8 @@ def _axis(header: dict[str, str], *, path: Path,
     axis = header.get("MEAS_SCAN_AXIS_X", "").strip()
     key = axis.lower().replace(" ", "").replace("-", "").replace("_", "")
     return check_axis(axis, path=path, field="*MEAS_SCAN_AXIS_X",
-                      two_theta=key in _TWO_THETA_AXES,
-                      other=_OTHER_AXES.get(key),
+                      two_theta=key in RIGAKU_TWO_THETA_AXES,
+                      other=RIGAKU_OTHER_AXES.get(key),
                       remedy="Export the θ–2θ scan instead.",
                       diagnostics=diagnostics)
 
@@ -298,8 +255,12 @@ def read_ras(path: str | Path, *, scan: int | None = None,
                          "is empty")
 
     axis = _axis(header, path=p, diagnostics=diagnostics)
-    _attenuator(rows, path=p, diagnostics=diagnostics)
-    sigma, count_time = _sigma(rows[:, 1], header, path=p, diagnostics=diagnostics)
+    rigaku_attenuator(rows[:, 0], rows[:, 2] if rows.shape[1] >= 3 else None,
+                      path=p, diagnostics=diagnostics)
+    count_time = _count_time_s(header)
+    sigma = sigma_by_arithmetic(rows[:, 1], count_time,
+                                header.get("MEAS_SCAN_UNIT_Y", "").strip(),
+                                path=p, diagnostics=diagnostics)
     tt, y, sig = ascending(rows[:, 0], rows[:, 1], sigma, path=p, fmt=RAS,
                            diagnostics=diagnostics)
     return pattern_data(

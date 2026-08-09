@@ -42,12 +42,17 @@ TREES = ("src", "tests", "examples")
 _TEXT_IO = {"read_text", "write_text", "open"}
 
 #: Receivers whose ``.open`` is not a text stream: ``webbrowser.open`` /
-#: ``webbrowser.open_new_tab``, and ``Project.open`` — which opens a *directory*
+#: ``webbrowser.open_new_tab``, ``Project.open`` — which opens a *directory*
 #: (WP-1005) and does its own reading through calls this guard checks
-#: individually.  The match is on the receiver's source text, so it is a name
-#: list and will go stale; it goes stale in the safe direction, since a new
-#: non-file ``.open`` fails this test until someone adds the row.
-_NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project")
+#: individually — and a ``zipfile.ZipFile``, whose ``.open`` returns **bytes**
+#: whatever its mode, so ``encoding=`` there is a ``TypeError`` rather than an
+#: omission (the container readers decode those bytes through
+#: ``io.formats.base.decode``, which reads the member's own byte-order mark).
+#: The match is on the receiver's source text, so it is a name list and will go
+#: stale; it goes stale in the safe direction, since a new non-file ``.open``
+#: fails this test until someone adds the row — and the ``zip`` entry is why a
+#: reader names its archive handle ``zip_*``.
+_NOT_FILE_IO = ("webbrowser", "urllib", "request", "Project", "zip")
 
 
 def _python_files() -> list[Path]:
