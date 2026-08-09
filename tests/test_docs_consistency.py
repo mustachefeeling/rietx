@@ -68,7 +68,10 @@ SIZE_CAPS: dict[str, int | None] = {
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,
-    "src/pxrdref/indexing/CLAUDE.md": 250,
+    # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
+    # (which layer may apply a cap, and that agreement outranks the panel) —
+    # both measured, and every number behind them is in the v1.0 appendix
+    "src/pxrdref/indexing/CLAUDE.md": 280,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
     "src/pxrdref/io/CLAUDE.md": 250,

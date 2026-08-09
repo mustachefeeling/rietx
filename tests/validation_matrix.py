@@ -1361,10 +1361,11 @@ CLAIMS: tuple[Claim, ...] = (
     ),
     Claim(
         "test_acceptance_indexing",
-        "test_the_cross_code_cell_is_found_but_not_ranked_first",
+        "test_the_cross_code_cell_leads_because_the_engines_agree_on_it",
         "fap", ("cross_code", "characterisation"),
-        "the cross-code cell is reachable and both engines agree on it, the "
-        "ranking does not lead with it, and the gate declines the leader",
+        "the cross-code cell is reachable, every engine agrees on it, it leads "
+        "the ranking because of that agreement and not because the panel "
+        "prefers it, and the gate declines it anyway",
         reference="GSAS's own converged FAP.EXP cell for this exact pattern.  "
                   "The band is 500 ppm, NOT the refinement suite's +-300: an "
                   "indexed cell has no displacement parameter and absorbs the "
@@ -1373,11 +1374,14 @@ CLAIMS: tuple[Claim, ...] = (
                   "REFUSAL rather than rank, because writing it as 'rank 0 is "
                   "the answer' would mean tuning the panel on a dataset whose "
                   "reference is another code's fit",
-        measured="a +232 ppm, c +363 ppm, found by BOTH engines, 181 of 185 "
-                 "lines.  Ranked below a cell 1218 ppm out that indexes 167 and "
-                 "scores a higher M20.  best_or_none() None and nothing reaches "
-                 "high -- the promise kept while the ranking is wrong, which is "
-                 "the case the promise exists for",
+        measured="a +258 ppm, c +325 ppm, found by EVERY engine, 178 of 185 "
+                 "lines.  Ranked FOURTH until WP-1046, below three cells "
+                 "966-1396 ppm out that index 152 and score a higher M20; it "
+                 "leads since, because those three are one engine's and "
+                 "corroboration is the ranking's first key.  The panel was NOT "
+                 "touched and still prefers a wrong cell -- the row now pins "
+                 "that directly.  best_or_none() None and nothing reaches high, "
+                 "which is the half that did not move",
     ),
     Claim(
         "test_acceptance_indexing",

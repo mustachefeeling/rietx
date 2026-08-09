@@ -76,14 +76,18 @@ that found nothing resembling the answer are distinguishable in the artifact
 rather than identical in the table.
 
 And one knob exists because the first graded run needed it.  ``--max-candidates``
-overrides ``SearchSpec.max_candidates``, the **per-engine** cap applied before
-consensus ranks.  Measured on set F in manual mode: at a 30 s budget both engines
-find the published lattice and the consensus panel puts it **3rd**, but at the
-package default of 12 it is absent from the result entirely — each engine's own
-Borda over its own larger harvest drops it below twelfth, and consensus never
-sees it.  The graded run uses the package defaults, because the paper's default
-mode *is* "the programs' default values"; the override is how the score's
-sensitivity to that cap is measured rather than argued.
+overrides ``SearchSpec.max_candidates``, which since WP-1046 is the **reported**
+cap consensus applies after the merge — each (engine × system) unit hands it
+``ENGINE_POOL_MULTIPLE`` times as many.  Before that it was applied per unit too,
+and there it *was* the ranking: measured on set F in manual mode at a 30 s
+budget, both engines find the published lattice and the consensus panel puts it
+3rd, but at the package default of 12 it was absent from the result entirely,
+because each unit's own Borda over its own larger harvest dropped it below
+twelfth and consensus never saw it.  That is what made the score non-monotonic in
+the search budget — rank 1 at 5 s, gone at 30 s.  The graded run uses the package
+defaults, because the paper's default mode *is* "the programs' default values";
+the override is how the score's sensitivity to that cap is measured rather than
+argued.
 """
 
 from __future__ import annotations
@@ -453,10 +457,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="budget_seconds per (engine x system); default is the "
                         "package's own DEFAULT_BUDGET_SECONDS")
     p.add_argument("--max-candidates", type=int, default=None,
-                   help="override SearchSpec.max_candidates, the PER-ENGINE cap "
-                        "applied before consensus ranks; the package default of "
-                        "12 discards candidates the consensus panel then rates "
-                        "highly (WP-1026, set F)")
+                   help="override SearchSpec.max_candidates, the REPORTED cap "
+                        "consensus applies after the merge (each unit hands it "
+                        "ENGINE_POOL_MULTIPLE times as many); the knob exists "
+                        "because until WP-1046 this number was applied per unit "
+                        "as well, where it decided the ranking (WP-1026, set F)")
     p.add_argument("--append", action="store_true",
                    help="seed from the runs already in --out and skip them; the "
                         "protocol's two modes cost very differently and are "

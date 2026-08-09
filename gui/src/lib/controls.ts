@@ -153,8 +153,10 @@ export const SEARCH_FIELDS: ControlField[] = [
   },
   {
     name: "max_candidates", kind: "int", label: "max candidates",
-    title: "candidates an engine returns per system after dedup — a cap, "
-      + "not a ranking",
+    title: "how many candidates the reported list holds, after the engines "
+      + "are merged and ranked — and what prices validation, since each "
+      + "reported candidate costs a Le Bail fit. Each engine hands the merge "
+      + "five times this many, so the cap never decides a rank",
   },
   {
     name: "seed", kind: "int", label: "seed",
