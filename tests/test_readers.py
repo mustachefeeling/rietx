@@ -144,6 +144,30 @@ def test_every_registered_reader_passes_through_the_same_policy():
         assert "diagnostics" in body
 
 
+def test_the_axis_policy_is_one_function_and_one_code():
+    """The same rule for the *other* thing four readers now decide.
+
+    Factored at the fourth consumer, which is where ``io/CLAUDE.md`` said the
+    trigger was: the three-way verdict (read / refuse / assume-and-say-so) is
+    ``base.check_axis`` and the code is ``PATTERN_X_AXIS_ASSUMED``.  What is
+    deliberately *not* shared is the classifying — four formats state their axis
+    in four shapes — so this asserts the policy, not the vocabularies.
+    """
+    import inspect
+    import re
+
+    from pxrdref.io.formats import base, chi, ras, uxd
+
+    emits = re.compile(r'code\s*=\s*"[A-Z_]*X_AXIS_ASSUMED"')
+    for module in (chi, ras, uxd):
+        body = inspect.getsource(module)
+        assert "check_axis(" in body, f"{module.__name__} decides an axis alone"
+        assert not emits.search(body), (
+            f"{module.__name__} spells its own axis code; there is one, and it "
+            "lives in base.check_axis")
+    assert inspect.getsource(base).count('code="PATTERN_X_AXIS_ASSUMED"') == 1
+
+
 # ------------------------------------------------------------- reader options
 def test_an_option_this_format_does_not_take_is_dropped_but_reported(tmp_path):
     """A UI carries a value across a change of file and that is normal; an API
@@ -261,7 +285,7 @@ def test_an_unrecognisable_axis_is_read_as_two_theta_and_says_so(tmp_path):
     notes: list = []
     data = pr.read_pattern(p, diagnostics=notes)
 
-    assert [d.code for d in notes] == ["CHI_X_AXIS_ASSUMED"]
+    assert [d.code for d in notes] == ["PATTERN_X_AXIS_ASSUMED"]
     assert "'Angle'" in notes[0].message
     assert data.metadata["x_label"] == "Angle"   # verbatim, never normalised
 
@@ -578,7 +602,8 @@ def test_an_unrecognised_axis_is_read_as_two_theta_and_says_so(tmp_path):
     data = pr.read_pattern(p, diagnostics=notes)
 
     assert len(data.two_theta) == 4
-    assert [d.code for d in notes if d.code == "RAS_X_AXIS_ASSUMED"]
+    assert [d.code for d in notes if d.code == "PATTERN_X_AXIS_ASSUMED"]
+    assert "*MEAS_SCAN_AXIS_X" in notes[0].message
 
 
 def test_a_scan_is_selected_never_concatenated(tmp_path):
@@ -758,7 +783,7 @@ def test_the_drive_decides_the_axis_because_the_marker_name_lies(tmp_path):
     with pytest.raises(ValueError) as refusal:
         pr.read_pattern(rocking)
     assert "rock.uxd" in str(refusal.value) and "rocking curve" in str(refusal.value)
-    assert "whatever the block marker is called" in str(refusal.value)
+    assert "_2THETACOUNTS" in str(refusal.value)     # the trap, named in the refusal
 
 
 def test_a_detector_scan_reads_because_two_theta_is_what_it_steps(tmp_path):

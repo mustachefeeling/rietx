@@ -22,7 +22,8 @@ or on d, and the file says which only in prose that no one standardised.
 Reading a q axis as 2θ produces a confident wrong cell from values that parse
 perfectly, so a recognisably non-2θ axis is **refused** rather than converted:
 the conversion needs a wavelength this reader has not been given, and inventing
-one is the failure this package exists to avoid.
+one is the failure this package exists to avoid.  The label patterns below are
+this format's share of that; :func:`base.check_axis` decides.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ import numpy as np
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, ascending, head, pattern_data
+from .base import PatternFormat, ascending, check_axis, head, pattern_data
 
 #: Labels that are recognisably 2θ.  Checked first, because "2-Theta Angle
 #: (Degrees)" must not be read as a d axis by the ``d`` in "Degrees".
@@ -59,24 +60,15 @@ def read_chi(path: str | Path, *,
                          f"one point; this file has {len(lines)} line(s)")
 
     x_label = lines[1].strip()
-    for label, what in _OTHER_AXES:
-        if label.search(x_label) and not _TWO_THETA.search(x_label):
-            raise ValueError(
-                f"{p.name}: the x axis is labelled {x_label!r}, which is {what} "
-                "and not 2θ. Converting it needs the wavelength it was "
-                "integrated at, which this file does not carry — and reading it "
-                "as 2θ would give a cell that is confidently wrong from values "
-                "that parse perfectly. Re-integrate on 2θ, or convert the axis "
-                "yourself and write a two-column file")
-    if not _TWO_THETA.search(x_label) and diagnostics is not None:
-        diagnostics.append(Diagnostic(
-            level="warning", code="CHI_X_AXIS_ASSUMED",
-            message=(f"{p.name} labels its x axis {x_label!r}, which names no "
-                     "axis this reader recognises; it was read as 2θ in degrees"),
-            where=["two_theta"],
-            suggestion=("check the integration that wrote it — a q or d axis "
-                        "read as 2θ gives a cell that is wrong by a factor, not "
-                        "by a tolerance")))
+    is_two_theta = bool(_TWO_THETA.search(x_label))
+    other = next((what for label, what in _OTHER_AXES if label.search(x_label)), None)
+    check_axis(x_label, path=p, field="the x-axis label on line 2",
+               two_theta=is_two_theta, other=None if is_two_theta else other,
+               remedy=("Converting it needs the wavelength it was integrated at, "
+                       "which this file does not carry — so re-integrate on 2θ, "
+                       "or convert the axis yourself and write a two-column "
+                       "file."),
+               diagnostics=diagnostics)
 
     rows = []
     for line in lines[4:]:
@@ -99,7 +91,7 @@ def read_chi(path: str | Path, *,
     tt, y, sig = ascending(arr[:, 0], arr[:, 1], sigma, path=p, fmt=CHI,
                            diagnostics=diagnostics)
     # the x label verbatim, never normalised: it is the only record of what the
-    # integration actually produced, and CHI_X_AXIS_ASSUMED points at it
+    # integration actually produced, and PATTERN_X_AXIS_ASSUMED points at it
     return pattern_data(p, tt, y, sig, source_file=p.name, format="chi",
                         x_label=x_label, title=lines[0].strip())
 

@@ -25,10 +25,9 @@ measuring the file rather than by quoting a convention.
 
 **The x axis is not always 2θ.**  ``*MEAS_SCAN_AXIS_X`` names the goniometer
 axis, and an ω rocking curve — a real, common export — parses perfectly as a
-pattern and refines to a confidently wrong cell.  Same three-way policy as the
-``.chi`` axis label one module over: recognisably 2θ reads, recognisably
-something else is refused by name, anything unrecognised reads with a
-diagnostic saying it was assumed.
+pattern and refines to a confidently wrong cell.  The vocabulary below
+classifies it; :func:`base.check_axis` holds the three-way policy every format
+that states an axis shares.
 
 **The declared intensity unit is a claim, not a measurement.**  Both
 ``*MEAS_SCAN_UNIT_Y "counts"`` and ``"cps"`` occur, and the header can simply
@@ -67,6 +66,7 @@ from .base import (
     PatternFormat,
     ScanInfo,
     ascending,
+    check_axis,
     head,
     multiscan_default,
     pattern_data,
@@ -261,28 +261,14 @@ def _attenuator(rows: np.ndarray, *, path: Path,
 
 def _axis(header: dict[str, str], *, path: Path,
           diagnostics: list[Diagnostic] | None) -> str | None:
-    """Refuse an axis that is recognisably not 2θ; report one that is unknown."""
+    """``*MEAS_SCAN_AXIS_X`` classified; :func:`base.check_axis` decides."""
     axis = header.get("MEAS_SCAN_AXIS_X", "").strip()
     key = axis.lower().replace(" ", "").replace("-", "").replace("_", "")
-    if key in _TWO_THETA_AXES:
-        return axis or None
-    if (what := _OTHER_AXES.get(key)) is not None:
-        raise ValueError(
-            f"{path.name}: the scanned axis is {axis!r}, which is {what} — not a "
-            "powder pattern in 2θ. Its points parse perfectly and would refine "
-            "to a cell that is confidently wrong, so it is refused rather than "
-            "read. Export the θ–2θ scan instead")
-    if diagnostics is not None:
-        named = f"names its scanned axis {axis!r}" if axis else "names no scanned axis"
-        diagnostics.append(Diagnostic(
-            level="warning", code="RAS_X_AXIS_ASSUMED",
-            message=(f"{path.name} {named}, which is not one this reader "
-                     "recognises; the x column was read as 2θ in degrees"),
-            where=["two_theta"],
-            suggestion=("check *MEAS_SCAN_AXIS_X in the file — an ω or χ scan "
-                        "read as 2θ gives a cell that is wrong by a geometry, "
-                        "not by a tolerance")))
-    return axis or None
+    return check_axis(axis, path=path, field="*MEAS_SCAN_AXIS_X",
+                      two_theta=key in _TWO_THETA_AXES,
+                      other=_OTHER_AXES.get(key),
+                      remedy="Export the θ–2θ scan instead.",
+                      diagnostics=diagnostics)
 
 
 def _label(header: dict[str, str], index: int, points: np.ndarray) -> str:

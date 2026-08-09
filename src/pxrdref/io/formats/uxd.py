@@ -36,9 +36,8 @@ every ``COUNTS`` block is integral to the last of 3774 points.
 first column is the position of whatever ``_DRIVE`` names — and a rocking curve
 (``_DRIVE='THETA'``) and a pole figure (``_DRIVE='PHI'``) are both stored under
 a marker called ``_2THETACOUNTS``.  Of the five real files read, **four** are
-not 2θ scans at all.  So ``_DRIVE`` is the authority and the same three-way
-policy as ``.chi`` and ``.ras`` applies: recognisably 2θ reads, recognisably
-something else is refused by name, unrecognised reads with a diagnostic.
+not 2θ scans at all.  So ``_DRIVE`` is the authority, classified against the
+vocabulary below and decided by :func:`base.check_axis`.
 
 **Ranges are scans, and this format is why the rule is not academic.**  One
 153-range file carries ``_STEPTIME`` of both 2 s and 20 s; concatenating its
@@ -60,6 +59,7 @@ from .base import (
     PatternFormat,
     ScanInfo,
     ascending,
+    check_axis,
     head,
     multiscan_default,
     pattern_data,
@@ -227,27 +227,13 @@ def _axis(header: dict[str, str], *, path: Path,
     """``_DRIVE`` decides, because the block marker's ``2THETA`` prefix lies."""
     drive = header.get("DRIVE", "").strip()
     key = drive.lower().replace(" ", "").replace("-", "").replace("_", "")
-    if key in _TWO_THETA_DRIVES:
-        return drive or None
-    if (what := _OTHER_DRIVES.get(key)) is not None:
-        raise ValueError(
-            f"{path.name}: _DRIVE={drive!r} makes this {what}, not a powder "
-            "pattern in 2θ — whatever the block marker is called. Its points "
-            "parse perfectly and would refine to a cell that is confidently "
-            "wrong, so it is refused rather than read")
-    if diagnostics is not None:
-        named = f"gives _DRIVE={drive!r}" if drive else "names no _DRIVE"
-        diagnostics.append(Diagnostic(
-            level="warning", code="UXD_X_AXIS_ASSUMED",
-            message=(f"{path.name} {named}, which is not an axis this reader "
-                     "recognises; the stepped positions were read as 2θ in "
-                     "degrees. The block marker is not evidence either — a "
-                     "rocking curve is stored under _2THETACOUNTS too"),
-            where=["two_theta"],
-            suggestion=("check _DRIVE for this range — a φ or θ scan read as 2θ "
-                        "gives a cell that is wrong by a geometry, not by a "
-                        "tolerance")))
-    return drive or None
+    return check_axis(drive, path=path, field="_DRIVE",
+                      two_theta=key in _TWO_THETA_DRIVES,
+                      other=_OTHER_DRIVES.get(key),
+                      remedy="Export the coupled θ–2θ range instead.",
+                      note=(" The block marker is not evidence either — a "
+                            "rocking curve is stored under _2THETACOUNTS too."),
+                      diagnostics=diagnostics)
 
 
 def read_uxd(path: str | Path, *, scan: int | None = None,

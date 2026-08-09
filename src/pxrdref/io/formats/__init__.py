@@ -29,6 +29,7 @@ from .base import (
     ReaderOption,
     ScanInfo,
     ascending,
+    check_axis,
     head,
     looks_binary,
     metadata,
@@ -36,6 +37,7 @@ from .base import (
     pattern_data,
     reader_options_for,
     sigma_from_cps,
+    sigma_from_scaled,
 )
 from .chi import CHI, read_chi
 from .dif import DIF, read_dif
@@ -61,6 +63,7 @@ __all__ = [
     "ReaderOption",
     "ScanInfo",
     "ascending",
+    "check_axis",
     "head",
     "looks_binary",
     "metadata",
@@ -75,4 +78,5 @@ __all__ = [
     "read_xy",
     "reader_options_for",
     "sigma_from_cps",
+    "sigma_from_scaled",
 ]

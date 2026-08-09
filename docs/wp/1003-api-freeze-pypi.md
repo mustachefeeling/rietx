@@ -44,13 +44,12 @@ decision the freeze should make rather than inherit:
    contract-versions section mentions one in passing. A meta-test holds
    `fmt.scans is not None ⟺ "scan" in fmt.options`, so the field would be a
    second authority for one fact. Smaller surface; confirm rather than add.
-6. **Three formats now spell the same diagnostic three ways** —
-   `CHI_X_AXIS_ASSUMED`, `RAS_X_AXIS_ASSUMED`, `UXD_X_AXIS_ASSUMED`, one policy
-   with three per-format inputs (a prose label, a header key, a drive name).
-   Left unfactored deliberately at three. `code` is an open vocabulary by
-   design, so this is not a compatibility problem — but if they are ever to
-   become one code, **before the freeze is the moment**, because a consumer
-   matching on the names is what the freeze makes expensive to change.
+6. ~~Three formats spell the same diagnostic three ways.~~ **Settled in
+   WP-1047 at the fourth consumer** (`.xrdml`), which is where its own rule
+   said to factor: the policy is `io.formats.base.check_axis()`, the code is
+   **`PATTERN_X_AXIS_ASSUMED`**, and the classifying stays per format because
+   the four inputs are four shapes. Nothing left to decide — confirm the one
+   code in the freeze's vocabulary and that no `*_X_AXIS_ASSUMED` survives.
 7. **`DataRef.has_sigma` now covers a *derived* σ.** A `.ras` exported in cps
    gets σ = √(y·t)/t from the file's own counting time, so `has_sigma` is true
    and every surface says "σ from file"; the same scan exported in counts gets

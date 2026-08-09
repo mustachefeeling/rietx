@@ -382,6 +382,54 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
     return tt, y, sig
 
 
+def check_axis(stated: str, *, path: str | Path, field: str, two_theta: bool,
+               other: str | None = None, remedy: str = "", note: str = "",
+               diagnostics: list[Diagnostic] | None = None) -> str | None:
+    """The three-way scanned-axis policy, in the one place it now lives.
+
+    Most vendor files are **not powder scans** — four of the five real ``.uxd``
+    files obtained are pole figures or rocking curves — and a non-2θ scan parses
+    perfectly and refines to a confidently wrong cell.  So every format that
+    states its axis answers the same three ways: a recognisable 2θ reads
+    silently, a recognisable something-else is **refused by name**, and an
+    unrecognisable one is read as 2θ **and says so**.
+
+    What is *not* factored is the recognising.  The four formats state their axis
+    in inputs of different shapes — a prose label, a quoted header value, a drive
+    name, an XML attribute — so each classifies for itself and passes the verdict
+    in as ``two_theta`` / ``other``.  That split is the point: the policy is one
+    rule and the vocabularies are four, and mixing them would make adding a
+    fifth format an edit to a shared table it does not belong in.
+
+    ``other`` is what the axis *is* ("a rocking curve about ω…"), so the refusal
+    says what the file holds rather than only what it lacks; ``remedy`` closes it
+    with what to export instead; ``note`` is a format-specific sentence carried
+    into **both** messages, because a trap worth naming when the axis is refused
+    is worth naming when it is merely assumed — ``.uxd``'s block marker being the
+    example that earned it.  Returns the axis as stated, for the metadata.
+    """
+    name = Path(path).name
+    if two_theta:
+        return stated or None
+    if other is not None:
+        raise ValueError(
+            f"{name}: {field} is {stated!r}, which is {other} — not a powder "
+            "pattern in 2θ. Its points parse perfectly and would refine to a "
+            f"cell that is confidently wrong, so it is refused rather than "
+            f"read.{note}{' ' + remedy if remedy else ''}")
+    if diagnostics is not None:
+        says = f"gives {field} = {stated!r}" if stated else f"states no {field}"
+        diagnostics.append(Diagnostic(
+            level="warning", code="PATTERN_X_AXIS_ASSUMED",
+            message=(f"{name} {says}, which is not an axis this reader "
+                     f"recognises; the x column was read as 2θ in degrees.{note}"),
+            where=["two_theta"],
+            suggestion=(f"check {field} in the file — an axis that is not 2θ, "
+                        "read as 2θ, gives a cell that is wrong by a geometry or "
+                        "a factor, not by a tolerance")))
+    return stated or None
+
+
 def pattern_data(path: str | Path, two_theta: Any, intensity: Any,
             sigma: Any = None, **meta: object) -> PatternData:
     """The :class:`PatternData` a reader returns — schema refusals included.
@@ -413,21 +461,39 @@ def pattern_data(path: str | Path, two_theta: Any, intensity: Any,
                          f"pattern: {why}") from None
 
 
-def sigma_from_cps(intensity: Any, count_time_s: float) -> np.ndarray:
-    """σ for a rate, derived from the counts it was a rate *of*.
+def sigma_from_scaled(intensity: Any, scale: Any) -> np.ndarray:
+    """σ for a Poisson count that has been multiplied by a **known** factor.
 
-    The Weights invariant says the Poisson fallback is √max(y, 1) — which is
-    right for raw counts and wrong by exactly √t for anything already divided by
-    a counting time.  So the derivation goes back through the division: the
-    counted quantity is ``y·t``, its Poisson σ is √max(y·t, 1), and the rate's σ
-    is that over ``t``.  Written this way rather than as √(y/t) so that a channel
+    The Weights invariant's Poisson fallback √max(y, 1) is right for raw detector
+    counts and wrong for anything scaled since — by √t for a rate, by √a for a
+    point measured behind an attenuator of factor ``a``.  Both are the same
+    arithmetic: where ``y = counts · s`` with ``s`` known, the counted quantity is
+    ``y/s``, its Poisson σ is √max(y/s, 1), and the stored quantity's σ is that
+    times ``s``.
+
+    ``scale`` may be per point, because the attenuator case is: a PANalytical
+    beam attenuator engages on a single saturating point and leaves the rest of
+    the scan at 1.  Written through the counts rather than as √(y·s) so a channel
     that counted **zero** gets the same floor a counts channel gets instead of a
     zero σ and an infinite weight.
     """
     y = np.asarray(intensity, dtype=np.float64)
+    s = np.asarray(scale, dtype=np.float64)
+    if not np.all(s > 0):
+        raise ValueError(f"an intensity scale must be positive, got {scale!r}")
+    return np.sqrt(np.maximum(y / s, 1.0)) * s
+
+
+def sigma_from_cps(intensity: Any, count_time_s: float) -> np.ndarray:
+    """σ for a rate, derived from the counts it was a rate *of*.
+
+    The rate is the counted quantity scaled by ``1/t``, so this is
+    :func:`sigma_from_scaled` at that scale and the general function holds the
+    floor convention for both.
+    """
     if not count_time_s > 0:
         raise ValueError(f"a counting time must be positive, got {count_time_s}")
-    return np.sqrt(np.maximum(y * count_time_s, 1.0)) / count_time_s
+    return sigma_from_scaled(intensity, 1.0 / count_time_s)
 
 
 def looks_binary(h: Head) -> bool:

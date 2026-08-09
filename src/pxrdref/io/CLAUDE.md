@@ -124,12 +124,17 @@ three formats that state an axis use the same three-way policy:
 - recognisably 2θ → read, silently;
 - recognisably something else → **raise**, naming what the file actually holds
   (a q or d axis, a rocking curve, a pole-figure ring);
-- unrecognisable → read as 2θ **and say so** (`CHI_`/`RAS_`/`UXD_X_AXIS_ASSUMED`).
+- unrecognisable → read as 2θ **and say so** (`PATTERN_X_AXIS_ASSUMED`).
 
-The authority differs per format and is always the field that *means* the axis:
-`.chi`'s line-2 label, `.ras`'s `*MEAS_SCAN_AXIS_X`, `.uxd`'s `_DRIVE`. Three
-implementations of one policy is deliberate for now — the inputs are different
-shapes — but a fourth is the point at which to factor it.
+The policy is `base.check_axis()` and the **classifying is not part of it**: the
+authority differs per format and is always the field that *means* the axis —
+`.chi`'s line-2 label, `.ras`'s `*MEAS_SCAN_AXIS_X`, `.uxd`'s `_DRIVE`,
+`.xrdml`'s `scan/@scanAxis` — and those are inputs of four different shapes. So
+each format classifies for itself and passes the verdict in; a fifth format adds
+a vocabulary, never a row to a shared table. One code rather than four because
+the operator's answer is identical in every case, and four near-duplicate rows
+in `AGENT_PROTOCOL.md` was the smell (factored WP-1047 at the fourth consumer,
+which is where the previous session said the trigger was).
 
 ## Metadata
 
