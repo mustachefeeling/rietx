@@ -42,23 +42,41 @@ class SeriesEntry(Base):
     qpa: QuantitativePhaseAnalysis | None = None
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
-    #: Total least-squares iterations over every stage of this pattern's fit.
-    #: The headline warm-start number: it is what a warm start actually buys,
-    #: and it is measured rather than assumed (see WP-0505's acceptance).
+    #: Total least-squares iterations over **every attempt** on this pattern,
+    #: every rung of the escalation ladder included.  The headline warm-start
+    #: number: it is what a warm start actually buys, and it is measured rather
+    #: than assumed (see WP-0505's acceptance).
     n_iterations: int = 0
     #: True when the warm start was rejected and this pattern was refitted from
-    #: the initial models (see ``SEQUENTIAL_RESEED``).  A reseeded point is
+    #: the initial models (see ``SEQUENTIAL_RESEED``) — equivalently, when the
+    #: ladder ran and ``rung`` came back ``"cold"``.  A reseeded point is
     #: still a good fit — but it is *not* evidence that the trajectory is
     #: continuous there, because its starting point did not come from its
-    #: neighbour.
+    #: neighbour.  The middle rung does **not** set it: ``"warm_staged"`` is
+    #: still a warm start, so the chain is unbroken there.
     reseeded: bool = False
-    #: Rwp the warm-started fit reached, set whenever a cold restart was tried
-    #: at all.  With ``reseeded`` it says which of the two was kept: both set
-    #: means the restart rescued the pattern, ``rwp_warm`` alone means the
-    #: guard fired but the warm fit was still the better one — worth seeing,
-    #: since it marks a pattern the series found hard for a reason the restart
-    #: could not fix.
+    #: Rwp the **first** (warm) attempt reached, set whenever the ladder
+    #: escalated at all.  With ``reseeded`` it says how the escalation ended:
+    #: both set means a cold restart rescued the pattern, ``rwp_warm`` alone
+    #: means the fence fired but a warm attempt was still the best of the
+    #: ones tried — worth seeing, since it marks a pattern the series found
+    #: hard for a reason no restart could fix.
     rwp_warm: float | None = None
+    #: Which attempt produced the values on this entry (WP-1051).  The chain
+    #: escalates only on failure: ``"warm"`` is the collapsed warm refit
+    #: (``refit="single"``'s first rung), ``"warm_staged"`` the full staged plan
+    #: from the warm state, ``"cold"`` the full staged plan from the initial
+    #: models.  The **first** pattern of a chain is always ``"cold"`` — it has
+    #: no predecessor to warm from — which is why this field says where the
+    #: numbers came from while ``reseeded`` says whether the chain was *broken*
+    #: here; those are different questions and only the second one has a fence.
+    rung: Literal["warm", "warm_staged", "cold"] = "warm"
+    #: Every rung attempted on this pattern, in ladder order: one entry for a
+    #: pattern that fitted first time, up to three when the ladder ran to the
+    #: end.  It is what makes the escalation auditable — ``rung`` alone cannot
+    #: say whether the winning attempt was the only one, and the cost in
+    #: ``n_iterations`` is the sum over exactly these.
+    rungs_tried: list[str] = Field(default_factory=list)
 
     #: Where this pattern's own history lives (one tree per pattern — a tree is
     #: pinned to one pattern by its data fingerprint).
@@ -217,15 +235,19 @@ class SeriesResult(Base):
         """``(header, rows)``: one row per pattern, value + esd per parameter.
 
         The wide form is what gets plotted or pasted into a paper; the columns
-        are ``index, label, x, status, rwp, gof, <path>, <path>_esd, …``.
+        are ``index, label, x, status, rung, rwp, gof, <path>, <path>_esd, …``.
+        ``rung`` travels beside ``status`` because it is the other half of "how
+        much should I trust this point": a rescued point is a good fit whose
+        starting values did not come from its neighbour, and a table that hides
+        that reads as a continuous trajectory.
         """
         paths = self.paths() if paths is None else list(paths)
-        header = ["index", "label", self.x_label, "status", "rwp", "gof"]
+        header = ["index", "label", self.x_label, "status", "rung", "rwp", "gof"]
         for p in paths:
             header += [p, f"{p}_esd"]
         rows: list[list] = []
         for e, xv in zip(self.entries, self.x, strict=True):
-            row: list = [e.index, e.label, xv, e.status,
+            row: list = [e.index, e.label, xv, e.status, e.rung,
                          e.statistics.rwp if e.statistics else None,
                          e.statistics.gof if e.statistics else None]
             for p in paths:

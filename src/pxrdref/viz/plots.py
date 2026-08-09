@@ -190,6 +190,13 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     a discontinuity the series flagged is marked between its two points — the
     plot shows the same fences the diagnostics carry, so a trajectory is never
     read as smoother than it was measured to be.
+
+    A pattern the escalation ladder could not rescue (``SEQUENTIAL_UNRECOVERED``,
+    WP-1051) is crossed out instead of ringed, and that difference is the whole
+    point of drawing it: a ringed point is a **good fit** reached from a
+    different starting model, while a crossed one is a diverged fit whose value
+    is not a measurement at all.  It is still plotted, because a gap in a
+    trajectory reads as data that was never collected.
     """
     try:
         import matplotlib
@@ -209,6 +216,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
     unstable = {d.where[0] for d in series.diagnostics
                 if d.code == "SEQUENTIAL_PATH_DEPENDENT" and d.where}
     reseeded = {e.label for e in series.entries if e.reseeded}
+    unrecovered = {e.label for e in series.entries if e.status == "diverged"}
 
     fig, axes = plt.subplots(len(paths), 1, figsize=(8, 2.4 * len(paths)),
                              dpi=dpi, sharex=True, squeeze=False)
@@ -223,6 +231,9 @@ def plot_trajectory(series, paths, *, path: str | None = None,
                 if label in reseeded:
                     ax.plot(x[i], value[i], "o", ms=10, mfc="none",
                             mec="#c23b22", mew=1.2)
+                if label in unrecovered:
+                    ax.plot(x[i], value[i], "x", ms=11, color="#8b1a1a",
+                            mew=2.0)
             if name in jumps and len(x) > 1:
                 k = int(np.argmax(np.abs(np.diff(value))))
                 ax.axvspan(x[k], x[k + 1], color="#c23b22", alpha=0.10, lw=0)
