@@ -133,6 +133,16 @@ def test_every_reader_format_appears_in_dispatch_order(caps):
     # and it names the reader keyword a caller has to supply *and* record
     assert by_name["pdcif"].options == ["block"]
     assert by_name["xy"].options == []
+    # a binary format's sniff has to say what it *refuses* too, since two of the
+    # four Bruker RAW versions are recognised in order to be declined and a
+    # client choosing what to offer an upload dialog reads this arm (WP-1047)
+    assert "RAW4.00" in by_name["bruker_raw"].sniff
+    assert by_name["bruker_raw"].options == ["scan"]
+    assert PATTERN_FORMATS[0].name == "bruker_raw"       # magic bytes go first
+    # every reader that can hold several measurements offers the same keyword,
+    # which is what makes ``scan`` a vocabulary rather than one format's quirk
+    assert {r.name for r in caps.reader_formats if "scan" in r.options} == {
+        "bruker_raw", "rasx", "brml", "ras", "uxd", "xrdml"}
 
 
 def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):

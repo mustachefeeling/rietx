@@ -75,6 +75,31 @@ Point 6 is now settled (struck above). Two more for the vocabulary review:
    `scan`, but the *vocabulary* did not grow past the 1.1 bump task 8 made, so
    there is nothing further to record. Confirm and move on.
 
+**Updated 2026-08-09 (1047 closed — `.raw` v3/v4, the instrument hint, the scan
+picker).** Points 1-5 and 7-9 stand as written; three additions, and one is a
+*shape* the freeze has to decide on rather than confirm:
+
+10. **`suggest_instrument(metadata) -> dict | None` is a new public-ish
+    surface** (`gui.imports`), and its return value is a **preset spec**, the
+    same dict shape `instrument_from_preset` consumes — deliberately, so the
+    hint round-trips through the form without a second vocabulary. It is
+    reachable only through `POST /api/upload/pattern`'s `instrument_hint` field
+    today. Decide whether the freeze covers it as an importable function or only
+    as a wire field; if the former, `WAVELENGTH_RTOL` and the three-candidate
+    match become frozen behaviour.
+11. **`GET /api/upload/pattern/scans` is the first upload route that is not a
+    POST**, and the first read-only one. `UPLOAD_ROUTES` still maps only the
+    POSTs, so this lives in `ROUTES` beside the rest — worth confirming the
+    freeze's route inventory reflects that split rather than assuming the
+    `/api/upload/` prefix means one family.
+12. **`METADATA_KEYS["wavelength_alpha2"]` now carries a load-bearing zero.** A
+    recorded Kα2 of 0.0 means "the file says the doublet was not used" and
+    resolves to the `…Ka1` radiation; an *absent* key means the format records
+    nothing. Since `metadata()` drops `None` and stringifies `0.0`, the
+    distinction is present-vs-absent in a `dict[str, str]` — which works, and is
+    the kind of thing a freeze should either bless explicitly or replace with a
+    typed field.
+
 **From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
 *meaning* is in question, and freezing it would ratify a behaviour nobody
 intended.** `engines.DEFAULT_MAX_CANDIDATES = 12` is documented as "a cap, not a

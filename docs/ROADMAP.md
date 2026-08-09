@@ -61,47 +61,33 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**[1047](wp/1047-vendor-pattern-formats.md) — vendor pattern formats.** Tasks
-**1-12 of 17** landed; the tree is shippable between any two formats, and what
-is left is the Bruker binaries plus the wiring.
+**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** WP-1047 closed on
+2026-08-09 and was the last surface to land before it: the reader seam, its
+option vocabulary and the GUI's import wizard all changed shape, and every
+decision the freeze should *confirm rather than re-derive* is already written
+into 1003's `### Inherited` (twelve points, from `read_pattern`'s signature to
+the load-bearing zero in `wavelength_alpha2`). Read that section first.
 
-What exists now: `io/formats/`, one module per format, because a format's spec
-citation, parser, sniff/σ prose, options and **licence fence** are one fact each
-and ten fences in one file drift. `readers.py` is the front door only, so no call
-site moved. `read_pattern(path, *, diagnostics=None, **options)` against the
-`READER_OPTIONS` allowlist — a *typo* raises, an option this format does not take
-is dropped and reported — with `DataRef` recording the **effective** options.
-`base.ascending()` is the one place report-vs-contradiction meets 2θ order,
-`base.check_axis()` the one place it meets the scanned axis, and
-`base.pattern_data()` the last parser boundary, so a schema refusal names the
-file too. `xy` is not total. **Nine formats read** (`.ras`, `.rasx`, `.uxd`,
-`.xrdml`, `.brml`, pdCIF, GSAS, `.chi`, `.xy`) and `.dif` peak lists are refused.
+What the reader surface now is: **ten formats read** — Bruker `.raw` (v3/v4),
+`.brml`, `.uxd`; Rigaku `.ras`, `.rasx`; PANalytical `.xrdml`; pdCIF, GSAS,
+`.chi`, `.xy` — with `.dif` peak lists, Bruker RAW v1/v2, a rocking curve and a
+binary no format claims all refused **by name**. `readers.py` is a front door
+only; the parsers are one module each under `io/formats/`, whose rulebook
+(`src/pxrdref/io/CLAUDE.md`) loads with the subtree.
 
-**The reader lesson so far**: a vendor file's own declaration is evidence of
-*varying* quality, and which kind decides whether to believe it. A **free-text**
-unit is measured, not trusted — both Rigaku formats declare one and real files
-get it wrong; a **structural** one (`.uxd`'s block marker, `.xrdml`'s and
-`.brml`'s attribute on the data element) is trusted, and verified anyway. The
-scanned **axis** is never trusted in any format: most vendor files are not powder
-scans, so a non-2θ one is refused by name.
+**The lesson the ten formats taught**, in one line: a vendor file's own
+declaration is evidence of varying quality, and which *kind* it is decides
+whether to believe it — a **free-text** unit is measured (real Rigaku files get
+theirs wrong), a **structural** one is trusted and verified anyway, and where
+nothing settles it σ is **withheld** rather than faked. The scanned **axis** is
+trusted in no format, because most vendor files are not powder scans. And an
+attenuator's convention is **measured, never adopted**: five vendors, three
+answers, one structural test each time.
 
-**The attenuator is the sharpest case, because four vendors gave three answers.**
-The test is the same each time — find a file where the factor *varies*, then ask
-which of the raw series and the product runs continuously through the transition.
-`.xrdml` applies the factor, `.brml` leaves the values alone and puts it into σ
-only, and the two Rigaku formats report without deciding because no obtainable
-file has a varying column. σ goes through it either way, which is the case
-GSAS-II gets wrong.
-
-**Next**, in the WP's order: 13-14 Bruker `.raw` (binary — a different kind of
-work from the containers), 15-16 the instrument hint and scan picker, 17 the
-remaining docs. **Risk 3 is the one still to retire**: what "scrambled"
-scrambled in `TwoTheta_scan_scrambled.raw` decides whether `.raw`'s acceptance
-line may claim values or only structure, and it must be established *before*
-task 13. Risks 1 and 4 are retired — the readers-xrd fixtures convey (committed
-by its own maintainers to an Apache-2.0 repo; the unlicensed IKZ upstream holds
-no data at all), and `.brml`'s `RawDataView[@Start][@Length]` is present and
-namespace-resolved.
+**The freeze's own scope is unchanged** and its file states it. Two things worth
+carrying in: `docs/milestones/v1.0.md` § "How v1.0 is getting here" now holds
+1047's closing narrative, and the WP index below is the list of what else is
+still open.
 
 ## Milestones
 
@@ -248,7 +234,7 @@ monoclinic search finishes.
 |---|---|---|---|
 | [1028](wp/1028-robustness-external-data.md) | Robustness on data and CIFs we did not author | ✅ 2026-08-07 | — (1007 soft) |
 | [1036](wp/1036-crystal-system-settings.md) | Crystal-system cell ties: the settings the tables do not check | ✅ 2026-08-04 | — |
-| [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | 🔄 | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
+| [1047](wp/1047-vendor-pattern-formats.md) | Vendor pattern formats: read the files labs actually have | ✅ | 1005, 1007, 1014 (1009, 1028 soft) — before 1003 |
 
 **1028 came from outside.** Every item in it was hit by driving the package
 end-to-end over nine unfamiliar refinement targets from a third-party paper

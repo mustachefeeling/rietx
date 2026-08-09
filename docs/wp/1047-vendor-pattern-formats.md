@@ -1,14 +1,13 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-12 of 17: the whole
-seam (formats package, option vocabulary, diagnostics channel, xy de-totalised,
-truncation fuzz) plus `.chi`, the `.dif` refusal, and **five vendor formats** —
-Rigaku `.ras` (which brought `scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS`
-and the schema-as-a-parser-boundary fix), Bruker `.uxd`, PANalytical `.xrdml`,
-Rigaku `.rasx` and Bruker `.brml`. Left: the Bruker `.raw` binaries (13-14),
-the instrument hint and scan picker (15-16), the remaining docs (17).
-Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
-inherits the `DataRef` option-vocabulary note
+Milestone: v1.0 · Status: ✅ 2026-08-09 — all 17 tasks. The seam (formats
+package, option vocabulary, diagnostics channel, `xy` de-totalised, truncation
+fuzz), `.chi`, the `.dif` refusal, and **seven vendor formats** — Rigaku `.ras`
+and `.rasx`, Bruker `.uxd`, `.brml` and the binary `.raw` (v3/v4; **v1 and v2
+refused**, see task 14), PANalytical `.xrdml` — plus the instrument hint, the
+scan picker and the docs.
+Depends on: 1005, 1007, 1014 (1009, 1028 soft) — landed before 1003, whose
+`### Inherited` carries twelve points for the freeze
 
 ## Goal
 
@@ -475,12 +474,12 @@ that belong to it), never mid-format.
       confident-wrong read this WP exists to prevent — it is refused by name and
       version instead, and the `io/formats/` seam makes it a one-module
       follow-up if a real file ever appears.
-- [ ] 15. Instrument hint — `suggest_instrument` with the three-candidate λ
+- [x] 15. Instrument hint — `suggest_instrument` with the three-candidate λ
       match (Kα1 / Kα2 / weighted mean), preview payload, wizard pre-fill.
-- [ ] 16. Scan picker on the wire — `scans` in the preview (from the single
+- [x] 16. Scan picker on the wire — `scans` in the preview (from the single
       read's metadata), the control (already option-gated at
       `Model.svelte:670`), `DataRef.options["scan"]` round-trip.
-- [ ] 17. Docs — `ATTRIBUTION.md` (four permissive rows, xylib listed
+- [x] 17. Docs — `ATTRIBUTION.md` (four permissive rows, xylib listed
       *precisely to state it was not ported*, the GSAS-II grant-back
       reasoning, the `ikz.py` fence, and a new "Format specifications"
       subsection); `tests/data/README.md` rows; `capabilities` spot-checks;
