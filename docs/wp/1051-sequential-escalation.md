@@ -10,43 +10,6 @@ warm-staged → cold-staged), and a pattern that stays diverged after the last
 rung is quarantined: flagged, excluded from the reseed statistics, and never
 used to seed its successor.
 
-### Inherited
-
-**From [1016](1016-sequential-series-panel.md), 2026-08-05 — `sequential.py`
-moved under this WP's feet, and the line numbers in Context below are stale.**
-`SequentialRefinement.fit` now takes `events=`/`cancel=`, so `_chain` and
-`_fit_one` gained parameters and the ladder this WP builds has to thread them
-through every new rung. Five things follow.
-
-- **`_fit_one` takes `stream=`/`stamp=`/`cancel=` keyword-only**, and each attempt
-  wraps the caller's stream in `_SeriesStream`, which stamps `series_index`,
-  `series_label`, `series_n`, `series_pass` and — on the cold refit —
-  `series_cold=True`. A three-rung ladder means **three** attempts on one pattern,
-  so give each rung a distinguishing stamp field rather than reusing
-  `series_cold`: a consumer counting `fit_end`s per pattern needs to tell the
-  rungs apart, and the console renders the stamp as one `[label k/N ↩❄]` prefix
-  (`gui/src/lib/stream.ts`) that will need a rung glyph.
-- **Every stamp key is an *added* `data` field on an existing kind**, so
-  `EVENT_SCHEMA_VERSION` stays "2". A new rung must not tempt a new `EventKind` —
-  `history/events.py`'s additivity rule is what keeps the version usable as a
-  compatibility signal.
-- **`_chain` already has a mid-walk exit**: a `RefinementCancelled` from any
-  attempt breaks the loop, and a cancel during the *cold* refit deliberately keeps
-  the warm fit (it is a complete fit of that pattern). The ladder's keep-best
-  logic has to preserve that, and `SEQUENTIAL_CANCELLED` reports how far the chain
-  got. So this WP's `SEQUENTIAL_UNRECOVERED` will be the **second** warning-level
-  sequential fence, not the first.
-- **`REFIT_MODES` and `DIRECTIONS` are module constants** the GUI's series panel
-  quotes to build its menus, and `unique_labels` is split out of `_labels_for` for
-  the same reason. Adding a rung that changes what `refit=` accepts means editing
-  the tuple, not a literal — and the panel picks the new value up for free.
-- **A GUI panel now drives this chain** (`gui/series.py`, the Series tab), so a
-  new diagnostic appears in its "Fences" strip automatically, but a new *setting*
-  does not: `series_put`'s allow-list and `SeriesSetup` need the field. And its
-  trajectory view reads `SeriesEntry.reseeded`/`rwp_warm`, which a three-rung
-  ladder makes ambiguous — decide what those two mean when three attempts ran, or
-  the panel's "reseeded" chip will say something false.
-
 ## Context
 
 SrRietveld's automation result (Tian *et al.* 2013, §3): in a warm-started
@@ -61,14 +24,21 @@ keep the better by `_better`). Three gaps, found by reading the chain flow on
 - **No intermediate rung.** The ladder jumps from warm-collapsed straight to
   cold-staged, discarding the warm start entirely — yet warm + full
   `base_plan` is the cheap middle option (`refit="stages"` exists as a
-  series-global switch, so the machinery is already there; measured on the
-  IUCr ramp, staged-warm ≈ 904 iterations vs collapsed-warm 838 vs unchained
-  2863 — the docstrings at `sequential.py:129-131` quote it). Ladder:
-  warm-collapsed → warm-staged → cold-staged, each rung only on failure of
-  the previous, keep-best across all attempts.
+  series-global switch, so the machinery is already there). Measured on the
+  round-robin sample-1 series and quoted by the module's own docstrings:
+  warm-collapsed **838** iterations carrying everything (`_carry_into`) or
+  **904** carrying everything but the scales, warm-staged **1623**
+  (`_collapse`, and `fit`'s `plan, refit` entry), cold-staged-per-pattern
+  **2863**. So the middle rung is genuinely intermediate — ≈1.8× the first and
+  ≈0.57× the last. *(Corrected on arrival, 2026-08-09: this bullet used to read
+  the three numbers as "staged-warm ≈ 904 vs collapsed-warm 838". 904 is a
+  **carry** variant of the collapsed rung, not the staged one, and the
+  `sequential.py:129-131` anchor it cited is stale.)* Ladder: warm-collapsed →
+  warm-staged → cold-staged, each rung only on failure of the previous,
+  keep-best across all attempts.
 - **Chain hygiene defect.** A pattern whose cold refit *also* diverges still
   becomes `previous` for the next pattern and its Rwp still joins
-  `accepted_rwp` (`sequential.py:426-430`) — so a doubly-failed pattern seeds
+  `accepted_rwp` (`sequential.py:524-534`) — so a doubly-failed pattern seeds
   its successor with garbage and drags the reseed median that decides every
   later trigger. Fix: the successor seeds from the last *accepted* pattern;
   the failed entry is flagged with a new `SEQUENTIAL_UNRECOVERED` diagnostic
@@ -76,7 +46,7 @@ keep the better by `_better`). Three gaps, found by reading the chain flow on
   its Rwp is excluded from `accepted_rwp`.
 - **Trigger inventory is narrow and undocumented.** Only
   `status == "diverged"` or `rwp > reseed_factor × median(accepted_rwp)`
-  fire (`_reseed_needed`, `sequential.py:523-530`); guard firings
+  fire (`_reseed_needed`, `sequential.py:630-637`); guard firings
   (HIGH_CORRELATION, at-bounds…) and parameter jumps are inert as triggers.
   Decide and record — the likely answer is *keep* Rwp/divergence as the only
   automatic triggers (guards fire legitimately on converged patterns, and
@@ -87,9 +57,53 @@ Bookkeeping: `SeriesEntry` already carries `reseeded: bool` and `rwp_warm`;
 extend to say *which rung won* (e.g. `rung: Literal["warm", "warm_staged",
 "cold"]`, default `"warm"`) rather than a second boolean —
 `schemas/sequential.py:30-78`, and the schema mirror tests will pin it.
-`n_iterations` already sums all attempts (`sequential.py:414,420`); keep that
-contract. `plot_trajectory` rings reseeded points — an unrecovered point
-should render distinctly (or be documented as rendered-but-flagged).
+`n_iterations` already sums all attempts (`sequential.py:516,522`); keep that
+contract. `plot_trajectory` rings reseeded points (`viz/plots.py:211-223`, and
+`gui/src/lib/series.ts`'s `reseededFlags` does the same for the panel) — an
+unrecovered point should render distinctly (or be documented as
+rendered-but-flagged).
+
+### What WP-1016 left in the way
+
+Folded in from this WP's `### Inherited` on 2026-08-09 and **verified against
+the code at 4baf462** — all five still hold. `SequentialRefinement.fit` takes
+`events=`/`cancel=`, so `_chain` and `_fit_one` carry them and the ladder has to
+thread them through every new rung.
+
+- **`_fit_one` takes `stream=`/`stamp=`/`cancel=` keyword-only**
+  (`sequential.py:540-573`), and each attempt wraps the caller's stream in
+  `_SeriesStream`, which stamps `series_index`, `series_label`, `series_n`,
+  `series_pass` and — on the cold refit — `series_cold=True`. Three rungs means
+  **three** attempts on one pattern, so each rung needs a distinguishing stamp
+  rather than a reused `series_cold`: a consumer counting `fit_end`s per pattern
+  has to tell them apart. Two renderers read that stamp and both need the rung —
+  `gui/session.py:_series_stage_name` (the progress pill, which appends
+  "(cold restart)") and `gui/src/lib/stream.ts:seriesPrefix` (the console's
+  `[label k/N ↩❄]`, whose `SERIES_KEYS` set must list any new key or it prints
+  twice).
+- **Every stamp key is an *added* `data` field on an existing kind**, so
+  `EVENT_SCHEMA_VERSION` stays "2". A new rung must not tempt a new `EventKind` —
+  `history/events.py`'s additivity rule is what keeps the version usable as a
+  compatibility signal.
+- **`_chain` already has a mid-walk exit**: a `RefinementCancelled` from any
+  attempt breaks the loop, and a cancel during the *cold* refit deliberately
+  keeps the warm fit (it is a complete fit of that pattern —
+  `sequential.py:504-511`). The ladder's keep-best logic has to preserve that,
+  and `SEQUENTIAL_CANCELLED` reports how far the chain got. So
+  `SEQUENTIAL_UNRECOVERED` will be the **second** warning-level sequential
+  fence, not the first.
+- **`REFIT_MODES` and `DIRECTIONS` are module constants** (`sequential.py:124`)
+  that the GUI's series panel quotes to build its menus — via
+  `gui/series.py:check_settings`/`setup_payload`, pinned by
+  `tests/test_gui_server.py:2170`. Changing what `refit=` accepts means editing
+  the tuple, not a literal, and the panel picks the new value up for free.
+- **A GUI panel now drives this chain** (`gui/series.py`, the Series tab), so a
+  new diagnostic reaches its "Fences" strip automatically, but a new *setting*
+  does not: `series_put`'s allow-list and `SeriesSetup` need the field. And its
+  trajectory view reads `SeriesEntry.reseeded`/`rwp_warm`
+  (`gui/src/panels/Series.svelte:645`, whose chip quotes `rwp_warm` as the warm
+  Rwp) — which three attempts make ambiguous, so decide what those two mean
+  before the panel's chip says something false.
 
 ## Non-goals
 
@@ -104,12 +118,22 @@ should render distinctly (or be documented as rendered-but-flagged).
 ## Tasks
 
 - [ ] Ladder: insert the warm + `base_plan` rung in `_chain`'s reseed block;
-      keep-best via `_better` across all rungs; `SeriesEntry.rung`.
+      keep-best via `_better` across all rungs; `SeriesEntry.rung`. Preserve
+      the cancel-during-a-later-rung rule: the best complete attempt so far
+      stands, and the walk ends.
 - [ ] Hygiene: unrecovered pattern seeds nothing and joins no median;
       successor chains from last accepted; `SEQUENTIAL_UNRECOVERED`
       diagnostic (warning) with the rung history in `data`.
 - [ ] Trigger decision recorded in the module docstring (and, if the answer
       changes, implemented + tested).
+- [ ] Stamp: each rung distinguishable on the event stream (an added `data`
+      key, no new `EventKind`), with both renderers of the stamp updated —
+      `gui/session.py:_series_stage_name` and `stream.ts`'s
+      `seriesPrefix`/`SERIES_KEYS`.
+- [ ] Panel semantics: say what `reseeded`/`rwp_warm` mean once three attempts
+      can run, and make `Series.svelte`'s chip, `series.ts:reseededFlags` and
+      `viz/plots.py`'s rings agree with the answer; an unrecovered point
+      renders distinctly or is documented as rendered-but-flagged.
 - [ ] Tests, `tests/test_sequential.py` style (synthetic series, forced
       `reseed_factor=1.0`): ladder tries rungs in order and stops at first
       success; keep-best bookkeeping; an injected unrecoverable pattern (e.g.
