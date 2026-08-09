@@ -34,7 +34,7 @@ import numpy as np
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, ascending, head
+from .base import PatternFormat, ascending, head, pattern_data
 
 #: Labels that are recognisably 2θ.  Checked first, because "2-Theta Angle
 #: (Degrees)" must not be read as a d axis by the ``d`` in "Degrees".
@@ -59,8 +59,8 @@ def read_chi(path: str | Path, *,
                          f"one point; this file has {len(lines)} line(s)")
 
     x_label = lines[1].strip()
-    for pattern, what in _OTHER_AXES:
-        if pattern.search(x_label) and not _TWO_THETA.search(x_label):
+    for label, what in _OTHER_AXES:
+        if label.search(x_label) and not _TWO_THETA.search(x_label):
             raise ValueError(
                 f"{p.name}: the x axis is labelled {x_label!r}, which is {what} "
                 "and not 2θ. Converting it needs the wavelength it was "
@@ -98,14 +98,10 @@ def read_chi(path: str | Path, *,
     sigma = arr[:, 2] if n_cols >= 3 and np.any(arr[:, 2] > 0) else None
     tt, y, sig = ascending(arr[:, 0], arr[:, 1], sigma, path=p, fmt=CHI,
                            diagnostics=diagnostics)
-    return PatternData(
-        two_theta=tt.tolist(), intensity=y.tolist(),
-        sigma=None if sig is None else sig.tolist(),
-        # the label verbatim, never normalised: it is the only record of what
-        # the integration actually produced, and CHI_X_AXIS_ASSUMED points at it
-        metadata={"source_file": p.name, "format": "chi", "x_label": x_label,
-                  "title": lines[0].strip()},
-    )
+    # the x label verbatim, never normalised: it is the only record of what the
+    # integration actually produced, and CHI_X_AXIS_ASSUMED points at it
+    return pattern_data(p, tt, y, sig, source_file=p.name, format="chi",
+                        x_label=x_label, title=lines[0].strip())
 
 
 def _header_shape(h) -> list[str] | None:

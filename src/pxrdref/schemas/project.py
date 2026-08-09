@@ -33,7 +33,15 @@ from .plan import PlanSpec
 #: Bumped when a field's *meaning* changes, not when one is added.  ``open``
 #: refuses a newer major than it knows rather than letting pydantic's
 #: ``extra="forbid"`` report an unknown field, which is true but unhelpful.
-PROJECT_FORMAT_VERSION = "1"
+#:
+#: ``1.1`` (WP-1047): ``DataRef.options`` gained ``scan``, so the vocabulary a
+#: reader call is replayed from grew.  A **minor** bump because nothing already
+#: written means anything different — the major gate still opens every 1.x — and
+#: an honest one because an older build handed such a project cannot use the key
+#: at all.  It would in fact die earlier than the check, on ``read_pattern``'s
+#: old signature; that is not fixable retroactively, and recording that the
+#: vocabulary grew is the part that is.
+PROJECT_FORMAT_VERSION = "1.1"
 
 
 def check_interval(kind: str, lo: float, hi: float) -> None:

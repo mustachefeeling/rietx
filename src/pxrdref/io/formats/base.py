@@ -16,9 +16,33 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+from pydantic import ValidationError as PydanticValidationError
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
+
+
+@dataclass(frozen=True)
+class ScanInfo:
+    """One measurement inside a file that holds several, as a picker sees it.
+
+    Most vendor formats store a *session* rather than a pattern: a low-angle
+    scan and a high-angle one, a survey and a slow rescan of one peak, a series
+    of temperatures.  Which of them is "the pattern" is the caller's choice, and
+    a choice cannot be offered without saying what the alternatives are.
+
+    Deliberately not a ``PatternData``: enumerating is what happens *before* a
+    file is read, and materialising every scan to describe them would make
+    opening a picker cost what opening the file costs, several times over.
+    """
+
+    index: int
+    #: what the file itself calls this scan — its comment or sample name, else
+    #: its axis and range.  Never invented: a picker showing "Scan 1" for both
+    #: entries has told the user nothing they did not already know
+    label: str
+    n_points: int
+    two_theta_range: tuple[float, float]
 
 
 @dataclass(frozen=True)
@@ -49,6 +73,13 @@ class PatternFormat:
     matches: Callable[[Path], bool]
     read: Callable[..., PatternData]
     options: tuple[str, ...] = field(default_factory=tuple)
+    #: how to list the measurements this file holds, for a format that can hold
+    #: several — ``None`` for one that cannot.  Kept in **biconditional** with
+    #: ``"scan" in options`` by a meta-test: a format that lets a caller *choose*
+    #: a scan must be able to say what there is to choose between, and one that
+    #: cannot hold several has nothing to enumerate.  Two halves of one fact,
+    #: written twice only because one is a keyword and the other a parser.
+    scans: Callable[[Path], list[ScanInfo]] | None = None
     #: why this format is recognised **in order to be refused**, or ``None`` for
     #: one that reads.  One field rather than a side table, so ``capabilities()``
     #: stays honest without ``reader_formats`` meaning two things: an entry says
@@ -103,7 +134,60 @@ READER_OPTIONS: dict[str, ReaderOption] = {
         help="the data block to read, by substring match on its name — a pdCIF "
              "carrying both a _meas and a _calc block is a different pattern "
              "depending on it"),
+    "scan": ReaderOption(
+        name="scan", kind="int",
+        help="which measurement to read, counting from 0, in a file that holds "
+             "several — a vendor file commonly stores a whole session. The "
+             "scans are ranges of one experiment, never one pattern: they are "
+             "selected, never concatenated"),
 }
+
+
+#: Every key a reader may put in ``PatternData.metadata``, and what it holds.
+#:
+#: Data rather than convention because two consumers *match* on these keys —
+#: the import wizard's anode pre-selection, and a preview that shows how many
+#: scans a file holds — and neither can match on a name each reader spells for
+#: itself.  :func:`metadata` refuses an undeclared key, so a new one is a line
+#: here rather than a string that works until someone reads it.
+METADATA_KEYS: dict[str, str] = {
+    "source_file": "the file's own name, as opened",
+    "format": "the registered format that claimed it",
+    "block": "the pdCIF data block read, when the file held more than one",
+    "title": "the file's own title line, verbatim",
+    "sample": "the sample name the file records",
+    "x_label": "the x-axis label a file states in prose, verbatim and "
+               "un-normalised — the only record of what was actually written",
+    "scan_axis": "the goniometer axis scanned, as the file names it",
+    "scan": "which scan was read, counting from 0",
+    "scan_count": "how many scans the file holds. Carried from the single read "
+                  "so a preview never parses a 60 MB file twice",
+    "anode": "the X-ray target element the file names",
+    "wavelength": "the primary wavelength in Å, as the file states it — "
+                  "recorded, never used: the anode presets are the authority",
+    "wavelength_alpha2": "the Kα2 wavelength in Å, as the file states it",
+    "intensity_unit": "the intensity unit the file *declares*. A claim, not a "
+                      "measurement — see the σ note in the .ras reader",
+    "count_time_s": "seconds per step, where the file gives enough to derive it",
+}
+
+
+def metadata(**entries: object) -> dict[str, str]:
+    """A ``PatternData.metadata`` dict, refusing a key no reader declared.
+
+    Values are stringified here rather than at every call site because the field
+    is ``dict[str, str]`` and a reader naturally holds floats and ints; ``None``
+    is dropped, so a reader may pass a key it merely *might* have found.
+    """
+    out: dict[str, str] = {}
+    for key, value in entries.items():
+        if key not in METADATA_KEYS:
+            raise ValueError(f"undeclared pattern metadata key {key!r}; add it to "
+                             f"METADATA_KEYS with what it holds, or use one of "
+                             f"{sorted(METADATA_KEYS)}")
+        if value is not None:
+            out[key] = str(value)
+    return out
 
 
 def reader_options_for(fmt: PatternFormat, requested: dict[str, Any], *,
@@ -288,6 +372,54 @@ def ascending(two_theta: Any, intensity: Any, sigma: Any = None, *,
                 f"measurements and choosing between them is yours{extra}")
 
     return tt, y, sig
+
+
+def pattern_data(path: str | Path, two_theta: Any, intensity: Any,
+            sigma: Any = None, **meta: object) -> PatternData:
+    """The :class:`PatternData` a reader returns — schema refusals included.
+
+    Constructing the model is a **parser boundary like any other**, and the last
+    one every reader crosses.  ``PatternData``'s own validators are right to
+    refuse a one-point pattern, but they refuse it as a pydantic
+    ``ValidationError`` about a field, which reaches a caller as a wall of schema
+    prose that does not say which file was being opened.
+
+    That this is the reader's to convert was found the way these things usually
+    are: the truncation harness asserted every refusal names the file, and a
+    ``.XRA`` cut short enough to lose its ``BANK`` record passed the assertion
+    only because pydantic happened to *echo* the metadata dict — which contained
+    the filename — in its report.  Adding one more metadata key pushed the name
+    past the echo's truncation and the invariant failed, having never held.
+    """
+    try:
+        return PatternData(
+            two_theta=np.asarray(two_theta, dtype=np.float64).tolist(),
+            intensity=np.asarray(intensity, dtype=np.float64).tolist(),
+            sigma=None if sigma is None else np.asarray(sigma,
+                                                        dtype=np.float64).tolist(),
+            metadata=metadata(**meta))
+    except PydanticValidationError as exc:
+        why = "; ".join(str(e.get("msg", "")).removeprefix("Value error, ")
+                        for e in exc.errors())
+        raise ValueError(f"{Path(path).name} did not parse into a usable "
+                         f"pattern: {why}") from None
+
+
+def sigma_from_cps(intensity: Any, count_time_s: float) -> np.ndarray:
+    """σ for a rate, derived from the counts it was a rate *of*.
+
+    The Weights invariant says the Poisson fallback is √max(y, 1) — which is
+    right for raw counts and wrong by exactly √t for anything already divided by
+    a counting time.  So the derivation goes back through the division: the
+    counted quantity is ``y·t``, its Poisson σ is √max(y·t, 1), and the rate's σ
+    is that over ``t``.  Written this way rather than as √(y/t) so that a channel
+    that counted **zero** gets the same floor a counts channel gets instead of a
+    zero σ and an infinite weight.
+    """
+    y = np.asarray(intensity, dtype=np.float64)
+    if not count_time_s > 0:
+        raise ValueError(f"a counting time must be positive, got {count_time_s}")
+    return np.sqrt(np.maximum(y * count_time_s, 1.0)) / count_time_s
 
 
 def looks_binary(h: Head) -> bool:

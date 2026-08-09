@@ -14,7 +14,7 @@ import numpy as np
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, ascending
+from .base import PatternFormat, ascending, pattern_data
 
 #: pdCIF tag alternatives, in preference order
 _PDCIF_TT = ("_pd_proc_2theta_corrected", "_pd_meas_2theta_scan",
@@ -70,11 +70,8 @@ def read_pdcif(path: str | Path, *, block: str | None = None,
 
     tt, y, sigma = ascending(tt, y, sigma, path=p, fmt=PDCIF,
                              diagnostics=diagnostics)
-    return PatternData(
-        two_theta=tt.tolist(), intensity=y.tolist(),
-        sigma=None if sigma is None else sigma.tolist(),
-        metadata={"source_file": p.name, "format": "pdcif", "block": chosen.name},
-    )
+    return pattern_data(p, tt, y, sigma,
+                   source_file=p.name, format="pdcif", block=chosen.name)
 
 
 def _first_loop(b, tags: tuple[str, ...]) -> np.ndarray | None:

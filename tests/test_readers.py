@@ -20,12 +20,20 @@ formats "is this yours?" does not scale with the pattern.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import pxrdref as pr
-from pxrdref.io.formats import PATTERN_FORMATS, head, multiscan_default
+from pxrdref.io.formats import (
+    METADATA_KEYS,
+    PATTERN_FORMATS,
+    head,
+    metadata,
+    multiscan_default,
+)
 from pxrdref.io.formats.base import PatternFormat, ascending, reader_options_for
-from pxrdref.io.readers import identify_format
+from pxrdref.io.readers import identify_format, list_scans
 
 
 def write_xy(path, tt, y, sig=None):
@@ -128,9 +136,9 @@ def test_every_registered_reader_passes_through_the_same_policy():
     is the one that quietly sorts instead of refusing."""
     import inspect
 
-    from pxrdref.io.formats import gsas, pdcif, xy
+    from pxrdref.io.formats import chi, gsas, pdcif, ras, xy
 
-    for module in (gsas, pdcif, xy):
+    for module in (chi, gsas, pdcif, ras, xy):
         body = inspect.getsource(module)
         assert "ascending(" in body, f"{module.__name__} does not use ascending()"
         assert "diagnostics" in body
@@ -157,8 +165,9 @@ def test_an_option_no_format_takes_is_a_typo_and_raises(tmp_path):
 def test_none_means_unspecified_rather_than_a_value():
     """``read_pattern(p, block=None)`` still reads the first block that parses,
     which is what every caller threading an absent setting through relies on."""
-    assert reader_options_for(PATTERN_FORMATS[0], {"block": None}) == {}
-    assert reader_options_for(PATTERN_FORMATS[0], {"block": "_meas"}) == {"block": "_meas"}
+    pdcif = next(f for f in PATTERN_FORMATS if f.name == "pdcif")
+    assert reader_options_for(pdcif, {"block": None}) == {}
+    assert reader_options_for(pdcif, {"block": "_meas"}) == {"block": "_meas"}
 
 
 def test_an_int_option_arrives_as_an_int_however_it_was_stored():
@@ -443,3 +452,231 @@ def test_the_registry_order_is_the_dispatch_order():
     names = [f.name for f in PATTERN_FORMATS]
     assert names[-1] == "xy"
     assert len(set(names)) == len(names)
+
+
+# ---------------------------------------------------------------------- ras
+DATA = Path(__file__).parent / "data"
+
+
+def write_ras(path, rows, *, axis="TwoThetaTheta", unit_y="counts",
+              step=None, speed=None, speed_unit=None, comment=None, extra=()):
+    """One-scan ``.ras`` bytes.  Text format, so a writer module would buy the
+    round-trip nothing — the circularity the binary formats need it for is in
+    packing *offsets*, and there are none here."""
+    header = [f'*MEAS_SCAN_AXIS_X "{axis}"', f'*MEAS_SCAN_UNIT_Y "{unit_y}"']
+    for key, value in (("MEAS_SCAN_STEP", step), ("MEAS_SCAN_SPEED", speed),
+                       ("MEAS_SCAN_SPEED_UNIT", speed_unit),
+                       ("FILE_COMMENT", comment)):
+        if value is not None:
+            header.append(f'*{key} "{value}"')
+    header.extend(extra)
+    body = ["*RAS_INT_START"]
+    body += [" ".join(f"{v}" for v in row) for row in rows]
+    body.append("*RAS_INT_END")
+    lines = (["*RAS_DATA_START", "*RAS_HEADER_START", *header, "*RAS_HEADER_END"]
+             + body + ["*RAS_DATA_END"])
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def test_the_real_scan_reads_and_carries_the_anode_its_header_names(tmp_path):
+    """The fixture is a real SmartLab export (NIMS M-DaC_XRD, MIT), and what it
+    proves that a synthetic file cannot is that these header keys are spelled
+    the way an instrument actually spells them."""
+    data = pr.read_pattern(DATA / "rigaku_nims.ras")
+
+    assert identify_format(DATA / "rigaku_nims.ras").name == "ras"
+    assert len(data.two_theta) == 3501
+    assert (data.two_theta[0], data.two_theta[-1]) == (25.0, 60.0)
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.540593"
+    assert data.metadata["scan_count"] == "1"
+
+
+def test_whole_counts_get_the_poisson_fallback_rather_than_an_invented_sigma():
+    """``sigma is None`` is the *correct* answer here, not a missing one: the
+    fallback √max(y,1) is exactly right for a raw count, and the file's
+    intensities are integers to the last of 3501 points."""
+    data = pr.read_pattern(DATA / "rigaku_nims.ras")
+
+    assert data.sigma is None
+    assert all(float(v).is_integer() for v in data.intensity)
+    assert data.metadata["intensity_unit"] == "counts"      # and it agrees
+
+
+def test_a_rate_gets_a_sigma_derived_from_the_counts_it_was_a_rate_of(tmp_path):
+    """20 counts in 0.3 s is 66.6667 cps, and its σ is √20/0.3 — not √66.6667.
+    The counting time comes from the header's own step and speed."""
+    counts = [20, 31, 47, 53]
+    t = 0.3
+    p = write_ras(tmp_path / "rate.ras",
+                  [(10.0 + 0.03 * i, round(c / t, 4)) for i, c in enumerate(counts)],
+                  unit_y="cps", step=0.03, speed=6.0, speed_unit="deg/min")
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.metadata["count_time_s"] == "0.3"
+    assert data.sigma is not None
+    for got, n in zip(data.sigma, counts):
+        assert got == pytest.approx(n ** 0.5 / t, rel=1e-4)
+    assert "PATTERN_INTENSITY_SCALED" not in [d.code for d in notes]
+
+
+def test_the_speed_unit_is_read_because_deg_per_minute_is_not_deg_per_second(tmp_path):
+    """The same numbers with the unit changed are a different counting time by a
+    factor of 60, hence a σ wrong by √60. So the unit is read, and a header that
+    does not state one leaves the time *unknown* rather than assumed."""
+    rows = [(10.0 + 0.03 * i, round(c / 0.3, 4)) for i, c in enumerate([20, 31, 47, 53])]
+
+    per_second = pr.read_pattern(write_ras(tmp_path / "s.ras", rows, unit_y="cps",
+                                           step=0.03, speed=6.0, speed_unit="deg/sec"))
+    unstated = pr.read_pattern(write_ras(tmp_path / "u.ras", rows, unit_y="cps",
+                                         step=0.03, speed=6.0))
+
+    # 0.005 s per step makes y·t nowhere near whole, so nothing is established
+    assert per_second.sigma is None and unstated.sigma is None
+    assert "count_time_s" not in unstated.metadata
+
+
+def test_the_declared_intensity_unit_is_a_claim_and_does_not_decide_sigma(tmp_path):
+    """Measured on real files: ``rigaku-xrd-analysis``'s ``example.ras`` declares
+    counts and stores 84.3047, which no scale makes integral. Trusting the label
+    there would apply √y to a quantity that is not a count, so the label is
+    recorded and the arithmetic decides."""
+    p = write_ras(tmp_path / "lying.ras",
+                  [(10.0 + 0.004 * i, v) for i, v in
+                   enumerate([84.3047, 84.1685, 73.4107, 75.6654])],
+                  unit_y="counts", step=0.004, speed=2.0, speed_unit="deg/min")
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.sigma is None
+    assert data.metadata["intensity_unit"] == "counts"          # recorded verbatim
+    scaled = [d for d in notes if d.code == "PATTERN_INTENSITY_SCALED"]
+    assert len(scaled) == 1 and "wrong by √t" in scaled[0].message
+
+
+def test_a_rocking_curve_is_refused_rather_than_refined_as_a_pattern(tmp_path):
+    """An ω scan is a real, common export whose points parse perfectly. Reading
+    one as 2θ is the confident-wrong-cell class, so it is refused by name — the
+    ``.chi`` axis policy one module over, applied to a header key."""
+    p = write_ras(tmp_path / "rock.ras", [(15.55 + 0.004 * i, 84.0) for i in range(4)],
+                  axis="Omega")
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "rock.ras" in str(refusal.value) and "rocking curve" in str(refusal.value)
+
+
+def test_an_unrecognised_axis_is_read_as_two_theta_and_says_so(tmp_path):
+    p = write_ras(tmp_path / "odd.ras", [(10.0 + i, 5.0) for i in range(4)],
+                  axis="TwoThetaChi")
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert len(data.two_theta) == 4
+    assert [d.code for d in notes if d.code == "RAS_X_AXIS_ASSUMED"]
+
+
+def test_a_scan_is_selected_never_concatenated(tmp_path):
+    """Two passes generally differ in step and counting time, so merging them
+    puts two weighting regimes in one residual. ``scan=`` picks; nothing joins."""
+    path = DATA / "rigaku_multiscan.ras"
+
+    first = pr.read_pattern(path, scan=0)
+    second = pr.read_pattern(path, scan=1)
+
+    assert first.two_theta == [10.0, 10.5, 11.0]
+    assert second.two_theta == [20.0, 20.5, 21.0]
+    assert second.metadata["scan"] == "1"
+    assert second.metadata["scan_count"] == "2"
+
+
+def test_the_defaulted_scan_says_so_on_a_real_multi_scan_file():
+    notes: list = []
+    pr.read_pattern(DATA / "rigaku_multiscan.ras", diagnostics=notes)
+    chosen: list = []
+    pr.read_pattern(DATA / "rigaku_multiscan.ras", scan=1, diagnostics=chosen)
+
+    assert "PATTERN_MULTISCAN_DEFAULTED" in [d.code for d in notes]
+    assert "PATTERN_MULTISCAN_DEFAULTED" not in [d.code for d in chosen]
+
+
+def test_a_scan_the_file_does_not_have_is_refused_by_number():
+    with pytest.raises(ValueError, match="holds 2 scan"):
+        pr.read_pattern(DATA / "rigaku_multiscan.ras", scan=7)
+
+
+def test_listing_scans_labels_them_with_what_the_file_calls_them():
+    """A picker showing "Scan 0" and "Scan 1" has told the user nothing they did
+    not already know."""
+    scans = list_scans(DATA / "rigaku_multiscan.ras")
+
+    assert [s.label for s in scans] == ["Low angle scan", "High angle scan"]
+    assert [s.two_theta_range for s in scans] == [(10.0, 11.0), (20.0, 21.0)]
+    assert [s.n_points for s in scans] == [3, 3]
+
+
+def test_listing_scans_of_a_format_that_has_none_is_a_refusal_not_an_empty_list():
+    """"This file has one scan" and "this format has no scan structure" are
+    different answers, and only the second is true of a pdCIF."""
+    with pytest.raises(ValueError, match="one measurement per file"):
+        list_scans(DATA / "nist_srm660c_100a.cif")
+
+
+def test_an_attenuator_column_is_reported_and_never_applied():
+    """No specification states whether column 2 is already corrected for it, and
+    applying it twice or not at all are both wrong — so the reader matches the
+    convention the other codes use and says which points it affects."""
+    notes: list = []
+    data = pr.read_pattern(DATA / "rigaku_three_column.ras", diagnostics=notes)
+
+    assert data.intensity == [250.0, 310.5, 480.2, 390.7]     # column 2, untouched
+    found = [d for d in notes if d.code == "RAS_ATTENUATOR_PRESENT"]
+    assert len(found) == 1
+    assert "10–11.5" in found[0].message and "σ is affected" in found[0].message
+
+
+def test_choosing_a_scan_and_enumerating_them_are_two_halves_of_one_fact():
+    """The biconditional: a format that lets a caller choose a scan must be able
+    to say what there is to choose between, and one that cannot hold several has
+    nothing to enumerate."""
+    for fmt in PATTERN_FORMATS:
+        assert ("scan" in fmt.options) == (fmt.scans is not None), fmt.name
+
+
+def test_every_key_a_reader_writes_is_one_the_vocabulary_declares():
+    """Two consumers *match* on these keys — the wizard's anode pre-selection and
+    the scan count in a preview — and neither can match on a name each reader
+    spells for itself."""
+    for fixture in ("rigaku_nims.ras", "11BM_NAC.fxye", "qarr/corundum.prn",
+                    "nist_srm660c_100a.cif"):
+        keys = set(pr.read_pattern(DATA / fixture).metadata)
+        assert keys <= set(METADATA_KEYS), (fixture, keys - set(METADATA_KEYS))
+    assert all(prose for prose in METADATA_KEYS.values())
+
+    with pytest.raises(ValueError, match="undeclared pattern metadata key"):
+        metadata(source_file="a.ras", detector_serial="XYZ")
+
+
+def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
+    """A ``PatternData`` validator is the last boundary a reader crosses, and its
+    refusal must name the file like every other one.
+
+    Found by the truncation harness rather than by reading: a ``.XRA`` cut short
+    enough to lose its ``BANK`` record fell through to ``xy``, parsed one point,
+    and raised pydantic's report — which passed "the refusal names the file"
+    only because pydantic *echoed* the metadata dict, filename included. One
+    more metadata key pushed the name past that echo's truncation and the
+    invariant failed, having never held.
+    """
+    p = write_xy(tmp_path / "onepoint.xy", [15.0], [3.0])
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    message = str(refusal.value)
+    assert "onepoint.xy" in message and "at least 2 points" in message
+    assert "pydantic" not in message and "validation error" not in message

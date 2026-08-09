@@ -22,40 +22,54 @@ from __future__ import annotations
 
 from .base import (
     HEAD_BYTES,
+    METADATA_KEYS,
     READER_OPTIONS,
     Head,
     PatternFormat,
     ReaderOption,
+    ScanInfo,
     ascending,
     head,
     looks_binary,
+    metadata,
     multiscan_default,
+    pattern_data,
     reader_options_for,
+    sigma_from_cps,
 )
 from .chi import CHI, read_chi
 from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
 from .pdcif import PDCIF, read_pdcif
+from .ras import RAS, read_ras
 from .xy import XY, read_xy
 
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (PDCIF, GSAS, CHI, DIF, XY)
+#: ``RAS`` sits above the suffix and loose-text sniffs because it is recognised
+#: by a first line its own spec requires, which is stronger evidence than either.
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (RAS, PDCIF, GSAS, CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
+    "METADATA_KEYS",
     "PATTERN_FORMATS",
     "READER_OPTIONS",
     "Head",
     "PatternFormat",
     "ReaderOption",
+    "ScanInfo",
     "ascending",
     "head",
     "looks_binary",
+    "metadata",
     "multiscan_default",
+    "pattern_data",
     "read_chi",
     "read_dif",
     "read_gsas",
     "read_pdcif",
+    "read_ras",
     "read_xy",
     "reader_options_for",
+    "sigma_from_cps",
 ]

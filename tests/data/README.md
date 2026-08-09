@@ -430,3 +430,46 @@ of the *specimen* rather than a convenience:
 Its 2θ range, 20.3-150.9° in 24 stitched regions, is also what makes it
 demanding: axial divergence reverses the sign of its tail at 90°, and both signs
 appear in the picked list.
+
+## v1.0 vendor pattern formats (WP-1047)
+
+### `rigaku_*.ras` — the Rigaku text export, one real file and two synthetic
+
+`.ras` is what a SmartLab or MiniFlex writes: self-describing ASCII, one or
+more `*RAS_HEADER_START … *RAS_INT_END` scans inside a `*RAS_DATA_START`
+wrapper.  Three fixtures, because the reader's three non-obvious policies each
+need a file that exhibits the case.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `rigaku_nims.ras` | `nims-mdpf/M-DaC_XRD`, `source/XRD_RIGAKU.ras` | MIT | **Real** SmartLab export: 3501 points, 25–60° at 0.01°, Cu, `TwoThetaTheta`. Its header keys are spelled the way an instrument spells them, which no synthetic file can establish. Intensities are integers to the last point, so it is also the σ story's "these are counts" arm. |
+| `rigaku_multiscan.ras` | `garrekstemo/RigakuFiles.jl`, `test/data/multiscan.ras` | MIT | Two scans in one file — the `scan=` option, `PATTERN_MULTISCAN_DEFAULTED`, and `list_scans` labelling each from its own `*FILE_COMMENT`. Synthetic (3 points per scan); proves structure, not data. |
+| `rigaku_three_column.ras` | `garrekstemo/RigakuFiles.jl`, `test/data/three_column.ras` | MIT | The third (attenuator) column, and `RAS_ATTENUATOR_PRESENT` firing on a column that is not identically 1. Synthetic, and its column is `0.0000` — not a physical attenuator value, which is itself the reason the reader reports rather than applies. |
+
+**Licences were checked per *file*, and it mattered.**  `Dinghao-Wu/xrd-toolkit`
+ships `tests/fixtures/cu-75sn-real.ras` — 8501 points of real integer-counts
+powder data, the most attractive fixture found — and the repository has **no
+LICENSE file at all**.  It is therefore not vendored here.  A repo-level grant
+also does not automatically convey user-contributed instrument output, which is
+why the two RigakuFiles.jl files (repo-authored, clearly synthetic) and the
+NIMS file (a documented example dataset) were taken and that one was not.
+
+**Two real files decided policy without being vendored**, and are recorded here
+because the reasoning is only checkable against them:
+
+* `josefmtd/rigaku-xrd-analysis`, `data/example.ras` (MIT) — declares
+  `*MEAS_SCAN_UNIT_Y "counts"` and stores values like `84.3047`, which **no**
+  scale makes integral (searched: 1/1000 to 2, and 1–200).  This is the file
+  that proves the declared unit is a claim rather than a measurement, and hence
+  that σ must be decided by arithmetic.  It is also an `Omega` scan — a rocking
+  curve — which is the case the axis refusal exists for.
+* `ttruttmann/rasloader`, `test/example_scan.ras` (MIT) — `TwoThetaOmega`,
+  declares counts, 3.4 % integral.  A second, independent instance of the same
+  header-disagrees-with-data case.
+
+**The attenuator question remains open, and this is what was checked.**  Five
+`.ras` files were examined for a *varying* third column, which is the only
+evidence that could settle whether column 2 is already corrected for it: all
+five have it constant (1.0 in four, 0.0 in the one synthetic).  Absent such a
+file the reader states its contract rather than guessing — see
+`io/formats/ras.py`.

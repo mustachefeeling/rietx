@@ -16,7 +16,7 @@ import numpy as np
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, ascending, head, looks_binary
+from .base import PatternFormat, ascending, head, looks_binary, pattern_data
 
 
 def read_xy(path: str | Path, *,
@@ -43,9 +43,7 @@ def read_xy(path: str | Path, *,
     sigma = arr[:, 2] if n_cols >= 3 and np.any(arr[:, 2] > 0) else None
     tt, y, sig = ascending(arr[:, 0], arr[:, 1], sigma, path=p, fmt=XY,
                            diagnostics=diagnostics)
-    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
-                       sigma=None if sig is None else sig.tolist(),
-                       metadata={"source_file": p.name})
+    return pattern_data(p, tt, y, sig, source_file=p.name, format="xy")
 
 
 XY = PatternFormat(

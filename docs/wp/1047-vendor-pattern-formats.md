@@ -1,8 +1,10 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: 🔄 2026-08-08 — tasks 1-7 of 17: the whole
+Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-8 of 17: the whole
 seam (formats package, option vocabulary, diagnostics channel, xy de-totalised,
-truncation fuzz) plus `.chi` and the `.dif` refusal. Five vendor formats left.
+truncation fuzz) plus `.chi`, the `.dif` refusal and Rigaku `.ras` — which
+brought `scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS` and the schema-as-a-
+parser-boundary fix. Four vendor formats left.
 Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
 inherits the `DataRef` option-vocabulary note
 
@@ -425,7 +427,7 @@ that belong to it), never mid-format.
       as the stated exemption), axis policy. Regression test that today's
       phantom point is gone.
 - [x] 7. `.dif` — `PatternFormat.refuses` + `ReaderCapability.refuses`.
-- [ ] 8. `.ras` — reader, the `scan` option, `ScanInfo` / `list_scans` /
+- [x] 8. `.ras` — reader, the `scan` option, `ScanInfo` / `list_scans` /
       `fmt.scans` with the biconditional meta-test
       (`"scan" in options ⟺ scans is not None`), `METADATA_KEYS`, the
       attenuator contract, the per-file intensity-scale test, the

@@ -119,10 +119,13 @@ class Project:
         writes it out first, and thereby chooses the format its esds live in.
 
         ``reader_options`` are :data:`~pxrdref.io.readers.READER_OPTIONS` keys —
-        today ``block``, which names a pdCIF data block (several certification
-        files carry a measured *and* a calculated one).  The **effective** ones
+        ``block``, which names a pdCIF data block (several certification files
+        carry a measured *and* a calculated one), and ``scan``, which names one
+        of the several measurements a vendor file holds.  The **effective** ones
         are recorded, so re-opening reproduces the reader *call* rather than
-        merely re-reading the bytes.
+        merely re-reading the bytes: the same ``.ras`` is a different pattern
+        depending on which scan was chosen, and neither the bytes nor the
+        fingerprint can say which that was.
         """
         root = Path(path)
         src = Path(pattern)

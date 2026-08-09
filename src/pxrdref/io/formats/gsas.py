@@ -19,7 +19,7 @@ import numpy as np
 
 from ...schemas.common import Diagnostic
 from ...schemas.pattern import PatternData
-from .base import PatternFormat, ascending, head
+from .base import PatternFormat, ascending, head, pattern_data
 
 
 def looks_gsas(p: Path) -> bool:
@@ -89,9 +89,8 @@ def read_gsas(path: str | Path, *,
         tt, y = tt[good], y[good]
         sigma = np.asarray(sigma)[good].tolist()
     tt, y, sig = ascending(tt, y, sigma, path=p, fmt=GSAS, diagnostics=diagnostics)
-    return PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
-                       sigma=None if sig is None else sig.tolist(),
-                       metadata={"source_file": p.name, "format": f"gsas-{type_flag.lower()}"})
+    return pattern_data(p, tt, y, sig, source_file=p.name,
+                   format=f"gsas-{type_flag.lower()}")
 
 
 def _reshape(values: list[float], width: int, p: Path, flag: str) -> np.ndarray:

@@ -25,6 +25,7 @@ from .formats import (
     READER_OPTIONS,
     PatternFormat,
     ReaderOption,
+    ScanInfo,
     head,
     looks_binary,
     read_pdcif,
@@ -36,7 +37,9 @@ __all__ = [
     "READER_OPTIONS",
     "PatternFormat",
     "ReaderOption",
+    "ScanInfo",
     "identify_format",
+    "list_scans",
     "read_pattern",
     "read_pdcif",
     "reader_options_for",
@@ -71,6 +74,28 @@ def read_pattern(path: str | Path, *, diagnostics: list[Diagnostic] | None = Non
     fmt = identify_format(p)
     kwargs = reader_options_for(fmt, options, diagnostics=diagnostics)
     return fmt.read(p, diagnostics=diagnostics, **kwargs)
+
+
+def list_scans(path: str | Path) -> list[ScanInfo]:
+    """What there is to choose between in a file that holds several measurements.
+
+    The companion to the ``scan`` reader option: a choice cannot honestly be
+    offered without saying what the alternatives are, which is what a CLI
+    listing and the import wizard's scan picker both need.  It is *not* on the
+    preview path — ``scan_count`` travels in the pattern's own metadata from the
+    single read, so showing "3 scans" never costs a second parse of a 60 MB file.
+
+    A format that holds one measurement per file is refused rather than answered
+    with a one-element list: "this file has one scan" and "this format has no
+    scan structure" are different answers, and only the second is true of a
+    pdCIF.
+    """
+    p = Path(path)
+    fmt = identify_format(p)
+    if fmt.scans is None:
+        raise ValueError(f"{p.name} was read as {fmt.title}, which holds one "
+                         "measurement per file — there are no scans to list")
+    return fmt.scans(p)
 
 
 def identify_format(path: str | Path) -> PatternFormat:

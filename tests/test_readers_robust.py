@@ -38,6 +38,7 @@ REAL_FIXTURES = [
     ("FAP.XRA", "gsas"),                  # GSAS STD, fixed-format, Poisson
     ("nist_srm660c_100a.cif", "pdcif"),   # pdCIF through gemmi, two blocks
     ("qarr/corundum.prn", "xy"),          # two-column ASCII
+    ("rigaku_nims.ras", "ras"),           # Rigaku text, marked sections
 ]
 
 #: Where to cut.  Fractions rather than byte counts so the same set of offsets
