@@ -552,6 +552,134 @@ multi-scan file reopens on the scan it was created from.
 
 ## Handover log
 
+- **2026-08-09 (session 4)** — **tasks 10-12 landed**, the three container
+  formats, on branch `wp1047-vendor-formats` (7 commits, 18 off `main` @
+  `fad8a6d`). No `### Inherited` to prune — the WP has never had one.
+
+  **Done.** (10) PANalytical `.xrdml`, (11) Rigaku `.rasx`, (12) Bruker `.brml`,
+  plus one factoring that had to come first and one review pass that had to come
+  last.
+
+  **The session's through-line is one question asked of four vendors: is the
+  stored intensity already corrected for the beam attenuator?** `.ras` could not
+  answer it — every obtainable Rigaku file has the column constant — so its
+  reader ships a contract and reports. The containers *can*, because a real file
+  of each has a factor that **varies**, and the structural test is the one
+  `ras.py`'s docstring had written down without being able to run: where the
+  factor changes, does the raw series or the product run continuously? Run twice,
+  it answered in opposite directions.
+
+  - `.xrdml` — `panalytical_attenuator.xrdml` puts one point of the GaAs 004
+    substrate peak behind a **188×** foil, and the raw series *dips* 87 % there
+    (1341, 14602, **1877**, 13749). A hole in the apex of a substrate reflection
+    is the attenuation, not a profile, so the factor **is applied**; FAIRmat's
+    reader computes the same product independently.
+  - `.brml` — the absorber engages over 29 points at **8.3×**, and there the
+    *stored* series is the continuous one while `y/a` is the integral one (`y`
+    is not, `y × a` is not). So Bruker stores the corrected intensity and
+    **nothing is multiplied**.
+  - Either way σ goes through the factor — √counts·a is not √y — which is the
+    case GSAS-II gets wrong by weighting 1/y regardless.
+
+  **A third premise of this WP was wrong and is struck in place.** It recorded
+  `.rasx` cps as "verified by fixture"; it was never measured on that format.
+  Two of its three real files declare `<IntensityUnit>counts</IntensityUnit>` and
+  store values no scale in 1/400…400 — nor the file's own derived 2.4 s counting
+  time — makes integral, while the third declares counts and *is* integral to the
+  last of 7001 points. Both arms are vendored, so one format now shows the test
+  deciding both ways. `.rasx` therefore takes the `.ras` arithmetic, now
+  `base.sigma_by_arithmetic` and shared; the trustworthy declarations turn out to
+  be exactly the **structural** ones. (A fourth, smaller correction: `.xrdml`'s
+  counts/cps distinction is the `unit` *attribute*, not the element name — the
+  real powder file is `<intensities unit="counts">`.)
+
+  **Two factorings, both at triggers a previous session named.** The axis policy
+  became `base.check_axis()` with one code `PATTERN_X_AXIS_ASSUMED`, because
+  `.xrdml` was the fourth consumer and `src/pxrdref/io/CLAUDE.md` said the fourth
+  is when — which settles point 6 of WP-1003's `### Inherited` rather than
+  passing it on. What is deliberately *not* shared is the classifying: four
+  formats state their axis in four shapes. And `sigma_from_scaled` /
+  `sigma_by_arithmetic` / `decode` moved to `base` as their second consumers
+  arrived, never before.
+
+  **Design rules the real files forced, worth carrying:**
+  - **Nothing is located by counting.** `.brml` puts 2θ at datum column 2 and the
+    intensity at column **7**, so GSAS-II's fixed `entry[2]`/`entry[4]` is one
+    layout's coincidence; the reader reads `DataViews`' `Start`/`Length`/
+    `FieldDefinitions` instead.
+  - **A manifest outranks a zip's name list.** The 801-scan `.brml` stores its
+    members …20, 22, 21, `experimentCollection.xml`, 23…
+  - **A `RecordedRawDataView` of `Length > 1` is a detector frame**, refused —
+    and its `ScanAxes` still claims `AxisId="TwoTheta"`, so the axis check passes
+    and only that length says the rows are not a profile.
+  - **`ScanInformation` wins over a like-named leaf elsewhere** in a `.rasx`
+    conditions XML; `Step` and `Speed` are generic enough for an optics block to
+    carry one, and first-wins document-wide would derive every σ from it.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2124 → **2177
+  passed, 5 skipped**: **+53** with no new skips, and every one is accounted for
+  — axis factoring +1; task 10 **+22** (14 tests, 2 real fixtures × 3
+  truncation-fuzz rows, 2 upload-dispatch rows); task 11 **+14** (10 tests, 1
+  fixture × 3, 1 synthetic-fuzz row); task 12 **+14** (8 tests, 1 fixture × 3, 1
+  synthetic-fuzz row, 2 upload rows); the review pass +2. Full selection
+  **2282 passed, 6 skipped**, measured at `0a5d77a` — i.e. before the review
+  pass's two (fast-selection) tests, so the final tree is **2284 + 6**. That
+  closes exactly against the previous session: its full selection resolved to
+  2231 + 6 = 2237, and 2237 + 51 (the fast delta at `0a5d77a`) = 2288 = 2282 + 6.
+  vitest **401**, svelte-check clean, ruff clean. **No GUI dist rebuild**: no new
+  reader option and no payload *shape* change, so the wizard grows each format's
+  scan picker from `capabilities()` unaided.
+
+  **Wall clock**, as a range: the fast selection ran 175-186 s on a quiet machine
+  and 338 s while the full suite shared it; the full selection 32:56, one
+  measurement and a *loaded* one — a fast run overlapped roughly six minutes of
+  it, against the previous session's 25:44 unloaded.
+
+  **Risks 1 and 4 retired; 3 is the one left.** Fixture licences: all four
+  readers-xrd files were committed by that repo's own maintainers into an
+  Apache-2.0 repo, and the unlicensed `carichte/IKZ` upstream the `ikz.py` fence
+  guards holds 15 files and **no data at all** — so the fence is about code and
+  does not reach these bytes. `.brml`'s `RawDataView[@Start][@Length]` is present
+  in both real files, and the `xsi` prefix is read through its **namespace**
+  rather than as text (a test renames it to `zz:`).
+
+  **In flight: nothing** — tree clean, both selections green, shippable between
+  any two formats.
+
+  **Next**: task 13 `.raw` v4, then 14 `.raw` v2/v3, 15-16 the instrument hint
+  and scan picker, 17 the remaining docs. The binaries are a different kind of
+  work from the containers — offsets rather than manifests — and
+  `tests/writers_xrd.py` (still unwritten) is for them, not for the text formats.
+
+  **Gotchas for the successor.**
+  - **Retire risk 3 before writing task 13's reader.** What "scrambled"
+    scrambled in `TwoTheta_scan_scrambled.raw` decides whether `.raw`'s
+    acceptance line may claim values or only structure. Nothing this session did
+    touched it.
+  - **The attenuator answer cannot be borrowed across vendors** — four formats,
+    three answers, all measured. If `.raw` carries one, run the same test: find a
+    file where the factor varies and ask which series is continuous.
+  - **Part of task 17 has already landed** and should not be redone: ATTRIBUTION
+    gained rows for `.xrdml`/`.rasx`/`.brml`, the `readers-xrd` + `ikz.py` fence
+    and the xylib "listed precisely to state it was not ported" row;
+    `tests/data/README.md` gained three sections; AGENT_PROTOCOL gained
+    `XRDML_ATTENUATOR_APPLIED` and `BRML_ABSORBER_ENGAGED` and lost two axis rows
+    to one; README's reader row and the root/`io` CLAUDE.md rules are current.
+    What task 17 still owes: the `.raw` rows, `cli.py`'s help (already
+    registry-built, so check rather than edit), and the capabilities spot-checks.
+  - **`src/pxrdref/io/CLAUDE.md`'s cap went 200 → 250** with three formats still
+    to land; root CLAUDE.md is back at **exactly 600** after the reader bullet
+    was compressed to carry a fifth consequence. Budget for that again.
+  - **`tests/test_portability.py` now skips a receiver containing `zip`** —
+    `zipfile.ZipFile.open` returns bytes whatever its mode, so `encoding=` there
+    is a `TypeError`. That is why the container readers name their handle
+    `zip_*`; keep the convention or the meta-test fails.
+  - The two large real files that were **not** vendored —
+    `RSM_111_sdd=350.rasx` (401 scan groups) and `EJZ060_13_004_RSM.brml`
+    (801, and the PSD frame) — have what they established recorded in
+    `tests/data/README.md`. If a `.rasx`/`.brml` bug ever needs a real
+    multi-scan archive, that is where to look for it.
+
 - **2026-08-09 (session 3)** — **tasks 8-9 landed**, `.ras` and `.uxd`, on
   branch `wp1047-vendor-formats` (8 commits off `main` @ `fad8a6d`). No
   `### Inherited` to prune — the WP has never had one.

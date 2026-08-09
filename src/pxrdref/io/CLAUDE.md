@@ -66,6 +66,13 @@ at 20 offsets, plus a synthetic arm for formats with no vendorable file. It has
 found two real bugs so far (both ragged-array crashes on a row cut mid-line),
 which is the argument for running it before believing a new parser.
 
+A **container** adds one more: nothing is extracted to disk and no member is read
+whole on trust. `ZipInfo.file_size` is a number in the archive's *own* header, so
+each member is read `read(cap + 1)` and refused past `rasx.MAX_MEMBER_BYTES`, and
+`extract()` — which writes files, and historically wrote them outside the
+destination — is never called. A 651 kB `.brml` carries a 4.5 MB member no reader
+here opens, so the file's size says nothing about a member's.
+
 `PatternFormat.refuses` marks a format recognised **in order to be declined** —
 a `.dif` peak list is not a profile. One field rather than a side table, so
 `capabilities()` stays honest without `reader_formats` meaning two things.

@@ -55,6 +55,16 @@ a binary vendor file and a `.dif` peak list are now refused **by name**, so
 "why won't my file open?" has an answer the app gives rather than one the
 manual has to.
 
+**Updated 2026-08-09 (1047 tasks 10-12).** Five vendor formats now read
+(`.ras`, `.rasx`, `.uxd`, `.xrdml`, `.brml`), nine in all, so a chapter that
+lists formats will go stale between sessions — quote `capabilities()`, which
+carries each format's own `sniff` and `sigma` prose for exactly this. Two of
+those readers **change the numbers**: a PANalytical beam attenuator is applied
+and a Bruker absorber's factor goes into σ, each with a diagnostic saying so, so
+the preview's diagnostics strip is no longer only about repairs — it is
+sometimes about a 188× correction. That is the sharper version of the teachable
+moment above, and worth the chapter's one worked example.
+
 **From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — the
 "what next?" panel this WP's non-goal deferred now has its engine.**
 `Refinement.suggest()` is read-only (no history node, no mutation), so a
