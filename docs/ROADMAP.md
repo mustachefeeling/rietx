@@ -62,31 +62,37 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **[1047](wp/1047-vendor-pattern-formats.md) — vendor pattern formats.** Tasks
-**1-7 of 17** landed; the WP's own stated session boundary (after task 5) is
-past and the tree is shippable as it stands.
+**1-9 of 17** landed; every remaining format is a container or a binary, and the
+tree is shippable between any two of them.
 
 What exists now: `io/formats/`, one module per format, because a format's spec
 citation, parser, sniff/σ prose, options and **licence fence** are one fact each
 and ten fences in one file drift. `readers.py` is the front door only, so no
 call site moved. `read_pattern(path, *, diagnostics=None, **options)` against
-the `READER_OPTIONS` allowlist — which is what makes a *typo* (raises) different
-from an option this format does not take (dropped, `READER_OPTION_IGNORED`) —
-with `Project.create(block=)` dropped for `reader_options=` and `DataRef`
-recording the **effective** options. `base.ascending()` is the one place
-report-vs-contradiction meets 2θ order. `xy` is no longer total, so a binary
-vendor file is refused **by name** built from the registry. `.chi` reads (its
-`npoints` line was being appended as a phantom datum at x = 2000) and `.dif`
-peak lists are refused via `PatternFormat.refuses`.
+the `READER_OPTIONS` allowlist — a *typo* raises, an option this format does not
+take is dropped and reported — with `DataRef` recording the **effective**
+options. `base.ascending()` is the one place report-vs-contradiction meets 2θ
+order, and `base.pattern_data()` is the last parser boundary, so a schema
+refusal names the file too. `xy` is not total. Six formats read (`.ras`, `.uxd`,
+pdCIF, GSAS, `.chi`, `.xy`) and `.dif` peak lists are refused.
+
+**The reader lesson of these two formats**: a vendor file's own declaration of
+what it holds is evidence of *varying* quality, and which kind decides whether
+it may be trusted. `.ras` declares its intensity unit in a free-text header
+field that real files get wrong, so σ is settled by arithmetic; `.uxd` declares
+it in the token that opens the data block, where it cannot disagree with itself,
+so it is trusted. Both formats also declare the **scanned axis**, and there the
+answer is the same in each: four of five real `.uxd` files are pole figures or
+rocking curves, so the axis is checked and a non-2θ scan is refused by name.
 
 **Next**, in the WP's order, and each independent enough to stop between:
-task 8 `.ras` (which also introduces `scan` — the `PROJECT_FORMAT_VERSION`
-minor bump rides with it), 9 `.uxd`, 10 `.xrdml`, 11 `.rasx`, 12 `.brml`,
-13-14 Bruker `.raw`, 15-16 the instrument hint and scan picker, 17 the
-remaining docs. **Retire the risks in the WP's stated order before writing any
-of those readers** — fixture licences are per *file*, not per repo, and what
-"scrambled" scrambled in the one real Bruker binary decides whether its
-acceptance line may claim values or only structure. Network to GitHub was
-reachable this session, so the fixtures are obtainable.
+10 `.xrdml`, 11 `.rasx`, 12 `.brml`, 13-14 Bruker `.raw`, 15-16 the instrument
+hint and scan picker, 17 the remaining docs. **Retire the risks in the WP's
+stated order before writing any of those readers** — fixture licences are per
+*file*, not per repo, which has now cost two of the best fixtures found
+(`xrd-toolkit`'s real `.ras` and every real `.uxd`), and what "scrambled"
+scrambled in the one real Bruker binary decides whether its acceptance line may
+claim values or only structure.
 
 ## Milestones
 

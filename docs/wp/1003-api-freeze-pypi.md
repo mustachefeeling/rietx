@@ -35,6 +35,31 @@ purpose.** Four things to fold into the freeze rather than re-derive:
    gained `refuses` and `Capabilities` gained a `reader_options` arm. Confirm
    that reading rather than re-litigating it.
 
+**Updated 2026-08-09 (1047 tasks 8-9, `.ras` and `.uxd` landed).** Point 3 has
+happened: **`PROJECT_FORMAT_VERSION` is now `"1.1"`**, `scan` is in
+`READER_OPTIONS`, and `DataRef.options` records it. Three additions, each a
+decision the freeze should make rather than inherit:
+
+5. **`ReaderCapability` did *not* gain a `scans` field**, though this WP's
+   contract-versions section mentions one in passing. A meta-test holds
+   `fmt.scans is not None ⟺ "scan" in fmt.options`, so the field would be a
+   second authority for one fact. Smaller surface; confirm rather than add.
+6. **Three formats now spell the same diagnostic three ways** —
+   `CHI_X_AXIS_ASSUMED`, `RAS_X_AXIS_ASSUMED`, `UXD_X_AXIS_ASSUMED`, one policy
+   with three per-format inputs (a prose label, a header key, a drive name).
+   Left unfactored deliberately at three. `code` is an open vocabulary by
+   design, so this is not a compatibility problem — but if they are ever to
+   become one code, **before the freeze is the moment**, because a consumer
+   matching on the names is what the freeze makes expensive to change.
+7. **`DataRef.has_sigma` now covers a *derived* σ.** A `.ras` exported in cps
+   gets σ = √(y·t)/t from the file's own counting time, so `has_sigma` is true
+   and every surface says "σ from file"; the same scan exported in counts gets
+   `has_sigma` false and the Poisson fallback, which is correct. Both are
+   honest — the cps σ genuinely could not come from the fallback — but the flag
+   is documented as "σ *measured*, not σ *present*" and a reader-derived σ is a
+   third thing. Decide whether it needs its own state before the surface
+   freezes; nothing depends on the answer yet.
+
 **From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
 *meaning* is in question, and freezing it would ratify a behaviour nobody
 intended.** `engines.DEFAULT_MAX_CANDIDATES = 12` is documented as "a cap, not a

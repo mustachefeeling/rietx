@@ -234,19 +234,18 @@ recent list, and is therefore not behind the 409 (WP-1044).
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
 - **A pattern reader may repair a file only where it can say that it did**
-  (WP-1047, `io/formats/`, one module per format). `read_pattern(...,
-  diagnostics=[])` is `structure_from_cif`'s channel; `base.ascending()` is the
-  one place report-vs-contradiction meets 2θ order — descending reversed,
-  equal-y duplicate dropped, both reported; **differing-y duplicate and
-  non-monotone ranges raise**, so a multi-range file's ranges are *scans*
-  selected by `scan=`, never concatenated (GSAS-II concatenates, mixing two step
-  sizes and counting times into one weighting regime). A reader raises
-  `ValueError`/`OSError` **naming the file**, never its parser's exception
-  (`test_readers_robust.py` truncates every real fixture at 20 offsets).
-  `PatternFormat.options` ⊆ `READER_OPTIONS` is the only allowlist (a typo
-  raises; an option this format lacks is dropped *and reported*); `DataRef`
-  records the **effective** options; and `xy` is not total — a NUL in the first
-  4 kB is refused by name unless behind a BOM, UTF-16LE being valid UTF-8.
+  (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
+  channel one layer down, and the four consequences a caller outside `io/` sees:
+  a multi-range file's ranges are **scans selected by `scan=`, never
+  concatenated** (GSAS-II concatenates, mixing two weighting regimes); a reader
+  raises `ValueError`/`OSError` **naming the file**, never its parser's
+  exception; σ is **withheld** with `PATTERN_INTENSITY_SCALED` rather than faked
+  where the file's intensity scale could not be established, the Poisson
+  fallback being wrong by √t on a rate; and the scanned **axis** is never
+  trusted — most vendor files are not powder scans, so a non-2θ one is refused
+  by name and an unknown one says so. Everything else — dispatch order, the
+  repair table, the option allowlist, per-format rules and how to add one — is
+  `src/pxrdref/io/CLAUDE.md`, which loads under `io/`.
 - **Every weighted residual in the package divides by
   `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
   montage, Layer 0 and both GUI windows (`session.curve_window` is shared by the
@@ -514,7 +513,8 @@ them all:
   columns `title`/`md_path`); the lesson that pinned this rule is in that file.
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
-- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/pxrdref/indexing/CLAUDE.md` —
+- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/pxrdref/io/CLAUDE.md`,
+  `src/pxrdref/indexing/CLAUDE.md` —
   subsystem rulebooks; they load with their subtrees, so nothing here
   restates them.
 

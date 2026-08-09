@@ -540,6 +540,111 @@ multi-scan file reopens on the scan it was created from.
 
 ## Handover log
 
+- **2026-08-09 (session 3)** — **tasks 8-9 landed**, `.ras` and `.uxd`, on
+  branch `wp1047-vendor-formats` (8 commits off `main` @ `fad8a6d`). No
+  `### Inherited` to prune — the WP has never had one.
+
+  **Done.** (8) Rigaku `.ras`: reader, the `scan` option, `ScanInfo`/
+  `list_scans`/`fmt.scans` with the biconditional meta-test, `METADATA_KEYS` +
+  `base.metadata()` (every existing reader routed through it),
+  `PROJECT_FORMAT_VERSION` 1 → **1.1**, the attenuator contract, the per-file
+  intensity-scale test. (9) Bruker `.uxd`: all four block forms, multi-range,
+  the second `scan` consumer — which is what it was for, and *nothing* in the
+  option machinery moved to accommodate it.
+
+  **Three of the WP's premises were wrong and are now corrected in place.**
+  The WP said no real `.ras` was obtainable; three are, all MIT, and they
+  showed (a) `*MEAS_SCAN_SPEED_UNIT` exists and says `deg/min`, so the planned
+  `t = step ÷ speed` was 60× short and every derived σ would have been wrong by
+  √60; (b) `*MEAS_SCAN_UNIT_Y` declares the unit **and can be false** — one file
+  declares `counts` and stores 84.3047, which no scale in 1/1000…200 makes
+  integral — so the declaration is metadata and arithmetic decides; (c)
+  `*MEAS_SCAN_AXIS_X` can be `Omega`, a rocking curve, which needed the `.chi`
+  axis policy generalised. `.uxd` then supplied the contrast: it declares the
+  unit *structurally* (the token opening the data block) and that one holds, so
+  it is trusted. **That asymmetry is the session's rule** and it is in root
+  CLAUDE.md.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2094 → **2124
+  passed, 5 skipped**: **+30** with no new skips, and every one is accounted
+  for. Task 8 **+20** (`test_readers.py` 16, `test_project.py` 1,
+  `test_readers_robust.py` one fixture row × 3 parametrized tests); task 9
+  **+9** (8 tests + one parametrized synthetic-fuzz row); and **+1 that is not a
+  test anyone wrote** — `test_always_loaded_docs_stay_under_their_pinned_caps`
+  is parametrized over `SIZE_CAPS`, so adding `src/pxrdref/io/CLAUDE.md` to it
+  added a row. Worth stating rather than absorbing: a count can move for a
+  documentation-structure reason. Full selection measured mid-session at
+  **2229 passed, 6 skipped + 1 failed** (the failure was the CLAUDE.md cap
+  assertion, before the consolidation resolved it): 2229 + 1 = 2230 = the
+  previous session's 2201 + 29, i.e. it moved by exactly the fast selection's
+  then-delta, as it must with no new `slow` marks. It was **not** re-measured
+  after the consolidation, which would put it at 2231. vitest **401**, svelte-check clean, ruff clean. No GUI dist
+  rebuild: the wizard renders one control per reader option from
+  `capabilities()`, so `.ras`/`.uxd` get their scan picker with no payload
+  *shape* change.
+
+  **Wall clock**, as a range: the fast selection ran 184-186 s across three runs
+  on a quiet machine (the session-start baseline was 320 s on a busy one); the
+  full selection 25:44, one measurement.
+
+  **Three bugs the harnesses caught, not review.** (i) `.uxd`'s header snapshot
+  was taken at block *close*, and keys persist across ranges — so a 2 s range's
+  σ came from the next range's 20 s `_STEPTIME`. (ii) A truncation cut mid-row
+  makes a ragged list and numpy's "inhomogeneous shape" `ValueError` names no
+  file; fixed in both readers. (iii) **An invariant that had never held**: the
+  truncation harness asserts every refusal names the file, and a `.XRA` cut past
+  its `BANK` record fell through to `xy`, parsed one point and raised
+  *pydantic's* report — which passed only because pydantic echoed the metadata
+  dict, filename included. Adding one metadata key pushed the name past that
+  echo's truncation. `base.pattern_data()` is now the schema boundary and every
+  reader goes through it.
+
+  **Structural change, decided with the user**: root CLAUDE.md was at exactly
+  its 600-line cap with four vendor formats still to land, so the reader detail
+  moved to **`src/pxrdref/io/CLAUDE.md`** (179 lines, capped at 200, loads under
+  `io/`) and root kept only the four consequences a caller outside `io/` sees.
+  Same move WP-1060 made for indexing. `SIZE_CAPS` and the link-check doc list
+  in `tests/test_docs_consistency.py` both know about it.
+
+  **In flight: nothing** — tree clean, both selections green, shippable between
+  any two formats.
+
+  **Next**: task 10 `.xrdml` (real fixture + a JSON oracle, Apache-2.0), then 11
+  `.rasx`, 12 `.brml`, 13-14 Bruker `.raw`, 15-16 the instrument hint and scan
+  picker, 17 the remaining docs. All four remaining formats are containers or
+  binary, which is a different kind of work from these two.
+
+  **Gotchas for the successor.**
+  - **Risk 1 has now fired twice.** Fixture licences are per *file*: the best
+    `.ras` found (8501 points of real integer counts, `Dinghao-Wu/xrd-toolkit`)
+    is in a repo with **no LICENSE at all**, and every obtainable real `.uxd` is
+    GPL or unlicensed. Check before writing the reader, because it changes the
+    whole test strategy — and record what an unvendorable real file *established*
+    in `tests/data/README.md`, since that becomes the only place the design is
+    checkable.
+  - Risk 3 is **untouched**: what "scrambled" scrambled in
+    `TwoTheta_scan_scrambled.raw` still decides whether `.raw`'s acceptance line
+    may claim values or only structure. Establish it before task 13.
+  - **Three formats now implement the same three-way axis policy** with three
+    codes (`CHI_`/`RAS_`/`UXD_X_AXIS_ASSUMED`). Left unfactored deliberately —
+    the inputs are different shapes (a prose label, a header key, a drive name)
+    — but a **fourth is the point at which to factor it**, and WP-1003 should
+    look at whether the three codes want to be one before the freeze.
+  - `has_sigma` means "σ measured, not σ present" and a **derived** σ sets it:
+    a `.ras` cps export reads as "σ from file" while the same scan exported in
+    counts reads as Poisson. Both are honest — the cps σ genuinely could not
+    come from the fallback — but WP-1003 should decide whether that distinction
+    wants a third state before the surface freezes.
+  - `.ras`/`.uxd` synthetic test files are written **inline** in
+    `tests/test_readers.py` (`write_ras`, `write_uxd`), not in the
+    `tests/writers_xrd.py` the WP names. Both are text formats, so the
+    circularity that module exists to manage — packing literal *offsets* — does
+    not arise. The binary formats (13-14) should still use it.
+  - `ReaderCapability` did **not** gain the `scans` field the WP's contract-
+    versions section mentions in passing: the biconditional meta-test makes it
+    exactly `"scan" in options`, and a second authority for one fact is what the
+    root rules forbid. Smaller surface for WP-1003 too.
+
 - **2026-08-08 (session 2)** — **tasks 1-7 of 17 landed**, on branch
   `wp1047-vendor-formats` (6 commits off `main` @ `fad8a6d`). No `### Inherited`
   to prune: this WP was created the same day and nothing had been mailed to it.
