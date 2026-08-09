@@ -61,30 +61,26 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Two WPs
-closed on 2026-08-09 and both are surface the freeze covers: 1047 (ten vendor
-formats read; `read_pattern`'s signature and option vocabulary) and 1046 (the
-indexing candidate cap and the ranking key). Every decision the freeze should
-*confirm rather than re-derive* is already written into 1003's `### Inherited` —
-twelve points, from `read_pattern`'s signature to the load-bearing zero in
-`wavelength_alpha2`. Read that section first.
+**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Three WPs
+closed on 2026-08-09 and all three are surface the freeze covers: 1047 (ten
+vendor formats; `read_pattern`'s signature and option vocabulary), 1046 (the
+indexing candidate cap and the ranking key) and 1051 (the series escalation
+ladder). Every decision the freeze should *confirm rather than re-derive* is
+written into 1003's `### Inherited` — read that section first; the three
+closing sessions each left their surface changes there rather than here.
 
-**What 1046 changed, because it is a rename the freeze must not miss.**
-`SearchSpec.max_candidates` is now the **reported** cap, applied once, by
-consensus; each (engine × system) unit hands the merge `engine_pool()` =
-`ENGINE_POOL_MULTIPLE ×` it. Applied per unit it *was* a ranking, and a longer
-search could lose an answer a shorter one returned first. Alongside it,
-`engines.corroborated` — did at least `MIN_AGREEMENT` engines find this lattice
-— is now `rank_candidates`'s first key, so the reported order stops
-contradicting the gate beside it; it is **binary**, because a finder *count*
-scores the crystal system's search cost rather than the answer. One new
-diagnostic code, `INDEX_CANDIDATES_TRUNCATED`. The rules are in
-`src/pxrdref/indexing/CLAUDE.md`; the measurements are in the v1.0 record's
-appendix.
+**What 1051 added, because two of the four are shapes rather than fields.**
+`SeriesEntry` gained `rung`/`rungs_tried` (additive; `reseeded` and `rwp_warm`
+kept their exact meanings), `SEQUENTIAL_UNRECOVERED` is a new warning **and a
+new behaviour** — a diverged pattern now seeds no successor and joins no reseed
+median — and two formats moved: `to_table`/`write_csv` grew a `rung` column
+*between* `status` and `rwp`, and `series_rung` is a new event `data` key
+stamped on restarts only. The column is the one a client can trip over, which
+is why it landed before the freeze rather than after.
 
-**The freeze's own scope is unchanged** and its file states it. Both closing
-narratives are in `docs/milestones/v1.0.md` § "How v1.0 is getting here", and
-the WP index below is the list of what else is still open.
+**The freeze's own scope is unchanged** and its file states it. All three
+closing narratives are in `docs/milestones/v1.0.md` § "How v1.0 is getting
+here", and the WP index below is the list of what else is still open.
 
 ## Milestones
 
@@ -264,7 +260,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ✅ | — (before 1003 if frozen) |
-| [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ⬜ | — |
+| [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ✅ 2026-08-09 — three rungs, keep-best; a diverged pattern seeds nothing and joins no median | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ⬜ | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ⬜ | 1052 |
 

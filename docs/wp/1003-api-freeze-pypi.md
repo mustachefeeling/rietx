@@ -11,6 +11,31 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1051](1051-sequential-escalation.md), closed 2026-08-09 — four series
+surfaces moved, all additive, and one of them is a format rather than a field.**
+
+1. **`SeriesEntry` gained `rung` and `rungs_tried`** (which attempt produced the
+   values; every attempt made, in ladder order). `reseeded` and `rwp_warm` kept
+   their exact meanings — only the *cold* rung sets `reseeded`, and `rwp_warm` is
+   still the first warm attempt's Rwp — so a client reading the old two fields is
+   unaffected. Freeze the four together: `rung == "cold"` is **not** the same
+   question as `reseeded`, because the first pattern of every chain runs the cold
+   rung with nothing to warm from.
+2. **`SeriesResult.to_table`/`write_csv` grew a `rung` column**, positionally
+   *between* `status` and `rwp`. That is the one change here a client can trip
+   over — a reader indexing columns by number sees `rwp` move from 4 to 5. It was
+   landed before the freeze deliberately, for that reason.
+3. **`SEQUENTIAL_UNRECOVERED`** (warning) is new, and the *behaviour* behind it is
+   the part to freeze: a diverged pattern seeds no successor and joins no reseed
+   median. `Diagnostic.code` is an open vocabulary, so this needs no schema
+   decision — but AGENT_PROTOCOL's two tables now carry it, and a consumer's
+   handling of a quarantined point is a documented contract.
+4. **`series_rung` is a new event `data` key**, stamped on a *restart* only, and
+   `series_cold` was kept beside it purely so the change stays additive
+   (`EVENT_SCHEMA_VERSION` still "2"). If the freeze wants one authority on the
+   wire, dropping `series_cold` is the version bump to price — the argument for
+   keeping it is in `sequential._rung_stamp`.
+
 **From [1046](1046-candidate-cap-before-ranking.md), closed 2026-08-09 — three
 indexing-surface facts, and one question the freeze should settle.**
 
