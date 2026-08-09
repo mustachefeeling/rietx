@@ -42,6 +42,7 @@ REAL_FIXTURES = [
     ("panalytical_powder.xrdml", "xrdml"),      # XRDML 1.6, one scan, counts
     ("panalytical_mesh.xrdml", "xrdml"),        # XRDML 2.1, 101 scans, listPositions
     ("rigaku_powder.rasx", "rasx"),             # a zip container: BOM'd members
+    ("bruker_absorber.brml", "brml"),           # a zip of XML, 4.5 MB unread
 ]
 
 #: Formats with **no vendorable real file**, built here instead.  Kept apart from
@@ -53,23 +54,28 @@ REAL_FIXTURES = [
 #: truncated above, but the only real *multi-scan* archive is 2.3 MB, so the
 #: several-groups failure paths are reached synthetically
 #: (``tests/data/README.md`` names both).
-SYNTHETIC_FIXTURES = ["uxd", "rasx"]
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
-    from tests.test_readers import write_rasx, write_uxd
+    from tests.test_readers import write_brml, write_rasx, write_uxd
 
     if kind == "uxd":
         return write_uxd(path, [dict(drive="COUPLED", marker="_2THETACOUNTS",
                                      steptime=1.0,
                                      rows=[(10.0 + 0.02 * i, 500 + i % 7)
                                            for i in range(400)])])
-    assert kind == "rasx"
-    # two groups, so a cut lands inside a manifest, a member and the central
-    # directory at different depths
-    return write_rasx(path, [dict(rows=[(10.0 + 0.02 * i, 500 + i % 7)
+    # two groups each, so a cut lands inside a manifest, a member and the
+    # central directory at different depths
+    if kind == "rasx":
+        return write_rasx(path, [dict(rows=[(10.0 + 0.02 * i, 500 + i % 7)
+                                            for i in range(200)]),
+                                 dict(rows=[(40.0 + 0.02 * i, 300 + i % 5)
+                                            for i in range(200)])])
+    assert kind == "brml"
+    return write_brml(path, [dict(rows=[(1, 1, 10.0 + 0.02 * i, 5.0, 500 + i % 7)
                                         for i in range(200)]),
-                             dict(rows=[(40.0 + 0.02 * i, 300 + i % 5)
+                             dict(rows=[(1, 1, 40.0 + 0.02 * i, 20.0, 300 + i % 5)
                                         for i in range(200)])])
 
 

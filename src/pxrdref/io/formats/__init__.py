@@ -41,6 +41,7 @@ from .base import (
     sigma_from_cps,
     sigma_from_scaled,
 )
+from .brml import BRML, read_brml
 from .chi import CHI, read_chi
 from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
@@ -52,12 +53,13 @@ from .xrdml import XRDML, read_xrdml
 from .xy import XY, read_xy
 
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
-#: ``RASX`` is first because a zip's magic bytes are the strongest evidence any
-#: of these has; ``RAS``, ``UXD`` and ``XRDML`` follow, each recognised by a
+#: ``RASX`` and ``BRML`` are first because a zip's magic bytes are the strongest
+#: evidence any of these has, and the two are told apart by their manifests, not
+#: by it; ``RAS``, ``UXD`` and ``XRDML`` follow, each recognised by a
 #: first line or a root element its own spec requires, which is stronger
 #: evidence than the suffix and loose-text sniffs below them.
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (RASX, RAS, UXD, XRDML, PDCIF,
-                                              GSAS, CHI, DIF, XY)
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (RASX, BRML, RAS, UXD, XRDML,
+                                              PDCIF, GSAS, CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
@@ -76,6 +78,7 @@ __all__ = [
     "metadata",
     "multiscan_default",
     "pattern_data",
+    "read_brml",
     "read_chi",
     "read_dif",
     "read_gsas",

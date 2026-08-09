@@ -458,6 +458,10 @@ DATA = Path(__file__).parent / "data"
     # whose σ genuinely could not come from the fallback
     (DATA / "panalytical_attenuator.xrdml", "panalytical_attenuator.xrdml",
      "xrdml", True),
+    # two zip containers, told apart by their manifests rather than by the magic
+    # bytes they share — and one of them uploaded under the other's extension
+    (DATA / "rigaku_powder.rasx", "rigaku_powder.rasx", "rasx", False),
+    (DATA / "bruker_absorber.brml", "mystery.rasx", "brml", True),
 ])
 def test_an_upload_is_claimed_by_content_not_by_extension(
         blank, pattern_file, source, sent_as, reader, has_sigma):

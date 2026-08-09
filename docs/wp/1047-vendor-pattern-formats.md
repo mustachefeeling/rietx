@@ -444,7 +444,7 @@ that belong to it), never mid-format.
       (`read(cap + 1)`, refuse if over — `ZipInfo.file_size` is header
       metadata and is not trusted; never `extract()`), BOM skip, the
       misspelled conditions file.
-- [ ] 12. `.brml` — `DataContainer.xml` → `RawData<N>.xml`, channels located
+- [x] 12. `.brml` — `DataContainer.xml` → `RawData<N>.xml`, channels located
       via `DataViews/RawDataView[@Start][@Length]`, **not** GSAS-II's
       `entry[2]`/`[4]`, which are not stable across files. Same bounded-read
       zip rule as 11.

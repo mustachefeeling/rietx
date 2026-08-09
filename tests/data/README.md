@@ -579,3 +579,42 @@ of the very same `*MEAS_SCAN_*` keys — and both formats decide σ by
   structure.
 * `Omega-2Theta_scan_high_temperature.rasx` — `TwoThetaOmega`, 44–49° at
   0.0048°, the second non-integral "counts" file above.
+
+### `bruker_absorber.brml` — the third answer to the attenuator question
+
+`.brml` is what DIFFRAC.MEASUREMENT writes: a zip of XML in which
+`Experiment0/DataContainer.xml` lists one `RawData<N>.xml` per scan, and each
+scan describes its own **columns** in `DataViews` rather than fixing them.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `bruker_absorber.brml` | FAIRmat `readers-xrd`, `tests/data/23-012-AG_2thomegascan_long.brml` | Apache-2.0 | **Real** HRXRD 2θ–ω scan of a thin film, 2001 points, 44–48° at 0.002°, Cu, λ = 1.5406, 1 s/step. Its `AbsorptionFactor` channel **varies** (1.0 → 8.3 across 29 points), which is what settles the convention below. Also the layout that kills a fixed index: 2θ is column 2 and the intensity is column **7**. |
+
+**Bruker's absorber is already applied to the stored intensity — the opposite of
+`.xrdml`, on the same test.** Over the 29 attenuated points of the substrate
+peak:
+
+| 2θ | 45.784 | 45.786 | 45.788 | **45.790** | 45.792 |
+|---|---|---|---|---|---|
+| factor `a` | 1.0 | 1.0 | 1.0 | **8.3** | 8.3 |
+| stored `y` | 120757 | 151306 | 182114 | **213600.5** | 243746.1 |
+| `y / a` | 120757 | 151306 | 182114 | **25735** | 29367 |
+
+`y` runs *continuously* across the transition while `y / a` steps by a factor of
+seven, and — measured over all 2001 points — `y` is not integral, `y × a` is not
+integral, and `y / a` **is**. So the stored series is the corrected one: nothing
+is multiplied, and the only thing the factor changes is σ, which must go back
+through it as √(y/a)·a. Three vendors have now given three answers to one
+question (`.ras`/`.rasx` undecidable and reported, `.xrdml` applied, `.brml`
+already applied), which is the argument for measuring rather than adopting a
+convention.
+
+**One real file established structure without being vendored:**
+`EJZ060_13_004_RSM.brml` (5.1 MB, Apache-2.0) — **801** `RawData<N>.xml`
+members, which is where the multi-scan design comes from, and two facts that are
+guards in the reader. Its zip name list runs `…RawData20, RawData22, RawData21,
+experimentCollection.xml, RawData23…`, so the manifest and not the name list
+orders the scans. And its `RecordedRawDataView` has `Length="1280"` — each row is
+a whole position-sensitive-detector frame — while its `ScanAxes` still declares
+`AxisId="TwoTheta"`, so the axis check passes and **only the recorded view's own
+length says the rows are not a profile**.

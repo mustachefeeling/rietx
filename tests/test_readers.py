@@ -1268,3 +1268,205 @@ def test_a_group_with_no_conditions_still_yields_its_points(tmp_path):
     assert "anode" not in data.metadata
     # …and the axis is unknown rather than assumed silently
     assert [d.code for d in notes] == ["PATTERN_X_AXIS_ASSUMED"]
+
+
+# --------------------------------------------------------------------- brml
+def write_brml(path: Path, scans, *, manifest=None, unit="Counts") -> Path:
+    """A minimal but view-shaped ``.brml`` — the cases no vendorable file holds.
+
+    The column layout is written *from* ``DataViews`` here exactly as the reader
+    reads it back, which is the honest limit of a synthesized fixture: what it
+    exercises is the failure paths, not the format.  The two real files are what
+    established the layout, and `tests/data/README.md` records what each showed.
+    """
+    import zipfile
+
+    members, refs = {}, []
+    for i, scan in enumerate(scans):
+        rows = "".join(f"<Datum>{','.join(str(v) for v in row)}</Datum>"
+                       for row in scan["rows"])
+        recorded = scan.get("recorded_length", 1)
+        names = scan.get("axes", ("TwoTheta", "Theta"))
+        axes = "".join(f'<FieldDefinitions FieldName="{a}" AxisId="{a}" />'
+                       for a in names)
+        # the recorded channel sits after the two fixed ones and every axis —
+        # computed rather than fixed, which is the reader's own rule applied to
+        # the writer, and the only way a one-axis scan can be written at all
+        recorded_start = 2 + len(names)
+        name = f"Experiment0/RawData{i}.xml"
+        members[name] = (
+            '<?xml version="1.0"?><RawData '
+            'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
+            '<TubeMaterial>Cu</TubeMaterial><WaveLength Unit="Å" Value="1.5406" />'
+            f'<DataRoutes><DataRoute RouteFlag="{scan.get("flag", "Measured")}">'
+            f'<ScanInformation ScanName="{scan.get("scan_name", "TwoThetaOmegaScan")}" />'
+            f'{rows}<DataViews>'
+            '<RawDataView xsi:type="FixedRawDataView" Start="0" Length="1" '
+            'LogicName="MeasuredTime" Unit="s" />'
+            '<RawDataView xsi:type="FixedRawDataView" Start="1" Length="1" '
+            'LogicName="AbsorptionFactor" Unit="" />'
+            f'<RawDataView xsi:type="VaryingRawDataView" Start="2" '
+            f'Length="{len(names)}">'
+            f'<Varying>{axes}</Varying></RawDataView>'
+            f'<RawDataView xsi:type="RecordedRawDataView" '
+            f'Start="{recorded_start}" '
+            f'Length="{recorded}"><Recording>'
+            f'<Unit Prefix="None" Base="{unit}" /></Recording></RawDataView>'
+            '</DataViews></DataRoute></DataRoutes></RawData>')
+        refs.append(f"<string>{name}</string>")
+
+    listed = "".join(refs) if manifest is None else manifest
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("Experiment0/DataContainer.xml",
+                         '<?xml version="1.0"?><DataContainer '
+                         f'RawDataLength="{len(scans)}">'
+                         f"<RawDataReferenceList>{listed}</RawDataReferenceList>"
+                         "</DataContainer>")
+        for name, text in members.items():
+            archive.writestr(name, text)
+    return path
+
+
+def test_the_real_brml_reads_through_its_own_channel_description():
+    """No index is counted: in this file 2θ is column 2 and the intensity is
+    column **7**, which is why GSAS-II's fixed ``entry[2]``/``entry[4]`` is a
+    coincidence of one layout rather than the format."""
+    data = pr.read_pattern(DATA / "bruker_absorber.brml")
+
+    assert len(data.two_theta) == 2001
+    assert data.two_theta[0] == 44.0 and data.two_theta[-1] == 48.0
+    assert data.metadata["scan_axis"] == "TwoThetaOmegaScan"
+    assert data.metadata["anode"] == "Cu"
+    assert data.metadata["wavelength"] == "1.5406"
+    assert data.metadata["intensity_unit"] == "Counts"
+    assert data.metadata["count_time_s"] == "1.0"
+
+
+def test_the_bruker_absorber_is_already_applied_so_only_sigma_goes_through_it():
+    """The third answer from a third vendor, and the same structural test.
+
+    In this file ``y`` is not integral, ``y × a`` is not, and ``y / a`` **is**;
+    and the stored series runs continuously across the point where the absorber
+    engages while ``y / a`` steps by a factor of seven.  So Bruker stores the
+    corrected intensity — nothing is multiplied — but the Poisson quantity is
+    still ``y / a``, so σ = √(y/a)·a.
+    """
+    notes: list = []
+    data = pr.read_pattern(DATA / "bruker_absorber.brml", diagnostics=notes)
+
+    apex = max(range(len(data.intensity)), key=lambda i: data.intensity[i])
+    assert data.intensity[apex] == 495559.8          # stored, not multiplied
+    assert data.sigma is not None
+    assert data.sigma[apex] == pytest.approx((495559.8 / 8.3) ** 0.5 * 8.3)
+    # the counted quantity really is y/a: whole numbers, to the last point
+    assert all(abs(v / 8.3 - round(v / 8.3)) < 1e-3 or abs(v - round(v)) < 1e-3
+               for v in data.intensity)
+    assert [d.code for d in notes] == ["BRML_ABSORBER_ENGAGED"]
+    assert "8.3" in notes[0].message
+
+
+def test_a_detector_frame_is_refused_rather_than_read_as_a_profile(tmp_path):
+    """``EJZ060_13_004_RSM.brml`` records 1280 channels per row and still claims
+    ``AxisId="TwoTheta"`` in its ``ScanAxes``, so the axis check passes and only
+    the recorded view's own ``Length`` says what the rows are."""
+    p = write_brml(tmp_path / "psd.brml", [dict(
+        recorded_length=1280,
+        rows=[(1, 1, 44.0 + 0.01 * i, 18.0) + tuple(range(1280))
+              for i in range(4)])])
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "psd.brml" in str(refusal.value)
+    assert "position-sensitive-detector frame" in str(refusal.value)
+
+
+def test_a_scan_with_no_two_theta_axis_is_refused_by_what_it_does_step(tmp_path):
+    p = write_brml(tmp_path / "rock.brml", [dict(
+        axes=("Theta",), scan_name="RockingCurveScan",
+        rows=[(1, 1, 18.0 + 0.01 * i, 5) for i in range(4)])])   # 2θ never moves
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "rocking curve" in str(refusal.value)
+
+
+def test_the_manifest_orders_the_scans_because_the_name_list_does_not(tmp_path):
+    """A real 801-scan archive stores its members …20, 22, 21,
+    experimentCollection.xml, 23…, so the zip's own order is not the scans'."""
+    p = write_brml(tmp_path / "many.brml",
+                   [dict(rows=[(1, 1, 10.0 + 0.01 * i, 5.0, 100 + i)
+                               for i in range(4)]),
+                    dict(rows=[(1, 1, 30.0 + 0.01 * i, 5.0, 200 + i)
+                               for i in range(4)])])
+    notes: list = []
+
+    first = pr.read_pattern(p, diagnostics=notes)
+    second = pr.read_pattern(p, scan=1)
+
+    assert first.two_theta[0] == 10.0 and second.two_theta[0] == 30.0
+    assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
+    assert [s.index for s in list_scans(p)] == [0, 1]
+
+
+def _with_extra_route(path: Path, flag: str) -> Path:
+    """The same ``.brml`` with a second ``DataRoute`` spliced in."""
+    import zipfile
+
+    with zipfile.ZipFile(path) as archive:
+        container = archive.read("Experiment0/DataContainer.xml").decode()
+        raw = archive.read("Experiment0/RawData0.xml").decode()
+    doubled = raw.replace("</DataRoutes>",
+                          f'<DataRoute RouteFlag="{flag}"><Datum>1,1,90,45,7'
+                          "</Datum></DataRoute></DataRoutes>")
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("Experiment0/DataContainer.xml", container)
+        archive.writestr("Experiment0/RawData0.xml", doubled)
+    return path
+
+
+def test_a_processed_route_beside_the_measured_one_is_not_what_gets_fitted(
+        tmp_path):
+    """A processed route is somebody else's background subtraction; refining
+    against it unasked is the silent substitution this package refuses.  Where
+    exactly one route says ``Measured``, that is the answer and the rest are
+    ignored — where two do, choosing is the file's job and the reader stops."""
+    rows = [(1, 1, 10.0 + 0.01 * i, 5.0, 100 + i) for i in range(4)]
+
+    ignored = _with_extra_route(
+        write_brml(tmp_path / "one.brml", [dict(rows=rows)]), "Processed")
+    assert pr.read_pattern(ignored).two_theta[0] == 10.0
+
+    ambiguous = _with_extra_route(
+        write_brml(tmp_path / "two.brml", [dict(rows=rows)]), "Measured")
+    with pytest.raises(ValueError, match="not exactly one marked Measured"):
+        pr.read_pattern(ambiguous)
+
+
+def test_the_xsi_prefix_is_resolved_rather_than_matched_as_text(tmp_path):
+    """The prefix is the document's to choose — ``xsi:`` here, ``xs:`` in the
+    next file — and ElementTree resolves it away, so matching the literal string
+    would break on a file this reader must still open."""
+    import zipfile
+
+    p = write_brml(tmp_path / "prefixed.brml",
+                   [dict(rows=[(1, 1, 10.0 + 0.01 * i, 5.0, 100 + i)
+                               for i in range(4)])])
+    with zipfile.ZipFile(p) as archive:
+        container = archive.read("Experiment0/DataContainer.xml").decode()
+        raw = archive.read("Experiment0/RawData0.xml").decode()
+    renamed = raw.replace("xmlns:xsi=", "xmlns:zz=").replace("xsi:type=", "zz:type=")
+    with zipfile.ZipFile(p, "w") as archive:
+        archive.writestr("Experiment0/DataContainer.xml", container)
+        archive.writestr("Experiment0/RawData0.xml", renamed)
+
+    assert len(pr.read_pattern(p).two_theta) == 4
+
+
+def test_a_manifest_naming_a_missing_raw_data_is_refused_by_name(tmp_path):
+    p = write_brml(tmp_path / "hollow.brml",
+                   [dict(rows=[(1, 1, 10.0, 5.0, 100)])],
+                   manifest="<string>Experiment0/RawData9.xml</string>")
+
+    assert identify_format(p).name == "brml"
+    with pytest.raises(ValueError, match="internally inconsistent"):
+        pr.read_pattern(p)

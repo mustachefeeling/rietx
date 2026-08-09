@@ -123,14 +123,17 @@ the stored value is `y = c·s` for a scale the reader can *name*, and `s ≡ 1` 
 raw counts and gets no σ. `base.sigma_from_scaled` is that; `.xrdml` composes an
 attenuation factor with `1/t`.
 
-**An attenuator is applied where its semantics are settled and reported where
-they are not** — the two formats that have one disagree. `.ras`'s third column
-stays unapplied: no spec says whether column 2 is already corrected and every
-obtainable file has it constant, so there is nothing to measure. `.xrdml`'s
-`beamAttenuationFactors` **is** applied, because one real file settles it, and
-the test that settled it is the one to run on the third such format: find a file
-where the factor varies and ask which of the raw series and the product is
-continuous (`tests/data/README.md` has the five points).
+**An attenuator's convention is measured, never adopted** — four formats have
+one and they have given three different answers. The test is the same each time:
+find a file where the factor *varies*, and ask which of the raw series and the
+product runs continuously through the transition. `.xrdml` **applies** it (the
+raw series dips 87 % at the attenuated point of a substrate peak); `.brml` leaves
+the values alone and puts the factor into σ only (the stored series is
+continuous, and `y/a` is the integral one); the two Rigaku formats **report**
+without deciding, because no obtainable file has a varying column. Numbers in
+`tests/data/README.md`. Whichever way it lands, σ goes through the factor —
+√counts·a is not √y — and that is the case GSAS-II gets wrong by weighting 1/y
+regardless.
 
 ## The axis is never trusted
 
@@ -174,6 +177,7 @@ what the SRM 660c acceptance allows.
 | format | claimed by | σ | notes |
 |---|---|---|---|
 | `rasx` | a zip holding a `Data<N>/Profile<N>.txt` member — **first**, magic bytes being the strongest evidence here | the same arithmetic as `.ras` | multi-scan; `root.xml` is the authority on order and membership, not the zip name list; every member read through a cap, because `ZipInfo.file_size` is the archive's own claim |
+| `brml` | a zip holding a `DataContainer.xml` **and** a `RawData<N>.xml` | derived through the absorber, √(y/a)·a | multi-scan; **every column is located from `DataViews`, never counted** — 2θ is column 2 and the intensity column 7 in the real files, so GSAS-II's fixed `entry[2]`/`[4]` is one layout's coincidence. A `RecordedRawDataView` of `Length > 1` is a detector frame and is refused |
 | `ras` | first line `*RAS_DATA_START` | measured per file (above) | multi-scan; third column is an attenuator and is **never applied** — no spec says whether column 2 is already corrected, and all five obtainable files have it constant, so `RAS_ATTENUATOR_PRESENT` names the affected 2θ range instead |
 | `uxd` | first non-`;` line begins `_FILEVERSION` | marker suffix + `_STEPTIME` | multi-range; the header snapshot must be taken when the **marker opens** the block, not at close — keys persist across ranges, so otherwise a 2 s range's σ comes from a 20 s one |
 | `xrdml` | the document's first element is `<xrdMeasurements>` | one composition, `y = c·s` | multi-scan; the namespace is **versioned** (1.6 and 2.1 both current), so nothing matches on it and every lookup is by local name |
