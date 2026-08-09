@@ -213,6 +213,8 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | plotly | MIT | **Optional dependency** (`[viz]`) — self-contained interactive HTML viewer (plotly.js embedded in generated files). |
 | BGMN / Profex | GPL | Studied (papers/docs only). **No code ported.** |
 | xrayutilities | GPL-2.0 | Studied (papers/docs only). **No code ported.** |
+| FAIRmat `readers-xrd` | Apache-2.0 | **Vendor-format reference and fixture source** (WP-1047): its `tests/data` files are vendored as `tests/data/panalytical_*.xrdml` (and their `.json` reader outputs, used as independent oracles), and its element paths were consulted as specification. **One fence, and it is not cured by the wrapper's licence**: `src/fairmat_readers_xrd/ikz.py` — the file holding *both* its BRML and RASX readers — says it is "adapted from" `github.com/carichte/IKZ`, which has **no LICENSE file at all**, and Apache-2.0 on the wrapper grants nothing the upstream did not. So that file is **structural specification only**, never a line-for-line reading. It holds no data, so the fence does not reach the fixtures. |
+| xylib | LGPL-2.1 | Listed **precisely to state that it was not ported.** It is the most complete open catalogue of vendor powder formats and its `uxd.cpp`, `rigaku_dat.cpp` and `bruker_raw.cpp` were *not* consulted for any reader here; the LGPL bars a port into an MIT core, and where a format fact was needed it was taken from a permissive source or measured off a file. |
 
 ## Format specifications (WP-1047)
 
@@ -233,6 +235,7 @@ idioms. No line of any reader below is transcribed.
 | `.dif` peak lists | Bruker DIFFRAC-AT output; RRUFF calculated-powder tables | Recognised **in order to be refused**; there is no parser to attribute. |
 | Bruker/Siemens `.uxd` | Keys, block markers and range structure read off five real files (`usnistgov/texture`, `mtex-toolbox/mtex`, `joeyko2706/FP-Protokolle`) | **No file is vendored**: one repo is GPL-2.0 and the others declare no licence at all. Facts may be read from them; bytes may not be redistributed. `tests/data/README.md` records what each established. xylib's `uxd.cpp` (LGPL) was **not** consulted. |
 | Rigaku `.ras` | Section markers and header keys read off real exports, plus the format notes in `garrekstemo/RigakuFiles.jl` (MIT) and `nims-mdpf/M-DaC_XRD` (MIT) | The format is self-describing ASCII, so the "spec" is a list of key names. The three policies that cost more than the parsing — the axis refusal, σ decided by arithmetic rather than by the declared unit, and the un-applied attenuator — are this project's; no source states any of them. |
+| PANalytical `.xrdml` | Element paths and attribute names read off three real files, cross-checked against the paths named in `paruch-group/xrdtools` (MIT) and FAIRmat `readers-xrd` (Apache-2.0) | Fixtures **are** vendored: all three were committed by `readers-xrd`'s own maintainers into an Apache-2.0 repo, and the `ikz.py` fence below does not reach them (IKZ holds no data files). That `intensity = counts × beamAttenuationFactors` is asserted by FAIRmat's reader and **independently measured here** on the real file — `tests/data/README.md` has the five-point table; `xrdtools` ignores the field entirely. σ through that product, and the counts/cps composition, are this project's. |
 
 ## Bundled frontend code (redistributed in the wheel)
 

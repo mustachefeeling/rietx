@@ -39,6 +39,8 @@ REAL_FIXTURES = [
     ("nist_srm660c_100a.cif", "pdcif"),   # pdCIF through gemmi, two blocks
     ("qarr/corundum.prn", "xy"),          # two-column ASCII
     ("rigaku_nims.ras", "ras"),           # Rigaku text, marked sections
+    ("panalytical_powder.xrdml", "xrdml"),      # XRDML 1.6, one scan, counts
+    ("panalytical_mesh.xrdml", "xrdml"),        # XRDML 2.1, 101 scans, listPositions
 ]
 
 #: Formats with **no vendorable real file**, built here instead.  Kept apart from

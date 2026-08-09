@@ -69,7 +69,9 @@ SIZE_CAPS: dict[str, int | None] = {
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,
     "src/pxrdref/indexing/CLAUDE.md": 250,
-    "src/pxrdref/io/CLAUDE.md": 200,
+    # 200 at the .ras/.uxd consolidation; raised once with three container
+    # formats still to land, each of which is a row in its per-format table
+    "src/pxrdref/io/CLAUDE.md": 250,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 

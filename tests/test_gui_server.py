@@ -451,6 +451,13 @@ DATA = Path(__file__).parent / "data"
     # pdCIF is the one format dispatched on its suffix, and the only one with
     # a reader *option*
     (DATA / "nist_srm660c_100a.cif", "nist.cif", "pdcif", True),
+    # a vendor XML, claimed by its root element rather than its name; raw counts,
+    # so no σ and the Poisson fallback is the correct answer
+    (DATA / "panalytical_powder.xrdml", "renamed.txt", "xrdml", False),
+    # the same format with a *derived* σ — one point behind a 188× attenuator,
+    # whose σ genuinely could not come from the fallback
+    (DATA / "panalytical_attenuator.xrdml", "panalytical_attenuator.xrdml",
+     "xrdml", True),
 ])
 def test_an_upload_is_claimed_by_content_not_by_extension(
         blank, pattern_file, source, sent_as, reader, has_sigma):

@@ -837,3 +837,247 @@ def test_an_unknown_block_marker_is_named_rather_than_skipped(tmp_path):
 
     with pytest.raises(ValueError, match="_INTENSITIES"):
         pr.read_pattern(p)
+
+
+# -------------------------------------------------------------------- xrdml
+#: FAIRmat's own reader output for the same file, vendored beside it — an
+#: independent implementation's answer, which is what makes it an oracle rather
+#: than a transcription of ours.  It records array *shapes* and the header
+#: metadata; the intensities themselves it does not carry.
+def _oracle(stem: str) -> dict:
+    import json
+
+    return json.loads((DATA / f"{stem}.json").read_text(encoding="utf-8"))
+
+
+def test_the_real_powder_scan_matches_its_independent_oracle():
+    """Every field the oracle carries, against the reader — not a sample of them.
+
+    The oracle is FAIRmat's ``readers-xrd`` output for this exact file
+    (Apache-2.0, vendored with it), so agreement is a cross-implementation
+    check on the element paths, not a round-trip through our own understanding.
+    """
+    oracle = _oracle("panalytical_powder.xrdml")
+    data = pr.read_pattern(DATA / "panalytical_powder.xrdml")
+
+    assert len(data.two_theta) == int(oracle["2Theta"].strip("(),"))
+    assert len(data.intensity) == int(oracle["intensity"].strip("(),"))
+    assert data.metadata["scan_axis"] == oracle["metadata"]["scan_axis"]
+    assert data.metadata["anode"] == oracle["metadata"]["source"]["anode_material"]
+    assert float(data.metadata["wavelength"]) == float(
+        oracle["metadata"]["source"]["kAlpha1"])
+    assert float(data.metadata["wavelength_alpha2"]) == float(
+        oracle["metadata"]["source"]["kAlpha2"])
+    assert data.metadata["scan_count"] == "1"
+    # not in the oracle, and the reason the reader bothers: two of the four
+    # bragg_brentano numbers need not be typed when the file already knows them
+    assert data.metadata["goniometer_radius_mm"] == "240.0"
+
+
+def test_raw_counts_get_no_sigma_because_the_poisson_fallback_is_right():
+    """``sigma=None`` here is the *correct* answer, not a missing one — the
+    stored values are the detector's own integers."""
+    data = pr.read_pattern(DATA / "panalytical_powder.xrdml")
+
+    assert data.sigma is None
+    assert data.metadata["intensity_unit"] == "counts"
+    assert all(float(v).is_integer() for v in data.intensity)
+
+
+def test_the_beam_attenuator_is_applied_and_sigma_goes_through_it():
+    """The finding this reader is built around, on the file that established it.
+
+    A single point of the GaAs 004 substrate reflection was measured behind a
+    188× foil, and the raw series *dips* there — 1341, 14602, **1877**, 13749 —
+    which is the attenuation and not a profile.  So the stored counts are the
+    attenuated ones, the reported intensity is their product, and σ is
+    √counts·a rather than √y: the case GSAS-II gets wrong by weighting 1/y.
+    """
+    notes: list = []
+    data = pr.read_pattern(DATA / "panalytical_attenuator.xrdml", diagnostics=notes)
+
+    apex = max(range(len(data.intensity)), key=lambda i: data.intensity[i])
+    assert data.intensity[apex] == 1877.0 * 188.0
+    assert data.intensity[apex - 1] == 14602.0 and data.intensity[apex + 1] == 13749.0
+    assert data.sigma is not None
+    assert data.sigma[apex] == pytest.approx(1877.0 ** 0.5 * 188.0)
+    # and nowhere else: an unattenuated point's σ is what the fallback would be
+    assert data.sigma[apex - 1] == pytest.approx(14602.0 ** 0.5)
+    assert [d.code for d in notes] == ["XRDML_ATTENUATOR_APPLIED"]
+    assert "66.1" in notes[0].message and "188" in notes[0].message
+
+
+def test_a_reciprocal_space_map_is_scans_and_says_which_one_it_read():
+    """101 scans in one file, so the default is a choice and is never silent."""
+    notes: list = []
+    data = pr.read_pattern(DATA / "panalytical_mesh.xrdml", diagnostics=notes)
+
+    assert data.metadata["scan_count"] == "101"
+    assert data.metadata["scan"] == "0"
+    assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
+    assert pr.read_pattern(DATA / "panalytical_mesh.xrdml",
+                           scan=100).metadata["scan"] == "100"
+
+
+def test_a_stack_of_identical_ranges_is_labelled_by_what_differs():
+    """``ScanInfo.label`` may not be invented, and "2Theta 67.45–69.95°" a
+    hundred and one times tells a picker nothing.  What separates the scans is
+    the axis each was fixed at, which is knowable only across the whole list."""
+    scans = list_scans(DATA / "panalytical_mesh.xrdml")
+
+    assert len(scans) == 101
+    assert len({s.label for s in scans}) == 101
+    assert all("Omega" in s.label for s in scans)
+    assert all(s.n_points == 255 for s in scans)
+
+
+def test_the_position_list_form_is_read_as_written():
+    """Three forms exist and the mesh uses the third: 2θ written out per point
+    rather than as a start and an end."""
+    data = pr.read_pattern(DATA / "panalytical_mesh.xrdml", scan=0)
+
+    assert len(data.two_theta) == 255
+    assert data.two_theta[0] == pytest.approx(67.45053915)
+    assert data.two_theta[-1] == pytest.approx(69.95146085)
+
+
+def test_both_schema_versions_are_claimed_because_nothing_matches_the_namespace():
+    """1.6 and 2.1 are both current in the wild; keying on either would refuse
+    half the files a lab owns."""
+    versions = set()
+    for stem in ("panalytical_powder", "panalytical_attenuator", "panalytical_mesh"):
+        path = DATA / f"{stem}.xrdml"
+        assert identify_format(path).name == "xrdml"
+        versions.add(path.read_text(encoding="utf-8")
+                     .split('xmlns="', 1)[1].split('"', 1)[0])
+    assert len(versions) == 2
+
+
+def write_xrdml(path: Path, *, scan_axis="Gonio", start=10.0, end=13.0,
+                counts=(10, 20, 30, 40), element="counts", unit="counts",
+                attenuation=None, count_time="1.0", root="xrdMeasurements",
+                namespace="http://www.xrdml.com/XRDMeasurement/2.1") -> Path:
+    """A minimal but schema-shaped ``.xrdml`` — for the cases no fixture holds."""
+    attn = ("" if attenuation is None else
+            f"<beamAttenuationFactors>{' '.join(map(str, attenuation))}"
+            "</beamAttenuationFactors>")
+    time = "" if count_time is None else (
+        f'<commonCountingTime unit="seconds">{count_time}</commonCountingTime>')
+    path.write_text(
+        f'<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<{root} xmlns="{namespace}">'
+        f'<sample><id>S1</id><name></name></sample>'
+        f'<xrdMeasurement measurementType="Scan">'
+        f'<usedWavelength><kAlpha1 unit="Angstrom">1.5405980</kAlpha1>'
+        f'<kAlpha2 unit="Angstrom">1.5444260</kAlpha2></usedWavelength>'
+        f'<incidentBeamPath><radius unit="mm">240.00</radius>'
+        f'<xRayTube><anodeMaterial>Cu</anodeMaterial></xRayTube>'
+        f'</incidentBeamPath>'
+        f'<scan scanAxis="{scan_axis}" status="Completed"><dataPoints>'
+        f'<positions axis="2Theta" unit="deg">'
+        f'<startPosition>{start}</startPosition>'
+        f'<endPosition>{end}</endPosition></positions>'
+        f'{time}{attn}'
+        f'<{element} unit="{unit}">{" ".join(map(str, counts))}</{element}>'
+        f'</dataPoints></scan></xrdMeasurement></{root}>',
+        encoding="utf-8")
+    return path
+
+
+def test_a_rocking_curve_is_refused_by_the_axis_it_names(tmp_path):
+    p = write_xrdml(tmp_path / "rock.xrdml", scan_axis="Omega")
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "rock.xrdml" in str(refusal.value)
+    assert "rocking curve" in str(refusal.value)
+
+
+def test_a_rate_gets_a_derived_sigma_from_the_files_own_counting_time(tmp_path):
+    p = write_xrdml(tmp_path / "rate.xrdml", element="intensities", unit="cps",
+                    counts=(10.0, 20.0, 30.0, 40.0), count_time="4.0")
+
+    data = pr.read_pattern(p)
+
+    assert data.sigma is not None
+    assert data.sigma[0] == pytest.approx((10.0 * 4.0) ** 0.5 / 4.0)
+    assert data.metadata["count_time_s"] == "4.0"
+
+
+def test_a_rate_with_no_counting_time_withholds_sigma_and_says_why(tmp_path):
+    p = write_xrdml(tmp_path / "bare.xrdml", element="intensities", unit="cps",
+                    count_time=None)
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.sigma is None
+    assert [d.code for d in notes] == ["PATTERN_INTENSITY_SCALED"]
+    assert "√t" in notes[0].message
+
+
+def test_a_fixed_two_theta_is_not_a_pattern_however_the_scan_axis_is_spelled(
+        tmp_path):
+    """``scanAxis`` can say ``Gonio`` on a scan whose 2θ never moved — a φ or χ
+    scan written by software that did not update the attribute.  The positions
+    are the authority when they contradict it."""
+    p = tmp_path / "fixed.xrdml"
+    p.write_text(
+        '<?xml version="1.0"?><xrdMeasurements '
+        'xmlns="http://www.xrdml.com/XRDMeasurement/2.1"><xrdMeasurement>'
+        '<scan scanAxis="Gonio"><dataPoints>'
+        '<positions axis="2Theta"><commonPosition>33.0</commonPosition></positions>'
+        '<positions axis="Phi"><startPosition>0</startPosition>'
+        '<endPosition>90</endPosition></positions>'
+        '<counts unit="counts">1 2 3 4</counts>'
+        '</dataPoints></scan></xrdMeasurement></xrdMeasurements>', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="single fixed position"):
+        pr.read_pattern(p)
+
+
+def test_a_position_list_that_disagrees_with_the_data_is_refused(tmp_path):
+    p = tmp_path / "short.xrdml"
+    p.write_text(
+        '<?xml version="1.0"?><xrdMeasurements '
+        'xmlns="http://www.xrdml.com/XRDMeasurement/2.1"><xrdMeasurement><scan '
+        'scanAxis="2Theta"><dataPoints><positions axis="2Theta">'
+        '<listPositions>10 11 12</listPositions></positions>'
+        '<counts unit="counts">1 2 3 4</counts>'
+        '</dataPoints></scan></xrdMeasurement></xrdMeasurements>', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="3 positions for 4"):
+        pr.read_pattern(p)
+
+
+def test_xml_that_is_not_an_xrdml_is_not_claimed_by_this_reader(tmp_path):
+    """The sniff is the **root element**, not the suffix: a `.xrdml`-named
+    something-else keeps falling down the registry rather than being parsed as a
+    measurement it is not.  It lands on the text catch-all, which refuses it by
+    name — which is the whole point of the catch-all being a reader and not a
+    fallback that guesses."""
+    p = tmp_path / "other.xrdml"
+    p.write_text('<?xml version="1.0"?><plotData><x>1</x></plotData>',
+                 encoding="utf-8")
+
+    assert identify_format(p).name == "xy"
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(p)
+    assert "other.xrdml" in str(refusal.value)
+
+
+def test_a_comment_before_the_root_does_not_decide_the_sniff(tmp_path):
+    """A comment may legally contain angle brackets, so it is stripped before the
+    first element is looked for — otherwise a `<scan>` mentioned in prose wins."""
+    p = tmp_path / "commented.xrdml"
+    p.write_text('<?xml version="1.0"?><!-- written by <scan> exporter -->'
+                 '<xrdMeasurements xmlns="http://www.xrdml.com/XRDMeasurement/1.6">'
+                 '<xrdMeasurement><scan scanAxis="Gonio"><dataPoints>'
+                 '<positions axis="2Theta"><startPosition>10</startPosition>'
+                 '<endPosition>13</endPosition></positions>'
+                 '<counts unit="counts">1 2 3 4</counts>'
+                 '</dataPoints></scan></xrdMeasurement></xrdMeasurements>',
+                 encoding="utf-8")
+
+    assert identify_format(p).name == "xrdml"
+    assert len(pr.read_pattern(p).two_theta) == 4

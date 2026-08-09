@@ -97,9 +97,10 @@ Which of the two a file holds is decided by **what kind of declaration it
 makes**, and the three cases are the whole rule:
 
 - **Structural** — trusted. `.uxd` names the unit in the token that opens the
-  data block (`_2THETACOUNTS` / `_2THETACPS`), where it cannot disagree with
-  itself. Verified anyway: every `COUNTS` block integral to the last of 3774
-  points.
+  data block (`_2THETACOUNTS` / `_2THETACPS`) and `.xrdml` in a schema-enumerated
+  attribute *on* the data element, where neither can disagree with itself.
+  Verified anyway: every `COUNTS` block integral to the last of 3774 points, and
+  every intensity in both real single-scan `.xrdml` fixtures.
 - **Free text** — measured, not trusted. `.ras` names it in
   `*MEAS_SCAN_UNIT_Y`, and a real file declares `counts` while storing 84.3047,
   which no scale in 1/1000…200 makes integral. So arithmetic decides: counts
@@ -112,6 +113,21 @@ Deriving the counting time is part of this: `.uxd` gives `_STEPTIME` in seconds
 directly, `.ras` gives a speed whose **unit** must be read (`deg/min`, so a step
 ÷ speed in minutes — assuming seconds would make every σ wrong by √60), and a
 header that states no unit leaves the time *unknown* rather than defaulted.
+
+The counting time is not the only scale, so a format that scales twice
+**composes rather than branching**: the Poisson quantity is the raw count `c`,
+the stored value is `y = c·s` for a scale the reader can *name*, and `s ≡ 1` is
+raw counts and gets no σ. `base.sigma_from_scaled` is that; `.xrdml` composes an
+attenuation factor with `1/t`.
+
+**An attenuator is applied where its semantics are settled and reported where
+they are not** — the two formats that have one disagree. `.ras`'s third column
+stays unapplied: no spec says whether column 2 is already corrected and every
+obtainable file has it constant, so there is nothing to measure. `.xrdml`'s
+`beamAttenuationFactors` **is** applied, because one real file settles it, and
+the test that settled it is the one to run on the third such format: find a file
+where the factor varies and ask which of the raw series and the product is
+continuous (`tests/data/README.md` has the five points).
 
 ## The axis is never trusted
 
@@ -156,6 +172,7 @@ what the SRM 660c acceptance allows.
 |---|---|---|---|
 | `ras` | first line `*RAS_DATA_START` | measured per file (above) | multi-scan; third column is an attenuator and is **never applied** — no spec says whether column 2 is already corrected, and all five obtainable files have it constant, so `RAS_ATTENUATOR_PRESENT` names the affected 2θ range instead |
 | `uxd` | first non-`;` line begins `_FILEVERSION` | marker suffix + `_STEPTIME` | multi-range; the header snapshot must be taken when the **marker opens** the block, not at close — keys persist across ranges, so otherwise a 2 s range's σ comes from a 20 s one |
+| `xrdml` | the document's first element is `<xrdMeasurements>` | one composition, `y = c·s` | multi-scan; the namespace is **versioned** (1.6 and 2.1 both current), so nothing matches on it and every lookup is by local name |
 | `pdcif` | `.cif` suffix, through gemmi | the file's esd or weight column | `block` selects; a `_meas` and a `_calc` block are different patterns |
 | `gsas` | `^BANK \d+` in the first 4 kB | ESD/FXYE column, else Poisson | disjoint from `bruker_raw`'s magic by construction, so the `.raw` collision resolves either way |
 | `chi` | four-line header whose declared count matches the rows | third column when written | the count gate is the one O(N) sniff |

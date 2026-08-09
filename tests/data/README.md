@@ -500,3 +500,48 @@ No obtainable `.uxd` is a powder pattern, so `_DRIVE='COUPLED'` — the value a
 powder file would carry — is accepted on the **format's vocabulary** rather than
 on a fixture.  That is stated in the reader and is the one part of its axis
 allowlist not backed by a file.
+
+### `panalytical_*.xrdml` — three real files, and the one that settles the attenuator
+
+PANalytical/Malvern XRDML: the XML an Empyrean or X'Pert writes, in a
+*versioned* namespace (`…/XRDMeasurement/1.6` and `/2.1` are both current in the
+wild, and both appear below — which is why nothing in the reader matches on it).
+All three are real vendor output; two ship an independent expected-value oracle.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `panalytical_powder.xrdml` (+`.json`) | FAIRmat `readers-xrd`, `tests/data/XRD-918-16_10.xrdml` | Apache-2.0 | **Real** Empyrean powder scan: 5027 points, 4.007–69.999°, Cu 45 kV/40 mA, `scanAxis="Gonio"`, schema 1.6, `<intensities unit="counts">`. Integral to the last point, so it is the "raw counts, σ=None is correct" arm. The `.json` is FAIRmat's own reader output for the same file — an **independent implementation's** answer, which is what makes it an oracle rather than a transcription of ours. |
+| `panalytical_attenuator.xrdml` | FAIRmat `readers-xrd`, `tests/data/m54313_om2th_10.xrdml` | Apache-2.0 | **The file that settles `beamAttenuationFactors`** (below). Real ω–2θ scan of a GaAs epilayer, 1800 points, 26.025–79.995° at 0.03°, schema 2.1, `<counts>`. Also the `2Theta-Omega` axis name and a 0.5 s counting time. |
+| `panalytical_mesh.xrdml` (+`.json`) | FAIRmat `readers-xrd`, `tests/data/m82762_rc1mm_1_16dg_src_slit_phi-101_3dg_-420_mesh_long.xrdml` | Apache-2.0 | **101 scans in one file** — a reciprocal-space map — so it is the `.xrdml` arm of `scan=`, `PATTERN_MULTISCAN_DEFAULTED` and `list_scans`. The only real evidence for the third `positions` form, `listPositions` (255 explicit 2θ values per scan). Its 101 labels are identical but for the ω each scan was fixed at, which is why `list_xrdml_scans` labels from what *varies*. |
+
+**Licences were checked per *file*, and this time they conveyed.** All three
+were committed by `readers-xrd`'s own maintainers into an Apache-2.0 repository
+(`9ec0c0de`, `fd8a192a`). The repo's `ikz.py` is "adapted from" the unlicensed
+`carichte/IKZ`, which is why `ATTRIBUTION.md` fences that *code* — but IKZ holds
+15 files and **no data at all**, so the fence does not reach these bytes.
+
+**The attenuator question, which `.ras` could not answer, is answered here.**
+A PANalytical attenuator drops a foil in front of the detector for the few
+points that would saturate it. Whether the stored series is already corrected
+for it is undecidable without a file where the factor *varies* — and
+`panalytical_attenuator.xrdml` is one: exactly one point, at the apex of the
+GaAs 004 substrate reflection, carries a factor of **188**. Its raw
+neighbourhood is
+
+| 2θ | 66.045 | 66.075 | **66.105** | 66.135 | 66.165 |
+|---|---|---|---|---|---|
+| stored counts | 1341 | 14602 | **1877** | 13749 | 1667 |
+| × factor | 1341 | 14602 | **352876** | 13749 | 1667 |
+
+The raw series *dips* by 87 % at exactly the attenuated point — which is the
+attenuation, not a profile, since a substrate reflection cannot have a hole in
+its apex. The product restores a monotone peak. So the stored counts are the
+attenuated ones, `intensity = counts × factor`, and σ = √counts·factor rather
+than √y. FAIRmat's reader computes the same product independently. This is the
+structural test `io/formats/ras.py` describes and could not run; it is also the
+case GSAS-II gets wrong, weighting 1/y regardless.
+
+Two files were examined and **not** vendored, having established nothing the
+three above do not: `EJZ060_13_004_RSM.brml` (5.1 MB) and
+`Omega-2Theta_scan_high_temperature.rasx` belong to the `.brml`/`.rasx` readers,
+not this one.

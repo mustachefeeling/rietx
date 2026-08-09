@@ -437,7 +437,7 @@ that belong to it), never mid-format.
       prefix, read as two independent facts), multi-range. The **second**
       consumer of `scan`, which is what proves the option is generic rather
       than `.ras`-shaped.
-- [ ] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
+- [x] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
       the counts/intensities σ rule, `beamAttenuationFactors`, multi-scan.
       Tested against the JSON oracle exactly.
 - [ ] 11. `.rasx` — in-memory `ZipFile.open` with a **bounded read**
