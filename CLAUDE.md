@@ -23,10 +23,9 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fn
 ```
 
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
-serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional
-either — it is what honours the `xdist_group` marks that keep a shared fixture
-on one worker (see `tests/CLAUDE.md`); plain `--dist load` ignores them and
-silently refits.
+serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional either — it
+is what honours the `xdist_group` marks that keep a shared fixture on one worker
+(see `tests/CLAUDE.md`); plain `--dist load` ignores them and silently refits.
 
 Headline testing rules — operating detail and evidence (xdist group ordering,
 budget narrowing, quoting counts) in `tests/CLAUDE.md`; the dated measurement
@@ -103,12 +102,15 @@ per-pattern summaries plus parameter *trajectories*, one history tree per patter
 `multi.py`, which stacks patterns into **one joint residual**. A chained fit is
 worth ≈3× in iterations and nothing in accuracy, and its trajectory is
 path-dependent by construction, so `direction="both"` runs the chain each way and
-flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only
-check that separates a measured trajectory from an ordering artefact.
+flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only check
+that separates a measured trajectory from an ordering artefact. A rejected warm fit
+**escalates a rung at a time**, keeping the best attempt (`entry.rung`), and one
+still diverged after the last rung is **quarantined** (WP-1051): reported with
+`SEQUENTIAL_UNRECOVERED`, but seeding no successor and joining no median.
 `events=`/`cancel=` are **per pattern** (WP-1016): every event carries
-`series_index`/`…_label`/`…_n`/`…_pass` (+`…_cold` on a reseed refit) in `data`, so
-no `EventKind` is new, and a cancelled series **returns** what completed with
-`SEQUENTIAL_CANCELLED` — WP-1006's rule one rank up, not an exception to it
+`series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*) in
+`data`, so no `EventKind` is new, and a cancelled series **returns** what completed
+with `SEQUENTIAL_CANCELLED` — WP-1006's rule one rank up, not an exception to it
 (`sequential.py`'s docstring has why).
 
 The **parameter surface** (WP-1004) is how a client works the table without
@@ -151,47 +153,45 @@ new guard by adding a `GuardFinding` constructor there; `code` is deliberately a
 open vocabulary, not a `Literal`.
 
 A **project** (WP-1005) is a `.pxrd/` **directory** — `project.json`, the pattern
-file copied byte-for-byte, `history.jsonl`, `live/`, `exports/` — opened and
-saved through `Project.create/open/save` (`project.py`, `schemas/project.py`). A
+file copied byte-for-byte, `history.jsonl`, `live/`, `exports/` — opened and saved
+through `Project.create/open/save` (`project.py`, `schemas/project.py`). A
 directory, not an archive: the log's crash safety is append-only writes by one
 writer, and rewrite-on-save would lose it. **One authority per fact.**
-`project.json` holds the *settings* — selected plan/mode/limits, excluded
-regions, the GUI's own `ui` keys — while `history.jsonl` holds the model state
-and its head *is* the working state, so no parameter value is duplicated
-between them and **saving is about settings, not durability** (the tree exists
-from `create`, so every `set_vary`/`set_value` is already on disk). Two things
-follow from the pattern being a file rather than a `PatternData`: the bytes are
-the contract (the readers' esd column is never overridden), and the **reader
-call** is part of the reference — `DataRef` records which
-`io.readers.PATTERN_FORMATS` entry claimed the file plus its options, because a
-pdCIF with a `_meas` and a `_calc` block is a different pattern depending on
-`block`. It carries sha256 of the bytes *and* the parsed-array fingerprint on
-purpose: agreeing bytes with a disagreeing fingerprint is a reader change, not a
-corrupt project. `excluded_regions` live in the document because they are
-protocol that is in neither the file nor `RefinementState` — a node cannot say
-what was excluded when it ran. Two rules follow (WP-1033): `project.fitted_mask`
-is the one authority for **which channels the next run fits** (`compile_model`'s
-first act, pinned by asserting `len(result.two_theta)` against its sum, and a
-function so a pattern the project does not own — a series member — asks the same
-question), and an inverted or empty interval is **refused, not reordered**
-by `schemas.project.check_interval` — one sentence the verb, the `.pxt` parser
-and the document's own validators all quote.
+`project.json` holds the *settings* — selected plan/mode/limits, excluded regions,
+the GUI's own `ui` keys — while `history.jsonl` holds the model state and its head
+*is* the working state, so no parameter value is duplicated between them and
+**saving is about settings, not durability** (the tree exists from `create`, so
+every `set_vary`/`set_value` is already on disk). Two things follow from the pattern
+being a file rather than a `PatternData`: the bytes are the contract (the readers'
+esd column is never overridden), and the **reader call** is part of the reference —
+`DataRef` records which `io.readers.PATTERN_FORMATS` entry claimed the file plus its
+options, because a pdCIF with a `_meas` and a `_calc` block is a different pattern
+depending on `block`. It carries sha256 of the bytes *and* the parsed-array
+fingerprint on purpose: agreeing bytes with a disagreeing fingerprint is a reader
+change, not a corrupt project. `excluded_regions` live in the document because they
+are protocol that is in neither the file nor `RefinementState` — a node cannot say
+what was excluded when it ran. Two rules follow (WP-1033): `project.fitted_mask` is
+the one authority for **which channels the next run fits** (`compile_model`'s first
+act, pinned by asserting `len(result.two_theta)` against its sum, and a function so
+a pattern the project does not own — a series member — asks the same question), and
+an inverted or empty interval is **refused, not reordered** by
+`schemas.project.check_interval` — one sentence the verb, the `.pxt` parser and the
+document's own validators all quote.
 
-Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes
-`"rietveld"`, `"lebail"` (intensity partitioning in
-`CompiledModel.lebail_update`) and `"pawley"` (per-hkl intensities refined as
-an off-table θ block — `model.forward.PawleyBlock`, appended in
-`run_least_squares`; overlapped groups get equal-split restraints and come back
-flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
-tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602):
-one call covering refine/refine_multi/refine_sequential/**index** behind a strict
-task union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
+Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes `"rietveld"`,
+`"lebail"` (intensity partitioning in `CompiledModel.lebail_update`) and `"pawley"`
+(per-hkl intensities refined as an off-table θ block — `model.forward.PawleyBlock`,
+appended in `run_least_squares`; overlapped groups get equal-split restraints and
+come back flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
+tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602): one
+call covering refine/refine_multi/refine_sequential/**index** behind a strict task
+union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
 traceback), and `agent.tool_definition()` exporting the JSON Schema with the
 backend/solver/plan/**engine** names quoted from the live registries — a meta-test
 fails if a registry member is missing from the schema. The four answers live in
-separate arms (`result` / `series` / `indexing` — the last with its
-`evidence` companion, the same answer projected for a reasoning consumer with
-caveat kinds and absent-for-cause figures, WP-1043) because they are different
+separate arms (`result` / `series` / `indexing` — the last with its `evidence`
+companion, the same answer projected for a reasoning consumer with caveat kinds and
+absent-for-cause figures, WP-1043) because they are different
 *shapes*, and for indexing the shape is the rule: the serialized answer carries no
 `cell` key either.
 
@@ -523,9 +523,8 @@ them all:
 to carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a
 CLAUDE.md takes **rules, not findings**.
 
-Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the
-milestone table in ROADMAP carries the acceptance one-liners — neither is
-restated here).
+Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the milestone table
+in ROADMAP carries the acceptance one-liners — neither is restated here).
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the last one

@@ -244,14 +244,31 @@ def test_warm_start_iteration_cost_is_reported(chained, chained_all,
 def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
     """Carrying the scales across a 1 → 94 wt % swing is the failure the fence
     is for; whether it fires is data-dependent, but every fit it accepts must
-    be the better of the two it saw."""
+    be the better of the ones it saw, and the ladder's accounting must add up.
+
+    The escalation is only ever a *prefix* of the ladder (WP-1051) — a rung is
+    reached because the one before it failed, so a series cannot report a cold
+    refit it never climbed to, and the kept rung has to be one of the rungs
+    actually tried.
+    """
+    from pxrdref.sequential import RUNGS
+
     for entry in chained_all:
+        # the first pattern has nothing to warm from, so its ladder is one rung
+        ladder = ["cold"] if entry.index == 0 else list(RUNGS)
+        assert entry.rungs_tried == ladder[:len(entry.rungs_tried)], entry.label
+        assert entry.rung in entry.rungs_tried
+        assert entry.reseeded == (entry.rung == "cold" and entry.index > 0)
         if entry.reseeded:
             assert entry.rwp_warm is not None
             assert entry.statistics.rwp <= entry.rwp_warm
+    print("\nrungs: " + ", ".join(f"{e.label}={'→'.join(e.rungs_tried)}"
+                                  for e in chained_all))
     codes = [d.code for d in chained_all.diagnostics]
     assert codes.count("SEQUENTIAL_RESEED") == sum(e.reseeded
                                                    for e in chained_all)
+    # every pattern converged, so the quarantine has nothing to hold
+    assert codes.count("SEQUENTIAL_UNRECOVERED") == 0
 
 
 @pytest.mark.slow
