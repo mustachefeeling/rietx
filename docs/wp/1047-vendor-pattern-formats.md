@@ -1,11 +1,12 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-9 of 17: the whole
+Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-12 of 17: the whole
 seam (formats package, option vocabulary, diagnostics channel, xy de-totalised,
-truncation fuzz) plus `.chi`, the `.dif` refusal, Rigaku `.ras` — which brought
-`scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS` and the schema-as-a-parser-
-boundary fix — and Bruker `.uxd`, the second `scan` consumer. Four vendor
-formats left, all of them containers or binary.
+truncation fuzz) plus `.chi`, the `.dif` refusal, and **five vendor formats** —
+Rigaku `.ras` (which brought `scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS`
+and the schema-as-a-parser-boundary fix), Bruker `.uxd`, PANalytical `.xrdml`,
+Rigaku `.rasx` and Bruker `.brml`. Left: the Bruker `.raw` binaries (13-14),
+the instrument hint and scan picker (15-16), the remaining docs (17).
 Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
 inherits the `DataRef` option-vocabulary note
 
@@ -102,8 +103,8 @@ source file closed*, in this repo's idioms.
 | Format | Fixture | Nature |
 |---|---|---|
 | `.xrdml` | readers-xrd `XRD-918-16_10.xrdml` (25 kB) | **real**, 5027 pts, Cu 45 kV/40 mA, ships a `.json` **expected-value oracle** |
-| `.rasx` | readers-xrd `TwoTheta_scan_powder.rasx` (34 kB) | **real powder**, 2726 pts, 10–119° at 0.04°; BOM, the `MesurementConditions0.xml` misspelling, and cps-scaled float intensities all verified |
-| `.brml` | readers-xrd `23-012-AG_2thomegascan_long.brml` (651 kB) | **real**, thin-film 2θ-ω |
+| `.rasx` | readers-xrd `TwoTheta_scan_powder.rasx` (34 kB) | **real powder**, 2726 pts, 10–119° at 0.04°; BOM and the `MesurementConditions0.xml` misspelling verified. ~~cps-scaled float intensities~~ — **wrong, corrected at task 11**: it declares `counts`, and no scale in 1/400…400 makes its values integral, so it is a *refuting* fixture, not a cps one |
+| `.brml` | readers-xrd `23-012-AG_2thomegascan_long.brml` (651 kB) | **real**, thin-film 2θ-ω — and the file that settles the attenuator question for *some* format (its `AbsorptionFactor` varies) |
 | `.raw` v4 | readers-xrd `TwoTheta_scan_scrambled.raw` (58 kB) | **real**; magic `RAW4.00\x00` and 7134 pts verified — but see the caveat below |
 | `.ras` | RigakuFiles.jl `multiscan.ras`, `three_column.ras` | **synthetic** — 325–1217 bytes, 2–4 data rows. Good for structure (2 scans, 2-vs-3 columns, header keys); proves nothing about real data |
 | `.raw` v2/v3, `.uxd`, `.chi`, `.dif` | none | synthesized from spec |
@@ -130,7 +131,11 @@ obtainable fixture was checked: `three_column.ras` has column 3 identically
 has it constant at `1`. **No fixture we can obtain settles it.** There is a
 decisive structural test if a varying column is ever found: where column 3
 changes, either the raw series steps and `col2 × col3` is continuous, or the
-reverse. Try it first. Absent that, ship the "absent for cause" contract:
+reverse. Try it first. **That test has since run twice, on other formats, and
+answered differently each time** (tasks 10 and 12): `.xrdml` stores the
+attenuated counts and the factor must be applied, `.brml` stores the corrected
+intensity and it must not. So the Rigaku answer cannot be borrowed from either,
+and this contract stands. Absent that, ship the "absent for cause" contract:
 read column 2 as the intensity (matching both other codes, so cross-code
 comparison holds), and whenever column 3 is not identically 1 emit
 `RAS_ATTENUATOR_PRESENT` naming the affected 2θ range, saying the correction
@@ -301,15 +306,22 @@ each real fixture at 20 offsets and assert every failure is
 **(b) σ is derived, never faked, wherever intensity is not raw counts** — an
 addition to the Weights invariant, which today only says "use the file's esd
 column when present":
-- `.xrdml` `<counts>` → `sigma=None`; the Poisson fallback is *correct*.
-- cps **with** a counting time, where the cps determination is verified for
-  that format-and-file (`.xrdml` `<intensities>` by spec, `.rasx` by fixture,
-  `.ras` by the per-file integer test above) → σ = √(y/t), supplied.
+- `.xrdml` raw counts → `sigma=None`; the Poisson fallback is *correct*. (The
+  element name is not the evidence — the real fixture is
+  `<intensities unit="counts">`; the **`unit` attribute** is.)
+- cps **with** a counting time → σ = √(y·t)/t, supplied.
 - cps **without** a counting time, or a scale the per-file test cannot
   decide → `PATTERN_INTENSITY_SCALED`: the fallback is being applied to a
   scaled quantity and the weights are wrong by √t.
 - `beamAttenuationFactors ≠ 1` → σ = √counts · attn ≠ √y. This is the case
   GSAS-II gets wrong (`w = 1/y` regardless).
+
+  ~~`.rasx` by fixture~~ — **corrected at task 11**: the cps determination was
+  never made on `.rasx`. Two of its three real files declare `counts` and store
+  values no scale rationalises, so it takes the `.ras` arithmetic
+  (`base.sigma_by_arithmetic`, now shared). The trustworthy-declaration formats
+  are `.uxd` (block marker) and `.xrdml`/`.brml` (a schema-enumerated attribute
+  on the data element).
 
 `METADATA_KEYS` in `base.py` is **data**, with a builder that refuses an
 undeclared key — otherwise the anode pre-selection has nothing stable to

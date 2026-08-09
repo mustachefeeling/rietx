@@ -62,37 +62,46 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **[1047](wp/1047-vendor-pattern-formats.md) — vendor pattern formats.** Tasks
-**1-9 of 17** landed; every remaining format is a container or a binary, and the
-tree is shippable between any two of them.
+**1-12 of 17** landed; the tree is shippable between any two formats, and what
+is left is the Bruker binaries plus the wiring.
 
 What exists now: `io/formats/`, one module per format, because a format's spec
 citation, parser, sniff/σ prose, options and **licence fence** are one fact each
-and ten fences in one file drift. `readers.py` is the front door only, so no
-call site moved. `read_pattern(path, *, diagnostics=None, **options)` against
-the `READER_OPTIONS` allowlist — a *typo* raises, an option this format does not
-take is dropped and reported — with `DataRef` recording the **effective**
-options. `base.ascending()` is the one place report-vs-contradiction meets 2θ
-order, and `base.pattern_data()` is the last parser boundary, so a schema
-refusal names the file too. `xy` is not total. Six formats read (`.ras`, `.uxd`,
-pdCIF, GSAS, `.chi`, `.xy`) and `.dif` peak lists are refused.
+and ten fences in one file drift. `readers.py` is the front door only, so no call
+site moved. `read_pattern(path, *, diagnostics=None, **options)` against the
+`READER_OPTIONS` allowlist — a *typo* raises, an option this format does not take
+is dropped and reported — with `DataRef` recording the **effective** options.
+`base.ascending()` is the one place report-vs-contradiction meets 2θ order,
+`base.check_axis()` the one place it meets the scanned axis, and
+`base.pattern_data()` the last parser boundary, so a schema refusal names the
+file too. `xy` is not total. **Nine formats read** (`.ras`, `.rasx`, `.uxd`,
+`.xrdml`, `.brml`, pdCIF, GSAS, `.chi`, `.xy`) and `.dif` peak lists are refused.
 
-**The reader lesson of these two formats**: a vendor file's own declaration of
-what it holds is evidence of *varying* quality, and which kind decides whether
-it may be trusted. `.ras` declares its intensity unit in a free-text header
-field that real files get wrong, so σ is settled by arithmetic; `.uxd` declares
-it in the token that opens the data block, where it cannot disagree with itself,
-so it is trusted. Both formats also declare the **scanned axis**, and there the
-answer is the same in each: four of five real `.uxd` files are pole figures or
-rocking curves, so the axis is checked and a non-2θ scan is refused by name.
+**The reader lesson so far**: a vendor file's own declaration is evidence of
+*varying* quality, and which kind decides whether to believe it. A **free-text**
+unit is measured, not trusted — both Rigaku formats declare one and real files
+get it wrong; a **structural** one (`.uxd`'s block marker, `.xrdml`'s and
+`.brml`'s attribute on the data element) is trusted, and verified anyway. The
+scanned **axis** is never trusted in any format: most vendor files are not powder
+scans, so a non-2θ one is refused by name.
 
-**Next**, in the WP's order, and each independent enough to stop between:
-10 `.xrdml`, 11 `.rasx`, 12 `.brml`, 13-14 Bruker `.raw`, 15-16 the instrument
-hint and scan picker, 17 the remaining docs. **Retire the risks in the WP's
-stated order before writing any of those readers** — fixture licences are per
-*file*, not per repo, which has now cost two of the best fixtures found
-(`xrd-toolkit`'s real `.ras` and every real `.uxd`), and what "scrambled"
-scrambled in the one real Bruker binary decides whether its acceptance line may
-claim values or only structure.
+**The attenuator is the sharpest case, because four vendors gave three answers.**
+The test is the same each time — find a file where the factor *varies*, then ask
+which of the raw series and the product runs continuously through the transition.
+`.xrdml` applies the factor, `.brml` leaves the values alone and puts it into σ
+only, and the two Rigaku formats report without deciding because no obtainable
+file has a varying column. σ goes through it either way, which is the case
+GSAS-II gets wrong.
+
+**Next**, in the WP's order: 13-14 Bruker `.raw` (binary — a different kind of
+work from the containers), 15-16 the instrument hint and scan picker, 17 the
+remaining docs. **Risk 3 is the one still to retire**: what "scrambled"
+scrambled in `TwoTheta_scan_scrambled.raw` decides whether `.raw`'s acceptance
+line may claim values or only structure, and it must be established *before*
+task 13. Risks 1 and 4 are retired — the readers-xrd fixtures convey (committed
+by its own maintainers to an Apache-2.0 repo; the unlicensed IKZ upstream holds
+no data at all), and `.brml`'s `RawDataView[@Start][@Length]` is present and
+namespace-resolved.
 
 ## Milestones
 

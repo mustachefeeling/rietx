@@ -50,14 +50,30 @@ decision the freeze should make rather than inherit:
    **`PATTERN_X_AXIS_ASSUMED`**, and the classifying stays per format because
    the four inputs are four shapes. Nothing left to decide — confirm the one
    code in the freeze's vocabulary and that no `*_X_AXIS_ASSUMED` survives.
-7. **`DataRef.has_sigma` now covers a *derived* σ.** A `.ras` exported in cps
-   gets σ = √(y·t)/t from the file's own counting time, so `has_sigma` is true
-   and every surface says "σ from file"; the same scan exported in counts gets
-   `has_sigma` false and the Poisson fallback, which is correct. Both are
-   honest — the cps σ genuinely could not come from the fallback — but the flag
-   is documented as "σ *measured*, not σ *present*" and a reader-derived σ is a
-   third thing. Decide whether it needs its own state before the surface
-   freezes; nothing depends on the answer yet.
+7. **`DataRef.has_sigma` now covers a *derived* σ, and three formats produce
+   one.** A `.ras`/`.rasx` exported as a rate gets σ = √(y·t)/t from the file's
+   own counting time; an `.xrdml` point behind a beam attenuator gets
+   σ = √counts·a; a `.brml` absorber point gets σ = √(y/a)·a. All three set
+   `has_sigma`, so every surface says "σ from file", while the same scans
+   without the scaling get `has_sigma` false and the Poisson fallback, which is
+   correct. Every one is honest — a derived σ genuinely could not come from the
+   fallback — but the flag is documented as "σ *measured*, not σ *present*" and
+   a reader-derived σ is a third thing. Decide whether it needs its own state
+   before the surface freezes; nothing depends on the answer yet.
+
+**Updated 2026-08-09 (1047 tasks 10-12, `.xrdml`/`.rasx`/`.brml` landed).**
+Point 6 is now settled (struck above). Two more for the vocabulary review:
+
+8. **Two format-specific diagnostic codes joined `RAS_ATTENUATOR_PRESENT`** —
+   `XRDML_ATTENUATOR_APPLIED` and `BRML_ABSORBER_ENGAGED`. They are deliberately
+   *not* one code: the three say opposite things about the same field (not
+   applied / applied / already applied by the vendor), so a consumer switching
+   on them is switching on the answer, not on the format. Confirm rather than
+   collapse — this is the contrast with point 6, where the three codes meant one
+   thing.
+9. **`PROJECT_FORMAT_VERSION` did not move again.** Five formats now take
+   `scan`, but the *vocabulary* did not grow past the 1.1 bump task 8 made, so
+   there is nothing further to record. Confirm and move on.
 
 **From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
 *meaning* is in question, and freezing it would ratify a behaviour nobody
