@@ -1,10 +1,11 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-8 of 17: the whole
+Milestone: v1.0 · Status: 🔄 2026-08-09 — tasks 1-9 of 17: the whole
 seam (formats package, option vocabulary, diagnostics channel, xy de-totalised,
-truncation fuzz) plus `.chi`, the `.dif` refusal and Rigaku `.ras` — which
-brought `scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS` and the schema-as-a-
-parser-boundary fix. Four vendor formats left.
+truncation fuzz) plus `.chi`, the `.dif` refusal, Rigaku `.ras` — which brought
+`scan`, `ScanInfo`/`list_scans`, `METADATA_KEYS` and the schema-as-a-parser-
+boundary fix — and Bruker `.uxd`, the second `scan` consumer. Four vendor
+formats left, all of them containers or binary.
 Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
 inherits the `DataRef` option-vocabulary note
 
@@ -432,9 +433,10 @@ that belong to it), never mid-format.
       (`"scan" in options ⟺ scans is not None`), `METADATA_KEYS`, the
       attenuator contract, the per-file intensity-scale test, the
       `PROJECT_FORMAT_VERSION` minor bump (first `scan` recorded).
-- [ ] 9. `.uxd` — both `_COUNTS` and `_2THETACOUNTS` block forms,
-      multi-range. The **second** consumer of `scan`, which is what proves
-      the option is generic rather than `.ras`-shaped.
+- [x] 9. `.uxd` — all four block forms (`_COUNTS`/`_CPS` × the `_2THETA`
+      prefix, read as two independent facts), multi-range. The **second**
+      consumer of `scan`, which is what proves the option is generic rather
+      than `.ras`-shaped.
 - [ ] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
       the counts/intensities σ rule, `beamAttenuationFactors`, multi-scan.
       Tested against the JSON oracle exactly.

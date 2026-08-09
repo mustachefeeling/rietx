@@ -42,6 +42,11 @@ class ScanInfo:
     #: entries has told the user nothing they did not already know
     label: str
     n_points: int
+    #: the range the scan **stepped through**, which is 2θ only when the scan is
+    #: a 2θ scan.  A file may hold ranges that are not (a ``.uxd`` pole figure
+    #: steps φ), and a picker has to show those in order for the person to pick
+    #: something else — so the number is the stepped one and :attr:`label` is
+    #: what says which axis it is on
     two_theta_range: tuple[float, float]
 
 
@@ -169,6 +174,9 @@ METADATA_KEYS: dict[str, str] = {
     "intensity_unit": "the intensity unit the file *declares*. A claim, not a "
                       "measurement — see the σ note in the .ras reader",
     "count_time_s": "seconds per step, where the file gives enough to derive it",
+    "goniometer_radius_mm": "the goniometer radius the file records, in mm — one "
+                            "of the four bragg_brentano numbers that need not be "
+                            "typed when the file already knows it",
 }
 
 

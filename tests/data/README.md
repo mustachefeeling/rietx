@@ -473,3 +473,30 @@ evidence that could settle whether column 2 is already corrected for it: all
 five have it constant (1.0 in four, 0.0 in the one synthetic).  Absent such a
 file the reader states its contract rather than guessing — see
 `io/formats/ras.py`.
+
+### `.uxd` — the format with real evidence and no vendorable file
+
+Bruker/Siemens DIFFRAC-AT ASCII.  **Nothing is vendored for it**, and that is
+the finding rather than a gap: of the five real `.uxd` files obtained, one repo
+is GPL-2.0 (`mtex-toolbox/mtex`, `data/PoleFigure/bruker.UXD`), one carries **no
+LICENSE at all** (`usnistgov/texture`, `exp_uxd/fss.UXD` and `e_steel.UXD`), and
+the rest are student lab-course outputs in repos with no declared licence
+(`joeyko2706/FP-Protokolle`, `v44/data/*.UXD`).  A file format's *facts* may be
+read from any of those — that reasoning is in `ATTRIBUTION.md` — but the bytes
+may not be redistributed.  So `tests/test_readers.py::write_uxd` synthesizes
+them, and this section records what the real files established, since that is
+the only place the reader's design is checkable:
+
+| Established | Evidence |
+|---|---|
+| The block marker is **two independent facts** — a `_2THETA` prefix meaning "a position column is present", and a `COUNTS`/`CPS` suffix meaning the unit | `_2THETACOUNTS` in four files, `_2THETACPS` in `mtex_bruker.UXD` |
+| The unit the marker declares is **true**, unlike `.ras`'s free-text field | every `COUNTS` block integral to the last of 3774 points (`nist_fss.UXD`) |
+| The `_2THETA` prefix is a **misnomer**: the first column is whatever `_DRIVE` names | `fp_rocking.UXD` is `_DRIVE='THETA'` — a rocking curve — under a `_2THETACOUNTS` marker |
+| Most `.uxd` files in the wild are **not powder scans** | 4 of 5: two 153-range pole figures, one 68-range pole figure, one rocking curve. The one 2θ scan is a detector alignment scan (`fp_detector.UXD`, `_DRIVE='2THETA'`) |
+| Counting time is **per range**, not per file — so ranges cannot be concatenated | `nist_esteel.UXD` carries `_STEPTIME` of both 2 s and 20 s across its 153 ranges: a factor of ten in counting statistics under one Poisson assumption |
+| `_GONIOMETER_RADIUS` is present and real | 250, 300 and 350 mm across the five |
+
+No obtainable `.uxd` is a powder pattern, so `_DRIVE='COUPLED'` — the value a
+powder file would carry — is accepted on the **format's vocabulary** rather than
+on a fixture.  That is stated in the reader and is the one part of its axis
+allowlist not backed by a file.

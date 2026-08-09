@@ -680,3 +680,135 @@ def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
     message = str(refusal.value)
     assert "onepoint.xy" in message and "at least 2 points" in message
     assert "pydantic" not in message and "validation error" not in message
+
+
+# ---------------------------------------------------------------------- uxd
+def write_uxd(path, ranges, *, anode="Cu", wl1=1.540600, radius=250.0):
+    """A ``.uxd`` of one or more ranges.  No real ``.uxd`` could be vendored —
+    the only obtainable ones are GPL or carry no licence at all — so these are
+    synthesized, and every structural claim they make was verified against a
+    real file first (`tests/data/README.md` names which)."""
+    lines = ["; written by tests", "_FILEVERSION=2", f"_ANODE='{anode}'",
+             f"_WL1={wl1:.6f}", f"_GONIOMETER_RADIUS={radius:.6f}"]
+    for n, r in enumerate(ranges, start=1):
+        lines.append(f"; (Data for Range number {n})")
+        lines.append(f"_DRIVE='{r['drive']}'")
+        for key in ("STEPTIME", "STEPSIZE", "START", "2THETA"):
+            if key.lower() in r:
+                lines.append(f"_{key}={r[key.lower()]:.6f}")
+        lines.append(r["marker"])
+        for row in r["rows"]:
+            lines.append("   " + "      ".join(f"{v}" for v in row))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def test_the_block_marker_is_read_as_two_facts_not_looked_up_as_a_name(tmp_path):
+    """``_2THETA`` means "there is a position column"; ``COUNTS``/``CPS`` is the
+    unit.  Independent, so the four spellings are two bits rather than a table."""
+    counts = [3, 5, 8, 6]
+    paired = write_uxd(tmp_path / "paired.uxd", [dict(
+        drive="COUPLED", marker="_2THETACOUNTS", steptime=1.0,
+        rows=[(10.0 + 0.02 * i, c) for i, c in enumerate(counts)])])
+    implied = write_uxd(tmp_path / "implied.uxd", [dict(
+        drive="COUPLED", marker="_COUNTS", steptime=1.0, stepsize=0.02,
+        start=10.0, rows=[(c,) for c in counts])])
+
+    a, b = pr.read_pattern(paired), pr.read_pattern(implied)
+    assert a.two_theta == pytest.approx(b.two_theta)     # start + i·step
+    assert a.intensity == b.intensity == [3.0, 5.0, 8.0, 6.0]
+    assert a.metadata["intensity_unit"] == "counts" and a.sigma is None
+
+
+def test_a_cps_block_gets_its_sigma_from_steptime(tmp_path):
+    """Structural, so it is trusted: unlike ``.ras``'s free-text unit field, the
+    unit here is the token that opens the block and cannot disagree with it."""
+    p = write_uxd(tmp_path / "rate.uxd", [dict(
+        drive="COUPLED", marker="_2THETACPS", steptime=4.0,
+        rows=[(10.0 + 0.02 * i, c / 4.0) for i, c in enumerate([12, 20, 33, 41])])])
+
+    data = pr.read_pattern(p)
+
+    assert data.metadata["intensity_unit"] == "cps"
+    assert data.metadata["count_time_s"] == "4.0"
+    for got, n in zip(data.sigma, [12, 20, 33, 41]):
+        assert got == pytest.approx(n ** 0.5 / 4.0, rel=1e-9)
+
+
+def test_a_cps_block_without_a_steptime_withholds_sigma_and_says_so(tmp_path):
+    p = write_uxd(tmp_path / "nortime.uxd", [dict(
+        drive="COUPLED", marker="_2THETACPS",
+        rows=[(10.0 + 0.02 * i, 3.5 * i + 1) for i in range(4)])])
+
+    notes: list = []
+    data = pr.read_pattern(p, diagnostics=notes)
+
+    assert data.sigma is None
+    assert [d.code for d in notes] == ["PATTERN_INTENSITY_SCALED"]
+
+
+def test_the_drive_decides_the_axis_because_the_marker_name_lies(tmp_path):
+    """The finding this reader is built around: a rocking curve and a pole figure
+    are both stored under a marker called ``_2THETACOUNTS``. Four of the five
+    real ``.uxd`` files read while writing this are not 2θ scans at all."""
+    rocking = write_uxd(tmp_path / "rock.uxd", [dict(
+        drive="THETA", marker="_2THETACOUNTS", steptime=1.0,
+        rows=[(-1.0 + 0.04 * i, 100) for i in range(4)])])
+
+    with pytest.raises(ValueError) as refusal:
+        pr.read_pattern(rocking)
+    assert "rock.uxd" in str(refusal.value) and "rocking curve" in str(refusal.value)
+    assert "whatever the block marker is called" in str(refusal.value)
+
+
+def test_a_detector_scan_reads_because_two_theta_is_what_it_steps(tmp_path):
+    p = write_uxd(tmp_path / "det.uxd", [dict(
+        drive="2THETA", marker="_2THETACOUNTS", steptime=1.0,
+        rows=[(10.0 + 0.02 * i, 100 + i) for i in range(4)])], radius=350.0)
+
+    data = pr.read_pattern(p)
+
+    assert data.metadata["scan_axis"] == "2THETA"
+    assert data.metadata["goniometer_radius_mm"] == "350.0"
+
+
+def test_ranges_of_different_counting_time_are_selected_never_joined(tmp_path):
+    """Not academic: one real 153-range file carries ``_STEPTIME`` of both 2 s
+    and 20 s. Concatenating those puts measurements a factor of ten apart in
+    counting statistics under one Poisson assumption."""
+    p = write_uxd(tmp_path / "two.uxd", [
+        dict(drive="COUPLED", marker="_2THETACOUNTS", steptime=2.0,
+             rows=[(10.0 + 0.1 * i, 40 + i) for i in range(4)]),
+        dict(drive="COUPLED", marker="_2THETACOUNTS", steptime=20.0,
+             rows=[(20.0 + 0.1 * i, 400 + i) for i in range(4)]),
+    ])
+
+    notes: list = []
+    first = pr.read_pattern(p, diagnostics=notes)
+    second = pr.read_pattern(p, scan=1)
+
+    assert first.two_theta[0] == 10.0 and second.two_theta[0] == 20.0
+    assert first.metadata["count_time_s"] == "2.0"
+    assert second.metadata["count_time_s"] == "20.0"
+    assert "PATTERN_MULTISCAN_DEFAULTED" in [d.code for d in notes]
+    assert [s.label for s in list_scans(p)] == ["COUPLED 10–10.3°", "COUPLED 20–20.3°"]
+
+
+def test_counts_with_no_position_column_and_no_step_is_refused(tmp_path):
+    """``_COUNTS`` puts the whole x axis in ``_START`` and ``_STEPSIZE``. Without
+    them there is no axis — and a default step of 1 would be an invented one."""
+    p = write_uxd(tmp_path / "bare.uxd", [dict(
+        drive="COUPLED", marker="_COUNTS", steptime=1.0,
+        rows=[(c,) for c in (3, 5, 8, 6)])])
+
+    with pytest.raises(ValueError, match="no 2θ axis to read"):
+        pr.read_pattern(p)
+
+
+def test_an_unknown_block_marker_is_named_rather_than_skipped(tmp_path):
+    p = tmp_path / "odd.uxd"
+    p.write_text("_FILEVERSION=2\n_DRIVE='COUPLED'\n_INTENSITIES\n10.0 5\n11.0 6\n",
+                 encoding="utf-8")
+
+    with pytest.raises(ValueError, match="_INTENSITIES"):
+        pr.read_pattern(p)

@@ -42,12 +42,14 @@ from .dif import DIF, read_dif
 from .gsas import GSAS, read_gsas
 from .pdcif import PDCIF, read_pdcif
 from .ras import RAS, read_ras
+from .uxd import UXD, read_uxd
 from .xy import XY, read_xy
 
 #: Every format ``read_pattern`` accepts, **in dispatch order** (see above).
-#: ``RAS`` sits above the suffix and loose-text sniffs because it is recognised
-#: by a first line its own spec requires, which is stronger evidence than either.
-PATTERN_FORMATS: tuple[PatternFormat, ...] = (RAS, PDCIF, GSAS, CHI, DIF, XY)
+#: ``RAS`` and ``UXD`` sit above the suffix and loose-text sniffs because each is
+#: recognised by a first line its own spec requires, which is stronger evidence
+#: than either.
+PATTERN_FORMATS: tuple[PatternFormat, ...] = (RAS, UXD, PDCIF, GSAS, CHI, DIF, XY)
 
 __all__ = [
     "HEAD_BYTES",
@@ -69,6 +71,7 @@ __all__ = [
     "read_gsas",
     "read_pdcif",
     "read_ras",
+    "read_uxd",
     "read_xy",
     "reader_options_for",
     "sigma_from_cps",

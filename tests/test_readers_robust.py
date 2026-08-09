@@ -41,6 +41,25 @@ REAL_FIXTURES = [
     ("rigaku_nims.ras", "ras"),           # Rigaku text, marked sections
 ]
 
+#: Formats with **no vendorable real file**, built here instead.  Kept apart from
+#: the list above rather than mixed into it, because a synthesized file exercises
+#: the parser's failure paths and says nothing about the format: it is written
+#: from the same understanding the reader was, so the two agree by construction.
+#: ``.uxd`` is here because every obtainable real one is GPL or carries no
+#: licence at all (``tests/data/README.md`` names them).
+SYNTHETIC_FIXTURES = ["uxd"]
+
+
+def _synthesize(kind: str, path: Path) -> Path:
+    from tests.test_readers import write_uxd
+
+    assert kind == "uxd"
+    return write_uxd(path, [dict(drive="COUPLED", marker="_2THETACOUNTS",
+                                 steptime=1.0,
+                                 rows=[(10.0 + 0.02 * i, 500 + i % 7)
+                                       for i in range(400)])])
+
+
 #: Where to cut.  Fractions rather than byte counts so the same set of offsets
 #: means the same thing on a 3 kB file and a 5 MB one, and deliberately dense
 #: near the start, where a header is still being consumed and a parser is most
@@ -133,3 +152,27 @@ def test_an_empty_file_is_refused_by_name(tmp_path):
     with pytest.raises(ValueError) as exc:
         pr.read_pattern(p)
     assert "empty.xy" in str(exc.value)
+
+
+@pytest.mark.parametrize("kind", SYNTHETIC_FIXTURES)
+def test_every_truncation_of_a_synthesized_fixture_fails_the_same_way(kind, tmp_path):
+    """The same invariant for a format that has no real fixture to truncate.
+
+    Weaker evidence and deliberately labelled as such — the file agrees with the
+    reader by construction — but a truncation still cuts mid-number, mid-marker
+    and mid-header, which is where an ASCII parser indexes into what it has not
+    read.
+    """
+    raw = _synthesize(kind, tmp_path / f"whole.{kind}").read_bytes()
+    for cut in CUTS:
+        stub = tmp_path / f"{int(cut * 1e6):07d}.{kind}"
+        stub.write_bytes(raw[:int(len(raw) * cut)])
+        try:
+            pr.read_pattern(stub)
+        except (ValueError, OSError) as exc:
+            assert stub.name in str(exc), (
+                f"{kind} cut at {cut}: refusal does not name the file: {exc}")
+        except Exception as exc:                       # noqa: BLE001 - the point
+            raise AssertionError(
+                f"synthesized {kind} cut at {cut} raised "
+                f"{type(exc).__module__}.{type(exc).__name__}: {exc}") from exc
