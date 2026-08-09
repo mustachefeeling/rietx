@@ -193,19 +193,26 @@ def _conditions(zip_archive: zipfile.ZipFile, member: str, *,
     """The header, flattened to the leaf names this reader actually reads.
 
     Flattened rather than walked because the interesting values sit at three
-    different depths (``ScanInformation/AxisName``, ``XrayGenerator/TargetName``)
-    and every one of them is uniquely named in the document.  The keys that are
-    *not* unique — an ``Axis`` element per goniometer axis — carry their values
-    in attributes rather than text, so they never enter here.
+    different depths (``ScanInformation/AxisName``, ``XrayGenerator/TargetName``).
+    The keys that are *not* unique — an ``Axis`` element per goniometer axis —
+    carry their values in attributes rather than text, so they never enter here.
+
+    ``ScanInformation`` is read **first and wins**, which is not tidiness: names
+    like ``Step`` and ``Speed`` are generic enough for an optics or alignment
+    block to carry one, and first-wins over the whole document would then derive
+    the counting time — and therefore every σ — from somebody else's step.
     """
     if not member:
         return {}
+    root = _xml(_member(zip_archive, member, path=path), path=path, what=member)
+    scan = next((e for e in root.iter()
+                 if e.tag.rpartition("}")[2] == "ScanInformation"), None)
     out: dict[str, str] = {}
-    for element in _xml(_member(zip_archive, member, path=path), path=path,
-                        what=member).iter():
-        name = element.tag.rpartition("}")[2]
-        if element.text and element.text.strip() and name not in out:
-            out[name] = element.text.strip()
+    for source in (() if scan is None else scan.iter(), root.iter()):
+        for element in source:
+            name = element.tag.rpartition("}")[2]
+            if element.text and element.text.strip() and name not in out:
+                out[name] = element.text.strip()
     return out
 
 

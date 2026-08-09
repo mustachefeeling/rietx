@@ -373,11 +373,14 @@ def _axis(columns: _Columns, scan_name: str, *, path: Path,
     stated = ", ".join(columns.stepped) or scan_name
     keys = {a.lower() for a in columns.stepped}
     other = next((_OTHER_AXES[k] for k in sorted(keys) if k in _OTHER_AXES), None)
-    return check_axis(stated, path=path,
-                      field="the axes ScanInformation/ScanAxes lists",
-                      two_theta=bool(keys & _TWO_THETA_AXES), other=other,
-                      remedy="Export the coupled 2θ–ω scan instead.",
-                      diagnostics=diagnostics) and (scan_name or stated)
+    check_axis(stated, path=path,
+               field="the axes ScanInformation/ScanAxes lists",
+               two_theta=bool(keys & _TWO_THETA_AXES), other=other,
+               remedy="Export the coupled 2θ–ω scan instead.",
+               diagnostics=diagnostics)
+    # the *name* is what goes in the metadata, because that is what the file
+    # calls this scan and what its oracle records — the axes were the evidence
+    return scan_name or stated or None
 
 
 def _text(root: ET.Element, name: str) -> str | None:

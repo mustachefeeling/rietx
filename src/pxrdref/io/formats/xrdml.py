@@ -88,7 +88,9 @@ _ROOT = "xrdMeasurements"
 #: The first element in a document, ignoring the XML declaration, a DOCTYPE and
 #: processing instructions.  Comments are stripped before this runs, because a
 #: comment may legally contain angle brackets.
-_FIRST_ELEMENT = re.compile(r"<(?![?!])\s*([\w.\-]+)")
+#: ``[\w.\-:]`` includes the colon on purpose: a prefixed root (``<x:xrdMeasurements>``)
+#: is legal, and the prefix is stripped by the caller rather than by this pattern
+_FIRST_ELEMENT = re.compile(r"<(?![?!])\s*([\w.\-:]+)")
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
 
 #: ``scan/@scanAxis`` values whose stepped axis is the diffraction angle 2θ.

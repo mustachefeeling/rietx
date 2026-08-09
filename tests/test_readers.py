@@ -1066,6 +1066,24 @@ def test_xml_that_is_not_an_xrdml_is_not_claimed_by_this_reader(tmp_path):
     assert "other.xrdml" in str(refusal.value)
 
 
+def test_a_prefixed_root_element_is_still_claimed(tmp_path):
+    """A default namespace is what the real files use, but a prefix is legal —
+    and a sniff that reads ``<x:xrdMeasurements>`` as an element named ``x`` is
+    the kind of near-miss that shows up only on somebody else's export."""
+    p = tmp_path / "prefixed.xrdml"
+    p.write_text('<?xml version="1.0"?><x:xrdMeasurements '
+                 'xmlns:x="http://www.xrdml.com/XRDMeasurement/1.6">'
+                 '<x:xrdMeasurement><x:scan scanAxis="Gonio"><x:dataPoints>'
+                 '<x:positions axis="2Theta"><x:startPosition>10</x:startPosition>'
+                 '<x:endPosition>13</x:endPosition></x:positions>'
+                 '<x:counts unit="counts">1 2 3 4</x:counts>'
+                 '</x:dataPoints></x:scan></x:xrdMeasurement></x:xrdMeasurements>',
+                 encoding="utf-8")
+
+    assert identify_format(p).name == "xrdml"
+    assert len(pr.read_pattern(p).two_theta) == 4
+
+
 def test_a_comment_before_the_root_does_not_decide_the_sniff(tmp_path):
     """A comment may legally contain angle brackets, so it is stripped before the
     first element is looked for — otherwise a `<scan>` mentioned in prose wins."""
@@ -1252,6 +1270,31 @@ def test_a_rocking_curve_in_a_rasx_is_refused_on_the_vendors_vocabulary(tmp_path
 
     with pytest.raises(ValueError, match="rocking curve"):
         pr.read_pattern(p)
+
+
+def test_the_scan_information_block_wins_over_a_like_named_leaf_elsewhere(
+        tmp_path):
+    """``Step`` and ``Speed`` are generic enough for an optics or alignment block
+    to carry one, and a first-wins flatten over the whole document would then
+    derive the counting time — and every σ with it — from somebody else's step."""
+    import zipfile
+
+    p = write_rasx(tmp_path / "shadow.rasx", [dict(
+        step=0.02, speed=1.0, unit="cps",
+        rows=[(10.0 + 0.02 * i, 1.5) for i in range(4)])])
+    with zipfile.ZipFile(p) as archive:
+        names = archive.namelist()
+        members = {n: archive.read(n) for n in names}
+    conditions = next(n for n in names if "Conditions" in n)
+    members[conditions] = members[conditions].replace(
+        b"<ScanInformation>",
+        b"<Optics><Step>99</Step><Speed>99</Speed></Optics><ScanInformation>")
+    with zipfile.ZipFile(p, "w") as archive:
+        for name, raw in members.items():
+            archive.writestr(name, raw)
+
+    # 0.02° ÷ 1 deg/min × 60 = 1.2 s, not 99/99
+    assert pr.read_pattern(p).metadata["count_time_s"] == "1.2"
 
 
 def test_a_group_with_no_conditions_still_yields_its_points(tmp_path):
