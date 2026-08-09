@@ -9,6 +9,7 @@ import {
   sortByX,
   trajectoryNote,
   trajectoryTraces,
+  unrecoveredFlags,
   type SeriesEntry,
   type SeriesPattern,
   type Trajectory,
@@ -200,6 +201,21 @@ describe("the traces", () => {
     expect(trajectoryTraces(traj(), TONES).some((t) => t.name === "reseeded"))
       .toBe(false);
   });
+
+  it("crosses the unrecovered points, which is the opposite of a ring", () => {
+    // a ring is a good fit reached from a different starting model; a cross is
+    // a fit that diverged on every rung, so its value is not a measurement at
+    // all (WP-1051) — same mark for both would collapse the two into "odd"
+    const traces = trajectoryTraces(traj(), TONES, [false, false, false],
+                                    [false, false, true]);
+    const crosses = traces.find((t) => t.name === "unrecovered");
+    expect(crosses.x).toEqual([500]);
+    expect(crosses.marker.symbol).toBe("x-thin");
+    // still on the line: a gap reads as data nobody collected
+    expect(traces[0].y).toEqual([4.1, 4.2, 4.3]);
+    expect(trajectoryTraces(traj(), TONES).some((t) => t.name === "unrecovered"))
+      .toBe(false);
+  });
 });
 
 describe("matching the reseed flags to a trajectory", () => {
@@ -207,7 +223,8 @@ describe("matching the reseed flags to a trajectory", () => {
     over.map((o, i) => ({
       index: i, label: `p${i}`, x: null, status: "converged",
       statistics: { rwp: 0.1, gof: 1 }, n_iterations: 1, reseeded: false,
-      rwp_warm: null, node_id: null, tree_id: null, diagnostics: [], ...o,
+      rwp_warm: null, rung: "warm", rungs_tried: ["warm"], node_id: null,
+      tree_id: null, diagnostics: [], ...o,
     }));
 
   it("matches on the label, because a trajectory skips the patterns it misses", () => {
@@ -221,5 +238,14 @@ describe("matching the reseed flags to a trajectory", () => {
     expect(reseededFlags(partial, rows)).toEqual([true, false]);
     const whole = traj({ labels: ["p0", "p1", "p2"] });
     expect(reseededFlags(whole, rows)).toEqual([false, true, false]);
+  });
+
+  it("reads unrecovered off the status, not off a flag of its own", () => {
+    // "diverged after the last rung" and "diverged" are the same statement once
+    // the chain has run, so a second field could only disagree with this one
+    const rows = entries([{}, { status: "diverged", reseeded: false },
+                          { status: "max_iter" }]);
+    expect(unrecoveredFlags(traj({ labels: ["p0", "p1", "p2"] }), rows))
+      .toEqual([false, true, false]);
   });
 });

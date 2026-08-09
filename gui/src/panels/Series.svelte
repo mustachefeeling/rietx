@@ -46,6 +46,7 @@
     sortByX,
     trajectoryNote,
     trajectoryTraces,
+    unrecoveredFlags,
     type SeriesEntry,
     type SeriesPattern,
     type SeriesSetup,
@@ -388,7 +389,8 @@
     } else {
       if (!current) return;
       const traces = trajectoryTraces(current, tones,
-                                      reseededFlags(current, entries));
+                                      reseededFlags(current, entries),
+                                      unrecoveredFlags(current, entries));
       await plotly.react(plotNode, traces, {
         ...base,
         xaxis: { ...base.xaxis,
@@ -629,8 +631,8 @@ plot's x-axis title, and the column above">
                  what goes: Rwp is the headline and this column was the 6 px that
                  put the drill-down button off the right edge (measured) -->
             {#if !compact}<th>GoF</th>{/if}
-            <th title="least-squares iterations over every stage of this pattern's fit
-— what the warm start actually buys">iter</th>
+            <th title="least-squares iterations over every attempt on this pattern,
+every rung of the escalation ladder included — what the warm start actually buys">iter</th>
             <th></th>
           </tr>
         </thead>
@@ -642,15 +644,25 @@ plot's x-axis title, and the column above">
               <td>{e.x === null ? e.index : e.x}</td>
               <td>
                 {e.status}
-                {#if e.reseeded}
+                {#if e.status === "diverged"}
+                  <span class="chip warn" title="no rung of the escalation ladder
+recovered this pattern (tried: {e.rungs_tried.join(" → ")}). It is reported because it
+was measured, but the chain stepped over it: it seeded no successor and its Rwp was
+left out of the series median. Read it as a failed fit, not as a datum.">unrecovered</span>
+                {:else if e.reseeded}
                   <span class="chip warn" title="the warm start was rejected (it
 reached Rwp {((e.rwp_warm ?? 0) * 100).toFixed(2)}%) and this pattern was refitted from the
 initial model. A good fit — but its starting values did not come from its
 neighbour, so it is not evidence that the trajectory is continuous here.">reseeded</span>
+                {:else if e.rung === "warm_staged"}
+                  <span class="chip" title="the quick warm refit was rejected (it
+reached Rwp {((e.rwp_warm ?? 0) * 100).toFixed(2)}%) and the full staged plan recovered
+it — still starting from the neighbour's answer, so the chain is unbroken
+here">restaged</span>
                 {:else if e.rwp_warm !== null}
-                  <span class="chip warn" title="the reseed guard fired and the cold
-restart did not rescue it: this pattern was hard for a reason a restart could not
-fix">hard</span>
+                  <span class="chip warn" title="the reseed guard fired and no restart
+rescued it (tried: {e.rungs_tried.join(" → ")}): this pattern was hard for a reason a
+different starting point could not fix">hard</span>
                 {/if}
               </td>
               <td title={e.statistics ? `GoF ${e.statistics.gof.toFixed(3)}` : ""}>

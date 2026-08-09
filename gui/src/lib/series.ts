@@ -78,6 +78,12 @@ export interface SeriesEntry {
   n_iterations: number;
   reseeded: boolean;
   rwp_warm: number | null;
+  /** which attempt of the escalation ladder produced these values (WP-1051);
+   *  the first pattern of a chain is always `"cold"`, having nothing to warm
+   *  from, so this is *not* the same question as `reseeded` */
+  rung: string;
+  /** every rung attempted on this pattern, in ladder order */
+  rungs_tried: string[];
   node_id: string | null;
   tree_id: string | null;
   diagnostics: Array<{ level: string; code: string; message: string }>;
@@ -210,10 +216,16 @@ export function trajectoryNote(traj: Trajectory | null, sigmaBar: number): strin
  * Reseeded points are ringed, never dropped: the fit is good, but its starting
  * values did not come from its neighbour, so it is not evidence that the
  * trajectory is continuous there (`SEQUENTIAL_RESEED`).
+ *
+ * A point no rung of the ladder recovered is **crossed** instead
+ * (`SEQUENTIAL_UNRECOVERED`, WP-1051), and the two marks say opposite things: a
+ * ring is a good fit reached from a different starting model, a cross is a
+ * diverged fit whose value is not a measurement. It is still plotted, because a
+ * gap reads as data nobody collected.
  */
 export function trajectoryTraces(traj: Trajectory, colors: {
   ok: string; warn: string; muted: string;
-}, reseeded: boolean[] = []): any[] {
+}, reseeded: boolean[] = [], unrecovered: boolean[] = []): any[] {
   const flagged = traj.path_dependent;
   const tone = flagged ? colors.warn : colors.ok;
   const traces: any[] = [{
@@ -270,15 +282,44 @@ export function trajectoryTraces(traj: Trajectory, colors: {
       hoverinfo: "skip",
     });
   }
+  const crosses = traj.x.filter((_, i) => unrecovered[i]);
+  if (crosses.length) {
+    traces.push({
+      type: "scatter",
+      mode: "markers",
+      name: "unrecovered",
+      x: crosses,
+      y: traj.value.filter((_, i) => unrecovered[i]),
+      marker: { size: 12, symbol: "x-thin", color: colors.warn,
+                line: { width: 2.2, color: colors.warn } },
+      hoverinfo: "skip",
+    });
+  }
   return traces;
 }
 
-/** Which series entries the reseed fence refitted cold, by trajectory position.
+/** Which series entries carry a flag, by trajectory position.
  *
  * A trajectory skips patterns where its path is absent (`SeriesResult.trajectory`
  * does not fill gaps), so the flags are matched on **label** rather than on
  * index — the two are the same list only when every pattern carried the path. */
+function flagsFor(traj: Trajectory, entries: SeriesEntry[],
+                  flagged: (e: SeriesEntry) => boolean): boolean[] {
+  const marked = new Set(entries.filter(flagged).map((e) => e.label));
+  return traj.labels.map((label) => marked.has(label));
+}
+
+/** Which entries the reseed fence refitted cold. */
 export function reseededFlags(traj: Trajectory, entries: SeriesEntry[]): boolean[] {
-  const cold = new Set(entries.filter((e) => e.reseeded).map((e) => e.label));
-  return traj.labels.map((label) => cold.has(label));
+  return flagsFor(traj, entries, (e) => e.reseeded);
+}
+
+/** Which entries no rung of the ladder recovered (WP-1051).
+ *
+ * Read off `status` rather than a flag of its own, exactly as the library's
+ * diagnostic is: "diverged after the last rung" and "diverged" are the same
+ * statement once the chain has run, and a second field could disagree with it. */
+export function unrecoveredFlags(traj: Trajectory,
+                                 entries: SeriesEntry[]): boolean[] {
+  return flagsFor(traj, entries, (e) => e.status === "diverged");
 }

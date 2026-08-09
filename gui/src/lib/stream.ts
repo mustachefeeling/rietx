@@ -65,15 +65,22 @@ export function consoleLine(event: EngineEvent): string {
  * fields stay where they were.
  */
 const SERIES_KEYS = new Set(["series_index", "series_label", "series_n",
-                             "series_pass", "series_cold"]);
+                             "series_pass", "series_cold", "series_rung"]);
+
+/** The escalation ladder's rungs, as one character each (WP-1051).
+ *
+ * `series_rung` rides only on a **restart**, so an absent key is a pattern's
+ * first attempt and gets no glyph — which is also why the cold rung the first
+ * pattern of every chain runs is not marked as a rescue. */
+const RUNG_GLYPH: Record<string, string> = { warm_staged: " ↑", cold: " ❄" };
 
 function seriesPrefix(data: Record<string, unknown>): string {
   if (data.series_index === undefined) return "";
   const name = data.series_label ?? data.series_index;
   const n = data.series_n ? `/${data.series_n}` : "";
   const back = data.series_pass === "backward" ? " ↩" : "";
-  const cold = data.series_cold ? " ❄" : "";
-  return `[${name} ${Number(data.series_index) + 1}${n}${back}${cold}] `;
+  const rung = RUNG_GLYPH[String(data.series_rung ?? "")] ?? "";
+  return `[${name} ${Number(data.series_index) + 1}${n}${back}${rung}] `;
 }
 
 function format(value: unknown): string {

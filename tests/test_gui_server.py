@@ -2381,6 +2381,30 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
     assert state["run"]["completed_stages"] == ["T300", "T400", "T500"]
 
 
+def test_the_progress_pill_names_the_pass_and_the_rung():
+    """A pattern is fitted more than once by design, so the pill has to say why.
+
+    Two of them on one counter: ``direction="both"`` walks every pattern again
+    in reverse, and a rejected one climbs up to three rungs of the escalation
+    ladder (WP-1051).  The rung is read off ``series_rung``, which rides on a
+    **restart** only — so a pattern's first attempt is unsuffixed, the first
+    pattern of a chain included, even though the rung it runs *is* the cold one.
+    """
+    from pxrdref.gui.session import _series_stage_name
+
+    assert _series_stage_name({"series_label": "T300"}, 0) == "T300"
+    assert _series_stage_name({"series_label": "T300",
+                               "series_pass": "backward"}, 0) == "T300 (backward)"
+    assert _series_stage_name(
+        {"series_label": "T300", "series_rung": "warm_staged"},
+        0) == "T300 (staged restart)"
+    assert _series_stage_name(
+        {"series_label": "T300", "series_rung": "cold", "series_cold": True},
+        0) == "T300 (cold restart)"
+    # no label at all: the index is the name, and nothing is claimed about rungs
+    assert _series_stage_name({}, 2) == "2"
+
+
 def test_a_series_window_is_the_project_plot_arithmetic(series):
     """``curve_window`` is shared, so the two panels cannot draw two σ policies."""
     from pxrdref.gui.session import curve_window
