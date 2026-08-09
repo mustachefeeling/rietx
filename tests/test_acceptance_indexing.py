@@ -1628,35 +1628,40 @@ def test_short_wavelength_data_is_indexed_by_the_engines_that_enumerate_nothing(
 
 @pytest.mark.slow
 @pytest.mark.xdist_group("indexing-acceptance-fap")
-def test_the_cross_code_cell_is_found_but_not_ranked_first(fap_index):
-    """Fluorapatite: the right cell is in the list, and the ranking does not lead with it.
+def test_the_cross_code_cell_leads_because_the_engines_agree_on_it(fap_index):
+    """Fluorapatite: the right cell leads the list — and the gate still refuses it.
 
     This is the one dataset here whose reference is **another code's converged
     result** — GSAS's own `FAP.EXP` for this exact pattern — so it grades
     agreement rather than accuracy, at ``FAP_INDEXING_PPM`` — which is *not* the
     refinement suite's ±300 ppm, for the reason that constant records.
 
-    The candidate that meets that band is present, is the one **both engines
-    agree on**, and indexes 178 of 185 lines: a = +258 ppm, c = +325 ppm.  It is
-    **ranked fourth**.  Above it sit three cells 966-1396 ppm out that index
+    The candidate that meets that band indexes 178 of 185 lines at a = +258 ppm,
+    c = +325 ppm, and is the one **every engine that ran found**.  Until WP-1046
+    it was **ranked fourth**, below three cells 966-1396 ppm out that index
     *fewer* lines (152) but score a higher M₂₀ — the ordering M₂₀ produces when a
     slightly wrong metric matches a subset of lines more tightly than the right
-    one matches all of them.
+    one matches all of them.  It leads now, and **the panel was not touched to
+    make it**: those three are one engine's, this one is three engines', and
+    since WP-1046 corroboration is the ranking's first key — the boundary
+    ``grade`` already used to floor a candidate at ``low``.  The panel still
+    ranks *within* a tier, and M₂₀ still prefers the wrong cells; the assertion
+    below pins exactly that, so the row keeps its original content instead of
+    quietly becoming "the panel got better".
 
-    (Re-measured on the merged tree, WP-1041 task 8.  The figures here were
+    (Re-measured on the merged tree, WP-1041 task 8.  The figures were
     +232/+363 ppm, 181 of 185, one leader at 1218 ppm indexing 167 — recorded
     before ``main``'s WP-1035 was merged, like the NAC panel table above.  The
-    row's *assertions* did not move, because they were written about membership
-    and refusal rather than about rank, which is the point the next paragraph
-    makes and the reason this drift cost nothing.)
+    row's *assertions* did not move then, because they were written about
+    membership and refusal rather than about rank.)
 
-    So the assertion is deliberately about *membership and refusal*, not about
-    rank: the correct cell is reachable, and the gate declines to hand back the
-    leader.  Writing this row as "rank 0 is the answer" would have meant tuning
-    the panel until it was, on a dataset whose own reference is another code's
-    fit.  What the package promises is that it never hands back a confident
-    wrong singleton, and here it keeps that promise while its ranking is wrong —
-    which is exactly the case the promise exists for.
+    **The refusal is still the row's point, and it is what did not move.**  The
+    gate declines to promote anything here whatever the order, so the package's
+    promise — never a confident wrong singleton — is kept by the gate and not by
+    the ranking.  This row was deliberately written about membership and refusal
+    rather than rank, precisely so that a rank change could not be mistaken for
+    the panel being tuned until this dataset won; the rank changed, the panel
+    did not, and the refusal stands.
 
     The doublet is the sub-plot.  These are Cu Kα1/Kα2 data and the positions
     that reproduce GSAS's cell are **Kα1** positions, so the constrained-pair fit
@@ -1680,12 +1685,22 @@ def test_the_cross_code_cell_is_found_but_not_ranked_first(fap_index):
     assert best_in_band.centring == "P"
     assert best_in_band.n_indexed >= 0.95 * best_in_band.n_lines
 
-    # …and the leader is not it, which is the honest half of the row
+    # …and it leads, because every engine found it (WP-1046)
     leader = res.candidates[0]
-    assert leader.fom_value("m20") > best_in_band.fom_value("m20")
-    assert leader.n_indexed < best_in_band.n_indexed, (
-        "the leader now indexes at least as many lines as the in-band cell, so "
-        "the ranking inversion this row documents has changed shape")
+    assert leader is best_in_band, (
+        "the in-band cell no longer leads: "
+        + repr([(tuple(round(x, 4) for x in c.cell[:3]), c.found_by)
+                for c in res.candidates[:4]]))
+
+    # the panel is untouched and still prefers a wrong cell — the inversion this
+    # row documents is intact, it is simply no longer what decides the order
+    outranked = [c for c in res.candidates
+                 if len(set(c.found_by)) < 2
+                 and c.fom_value("m20") > best_in_band.fom_value("m20")]
+    assert outranked, (
+        "no single-engine candidate scores a higher M20 than the in-band cell, "
+        "so the M20 inversion this row documents has changed shape")
+    assert all(c.n_indexed < best_in_band.n_indexed for c in outranked)
 
     # the gate refuses to promote any of it
     assert res.best_or_none() is None

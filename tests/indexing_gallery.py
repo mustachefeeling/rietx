@@ -105,10 +105,13 @@ SPECIMENS: dict[str, dict[str, str]] = {
         "provenance": "GSAS-II LabData tutorial, FAP.XRA; the reference is GSAS's "
                       "own fit in FAP.EXP \u2014 another program's result, not a "
                       "certificate.",
-        "why": "The case the whole design exists for: the right cell is "
-               "<i>reachable and not ranked first</i>, and the package declines "
-               "to hand back the leader rather than tuning the panel until the "
-               "right one wins.",
+        "why": "The case the whole design exists for. The right cell was "
+               "<i>reachable and ranked fourth</i> for the whole of the indexing "
+               "work — three cells ~1000 ppm out score a higher M₂₀ "
+               "on fewer lines — and it leads since WP-1046 without the panel "
+               "being touched: those three are one engine's, this one is every "
+               "engine's, and corroboration ranks first. The refusal is what did "
+               "not move; the gate still promotes nothing here.",
     },
     "zincite": {
         "title": "Zincite (ZnO)",
