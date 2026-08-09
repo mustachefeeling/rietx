@@ -58,13 +58,23 @@ REAL_FIXTURES = [
 #: again — a real one *is* vendored and truncated above, but it holds one range,
 #: and a cut through the second range of a two-range file is a different depth
 #: to fail at: the first range has already parsed and returned by then.
-SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4"]
+#: ``raw3`` is the plainest case: **no** real file exists, from any source, so
+#: this arm is the only truncation coverage that format has.
+SYNTHETIC_FIXTURES = ["uxd", "rasx", "brml", "raw4", "raw3"]
 
 
 def _synthesize(kind: str, path: Path) -> Path:
     from tests.test_readers import write_brml, write_rasx, write_uxd
-    from tests.writers_xrd import write_raw4
+    from tests.writers_xrd import write_raw3, write_raw4
 
+    if kind == "raw3":
+        # extra records in the second range, so a cut can land between a header
+        # and the data it declares rather than only inside one of them
+        return write_raw3(path, [
+            dict(start=10.0, step=0.02,
+                 intensity=[500.0 + i % 7 for i in range(200)]),
+            dict(start=40.0, step=0.02, extras=[(100, 40), (110, 32)],
+                 intensity=[300.0 + i % 5 for i in range(200)])])
     if kind == "raw4":
         return write_raw4(path, [
             dict(start=10.0, step=0.02,

@@ -18,7 +18,11 @@ that from being what these writers are:
    ``tests/data/README.md``, and (b) GSAS-II's ``G2pwd_BrukerRAW.py``, read as a
    specification only.  Where a third description exists — FAIRmat's
    ``bruker_raw_parser.py`` — it is not independent: it hard-codes absolute
-   offsets taken from that same file.
+   offsets taken from that same file.  For **v3** there are three that agree —
+   GSAS-II, ``bracerino/xrd-file-converter`` (MIT) and ``reductus/reductus``
+   (Unlicense), the last a field-by-field transcription of Bruker's own header
+   definition — and **no** file at all, which is why v3's gates in the reader
+   are the strict ones.
 3. **The reader carries a self-consistency gate**, so a wrong parse raises
    rather than returning plausible garbage: a range header's nested segment
    chain must end *exactly* on the declared ``hdrSize``, and
@@ -118,5 +122,81 @@ def write_raw4(path: Path, ranges, *, sample="Synthesized", comment="",
         for value in y:
             out += struct.pack("<f", value) + b"\x00" * (datum - 4)
 
+    path.write_bytes(bytes(out))
+    return path
+
+
+#: Bruker RAW v3 (`RAW1.01`), packed from its own literal field table.
+_V3_MAGIC = b"RAW1.01\x00"
+_V3_HEADER = 712
+#: the range header's own declared length here.  The format lets it vary — the
+#: reader reads the declared value — so the writer picks a size that is not the
+#: minimum, which is what makes "data starts at header + extras" testable.
+_V3_RANGE_HEADER = 304
+
+
+def _v3_extra(record_type: int, length: int) -> bytes:
+    """One optional record between a range header and its data.
+
+    These are what `total_size_of_extra_records` counts, and what GSAS-II's
+    literal `+40` is standing in for. Content is irrelevant to a pattern reader;
+    only the `(type, length)` pair and the total are.
+    """
+    return struct.pack("<ii", record_type, length) + b"\x00" * (length - 8)
+
+
+def write_raw3(path: Path, ranges, *, sample="Synthesized", anode="Cu",
+               radius=250.0, trailing=b"") -> Path:
+    """A Bruker RAW v3 file holding `ranges`.
+
+    Each range is a dict: `start`, `step`, `intensity`, and optionally
+    `scan_type` (the enumerated code, default 0 = locked coupled), `step_time`,
+    `wavelength`, `extras` (a list of `(type, length)` optional records) and
+    `two_theta` (measured positions, which set the varying-2θ bit and put a
+    float64 column in every datum).
+
+    `trailing` appends bytes past the last range, which the reader's
+    "the declared ranges must account for the file" gate is for.
+    """
+    header = bytearray(b"\x00" * _V3_HEADER)
+    header[0:8] = _V3_MAGIC
+    header[12:16] = struct.pack("<i", len(ranges))
+    header[16:26] = _fixed("04/07/25", 10)
+    header[26:36] = _fixed("20:48:56", 10)
+    header[326:386] = _fixed(sample, 60)
+    header[564:568] = struct.pack("<f", radius)
+    header[608:612] = _fixed(anode, 4)
+    out = bytearray(header)
+
+    for spec in ranges:
+        y = list(spec["intensity"])
+        measured = spec.get("two_theta")
+        columns = 1 if measured is not None else 0
+        varying = 1 if measured is not None else 0
+        record_length = 4 + 8 * columns
+        extras = b"".join(_v3_extra(t, ln) for t, ln in spec.get("extras", ()))
+
+        block = bytearray(b"\x00" * _V3_RANGE_HEADER)
+        block[0:4] = struct.pack("<i", _V3_RANGE_HEADER)
+        block[4:8] = struct.pack("<i", len(y))
+        block[8:16] = struct.pack("<d", spec["start"] / 2)          # θ start
+        block[16:24] = struct.pack("<d", spec["start"])             # 2θ start
+        block[176:184] = struct.pack("<d", spec["step"])
+        block[192:196] = struct.pack("<f", spec.get("step_time", 1.0))
+        block[196:200] = struct.pack("<i", spec.get("scan_type", 0))
+        block[212:216] = struct.pack("<f", spec.get("temperature", 0.0))
+        block[240:248] = struct.pack("<d", spec.get("wavelength", 1.5406))
+        block[248:252] = struct.pack("<i", spec.get("varying", varying))
+        block[252:256] = struct.pack("<i", spec.get("record_length",
+                                                    record_length))
+        block[256:260] = struct.pack("<i", len(extras))
+        out += block + extras
+
+        for i, value in enumerate(y):
+            out += struct.pack("<f", value)
+            if measured is not None:
+                out += struct.pack("<d", measured[i])
+
+    out += trailing
     path.write_bytes(bytes(out))
     return path

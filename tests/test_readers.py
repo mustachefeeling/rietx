@@ -1752,11 +1752,13 @@ def test_a_range_declaring_more_points_than_the_file_holds_is_refused(tmp_path):
         pr.read_pattern(p)
 
 
-@pytest.mark.parametrize("magic,version", [
-    (b"RAW ", 1), (b"RAW2", 2), (b"RAW1.01", 3),
-])
-def test_an_earlier_raw_version_is_refused_by_its_version_not_a_traceback(
+@pytest.mark.parametrize("magic,version", [(b"RAW ", 1), (b"RAW2", 2)])
+def test_an_undescribed_raw_version_is_refused_by_its_version_not_a_traceback(
         magic, version, tmp_path):
+    """v1 has no description at all and v2 exactly one, uncorroborated — so
+    both are named rather than guessed at.  A parser written from a single
+    description with no file to check it against is how a reader comes to return
+    a plausible wrong pattern, which is what this whole seam exists to stop."""
     p = tmp_path / f"v{version}.raw"
     p.write_bytes(magic + b"\x00" * 4000)
 
@@ -1806,3 +1808,159 @@ def test_the_alternate_range_marker_is_read_the_same_way(tmp_path):
                    marker=160)
 
     assert len(pr.read_pattern(p).two_theta) == 60
+
+
+# --------------------------------------------------------------------------- #
+# .raw v3 (RAW1.01) — three agreeing descriptions and no file at all
+#
+# Everything here is synthesized, so it exercises the reader's arithmetic and
+# its gates, never the format.  What makes v3 shippable on that footing is the
+# gates themselves: `data_record_length == 4 + 8·popcount(varying_parameters)`
+# cannot be satisfied by a header read at the wrong offset, and the declared
+# ranges have to account for the whole file.
+# --------------------------------------------------------------------------- #
+
+
+def test_a_v3_range_reads_its_header_and_its_counts(tmp_path):
+    from tests.writers_xrd import write_raw3
+
+    y = [400.0 + i % 11 for i in range(250)]
+    p = write_raw3(tmp_path / "one.raw", [dict(start=10.0, step=0.02,
+                                               intensity=y, step_time=1.0)],
+                   sample="corundum", radius=280.0)
+
+    assert identify_format(p).name == "bruker_raw"
+    d = pr.read_pattern(p)
+    assert d.intensity == y
+    assert d.two_theta[0] == pytest.approx(10.0)
+    assert d.two_theta[-1] == pytest.approx(10.0 + 0.02 * 249)
+    assert d.metadata["sample"] == "corundum"
+    assert d.metadata["anode"] == "Cu"
+    assert d.metadata["scan_axis"] == "locked coupled"
+    assert float(d.metadata["goniometer_radius_mm"]) == pytest.approx(280.0)
+    assert d.sigma is None                       # integral counts, Poisson is right
+
+
+def test_the_v3_data_starts_past_the_extra_records_the_header_counts(tmp_path):
+    """The field GSAS-II's literal ``+40`` is standing in for.
+
+    Optional records sit between a range header and its data, and their total
+    size is declared at +256.  A reader that ignores it reads the first datum
+    from inside one of them — which is why GSAS-II carries a bare ``except``
+    that retries the whole block 40 bytes earlier.
+    """
+    from tests.writers_xrd import write_raw3
+
+    y = [500.0 + i for i in range(60)]
+    plain = write_raw3(tmp_path / "plain.raw",
+                       [dict(start=10.0, step=0.02, intensity=y)])
+    padded = write_raw3(tmp_path / "extras.raw",
+                        [dict(start=10.0, step=0.02, intensity=y,
+                              extras=[(100, 40), (110, 32)])])
+
+    assert padded.stat().st_size == plain.stat().st_size + 72
+    assert pr.read_pattern(padded).intensity == y
+
+
+def test_a_v3_datum_is_the_declared_record_not_four_bytes(tmp_path):
+    """`data_record_length` is 4 + 8 per varying parameter, so a scan that
+    stores a measured 2θ has 12-byte data records — and the measured column is
+    used, which is the whole reason it is written."""
+    from tests.writers_xrd import write_raw3
+
+    y = [300.0 + i for i in range(40)]
+    # a deliberately *uneven* axis, so reading start + i·step would differ
+    measured = [10.0 + 0.02 * i + 0.001 * (i % 3) for i in range(40)]
+    p = write_raw3(tmp_path / "varying.raw",
+                   [dict(start=10.0, step=0.02, intensity=y, two_theta=measured)])
+
+    d = pr.read_pattern(p)
+    assert d.intensity == y
+    assert d.two_theta == pytest.approx(measured)
+
+
+def test_a_v3_record_length_disagreeing_with_its_varying_bits_is_refused(tmp_path):
+    """The gate that says the header was parsed at all: the two fields are
+    written by the same instrument from the same fact, so a header read at the
+    wrong offset will not satisfy them both."""
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "bad.raw",
+                   [dict(start=10.0, step=0.02, intensity=[1.0] * 30,
+                         varying=0b101, record_length=4)])
+
+    with pytest.raises(ValueError, match="wants 20"):
+        pr.read_pattern(p)
+
+
+def test_v3_ranges_are_scans_and_the_default_says_so(tmp_path):
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "two.raw", [
+        dict(start=10.0, step=0.02, intensity=[100.0] * 200),
+        dict(start=40.0, step=0.01, intensity=[50.0] * 300, extras=[(150, 24)]),
+    ])
+
+    diagnostics = []
+    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 200
+    assert "PATTERN_MULTISCAN_DEFAULTED" in [x.code for x in diagnostics]
+    assert len(pr.read_pattern(p, scan=1).two_theta) == 300
+    assert [s.n_points for s in list_scans(p)] == [200, 300]
+
+
+@pytest.mark.parametrize("code,what", [
+    (3, "rocking curve about θ"), (5, "φ rotation"), (12, "ψ tilt"),
+    (14, "reciprocal-space map"),
+])
+def test_a_v3_scan_type_that_is_not_a_profile_is_refused_by_name(code, what,
+                                                                 tmp_path):
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / f"t{code}.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 40,
+                         scan_type=code)])
+
+    with pytest.raises(ValueError, match=what):
+        pr.read_pattern(p)
+
+
+def test_a_v3_scan_type_this_reader_has_no_name_for_is_assumed_and_says_so(
+        tmp_path):
+    """The enum has one source, so an unfamiliar code is this reader's ignorance
+    and not the file's fault — which is the assumed arm, not the refused one."""
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "psd.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 40,
+                         scan_type=130)])
+
+    diagnostics = []
+    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 40
+    assert [x.code for x in diagnostics] == ["PATTERN_X_AXIS_ASSUMED"]
+
+
+def test_v3_refuses_a_file_its_declared_ranges_do_not_account_for(tmp_path):
+    """The global gate, and the reason v3 ships without a fixture: if the
+    arithmetic is right the last range ends on EOF, and if it is wrong the
+    pattern would be wrong rather than short."""
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "extra_tail.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 40)],
+                   trailing=b"\x00" * 64)
+
+    with pytest.raises(ValueError, match="unaccounted for"):
+        pr.read_pattern(p)
+
+
+def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
+    from tests.writers_xrd import write_raw3
+
+    p = write_raw3(tmp_path / "many.raw",
+                   [dict(start=10.0, step=0.02, intensity=[100.0] * 40)])
+    raw = bytearray(p.read_bytes())
+    raw[12:16] = (999_999).to_bytes(4, "little")
+    p.write_bytes(bytes(raw))
+
+    with pytest.raises(ValueError, match="not a number of measurements"):
+        pr.read_pattern(p)

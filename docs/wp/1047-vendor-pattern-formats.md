@@ -465,11 +465,16 @@ that belong to it), never mid-format.
       segment walker, **stride by `datumSize`** (FAIRmat's "interleaved
       float32 pairs" note is a `datumSize==8` misread; GSAS-II reads the
       field then ignores it), walk to EOF rather than counting `b'2Theta'`.
-- [ ] 14. `.raw` v2/v3 + the v1 refusal — synthesized bytes; the `+40` /
-      `int32@+256` ambiguity **resolved by validation** (compute both
-      candidate data offsets, accept the one whose values are finite and
-      whose end lands on a plausible next header or EOF; raise if both or
-      neither validate) with the choice recorded in metadata.
+- [x] 14. `.raw` **v3** + the v1 **and v2** refusals — synthesized bytes. The
+      `+40` / `int32@+256` ambiguity needed no validation scheme in the end:
+      a third description (`reductus`, Unlicense — Bruker's own field names)
+      names the two fields both other readers patch around,
+      `data_record_length` (+252) and `total_size_of_extra_records` (+256), so
+      the data offset is arithmetic. **v2 was dropped from scope**: exactly one
+      uncorroborated description of it exists and no file, which is the
+      confident-wrong read this WP exists to prevent — it is refused by name and
+      version instead, and the `io/formats/` seam makes it a one-module
+      follow-up if a real file ever appears.
 - [ ] 15. Instrument hint — `suggest_instrument` with the three-candidate λ
       match (Kα1 / Kα2 / weighted mean), preview payload, wizard pre-fill.
 - [ ] 16. Scan picker on the wire — `scans` in the preview (from the single

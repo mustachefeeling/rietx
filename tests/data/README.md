@@ -671,3 +671,15 @@ wrong on it:
   wavelengths are **not in the format**; all four are, at fixed offsets in the
   range header and in the type-30 segment. Their search was for ASCII strings,
   and these are IEEE floats.
+
+**v3 (`RAW1.01`) has no fixture, from any source.** What stands in for one is
+three independent descriptions that agree — GSAS-II, `bracerino/xrd-file-converter`
+(MIT) and `reductus/reductus` (Unlicense, a field-by-field transcription of
+Bruker's own header definition) — plus two gates a mis-parse cannot pass:
+`data_record_length == 4 + 8·popcount(varying_parameters)`, which two fields
+written from one fact have to satisfy, and the requirement that the declared
+ranges account for the file exactly. `tests/writers_xrd.py` packs v3 from its
+own literal offset table, so the writer cannot drift with the reader.
+**v1 and v2 are refused**: GSAS-II describes v2 and nothing else corroborated
+does, and one description with no file is how a reader comes to return a
+plausible wrong pattern.
