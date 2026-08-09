@@ -21,8 +21,7 @@ import {
   instrumentArgument,
   patternSummary,
   presetSpec,
-  structureSummary,
-} from "./wizard";
+  structureSummary, applyInstrumentHint, scanCount } from "./wizard";
 
 const presets: Record<string, string[]> = JSON.parse(
   readFileSync(
@@ -94,11 +93,14 @@ describe("createBody", () => {
     expect(JSON.stringify(body)).not.toContain("/api/upload");
   });
 
-  it("carries the pdCIF block only when one was picked", () => {
+  it("carries the reader options only when one was picked", () => {
     const state = staged();
-    expect(createBody(state).block).toBeUndefined();
-    state.block = "meas";
-    expect(createBody(state).block).toBe("meas");
+    expect(createBody(state).reader_options).toBeUndefined();
+    state.readerOptions = { block: "meas" };
+    expect(createBody(state).reader_options).toEqual({ block: "meas" });
+    // a cleared control is not a request — it must not reach the server as ""
+    state.readerOptions = { block: "" };
+    expect(createBody(state).reader_options).toBeUndefined();
   });
 
   it("carries the aniso opt-in as chosen", () => {
@@ -203,5 +205,46 @@ describe("no form field without help (WP-1032)", () => {
     }
     expect(titles.size).toBe(1);
     expect([...titles][0]).toContain("never refinable");
+  });
+});
+
+describe("applyInstrumentHint", () => {
+  it("seeds the preset and its fields from what the file knew", () => {
+    const state = applyInstrumentHint(emptyWizard(), {
+      preset: "bragg_brentano", radiation: "CuKa1",
+      goniometer_radius_mm: 280, why: "…",
+    });
+    expect(state.preset).toBe("bragg_brentano");
+    expect(state.values.radiation).toBe("CuKa1");
+    expect(state.values.goniometer_radius_mm).toBe("280");
+    // the spec the form will actually post carries them, not just the display
+    expect(presetSpec(state)).toMatchObject(
+      { preset: "bragg_brentano", radiation: "CuKa1", goniometer_radius_mm: 280 });
+  });
+
+  it("switches geometry when the file's wavelength is no Kα line", () => {
+    const state = applyInstrumentHint(emptyWizard(), {
+      preset: "debye_scherrer", wavelength: 0.413909, why: "…",
+    });
+    expect(state.preset).toBe("debye_scherrer");
+    expect(presetSpec(state)).toMatchObject(
+      { preset: "debye_scherrer", wavelength: 0.413909 });
+  });
+
+  it("leaves the form untouched when there is no hint", () => {
+    // a header whose name and wavelength disagree sends null rather than a
+    // guess, and an empty form beats one that looks like it was read
+    const before = emptyWizard();
+    for (const hint of [null, undefined, {}, { preset: "not_a_preset" }]) {
+      expect(applyInstrumentHint(before, hint)).toEqual(before);
+    }
+  });
+});
+
+describe("scanCount", () => {
+  it("reads the preview's own metadata and defaults to one", () => {
+    expect(scanCount({ metadata: { scan_count: "3" } })).toBe(3);
+    expect(scanCount({ metadata: {} })).toBe(1);
+    expect(scanCount(null)).toBe(1);
   });
 });

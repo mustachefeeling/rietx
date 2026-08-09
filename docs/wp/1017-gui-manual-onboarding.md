@@ -39,6 +39,49 @@ real UI.
 
 ### Inherited
 
+**From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
+import wizard's pattern step changed shape, so any screenshot or walkthrough
+of it written before this lands will be wrong.** Two changes: (a) the single
+"data block" input is gone; the step now renders **one control per reader
+option the claimed format declares**, from
+`capabilities().reader_options` — so a multi-scan vendor format grows a `scan`
+picker with no frontend change, and the chapter should describe the mechanism
+rather than enumerate the controls. (b) The preview now shows the reader's own
+**diagnostics** (a scan stored high→low and reversed, a duplicated point
+dropped, an option that did not apply). That strip is the teachable moment the
+onboarding chapter wants: it is where a student sees that opening a file is a
+decision with consequences, before it becomes a project. Also worth a sentence:
+a binary vendor file and a `.dif` peak list are now refused **by name**, so
+"why won't my file open?" has an answer the app gives rather than one the
+manual has to.
+
+**Updated 2026-08-09 (1047 tasks 10-12).** Five vendor formats now read
+(`.ras`, `.rasx`, `.uxd`, `.xrdml`, `.brml`), nine in all, so a chapter that
+lists formats will go stale between sessions — quote `capabilities()`, which
+carries each format's own `sniff` and `sigma` prose for exactly this. Two of
+those readers **change the numbers**: a PANalytical beam attenuator is applied
+and a Bruker absorber's factor goes into σ, each with a diagnostic saying so, so
+the preview's diagnostics strip is no longer only about repairs — it is
+sometimes about a 188× correction. That is the sharper version of the teachable
+moment above, and worth the chapter's one worked example.
+
+**Updated 2026-08-09 (1047 closed).** **Ten** formats read now — Bruker `.raw`
+joined the list — so the "quote `capabilities()`" advice above is the whole of
+what a chapter should say about *which*. Two additions the pattern step itself
+grew, both worth a sentence rather than a screenshot:
+
+- the step **pre-fills the instrument form from the file's own header** when it
+  can (anode, and goniometer radius where the file records one), with a line
+  saying *why* it chose what it chose. The teachable point is the case where it
+  says nothing: a header whose anode name and wavelength disagree gets **no**
+  suggestion, because a wrong pre-fill looks like it was read. That is the same
+  lesson as the diagnostics strip, one control over;
+- a multi-scan file's `scan` control is now a **picker with labels** rather than
+  a number box, and the labels arrive from their own route when the control is
+  opened. Worth a sentence because the reason is visible to a student: "scan 1"
+  says nothing, and a vendor file commonly holds a whole session rather than a
+  pattern.
+
 **From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — the
 "what next?" panel this WP's non-goal deferred now has its engine.**
 `Refinement.suggest()` is read-only (no history node, no mutation), so a

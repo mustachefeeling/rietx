@@ -35,8 +35,11 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import struct
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,6 +56,21 @@ UPLOAD_KINDS = ("pattern", "cif", "instrument")
 #: Points in a preview curve.  Enough to see the peaks and the background of a
 #: 40 000-point pattern in a wizard step; the real plot fetches its own windows.
 PREVIEW_POINTS = 900
+
+#: What a failed read may throw before this route calls it a refusal.
+#:
+#: The **invariant** is that a reader raises ``ValueError`` or ``OSError`` and
+#: names the file — enforced at each parser's own boundary and asserted by
+#: ``tests/test_readers_robust.py``, which truncates every real fixture at
+#: twenty offsets.  The rest of this tuple is a net, not a licence: the vendor
+#: formats are containers, so a parser that forgets to convert would throw
+#: ``struct.error``, ``zipfile.BadZipFile`` or ``ET.ParseError`` — and the last
+#: subclasses ``SyntaxError``, so it escapes as a **500** on an upload route
+#: rather than as "this file could not be read".  A localhost server handed a
+#: browser's bytes should degrade to a 400, and the harness is what keeps the
+#: net from quietly becoming the mechanism.
+READER_FAILURES = (ValueError, OSError, RuntimeError, KeyError, IndexError,
+                   struct.error, zipfile.BadZipFile, ET.ParseError)
 
 
 class UploadRefused(ValueError):
@@ -190,7 +208,7 @@ def _safe_name(filename: str) -> str:
 # ----------------------------------------------------------------------
 # previews
 # ----------------------------------------------------------------------
-def preview_pattern(upload: Upload, *, block: str | None = None,
+def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = None,
                     suggest_in: Path | None = None) -> dict:
     """Read a staged pattern and describe it — reader included.
 
@@ -205,20 +223,29 @@ def preview_pattern(upload: Upload, *, block: str | None = None,
     than a description: it says whether the fit will weight by the file's own
     esd column or fall back to Poisson √max(y,1), which is invisible once the
     file is read.
+
+    ``reader_options`` are :data:`~pxrdref.io.readers.READER_OPTIONS` keys, and
+    the preview echoes back the **effective** ones rather than the requested
+    ones — a form carries a ``block`` across a change of file, and what the
+    control should then show is what this reader honoured.
     """
     import numpy as np
 
-    from ..io.readers import identify_format, read_pattern
+    from ..io.readers import identify_format, read_pattern, reader_options_for
     from ..viz.compare import decimation_index
 
     try:
         fmt = identify_format(upload.path)
     except ValueError as exc:
         raise UploadRefused(str(exc)) from None
-    options = {"block": block} if block is not None and "block" in fmt.options else {}
+    notes: list = []
     try:
-        data = read_pattern(upload.path, **options)
-    except (ValueError, OSError, RuntimeError, KeyError, IndexError) as exc:
+        options = reader_options_for(fmt, reader_options or {}, diagnostics=notes)
+    except ValueError as exc:
+        raise UploadRefused(str(exc), where=["reader_options"]) from None
+    try:
+        data = read_pattern(upload.path, diagnostics=notes, **options)
+    except READER_FAILURES as exc:
         raise UploadRefused(
             f"{upload.filename} looks like {fmt.title} but could not be read: "
             f"{type(exc).__name__}: {scrub(str(exc), upload)}") from None
@@ -235,12 +262,20 @@ def preview_pattern(upload: Upload, *, block: str | None = None,
         **upload.as_dict(),
         "format": {"name": fmt.name, "title": fmt.title, "sniff": fmt.sniff,
                    "sigma": fmt.sigma, "options": list(fmt.options)},
-        "block": block,
+        "reader_options": {k: str(v) for k, v in options.items()},
+        # what the reader repaired or assumed.  The wizard is where a human
+        # should see a repair — a project records no such field, because these
+        # are a deterministic function of bytes + reader + options and all three
+        # are already in ``DataRef``
+        "diagnostics": [d.model_dump() for d in notes],
         "n_points": int(tt.size),
         "two_theta_range": [float(tt[0]), float(tt[-1])],
         "step": float(np.median(steps)) if steps.size else None,
         "has_sigma": data.sigma is not None,
         "metadata": dict(data.metadata or {}),
+        # what the file already knows about its instrument — a *suggestion*, and
+        # ``None`` where the header contradicts itself rather than a guess
+        "instrument_hint": suggest_instrument(data.metadata),
         "curve": {"two_theta": tt[idx].tolist(), "intensity": y[idx].tolist(),
                   "n_returned": int(len(idx))},
         # a project is a directory on *this* machine and the browser cannot pick
@@ -388,6 +423,121 @@ INSTRUMENT_PRESETS: dict[str, tuple[str, ...]] = {
     "flat_plate_transmission": ("radiation", "mu_t", "thickness_mm",
                                 "packing_fraction", "ka2_ratio"),
 }
+
+
+#: How close a file's own wavelength must be to a table value to *be* that
+#: anode.  Loose enough to absorb the ~3 ppm spread between vendor headers and
+#: the package's NIST-scale table (1.540598 and 1.540593 against 1.5405929),
+#: tight enough that no two anodes overlap — the closest pair here differ by 13 %.
+WAVELENGTH_RTOL = 5e-4
+
+
+def _anode_candidates() -> dict[str, tuple[float, float, float]]:
+    """Per anode, the **three** wavelengths a file may legitimately quote.
+
+    Kα1, Kα2, and the intensity-weighted mean (2λ₁ + λ₂)/3 — the last because it
+    is what ``.uxd`` and older exports actually write (1.5418 for Cu), and 1.5418
+    against Kα1 is 7.8e-4 relative, *outside* :data:`WAVELENGTH_RTOL`.  Without
+    the mean in the candidate set the most common lab metadata value in existence
+    would read as "the name and the wavelength disagree" and suppress the hint.
+    """
+    from ..schemas.instrument import _KA_DOUBLETS
+
+    return {name: (a1, a2, (2.0 * a1 + a2) / 3.0)
+            for name, (a1, a2) in _KA_DOUBLETS.items()}
+
+
+def _number(metadata: dict, key: str) -> float | None:
+    try:
+        value = float(metadata[key])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if value > 0.0 else None
+
+
+def _by_wavelength(wavelength: float | None) -> str | None:
+    """The one anode whose Kα1, Kα2 or weighted mean ``wavelength`` is."""
+    if wavelength is None:
+        return None
+    hit = [name for name, lines in _anode_candidates().items()
+           if any(abs(wavelength - line) <= WAVELENGTH_RTOL * line
+                  for line in lines)]
+    return hit[0] if len(hit) == 1 else None
+
+
+def _by_name(anode: str | None) -> str | None:
+    """The anode a file *names*, as a radiation key — ``Cu`` → ``CuKa``."""
+    if not anode:
+        return None
+    element = "".join(c for c in str(anode) if c.isalpha())[:2].capitalize()
+    return element + "Ka" if element + "Ka" in _anode_candidates() else None
+
+
+def suggest_instrument(metadata: dict | None) -> dict | None:
+    """What the file already knows about its instrument, as a preset spec.
+
+    A vendor header states the anode and the wavelength, and the import wizard
+    currently makes a person type both.  Matching them is a *physics* judgement
+    against the package's radiation table, so it happens here and not in
+    TypeScript — a client-side match would be a second copy of the anode
+    vocabulary, kept in a different language.
+
+    **Wavelength first**, because a name is a label and a number is a
+    measurement, and the number is checked against three candidates per anode
+    (:func:`_anode_candidates`).  Then:
+
+    * name and wavelength agreeing, or only one of them present → that anode's
+      **doublet** preset.  The weighted mean resolves to the doublet too: it is
+      a way of *writing* a doublet, not a different beam;
+    * the file saying it has **no Kα2** — a recorded Kα2 wavelength of zero, as
+      a Bruker v4 header writes for an incident-beam monochromator — → the
+      ``…Ka1`` radiation, which is a real distinction ``_RADIATIONS`` carries;
+    * a wavelength matching **no** anode → ``debye_scherrer`` at that
+      wavelength, which is the synchrotron and monochromated case and the one
+      where the file does know better than any preset;
+    * name and wavelength **disagreeing** → ``None``.  That file is one to look
+      at, not to guess from, and a wrong pre-fill is worse than an empty form
+      because it looks like it was read.
+
+    ``goniometer_radius_mm`` rides along where the file records one, which is
+    the actual win: two of ``bragg_brentano``'s four numbers then come from the
+    file instead of from a person.
+    """
+    metadata = metadata or {}
+    wavelength = _number(metadata, "wavelength")
+    named = _by_name(metadata.get("anode"))
+    matched = _by_wavelength(wavelength)
+
+    # a contradiction, not a default — and "matches no anode at all" is one of
+    # them when the file also names one, which is why the test is against
+    # ``matched`` rather than against a second anode having been found
+    if named is not None and wavelength is not None and matched != named:
+        return None
+    anode = matched or named
+    if anode is None:
+        if wavelength is None:
+            return None
+        return {"preset": "debye_scherrer", "wavelength": wavelength,
+                "why": (f"the file gives λ = {wavelength:g} Å, which is no "
+                        "characteristic Kα line — a monochromated or "
+                        "synchrotron beam, where the file knows better than "
+                        "any anode preset")}
+
+    # a *recorded* Kα2 of zero is the file saying there is none; a format that
+    # does not record the field at all says nothing, and gets the doublet
+    silent = "wavelength_alpha2" not in metadata
+    radiation = anode if silent or _number(metadata, "wavelength_alpha2") else anode + "1"
+    spec: dict[str, Any] = {"preset": "bragg_brentano", "radiation": radiation}
+    radius = _number(metadata, "goniometer_radius_mm")
+    if radius is not None:
+        spec["goniometer_radius_mm"] = radius
+    how = ("its wavelength" if matched and not named else
+           "its anode" if named and not matched else
+           "its anode and wavelength agreeing")
+    spec["why"] = (f"{how} → {radiation}"
+                   + (f", and the goniometer radius it records ({radius:g} mm)"
+                      if radius is not None else ""))
+    return spec
 
 
 def instrument_from_preset(spec: dict) -> Any:

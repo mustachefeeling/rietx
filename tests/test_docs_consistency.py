@@ -58,13 +58,20 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # rule a stranger needs in six months, evidence compressed to one clause plus
 # a pointer (protocol rule 4); a new indexing rule lands in the indexing
 # rulebook and earns a root clause only if it changes behavior outside
-# indexing/.
+# indexing/.  WP-1047 (2026-08-09) is the same move for the readers: root
+# CLAUDE.md was at exactly 600 with four vendor formats still to land, so the
+# reader detail went to src/pxrdref/io/CLAUDE.md (loads under io/) and root
+# kept only the four consequences a caller outside io/ sees.  Landed at 165,
+# capped at 200 — the headroom is the remaining formats' per-format rows.
 SIZE_CAPS: dict[str, int | None] = {
     "CLAUDE.md": 600,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,
     "src/pxrdref/indexing/CLAUDE.md": 250,
+    # 200 at the .ras/.uxd consolidation; raised once with three container
+    # formats still to land, each of which is a row in its per-format table
+    "src/pxrdref/io/CLAUDE.md": 250,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 
@@ -168,7 +175,7 @@ _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 def _planning_docs() -> list[Path]:
     docs = [ROOT / "CLAUDE.md"]
     for extra in ("gui/CLAUDE.md", "tests/CLAUDE.md", "src/pxrdref/gui/CLAUDE.md",
-                  "src/pxrdref/indexing/CLAUDE.md"):
+                  "src/pxrdref/io/CLAUDE.md", "src/pxrdref/indexing/CLAUDE.md"):
         if (ROOT / extra).is_file():
             docs.append(ROOT / extra)
     docs += sorted((ROOT / "docs").glob("*.md"))

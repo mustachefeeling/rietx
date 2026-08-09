@@ -430,3 +430,256 @@ of the *specimen* rather than a convenience:
 Its 2θ range, 20.3-150.9° in 24 stitched regions, is also what makes it
 demanding: axial divergence reverses the sign of its tail at 90°, and both signs
 appear in the picked list.
+
+## v1.0 vendor pattern formats (WP-1047)
+
+### `rigaku_*.ras` — the Rigaku text export, one real file and two synthetic
+
+`.ras` is what a SmartLab or MiniFlex writes: self-describing ASCII, one or
+more `*RAS_HEADER_START … *RAS_INT_END` scans inside a `*RAS_DATA_START`
+wrapper.  Three fixtures, because the reader's three non-obvious policies each
+need a file that exhibits the case.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `rigaku_nims.ras` | `nims-mdpf/M-DaC_XRD`, `source/XRD_RIGAKU.ras` | MIT | **Real** SmartLab export: 3501 points, 25–60° at 0.01°, Cu, `TwoThetaTheta`. Its header keys are spelled the way an instrument spells them, which no synthetic file can establish. Intensities are integers to the last point, so it is also the σ story's "these are counts" arm. |
+| `rigaku_multiscan.ras` | `garrekstemo/RigakuFiles.jl`, `test/data/multiscan.ras` | MIT | Two scans in one file — the `scan=` option, `PATTERN_MULTISCAN_DEFAULTED`, and `list_scans` labelling each from its own `*FILE_COMMENT`. Synthetic (3 points per scan); proves structure, not data. |
+| `rigaku_three_column.ras` | `garrekstemo/RigakuFiles.jl`, `test/data/three_column.ras` | MIT | The third (attenuator) column, and `RAS_ATTENUATOR_PRESENT` firing on a column that is not identically 1. Synthetic, and its column is `0.0000` — not a physical attenuator value, which is itself the reason the reader reports rather than applies. |
+
+**Licences were checked per *file*, and it mattered.**  `Dinghao-Wu/xrd-toolkit`
+ships `tests/fixtures/cu-75sn-real.ras` — 8501 points of real integer-counts
+powder data, the most attractive fixture found — and the repository has **no
+LICENSE file at all**.  It is therefore not vendored here.  A repo-level grant
+also does not automatically convey user-contributed instrument output, which is
+why the two RigakuFiles.jl files (repo-authored, clearly synthetic) and the
+NIMS file (a documented example dataset) were taken and that one was not.
+
+**Two real files decided policy without being vendored**, and are recorded here
+because the reasoning is only checkable against them:
+
+* `josefmtd/rigaku-xrd-analysis`, `data/example.ras` (MIT) — declares
+  `*MEAS_SCAN_UNIT_Y "counts"` and stores values like `84.3047`, which **no**
+  scale makes integral (searched: 1/1000 to 2, and 1–200).  This is the file
+  that proves the declared unit is a claim rather than a measurement, and hence
+  that σ must be decided by arithmetic.  It is also an `Omega` scan — a rocking
+  curve — which is the case the axis refusal exists for.
+* `ttruttmann/rasloader`, `test/example_scan.ras` (MIT) — `TwoThetaOmega`,
+  declares counts, 3.4 % integral.  A second, independent instance of the same
+  header-disagrees-with-data case.
+
+**The attenuator question remains open, and this is what was checked.**  Five
+`.ras` files were examined for a *varying* third column, which is the only
+evidence that could settle whether column 2 is already corrected for it: all
+five have it constant (1.0 in four, 0.0 in the one synthetic).  Absent such a
+file the reader states its contract rather than guessing — see
+`io/formats/ras.py`.
+
+### `.uxd` — the format with real evidence and no vendorable file
+
+Bruker/Siemens DIFFRAC-AT ASCII.  **Nothing is vendored for it**, and that is
+the finding rather than a gap: of the five real `.uxd` files obtained, one repo
+is GPL-2.0 (`mtex-toolbox/mtex`, `data/PoleFigure/bruker.UXD`), one carries **no
+LICENSE at all** (`usnistgov/texture`, `exp_uxd/fss.UXD` and `e_steel.UXD`), and
+the rest are student lab-course outputs in repos with no declared licence
+(`joeyko2706/FP-Protokolle`, `v44/data/*.UXD`).  A file format's *facts* may be
+read from any of those — that reasoning is in `ATTRIBUTION.md` — but the bytes
+may not be redistributed.  So `tests/test_readers.py::write_uxd` synthesizes
+them, and this section records what the real files established, since that is
+the only place the reader's design is checkable:
+
+| Established | Evidence |
+|---|---|
+| The block marker is **two independent facts** — a `_2THETA` prefix meaning "a position column is present", and a `COUNTS`/`CPS` suffix meaning the unit | `_2THETACOUNTS` in four files, `_2THETACPS` in `mtex_bruker.UXD` |
+| The unit the marker declares is **true**, unlike `.ras`'s free-text field | every `COUNTS` block integral to the last of 3774 points (`nist_fss.UXD`) |
+| The `_2THETA` prefix is a **misnomer**: the first column is whatever `_DRIVE` names | `fp_rocking.UXD` is `_DRIVE='THETA'` — a rocking curve — under a `_2THETACOUNTS` marker |
+| Most `.uxd` files in the wild are **not powder scans** | 4 of 5: two 153-range pole figures, one 68-range pole figure, one rocking curve. The one 2θ scan is a detector alignment scan (`fp_detector.UXD`, `_DRIVE='2THETA'`) |
+| Counting time is **per range**, not per file — so ranges cannot be concatenated | `nist_esteel.UXD` carries `_STEPTIME` of both 2 s and 20 s across its 153 ranges: a factor of ten in counting statistics under one Poisson assumption |
+| `_GONIOMETER_RADIUS` is present and real | 250, 300 and 350 mm across the five |
+
+No obtainable `.uxd` is a powder pattern, so `_DRIVE='COUPLED'` — the value a
+powder file would carry — is accepted on the **format's vocabulary** rather than
+on a fixture.  That is stated in the reader and is the one part of its axis
+allowlist not backed by a file.
+
+### `panalytical_*.xrdml` — three real files, and the one that settles the attenuator
+
+PANalytical/Malvern XRDML: the XML an Empyrean or X'Pert writes, in a
+*versioned* namespace (`…/XRDMeasurement/1.6` and `/2.1` are both current in the
+wild, and both appear below — which is why nothing in the reader matches on it).
+All three are real vendor output; two ship an independent expected-value oracle.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `panalytical_powder.xrdml` (+`.json`) | FAIRmat `readers-xrd`, `tests/data/XRD-918-16_10.xrdml` | Apache-2.0 | **Real** Empyrean powder scan: 5027 points, 4.007–69.999°, Cu 45 kV/40 mA, `scanAxis="Gonio"`, schema 1.6, `<intensities unit="counts">`. Integral to the last point, so it is the "raw counts, σ=None is correct" arm. The `.json` is FAIRmat's own reader output for the same file — an **independent implementation's** answer, which is what makes it an oracle rather than a transcription of ours. |
+| `panalytical_attenuator.xrdml` | FAIRmat `readers-xrd`, `tests/data/m54313_om2th_10.xrdml` | Apache-2.0 | **The file that settles `beamAttenuationFactors`** (below). Real ω–2θ scan of a GaAs epilayer, 1800 points, 26.025–79.995° at 0.03°, schema 2.1, `<counts>`. Also the `2Theta-Omega` axis name and a 0.5 s counting time. |
+| `panalytical_mesh.xrdml` (+`.json`) | FAIRmat `readers-xrd`, `tests/data/m82762_rc1mm_1_16dg_src_slit_phi-101_3dg_-420_mesh_long.xrdml` | Apache-2.0 | **101 scans in one file** — a reciprocal-space map — so it is the `.xrdml` arm of `scan=`, `PATTERN_MULTISCAN_DEFAULTED` and `list_scans`. The only real evidence for the third `positions` form, `listPositions` (255 explicit 2θ values per scan). Its 101 labels are identical but for the ω each scan was fixed at, which is why `list_xrdml_scans` labels from what *varies*. |
+
+**Licences were checked per *file*, and this time they conveyed.** All three
+were committed by `readers-xrd`'s own maintainers into an Apache-2.0 repository
+(`9ec0c0de`, `fd8a192a`). The repo's `ikz.py` is "adapted from" the unlicensed
+`carichte/IKZ`, which is why `ATTRIBUTION.md` fences that *code* — but IKZ holds
+15 files and **no data at all**, so the fence does not reach these bytes.
+
+**The attenuator question, which `.ras` could not answer, is answered here.**
+A PANalytical attenuator drops a foil in front of the detector for the few
+points that would saturate it. Whether the stored series is already corrected
+for it is undecidable without a file where the factor *varies* — and
+`panalytical_attenuator.xrdml` is one: exactly one point, at the apex of the
+GaAs 004 substrate reflection, carries a factor of **188**. Its raw
+neighbourhood is
+
+| 2θ | 66.045 | 66.075 | **66.105** | 66.135 | 66.165 |
+|---|---|---|---|---|---|
+| stored counts | 1341 | 14602 | **1877** | 13749 | 1667 |
+| × factor | 1341 | 14602 | **352876** | 13749 | 1667 |
+
+The raw series *dips* by 87 % at exactly the attenuated point — which is the
+attenuation, not a profile, since a substrate reflection cannot have a hole in
+its apex. The product restores a monotone peak. So the stored counts are the
+attenuated ones, `intensity = counts × factor`, and σ = √counts·factor rather
+than √y. FAIRmat's reader computes the same product independently. This is the
+structural test `io/formats/ras.py` describes and could not run; it is also the
+case GSAS-II gets wrong, weighting 1/y regardless.
+
+Two files were examined and **not** vendored, having established nothing the
+three above do not: `EJZ060_13_004_RSM.brml` (5.1 MB) and
+`Omega-2Theta_scan_high_temperature.rasx` belong to the `.brml`/`.rasx` readers,
+not this one.
+
+### `rigaku_*.rasx` — the zip container, and the premise it refuted
+
+`.rasx` is what SmartLab Studio II writes: a zip whose `root.xml` manifest lists
+one `Data<N>` group per scan, each holding a tab-separated `Profile<N>.txt` and
+a `MesurementConditions<N>.xml` (the misspelling is the vendor's). Both files
+below are real, both from FAIRmat's Apache-2.0 `readers-xrd`, and the pair is
+chosen for the σ contrast.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `rigaku_powder.rasx` | `readers-xrd`, `tests/data/TwoTheta_scan_powder.rasx` | Apache-2.0 | **Real powder scan**: 2726 points, 10–119° at 0.04°, `TwoTheta`, Cu, 1 deg/min. Declares `<IntensityUnit>counts</IntensityUnit>` and stores 170.55354309082 — the **refuting** arm. |
+| `rigaku_zno_counts.rasx` | `readers-xrd`, `tests/data/ZnO-ALD-training_001_1_0-000_0-000.rasx` | Apache-2.0 | 7001 points, 20–90° at 0.01°, `TwoThetaTheta`. Declares counts and **is** integral to the last point — the confirming arm, so the σ test is shown deciding both ways on real files of one format. |
+
+**This WP's premise that `.rasx` cps was "verified by fixture" is wrong, and the
+fixtures are what say so.** Searched on `rigaku_powder.rasx`: no scale in
+1/400…400, nor k/60, nor 60/k, nor the file's own derived counting time
+(0.04° ÷ 1 deg/min × 60 = 2.4 s) makes its intensities integral.
+`Omega-2Theta_scan_high_temperature.rasx` (not vendored) is the same case, so it
+is two of three real files. The declaration is therefore the same free-text
+claim `.ras` gets wrong — unsurprising, since the container embeds a `RASHeader`
+of the very same `*MEAS_SCAN_*` keys — and both formats decide σ by
+`base.sigma_by_arithmetic` instead.
+
+**Two real files established structure without being vendored:**
+
+* `RSM_111_sdd=350.rasx` (2.3 MB, Apache-2.0) — **401** `Data<N>` groups, each
+  with its own conditions XML, in one archive: the format's multi-scan case, and
+  the reason `root.xml` rather than the zip name list is read as the authority
+  on order and membership. Not vendored for its size; `write_rasx` in
+  `tests/test_readers.py` synthesizes the several-groups case from that
+  structure.
+* `Omega-2Theta_scan_high_temperature.rasx` — `TwoThetaOmega`, 44–49° at
+  0.0048°, the second non-integral "counts" file above.
+
+### `bruker_absorber.brml` — the third answer to the attenuator question
+
+`.brml` is what DIFFRAC.MEASUREMENT writes: a zip of XML in which
+`Experiment0/DataContainer.xml` lists one `RawData<N>.xml` per scan, and each
+scan describes its own **columns** in `DataViews` rather than fixing them.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `bruker_absorber.brml` | FAIRmat `readers-xrd`, `tests/data/23-012-AG_2thomegascan_long.brml` | Apache-2.0 | **Real** HRXRD 2θ–ω scan of a thin film, 2001 points, 44–48° at 0.002°, Cu, λ = 1.5406, 1 s/step. Its `AbsorptionFactor` channel **varies** (1.0 → 8.3 across 29 points), which is what settles the convention below. Also the layout that kills a fixed index: 2θ is column 2 and the intensity is column **7**. |
+
+**Bruker's absorber is already applied to the stored intensity — the opposite of
+`.xrdml`, on the same test.** Over the 29 attenuated points of the substrate
+peak:
+
+| 2θ | 45.784 | 45.786 | 45.788 | **45.790** | 45.792 |
+|---|---|---|---|---|---|
+| factor `a` | 1.0 | 1.0 | 1.0 | **8.3** | 8.3 |
+| stored `y` | 120757 | 151306 | 182114 | **213600.5** | 243746.1 |
+| `y / a` | 120757 | 151306 | 182114 | **25735** | 29367 |
+
+`y` runs *continuously* across the transition while `y / a` steps by a factor of
+seven, and — measured over all 2001 points — `y` is not integral, `y × a` is not
+integral, and `y / a` **is**. So the stored series is the corrected one: nothing
+is multiplied, and the only thing the factor changes is σ, which must go back
+through it as √(y/a)·a. Three vendors have now given three answers to one
+question (`.ras`/`.rasx` undecidable and reported, `.xrdml` applied, `.brml`
+already applied), which is the argument for measuring rather than adopting a
+convention.
+
+**One real file established structure without being vendored:**
+`EJZ060_13_004_RSM.brml` (5.1 MB, Apache-2.0) — **801** `RawData<N>.xml`
+members, which is where the multi-scan design comes from, and two facts that are
+guards in the reader. Its zip name list runs `…RawData20, RawData22, RawData21,
+experimentCollection.xml, RawData23…`, so the manifest and not the name list
+orders the scans. And its `RecordedRawDataView` has `Length="1280"` — each row is
+a whole position-sensitive-detector frame — while its `ScanAxes` still declares
+`AxisId="TwoTheta"`, so the axis check passes and **only the recorded view's own
+length says the rows are not a profile**.
+
+### `bruker_raw4_scrambled.raw` — a real header whose intensities are not real
+
+`.raw` is DIFFRAC's binary: after a 61-byte preamble the file is a chain of
+`(uint32 type, uint32 length)` segments; a type of 0 or 160 marks a **range**,
+whose header ends with a nested chain of its own and is followed by `nSteps`
+records of `datumSize` bytes, of which the leading float32 is the intensity.
+
+| File | Source | Licence | What only this one proves |
+|---|---|---|---|
+| `bruker_raw4_scrambled.raw` | FAIRmat `readers-xrd`, `tests/data/TwoTheta_scan_scrambled.raw` | Apache-2.0 | **Real DIFFRAC.EVA header**, 7134 points, 10–85.0413° at 0.0105203°, `Locked Coupled`, LynxEye, Cu at 40 kV/40 mA, 310.003 ms/step. The only real RAW4 obtainable, and the file that shows the two other readers' bugs. Committed by that repo's own maintainer, so risk 1 is clear for it. |
+
+**Its intensities are not the measurement, and the acceptance line for `.raw`
+may therefore claim structure and metadata only.** Three measurements say so:
+
+* the lag-1 autocorrelation of the intensity series is **0.016**, and
+  `std(diff)/std(y)` is **1.403 ≈ √2** — the signature of independent values. A
+  profile stepped at 0.0105° has adjacent channels on the same peak;
+* **32.5 %** of the values are negative, and the exact minimum −164.5344696
+  repeats **1069 times**;
+* FAIRmat's own `notes/RAW_FORMAT_NOTES.md` quotes this measurement's range as
+  `[-164.53, 11291.77]` and says its first ten values match a powDLL `.xrdml`
+  export exactly. The **shipped** file's maximum is **11330.587**, so the file
+  in the repo is not the file that was validated.
+
+`tests/test_readers.py` pins all three, so a later session cannot read "7134
+real points" off the header and write an acceptance row against noise.
+
+**What the header does establish**, and where the two consulted readers go
+wrong on it:
+
+* `datumSize` is **8** here and the trailing four bytes of every one of the 7134
+  records are `int32 == 1` — a field no description explains. GSAS-II reads
+  `datumSize` and then reads `nSteps` *consecutive* float32s anyway, so it
+  consumes half the block and returns alternating value / 1e-45; FAIRmat
+  hard-codes the 8-byte stride as "interleaved float32 pairs". Both are right
+  here and wrong on a `datumSize == 4` file, which is why the reader strides by
+  the declared size and the synthesized fixtures cover 4, 8 and 12.
+* **`2Theta` occurs twice** — once as a drive record and once as the scan-axis
+  record — in a file with **one** range. GSAS-II counts that string to decide
+  how many banks a file holds, so it reports two.
+* The scanned drive is the record whose flag is non-zero **and** whose stored
+  position is the range's start angle: `2Theta` at 10.0 against `Theta` at 5.0,
+  where 10.0 is also `startAngle`. One file is not enough to trust the flag on
+  its own, which is why both statements have to agree.
+* The type-30 source segment gives Kα-mean 1.5405999, Kα1 the same, **Kα2 0.0**,
+  Kβ 1.3922200 and **ratio 0.0** — mean equal to Kα1 with no Kα2, which is
+  three fields agreeing that the doublet was not used. Relevant to task 15's
+  anode suggestion, which resolves a zero ratio to the Kα1 preset.
+* FAIRmat's notes state that tube voltage, current, counting time and the
+  wavelengths are **not in the format**; all four are, at fixed offsets in the
+  range header and in the type-30 segment. Their search was for ASCII strings,
+  and these are IEEE floats.
+
+**v3 (`RAW1.01`) has no fixture, from any source.** What stands in for one is
+three independent descriptions that agree — GSAS-II, `bracerino/xrd-file-converter`
+(MIT) and `reductus/reductus` (Unlicense, a field-by-field transcription of
+Bruker's own header definition) — plus two gates a mis-parse cannot pass:
+`data_record_length == 4 + 8·popcount(varying_parameters)`, which two fields
+written from one fact have to satisfy, and the requirement that the declared
+ranges account for the file exactly. `tests/writers_xrd.py` packs v3 from its
+own literal offset table, so the writer cannot drift with the reader.
+**v1 and v2 are refused**: GSAS-II describes v2 and nothing else corroborated
+does, and one description with no file is how a reader comes to return a
+plausible wrong pattern.

@@ -307,8 +307,9 @@ def render(project) -> str:
     lines: list[str] = [f"pxt {FORMAT_VERSION}", f'project "{project.path.stem}"']
 
     sigma = "σ from file" if data_ref.has_sigma else "σ = √max(y,1) fallback"
-    block = data_ref.options.get("block")
-    extra = f" · block {block}" if block else ""
+    # every recorded reader keyword, not just ``block``: this is inside a ``#``
+    # comment, so widening it is not a grammar change and FORMAT_VERSION holds
+    extra = "".join(f" · {k} {v}" for k, v in sorted(data_ref.options.items()))
     lo, hi = data_ref.two_theta_range
     lines.append(
         f'pattern "{data_ref.filename}"'.ljust(34)

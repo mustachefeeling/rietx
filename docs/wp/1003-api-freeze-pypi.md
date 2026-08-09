@@ -11,6 +11,95 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
+reader surface the freeze covers has changed shape, and one signature broke on
+purpose.** Four things to fold into the freeze rather than re-derive:
+
+1. **`read_pattern(path, *, diagnostics=None, **options)`** — the `block=`
+   keyword this file recorded as "additive" is gone as a *named* parameter. It
+   is now one entry in `io.readers.READER_OPTIONS`, the build-wide allowlist,
+   with `PatternFormat.options` naming the subset each format honours and
+   `reader_options_for` the single authority that coerces and filters. Freeze
+   the pair, not the keyword: a format added after the freeze adds an option
+   without touching the signature.
+2. **`Project.create(block=)` became `reader_options=`** — dropped, not
+   shimmed, deliberately: the freeze had not landed, a shim would be a second
+   authority, and every call site was in this repo. If the freeze wants a
+   deprecation path for anything, this is the precedent to reverse.
+3. **`DataRef.options` records the *effective* options** (what the parse used,
+   not what was requested), and its vocabulary grows with the formats — so a
+   `scan` entry lands when the multi-scan readers do, which is the
+   `PROJECT_FORMAT_VERSION` minor bump WP-1047 task 8 carries. The **major**
+   gate already opens such a project correctly.
+4. **Additive schema fields, no bump** (the events rule): `ReaderCapability`
+   gained `refuses` and `Capabilities` gained a `reader_options` arm. Confirm
+   that reading rather than re-litigating it.
+
+**Updated 2026-08-09 (1047 tasks 8-9, `.ras` and `.uxd` landed).** Point 3 has
+happened: **`PROJECT_FORMAT_VERSION` is now `"1.1"`**, `scan` is in
+`READER_OPTIONS`, and `DataRef.options` records it. Three additions, each a
+decision the freeze should make rather than inherit:
+
+5. **`ReaderCapability` did *not* gain a `scans` field**, though this WP's
+   contract-versions section mentions one in passing. A meta-test holds
+   `fmt.scans is not None ⟺ "scan" in fmt.options`, so the field would be a
+   second authority for one fact. Smaller surface; confirm rather than add.
+6. ~~Three formats spell the same diagnostic three ways.~~ **Settled in
+   WP-1047 at the fourth consumer** (`.xrdml`), which is where its own rule
+   said to factor: the policy is `io.formats.base.check_axis()`, the code is
+   **`PATTERN_X_AXIS_ASSUMED`**, and the classifying stays per format because
+   the four inputs are four shapes. Nothing left to decide — confirm the one
+   code in the freeze's vocabulary and that no `*_X_AXIS_ASSUMED` survives.
+7. **`DataRef.has_sigma` now covers a *derived* σ, and three formats produce
+   one.** A `.ras`/`.rasx` exported as a rate gets σ = √(y·t)/t from the file's
+   own counting time; an `.xrdml` point behind a beam attenuator gets
+   σ = √counts·a; a `.brml` absorber point gets σ = √(y/a)·a. All three set
+   `has_sigma`, so every surface says "σ from file", while the same scans
+   without the scaling get `has_sigma` false and the Poisson fallback, which is
+   correct. Every one is honest — a derived σ genuinely could not come from the
+   fallback — but the flag is documented as "σ *measured*, not σ *present*" and
+   a reader-derived σ is a third thing. Decide whether it needs its own state
+   before the surface freezes; nothing depends on the answer yet.
+
+**Updated 2026-08-09 (1047 tasks 10-12, `.xrdml`/`.rasx`/`.brml` landed).**
+Point 6 is now settled (struck above). Two more for the vocabulary review:
+
+8. **Two format-specific diagnostic codes joined `RAS_ATTENUATOR_PRESENT`** —
+   `XRDML_ATTENUATOR_APPLIED` and `BRML_ABSORBER_ENGAGED`. They are deliberately
+   *not* one code: the three say opposite things about the same field (not
+   applied / applied / already applied by the vendor), so a consumer switching
+   on them is switching on the answer, not on the format. Confirm rather than
+   collapse — this is the contrast with point 6, where the three codes meant one
+   thing.
+9. **`PROJECT_FORMAT_VERSION` did not move again.** Five formats now take
+   `scan`, but the *vocabulary* did not grow past the 1.1 bump task 8 made, so
+   there is nothing further to record. Confirm and move on.
+
+**Updated 2026-08-09 (1047 closed — `.raw` v3/v4, the instrument hint, the scan
+picker).** Points 1-5 and 7-9 stand as written; three additions, and one is a
+*shape* the freeze has to decide on rather than confirm:
+
+10. **`suggest_instrument(metadata) -> dict | None` is a new public-ish
+    surface** (`gui.imports`), and its return value is a **preset spec**, the
+    same dict shape `instrument_from_preset` consumes — deliberately, so the
+    hint round-trips through the form without a second vocabulary. It is
+    reachable only through `POST /api/upload/pattern`'s `instrument_hint` field
+    today. Decide whether the freeze covers it as an importable function or only
+    as a wire field; if the former, `WAVELENGTH_RTOL` and the three-candidate
+    match become frozen behaviour.
+11. **`GET /api/upload/pattern/scans` is the first upload route that is not a
+    POST**, and the first read-only one. `UPLOAD_ROUTES` still maps only the
+    POSTs, so this lives in `ROUTES` beside the rest — worth confirming the
+    freeze's route inventory reflects that split rather than assuming the
+    `/api/upload/` prefix means one family.
+12. **`METADATA_KEYS["wavelength_alpha2"]` now carries a load-bearing zero.** A
+    recorded Kα2 of 0.0 means "the file says the doublet was not used" and
+    resolves to the `…Ka1` radiation; an *absent* key means the format records
+    nothing. Since `metadata()` drops `None` and stringifies `0.0`, the
+    distinction is present-vs-absent in a `dict[str, str]` — which works, and is
+    the kind of thing a freeze should either bless explicitly or replace with a
+    typed field.
+
 **From [1026](1026-indexing-acceptance.md), closed 2026-08-08 — one constant's
 *meaning* is in question, and freezing it would ratify a behaviour nobody
 intended.** `engines.DEFAULT_MAX_CANDIDATES = 12` is documented as "a cap, not a
@@ -369,7 +458,9 @@ decisions and one new surface:
   unknown field), and `io.readers.PATTERN_FORMATS` / `identify_format` — the
   reader dispatch is now a registry two other things quote, so freezing
   `capabilities()`'s reader arm freezes the registry's field names by proxy.
-  `read_pattern` also gained a `block=` keyword (additive).
+  `read_pattern`'s keyword surface is now `READER_OPTIONS` — see this
+  file's `### Inherited` note from WP-1047, which supersedes the
+  `block=` sentence that stood here.
 - **Decide whether `RefinementState` grows `excluded_regions`.** It does not
   carry them today, so **a history node cannot say what was excluded when it
   ran** — and excluding a region does not change the pattern fingerprint, so

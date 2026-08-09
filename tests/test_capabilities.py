@@ -133,6 +133,34 @@ def test_every_reader_format_appears_in_dispatch_order(caps):
     # and it names the reader keyword a caller has to supply *and* record
     assert by_name["pdcif"].options == ["block"]
     assert by_name["xy"].options == []
+    # a binary format's sniff has to say what it *refuses* too, since two of the
+    # four Bruker RAW versions are recognised in order to be declined and a
+    # client choosing what to offer an upload dialog reads this arm (WP-1047)
+    assert "RAW4.00" in by_name["bruker_raw"].sniff
+    assert by_name["bruker_raw"].options == ["scan"]
+    assert PATTERN_FORMATS[0].name == "bruker_raw"       # magic bytes go first
+    # every reader that can hold several measurements offers the same keyword,
+    # which is what makes ``scan`` a vocabulary rather than one format's quirk
+    assert {r.name for r in caps.reader_formats if "scan" in r.options} == {
+        "bruker_raw", "rasx", "brml", "ras", "uxd", "xrdml"}
+
+
+def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):
+    """``READER_OPTIONS`` and ⋃ ``fmt.options`` are one vocabulary, two halves.
+
+    The split is what lets ``reader_options_for`` tell a **typo** (no format has
+    ever heard of it — a caller error, raises) from an option this particular
+    file's format does not take (normal; a UI carries a value across a change of
+    file, so it is dropped and reported).  That distinction is only sound while
+    the two halves agree, and nothing else would notice if one grew alone.
+    """
+    from pxrdref.io.readers import READER_OPTIONS
+
+    union = {o for fmt in PATTERN_FORMATS for o in fmt.options}
+    assert set(READER_OPTIONS) == union
+    # and the arm quotes the allowlist, so a client renders every control
+    assert [o.name for o in caps.reader_options] == sorted(READER_OPTIONS)
+    assert all(o.kind in ("str", "int") and o.help for o in caps.reader_options)
 
 
 def test_every_versioned_contract_is_a_live_value(caps):

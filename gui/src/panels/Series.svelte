@@ -195,7 +195,8 @@
         added.push({
           upload: preview.upload, filename: preview.filename,
           label: preview.filename.replace(/\.[^.]+$/, ""), x: null,
-          reader: preview.format.name, block: null,
+          reader: preview.format.name,
+          reader_options: preview.reader_options ?? {},
           n_points: preview.n_points,
           two_theta_range: preview.two_theta_range,
           has_sigma: preview.has_sigma,

@@ -241,7 +241,9 @@ class GuiSession:
                     "?upload=<token> to re-read one already staged",
                     where=["upload"])
             if kind == "pattern":
-                return preview_pattern(staged, block=opts.get("block"))
+                from ..io.readers import READER_OPTIONS
+                return preview_pattern(staged, reader_options={
+                    k: v for k, v in opts.items() if k in READER_OPTIONS})
             if kind == "cif":
                 return preview_cif(staged, aniso=bool(opts.get("aniso")),
                                    phase_name=opts.get("phase_name"))
@@ -249,6 +251,36 @@ class GuiSession:
         except UploadRefused as exc:
             raise GuiError(str(exc), code=exc.code, status=exc.status,
                            where=exc.where) from None
+
+    def upload_scans(self, token: str) -> dict:
+        """What there is to choose between in a staged multi-scan file.
+
+        A **separate** route from the preview on purpose.  ``scan_count`` travels
+        in the pattern's own metadata from the single read the preview already
+        did, so showing "3 scans" never costs a second parse of a 60 MB file;
+        *labelling* them does, because a label is the file's own comment or the
+        range each scan stepped through, and neither is knowable without walking
+        the ranges.  So the picker fetches this when a person opens it, and a
+        wizard that never touches the control never pays for it.
+
+        Refused rather than answered with a one-element list for a format that
+        holds one measurement per file: "this file has one scan" and "this format
+        has no scan structure" are different answers.
+        """
+        from ..io.readers import list_scans
+
+        try:
+            staged = self.uploads.get(token, "pattern")
+            return {"scans": [
+                {"index": s.index, "label": s.label, "n_points": s.n_points,
+                 "two_theta_range": list(s.two_theta_range)}
+                for s in list_scans(staged.path)]}
+        except UploadRefused as exc:
+            raise GuiError(str(exc), code=exc.code, status=exc.status,
+                           where=exc.where) from None
+        except (ValueError, OSError) as exc:
+            raise GuiError(str(exc), code="upload_refused", status=400,
+                           where=["scan"]) from None
 
     # ------------------------------------------------------------------
     # project
@@ -272,7 +304,8 @@ class GuiSession:
         structure = _as_structure(body.get("structure"), self.uploads)
         instrument = _as_instrument(body.get("instrument"), self.uploads)
         kw: dict[str, Any] = {}
-        for key in ("mode", "two_theta_limits", "excluded_regions", "block", "ui"):
+        for key in ("mode", "two_theta_limits", "excluded_regions",
+                    "reader_options", "ui"):
             if body.get(key) is not None:
                 kw[key] = body[key]
         if body.get("plan") is not None:

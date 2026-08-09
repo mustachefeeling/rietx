@@ -63,7 +63,7 @@ from .indexing.engines import (
     SYSTEM_ORDER,
     engine_descriptions,
 )
-from .io.readers import PATTERN_FORMATS
+from .io.readers import PATTERN_FORMATS, READER_OPTIONS
 from .optimize.least_squares import SOLVERS
 from .refine import _VERSION
 from .report.schemas import THRESHOLDS_VERSION
@@ -151,8 +151,31 @@ class ReaderCapability(Base):
     sniff: str
     sigma: str
     #: reader keywords a caller may need to supply *and* record — ``block`` for
-    #: pdCIF, because the same file reads as a different pattern without it
+    #: pdCIF, because the same file reads as a different pattern without it.
+    #: Names only; what each one *means* is :class:`ReaderOptionCapability`,
+    #: which is build-wide rather than per format
     options: list[str]
+    #: set when this entry is a format the build **recognises in order to
+    #: decline** — a ``.dif`` peak list is not a profile — carrying why.  A
+    #: client reads it to tell "we can open this" from "we know what this is
+    #: and it is the wrong kind of file", which are different answers
+    refuses: str | None = None
+
+
+class ReaderOptionCapability(Base):
+    """One reader keyword in the build's vocabulary, and what it does.
+
+    Separate from :class:`ReaderCapability` because the vocabulary is shared:
+    ``scan`` means the same thing in five formats, and a client rendering a
+    control for it should not have to pick which format's copy of the prose to
+    quote.  ``ReaderCapability.options`` names the subset each format honours.
+    """
+
+    name: str
+    #: ``"str"`` or ``"int"`` — a form needs to know which control to draw, and
+    #: a project records every option as a string, so someone must coerce
+    kind: str
+    help: str
 
 
 class Capabilities(Base):
@@ -187,6 +210,10 @@ class Capabilities(Base):
     modes: list[Mode] = Field(default_factory=list)
     anodes: list[AnodeCapability] = Field(default_factory=list)
     reader_formats: list[ReaderCapability] = Field(default_factory=list)
+    #: every keyword ``read_pattern`` accepts, across all formats — the
+    #: allowlist itself, so a client renders a control per option rather than
+    #: keeping a second copy of the vocabulary
+    reader_options: list[ReaderOptionCapability] = Field(default_factory=list)
     features: dict[str, bool] = Field(default_factory=dict)
 
 
@@ -232,8 +259,12 @@ def capabilities() -> Capabilities:
         reader_formats=[
             ReaderCapability(name=f.name, title=f.title,
                              extensions=list(f.extensions), sniff=f.sniff,
-                             sigma=f.sigma, options=list(f.options))
+                             sigma=f.sigma, options=list(f.options),
+                             refuses=f.refuses)
             for f in PATTERN_FORMATS],
+        reader_options=[
+            ReaderOptionCapability(name=o.name, kind=o.kind, help=o.help)
+            for _, o in sorted(READER_OPTIONS.items())],
         features=_features(),
     )
 

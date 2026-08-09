@@ -83,8 +83,12 @@ def _index(argv: list[str]) -> int:
         description="Determine the unit cell of an unknown phase from a powder "
                     "pattern. Prints every candidate with its confidence and the "
                     "reasons it is not higher; exits 1 if no cell reached the gate.")
-    p.add_argument("pattern", help="pattern file (.xy/.xye/.fxye/.prn/.dat, or a "
-                                   "pd-CIF)")
+    # from the registry, because this string was already stale once: it named
+    # five extensions and no pdCIF suffix while three readers were registered
+    from .io.readers import PATTERN_FORMATS
+    p.add_argument("pattern", help="pattern file — " + ", ".join(
+        sorted({e for f in PATTERN_FORMATS if f.refuses is None
+                for e in f.extensions})) + ", or any two/three-column ASCII")
     p.add_argument("--wavelength", type=float, required=True,
                    help="primary wavelength in Å. A single line: for a lab Kα "
                         "doublet build the Instrument in python "
@@ -144,7 +148,14 @@ def _index(argv: list[str]) -> int:
     from .io.readers import read_pattern
     from .schemas.instrument import Geometry, Instrument
 
-    data = read_pattern(args.pattern)
+    # what the reader repaired or assumed goes to stderr before anything else:
+    # a reversed scan or a dropped duplicate changes the numbers below it, and
+    # the CLI is one of the two consumers the GUI preview would otherwise leave
+    # blind (the other is the API)
+    read_notes: list = []
+    data = read_pattern(args.pattern, diagnostics=read_notes)
+    for note in read_notes:
+        print(f"{note.level}: {note.code}: {note.message}", file=sys.stderr)
     instrument = Instrument.debye_scherrer(wavelength=args.wavelength)
     if args.geometry != "debye_scherrer":
         # built rather than assigned: Geometry's validator refuses a

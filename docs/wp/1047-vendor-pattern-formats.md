@@ -1,8 +1,13 @@
 # WP-1047 — Vendor pattern formats: read the files labs actually have
 
-Milestone: v1.0 · Status: ⬜
-Depends on: 1005, 1007, 1014 (1009, 1028 soft) — lands before 1003, which
-inherits the `DataRef` option-vocabulary note
+Milestone: v1.0 · Status: ✅ 2026-08-09 — all 17 tasks. The seam (formats
+package, option vocabulary, diagnostics channel, `xy` de-totalised, truncation
+fuzz), `.chi`, the `.dif` refusal, and **seven vendor formats** — Rigaku `.ras`
+and `.rasx`, Bruker `.uxd`, `.brml` and the binary `.raw` (v3/v4; **v1 and v2
+refused**, see task 14), PANalytical `.xrdml` — plus the instrument hint, the
+scan picker and the docs.
+Depends on: 1005, 1007, 1014 (1009, 1028 soft) — landed before 1003, whose
+`### Inherited` carries twelve points for the freeze
 
 ## Goal
 
@@ -97,8 +102,8 @@ source file closed*, in this repo's idioms.
 | Format | Fixture | Nature |
 |---|---|---|
 | `.xrdml` | readers-xrd `XRD-918-16_10.xrdml` (25 kB) | **real**, 5027 pts, Cu 45 kV/40 mA, ships a `.json` **expected-value oracle** |
-| `.rasx` | readers-xrd `TwoTheta_scan_powder.rasx` (34 kB) | **real powder**, 2726 pts, 10–119° at 0.04°; BOM, the `MesurementConditions0.xml` misspelling, and cps-scaled float intensities all verified |
-| `.brml` | readers-xrd `23-012-AG_2thomegascan_long.brml` (651 kB) | **real**, thin-film 2θ-ω |
+| `.rasx` | readers-xrd `TwoTheta_scan_powder.rasx` (34 kB) | **real powder**, 2726 pts, 10–119° at 0.04°; BOM and the `MesurementConditions0.xml` misspelling verified. ~~cps-scaled float intensities~~ — **wrong, corrected at task 11**: it declares `counts`, and no scale in 1/400…400 makes its values integral, so it is a *refuting* fixture, not a cps one |
+| `.brml` | readers-xrd `23-012-AG_2thomegascan_long.brml` (651 kB) | **real**, thin-film 2θ-ω — and the file that settles the attenuator question for *some* format (its `AbsorptionFactor` varies) |
 | `.raw` v4 | readers-xrd `TwoTheta_scan_scrambled.raw` (58 kB) | **real**; magic `RAW4.00\x00` and 7134 pts verified — but see the caveat below |
 | `.ras` | RigakuFiles.jl `multiscan.ras`, `three_column.ras` | **synthetic** — 325–1217 bytes, 2–4 data rows. Good for structure (2 scans, 2-vs-3 columns, header keys); proves nothing about real data |
 | `.raw` v2/v3, `.uxd`, `.chi`, `.dif` | none | synthesized from spec |
@@ -125,7 +130,11 @@ obtainable fixture was checked: `three_column.ras` has column 3 identically
 has it constant at `1`. **No fixture we can obtain settles it.** There is a
 decisive structural test if a varying column is ever found: where column 3
 changes, either the raw series steps and `col2 × col3` is continuous, or the
-reverse. Try it first. Absent that, ship the "absent for cause" contract:
+reverse. Try it first. **That test has since run twice, on other formats, and
+answered differently each time** (tasks 10 and 12): `.xrdml` stores the
+attenuated counts and the factor must be applied, `.brml` stores the corrected
+intensity and it must not. So the Rigaku answer cannot be borrowed from either,
+and this contract stands. Absent that, ship the "absent for cause" contract:
 read column 2 as the intensity (matching both other codes, so cross-code
 comparison holds), and whenever column 3 is not identically 1 emit
 `RAS_ATTENUATOR_PRESENT` naming the affected 2θ range, saying the correction
@@ -296,15 +305,22 @@ each real fixture at 20 offsets and assert every failure is
 **(b) σ is derived, never faked, wherever intensity is not raw counts** — an
 addition to the Weights invariant, which today only says "use the file's esd
 column when present":
-- `.xrdml` `<counts>` → `sigma=None`; the Poisson fallback is *correct*.
-- cps **with** a counting time, where the cps determination is verified for
-  that format-and-file (`.xrdml` `<intensities>` by spec, `.rasx` by fixture,
-  `.ras` by the per-file integer test above) → σ = √(y/t), supplied.
+- `.xrdml` raw counts → `sigma=None`; the Poisson fallback is *correct*. (The
+  element name is not the evidence — the real fixture is
+  `<intensities unit="counts">`; the **`unit` attribute** is.)
+- cps **with** a counting time → σ = √(y·t)/t, supplied.
 - cps **without** a counting time, or a scale the per-file test cannot
   decide → `PATTERN_INTENSITY_SCALED`: the fallback is being applied to a
   scaled quantity and the weights are wrong by √t.
 - `beamAttenuationFactors ≠ 1` → σ = √counts · attn ≠ √y. This is the case
   GSAS-II gets wrong (`w = 1/y` regardless).
+
+  ~~`.rasx` by fixture~~ — **corrected at task 11**: the cps determination was
+  never made on `.rasx`. Two of its three real files declare `counts` and store
+  values no scale rationalises, so it takes the `.ras` arithmetic
+  (`base.sigma_by_arithmetic`, now shared). The trustworthy-declaration formats
+  are `.uxd` (block marker) and `.xrdml`/`.brml` (a schema-enumerated attribute
+  on the data element).
 
 `METADATA_KEYS` in `base.py` is **data**, with a builder that refuses an
 undeclared key — otherwise the anode pre-selection has nothing stable to
@@ -405,59 +421,65 @@ Tasks 1–5 are the seam and form a complete, shippable state; **if this WP
 becomes two sessions, the boundary is after task 5** (plus the doc slices
 that belong to it), never mid-format.
 
-- [ ] 1. Split into `io/formats/`; `readers.py` becomes the front door;
+- [x] 1. Split into `io/formats/`; `readers.py` becomes the front door;
       `head()` (with BOM detection) replaces `_looks_gsas`'s whole-file
       decode. Pure refactor, **zero call-site edits**, suite green.
-- [ ] 2. `READER_OPTIONS` / `reader_options_for` / `read_pattern(**options)`;
+- [x] 2. `READER_OPTIONS` / `reader_options_for` / `read_pattern(**options)`;
       thread through project, imports, series, server, session, textdoc,
       wizard; drop `Project.create(block=)`; `DataRef` records effective
       options. Meta-test on the allowlist union.
-- [ ] 3. Diagnostics channel + the `ascending()` monotonicity policy +
+- [x] 3. Diagnostics channel + the `ascending()` monotonicity policy +
       `READER_OPTION_IGNORED` + `PATTERN_MULTISCAN_DEFAULTED` + codes in
       `docs/AGENT_PROTOCOL.md`; preview payload and CLI print.
-- [ ] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16
+- [x] 4. `xy` stops being total (`looks_binary`, UTF-16 BOM = text, UTF-16
       decode in `_read_xy`); `identify_format`'s message built from the
       registry; grep for tests assuming it never raises.
-- [ ] 5. The truncation-fuzz harness; widen `imports.py:221`.
-- [ ] 6. `.chi` — reader, the two-gate `matches` (shape from `head()`, count
+- [x] 5. The truncation-fuzz harness; widen `imports.py:221`.
+- [x] 6. `.chi` — reader, the two-gate `matches` (shape from `head()`, count
       as the stated exemption), axis policy. Regression test that today's
       phantom point is gone.
-- [ ] 7. `.dif` — `PatternFormat.refuses` + `ReaderCapability.refuses`.
-- [ ] 8. `.ras` — reader, the `scan` option, `ScanInfo` / `list_scans` /
+- [x] 7. `.dif` — `PatternFormat.refuses` + `ReaderCapability.refuses`.
+- [x] 8. `.ras` — reader, the `scan` option, `ScanInfo` / `list_scans` /
       `fmt.scans` with the biconditional meta-test
       (`"scan" in options ⟺ scans is not None`), `METADATA_KEYS`, the
       attenuator contract, the per-file intensity-scale test, the
       `PROJECT_FORMAT_VERSION` minor bump (first `scan` recorded).
-- [ ] 9. `.uxd` — both `_COUNTS` and `_2THETACOUNTS` block forms,
-      multi-range. The **second** consumer of `scan`, which is what proves
-      the option is generic rather than `.ras`-shaped.
-- [ ] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
+- [x] 9. `.uxd` — all four block forms (`_COUNTS`/`_CPS` × the `_2THETA`
+      prefix, read as two independent facts), multi-range. The **second**
+      consumer of `scan`, which is what proves the option is generic rather
+      than `.ras`-shaped.
+- [x] 10. `.xrdml` — namespace-agnostic root, all three `positions` forms,
       the counts/intensities σ rule, `beamAttenuationFactors`, multi-scan.
       Tested against the JSON oracle exactly.
-- [ ] 11. `.rasx` — in-memory `ZipFile.open` with a **bounded read**
+- [x] 11. `.rasx` — in-memory `ZipFile.open` with a **bounded read**
       (`read(cap + 1)`, refuse if over — `ZipInfo.file_size` is header
       metadata and is not trusted; never `extract()`), BOM skip, the
       misspelled conditions file.
-- [ ] 12. `.brml` — `DataContainer.xml` → `RawData<N>.xml`, channels located
+- [x] 12. `.brml` — `DataContainer.xml` → `RawData<N>.xml`, channels located
       via `DataViews/RawDataView[@Start][@Length]`, **not** GSAS-II's
       `entry[2]`/`[4]`, which are not stable across files. Same bounded-read
       zip rule as 11.
-- [ ] 13. `.raw` v4 — first, establish what "scrambled" scrambled (header?
+- [x] 13. `.raw` v4 — first, establish what "scrambled" scrambled (header?
       intensities?) and record it in `tests/data/README.md`; then the TLV
       segment walker, **stride by `datumSize`** (FAIRmat's "interleaved
       float32 pairs" note is a `datumSize==8` misread; GSAS-II reads the
       field then ignores it), walk to EOF rather than counting `b'2Theta'`.
-- [ ] 14. `.raw` v2/v3 + the v1 refusal — synthesized bytes; the `+40` /
-      `int32@+256` ambiguity **resolved by validation** (compute both
-      candidate data offsets, accept the one whose values are finite and
-      whose end lands on a plausible next header or EOF; raise if both or
-      neither validate) with the choice recorded in metadata.
-- [ ] 15. Instrument hint — `suggest_instrument` with the three-candidate λ
+- [x] 14. `.raw` **v3** + the v1 **and v2** refusals — synthesized bytes. The
+      `+40` / `int32@+256` ambiguity needed no validation scheme in the end:
+      a third description (`reductus`, Unlicense — Bruker's own field names)
+      names the two fields both other readers patch around,
+      `data_record_length` (+252) and `total_size_of_extra_records` (+256), so
+      the data offset is arithmetic. **v2 was dropped from scope**: exactly one
+      uncorroborated description of it exists and no file, which is the
+      confident-wrong read this WP exists to prevent — it is refused by name and
+      version instead, and the `io/formats/` seam makes it a one-module
+      follow-up if a real file ever appears.
+- [x] 15. Instrument hint — `suggest_instrument` with the three-candidate λ
       match (Kα1 / Kα2 / weighted mean), preview payload, wizard pre-fill.
-- [ ] 16. Scan picker on the wire — `scans` in the preview (from the single
+- [x] 16. Scan picker on the wire — `scans` in the preview (from the single
       read's metadata), the control (already option-gated at
       `Model.svelte:670`), `DataRef.options["scan"]` round-trip.
-- [ ] 17. Docs — `ATTRIBUTION.md` (four permissive rows, xylib listed
+- [x] 17. Docs — `ATTRIBUTION.md` (four permissive rows, xylib listed
       *precisely to state it was not ported*, the GSAS-II grant-back
       reasoning, the `ikz.py` fence, and a new "Format specifications"
       subsection); `tests/data/README.md` rows; `capabilities` spot-checks;
@@ -533,6 +555,430 @@ multi-scan file reopens on the scan it was created from.
   `src/pxrdref/gui/imports.py`, `src/pxrdref/capabilities.py` — the seams.
 
 ## Handover log
+
+- **2026-08-09 (session 5) — WP CLOSED, tasks 13-17.** The Bruker binaries,
+  the instrument hint, the scan picker and the last of the docs, on branch
+  `wp1047-vendor-formats` (6 commits, 24 off `main` @ `fad8a6d`). No
+  `### Inherited` to prune — this WP never had one.
+
+  **Done.** (13) Bruker `.raw` **v4**, (14) `.raw` **v3** with **v1 and v2
+  refused**, (15) `suggest_instrument`, (16) the scan picker, (17) the docs and
+  the close — plus one near-miss found by re-reading the reader.
+
+  **Risk 3 is retired, and it changed what the acceptance line may claim.**
+  "Scrambled" means the *intensities*: lag-1 autocorrelation **0.016** where a
+  profile stepped at 0.0105° is near one, `std(diff)/std(y) = 1.403 ≈ √2`,
+  **32.5 %** of values negative, the exact minimum repeated **1069** times — and
+  FAIRmat's own notes quote a maximum (11291.77) the shipped file does not have
+  (11330.587), so the file in that repo is not the file they validated. The
+  **header** is real and intact. Three tests pin the scrambling itself, so a
+  successor cannot read "7134 real points" off the header and write an
+  acceptance row against noise.
+
+  **The v4 header is where both other open readers are demonstrably wrong**, and
+  both bugs are now asserted against: GSAS-II reads `datumSize` and then strides
+  four bytes anyway (FAIRmat hard-codes the same stride as "interleaved float32
+  pairs"), and GSAS-II counts `b'2Theta'` to find its banks — which occurs
+  **twice** in this one-range file, as a drive record *and* as the scan-axis
+  record. Hence: stride by the declared datum, walk to EOF, never count.
+
+  **v3's `+40` / `int32@+256` ambiguity turned out not to be one.** Looking for
+  the second description risk 5 demands turned up two — `bracerino/xrd-file-converter`
+  (MIT) and `reductus/reductus` (**Unlicense**, a field-by-field transcription of
+  Bruker's own header definition) — and the second names the two fields the other
+  readers patch around: `data_record_length` (+252) is v3's datum size and
+  `total_size_of_extra_records` (+256) is the chain between header and data. With
+  those the offset is arithmetic. Three descriptions agree on every offset.
+
+  **Scope was narrowed once, deliberately: v2 is refused rather than written.**
+  GSAS-II describes it and nothing corroborates that — the two permissive readers
+  do v3 and v4 only, and the single v2 attempt found carries **no licence**, is
+  visibly heuristic ("try v3 as a fallback"; "if n_ranges > 100, n_ranges = 1")
+  and disagrees with GSAS-II about where the first block starts. One
+  uncorroborated description with no fixture is the confidently-wrong parse this
+  WP exists to prevent. Task 14's text records the change in place; the
+  `io/formats/` seam makes v2 a one-module follow-up if a real file appears.
+
+  **What stands in for v3's missing fixture**, and the reason it is shippable:
+  `data_record_length == 4 + 8·popcount(varying_parameters)` — two fields an
+  instrument writes from one fact, which a header read at the wrong offset
+  cannot satisfy — plus the requirement that the declared ranges account for the
+  file to within one datum. Strict on purpose: a visible refusal is recoverable,
+  a silent mis-parse is not. `tests/writers_xrd.py` (the module the WP named,
+  written this session) packs both versions from its **own literal** offset
+  table, so writer and reader cannot drift together.
+
+  **The near-miss, found by re-reading rather than by a test.** A v4 file whose
+  `ScanType` said "Rocking Curve" but whose drive records were not decisive was
+  *assumed* 2θ with the assumption merely reported — yet the file had told us its
+  abscissa. Both versions now share one scan-type table (`_SCAN_TYPES` by name,
+  `_V3_SCAN_CODES` its numeric spelling), a recognisable non-2θ type is refused,
+  and only an *unfamiliar* one is assumed.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2177 → **2227
+  passed, 5 skipped**: **+50** with no new skips, and the decomposition is
+  exact — task 13 **+19**, task 14 **+12**, the truncation harness **+5** (one
+  real fixture × 3 rows, two synthetic arms), tasks 15-16 **+12**, and **+2**
+  from the GUI dispatch matrix going from two rows to four. Task 17 added
+  **zero**: its capabilities spot-checks went inside an existing test function.
+  Full selection **2334 passed, 6 skipped**, measured at `7ebf8a4` — i.e. before
+  the near-miss commit, which adds no tests and whose fast selection re-measured
+  identically at `c213441` (2227 + 5). It closes exactly against the previous
+  session: 2284 + 6, plus the fast delta of 50, is 2334 + 6. vitest 401 →
+  **405**, svelte-check clean, ruff clean. The WP's five-file acceptance
+  selection: **315 passed**. **Dist rebuilt** — unlike the last three sessions,
+  this one *did* change the payload shape (`instrument_hint`) and add a route.
+
+  **Wall clock**, as a range: the fast selection ran 180 s on a quiet machine and
+  354 s while other work shared it; the full selection 28:36, one measurement and
+  a *loaded* one (two acceptance-selection runs overlapped it).
+
+  **In flight: nothing** — tree clean, pushed, all 17 tasks checked, both
+  selections green.
+
+  **Next**: this WP is closed. ROADMAP's focus now points at **1003 (API freeze
+  + PyPI)**, whose `### Inherited` carries **twelve** points from here — three of
+  them added this session: `suggest_instrument`'s shape (it returns a *preset
+  spec*, so freezing it freezes `WAVELENGTH_RTOL` and the three-candidate match),
+  `GET /api/upload/pattern/scans` being the first non-POST upload route, and the
+  load-bearing **zero** in `wavelength_alpha2`.
+
+  **Gotchas for a successor.**
+  - **The `.raw` fixture proves structure and metadata, never values.** If a
+    future acceptance row wants a real Bruker binary, it needs a different file.
+  - **The attenuator answer still cannot be borrowed across vendors** — five
+    formats, three answers. `.raw` carries none, so nothing changed there.
+  - **`wavelength_alpha2` now distinguishes recorded-zero from absent**, and the
+    distinction is present-vs-absent inside a `dict[str, str]`. It works and it
+    is tested, but it is exactly the kind of thing the freeze should bless
+    explicitly or replace with a typed field (WP-1003 point 12).
+  - **`suggest_instrument`'s contradiction test is one line and easy to weaken.**
+    It refuses to suggest when a file names an anode *and* gives a wavelength
+    that matches no anode — not only when it matches a different one. Dropping
+    that second case would silently restore guessing.
+  - **The scan-type tables have one source each** (v4's strings from three
+    examples, v3's enum from `reductus`). An unfamiliar entry is deliberately
+    *assumed and reported*, never refused; a wrong refusal on a real powder scan
+    would be the more expensive mistake.
+  - Two real files were downloaded but **not** vendored, and what they
+    established is in `tests/data/README.md`: nothing new this session, but the
+    v3 note there is the only place v3's design is checkable at all.
+
+- **2026-08-09 (session 4)** — **tasks 10-12 landed**, the three container
+  formats, on branch `wp1047-vendor-formats` (7 commits, 18 off `main` @
+  `fad8a6d`). No `### Inherited` to prune — the WP has never had one.
+
+  **Done.** (10) PANalytical `.xrdml`, (11) Rigaku `.rasx`, (12) Bruker `.brml`,
+  plus one factoring that had to come first and one review pass that had to come
+  last.
+
+  **The session's through-line is one question asked of four vendors: is the
+  stored intensity already corrected for the beam attenuator?** `.ras` could not
+  answer it — every obtainable Rigaku file has the column constant — so its
+  reader ships a contract and reports. The containers *can*, because a real file
+  of each has a factor that **varies**, and the structural test is the one
+  `ras.py`'s docstring had written down without being able to run: where the
+  factor changes, does the raw series or the product run continuously? Run twice,
+  it answered in opposite directions.
+
+  - `.xrdml` — `panalytical_attenuator.xrdml` puts one point of the GaAs 004
+    substrate peak behind a **188×** foil, and the raw series *dips* 87 % there
+    (1341, 14602, **1877**, 13749). A hole in the apex of a substrate reflection
+    is the attenuation, not a profile, so the factor **is applied**; FAIRmat's
+    reader computes the same product independently.
+  - `.brml` — the absorber engages over 29 points at **8.3×**, and there the
+    *stored* series is the continuous one while `y/a` is the integral one (`y`
+    is not, `y × a` is not). So Bruker stores the corrected intensity and
+    **nothing is multiplied**.
+  - Either way σ goes through the factor — √counts·a is not √y — which is the
+    case GSAS-II gets wrong by weighting 1/y regardless.
+
+  **A third premise of this WP was wrong and is struck in place.** It recorded
+  `.rasx` cps as "verified by fixture"; it was never measured on that format.
+  Two of its three real files declare `<IntensityUnit>counts</IntensityUnit>` and
+  store values no scale in 1/400…400 — nor the file's own derived 2.4 s counting
+  time — makes integral, while the third declares counts and *is* integral to the
+  last of 7001 points. Both arms are vendored, so one format now shows the test
+  deciding both ways. `.rasx` therefore takes the `.ras` arithmetic, now
+  `base.sigma_by_arithmetic` and shared; the trustworthy declarations turn out to
+  be exactly the **structural** ones. (A fourth, smaller correction: `.xrdml`'s
+  counts/cps distinction is the `unit` *attribute*, not the element name — the
+  real powder file is `<intensities unit="counts">`.)
+
+  **Two factorings, both at triggers a previous session named.** The axis policy
+  became `base.check_axis()` with one code `PATTERN_X_AXIS_ASSUMED`, because
+  `.xrdml` was the fourth consumer and `src/pxrdref/io/CLAUDE.md` said the fourth
+  is when — which settles point 6 of WP-1003's `### Inherited` rather than
+  passing it on. What is deliberately *not* shared is the classifying: four
+  formats state their axis in four shapes. And `sigma_from_scaled` /
+  `sigma_by_arithmetic` / `decode` moved to `base` as their second consumers
+  arrived, never before.
+
+  **Design rules the real files forced, worth carrying:**
+  - **Nothing is located by counting.** `.brml` puts 2θ at datum column 2 and the
+    intensity at column **7**, so GSAS-II's fixed `entry[2]`/`entry[4]` is one
+    layout's coincidence; the reader reads `DataViews`' `Start`/`Length`/
+    `FieldDefinitions` instead.
+  - **A manifest outranks a zip's name list.** The 801-scan `.brml` stores its
+    members …20, 22, 21, `experimentCollection.xml`, 23…
+  - **A `RecordedRawDataView` of `Length > 1` is a detector frame**, refused —
+    and its `ScanAxes` still claims `AxisId="TwoTheta"`, so the axis check passes
+    and only that length says the rows are not a profile.
+  - **`ScanInformation` wins over a like-named leaf elsewhere** in a `.rasx`
+    conditions XML; `Step` and `Speed` are generic enough for an optics block to
+    carry one, and first-wins document-wide would derive every σ from it.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2124 → **2177
+  passed, 5 skipped**: **+53** with no new skips, and every one is accounted for
+  — axis factoring +1; task 10 **+22** (14 tests, 2 real fixtures × 3
+  truncation-fuzz rows, 2 upload-dispatch rows); task 11 **+14** (10 tests, 1
+  fixture × 3, 1 synthetic-fuzz row); task 12 **+14** (8 tests, 1 fixture × 3, 1
+  synthetic-fuzz row, 2 upload rows); the review pass +2. Full selection
+  **2282 passed, 6 skipped**, measured at `0a5d77a` — i.e. before the review
+  pass's two (fast-selection) tests, so the final tree is **2284 + 6**. That
+  closes exactly against the previous session: its full selection resolved to
+  2231 + 6 = 2237, and 2237 + 51 (the fast delta at `0a5d77a`) = 2288 = 2282 + 6.
+  vitest **401**, svelte-check clean, ruff clean. **No GUI dist rebuild**: no new
+  reader option and no payload *shape* change, so the wizard grows each format's
+  scan picker from `capabilities()` unaided.
+
+  **Wall clock**, as a range: the fast selection ran 175-186 s on a quiet machine
+  and 338 s while the full suite shared it; the full selection 32:56, one
+  measurement and a *loaded* one — a fast run overlapped roughly six minutes of
+  it, against the previous session's 25:44 unloaded.
+
+  **Risks 1 and 4 retired; 3 is the one left.** Fixture licences: all four
+  readers-xrd files were committed by that repo's own maintainers into an
+  Apache-2.0 repo, and the unlicensed `carichte/IKZ` upstream the `ikz.py` fence
+  guards holds 15 files and **no data at all** — so the fence is about code and
+  does not reach these bytes. `.brml`'s `RawDataView[@Start][@Length]` is present
+  in both real files, and the `xsi` prefix is read through its **namespace**
+  rather than as text (a test renames it to `zz:`).
+
+  **In flight: nothing** — tree clean, both selections green, shippable between
+  any two formats.
+
+  **Next**: task 13 `.raw` v4, then 14 `.raw` v2/v3, 15-16 the instrument hint
+  and scan picker, 17 the remaining docs. The binaries are a different kind of
+  work from the containers — offsets rather than manifests — and
+  `tests/writers_xrd.py` (still unwritten) is for them, not for the text formats.
+
+  **Gotchas for the successor.**
+  - **Retire risk 3 before writing task 13's reader.** What "scrambled"
+    scrambled in `TwoTheta_scan_scrambled.raw` decides whether `.raw`'s
+    acceptance line may claim values or only structure. Nothing this session did
+    touched it.
+  - **The attenuator answer cannot be borrowed across vendors** — four formats,
+    three answers, all measured. If `.raw` carries one, run the same test: find a
+    file where the factor varies and ask which series is continuous.
+  - **Part of task 17 has already landed** and should not be redone: ATTRIBUTION
+    gained rows for `.xrdml`/`.rasx`/`.brml`, the `readers-xrd` + `ikz.py` fence
+    and the xylib "listed precisely to state it was not ported" row;
+    `tests/data/README.md` gained three sections; AGENT_PROTOCOL gained
+    `XRDML_ATTENUATOR_APPLIED` and `BRML_ABSORBER_ENGAGED` and lost two axis rows
+    to one; README's reader row and the root/`io` CLAUDE.md rules are current.
+    What task 17 still owes: the `.raw` rows, `cli.py`'s help (already
+    registry-built, so check rather than edit), and the capabilities spot-checks.
+  - **`src/pxrdref/io/CLAUDE.md`'s cap went 200 → 250** with three formats still
+    to land; root CLAUDE.md is back at **exactly 600** after the reader bullet
+    was compressed to carry a fifth consequence. Budget for that again.
+  - **`tests/test_portability.py` now skips a receiver containing `zip`** —
+    `zipfile.ZipFile.open` returns bytes whatever its mode, so `encoding=` there
+    is a `TypeError`. That is why the container readers name their handle
+    `zip_*`; keep the convention or the meta-test fails.
+  - The two large real files that were **not** vendored —
+    `RSM_111_sdd=350.rasx` (401 scan groups) and `EJZ060_13_004_RSM.brml`
+    (801, and the PSD frame) — have what they established recorded in
+    `tests/data/README.md`. If a `.rasx`/`.brml` bug ever needs a real
+    multi-scan archive, that is where to look for it.
+
+- **2026-08-09 (session 3)** — **tasks 8-9 landed**, `.ras` and `.uxd`, on
+  branch `wp1047-vendor-formats` (8 commits off `main` @ `fad8a6d`). No
+  `### Inherited` to prune — the WP has never had one.
+
+  **Done.** (8) Rigaku `.ras`: reader, the `scan` option, `ScanInfo`/
+  `list_scans`/`fmt.scans` with the biconditional meta-test, `METADATA_KEYS` +
+  `base.metadata()` (every existing reader routed through it),
+  `PROJECT_FORMAT_VERSION` 1 → **1.1**, the attenuator contract, the per-file
+  intensity-scale test. (9) Bruker `.uxd`: all four block forms, multi-range,
+  the second `scan` consumer — which is what it was for, and *nothing* in the
+  option machinery moved to accommodate it.
+
+  **Three of the WP's premises were wrong and are now corrected in place.**
+  The WP said no real `.ras` was obtainable; three are, all MIT, and they
+  showed (a) `*MEAS_SCAN_SPEED_UNIT` exists and says `deg/min`, so the planned
+  `t = step ÷ speed` was 60× short and every derived σ would have been wrong by
+  √60; (b) `*MEAS_SCAN_UNIT_Y` declares the unit **and can be false** — one file
+  declares `counts` and stores 84.3047, which no scale in 1/1000…200 makes
+  integral — so the declaration is metadata and arithmetic decides; (c)
+  `*MEAS_SCAN_AXIS_X` can be `Omega`, a rocking curve, which needed the `.chi`
+  axis policy generalised. `.uxd` then supplied the contrast: it declares the
+  unit *structurally* (the token opening the data block) and that one holds, so
+  it is trusted. **That asymmetry is the session's rule** and it is in root
+  CLAUDE.md.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2094 → **2124
+  passed, 5 skipped**: **+30** with no new skips, and every one is accounted
+  for. Task 8 **+20** (`test_readers.py` 16, `test_project.py` 1,
+  `test_readers_robust.py` one fixture row × 3 parametrized tests); task 9
+  **+9** (8 tests + one parametrized synthetic-fuzz row); and **+1 that is not a
+  test anyone wrote** — `test_always_loaded_docs_stay_under_their_pinned_caps`
+  is parametrized over `SIZE_CAPS`, so adding `src/pxrdref/io/CLAUDE.md` to it
+  added a row. Worth stating rather than absorbing: a count can move for a
+  documentation-structure reason. Full selection measured mid-session at
+  **2229 passed, 6 skipped + 1 failed** (the failure was the CLAUDE.md cap
+  assertion, before the consolidation resolved it): 2229 + 1 = 2230 = the
+  previous session's 2201 + 29, i.e. it moved by exactly the fast selection's
+  then-delta, as it must with no new `slow` marks. It was **not** re-measured
+  after the consolidation, which would put it at 2231. vitest **401**, svelte-check clean, ruff clean. No GUI dist
+  rebuild: the wizard renders one control per reader option from
+  `capabilities()`, so `.ras`/`.uxd` get their scan picker with no payload
+  *shape* change.
+
+  **Wall clock**, as a range: the fast selection ran 184-186 s across three runs
+  on a quiet machine (the session-start baseline was 320 s on a busy one); the
+  full selection 25:44, one measurement.
+
+  **Three bugs the harnesses caught, not review.** (i) `.uxd`'s header snapshot
+  was taken at block *close*, and keys persist across ranges — so a 2 s range's
+  σ came from the next range's 20 s `_STEPTIME`. (ii) A truncation cut mid-row
+  makes a ragged list and numpy's "inhomogeneous shape" `ValueError` names no
+  file; fixed in both readers. (iii) **An invariant that had never held**: the
+  truncation harness asserts every refusal names the file, and a `.XRA` cut past
+  its `BANK` record fell through to `xy`, parsed one point and raised
+  *pydantic's* report — which passed only because pydantic echoed the metadata
+  dict, filename included. Adding one metadata key pushed the name past that
+  echo's truncation. `base.pattern_data()` is now the schema boundary and every
+  reader goes through it.
+
+  **Structural change, decided with the user**: root CLAUDE.md was at exactly
+  its 600-line cap with four vendor formats still to land, so the reader detail
+  moved to **`src/pxrdref/io/CLAUDE.md`** (179 lines, capped at 200, loads under
+  `io/`) and root kept only the four consequences a caller outside `io/` sees.
+  Same move WP-1060 made for indexing. `SIZE_CAPS` and the link-check doc list
+  in `tests/test_docs_consistency.py` both know about it.
+
+  **In flight: nothing** — tree clean, both selections green, shippable between
+  any two formats.
+
+  **Next**: task 10 `.xrdml` (real fixture + a JSON oracle, Apache-2.0), then 11
+  `.rasx`, 12 `.brml`, 13-14 Bruker `.raw`, 15-16 the instrument hint and scan
+  picker, 17 the remaining docs. All four remaining formats are containers or
+  binary, which is a different kind of work from these two.
+
+  **Gotchas for the successor.**
+  - **Risk 1 has now fired twice.** Fixture licences are per *file*: the best
+    `.ras` found (8501 points of real integer counts, `Dinghao-Wu/xrd-toolkit`)
+    is in a repo with **no LICENSE at all**, and every obtainable real `.uxd` is
+    GPL or unlicensed. Check before writing the reader, because it changes the
+    whole test strategy — and record what an unvendorable real file *established*
+    in `tests/data/README.md`, since that becomes the only place the design is
+    checkable.
+  - Risk 3 is **untouched**: what "scrambled" scrambled in
+    `TwoTheta_scan_scrambled.raw` still decides whether `.raw`'s acceptance line
+    may claim values or only structure. Establish it before task 13.
+  - **Three formats now implement the same three-way axis policy** with three
+    codes (`CHI_`/`RAS_`/`UXD_X_AXIS_ASSUMED`). Left unfactored deliberately —
+    the inputs are different shapes (a prose label, a header key, a drive name)
+    — but a **fourth is the point at which to factor it**, and WP-1003 should
+    look at whether the three codes want to be one before the freeze.
+  - `has_sigma` means "σ measured, not σ present" and a **derived** σ sets it:
+    a `.ras` cps export reads as "σ from file" while the same scan exported in
+    counts reads as Poisson. Both are honest — the cps σ genuinely could not
+    come from the fallback — but WP-1003 should decide whether that distinction
+    wants a third state before the surface freezes.
+  - `.ras`/`.uxd` synthetic test files are written **inline** in
+    `tests/test_readers.py` (`write_ras`, `write_uxd`), not in the
+    `tests/writers_xrd.py` the WP names. Both are text formats, so the
+    circularity that module exists to manage — packing literal *offsets* — does
+    not arise. The binary formats (13-14) should still use it.
+  - `ReaderCapability` did **not** gain the `scans` field the WP's contract-
+    versions section mentions in passing: the biconditional meta-test makes it
+    exactly `"scan" in options`, and a second authority for one fact is what the
+    root rules forbid. Smaller surface for WP-1003 too.
+
+- **2026-08-08 (session 2)** — **tasks 1-7 of 17 landed**, on branch
+  `wp1047-vendor-formats` (6 commits off `main` @ `fad8a6d`). No `### Inherited`
+  to prune: this WP was created the same day and nothing had been mailed to it.
+
+  **Done.** (1) `io/formats/`, one module per format; `readers.py` the front
+  door; `head()` replaces `_looks_gsas`'s whole-file decode — a pure refactor
+  measured at *zero* test movement. (2) `READER_OPTIONS`/`reader_options_for`/
+  `read_pattern(**options)`, threaded through project, imports, series, server,
+  session, textdoc and the wizard; `Project.create(block=)` → `reader_options=`;
+  `DataRef` records **effective** options; allowlist meta-test. (3) the
+  `diagnostics=` channel + `ascending()` + `READER_OPTION_IGNORED` +
+  `multiscan_default`, with codes in AGENT_PROTOCOL, the preview payload, the
+  CLI print and `Project.data_diagnostics` (in memory, no `project.json`
+  field). (4) `xy` de-totalised; `identify_format`'s message from the registry;
+  UTF-16 BOM = text. (5) `tests/test_readers_robust.py`. (6) `.chi`. (7) `.dif`
+  + `PatternFormat.refuses`/`ReaderCapability.refuses`.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection (`-m "not slow"`):
+  2039 → **2094 passed, 5 skipped**, +55 with no new skips, and the +55 is the
+  file arithmetic exactly — `test_readers.py` 35, `test_readers_robust.py` 16,
+  `test_capabilities.py` 1, `test_gui_server.py` 3 (one plain + one
+  parametrized ×2). Per task: +1, +22, +18, +12, +2. Task 1 moved it by
+  **zero**, which is what "pure refactor" had to mean. Full selection:
+  **2201 passed, 6 skipped** — green including every real-data acceptance row.
+  The full selection's *before* count was not measured (only the fast one was
+  taken at session start), so its +55 is **inferred**, not observed: no new
+  test carries `@pytest.mark.slow` (checked) and the fast delta is exactly 55.
+  The five fast skips are unchanged in kind — four `test_cross_backend.py`
+  "no axial columns in this config", one `test_structure3d.py` multi-block CIF;
+  the sixth in the full selection is a slow-only row that skips on `main` too.
+  vitest **401**, svelte-check clean, ruff clean, dist rebuilt.
+
+  **Wall clock**, as a range and not a figure: the fast selection ran 170-190 s
+  on a quiet machine and 485 s while other work shared it; the full selection
+  27:45, one measurement.
+
+  **One loose end, named rather than buried.** A fast-selection run that
+  *overlapped* the full suite (four concurrent pytest processes, 895 s against
+  a normal ~190 s) reported **1 failed**; the test's name was lost because that
+  invocation was piped through a `grep` for skip lines. Two clean runs before
+  and after it are green at 2094/5, and the full suite is green, so nothing is
+  known to be broken — but the failure was not identified, and the load
+  condition is precisely the one `tests/CLAUDE.md` documents as making a
+  wall-clock budget behave as a load sensor. If a successor sees an unexplained
+  failure under `-n auto`, check what else was running before believing it.
+
+  **In flight: nothing** — the tree is clean, pushed, and shippable at the WP's
+  own stated boundary (after task 5).
+
+  **Next**: task 8 `.ras`, which also introduces `scan` and carries the
+  `PROJECT_FORMAT_VERSION` minor bump; then 9-14 the remaining formats, 15-16
+  the instrument hint and scan picker, 17 the rest of the docs. Docs already
+  done for what landed: three root-CLAUDE.md rules compressed into one bullet
+  (the file sat at **exactly** its 600-line cap afterwards — budget for that),
+  ATTRIBUTION's new "Format specifications" section, AGENT_PROTOCOL rows for
+  five codes, README's reader row, `cli.py`'s help built from the registry,
+  ROADMAP focus + glyph, the v1.0 narrative, the four-point note in WP-1003's
+  `### Inherited` (which also supersedes the stale `block=` sentence in its own
+  body), and a note to WP-1017 that the import wizard's pattern step changed
+  shape — one control per reader option, plus a reader-diagnostics strip.
+
+  **Gotchas for the successor.**
+  - **Retire the WP's risks in its stated order before writing any vendor
+    reader.** Fixture licences are per *file*, not per repo, and what
+    "scrambled" scrambled in `TwoTheta_scan_scrambled.raw` decides whether the
+    `.raw` acceptance line may claim values or only structure. GitHub was
+    reachable from this session, so the fixtures are obtainable.
+  - `multiscan_default` exists and is unit-tested but has **no caller yet** —
+    `.ras` is its first. Same for the `scan` entry in `READER_OPTIONS`, which
+    is deliberately *absent* until then: the allowlist meta-test
+    (`set(READER_OPTIONS) == ⋃ fmt.options`) fails if you add one without the
+    other, in either order.
+  - `ascending(..., fmt=)` takes the format so the non-monotone refusal names
+    `scan=` **only** where the option exists; a multi-scan reader gets that
+    sentence for free by declaring `options=("scan", …)`.
+  - The GUI wizard renders **one control per reader option** from
+    `capabilities().reader_options`, so `.ras` gets its scan picker with no
+    frontend change — but the dist is committed, so rebuild it
+    (`npm --prefix gui run build`) whenever server-side payloads change shape.
+  - `git add -p` **hangs** in this harness (no interactive stdin). It cost two
+    minutes; use explicit paths.
+
 
 - **2026-08-08** — created from the reviewed plan; the review's amendments
   folded in place: the Kα weighted mean in the λ match, the

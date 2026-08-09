@@ -107,7 +107,11 @@ class SeriesMember:
     #: pattern index is the axis, which is what ``x_label`` then says.
     x: float | None
     reader: str
-    block: str | None
+    #: the **effective** reader keywords this member was read with, as strings —
+    #: ``DataRef.options`` one layer up, and the same vocabulary
+    #: (:data:`~pxrdref.io.readers.READER_OPTIONS`), because a member of a series
+    #: is a pattern file like any other and may need one to read as intended.
+    options: dict[str, str]
     n_points: int
     two_theta_range: tuple[float, float]
     #: whether the *file* carried esds.  Kept per member because a series whose
@@ -118,7 +122,7 @@ class SeriesMember:
     def as_dict(self) -> dict:
         return {"upload": self.token, "filename": self.filename,
                 "label": self.label, "x": self.x, "reader": self.reader,
-                "block": self.block, "n_points": self.n_points,
+                "reader_options": dict(self.options), "n_points": self.n_points,
                 "two_theta_range": list(self.two_theta_range),
                 "has_sigma": self.has_sigma}
 
@@ -186,7 +190,13 @@ def members_from(entries: Any, uploads: UploadStore,
     reorder, every typed coordinate is a whole-list PUT — and re-reading forty
     patterns per keystroke would make the editor unusable while proving nothing.
     """
-    cached = {(m.token, m.block): m for m in (known or [])}
+    def _key(token: str, options: dict) -> tuple:
+        return (token, tuple(sorted(options.items())))
+
+    # keyed on the *effective* options, which is also what ``as_dict`` reports:
+    # the panel sends back the list it was given, so a member it did not touch
+    # keys identically and is not re-read.
+    cached = {_key(m.token, m.options): m for m in (known or [])}
     if not isinstance(entries, list):
         raise SeriesRefused("'patterns' must be a list of "
                             "{upload: token, label?: str, x?: number}",
@@ -204,7 +214,11 @@ def members_from(entries: Any, uploads: UploadStore,
             raise SeriesRefused(f"patterns[{i}] has no 'upload' token",
                                 f"patterns.{i}.upload")
         staged = uploads.get(token, "pattern")   # UploadRefused names the token
-        block = entry.get("block")
+        # an empty string is a cleared control, not a request; anything else
+        # goes through untouched so that a *typo* is refused in
+        # ``reader_options_for``'s words rather than silently dropped here
+        requested = {k: v for k, v in (entry.get("reader_options") or {}).items()
+                     if v not in (None, "")}
         x = entry.get("x")
         if x is not None:
             try:
@@ -214,12 +228,13 @@ def members_from(entries: Any, uploads: UploadStore,
                                     f"patterns.{i}.x") from None
         label = str(entry.get("label") or "").strip() or Path(staged.filename).stem
         raw_labels.append(label)
-        seen = cached.get((token, block))
+        seen = cached.get(_key(token, requested))
         if seen is None:
-            preview = preview_pattern(staged, block=block)
+            preview = preview_pattern(staged, reader_options=requested)
             seen = SeriesMember(
                 token=token, path=staged.path, filename=staged.filename,
-                label=label, x=x, reader=preview["format"]["name"], block=block,
+                label=label, x=x, reader=preview["format"]["name"],
+                options=dict(preview["reader_options"]),
                 n_points=int(preview["n_points"]),
                 two_theta_range=tuple(preview["two_theta_range"]),
                 has_sigma=bool(preview["has_sigma"]))
@@ -260,8 +275,7 @@ def read_members(setup: SeriesSetup,
 
     out = []
     for member in setup.members:
-        options = {"block": member.block} if member.block else {}
-        data = read_pattern(member.path, **options)
+        data = read_pattern(member.path, **member.options)
         data.excluded_regions = [tuple(r) for r in excluded_regions]
         out.append(data)
     return out

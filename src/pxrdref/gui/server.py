@@ -214,6 +214,11 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/structure/symmetry/preview"):
         lambda s, q, b: s.symmetry_preview(b),
     ("POST", "/api/structure/symmetry"): lambda s, q, b: s.symmetry_patch(b),
+    # the scan picker's own fetch: the preview's ``scan_count`` says *how many*
+    # from the read it already did, and this says what each one **is** — a
+    # second walk, so it is paid only when a person opens the control
+    ("GET", "/api/upload/pattern/scans"):
+        lambda s, q, b: s.upload_scans((q.get("upload") or [""])[0]),
     ("GET", "/api/instrument"): lambda s, q, b: s.instrument(),
     ("PATCH", "/api/instrument"): lambda s, q, b: s.instrument_patch(b),
 
@@ -284,14 +289,20 @@ UPLOAD_ROUTES: dict[tuple[str, str], str] = {
 def _upload_options(query: dict) -> dict:
     """The reader keywords an upload may carry, off the query string.
 
-    ``aniso`` is the checkbox that mirrors ``structure_from_cif(aniso=)`` and
-    ``block`` names a pdCIF data block — both are *re-read* options, which is why
-    they belong on the upload route rather than only on the commit that follows.
+    Two vocabularies meet here: ``aniso`` and ``phase_name`` are the CIF
+    reader's, while the pattern reader's come from
+    :data:`~pxrdref.io.readers.READER_OPTIONS` rather than a literal list — so a
+    format that adds ``scan`` is reachable from this route with no edit here.
+    All of them are *re-read* options, which is why they belong on the upload
+    route and not only on the commit that follows.  Values stay strings;
+    ``reader_options_for`` is the one place that coerces them.
     """
+    from ..io.readers import READER_OPTIONS
+
     options: dict[str, Any] = {}
     if query.get("aniso"):
         options["aniso"] = query["aniso"][0].lower() not in ("", "0", "false")
-    for key in ("phase_name", "block"):
+    for key in ("phase_name", *READER_OPTIONS):
         if query.get(key) and query[key][0]:
             options[key] = query[key][0]
     return options

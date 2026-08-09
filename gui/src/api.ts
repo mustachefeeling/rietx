@@ -100,6 +100,10 @@ export const api = {
   /** Re-read a staged file with different reader options — no second upload. */
   restage: (kind: string, token: string, options: Record<string, string> = {}) =>
     upload(kind, null, options, token),
+  /** What a staged multi-scan file holds, labelled — a second walk of the
+   *  ranges, so it is fetched when the picker opens and never on the preview. */
+  patternScans: (token: string) =>
+    call("GET", `/api/upload/pattern/scans?upload=${encodeURIComponent(token)}`),
   /** Phase two: tokens become a project.  Nothing exists on disk until this. */
   newProject: (body: Record<string, unknown>) => call("POST", "/api/project/new", body),
 

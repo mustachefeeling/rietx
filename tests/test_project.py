@@ -120,7 +120,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     project.save()
 
     raw = json.loads((project.path / PROJECT_JSON).read_text(encoding="utf-8"))
-    assert raw["format_version"] == "1"
+    assert raw["format_version"] == "1.1"   # WP-1047: scan joined the vocabulary
     assert raw["patterns"][0]["reader"] == "xy"
 
     reopened = pr.Project.open(project.path)
@@ -275,7 +275,8 @@ def test_the_pdcif_block_is_recorded_and_replayed(tmp_path):
     cif = DATA / "nist_srm660c_100a.cif"
     structure, ins = perturbed_models()
     project = pr.Project.create(tmp_path / "cert.pxrd", pattern=cif,
-                                structure=structure, instrument=ins, block="_calc")
+                                structure=structure, instrument=ins,
+                                reader_options={"block": "_calc"})
 
     assert project.data_ref.reader == "pdcif"
     assert project.data_ref.options == {"block": "_calc"}
@@ -376,3 +377,27 @@ def test_a_reopened_project_can_replay_its_head(fitted_project):
     assert replayed.statistics.rwp == pytest.approx(cached, rel=1e-3)
     assert len(reopened.refinement.parameters()) == \
            len(project.refinement.parameters())
+
+
+def test_a_project_reopens_on_the_scan_it_was_created_from(tmp_path):
+    """The reader *call* is part of the reference, not just the bytes.
+
+    A multi-scan file's sha256 and its parsed-array fingerprint say nothing
+    about *which* scan was read, so ``scan`` has to be recorded beside ``block``
+    — and recorded as the **effective** option, which is what re-opening
+    replays.
+    """
+    structure, ins = perturbed_models()
+    proj = pr.Project.create(tmp_path / "high.pxrd",
+                             pattern=DATA / "rigaku_multiscan.ras",
+                             structure=structure, instrument=ins,
+                             reader_options={"scan": 1})
+
+    ref = proj.doc.patterns[0]
+    assert ref.reader == "ras"
+    assert ref.options == {"scan": "1"}                # dict[str, str] on disk
+    assert proj.data.two_theta == [20.0, 20.5, 21.0]
+
+    reopened = pr.Project.open(tmp_path / "high.pxrd")
+    assert reopened.data.two_theta == [20.0, 20.5, 21.0]
+    assert reopened.doc.patterns[0].fingerprint == ref.fingerprint

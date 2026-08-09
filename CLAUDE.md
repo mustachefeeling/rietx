@@ -233,6 +233,19 @@ recent list, and is therefore not behind the 409 (WP-1044).
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
+- **A pattern reader may repair a file only where it can say that it did**
+  (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
+  channel one layer down; four consequences reach a caller outside `io/`. A
+  multi-range file's ranges are **scans selected by `scan=`, never concatenated**
+  (GSAS-II concatenates, mixing two weighting regimes); a reader raises
+  `ValueError`/`OSError` **naming the file**, never its parser's exception; the
+  **intensities and σ need not be the file's numbers** — an attenuator is applied
+  or not by *measured* vendor convention (four formats, three answers) and σ goes
+  through it either way, while an unestablishable scale **withholds** σ
+  (`PATTERN_INTENSITY_SCALED`; the fallback is wrong by √t on a rate); and the
+  scanned **axis** is never trusted — most vendor files are not powder scans, so
+  a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs,
+  options and how to add a format are `src/pxrdref/io/CLAUDE.md`, under `io/`.
 - **Every weighted residual in the package divides by
   `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
   montage, Layer 0 and both GUI windows (`session.curve_window` is shared by the
@@ -500,7 +513,8 @@ them all:
   columns `title`/`md_path`); the lesson that pinned this rule is in that file.
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
-- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/pxrdref/indexing/CLAUDE.md` —
+- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/pxrdref/io/CLAUDE.md`,
+  `src/pxrdref/indexing/CLAUDE.md` —
   subsystem rulebooks; they load with their subtrees, so nothing here
   restates them.
 
