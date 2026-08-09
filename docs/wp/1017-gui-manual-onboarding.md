@@ -39,6 +39,19 @@ real UI.
 
 ### Inherited
 
+**From [1051](1051-sequential-escalation.md), closed 2026-08-09 — the Series
+tab's status column has four chips now, and two of them are new words.** A
+rejected warm fit escalates a rung at a time instead of jumping to a cold refit,
+so a row can read **restaged** (the full staged plan recovered it, still from the
+neighbour's answer — the chain is *unbroken*, which is the point of the chip) as
+well as **reseeded** (only the cold rung won), **hard** (nothing rescued it but a
+warm attempt was still best) and **unrecovered** (diverged on every rung; the
+chain stepped over it, so it seeded no successor and joined no median). The
+trajectory plot marks the last of those with a **cross** where a reseed gets a
+ring, and the two say opposite things — a ring is a good fit from a different
+starting model, a cross is not a measurement. Worth teaching as a pair rather
+than listing as four chips.
+
 **From [1047](1047-vendor-pattern-formats.md), in flight 2026-08-08 — the
 import wizard's pattern step changed shape, so any screenshot or walkthrough
 of it written before this lands will be wrong.** Two changes: (a) the single

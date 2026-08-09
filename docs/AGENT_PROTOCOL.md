@@ -247,6 +247,7 @@ propagate it, do not paper over it.
 | `ROUGHNESS_UNCONSTRAINED` | The refined correction depresses no modelled reflection by >1 % | Drop the block. The value it refined to is arbitrary |
 | `SEQUENTIAL_PATH_DEPENDENT` | A parameter's trajectory differs between the forward and backward chains by more than their esds allow | That trajectory is an artefact of the refinement order, not a measurement. Hold the parameter, restrain it, or quote the forward/backward spread as its uncertainty |
 | `SEQUENTIAL_CANCELLED` | The chain was cancelled: the pattern in flight was abandoned and the rest were never started | The reported entries are complete fits and stand on their own, but the trajectory is **truncated, not finished** — do not read its last point as the end of the ramp, and do not compare a slope over it with one over the whole series |
+| `SEQUENTIAL_UNRECOVERED` | A pattern diverged and stayed diverged after every rung of the escalation ladder (`entry.rungs_tried` names them) | Read that point as a **failed fit, not a datum** — do not interpolate across it and do not quote its parameters. Its neighbours are unaffected: the chain stepped over it, so the successor warm-started from the last pattern that converged and the reseed median never saw it. Fit the pattern on its own to find out why (a specimen change the model lacks, a bad scan, a starting model that no longer suits this end of the series) |
 | `IndexingResult.best_or_none()` returns `None` | No candidate cell reached the confidence gate | **This is the most likely outcome of a first indexing run, and it is not a failure.** Read each candidate's `confidence_caveats` and act on the *refuting* ones first (§7c). Never take `candidates[0]` because it is ranked first — the ranking orders the hypotheses, the gate judges them, and the two are different questions. Since WP-1046 the order leads with **corroboration** (at least two engines found the lattice) and ranks the panel within that, so `candidates[0]` is now "corroborated, then best on the panel" rather than "best on the panel" — closer to the gate's own reading, and still not it |
 | `INDEX_ABSTAINED` | The result declined to name a cell, and says why | Propagate the abstention. The candidates are there so you can see what was considered, not so you can pick one |
 | `INDEX_GEOMETRIC_AMBIGUITY` | Two distinct lattices explain the positions equally well (Mighell & Santoro 1975) | Do not pick one. The information is **absent from the measurement**, not buried in noise — collect to the 2θ in `discriminating_two_theta` and look for the reflections named there |
@@ -295,6 +296,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 | `SEQUENTIAL_DISCONTINUITY` | Report the jump as physics without opening that pattern's own fit; it is equally the signature of a chain failure |
 | `SEQUENTIAL_PATH_DEPENDENT` | Quote that parameter's per-pattern esd as its uncertainty — the between-chain spread is larger and is the honest one |
 | `SEQUENTIAL_CANCELLED` | Read the shortened `entries` list as the series — it is where the chain stopped, not where the ramp ended |
+| `SEQUENTIAL_UNRECOVERED` | Read that point's values as a measurement, or its failure as evidence about its neighbours — nothing was chained through it |
 | `CONSTRAINT_ACTIVE` | (info, `solver="lm"` only) Read the constrained coefficients as free-fit measurements. The driver truncated steps against a linear-inequality constraint (the Stephens cone) in the answer-producing stage, so the optimum sits on or near a constraint face: admissible, not measured. Vary the start before quoting — and note this is the *only* signal a declared constraint was active rather than merely present |
 | `QPA_UNAVAILABLE` | Read `result.qpa is None` as "this specimen is single-phase" or as any statement about composition. The refined scales gave a non-positive Σ S·ZMV, so there are no fractions to renormalise — `where` names the scales that died. It is reported rather than raised on purpose: QPA is one field of a result, and raising took a whole 157-pattern sequential run down with one bad pattern |
 | `MODEL_FAR_FROM_DATA` | (error) Read `status`, the parameter values or their esds at all. Rwp is past the point where the model is no better than predicting zero everywhere, so this is a mismatch between model and data, not a converged refinement — and the solver may well say `converged`, because driving the phase scale to zero *is* a minimum once the cell is far enough off that every reflection sits outside its frozen evaluation window. The message quotes the share of above-background intensity the model actually accounts for (0.2 % on the reproduction); check the cell (~1 % precondition, §1), wavelength, zero shift and 2θ range, then re-index |
@@ -907,7 +909,16 @@ Three things an operator must know, all measured:
   pattern after the first.  The staged turn-on order exists to keep early
   stages conditioned from a *poor* starting model; a converged neighbour is not
   one.  A pattern where that turns out to be wrong is caught by the reseed
-  fence, which refits it cold with the full staged plan.
+  fence, which **escalates one rung at a time** — the full staged plan from the
+  warm state, then the full staged plan cold — and keeps the best attempt.
+  `entry.rung` says which one produced the values and `entry.rungs_tried` says
+  what else was tried; `entry.reseeded` still means only the cold rung won, so
+  a `"warm_staged"` point is one whose chain is unbroken.
+- **A pattern that no rung recovers is quarantined, not merely flagged**
+  (`SEQUENTIAL_UNRECOVERED`): it seeds no successor and its Rwp is left out of
+  the median that decides every later trigger.  So a single failure cannot
+  propagate down the chain or quietly raise the bar for the patterns after it —
+  but it is still *reported*, and reading its parameters is on you.
 - **A sequential trajectory is path-dependent by construction**, so a smooth
   curve is exactly what a poisoned chain produces.  `direction="both"` runs the
   series each way and reports `SEQUENTIAL_PATH_DEPENDENT` per parameter.  For

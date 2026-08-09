@@ -24,6 +24,9 @@ none of which alters a fitted value:
 ``SEQUENTIAL_RESEED``
     the warm start was rejected (diverged, or Rwp far above the series median)
     and the pattern was refitted cold, so the chain cannot be poisoned silently.
+``SEQUENTIAL_UNRECOVERED``
+    the pattern diverged and stayed diverged after every rung of the ladder
+    below; it is reported, but it seeded no successor and joined no median.
 ``SEQUENTIAL_DISCONTINUITY``
     a step much larger than the local trend — the science (a phase transition)
     or a chain failure, and the diagnostic says both.
@@ -32,12 +35,46 @@ none of which alters a fitted value:
     than their esds allow: that parameter's trajectory is an artefact of the
     ordering, not a measurement.
 
+**The fallback is a ladder, and a pattern it cannot rescue is quarantined**
+(WP-1051).  A rejected warm fit escalates one rung at a time — collapsed warm
+refit → the full staged plan *from the warm state* → the full staged plan cold
+(:func:`_ladder`) — each rung run only when the fence still fires on the best
+attempt so far, and the best attempt kept whichever rung produced it.  The
+middle rung is what the chain used to skip: throwing the warm start away costs
+roughly triple (838-904 iterations warm-collapsed, 1623 warm-staged, 2863 cold
+on the round-robin series), and it was being paid for a starting point that had
+not been shown to be the problem.
+
+Quarantine is the other half, and it is about what the chain *carries* rather
+than about what it reports: a fit that came back ``"diverged"`` after the last
+rung is not a starting point and not a scale, so the successor warm-starts from
+the last **accepted** pattern and the reseed median never sees the failure.
+Before WP-1051 a doubly-failed pattern did both — it seeded its neighbour with
+garbage and dragged the median that decides every later trigger, so one failure
+could quietly raise the bar for the rest of the series.
+
+**What triggers the ladder is deliberately narrow: divergence, or Rwp above
+``reseed_factor`` × the median of the accepted patterns** (:func:`_reseed_needed`).
+Two candidates were considered and rejected, and the reasons are the rule a new
+trigger has to satisfy.  *Guard findings* (``HIGH_CORRELATION``, at-bounds) fire
+legitimately on perfectly converged patterns: a correlated pair is a property of
+the model and the data, and no rung of this ladder changes either — it would
+re-fit every pattern of the series, at triple cost, to reach the same minimum.
+*A discontinuity* is a post-hoc property of the whole trajectory (the median
+absolute step is not defined until the series has been walked, and needs
+:data:`MIN_POINTS_FOR_DISCONTINUITY` of it), so making it a trigger would mean
+re-walking a finished chain — a different algorithm, with no guaranteed
+fixpoint.  What the two accepted triggers share: each is a property of *this
+pattern's own fit*, readable the moment it finishes, and each is something a
+different starting point could plausibly fix.
+
 **Telemetry and cancellation are per pattern, stamped with the pattern**
 (WP-1016).  ``fit(events=, cancel=)`` reach every pattern's own
 :meth:`Refinement.fit`, and each pattern's events are forwarded through
 :class:`_SeriesStream`, which adds ``series_index``/``series_label``/
-``series_n``/``series_pass`` (and ``series_cold`` on a reseed refit) to the
-event's ``data``.  All five are *added fields on existing kinds*, so
+``series_n``/``series_pass`` (and, on a restart, ``series_rung`` plus the
+``series_cold`` it has always carried) to the event's ``data``.  Those are
+*added fields on existing kinds*, so
 :data:`~pxrdref.history.events.EVENT_SCHEMA_VERSION` does not move — the rule is
 in that module, and a series needs nothing more, because "pattern k of N" is
 readable off ``fit_start`` and a consumer reads ``data`` with ``.get``.
@@ -123,6 +160,12 @@ MIN_POINTS_FOR_DISCONTINUITY = 5
 #: authority — the ``capabilities()`` rule at a smaller scale.
 REFIT_MODES = ("single", "stages")
 DIRECTIONS = ("forward", "backward", "both")
+
+#: The escalation ladder in order, as names (WP-1051).  ``"warm"`` is the
+#: collapsed warm refit, ``"warm_staged"`` the full staged plan from the warm
+#: state, ``"cold"`` the full staged plan from the initial models — which is
+#: also what the *first* pattern of every chain runs, having no predecessor.
+RUNGS = ("warm", "warm_staged", "cold")
 
 
 class _SeriesStream(EventStream):
@@ -221,6 +264,59 @@ def _collapse(plan: RefinementPlan) -> RefinementPlan:
                       strain_seed=max((s.strain_seed for s in plan.stages),
                                       default=0.0))],
         correlation_guard=plan.correlation_guard)
+
+
+def _ladder(base_plan: RefinementPlan, warm_plan: RefinementPlan
+            ) -> list[tuple[str, RefinementPlan, bool]]:
+    """``(rung, plan, warm)`` for one warm-startable pattern, in ladder order.
+
+    Three rungs under the default ``refit="single"`` — the collapsed warm refit,
+    the full staged plan from the warm state, the full staged plan cold — and
+    **two** under ``refit="stages"``, where the first rung already *is* the
+    staged warm fit: re-running an identical plan from an identical starting
+    point is a deterministic repeat, and charging the series an extra fit for it
+    would make ``refit="stages"`` cost more than ``"single"`` for nothing.
+
+    The middle rung is what this ladder exists for.  Measured on the round-robin
+    sample-1 series and quoted by :func:`_collapse` and
+    :meth:`SequentialRefinement.fit`: 838-904 iterations warm-collapsed, 1623
+    warm-staged, 2863 cold.  So the pre-WP-1051 fallback — straight from the
+    first rung to the last — paid roughly triple to discard a starting point
+    that had not been shown to be the problem.  A rung is reached only when the
+    fence still fires on the *best attempt so far*, which is what makes the
+    escalation stop at the first one that works: :func:`_better` prefers a
+    converged fit and then the lower Rwp, so once any attempt clears the
+    threshold the best one does too.
+    """
+    first = "warm_staged" if warm_plan is base_plan else "warm"
+    rungs: list[tuple[str, RefinementPlan, bool]] = [(first, warm_plan, True)]
+    if first != "warm_staged":
+        rungs.append(("warm_staged", base_plan, True))
+    rungs.append(("cold", base_plan, False))
+    return rungs
+
+
+def _rung_stamp(rung: str, *, escalation: bool) -> dict[str, Any]:
+    """The ladder's event-stamp keys — present only on a **restart**.
+
+    ``series_rung`` names the rung that is running; ``series_cold`` keeps
+    exactly the meaning WP-1016 gave it (present, and true, on a cold restart)
+    because dropping it would be a *removed field*, which is an
+    ``EVENT_SCHEMA_VERSION`` bump — see ``history/events.py``'s additivity rule.
+    So the wire carries the fact twice while the code decides it once, here.
+
+    Neither key appears on a pattern's first attempt, and that is the load-
+    bearing part: the first pattern of a chain runs the cold rung *without being
+    a restart*, so stamping it would relabel an ordinary cold start as a rescue
+    — changing what ``series_cold`` means, which is the same version bump by
+    another route.  "Was there a restart here?" therefore stays one ``.get``.
+    """
+    if not escalation:
+        return {}
+    stamp: dict[str, Any] = {"series_rung": rung}
+    if rung == "cold":
+        stamp["series_cold"] = True
+    return stamp
 
 
 def _carry_into(structure: Structure, instrument: Instrument,
@@ -362,15 +458,22 @@ class SequentialRefinement:
             The staged order exists to keep early stages well conditioned from
             a *poor* starting model, and a converged neighbour is not one —
             when it turns out not to be a good one either, the reseed fence
-            catches it and refits cold with the full staged plan.
+            catches it and escalates one rung at a time (:func:`_ladder`),
+            re-walking the staged plan from the warm state before giving the
+            warm state up.  ``refit`` therefore sets the ladder's *first* rung,
+            not the only plan a pattern can be fitted with.
         direction:
             ``"forward"``, ``"backward"`` (chain from the last pattern), or
             ``"both"``, which runs it each way and reports where the two
             trajectories disagree by more than their esds allow.  The reported
             entries are the forward ones.
         reseed:
-            Refit a pattern cold when its warm-started fit diverged or landed
-            far above the series median Rwp, and keep the better of the two.
+            Escalate the ladder when a warm-started fit diverges or lands far
+            above the series median Rwp, and keep the best attempt.  Switching
+            it off leaves each pattern with its first rung — but **not** without
+            the quarantine: a diverged fit still seeds nothing and joins no
+            median, because that is about what the chain carries rather than
+            about how hard it tried.
         prepare:
             ``(index, data, structure, instrument) -> None``, called on the
             warmed models just before each pattern's fit.  The hook exists for
@@ -403,18 +506,20 @@ class SequentialRefinement:
             x_label = "x"
         base_plan = resolve_plan(plan, mode)
         warm_plan = base_plan if refit == "stages" else _collapse(base_plan)
+        ladder = _ladder(base_plan, warm_plan)
 
         order = list(range(len(patterns)))
         if direction == "backward":
             order.reverse()
         stream = as_event_stream(events)
         entries, results, trees, models = self._chain(
-            order, patterns, names, xs, mode, base_plan, warm_plan,
+            order, patterns, names, xs, mode, base_plan, ladder,
             two_theta_limits, reseed, reseed_factor, prepare, on_result,
             stream=stream, cancel=cancel,
             pass_name="backward" if direction == "backward" else "forward")
 
-        diagnostics = [d for e in entries for d in _reseed_diagnostics(e)]
+        diagnostics = [d for e in entries
+                       for d in _reseed_diagnostics(e) + _unrecovered_diagnostics(e)]
         cancelled = cancel is not None and bool(cancel)
         if cancelled:
             diagnostics.append(_cancelled_diagnostic(len(entries), len(patterns)))
@@ -432,7 +537,7 @@ class SequentialRefinement:
         if direction == "both" and not cancelled:
             back_entries, *_ = self._chain(
                 list(reversed(order)), patterns, names, xs, mode, base_plan,
-                warm_plan, two_theta_limits, reseed, reseed_factor, prepare,
+                ladder, two_theta_limits, reseed, reseed_factor, prepare,
                 None, history_suffix=".backward", stream=stream, cancel=cancel,
                 pass_name="backward")
             back = SeriesResult(mode=mode, entries=back_entries, x_label=x_label,
@@ -454,7 +559,7 @@ class SequentialRefinement:
         return series
 
     # ------------------------------------------------------------------
-    def _chain(self, order, patterns, names, xs, mode, base_plan, warm_plan,
+    def _chain(self, order, patterns, names, xs, mode, base_plan, ladder,
                two_theta_limits, reseed, reseed_factor, prepare, on_result,
                history_suffix: str = "", stream: EventStream | None = None,
                cancel=None, pass_name: str = "forward"):
@@ -464,9 +569,16 @@ class SequentialRefinement:
         a backward chain's trajectory is directly comparable with a forward
         one's.
 
-        A cancelled pattern ends the walk: :meth:`Refinement.fit` has already
-        abandoned its stage, and this drops the pattern entirely rather than
-        recording a half-fit — whatever was walked before it stands.
+        Each pattern climbs ``ladder`` (:func:`_ladder`) until an attempt clears
+        the reseed fence, and keeps the best attempt by :func:`_better` whichever
+        rung produced it; ``previous`` is the last **accepted** pattern, which is
+        not always the last one walked (see the quarantine below).
+
+        A cancelled pattern ends the walk.  Cancelled on its *first* attempt it
+        is dropped entirely rather than recorded as a half-fit —
+        :meth:`Refinement.fit` has already abandoned the stage — while a cancel
+        on a later rung keeps the best complete attempt, because a rung that
+        never finished cannot be evidence against the one that did.
         """
         entries: dict[int, SeriesEntry] = {}
         results: dict[int, RefinementResult] = {}
@@ -483,55 +595,70 @@ class SequentialRefinement:
             warm = previous is not None
             stamp = {"series_index": k, "series_label": names[k],
                      "series_n": n, "series_pass": pass_name}
-            try:
-                ref, result = self._fit_one(
-                    data, names[k], previous, previous_hkl,
-                    warm_plan if warm else base_plan,
-                    mode, two_theta_limits, position, previous_tag, prepare, k,
-                    history_suffix, stream=stream, stamp=stamp, cancel=cancel)
-            except RefinementCancelled:
-                break
-            entry = _entry_from_result(k, names[k], xs[k], result)
+            attempts = ladder if warm else [("cold", base_plan, False)]
+            best_ref = best = None
+            best_rung = ""
+            tried: list[str] = []
+            rwps: list[float] = []
+            iterations = 0
+            cancelled = False
 
-            if warm and reseed and _reseed_needed(result, accepted_rwp,
-                                                  reseed_factor):
-                try:
-                    cold_ref, cold = self._fit_one(
-                        data, names[k], None, [], base_plan, mode,
-                        two_theta_limits, position, previous_tag, prepare, k,
-                        history_suffix, stream=stream, cancel=cancel,
-                        stamp={**stamp, "series_cold": True})
-                except RefinementCancelled:
-                    # the warm fit stands: it is a complete fit of this pattern,
-                    # and the restart that was meant to judge it never finished
-                    entries[k] = entry
-                    results[k] = result
-                    trees[k] = ref.history
-                    models[k] = (ref.fitted_structure, ref.fitted_instrument)
+            for rung, rung_plan, rung_warm in attempts:
+                # the fence is asked about the *best* attempt, not the last one:
+                # a rung that came back worse has not made the pattern worse
+                if tried and not (reseed and _reseed_needed(
+                        best, accepted_rwp, reseed_factor)):
                     break
-                if _better(cold, result):
-                    entry = _entry_from_result(k, names[k], xs[k], cold)
-                    entry.reseeded = True
-                    entry.rwp_warm = result.statistics.rwp
-                    entry.n_iterations += sum(s.n_iterations for s in result.stages)
-                    ref, result = cold_ref, cold
-                else:
-                    # the warm fit was flagged but is still the better of the
-                    # two: keep it, and say the cold restart did not rescue it
-                    entry.rwp_warm = result.statistics.rwp
-                    entry.n_iterations += sum(s.n_iterations for s in cold.stages)
+                try:
+                    ref, result = self._fit_one(
+                        data, names[k], previous if rung_warm else None,
+                        previous_hkl if rung_warm else [], rung_plan, mode,
+                        two_theta_limits, position, previous_tag, prepare, k,
+                        history_suffix + ("" if not tried else f".{rung}"),
+                        stream=stream, cancel=cancel,
+                        stamp={**stamp,
+                               **_rung_stamp(rung, escalation=bool(tried))})
+                except RefinementCancelled:
+                    cancelled = True
+                    break
+                tried.append(rung)
+                rwps.append(result.statistics.rwp)
+                iterations += sum(s.n_iterations for s in result.stages)
+                if best is None or _better(result, best):
+                    best, best_ref, best_rung = result, ref, rung
+
+            if best is None:      # cancelled on the first attempt: no half-fits
+                break
+            entry = _entry_from_result(k, names[k], xs[k], best)
+            # every rung is charged to the pattern, not only the one kept
+            entry.n_iterations = iterations
+            entry.rung = best_rung
+            entry.rungs_tried = list(tried)
+            if len(tried) > 1:
+                entry.rwp_warm = rwps[0]
+                # only the *cold* rung breaks the chain — a staged refit from
+                # the warm state still started at the neighbour's answer
+                entry.reseeded = best_rung == "cold"
 
             entries[k] = entry
-            results[k] = result
-            trees[k] = ref.history
-            models[k] = (ref.fitted_structure, ref.fitted_instrument)
-            previous = models[k]
-            previous_hkl = _extract_reflections(ref._model)
-            previous_tag = (entry.tree_id, entry.node_id)
-            if entry.statistics is not None:
-                accepted_rwp.append(entry.statistics.rwp)
+            results[k] = best
+            trees[k] = best_ref.history
+            models[k] = (best_ref.fitted_structure, best_ref.fitted_instrument)
+            # Quarantine (WP-1051): a fit that stayed diverged is reported —
+            # the pattern was measured — but it is neither a starting point nor
+            # a scale, so the chain steps over it.  Its successor warm-starts
+            # from the last accepted pattern and the median that decides every
+            # later trigger never sees it.
+            if entry.status != "diverged":
+                previous = models[k]
+                previous_hkl = _extract_reflections(best_ref._model)
+                previous_tag = (entry.tree_id, entry.node_id)
+                if entry.statistics is not None:
+                    accepted_rwp.append(entry.statistics.rwp)
             if on_result is not None:
-                on_result(k, result)
+                on_result(k, best)
+            if cancelled:
+                break
 
         keys = sorted(entries)
         return ([entries[k] for k in keys], [results[k] for k in keys],
@@ -579,6 +706,14 @@ class SequentialRefinement:
         so a verification chain never appends its nodes to the reported chain's
         log — the JSONL format is append-only by design, and two headers in one
         file would make the reload ambiguous.
+
+        **Every escalation rung takes a suffix for the same reason**
+        (``<label>.warm_staged``, ``<label>.cold``), which before WP-1051 the
+        cold restart did not: it reused the warm fit's label, so a reseeded
+        pattern wrote two headers and two trees' nodes into one file and
+        reloaded as an interleaving of both.  The rungs are separate fits of the
+        same data — same ``tree_id``, since that is the data fingerprint — and
+        keeping them apart is what lets the kept one be reloaded on its own.
         """
         spec = self._history
         if isinstance(spec, bool):
@@ -652,6 +787,36 @@ def _reseed_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
                     "come from its neighbour, so it is not evidence that the "
                     "trajectory is continuous here; check whether the specimen "
                     "or the model changed at this point of the series"),
+    )]
+
+
+def _unrecovered_diagnostics(entry: SeriesEntry) -> list[Diagnostic]:
+    """A pattern no rung could rescue: quarantined, and said out loud (WP-1051).
+
+    Derived from the entry rather than recorded when it happened, like every
+    other fence here, so a :class:`SeriesResult` reloaded from JSON reports the
+    same diagnostics as the run that produced it.  The condition is the fit's
+    own ``status``: "diverged after the last rung" and "diverged" are the same
+    statement once the ladder has run, so there is no second flag to keep in
+    agreement with it.
+    """
+    if entry.status != "diverged":
+        return []
+    tried = ", ".join(entry.rungs_tried) or entry.rung
+    return [Diagnostic(
+        level="warning", code="SEQUENTIAL_UNRECOVERED",
+        where=[entry.label or str(entry.index)],
+        message=(f"pattern {entry.index} ({entry.label}) diverged and was still "
+                 f"diverged after every rung the chain tried ({tried}); it "
+                 f"seeded no successor and its Rwp was left out of the series "
+                 f"median"),
+        suggestion=("the values on this point are not a measurement — read it as "
+                    "a failed fit, not as a datum, and do not interpolate across "
+                    "it; the chain continued from the last pattern that "
+                    "converged, so its neighbours are unaffected.  Fit this "
+                    "pattern on its own to find out why: a specimen change the "
+                    "model does not have, a bad scan, or a starting model that "
+                    "no longer suits this end of the series"),
     )]
 
 

@@ -280,6 +280,264 @@ def test_reseed_records_both_fits_and_emits_a_diagnostic(thermal_patterns):
 def test_a_well_behaved_series_reseeds_nothing(thermal_series):
     assert not any(e.reseeded for e in thermal_series)
     assert "SEQUENTIAL_RESEED" not in [d.code for d in thermal_series.diagnostics]
+    # ... and no pattern climbed past its first rung: the first is cold because
+    # it has no predecessor, every other one is the collapsed warm refit
+    assert [e.rung for e in thermal_series] == ["cold"] + ["warm"] * 6
+    assert all(len(e.rungs_tried) == 1 for e in thermal_series)
+
+
+# -- the escalation ladder (WP-1051) --------------------------------------
+
+def test_the_ladder_is_the_rungs_in_order_and_never_repeats_one():
+    """Three rungs from a collapsed warm refit, **two** from a staged one.
+
+    Under ``refit="stages"`` the first rung already *is* the staged plan from
+    the warm state, so the middle rung would re-run an identical plan from an
+    identical starting point — a deterministic repeat the series would pay a
+    whole fit for.
+    """
+    from pxrdref.sequential import RUNGS, _ladder
+
+    base = pr.RefinementPlan.mccusker_default()
+    collapsed = _collapse(base)
+
+    single = _ladder(base, collapsed)
+    assert [name for name, _, _ in single] == ["warm", "warm_staged", "cold"]
+    assert [plan for _, plan, _ in single] == [collapsed, base, base]
+    assert [warm for _, _, warm in single] == [True, True, False]
+
+    stages = _ladder(base, base)
+    assert [name for name, _, _ in stages] == ["warm_staged", "cold"]
+    assert [plan for _, plan, _ in stages] == [base, base]
+
+    # the names are the vocabulary the schema and the panels quote
+    assert set(RUNGS) == {name for name, _, _ in single}
+
+
+def _dictate(runner, script):
+    """Force what each attempt *reports*, leaving the fits themselves real.
+
+    ``script`` maps a pattern label to the ``(status, rwp)`` its successive
+    rungs will come back with; the last pair repeats if the ladder climbs
+    further.  Every model, tree and node in the series is still the real one —
+    what is stubbed is the verdict the chain reasons about, which is the only
+    way to make "which rung ran" a deterministic assertion: with real Rwps two
+    patterns of the same material differ by Poisson noise, so whether the fence
+    fires on the third pattern is a coin flip.
+    """
+    real = runner._fit_one
+    seen: dict[str, int] = {}
+
+    def dictated(*args, **kw):
+        ref, result = real(*args, **kw)
+        label = args[1]
+        if label in script:
+            attempts = script[label]
+            k = min(seen.get(label, 0), len(attempts) - 1)
+            seen[label] = seen.get(label, 0) + 1
+            result.status, result.statistics.rwp = attempts[k]
+        return ref, result
+
+    runner._fit_one = dictated
+    return runner
+
+
+def test_the_ladder_stops_at_the_first_rung_that_works(thermal_patterns):
+    """Warm-staged rescues the pattern, so the cold rung never runs.
+
+    The whole point of the middle rung: the warm start is worth ~1.8× fewer
+    iterations than a cold staged refit, and discarding it was never shown to
+    be necessary.  The bookkeeping has to say so — ``rung`` names the attempt
+    the values came from, ``rungs_tried`` says it was not the only one, and
+    ``reseeded`` stays **False** because a staged refit from the warm state is
+    still warm-started, so the chain is unbroken here.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(SequentialRefinement(structure, ins),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("converged", 0.30), ("converged", 0.10)]})
+    series = runner.fit(thermal_patterns[:2], plan=_CHEAP, reseed_factor=1.0)
+
+    rescued = series[1]
+    assert rescued.rungs_tried == ["warm", "warm_staged"]
+    assert rescued.rung == "warm_staged"
+    assert rescued.reseeded is False
+    assert rescued.rwp_warm == pytest.approx(0.30)      # the rejected attempt
+    assert rescued.statistics.rwp == pytest.approx(0.10)
+    # no fence fires: the chain was never broken, only re-walked
+    assert "SEQUENTIAL_RESEED" not in [d.code for d in series.diagnostics]
+    # both attempts are charged to the pattern (the n_iterations contract)
+    assert rescued.n_iterations > series[0].n_iterations
+
+
+def test_the_cold_rung_is_reached_only_when_the_warm_ones_fail(thermal_patterns):
+    """All three rungs, in order, and the cold one wins — the pre-WP-1051 path.
+
+    ``reseeded`` and ``SEQUENTIAL_RESEED`` mean exactly what they meant before
+    the ladder existed: the kept values did not come from the neighbour.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(SequentialRefinement(structure, ins),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("converged", 0.30), ("converged", 0.28),
+                                ("converged", 0.05)]})
+    series = runner.fit(thermal_patterns[:2], plan=_CHEAP, reseed_factor=1.0)
+
+    entry = series[1]
+    assert entry.rungs_tried == ["warm", "warm_staged", "cold"]
+    assert entry.rung == "cold"
+    assert entry.reseeded is True
+    assert entry.rwp_warm == pytest.approx(0.30)        # the *first* attempt
+    assert [d.code for d in series.diagnostics] == ["SEQUENTIAL_RESEED"]
+
+
+def test_a_rung_that_came_back_worse_is_not_kept(thermal_patterns):
+    """Keep-best across all attempts, and the fence judges the best so far.
+
+    A rung is an attempt, not a commitment: if the escalation lands worse than
+    what it was escalating from, the earlier fit stands — and because the fence
+    is then asked about *that* fit rather than the last one, the ladder keeps
+    climbing instead of stopping on an improvement that never happened.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(SequentialRefinement(structure, ins),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("converged", 0.30), ("converged", 0.90),
+                                ("converged", 0.95)]})
+    series = runner.fit(thermal_patterns[:2], plan=_CHEAP, reseed_factor=1.0)
+
+    entry = series[1]
+    assert entry.rungs_tried == ["warm", "warm_staged", "cold"]
+    assert entry.rung == "warm"                       # the best of the three
+    assert entry.statistics.rwp == pytest.approx(0.30)
+    assert entry.reseeded is False and entry.rwp_warm == pytest.approx(0.30)
+
+
+def test_an_unrecovered_pattern_seeds_nothing_and_joins_no_median(
+        thermal_patterns, tmp_path):
+    """The hygiene criterion: a doubly-failed pattern is stepped over.
+
+    Pattern 1 is dictated to diverge on every rung at an Rwp *far below* the
+    series — which is what makes the median half of this testable.  If the
+    failure joined ``accepted_rwp`` the median would fall from 0.10 to 0.0505
+    and pattern 2, at exactly 0.10, would escalate for no reason; quarantined,
+    the median stays 0.10, ``0.10 > 1.0 × 0.10`` is false, and pattern 2 fits
+    once.  The seeding half is read off the history note, which names the node
+    each pattern's starting values actually came from.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(
+        SequentialRefinement(structure, ins, history=tmp_path / "h"),
+        {"p000": [("converged", 0.10)],
+         "p001": [("diverged", 0.001)],
+         "p002": [("converged", 0.10)]})
+    series = runner.fit(thermal_patterns[:3], plan=_CHEAP, reseed_factor=1.0)
+
+    failed = series[1]
+    assert failed.status == "diverged"
+    assert failed.rungs_tried == ["warm", "warm_staged", "cold"]   # all of them
+    unrecovered = [d for d in series.diagnostics
+                   if d.code == "SEQUENTIAL_UNRECOVERED"]
+    assert len(unrecovered) == 1
+    assert unrecovered[0].level == "warning"
+    assert unrecovered[0].where == ["p001"]
+    assert "seeded no successor" in unrecovered[0].message
+
+    # the median never saw it: pattern 2 fitted once, against a median of 0.10
+    assert series[2].rungs_tried == ["warm"]
+
+    # ... and neither did the warm start: pattern 2 chains from pattern 0
+    roots = [t.root for t in runner.trees_]
+    assert roots[2].notes["series_warm_start_node"] == series[0].node_id
+    assert roots[2].notes["series_warm_start_tree"] == series[0].tree_id
+    # the failure is still reported in full — it was measured, and dropping it
+    # would make the trajectory look like a shorter series
+    assert len(series) == 3 and failed.statistics is not None
+
+
+def test_every_rung_writes_its_own_history_log(thermal_patterns, tmp_path):
+    """One header per file, which the cold restart used to break.
+
+    Three attempts on one pattern are three separate fits of the same data —
+    same ``tree_id``, since that is the data fingerprint — and the JSONL format
+    is append-only, so sharing a file would interleave two trees' nodes under
+    whichever header was written last.  Same reason the backward pass has its
+    own suffix.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(
+        SequentialRefinement(structure, ins, history=tmp_path / "h"),
+        {"a": [("converged", 0.10)],
+         "b": [("converged", 0.30), ("converged", 0.28), ("converged", 0.05)]})
+    runner.fit(thermal_patterns[:2], plan=_CHEAP, labels=["a", "b"],
+               reseed_factor=1.0)
+
+    for name in ("a.jsonl", "b.jsonl", "b.warm_staged.jsonl", "b.cold.jsonl"):
+        log = tmp_path / "h" / name
+        assert log.exists(), name
+        text = log.read_text(encoding="utf-8").replace(" ", "")
+        assert text.count('"record":"header"') == 1, name
+        assert pr.RefinementTree.load(log).header.tree_id
+    # the kept fit is the cold one, and its log is the one the entry names
+    assert not (tmp_path / "h" / "a.cold.jsonl").exists()
+
+
+def test_a_restart_stamps_which_rung_it_is(thermal_patterns):
+    """One added ``data`` key, on restarts only — and not one new ``EventKind``.
+
+    ``series_rung`` has to appear on the escalation attempts and *not* on a
+    pattern's first one: the first pattern of a chain runs the cold rung without
+    being a restart, so stamping it would relabel an ordinary cold start as a
+    rescue — and ``series_cold``, which WP-1016 defined as exactly that, would
+    change meaning.  A changed meaning is an ``EVENT_SCHEMA_VERSION`` bump; an
+    added field is not.
+    """
+    from pxrdref.history.events import EVENT_SCHEMA_VERSION, EventKind
+
+    structure, ins = _start_models()
+    runner = _dictate(SequentialRefinement(structure, ins),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("converged", 0.30), ("converged", 0.28),
+                                ("converged", 0.05)]})
+    seen = []
+    runner.fit(thermal_patterns[:2], plan=_CHEAP, reseed_factor=1.0,
+               events=seen.append)
+
+    assert {e["v"] for e in seen} == {EVENT_SCHEMA_VERSION}
+    assert {e["kind"] for e in seen} <= set(get_args(EventKind))
+    starts = [e["data"] for e in seen if e["kind"] == "fit_start"]
+    assert [(d["series_index"], d.get("series_rung")) for d in starts] == [
+        (0, None), (1, None), (1, "warm_staged"), (1, "cold")]
+    # ``series_cold`` stays what it was: present, and true, on a cold restart
+    assert [d.get("series_cold") for d in starts] == [None, None, None, True]
+
+
+def test_a_cancel_mid_ladder_keeps_the_best_complete_attempt(thermal_patterns):
+    """A rung that never finished is not evidence against the one that did.
+
+    WP-1016's rule for the cold restart, one rung generalised: the abandoned
+    attempt left no node and no commit, so what stands is the best *complete*
+    fit of that pattern, and the walk ends there.
+    """
+    structure, ins = _start_models()
+    runner = _dictate(SequentialRefinement(structure, ins, history=True),
+                      {"p000": [("converged", 0.10)],
+                       "p001": [("converged", 0.30)]})
+    token = CancelToken()
+
+    def watch(event):
+        if event["kind"] == "fit_start" and event["data"].get("series_rung"):
+            token.cancel()
+
+    series = runner.fit(thermal_patterns[:3], plan=_CHEAP, reseed_factor=1.0,
+                        events=watch, cancel=token)
+
+    assert len(series) == 2                      # pattern 2 was never started
+    kept = series[1]
+    assert kept.rungs_tried == ["warm"] and kept.rung == "warm"
+    assert kept.statistics.rwp == pytest.approx(0.30)
+    assert kept.node_id is not None              # a complete fit, with a node
+    assert "SEQUENTIAL_CANCELLED" in [d.code for d in series.diagnostics]
 
 
 # -- the discontinuity fence ---------------------------------------------
@@ -384,11 +642,56 @@ def test_write_csv(thermal_series, tmp_path):
     out = tmp_path / "series.csv"
     thermal_series.write_csv(out, paths=["phases.0.cell.a"])
     lines = out.read_text(encoding="utf-8").strip().splitlines()
-    assert lines[0].split(",") == ["index", "label", "T (K)", "status", "rwp",
-                                   "gof", "phases.0.cell.a",
+    assert lines[0].split(",") == ["index", "label", "T (K)", "status", "rung",
+                                   "rwp", "gof", "phases.0.cell.a",
                                    "phases.0.cell.a_esd"]
     assert len(lines) == len(thermal_series) + 1
     assert lines[1].split(",")[1] == "300K"
+
+
+def test_the_rung_reaches_json_the_table_and_the_plot(tmp_path):
+    """The bookkeeping is only useful where a reader will meet it.
+
+    Built by hand rather than fitted: what is under test is that the three
+    reporting surfaces carry the ladder's answer, not that the ladder produces
+    one (the tests above do that), and a synthetic series can hold the two rows
+    that matter — a rescued point and one nothing rescued — side by side.
+    """
+    import matplotlib.pyplot as plt
+
+    series = SeriesResult(entries=[
+        SeriesEntry(index=0, label="p0", rung="cold", rungs_tried=["cold"],
+                    statistics=Statistics(rwp=0.1, rp=0.1, rexp=0.05, chi2=1.0,
+                                          gof=1.0, n_points=10,
+                                          n_free_parameters=1),
+                    parameters=[RefinedParameter(path="phases.0.cell.a",
+                                                 value=4.0, stderr=1e-4)]),
+        SeriesEntry(index=1, label="p1", rung="cold", reseeded=True,
+                    rwp_warm=0.4, rungs_tried=["warm", "warm_staged", "cold"],
+                    parameters=[RefinedParameter(path="phases.0.cell.a",
+                                                 value=4.1, stderr=1e-4)]),
+        SeriesEntry(index=2, label="p2", status="diverged", rung="warm",
+                    rungs_tried=["warm", "warm_staged", "cold"],
+                    parameters=[RefinedParameter(path="phases.0.cell.a",
+                                                 value=9.9, stderr=1e-4)]),
+    ])
+
+    back = SeriesResult.model_validate(json.loads(series.model_dump_json()))
+    assert [e.rung for e in back] == ["cold", "cold", "warm"]
+    assert back[2].rungs_tried == ["warm", "warm_staged", "cold"]
+
+    header, rows = back.to_table(paths=["phases.0.cell.a"])
+    assert header[3:5] == ["status", "rung"]
+    assert [row[4] for row in rows] == ["cold", "cold", "warm"]
+
+    # the diverged point is crossed out, the rescued one ringed: a ring means
+    # "good fit, different starting model", a cross means "not a measurement"
+    fig = back.plot(["phases.0.cell.a"])
+    markers = [line.get_marker() for line in fig.axes[0].lines]
+    assert markers.count("x") == 1 and markers.count("o") >= 1
+    fig.savefig(tmp_path / "traj.png")
+    plt.close("all")
+    assert (tmp_path / "traj.png").stat().st_size > 5_000
 
 
 def test_plot_trajectory_writes_a_png(thermal_series, tmp_path):

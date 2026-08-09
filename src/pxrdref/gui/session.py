@@ -2416,16 +2416,20 @@ def _series_stage_name(data: dict, index: Any) -> str:
     The label alone would be a lie twice over on the same number: a
     ``direction="both"`` run walks every pattern a second time in reverse (so the
     counter goes 1…N and back to 1, which reads as a restart unless the pass is
-    named), and a reseeded pattern is fitted **twice** by design — the warm fit
-    and the cold restart that judges it.  Both facts are already on the event's
-    open ``data``; this is the two of them made readable.
+    named), and a rejected pattern is fitted **up to three times** by design —
+    the warm fit, then each rung of the escalation ladder that judges it
+    (WP-1051).  Both facts are already on the event's open ``data``; this is the
+    two of them made readable.
+
+    The rung is read off ``series_rung``, which the chain stamps on restarts
+    only, so a pattern's first attempt is unsuffixed — including the first
+    pattern of a chain, which runs the cold rung without being a rescue.
     """
     name = str(data.get("series_label") or index)
     if data.get("series_pass") == "backward":
         name += " (backward)"
-    if data.get("series_cold"):
-        name += " (cold restart)"
-    return name
+    restart = {"warm_staged": " (staged restart)", "cold": " (cold restart)"}
+    return name + restart.get(str(data.get("series_rung") or ""), "")
 
 
 def _summarize_series(result, token) -> dict:

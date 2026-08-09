@@ -93,7 +93,23 @@ describe("console lines", () => {
       series_pass: "backward" }))).toContain("[T400 2/3 \u21a9]");
     expect(consoleLine(event(7, "fit_start", {
       series_index: 1, series_label: "T400", series_n: 3,
-      series_pass: "forward", series_cold: true }))).toContain("[T400 2/3 \u2744]");
+      series_pass: "forward", series_cold: true,
+      series_rung: "cold" }))).toContain("[T400 2/3 \u2744]");
+  });
+
+  it("gives each rung of the ladder its own glyph, and the first attempt none", () => {
+    // three attempts on one pattern (WP-1051), so the transcript has to say
+    // which is which \u2014 and `series_rung` rides on a restart only, which is what
+    // keeps an ordinary first fit unmarked
+    const at = (data: Record<string, unknown>) => consoleLine(event(8, "fit_start", {
+      series_index: 0, series_label: "T300", series_n: 3,
+      series_pass: "forward", ...data }));
+    expect(at({})).toContain("[T300 1/3]");
+    expect(at({ series_rung: "warm_staged" })).toContain("[T300 1/3 \u2191]");
+    expect(at({ series_rung: "cold", series_cold: true }))
+      .toContain("[T300 1/3 \u2744]");
+    // and the key itself never lands in the body as a raw field
+    expect(at({ series_rung: "warm_staged" })).not.toContain("series_rung");
   });
 
   it("leaves an unstamped event exactly as it was", () => {
