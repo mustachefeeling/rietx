@@ -556,6 +556,114 @@ multi-scan file reopens on the scan it was created from.
 
 ## Handover log
 
+- **2026-08-09 (session 5) — WP CLOSED, tasks 13-17.** The Bruker binaries,
+  the instrument hint, the scan picker and the last of the docs, on branch
+  `wp1047-vendor-formats` (6 commits, 24 off `main` @ `fad8a6d`). No
+  `### Inherited` to prune — this WP never had one.
+
+  **Done.** (13) Bruker `.raw` **v4**, (14) `.raw` **v3** with **v1 and v2
+  refused**, (15) `suggest_instrument`, (16) the scan picker, (17) the docs and
+  the close — plus one near-miss found by re-reading the reader.
+
+  **Risk 3 is retired, and it changed what the acceptance line may claim.**
+  "Scrambled" means the *intensities*: lag-1 autocorrelation **0.016** where a
+  profile stepped at 0.0105° is near one, `std(diff)/std(y) = 1.403 ≈ √2`,
+  **32.5 %** of values negative, the exact minimum repeated **1069** times — and
+  FAIRmat's own notes quote a maximum (11291.77) the shipped file does not have
+  (11330.587), so the file in that repo is not the file they validated. The
+  **header** is real and intact. Three tests pin the scrambling itself, so a
+  successor cannot read "7134 real points" off the header and write an
+  acceptance row against noise.
+
+  **The v4 header is where both other open readers are demonstrably wrong**, and
+  both bugs are now asserted against: GSAS-II reads `datumSize` and then strides
+  four bytes anyway (FAIRmat hard-codes the same stride as "interleaved float32
+  pairs"), and GSAS-II counts `b'2Theta'` to find its banks — which occurs
+  **twice** in this one-range file, as a drive record *and* as the scan-axis
+  record. Hence: stride by the declared datum, walk to EOF, never count.
+
+  **v3's `+40` / `int32@+256` ambiguity turned out not to be one.** Looking for
+  the second description risk 5 demands turned up two — `bracerino/xrd-file-converter`
+  (MIT) and `reductus/reductus` (**Unlicense**, a field-by-field transcription of
+  Bruker's own header definition) — and the second names the two fields the other
+  readers patch around: `data_record_length` (+252) is v3's datum size and
+  `total_size_of_extra_records` (+256) is the chain between header and data. With
+  those the offset is arithmetic. Three descriptions agree on every offset.
+
+  **Scope was narrowed once, deliberately: v2 is refused rather than written.**
+  GSAS-II describes it and nothing corroborates that — the two permissive readers
+  do v3 and v4 only, and the single v2 attempt found carries **no licence**, is
+  visibly heuristic ("try v3 as a fallback"; "if n_ranges > 100, n_ranges = 1")
+  and disagrees with GSAS-II about where the first block starts. One
+  uncorroborated description with no fixture is the confidently-wrong parse this
+  WP exists to prevent. Task 14's text records the change in place; the
+  `io/formats/` seam makes v2 a one-module follow-up if a real file appears.
+
+  **What stands in for v3's missing fixture**, and the reason it is shippable:
+  `data_record_length == 4 + 8·popcount(varying_parameters)` — two fields an
+  instrument writes from one fact, which a header read at the wrong offset
+  cannot satisfy — plus the requirement that the declared ranges account for the
+  file to within one datum. Strict on purpose: a visible refusal is recoverable,
+  a silent mis-parse is not. `tests/writers_xrd.py` (the module the WP named,
+  written this session) packs both versions from its **own literal** offset
+  table, so writer and reader cannot drift together.
+
+  **The near-miss, found by re-reading rather than by a test.** A v4 file whose
+  `ScanType` said "Rocking Curve" but whose drive records were not decisive was
+  *assumed* 2θ with the assumption merely reported — yet the file had told us its
+  abscissa. Both versions now share one scan-type table (`_SCAN_TYPES` by name,
+  `_V3_SCAN_CODES` its numeric spelling), a recognisable non-2θ type is refused,
+  and only an *unfamiliar* one is assumed.
+
+  **Counts**, `[dev,jax,torch]` venv, darwin. Fast selection 2177 → **2227
+  passed, 5 skipped**: **+50** with no new skips, and the decomposition is
+  exact — task 13 **+19**, task 14 **+12**, the truncation harness **+5** (one
+  real fixture × 3 rows, two synthetic arms), tasks 15-16 **+12**, and **+2**
+  from the GUI dispatch matrix going from two rows to four. Task 17 added
+  **zero**: its capabilities spot-checks went inside an existing test function.
+  Full selection **2334 passed, 6 skipped**, measured at `7ebf8a4` — i.e. before
+  the near-miss commit, which adds no tests and whose fast selection re-measured
+  identically at `c213441` (2227 + 5). It closes exactly against the previous
+  session: 2284 + 6, plus the fast delta of 50, is 2334 + 6. vitest 401 →
+  **405**, svelte-check clean, ruff clean. The WP's five-file acceptance
+  selection: **315 passed**. **Dist rebuilt** — unlike the last three sessions,
+  this one *did* change the payload shape (`instrument_hint`) and add a route.
+
+  **Wall clock**, as a range: the fast selection ran 180 s on a quiet machine and
+  354 s while other work shared it; the full selection 28:36, one measurement and
+  a *loaded* one (two acceptance-selection runs overlapped it).
+
+  **In flight: nothing** — tree clean, pushed, all 17 tasks checked, both
+  selections green.
+
+  **Next**: this WP is closed. ROADMAP's focus now points at **1003 (API freeze
+  + PyPI)**, whose `### Inherited` carries **twelve** points from here — three of
+  them added this session: `suggest_instrument`'s shape (it returns a *preset
+  spec*, so freezing it freezes `WAVELENGTH_RTOL` and the three-candidate match),
+  `GET /api/upload/pattern/scans` being the first non-POST upload route, and the
+  load-bearing **zero** in `wavelength_alpha2`.
+
+  **Gotchas for a successor.**
+  - **The `.raw` fixture proves structure and metadata, never values.** If a
+    future acceptance row wants a real Bruker binary, it needs a different file.
+  - **The attenuator answer still cannot be borrowed across vendors** — five
+    formats, three answers. `.raw` carries none, so nothing changed there.
+  - **`wavelength_alpha2` now distinguishes recorded-zero from absent**, and the
+    distinction is present-vs-absent inside a `dict[str, str]`. It works and it
+    is tested, but it is exactly the kind of thing the freeze should bless
+    explicitly or replace with a typed field (WP-1003 point 12).
+  - **`suggest_instrument`'s contradiction test is one line and easy to weaken.**
+    It refuses to suggest when a file names an anode *and* gives a wavelength
+    that matches no anode — not only when it matches a different one. Dropping
+    that second case would silently restore guessing.
+  - **The scan-type tables have one source each** (v4's strings from three
+    examples, v3's enum from `reductus`). An unfamiliar entry is deliberately
+    *assumed and reported*, never refused; a wrong refusal on a real powder scan
+    would be the more expensive mistake.
+  - Two real files were downloaded but **not** vendored, and what they
+    established is in `tests/data/README.md`: nothing new this session, but the
+    v3 note there is the only place v3's design is checkable at all.
+
 - **2026-08-09 (session 4)** — **tasks 10-12 landed**, the three container
   formats, on branch `wp1047-vendor-formats` (7 commits, 18 off `main` @
   `fad8a6d`). No `### Inherited` to prune — the WP has never had one.

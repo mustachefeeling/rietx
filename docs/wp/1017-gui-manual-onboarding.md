@@ -65,6 +65,23 @@ the preview's diagnostics strip is no longer only about repairs — it is
 sometimes about a 188× correction. That is the sharper version of the teachable
 moment above, and worth the chapter's one worked example.
 
+**Updated 2026-08-09 (1047 closed).** **Ten** formats read now — Bruker `.raw`
+joined the list — so the "quote `capabilities()`" advice above is the whole of
+what a chapter should say about *which*. Two additions the pattern step itself
+grew, both worth a sentence rather than a screenshot:
+
+- the step **pre-fills the instrument form from the file's own header** when it
+  can (anode, and goniometer radius where the file records one), with a line
+  saying *why* it chose what it chose. The teachable point is the case where it
+  says nothing: a header whose anode name and wavelength disagree gets **no**
+  suggestion, because a wrong pre-fill looks like it was read. That is the same
+  lesson as the diagnostics strip, one control over;
+- a multi-scan file's `scan` control is now a **picker with labels** rather than
+  a number box, and the labels arrive from their own route when the control is
+  opened. Worth a sentence because the reason is visible to a student: "scan 1"
+  says nothing, and a vendor file commonly holds a whole session rather than a
+  pattern.
+
 **From [1050](1050-suggest-next-parameter.md), closed 2026-08-08 — the
 "what next?" panel this WP's non-goal deferred now has its engine.**
 `Refinement.suggest()` is read-only (no history node, no mutation), so a
