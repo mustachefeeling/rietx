@@ -157,6 +157,13 @@ The known-cell scoreboard (`tests/indexing_gallery.py`, regenerated from the
 acceptance run): **7 first / 2 present → 8 first / 1 present**, 0 absent, 0
 refused over 9.
 
+`tests/test_acceptance_indexing.py`: **44 passed in 21:17**, darwin/arm64,
+`[dev,jax,torch]` (the run *before* the fap row was rewritten was 43 passed /
+1 failed in 19:12 — and that failure is what found the scoreboard move). Fast
+suite **2234 passed / 5 skipped**, 3:01-3:57 across two runs, +7 tests and no
+new skip. `ruff` clean; `npm --prefix gui test` 405 passed, `run check` 0
+errors.
+
 ## References
 
 - `src/pxrdref/indexing/engines.py` — `DEFAULT_MAX_CANDIDATES`, `rank_candidates`.
