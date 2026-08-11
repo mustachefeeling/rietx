@@ -341,7 +341,9 @@ def test_e1_zero_shift_loop(truth):
     disp = episode.ref.fitted_instrument.geometry.sample_displacement.value
     assert disp == 0.0, disp
 
-    # the accepted branch is the best leaf (within the keep threshold)
+    # the accepted branch is the best leaf (within the keep threshold), and it
+    # sits at the noise floor — the χ² of the *truth* model on this noise
+    assert episode.final_chi2 <= 1.05 * _truth_chi2(structure, ins, data)
     stats_leaves = [n.metrics.statistics.chi2
                     for n in episode.ref.history.leaves()
                     if n.metrics.statistics is not None]
@@ -389,8 +391,9 @@ def test_e2_sample_displacement_loop(truth):
         episode.accepted, episode.rejected, episode.stop_reason)
     disp = episode.ref.fitted_instrument.geometry.sample_displacement.value
     assert disp == pytest.approx(0.0, abs=0.005), disp
-    # the collinear rival was never touched
+    # the collinear rival was never touched, and the fit is at the noise floor
     assert episode.ref.fitted_instrument.zero_shift.value == 0.0
+    assert episode.final_chi2 <= 1.05 * _truth_chi2(structure, ins, data)
 
     _assert_dag_hygiene(episode)
     _assert_prediction_band(episode)
@@ -453,10 +456,12 @@ def test_e3_width_error_loop(truth):
     # the planted parameter was never freed: byte-identical to the injection
     assert episode.ref.fitted_instrument.profile.w.value == 2.0e-3
     # the proxy correction is real but partial (measured 15.1 → 4.3): it must
-    # clearly improve on the bootstrap and clearly miss the truth floor
+    # clearly improve on the bootstrap and clearly miss the noise floor the
+    # truth model sets (≈1.01) — both halves are the finding
     assert episode.final_chi2 < 0.5 * episode.bootstrap_chi2, (
         episode.final_chi2, episode.bootstrap_chi2)
-    assert episode.final_chi2 > 2.0, episode.final_chi2
+    assert episode.final_chi2 > 2.0 * _truth_chi2(structure, ins, data), (
+        episode.final_chi2)
 
     _assert_dag_hygiene(episode)
     _assert_prediction_band(episode)
@@ -502,6 +507,7 @@ def test_e4_scale_error_loop(truth):
         episode.accepted, episode.rejected, episode.stop_reason)
     scale = episode.ref.fitted_structure.phases[0].scale.value
     assert scale == pytest.approx(4e-4, rel=0.02), scale
+    assert episode.final_chi2 <= 1.05 * _truth_chi2(structure, ins, data)
 
     _assert_dag_hygiene(episode)
     _assert_prediction_band(episode)
