@@ -11,6 +11,32 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1053](1053-agent-in-the-loop-eval.md), closed 2026-08-11 — one
+serialisation contract the freeze should confirm as deliberate, with its
+measured consequence.** `_build_result` serialises into
+`RefinementResult.parameters` only entries with `vary or tie` (refine.py,
+`_build_result`'s entry loop), so a **fixed** parameter is *absent*, not
+present at its held value, and `RefinedParameter.initial` is never populated
+on this path. WP-1053's scorer leaned on the absence deliberately (absent ⇒
+never freed ⇒ still the start value — decidable because its shim fixes the
+start), and the pilot measured the consumer-side effect: an agent reading
+`parameters` cannot see that a held parameter *exists*, so a planted
+sample-displacement survived 16/16 runs invisibly behind χ²_red ≈ 1.01.
+Freeze the vary-or-tie filter as the contract (a client wanting the full
+table has `Refinement.parameters()`, WP-1004) or widen it — but decide it,
+don't inherit it; and if `initial` stays unpopulated on the fit path, the
+field's docstring should say who does populate it.
+
+**From [1052](1052-report-loop-eval.md), closed 2026-08-11 (recorded here at
+the 1053 close, which retired the focus text that carried it) — the
+`predict_then_verify` contract is pinned by an executable consumer, so the
+freeze confirms rather than re-derives it.** `tests/test_report_loop.py`
+runs AGENT_PROTOCOL §9's canonical loop closed: accept on >1 % χ²
+improvement, a rejection leaves a dead leaf and a bit-untouched parent, the
+shared tree's HEAD *is* the verify node after acceptance, and
+`VerificationOutcome` carrying **no node id** is measured sufficient — the
+freeze can confirm that omission as deliberate.
+
 **From [1051](1051-sequential-escalation.md), closed 2026-08-09 — four series
 surfaces moved, all additive, and one of them is a format rather than a field.**
 
