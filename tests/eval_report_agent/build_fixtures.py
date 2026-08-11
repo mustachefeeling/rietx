@@ -251,7 +251,9 @@ You are operating the `pxrdref` Rietveld refinement package through its one
 JSON tool call, `agent.refine_json`.  This directory is your workspace:
 
 - `episode.json` — the fixed request core (structure, instrument, pattern).
-  Read-only: the shim merges your overlay onto it; you never edit it.
+  Read-only: the shim merges your overlay onto it; you never edit it.  It is
+  mostly bulk pattern arrays — do not read it whole; if you need a metadata
+  field (phase, wavelength), query it selectively (e.g. `jq`/`head`).
 - `overlay.json` — yours to write.  Allowed keys, each optional:
   - `"plan"`: a preset name, or an explicit stage list
     `{{"stages": [{{"name": "...", "turn_on": ["<path glob>", ...]}}, ...]}}`
@@ -269,7 +271,10 @@ JSON tool call, `agent.refine_json`.  This directory is your workspace:
 
   The response prints to stdout (bulk curve arrays elided; every parameter,
   statistic and diagnostic{report_clause} is intact) and is appended to
-  `calls.jsonl`.
+  `calls.jsonl`.  A call usually returns in seconds, but a refinement that
+  diverges can take 2-3 minutes before it fails — allow a 5-minute timeout.
+  A failed call returns `{{"ok": false, "error": ...}}`; that is information,
+  not a harness bug.
 - Budget: plan on at most 6 calls; the shim hard-stops at {max_calls}.  Make
   at least one call — an answer with no refinement behind it scores zero.
 
