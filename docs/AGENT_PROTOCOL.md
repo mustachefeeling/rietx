@@ -871,6 +871,12 @@ that does not materialise means the linearisation was invalid there, which is
 usually a peak far enough off that it should have been re-detected rather than
 shifted.
 
+This loop is executable, not aspirational: `tests/test_report_loop.py` runs it
+closed — report → top surviving suggestion → verify → checkout/rollback →
+re-report — from eight planted-cause starts and measures planted-parameter
+recovery, stopping behaviour and rollback hygiene against the
+`mccusker_default` preset (WP-1052).
+
 Two properties worth relying on:
 
 - **Node metrics are as-optimised**, measured on a model frozen at the values
