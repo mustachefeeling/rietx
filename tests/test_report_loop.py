@@ -330,3 +330,54 @@ def test_e1_zero_shift_baseline(truth):
     ref = pr.Refinement(structure, start)
     ref.fit(data, plan="mccusker_default")
     assert ref.fitted_instrument.zero_shift.value == pytest.approx(0.0, abs=0.002)
+
+
+# ----------------------------------------------------------------------
+# E2 — sample displacement: the cause the baseline cannot reach
+# ----------------------------------------------------------------------
+def test_e2_sample_displacement_loop(truth):
+    """A −0.02 mm displacement (cosθ signature, separable from a constant
+    zero over 18–125° 2θ): the report names ``refine_sample_displacement``
+    and the loop frees exactly that."""
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.geometry.sample_displacement.value = -0.02
+
+    episode = _run_report_loop(structure, start, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    assert _actions_in_order(report0)[0] in POSITION_FAMILY, (
+        _actions_in_order(report0))
+
+    assert episode.accepted == ["refine_sample_displacement"], (
+        episode.accepted, episode.rejected, episode.stop_reason)
+    disp = episode.ref.fitted_instrument.geometry.sample_displacement.value
+    assert disp == pytest.approx(0.0, abs=0.005), disp
+    # the collinear rival was never touched
+    assert episode.ref.fitted_instrument.zero_shift.value == 0.0
+
+    _assert_dag_hygiene(episode)
+    _plot(episode, "report_loop_e2")
+
+
+def test_e2_sample_displacement_baseline(truth):
+    """The structural miss: no ``mccusker_default`` stage frees
+    ``instrument.geometry.sample_displacement`` (only the ``lab_*`` plans
+    do), so the planted cause survives the whole preset untouched.
+
+    Measured contrast, which is the point of this episode: the preset still
+    lands at χ²_red ≈ 1.01 — its ``zero`` stage absorbs the cosθ shift with a
+    compensating zero_shift ≈ −0.011° (truth 0) while the displacement stays
+    wrong — so the fit *looks* as good as the loop's while carrying two wrong
+    parameters.  Rwp alone cannot distinguish them; the parameter values do.
+    """
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.geometry.sample_displacement.value = -0.02
+
+    ref = pr.Refinement(structure, start)
+    ref.fit(data, plan="mccusker_default")
+    assert ref.fitted_instrument.geometry.sample_displacement.value == -0.02
+    # the compensation is real: zero was dragged off truth to cover for it
+    assert abs(ref.fitted_instrument.zero_shift.value) > 0.005
