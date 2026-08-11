@@ -24,6 +24,8 @@ cause**, never "report-driven refinement is cheaper".
 Placement: fast suite, deliberately **no** ``xdist_group`` — the shared
 ``_truth()`` is cheap synthesis, not a fitted fixture, so grouping the
 episodes would create a serial group rivalling the whole fast-suite wall.
+The two real-data SRM 660c episodes are the exception: slow-marked and in
+the ``srm660c`` group, because they consume the shared session fixture.
 """
 
 from dataclasses import dataclass, field
@@ -696,3 +698,88 @@ def test_e8_collinear_window_applies_no_position_action():
     _assert_dag_hygiene(episode)
     _assert_prediction_band(episode)
     _plot(episode, "report_loop_e8")
+
+
+# ----------------------------------------------------------------------
+# stretch: the loop off synthetic — two real-data episodes, one honest pair
+# ----------------------------------------------------------------------
+@pytest.mark.slow
+@pytest.mark.xdist_group("srm660c")
+def test_srm660c_degraded_zero_is_refused(srm660c_baseline):
+    """Real data, and the cap holds where the true cause is *in* the capped
+    set: the NIST SRM 660c converged state (CuKα doublet, measured esd
+    column) with its zero knocked to +0.01° — and the loop refuses to act.
+
+    Measured (2026-08-11): every position action comes back at or under the
+    0.3 collinearity cap (displacement at exactly 0.3, zero at 0.254) — on
+    this pattern a constant shift is genuinely not separable from the
+    protocol's fitted −0.08 mm displacement, unlike the synthetic 18–125°
+    fixture where the same injection separates cleanly.  So the loop stops at
+    round 0 and χ²_red stays at the degraded 16.1: **safe, not complete**.  A
+    preset's zero/displacement stage would fix this start; the loop's refusal
+    is the never-act-on-a-non-separable-attribution rule paying its real
+    price, and the report hands the capped pair (with alternatives) to a
+    caller who can hold one of the two — AGENT_PROTOCOL §6, closed-loop.
+
+    (``add_impurity_phase`` at 0.4 outranks the capped family — the shift's
+    derivative-shaped residuals read as unindexed lines — but it is advice,
+    so selection skips it; on synthetic starts the same false positive never
+    outranks the planted family.)
+    """
+    data, baseline_ref, _ = srm660c_baseline
+    structure = baseline_ref.structure.model_copy(deep=True)
+    start = baseline_ref.instrument.model_copy(deep=True)
+    start.zero_shift.value = 0.01
+
+    episode = _run_report_loop(structure, start, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    position = [a for a in report0.suggested_actions
+                if a.kind in POSITION_FAMILY]
+    assert position, "the position family must at least be suggested"
+    for action in position:
+        assert action.confidence <= CONFIDENCE_FLOOR, action
+
+    assert episode.accepted == [] and episode.rejected == [], (
+        episode.accepted, episode.rejected)
+    assert episode.stop_reason == "no_action", episode.stop_reason
+    # nothing moved: the injection survives, bit for bit
+    assert episode.ref.fitted_instrument.zero_shift.value == 0.01
+    assert episode.final_chi2 == episode.bootstrap_chi2
+
+    _assert_dag_hygiene(episode)
+    _plot(episode, "report_loop_srm660c_zero")
+
+
+@pytest.mark.slow
+@pytest.mark.xdist_group("srm660c")
+def test_srm660c_degraded_scale_loop(srm660c_baseline):
+    """And the loop *closes* on real data when the cause is separable: the
+    same converged state with scale ×0.90 — ``refine_scale`` top-ranked
+    (0.85), accepted (χ²_red 6.90 → 3.48, this protocol's own converged
+    floor), the scale recovered to ppm of the fixture's converged value, and
+    a clean stop.  Together with the zero episode above this is the honest
+    real-data pair: refusal where the report cannot separate, recovery where
+    it can."""
+    data, baseline_ref, _ = srm660c_baseline
+    structure = baseline_ref.structure.model_copy(deep=True)
+    truth_scale = baseline_ref.structure.phases[0].scale.value
+    structure.phases[0].scale.value = truth_scale * 0.90
+    start = baseline_ref.instrument.model_copy(deep=True)
+
+    episode = _run_report_loop(structure, start, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    assert _actions_in_order(report0)[0] in SCALE_FAMILY, (
+        _actions_in_order(report0))
+
+    assert episode.accepted == ["refine_scale"], (
+        episode.accepted, episode.rejected, episode.stop_reason)
+    scale = episode.ref.fitted_structure.phases[0].scale.value
+    assert scale == pytest.approx(truth_scale, rel=0.01), (scale, truth_scale)
+
+    _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
+    _plot(episode, "report_loop_srm660c_scale")
