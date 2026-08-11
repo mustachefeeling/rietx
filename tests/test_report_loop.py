@@ -250,6 +250,30 @@ def _assert_dag_hygiene(episode: EpisodeResult) -> None:
             f"({parent_row['chi2']:.4g}) — that should have been accepted")
 
 
+#: measured pred/obs Δχ² ratios on the first accepted action of E1–E4:
+#: 0.79, 0.85, 1.16, 0.79 (2026-08-11, this fixture).  The estimate covers
+#: only the gated regions and assumes the linear model exact, so a broad band
+#: is the honest pin — the assertion is "the prediction is an estimate, not a
+#: fabrication", not "the estimate is accurate".
+PREDICTION_BAND = (0.3, 3.0)
+
+
+def _assert_prediction_band(episode: EpisodeResult) -> None:
+    """predicted/observed Δχ² on the **first** accepted action only —
+    ``expected_delta_chi2`` is one number per report, stamped on every
+    Layer-1 action, so later rounds' predictions describe misfit the earlier
+    accepted action already removed.  Skipped when the report carried no
+    prediction (texture actions; abstained reports)."""
+    outcome = episode.first_accepted
+    if outcome is None or outcome.predicted_delta_chi2 is None:
+        return
+    ratio = outcome.predicted_delta_chi2 / outcome.observed_delta_chi2
+    lo, hi = PREDICTION_BAND
+    assert lo <= ratio <= hi, (
+        f"predicted {outcome.predicted_delta_chi2:.4g} vs observed "
+        f"{outcome.observed_delta_chi2:.4g} (ratio {ratio:.2f})")
+
+
 def _plot(episode: EpisodeResult, stem: str) -> None:
     """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
     low-angle zoom — Rwp hides locally-bad fits (house convention)."""
@@ -315,6 +339,7 @@ def test_e1_zero_shift_loop(truth):
         episode.final_chi2, min(stats_leaves))
 
     _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
     _plot(episode, "report_loop_e1")
 
 
@@ -358,6 +383,7 @@ def test_e2_sample_displacement_loop(truth):
     assert episode.ref.fitted_instrument.zero_shift.value == 0.0
 
     _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
     _plot(episode, "report_loop_e2")
 
 
@@ -381,3 +407,105 @@ def test_e2_sample_displacement_baseline(truth):
     assert ref.fitted_instrument.geometry.sample_displacement.value == -0.02
     # the compensation is real: zero was dragged off truth to cover for it
     assert abs(ref.fitted_instrument.zero_shift.value) > 0.005
+
+
+# ----------------------------------------------------------------------
+# E3 — profile.w halved: Voigt compensation, and the emitter gap
+# ----------------------------------------------------------------------
+def test_e3_width_error_loop(truth):
+    """Peaks too narrow (w = 2e-3, truth 4e-3): the loop accepts a
+    width-family action and improves χ², but the planted parameter is never
+    freed — **the emitter gap, documented**.  ``_WIDTH_ACTIONS``
+    (report/layer2.py) maps width trends only onto ``phases.*.lor_size`` /
+    ``phases.*.lor_strain``; no ``refine_profile_widths`` emitter exists, so
+    a pure instrument-Gaussian width error is corrected *by proxy*: the
+    accepted ``refine_sample_size_broadening`` adds Lorentzian sample
+    broadening (Voigt compensation), which measured here takes χ²_red from
+    ≈15.1 to ≈4.3 — a real >2× improvement that stops well short of the ≈1.0
+    truth floor, because a Lorentzian FWHM cannot reproduce a Gaussian
+    variance deficit.  (`suggest()` *does* rank ``instrument.profile.w`` on
+    this state — the two methods' disagreement on instrument widths is real
+    and expected, WP-1050.)  A fix is its own decision, not this WP's.
+    """
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.profile.w.value = 2.0e-3
+
+    episode = _run_report_loop(structure, start, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    assert _actions_in_order(report0)[0] in WIDTH_FAMILY, (
+        _actions_in_order(report0))
+
+    assert episode.accepted, (episode.rejected, episode.stop_reason)
+    assert set(episode.accepted) <= WIDTH_FAMILY, episode.accepted
+    # the planted parameter was never freed: byte-identical to the injection
+    assert episode.ref.fitted_instrument.profile.w.value == 2.0e-3
+    # the proxy correction is real but partial (measured 15.1 → 4.3): it must
+    # clearly improve on the bootstrap and clearly miss the truth floor
+    assert episode.final_chi2 < 0.5 * episode.bootstrap_chi2, (
+        episode.final_chi2, episode.bootstrap_chi2)
+    assert episode.final_chi2 > 2.0, episode.final_chi2
+
+    _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
+    _plot(episode, "report_loop_e3")
+
+
+def test_e3_width_error_baseline(truth):
+    """The honest counter-finding, stated where the loop's win is stated:
+    ``mccusker_default`` **beats the loop on recovery** here.  Its
+    ``profile_w`` stage frees the planted parameter itself, so the baseline
+    lands w back at truth while the loop's proxy correction cannot — the
+    report localised the misfit to the width family but its emitters cannot
+    name the instrument Gaussian, and this arm is what keeps that gap from
+    reading as a loop success."""
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.profile.w.value = 2.0e-3
+
+    ref = pr.Refinement(structure, start)
+    ref.fit(data, plan="mccusker_default")
+    w = ref.fitted_instrument.profile.w.value
+    assert w == pytest.approx(4.0e-3, rel=0.20), w
+
+
+# ----------------------------------------------------------------------
+# E4 — scale ×0.90: the intensity-family accepted round
+# ----------------------------------------------------------------------
+def test_e4_scale_error_loop(truth):
+    """A 10 % scale deficit: ``refine_scale`` accepted, scale recovered to
+    truth, nothing wrong kept."""
+    structure, ins, data = truth
+    start = structure.model_copy(deep=True)
+    start.phases[0].scale.value = 4e-4 * 0.90
+
+    episode = _run_report_loop(start, ins, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    assert _actions_in_order(report0)[0] in SCALE_FAMILY, (
+        _actions_in_order(report0))
+
+    assert episode.accepted == ["refine_scale"], (
+        episode.accepted, episode.rejected, episode.stop_reason)
+    scale = episode.ref.fitted_structure.phases[0].scale.value
+    assert scale == pytest.approx(4e-4, rel=0.02), scale
+
+    _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
+    _plot(episode, "report_loop_e4")
+
+
+def test_e4_scale_error_baseline(truth):
+    """The preset's ``scale_bkg`` stage recovers it too — localisation
+    framing only, as for E1."""
+    structure, ins, data = truth
+    start = structure.model_copy(deep=True)
+    start.phases[0].scale.value = 4e-4 * 0.90
+
+    ref = pr.Refinement(start, ins)
+    ref.fit(data, plan="mccusker_default")
+    assert ref.fitted_structure.phases[0].scale.value == pytest.approx(
+        4e-4, rel=0.02)
