@@ -269,6 +269,19 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ✅ 2026-08-09 — three rungs, keep-best; a diverged pattern seeds nothing and joins no median | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ✅ 2026-08-11 — the §9 loop runs closed in CI; recovers what separates, refuses what does not, `src/` untouched | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ✅ 2026-08-11 — 48/48-run pilot: A/B null on outcomes; the bottleneck is when the report is read, not what it says | 1052 |
+| [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ⬜ | — |
+| [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ⬜ | — |
+| [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ⬜ | — |
+| [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ⬜ | — |
+| [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
+| [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
+
+**1054–1059 (2026-08-11) are the successor plan to 1053's pilot + the FitReport
+design review** (evidence over verdicts; non-ideal-data regimes; background and
+correlation blind spots — measurements dated in each WP's Context). 1054–1058
+are additive to the report/agent surface; their ordering against 1003's freeze
+is 1003's call (its `### Inherited` has the note), and 1059 re-measures the A/B
+once enough of them land.
 
 **1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
 and `suggest()` only *inform* a caller (the no-autopilot fence), then whether

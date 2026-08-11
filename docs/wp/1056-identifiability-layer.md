@@ -1,0 +1,167 @@
+# WP-1056 — Identifiability layer: correlations, soft modes, held-parameter exchangeability
+
+Milestone: v1.0 · Status: ⬜
+Depends on: —
+
+## Goal
+
+A `FitReport.identifiability` section carrying parameter-space evidence the report
+today has none of: the worst correlations with their paths, the softest modes of
+the scaled normal matrix as named parameter combinations, the esd-qualifying
+statistics quoted beside each other — and, the highest-ceiling piece, a
+**held-parameter exchangeability scan** that makes a *converged* fit say "this
+fitted zero is exchangeable with the held sample_displacement", which is the
+statement WP-1053's E2 (0/8) and E8 (0/8) rows failed for want of.
+
+## Context
+
+**Why the converged state is the target.** WP-1053's pilot (closed 2026-08-11)
+measured that every failed episode failed at a *good* fit: E2 failed 8/8 runs —
+the planted displacement never freed, verdict `converged` behind χ²_red ≈ 1.01
+(compensated by the fitted zero) — and E8's agents all answered `converged` (8/8)
+because the ambiguity
+evidence exists only in unconverged-state reports nobody generated. The ranked
+follow-up list (1053 memory/report §8, item 4) named a "converged-fit degeneracy
+layer" the highest-ceiling fix — the only item addressing E8.
+
+**Machinery that already exists** (nothing here derives new math, it surfaces
+computed numbers):
+
+- `run_least_squares` outcome carries the full **correlation matrix**;
+  `normal_covariance` (`optimize/statistics.py`) computes Cov = χ²_red·pinv(JᵀJ)
+  with the hermitian-eigensolve guard (pinned after a measured ρ = +2.75
+  pathology on WP-0502's fluorite fit — every |ρ| ≤ 1 exactly).
+- The `HIGH_CORRELATION` guard emits fired pairs; `RefinementResult` carries
+  `correlation_warnings` (strings). Fired-or-silent is a verdict; the section
+  carries the top-k values as evidence.
+- `Statistics` has `esd_inflation` (Bérar-Lelann) and `durbin_watson`.
+- The projection mechanic for exchangeability is
+  `optimize.statistics.background_absorption` generalised: project a **held**
+  parameter's Jacobian column onto the span of the *free* columns; R² → 1 means
+  the data cannot distinguish freeing it from what was fitted. The package
+  learned once already that pairwise ρ misses block effects (~0.2 pairwise while
+  the block absorbs ~46 %) — that lesson is why the scan is a projection, not a
+  correlation lookup.
+
+**What the papers add** (both read 2026-08-11, in the local corpus):
+
+- Watkin (2008), J. Appl. Cryst. 41, 491 — corpus `derived/2FSHUYQK/`. §3.8
+  eigenvalue filtering: the informative object is the *combination* (soft mode),
+  not the pair; his diagnostic signature of high correlation ("large spread of
+  values, normal mean") is invisible pairwise. His worked powder-relevant cases:
+  scale↔ADP always; occupancy↔ADP because scattering-factor and Debye-Waller
+  shapes coincide over a short Q range and *decorrelate only with resolution* —
+  identifiability is a property of the sampled range, exactly like the
+  template-collinearity finding one layer up. Also: Marquardt λ must be zero at
+  the final cycle for honest correlations — worth an assertion that our final
+  covariance is undamped.
+- Schwarzenbach et al. (1989), Acta Cryst. A45, 63 — corpus `derived/A7LFQSXQ/`.
+  Recommendation 8: scaling the covariance by GoF² is "highly questionable";
+  the package's stance (χ²_red scaling + Bérar-Lelann, both *reported* so they
+  can be divided out) becomes this section's stance — quote the ingredients
+  (raw χ²_red, inflation factor, DW) and let the consumer decide what the esds
+  mean. Also the **δR normal-probability plot** (Abrahams & Keve 1971), "a more
+  powerful descriptor than R", which compresses to two agent-friendly numbers:
+  slope and intercept of sorted Δ/σ against normal quantiles.
+- Prince, *Mathematical Techniques in Crystallography and Materials Science* —
+  **not in the corpus; request it** before finalising the soft-mode
+  presentation (ask-for-papers rule; do not re-derive).
+
+**The discriminator problem the spike must solve (found in planning review,
+2026-08-11).** Projection R² of a held column onto the free span is a property
+of the **design matrix over the sampled range**, not of the fit: cos θ
+(displacement) projects onto the constant (zero) direction at ~0.99 over any
+ordinary window — on a *clean* fit too. So raw exchangeability R² would fire on
+every report, clean references included, which is exactly the noise the
+acceptance forbids. The informative statement needs both halves: the direction
+is exchangeable (R² high) **and something significant is riding it** (the
+fitted partner — E2's compensating zero at −0.0075° — stands many σ from its
+null; a clean fit's zero ≈ 0 makes the exchange vacuous). The E8 soft mode has
+the same structure: the mode always exists; what matters is whether the fitted
+values along it are significant. The spike below measures E2 *and* the clean
+reference to pin the two-condition discriminator before any schema field is
+committed.
+
+**Held-parameter scan scope.** Not every held parameter — the aberration and
+scale families the Layer-2 template map already names (zero, displacement,
+transparency, cell; scale, biso; the instrument-profile terms), plus anything
+`mode_fixed`-held that a `ParameterRow` marks refinable-in-principle. Needs the
+final Jacobian *plus* columns for held candidates (one extra derivative-column
+evaluation per candidate at the converged values — bounded, and frozen-per-stage
+discreteness is untouched because nothing is refined). Carrier seam is shared
+with WP-1055 (whichever lands first builds the additive defaulted result field;
+the other imports — coordinate via `### Inherited`).
+
+**Interaction with WP-1003.** The vary-or-tie serialisation question (a held
+parameter is *absent* from `result.parameters`) is 1003's freeze decision and is
+not decided here; this section reports *about* held parameters by path, which is
+legal either way.
+
+## Non-goals
+
+- No autopilot: the section informs; freeing anything stays the caller's move
+  (the 1050 no-autopilot fence).
+- No change to esd computation or the Bérar-Lelann application.
+- No background-specific statistics — WP-1055 (shared carrier only).
+- No delivery-timing work — WP-1058.
+
+## Tasks
+
+- [ ] **De-risk spike, before any schema work** (user decision 2026-08-11): on
+      the E2-shaped fixture at convergence, compute the held-displacement
+      column (evaluate-only compile with the candidate freed; FD fallback) and
+      its projection R² onto the free span; same on the clean converged
+      reference. Record both R² values and the fitted-partner significances in
+      this file's handover. Go/no-go: the two-condition discriminator (R² high
+      **and** partner significant) separates E2 from the clean reference; if it
+      does not, stop and redesign before touching `FitReport`.
+- [ ] `FitReport.identifiability` (additive): top-k |ρ| pairs with paths; softest
+      mode(s) of the scale-normalised normal matrix as (eigenvalue, loadings)
+      rendered as a sentence; raw χ²_red + esd_inflation + durbin_watson quoted
+      together; δR slope/intercept.
+- [ ] Held-parameter exchangeability scan: projection R² of each held candidate's
+      column onto the free span, reported as "fitted X exchangeable with held Y
+      (R²=…)"; family list documented and pinned by test.
+- [ ] `docs/AGENT_PROTOCOL.md`: a §4/§6 extension — how to read exchangeability
+      (an E2-shaped answer is "converged, but the zero is exchangeable with a
+      held displacement — the data cannot tell you which"), and that `ambiguous`
+      is the verdict it licenses.
+- [ ] Tests: E2-shaped fixture (converged, held displacement) produces the
+      exchangeability statement naming the pair; E8-shaped short-window fixture
+      reports the zero↔cell↔displacement soft mode at convergence; clean
+      converged reference stays quiet; δR on a Gaussian-noise fit lands slope≈1,
+      intercept≈0 + obs/calc/diff PNGs to `tests/output/`.
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/test_fitreport_layers.py -q
+.venv/bin/python -m ruff check src tests examples
+```
+
+(New tests land in `test_fitreport_layers.py` per Tasks; if a separate file is
+created, add it here.) The spike's go/no-go is recorded in the handover before
+any schema field lands. The E2 fixture's *converged* report names the
+zero↔displacement exchange; the clean reference emits no identifiability noise
+— which, per the discriminator finding above, raw projection R² alone cannot
+deliver, so this acceptance pins the two-condition form (the
+confident-wrong-singleton rule applied to uncertainty statements).
+
+## References
+
+- Watkin (2008) J. Appl. Cryst. 41, 491 (corpus `derived/2FSHUYQK/`);
+  Schwarzenbach et al. (1989) Acta Cryst. A45, 63 (corpus `derived/A7LFQSXQ/`);
+  Abrahams & Keve (1971) Acta Cryst. A27 (δR plot; via Schwarzenbach);
+  Bérar & Lelann (1991); Hill & Flack (1987); Andreev (1994) (corpus).
+- `optimize/statistics.py` (normal_covariance guard story, background_absorption
+  projection mechanic).
+- WP-1053 pilot grid (E2/E8 rows) — restated in Context; the WP file holds the
+  dated record.
+
+## Handover log
+
+- **2026-08-11** — created, merging the 1053 ranking's "converged-fit degeneracy
+  layer" (item 4) with the design review's correlation proposal, grounded in
+  Watkin 2008 + Schwarzenbach 1989 (both read). Not started. Gotcha for the
+  first session: request the Prince book before designing the soft-mode
+  rendering.
