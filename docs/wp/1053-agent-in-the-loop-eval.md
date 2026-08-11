@@ -34,6 +34,18 @@ history_path / `include_report` (default True); `_RequestBase.plan: str | PlanSp
    the grid, or a null result on the easy rows will be misread as "the report
    doesn't help".
 
+**`AgentSuccess` payload, verified 2026-08-11.** `StageResult.freed` is real and
+populated at both construction sites (`refine.py:906`, `:966`), and each
+`RefinedParameter` row carries `path`/`value`/`stderr`/`vary`. The gap:
+`_build_result` serialises **only `vary or tie` entries** (`refine.py:1397-1398`)
+— a *fixed* parameter is absent from `result.parameters`, not present at its held
+value, and `initial` is never populated by that path. Consequence for the scorer,
+deterministic because the shim fixes the start: a planted path absent from every
+call's `parameters` was never freed, so its final value *is* the planted start —
+score not-recovered from absence, never by re-reading a value the surface does
+not carry. Recorded as a surface finding per this WP's first task; no src/
+change made.
+
 **Episode mechanics — overlay + logging shim.** Episodes are WP-1052's eight
 planted-cause starts (built from `tests/test_fitreport_layers.py::_truth()`).
 `build_fixtures.py` writes episode dirs **to a runner-chosen directory at eval
@@ -92,12 +104,11 @@ second pass once the matrix runs clean.
 pattern is house practice (`test_report_apply.py`), and ruff already covers
 `tests/`. pytest collects only `test_scorer.py` there.
 
-### Inherited
-
-**From [1052](1052-report-loop-eval.md), closed 2026-08-11 — the mechanical
-loop ran, and four of its measurements change this WP's scoring.** The driver
-and all eight episodes live in `tests/test_report_loop.py` (plus two slow
-real-data SRM 660c rows); every number below is pinned there.
+**Measured by [WP-1052](1052-report-loop-eval.md) (closed 2026-08-11) — four
+findings that bind the scorer** (folded from Inherited on arrival, same day;
+none stale). The driver and all eight episodes live in
+`tests/test_report_loop.py` (plus two slow real-data SRM 660c rows); every
+number below is pinned there.
 
 1. **E6 is a sharper trap than this WP's Context assumes.** After the
    background bootstrap the wrong-cell state *abstains* (Rwp 0.716), and an
@@ -125,7 +136,7 @@ real-data SRM 660c rows); every number below is pinned there.
    `add_impurity_phase` outranking it — refusal is the *correct* report
    behaviour there and must be scored as such, not as a miss.
 
-Also inherited: the predicted/observed Δχ² band measured 0.79–1.42 across
+Also measured there: the predicted/observed Δχ² band measured 0.79–1.42 across
 first accepted actions (pinned 0.3–3×), and the 1 % keep-threshold never
 rejected a true first-round cause — the report-calibration failure mode
 WP-1052 was told to record did not occur.
@@ -143,10 +154,9 @@ WP-1052 was told to record did not occur.
 
 ## Tasks
 
-- [ ] Verify what `AgentSuccess` serialises (refined parameter values, per-stage
-      `freed`) — near-certain from `_build_result(model, table, outcome.theta …)`
-      (`refine.py:795`); a gap is a *finding about the surface* and gets recorded,
-      not silently worked around.
+- [x] Verify what `AgentSuccess` serialises (refined parameter values, per-stage
+      `freed`) — done 2026-08-11; the vary-or-tie-only gap and its scorer rule
+      are in Context (§ `AgentSuccess` payload).
 - [ ] `tests/eval_report_agent/build_fixtures.py`: episode dirs (episode.json +
       prompt.md) written to a runner-chosen directory; scorer-side truth tree
       written separately; nothing generated committed.
