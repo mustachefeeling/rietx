@@ -63,9 +63,27 @@ computed numbers):
   mean. Also the **δR normal-probability plot** (Abrahams & Keve 1971), "a more
   powerful descriptor than R", which compresses to two agent-friendly numbers:
   slope and intercept of sorted Δ/σ against normal quantiles.
-- Prince, *Mathematical Techniques in Crystallography and Materials Science* —
-  **not in the corpus; request it** before finalising the soft-mode
-  presentation (ask-for-papers rule; do not re-derive).
+- Prince, *Mathematical Techniques in Crystallography and Materials Science*
+  (3rd ed.) — **read 2026-08-12**, ch. 6–8; location + section map in
+  `docs/LITERATURE.md` § Books. Ch. 8 is the textbook statement of both halves
+  of this WP. (a) The E2 mechanism, verbatim: a diagonal element of V is the
+  correct *marginal* variance even under high correlation, **but** "if the
+  Hessian matrix does not contain rows and columns corresponding to all
+  variables that have correlations with the variable of interest, the computed
+  variance will be too small, and the apparent precision will be illusory" —
+  his fig. 8.4 is the no-bias/underestimated-variance picture, and his worked
+  example shows dropping even an *insignificant* parameter visibly shrinking
+  the survivors' esds. (b) Soft modes: his remedies are "linear combinations of
+  parameters that are approximately eigenvectors of the Hessian matrix",
+  worthwhile at |ρ| > 0.95 — render the mode as the named combination; the 0.95
+  is citable context, never a gate. (c) The significance half of the
+  two-condition discriminator has a classical form — the
+  constrained-vs-unconstrained F ratio — and Prince's reading of F ≈ 1 ("the
+  data do not contain sufficient information to distinguish between the two
+  models") is the `ambiguous` verdict in classical words. (d) The Projection
+  Matrix section (leverage, idempotency) formally grounds the held-column
+  projection mechanic. His 3rd ed. has **no Marquardt/eigenvalue-filtering
+  treatment** — the undamped-final-cycle assertion stays cited to Watkin §3.8.
 
 **The discriminator problem the spike must solve (found in planning review,
 2026-08-11).** Projection R² of a held column onto the free span is a property
@@ -152,7 +170,10 @@ confident-wrong-singleton rule applied to uncertainty statements).
 - Watkin (2008) J. Appl. Cryst. 41, 491 (corpus `derived/2FSHUYQK/`);
   Schwarzenbach et al. (1989) Acta Cryst. A45, 63 (corpus `derived/A7LFQSXQ/`);
   Abrahams & Keve (1971) Acta Cryst. A27 (δR plot; via Schwarzenbach);
-  Bérar & Lelann (1991); Hill & Flack (1987); Andreev (1994) (corpus).
+  Bérar & Lelann (1991); Hill & Flack (1987); Andreev (1994) (corpus);
+  Prince, *Mathematical Techniques in Crystallography and Materials Science*
+  3rd ed., ch. 6–8 (read; location + section map in `docs/LITERATURE.md`
+  § Books).
 - `optimize/statistics.py` (normal_covariance guard story, background_absorption
   projection mechanic).
 - WP-1053 pilot grid (E2/E8 rows) — restated in Context; the WP file holds the
@@ -165,3 +186,10 @@ confident-wrong-singleton rule applied to uncertainty statements).
   Watkin 2008 + Schwarzenbach 1989 (both read). Not started. Gotcha for the
   first session: request the Prince book before designing the soft-mode
   rendering.
+- **2026-08-12** — the Prince book arrived and ch. 6–8 are read (location,
+  section map and OCR caveats: `docs/LITERATURE.md` § Books); findings folded
+  into Context. The first-session gotcha is resolved: design the soft-mode
+  rendering against Prince ch. 8, keep the undamped-final-cycle assertion
+  cited to Watkin §3.8 (Prince 3rd ed. carries no Marquardt treatment), and
+  note the constrained-vs-unconstrained F ratio as the classical form of the
+  discriminator's significance half. Still not started.

@@ -59,6 +59,54 @@ Held locally, all read except where marked:
 | **Grosse-Kunstleve, Sauter & Adams (2004)** — reduced unit cells | `2FSRWWUB` | `indexing/reduce.py`, `NIGGLI_EPS_RELATIVE`. **Unread** |
 | **Altomare et al. (2007)** — Indexing a powder diffraction pattern | `ZZ9TPCSA` | field review. **Unread** |
 
+## Books — held outside the corpus
+
+**Prince, *Mathematical Techniques in Crystallography and Materials Science*
+(3rd ed.)** — the whole book as one mineru-OCR markdown (~550 kB, ~6,090
+lines):
+
+```
+/Users/yue/Code/mineru-app/data/output/b4c93a6aef1f/Mathematical Techniques in Crystallography and Materials/auto/Mathematical Techniques in Crystallography and Materials.md
+```
+
+How to interrogate it: `grep -n '^#'` gives a faithful chapter/section map to
+line numbers — read sections by line range, never the whole file. The printed
+back-of-book index also survived OCR (near the end of the file), so "does the
+book treat X, and in which chapter" is one grep even when no section title
+names it. **OCR caveat**: equations are OCR'd LaTeX and signs/exponents do get
+mangled (the F-density's exponents are garbled; the worked projection-matrix
+table drops two minus signs) — re-derive before porting any formula, per the
+standing verify-equations rule.
+
+Read 2026-08-12 (chapters 6–8), backing WP-1056:
+
+| Section | What it backs |
+|---|---|
+| Ch. 7 Estimation of Uncertainty | w = 1/σ² derived as the minimum-variance linear estimator (the canonical cite for "all weighting is 1/σ²"); V = s²·H⁻¹, with Prince's own caution that the χ²-scaling argument is "sometimes questionable" (beside Schwarzenbach rec. 8) |
+| Ch. 8 Correlation | ρ from the inverse Hessian; the *illusory precision* sentence (computed variance too small when correlated variables are missing from the Hessian) — the WP-1056 E2 mechanism verbatim; soft modes as "linear combinations … approximately eigenvectors of the Hessian", remedies worthwhile at \|ρ\| > 0.95 |
+| Ch. 8 The F Distribution | the constrained-vs-unconstrained F ratio — the classical form of the exchangeability discriminator's significance half; F ≈ 1 read as "the data do not contain sufficient information to distinguish between the two models" |
+| Ch. 8 The Projection Matrix | leverage P′ᵢᵢ, idempotency, and the per-point variance-reduction formula — the formal basis under `background_absorption`'s projection mechanic and the held-column scan |
+| Ch. 6 Finding the Minimum / False Minima | Gauss–Newton/quasi-Newton context; the restrained-vs-constrained vocabulary. **No Marquardt or eigenvalue-filtering treatment in this edition** — that point stays cited to Watkin (2008) §3.8 |
+
+Flagged, unread — come back when the feature does:
+
+- Ch. 5 Moments and Cumulants + Ch. 9 Representing non-Gaussian Distributions —
+  Gram–Charlier anharmonic ADPs (v2 fence).
+- Ch. 5 Rigid Body Motion + Ch. 9 Rigid Body Thermal Motion Constraints — TLS,
+  including the trace-of-S singularity and the conic-section ill-conditioning
+  warnings (v2).
+- Ch. 9 Shape / Chemical Constraints — if rigid-body or occupancy-sum
+  constraints ever land.
+- Ch. 8's repeat-measurement table (t²ᵢⱼ/(1+P′ᵢᵢ)) — a "where to spend counting
+  time" advisory; design-of-experiment, pairs naturally with the report's
+  regions.
+- Ch. 7's subset-scaling test (σ̂²ₖ over data subsets separates
+  weights-underestimated from model-deficient) — a cheap FitReport-adjacent
+  statistic.
+- Appendix F, Symmetry Restrictions on Second/Third/Fourth Rank Tensors — an
+  independent check on `wyckoff.adp_basis` / `stephens.py` subspaces.
+- Ch. 10 (FFT) and Appendix E — no consumer here (no Fourier synthesis; v2).
+
 ## Everywhere else
 
 The package's standing rule is that **every physics function cites its reference
