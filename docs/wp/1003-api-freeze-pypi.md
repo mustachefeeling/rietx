@@ -11,6 +11,19 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From the 2026-08-11 planning session (FitReport design review + 1053
+follow-ups) — six queued WPs touch surface this freeze covers; sequencing is
+this WP's call.** [1054](1054-abstained-branch-honesty.md)…[1058](1058-report-delivery.md)
+propose additions to the report/agent surface, all shaped to be additive
+(defaulted `FitReport`/result fields, a new task arm, protocol text), with
+[1059](1059-eval-round-two.md) re-running the A/B afterwards. Two interactions
+to decide rather than inherit: 1054 may bump `THRESHOLDS_VERSION` (changed
+Layer-2 emission conditions on the abstained branch — the report contract, not
+the schema); and 1058 (a `diagnose` task / per-stage report trajectory) adds a
+task-union arm, so freezing the union before 1058 means freezing an
+already-planned extension out or in. 1058 explicitly does *not* decide the
+vary-or-tie `parameters` filter — that stays the question below.
+
 **From [1053](1053-agent-in-the-loop-eval.md), closed 2026-08-11 — one
 serialisation contract the freeze should confirm as deliberate, with its
 measured consequence.** `_build_result` serialises into

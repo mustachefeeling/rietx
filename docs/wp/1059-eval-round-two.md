@@ -1,0 +1,126 @@
+# WP-1059 — Agent eval round 2: protocol v1.1 and the post-fix re-A/B
+
+Milestone: v1.0 · Status: ⬜
+Depends on: WP-1054, WP-1056, WP-1057, WP-1058
+
+## Goal
+
+The 1053 harness re-run as protocol v1.1 after the content and delivery fixes
+land, with pre-registered hypotheses: does the §9 bootstrap-then-read excerpt
+(prompt-side), and does the diagnose/trajectory surface (package-side), move the
+rows that failed 0/8 — and does WP-1054 flip the one row where the report was on
+the wrong side? A dated grid, never a CI assertion.
+
+## Context
+
+**What round 1 established (WP-1053, closed 2026-08-11; harness lives in
+`tests/eval_report_agent/`, protocol v1.0).** 48/48 runs, {report on,off} ×
+{Sonnet 5, Haiku 4.5} × WP-1052's eight episodes: **null on outcomes in both
+models** (sonnet 8/12 both conditions, haiku 6/12 both), measured mechanism =
+agents never generate the states where the report speaks. Where it spoke it cut
+sonnet's E5 work 3→1 calls (efficiency, not outcome) and fed haiku its wrong E7
+verdict verbatim (`add_impurity_phase` 0.9 on the abstained branch). The side
+hypothesis "the report lifts the weaker model most" came out **inverted** on E7.
+
+**Mandatory caveats that carry into every round-2 summary** (from the 1053
+record; restated because the protocol forbids reading other WP files):
+
+- The lazy default-plan path solves E1/E3/E4/E6 — those rows are competence
+  controls, and a flat "report didn't help" reading of them is the designed
+  misread.
+- E3 can invert the on/off sign (the report's width emitters name
+  `lor_size`/`lor_strain`, plateau χ²_red ≈ 4.3, while the default plan frees
+  `w` to the ≈1.01 floor). It never fired in round 1 *because* nobody followed
+  the report; if round 2's delivery fixes work, it can start firing — watch it.
+- Counts, never percentages, at these N; pilot grids are dated records, outcomes
+  move with models, nothing lands in CI beyond the deterministic scorer's own
+  tests.
+- Score recovery by the planted parameter, never by Δχ² (E8's axial-divergence
+  absorber survives verification).
+
+**Round-2 conditions** (1053's ranked items 2 and 6, plus the fix measurements):
+
+1. **Protocol v1.1 prompt**: add the AGENT_PROTOCOL §9 bootstrap-then-read
+   excerpt (rewritten by WP-1058) to the shared prompt. This was 1053's
+   deliberately-deferred experiment — a prompt change is a protocol version
+   bump, never a mid-pilot edit.
+2. **Package-side delivery**: episodes run against the WP-1058 surface (diagnose
+   or trajectory), so "the report where it speaks" arrives without operator
+   skill. Conditions should separate prompt-only from surface-only if budget
+   allows — that is the cleanest reading of *which* intervention moved E2/E8.
+3. **Content fixes live**: WP-1054 (E7's invitation), WP-1056 (converged-state
+   exchangeability — the E2/E8 evidence), WP-1057 (stopping criteria — bears on
+   verdict quality for the non-ideal rows).
+4. **Wider matrix per 1053's item 6**: a second effort tier (round 1 pinned
+   `medium`), a third model if available, more repeats on discriminating rows,
+   and one real-data episode pair (WP-1052's SRM 660c pair, ready — where
+   *refusal* is the correct report behaviour and must be scored as such).
+
+**Pre-registered hypotheses** (write them into PROTOCOL.md v1.1 before any run):
+(a) E2/E8 move off 0/8 only in conditions where the converged-state evidence
+(WP-1056) or the bootstrap states (WP-1058) are reachable; (b) E7-haiku flips
+with WP-1054's fix regardless of delivery; (c) the §9 excerpt alone, without the
+surface, under-performs the surface (the pilot's lesson — placement beats
+instruction).
+
+**Budget the matrix before running it.** The full cross
+(4 conditions × ≥2 models × 2 efforts × 12 runs) is ~200 runs against round 1's
+48 — do not run it flat. Pre-register which cells answer which hypothesis and
+prioritise: the prompt-only/surface-only split on the discriminating rows
+(E2/E7/E8) is the core; effort tiers and the third model extend only the cells
+that showed an effect.
+
+**Harness rules that stand unchanged**: conditions enforced by the shim, never
+the prompt; fixtures built fresh per run from `_truth()`; ground truth in the
+scorer-side tree; `calls.jsonl` is the record; no LLM dependency anywhere in the
+repo; runs execute in the Claude Code harness.
+
+## Non-goals
+
+- No CI assertion on agent outcomes; no significance claims at pilot N.
+- No per-model prompt tuning; one shared prompt per condition.
+- No stateful-iteration condition (1053's item 5 — still after this).
+- No new episodes beyond the SRM 660c pair — episode design changes confound
+  the A/B against round 1.
+
+## Tasks
+
+- [ ] PROTOCOL.md v1.1: condition matrix (prompt-only / surface-only / both /
+      off), the §9 excerpt text, pre-registered hypotheses, effort tiers,
+      model list.
+- [ ] Extend the shim/fixtures for the WP-1058 surface (diagnose overlays are
+      sanctioned keys; report-off strips the trajectory too — condition
+      enforcement stays structural).
+- [ ] Scorer: SRM 660c real-data pair rows (refusal-is-correct scoring), and
+      the E3 sign-inversion watch (a scored flag, not a pass/fail change).
+- [ ] Run the matrix; record the dated grid (model IDs, efforts, per-episode
+      scorecards, caveats attached) in this handover log and the v1.0 appendix.
+- [ ] Tests: scorer extensions unit-tested (deterministic, fast suite) +
+      obs/calc/diff PNGs to `tests/output/` where fixtures render.
+
+## Acceptance
+
+```sh
+.venv/bin/python -m pytest tests/eval_report_agent -q
+.venv/bin/python -m ruff check src tests examples
+grep -ri "anthropic\|openai" src tests --include="*.py"   # no hits
+```
+
+PROTOCOL.md carries v1.1 with pre-registered hypotheses; the dated round-2 grid
+is in the handover with the mandatory caveats; the repo still carries no LLM
+dependency.
+
+## References
+
+- `tests/eval_report_agent/` (harness, protocol v1.0, scorer) — the artifact
+  this WP versions forward.
+- WP-1052/1053 records (episodes, tolerances, round-1 grid) — key facts
+  restated in Context.
+- `docs/AGENT_PROTOCOL.md` §9 (as rewritten by WP-1058).
+
+## Handover log
+
+- **2026-08-11** — created, from the 1053 campaign's ranked items 2 and 6 plus
+  the design-review fixes it should measure. Blocked until enough of
+  WP-1054/1056/1057/1058 lands to define the condition matrix — partial landing
+  is fine, but the matrix must say which fixes were live.
