@@ -61,33 +61,32 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Four WPs
-closed 2026-08-09…11 and all four are surface the freeze covers: 1047 (ten
+**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Five WPs
+closed 2026-08-09…11 and all five are surface the freeze covers: 1047 (ten
 vendor formats), 1046 (the indexing candidate cap and ranking key), 1051 (the
-series escalation ladder) and 1052 (below). Every decision the freeze should
-*confirm rather than re-derive* is written into 1003's `### Inherited` — read
-that section first; closing sessions leave their surface changes there rather
-than here, and their narratives in `docs/milestones/v1.0.md` § "How v1.0 is
-getting here".
+series escalation ladder), 1052 (the §9 loop as executable consumer) and 1053
+(below). Every decision the freeze should *confirm rather than re-derive* is
+written into 1003's `### Inherited` — read that section first; closing
+sessions leave their surface changes there rather than here, and their
+narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 
-**What 1052 closed (2026-08-11), because the freeze covers exercised
-surface**: AGENT_PROTOCOL §9's canonical loop now runs *closed* in CI
-(`tests/test_report_loop.py` — eight planted-cause episodes plus two
-real-data SRM 660c rows) with `src/` untouched, so `predict_then_verify`'s
-contract is pinned by an executable consumer rather than prose: accept on
->1 % χ², a rejection leaves a dead leaf and a bit-untouched parent, the
-shared tree's HEAD *is* the verify node after acceptance, and
-`VerificationOutcome` carrying **no node id** is measured sufficient — the
-freeze can confirm that omission as deliberate. The loop's measured
-character: separable planted causes recover to the noise floor in one
-accepted round; every attribution the report caps as non-separable is
-refused, and on real data that refusal has a cost the suite states rather
-than hides (a degraded SRM 660c start stays at χ²_red 16 — safe, not
-complete). [1053](wp/1053-agent-in-the-loop-eval.md) is unblocked; its
-`### Inherited` carries the four findings that change its scoring — the
-sharpest: an abstained report never emits `reindex_or_recheck_cell`, so a
-wrong-cell state hands an agent `add_impurity_phase` at confidence 0.9
-instead.
+**What 1053 closed (2026-08-11), because the freeze covers consumed
+surface**: the first real-model A/B on `refine_json` — 48 runs, two models ×
+{report on, off} over WP-1052's eight planted-cause episodes; harness in
+`tests/eval_report_agent/` (shim-enforced conditions, deterministic scorer),
+dated grid in the WP file and the v1.0 appendix — came back **null on
+outcomes in both models, and the measured reason is process, not content**:
+every agent's first move was the untouched request, whose default-plan fit
+lands at a state where the report has nothing left to say, so the
+discriminating content WP-1052 proved exists at bootstrap-grade states was
+never generated. Where the report did speak it cut the strong model's work
+(E5: one call, citing Layer 2, vs three calls of hand-rolled crystallography)
+and fed the weak model its wrong E7 verdict verbatim (`add_impurity_phase`
+at 0.9 on the abstained branch — 1052's finding, now with a measured
+real-model cost on each side). For 1003 specifically: the vary-or-tie
+`RefinementResult.parameters` filter is now a contract question in its
+`### Inherited` — a held-wrong parameter is invisible to a `refine_json`
+consumer, measured 16/16 behind χ²_red ≈ 1.01.
 
 ## Milestones
 
@@ -269,7 +268,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1050](wp/1050-suggest-next-parameter.md) | `Refinement.suggest()`: which parameter to free next | ✅ | — (before 1003 if frozen) |
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ✅ 2026-08-09 — three rungs, keep-best; a diverged pattern seeds nothing and joins no median | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ✅ 2026-08-11 — the §9 loop runs closed in CI; recovers what separates, refuses what does not, `src/` untouched | — |
-| [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ⬜ | 1052 |
+| [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ✅ 2026-08-11 — 48/48-run pilot: A/B null on outcomes; the bottleneck is when the report is read, not what it says | 1052 |
 
 **1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
 and `suggest()` only *inform* a caller (the no-autopilot fence), then whether

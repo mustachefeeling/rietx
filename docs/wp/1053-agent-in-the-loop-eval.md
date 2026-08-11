@@ -1,6 +1,6 @@
 # WP-1053 — Agent-in-the-loop FitReport eval (refine_json only)
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-11 — protocol + scorer shipped (17 fast tests), 48/48-run pilot grid recorded here and in the v1.0 appendix; outcomes move with models, so the grid is a dated record, never a CI assertion
 Depends on: WP-1052
 
 ## Goal
@@ -191,6 +191,26 @@ scorecards; the scorer's unit tests pass; the repo carries no LLM dependency.
   mechanical floor this compares against.
 
 ## Handover log
+
+- **2026-08-11 (close)** — **Done**: all six checklist items, one commit each
+  (`9f5cf40`…`e7e67c4`): the `AgentSuccess` verification (gap in Context),
+  `tests/eval_report_agent/` (fixtures builder, shim, scorer + 17
+  deterministic tests, PROTOCOL.md v1.0), and the 48/48-run pilot below.
+  Acceptance green: scorer tests pass, ruff clean, `grep -ri
+  "anthropic\|openai" src tests` empty. Fast suite measured **2273 passed +
+  5 skipped** (`[dev]` venv, darwin/arm64, ~3:36–3:50) — this session's 17
+  tests are all fast-suite passes, no new skips; the full selection was not
+  run this session (none of the 17 is slow-marked, so it inherits the same
+  +17 — the next weekly log verifies). **In flight**: nothing. **Next**:
+  nothing on this WP; the one queued follow-up idea — a §9-excerpt prompt
+  condition — is a protocol-v1.1 *experiment for a future decision*, noted
+  in finding 1, deliberately not a task. **Gotchas**: fixtures are built
+  fresh per run (`build_fixtures --episodes RUN_DIR --truth TRUTH_DIR
+  --only E{n}`) — an episode dir is consumed by its `calls.jsonl`; the
+  pilot's raw scorecards live only in the session scratchpad (reproducible:
+  same protocol, rerun and rescore — outcomes will move with models, which
+  is why the grid here is the record); `test_portability` requires
+  `encoding=` on every text I/O call, which bit this session once.
 
 - **2026-08-11** — **the pilot grid, dated and raw.** Protocol v1.0; runs in
   the Claude Code harness via Workflow `agent()`, agent type
