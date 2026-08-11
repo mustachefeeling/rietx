@@ -92,6 +92,44 @@ second pass once the matrix runs clean.
 pattern is house practice (`test_report_apply.py`), and ruff already covers
 `tests/`. pytest collects only `test_scorer.py` there.
 
+### Inherited
+
+**From [1052](1052-report-loop-eval.md), closed 2026-08-11 — the mechanical
+loop ran, and four of its measurements change this WP's scoring.** The driver
+and all eight episodes live in `tests/test_report_loop.py` (plus two slow
+real-data SRM 660c rows); every number below is pinned there.
+
+1. **E6 is a sharper trap than this WP's Context assumes.** After the
+   background bootstrap the wrong-cell state *abstains* (Rwp 0.716), and an
+   abstained report never emits `reindex_or_recheck_cell` (mature-branch-only
+   emitter) — what the report actually serves is **`add_impurity_phase` at
+   confidence 0.9**, with indexing mentioned only in that action's rationale
+   and `alternatives`. A real agent following the report on E6 is being
+   invited to add a phantom phase; score what it does with that invitation,
+   and do not treat "agent proposed an impurity" as a scorer surprise.
+2. **E8 has a legitimate-looking wrong turn built in**: the axial-divergence
+   term (fixed confidence 0.5, a different observable, invisible to the
+   position collinearity cap) absorbs ~70 % of χ² on the short window and
+   *survives verification*. An agent that takes it sees a large real
+   improvement; the scorer must count recovery by the planted parameter,
+   never by Δχ² — the mechanical loop's line ("no position kind applied")
+   is the scoreable one.
+3. **E3 can invert the report-on/off sign.** The report's width emitters name
+   only `lor_size`/`lor_strain`, whose proxy plateaus at χ²_red ≈ 4.3, while
+   the lazy default-plan path frees `w` itself and reaches the ≈1.01 floor —
+   so on E3, *following the report* can lose to *ignoring it*. State this
+   beside the A/B table or the E3 row will be misread.
+4. **Synthetic calibration does not transfer wholesale to real data**: on
+   SRM 660c a planted 0.01° zero comes back with the whole position family
+   capped ≤ 0.3 (genuinely non-separable from the fitted displacement) and
+   `add_impurity_phase` outranking it — refusal is the *correct* report
+   behaviour there and must be scored as such, not as a miss.
+
+Also inherited: the predicted/observed Δχ² band measured 0.79–1.42 across
+first accepted actions (pinned 0.3–3×), and the 1 % keep-threshold never
+rejected a true first-round cause — the report-calibration failure mode
+WP-1052 was told to record did not occur.
+
 ## Non-goals
 
 - No LLM/API dependency in the package — no `anthropic` import, no judge, no

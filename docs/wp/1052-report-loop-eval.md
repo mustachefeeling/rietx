@@ -1,6 +1,6 @@
 # WP-1052 — Closed-loop FitReport usefulness eval (mechanical)
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-11 — 14 tests close the §9 loop, `src/` untouched
 Depends on: —
 
 ## Goal
@@ -149,21 +149,24 @@ bug in either.
 
 ## Tasks
 
-- [ ] `tests/test_report_loop.py`: `_run_report_loop()` + `EpisodeResult`, `_truth()`
+- [x] `tests/test_report_loop.py`: `_run_report_loop()` + `EpisodeResult`, `_truth()`
       import, truth-model-Rwp helper, E1 green end-to-end — per-episode bootstrap
       assert, DAG assertions (verify-node name check, parent untouched, χ²(final) ≤
       1.01 × best leaf, compare rows), empty-`turn_on` refit verified, PNGs to
       `tests/output/`.
-- [ ] E2 + the `mccusker_default` baseline arm + structural-miss assertion.
-- [ ] E3 + E4 with baseline; measure then pin the predicted/observed band and the E3
+- [x] E2 + the `mccusker_default` baseline arm + structural-miss assertion.
+- [x] E3 + E4 with baseline; measure then pin the predicted/observed band and the E3
       improvement factor; the two honest counter-findings in docstrings.
-- [ ] Stopping episodes E5–E8 with the no-position-action assertions.
+- [x] Stopping episodes E5–E8 with the no-position-action assertions.
 - [ ] Optional, flagged in the handover if taken: `VerificationOutcome.node_id` as
       one additive schema field + its test, only if `history.head` navigation proves
-      fragile in practice. Otherwise the `src/` diff stays empty.
-- [ ] Stretch (`slow` mark, `xdist_group("srm660c")`): one SRM 660c degraded-start
-      episode beside the existing session fixture.
-- [ ] Docs: one sentence in AGENT_PROTOCOL §9 pointing at this test as the
+      fragile in practice. Otherwise the `src/` diff stays empty. — **Not taken**:
+      HEAD navigation with the name/parent sanity asserts never misfired across all
+      14 tests; the `src/` diff is empty.
+- [x] Stretch (`slow` mark, `xdist_group("srm660c")`): one SRM 660c degraded-start
+      episode beside the existing session fixture. — Taken as a **pair** (refusal +
+      recovery); grounds in the handover entry.
+- [x] Docs: one sentence in AGENT_PROTOCOL §9 pointing at this test as the
       executable version of the canonical loop; re-read `--durations`; handover
       quotes which numbers moved (passed+skipped by exactly N, both selections).
 
@@ -190,6 +193,63 @@ parent χ² bit-unchanged and a dead leaf whose compare row shows < 1 % improvem
   the planned cross-check of Layer 2).
 
 ## Handover log
+
+- **2026-08-11** — **closed.** All tasks landed on `wp1052-report-loop-eval`
+  (eight commits), acceptance green, `src/` diff **empty** — the optional
+  `VerificationOutcome.node_id` was not needed: HEAD navigation plus the
+  name/parent sanity asserts never misfired across 14 tests. On arrival the
+  `### Inherited` from WP-1050 was verified live (both facts) and folded into
+  Context.
+
+  **Counts** (main checkout `.venv`, `[dev,jax,torch]`, darwin/arm64):
+  module **14 passed** in ~8 s serial (12 fast + the two slow SRM 660c rows).
+  Fast suite `-m "not slow"`: **2256 passed, 5 skipped** in ~2:56 (one run)
+  against 1051's 2244 + 5 — **+12, all passes, no new skips**; the full
+  selection gains **+14** (the slow pair joins the `srm660c` xdist group).
+  The module appears nowhere in the fast suite's `--durations` top 25, so no
+  baseline arm was slow-marked and the no-`xdist_group` placement stands.
+
+  **Loop character, measured**: E1/E2/E4 recover the planted parameter to the
+  truth-model noise floor in one accepted round each and stop clean;
+  predicted/observed Δχ² on first accepted actions measured 0.79 / 0.85 /
+  1.16 / 0.79 (E1–E4), 1.42 (E8), 1.03 (SRM scale) — band pinned 0.3–3×.
+  The keep-threshold **never rejected a true first-round cause** — the
+  calibration bug the WP said to record did not occur.
+
+  **Findings** (each pinned in a docstring or assertion in the module):
+  1. **E6, the sharpest**: after the bootstrap the wrong-cell state *abstains*
+     (Rwp 0.716 — abstention outranks the validity gate), and the abstained
+     branch never emits `reindex_or_recheck_cell` (it is mature-branch-only:
+     `far and rwp > 0.2` in `layer2.suggest_actions`) — instead the state
+     hands out `add_impurity_phase` at confidence **0.9**. The absence is
+     pinned; a fix should flip the pin and cite this finding.
+  2. **E8**: every position action capped at exactly 0.3 and refused by the
+     strict floor — but `refine_axial_asymmetry` (hard-coded 0.5, a different
+     observable, invisible to the collinearity cap) is **accepted** at χ²_red
+     170.8 → 51.3. An incidental proxy the 1 % keep-threshold legitimately
+     keeps; no *position* kind is ever applied, which is the line held.
+  3. **E3, the emitter gap with numbers**: the `lor_size` proxy takes χ²_red
+     15.1 → 4.3 and provably cannot reach the ≈1.01 truth floor (Lorentzian
+     FWHM vs Gaussian variance); the baseline recovers `w` to −0.7 %. Fix is
+     its own decision, per Non-goals.
+  4. **Real data**: SRM 660c + 0.01° zero → the whole position family comes
+     back capped ≤ 0.3 (genuinely non-separable from the protocol's fitted
+     −0.08 mm displacement, unlike the synthetic 18–125° fixture) — the loop
+     refuses and χ²_red stays at the degraded 16.1: **safe, not complete**.
+     Scale ×0.90 → closed loop: accepted at 0.85, recovered to **7.7 ppm** of
+     the converged value. On real data `add_impurity_phase` (0.4) outranks
+     the capped family — the shift's derivative residuals read as unindexed
+     lines; on synthetic it never does.
+  5. **E2's baseline**, the Rwp-blindness exhibit: the preset compensates the
+     displacement it cannot free with zero ≈ −0.011° at χ²_red 1.012 —
+     indistinguishable from the loop's honest fit by any fit statistic,
+     distinguishable by the parameter values.
+
+  **Next**: nothing here. WP-1053 is unblocked; its `### Inherited` now
+  carries the findings that change its scoring (written at this close).
+  Gotcha for a successor touching the module: the episode numbers are
+  seeded-rng deterministic, but every pin was chosen with headroom after
+  probing — re-measure before tightening any of them.
 
 - **2026-08-05** — created; not started. The design survived two adversarial
   review rounds and every load-bearing mechanic in Context carries the file:line
