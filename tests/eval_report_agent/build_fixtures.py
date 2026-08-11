@@ -235,7 +235,7 @@ def _protocol_excerpt(section_prefix: str) -> str:
     """One ``## N.`` section of docs/AGENT_PROTOCOL.md, verbatim, ending at
     the ``---`` separator — the manual ships with the feature, so the excerpt
     is extracted live rather than copied."""
-    text = (REPO_ROOT / "docs" / "AGENT_PROTOCOL.md").read_text()
+    text = (REPO_ROOT / "docs" / "AGENT_PROTOCOL.md").read_text(encoding="utf-8")
     lines = text.splitlines()
     start = next(i for i, line in enumerate(lines)
                  if line.startswith(f"## {section_prefix}"))
@@ -350,17 +350,18 @@ def write_fixtures(episodes_dir: Path, truth_dir: Path, *, condition: str,
         edir = episodes_dir / eid
         edir.mkdir(exist_ok=True)
         (edir / "episode.json").write_text(
-            json.dumps(ep["core"], indent=1) + "\n")
+            json.dumps(ep["core"], indent=1) + "\n", encoding="utf-8")
         (edir / "condition.json").write_text(json.dumps({
             "protocol_version": PROTOCOL_VERSION,
             "condition": condition,
             "include_report": condition == "report-on",
             "max_calls": MAX_CALLS,
-        }, indent=1) + "\n")
+        }, indent=1) + "\n", encoding="utf-8")
         (edir / "prompt.md").write_text(
-            render_prompt(eid, edir, condition=condition, python=python))
+            render_prompt(eid, edir, condition=condition, python=python),
+            encoding="utf-8")
         (truth_dir / f"{eid}.json").write_text(
-            json.dumps(ep["truth"], indent=1) + "\n")
+            json.dumps(ep["truth"], indent=1) + "\n", encoding="utf-8")
         written.append(edir)
     return written
 

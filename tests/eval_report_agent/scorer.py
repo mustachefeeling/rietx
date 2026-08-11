@@ -52,7 +52,7 @@ def _load_calls(episode_dir: Path) -> list[dict]:
     log = episode_dir / "calls.jsonl"
     if not log.exists():
         return []
-    return [json.loads(line) for line in log.read_text().splitlines()
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()
             if line.strip()]
 
 
@@ -63,7 +63,7 @@ def _answer(episode_dir: Path) -> tuple[dict | None, str | None]:
     if not path.exists():
         return None, "answer.json missing"
     try:
-        answer = json.loads(path.read_text())
+        answer = json.loads(path.read_text(encoding="utf-8"))
     except ValueError as exc:
         return None, f"answer.json is not valid JSON: {exc}"
     if not isinstance(answer, dict) or answer.get("verdict") not in VERDICTS:
@@ -74,7 +74,7 @@ def _answer(episode_dir: Path) -> tuple[dict | None, str | None]:
 
 def score_episode(episode_dir: Path, truth_file: Path) -> dict:
     """The per-episode scorecard, graded from the record alone."""
-    truth = json.loads(truth_file.read_text())
+    truth = json.loads(truth_file.read_text(encoding="utf-8"))
     calls = _load_calls(episode_dir)
     ok_calls = [c for c in calls if not c.get("refused", False)
                 and c["response"].get("ok", False)]

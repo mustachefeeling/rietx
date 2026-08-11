@@ -30,7 +30,7 @@ def _write_truth(tmp_path: Path, **overrides) -> Path:
     }
     record.update(overrides)
     path = tmp_path / "truth.json"
-    path.write_text(json.dumps(record))
+    path.write_text(json.dumps(record), encoding="utf-8")
     return path
 
 
@@ -66,10 +66,11 @@ def _write_episode_dir(tmp_path: Path, calls, answer) -> Path:
     edir.mkdir(exist_ok=True)
     if calls is not None:
         (edir / "calls.jsonl").write_text(
-            "".join(json.dumps(c) + "\n" for c in calls))
+            "".join(json.dumps(c) + "\n" for c in calls), encoding="utf-8")
     if answer is not None:
         (edir / "answer.json").write_text(
-            answer if isinstance(answer, str) else json.dumps(answer))
+            answer if isinstance(answer, str) else json.dumps(answer),
+            encoding="utf-8")
     return edir
 
 
@@ -241,13 +242,13 @@ def _write_shim_episode(tmp_path: Path, *, include_report: bool,
         "task": "refine", "structure": {"phases": []}, "instrument": {},
         "pattern": {"two_theta": [1.0], "intensity": [1.0]},
         "mode": "rietveld",
-    }))
+    }), encoding="utf-8")
     (edir / "condition.json").write_text(json.dumps({
         "protocol_version": "1.0",
         "condition": "report-on" if include_report else "report-off",
         "include_report": include_report,
         "max_calls": max_calls,
-    }))
+    }), encoding="utf-8")
     return edir
 
 
@@ -273,7 +274,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
 
     monkeypatch.setattr("pxrdref.agent.refine_json", stub)
     (edir / "overlay.json").write_text(json.dumps(
-        {"plan": "profile_only", "two_theta_limits": [20.0, 100.0]}))
+        {"plan": "profile_only", "two_theta_limits": [20.0, 100.0]}), encoding="utf-8")
     response = run_episode(edir)
     # overlay merged, core untouched, condition forced regardless of default
     assert seen["plan"] == "profile_only"
@@ -283,7 +284,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
     assert seen["include_report"] is False
     # report-off: stripped from what the agent sees and from the log
     assert "report" not in response
-    logged = json.loads((edir / "calls.jsonl").read_text().splitlines()[0])
+    logged = json.loads((edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert "report" not in logged["response"]
     assert logged["overlay"] == {"plan": "profile_only",
                                  "two_theta_limits": [20.0, 100.0]}
@@ -311,12 +312,12 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
     monkeypatch.setattr("pxrdref.agent.refine_json", stub)
     (edir / "overlay.json").write_text(json.dumps(
         {"plan": "profile_only", "include_report": False,
-         "pattern": {"two_theta": []}}))
+         "pattern": {"two_theta": []}}), encoding="utf-8")
     response = run_episode(edir)
     assert response["ok"] is False
     assert response["error"]["code"] == "OVERLAY_KEY_REFUSED"
     assert "include_report" in response["error"]["message"]
-    logged = json.loads((edir / "calls.jsonl").read_text().splitlines()[0])
+    logged = json.loads((edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert logged["refused"] is True
 
 
@@ -324,14 +325,14 @@ def test_shim_call_budget_is_a_runaway_guard(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True, max_calls=2)
     monkeypatch.setattr("pxrdref.agent.refine_json",
                         lambda request: _stub_response())
-    (edir / "overlay.json").write_text("{}")
+    (edir / "overlay.json").write_text("{}", encoding="utf-8")
     assert run_episode(edir)["ok"]
     assert run_episode(edir)["ok"]
     third = run_episode(edir)
     assert third["ok"] is False
     assert third["error"]["code"] == "CALL_BUDGET_EXHAUSTED"
     records = [json.loads(x)
-               for x in (edir / "calls.jsonl").read_text().splitlines()]
+               for x in (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [r.get("refused", False) for r in records] == [False, False, True]
     # a refused call never eats budget: the counter stays at max_calls
     fourth = run_episode(edir)

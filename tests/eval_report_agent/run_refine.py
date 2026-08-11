@@ -68,7 +68,7 @@ def _count_prior_calls(log_path: Path) -> int:
     if not log_path.exists():
         return 0
     n = 0
-    with log_path.open() as fh:
+    with log_path.open(encoding="utf-8") as fh:
         for line in fh:
             if line.strip() and not json.loads(line).get("refused", False):
                 n += 1
@@ -78,7 +78,7 @@ def _count_prior_calls(log_path: Path) -> int:
 def run_episode(episode_dir: Path) -> dict:
     """One shim call: merge, enforce, run, log.  Returns what it printed."""
     episode_bytes = (episode_dir / "episode.json").read_bytes()
-    condition = json.loads((episode_dir / "condition.json").read_text())
+    condition = json.loads((episode_dir / "condition.json").read_text(encoding="utf-8"))
     log_path = episode_dir / "calls.jsonl"
 
     overlay_path = episode_dir / "overlay.json"
@@ -86,7 +86,7 @@ def run_episode(episode_dir: Path) -> dict:
     refusal = None
     if overlay_path.exists():
         try:
-            overlay = json.loads(overlay_path.read_text())
+            overlay = json.loads(overlay_path.read_text(encoding="utf-8"))
         except ValueError as exc:
             refusal = _refusal("OVERLAY_INVALID",
                                f"overlay.json is not valid JSON: {exc}")
@@ -128,7 +128,7 @@ def run_episode(episode_dir: Path) -> dict:
             "response": trim_response(response),
         }
 
-    with log_path.open("a") as fh:
+    with log_path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
     return record["response"]
 
