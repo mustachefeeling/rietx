@@ -29,6 +29,7 @@ episodes would create a serial group rivalling the whole fast-suite wall.
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 import pxrdref as pr
@@ -114,6 +115,15 @@ class EpisodeResult:
     def blocked_kinds(self) -> list[str]:
         """Kinds passed over at the stopping round, report order."""
         return [k for k, _ in self.rounds[-1].blocked]
+
+    def top_blocked_nonstage(self) -> str | None:
+        """Highest-ranked action refused at the stopping round for not being
+        a stage (the advice/index kinds) — what the loop points a human at
+        when it stops itself."""
+        for kind, why in self.rounds[-1].blocked:
+            if why.startswith("how="):
+                return kind
+        return None
 
 
 def _select(report: FitReport, rejected: set[str]):
@@ -509,3 +519,174 @@ def test_e4_scale_error_baseline(truth):
     ref.fit(data, plan="mccusker_default")
     assert ref.fitted_structure.phases[0].scale.value == pytest.approx(
         4e-4, rel=0.02)
+
+
+# ----------------------------------------------------------------------
+# E5 — impurity spike: the loop must stop and point at the advice
+# ----------------------------------------------------------------------
+def test_e5_impurity_stops_the_loop(truth):
+    """A Gaussian spike no reflection accounts for: nothing to refine, so the
+    loop keeps nothing and stops with ``add_impurity_phase`` as the top
+    refused non-stage kind — the hand-back to a caller who can name a phase.
+
+    Rejections are budgeted, not forbidden: measured here, the spike's
+    intensity misfit reads as a March-Dollase texture false-positive
+    (``refine_preferred_orientation`` at confidence ≈0.76), which
+    ``predict_then_verify`` rejects at +0.00 % — the verify machinery doing
+    exactly its job on an incidental sub-cause.
+    """
+    structure, ins, data = truth
+    tt = np.asarray(data.two_theta)
+    y = np.asarray(data.intensity, dtype=float)
+    y = y + 900.0 * np.exp(-0.5 * ((tt - 29.35) / 0.06) ** 2)
+    doped = pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                           sigma=data.sigma)
+
+    episode = _run_report_loop(structure, ins, doped)
+
+    # pre-loop: the model-free evidence survives the bootstrap
+    report0 = episode.rounds[0].report
+    assert "add_impurity_phase" in _actions_in_order(report0)
+
+    assert episode.accepted == [], (episode.accepted, episode.stop_reason)
+    assert episode.stop_reason == "no_action", episode.stop_reason
+    assert episode.top_blocked_nonstage() == "add_impurity_phase", (
+        episode.rounds[-1].blocked)
+    # the peak is still in the final report — stopping did not bury it
+    assert any(u.kind == "unmatched_obs" and abs(u.two_theta - 29.35) < 0.15
+               for u in episode.final_report.unmatched)
+
+    _assert_dag_hygiene(episode)
+    _plot(episode, "report_loop_e5")
+
+
+# ----------------------------------------------------------------------
+# E6 — cell +0.4 %: shift-based corrections must never be applied
+# ----------------------------------------------------------------------
+def test_e6_wrong_cell_applies_no_position_action(truth):
+    """A 0.4 % cell error moves peaks many FWHM: the loop must never apply a
+    shift-based position correction to a wrong cell, and it doesn't — but for
+    a *stronger* reason than the WP table anticipated, and with a recorded
+    gap.
+
+    Measured (2026-08-11): after the background bootstrap the whole report
+    **abstains** (Rwp 0.716 > 0.35) — 11 of 15 regions trip the validity
+    radius, and abstention outranks per-region gating.  The abstained branch
+    emits only the model-free actions (``add_impurity_phase`` at 0.9: the
+    displaced peaks read as unindexed lines), so the loop stops at round 0
+    with nothing selectable.  **The recorded finding**: the WP expected
+    ``reindex_or_recheck_cell`` present-but-skipped, but that kind is emitted
+    only by the mature branch (``far and rwp > 0.2`` in
+    ``layer2.suggest_actions``) — an abstained report never carries it, so
+    the one state that most needs the indexing pointer gets it only via the
+    impurity action's ``alternatives`` and rationale, not as an action.  The
+    assertion below pins the measured absence; if the abstained branch ever
+    learns to emit it, this pin should flip *and be recorded as the fix of
+    this finding*, not silenced.
+
+    Baseline (recorded, not asserted — the contrast is the point): the blunt
+    ``mccusker_default`` cell stage *rescues* this start — a → 4.156604
+    (23 ppm from truth), Rwp 0.0137, zero ≈ 1.4e-4° — where the report-driven
+    loop refuses to touch it.  A preset that happens to free the right
+    parameter beats a report that correctly refuses to linearise; that is a
+    statement about this start being inside the cell stage's basin, not about
+    the refusal being wrong.
+    """
+    structure, ins, data = truth
+    start = structure.model_copy(deep=True)
+    start.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+
+    episode = _run_report_loop(start, ins, data)
+
+    report0 = episode.rounds[0].report
+    assert not report0.layer1_available, "expected abstention on a wrong cell"
+    tripped = [a for a in report0.attribution
+               if any("validity_radius" in f for f in a.gate_failures)]
+    assert tripped, "gross peak offsets did not trip the validity radius"
+
+    assert episode.accepted == [], (episode.accepted, episode.stop_reason)
+    for r in episode.rounds:
+        assert r.selected not in POSITION_FAMILY, r.selected
+        assert not (set(_actions_in_order(r.report)) & POSITION_FAMILY), (
+            "an abstained report emitted a position action")
+    assert episode.stop_reason, "stop reason must be recorded"
+    # the recorded finding (see docstring): no reindex pointer when abstained
+    assert "reindex_or_recheck_cell" not in _actions_in_order(
+        episode.final_report)
+
+    _assert_dag_hygiene(episode)
+    _plot(episode, "report_loop_e6")
+
+
+# ----------------------------------------------------------------------
+# E7 — hopeless start: abstain and do nothing
+# ----------------------------------------------------------------------
+def test_e7_hopeless_start_abstains_and_stops(truth):
+    """Cell at 4.60 Å (nowhere near) and scale ÷10: the report must abstain
+    and the loop must apply nothing — not even a trial.  Measured: the
+    abstention fires the explained-fraction gate here (only 26 % of the
+    misfitting χ² sits in gate-passing regions) rather than the Rwp gate the
+    layers suite's un-bootstrapped state trips; either way
+    ``abstained_reason`` is set, which is what the loop keys off."""
+    structure, ins, data = truth
+    start = structure.model_copy(deep=True)
+    start.phases[0].cell = pr.Cell.cubic(4.60)
+    start.phases[0].scale.value = 4e-5
+
+    episode = _run_report_loop(start, ins, data)
+
+    report0 = episode.rounds[0].report
+    assert report0.abstained_reason, "a hopeless start must abstain"
+
+    assert episode.accepted == [], episode.accepted
+    assert len(episode.rounds) == 1 and episode.rounds[0].selected is None, (
+        "zero stages — not even a trial — after bootstrap")
+    assert episode.stop_reason == "no_action", episode.stop_reason
+
+    _assert_dag_hygiene(episode)
+    _plot(episode, "report_loop_e7")
+
+
+# ----------------------------------------------------------------------
+# E8 — collinear window: the confidence cap holds the line
+# ----------------------------------------------------------------------
+def test_e8_collinear_window_applies_no_position_action():
+    """Over 20–56° 2θ the position templates are collinear (measured
+    |r| ≈ 0.9995 in the layers suite): every position action is capped at
+    exactly 0.3, the strict ``>`` floor refuses them all, and no position
+    kind is ever applied — never-a-confident-wrong-singleton, closed-loop.
+
+    The measured incidental (allowed by design, worth knowing): the axial-
+    divergence shape term absorbs much of a constant 0.02° shift over this
+    short window — ``refine_axial_asymmetry`` (fixed confidence 0.5, a
+    different observable from the position trend, so the collinearity cap
+    never sees it) is accepted at χ²_red 170.8 → 51.3.  The keep-threshold
+    is doing its job on a genuinely-improving proxy; the line the episode
+    holds is that no *position* attribution the report itself called
+    non-separable is ever acted on.
+    """
+    structure, ins, data = _truth(lo=20.0, hi=56.0, seed=23)
+    start = ins.model_copy(deep=True)
+    start.zero_shift.value = 0.02
+
+    episode = _run_report_loop(structure, start, data)
+
+    # pre-loop: the cap held at the bootstrap state (the layers suite skips
+    # when this state abstains; measured here it does not — assert, so a
+    # future abstention is a visible change rather than a silent skip)
+    report0 = episode.rounds[0].report
+    assert report0.layer1_available, report0.abstained_reason
+    for action in report0.suggested_actions:
+        if action.kind in POSITION_FAMILY:
+            assert action.confidence <= CONFIDENCE_FLOOR, action
+
+    for r in episode.rounds:
+        assert r.selected not in POSITION_FAMILY, r.selected
+    assert not (set(episode.accepted) & POSITION_FAMILY), episode.accepted
+    assert episode.stop_reason, "stop reason must be recorded"
+    # the planted zero was never touched: still exactly the injection
+    assert episode.ref.fitted_instrument.zero_shift.value == 0.02
+
+    _assert_dag_hygiene(episode)
+    _assert_prediction_band(episode)
+    _plot(episode, "report_loop_e8")
