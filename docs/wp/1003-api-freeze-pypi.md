@@ -36,6 +36,13 @@ the old header. That holds today. If the freeze promises `.rxt` as a *file* — 
 export, a diff artefact, anything a user can save — the argument expires and the
 version should have moved.
 
+**One inconsistency left for you deliberately.** The LICENSE now names the
+copyright holder as **Yue Wu** (an actual legal person; the old
+"⟨project⟩ developers" form named none), while `pyproject.toml` still has
+`authors = [{ name = "anatase developers" }]`. Release metadata is this WP's,
+so the two should be reconciled here — with an email, which `authors` wants and
+the LICENSE does not.
+
 **Also new since this WP was written:** `tests/test_no_stale_name.py` audits the
 old name out of the tree, written against the **old** token because `anatase` is
 a phase this software analyses. It cannot catch a hardcoded *new* literal, so
