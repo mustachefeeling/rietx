@@ -25,6 +25,29 @@ The pilot's transferable lesson, quoted from its record: **information placed
 where the agent already looks beats information the agent must know to
 request.** This WP is items 1 and 3 of that campaign's ranked follow-ups.
 
+**Five things a delivery surface must place, not four** (from WP-1055, closed
+2026-08-12). `FitReport.background` is Layer-0-grade — it speaks on an abstained
+report too, it always publishes its numbers, and exactly two of them are summary
+triggers. The Rwp / Rwp-background-subtracted pair is **deliberately not** one:
+measured, every background-dominated pattern crosses any useful threshold on it,
+converged ones at ratio 3.6 and 5.6 included, so a delivery loop that
+re-promotes it into a headline undoes a measured decision. It sits at step 7 of
+AGENT_PROTOCOL §4's judging order, paired with raw Rwp.
+
+**One ranking question is open on purpose, and this WP is where it can be
+answered** (WP-1055 had no measurement to settle it). On the too-stiff fixture —
+a Gaussian hump under a 2-term Chebyshev — the residual runs 12σ over hundreds
+of channels, noise on top clears the 5σ peak-detection floor in **146** places,
+and `add_impurity_phase` is emitted at **0.90** on a specimen with no impurity,
+above `increase_background_flexibility` at 0.60. `note_background_crosstalk`
+makes each action name the other, but deliberately does **not** cap: unlike
+`cap_texture_crosstalk` (where the impurity was the plausible cause of the
+texture signature on the *same* reflections), these two findings are about
+disjoint channels by construction — Layer 0 segments a region around every
+residual peak, so an unmatched peak is never off-region — and both statements
+are true. A diagnose task that orders hypotheses is the surface that can rank
+them.
+
 **Design space** (decide in-session; both halves are additive):
 
 1. **`task="diagnose"`** in `agent.refine_json`: runs a declared ladder of
@@ -61,65 +84,31 @@ request.** This WP is items 1 and 3 of that campaign's ranked follow-ups.
   the parameters list.
 - **Frozen-per-stage discreteness**: diagnose states are ordinary stages (or
   evaluate-only compiles); nothing new moves inside a solve.
+- **A ladder branches on the abstention *kind*, not on the presence of a reason**
+  (WP-1057, closed 2026-08-12). `abstained_kind="resolution_limited"` is a
+  *terminal* state for a declared phase-ID deliverable — AGENT_PROTOCOL §4b calls
+  it a legitimate stopping point, "not evidence the model is wrong" — so a ladder
+  that keeps escalating on it is exactly the push-finer-corrections behaviour the
+  WP-1057 regime directive forbids. §4b's per-deliverable stopping criteria are
+  themselves decision-point content: 1053's bottleneck was *when the report is
+  read*, and §4b is the first content that licenses stopping early, so it is worth
+  surfacing at whatever delivery point this WP builds — a coordinate for the §9
+  wording task above.
+- **Report builds are no longer free**: a rietveld-mode report runs a 5-cycle
+  Le Bail partition per build (un-timed in isolation, suite wall unchanged) —
+  which matters only if this WP makes report builds per-stage-frequent, i.e. it
+  is a cost to measure on the trajectory half of the design space.
+- **Never spell the distribution name, the tool name or a format token** — import
+  from `_about.py` (`AGENT_TOOL_NAME`, `DIST_NAME`); WP-1062 landed 2026-08-12 and
+  its audit test greps the **old** token, so it is blind to a hardcoded new one.
+  `agent.tool_definition()`'s name is already such a literal and is pinned by
+  `tests/test_agent_surface.py`; a new task arm must not add another.
 - **409-while-running** and the GUI: `GET /api/report` is idle-only; a diagnose
   ladder through the GUI run-state machine is out of scope here (session verbs
   are `gui/CLAUDE.md` territory) — the agent surface is this WP's consumer.
 - Whatever ships must be what the protocol teaches: coordinate the §9 wording
   with WP-1059's prompt-condition experiment (the eval measures *this* WP's
   effect).
-
-### Inherited
-
-**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the package is
-being renamed to `anatase`; keep the name out of new literals.** A `diagnose`
-task adds surface to `agent.py`, whose tool name is already a name literal
-(`tool_definition(name="anatase_refine")`, pinned by
-`tests/test_agent_surface.py`). If 1062 has not landed when you start, take the
-tool name and any `pip install` hint from `_about.py` (`AGENT_TOOL_NAME`,
-`DIST_NAME`) rather than writing the string — that file is 1062's Phase 1 and is
-designed to land before the rename itself. Every new literal is a file 1062 has
-to sweep, and after it lands the audit test fails CI on a reintroduction.
-
-**From [1055](1055-background-evidence.md), closed 2026-08-12 — a new report
-section to deliver, and one ranking question left open on purpose.**
-`FitReport.background` is a fifth thing a delivery surface must place: it is
-Layer-0-grade (it speaks on an abstained report too), it always publishes its
-numbers, and exactly two of them are summary triggers. The Rwp /
-Rwp-background-subtracted pair is **deliberately not** one — measured, every
-background-dominated pattern crosses any useful threshold on it, including
-converged ones at ratio 3.6 and 5.6 — so a delivery loop that re-promotes it
-into a headline would be undoing a measured decision. AGENT_PROTOCOL §4's
-judging order is where it now sits, at step 7, paired with raw Rwp.
-
-**The open question, with its measurement.** On the too-stiff fixture (a
-Gaussian hump under a 2-term Chebyshev) the residual runs 12σ over hundreds of
-channels, noise on top of it clears the 5σ peak-detection floor in **146**
-places, and `add_impurity_phase` is emitted at **0.90** on a specimen with no
-impurity — above `increase_background_flexibility` at 0.60. WP-1055 added
-`note_background_crosstalk`, which makes each action name the other, but
-deliberately did **not** cap: unlike `cap_texture_crosstalk` (where the impurity
-was the plausible cause of the texture signature on the same reflections), these
-two findings are about disjoint channels by construction — Layer 0 segments a
-region around every residual peak, so an unmatched peak is never off-region —
-and both statements are true. Whether the top-ranked *action* should still be
-the phantom phase is a delivery/ranking question this WP had no measurement to
-settle; a diagnose task that orders hypotheses is where it can be answered.
-
-
-**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — two
-report facts a delivery loop must respect.** An abstention with
-`abstained_kind="resolution_limited"` is a *terminal* state for a declared
-phase-ID deliverable (AGENT_PROTOCOL §4b: a legitimate stopping point, "not
-evidence the model is wrong") — a diagnose ladder that keeps escalating on
-it is exactly the push-finer-corrections behaviour the WP-1057 regime
-directive forbids, so the ladder should branch on the kind, not just on the
-presence of a reason. And §4b's per-deliverable stopping criteria are
-decision-point content: the 1053 pilot's bottleneck was *when the report is
-read*, and §4b is the first content that licenses stopping early — worth
-surfacing at whatever delivery point this WP builds, and a coordinate for
-the §9 wording task above. (Rietveld-mode reports also now run a 5-cycle
-Le Bail partition per build — un-timed in isolation, suite wall unchanged;
-relevant only if this WP makes report builds per-stage-frequent.)
 
 ## Non-goals
 
