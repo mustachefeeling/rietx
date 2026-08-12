@@ -33,6 +33,7 @@ import numpy as np
 
 from ..schemas.results import RefinementResult
 from .schemas import (
+    BACKGROUND_ABSORPTION_NOTABLE,
     IMPURITY_SHIFT_CAP,
     MIN_COEF_SIGNIFICANCE,
     REINDEX_MIN_FAR_FRACTION,
@@ -324,6 +325,142 @@ def texture_actions(texture) -> list[SuggestedAction]:
             confidence=round(confidence, 3), rationale=rationale,
             parameter_paths=[f"phases.{t.phase_index}.preferred_orientation.r"]))
     return out
+
+
+#: ``increase_background_flexibility`` is capped here however strong the
+#: evidence.  The same off-region signature is produced by a background that
+#: is too stiff, by an amorphous hump, and by an un-modelled broad crystalline
+#: phase — and bending the background over either of the last two *hides* it
+#: while improving every statistic.  The evidence cannot separate them, so
+#: this direction is never a confident call (the never-a-confident-wrong-
+#: singleton rule; ``add_impurity_phase`` rides in ``alternatives``).
+BACKGROUND_INCREASE_CAP = 0.6
+
+
+def background_actions(background) -> list[SuggestedAction]:
+    """The two background-flexibility hypotheses, finally emitted (WP-1055).
+
+    Both kinds have been in ``ActionKind`` since v0.2 and were emitted
+    **nowhere**: they existed only as :data:`~pxrdref.report.apply.RECIPES`
+    advice and as an ``alternatives`` member on ``refine_biso``.  The recipe
+    notes were already the right words — they name the ADP/QPA-bias trap and
+    the statistic to read — and had no action to travel on.
+
+    Emitted from :attr:`FitReport.background`, on both sides of the maturity
+    gate: the evidence is model-free (plus one fit-time projection), and a
+    background failure is a common *cause* of an immature fit, the same
+    reasoning that puts texture and strain before the gate.
+
+    Both stay ``how="advice"``.  Changing what a background can absorb is not
+    a stage over parameters, and — the reason that matters — the cost of
+    getting it wrong is invisible in the evidence that proposes it, so a
+    one-click version would be a button whose own report cannot see what it
+    did.  ``parameter_paths`` is therefore **empty** rather than
+    ``instrument.background.*``: that glob would read as "free the background"
+    (which every plan already does, so the strategy veto would grey out the
+    suggestion for the wrong reason) when the edit being proposed is to the
+    background's *shape*, not to its free set.
+
+    Confidence follows the Layer-2 importance × quality shape, with the
+    directions weighted differently because their evidence differs in kind.
+    For the decrease direction there is no χ²-share importance term **by
+    construction** — the whole signature of an over-flexible background is
+    that it does not show up in χ² — so the projection R² carries both roles:
+    how much of the parameter the background can reproduce *is* how much of it
+    is at risk.  For the increase direction the misfit is real χ², so the
+    off-region share is a genuine importance weight (it is a poor *detector*,
+    tracking channel count, but a sound measure of how much of the misfit the
+    edit would address), and the quality term is how far the off-region
+    Durbin-Watson sits below 2.
+    """
+    if background is None:
+        return []
+    from .layer0 import too_flexible, too_stiff
+
+    out: list[SuggestedAction] = []
+    if too_flexible(background):
+        over = sum(1 for r2 in (background.absorption or {}).values()
+                   if r2 >= BACKGROUND_ABSORPTION_NOTABLE)
+        out.append(SuggestedAction(
+            kind="decrease_background_flexibility",
+            confidence=round(min(0.85, float(background.worst_absorption)), 3),
+            rationale=(
+                f"the background column span reproduces "
+                f"{background.worst_absorption:.0%} of "
+                f"{background.worst_absorption_path} "
+                f"({over} of {len(background.absorption or {})} screened "
+                f"structural parameters over "
+                f"{BACKGROUND_ABSORPTION_NOTABLE:.0%}), so that parameter is "
+                f"substitutable with the background rather than measured "
+                f"against it.  This is the failure mode that improves every "
+                f"statistic while it biases: ADPs up, scales and hence QPA "
+                f"fractions down, Rwp down.  Expect Rwp to get *worse* when "
+                f"you stiffen it — that is the cost, and an unbiased ADP is "
+                f"what it buys"),
+            alternatives=[]))
+    if too_stiff(background):
+        d = float(background.off_region_durbin_watson)
+        quality = float(np.clip(1.0 - d / 2.0, 0.0, 1.0))
+        importance = min(1.0, background.off_region_chi2_share / 0.25)
+        out.append(SuggestedAction(
+            kind="increase_background_flexibility",
+            confidence=round(min(BACKGROUND_INCREASE_CAP,
+                                 quality * importance), 3),
+            rationale=(
+                f"between the peak regions the residual is systematic rather "
+                f"than noise: χ²_red={background.off_region_chi2_reduced:.1f} "
+                f"over {background.off_region_points} channels "
+                f"({background.off_region_chi2_share:.0%} of total χ²) at "
+                f"Durbin-Watson d={d:.2f} (2 = uncorrelated).  Layer 0's "
+                f"regions are peak clusters, so this misfit sits in no region "
+                f"entry and no attribution can reach it.  An amorphous hump "
+                f"or an un-modelled broad crystalline phase produces exactly "
+                f"this signature, and a background bent over either *hides* "
+                f"it while improving every statistic — so check the "
+                f"between-peak shape before adding flexibility, and if you "
+                f"add it anyway, read any QPA from the result as fractions of "
+                f"the crystalline content you did model"),
+            alternatives=["add_impurity_phase"]))
+    return out
+
+
+def note_background_crosstalk(actions: list[SuggestedAction], background
+                              ) -> list[SuggestedAction]:
+    """Name the background as a rival explanation for unmatched peaks.
+
+    Measured on the too-stiff fixture (a Gaussian hump fitted with a 2-term
+    Chebyshev): the residual runs 12σ over hundreds of channels, noise on top
+    of it clears the 5σ peak-detection floor in 146 places, and
+    ``add_impurity_phase`` is emitted at 0.90 — above the background call at
+    0.60 — on a specimen with no impurity in it.
+
+    Deliberately **not** a confidence cap, unlike
+    :func:`cap_texture_crosstalk`.  There the impurity was the plausible
+    *cause* of the texture signature, measured on the same reflections.  Here
+    the two findings are about disjoint channels by construction — Layer 0
+    segments a region around every residual peak, so an unmatched peak is
+    never off-region — and both statements can be true at once.  What the
+    evidence does not support is treating them as unrelated, so the rival
+    rides in ``alternatives`` and the ranking is left alone (rule 2 of this
+    module: ambiguity is reported, never resolved by fiat).
+    """
+    from .layer0 import too_stiff
+
+    if background is None or not too_stiff(background):
+        return actions
+    for action in actions:
+        if (action.kind == "add_impurity_phase"
+                and "increase_background_flexibility" not in action.alternatives):
+            action.alternatives = list(action.alternatives) + [
+                "increase_background_flexibility"]
+            action.rationale += (
+                f"; note the background is also under-flexible here "
+                f"(off-region χ²_red="
+                f"{background.off_region_chi2_reduced:.1f} at d="
+                f"{background.off_region_durbin_watson:.2f}), and a residual "
+                f"riding that high clears the peak-detection floor on noise "
+                f"alone — check the between-peak shape before naming a phase")
+    return actions
 
 
 def reindex_action(attributions: list[RegionAttribution]
