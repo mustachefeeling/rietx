@@ -323,6 +323,7 @@ def _features() -> dict[str, bool]:
     """
     import anatase as pr
 
+    from .agent import AgentSuccess
     from .schemas.instrument import Geometry, Source
     from .schemas.structure import Atom, Phase
 
@@ -343,6 +344,10 @@ def _features() -> dict[str, bool]:
         # arguments and could run validators — a capability query must not.
         "anomalous_dispersion_default_on": Source.model_fields["dispersion"]
         .get_default(call_default_factory=True) is not None,
+        # delivery, asked of the envelope a JSON consumer actually receives
+        # (WP-1058): whether a refine answer carries the report at every stage
+        # boundary as well as at the end
+        "report_trajectory": "trajectory" in AgentSuccess.model_fields,
         # entry points, asked of the package through the one table the
         # meta-test also reads
         **{flag: hasattr(pr, name) for flag, name in _SURFACE_FLAGS.items()},

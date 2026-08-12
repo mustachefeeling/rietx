@@ -118,7 +118,12 @@ def run_episode(episode_dir: Path) -> dict:
 
         response = agent_mod.refine_json(request)
         if not condition["include_report"]:
+            # both halves of the report surface: the final report and the
+            # per-stage trajectory (WP-1058).  The package already ties the
+            # trajectory to include_report; this stays because the shim's
+            # guarantee is that *the condition* decides, not a package default
             response.pop("report", None)
+            response.pop("trajectory", None)
         record = {
             "refused": False,
             "episode_sha256": hashlib.sha256(episode_bytes).hexdigest(),
