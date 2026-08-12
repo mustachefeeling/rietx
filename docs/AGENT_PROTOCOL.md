@@ -180,7 +180,23 @@ Judge a fit in this order:
    Bérar-Lelann factor for serial correlation. Note it has an expected value of
    ≈1.51 even for perfectly white residuals — treat it as an upper bound on the
    damage, not a measurement of it.
-6. **Only then Rwp and GoF.**
+6. **What the background is doing** — `report.background`, and it belongs
+   *above* Rwp because it decides how to read Rwp. Two rows:
+   `worst_absorption` (with `worst_absorption_path`) is how much of a
+   structural parameter the background column span can reproduce, and
+   `off_region_chi2_reduced` with `off_region_durbin_watson` is whether the
+   residual *between* the peak regions is systematic. Layer 0's regions are
+   peak clusters, so that second failure lands in no `report.regions` entry
+   and step 2 cannot see it at all.
+7. **Only then Rwp and GoF** — as a pair with
+   `background.rwp_background_subtracted`, never alone. Measured: a sharp
+   LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**, and
+   background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by
+   whatever the background carries (89 % of the observed intensity in both),
+   so the number that separates two fits is the subtracted one. It is
+   published on every report and deliberately never mentioned in `summary` —
+   every background-dominated pattern would trigger it, including converged
+   ones.
 
 **Adding parameters: use ΔBIC, not Hamilton's R-ratio.** Measured on this
 package's own data (WP-0503): at 7251 channels Hamilton's test blesses a 0.13 %
@@ -223,17 +239,33 @@ Rwp says. An abstention with `abstained_kind="resolution_limited"` does not
 block this deliverable (see below).
 
 **QPA — "how much of each?"** Fractions ride on scales, so the deciding rows
-are the ones that bias scales silently: the scale↔Biso↔background degeneracy
-(§3), a background flexible enough to imitate peaks (measured: block
-absorption R² ≈ 46 % while every pairwise ρ read ~0.2 —
-`optimize.statistics.background_absorption`), absorption geometry (µR is
+are the ones that bias scales silently. The first of them is
+`report.background.absorption`, keyed by parameter path: the block projection
+R² of each structural parameter's Jacobian column onto the background column
+span, the detector for the scale↔Biso↔background degeneracy of §3. A pairwise
+ρ cannot see it (measured: ~0.2 per coefficient while the block absorbed
+46 %), and the whole table is published rather than only the entries over
+`BACKGROUND_ABSORPTION_NOTABLE` — a fired/not-fired bit is a verdict, and the
+diagnostic already carries the verdict. Then absorption geometry (µR is
 *exactly* a scale/Biso reparameterisation; µt is not, and its ΔBiso is larger
 and negative), and physically-impossible refined values (§4.4: a negative
 Biso is a background error laundered through a scale). The Le Bail gap must
 be read the other way here: a large ratio means the intensity model is wrong,
-and wrong intensities *are* wrong fractions. Stopping criterion: fractions
-stable under a background-flexibility change and no unresolved scale-family
-diagnostic — never "Rwp stopped falling".
+and wrong intensities *are* wrong fractions.
+
+Measured on this deliverable, and the reason the row outranks every statistic
+beside it (LaB₆, broad peaks, same data both times, 2026-08-12): fitted with a
+1°-knot unpenalized spline the refinement reports Rwp **0.08852** and GoF
+1.022, against **0.08969** and 1.025 with a correct Chebyshev-6 — the wrong
+background wins on every agreement index — and its displacement parameters
+come back 0.958 and 0.000 Å² against a truth of 0.5, one of them on its bound,
+where the correct background gives 0.691 and 0.327. `worst_absorption` reads
+0.46 against 0.08. **Nothing else in the report distinguishes these two fits,
+and the plot does not either**: the over-flexible residual is white noise
+inside ±3σ. Stopping criterion: fractions stable under a
+background-flexibility change, `worst_absorption` below its threshold, and no
+unresolved scale-family diagnostic — never "Rwp stopped falling", which here
+points the wrong way.
 
 **Structure — "where are the atoms?"** Everything above, plus the
 intensity-model rows themselves: per-region intensity coefficients and their
@@ -358,7 +390,7 @@ Every code below is a structured `Diagnostic` on `result.diagnostics` with a
 |---|---|
 | `HIGH_CORRELATION` | Quote both members of the pair as independently measured |
 | `BOUND_HIT` | Quote a parameter sitting on its bound as a measurement |
-| `BACKGROUND_ABSORPTION` | Quote ADPs, scales or QPA fractions from this fit — the background can imitate them, and Rwp *improved* while they biased |
+| `BACKGROUND_ABSORPTION` | Quote ADPs, scales or QPA fractions from this fit — the background can imitate them, and Rwp *improved* while they biased. Read the number, not the bit: `report.background.absorption` is the same measurement for **every** screened parameter, fired or not, and `result.identifiability.background_absorption` carries it on the result |
 | `ROUGHNESS_ABSORPTION` | Quote roughness and the displacement parameters as two separate results |
 | `ROUGHNESS_UNCONSTRAINED` / `ROUGHNESS_OUTSIDE_REGIME` | Interpret the roughness parameters physically |
 | `ADP_NOT_POSITIVE_DEFINITE` | Report the tensor as measured |
@@ -398,7 +430,25 @@ codes = {d.code for d in result.diagnostics}
 if "BACKGROUND_ABSORPTION" in codes:
     # stiffen the background BEFORE reporting anything intensity-derived
     ...
+
+# the same measurement as evidence rather than as a bit — and the two
+# background hypotheses, which are advice: they change what the background can
+# *absorb*, not which parameters move, so there is no stage to run
+bg = report.background                      # None only if no background curve
+bg.worst_absorption, bg.worst_absorption_path    # 0.46, "…atoms.0.biso"
+bg.absorption                                    # every screened path → R²
+bg.off_region_chi2_reduced, bg.off_region_durbin_watson   # 12.6, 0.19
+report.action("decrease_background_flexibility")  # fewer terms, larger λ
+report.action("increase_background_flexibility")  # capped at 0.6 — see below
 ```
+
+`increase_background_flexibility` is capped however strong its evidence,
+because an amorphous hump and an un-modelled broad crystalline phase produce
+the same between-peak signature as a too-stiff background, and bending the
+background over either of the last two **hides** it while improving every
+statistic. `add_impurity_phase` rides in its `alternatives` for that reason,
+and each names the other. If you add the flexibility anyway, read any QPA
+afterwards as fractions of the crystalline content you did model.
 
 ### 7b. Peak picking and indexing (`PeakList.diagnostics`,
 `DataQualityReport.diagnostics`)

@@ -140,10 +140,17 @@ def test_advice_kinds_refuse_in_their_own_words_rather_than_silently():
         assert why.startswith("not a one-click action")
         assert RECIPES[kind].note in why
 
-    # the two background kinds name the measurement that would justify them and
-    # is not in the report — the invariant, made into the reason
-    assert "BACKGROUND_ABSORPTION" in RECIPES["increase_background_flexibility"].note
+    # Both background kinds stay advice for a structural reason, not for want
+    # of evidence: a Chebyshev term is a property of the model, not a member of
+    # turn_on, so no stage can carry it.  Since WP-1055 the measurement they
+    # name *is* in the report, and both notes point at it — the note that used
+    # to say "which is not in this report" would now be a lie.
+    for kind in ("increase_background_flexibility",
+                 "decrease_background_flexibility"):
+        assert "report.background.worst_absorption" in RECIPES[kind].note
+        assert "not in this report" not in RECIPES[kind].note
     assert "biasing ADPs" in RECIPES["increase_background_flexibility"].note
+    assert "BACKGROUND_ABSORPTION" in RECIPES["increase_background_flexibility"].note
 
 
 def test_indexing_is_applicable_now_that_the_engine_exists():

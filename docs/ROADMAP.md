@@ -62,24 +62,25 @@ size caps on this file and CLAUDE.md.
 ## Current focus
 
 **The FitReport evidence campaign remainder —
-[1055](wp/1055-background-evidence.md),
 [1056](wp/1056-identifiability-layer.md),
 [1058](wp/1058-report-delivery.md) — then the re-A/B
 ([1059](wp/1059-eval-round-two.md)) and the freeze
 ([1003](wp/1003-api-freeze-pypi.md)).**
-[1057](wp/1057-purpose-grade-evidence.md) closed 2026-08-12: the report now
-answers "good enough *for what I need*" — `lebail_gap` (structural-vs-profile
-triage), `abstained_kind` (resolution-limited vs model error), the
-contents-type clause, and AGENT_PROTOCOL §4b mapping deliverable → rows →
-stopping criterion. Its surface changes (THRESHOLDS_VERSION 0.5, two new
-`FitReport` fields, four new exports) are in 1003's `### Inherited`, the
-re-A/B deltas in 1059's, and the §4b hook points for the background and
-identifiability sections in 1055's/1056's. Remaining order is free except:
-1056 has its reading done (Prince ch. 6–8) and a spike gating its schema
-fields, and **1059 runs only after 1056 + 1058** (1054 and 1057 are closed) —
+[1055](wp/1055-background-evidence.md) closed 2026-08-12: `FitReport.background`
+now carries both background failure modes — the block-absorption table (the
+over-flexible fit wins on Rwp *and* GoF while landing 2.6× further from the
+true Biso) and the off-region χ²_red/Durbin-Watson pair that Layer 0's
+peak-cluster regions are structurally blind to — and the two flexibility
+actions, emitted nowhere since v0.2, finally have an emitter.
+**1056 should extend `RefinementResult.identifiability` rather than build a
+carrier**: 1055 built it, and its `### Inherited` says how. Surface changes
+(THRESHOLDS_VERSION 0.6, `FitReport.background`, `Identifiability`, seven new
+exports) are in 1003's `### Inherited`, the re-A/B deltas in 1059's.
+Remaining order is free except: 1056 has its reading done (Prince ch. 6–8) and
+a spike gating its schema fields, and **1059 runs only after 1056 + 1058** —
 it re-A/Bs the fixed content on the 1053 harness with pre-registered
-hypotheses, including whether 1054 flipped the one row where the report sat
-on the wrong side (E7's phantom-phase quote).
+hypotheses, including whether 1054 flipped the one row where the report sat on
+the wrong side (E7's phantom-phase quote).
 Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 
@@ -265,7 +266,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ✅ 2026-08-11 — the §9 loop runs closed in CI; recovers what separates, refuses what does not, `src/` untouched | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ✅ 2026-08-11 — 48/48-run pilot: A/B null on outcomes; the bottleneck is when the report is read, not what it says | 1052 |
 | [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ✅ 2026-08-12 | — |
-| [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ⬜ | — |
+| [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ✅ 2026-08-12 — both failure modes in `FitReport.background`; the over-flexible fixture wins on Rwp and GoF and lands 2.6× further from truth | — |
 | [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ⬜ | — |
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |

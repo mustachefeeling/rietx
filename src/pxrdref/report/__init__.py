@@ -11,7 +11,14 @@ from __future__ import annotations
 
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
-from .layer0 import build_layer0, lebail_gap
+from .background import assess_background
+from .layer0 import (
+    background_clause,
+    build_layer0,
+    lebail_gap,
+    too_flexible,
+    too_stiff,
+)
 from .layer1 import (
     abstention_flavour,
     analyse_trends,
@@ -21,11 +28,13 @@ from .layer1 import (
 )
 from .layer2 import (
     apply_strategy_veto,
+    background_actions,
     cap_texture_crosstalk,
     delta_bic,
     estimate_delta_chi2,
     hamilton_justified,
     layer0_actions,
+    note_background_crosstalk,
     predict_then_verify,
     reindex_action,
     suggest_actions,
@@ -34,6 +43,7 @@ from .layer2 import (
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
     THRESHOLDS_VERSION,
+    BackgroundEvidence,
     BasisCoefficient,
     FitReport,
     LeBailGap,
@@ -53,6 +63,7 @@ from .texture import analyse_texture
 __all__ = [
     "RECIPES",
     "THRESHOLDS_VERSION",
+    "BackgroundEvidence",
     "BasisCoefficient",
     "FitReport",
     "LeBailGap",
@@ -71,7 +82,10 @@ __all__ = [
     "analyse_texture",
     "analyse_trends",
     "apply_strategy_veto",
+    "assess_background",
     "attribute_regions",
+    "background_actions",
+    "background_clause",
     "build_layer0",
     "build_report",
     "cap_texture_crosstalk",
@@ -83,12 +97,15 @@ __all__ = [
     "layer0_actions",
     "lebail_gap",
     "maturity_gate",
+    "note_background_crosstalk",
     "predict_then_verify",
     "recipe",
     "reindex_action",
     "stage_for",
     "suggest_actions",
     "texture_actions",
+    "too_flexible",
+    "too_stiff",
 ]
 
 
@@ -164,8 +181,13 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         if reindex is not None:
             actions.append(reindex)
         actions += texture_actions(report.texture)
+        # the background hypotheses stand here for the same reason texture
+        # does: their evidence never linearised anything, and an over-flexible
+        # or over-stiff background is a *cause* of an immature fit
+        actions += background_actions(report.background)
         actions = cap_texture_crosstalk(actions, report.texture,
                                         report.unmatched)
+        actions = note_background_crosstalk(actions, report.background)
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
         actions.sort(key=lambda a: -a.confidence)
@@ -192,10 +214,14 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     predicted = estimate_delta_chi2(result, attributions)
     for action in actions:
         action.expected_delta_chi2 = predicted
-    # texture actions join after the Δχ² stamp: their evidence is
-    # per-reflection, not the gated region attribution the estimate covers
+    # texture and background actions join after the Δχ² stamp: their evidence
+    # is per-reflection or whole-pattern, not the gated region attribution the
+    # estimate covers — and off-region misfit is by definition outside every
+    # region the estimate sums over
     actions += texture_actions(report.texture)
+    actions += background_actions(report.background)
     actions = cap_texture_crosstalk(actions, report.texture, report.unmatched)
+    actions = note_background_crosstalk(actions, report.background)
     if plan is not None or free_paths is not None:
         actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
     actions.sort(key=lambda a: -a.confidence)

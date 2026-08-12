@@ -46,6 +46,7 @@ from .schemas.params import ParameterRow, TieSpec
 from .schemas.pattern import PatternData
 from .schemas.results import (
     AbsorptionCorrection,
+    Identifiability,
     RefinedParameter,
     RefinementResult,
     StageResult,
@@ -845,7 +846,7 @@ class Refinement:
         model = None
 
         try:
-            model, outcome, stage_results, diagnostics = self._run_plan(
+            model, outcome, guard, stage_results, diagnostics = self._run_plan(
                 plan, data, mode, table, two_theta_limits, tree, stream, cancel,
                 stage_results, diagnostics)
         except RefinementCancelled as exc:
@@ -872,7 +873,8 @@ class Refinement:
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
-            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped)
+            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
+            guard=guard)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         if stream is not None:
@@ -888,10 +890,14 @@ class Refinement:
                   cancel, stage_results, diagnostics):
         """The stage loop of :meth:`fit`, split out so cancellation has one exit.
 
-        Returns ``(model, outcome, stage_results, diagnostics)``; raises
-        :class:`RefinementCancelled` with the completed stages attached.
+        Returns ``(model, outcome, guard, stage_results, diagnostics)``; raises
+        :class:`RefinementCancelled` with the completed stages attached.  The
+        guard returned is the **last** stage's, for the same reason
+        :func:`_constraint_diagnostics` reads only that stage: earlier stages
+        measured an intermediate state, and it is the answer-producing one
+        whose Jacobian the result's identifiability evidence describes.
         """
-        model = outcome = None
+        model = outcome = guard = None
         for k, stage in enumerate(plan.stages, start=1):
             with self._abandon_on_cancel(cancel, stage.name, stage_results, stream):
                 model, outcome, guard, freed = self._run_stage(
@@ -917,7 +923,7 @@ class Refinement:
                     max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
                     seed=stage.seed, strain_seed=stage.strain_seed,
                 ), model, table, outcome, stage_diagnostics)
-        return model, outcome, stage_results, diagnostics
+        return model, outcome, guard, stage_results, diagnostics
 
     def run_stage(self, data: PatternData, stage: Stage, *,
                   mode: Mode | None = None,
@@ -978,7 +984,8 @@ class Refinement:
             structure=self.structure, stderr_internal=outcome.stderr_internal,
             correlation=outcome.correlation, backend=self._backend,
             solver=self._solver,
-            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped)
+            mu_r_source=self._mu_r_source, mu_r_skipped=self._mu_r_skipped,
+            guard=guard)
         _apply_esds(table, self.result_, self.structure, self.instrument)
         self._stamp(self.result_, tree)
         return self.result_
@@ -1383,7 +1390,8 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                   stderr_internal=None, correlation=None,
                   backend: str = "numpy", solver: str = "trf",
                   mu_r_source: str = "given",
-                  mu_r_skipped: str | None = None) -> RefinementResult:
+                  mu_r_skipped: str | None = None,
+                  guard=None) -> RefinementResult:
     values = table.decode(theta)
     y_calc = model.evaluate(values)
     y_bkg = model.background(values)
@@ -1469,6 +1477,15 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                    + _far_from_data_diagnostics(model, y_calc, y_bkg, stats)
                    + _max_iter_diagnostics(stage_results))
 
+    # Degeneracy evidence off the answer-producing stage's Jacobian, which is
+    # not serialized and so cannot be recovered later (WP-1055).  The same
+    # numbers the background guard screened, carried whole rather than as the
+    # fired subset — the FitReport's background section quotes them.
+    identifiability = None
+    if guard is not None and guard.measured_background_absorption:
+        identifiability = Identifiability(
+            background_absorption=dict(guard.measured_background_absorption))
+
     return RefinementResult(
         status=status, mode=mode,
         parameters=params, statistics=stats,
@@ -1481,7 +1498,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
         ticks=ticks, qpa=qpa, restraints=restraints_report,
-        absorption=absorption,
+        absorption=absorption, identifiability=identifiability,
     )
 
 

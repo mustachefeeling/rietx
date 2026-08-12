@@ -11,6 +11,28 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1055](1055-background-evidence.md), closed 2026-08-12 — the third
+lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now
+**0.6**. `FitReport` gained `background: BackgroundEvidence | None`
+(absent-for-cause when the result carries no background curve) and
+`RefinementResult` gained `identifiability: Identifiability | None` — the
+first field on the result whose value cannot be recomputed from the result
+(it is read off the final Jacobian, which is never serialized), so a freeze
+decision about it is a decision about *what a stored result promises*, not
+just about a shape. Both are additive and defaulted, so `SCHEMA_VERSION`
+stays at 0.1 on the WP-1043 events precedent. New exports on
+`pxrdref.report`: `BackgroundEvidence`, `assess_background`,
+`background_actions`, `background_clause`, `note_background_crosstalk`,
+`too_flexible`, `too_stiff`; new on `pxrdref.schemas.results`:
+`Identifiability`. `GuardReport` gained a seventh field,
+`measured_background_absorption`, which is **not** findings — worth naming in
+the freeze because the six-findings-fields sentence has been the documented
+shape of that dataclass since v0.2. Two `ActionKind` members that had never
+been emitted anywhere now are (`increase_`/`decrease_background_flexibility`),
+which changes what a client can actually receive without changing the closed
+vocabulary itself.
+
+
 **From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
 second lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is
 now **0.5**. `FitReport` gained two defaulted fields: `lebail_gap:

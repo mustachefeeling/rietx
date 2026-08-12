@@ -246,28 +246,29 @@ recent list, and is therefore not behind the 409 (WP-1044).
   scanned **axis** is never trusted — most vendor files are not powder scans, so
   a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs,
   options and how to add a format are `src/pxrdref/io/CLAUDE.md`, under `io/`.
-- **Every weighted residual in the package divides by
-  `RefinementResult.sig()`** — the matplotlib panel, the plotly export, the VLM
-  montage, Layer 0 and both GUI windows (`session.curve_window` is shared by the
-  fit plot and the series panel's) — a peer of `PatternData.sig()`, where the
-  esd-column/Poisson choice was already made: `CompiledModel` stores
-  `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
-  result's σ is a *lookup*, never a re-derivation (five call sites open-coded it
-  under three policies before WP-1029 (s), whose file has the story). The bug hid
-  beside the fallback, not in it: `weighted` meant `bool(result.sigma)`
-  — constant-true — so a Poisson fit was labelled `(obs−calc)/σ` as though its
-  σ had been measured. **`weighted` is `DataRef.has_sigma`** (σ *measured*, not
-  σ *present* — the fact `textdoc` renders as "σ from file"), `delta` is always
-  Δ/σ because Δ/σ is what the fit minimised either way, and the flag changes
-  only the axis title. A test that recomputes a residual cannot catch this
-  class of bug: the pin compares what each renderer **drew** against what the
-  route **sent**.
-- **Background flexibility is a correctness question, not a cosmetic one.**
-  A background able to imitate the peaks biases ADPs up and scales (hence QPA
-  fractions) down while Rwp *improves*. Measure it as the block projection
-  R² of a structural Jacobian column onto the background column span
-  (`optimize.statistics.background_absorption`) — pairwise ρ misses it
-  entirely (~0.2 per coefficient while the block absorbs ~46 %).
+- **Every weighted residual in the package divides by `RefinementResult.sig()`**
+  — the matplotlib panel, the plotly export, the VLM montage, Layer 0 and both
+  GUI windows (`session.curve_window` is shared by the fit plot and the series
+  panel's) — a peer of `PatternData.sig()`, where the esd-column/Poisson choice
+  was already made: `CompiledModel` stores `pattern.sig()` and `refine` copies
+  it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a
+  re-derivation (five call sites, three policies, before WP-1029 (s), whose file
+  has the story — including how the bug hid beside the fallback and not in it:
+  `weighted` meant `bool(result.sigma)`, constant-true, so a Poisson fit was
+  labelled `(obs−calc)/σ` as though its σ had been measured). **`weighted` is
+  `DataRef.has_sigma`** (σ *measured*, not σ *present* — the fact `textdoc`
+  renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is what the fit
+  minimised either way, and the flag changes only the axis title. A test that
+  recomputes a residual cannot catch this class of bug: the pin compares what
+  each renderer **drew** against what the route **sent**.
+- **Background flexibility is a correctness question, not a cosmetic one.** A
+  background able to imitate the peaks biases ADPs up and scales (hence QPA
+  fractions) down while Rwp *improves*. Measure it as the block projection R²
+  of a structural Jacobian column onto the background column span
+  (`optimize.statistics.background_absorption`; pairwise ρ misses it, ~0.2 per
+  coefficient against ~46 % for the block), **once**, and carry the whole table
+  to `FitReport.background` — whose other half, a too-stiff background, Layer
+  0's peak-cluster regions are blind to (WP-1055).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters
   for non-cubic orbit/multiplicity counting (see symmetry.py comment). **This is
   about hkl, and applying it to a *tensor* is the opposite mistake**: a quantity

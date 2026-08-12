@@ -117,6 +117,36 @@ legal either way.
 
 ### Inherited
 
+**From [1055](1055-background-evidence.md), closed 2026-08-12 — the shared
+carrier exists; extend it, do not build one.** The seam both WPs needed is
+`RefinementResult.identifiability: Identifiability | None`
+(`schemas/results.py`), additive and defaulted, holding today one field:
+`background_absorption: dict[path, R²]`. Put the correlation/soft-mode summary
+there as further fields rather than opening a second result section — the
+class docstring already states the shared reason it exists (the Jacobian is an
+N×P array that is never serialized, so anything read off it is screened at fit
+time or lost) and names this WP.
+
+Three mechanics to reuse rather than re-derive. It is filled from
+`GuardReport.measured_background_absorption`, a deliberately-not-findings field
+set inside `check_guards`: **measure once**, let the threshold decide only which
+rows become `GuardFinding`s, so the report's number and the guard's fired bit
+cannot disagree — the same discipline a correlation section wants against
+`HIGH_CORRELATION`. `_run_plan` returns the **last stage's** guard (the
+answer-producing one, the rule `_constraint_diagnostics` already followed) and
+`_build_result` takes it as `guard=`. And `replay` plus joint multi-histogram
+fits leave the field `None`, which the schema says to read as "not measured
+here", never as a clean bill of health.
+
+Two shape precedents from the report side, if a `FitReport` section follows:
+`report/background.py` is a small module whose assessor returns the section and
+whose measured separations live in its docstring, with the *predicates* the
+summary clause and the Layer-2 emitter share (`too_flexible`/`too_stiff` in
+`layer0.py`) extracted so a sentence and an action cannot disagree about what
+the evidence says. And `THRESHOLDS_VERSION` is now **0.6**, so a further bump is
+a fresh decision.
+
+
 **From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — where the
 exchangeability row lands in the protocol.** AGENT_PROTOCOL §4b ("Declare
 the deliverable") now exists; its *structure* profile lists the

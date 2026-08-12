@@ -1,5 +1,8 @@
 """v0.2 background subsystem: diagnostics, auto-selection, P-spline
-co-refinement, and the background↔structure correlation guardrail."""
+co-refinement, and the background↔structure correlation guardrail — plus
+(WP-1055) the background evidence that guardrail now reaches the report by."""
+
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -310,7 +313,13 @@ def test_pspline_refines_a_curved_background():
 # ----------------------------------------------------------------------
 # guardrail
 # ----------------------------------------------------------------------
-def _absorption_setup(background, *, broad=0.0):
+def _absorption_fit(background, *, broad=0.0):
+    """The absorption setup, keeping the refinement so ``report()`` works.
+
+    Same data every time (flat background, seed 4, 15-70°) so two backgrounds
+    fitted to it are comparable channel for channel — which is what makes the
+    WP-1055 Rwp inversion an inversion rather than two unrelated numbers.
+    """
     structure = make_lab6()
     structure.phases[0].scale.value = 3e-4
     structure.phases[0].lor_size.value = broad
@@ -326,7 +335,11 @@ def _absorption_setup(background, *, broad=0.0):
                          "phases.*.atoms.*.biso"]),
     ])
     ref = pr.Refinement(structure, ins, history=False)
-    return ref.fit(data, plan=plan)
+    return ref, ref.fit(data, plan=plan)
+
+
+def _absorption_setup(background, *, broad=0.0):
+    return _absorption_fit(background, broad=broad)[1]
 
 
 def test_background_absorption_guard_fires_on_slack_background():
@@ -384,3 +397,213 @@ def test_penalty_rows_suppress_absorption():
     assert unpenalized > 0.3, f"expected a degenerate case, got R²={unpenalized:.3f}"
     assert penalized < 0.15, f"penalty failed to suppress absorption (R²={penalized:.3f})"
     assert penalized < 0.4 * unpenalized
+
+
+# ----------------------------------------------------------------------
+# WP-1055 — background evidence in the FitReport
+# ----------------------------------------------------------------------
+_OUT = Path(__file__).parent / "output"
+
+_SLACK = BackgroundPSpline.for_range(15.0, 70.0, knot_step_deg=1.0,
+                                     lambda_smooth=0.0)
+
+
+def _plot(result, stem):
+    """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
+    low-angle zoom — house convention: Rwp hides locally-bad fits."""
+    from pxrdref.viz.plots import plot_result
+
+    _OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(_OUT / f"{stem}.png"))
+    plot_result(result, path=str(_OUT / f"{stem}_zoom.png"),
+                two_theta_range=(15.0, 40.0))
+
+
+def _biso_rms_error(result, truth=0.5):
+    b = [p.value for p in result.parameters if p.path.endswith(".biso")]
+    return float(np.sqrt(np.mean([(v - truth) ** 2 for v in b])))
+
+
+def test_over_flexible_background_is_flagged_while_rwp_improves():
+    """The pinned inversion, and the reason this section exists.
+
+    Two backgrounds over the *same* broad-peak data, both converged.  The
+    1°-knot unpenalized spline wins on Rwp **and** GoF and is 2.6× further
+    from the truth (measured 2026-08-12: Rwp 0.08852 vs 0.08969, GoF 1.022 vs
+    1.025, Biso 0.958/0.000 vs 0.691/0.327 against a truth of 0.5/0.5, RMS
+    error 0.480 vs 0.182 — with one displacement parameter driven onto its
+    bound).  Every statistic an agent reads says the wrong fit is the better
+    one; only the projection says otherwise, which is the v0.5 rule that a
+    correction's evidence is never an Rwp comparison.
+    """
+    from pxrdref.report.schemas import BACKGROUND_ABSORPTION_NOTABLE
+
+    slack_ref, slack = _absorption_fit(_SLACK, broad=0.15)
+    ref_ref, reference = _absorption_fit(BackgroundChebyshev.with_terms(6),
+                                         broad=0.15)
+
+    assert slack.statistics.rwp < reference.statistics.rwp, (
+        f"the inversion is the test: {slack.statistics.rwp:.5f} vs "
+        f"{reference.statistics.rwp:.5f}")
+    assert slack.statistics.gof < reference.statistics.gof
+    assert _biso_rms_error(slack) > 2 * _biso_rms_error(reference), (
+        _biso_rms_error(slack), _biso_rms_error(reference))
+
+    bg = slack_ref.report().background
+    assert bg is not None and bg.absorption
+    assert bg.worst_absorption > BACKGROUND_ABSORPTION_NOTABLE, bg
+    assert bg.worst_absorption_path.endswith((".biso", ".scale"))
+    # the section is evidence: every screened pair travels, not just the fired
+    assert len(bg.absorption) > 1
+    assert bg.worst_absorption == max(bg.absorption.values())
+
+    report = slack_ref.report()
+    assert "block projection R²" in report.summary
+    action = report.action("decrease_background_flexibility")
+    assert action.active and action.confidence == pytest.approx(
+        bg.worst_absorption, abs=1e-3)
+    assert "biases" in action.rationale and "QPA" in action.rationale
+    # not a stage: the paths would be the background's own, which every plan
+    # already frees — the veto would grey it out for the wrong reason
+    assert action.parameter_paths == []
+
+    # and the correct background says nothing at all
+    good = ref_ref.report()
+    assert good.background.worst_absorption < BACKGROUND_ABSORPTION_NOTABLE
+    assert "block projection R²" not in good.summary
+    assert [a.kind for a in good.suggested_actions
+            if a.kind.endswith("_background_flexibility")] == []
+
+    _plot(slack, "wp1055_over_flexible")
+    _plot(reference, "wp1055_over_flexible_reference")
+
+
+def test_stiff_background_reports_the_misfit_between_the_peaks():
+    """The other direction, structurally invisible before this section.
+
+    A Gaussian hump fitted with a 2-term Chebyshev.  Layer 0's regions are
+    peak clusters, so between-peak misfit lands in no region entry and its
+    only prior trace was the unexplained remainder of "top 15 regions carry
+    X %".  Measured 2026-08-12: off-region χ²_red 12.6 over 3164 channels at
+    Durbin-Watson d 0.19, against 0.97/2.00 on the converged control — while
+    the block absorption reads 0.02, i.e. the two failure modes do not
+    contaminate each other's statistic.
+    """
+    from pxrdref.report.schemas import OFF_REGION_CHI2_RED_HIGH, OFF_REGION_DW_LOW
+
+    structure = make_lab6()
+    structure.phases[0].scale.value = 3e-4
+    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins.profile.w.value = 3e-3
+    ins.profile.x.value = 5e-3
+    ins.background = BackgroundChebyshev.with_terms(2)
+    ref = pr.Refinement(structure, ins, history=False)
+    result = ref.fit(_peaky_pattern(background=_hump_bkg, seed=9),
+                     plan=pr.RefinementPlan(stages=[pr.Stage(
+                         "all", ["phases.*.scale", "instrument.background.c*",
+                                 "phases.*.atoms.*.biso"])]))
+    report = ref.report()
+    bg = report.background
+
+    assert bg.off_region_chi2_reduced > 4 * OFF_REGION_CHI2_RED_HIGH, bg
+    assert bg.off_region_durbin_watson < 0.5 * OFF_REGION_DW_LOW, bg
+    assert bg.off_region_points > 1000
+    # the absorption statistic must stay quiet: this background is too stiff
+    # to imitate anything, which is the whole point of measuring both
+    assert bg.worst_absorption < 0.1, bg
+
+    assert "systematic, not noise" in report.summary
+    action = report.action("increase_background_flexibility")
+    assert action.active and 0.0 < action.confidence <= 0.6
+    assert "amorphous hump" in action.rationale
+    assert "add_impurity_phase" in action.alternatives
+    assert action.parameter_paths == []
+
+    # the rival, both ways: a residual running this high clears the 5σ peak
+    # floor on noise alone, so the impurity call must name the background
+    impurity = report.action("add_impurity_phase")
+    assert "increase_background_flexibility" in impurity.alternatives
+    assert "between-peak shape" in impurity.rationale
+
+    _plot(result, "wp1055_too_stiff")
+
+
+def test_background_pair_is_published_and_never_a_summary_trigger():
+    """The pair is context, and the measurement says it cannot be more.
+
+    Every background-dominated pattern crosses any useful threshold on it —
+    measured, a *converged* clean lab fit reads background share 0.93 and
+    background-subtracted Rwp 3.9× the raw one — so a summary trigger there
+    would be a sentence on every lab fit.  It is published unconditionally
+    and quoted nowhere in the summary.
+    """
+    ref, result = _absorption_fit(BackgroundChebyshev.with_terms(6))
+    bg = ref.report().background
+
+    assert bg.rwp == pytest.approx(result.statistics.rwp)
+    assert bg.rwp_background_subtracted == pytest.approx(
+        result.statistics.rwp_background_subtracted)
+    assert bg.rwp_background_subtracted > 2 * bg.rwp, bg
+    assert 0.5 < bg.background_share < 1.0, bg
+
+    summary = ref.report().summary
+    assert "background-subtracted" not in summary
+    assert "flattered" not in summary
+    # and the share of χ² between the peaks: published, and *not* a detector —
+    # on a converged fit most channels are off-region, so it reads high
+    assert bg.off_region_chi2_share > 0.5, bg
+    assert bg.off_region_chi2_reduced == pytest.approx(1.0, abs=0.3), bg
+
+
+def test_off_region_durbin_watson_is_pooled_within_runs():
+    """Never differenced across an excised peak region.
+
+    Two off-region runs of a perfectly smooth ramp, with a large jump between
+    them where the peak region was cut out.  Bridging the gap would add that
+    one jump to the numerator and report the residual as far less correlated
+    than it is; pooling within runs sees only the ramp.
+    """
+    from pxrdref.report.background import _pooled_durbin_watson
+
+    delta = np.concatenate([np.arange(1.0, 6.0), np.full(4, 0.0),
+                            np.arange(101.0, 106.0)])
+    mask = np.zeros(delta.size, dtype=bool)
+    mask[:5] = mask[9:] = True
+
+    d, n_pairs = _pooled_durbin_watson(delta, mask)
+    assert n_pairs == 8                       # 4 + 4, never the bridging pair
+    denom = float(delta[mask] @ delta[mask])
+    assert d == pytest.approx(8.0 / denom)    # eight unit steps, no jump
+    bridged = float(np.diff(delta[mask]) @ np.diff(delta[mask])) / denom
+    assert bridged > 100 * d, "the bridging pair would dominate"
+
+    # too few adjacent channels to difference is None, not a fabricated 2.0
+    lone = np.zeros(delta.size, dtype=bool)
+    lone[0] = lone[6] = True
+    assert _pooled_durbin_watson(delta, lone)[0] is None
+
+
+def test_identifiability_carries_the_quiet_measurements_too():
+    """A fired/not-fired bit is a verdict; 0.46-against-0.08 is evidence.
+
+    The sane background trips no guard, and the same numbers the guard
+    screened must still reach the result — otherwise a consumer cannot tell
+    "measured and fine" from "never measured", which is exactly the
+    distinction ``Identifiability = None`` is reserved for.
+    """
+    from pxrdref.strategy.staged import BACKGROUND_ABSORPTION_GUARD
+
+    result = _absorption_setup(BackgroundChebyshev.with_terms(6))
+    assert "BACKGROUND_ABSORPTION" not in {d.code for d in result.diagnostics}
+
+    ident = result.identifiability
+    assert ident is not None and ident.background_absorption
+    assert all(r2 <= BACKGROUND_ABSORPTION_GUARD
+               for r2 in ident.background_absorption.values()), ident
+    assert any(p.endswith(".scale") for p in ident.background_absorption)
+
+    # and it survives the JSON round trip the agent surface takes
+    from pxrdref.schemas.results import RefinementResult
+    back = RefinementResult.model_validate_json(result.model_dump_json())
+    assert back.identifiability.background_absorption == \
+        ident.background_absorption

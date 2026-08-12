@@ -77,6 +77,34 @@ repo; runs execute in the Claude Code harness.
 
 ### Inherited
 
+**From [1055](1055-background-evidence.md), closed 2026-08-12 — the third
+content change round 2 measures.** Deltas a re-A/B will see: every report now
+carries `FitReport.background` (published unconditionally, so it is in the
+serialized report an agent reads whether or not anything fired); the summary
+gains **one** clause when either background failure mode fires, and none
+otherwise (the converged control is pinned silent); and two `ActionKind`
+members that had never been emitted anywhere can now appear in
+`suggested_actions` — `decrease_background_flexibility` (confidence = the
+measured block-projection R², ~0.46 on the fixture) and
+`increase_background_flexibility` (capped at 0.60). `THRESHOLDS_VERSION` is
+**0.6**.
+
+**One condition axis worth pre-registering, with the trap measured.** The
+over-flexible background is the failure mode where *every* statistic an agent
+reads improves: on the WP-1055 fixture the wrong background wins Rwp (0.08852
+vs 0.08969) and GoF (1.022 vs 1.025) while landing 2.6× further from the true
+Biso, and the plot shows white-noise residuals inside ±3σ. An episode planted
+this way tests whether a consumer can be moved off a better-looking fit by a
+single projection number — which is a sharper version of round 1's question
+(*when* the report is read) than any position-family episode, because here
+reading it later is not merely late but actively misleading. Note the report's
+own honest asymmetry when scoring: `add_impurity_phase` still outranks
+`increase_background_flexibility` on the too-stiff state (0.90 against 0.60,
+146 noise-driven unmatched peaks), with each action naming the other in
+`alternatives` — a consumer that follows the ranking blindly gets a phantom
+phase, and one that reads the alternatives does not.
+
+
 **From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
 second content change round 2 measures, and one new condition axis worth
 pre-registering.** Deltas a re-A/B will see: Rietveld-mode reports now carry
