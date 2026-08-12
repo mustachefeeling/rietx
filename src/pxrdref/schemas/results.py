@@ -47,6 +47,43 @@ class Statistics(Base):
     n_free_parameters: int
 
 
+class Identifiability(Base):
+    """Degeneracy evidence measured on the **final Jacobian** (WP-1055).
+
+    This carrier exists because these statistics cannot be recovered from a
+    stored result.  J is an N×P array that is never serialized (a history node
+    stores state, not curves), so anything read off it has to be screened at
+    fit time or lost — unlike Rwp or a residual, which any consumer can
+    recompute from the arrays already here.
+
+    It is **additive and defaulted**, which deliberately leaves
+    ``SCHEMA_VERSION`` where it is: the events rule of WP-1043 one rank over —
+    a new field on an existing shape is not a new shape, and every reader
+    written against the old one keeps parsing.  A *new* top-level result
+    section that a consumer must branch on would be the other case.
+
+    ``background_absorption`` maps each screened structural path to the block
+    projection R² of its Jacobian column onto the background column span
+    (:func:`~pxrdref.optimize.statistics.background_absorption`).  **Every**
+    screened pair is here, not only those over
+    ``BACKGROUND_ABSORPTION_GUARD``: a fired/not-fired bit is a verdict, while
+    0.46-against-0.08 is evidence, and the guard's diagnostic already carries
+    the verdict.  The numbers are the *same measurement* the guard decided on,
+    not a second one — so the report's background section and the
+    ``BACKGROUND_ABSORPTION`` diagnostic can never quote different numbers.
+
+    Empty ⇔ nothing was measurable: fewer than two free parameters, no
+    Jacobian retained by the solver, or no background/structural pair to
+    project.  Absent (``None`` on the result) ⇔ nothing measured it — a
+    ``replay`` of a history node (evaluate-only, no solve) or a joint
+    multi-histogram fit, which screens per histogram and reports through each
+    histogram's own diagnostics.  Read ``None`` as "not measured here", never
+    as "no absorption".
+    """
+
+    background_absorption: dict[str, float] = Field(default_factory=dict)
+
+
 class PhaseQuantity(Base):
     """One phase's quantitative-analysis row (Hill & Howard, 1987).
 
@@ -324,6 +361,11 @@ class RefinementResult(Base):
     # otherwise.  Deviations in units of σ surface an over-tight restraint
     # fighting the data even while Rwp looks good.
     restraints: RestraintReport | None = None
+
+    # Degeneracy evidence measured on the final Jacobian, which is never
+    # serialized — see :class:`Identifiability`.  None when the result did not
+    # come from a fit that ran the guards.
+    identifiability: Identifiability | None = None
 
     # Per-histogram slices of a multi-histogram joint refinement (WP-0308);
     # empty for an ordinary single-histogram fit.  ``statistics`` above is then

@@ -455,9 +455,19 @@ class GuardFinding:
 class GuardReport:
     """The guards a stage tripped, grouped by kind — see :class:`GuardFinding`.
 
-    The six field names are unchanged from v0.2; what they hold is findings
-    rather than strings.  ``str(finding)`` is the old entry, so a consumer that
-    only ever printed them needs no change.
+    The six *finding* field names are unchanged from v0.2; what they hold is
+    findings rather than strings.  ``str(finding)`` is the old entry, so a
+    consumer that only ever printed them needs no change.
+
+    ``measured_background_absorption`` is the one field that is **not**
+    findings, and it is here rather than beside them so that the number a
+    report quotes and the bit a guard fires on come from one measurement
+    (WP-1055).  It carries every screened (path, R²) pair the block projection
+    produced — the guard keeps those over
+    :data:`BACKGROUND_ABSORPTION_GUARD` as ``background_correlations``, and
+    :class:`~pxrdref.schemas.results.Identifiability` carries all of them onto
+    the result, because a fired/not-fired bit is a verdict and 0.46-vs-0.08 is
+    evidence.
     """
 
     high_correlations: list[GuardFinding] = field(default_factory=list)
@@ -474,6 +484,9 @@ class GuardReport:
     # identifiable from this data, or a displacement parameter is now hiding
     # in it.  Same block-R² statistic as background_correlations.
     roughness_correlations: list[GuardFinding] = field(default_factory=list)
+    # not findings: the full screened (path, R²) table the background guard
+    # decided from — see the class docstring
+    measured_background_absorption: dict[str, float] = field(default_factory=dict)
 
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in."""
@@ -618,7 +631,11 @@ def check_guards(table, outcome, threshold: float,
                         GuardFinding.correlation(free[i], free[j], corr[i, j]))
 
     if outcome.jac is not None and len(free) > 1:
-        for path, r2 in sorted(background_absorption(outcome.jac, free).items(),
+        # measured once: the screened table travels to the result (WP-1055)
+        # and the threshold decides only which rows become findings
+        report.measured_background_absorption = background_absorption(
+            outcome.jac, free)
+        for path, r2 in sorted(report.measured_background_absorption.items(),
                                key=lambda kv: -kv[1]):
             if r2 > background_threshold:
                 report.background_correlations.append(
