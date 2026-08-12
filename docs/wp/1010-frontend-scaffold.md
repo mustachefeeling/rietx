@@ -6,7 +6,7 @@ Depends on: WP-1008
 ## Goal
 
 A `gui/` TypeScript workspace whose build writes committed static assets
-into `src/pxrdref/gui/static/`, plus the app shell, the obs/calc/diff plot
+into `src/anatase/gui/static/`, plus the app shell, the obs/calc/diff plot
 panel, and the console — the foundation every later frontend WP builds on.
 Users installing the wheel never need node.
 
@@ -24,7 +24,7 @@ Users installing the wheel never need node.
     package.json  package-lock.json  vite.config.ts
     src/  App.svelte  api.ts  panels/{Plot,Params,Plan,History,Report,Console,Text,Structure,Series}.svelte
           lib/{sync,decimate,fnmatch,sse}.ts
-  src/pxrdref/gui/static/   # COMMITTED build output + build-info.json + help.json
+  src/anatase/gui/static/   # COMMITTED build output + build-info.json + help.json
   ```
 
 - Build writes **stable filenames** (`app.js`, `app.css`, `vendor-cm.js` —
@@ -47,7 +47,7 @@ Users installing the wheel never need node.
 - Shell: light/dark theming reusing compare's CSS-custom-properties
   approach.
 - **CI cost, priced** (the WP-1002 rule): `gui.yml` triggers only on
-  `gui/**` and `src/pxrdref/gui/static/**` — node setup + `npm ci` + build +
+  `gui/**` and `src/anatase/gui/static/**` — node setup + `npm ci` + build +
   diff + vitest ≈3 billed min; at an aggressive 40 gui-touching
   pushes/month ≈120 min against the 2000/month free tier (303 scheduled
   today). The per-push `ci.yml` job is unchanged at 5 billed min — the
@@ -69,7 +69,7 @@ comparing `build-info.json` only and record the measurement in the handover
 log — pre-authorised fallback, not a new decision.
 
 From **WP-1008** (GUI server, landed 2026-07-30) — the surface this scaffold
-consumes now exists and runs; `pxrdref gui --no-open` serves it today, with a
+consumes now exists and runs; `anatase gui --no-open` serves it today, with a
 placeholder page from `gui/server.py:_PLACEHOLDER` until `static/index.html`
 exists. Six facts that change the frontend's design:
 
@@ -118,7 +118,7 @@ persisted immediately, no save step.
 ## Tasks
 
 - [x] `gui/` workspace: Svelte 5 + Vite 8 + TS + vitest, lockfile committed;
-      build → `src/pxrdref/gui/static/` with stable filenames +
+      build → `src/anatase/gui/static/` with stable filenames +
       `build-info.json`.
 - [x] `tests/test_gui_dist.py`: freshness check (digest defined **once**, in
       `gui/scripts/build_info.py`) + the no-external-asset assertion + two
@@ -140,7 +140,7 @@ persisted immediately, no save step.
 
 ```sh
 .venv/bin/python -m pytest tests/test_gui_dist.py tests/test_gui_server.py -q
-npm --prefix gui ci && npm --prefix gui run build && git diff --exit-code src/pxrdref/gui/static
+npm --prefix gui ci && npm --prefix gui run build && git diff --exit-code src/anatase/gui/static
 npm --prefix gui test
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -244,7 +244,7 @@ Report in the handover (don't gate): first-load JS size, boot-to-interactive.
     committed dist would have lacked its entry point: the freshness test passes
     on the machine that built it, and a fresh clone (or CI, or a wheel) serves
     the placeholder page instead of the app. `.gitignore` now un-ignores
-    `src/pxrdref/gui/static/**` with a note, and `git check-ignore` is a test.
+    `src/anatase/gui/static/**` with a note, and `git check-ignore` is a test.
   - **The wheel contents are asserted.** `uv build --wheel` and all four dist
     files are inside. "Installing the wheel never needs node" is the premise of
     the whole design, so it is measured rather than believed.

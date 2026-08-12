@@ -39,17 +39,17 @@ from pathlib import Path
 
 import numpy as np
 
-import pxrdref as pr
-from pxrdref.backend.linalg64 import (
+import anatase as pr
+from anatase.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
     FP32_JACOBIAN,
     column_agreement,
     precision_policy,
 )
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import _jacobian_for
-from pxrdref.params.vector import ParameterTable
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import _jacobian_for
+from anatase.params.vector import ParameterTable
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 
@@ -59,7 +59,7 @@ RWP_TOL = 1e-4    # absolute, on the weighted profile R-factor
 
 
 def find_cuda_backend() -> str | None:
-    """The name of a pxrdref backend sitting on a real CUDA device, or None.
+    """The name of a anatase backend sitting on a real CUDA device, or None.
 
     jax is asked first (WP-0402), then torch (WP-0408).  Both imports are
     inside the function: this script must not import either on a machine that
@@ -105,7 +105,7 @@ def build_inputs():
     instrument.profile.x.value = 5e-3
     instrument.geometry.axial_sl.value = 0.025
     instrument.geometry.axial_hl.value = 0.025
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
     return data, structure, instrument
 

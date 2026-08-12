@@ -3,7 +3,7 @@
    * Observed, calculated, difference and reflection ticks.
    *
    * **The window comes from the server.** `/api/result/window` decimates with
-   * the same min/max index set `pxrdref compare` uses, so this plot and that one
+   * the same min/max index set `anatase compare` uses, so this plot and that one
    * cannot disagree about which points survive; a client-side decimator would be
    * a second answer to the one question a plot must not have two answers to. On
    * zoom we refetch the visible range at full budget, which is what makes
@@ -559,7 +559,7 @@
    * un-armed drag still zooms, which is the harmless thing.
    *
    * The non-pointer routes are the typed boxes in the strip below and the
-   * `.pxt` document's `limits`/`excluded` lines — both of which existed
+   * `.rxt` document's `limits`/`excluded` lines — both of which existed
    * before this gesture did.
    */
   let arm = $state<null | "limits" | "exclude">(null);
@@ -678,7 +678,7 @@
   // -- the typed route (WP-1033) -------------------------------------
   // Empty means "no limit", which is why the placeholder is the measured
   // extent rather than a zero: a blank box says the whole pattern is fitted,
-  // and that is also what `limits none` means in the .pxt document.
+  // and that is also what `limits none` means in the .rxt document.
   let loText = $state("");
   let hiText = $state("");
   $effect(() => {
@@ -790,7 +790,7 @@
   {:else if !result && peaksActive}
     <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
-    <p class="note bad">{loadError} — install the plot extra: <code>pip install 'pxrd-refine[gui]'</code></p>
+    <p class="note bad">{loadError} — install the plot extra: <code>pip install 'anatase[gui]'</code></p>
   {/if}
   <!-- The gestures, stated whenever the tab that owns them is showing — fit or
        no fit (WP-1032).  This line used to render only in the *raw* state, so

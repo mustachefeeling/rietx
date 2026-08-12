@@ -45,6 +45,25 @@ caught it, and moving the LaB6 rows into their own `indexing-acceptance-lab6`
 group was free because nothing in the group shared a fixture. Re-read the
 `--durations` list rather than the last session's sentence about it.
 
+## Guards that go quiet instead of red
+
+A guard asserting that something is *absent* fails safe only if you know it can
+still fail. Two measured ways one stops asking (both WP-1062, both green for
+months):
+
+- **It pins a copy of a string that lives somewhere else.** `test_gui_dist`
+  filtered `check-ignore` output on the literal text of a `.gitignore` rule, so
+  renaming the path in one file and not the other left it passing and testing
+  nothing. Assert the *shape* that carries the meaning — a rule beginning `!` is
+  a negation — never a second copy of the line.
+- **The tool answers from somewhere you did not mean.** `git check-ignore`
+  consults the index first and answers for a **tracked** file without reading
+  the ignore rules at all; every file that test checks is committed, so the
+  rules were never asked. `--no-index` is what makes it ask.
+
+The check both share: make the guard fail on purpose once, and confirm the
+failure message is the one you expected.
+
 ## Budgets in tests
 
 **A wall-clock budget inside a test is a runaway guard, never a timer.** Any
@@ -93,7 +112,7 @@ and never a silent cap.
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
 - **A worktree needs its own venv, and quote which one you used.** The main
-  checkout's `.venv` resolves `pxrdref` to the *main checkout's* `src`, so a
+  checkout's `.venv` resolves `anatase` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code
   it did not change. Build one per worktree (`uv venv --python 3.12 && uv pip
   install -e ".[dev]"`), and say `[dev]` vs `[dev,jax,torch]` with every figure.

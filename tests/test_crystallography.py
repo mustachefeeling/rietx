@@ -2,13 +2,13 @@ import gemmi
 import numpy as np
 import pytest
 
-from pxrdref.crystallography.lattice import cell_volume, d_spacings, two_theta_deg
-from pxrdref.crystallography.scattering import f0, normalize_species
-from pxrdref.crystallography.structure_factor import (
+from anatase.crystallography.lattice import cell_volume, d_spacings, two_theta_deg
+from anatase.crystallography.scattering import f0, normalize_species
+from anatase.crystallography.structure_factor import (
     compile_phase_sites,
     structure_factors_squared,
 )
-from pxrdref.crystallography.symmetry import generate_reflections, get_spacegroup
+from anatase.crystallography.symmetry import generate_reflections, get_spacegroup
 
 CUBIC = (4.1566, 4.1566, 4.1566, 90.0, 90.0, 90.0)
 

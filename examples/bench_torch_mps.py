@@ -107,10 +107,10 @@ from pathlib import Path
 
 import numpy as np
 
-import pxrdref as pr
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import _jacobian_for, _make_residual
-from pxrdref.params.vector import ParameterTable
+import anatase as pr
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import _jacobian_for, _make_residual
+from anatase.params.vector import ParameterTable
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 
@@ -155,7 +155,7 @@ def nac_state():
     instrument = pr.Instrument.debye_scherrer(wavelength=0.4139090)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
 
     instrument.background = BackgroundChebyshev.with_terms(6)
     return data, structure, instrument, (2.0, 24.0)
@@ -191,7 +191,7 @@ def corundum_state():
     instrument = pr.Instrument.bragg_brentano(radiation="CuKa",
                                              goniometer_radius_mm=173.0,
                                              monochromator_two_theta=26.6)
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
 
     instrument.background = BackgroundChebyshev.with_terms(6)
     # a real axial aperture, so the FCJ quadrature is live — see the module
@@ -400,11 +400,11 @@ def _forward_on(name: str, model, table, theta) -> float:
     is what the Jacobian differentiates — not the numpy closure with a backend
     bolted on.
     """
-    from pxrdref.backend import resolve_backend, set_backend
+    from anatase.backend import resolve_backend, set_backend
 
     xp = resolve_backend(name)
     if name == "jax":
-        from pxrdref.backend.jax_backend import _enable_x64, make_traced_residual
+        from anatase.backend.jax_backend import _enable_x64, make_traced_residual
 
         residual = None
         set_backend(xp)
@@ -414,7 +414,7 @@ def _forward_on(name: str, model, table, theta) -> float:
                 return best_of(lambda: np.asarray(residual(theta)))
         finally:
             set_backend("numpy")
-    from pxrdref.backend.torch_backend import make_traced_residual
+    from anatase.backend.torch_backend import make_traced_residual
 
     set_backend(xp)
     try:

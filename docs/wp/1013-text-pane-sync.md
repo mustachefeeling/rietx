@@ -5,7 +5,7 @@ Depends on: WP-1009, WP-1010
 
 ## Goal
 
-The power-user surface: a CodeMirror 6 pane over the WP-1009 `.pxt`
+The power-user surface: a CodeMirror 6 pane over the WP-1009 `.rxt`
 rendering with rectangular selection, continuous validation, and explicit
 apply — the Profex/TOPAS-jEdit lineage, without merge hell.
 
@@ -128,7 +128,7 @@ reviewable, which is a decision to revisit rather than inherit silently.
 
 - No lezer grammar, no client-side parsing beyond the regex highlighter.
 - No autosave-on-type applying deltas (validation only until Cmd-Enter).
-- No format changes — the `.pxt` spec is WP-1009's; a needed change goes
+- No format changes — the `.rxt` spec is WP-1009's; a needed change goes
   there first.
 
 ## Tasks
@@ -222,9 +222,9 @@ npm --prefix gui test
 
   **Two things worth knowing before touching this.**
 
-  `lib/pxt.ts` has **no `error` token** and that is the property the whole
+  `lib/rxt.ts` has **no `error` token** and that is the property the whole
   design rests on: the frontend colours the document and only the server can
-  call it wrong. It is asserted from both sides (`pxt.test.ts` and
+  call it wrong. It is asserted from both sides (`rxt.test.ts` and
   `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`), and the
   same Python test pins the shared *vocabulary* — keywords, flag words,
   annotation words, and the stage keys, which are derived from

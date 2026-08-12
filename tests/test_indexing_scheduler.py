@@ -11,15 +11,15 @@ from __future__ import annotations
 
 import pytest
 
-from pxrdref.indexing import engines as engines_mod
-from pxrdref.indexing import index_pattern
-from pxrdref.indexing.engines import (
+from anatase.indexing import engines as engines_mod
+from anatase.indexing import index_pattern
+from anatase.indexing.engines import (
     EngineResult,
     SearchSpec,
     merge_engine_units,
 )
-from pxrdref.optimize.cancel import CancelToken
-from pxrdref.schemas.common import Diagnostic
+from anatase.optimize.cancel import CancelToken
+from anatase.schemas.common import Diagnostic
 from tests.test_indexing_engines import synthetic_peaks
 
 pytestmark = pytest.mark.xdist_group("indexing-scheduler")
@@ -159,7 +159,7 @@ def test_merge_engine_units_dedups_diagnostics_and_refuses_misuse():
 def test_preset_registry_and_info_are_in_bijection():
     """The PLAN_PRESETS/PLAN_INFO pattern one registry over: a preset added
     without a row of guidance is a preset nobody can be told when to use."""
-    from pxrdref.indexing.engines import (
+    from anatase.indexing.engines import (
         DEFAULT_SEARCH_PRESET,
         QUICK_TOTAL_BUDGET_SECONDS,
         SEARCH_PRESET_INFO,
@@ -181,7 +181,7 @@ def test_quick_is_the_default_and_never_overrides_a_declared_ceiling(
     """The flip (WP-1042): a run that declares nothing gets quick's ceiling
     and records preset='quick'; a declared spec ceiling is never overridden
     and records 'custom'; 'full' bounds nothing and says so by omission."""
-    from pxrdref.indexing.engines import QUICK_TOTAL_BUDGET_SECONDS
+    from anatase.indexing.engines import QUICK_TOTAL_BUDGET_SECONDS
 
     peaks, _cell = cubic_peaks
     log: list = []
@@ -218,7 +218,7 @@ def test_the_search_stops_a_validation_reserve_early(cubic_peaks, monkeypatch):
     within it — and when nothing will validate (no pattern, or
     ``validate=False``) the search keeps every second.
     """
-    from pxrdref.indexing.engines import VALIDATION_RESERVE_FRACTION
+    from anatase.indexing.engines import VALIDATION_RESERVE_FRACTION
     from tests.test_refine_synthetic import perturbed_models, synthesize
 
     peaks, _cell = cubic_peaks
@@ -268,7 +268,7 @@ def test_a_single_engine_run_says_what_low_means(cubic_peaks, monkeypatch):
 def test_probe_false_skips_the_in_engine_probe(cubic_peaks, monkeypatch):
     """The engine half of the deferral: ``probe=False`` suppresses the
     in-engine ask even on an empty harvest; the default keeps it."""
-    import pxrdref.indexing.trial_error as te
+    import anatase.indexing.trial_error as te
 
     peaks, _cell = cubic_peaks
     calls: list = []
@@ -342,7 +342,7 @@ def test_the_scheduler_asks_the_probe_once_over_entered_systems(
     """The scheduler half: per-system units silence their own probes, and the
     run asks once at the end — over the systems the engine entered, only when
     the merged harvest is empty."""
-    import pxrdref.indexing.trial_error as te
+    import anatase.indexing.trial_error as te
 
     peaks, _cell = cubic_peaks
     calls: list = []

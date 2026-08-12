@@ -18,11 +18,11 @@ without per-call branching.
 - [../DESIGN.md](../DESIGN.md#risks--mitigations) — "backend drift → small op
   vocabulary + mandatory cross-backend tests (WP-0404)". Every op added is a
   per-backend maintenance liability; keep the vocabulary minimal.
-- The seams are already half-built: `src/pxrdref/backend/` exists (empty, the
+- The seams are already half-built: `src/anatase/backend/` exists (empty, the
   home for `api.py`), and a `backend: str = "numpy"` kwarg is threaded through
-  [`refine.py`](../../src/pxrdref/refine.py) (~line 58),
-  [`multi.py`](../../src/pxrdref/multi.py) (~line 73) and
-  [`schemas/common.py`](../../src/pxrdref/schemas/common.py) (~line 109), each
+  [`refine.py`](../../src/anatase/refine.py) (~line 58),
+  [`multi.py`](../../src/anatase/multi.py) (~line 73) and
+  [`schemas/common.py`](../../src/anatase/schemas/common.py) (~line 109), each
   raising `NotImplementedError` for non-numpy. WP-0402/0408 flip that switch;
   this WP builds what they flip to.
 - `params/vector.py` (comment at top) already keeps constraints as a matmul

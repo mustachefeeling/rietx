@@ -42,7 +42,7 @@ function staged(): ReturnType<typeof emptyWizard> {
     phases: [{ name: "LaB6", space_group: "P m -3 m", cell: [4.1566, 4.1566, 4.1566],
                n_atoms: 2, species: ["B", "La"] }],
   };
-  state.path = "/tmp/lab6.pxrd";
+  state.path = "/tmp/lab6.rex";
   state.values = { radiation: "CuKa" };
   return state;
 }
@@ -120,8 +120,8 @@ describe("blocked", () => {
     state.values = { radiation: "CuKa" };
     expect(blocked(state)).toMatch(/project directory/);
     state.path = "/tmp/lab6";
-    expect(blocked(state)).toMatch(/\.pxrd/);
-    state.path = "/tmp/lab6.pxrd";
+    expect(blocked(state)).toMatch(/\.rex/);
+    state.path = "/tmp/lab6.rex";
     expect(blocked(state)).toBe("");
   });
 

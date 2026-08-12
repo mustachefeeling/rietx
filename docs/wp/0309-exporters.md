@@ -12,7 +12,7 @@ refined values *with* esds, and a QPA table.
 ## Context
 
 Everything needed is already computed and thrown away. The compiled model in
-[`model/forward.py`](../../src/pxrdref/model/forward.py) holds the frozen
+[`model/forward.py`](../../src/anatase/model/forward.py) holds the frozen
 reflection list, per-line positions and structure factors;
 `RefinementResult.ticks` already carries **every emission line's** positions
 (not just the primary — that was a real bug, caught by the misfit-injection
@@ -22,11 +22,11 @@ one row per (emission line, reflection), or a primary-line table with the line
 explicitly named. Do not silently emit only λ₁ rows.
 
 CIF export already exists for structures
-([`crystallography/cif.py`](../../src/pxrdref/crystallography/cif.py), gemmi).
+([`crystallography/cif.py`](../../src/anatase/crystallography/cif.py), gemmi).
 What is missing is the *refinement* half: refined values with esds in the
 standard `1.2345(6)` notation, R-factors, wavelength, and the profile/
 background description. Use the pdCIF tags that match what
-[`io/readers.py`](../../src/pxrdref/io/readers.py) already reads
+[`io/readers.py`](../../src/anatase/io/readers.py) already reads
 (`read_pdcif` handles `_pd_proc`/`_pd_meas`), so the package round-trips
 against itself — export then re-read is the cheapest correctness test.
 

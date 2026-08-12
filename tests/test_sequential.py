@@ -21,15 +21,15 @@ from typing import get_args
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.cancel import CancelToken
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.instrument import BackgroundChebyshev
-from pxrdref.schemas.results import RefinedParameter, Statistics
-from pxrdref.schemas.sequential import SeriesEntry, SeriesResult
-from pxrdref.sequential import (
+import anatase as pr
+from anatase.model.forward import compile_model
+from anatase.optimize.cancel import CancelToken
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.instrument import BackgroundChebyshev
+from anatase.schemas.results import RefinedParameter, Statistics
+from anatase.schemas.sequential import SeriesEntry, SeriesResult
+from anatase.sequential import (
     SequentialRefinement,
     _better,
     _carry_into,
@@ -40,7 +40,7 @@ from pxrdref.sequential import (
     _reseed_needed,
     refine_sequential,
 )
-from pxrdref.strategy import staged
+from anatase.strategy import staged
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 0.4139
@@ -296,7 +296,7 @@ def test_the_ladder_is_the_rungs_in_order_and_never_repeats_one():
     identical starting point — a deterministic repeat the series would pay a
     whole fit for.
     """
-    from pxrdref.sequential import RUNGS, _ladder
+    from anatase.sequential import RUNGS, _ladder
 
     base = pr.RefinementPlan.mccusker_default()
     collapsed = _collapse(base)
@@ -492,7 +492,7 @@ def test_a_restart_stamps_which_rung_it_is(thermal_patterns):
     change meaning.  A changed meaning is an ``EVENT_SCHEMA_VERSION`` bump; an
     added field is not.
     """
-    from pxrdref.history.events import EVENT_SCHEMA_VERSION, EventKind
+    from anatase.history.events import EVENT_SCHEMA_VERSION, EventKind
 
     structure, ins = _start_models()
     runner = _dictate(SequentialRefinement(structure, ins),
@@ -795,8 +795,8 @@ def test_argument_validation(thermal_patterns):
 
 def _fake_result(rwp: float, *, status: str = "converged"):
     """A minimal RefinementResult standing in for a fit, for the guard units."""
-    from pxrdref.schemas.common import Provenance
-    from pxrdref.schemas.results import RefinementResult
+    from anatase.schemas.common import Provenance
+    from anatase.schemas.results import RefinementResult
 
     return RefinementResult(
         status=status, mode="rietveld", parameters=[],
@@ -830,7 +830,7 @@ def test_unique_labels_disambiguates_by_position():
     the run has to show the ones the run will use — a panel displaying the name
     that was typed would be displaying a name that names nothing (WP-1016).
     """
-    from pxrdref.sequential import unique_labels
+    from anatase.sequential import unique_labels
 
     assert unique_labels(["a", "b", "a", "a"]) == ["a", "b", "a_2", "a_3"]
     assert unique_labels([]) == []
@@ -846,7 +846,7 @@ def test_every_patterns_events_carry_its_place_in_the_series():
     rule, and the reason a bump would make the version useless as a
     compatibility signal, are in ``history/events.py``.
     """
-    from pxrdref.history.events import EVENT_SCHEMA_VERSION, EventKind
+    from anatase.history.events import EVENT_SCHEMA_VERSION, EventKind
 
     patterns = [_simulate(A0 * (1 + RAMP * i), seed=500 + i) for i in range(2)]
     structure, ins = _start_models()

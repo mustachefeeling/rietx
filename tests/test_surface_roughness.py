@@ -14,13 +14,13 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from pxrdref import Instrument, Parameter
-from pxrdref.model.corrections import (
+from anatase import Instrument, Parameter
+from anatase.model.corrections import (
     surface_roughness_pitschke,
     surface_roughness_suortti,
 )
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas import Geometry, RoughnessPitschke, RoughnessSuortti
+from anatase.params.vector import ParameterTable
+from anatase.schemas import Geometry, RoughnessPitschke, RoughnessSuortti
 
 TT = np.arange(5.0, 160.0, 0.5)
 
@@ -328,7 +328,7 @@ def test_refined_values_survive_the_write_back():
 
 def test_roughness_rides_the_analytic_peak_chain_not_whole_model_fd():
     """A missed prefix here is a silent slowdown, not a failure — so pin it."""
-    from pxrdref.model.forward import CompiledModel
+    from anatase.model.forward import CompiledModel
     for name in ("a", "b", "c", "tau"):
         path = f"instrument.geometry.surface_roughness.{name}"
         assert CompiledModel.scalar_chain_supported(None, path) is True
@@ -336,7 +336,7 @@ def test_roughness_rides_the_analytic_peak_chain_not_whole_model_fd():
 
 def test_roughness_is_per_histogram_by_default():
     """Each histogram is a separate mount, so packing is not a shared property."""
-    from pxrdref.params.multi import SharingMap
+    from anatase.params.multi import SharingMap
     sharing = SharingMap()
     for name in ("a", "b", "c", "tau"):
         path = f"instrument.geometry.surface_roughness.{name}"
@@ -349,7 +349,7 @@ def test_calibration_profiles_never_carry_roughness(tmp_path):
     Saving it into an instrument profile would silently pre-bias the ADPs of
     every later sample measured on that diffractometer.
     """
-    from pxrdref.io.instrument_profile import (
+    from anatase.io.instrument_profile import (
         load_instrument_profile,
         save_instrument_profile,
     )
@@ -371,8 +371,8 @@ def _lab6_bb(rough=None, *, mode="rietveld", two_theta_min=8.0, structure=None):
     positions matter rather than the grid, since LaB6's first CuKa line is at
     21.4 deg.
     """
-    from pxrdref import PatternData
-    from pxrdref.model.forward import compile_model
+    from anatase import PatternData
+    from anatase.model.forward import compile_model
     from tests.test_schemas import make_lab6
 
     structure = make_lab6() if structure is None else structure
@@ -443,10 +443,10 @@ def test_every_analytic_column_matches_fd_with_roughness_on(block):
     bug WP-0506 and WP-0307 both pinned, and it is invisible with the
     correction off — hence a deliberately strong block here.
     """
-    from pxrdref import PatternData
-    from pxrdref.model.forward import compile_model
-    from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
-    from pxrdref.schemas import PreferredOrientation
+    from anatase import PatternData
+    from anatase.model.forward import compile_model
+    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from anatase.schemas import PreferredOrientation
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -503,7 +503,7 @@ def test_every_analytic_column_matches_fd_with_roughness_on(block):
 def test_roughness_refines_last_in_every_plan_that_carries_it():
     """After biso, extinction and preferred orientation — everything it is
     degenerate with must be allowed to settle before it is freed."""
-    from pxrdref.strategy.staged import RefinementPlan
+    from anatase.strategy.staged import RefinementPlan
 
     for name in ("mccusker_structural", "lab_bragg_brentano", "lab_sample_refine"):
         stages = [s.name for s in getattr(RefinementPlan, name)().stages]
@@ -515,7 +515,7 @@ def test_roughness_refines_last_in_every_plan_that_carries_it():
 
 def test_calibration_plan_never_frees_roughness():
     """A certified standard measures the goniometer, not the mount."""
-    from pxrdref.strategy.staged import RefinementPlan
+    from anatase.strategy.staged import RefinementPlan
 
     globs = [g for s in RefinementPlan.lab_calibrate().stages for g in s.turn_on]
     assert not any("surface_roughness" in g for g in globs)
@@ -535,8 +535,8 @@ def test_the_seed_lifts_the_strength_parameter_into_its_sensitive_band():
     Suortti b a token 1e-3 seed would be dead in the *physics* too: both b -> 0
     and b -> infinity are the identity, so the seed has to land near the
     measured sensitivity peak (b ~ 0.17 at 5 deg, ~ 0.46 at 20 deg)."""
-    from pxrdref.params.transforms import dphys_dinternal, to_internal
-    from pxrdref.strategy.staged import RefinementPlan
+    from anatase.params.transforms import dphys_dinternal, to_internal
+    from anatase.strategy.staged import RefinementPlan
     from tests.test_schemas import make_lab6
 
     stage = RefinementPlan.lab_sample_refine().stages[-1]
@@ -565,8 +565,8 @@ def _big_cell_structure():
     lowering the fit limit adds empty grid and no information.  Roughness is
     constrained by low-angle *reflections*, not by low-angle points.
     """
-    from pxrdref import Structure
-    from pxrdref.schemas import Atom, Cell, Phase
+    from anatase import Structure
+    from anatase.schemas import Atom, Cell, Phase
     return Structure(phases=[Phase(
         name="big", space_group="P m -3 m", cell=Cell.cubic(10.0),
         atoms=[Atom(label="Zr", species="Zr", x=Parameter(value=0.0),
@@ -577,11 +577,11 @@ def _big_cell_structure():
 
 def _absorption_at(two_theta_min: float):
     """roughness_absorption for a fit starting at `two_theta_min`."""
-    from pxrdref import PatternData
-    from pxrdref.model.forward import compile_model
-    from pxrdref.optimize.least_squares import _make_jacobian
-    from pxrdref.optimize.statistics import roughness_absorption
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase import PatternData
+    from anatase.model.forward import compile_model
+    from anatase.optimize.least_squares import _make_jacobian
+    from anatase.optimize.statistics import roughness_absorption
+    from anatase.schemas.instrument import BackgroundChebyshev
 
     structure = _big_cell_structure()
     structure.phases[0].scale.value = 5e-3
@@ -606,7 +606,7 @@ def _absorption_at(two_theta_min: float):
 
 def test_roughness_is_identifiable_when_the_fit_reaches_low_angle():
     """The negative control: the guard must not cry wolf on usable data."""
-    from pxrdref.strategy.staged import ROUGHNESS_ABSORPTION_GUARD
+    from anatase.strategy.staged import ROUGHNESS_ABSORPTION_GUARD
 
     r2, _, _ = _absorption_at(7.0)
     b = r2["instrument.geometry.surface_roughness.b"]
@@ -617,7 +617,7 @@ def test_roughness_is_identifiable_when_the_fit_reaches_low_angle():
 
 def test_roughness_becomes_degenerate_once_the_low_angle_reflections_are_gone():
     """And the positive control: it must fire when the data cannot separate them."""
-    from pxrdref.strategy.staged import ROUGHNESS_ABSORPTION_GUARD
+    from anatase.strategy.staged import ROUGHNESS_ABSORPTION_GUARD
 
     wide = _absorption_at(7.0)[0]["instrument.geometry.surface_roughness.b"]
     narrow = _absorption_at(30.0)[0]["instrument.geometry.surface_roughness.b"]
@@ -636,7 +636,7 @@ def test_the_partial_projection_is_what_makes_the_guard_work():
     of its range.  Pinned because 'simplifying' the nuisance projection away
     would silently disable the guard rather than break anything.
     """
-    from pxrdref.optimize.statistics import block_projection_r2
+    from anatase.optimize.statistics import block_projection_r2
 
     def both(two_theta_min, name):
         _, table, jac = _absorption_at(two_theta_min)
@@ -673,8 +673,8 @@ def test_guard_report_carries_roughness_and_the_diagnostic_is_actionable():
     """The measurement is only useful if it reaches the RefinementResult."""
     from types import SimpleNamespace
 
-    from pxrdref.refine import _guard_diagnostics
-    from pxrdref.strategy.staged import check_guards
+    from anatase.refine import _guard_diagnostics
+    from anatase.strategy.staged import check_guards
 
     _, table, jac = _absorption_at(30.0)
     outcome = SimpleNamespace(correlation=None, jac=jac, theta=table.x0())
@@ -697,7 +697,7 @@ def test_unconstrained_roughness_is_flagged_rather_than_reported_as_measured():
     """Both dead branches of the Suortti model must trip the same fence: a
     large b is exactly as inert as a zero one, so a test on the parameter would
     catch only half the cases."""
-    from pxrdref.refine import ROUGHNESS_MIN_DEPRESSION, _roughness_regime_diagnostics
+    from anatase.refine import ROUGHNESS_MIN_DEPRESSION, _roughness_regime_diagnostics
 
     for b in (1e-6, 60.0):
         model, values = _lab6_bb(RoughnessSuortti(
@@ -717,7 +717,7 @@ def test_unconstrained_roughness_is_flagged_rather_than_reported_as_measured():
 
 def test_pitschke_outside_its_regime_is_flagged_not_clamped():
     """The paper's Eq (18) fence: past sin(theta) = tau the model amplifies."""
-    from pxrdref.refine import _roughness_regime_diagnostics
+    from anatase.refine import _roughness_regime_diagnostics
 
     # the fence is measured at the lowest *reflection*, not the lowest grid
     # point (real data forced that -- see the acceptance notes), so this needs
@@ -748,7 +748,7 @@ def test_pitschke_outside_its_regime_is_flagged_not_clamped():
 def test_background_absorption_numbers_are_unchanged_by_the_refactor():
     """block_projection_r2 was extracted from background_absorption; the
     background guard's measured behaviour must not have moved."""
-    from pxrdref.optimize.statistics import background_absorption, block_projection_r2
+    from anatase.optimize.statistics import background_absorption, block_projection_r2
 
     _, table, jac = _absorption_at(7.0)
     free = table.free_paths
@@ -765,8 +765,8 @@ OUT = Path(__file__).parent / "output"
 
 def _synthesize_rough(block, *, noise_seed: int = 7, two_theta_min: float = 7.0):
     """A large-cell lab pattern carrying a known roughness + Poisson noise."""
-    from pxrdref import PatternData
-    from pxrdref.model.forward import compile_model
+    from anatase import PatternData
+    from anatase.model.forward import compile_model
 
     structure = _big_cell_structure()
     structure.phases[0].scale.value = 2e-2
@@ -791,9 +791,9 @@ def test_injected_roughness_is_recovered_and_is_resolved_not_merely_fitted():
     the block-R² guard above is for, and the does-no-harm side is checked
     against real data in the acceptance tests.
     """
-    from pxrdref import Refinement
-    from pxrdref.strategy.staged import RefinementPlan, Stage
-    from pxrdref.viz.plots import plot_result
+    from anatase import Refinement
+    from anatase.strategy.staged import RefinementPlan, Stage
+    from anatase.viz.plots import plot_result
 
     b_true = 0.35
     truth = RoughnessSuortti(
@@ -876,7 +876,7 @@ def test_qarr_pure_phases_cannot_constrain_roughness(phase_name):
     accepts that answer rather than a number: no fit may claim a resolved
     roughness while buying nothing in Rwp.
     """
-    import pxrdref as pr
+    import anatase as pr
     from tests.test_acceptance_qpa_roundrobin import (
         DATA,
         _require_data,
@@ -968,7 +968,7 @@ def test_srm660c_is_unmoved_by_freeing_roughness():
     acceptance is that nothing happens -- the cell stays inside the WP-0310
     tolerance and the fences say why.
     """
-    import pxrdref as pr
+    import anatase as pr
     from tests.test_acceptance_srm660c import A_REFERENCE, DATA, build_srm_inputs
 
     if not (DATA / "nist_srm660c_100a.cif").exists():

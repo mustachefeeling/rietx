@@ -45,7 +45,7 @@ in a number. This panel exists for that, not for convenience.
   409-while-running rule. That means the run kind must not be refinement-only;
   an Inherited-mailbox note was left in WP-1006 for exactly this.
 - **Peak lists are a project artifact, not a history node.** They live in
-  WP-1005's `.pxrd/` container as `peaks.json`, keyed by `data_fingerprint`, so
+  WP-1005's `.rex/` container as `peaks.json`, keyed by `data_fingerprint`, so
   a peak list can never be displayed against the wrong pattern — the same
   device `TreeHeader.data_fingerprint` uses for history trees. By contrast
   `adopt_candidate` **is** a model edit and goes through
@@ -66,7 +66,7 @@ in a number. This panel exists for that, not for convenience.
   is the same property WP-1024 gives the API. **"Adopt" is per-row and disabled
   with a tooltip when `confidence != "high"`** — the UI must not be the place
   the gate leaks.
-- **`.pxt` gains a `peaks` block** (format reserved by WP-1009). Peaks are not
+- **`.rxt` gains a `peaks` block** (format reserved by WP-1009). Peaks are not
   refinable parameters, so they carry **no `@` marker** — that is the visual
   distinction from every other block:
 
@@ -153,13 +153,13 @@ Cost: one shared profile fit (~2 s) then ~0.1 s per class (7 classes hexagonal,
 add a `kind: "index"` branch; the run record's fields are generic enough, no
 new keys. Mutating verbs 409 while busy.
 
-**Text document (WP-1009/1013).** The `peaks` block name is reserved in `pxt 1`
+**Text document (WP-1009/1013).** The `peaks` block name is reserved in `rxt 1`
 (`textdoc.RESERVED_BLOCKS`) — filling it needs no format bump. Grammar rules: an
 annotation containing spaces renders last on its line; column widths are per
 block. No `@` markers — peaks are not parameters, and the scanner's green `@` is
 a vary token that must not appear here. The `peaks` keyword already highlights;
 `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words` pins the word
-lists in `gui/src/lib/pxt.ts` to the parser's, so new flag words in the peaks
+lists in `gui/src/lib/rxt.ts` to the parser's, so new flag words in the peaks
 block are a failing test until restated there — deliberate.
 
 **Frontend facts (WP-1010…1015, 1029).** `Peaks` is a sidebar tab; tabs stay
@@ -197,16 +197,16 @@ not this WP's checklist.
 - [x] `GuiSession` verbs above, each with its console-pane API echo.
 - [x] Fill in the WP-1008 routes; `/api/index` on the run state machine with
       SSE progress and cancel.
-- [x] `peaks.json` in the `.pxrd/` container, keyed by `data_fingerprint`;
+- [x] `peaks.json` in the `.rex/` container, keyed by `data_fingerprint`;
       `adopt_candidate` through `Refinement.edit`.
 - [x] Frontend: peak layer (markers, σ error bars, fitted group profile,
       residual strip), the four interactions, the diagnostics strip.
 - [x] Frontend: candidate table with the FoM columns, engine chips, ambiguity
       sub-rows, and the gated Adopt button.
-- [x] `.pxt` `peaks` block: render, parse, apply (2θ and flags only); extend
+- [x] `.rxt` `peaks` block: render, parse, apply (2θ and flags only); extend
       the fixed-point property test.
 - [x] `tests/test_gui_peaks.py`: verbs round-trip through the live server;
-      a peak list keyed to one pattern is refused against another; `.pxt`
+      a peak list keyed to one pattern is refused against another; `.rxt`
       fixed point (in `test_textdoc.py`, beside the other fixed-point
       properties); **Adopt is disabled for a `medium` candidate** (the gate
       does not leak into the UI — asserted server-side there and from the
@@ -229,7 +229,7 @@ not this WP's checklist.
 
 Criterion: a peak can be added, dragged, flagged and refitted through the live
 server with the console echo matching the API call that would reproduce it; the
-`.pxt` round trip is a fixed point; and no UI path adopts a candidate that
+`.rxt` round trip is a fixed point; and no UI path adopts a candidate that
 `best_or_none()` would not return.
 
 ## References
@@ -292,9 +292,9 @@ server with the console echo matching the API call that would reproduce it; the
   run machine (`_work` takes a per-kind `summarize`; a cancelled search
   *returns*, so its status reads the token); `index_adopt` re-asks
   `best_or_none()` server-side (`ADOPT_GATED`), lands one `edit_model` node,
-  and flips the mode to lebail; the `.pxt` peaks block (2theta/flags editable,
+  and flips the mode to lebail; the `.rxt` peaks block (2theta/flags editable,
   count/esd/fwhm/I refused as derived, omitted row = no opinion, flags
-  vocabulary quoted from `PeakFlag` and pinned into `pxt.ts` as the parity
+  vocabulary quoted from `PeakFlag` and pinned into `rxt.ts` as the parity
   test's fifth list); the frontend (Peaks tab, plot peak layer with σ error
   bars / hollow-unusable / diamond-manual markers, group profiles and
   per-group residual strips, raw-pattern drawing when no result exists, the

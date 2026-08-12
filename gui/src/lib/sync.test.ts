@@ -21,8 +21,8 @@ import {
   type SyncState,
 } from "./sync";
 
-const DOC = 'pxt 1\nproject "lab6"\nmode rietveld\n';
-const MOVED = 'pxt 1\nproject "lab6"\nmode lebail\n';
+const DOC = 'rxt 1\nproject "lab6"\nmode rietveld\n';
+const MOVED = 'rxt 1\nproject "lab6"\nmode lebail\n';
 
 /** Fold a script of events, so a test reads as the sequence it is about. */
 function run(events: SyncEvent[], from: SyncState = initial()): SyncState {

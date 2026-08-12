@@ -14,25 +14,25 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData, Refinement
-from pxrdref.crystallography.structure_factor import compile_phase_sites
-from pxrdref.model.forward import compile_model
-from pxrdref.model.restraints import (
+from anatase import Instrument, PatternData, Refinement
+from anatase.crystallography.structure_factor import compile_phase_sites
+from anatase.model.forward import compile_model
+from anatase.model.restraints import (
     _atom_xyz,
     _metric_g,
     _resolve_image,
     summarise_restraints,
 )
-from pxrdref.optimize.least_squares import (
+from anatase.optimize.least_squares import (
     _make_jacobian,
     _make_residual,
     run_multi_least_squares,
 )
-from pxrdref.optimize.statistics import compute_statistics
-from pxrdref.params.multi import MultiParameterTable
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import (
+from anatase.optimize.statistics import compute_statistics
+from anatase.params.multi import MultiParameterTable
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.structure import (
     AngleRestraint,
     Atom,
     BondRestraint,
@@ -50,7 +50,7 @@ LAB = Instrument.debye_scherrer(wavelength=1.5406)
 def _save(result, name: str) -> None:
     pytest.importorskip("matplotlib")
     OUT.mkdir(exist_ok=True)
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
 
     plot_result(result, path=str(OUT / name))
 

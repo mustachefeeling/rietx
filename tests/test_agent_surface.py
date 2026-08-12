@@ -12,12 +12,12 @@ import json
 
 import pytest
 
-import pxrdref.agent as ag
-from pxrdref import Instrument
-from pxrdref.backend.api import BACKEND_NAMES
-from pxrdref.indexing import SYSTEM_ORDER, engine_descriptions, engine_names
-from pxrdref.optimize.least_squares import SOLVERS
-from pxrdref.strategy.staged import PLAN_PRESETS
+import anatase.agent as ag
+from anatase import Instrument
+from anatase.backend.api import BACKEND_NAMES
+from anatase.indexing import SYSTEM_ORDER, engine_descriptions, engine_names
+from anatase.optimize.least_squares import SOLVERS
+from anatase.strategy.staged import PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 pytestmark = pytest.mark.xdist_group("agent-surface")
@@ -58,7 +58,7 @@ def test_result_carries_the_full_provenance(refined):
     prov = refined["result"]["provenance"]
     assert prov["backend"] == "numpy"
     assert prov["solver"] == "trf"                   # WP-0601 → WP-0602
-    from pxrdref.report.schemas import THRESHOLDS_VERSION
+    from anatase.report.schemas import THRESHOLDS_VERSION
 
     assert prov["report_thresholds_version"] == THRESHOLDS_VERSION
 
@@ -225,18 +225,18 @@ def test_backend_unavailable_is_its_own_code(request_parts, monkeypatch):
     def unavailable(self, *a, **kw):
         raise NotImplementedError(
             "backend 'jax' needs the optional dependency: pip install "
-            "'pxrd-refine[jax]'")
+            "'anatase[jax]'")
 
-    # sys.modules, because the package attribute `pxrdref.refine` is the
+    # sys.modules, because the package attribute `anatase.refine` is the
     # *function* re-exported by __init__, shadowing the module of that name
-    refine_mod = sys.modules["pxrdref.refine"]
+    refine_mod = sys.modules["anatase.refine"]
     monkeypatch.setattr(refine_mod.Refinement, "__init__", unavailable)
     structure, instrument, pattern = request_parts
     out = ag.refine_json(dict(task="refine", structure=structure,
                               instrument=instrument, pattern=pattern,
                               backend="jax"))
     assert out["error"]["code"] == "BACKEND_UNAVAILABLE"
-    assert "pxrd-refine[jax]" in out["error"]["message"]
+    assert "anatase[jax]" in out["error"]["message"]
 
 
 # ----------------------------------------------------------------------
@@ -253,8 +253,8 @@ def cubic_peaks_json():
     """
     import numpy as np
 
-    from pxrdref import PeakList
-    from pxrdref.crystallography.symmetry import generate_reflections
+    from anatase import PeakList
+    from anatase.crystallography.symmetry import generate_reflections
 
     lam = 1.5405929
     refl = generate_reflections("P m -3 m", (4.1566,) * 3 + (90.0,) * 3, lam,
@@ -417,7 +417,7 @@ def test_schemas_quote_every_live_registry_member():
     reach.
     """
     text = json.dumps(ag.request_schema())
-    from pxrdref.indexing import SEARCH_PRESETS
+    from anatase.indexing import SEARCH_PRESETS
 
     for name in (*BACKEND_NAMES, *SOLVERS, *PLAN_PRESETS, *engine_names(),
                  *SYSTEM_ORDER, *SEARCH_PRESETS):
@@ -447,7 +447,7 @@ def test_response_schema_covers_every_answer_arm():
 def test_tool_definition_shape():
     tool = ag.tool_definition()
     assert set(tool) == {"name", "description", "input_schema"}
-    assert tool["name"] == "pxrdref_refine"
+    assert tool["name"] == "anatase_refine"
     assert "diagnostics" in tool["description"]      # the protocol pointer
     assert tool["input_schema"] == ag.request_schema()
     json.dumps(tool)                                 # registrable as-is

@@ -12,10 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref import Instrument
-from pxrdref.params.vector import AffineTie, ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import Atom, Cell, Phase, Structure
+from anatase import Instrument
+from anatase.params.vector import AffineTie, ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_schemas import make_lab6
 
 
@@ -333,7 +333,7 @@ def test_a_fixed_angle_disagreeing_with_its_symmetry_is_refused(symbol, angles, 
 
 def test_a_fixed_angle_within_tolerance_is_accepted_and_still_held():
     """Float noise from an A..F metric solve must not refuse to build a table."""
-    from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+    from anatase.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 
     layout = _cell_layout("P 6/m m m",
                           _cell(4.76, 4.76, 12.99, 90.0, 90.0,

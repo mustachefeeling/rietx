@@ -31,7 +31,7 @@ const CAPABILITIES = {
 };
 
 const PROJECT = {
-  path: "/tmp/lab6.pxrd",
+  path: "/tmp/lab6.rex",
   doc: { mode: "rietveld", plan: null, ui: {}, two_theta_limits: null,
          excluded_regions: [] },
   // `two_theta_range` is what the shading has to reach past and `n_fitted` is
@@ -606,7 +606,7 @@ describe("the shell", () => {
   it("renders the no-project state as the import wizard, with its recent list", async () => {
     vi.stubGlobal("fetch", server({
       ...boot(null),
-      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/a.pxrd", name: "a.pxrd" }] } }),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/a.rex", name: "a.rex" }] } }),
     }).fetcher);
     app = mount(App, { target: host });
     await flush();
@@ -614,7 +614,7 @@ describe("the shell", () => {
     // the empty state *is* the wizard (WP-1014) rather than a note about it
     expect(host.textContent).toContain("New project");
     expect(host.textContent).toContain("Choose a data file");
-    expect(host.textContent).toContain("a.pxrd");
+    expect(host.textContent).toContain("a.rex");
     expect(button("Create project")?.disabled).toBe(true);
     // Run is disabled without a project — the control follows the state, not hope
     expect(button("Run")?.disabled).toBe(true);
@@ -724,13 +724,13 @@ describe("the shell", () => {
       "file has changed since the project was created (sha256 1a2b3c4d, recorded 9f8e7d6c)";
     vi.stubGlobal("fetch", server({
       ...boot(null),
-      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/a.pxrd", name: "a.pxrd" }] } }),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/a.rex", name: "a.rex" }] } }),
       "/api/project/open": () => ({ status: 400, body: { error: { code: "PROJECT_ERROR", message } } }),
     }).fetcher);
     app = mount(App, { target: host });
     await flush();
 
-    const open = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("a.pxrd"));
+    const open = [...host.querySelectorAll("button")].find((b) => b.textContent?.includes("a.rex"));
     open!.click();
     await flush();
     expect(host.textContent).toContain("sha256");
@@ -1675,8 +1675,8 @@ describe("disclosure and the command palette", () => {
  * path. The two assertions worth having are the two the WP names as risks — a
  * concurrent model change may not eat an edit, and a conflict has one exit.
  */
-const TEXTDOC = 'pxt 1\nproject "lab6"\nmode rietveld\nlimits none\n';
-const TEXTDOC_MOVED = 'pxt 1\nproject "lab6"\nmode rietveld\nlimits 3 60\n';
+const TEXTDOC = 'rxt 1\nproject "lab6"\nmode rietveld\nlimits none\n';
+const TEXTDOC_MOVED = 'rxt 1\nproject "lab6"\nmode rietveld\nlimits 3 60\n';
 
 /** Mount, then enter the text mode (a mode, not a tab — the strip stays five wide). */
 async function openText(extra: Record<string, any> = {}, project: any = PROJECT) {
@@ -1951,7 +1951,7 @@ const PATTERN_PREVIEW = {
   reader_options: {}, n_points: 4200, two_theta_range: [3, 24], step: 0.005,
   has_sigma: true, metadata: {},
   curve: { two_theta: [3, 10, 24], intensity: [1, 9, 2], n_returned: 3 },
-  suggested_project: "/work/nac.pxrd",
+  suggested_project: "/work/nac.rex",
 };
 
 const CIF_PREVIEW = {
@@ -2006,7 +2006,7 @@ describe("the import wizard", () => {
     expect(created.body.pattern).toEqual({ upload: "p1" });
     expect(created.body.structure).toEqual({ upload: "c1", aniso: false });
     expect(created.body.instrument).toEqual({ preset: "bragg_brentano", radiation: "CuKa" });
-    expect(created.body.path).toBe("/work/nac.pxrd");
+    expect(created.body.path).toBe("/work/nac.rex");
     // and the shell adopted it without a second GET /api/project
     expect(host.textContent).toContain("synth.xye");
   });
@@ -2036,11 +2036,11 @@ describe("the import wizard", () => {
     // project open there was no route back to another one short of restarting
     // the program.  The wizard is one component either way (WP-1014), so the
     // list lives in it and the header's `Open…` is the route.
-    const other = { ...PROJECT, path: "/tmp/nac.pxrd",
+    const other = { ...PROJECT, path: "/tmp/nac.rex",
                     data: { ...PROJECT.data, filename: "nac.fxye" } };
     const stub = server({
       ...boot(),
-      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.pxrd", name: "nac.pxrd" }] } }),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.rex", name: "nac.rex" }] } }),
       "/api/project/open": () => ({ body: other }),
     });
     vi.stubGlobal("fetch", stub.fetcher);
@@ -2053,21 +2053,21 @@ describe("the import wizard", () => {
     expect(host.textContent).toContain("Open a recent project");
     expect(host.textContent).toContain("nothing is unsaved");
 
-    button("nac.pxrd")!.click();
+    button("nac.rex")!.click();
     await flush();
     const opened = stub.calls.find((c) => c.path === "/api/project/open")!;
-    expect(opened.body).toEqual({ path: "/tmp/nac.pxrd" });
+    expect(opened.body).toEqual({ path: "/tmp/nac.rex" });
     // the session's project is replaced, and the shell lands on the parameters
     expect(host.textContent).toContain("nac.fxye");
     expect(host.querySelector("nav.tabs button.on")?.textContent?.trim()).toBe("Parameters");
-    expect(host.textContent).toContain("project.open(/tmp/nac.pxrd)");
+    expect(host.textContent).toContain("project.open(/tmp/nac.rex)");
   });
 
   it("shows a refused open beside the list that asked for it", async () => {
     const message = "file has changed since the project was created (sha256 1a2b3c4d)";
     const stub = server({
       ...boot(),
-      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.pxrd", name: "nac.pxrd" }] } }),
+      "/api/recent": () => ({ body: { recent: [{ path: "/tmp/nac.rex", name: "nac.rex" }] } }),
       "/api/project/open": () => ({ status: 400,
         body: { error: { code: "PROJECT_ERROR", message } } }),
     });
@@ -2076,7 +2076,7 @@ describe("the import wizard", () => {
     await flush();
     button("Open…")!.click();
     await flush();
-    button("nac.pxrd")!.click();
+    button("nac.rex")!.click();
     await flush();
 
     // verbatim, in the wizard, and the project that was open is still open —

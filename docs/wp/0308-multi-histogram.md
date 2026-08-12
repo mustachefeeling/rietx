@@ -13,8 +13,8 @@ map, exercised end to end.
 
 The API surface already accepts lists — this WP makes that real rather than
 nominal. Start by auditing exactly how far list support currently goes in
-[`refine.py`](../../src/pxrdref/refine.py) and
-[`optimize/least_squares.py`](../../src/pxrdref/optimize/least_squares.py)
+[`refine.py`](../../src/anatase/refine.py) and
+[`optimize/least_squares.py`](../../src/anatase/optimize/least_squares.py)
 before designing anything.
 
 The mechanics: each histogram contributes its own residual block (its own
@@ -23,9 +23,9 @@ one residual vector and one Jacobian, with shared parameters (cell,
 coordinates, occupancies, ADPs) contributing to every block's columns. This is
 the same "extra rows in the residual" pattern the penalized P-spline already
 uses for its √λ·D₂·c penalty rows — read
-[`background/models.py`](../../src/pxrdref/background/models.py) and the
+[`background/models.py`](../../src/anatase/background/models.py) and the
 statistics handling in
-[`optimize/statistics.py`](../../src/pxrdref/optimize/statistics.py) first,
+[`optimize/statistics.py`](../../src/anatase/optimize/statistics.py) first,
 because that code already faced the "which rows count for statistics" question
 and answered it (penalty rows are excluded from Rwp/Durbin-Watson/
 Bérar-Lelann but kept in the covariance).

@@ -2,7 +2,7 @@
 
 ``tests/CLAUDE.md`` carries a standing rule that every test refinement writes
 obs/calc/diff PNGs for visual inspection, and until this WP the whole indexing
-tree was its one exception: ``grep -n "savefig"`` across ``src/pxrdref/indexing/``
+tree was its one exception: ``grep -n "savefig"`` across ``src/anatase/indexing/``
 returned nothing.
 
 **What is asserted here is what each renderer *drew*, never a recomputation of the
@@ -20,16 +20,16 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pxrdref.crystallography.symmetry import generate_reflections
-from pxrdref.indexing.engines import SearchSpec, match_window, to_cell_candidate
-from pxrdref.indexing.trial_error import search_trial_error
-from pxrdref.schemas.indexing import PeakList
+from anatase.crystallography.symmetry import generate_reflections
+from anatase.indexing.engines import SearchSpec, match_window, to_cell_candidate
+from anatase.indexing.trial_error import search_trial_error
+from anatase.schemas.indexing import PeakList
 
 OUT = Path(__file__).parent / "output"
 LAM = 1.5405929
 #: A body-centred cubic list: the truth predicts few lines and shows all of them,
 #: and the search also returns supercells that predict a forest.  That contrast is
-#: the whole content of :func:`~pxrdref.viz.indexing.plot_candidates`, so it is
+#: the whole content of :func:`~anatase.viz.indexing.plot_candidates`, so it is
 #: what the fixture has to contain.
 CELL = (6.2, 6.2, 6.2, 90.0, 90.0, 90.0)
 
@@ -63,7 +63,7 @@ def test_the_peak_list_picture_separates_a_line_flag_from_a_list_property(
     per-line flag paints the whole list as suspect and prints "clean (0)" on a
     list with nothing wrong with it.  It belongs in the title, said once.
     """
-    from pxrdref.viz import plot_peak_list
+    from anatase.viz import plot_peak_list
 
     OUT.mkdir(exist_ok=True)
     fig = plot_peak_list(bcc_peaks, path=str(OUT / "indexing_peaks_bcc.png"))
@@ -84,8 +84,8 @@ def test_the_candidate_rows_show_both_directions(bcc_candidates, bcc_peaks):
     the whole FoM panel exists to catch — is a property of the picture rather
     than of a caption.
     """
-    from pxrdref.viz import plot_candidates
-    from pxrdref.viz.indexing import CANDIDATE_COLORS
+    from anatase.viz import plot_candidates
+    from anatase.viz.indexing import CANDIDATE_COLORS
 
     truth = [c for c in bcc_candidates
              if c.centring == "I" and abs(c.cell[0] - CELL[0]) < 1e-3]
@@ -192,7 +192,7 @@ def test_the_tick_rows_match_in_the_window_the_search_used(shifted_search,
     search's window they agree, and with the raw σ they do not — which is what
     makes this a test of the window rather than of arithmetic.
     """
-    from pxrdref.viz import plot_candidates
+    from anatase.viz import plot_candidates
 
     cands, spec = shifted_search
     best = cands[0]
@@ -306,7 +306,7 @@ def test_the_truth_test_is_the_lattice_and_the_centring(bcc_candidates):
     a wrong answer as right.  The same lesson is recorded one rank down in
     ``engines.solution_key`` and one rank up in WP-1040's monoclinic row.
     """
-    from pxrdref.indexing.qspace import af_from_cell
+    from anatase.indexing.qspace import af_from_cell
     from tests import indexing_gallery as g
 
     af = [float(v) for v in af_from_cell(CELL)]
@@ -338,8 +338,8 @@ def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
     lattice — and the scoreboard then reports "ranked first" for the one dataset
     whose acceptance row asserts the cross-code cell is *not* first.
     """
-    from pxrdref.indexing.qspace import af_from_cell
-    from pxrdref.indexing.reduce import CELL_EQUALITY_RELATIVE
+    from anatase.indexing.qspace import af_from_cell
+    from anatase.indexing.reduce import CELL_EQUALITY_RELATIVE
     from tests import indexing_gallery as g
 
     cell, _centring, rtol = g.TRUTHS["fap"]
@@ -361,8 +361,8 @@ def test_the_truth_band_is_tighter_than_the_dedup_tolerance():
 
 def _result_of(candidates, peaks, *, allowance_note="0.05",
                note_key="shift_allowance_deg"):
-    from pxrdref.schemas.common import Provenance
-    from pxrdref.schemas.indexing import IndexingResult
+    from anatase.schemas.common import Provenance
+    from anatase.schemas.indexing import IndexingResult
 
     return IndexingResult(
         candidates=list(candidates), engines_run=["trial_error"],
@@ -384,9 +384,9 @@ def test_plot_indexing_composes_the_gallery_from_a_result_alone(
     records ``shift_allowance_deg`` for exactly this — so the tick rows match
     in the window the candidates were selected under, with no spec in hand.
     """
-    from pxrdref.indexing.engines import SearchSpec, match_window
-    from pxrdref.viz import plot_indexing
-    from pxrdref.viz.indexing import _window_from_result
+    from anatase.indexing.engines import SearchSpec, match_window
+    from anatase.viz import plot_indexing
+    from anatase.viz.indexing import _window_from_result
 
     result = _result_of(bcc_candidates, bcc_peaks)
     figs = plot_indexing(result, bcc_peaks, path=str(tmp_path / "row"))
@@ -414,8 +414,8 @@ def test_plot_indexing_draws_the_stored_validation_without_a_refit(
     """The positions-only panel needs no pattern: a stored ``lebail`` verdict
     carries both detector lists, and a candidate index past the list is
     addressed, never clamped."""
-    from pxrdref.schemas.indexing import LeBailValidation
-    from pxrdref.viz import plot_indexing
+    from anatase.schemas.indexing import LeBailValidation
+    from anatase.viz import plot_indexing
 
     stored = bcc_candidates[0].model_copy(update={"lebail": LeBailValidation(
         rwp=0.21, gof=1.4, space_group="I m -3 m", n_reflections=23,
@@ -441,7 +441,7 @@ def test_an_ungated_candidate_is_not_labelled_with_a_verdict(bcc_candidates,
     plots were written under: an artefact must not state more than the run behind
     it measured.
     """
-    from pxrdref.viz import plot_candidates
+    from anatase.viz import plot_candidates
 
     fig = plot_candidates(bcc_candidates, bcc_peaks)
     captions = [t.get_text() for t in fig.get_axes()[1].texts]
@@ -465,9 +465,9 @@ def test_validate_by_lebail_hands_back_the_result_it_already_built(
     return is opt-in rather than a field on ``LeBailValidation`` for the reason
     history nodes store state and not curves.
     """
-    from pxrdref.indexing.workflow import validate_by_lebail
-    from pxrdref.schemas.indexing import CellCandidate
-    from pxrdref.schemas.results import RefinementResult
+    from anatase.indexing.workflow import validate_by_lebail
+    from anatase.schemas.indexing import CellCandidate
+    from anatase.schemas.results import RefinementResult
 
     data, instrument = _bcc_pattern()
     cand = CellCandidate(cell=CELL, cell_esd=(1e-4,) * 6, system="cubic",
@@ -486,7 +486,7 @@ def test_validate_by_lebail_hands_back_the_result_it_already_built(
     assert validation.rwp == pytest.approx(result.statistics.rwp)
     assert len(result.two_theta) == len(result.y_calc)
 
-    from pxrdref.viz import plot_validation
+    from anatase.viz import plot_validation
 
     OUT.mkdir(exist_ok=True)
     fig = plot_validation(validation, result,
@@ -502,11 +502,11 @@ def test_validate_by_lebail_hands_back_the_result_it_already_built(
 
 def _bcc_pattern():
     """A forward-modelled pattern for the fixture cell — cheap and single-phase."""
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
-    from pxrdref.schemas.instrument import Instrument
-    from pxrdref.schemas.pattern import PatternData
-    from pxrdref.schemas.structure import Atom, Cell, Parameter, Phase, Structure
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
+    from anatase.schemas.instrument import Instrument
+    from anatase.schemas.pattern import PatternData
+    from anatase.schemas.structure import Atom, Cell, Parameter, Phase, Structure
 
     a = CELL[0]
     structure = Structure(phases=[Phase(

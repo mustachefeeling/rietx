@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-import pxrdref as pr
+import anatase as pr
 
 DATA = Path(__file__).parent / "data"
 A_REFERENCE = 4.156780       # CIF block cell at 20.85 °C
@@ -70,7 +70,7 @@ def build_srm_inputs():
     instrument.profile.x.value = 5e-3
     instrument.geometry.axial_sl.value = 0.025
     instrument.geometry.axial_hl.value = 0.025
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
     # Dispersion DECLINED explicitly (WP-1001 made it the package default).
     # This is the absolute anchor and the frozen dispersion-OFF baseline that
@@ -146,7 +146,7 @@ def test_srm660c_lab6_rietveld(srm660c_baseline):
     # fit plots for visual inspection (tests/output/, gitignored):
     # full pattern + the two regions where the new physics shows — the FCJ
     # low-angle tail on 100 and the resolved Kα doublet at high angle
-    from pxrdref.viz.plots import plot_for_vlm, plot_result
+    from anatase.viz.plots import plot_for_vlm, plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "srm660c_fit.png"))

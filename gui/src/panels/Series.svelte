@@ -145,7 +145,7 @@
 
   /** The server's list becomes this panel's, always — never merged.
    *
-   * The `.pxt` pane's rule at a smaller scale: the answer to a PUT is the whole
+   * The `.rxt` pane's rule at a smaller scale: the answer to a PUT is the whole
    * setup, so a local list that disagreed with it would be a second authority on
    * what the series *is*, and the labels are exactly where that bites (the server
    * disambiguates repeats by position, so the name it will run under is not

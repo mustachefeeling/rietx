@@ -85,7 +85,7 @@ ambiguities, validates the survivors by Le Bail fit, and gates confidence on
   indexing is where it bites, because indexing *produces* a cell from lab data
   with nothing to compare against. `INDEX_CELL_SYSTEMATIC_UNQUANTIFIED` fires
   on Bragg-Brentano data when no radius was supplied.
-- **`pxrdref compare` gets no new row, deliberately.** CLAUDE.md requires one
+- **`anatase compare` gets no new row, deliberately.** CLAUDE.md requires one
   whenever a new *correction* lands; indexing is not a correction and produces
   no alternative fit of the same model, so a variant row would be a fake
   comparison. Record that reasoning here so a future session does not add a
@@ -131,7 +131,7 @@ declared applicable and already wired to a refusal that expires by itself.**
 `report/apply.py` classifies it `how="index"`, and `GuiSession.report_apply` refuses
 it with `ACTION_NOT_APPLICABLE` naming WP-1024 *only while*
 `capabilities().features["indexing"]` is False — a derived predicate
-(`hasattr(pxrdref, "index")`), so the report panel's Apply button on that suggestion
+(`hasattr(anatase, "index")`), so the report panel's Apply button on that suggestion
 turns on the moment `index()` exists, with **no edit in `report/apply.py`, in the
 session, or in the frontend**. Two consequences for this WP:
 
@@ -169,7 +169,7 @@ failure that note was written to prevent. What to do here, in one commit:
   `tests/test_capabilities.py`'s registry meta-tests with it, exactly as the
   backend/solver/plan/anode/reader arms are;
 - nothing else: **`features["indexing"]` needs no edit.** It is
-  `hasattr(pxrdref, "index")`, a derived predicate, so it flips the moment
+  `hasattr(anatase, "index")`, a derived predicate, so it flips the moment
   WP-1020 exports `index()`. Every flag there is derived for this reason; if you
   find yourself writing a literal `True`, that is the smell.
 
@@ -333,7 +333,7 @@ are; the tolerance belongs in the *scoring*, not in the stopping rule.
       unusable (see the handover).
 - [x] `index_pattern` + `IndexingResult` in `schemas/indexing.py`
       (`systems_searched`, `search_complete`, `engine_stats`, seed in
-      `Provenance`); `pxrdref/__init__.py` exports.
+      `Provenance`); `anatase/__init__.py` exports.
 - [x] All `INDEX_*` diagnostics not already owned by 1019, in particular
       `INDEX_ABSTAINED`, `INDEX_MULTIPLE_SOLUTIONS`,
       `INDEX_GEOMETRIC_AMBIGUITY`, `INDEX_SYSTEMS_NOT_COVERED`,
@@ -346,7 +346,7 @@ are; the tolerance belongs in the *scoring*, not in the stopping rule.
 - [x] `agent.py`: `IndexRequest` in the discriminated task union
       (`_TASK_TAGS`), `tool_definition()` quoting the live engine registry, and
       the meta-test that fails when a registered engine is missing from the
-      schema. `cli.py`: `pxrdref index`.
+      schema. `cli.py`: `anatase index`.
 - [x] `docs/AGENT_PROTOCOL.md`: the closed-loop workflow section
       (`pick_peaks → index_pattern → best_or_none → … → refine`), plus §6
       abstention and §7 code rows; `report/layer2.py` suggestion text points at
@@ -418,7 +418,7 @@ load sensor pretending to be an assertion.
   `structure_from_candidate`, `validate_by_lebail`), `IndexingResult` +
   `LeBailValidation` + `BravaisOpinion` + the gate fields in
   `schemas/indexing.py`, the `INDEX_*` translators in `indexing/diagnostics.py`,
-  the `index_start`/`index_end` event kinds, `task="index"`, `pxrdref index`,
+  the `index_start`/`index_end` event kinds, `task="index"`, `anatase index`,
   AGENT_PROTOCOL §7c/§7d/§8.15/§8.16, and
   `tests/test_indexing_consensus.py`.
 
@@ -512,7 +512,7 @@ load sensor pretending to be an assertion.
     assumed tolerance plus an unvalidated candidate is the ordinary state of a
     peaks-only run, so the plan's "all with one caveat → medium" is read with its
     first clause ("≥2 engines") as the fallback.
-  - **`pxrdref compare` got no new row**, as the plan required, and the reasoning
+  - **`anatase compare` got no new row**, as the plan required, and the reasoning
     is worth keeping: indexing is not a correction and produces no alternative fit
     of the same model, so a variant row would be a fake comparison.
 

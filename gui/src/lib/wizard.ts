@@ -241,8 +241,8 @@ export function blocked(state: WizardState): string {
     }
   }
   if (!state.path.trim()) return "Name the project directory.";
-  if (!state.path.trim().endsWith(".pxrd")) {
-    return "A project directory is named <something>.pxrd.";
+  if (!state.path.trim().endsWith(".rex")) {
+    return "A project directory is named <something>.rex.";
   }
   return "";
 }

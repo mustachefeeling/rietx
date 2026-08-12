@@ -4,16 +4,16 @@ arbitrary-grid prediction, analytic Jacobian agreement, profile split."""
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData, Refinement
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import (
+from anatase import Instrument, PatternData, Refinement
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import (
     _make_jacobian,
     _make_residual,
     covariance_estimates,
     run_least_squares,
 )
-from pxrdref.optimize.statistics import berar_lelann_factor
-from pxrdref.params.vector import ParameterTable
+from anatase.optimize.statistics import berar_lelann_factor
+from anatase.params.vector import ParameterTable
 from tests.test_refine_synthetic import perturbed_models, synthesize
 from tests.test_schemas import make_lab6
 
@@ -128,7 +128,7 @@ def test_collinear_zero_displacement_trips_the_correlation_guard():
     so freeing them together is a textbook degeneracy (ρ ≈ 1).  On the true
     Pearson matrix the default 0.98 high-correlation guard fires; before WP-0407
     every off-diagonal was ÷BL² so the guard was dead."""
-    from pxrdref.strategy.staged import check_guards
+    from anatase.strategy.staged import check_guards
 
     structure = make_lab6()
     structure.phases[0].scale.value = 5e-3
@@ -240,7 +240,7 @@ def _synthesize(structure, ins, lo=18.0, hi=120.0, step=0.02, seed=11):
 
 
 def test_gaussian_sample_terms_add_as_variances():
-    from pxrdref.model.profiles.caglioti import gaussian_fwhm
+    from anatase.model.profiles.caglioti import gaussian_fwhm
     theta = np.array([10.0, 25.0, 40.0])
     base = gaussian_fwhm(theta, 5e-3, -1e-3, 3e-3)
     with_strain = gaussian_fwhm(theta, 5e-3, -1e-3, 3e-3, gauss_strain=2e-3)
@@ -253,7 +253,7 @@ def test_gaussian_sample_terms_add_as_variances():
 
 @pytest.mark.slow
 def test_calibrate_freeze_refine_sample_workflow(tmp_path):
-    import pxrdref as pr
+    import anatase as pr
 
     # --- truth: one instrument, used for both measurements
     true_u, true_w, true_x = 6e-3, 3e-3, 5e-3

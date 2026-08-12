@@ -2,7 +2,7 @@
 /**
  * The CodeMirror adapter — the three things it must not get wrong.
  *
- * It holds no rules (those are in `sync.ts` and `pxt.ts`), so what is left to
+ * It holds no rules (those are in `sync.ts` and `rxt.ts`), so what is left to
  * assert is the wiring, and each of these is a bug that would be invisible until
  * a user hit it:
  *
@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createEditor, type EditorHandle } from "./editor";
 
-const DOC = 'pxt 1\nproject "doc"\nmode rietveld\nlimits 3 60\n';
+const DOC = 'rxt 1\nproject "doc"\nmode rietveld\nlimits 3 60\n';
 
 let host: HTMLDivElement;
 let edits: string[];
@@ -95,7 +95,7 @@ describe("the adapter", () => {
   });
 
   it("clamps a line number the buffer no longer has, rather than throwing", () => {
-    const editor = open("pxt 1\n");
+    const editor = open("rxt 1\n");
     expect(() => editor.setProblems([{ line: 99, message: "off the end" }])).not.toThrow();
     expect(() => editor.goToLine(99)).not.toThrow();
     editor.destroy();
@@ -118,7 +118,7 @@ describe("the adapter", () => {
     editor.destroy();
   });
 
-  it("colours the document through `lib/pxt.ts` and nothing else", () => {
+  it("colours the document through `lib/rxt.ts` and nothing else", () => {
     const editor = open();
     // the classes are the ones `app.css` styles; their presence is what says the
     // StreamLanguage is wired to our token table rather than to CM's legacy names

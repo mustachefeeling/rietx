@@ -1,6 +1,6 @@
 """WP-1010 — the committed frontend dist: is it current, and is it offline?
 
-The dist under ``src/pxrdref/gui/static`` is committed so installing the wheel
+The dist under ``src/anatase/gui/static`` is committed so installing the wheel
 never needs node, which buys one hazard: a dist built from sources that have
 since moved.  These tests are the guard, and they run in the **ordinary** suite —
 no node, no npm, milliseconds — because a check that only runs where node is
@@ -24,7 +24,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 GUI_DIR = ROOT / "gui"
-DIST = ROOT / "src" / "pxrdref" / "gui" / "static"
+DIST = ROOT / "src" / "anatase" / "gui" / "static"
 
 REBUILD = "run `npm --prefix gui ci && npm --prefix gui run build` and commit the result"
 
@@ -34,7 +34,7 @@ def _build_info_module():
     path = GUI_DIR / "scripts" / "build_info.py"
     if not path.is_file():
         pytest.skip(f"{path} is missing — the gui workspace is not in this checkout")
-    spec = importlib.util.spec_from_file_location("pxrdref_gui_build_info", path)
+    spec = importlib.util.spec_from_file_location("anatase_gui_build_info", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[union-attr]
     return module
@@ -47,7 +47,7 @@ def build_info():
 
 def test_the_dist_is_present_and_named_as_the_server_expects():
     """Stable filenames, because a committed dist has to diff reviewably."""
-    from pxrdref.gui.server import STATIC_DIR
+    from anatase.gui.server import STATIC_DIR
 
     assert STATIC_DIR == DIST
     assert (DIST / "index.html").is_file()
@@ -71,7 +71,7 @@ def test_build_info_carries_nothing_time_varying(build_info):
     """A timestamp would make every rebuild a dist diff.
 
     Which would destroy the property the digest exists to give: ``git diff
-    --exit-code src/pxrdref/gui/static`` has to mean "stale", not "rebuilt".
+    --exit-code src/anatase/gui/static`` has to mean "stale", not "rebuilt".
     """
     recorded = json.loads((DIST / "build-info.json").read_text(encoding="utf-8"))
     assert set(recorded) == {"source_hash", "n_source_files", "hashed_by", "note"}
@@ -170,11 +170,21 @@ def test_nothing_gitignores_the_dist():
 
     files = [DIST / "index.html", DIST / "build-info.json",
              DIST / "assets" / "app.css", *sorted((DIST / "assets").glob("*.js"))]
+    # --no-index because check-ignore consults the index first, and answers for
+    # a *tracked* file without asking the ignore rules at all: every file here
+    # is committed, so without it this test was green while asking nothing
+    # (WP-1062).  The question is what the rules say, not what the index says.
     result = subprocess.run(
-        ["git", "check-ignore", "-v", *[str(f) for f in files]],
+        ["git", "check-ignore", "-v", "--no-index", *[str(f) for f in files]],
         cwd=ROOT, capture_output=True, text=True)
+    # the filter is on the *shape* of the matching rule, not its text (WP-1062):
+    # check-ignore -v reports the last rule that matched, and one starting with
+    # ``!`` is a negation — the file is not ignored, which is the answer wanted.
+    # Spelling the un-ignore path here would be a second copy of a .gitignore
+    # line: rename the package, update one of the two, and this stops testing
+    # anything while still passing.
     ignored = [line for line in result.stdout.splitlines()
-               if line and not line.split("\t")[0].endswith("!src/pxrdref/gui/static/**")]
+               if line and not line.split("\t")[0].rpartition(":")[2].startswith("!")]
     assert not ignored, f"the committed dist is gitignored: {ignored}"
 
 
@@ -241,11 +251,11 @@ def test_the_dist_is_in_the_wheel(tmp_path):
     assert build.returncode == 0, build.stderr[-2000:]
     wheel = glob.glob(str(tmp_path / "*.whl"))[0]
     inside = set(zipfile.ZipFile(wheel).namelist())
-    wanted = ["pxrdref/gui/static/index.html", "pxrdref/gui/static/assets/app.css",
-              "pxrdref/gui/static/build-info.json"]
+    wanted = ["anatase/gui/static/index.html", "anatase/gui/static/assets/app.css",
+              "anatase/gui/static/build-info.json"]
     # every chunk, so a new one cannot ship as a 404 at the moment the pane that
     # needs it is opened
-    wanted += [f"pxrdref/gui/static/assets/{p.name}"
+    wanted += [f"anatase/gui/static/assets/{p.name}"
                for p in sorted((DIST / "assets").glob("*.js"))]
     for name in wanted:
         assert name in inside, f"{name} is missing from the wheel"

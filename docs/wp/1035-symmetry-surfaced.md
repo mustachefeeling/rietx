@@ -175,7 +175,7 @@ maps a `ValueError` from an unresolvable symbol to
   listing all its space groups**, because the extinction symbol is what a powder
   measures and a singleton there is unmeasurable. Nothing here may present a
   single derived group as a measurement.
-- **Not an editable space group in the text document.** The `.pxt` document's
+- **Not an editable space group in the text document.** The `.rxt` document's
   editable surface is parameters and settings; a second authority on a phase's
   symmetry is what its rules forbid. The symbol appears there as a **rendered
   comment** only — the form `textdoc.py`'s own module docstring documents
@@ -195,7 +195,7 @@ maps a `ValueError` from an unresolvable symbol to
 - [x] **Name the cause of a held row**: a cell tie or a locked angle says which
       symmetry element is responsible, so the parameter table stops showing
       effects with anonymous causes.
-- [x] **The `.pxt` phase line carries the symbol as a comment**, with the
+- [x] **The `.rxt` phase line carries the symbol as a comment**, with the
       render → parse → render fixed-point test still passing and no format bump.
 - [x] **A preview verb** built from a candidate `ParameterTable` plus
       `_site_rows`: entries gaining/losing a tie or lock, DOF and ADP paths
@@ -303,7 +303,7 @@ multiplicity gap — see the handover.
   act). Four commits: the server, its tests, the panel, and what the browser
   found.
 
-  **Where things are.** `src/pxrdref/gui/symmetry.py` (new) — phase facts, the
+  **Where things are.** `src/anatase/gui/symmetry.py` (new) — phase facts, the
   cause map, the letters, the preview; `gui/src/lib/symmetry.ts` (new) — the
   formatters, nothing else. Three routes: `GET /api/structure/symmetry?phase=N`,
   `POST /api/structure/symmetry/preview`, `POST /api/structure/symmetry`.
@@ -349,12 +349,12 @@ multiplicity gap — see the handover.
   **One correction for the docs.** This WP's own Acceptance section, and
   [1009](1009-textdoc-format.md) line 28, say NAC is `Ia-3d` with four species.
   It is **`I 21 3` (No. 199), six atoms, four species** — that is what
-  `tests/data/cod_1000236.cif` stores and what the page renders. The `.pxt`
+  `tests/data/cod_1000236.cif` stores and what the page renders. The `.rxt`
   module docstring's example carried the same error and is fixed; the two
   planning docs are left as they are, recorded here.
 
   **Not done, and deliberately.** Nothing writes a Wyckoff letter into the model
-  or the `.pxt` document, no symbol is *derived* from the pattern (that is
+  or the `.rxt` document, no symbol is *derived* from the pattern (that is
   WP-1025's ranked classes, and the non-goal stands), and `causes` says nothing
   about a row symmetry does not hold — a locked `lor_strain` belongs to the
   Stephens block and keeps `held_because`'s anonymous sentence.

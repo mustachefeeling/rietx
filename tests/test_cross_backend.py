@@ -1,7 +1,7 @@
 """WP-0404 — cross-backend Jacobian agreement.
 
 DESIGN.md's mitigation for *backend drift* (small op vocabulary + mandatory
-cross-backend tests), made executable: every way pxrdref can produce a Jacobian
+cross-backend tests), made executable: every way anatase can produce a Jacobian
 is compared against the analytic one on the same compiled state, so a backend
 that starts computing a different derivative is caught here rather than in an
 esd three milestones later.
@@ -75,22 +75,22 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref.backend.linalg64 import (
+from anatase.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
     FP32_JACOBIAN,
     precision_policy,
 )
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import (
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import (
     _jacobian_for,
     _make_jacobian,
     _make_residual,
     _multi_closures,
     run_least_squares,
 )
-from pxrdref.params.vector import ParameterTable
-from pxrdref.strategy.staged import Stage
+from anatase.params.vector import ParameterTable
+from anatase.strategy.staged import Stage
 from tests.test_backend_shim import STATES
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
 
@@ -368,7 +368,7 @@ def _multi_state():
     """Two LaB6 patterns of one crystal at two wavelengths (the WP-0308 state),
     compiled per histogram and wired through a ``MultiParameterTable``."""
     if "state" not in _MULTI_CACHE:
-        from pxrdref.params.multi import MultiParameterTable
+        from anatase.params.multi import MultiParameterTable
         from tests.test_multi_histogram import perturbed_inputs, synthesize
 
         data = [synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
@@ -502,7 +502,7 @@ def _stage_boundaries(data, structure, instrument, stages, *, mode="rietveld"):
     Pawley), so including it would swamp the quantity under test — the
     regeneration of the frozen discreteness.
     """
-    from pxrdref.refine import _carry_lebail
+    from anatase.refine import _carry_lebail
 
     table = ParameterTable(structure, instrument)
     table.set_vary(["*"], False)

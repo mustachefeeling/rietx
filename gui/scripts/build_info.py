@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stamp ``build-info.json`` beside the committed dist — and define the hash once.
 
-The dist under ``src/pxrdref/gui/static`` is committed so that installing the
+The dist under ``src/anatase/gui/static`` is committed so that installing the
 wheel never needs node, which creates one hazard: a dist that no longer matches
 the sources it was built from.  The guard is a digest of the frontend sources
 recorded at build time and re-checked by ``tests/test_gui_dist.py``, which must
@@ -16,7 +16,7 @@ elsewhere, and the only thing the JS version would have bought is not needing
 
 Nothing time-varying goes in the file.  A build timestamp would make every
 rebuild a dist diff, which would destroy the property the digest exists to give:
-``git diff --exit-code src/pxrdref/gui/static`` means "the dist is stale", not
+``git diff --exit-code src/anatase/gui/static`` means "the dist is stale", not
 "someone ran the build".
 
 Usage (from the ``gui/`` directory)::
@@ -41,7 +41,7 @@ SOURCE_FILES = ("package.json", "package-lock.json", "vite.config.ts",
 #: Written next to the built assets, and committed with them.
 BUILD_INFO = "build-info.json"
 
-DIST_RELATIVE = Path("..") / "src" / "pxrdref" / "gui" / "static"
+DIST_RELATIVE = Path("..") / "src" / "anatase" / "gui" / "static"
 
 
 def source_files(gui_dir: Path) -> list[Path]:

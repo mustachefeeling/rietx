@@ -24,7 +24,7 @@ on the hardware of its day:
 | TOPAS SVD-Index | "approximately 3 min" for all systems down to triclinic, on a **600 MHz** machine |
 | McMaille | seconds at high symmetry; all symmetries over a wide domain "hours, if not a night" |
 | Conograph | exhaustive, **≤5 min** quick search across 25 real patterns |
-| **pxrdref today** | **30–150 s per real dataset** |
+| **anatase today** | **30–150 s per real dataset** |
 
 So the runtime is unremarkable for the field. What is missing is that **none of it
 is visible or bounded**, and McMaille shipped the fix in 2004: an on-screen
@@ -154,7 +154,7 @@ are open literature and may be cited and implemented from. No code ported.
       mid-run; record that in `history/events.py` beside the additivity rule. A
       `Progress` object carries the counter with `stream=None` a working no-op, so
       every direct engine unit test is unchanged.
-- [x] `pxrdref index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
+- [x] `anatase index --ceiling` and `--total-budget`; `SearchSpecSpec` gains the
       field; `AGENT_PROTOCOL.md` rows for `INDEX_BUDGET_EXHAUSTED` and a
       "how long will this take" note beside the indexing recipe.
 - [x] Tests: `tests/test_indexing_ceiling.py` (new) + edits to
@@ -175,7 +175,7 @@ is computable before a run, and a declared total is honoured.
 ```
 
 By hand, into the handover log:
-`pxrdref index tests/data/qarr/corundum.prn --wavelength 1.5405929 --ceiling`
+`anatase index tests/data/qarr/corundum.prn --wavelength 1.5405929 --ceiling`
 prints worst case **and** measured typical before running; `--total-budget 60`
 finishes within 60 s plus one granularity unit and names the systems not reached.
 

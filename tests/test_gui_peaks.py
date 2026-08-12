@@ -6,7 +6,7 @@ with their console echoes intact, a stored list must be *refused* against the
 wrong pattern at the route (not merely in a docstring), and the adopt gate must
 hold at the server so no UI path can leak past it.
 
-The `.pxt` peaks-block fixed point lives in ``test_textdoc`` beside the other
+The `.rxt` peaks-block fixed point lives in ``test_textdoc`` beside the other
 fixed-point properties; the engine's own editing semantics (carry of `origin`
 and `excluded` across a refit, group windows, ghost-recompute scoping) are
 asserted here through the verbs, which is the only door a client has.
@@ -23,11 +23,11 @@ from http.client import HTTPConnection
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.gui import GuiSession, build_server
-from pxrdref.refine import _VERSION
-from pxrdref.schemas.common import Provenance
-from pxrdref.schemas.indexing import (
+import anatase as pr
+from anatase.gui import GuiSession, build_server
+from anatase.refine import _VERSION
+from anatase.schemas.common import Provenance
+from anatase.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
     PEAK_UNUSABLE_FLAGS,
     CellCandidate,
@@ -51,7 +51,7 @@ def pattern_file(tmp_path_factory):
 @pytest.fixture(scope="module")
 def served(tmp_path_factory, pattern_file):
     structure, instrument = perturbed_models()
-    root = tmp_path_factory.mktemp("peaks-proj") / "p.pxrd"
+    root = tmp_path_factory.mktemp("peaks-proj") / "p.rex"
     project = pr.Project.create(root, pattern=pattern_file,
                                 structure=structure, instrument=instrument)
     session = GuiSession(project,
@@ -193,7 +193,7 @@ def test_a_peak_list_keyed_to_one_pattern_is_refused_against_another(
     other_file = _write_xye(tmp_path_factory.mktemp("peaks-b") / "other.xye",
                             other)
     structure, instrument = perturbed_models()
-    root = tmp_path_factory.mktemp("peaks-b-proj") / "b.pxrd"
+    root = tmp_path_factory.mktemp("peaks-b-proj") / "b.rex"
     b = pr.Project.create(root, pattern=other_file, structure=structure,
                           instrument=instrument)
     shutil.copyfile(project.path / "peaks.json", b.path / "peaks.json")

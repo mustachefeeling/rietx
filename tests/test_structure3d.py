@@ -21,11 +21,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pxrdref.crystallography.adp import principal_values, u_cartesian
-from pxrdref.crystallography.cif import structure_from_cif
-from pxrdref.crystallography.symmetry import expand_orbit, expand_positions, get_spacegroup
-from pxrdref.gui import structure3d as s3
-from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from anatase.crystallography.adp import principal_values, u_cartesian
+from anatase.crystallography.cif import structure_from_cif
+from anatase.crystallography.symmetry import expand_orbit, expand_positions, get_spacegroup
+from anatase.gui import structure3d as s3
+from anatase.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
 
 DATA = Path(__file__).parent / "data"
 
@@ -139,7 +139,7 @@ def test_an_isotropic_site_is_a_sphere_of_the_equivalent_radius():
     assert np.allclose(drawn["ellipsoid"], math.sqrt(uiso) * np.eye(3))
 
     # …and the general path, through the metric, lands on the same sphere
-    from pxrdref.crystallography.adp import isotropic_u6
+    from anatase.crystallography.adp import isotropic_u6
 
     cell = structure.phases[0].cell.lengths_angles()
     assert np.allclose(u_cartesian(isotropic_u6(uiso, cell), cell), uiso * np.eye(3))

@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref import (
+from anatase import (
     Instrument,
     PatternData,
     Refinement,
@@ -21,12 +21,12 @@ from pxrdref import (
     write_qpa_table,
     write_reflection_table,
 )
-from pxrdref.io.exporters import ReflectionRow, qpa_table_csv
-from pxrdref.model.forward import compile_model
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.instrument import BackgroundChebyshev
-from pxrdref.schemas.results import (
+from anatase.io.exporters import ReflectionRow, qpa_table_csv
+from anatase.model.forward import compile_model
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.instrument import BackgroundChebyshev
+from anatase.schemas.results import (
     MicroabsorptionCorrection,
     PhaseQuantity,
     QuantitativePhaseAnalysis,

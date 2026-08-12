@@ -31,7 +31,7 @@ exposed in one and absent in another is a test failure, not a drift. Enums are
 quoted live: engines from `engine_names()`, systems from `SYSTEM_ORDER`,
 presets from `SEARCH_PRESETS` (landed, WP-1042). Two of the three views
 already expose the preset — `SearchSpecSpec.preset` on the agent and
-`pxrdref index --preset` on the CLI, both validating against the live
+`anatase index --preset` on the CLI, both validating against the live
 registry — so the mirroring here absorbs them, never re-invents them.
 
 **2. A prior steers, never gates.** An agent (or a human with a database hit)

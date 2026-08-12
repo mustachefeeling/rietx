@@ -16,7 +16,7 @@
  * server's `STALE_REVISION` 409 means, so the two paths land in the same place.
  *
  * **Only the server decides validity.** Every {@link SyncState.problems} entry
- * arrives from a `PUT` response; nothing here inspects the text. `lib/pxt.ts`
+ * arrives from a `PUT` response; nothing here inspects the text. `lib/rxt.ts`
  * colours it and has no `error` token to emit.
  *
  * **A response from an older buffer is dropped.** Validation is debounced, so

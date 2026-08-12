@@ -4,7 +4,7 @@
    *
    * **Not a sixth tab.** The sidebar strip is five tabs wide inside
    * `clamp(340px, 38%, 560px)`, and this is the one panel whose content is
-   * line-oriented: the `.pxt` format aligns its columns *so that a rectangular
+   * line-oriented: the `.rxt` format aligns its columns *so that a rectangular
    * selection can hit one field*, and a 340 px column wraps or side-scrolls the
    * alignment away. So the pane is a mode over the whole window. It stays
    * mounted while hidden — a buffer with unsaved edits has to survive a look at
@@ -22,7 +22,7 @@
    * the fetches and the DOM, and holds no rule of its own.
    */
   import { ApiError, api } from "../api";
-  import { commentLines } from "../lib/pxt";
+  import { commentLines } from "../lib/rxt";
   import { canApply, initial, reduce, type Problem, type SyncEvent } from "../lib/sync";
   // types only — erased at build time, so the boot chunk still has no CodeMirror
   import type { EditorHandle, createEditor } from "../lib/editor";
@@ -217,7 +217,7 @@
 <section class="text">
   <header>
     <strong>Project text</strong>
-    <span class="muted mono">.pxt</span>
+    <span class="muted mono">.rxt</span>
     <span class="pill mono" data-phase={sync.stale ? "stale" : sync.phase}>{status}</span>
     <span class="spacer"></span>
     <button onclick={apply} disabled={!applyable} title="apply the whole document as one delta">

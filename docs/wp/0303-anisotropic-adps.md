@@ -19,12 +19,12 @@ collapsed. This WP stops collapsing it.
 Where the work lands:
 
 - Schema: an optional aniso block on the atom in
-  [`schemas/structure.py`](../../src/pxrdref/schemas/structure.py). Keep
+  [`schemas/structure.py`](../../src/anatase/schemas/structure.py). Keep
   `biso` as the default representation — every existing test, plan glob
   (`phases.*.atoms.*.biso`) and acceptance run depends on it. Aniso is opt-in
   per atom, not a global mode switch.
 - Forward model: the Debye-Waller factor in
-  [`crystallography/structure_factor.py`](../../src/pxrdref/crystallography/structure_factor.py)
+  [`crystallography/structure_factor.py`](../../src/anatase/crystallography/structure_factor.py)
   becomes T = exp(−2π²·Σ_ij U_ij h_i h_j a*_i a*_j) evaluated per symmetry op.
   Under op R, U transforms as R·U·Rᵀ in direct-space terms — and the
   reciprocal-space index action is **Rᵀ** (see the symmetry.py comment). Get
@@ -39,7 +39,7 @@ Guard: an unconstrained U tensor can go non-positive-definite and produce a
 physically meaningless (and numerically divergent at high Q) structure factor.
 Surface a structured diagnostic when any refined U has a non-positive
 eigenvalue, in the style of the existing guards in
-[`optimize/statistics.py`](../../src/pxrdref/optimize/statistics.py) — a
+[`optimize/statistics.py`](../../src/anatase/optimize/statistics.py) — a
 diagnostic the strategy engine and the FitReport can see, not a bare warning.
 
 Background coupling matters here: the background-absorption block projection

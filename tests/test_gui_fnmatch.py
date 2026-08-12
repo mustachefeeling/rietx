@@ -27,10 +27,10 @@ import json
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.instrument import Instrument
-from pxrdref.schemas.structure import (
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.instrument import Instrument
+from anatase.schemas.structure import (
     AnisoU,
     Atom,
     Cell,
@@ -38,7 +38,7 @@ from pxrdref.schemas.structure import (
     StephensStrain,
     Structure,
 )
-from pxrdref.strategy.staged import PLAN_PRESETS
+from anatase.strategy.staged import PLAN_PRESETS
 
 FIXTURE = Path(__file__).parent / "data" / "gui" / "fnmatch_cases.json"
 

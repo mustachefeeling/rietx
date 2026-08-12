@@ -1,9 +1,9 @@
 {
-  "name": "pxrdref-gui",
+  "name": "anatase-gui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Frontend workspace for `pxrdref gui`. Never ships in the wheel — the build output under src/pxrdref/gui/static is committed, so installing pxrd-refine[gui] needs no node.",
+  "description": "Frontend workspace for `anatase gui`. Never ships in the wheel — the build output under src/anatase/gui/static is committed, so installing anatase[gui] needs no node.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && python3 scripts/build_info.py",

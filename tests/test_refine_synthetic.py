@@ -4,11 +4,11 @@ model, refine, and check the truth is recovered."""
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData, Refinement, build_report
-from pxrdref.model.forward import compile_model
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.instrument import BackgroundChebyshev
+from anatase import Instrument, PatternData, Refinement, build_report
+from anatase.model.forward import compile_model
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 0.4139

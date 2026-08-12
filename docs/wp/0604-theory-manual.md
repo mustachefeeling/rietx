@@ -37,7 +37,7 @@ Design decisions (made at expansion, 2026-07-29):
 - **Numbered equations**: MyST `{math}` directives with `:label:`; referenced
   with `{eq}` roles. Numbering is per-chapter and automatic.
 - **Cross-reference direction is manual → docstring.** Each displayed equation
-  carries a `*Source:* ``pxrdref.module.symbol``` line naming the docstring it
+  carries a `*Source:* ``anatase.module.symbol``` line naming the docstring it
   was transcribed from. The reverse direction (editing 40 modules' docstrings
   to name manual equation numbers) was rejected: it couples every physics
   module to the manual's numbering and would go stale on every reorganisation.
@@ -103,7 +103,7 @@ that produced this plan is reproducible by grepping `src/` for years/journals):
 From **WP-0602** (agent JSON surface, landed 2026-07-29) — three facts for
 any chapter that touches the agent-facing surface:
 
-- **`pxrdref.agent` exists** (`refine_json`, `tool_definition`,
+- **`anatase.agent` exists** (`refine_json`, `tool_definition`,
   `request_schema`/`response_schema`); its module docstring is the contract
   prose (envelope, the three closed error codes, the two deliberate history
   asymmetries) — lift it rather than re-describing.

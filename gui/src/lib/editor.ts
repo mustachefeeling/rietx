@@ -4,15 +4,15 @@
  * CodeMirror out of the boot path: `assets/app.js` stays the size WP-1010
  * measured, and `assets/vendor-cm.js` is fetched the first time someone opens
  * the text pane. Everything the pane actually decides lives in `lib/sync.ts`
- * (the state machine) and `lib/pxt.ts` (the colours); this file is the adapter
+ * (the state machine) and `lib/rxt.ts` (the colours); this file is the adapter
  * between them and CM's API, so it holds no rules of its own.
  *
- * `rectangularSelection` is the reason the `.pxt` format aligns its columns at
+ * `rectangularSelection` is the reason the `.rxt` format aligns its columns at
  * all (WP-1009 sized them per block after a fixed width made the renderer emit
  * `polarization 0.99min 0`), so it, `crosshairCursor` and multi-cursor are the
  * point of the pane rather than trimmings.
  *
- * The highlighter is a `StreamLanguage` over `lib/pxt.ts` with an explicit
+ * The highlighter is a `StreamLanguage` over `lib/rxt.ts` with an explicit
  * `tokenTable`: no lezer grammar to build, no second parser to drift, and the
  * token names are this package's own rather than CM's legacy-mode vocabulary.
  */
@@ -33,7 +33,7 @@ import {
 } from "@codemirror/view";
 import { tags, type Tag } from "@lezer/highlight";
 
-import { spans, type Span, type Token } from "./pxt";
+import { spans, type Span, type Token } from "./rxt";
 import { minimalChange, type Problem } from "./sync";
 
 /** Our token names → lezer tags. Explicit, so renaming a token here is a
@@ -122,15 +122,15 @@ interface StreamState {
 }
 
 /**
- * `lib/pxt.ts`'s per-line spans, walked one token at a time.
+ * `lib/rxt.ts`'s per-line spans, walked one token at a time.
  *
  * CM asks for tokens through a `StringStream`, so the whole line is classified
  * once at `sol()` and then handed back span by span. Gaps between spans advance
  * the stream with no style, which is how "the scanner has no opinion about this"
  * is expressed to CM.
  */
-const pxtLanguage = StreamLanguage.define<StreamState>({
-  name: "pxt",
+const rxtLanguage = StreamLanguage.define<StreamState>({
+  name: "rxt",
   startState: () => ({ spans: [], at: 0 }),
   token(stream, state) {
     if (stream.sol()) {
@@ -200,7 +200,7 @@ export function createEditor(options: EditorOptions): EditorHandle {
     crosshairCursor(),
     lintGutter(),
     EditorState.allowMultipleSelections.of(true),
-    pxtLanguage,
+    rxtLanguage,
     syntaxHighlighting(HIGHLIGHT),
     keymap.of([
       { key: "Mod-Enter", preventDefault: true, run: () => (options.onApply(), true) },

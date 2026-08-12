@@ -1,11 +1,11 @@
-# pxrd-refine
+# anatase
 
-[![CI](https://github.com/yue-here/pxrd-refine/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/pxrd-refine/actions/workflows/ci.yml)
+[![CI](https://github.com/yue-here/anatase/actions/workflows/ci.yml/badge.svg)](https://github.com/yue-here/anatase/actions/workflows/ci.yml)
 
 **API-first Rietveld refinement of powder X-ray diffraction data, designed for
 automated and agentic workflows.**
 
-`pxrd-refine` is an MIT-licensed Python package for Rietveld and Le Bail
+`anatase` is an MIT-licensed Python package for Rietveld and Le Bail
 refinement built as a library first — no GUI trees, no pickles, no hidden
 state:
 
@@ -52,7 +52,7 @@ benchmarks 0.74–1.04× against scipy TRF — the expected tie — and earns it
 place with constraint vocabulary scipy lacks (linear inequalities, used to
 *enforce* the Stephens positivity cone); a measured **no-go** on the batched
 peak-loop rewrite, whose cheap alternative (an FCJ node memo) shipped instead
-at 1.23×, bit-identical; a JSON tool surface (`pxrdref.agent.refine_json`)
+at 1.23×, bit-identical; a JSON tool surface (`anatase.agent.refine_json`)
 whose schema is generated from the live registries; and a Sphinx + MyST
 **theory manual** ([docs/manual/](docs/manual/)) whose numbered equations are
 transcribed from the physics docstrings and guarded against drift by the test
@@ -78,7 +78,7 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | **FitReport Layers 0-2**: diagnostics → gated misfit attribution → typed actions | ✅ |
 | `.xy` / `.xye` / GSAS raw / pdCIF / FIT2D `.chi` / Rigaku `.ras` / `.rasx` / Bruker `.uxd` / `.brml` / `.raw` (v3/v4) / PANalytical `.xrdml` readers, dispatched on content; a multi-scan file's scans are **selected** with `scan=`, never concatenated; a `.dif` peak list, a rocking curve and a binary file no format claims are refused **by name**; instrument-profile files | ✅ |
 | Branchable history DAG: checkout, branch, **merge, cherry-pick**, replay | ✅ |
-| matplotlib plots, **VLM montage**, plotly HTML viewer, `pxrdref watch` live view | ✅ |
+| matplotlib plots, **VLM montage**, plotly HTML viewer, `anatase watch` live view | ✅ |
 | Atomic-coordinate refinement (Wyckoff/site-symmetry constraints), anisotropic ADPs | ✅ |
 | QPA weight fractions (Hill-Howard ZMV), Brindley microabsorption + µR fence | ✅ |
 | Pawley whole-pattern mode, March-Dollase preferred orientation | ✅ |
@@ -94,9 +94,9 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Flat-plate absorption (ITC 6.3.3.1 finite-thickness reflection + symmetric transmission), µt computed from composition | ✅ |
 | Surface roughness (Suortti 1972 / Pitschke 1993), Bragg-Brentano, with identifiability fences | ✅ |
 | Secondary extinction (Sabine polycrystalline blend) | ✅ |
-| JSON tool surface for agents (`pxrdref.agent.refine_json`, schema from live registries) | ✅ |
+| JSON tool surface for agents (`anatase.agent.refine_json`, schema from live registries) | ✅ |
 | Theory manual (Sphinx + MyST, `docs/manual/`): numbered equations transcribed from the physics docstrings, constants injected from the live package, drift guarded by tests | ✅ |
-| Peak picking (`pxrdref.pick_peaks`): fitted position **and its esd** per line, Kα doublets fitted as a constrained pair and never stripped, σ pull-calibrated | ✅ |
+| Peak picking (`anatase.pick_peaks`): fitted position **and its esd** per line, Kα doublets fitted as a constrained pair and never stripped, σ pull-calibrated | ✅ |
 | Indexing data-quality gate + systematic-shift model (zero shift vs displacement vs transparency, named only when separable) | ✅ |
 | Indexing core: Q-space form, derived metric subspaces, reduction, two-opinion Bravais, figure-of-merit **panel**, geometrical ambiguity with the reflections that break each tie | ✅ |
 | Unit-cell search engines: exhaustive dichotomy over the metric domain, and the exact-solve index heuristic — cubic→monoclinic recovered from synthetic lists, ranked on the FoM panel | ✅ |
@@ -175,7 +175,7 @@ all three FitReport layers → plots + interactive HTML).
 ## Example
 
 ```python
-import pxrdref as pr
+import anatase as pr
 
 data = pr.read_pattern("11BM_NAC.fxye")                  # esds read from file
 structure = pr.Structure.from_cif("NAC.cif")
@@ -268,18 +268,18 @@ carry their standard uncertainty in `4.59370(25)` notation (`pr.format_su`).
 ### Live monitoring
 
 ```python
-from pxrdref.viz.live import LiveSession
+from anatase.viz.live import LiveSession
 ref.fit(data, events=LiveSession("live/"))   # rewrites live/fit.html per stage
 ```
 
 ```sh
-pxrdref watch live/     # stdlib http.server: auto-refreshing plot + event console
+anatase watch live/     # stdlib http.server: auto-refreshing plot + event console
 ```
 
 ### Comparing settings — "does this correction actually help?"
 
 ```sh
-pxrdref compare --open    # pick a standard, tick variants, read the Δχ² panel
+anatase compare --open    # pick a standard, tick variants, read the Δχ² panel
 ```
 
 A browser UI (same stdlib-http, offline-plotly architecture as `watch`) that
@@ -294,7 +294,7 @@ beside the plots rather than under them.
 The registry is a plain API too:
 
 ```python
-from pxrdref.viz import compare
+from anatase.viz import compare
 base = compare.run("zincite", "baseline")
 disp = compare.run("zincite", "dispersion")   # Rwp barely moves; B(O) 0.02 → 0.43 Å²
 ```

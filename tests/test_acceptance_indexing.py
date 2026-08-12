@@ -65,15 +65,15 @@ import pathlib
 import numpy as np
 import pytest
 
-from pxrdref.indexing.engines import SYSTEM_ORDER, SearchSpec
-from pxrdref.indexing.fom import (
+from anatase.indexing.engines import SYSTEM_ORDER, SearchSpec
+from anatase.indexing.fom import (
     _count_possible,
     nearest_discrepancy,
     predicted_lines,
 )
-from pxrdref.indexing.qspace import af_from_cell
-from pxrdref.indexing.quality import assess_peak_list, fit_shift_model
-from pxrdref.schemas.indexing import (
+from anatase.indexing.qspace import af_from_cell
+from anatase.indexing.quality import assess_peak_list, fit_shift_model
+from anatase.schemas.indexing import (
     PAIR_MIN_Z,
     PEAK_ASSUMED_ESD_DEG,
     PEAK_MIN_USABLE_LINES,
@@ -177,7 +177,7 @@ def _qarr(name: str):
     from tests.test_acceptance_qpa_roundrobin import qarr_instrument
     if not (QARR / name).exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    import pxrdref as pr
+    import anatase as pr
     ins = qarr_instrument()
     assert ins.source.dispersion is None
     return pr.read_pattern(QARR / name), ins
@@ -185,7 +185,7 @@ def _qarr(name: str):
 
 @pytest.fixture(scope="module")
 def corundum_peaks():
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing.pick import pick_peaks
     data, ins = _qarr("corundum.prn")
     peaks = pick_peaks(data, ins)
     gallery.draw("corundum_peaks", peaks=peaks, data=data,
@@ -197,8 +197,8 @@ def corundum_peaks():
 def _index_corundum(peaks, **spec_kw):
     """``(result, spec)`` — the spec travels because the gallery needs the window
     the search matched in (``engines.match_window``)."""
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
     data, ins = _qarr("corundum.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED,
@@ -229,9 +229,9 @@ def corundum_index_with_shift(corundum_peaks):
 
 @pytest.fixture(scope="module")
 def qpa_mixture_index():
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.pick import pick_peaks
     data, ins = _qarr("cpd-1a.prn")
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=600.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
@@ -282,9 +282,9 @@ def _index_qarr_phase(name: str, systems: tuple[str, ...],
     path, and ``systems_searched`` travels on the result so the report says what
     was covered instead of concluding about the specimen.
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.pick import pick_peaks
     data, ins = _qarr(filename or f"{name}.prn")
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=systems, max_volume=700.0,
@@ -348,9 +348,9 @@ def nac_index():
     Fast, because nothing happens: the run abstains before exploring a single
     box, for the reason the row explains.
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.pick import pick_peaks
     from tests.test_acceptance_nac import build_nac_inputs
     data, _structure, ins = build_nac_inputs()
     peaks = pick_peaks(data, ins)
@@ -390,9 +390,9 @@ def fap_index():
     carries it — because the answer is known to be P6₃/m and an exhaustive pass
     over the lower systems costs minutes for a row about *ranking*.
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.pick import pick_peaks
     from tests.test_acceptance_fap import build_fap_inputs
     data, _structure, ins = build_fap_inputs()
     peaks = pick_peaks(data, ins)
@@ -416,8 +416,8 @@ HL2_BUDGET_SECONDS = 15.0
 @pytest.fixture(scope="module")
 def hl2_index():
     """The unidentified pattern, indexed. ~50 s."""
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
     path = DATA / "hl2_peaks.txt"
     if not path.exists():
         pytest.skip("HL2-1 abstention fixture not present")
@@ -443,10 +443,10 @@ def qarr_fluorite():
     cost a peak pick.  Its consumer is therefore ``slow``-marked and grouped —
     the mark now claims a cost the row really has.
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.pick import pick_peaks
-    from pxrdref.indexing.quality import assess_peak_list
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.pick import pick_peaks
+    from anatase.indexing.quality import assess_peak_list
     data, ins = _qarr("fluorite.prn")
     peaks = pick_peaks(data, ins)
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=700.0,
@@ -494,7 +494,7 @@ def _lab6_inputs():
 @pytest.fixture(scope="module")
 def lab6_peaks():
     """The picked line list, ~1 s.  Shared by the fast rows and the searches."""
-    from pxrdref.indexing.pick import pick_peaks
+    from anatase.indexing.pick import pick_peaks
     data, ins = _lab6_inputs()
     peaks = pick_peaks(data, ins)
     gallery.draw("lab6_peaks", peaks=peaks, data=data,
@@ -584,8 +584,8 @@ def _weak_partners(peaks):
 @pytest.fixture(scope="module")
 def lab6_index(lab6_peaks):
     """Step 1: index the pattern exactly as picked, nothing declared. ~20 s."""
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     spec = SearchSpec(systems=REAL_DATA_SYSTEMS, max_volume=300.0,
                       budget_seconds=REAL_DATA_BUDGET_SECONDS, n_unindexed=REAL_DATA_N_UNINDEXED)
@@ -611,8 +611,8 @@ def lab6_calibrated(lab6_peaks):
     once the evidence exists, and a four-system search costs 35 s to reach the
     identical cell (measured: 4.156772 either way).
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     trimmed = _without_the_flagged_aberrations(lab6_peaks)
     tt = trimmed.two_theta()
@@ -1473,8 +1473,8 @@ def test_magnetites_correct_cell_is_ranked_first_and_graded_below_its_rival(
 
     # the mechanism, regenerated rather than quoted (WP-1043): re-fit the
     # rival and read the background its own validation bought
-    from pxrdref.indexing.pick import pick_peaks
-    from pxrdref.indexing.workflow import validate_by_lebail
+    from anatase.indexing.pick import pick_peaks
+    from anatase.indexing.workflow import validate_by_lebail
     data, ins = _qarr("magnetit.prn")
     peaks = pick_peaks(data, ins)
     _val, rival_fit = validate_by_lebail(rival, data, ins, peaks=peaks,
@@ -1838,7 +1838,7 @@ def test_a_certified_cubic_cell_is_recovered_with_no_extinction_caveat(lab6_inde
     # from the **live registry** rather than spelled out: on the absolute lab
     # anchor every engine that runs must find the certified lattice, and a fourth
     # engine that cannot should fail this row instead of being written out of it.
-    from pxrdref.indexing.engines import engine_names
+    from anatase.indexing.engines import engine_names
     assert set(best.found_by) == set(engine_names()), (
         f"only {best.found_by} found the certified cell, of {engine_names()}")
     assert res.best_or_none() is None
@@ -1891,7 +1891,7 @@ def test_the_tail_components_escape_not_separable_and_are_flagged_by_cause(
     weakness and a stated design choice.  So this row pins the *census* rather
     than any threshold, and the fix — if there is one — is WP-1028's.
     """
-    from pxrdref.schemas.indexing import (
+    from anatase.schemas.indexing import (
         PEAK_SATELLITE_MAX_RATIO,
         PEAK_SATELLITE_NEAR_FWHM,
     )
@@ -2015,7 +2015,7 @@ def test_a_certified_shift_is_recovered_from_the_peak_list_alone(lab6_peaks):
     ``cos_theta`` concentrate within one pair of each other, so the method has
     measured a magnitude, not named a cause.
     """
-    from pxrdref.indexing.quality import screen_shift_from_pairs
+    from anatase.indexing.quality import screen_shift_from_pairs
 
     screen = screen_shift_from_pairs(lab6_peaks.two_theta(),
                                      lab6_peaks.two_theta_esd())
@@ -2055,8 +2055,8 @@ def test_one_shift_is_measured_from_a_multi_phase_pattern(corundum_peaks):
     diffractometer — and returns −0.0382° from pairs its own screen cannot
     attribute to any one phase, with no cell for any of them.
     """
-    from pxrdref.indexing.pick import pick_peaks
-    from pxrdref.indexing.quality import screen_shift_from_pairs
+    from anatase.indexing.pick import pick_peaks
+    from anatase.indexing.quality import screen_shift_from_pairs
 
     single = screen_shift_from_pairs(corundum_peaks.two_theta(),
                                      corundum_peaks.two_theta_esd())
@@ -2107,7 +2107,7 @@ def test_the_shift_screen_survives_the_tail_components_but_the_search_cannot(
     buys the search a matching window at the cost of the relative weighting the
     peak fitter measured, and this row is where that shows up.
     """
-    from pxrdref.indexing.engines import DEFAULT_UNKNOWN_SHIFT_DEG
+    from anatase.indexing.engines import DEFAULT_UNKNOWN_SHIFT_DEG
     peaks = lab6_peaks
     tt, esd = peaks.two_theta(), peaks.two_theta_esd()
     dev = _certified_deviation(peaks, tt)
@@ -2168,7 +2168,7 @@ def test_positions_alone_cannot_separate_lab6_from_a_half_volume_rival():
     cannot.  Filed to WP-1028; asserted here so the fix has a failing test to
     turn round.
     """
-    from pxrdref.indexing.ambiguity import ambiguity_partners
+    from anatase.indexing.ambiguity import ambiguity_partners
 
     a, lam, tt_max = A_SRM660C, 1.5405929, 150.91
     at = a / np.sqrt(2.0)
@@ -2358,10 +2358,10 @@ def test_impurity_lines_cost_the_certificate_its_grade_long_before_its_rank(
     parameters, where this is one cubic lattice with **one**.  Cubic does not
     appear in that table, and this row is not evidence about the systems that do.
     """
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
-    from pxrdref.indexing.qspace import af_from_cell
-    from pxrdref.indexing.reduce import same_lattice
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
+    from anatase.indexing.qspace import af_from_cell
+    from anatase.indexing.reduce import same_lattice
 
     clean = _without_the_off_lattice_lines(lab6_peaks)
     n_clean = len(clean.usable())
@@ -2544,8 +2544,8 @@ def test_what_the_unflagged_tail_components_cost_the_certified_cell(
     # The σ_sys semantics filed to WP-1028 are **not** thereby fixed — the two
     # engines that cannot model a shift still need the wider window, which is
     # why the `found_by` assertion below is the whole point of this block.
-    from pxrdref.indexing import index_pattern
-    from pxrdref.indexing.engines import SearchSpec
+    from anatase.indexing import index_pattern
+    from anatase.indexing.engines import SearchSpec
     data, ins = _lab6_inputs()
     assert screen.sigma_sys_deg < 0.3 * abs(best.shift_coefficient)
     # The control runs at the **probe-trimmed** screen's leftover scatter
@@ -2602,10 +2602,10 @@ def _assert_svd_zero_error_agrees(peaks, name: str):
     search — the search's own use of it is asserted on synthetic data in
     ``test_indexing_engines.py``, where the injected shift is known exactly.
     """
-    from pxrdref.indexing.engines import SearchSpec, search_line_order
-    from pxrdref.indexing.qspace import af_from_cell, metric_basis
-    from pxrdref.indexing.quality import screen_shift_from_pairs
-    from pxrdref.indexing.svd import svd_trial
+    from anatase.indexing.engines import SearchSpec, search_line_order
+    from anatase.indexing.qspace import af_from_cell, metric_basis
+    from anatase.indexing.quality import screen_shift_from_pairs
+    from anatase.indexing.svd import svd_trial
 
     cell, system, centring, trim, from_pairs, reference = SVD_ZERO_ERROR_ROWS[name]
 

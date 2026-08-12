@@ -407,8 +407,8 @@ def rank_of_lattice(ranking: list[dict[str, Any]], cell: tuple[float, ...],
     """
     import numpy as np
 
-    from pxrdref.indexing.qspace import af_from_cell, cell_from_af
-    from pxrdref.indexing.reduce import reduced_af
+    from anatase.indexing.qspace import af_from_cell, cell_from_af
+    from anatase.indexing.reduce import reduced_af
 
     want = cell_from_af(reduced_af(af_from_cell(cell)))
     for i, row in enumerate(ranking):
@@ -444,7 +444,7 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
     the ranked-candidate tick rows, and ``data`` + ``instrument`` add the Le Bail
     obs/calc/diff panel for the top candidate.
 
-    **The pictures are :func:`pxrdref.viz.plot_indexing`'s since WP-1043** —
+    **The pictures are :func:`anatase.viz.plot_indexing`'s since WP-1043** —
     this module is a consumer of that call, not the owner of the composition —
     and the matching window is therefore reconstructed from the result's own
     provenance notes.  ``spec`` is accepted for the callers that pass it and no
@@ -462,7 +462,7 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
             "reaching the gallery must say what it is and what is asserted "
             "about it, or the summary page silently omits it")
 
-    from pxrdref.viz.indexing import plot_indexing, plot_peak_list
+    from anatase.viz.indexing import plot_indexing, plot_peak_list
 
     OUTPUT.mkdir(exist_ok=True)
     figures: list[str] = []
@@ -508,7 +508,7 @@ def draw(stem: str, *, peaks, data=None, result=None, instrument=None,
     # same fit rather than running a second one.
     pair = None
     if cands and validate and data is not None and instrument is not None:
-        from pxrdref.indexing.workflow import validate_by_lebail
+        from anatase.indexing.workflow import validate_by_lebail
 
         pair = validate_by_lebail(cands[0], data, instrument, peaks=peaks,
                                   with_result=True)
@@ -627,7 +627,7 @@ def draw_deviation(stem: str, name: str, two_theta, deviation, *,
 
     The picture the LaB6 tail-component rows need and the three generic
     renderers cannot give them: those components are **unflagged**, so
-    :func:`~pxrdref.viz.indexing.plot_peak_list` draws them exactly like the real
+    :func:`~anatase.viz.indexing.plot_peak_list` draws them exactly like the real
     lines — which is the finding, not a shortcoming.  What separates them is
     *where they sit*, and the sign is the measurement (the real lines carry the
     specimen displacement one way; the survivors sit on the other side of their
@@ -1100,7 +1100,7 @@ def summary_html(cards: list[dict[str, Any]] | None = None, *,
             if missing else "")
     board = _scoreboard_html(cards)
     return f"""<!doctype html>
-<meta charset="utf-8"><title>pxrdref indexing benchmark gallery</title>
+<meta charset="utf-8"><title>anatase indexing benchmark gallery</title>
 <style>
 /* Palette taken from the package's own plot inks (viz/indexing.py), so the page
    and the figures on it are drawn in one language.  Verdict colours are separate
@@ -1218,7 +1218,7 @@ dl.glossary dd {{ margin: .2rem 0 0; color: var(--ink-2); font-size: .95rem; }}
 :focus-visible {{ outline: 2px solid var(--obs); outline-offset: 2px; }}
 </style>
 <h1>Indexing benchmark gallery</h1>
-<p class="lede">Every unit-cell indexing result <code>pxrdref</code> is held to,
+<p class="lede">Every unit-cell indexing result <code>anatase</code> is held to,
 with the picked peaks, the ranked candidate lattices and the Le&nbsp;Bail
 validation fit behind each one. Generated from the sidecars
 <code>{SIDECAR_GLOB}</code> that <code>tests/test_acceptance_indexing.py</code>

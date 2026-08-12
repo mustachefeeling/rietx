@@ -16,18 +16,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.model.forward import compile_model
-from pxrdref.model.profiles.faddeeva import WEIDEMAN_N, faddeeva_w
-from pxrdref.model.profiles.pseudovoigt import pseudo_voigt
-from pxrdref.model.profiles.voigt import (
+import anatase as pr
+from anatase.model.forward import compile_model
+from anatase.model.profiles.faddeeva import WEIDEMAN_N, faddeeva_w
+from anatase.model.profiles.pseudovoigt import pseudo_voigt
+from anatase.model.profiles.voigt import (
     GAUSS_FWHM_TO_SIGMA,
     fwhm_to_voigt_params,
     voigt,
     voigt_derivs,
 )
-from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
-from pxrdref.params.vector import ParameterTable
+from anatase.optimize.least_squares import _make_jacobian, _make_residual
+from anatase.params.vector import ParameterTable
 
 OUT = Path(__file__).parent / "output"
 
@@ -66,7 +66,7 @@ def test_faddeeva_cross_backend_identical():
     pytest.importorskip("jax")
     import jax.numpy as jnp
 
-    from pxrdref.backend.jax_backend import _enable_x64
+    from anatase.backend.jax_backend import _enable_x64
 
     rng = np.random.default_rng(1)
     z = rng.uniform(-40, 40, 5_000) + 1j * rng.uniform(0.0, 40.0, 5_000)
@@ -196,7 +196,7 @@ def test_fcj_composes_smoothly_under_voigt():
     """FCJ convolves whatever unit-area profile it is handed: the composite
     response to S/L must stay C¹ under the Voigt shape too (frozen-node design),
     or FD Jacobians would break.  Second differences scale O(h²)."""
-    from pxrdref.model.profiles.fcj import fcj_offsets_weights
+    from anatase.model.profiles.fcj import fcj_offsets_weights
     x = np.array([21.80, 21.88, 21.95])       # low-angle tail below a 22° peak
     sigma, gamma = 0.07 / GAUSS_FWHM_TO_SIGMA, 0.02
 
@@ -217,8 +217,8 @@ def test_voigt_cross_backend_forward_residual():
     """The whole forward residual (not just w(z)) is backend-invariant under
     the Voigt shape: the jax-traced residual equals the numpy one."""
     pytest.importorskip("jax")
-    from pxrdref.backend import set_backend
-    from pxrdref.backend.jax_backend import _enable_x64, make_traced_residual
+    from anatase.backend import set_backend
+    from anatase.backend.jax_backend import _enable_x64, make_traced_residual
     from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
 
     structure, ins, pattern = _lab_state()
@@ -245,7 +245,7 @@ def test_voigt_cross_backend_forward_residual():
 def test_voigt_end_to_end_refines_and_plots():
     """A staged lab refinement under the Voigt shape converges and recovers the
     cell; writes obs/calc/diff PNGs (tests/output/, gitignored) for inspection."""
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
     from tests.test_lab_instrument import _lab6_phase, _lab_instrument
 
     rng = np.random.default_rng(5)

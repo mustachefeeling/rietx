@@ -11,7 +11,7 @@ estimator from the top level — the three "the GUI must not guess" gaps.
 
 ## Context
 
-- `src/pxrdref/capabilities.py`: `capabilities()` → version, backends
+- `src/anatase/capabilities.py`: `capabilities()` → version, backends
   (with available/experimental flags), solvers, plans (from `PLAN_PRESETS` +
   WP-1004's `PLAN_INFO`), modes, anodes, reader formats, feature flags —
   **quoted from the live registries** (`backend.api.BACKEND_NAMES`,
@@ -32,9 +32,9 @@ estimator from the top level — the three "the GUI must not guess" gaps.
   `.value`, never a regex.
 - **`auto_background` and `diagnose` are unexported at the top level.**
   `background/auto.py:28` and `background/diagnostics.py:129` exist and are
-  in `background.__init__.__all__` — but `pxrdref/__init__.py` never imports
+  in `background.__init__.__all__` — but `anatase/__init__.py` never imports
   `background` at all. The GUI's "estimate background" button (and any
-  scripting user) wants `pxrdref.auto_background`. Remember the invariant:
+  scripting user) wants `anatase.auto_background`. Remember the invariant:
   the estimate is held additively or co-refined under a penalty — never
   subtracted.
 
@@ -43,7 +43,7 @@ estimator from the top level — the three "the GUI must not guess" gaps.
 From **WP-1004**: `PLAN_INFO` is the source for the plans arm of
 `capabilities()` — do not restate titles here. As landed (2026-07-30) it is
 `dict[str, PlanInfo]` in `strategy/staged.py`, a frozen dataclass of
-`title / description / modes / when_to_use`, exported as `pxrdref.PLAN_INFO`
+`title / description / modes / when_to_use`, exported as `anatase.PLAN_INFO`
 alongside `PLAN_PRESETS`; its membership meta-test lives in
 `tests/test_params_surface.py`, so `capabilities()`'s own registry test should
 assert the *arm* is complete rather than re-assert the bijection. Note `modes`
@@ -70,7 +70,7 @@ inside `_build_result`. This WP's "no new guards" fence still holds — but desi
 over today's six list names, or 1028 will have to reopen it.
 
 Also from **WP-1028**: `PreferredOrientation` is missing from
-`pxrdref/__init__.py` — the same top-level export gap this WP records for
+`anatase/__init__.py` — the same top-level export gap this WP records for
 `auto_background` and `diagnose`. It is user-constructed (you cannot enable
 texture without it) and every comparable schema is re-exported, so fold it into
 the same commit.
@@ -85,7 +85,7 @@ the same commit.
 
 ## Tasks
 
-- [x] `src/pxrdref/capabilities.py` + registry meta-test
+- [x] `src/anatase/capabilities.py` + registry meta-test
       (`tests/test_capabilities.py`).
 - [x] `GuardFinding` (code, paths, value, message); `GuardReport`'s six
       fields → `list[GuardFinding]` with `__str__` preserving today's text —
@@ -93,7 +93,7 @@ the same commit.
       known-degenerate synthetic fit, so consumers provably see no change.
       (Pinned as *literals captured from the pre-change output* — see the
       handover; re-deriving them from the constructors would test nothing.)
-- [x] Export `auto_background` and `diagnose` from `pxrdref.__init__`
+- [x] Export `auto_background` and `diagnose` from `anatase.__init__`
       (+ `__all__`), with a smoke test importing them from the top level.
       `PreferredOrientation` (the WP-1028 note), `capabilities` and
       `GuardFinding` went with them.
@@ -149,7 +149,7 @@ and every diagnostic message byte-identical, the single difference being
   - `features` are **derived predicates**, not literal booleans: schema-field
     presence for the corrections, top-level-export presence for the entry points.
     The rule earns its keep immediately — `features["indexing"]` is False today
-    and flips on its own when `pxrdref.index` lands, so nobody has to remember.
+    and flips on its own when `anatase.index` lands, so nobody has to remember.
   - **Four versioned contracts, not three.** `event_schema_version` was not in
     the charter and belongs: an SSE consumer is exactly the client that must know
     whether a new event *kind* has appeared (a field is additive, a kind is a

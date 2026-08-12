@@ -6,7 +6,7 @@ Structure: COD 1000236 (Courbion & Ferey, 1988), cubic I2₁3, a = 10.257 Å.
 
 from pathlib import Path
 
-import pxrdref as pr
+import anatase as pr
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 WAVELENGTH = 0.4139090  # from 11bm_gsas.prm (INS 1 ICONS)
@@ -27,7 +27,7 @@ def main() -> None:
     # starting profile guesses in the right decade for 11-BM resolution
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
 
     limits = (2.0, 24.0)

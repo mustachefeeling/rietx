@@ -37,8 +37,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.schemas.instrument import Dispersion
+import anatase as pr
+from anatase.schemas.instrument import Dispersion
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     OUT,

@@ -27,11 +27,11 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from pxrdref import Instrument, PatternData, pick_peaks
-from pxrdref.crystallography.lattice import d_spacings
-from pxrdref.indexing.diagnostics import peak_diagnostics
-from pxrdref.indexing.peakfit import GroupFit, _fit_at, _GroupModel, fit_group
-from pxrdref.indexing.peaks import (
+from anatase import Instrument, PatternData, pick_peaks
+from anatase.crystallography.lattice import d_spacings
+from anatase.indexing.diagnostics import peak_diagnostics
+from anatase.indexing.peakfit import GroupFit, _fit_at, _GroupModel, fit_group
+from anatase.indexing.peaks import (
     Detection,
     PeakGroup,
     _debiased_envelope,
@@ -39,12 +39,12 @@ from pxrdref.indexing.peaks import (
     detect_peaks,
     predicted_fwhm,
 )
-from pxrdref.indexing.pick import _not_separable
-from pxrdref.model.corrections import lorentz_polarization
-from pxrdref.model.forward import compile_model
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.indexing import (
+from anatase.indexing.pick import _not_separable
+from anatase.model.corrections import lorentz_polarization
+from anatase.model.forward import compile_model
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.indexing import (
     PEAK_ASSUMED_ESD_DEG,
     PEAK_MIN_USABLE_LINES,
     PEAK_UNUSABLE_FLAGS,
@@ -53,7 +53,7 @@ from pxrdref.schemas.indexing import (
     q_esd_of_two_theta,
     q_of_two_theta,
 )
-from pxrdref.schemas.instrument import BackgroundChebyshev
+from anatase.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 OUT = __import__("pathlib").Path(__file__).parent / "output"
@@ -463,7 +463,7 @@ def test_background_envelope_debias_is_unbiased_on_flat_counts():
     level = 400.0
     y = rng.poisson(np.full_like(tt, level)).astype(float)
 
-    from pxrdref.background import background_envelope
+    from anatase.background import background_envelope
     raw = background_envelope(tt, y)
     fixed = _debiased_envelope(tt, y)
     sigma = np.sqrt(level)

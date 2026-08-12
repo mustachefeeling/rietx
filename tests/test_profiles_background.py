@@ -3,10 +3,10 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from pxrdref.background.estimators import arpls, snip, whittaker_solve
-from pxrdref.background.models import chebyshev_background, chebyshev_design_matrix
-from pxrdref.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
-from pxrdref.model.profiles.pseudovoigt import pseudo_voigt, tch_gamma_eta
+from anatase.background.estimators import arpls, snip, whittaker_solve
+from anatase.background.models import chebyshev_background, chebyshev_design_matrix
+from anatase.model.profiles.caglioti import gaussian_fwhm, lorentzian_fwhm
+from anatase.model.profiles.pseudovoigt import pseudo_voigt, tch_gamma_eta
 
 
 @given(gg=st.floats(1e-3, 0.5), gl=st.floats(1e-6, 0.5))

@@ -21,28 +21,28 @@ import gemmi
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData, Refinement
-from pxrdref.crystallography import adp
-from pxrdref.crystallography.cif import structure_from_cif
-from pxrdref.crystallography.lattice import d_spacings
-from pxrdref.crystallography.structure_factor import (
+from anatase import Instrument, PatternData, Refinement
+from anatase.crystallography import adp
+from anatase.crystallography.cif import structure_from_cif
+from anatase.crystallography.lattice import d_spacings
+from anatase.crystallography.structure_factor import (
     compile_phase_sites,
     structure_factors_squared,
 )
-from pxrdref.crystallography.symmetry import get_spacegroup
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import run_least_squares
-from pxrdref.optimize.statistics import background_absorption
-from pxrdref.params.vector import ParameterTable
-from pxrdref.refine import _guard_diagnostics
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from pxrdref.strategy.staged import (
+from anatase.crystallography.symmetry import get_spacegroup
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import run_least_squares
+from anatase.optimize.statistics import background_absorption
+from anatase.params.vector import ParameterTable
+from anatase.refine import _guard_diagnostics
+from anatase.schemas.common import Parameter
+from anatase.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from anatase.strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
     GuardReport,
     check_adp_positive_definite,
 )
-from pxrdref.viz.plots import plot_result
+from anatase.viz.plots import plot_result
 from tests.test_coordinates import make_rutile
 
 DATA = Path(__file__).parent / "data"
