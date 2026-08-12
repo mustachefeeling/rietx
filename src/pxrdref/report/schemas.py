@@ -39,7 +39,9 @@ from ..schemas.results import RestraintReport
 #   summary quotes it when the ratio is notable.  ``abstained_kind``
 #   classifies every abstention (immature / resolution_limited / unreadable)
 #   and the resolution-limited flavour appends its sentence to
-#   ``abstained_reason``.  No gate or emission condition moved.
+#   ``abstained_reason``.  The contents-type clause names sign-alternating,
+#   angular-trend-free intensity misfit in the summary (CONTENTS_*).  No
+#   gate or emission condition moved.
 THRESHOLDS_VERSION = "0.5"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
@@ -171,6 +173,25 @@ LEBAIL_GAP_NOTABLE = 1.5
 RESOLUTION_LIMITED_MIN_FRACTION = 0.5
 RESOLUTION_LIMITED_MIN_REGIONS = 3
 RESOLUTION_LIMITED_MIN_R2 = 0.9
+
+#: Contents-type intensity signature (WP-1057) — the summary clause naming
+#: incoherent intensity misfit.  Fires when intensity carries at least
+#: ``CONTENTS_MIN_INTENSITY_SHARE`` of the misfit, *no* angular template
+#: explains it (best template R² < ``CONTENTS_MAX_TEMPLATE_R2`` — scale and
+#: ADP errors are angular trends, this is their negation), and the per-region
+#: relative intensity errors alternate in sign (at least
+#: ``CONTENTS_MIN_REGIONS`` significant coefficients with the minority sign
+#: at least ``CONTENTS_MIN_SIGN_MINORITY`` of them) — structure-factor
+#: interference, the signature of an un-modelled scatterer, which a scale or
+#: displacement error cannot produce.  Measured (LaB₆ pore proxy — guest O at
+#: the 1b site in truth only, 2026-08-12): share 0.83, best template R²
+#: 0.011, 8 significant coefficients split 5+/3−; every position/profile
+#: control measures share 0.00, and the +0.4 % cell state's 4 significant
+#: coefficients are single-sign.
+CONTENTS_MIN_INTENSITY_SHARE = 0.5
+CONTENTS_MAX_TEMPLATE_R2 = 0.3
+CONTENTS_MIN_REGIONS = 4
+CONTENTS_MIN_SIGN_MINORITY = 0.25
 
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely

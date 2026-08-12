@@ -41,6 +41,10 @@ import numpy as np
 
 from ..model.forward import CompiledModel, DerivativeBases
 from .schemas import (
+    CONTENTS_MAX_TEMPLATE_R2,
+    CONTENTS_MIN_INTENSITY_SHARE,
+    CONTENTS_MIN_REGIONS,
+    CONTENTS_MIN_SIGN_MINORITY,
     MATURITY_MAX_RWP,
     MATURITY_MIN_EXPLAINED_FRACTION,
     MATURITY_MIN_MISFIT_SHARE,
@@ -288,6 +292,50 @@ def abstention_flavour(rwp: float, attributions: list[RegionAttribution]
                 f"data this can be a legitimate stopping point")
             return "resolution_limited", extra
     return "unreadable", None
+
+
+def contents_signature(trends: list[TrendAnalysis],
+                       attributions: list[RegionAttribution]) -> str | None:
+    """The incoherent-intensity summary clause, or None (WP-1057).
+
+    Names the pattern the pore-proxy scenario measured and every angular
+    analysis is structurally blind to: per-region intensity errors that are
+    individually large, collectively dominant, and *alternating in sign* with
+    no angular trend.  A scale error is single-sign, an ADP error trends with
+    sin²θ/λ², texture follows an axis — sign alternation across reflections
+    is structure-factor interference, which only a wrong scattering *content*
+    (guest species, pore contents, wrong occupancy, missing/excess atom)
+    produces.  The evidence stays where it already is — per-region
+    coefficients in ``attribution``, template scores in ``trends`` — this
+    merely states the inference those numbers support; thresholds and their
+    measured grounds are pinned in :mod:`.schemas`.
+    """
+    intensity = next((t for t in trends if t.observable == "intensity"), None)
+    if intensity is None or not intensity.templates:
+        return None
+    if intensity.misfit_share < CONTENTS_MIN_INTENSITY_SHARE:
+        return None
+    best_r2 = max(t.r2 for t in intensity.templates)
+    if best_r2 >= CONTENTS_MAX_TEMPLATE_R2:
+        return None
+    sig = [c.value for a in attributions if a.gates_passed
+           for c in a.coefficients if c.kind == "intensity" and c.significant]
+    if len(sig) < CONTENTS_MIN_REGIONS:
+        return None
+    n_weak = sum(1 for v in sig if v > 0)     # calc too weak there
+    n_strong = len(sig) - n_weak
+    if min(n_weak, n_strong) < CONTENTS_MIN_SIGN_MINORITY * len(sig):
+        return None
+    lo = min(abs(v) for v in sig)
+    hi = max(abs(v) for v in sig)
+    return (f"intensity misfit is incoherent: {intensity.misfit_share:.0%} of "
+            f"χ² in {len(sig)} region(s) whose relative intensity errors "
+            f"alternate in sign (calculated too weak in {n_weak}, too strong "
+            f"in {n_strong}, |error| {lo:.0%}–{hi:.0%}) with no angular trend "
+            f"(best template R²={best_r2:.2f}) — structure-factor "
+            f"interference, the signature of un-modelled scattering contents "
+            f"(guest/pore species, wrong occupancy), not of scale, ADP or "
+            f"texture")
 
 
 # ----------------------------------------------------------------------

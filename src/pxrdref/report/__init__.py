@@ -16,6 +16,7 @@ from .layer1 import (
     abstention_flavour,
     analyse_trends,
     attribute_regions,
+    contents_signature,
     maturity_gate,
 )
 from .layer2 import (
@@ -74,6 +75,7 @@ __all__ = [
     "build_layer0",
     "build_report",
     "cap_texture_crosstalk",
+    "contents_signature",
     "delta_bic",
     "describe_action",
     "estimate_delta_chi2",
@@ -173,6 +175,18 @@ def build_report(result: RefinementResult, *, model=None, values=None,
 
     report.layer1_available = True
     report.trends = analyse_trends(attributions, model.wavelength)
+    # The contents-type clause (WP-1057): sign-alternating intensity misfit
+    # with no angular trend is the one signature the trend templates are
+    # structurally blind to, and the honest zero-action report it produces
+    # left the expert inference unstated.  Evidence stays in attribution and
+    # trends; this names what they support, and points at the gap that
+    # decides it.
+    clause = contents_signature(report.trends, attributions)
+    if clause is not None:
+        if report.lebail_gap is not None:
+            clause += (f"; the Le Bail gap (×{report.lebail_gap.ratio:.1f}) "
+                       f"is the deciding statistic")
+        report.summary += "; " + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
                               rwp=result.statistics.rwp, ticks=ticks)
     predicted = estimate_delta_chi2(result, attributions)
