@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
-from .layer0 import build_layer0
+from .layer0 import build_layer0, lebail_gap
 from .layer1 import analyse_trends, attribute_regions, maturity_gate
 from .layer2 import (
     apply_strategy_veto,
@@ -26,9 +26,11 @@ from .layer2 import (
     texture_actions,
 )
 from .schemas import (
+    LEBAIL_GAP_NOTABLE,
     THRESHOLDS_VERSION,
     BasisCoefficient,
     FitReport,
+    LeBailGap,
     Region,
     RegionAttribution,
     StrainAnalysis,
@@ -47,6 +49,7 @@ __all__ = [
     "THRESHOLDS_VERSION",
     "BasisCoefficient",
     "FitReport",
+    "LeBailGap",
     "Recipe",
     "Region",
     "RegionAttribution",
@@ -70,6 +73,7 @@ __all__ = [
     "estimate_delta_chi2",
     "hamilton_justified",
     "layer0_actions",
+    "lebail_gap",
     "maturity_gate",
     "predict_then_verify",
     "recipe",
@@ -116,6 +120,20 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # of Layer 1 abstains.
     report.texture = analyse_texture(model, values)
     report.strain = analyse_strain(model, values)
+    # The Le Bail gap is measured, never linearised, so it too speaks on both
+    # branches (None outside Rietveld mode — absent for cause).  The summary
+    # quotes it only when notable: a converged fit reads ratio ≲ 1 and saying
+    # so every time would be noise.
+    report.lebail_gap = lebail_gap(model, values,
+                                   rwp_rietveld=result.statistics.rwp)
+    gap = report.lebail_gap
+    if gap is not None and gap.ratio >= LEBAIL_GAP_NOTABLE:
+        report.summary += (
+            f"; a Le Bail partition at the frozen converged state reaches "
+            f"Rwp={gap.rwp_lebail:.4f} against the Rietveld "
+            f"Rwp={gap.rwp_rietveld:.4f} (×{gap.ratio:.1f}): positions and "
+            f"profile account for the pattern — the intensity model carries "
+            f"the misfit, and phase ID does not rest on it")
 
     ticks = [t for positions in result.ticks.values() for t in positions]
     reason = maturity_gate(result.statistics.rwp, attributions)
