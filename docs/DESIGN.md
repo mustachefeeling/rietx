@@ -299,7 +299,10 @@ three gated layers:
   quantities w-weighted. Residual peak-finding; obs↔calc matching →
   `unmatched_obs` (impurity candidates) / `unmatched_calc`; cumulative-χ²
   breakpoints (David 2004); low-frequency vs sharp residual decomposition;
-  Le Bail-vs-Rietveld Rwp gap (structural-vs-profile triage).
+  Le Bail-vs-Rietveld Rwp gap (structural-vs-profile triage). *(The
+  low-frequency half landed 2026-08-12 as `FitReport.background` — WP-1055 —
+  which pairs it with the block-absorption table, since the two background
+  failure modes are opposite and neither statistic sees the other's.)*
 - **Layer 1 — gated linear attribution (v0.2).** Regions from the *union* of
   calc ticks and observed/residual peaks (segmentation must not be circular).
   Per region, a per-reflection shape-derivative basis {Ω, ∂Ω/∂pos, ∂Ω/∂width,

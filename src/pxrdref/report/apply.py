@@ -32,16 +32,18 @@ Four of the sixteen are advice, and none of them for want of effort:
   the limit.
 * ``increase_background_flexibility`` / ``decrease_background_flexibility`` —
   these change what the background can *absorb* rather than which parameters
-  move, and the cost of getting them wrong is invisible in the evidence that
-  proposes them.  A more flexible background lowers Rwp *while* biasing ADPs up
-  and scales (hence QPA fractions) down; the statistic that detects it is the
-  block projection R² of
-  :func:`~pxrdref.optimize.statistics.background_absorption`, which lives on a
-  fitted Jacobian and reaches a caller as the ``BACKGROUND_ABSORPTION``
-  diagnostic — not as anything in the :class:`~pxrdref.report.FitReport`.  So a
-  one-click flexibility increase would be a button whose own report cannot see
-  what it did.  Until that measurement is *in* the report, the panel names the
-  edit and the diagnostic to read after making it.
+  move.  A Chebyshev term, a knot spacing or a ``lambda_smooth`` is a property
+  of the model, not a member of ``turn_on``, so there is no glob a stage could
+  carry and the edit is an ``edit_model`` move.  What changed in WP-1055 is the
+  *evidence*, not the kind: a more flexible background lowers Rwp while biasing
+  ADPs up and scales (hence QPA fractions) down, and until then the statistic
+  that detects it — the block projection R² of
+  :func:`~pxrdref.optimize.statistics.background_absorption` — reached a caller
+  only as the ``BACKGROUND_ABSORPTION`` diagnostic, so these notes could name
+  an edit whose effect the report could not show.  It is now
+  ``FitReport.background``, which is also what finally gave both kinds an
+  emitter (:func:`~pxrdref.report.layer2.background_actions`); before that they
+  were advice with nothing to travel on.
 
 and one — ``reindex_or_recheck_cell`` — is gated on a flag a client can watch:
 ``capabilities().features["indexing"]``.  The design held up half-way: nothing
@@ -129,19 +131,21 @@ RECIPES: dict[ActionKind, Recipe] = {
     "increase_background_flexibility": Recipe(
         kind="increase_background_flexibility", how="advice",
         note="this changes what the background can absorb, not which parameters "
-             "move, and a more flexible background lowers Rwp while biasing ADPs "
-             "up and scales (hence QPA fractions) down. The statistic that "
-             "catches that is the block projection R² reported as the "
-             "BACKGROUND_ABSORPTION diagnostic, which is not in this report — so "
-             "add a Chebyshev term (or lower a P-spline lambda_smooth) yourself, "
-             "re-run, and read that diagnostic before believing the improvement."),
+             "move: a Chebyshev term or a P-spline lambda_smooth is a property "
+             "of the model, not a member of turn_on, so add one yourself and "
+             "re-run. A more flexible background lowers Rwp while biasing ADPs "
+             "up and scales (hence QPA fractions) down, so read "
+             "report.background.worst_absorption afterwards (and the "
+             "BACKGROUND_ABSORPTION diagnostic, which fires on the same number) "
+             "before believing the improvement."),
     "decrease_background_flexibility": Recipe(
         kind="decrease_background_flexibility", how="advice",
         note="the safe direction of the same model edit, and still an edit rather "
              "than a stage: fewer Chebyshev terms, a larger P-spline "
              "lambda_smooth, coarser knots, or hold an estimated curve "
              "additively. Expect Rwp to get worse — that is what stiffening a "
-             "background costs, and an unbiased ADP is what it buys."),
+             "background costs, and an unbiased ADP is what it buys; "
+             "report.background.worst_absorption is where you see it bought."),
 }
 
 
