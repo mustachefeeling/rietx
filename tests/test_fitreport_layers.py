@@ -849,6 +849,37 @@ def test_wrong_cell_abstentions_classify_as_model_error(truth):
                for a in report2.suggested_actions)
 
 
+# ----------------------------------------------------------------------
+# WP-1055 — background evidence (the failure-mode fixtures live in
+# test_background_auto.py, beside the guard whose measurement they carry)
+# ----------------------------------------------------------------------
+def test_converged_reference_publishes_the_background_section_and_stays_quiet(
+        truth):
+    """The clean control: the section is always there, the summary is not.
+
+    Also the ``None`` case for the absorption table — this report is built
+    from a hand-assembled result with no fit behind it, so nothing measured a
+    Jacobian.  ``absorption is None`` must read as "not measured here", which
+    is why it is None rather than an empty dict that would look like a clean
+    bill of health.
+    """
+    structure, ins, data = truth
+    report = _report_for(structure, ins, data)
+    bg = report.background
+
+    assert bg is not None
+    assert bg.absorption is None and bg.worst_absorption == 0.0
+    assert bg.rwp == pytest.approx(report.rwp)
+    assert bg.rwp_background_subtracted > bg.rwp        # measured 0.049 vs 0.014
+    assert bg.background_share > 0.5                    # measured 0.89
+    assert bg.off_region_durbin_watson == pytest.approx(2.0, abs=0.2)
+    assert bg.off_region_chi2_reduced == pytest.approx(1.0, abs=0.3)
+
+    assert "background" not in report.summary
+    assert not [a for a in report.suggested_actions
+                if a.kind.endswith("_background_flexibility")]
+
+
 def test_lebail_gap_mechanics(truth):
     """The partition borrows the caller's model: mode and per-hkl buffers
     are flipped and must come back bit-exact (the model keeps serving the
