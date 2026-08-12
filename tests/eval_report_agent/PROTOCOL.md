@@ -1,9 +1,16 @@
 # WP-1053 runner protocol — agent-in-the-loop FitReport eval
 
-**Protocol version: 1.0** (`build_fixtures.PROTOCOL_VERSION`; stamped into
+**Protocol version: 1.1** (`build_fixtures.PROTOCOL_VERSION`; stamped into
 every `condition.json` and quoted by every run record).  Bump it on any
 change that alters comparability: the prompt text, the overlay contract, the
 answer schema, the scoring rules, the excerpt policy.
+
+**1.1 (WP-1058)** moved two of those at once, deliberately: a report-on
+response now carries `trajectory` — the report at every stage boundary, not
+only at the converged state — and the §5 excerpt the report-on prompt quotes
+now says to read it.  A 1.1 run therefore cannot be pooled with the 1.0
+pilot's grid; it is the *new* delivery that WP-1059 measures, against the
+same episodes and the same scorer.
 
 One authority per fact: the prompt *text* lives in `build_fixtures._PROMPT`
 (rendered by `render_prompt`), the enforcement lives in `run_refine.py`, the
@@ -21,7 +28,7 @@ real, it should lift the weaker model most.
 
 | | report-on | report-off |
 |---|---|---|
-| response | full FitReport attached | `include_report=False` forced, any `report` stripped |
+| response | full FitReport attached, plus the per-stage `trajectory` (1.1) | `include_report=False` forced, `report` **and** `trajectory` stripped |
 | prompt | shared prompt + AGENT_PROTOCOL §5/§6 verbatim excerpts | shared prompt only |
 
 - **One shared prompt, no per-model tuning.**  Report-on gets the §5/§6

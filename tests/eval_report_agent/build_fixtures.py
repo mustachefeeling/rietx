@@ -29,8 +29,11 @@ from tests.test_fitreport_layers import _truth
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: versions the whole runner protocol (prompt text, overlay contract, answer
-#: schema, scoring rules) — bump on any change that alters comparability
-PROTOCOL_VERSION = "1.0"
+#: schema, scoring rules) — bump on any change that alters comparability.
+#: 1.1 (WP-1058): the response carries the per-stage report ``trajectory`` and
+#: the §5 excerpt teaches it, so a 1.1 run is not comparable with a 1.0 one —
+#: which is the point, since that is the content WP-1059 re-A/Bs
+PROTOCOL_VERSION = "1.1"
 
 #: shim-enforced hard stop on refinement calls per episode — a runaway guard
 #: (tests/CLAUDE.md), never a timer; the prompt advertises 6
