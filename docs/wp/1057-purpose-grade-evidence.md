@@ -65,10 +65,20 @@ evaluate-only partition proposed as the cheap mechanism — on the proxy the cel
 and zero were already true so the difference should be small, but re-measure
 with the chosen mechanism before quoting the number in the field's docstring.
 
-**Collision note.** WP-1054 edits the same abstain arm and its action set; this
-WP's resolution-limited wording changes the abstained summary/reason strings
-1054's tests may assert. 1054 is the recommended first lander; whichever lands
-second coordinates via `### Inherited`.
+**Collision note — resolved: WP-1054 landed first (closed 2026-08-12), this WP
+is the second lander on the abstained arm.** What the arm looks like now:
+`build_report`'s abstain arm assembles `layer0_actions` (ticks threaded through)
++ `reindex_action` (the shared emitter — fires on a *count fraction* of
+misfitting regions beyond the validity radius) + `texture_actions`, runs
+`cap_texture_crosstalk`, applies the veto, and **sorts by confidence** — this
+WP's wording edits land on that structure. The abstention *reason strings*
+(`maturity_gate`) are untouched by 1054, so the resolution-limited wording
+starts clean. Tests now asserting on the abstained action set, which changes
+here must expect: `test_report_loop.py::test_e6_wrong_cell_applies_no_position_action`
+(reindex tops the list, `top_blocked_nonstage` names it) and the four WP-1054
+tests at the end of `test_fitreport_layers.py` (cell-wrong, broad lobes,
+texture inversion, double injection). `THRESHOLDS_VERSION` is already 0.4 this
+milestone — a further 1057 bump is a fresh decision, not implied.
 
 **Protocol half.** AGENT_PROTOCOL already teaches that Rwp is a nearly useless
 absolute (§4) and that abstention is a result (§6). What it lacks is *purpose*:
@@ -79,23 +89,6 @@ fractions; structure: everything, plus WP-1056's exchangeability. Tiering per
 the user directive: a floor for weaker agents ("verify before acting; treat
 capped confidence as unresolved") without a ceiling for stronger ones. The
 report itself stays purpose-neutral — purpose lives where judgment lives.
-
-### Inherited
-
-**From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — you are
-the second lander on the abstained arm; here is what it looks like now.**
-`build_report`'s abstain arm assembles `layer0_actions` (ticks threaded
-through) + `reindex_action` (the shared emitter — fires on a *count fraction*
-of misfitting regions beyond the validity radius) + `texture_actions`, runs
-`cap_texture_crosstalk`, applies the veto, and **sorts by confidence** — your
-wording edits land on that structure. The abstention *reason strings*
-(`maturity_gate`) are untouched, so your resolution-limited wording starts
-clean. Tests now asserting on the abstained action set, which your changes
-must expect: `test_report_loop.py::test_e6_wrong_cell_applies_no_position_action`
-(reindex tops the list, `top_blocked_nonstage` names it) and the four
-WP-1054 tests at the end of `test_fitreport_layers.py` (cell-wrong, broad
-lobes, texture inversion, double injection). `THRESHOLDS_VERSION` is already
-0.4 this milestone — a further 1057 bump is a fresh decision, not implied.
 
 ## Non-goals
 
@@ -148,3 +141,9 @@ names resolution, not model error.
 
 - **2026-08-11** — created, from the non-ideal-data design discussion
   (nanoparticle + MOF regimes). Not started.
+- **2026-08-12** — session start on `wp1057-purpose-grade-evidence` (from
+  up-to-date main, `[dev,jax,torch]` venv). `### Inherited` pruned: every
+  entry verified still true against the tree (`THRESHOLDS_VERSION` 0.4 at
+  `report/schemas.py`, the e6 loop test and the four WP-1054 layer tests all
+  present), so the whole section folded into Context's collision note — which
+  it resolves (1054 landed first) — and nothing deleted as stale.
