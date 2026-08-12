@@ -21,7 +21,7 @@ from typing import Literal
 from pydantic import Field
 
 from ..schemas.common import Base
-from ..schemas.results import RestraintReport
+from ..schemas.results import CorrelationPair, RestraintReport, SoftMode
 from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 
 # 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
@@ -54,7 +54,18 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   off-region d — both ``how="advice"``, both on either side of the maturity
 #   gate.  No existing emission condition moved, but a consumer enumerating
 #   the kinds it can actually receive sees two more.
-THRESHOLDS_VERSION = "0.6"
+# 0.7 (WP-1056): the identifiability section.  ``FitReport.identifiability``
+#   lands — the esd-qualifying trio quoted together (raw χ²_red, Bérar-Lelann
+#   inflation, Durbin-Watson), the δR normal-probability slope/intercept
+#   (Abrahams & Keve, 1971), and the parameter-space evidence carried from fit
+#   time on ``RefinementResult.identifiability``: worst correlations, softest
+#   normal-matrix modes, held-parameter exchangeability.  The summary gains at
+#   most two clauses: an exchange that passes the two-condition discriminator
+#   (EXCHANGEABLE_MIN_R2 ∧ EXCHANGE_PARTNER_MIN_SIGNIFICANCE — R² alone is a
+#   design-matrix property and fires on clean fits, measured 0.999945 on the
+#   E2 fixture and its clean reference alike), and a soft mode below
+#   SOFT_MODE_NOTABLE_EIGENVALUE.  No existing gate or emission moved.
+THRESHOLDS_VERSION = "0.7"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -237,6 +248,40 @@ BACKGROUND_ABSORPTION_NOTABLE = BACKGROUND_ABSORPTION_GUARD
 OFF_REGION_CHI2_RED_HIGH = 1.5
 OFF_REGION_DW_LOW = 1.0
 
+#: Identifiability section (WP-1056) — all three measured on the LaB₆
+#: fixtures (tests/test_fitreport_layers.py, 2026-08-12; the spike table is
+#: in the WP handover).
+#:
+#: The exchange discriminator is deliberately two conditions, because the
+#: measured fact is that either alone is noise.  Projection R² of a held
+#: column onto the fitted span is a property of the design matrix over the
+#: sampled range: the E2 fixture (planted −0.02 mm displacement absorbed by a
+#: compensating zero at 128 σ) and its clean reference (zero at 1.6 σ) both
+#: measure R² = 0.999945, identical to six decimals.  And a significant
+#: partner with a *low* R² is just a fitted parameter — nothing to exchange
+#: with.  ``EXCHANGEABLE_MIN_R2`` sits between the exchangeable aberrations
+#: (held displacement 0.9999, held transparency 0.9729 on the full window)
+#: and the partially-absorbed Biso rows (0.65-0.76, whose loadings name no
+#: nulled partner anyway), and equals Prince's "worthwhile at |ρ| > 0.95"
+#: read as a pair R² (0.95² ≈ 0.90).
+#: ``EXCHANGE_PARTNER_MIN_SIGNIFICANCE`` sits between the compensating
+#: partner (127.7 σ from its null on E2) and every converged control
+#: (1.2-1.6 σ); the esd already carries the Bérar-Lelann inflation, which
+#: makes the ratio conservative.
+EXCHANGEABLE_MIN_R2 = 0.90
+EXCHANGE_PARTNER_MIN_SIGNIFICANCE = 5.0
+#: A soft mode earns a summary sentence only below this eigenvalue of the
+#: unit-column Gram (for a pair, 1 − |ρ|).  Prince's |ρ| > 0.95 (eigenvalue
+#: 0.05) is the citable "worthwhile" line, but it cannot be the *comment*
+#: threshold: the TCHZ u/v/w family is collinear on every finite window —
+#: measured, the clean full-range control's softest mode is the u/v/w
+#: combination at 1.21e-02 (its worst *pair* only 0.9465 — Watkin's point
+#: that the combination is worse than any pair shows), against 6.68e-04 for
+#: the same mode on a 20-56° window.  The threshold sits between those two;
+#: the carrier keeps the softest modes whatever their eigenvalues, so
+#: nothing below comment level is lost.
+SOFT_MODE_NOTABLE_EIGENVALUE = 3e-3
+
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
 MATURITY_MAX_RWP = 0.35
@@ -339,6 +384,72 @@ class BackgroundEvidence(Base):
     #: consumer need not sort the table to branch on it
     worst_absorption: float = 0.0
     worst_absorption_path: str | None = None
+
+
+class ExchangeFinding(Base):
+    """One held parameter's exchange assessment (WP-1056).
+
+    The carrier row (``held``/``r2``/``partners``, measured at fit time —
+    :class:`~pxrdref.schemas.results.ExchangeRow`) plus the report's half of
+    the two-condition discriminator: ``partner`` is the most-loaded fitted
+    partner with a *defined null* (the aberration corrections, identity at
+    zero — :data:`~pxrdref.optimize.identifiability.NULL_IDENTITY`), and
+    ``partner_significance`` is |value − null| / esd from the stored result.
+    A row whose loadings name no nulled partner carries ``partner = None``
+    and can never be ``exchangeable`` — a cell edge or a scale has no null
+    the data could be accused of failing to distinguish, so asserting an
+    exchange there would be a confident statement with no significance half.
+
+    ``exchangeable`` is the verdict the summary clause and AGENT_PROTOCOL's
+    reading share (:func:`~pxrdref.report.identifiability.is_exchangeable`):
+    the fitted partner is significantly away from its null *and* the held
+    parameter's column is reproducible in the fitted span, so the data
+    cannot say which of the two is the physical cause — the verdict this
+    licenses is ``ambiguous``, never a confident singleton.
+    """
+
+    held: str
+    r2: float
+    partners: dict[str, float] = Field(default_factory=dict)
+    partner: str | None = None
+    partner_null: float | None = None
+    partner_value: float | None = None
+    partner_esd: float | None = None
+    partner_significance: float | None = None
+    exchangeable: bool = False
+
+
+class IdentifiabilityEvidence(Base):
+    """Parameter-space evidence beside the esd-qualifying statistics (WP-1056).
+
+    The esd trio is quoted **together and raw** on Schwarzenbach et al.'s
+    (1989, Acta Cryst. A45, 63) Recommendation 8 grounds: scaling variances
+    by GoF² is "highly questionable", so the package reports the ingredients
+    — raw χ²_red, the Bérar-Lelann inflation the quoted esds already carry
+    (dividable back out), and Durbin-Watson — and lets the consumer decide
+    what the esds mean.  ``delta_r_slope``/``delta_r_intercept`` compress the
+    δR normal-probability plot (Abrahams & Keve, 1971, Acta Cryst. A27, 157;
+    "a more powerful descriptor than R" per Schwarzenbach) to two numbers:
+    sorted Δ/σ against normal quantiles reads slope ≈ 1 and intercept ≈ 0
+    when the residuals are Gaussian on the stated σ (measured 1.004/−0.0004
+    on the clean control), slope > 1 when σ is underestimated, and a bent
+    tail shows up as the fit's |slope − 1|.
+
+    ``top_correlations``/``soft_modes`` are carried from fit time
+    (:class:`~pxrdref.schemas.results.Identifiability`); ``None`` here means
+    *not measured* — a replay or a pre-WP-1056 result — never "well
+    conditioned".  ``exchanges`` assesses every carried exchange row; the
+    summary speaks only for rows where ``exchangeable`` is true.
+    """
+
+    chi2_reduced: float
+    esd_inflation: float | None = None
+    durbin_watson: float | None = None
+    delta_r_slope: float | None = None
+    delta_r_intercept: float | None = None
+    top_correlations: list[CorrelationPair] | None = None
+    soft_modes: list[SoftMode] | None = None
+    exchanges: list[ExchangeFinding] | None = None
 
 
 class LeBailGap(Base):
@@ -638,6 +749,12 @@ class FitReport(Base):
     #: or an evaluate-only view built without one), never as "the background
     #: is fine".
     background: BackgroundEvidence | None = None
+    #: the esd-qualifying statistics quoted beside each other, the δR plot's
+    #: two numbers, and the parameter-space evidence carried from fit time
+    #: (WP-1056).  Absent for cause: None when the result has no fitted
+    #: channels to read residuals from — its carrier-derived fields are
+    #: individually None when the fit did not measure them.
+    identifiability: IdentifiabilityEvidence | None = None
     summary: str = ""
 
     # -- Layer 1

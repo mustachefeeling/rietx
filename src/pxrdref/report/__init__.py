@@ -12,6 +12,11 @@ from __future__ import annotations
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
 from .background import assess_background
+from .identifiability import (
+    assess_identifiability,
+    identifiability_clause,
+    is_exchangeable,
+)
 from .layer0 import (
     background_clause,
     build_layer0,
@@ -45,7 +50,9 @@ from .schemas import (
     THRESHOLDS_VERSION,
     BackgroundEvidence,
     BasisCoefficient,
+    ExchangeFinding,
     FitReport,
+    IdentifiabilityEvidence,
     LeBailGap,
     Region,
     RegionAttribution,
@@ -65,7 +72,9 @@ __all__ = [
     "THRESHOLDS_VERSION",
     "BackgroundEvidence",
     "BasisCoefficient",
+    "ExchangeFinding",
     "FitReport",
+    "IdentifiabilityEvidence",
     "LeBailGap",
     "Recipe",
     "Region",
@@ -83,6 +92,7 @@ __all__ = [
     "analyse_trends",
     "apply_strategy_veto",
     "assess_background",
+    "assess_identifiability",
     "attribute_regions",
     "background_actions",
     "background_clause",
@@ -94,6 +104,8 @@ __all__ = [
     "describe_action",
     "estimate_delta_chi2",
     "hamilton_justified",
+    "identifiability_clause",
+    "is_exchangeable",
     "layer0_actions",
     "lebail_gap",
     "maturity_gate",
@@ -134,6 +146,15 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # surface even at Layer 0 — a restraint fighting the data is worth reporting
     # regardless of whether the fit is mature enough to linearise.
     report.restraints = result.restraints
+    # The identifiability section (WP-1056) is likewise read from the stored
+    # result plus what the fit screened at Jacobian time, never linearised —
+    # and an exchangeable held parameter is exactly the evidence a *converged*
+    # report must not withhold, so it speaks on every branch, abstention
+    # included.
+    report.identifiability = assess_identifiability(result)
+    clause = identifiability_clause(report.identifiability)
+    if clause is not None:
+        report.summary += "; " + clause
     if model is None or values is None:
         return report
 

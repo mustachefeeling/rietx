@@ -47,8 +47,68 @@ class Statistics(Base):
     n_free_parameters: int
 
 
+class CorrelationPair(Base):
+    """One entry of the worst-|ρ| list (WP-1056).
+
+    ``rho`` is the signed correlation from the solver's final undamped
+    Jacobian (the same matrix the ``HIGH_CORRELATION`` guard read, so the
+    two can never disagree); the list is ordered worst first.
+    """
+
+    path_a: str
+    path_b: str
+    rho: float
+
+
+class SoftMode(Base):
+    """One near-null direction of the scale-normalised normal matrix
+    (WP-1056; Watkin, 2008, J. Appl. Cryst. 41, 491 §3.8 — the informative
+    object is the *combination*, not the pair; Prince, *Mathematical
+    Techniques* 3rd ed. ch. 8 — remedies are "linear combinations of
+    parameters that are approximately eigenvectors of the Hessian matrix").
+
+    ``eigenvalue`` is of ĴᵀĴ with every column normalised to unit length, so
+    it is dimensionless and transform-independent: for a single pair with
+    correlation ρ it equals 1 − |ρ| (Prince's "worthwhile at |ρ| > 0.95" is
+    eigenvalue < 0.05), and 0 is exact degeneracy.  ``loadings`` are the
+    components of the unit eigenvector with |v| ≥ 0.1, keyed by path, sign
+    canonicalised so the largest component is positive.  The softest modes
+    are carried whatever their eigenvalues — the number is the evidence; the
+    report decides where comment starts.
+    """
+
+    eigenvalue: float
+    loadings: dict[str, float] = Field(default_factory=dict)
+
+
+class ExchangeRow(Base):
+    """One held parameter's exchangeability with the fitted span (WP-1056).
+
+    ``r2`` is the block projection R² of the held parameter's Jacobian
+    column — evaluated at the converged values with the candidate freed on a
+    copy of the vary set, never refined — onto the span of the free columns:
+    R² → 1 means the data cannot distinguish freeing it from what was
+    fitted (Prince ch. 8: dropping a correlated variable leaves the fit
+    unchanged and the survivors' apparent precision illusory).  **R² alone
+    is a design-matrix property of the sampled range and fires on clean fits
+    too** (measured 0.999945 on the E2 fixture *and* its clean reference);
+    the discriminating half — is anything significant riding the exchange —
+    is the report's, from the fitted partners' values and esds.
+
+    ``partners`` are the scale-free loadings of the held column's
+    least-squares reconstruction in the free span (|loading| ≥ 0.05 kept,
+    signed): the paths whose fitted values absorb the held parameter's
+    signature, magnitudes read as the share of the held column's norm each
+    partner supplies.
+    """
+
+    held: str
+    r2: float
+    partners: dict[str, float] = Field(default_factory=dict)
+
+
 class Identifiability(Base):
-    """Degeneracy evidence measured on the **final Jacobian** (WP-1055).
+    """Degeneracy evidence measured on the **final Jacobian** (WP-1055/-1056).
 
     This carrier exists because these statistics cannot be recovered from a
     stored result.  J is an N×P array that is never serialized (a history node
@@ -72,16 +132,30 @@ class Identifiability(Base):
     not a second one — so the report's background section and the
     ``BACKGROUND_ABSORPTION`` diagnostic can never quote different numbers.
 
+    ``top_correlations``, ``soft_modes`` and ``exchangeability`` (WP-1056) are
+    the parameter-space evidence measured at the same point, by
+    :mod:`~pxrdref.optimize.identifiability`: the worst pairwise correlations
+    with their paths, the softest modes of the scale-normalised normal matrix
+    as named combinations, and the held-parameter exchangeability scan.  All
+    three are carried as evidence on the same terms as the absorption table —
+    numbers, not verdicts; thresholds live in the report.
+
     Empty ⇔ nothing was measurable: fewer than two free parameters, no
-    Jacobian retained by the solver, or no background/structural pair to
-    project.  Absent (``None`` on the result) ⇔ nothing measured it — a
-    ``replay`` of a history node (evaluate-only, no solve) or a joint
-    multi-histogram fit, which screens per histogram and reports through each
-    histogram's own diagnostics.  Read ``None`` as "not measured here", never
-    as "no absorption".
+    Jacobian retained by the solver, or no pair/candidate to project
+    (``exchangeability`` is additionally empty in Pawley mode, where the
+    residual's θ carries the intensity block and the fitted span the scan
+    projects onto is not the table's — see the scan's docstring).  Absent
+    (``None`` on the result) ⇔ nothing measured it — a ``replay`` of a
+    history node (evaluate-only, no solve) or a joint multi-histogram fit,
+    which screens per histogram and reports through each histogram's own
+    diagnostics.  Read ``None`` as "not measured here", never as "no
+    degeneracy".
     """
 
     background_absorption: dict[str, float] = Field(default_factory=dict)
+    top_correlations: list[CorrelationPair] = Field(default_factory=list)
+    soft_modes: list[SoftMode] = Field(default_factory=list)
+    exchangeability: list[ExchangeRow] = Field(default_factory=list)
 
 
 class PhaseQuantity(Base):

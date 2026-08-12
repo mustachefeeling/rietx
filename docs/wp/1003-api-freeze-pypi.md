@@ -11,6 +11,28 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the fourth
+lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now
+**0.7**. `RefinementResult.identifiability` gained three additive defaulted
+fields — `top_correlations: list[CorrelationPair]`, `soft_modes:
+list[SoftMode]`, `exchangeability: list[ExchangeRow]` — three new models on
+`pxrdref.schemas.results`, same never-recomputable character 1055's entry
+below names (read off the final Jacobian), `SCHEMA_VERSION` unmoved.
+`FitReport` gained `identifiability: IdentifiabilityEvidence | None`
+(absent-for-cause only when the result has no channels; its carrier-derived
+fields are individually None when unmeasured — a replay). New exports on
+`pxrdref.report`: `IdentifiabilityEvidence`, `ExchangeFinding`,
+`assess_identifiability`, `identifiability_clause`, `is_exchangeable`. New
+module `pxrdref.optimize.identifiability` whose `EXCHANGE_CANDIDATE_GLOBS`
+and `NULL_IDENTITY` are protocol pinned by test — a freeze decision about
+them is a decision about what every report can say. `check_guards` gained a
+keyword (`scan_exchangeability`, default False — existing callers
+unchanged) and `GuardReport` three more not-findings `measured_*` fields,
+extending the sentence 1055's entry flags. The scan is deliberately absent
+in Pawley mode and for `mode_fixed`-held paths (the module docstring has the
+confident-wrong-singleton argument); if the freeze documents the carrier,
+document that absence with it.
+
 **From [1055](1055-background-evidence.md), closed 2026-08-12 — the third
 lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now
 **0.6**. `FitReport` gained `background: BackgroundEvidence | None`

@@ -468,6 +468,16 @@ class GuardReport:
     :class:`~pxrdref.schemas.results.Identifiability` carries all of them onto
     the result, because a fired/not-fired bit is a verdict and 0.46-vs-0.08 is
     evidence.
+
+    The three ``measured_*`` fields after it (WP-1056) are the same
+    discipline for the parameter-space evidence: ``measured_top_correlations``
+    is read from the same matrix in the same call as ``high_correlations``,
+    ``measured_soft_modes`` from the same final Jacobian, and
+    ``measured_exchangeability`` from one extra evaluate-only Jacobian at the
+    converged values (built only on the answer-producing stage — the caller
+    passes ``scan_exchangeability``).  They hold the
+    :mod:`~pxrdref.schemas.results` rows verbatim; no guard thresholds them,
+    the report does.
     """
 
     high_correlations: list[GuardFinding] = field(default_factory=list)
@@ -487,6 +497,11 @@ class GuardReport:
     # not findings: the full screened (path, R²) table the background guard
     # decided from — see the class docstring
     measured_background_absorption: dict[str, float] = field(default_factory=dict)
+    # not findings either (WP-1056): the parameter-space evidence, as
+    # schemas.results rows — CorrelationPair / SoftMode / ExchangeRow
+    measured_top_correlations: list = field(default_factory=list)
+    measured_soft_modes: list = field(default_factory=list)
+    measured_exchangeability: list = field(default_factory=list)
 
     def findings(self) -> list[GuardFinding]:
         """Every finding, in the order the diagnostics are emitted in."""
@@ -610,11 +625,17 @@ def check_stephens_positive(table, model) -> list[GuardFinding]:
 def check_guards(table, outcome, threshold: float,
                  background_threshold: float = BACKGROUND_ABSORPTION_GUARD,
                  roughness_threshold: float = ROUGHNESS_ABSORPTION_GUARD,
-                 model=None) -> GuardReport:
+                 model=None, scan_exchangeability: bool = False) -> GuardReport:
     """Correlation, bound, background/roughness-absorption, ADP- and
-    strain-shape guards."""
+    strain-shape guards.
+
+    ``scan_exchangeability`` additionally runs the WP-1056 held-parameter
+    scan (one extra evaluate-only Jacobian), which only the answer-producing
+    stage should pay for — ``_run_stage`` passes ``stage_index == n_stages``.
+    """
     import numpy as np
 
+    from ..optimize.identifiability import exchangeability_scan, soft_modes, top_correlations
     from ..optimize.statistics import background_absorption, roughness_absorption
 
     report = GuardReport()
@@ -629,12 +650,17 @@ def check_guards(table, outcome, threshold: float,
                 if abs(corr[i, j]) > threshold:
                     report.high_correlations.append(
                         GuardFinding.correlation(free[i], free[j], corr[i, j]))
+        # measured once (WP-1056): the same matrix the loop above thresholds
+        report.measured_top_correlations = top_correlations(corr, free)
 
     if outcome.jac is not None and len(free) > 1:
         # measured once: the screened table travels to the result (WP-1055)
         # and the threshold decides only which rows become findings
         report.measured_background_absorption = background_absorption(
             outcome.jac, free)
+        report.measured_soft_modes = soft_modes(outcome.jac, free)
+        if scan_exchangeability and model is not None:
+            report.measured_exchangeability = exchangeability_scan(model, table)
         for path, r2 in sorted(report.measured_background_absorption.items(),
                                key=lambda kv: -kv[1]):
             if r2 > background_threshold:

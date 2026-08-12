@@ -61,26 +61,24 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The FitReport evidence campaign remainder —
-[1056](wp/1056-identifiability-layer.md),
-[1058](wp/1058-report-delivery.md) — then the re-A/B
-([1059](wp/1059-eval-round-two.md)) and the freeze
+**Report delivery ([1058](wp/1058-report-delivery.md)) — the last content WP —
+then the re-A/B ([1059](wp/1059-eval-round-two.md)) and the freeze
 ([1003](wp/1003-api-freeze-pypi.md)).**
-[1055](wp/1055-background-evidence.md) closed 2026-08-12: `FitReport.background`
-now carries both background failure modes — the block-absorption table (the
-over-flexible fit wins on Rwp *and* GoF while landing 2.6× further from the
-true Biso) and the off-region χ²_red/Durbin-Watson pair that Layer 0's
-peak-cluster regions are structurally blind to — and the two flexibility
-actions, emitted nowhere since v0.2, finally have an emitter.
-**1056 should extend `RefinementResult.identifiability` rather than build a
-carrier**: 1055 built it, and its `### Inherited` says how. Surface changes
-(THRESHOLDS_VERSION 0.6, `FitReport.background`, `Identifiability`, seven new
-exports) are in 1003's `### Inherited`, the re-A/B deltas in 1059's.
-Remaining order is free except: 1056 has its reading done (Prince ch. 6–8) and
-a spike gating its schema fields, and **1059 runs only after 1056 + 1058** —
-it re-A/Bs the fixed content on the 1053 harness with pre-registered
-hypotheses, including whether 1054 flipped the one row where the report sat on
-the wrong side (E7's phantom-phase quote).
+[1056](wp/1056-identifiability-layer.md) closed 2026-08-12: a *converged*
+report now carries the parameter-space evidence WP-1053's E2 (0/8) and E8
+(0/8) rows failed for want of — "fitted zero_shift stands 128σ from 0 but is
+exchangeable with the held sample_displacement — the data cannot tell which"
+— plus soft modes as named combinations, the esd-qualifying trio quoted
+together, and δR. The design was forced by one measurement: projection R² is
+a property of the design matrix over the window (0.999945 on the planted fit
+*and* its clean reference, identical to six decimals), so the discriminator
+is two conditions, and only the partner's 128σ-vs-1.6σ separates the states.
+**1059 runs only after 1058** — it re-A/Bs the fixed content on the 1053
+harness with pre-registered hypotheses; 1056's entry in its `### Inherited`
+includes a re-scoring caveat for E8 (the default-plan path now measures
+bit-identical to the clean control and is *correctly* quiet).
+Surface changes (THRESHOLDS_VERSION 0.7, `FitReport.identifiability`, three
+carrier models, `optimize/identifiability.py`) are in 1003's `### Inherited`.
 Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 
@@ -267,7 +265,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ✅ 2026-08-11 — 48/48-run pilot: A/B null on outcomes; the bottleneck is when the report is read, not what it says | 1052 |
 | [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ✅ 2026-08-12 | — |
 | [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ✅ 2026-08-12 — both failure modes in `FitReport.background`; the over-flexible fixture wins on Rwp and GoF and lands 2.6× further from truth | — |
-| [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ⬜ | — |
+| [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ✅ 2026-08-12 — a converged report names the zero↔displacement exchange; R² is design-matrix-identical on the clean control, the partner's 128σ-vs-1.6σ discriminates | — |
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
