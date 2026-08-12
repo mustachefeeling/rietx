@@ -68,7 +68,7 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pxrd-refine/pxrd-refine"
+Homepage = "https://github.com/yue-here/pxrd-refine"
 
 [project.scripts]
 pxrdref = "pxrdref.cli:main"
