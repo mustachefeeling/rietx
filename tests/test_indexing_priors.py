@@ -12,9 +12,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref.indexing import index_pattern
-from pxrdref.indexing.engines import SearchSpec
-from pxrdref.indexing.priors import (
+from anatase.indexing import index_pattern
+from anatase.indexing.engines import SearchSpec
+from anatase.indexing.priors import (
     PRIOR_FINDER,
     cell_systems,
     prior_systems,
@@ -136,7 +136,7 @@ def test_a_correct_prior_surfaces_truth_in_the_first_streamed_shortlist():
 def test_a_prior_outside_the_box_is_refused_before_any_check():
     """The never-widen rule: a prior whose axis leaves the declared range is
     refused at declaration — recorded, not smuggled in and not checked."""
-    from pxrdref.indexing.priors import build_prior_candidates
+    from anatase.indexing.priors import build_prior_candidates
 
     peaks, _cell = synthetic_peaks("cubic")
     spec = SearchSpec(systems=("cubic", "tetragonal"), min_d_axis=2.0,
@@ -201,9 +201,9 @@ def test_the_prior_seeds_svds_starting_basin():
     ladder, so with a budget far too small for the ladder the truth is still
     found — from the seed, deterministically (the first budget check happens
     at zero elapsed, so the seed trial always runs)."""
-    from pxrdref.indexing.qspace import af_from_cell
-    from pxrdref.indexing.reduce import same_lattice
-    from pxrdref.indexing.svd import search_svd
+    from anatase.indexing.qspace import af_from_cell
+    from anatase.indexing.reduce import same_lattice
+    from anatase.indexing.svd import search_svd
 
     peaks, true_cell = synthetic_peaks("monoclinic")
     _sg, _cell, _tt, (min_d, max_d), vol = CASES["monoclinic"]

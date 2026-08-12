@@ -34,7 +34,7 @@ Q^{\pm}(hkl) \;=\; \sum_j \begin{cases}
 \qquad m = \mathbf{d}(hkl)\,B^{\mathsf T},
 ```
 
-*Source:* `pxrdref.indexing.dichotomy._q_bounds`
+*Source:* `anatase.indexing.dichotomy._q_bounds`
 
 with $B$ the metric basis of {eq}`idx-subspace` and $\mathbf{d}(hkl) =
 (h^2, k^2, l^2, kl, hl, hk)$ the design row of {eq}`idx-af`. No corner is
@@ -77,7 +77,7 @@ by an obliquity bound on the rest,
 \lvert 2G^*_{ij} \rvert \;\le\; 2\cos\vartheta_{\max}\sqrt{G^*_{ii}G^*_{jj}},
 ```
 
-*Source:* `pxrdref.indexing.dichotomy._initial_box`
+*Source:* `anatase.indexing.dichotomy._initial_box`
 
 the second being Cauchy–Schwarz with the reciprocal angles restricted to
 $[\vartheta_{\max}, 180° - \vartheta_{\max}]$. It is reported as a **bound of
@@ -106,7 +106,7 @@ R_{ij} = \frac{G^*_{ij}}{\sqrt{G^*_{ii}G^*_{jj}}},
 \quad \lvert R_{ij} \rvert \le \cos\vartheta_{\max},
 ```
 
-*Source:* `pxrdref.indexing.dichotomy._det_interval`
+*Source:* `anatase.indexing.dichotomy._det_interval`
 
 so that for a monoclinic box $\det R \in [1 - \cos^2\vartheta_{\max}, 1]$ and
 the "this cell is too small" half of the test can fire at all.
@@ -124,7 +124,7 @@ the count of reflections still reaching anything, and $S$ = the lines with a
 single candidate, where two lines forced onto one reflection is a violation at
 $\lvert S \rvert = 2$.
 
-*Source:* `pxrdref.indexing.dichotomy._assignment_possible`
+*Source:* `anatase.indexing.dichotomy._assignment_possible`
 
 **One grid pass per system, not per centring.** A centred trial set is a
 strict subset of the primitive one, so a centred box has fewer reflections
@@ -174,7 +174,7 @@ Its base-line index limit is small for a reason that is arithmetic rather than
 heuristic: a base line of low $Q$ cannot carry a large index without implying
 an axis longer than the domain allows.
 
-*Source:* `pxrdref.indexing.trial_error.search_trial_error`
+*Source:* `anatase.indexing.trial_error.search_trial_error`
 
 The engine carries **no exhaustiveness claim**. It can contribute a
 `found_by` vote and a Borda rank; it can never contribute to
@@ -229,7 +229,7 @@ the domain" is an argument about lattices that the implementation does not
 structurally enforce for every system. A search bound may be loose; the one
 thing it may not do is exclude the true cell.
 
-*Source:* `pxrdref.indexing.dichotomy.MAX_ANGLE_COSINE`
+*Source:* `anatase.indexing.dichotomy.MAX_ANGLE_COSINE`
 
 ## The reflection ceiling
 
@@ -239,4 +239,4 @@ costs nothing and never touches memory — which is the point, because the cells
 a search proposes include ones no physical specimen has, and a refinement free
 to move produced a 49 Å axis at $\beta = 174°$ in testing.
 
-*Source:* `pxrdref.indexing.engines.reflection_ceiling_ok`
+*Source:* `anatase.indexing.engines.reflection_ceiling_ok`

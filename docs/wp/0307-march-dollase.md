@@ -19,7 +19,7 @@ with α the angle between the preferred-orientation axis and the reflection's
 scattering vector, r the refinable March coefficient, and the sum over the
 reflection's symmetry-equivalent orbit — reuse the frozen orbit/multiplicity
 machinery in
-[`crystallography/symmetry.py`](../../src/pxrdref/crystallography/symmetry.py)
+[`crystallography/symmetry.py`](../../src/anatase/crystallography/symmetry.py)
 rather than recomputing equivalents. **Reciprocal-space symmetry action is
 Rᵀ**; this matters for the orbit on non-cubic cells (the comment in
 symmetry.py explains why).
@@ -32,14 +32,14 @@ not by letter. Codes disagree here; a reader must be able to tell what our r
 means without running an experiment.
 
 Placement: a per-phase optional PO block in
-[`schemas/structure.py`](../../src/pxrdref/schemas/structure.py) with the axis
+[`schemas/structure.py`](../../src/anatase/schemas/structure.py) with the axis
 as integer hkl indices and `r` as a refinable `Parameter`. r must be bounded
 positive — use the softplus transform already used for widths and scales
 (`params/transforms.py`), since hard lower bounds stall TRF.
 
 The Jacobian column is analytic: P_hkl is a smooth closed form in r, and the
 per-reflection intensity chain in
-[`model/forward.py`](../../src/pxrdref/model/forward.py) is exactly where the
+[`model/forward.py`](../../src/anatase/model/forward.py) is exactly where the
 existing scalar-derivative chaining happens. Add it there, not as FD.
 
 Correlation warning worth surfacing: PO correlates strongly with occupancies

@@ -15,7 +15,7 @@ variances add, Lorentzian FWHMs add.**
 \qquad [\deg^2 2\theta]
 ```
 
-*Source:* `pxrdref.model.profiles.caglioti`
+*Source:* `anatase.model.profiles.caglioti`
 
 $U, V, W$ are the instrument resolution function {cite}`caglioti1958`; the
 sample adds a Gaussian microstrain term $U_s\tan^2\theta$ and a Gaussian
@@ -28,7 +28,7 @@ size term $P/\cos^2\theta$ {cite}`larson2004,thompson1987`.
 \qquad [\deg 2\theta]
 ```
 
-*Source:* `pxrdref.model.profiles.caglioti`
+*Source:* `anatase.model.profiles.caglioti`
 
 ```{warning}
 Conventions here are documented by *physics*, not letters: the
@@ -69,7 +69,7 @@ linear blend with a single FWHM $\Gamma$ and mixing $\eta$
 \qquad q = \Gamma_L / \Gamma.
 ```
 
-*Source:* `pxrdref.model.profiles.pseudovoigt`
+*Source:* `anatase.model.profiles.pseudovoigt`
 
 Both component shapes are unit-area normalised, so $\int \mathrm{pV}\,dx =
 1$ and the reflection intensity of {eq}`fm-rietveld` enters purely through
@@ -84,7 +84,7 @@ G(x) = \frac{2}{\Gamma}\sqrt{\frac{\ln 2}{\pi}}
 L(x) = \frac{2/(\pi\Gamma)}{1 + 4x^2/\Gamma^2}.
 ```
 
-*Source:* `pxrdref.model.profiles.pseudovoigt`
+*Source:* `anatase.model.profiles.pseudovoigt`
 
 ## The true Voigt, via the Faddeeva function
 
@@ -98,7 +98,7 @@ V(x; \sigma, \gamma) \;=\; \frac{\operatorname{Re}[w(z)]}{\sigma\sqrt{2\pi}},
 \qquad z = \frac{x + i\gamma}{\sigma\sqrt{2}},
 ```
 
-*Source:* `pxrdref.model.profiles.voigt`
+*Source:* `anatase.model.profiles.voigt`
 
 where $\sigma$ is the Gaussian standard deviation and $\gamma$ the
 Lorentzian *half*-width at half maximum, recovered from the same component
@@ -110,7 +110,7 @@ FWHMs of {eq}`prof-caglioti-g`-{eq}`prof-caglioti-l`:
 \sigma = \frac{\Gamma_G}{2\sqrt{2\ln 2}}, \qquad \gamma = \frac{\Gamma_L}{2}.
 ```
 
-*Source:* `pxrdref.model.profiles.voigt`
+*Source:* `anatase.model.profiles.voigt`
 
 Both limits are exact and recovered branchlessly: $\gamma \to 0$ makes $z$
 real and $\operatorname{Re}[w] = e^{-z^2}$ (the unit Gaussian); $\sigma \to
@@ -130,7 +130,7 @@ Z = \frac{L + iz}{L - iz}, \qquad L = \sqrt[4]{1/2}\cdot\sqrt{N},
 w(z) = \frac{2\, p(Z)}{(L - iz)^2} + \frac{1/\sqrt{\pi}}{L - iz},
 ```
 
-*Source:* `pxrdref.model.profiles.faddeeva`
+*Source:* `anatase.model.profiles.faddeeva`
 
 with $p$ an $N$-term polynomial whose real coefficients come from a single
 FFT at import time; $N = 32$ reaches ≈1e-13. The algorithm was chosen for
@@ -157,7 +157,7 @@ angle by {cite}`finger1994`
 \qquad \xi = u/L,
 ```
 
-*Source:* `pxrdref.model.profiles.fcj`
+*Source:* `anatase.model.profiles.fcj`
 
 where $u$ is the signed axial offset of the ray. For $2\theta < 90°$
 intensity smears from $2\theta$ *down* to $2\varphi_{\min}$ — the classic
@@ -172,7 +172,7 @@ W(\xi) \;=\; \operatorname{clip}\bigl(s + h - \xi,\; 0,\; 2\min(s, h)\bigr),
 \qquad \xi \ge 0.
 ```
 
-*Source:* `pxrdref.model.profiles.fcj`
+*Source:* `anatase.model.profiles.fcj`
 
 Expressed as a density in $2\varphi$, the aberration diverges like
 $1/\sqrt{2\theta - 2\varphi}$ at the Bragg position — the reason naive
@@ -189,7 +189,7 @@ y(2\theta_i) \;=\;
 \xi_{\max} = \min\bigl(s + h,\; |\tan 2\theta|\bigr),
 ```
 
-*Source:* `pxrdref.model.profiles.fcj`
+*Source:* `anatase.model.profiles.fcj`
 
 with a smooth integrand, evaluated by fixed-node Gauss-Legendre quadrature
 in $\tau = \xi/\xi_{\max}$. The $|\tan 2\theta|$ cap removes the unphysical

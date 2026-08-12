@@ -26,7 +26,7 @@ The evidence is one screenshot of the Model pane at a 1000 px window, which
 shows nine of the fifteen items at once. Reproduce it with:
 
 ```sh
-.venv/bin/pxrdref gui <project>.pxrd --port 8760 --no-open
+.venv/bin/anatase gui <project>.rex --port 8760 --no-open
 # then Model, at a ~1000 px wide window
 ```
 
@@ -58,7 +58,7 @@ ball. Judge by screenshot, on NAC, at a 1000 px column.
 
 **(b) The element colours are not distinguishable inside a phase.** Measured
 from the live table (`_CPK` and the golden-angle fallback in
-`src/pxrdref/gui/structure3d.py`):
+`src/anatase/gui/structure3d.py`):
 
 | | | |
 |---|---|---|
@@ -82,7 +82,7 @@ has one; sRGB does not. The `dataviz` skill's palette guidance and its contrast
 validator are the right tool for choosing the replacements.
 
 **(c) "The NAC refinement just doesn't refine" — answered, and it is not a
-bug here.** The `nac.pxrd` used for the WP-1015 browser checks pairs the **NAC
+bug here.** The `nac.rex` used for the WP-1015 browser checks pairs the **NAC
 structure with a synthetic LaB6 pattern** (`tests/test_refine_synthetic.py`
 `synthesize()` makes LaB6; the scratchpad script that built the project says in
 its own docstring that the pattern is irrelevant *for a viewer check*). There
@@ -247,7 +247,7 @@ server-side with a test pinning it above the stick radius for hydrogen — item
 (a) should move the constants, not fork them.
 
 From **WP-1010** (frontend scaffold): the built dist under
-`src/pxrdref/gui/static` is **committed**, so every commit that touches `gui/`
+`src/anatase/gui/static` is **committed**, so every commit that touches `gui/`
 must end with `npm --prefix gui run build`; `tests/test_gui_dist.py` recomputes
 the digest over `gui/src/**/*` (test files included) and fails on a stale dist.
 The client does **not** decimate, and plotly is **not** vendored.
@@ -602,7 +602,7 @@ the screenshot that prompted it, taken again.
   question, and the measurements say the premise is half true already.
 
   - **Nothing is persisted.** A `RefinementResult` never reaches disk: the
-    `.pxrd/` directory is `project.json` + the pattern file + `history.jsonl` +
+    `.rex/` directory is `project.json` + the pattern file + `history.jsonl` +
     `live/events.jsonl`, and history nodes have stored **state, not curves**
     since v0.2 for exactly this reason (a node is ~10 kB; embedding `y_calc`
     would make it ~1.24 MB). Measured on the NAC project: 3.5 MB on disk, of

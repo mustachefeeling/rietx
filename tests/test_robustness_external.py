@@ -13,8 +13,8 @@ from typing import get_args
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData
-from pxrdref.schemas.structure import Structure
+from anatase import Instrument, PatternData
+from anatase.schemas.structure import Structure
 
 # ----------------------------------------------------------------------
 # (a) species syntaxes that reject valid CIFs — at two lookups, not one
@@ -48,7 +48,7 @@ def _nacl_cif(tmp_path, na="Na", cl="Cl"):
 
 
 def test_normalize_cif_species_covers_both_wild_forms_and_only_them():
-    from pxrdref.crystallography.cif import normalize_cif_species
+    from anatase.crystallography.cif import normalize_cif_species
 
     label = "site label in the type-symbol column"
     sign = "sign-first charge"
@@ -105,7 +105,7 @@ def test_normalised_species_compile_under_both_dispersion_settings(
     # the defect fired at the first stage compile, from *two* lookups —
     # resolve_dispersion with the block on, normalize_species either way —
     # so the fix is asserted at compile, under both settings
-    from pxrdref.model.forward import compile_model
+    from anatase.model.forward import compile_model
 
     structure = Structure.from_cif(_nacl_cif(tmp_path, na="Na+1", cl="Cl1"))
     structure.phases[0].scale.value = 5e-3
@@ -154,7 +154,7 @@ def test_a_reported_refined_angle_is_corrected_and_named(tmp_path):
     # beta = 90.002(3) under an orthorhombic symbol is reporting a
     # measurement, not making a mistake — and before this it raised at the
     # first parameters()/set_vary/stage compile rather than refining
-    from pxrdref.params.vector import ParameterTable
+    from anatase.params.vector import ParameterTable
 
     diags = []
     structure = Structure.from_cif(_ortho_cif(tmp_path, 90.002),
@@ -170,7 +170,7 @@ def test_a_reported_refined_angle_is_corrected_and_named(tmp_path):
 def test_a_structural_disagreement_is_left_alone_and_still_raises(tmp_path):
     # a monoclinic beta under an orthorhombic symbol: the symbol and the angle
     # contradict each other, and which is wrong is not a reader's call
-    from pxrdref.params.vector import ParameterTable
+    from anatase.params.vector import ParameterTable
 
     diags = []
     structure = Structure.from_cif(_ortho_cif(tmp_path, 93.2), diagnostics=diags)
@@ -188,8 +188,8 @@ def test_an_exact_angle_is_neither_touched_nor_reported(tmp_path):
 
 
 def test_the_correction_band_separates_a_report_from_a_mis_declaration():
-    from pxrdref.crystallography.cif import CIF_ANGLE_CORRECT_MAX_DEG
-    from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+    from anatase.crystallography.cif import CIF_ANGLE_CORRECT_MAX_DEG
+    from anatase.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 
     # wide enough to cover a refined-and-reported angle, and strictly above
     # the tolerance that decides whether there is anything to correct at all
@@ -206,7 +206,7 @@ def test_the_correction_band_separates_a_report_from_a_mis_declaration():
 def test_a_collapsed_cell_is_refused_before_the_grid_is_allocated():
     # the real case allocated 2.35 PiB and killed the process; the guard has
     # to fire before np.meshgrid, so the test's only budget is the raise
-    from pxrdref.crystallography.symmetry import generate_reflections
+    from anatase.crystallography.symmetry import generate_reflections
 
     with pytest.raises(ValueError, match="grid points") as err:
         generate_reflections("P 1", (56800.0, 56800.0, 72600.0,
@@ -218,7 +218,7 @@ def test_a_collapsed_cell_is_refused_before_the_grid_is_allocated():
 
 
 def test_the_grid_limit_clears_every_physical_cell():
-    from pxrdref.crystallography.symmetry import MAX_HKL_GRID_POINTS, generate_reflections
+    from anatase.crystallography.symmetry import MAX_HKL_GRID_POINTS, generate_reflections
 
     # a 100 Å protein-scale cell at d_min ≈ 1 Å implies a 201³ grid — the
     # refusal must sit far above any physical powder problem, so pin the
@@ -241,8 +241,8 @@ def _nacl_pattern(tmp_path, *, cell_error=0.0):
     ``cell_error=0.03`` reproduces §(c): a starting cell 3 % off puts every
     reflection outside the window it was compiled with.
     """
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
 
     truth = Structure.from_cif(_nacl_cif(tmp_path))
     truth.phases[0].scale.value = 20.0
@@ -273,8 +273,8 @@ def test_a_fit_nowhere_near_the_data_is_reported_however_the_solver_exited(
         tmp_path, max_iter, expect_status):
     # the defect is the *converged* row: the refinement does not error, it
     # returns status="converged" and a batch caller believes it
-    from pxrdref import Refinement
-    from pxrdref.strategy.staged import Stage
+    from anatase import Refinement
+    from anatase.strategy.staged import Stage
 
     start, ins, pattern = _nacl_pattern(tmp_path, cell_error=0.03)
     ref = Refinement(start, ins)
@@ -296,7 +296,7 @@ def test_the_bar_sits_below_the_zero_scale_attractor_not_above_it():
     # Rwp = 1 is exactly "no better than y_calc = 0", and driving the scale to
     # zero is the escape a windowed-out model converges to — measured 0.99999
     # on the reproduction above, so a threshold at 1.0 misses it by 1e-5
-    from pxrdref.refine import MODEL_FAR_FROM_DATA_RWP
+    from anatase.refine import MODEL_FAR_FROM_DATA_RWP
 
     assert MODEL_FAR_FROM_DATA_RWP < 0.99999
     # and still far above an honestly bad Rietveld fit (0.2-0.5 measured)
@@ -304,8 +304,8 @@ def test_the_bar_sits_below_the_zero_scale_attractor_not_above_it():
 
 
 def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
-    from pxrdref import Refinement
-    from pxrdref.strategy.staged import Stage
+    from anatase import Refinement
+    from anatase.strategy.staged import Stage
 
     start, ins, pattern = _nacl_pattern(tmp_path)          # exact cell
     ref = Refinement(start, ins)
@@ -327,8 +327,8 @@ def test_a_fit_on_the_data_reports_neither_robustness_diagnostic(tmp_path):
 def test_a_zero_lower_bound_lets_softplus_underflow_to_exactly_zero():
     # the mechanism, asserted where it lives: min=0.0 maps to an internal
     # bound of −∞, and log(1+e^u) is exactly 0.0 below u ≈ −745
-    from pxrdref.params.transforms import internal_bounds, to_physical
-    from pxrdref.schemas.structure import MARCH_R_MIN
+    from anatase.params.transforms import internal_bounds, to_physical
+    from anatase.schemas.structure import MARCH_R_MIN
 
     assert internal_bounds(0.0, np.inf, "softplus")[0] == -np.inf
     assert to_physical(-800.0, "softplus") == 0.0
@@ -343,7 +343,7 @@ def test_the_march_factor_is_what_a_zero_r_destroys():
     # A = r²cos²α + sin²α/r, term = A^(−3/2).  At r = 0 the bracket is inf off
     # the axis (→ term 0, silently wrong) and 0 *on* it (→ NaN), and every
     # derivative column is NaN — so the residual is garbage and nothing raises
-    from pxrdref.model.preferred_orientation import march_term, march_term_and_dr
+    from anatase.model.preferred_orientation import march_term, march_term_and_dr
 
     cos2 = np.array([0.0, 0.5, 1.0])
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -356,8 +356,8 @@ def test_the_march_factor_is_what_a_zero_r_destroys():
 def test_a_zero_bound_is_repaired_even_when_it_comes_from_a_stored_document():
     # the broken bound outlives the default: a project or history node written
     # before the fix carries min=0.0 explicitly
-    from pxrdref import Parameter
-    from pxrdref.schemas.structure import MARCH_R_MAX, MARCH_R_MIN, PreferredOrientation
+    from anatase import Parameter
+    from anatase.schemas.structure import MARCH_R_MAX, MARCH_R_MIN, PreferredOrientation
 
     po = PreferredOrientation(
         axis=(0, 0, 1),
@@ -377,9 +377,9 @@ def test_a_zero_bound_is_repaired_even_when_it_comes_from_a_stored_document():
 
 
 def test_the_march_bound_holds_through_the_parameter_table():
-    from pxrdref import Instrument, Parameter
-    from pxrdref.params.vector import ParameterTable
-    from pxrdref.schemas.structure import MARCH_R_MIN, PreferredOrientation
+    from anatase import Instrument, Parameter
+    from anatase.params.vector import ParameterTable
+    from anatase.schemas.structure import MARCH_R_MIN, PreferredOrientation
     from tests.test_coordinates import make_rutile
 
     s = make_rutile()
@@ -411,7 +411,7 @@ def test_the_envelope_no_longer_clamps_flat_below_its_first_knot():
     # half a window inside the data and np.interp clamps flat below it.  On a
     # falling background that clamp is far under the truth and the whole first
     # half-window reads as positive net
-    from pxrdref.background.diagnostics import background_envelope, envelope_measured_span
+    from anatase.background.diagnostics import background_envelope, envelope_measured_span
 
     tt = np.arange(5.0, 60.0, 0.02)
     truth = 1000.0 * np.exp(-(tt - 5.0) / 25.0)      # a falling background
@@ -426,7 +426,7 @@ def test_the_envelope_no_longer_clamps_flat_below_its_first_knot():
 
 
 def test_extrapolating_to_the_edges_only_extends():
-    from pxrdref.background.diagnostics import _extrapolate_to_edges
+    from anatase.background.diagnostics import _extrapolate_to_edges
 
     xs, ys = [2.0, 4.0, 6.0], [10.0, 8.0, 6.0]
     x2, y2 = _extrapolate_to_edges(list(xs), list(ys), 1.0, 7.0)
@@ -442,7 +442,7 @@ def test_a_line_on_extrapolated_background_is_flagged_and_still_usable():
     # report, don't refuse: the component is real intensity, just measured
     # against a background nobody observed, so the flag is deliberately not in
     # PEAK_UNUSABLE_FLAGS and is not a reuse of position_at_bound
-    from pxrdref.schemas.indexing import PEAK_UNUSABLE_FLAGS, PeakFlag
+    from anatase.schemas.indexing import PEAK_UNUSABLE_FLAGS, PeakFlag
 
     assert "background_extrapolated" in get_args(PeakFlag)
     assert "background_extrapolated" not in PEAK_UNUSABLE_FLAGS
@@ -451,7 +451,7 @@ def test_a_line_on_extrapolated_background_is_flagged_and_still_usable():
 def test_the_measured_span_matches_the_envelope_knots():
     # the two must not drift apart: the span is where interpolation happens,
     # which is exactly the first and last window centres
-    from pxrdref.background.diagnostics import envelope_measured_span
+    from anatase.background.diagnostics import envelope_measured_span
 
     tt = np.arange(5.0, 150.0, 0.02)
     lo, hi = envelope_measured_span(tt)
@@ -472,8 +472,8 @@ def _lebail_partition_ratio(n_phases, *, n_cycles=3):
     so every phase claimed the whole excess in its own windows and the ratio
     settled above 1 wherever phases overlap.
     """
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
     from tests.test_qpa import _caf2_phase, make_lab6
 
     s = make_lab6()
@@ -517,9 +517,9 @@ def test_an_unseeded_background_hands_the_pedestal_to_the_reflections():
     # been fitted — so the partition is handed max(y_obs − 0, 0).  This is a
     # caller-protocol requirement (AGENT_PROTOCOL §2), pinned rather than
     # fixed: seeding every background would change where every fit starts
-    from pxrdref.background.auto import auto_background
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
+    from anatase.background.auto import auto_background
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
     from tests.test_qpa import make_lab6
 
     s = make_lab6()
@@ -560,7 +560,7 @@ def test_the_overcount_is_a_fixed_point_not_a_runaway():
 
 
 def _decoded(structure):
-    from pxrdref.params.vector import ParameterTable
+    from anatase.params.vector import ParameterTable
 
     table = ParameterTable(structure,
                            Instrument.debye_scherrer(wavelength=1.5406))
@@ -570,7 +570,7 @@ def _decoded(structure):
 def test_a_single_phase_is_a_hundred_percent_whatever_its_scale_did(tmp_path):
     # the computation should never have been on the critical path here: one
     # phase is 100 % by definition, and the scale is a brightness
-    from pxrdref.optimize.qpa import compute_qpa
+    from anatase.optimize.qpa import compute_qpa
 
     structure = Structure.from_cif(_nacl_cif(tmp_path))
     structure.phases[0].scale.value = 0.0
@@ -583,7 +583,7 @@ def test_a_single_phase_is_a_hundred_percent_whatever_its_scale_did(tmp_path):
 
 
 def test_a_dead_scale_in_a_mixture_returns_no_qpa_rather_than_raising(tmp_path):
-    from pxrdref.optimize.qpa import compute_qpa
+    from anatase.optimize.qpa import compute_qpa
 
     structure = Structure.from_cif(_nacl_cif(tmp_path))
     structure.phases.append(
@@ -597,7 +597,7 @@ def test_a_dead_scale_in_a_mixture_returns_no_qpa_rather_than_raising(tmp_path):
 
 def test_the_missing_qpa_arrives_as_a_diagnostic_naming_the_dead_scales(
         tmp_path):
-    from pxrdref.refine import _qpa_unavailable_diagnostics
+    from anatase.refine import _qpa_unavailable_diagnostics
 
     structure = Structure.from_cif(_nacl_cif(tmp_path))
     structure.phases.append(
@@ -617,8 +617,8 @@ def test_a_stage_that_stopped_on_its_budget_is_surfaced_as_a_diagnostic():
     # StageResult.status has always carried "max_iter"; what was missing is a
     # diagnostic, because the *result's* status is the last stage's and can
     # still read "converged"
-    from pxrdref.refine import _max_iter_diagnostics
-    from pxrdref.schemas.results import StageResult
+    from anatase.refine import _max_iter_diagnostics
+    from anatase.schemas.results import StageResult
 
     def stage(name, status):
         return StageResult(name=name, status=status, n_iterations=1,

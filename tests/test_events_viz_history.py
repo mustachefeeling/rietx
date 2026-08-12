@@ -7,9 +7,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.history.events import EventStream, read_events
-from pxrdref.strategy.staged import Stage
+import anatase as pr
+from anatase.history.events import EventStream, read_events
+from anatase.strategy.staged import Stage
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 OUT = Path(__file__).parent / "output"
@@ -77,7 +77,7 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
     result = ref.fit(synthetic_pattern)
 
     out = tmp_path / "fit.html"
-    from pxrdref.viz import write_html
+    from anatase.viz import write_html
     write_html(result, str(out))
     html = out.read_text(encoding="utf-8")
     assert "plotly" in html.lower()
@@ -98,7 +98,7 @@ def test_write_html_self_contained(tmp_path, synthetic_pattern):
 
 
 def test_figure_from_arrays_weighted_and_raw():
-    from pxrdref.viz.html import figure_from_arrays
+    from anatase.viz.html import figure_from_arrays
 
     tt = np.linspace(10, 60, 500)
     y_calc = 100 + 50 * np.exp(-((tt - 30) ** 2) / 0.05)
@@ -137,7 +137,7 @@ def test_plot_result_weighted_panels(synthetic_pattern):
 
 
 def test_minmax_decimation_keeps_peaks():
-    from pxrdref.viz.html import _minmax_decimate
+    from anatase.viz.html import _minmax_decimate
     tt = np.linspace(0, 100, 50_001)
     y = np.zeros_like(tt)
     y[25_000] = 1e6                             # a single sharp spike
@@ -150,8 +150,8 @@ def test_minmax_decimation_keeps_peaks():
 # live session + watch server
 # ----------------------------------------------------------------------
 def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
-    from pxrdref.viz.live import LiveSession
-    from pxrdref.watch import serve
+    from anatase.viz.live import LiveSession
+    from anatase.watch import serve
 
     structure, ins = perturbed_models()
     live = tmp_path / "live"
@@ -169,7 +169,7 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
         port = server.server_address[1]
         index = urllib.request.urlopen(
             f"http://127.0.0.1:{port}/", timeout=5).read().decode()
-        assert "pxrdref watch" in index and "events.jsonl" in index
+        assert "anatase watch" in index and "events.jsonl" in index
         page = urllib.request.urlopen(
             f"http://127.0.0.1:{port}/fit.html", timeout=5).read()
         assert b"plotly" in page.lower()
@@ -182,7 +182,7 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
 
 
 def test_cli_help_and_html(tmp_path, synthetic_pattern):
-    from pxrdref.cli import main
+    from anatase.cli import main
     assert main(["--help"]) == 0
 
     structure, ins = perturbed_models()

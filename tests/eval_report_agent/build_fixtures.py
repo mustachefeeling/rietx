@@ -23,7 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
-import pxrdref as pr
+import anatase as pr
 from tests.test_fitreport_layers import _truth
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -247,7 +247,7 @@ def _protocol_excerpt(section_prefix: str) -> str:
 _PROMPT = """\
 # Episode {eid} — powder XRD refinement
 
-You are operating the `pxrdref` Rietveld refinement package through its one
+You are operating the `anatase` Rietveld refinement package through its one
 JSON tool call, `agent.refine_json`.  This directory is your workspace:
 
 - `episode.json` — the fixed request core (structure, instrument, pattern).

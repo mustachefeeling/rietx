@@ -2,7 +2,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 // from vitest/config, not vite: it is the one that types the `test` key
 import { defineConfig } from "vitest/config";
 
-// The build output is COMMITTED under src/pxrdref/gui/static, so installing the
+// The build output is COMMITTED under src/anatase/gui/static, so installing the
 // wheel never needs node.  Two consequences shape this config:
 //
 //   * stable filenames, no content hashes — a dist diff has to be reviewable,
@@ -13,7 +13,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [svelte()],
   build: {
-    outDir: "../src/pxrdref/gui/static",
+    outDir: "../src/anatase/gui/static",
     emptyOutDir: true,
     sourcemap: false,
     target: "es2022",

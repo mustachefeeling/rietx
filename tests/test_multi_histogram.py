@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pxrdref import (
+from anatase import (
     Instrument,
     MultiHistogramRefinement,
     Parameter,
@@ -20,9 +20,9 @@ from pxrdref import (
     Refinement,
     refine_multi,
 )
-from pxrdref.model.forward import compile_model
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.instrument import BackgroundChebyshev
+from anatase.model.forward import compile_model
+from anatase.params.vector import ParameterTable
+from anatase.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 TRUE_A = 4.15660

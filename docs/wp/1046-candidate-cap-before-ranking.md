@@ -166,8 +166,8 @@ errors.
 
 ## References
 
-- `src/pxrdref/indexing/engines.py` — `DEFAULT_MAX_CANDIDATES`, `rank_candidates`.
-- `src/pxrdref/indexing/consensus.py` — the merge that re-ranks the survivors.
+- `src/anatase/indexing/engines.py` — `DEFAULT_MAX_CANDIDATES`, `rank_candidates`.
+- `src/anatase/indexing/consensus.py` — the merge that re-ranks the survivors.
 - WP-1026 handover, 2026-08-08 — the measurement and the sweep it came from.
 
 ## Handover log

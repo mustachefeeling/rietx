@@ -8,51 +8,51 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
-- API freeze, PyPI release (name `pxrd-refine` verified available)
+- API freeze, PyPI release (name `anatase` verified available)
 
 ### Inherited
 
 **From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the scope line
 above is superseded, and the ordering is not negotiable.** The project is being
 renamed to **`anatase`** (PyPI, GitHub, import, CLI — one string; availability
-verified 2026-08-12). The parenthetical "name `pxrd-refine` verified available"
+verified 2026-08-12). The parenthetical "name `anatase` verified available"
 is dead: it recorded an availability check with no date, for a name that is
 being retired.
 
 **Why 1062 must land before this WP, not inside or after it.** The freeze covers
-names that embed the current one — `pxrdref.agent`, `pxrdref.gui.textdoc`,
-`pxrdref.report.apply`, the CLI `pxrdref index` / `pxrdref gui`, and the env var
-`PXRDREF_STATE_DIR`. Renaming after the freeze breaks exactly what the freeze
+names that embed the current one — `anatase.agent`, `anatase.gui.textdoc`,
+`anatase.report.apply`, the CLI `anatase index` / `anatase gui`, and the env var
+`ANATASE_STATE_DIR`. Renaming after the freeze breaks exactly what the freeze
 promised. 1062 is scheduled early rather than immediately-before for an
 independent reason: the name surface grew ~40 % in eleven days, so every WP that
 lands after it is born in the new name.
 
 **Three things already parked here that 1062 does *not* take.** They stay this
 WP's, and all three embed the name, so do them *after* the rename: the sdist and
-wheel metadata (which "currently names only pxrd-refine's own licences"), the
+wheel metadata (which "currently names only anatase's own licences"), the
 `classifiers` block, and the `tests/data/qarr/` licence blocker. Add two more to
 the list: there is **no `CITATION.cff`** and **no `@software` entry** in
 `docs/manual/references.bib` — a first public release wants both, and both embed
 the name.
 
-**One decision 1062 leaves to this WP.** `PXRDREF_STATE_DIR` and `~/.pxrdref`
-become `_about.py` constants under the new name; whether the state dir should be
-XDG-aware before it is frozen is still open, and is noted below in the entry
-that raised it.
+**One decision 1062 left to this WP.** `ANATASE_STATE_DIR` and `~/.anatase` are
+now `_about.py` constants (`STATE_DIR_ENV`, `STATE_DIR_NAME`); whether the state
+dir should be XDG-aware before it is frozen is still open, and is noted below in
+the entry that raised it.
 
 **From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the fourth
 lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now
 **0.7**. `RefinementResult.identifiability` gained three additive defaulted
 fields — `top_correlations: list[CorrelationPair]`, `soft_modes:
 list[SoftMode]`, `exchangeability: list[ExchangeRow]` — three new models on
-`pxrdref.schemas.results`, same never-recomputable character 1055's entry
+`anatase.schemas.results`, same never-recomputable character 1055's entry
 below names (read off the final Jacobian), `SCHEMA_VERSION` unmoved.
 `FitReport` gained `identifiability: IdentifiabilityEvidence | None`
 (absent-for-cause only when the result has no channels; its carrier-derived
 fields are individually None when unmeasured — a replay). New exports on
-`pxrdref.report`: `IdentifiabilityEvidence`, `ExchangeFinding`,
+`anatase.report`: `IdentifiabilityEvidence`, `ExchangeFinding`,
 `assess_identifiability`, `identifiability_clause`, `is_exchangeable`. New
-module `pxrdref.optimize.identifiability` whose `EXCHANGE_CANDIDATE_GLOBS`
+module `anatase.optimize.identifiability` whose `EXCHANGE_CANDIDATE_GLOBS`
 and `NULL_IDENTITY` are protocol pinned by test — a freeze decision about
 them is a decision about what every report can say. `check_guards` gained a
 keyword (`scan_exchangeability`, default False — existing callers
@@ -72,9 +72,9 @@ first field on the result whose value cannot be recomputed from the result
 decision about it is a decision about *what a stored result promises*, not
 just about a shape. Both are additive and defaulted, so `SCHEMA_VERSION`
 stays at 0.1 on the WP-1043 events precedent. New exports on
-`pxrdref.report`: `BackgroundEvidence`, `assess_background`,
+`anatase.report`: `BackgroundEvidence`, `assess_background`,
 `background_actions`, `background_clause`, `note_background_crosstalk`,
-`too_flexible`, `too_stiff`; new on `pxrdref.schemas.results`:
+`too_flexible`, `too_stiff`; new on `anatase.schemas.results`:
 `Identifiability`. `GuardReport` gained a seventh field,
 `measured_background_absorption`, which is **not** findings — worth naming in
 the freeze because the six-findings-fields sentence has been the documented
@@ -92,7 +92,7 @@ LeBailGap | None` (a new four-field model — `rwp_rietveld`, `rwp_lebail`,
 model-free reports, a semantics worth a freeze-time doc sentence) and
 `abstained_kind: Literal["immature", "resolution_limited", "unreadable"] |
 None` — a **closed** vocabulary, so adding a kind is a minor version and
-renaming one is breaking. `pxrdref.report.__all__` gained `LeBailGap`,
+renaming one is breaking. `anatase.report.__all__` gained `LeBailGap`,
 `lebail_gap`, `abstention_flavour` and `contents_signature`; nine pinned
 constants joined `report.schemas` (`LEBAIL_GAP_*`, `RESOLUTION_LIMITED_*`,
 `CONTENTS_*`). The summary string now carries up to two extra clauses (gap +
@@ -109,7 +109,7 @@ gained `caveat: str | None` (set when strong unmatched peaks coexist with a
 detection), and `best_axis` is now **always populated** evidence with
 `detected` the only branch field — a consumer that treated `best_axis is
 not None` as detection would silently change meaning, which is worth a
-freeze-time doc sentence. `pxrdref.report.__all__` gained `reindex_action`
+freeze-time doc sentence. `anatase.report.__all__` gained `reindex_action`
 and `cap_texture_crosstalk`. All additive; no `ActionKind` changed meaning.
 
 **From the 2026-08-11 planning session (FitReport design review + 1053
@@ -412,7 +412,7 @@ un-frozen.
 **From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — two more
 surface changes, and unlike `log_sum_scores` below both are wired and load-bearing.**
 
-- **`pxrdref.indexing.engines.match_window(peaks, spec=None, quality=None)`** is a
+- **`anatase.indexing.engines.match_window(peaks, spec=None, quality=None)`** is a
   new public export: the σ(Q) the *search* matched with, which is `q_esd` widened
   by the shift allowance. It exists because `consensus` and `viz.indexing` were
   deriving it two ways and the second was wrong. Freeze it as the **one authority**
@@ -430,7 +430,7 @@ surface, despite being the thing that generates the scoreboard.
 
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — one new public
 export that is deliberately unwired, and the freeze has to decide about it.**
-`pxrdref.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,
+`anatase.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,
 `AGGREGATE_FLOOR_RTOL`) is exported from `fom.__all__` and `indexing/__init__`,
 is tested, and **nothing in the package calls it**: `rank_candidates` still
 aggregates with `borda_scores`. It ships because it is the instrument that
@@ -497,7 +497,7 @@ peak/index route family and `RESERVED_ROUTES` is now empty; on 2026-08-01 it
 grew two more — `POST`/`GET /api/index/extinction` (the WP-1025 screen as a
 fourth run kind, `"extinction"`, in `GuiSession.run`'s vocabulary) — so the
 run-kind set the freeze pins is `fit | stage | index | extinction`. One versioning
-question is deliberately left to you: `peaks.json` (the `.pxrd/` container's
+question is deliberately left to you: `peaks.json` (the `.rex/` container's
 peak-list artifact, `gui/peaks.py`) carries its own internal
 `format_version "1"` and is *not* one of the five contracts `capabilities()`
 quotes — decide at freeze time whether it becomes the sixth or stays a GUI
@@ -522,7 +522,7 @@ usability WP, closed — and the stale number would have read as "already
 satisfied".)
 
 **From WP-1025 (landed 2026-07-30) — new frozen surface, and one decision left
-open on purpose.** `determine_extinction_symbol` is exported from `pxrdref` as a
+open on purpose.** `determine_extinction_symbol` is exported from `anatase` as a
 peer of `index_pattern`, with `ExtinctionCandidate`/`ExtinctionScreen` in
 `schemas/indexing.py`; `ExtinctionScreen.best_or_none()` is the singleton
 accessor and the freeze should cover the *absence* of a `.symbol`/`.space_group`
@@ -547,8 +547,8 @@ exactly the kind of thing a freeze should make a decision about rather than
 inherit: either the schema validates and the two agree, or the difference is
 documented as deliberate.
 
-The surface, all new here and all inside `pxrdref.gui`: the module
-`pxrdref.gui.imports` (`UploadStore`, `MAX_UPLOAD_BYTES`, `UPLOAD_KINDS`,
+The surface, all new here and all inside `anatase.gui`: the module
+`anatase.gui.imports` (`UploadStore`, `MAX_UPLOAD_BYTES`, `UPLOAD_KINDS`,
 `INSTRUMENT_PRESETS`, the `preview_*` functions), `UPLOAD_ROUTES` in `server.py`,
 `GuiSession.upload`, `GuiSession.structure_aniso`, and two additive route
 changes — `GET /api/structure` gained a `sites` arm, and `POST
@@ -565,9 +565,9 @@ it. Both are MIT and unmodified; `ATTRIBUTION.md` now has a *Bundled frontend
 code* section stating it, with `gui/package-lock.json` as the version statement.
 What this WP owes at publication is the packaging half rather than the prose: a
 wheel that redistributes MIT code should carry those licenses, and the sdist/wheel
-metadata currently names only pxrd-refine's own. Worth deciding at the same time
+metadata currently names only anatase's own. Worth deciding at the same time
 whether the `[gui]` extra's description should mention the bundle size, since
-`pip install pxrd-refine[gui]` now pulls ~460 kB of committed assets whether or
+`pip install anatase[gui]` now pulls ~460 kB of committed assets whether or
 not anyone opens the text pane. `tests/test_gui_dist.py` already asserts every
 chunk is *in* the wheel and that none of them names a remote host.
 
@@ -614,7 +614,7 @@ the freeze must cover, and four decisions parked here deliberately:
   (d) `PlanSpec.stages` is permissive (no `min_length`) because it must read
   pre-v1.0 history headers, with the non-empty check living in the agent
   request validator — that asymmetry is intentional and worth a release note.
-- **The HTTP routes and the `.pxt` text format are declared *provisional* at
+- **The HTTP routes and the `.rxt` text format are declared *provisional* at
   v1.0** — schemas frozen, wire/text surfaces not. State this in the release
   notes (WP-1017's `gui-power.md` states it user-facing; this WP states it
   normatively).
@@ -680,8 +680,8 @@ decisions and one new surface:
   Delete or fill; **recommend delete** — the GUI reads the event stream, and
   per-iteration curves in every result would violate the state-not-curves
   rule the history nodes follow.
-- **`[gui]` extra + committed-static wheel audit**: `src/pxrdref/gui/static/`
-  ships in the wheel (hatchling packages `src/pxrdref` wholesale) — audit
+- **`[gui]` extra + committed-static wheel audit**: `src/anatase/gui/static/`
+  ships in the wheel (hatchling packages `src/anatase` wholesale) — audit
   wheel *and* sdist contents for the static assets, `help.json`, and
   `build-info.json`, and decide whether the `gui/` TS workspace is excluded
   from the sdist the same way the tests question above is decided.
@@ -795,7 +795,7 @@ freeze:
   it is a new document with its own failure modes — budget it here, don't
   bolt it onto `docs/manual/`.
 
-From **WP-0602** (agent JSON surface, landed 2026-07-29): **`pxrdref.agent` is
+From **WP-0602** (agent JSON surface, landed 2026-07-29): **`anatase.agent` is
 deliberate public API to freeze** — `refine_json`, `request_schema`,
 `response_schema`, `tool_definition`, the request/response envelope models and
 `ERROR_CODES`.  Two contracts inside it are load-bearing for external
@@ -836,7 +836,7 @@ intact:
   `LeBailValidation`, `IndexingResult`, `ExtinctionCandidate`,
   `ExtinctionScreen`, plus `INDEXING_THRESHOLDS_VERSION` and its pinned
   constants); the `PEAK_*` / `INDEX_*` / `EXTINCTION_*` diagnostic codes; the
-  `agent.py` `index` task; and `pxrdref index` in the CLI.
+  `agent.py` `index` task; and `anatase index` in the CLI.
 - **`IndexingResult` must keep having no unconditional singleton accessor.**
   There is deliberately no `.cell`, `.best` or `.solution`; `candidates` is
   always a list and `best_or_none()` is gated. This is the same species of
@@ -892,7 +892,7 @@ API states about CIF round-tripping has to say that, or narrow the claim.
 From **WP-1008** (GUI server, landed 2026-07-30): three additions to the public
 surface, and one thing that is explicitly *not* frozen.
 
-- New top-level module `pxrdref.gui` exporting `GuiSession`, `GuiError`,
+- New top-level module `anatase.gui` exporting `GuiSession`, `GuiError`,
   `serve`, `build_server`, `main`, `ROUTES`, `RESERVED_ROUTES`, `DEFAULT_PORT`,
   `EVENT_RING`, `RunState`. `GuiSession`'s **methods** are the surface a Tauri or
   notebook driver would use, so they are worth freezing; `gui.server` is
@@ -905,15 +905,15 @@ surface, and one thing that is explicitly *not* frozen.
 - **The HTTP wire surface stays provisional at v1.0**, as the note above from the
   GUI plan already says. The freeze covers the schemas the routes carry (all
   existing pydantic models) and `GuiSession`'s method names, not the paths.
-- New CLI subcommand `pxrdref gui`, and a new env var `PXRDREF_STATE_DIR`
-  (recent-projects store, default `~/.pxrdref`) — the first user-level state this
+- New CLI subcommand `anatase gui`, and a new env var `ANATASE_STATE_DIR`
+  (recent-projects store, default `~/.anatase`) — the first user-level state this
   package has ever written outside a project directory. Worth a README line and a
   decision on whether it should be XDG-aware before it is frozen.
 
 From **WP-1009** (text document, landed 2026-07-30): more surface to weigh, and
 one signature change.
 
-- `pxrdref.gui.textdoc` — `FORMAT_VERSION` (`pxt 1`, its own versioned contract,
+- `anatase.gui.textdoc` — `FORMAT_VERSION` (`rxt 1`, its own versioned contract,
   making **five** in the build rather than the four `capabilities()` reports),
   `VALUE_DIGITS`, `RESERVED_BLOCKS`, `render`, `parse`, `changes`, `apply`,
   `revision`, and the `TextError`/`Row`/`ParsedDocument`/`Delta` dataclasses.
@@ -928,7 +928,7 @@ one signature change.
 From **WP-1010** (frontend scaffold, landed 2026-07-30) — packaging facts the
 freeze has to decide about, all measured:
 
-- **The built frontend ships in the wheel** (`pxrdref/gui/static/{index.html,
+- **The built frontend ships in the wheel** (`anatase/gui/static/{index.html,
   build-info.json,assets/app.js,assets/app.css}`, verified by `uv build --wheel`
   in `tests/test_gui_dist.py`). Hatchling includes it because it is a non-ignored
   file under the package — and the repo-wide `*.html` ignore rule matched
@@ -948,10 +948,10 @@ From **WP-1012** (history/report panels, landed 2026-07-30) — one new module t
 freeze and **three additive-field decisions** that only exist because something
 finally consumed the report mechanically:
 
-- **`pxrdref.report.apply` is new public surface**: `RECIPES` (a
+- **`anatase.report.apply` is new public surface**: `RECIPES` (a
   `dict[ActionKind, Recipe]` classifying every member of the closed vocabulary as
   `stage` / `index` / `advice`), `recipe`, `stage_for`, `api_call`, `unreachable`,
-  `refusal`, `describe_action`, `missing_kinds`. Re-exported from `pxrdref.report`.
+  `refusal`, `describe_action`, `missing_kinds`. Re-exported from `anatase.report`.
   Freeze question: is the *classification* part of the contract, or an
   implementation detail of the GUI? It is the second half of `ActionKind` — a
   vocabulary member whose `how` nobody can read is not actionable — so it probably
@@ -1031,7 +1031,7 @@ From **WP-1029** (GUI usability, landed 2026-07-30):
   stay that way is a freeze decision because it is the JSON contract. Measured
   on a 59 498-point pattern: **9.6 MB** in memory against **2.38 MB** for the
   same numbers as numpy fp64 — a 4× overhead in Python float objects, for arrays
-  that are *never persisted* (a `.pxrd/` holds the pattern file and
+  that are *never persisted* (a `.rex/` holds the pattern file and
   `history.jsonl`; nodes have stored state-not-curves since v0.2). Three of the
   five (`two_theta`, `y_obs`, `sigma`) duplicate the pattern file the project
   already stores byte-for-byte, and the other two are derivable — `refine.replay`

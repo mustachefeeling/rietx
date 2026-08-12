@@ -101,12 +101,12 @@ from typing import Any
 
 import numpy as np
 
-from pxrdref.indexing.engines import SearchSpec
-from pxrdref.indexing.fom import predicted_lines
-from pxrdref.indexing.qspace import af_from_cell, cell_from_af
-from pxrdref.indexing.reduce import reduced_af
-from pxrdref.indexing.workflow import index_pattern
-from pxrdref.schemas.indexing import PeakList
+from anatase.indexing.engines import SearchSpec
+from anatase.indexing.fom import predicted_lines
+from anatase.indexing.qspace import af_from_cell, cell_from_af
+from anatase.indexing.reduce import reduced_af
+from anatase.indexing.workflow import index_pattern
+from anatase.schemas.indexing import PeakList
 from tests import indexing_gallery as gallery
 
 DATA = pathlib.Path(__file__).parent / "data"

@@ -86,7 +86,7 @@ are in.
 
 ```sh
 npm --prefix gui test && npm --prefix gui run check
-npm --prefix gui run build && git diff --exit-code src/pxrdref/gui/static
+npm --prefix gui run build && git diff --exit-code src/anatase/gui/static
 .venv/bin/python -m pytest tests/test_gui_server.py tests/test_gui_dist.py
 .venv/bin/python -m ruff check src tests examples
 ```
@@ -140,7 +140,7 @@ row for the same region; the armed cursor is `col-resize` and returns to
   commit and by every file it touched.
 
   **Gotchas for whoever is next in this file.**
-  - **The fixture's fit is in memory.** A freshly opened `.pxrd` has no result,
+  - **The fixture's fit is in memory.** A freshly opened `.rex` has no result,
     so the plot draws the *raw* pattern — where the relayout handler returns
     early and nothing refetches, so every zoom "works". Five mask configurations
     came back green that way before a network count showed **zero**

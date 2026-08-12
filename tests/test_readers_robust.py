@@ -25,8 +25,8 @@ from pathlib import Path
 
 import pytest
 
-import pxrdref as pr
-from pxrdref.io.readers import identify_format
+import anatase as pr
+from anatase.io.readers import identify_format
 
 DATA = Path(__file__).parent / "data"
 
@@ -172,11 +172,11 @@ def test_a_fixture_with_a_nul_spliced_in_is_refused_rather_than_decoded(
 
 def test_a_directory_is_an_os_error_not_a_confusing_parse(tmp_path):
     """``read_pattern`` is handed paths from a CLI and a project document, and
-    a directory is the commonest wrong one — a ``.pxrd`` project passed where
+    a directory is the commonest wrong one — a ``.rex`` project passed where
     its pattern was meant."""
-    (tmp_path / "project.pxrd").mkdir()
+    (tmp_path / "project.rex").mkdir()
     with pytest.raises(OSError):
-        pr.read_pattern(tmp_path / "project.pxrd")
+        pr.read_pattern(tmp_path / "project.rex")
 
 
 def test_a_missing_file_says_so_before_any_reader_sees_it(tmp_path):

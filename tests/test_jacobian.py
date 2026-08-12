@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import numpy as np
 
-from pxrdref import Instrument, PatternData
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import Atom, Cell, Phase, Structure
+from anatase import Instrument, PatternData
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import _make_jacobian, _make_residual
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_coordinates import make_rutile
 
 
@@ -109,7 +109,7 @@ def test_constrained_adp_dof_columns_match_fd():
 def test_general_position_adp_columns_match_fd():
     """All six components free on a P2₁/c general site, monoclinic cell —
     nothing here is protected by an orthogonal metric or a symmetric R."""
-    from pxrdref.schemas.structure import AnisoU
+    from anatase.schemas.structure import AnisoU
 
     toy = make_p21c_toy()
     toy.phases[0].atoms[1].aniso = AnisoU.from_values(
@@ -158,7 +158,7 @@ def test_dof_absent_in_lebail_jacobian():
 
 def test_p21c_general_site_has_all_six_adp_and_three_coord():
     """The toy structure really exercises the general-position path."""
-    from pxrdref.crystallography.wyckoff import site_constraints
+    from anatase.crystallography.wyckoff import site_constraints
 
     sc = site_constraints("P21/c", (0.23, 0.31, 0.42))
     assert sc.coord_basis.tolist() == np.eye(3, dtype=int).tolist()

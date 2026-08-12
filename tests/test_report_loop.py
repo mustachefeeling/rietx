@@ -14,7 +14,7 @@ executable version of AGENT_PROTOCOL §9's canonical agent loop.
 ``_run_report_loop`` is a measurement instrument, not product: WP-1050's fence
 holds verbatim — *"No automatic stage insertion: the staged runner stays
 preset; suggest() informs a caller (human, GUI, or the agent loop), it does
-not drive."*  Nothing importable from ``pxrdref`` may become an autopilot.
+not drive."*  Nothing importable from ``anatase`` may become an autopilot.
 
 Honest framing for every baseline comparison here: on a synthetic single-cause
 start every other parameter is already at truth, so "the loop freed fewer
@@ -34,11 +34,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.report import predict_then_verify
-from pxrdref.report.apply import recipe
-from pxrdref.report.schemas import FitReport, VerificationOutcome
-from pxrdref.strategy.staged import RefinementPlan, Stage
+import anatase as pr
+from anatase.report import predict_then_verify
+from anatase.report.apply import recipe
+from anatase.report.schemas import FitReport, VerificationOutcome
+from anatase.strategy.staged import RefinementPlan, Stage
 from tests.test_fitreport_layers import _result_for, _truth
 
 _OUT = Path(__file__).parent / "output"
@@ -289,7 +289,7 @@ def _assert_prediction_band(episode: EpisodeResult) -> None:
 def _plot(episode: EpisodeResult, stem: str) -> None:
     """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
     low-angle zoom — Rwp hides locally-bad fits (house convention)."""
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
 
     _OUT.mkdir(exist_ok=True)
     result = episode.ref.result_
@@ -600,7 +600,7 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
     statement about this start being inside the cell stage's basin, not about
     the refusal being wrong.
     """
-    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+    from anatase.report.schemas import IMPURITY_SHIFT_CAP
 
     structure, ins, data = truth
     start = structure.model_copy(deep=True)

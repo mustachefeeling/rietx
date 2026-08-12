@@ -1,4 +1,4 @@
-# pxrd-refine — validation matrix
+# anatase — validation matrix
 
 <!-- GENERATED FILE — do not edit by hand.
      Source: tests/validation_matrix.py

@@ -54,7 +54,7 @@ A44, 368; Sabine, Von Dreele & Jørgensen (1988) *Acta Cryst.* A44, 374. GSAS-II
 
 Extinction is a *physical* (|F|²- and V-coupled) correction, not a geometric
 one, so it gets its own module
-[`model/extinction.py`](../../src/pxrdref/model/extinction.py) (one-physics-per-
+[`model/extinction.py`](../../src/anatase/model/extinction.py) (one-physics-per-
 module, like `profiles/*.py`), not `corrections.py`. Two functions:
 `sabine_extinction(...) → E` (forward) and `sabine_extinction_and_dx(...) →
 (E, dE/dx, x)` (Jacobian support). It is evaluated **inside the emission-line

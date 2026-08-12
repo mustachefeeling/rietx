@@ -188,7 +188,7 @@ This scan's header records `comment1, "robotic collection"` — the mail-in robo
 which takes only those bases. So R = 0.405 mm is the documented standard
 container, not a measurement of this particular tube.
 
-**µR.** With the LaB6 composition and λ = 0.4131280 Å, `pxrdref.estimate_mu_r`
+**µR.** With the LaB6 composition and λ = 0.4131280 Å, `anatase.estimate_mu_r`
 gives µ = 33.7 cm⁻¹ for the crystalline solid, hence
 
 | packing fraction | 0.35 | 0.50 | 0.60 |

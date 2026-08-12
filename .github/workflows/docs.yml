@@ -20,7 +20,7 @@ on:
       - 'CLAUDE.md'
       - 'gui/CLAUDE.md'
       - 'tests/CLAUDE.md'
-      - 'src/pxrdref/gui/CLAUDE.md'
+      - 'src/anatase/gui/CLAUDE.md'
       - 'docs/wp/**'
       - 'docs/milestones/**'
       - 'docs/ROADMAP.md'

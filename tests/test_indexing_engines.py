@@ -23,15 +23,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref.crystallography.symmetry import generate_reflections
-from pxrdref.indexing.dichotomy import (
+from anatase.crystallography.symmetry import generate_reflections
+from anatase.indexing.dichotomy import (
     _inside_domain,
     _pivots,
     _q_bounds,
     axis_swaps,
     search_dichotomy,
 )
-from pxrdref.indexing.engines import (
+from anatase.indexing.engines import (
     DEFAULT_MAX_CANDIDATES,
     DEFAULT_SEARCH_LINES,
     ENGINE_POOL_MULTIPLE,
@@ -48,8 +48,8 @@ from pxrdref.indexing.engines import (
     search_line_order,
     trial_hkl,
 )
-from pxrdref.indexing.qspace import af_from_cell, design_matrix, metric_basis
-from pxrdref.schemas.indexing import METRIC_DOF, PeakList
+from anatase.indexing.qspace import af_from_cell, design_matrix, metric_basis
+from anatase.schemas.indexing import METRIC_DOF, PeakList
 
 LAM = 1.5405929
 
@@ -142,7 +142,7 @@ def assert_same_lattice(found: tuple, true_cell: tuple, *, atol: float = 2e-3):
     back as its a↔c partner and an element-wise comparison would fail on a
     correct answer.
     """
-    from pxrdref.crystallography.lattice import cell_volume
+    from anatase.crystallography.lattice import cell_volume
 
     assert np.allclose(np.sort(found[:3]), np.sort(true_cell[:3]), atol=atol), (
         f"{found} against {true_cell}")
@@ -181,7 +181,7 @@ def test_every_engine_hands_the_merge_a_pool_not_the_reported_cap(engine,
     """
     import sys
 
-    from pxrdref.indexing import engines as eng
+    from anatase.indexing import engines as eng
 
     fn = get_engine(engine)
     module = sys.modules[fn.__module__]
@@ -290,8 +290,8 @@ def test_every_centring_is_a_subset_of_the_primitive_trial_set():
     Asserted here rather than left as folklore in a docstring, because the whole
     completeness claim of the engine rests on it.
     """
-    from pxrdref.indexing.engines import CENTRINGS
-    from pxrdref.indexing.qspace import centring_allows
+    from anatase.indexing.engines import CENTRINGS
+    from anatase.indexing.qspace import centring_allows
 
     primitive = trial_hkl(6, "P")
     assert centring_allows(primitive, "P").all()
@@ -315,9 +315,9 @@ def test_a_centring_that_fits_the_trial_cap_keeps_its_search():
     The widest sets are dropped until the rest fit, and the drop is reported as
     an incomplete search rather than silently.
     """
-    from pxrdref.indexing import dichotomy as D
-    from pxrdref.indexing.engines import effective_shift_allowance
-    from pxrdref.indexing.qspace import sigma_effective
+    from anatase.indexing import dichotomy as D
+    from anatase.indexing.engines import effective_shift_allowance
+    from anatase.indexing.qspace import sigma_effective
 
     peaks, _cell = synthetic_peaks("cubic")
     spec = spec_for("cubic")
@@ -364,7 +364,7 @@ def test_a_box_is_refused_when_its_lines_cannot_take_distinct_reflections():
     share, and measured on the bethanechol monoclinic domain it refused 342 boxes
     of 692 294 (0.0 %) while this one refuses 89.9 % of what reaches it.
     """
-    from pxrdref.indexing.dichotomy import _assignment_possible
+    from anatase.indexing.dichotomy import _assignment_possible
 
     # five lines, but only three reflections between them: every line finds
     # something (the weak test is satisfied) and no injective map exists
@@ -404,8 +404,8 @@ def test_the_largest_observed_d_is_not_a_bound_on_the_axes_at_low_symmetry():
     bounds, which is strictly stronger, and measured on the bethanechol domain
     it accounts for 0.0 % of box deaths.
     """
-    from pxrdref.indexing.dichotomy import MAX_ANGLE_COSINE
-    from pxrdref.indexing.qspace import cell_from_af, design_matrix
+    from anatase.indexing.dichotomy import MAX_ANGLE_COSINE
+    from anatase.indexing.qspace import cell_from_af, design_matrix
 
     af = np.array([1.0, 0.5, 1.0, 0.0, -1.7, 0.0])
     # the cell is inside the domain the search declares, not a pathology
@@ -422,7 +422,7 @@ def test_the_largest_observed_d_is_not_a_bound_on_the_axes_at_low_symmetry():
 
 
 def test_budget_expires_and_a_cancel_token_short_circuits_it():
-    from pxrdref.optimize.cancel import CancelToken
+    from anatase.optimize.cancel import CancelToken
 
     assert not Budget(30.0).expired()
     assert not Budget(0.0).expired(), "zero seconds means no deadline, not none left"
@@ -483,12 +483,12 @@ def test_the_volume_prune_contains_every_lattice_in_the_box():
     ``_inside_domain`` all enforce it), so a bound that cuts them cuts nothing
     reportable.
     """
-    from pxrdref.indexing.dichotomy import (
+    from anatase.indexing.dichotomy import (
         MAX_ANGLE_COSINE,
         _af_interval,
         _det_interval,
     )
-    from pxrdref.indexing.qspace import gstar_from_af
+    from anatase.indexing.qspace import gstar_from_af
 
     rng = np.random.default_rng(1030)
     for system in ("orthorhombic", "monoclinic", "triclinic"):
@@ -533,7 +533,7 @@ def test_the_duplicate_leaf_hash_resolves_every_axis_equally():
     has no relative scale of its own — it is the Cauchy-Schwarz bound its partners
     set, the same scale ``_inside_domain`` measures it against.
     """
-    from pxrdref.indexing.dichotomy import _OFFDIAG_PARTNERS, _SAME_BOX_RTOL, _box_key
+    from anatase.indexing.dichotomy import _OFFDIAG_PARTNERS, _SAME_BOX_RTOL, _box_key
 
     # a long-axis cell: A/C ≈ 10, the regime that made the old key anisotropic
     af = np.asarray(af_from_cell(
@@ -692,8 +692,8 @@ def test_a_system_never_started_is_never_claimed(engine):
     indistinguishable from one truncated after real work.  A pre-set token now
     claims nothing, which is the engine-level half of the three-state reading
     (searched / truncated / not reached) the workflow reports."""
-    from pxrdref.indexing.engines import get_engine
-    from pxrdref.optimize.cancel import CancelToken
+    from anatase.indexing.engines import get_engine
+    from anatase.optimize.cancel import CancelToken
 
     peaks, _cell = synthetic_peaks("cubic")
     token = CancelToken()
@@ -709,7 +709,7 @@ def test_the_probe_cost_is_visible_in_the_stats():
     the worst case and absent from every stat.  When it runs, it now reports
     its seconds; when the search found candidates, it does not run and the key
     is absent — so the key's presence *is* the record that it ran."""
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, _cell = synthetic_peaks("cubic")
     # a volume ceiling below the true cell's leaves nothing to find, cheaply:
@@ -734,7 +734,7 @@ def test_the_index_table_is_distinct_design_rows_not_distinct_hkl():
     since the enumeration goes as (labels)ⁿ that collapse is worth one to two
     orders of magnitude.  Asserted against the invariant computed independently.
     """
-    from pxrdref.indexing.trial_error import index_table
+    from anatase.indexing.trial_error import index_table
 
     rows, hkl, truncated = index_table(metric_basis("cubic"), "P", 2)
     assert not truncated
@@ -753,8 +753,8 @@ def test_allowed_labels_is_the_corner_bound_applied_per_line():
     the lowest line can only carry small-‖m‖ labels, because a large one would need
     an axis longer than ``max_d_axis``.
     """
-    from pxrdref.indexing.dichotomy import _initial_box
-    from pxrdref.indexing.trial_error import allowed_labels, index_table
+    from anatase.indexing.dichotomy import _initial_box
+    from anatase.indexing.trial_error import allowed_labels, index_table
 
     system = "orthorhombic"
     basis = metric_basis(system)
@@ -786,7 +786,7 @@ def test_the_base_pool_must_reach_a_line_with_a_cross_term():
     """
     from itertools import combinations as _combinations
 
-    from pxrdref.indexing.trial_error import BASE_POOL_MIN
+    from anatase.indexing.trial_error import BASE_POOL_MIN
 
     basis = metric_basis("monoclinic")
     peaks, cell = synthetic_peaks("monoclinic")
@@ -810,7 +810,7 @@ def test_the_base_pool_must_reach_a_line_with_a_cross_term():
                                     "trigonal", "orthorhombic"])
 def test_trial_error_recovers_a_known_cell(system):
     """The exact n×n solve, ranked on the same panel dichotomy is ranked on."""
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, cell = synthetic_peaks(system)
     result = search_trial_error(peaks, spec=spec_for(system))
@@ -822,7 +822,7 @@ def test_trial_error_recovers_a_known_cell(system):
 @pytest.mark.slow
 def test_trial_error_recovers_a_monoclinic_cell():
     """~90 s: the 4-D case, recovered as the a↔c setting partner of the truth."""
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, cell = synthetic_peaks("monoclinic")
     result = search_trial_error(peaks, spec=spec_for("monoclinic"))
@@ -840,8 +840,8 @@ def test_trial_error_is_deterministic_and_order_invariant():
     to the same pool.  A reduced cell is compared rather than the raw one, because
     a permuted input may legitimately produce a different *setting*.
     """
-    from pxrdref.indexing.reduce import reduced_af
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.reduce import reduced_af
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, _cell = synthetic_peaks("tetragonal")
     spec = spec_for("tetragonal")
@@ -869,7 +869,7 @@ def test_trial_error_survives_an_impurity_among_the_base_lines():
     ``combinations``, so some base set of size n misses the impurity, and the
     full-list check then rejects every metric fitted to it.
     """
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, cell = synthetic_peaks("tetragonal", impurities=(13.96,))
     result = search_trial_error(peaks, spec=spec_for("tetragonal"))
@@ -889,8 +889,8 @@ def test_the_within_engine_dedup_key_carries_the_scale_and_the_centring():
     the unit statement; the engine-level cost of each is the test below, which is
     where the two compound.
     """
-    from pxrdref.indexing.engines import solution_key
-    from pxrdref.indexing.qspace import af_from_cell
+    from anatase.indexing.engines import solution_key
+    from anatase.indexing.qspace import af_from_cell
 
     # scale: two cubic metrics differing only in scale are different hypotheses,
     # and a scale-*invariant* key maps every cubic cell to one entry
@@ -927,7 +927,7 @@ def test_a_body_centred_cubic_list_survives_the_engines_own_dedup():
     Row one is why the cubic case is the one to test: a one-dimensional metric is
     where scale invariance is total rather than merely lossy.
     """
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks, cell = synthetic_peaks("cubic", sg="I m -3 m",
                                   cell=(6.2, 6.2, 6.2, 90.0, 90.0, 90.0))
@@ -971,7 +971,7 @@ def test_the_c_26_crop_28_construction_is_indexed_at_the_base_table():
     scale (``engines.solution_key``) the truth comes back indexing **78 of 78**,
     and the genuine dominant-row case now lives in its own row below.
     """
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     peaks = _long_axis_peaks(26.0, 28.0, 70.0)
     spec = SearchSpec(systems=("tetragonal",), max_d_axis=34.0,
@@ -1020,7 +1020,7 @@ def test_a_dominant_row_is_raised_from_the_engines_own_experience():
     are the rest of its resilience — a truncated rung 3 is followed by rung 5 with
     a fresh budget and a wider table.
     """
-    from pxrdref.indexing.trial_error import (
+    from anatase.indexing.trial_error import (
         BASE_INDEX_MAX,
         DOMINANT_ZONE_PROBE_LADDER,
         DOMINANT_ZONE_PROBE_SECONDS,
@@ -1052,7 +1052,7 @@ def test_the_two_engines_agree_on_the_same_list():
     error assumes indices and never bounds anything.  Landing on the same lattice
     is therefore evidence, which is the entire premise of the three-engine design.
     """
-    from pxrdref.indexing.trial_error import search_trial_error
+    from anatase.indexing.trial_error import search_trial_error
 
     for system in ("hexagonal", "orthorhombic"):
         peaks, cell = synthetic_peaks(system)
@@ -1080,12 +1080,12 @@ def test_the_shift_allowance_is_assumed_declared_and_reported():
     and falls through to the assumed value — which is the honest answer, since
     that field never was the window.
     """
-    from pxrdref.indexing.engines import (
+    from anatase.indexing.engines import (
         DEFAULT_UNKNOWN_SHIFT_DEG,
         effective_shift_allowance,
         shift_allowance_diagnostic,
     )
-    from pxrdref.schemas.indexing import ShiftScreen
+    from anatase.schemas.indexing import ShiftScreen
 
     plain = SearchSpec()
     assert effective_shift_allowance(plain) == (DEFAULT_UNKNOWN_SHIFT_DEG, True)
@@ -1130,10 +1130,10 @@ def test_a_shift_template_is_fitted_only_after_a_candidate_survives():
     With a template it re-fits the surviving lines including the shift column;
     without one it is the identity.
     """
-    from pxrdref.indexing.engines import refine_with_shift
-    from pxrdref.indexing.qspace import refine_candidate, sigma_effective
-    from pxrdref.indexing.quality import shift_template_basis
-    from pxrdref.schemas.indexing import q_of_two_theta
+    from anatase.indexing.engines import refine_with_shift
+    from anatase.indexing.qspace import refine_candidate, sigma_effective
+    from anatase.indexing.quality import shift_template_basis
+    from anatase.schemas.indexing import q_of_two_theta
 
     _sg, cell, tt_max, _b, _v = CASES["orthorhombic"]
     refl = generate_reflections("P m m m", cell, LAM, tt_max)
@@ -1169,9 +1169,9 @@ def test_a_declared_shift_template_is_not_adjudicated_by_chi_squared():
     support one more parameter the original fit is returned unchanged, because that
     is a statement about the design matrix rather than about the fit.
     """
-    from pxrdref.indexing.engines import refine_with_shift
-    from pxrdref.indexing.qspace import refine_candidate, sigma_effective
-    from pxrdref.schemas.indexing import q_of_two_theta
+    from anatase.indexing.engines import refine_with_shift
+    from anatase.indexing.qspace import refine_candidate, sigma_effective
+    from anatase.schemas.indexing import q_of_two_theta
 
     _sg, cell, tt_max, _b, _v = CASES["orthorhombic"]
     refl = generate_reflections("P m m m", cell, LAM, tt_max)
@@ -1285,7 +1285,7 @@ def test_the_base_pool_is_a_prefix_of_the_selected_search_lines():
     ``engines_disagree``; with the pool drawn from the strongest-N selection both
     engines find it.
     """
-    from pxrdref.indexing.trial_error import BASE_POOL_MIN
+    from anatase.indexing.trial_error import BASE_POOL_MIN
 
     tt = np.linspace(5.0, 60.0, 40)
     inten = np.ones_like(tt)
@@ -1378,7 +1378,7 @@ def test_the_rank_is_applied_within_a_bounded_low_q_pool():
     — which is why SRM 660c's engine agreement survives the bound — and on a long
     list the driven set cannot reach past the pool's own Q ceiling.
     """
-    from pxrdref.indexing.engines import SEARCH_POOL_MULTIPLE
+    from anatase.indexing.engines import SEARCH_POOL_MULTIPLE
 
     n = 10
     spec = SearchSpec(n_search_lines=n)
@@ -1422,8 +1422,8 @@ def assert_finds_lattice(result, true_cell: tuple, *, top: int = 4):
     is CLAUDE.md's rule verbatim, in the one place it bites hardest: *a candidate
     cell is a lattice, not a tuple*.
     """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.reduce import same_lattice
+    from anatase.indexing.qspace import af_from_cell as _af
+    from anatase.indexing.reduce import same_lattice
 
     want = _af(tuple(true_cell))
     assert result.candidates, "no candidate at all"
@@ -1439,7 +1439,7 @@ def assert_finds_lattice(result, true_cell: tuple, *, top: int = 4):
 def test_svd_recovers_a_known_cell(system):
     """The basic job, per system, because cost goes with the metric's degrees of
     freedom and so does the number of random starts Coelho's Table 3 allots."""
-    from pxrdref.indexing.svd import search_svd
+    from anatase.indexing.svd import search_svd
 
     peaks, true_cell = synthetic_peaks(system)
     result = search_svd(peaks, spec=spec_for(system))
@@ -1453,7 +1453,7 @@ def test_svd_recovers_a_monoclinic_cell():
 
     ~84 s and ~9 000 calls to Table 1 on a 10-core M4, against the 900 s runaway
     guard ``spec_for`` declares — a margin, not a timer (``tests/CLAUDE.md``)."""
-    from pxrdref.indexing.svd import search_svd
+    from anatase.indexing.svd import search_svd
 
     peaks, true_cell = synthetic_peaks("monoclinic")
     result = search_svd(peaks, spec=spec_for("monoclinic"))
@@ -1470,7 +1470,7 @@ def test_svd_is_reproducible_from_the_seed_it_reports():
     the first version of this engine was irreproducible in exactly the way the
     seed exists to prevent).
     """
-    from pxrdref.indexing.svd import search_svd
+    from anatase.indexing.svd import search_svd
 
     peaks, _cell = synthetic_peaks("tetragonal")
     spec = spec_for("tetragonal", seed=7)
@@ -1492,8 +1492,8 @@ def test_the_volume_window_brackets_the_truth_and_never_excludes_it():
     may not exclude the true cell** (WP-1019's envelope lesson), so a probe that
     learns nothing must widen to everything rather than guess.
     """
-    from pxrdref.crystallography.lattice import cell_volume
-    from pxrdref.indexing.svd import volume_window
+    from anatase.crystallography.lattice import cell_volume
+    from anatase.indexing.svd import volume_window
 
     for system in ("cubic", "tetragonal", "hexagonal", "trigonal"):
         peaks, true_cell = synthetic_peaks(system)
@@ -1516,9 +1516,9 @@ def test_nc_counts_distinct_lines_because_an_hkl_count_refuses_the_truth():
     ``N_c/N_o ≤ 4`` then refuses the *certified* cell outright.  This asserts the
     gap is real on a LaB6-like cell rather than trusting the reading.
     """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.qspace import design_matrix as _dm
-    from pxrdref.indexing.svd import NC_NO_HI, _predicted
+    from anatase.indexing.qspace import af_from_cell as _af
+    from anatase.indexing.qspace import design_matrix as _dm
+    from anatase.indexing.svd import NC_NO_HI, _predicted
 
     peaks, true_cell = synthetic_peaks("cubic")
     spec = spec_for("cubic")
@@ -1550,9 +1550,9 @@ def test_one_line_beyond_the_lattice_needs_the_trim_retry():
     Asserted here where it is deterministic — started **at** the truth, the loop
     cannot hold it with the wild line in and can with the trim budget on.
     """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.reduce import same_lattice
-    from pxrdref.indexing.svd import svd_iterate
+    from anatase.indexing.qspace import af_from_cell as _af
+    from anatase.indexing.reduce import same_lattice
+    from anatase.indexing.svd import svd_iterate
 
     system = "cubic"
     _sg, true_cell, tt_max, _b, _v = CASES[system]
@@ -1601,8 +1601,8 @@ def test_the_zero_error_column_is_the_derivative_of_q_by_two_theta():
     difference rather than against the algebra, because the algebra is what is
     in doubt: they agree to 5e-10 relative over 10-90° 2θ.
     """
-    from pxrdref.indexing.qspace import q_of_two_theta
-    from pxrdref.indexing.svd import zero_error_column
+    from anatase.indexing.qspace import q_of_two_theta
+    from anatase.indexing.svd import zero_error_column
 
     tt = np.linspace(10.0, 90.0, 9)
     h = 1e-5
@@ -1626,9 +1626,9 @@ def test_a_zero_error_is_absorbed_by_one_pass_and_removed_by_three(ze):
     +1400 ppm measured on corundum).  Here it is the search's own inner loop
     rather than the acceptance fit, and the remedy is Coelho's, not ours.
     """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.reduce import equal_reduced, reduced_af
-    from pxrdref.indexing.svd import svd_iterate, svd_trial
+    from anatase.indexing.qspace import af_from_cell as _af
+    from anatase.indexing.reduce import equal_reduced, reduced_af
+    from anatase.indexing.svd import svd_iterate, svd_trial
 
     system = "monoclinic"
     peaks, true_cell = _shifted_case(system, ze)
@@ -1663,8 +1663,8 @@ def test_the_first_pass_carries_no_zero_error_and_no_impurity_cut():
     with both switched off :func:`svd_trial` must be exactly one call to Table 1
     — not merely similar to one.
     """
-    from pxrdref.indexing.qspace import af_from_cell as _af
-    from pxrdref.indexing.svd import svd_iterate, svd_trial
+    from anatase.indexing.qspace import af_from_cell as _af
+    from anatase.indexing.svd import svd_iterate, svd_trial
 
     system = "tetragonal"
     peaks, true_cell = synthetic_peaks(system)
@@ -1702,7 +1702,7 @@ def test_the_measured_zero_error_never_writes_the_reported_cell():
     rather than the rule under test — measured, a 0.05° shift on a 2-parameter
     tetragonal metric absorbs to well inside 0.5 %.
     """
-    from pxrdref.indexing.svd import search_svd
+    from anatase.indexing.svd import search_svd
 
     system = "tetragonal"
     injected = 0.05

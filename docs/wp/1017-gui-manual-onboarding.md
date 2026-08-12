@@ -15,17 +15,17 @@ real UI.
   guards (`tests/test_manual.py`); a separate doc root would need its own
   guard set for no benefit. Three layered chapters matching the audience
   gradient:
-  - `gui-quickstart.md` — install (`pip install pxrd-refine[gui]`) → open →
+  - `gui-quickstart.md` — install (`pip install anatase[gui]`) → open →
     fit → read the report.
   - `gui-guide.md` — panel by panel, including *when to branch* (the
     history worktree is the differentiator; teach the workflow, not just
     the buttons).
-  - `gui-power.md` — the **normative `.pxt` text-format spec**,
+  - `gui-power.md` — the **normative `.rxt` text-format spec**,
     keyboard/palette, and the console-to-script transition — the API-echo
     story as the on-ramp to the Python API.
 - The manual's anti-divergence rules apply and are executable
   (`tests/test_manual.py`): fenced constants are MyST substitutions
-  injected from the live package in `docs/manual/conf.py` — **the pxt
+  injected from the live package in `docs/manual/conf.py` — **the rxt
   format version becomes a fenced constant injected from
   `gui.textdoc.FORMAT_VERSION`**, so a format bump that misses the manual
   fails the build. A new fenced constant needs a `conf.py` line *and* a use
@@ -39,24 +39,27 @@ real UI.
 
 ### Inherited
 
-**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the package is
-being renamed to `anatase`, and this WP writes the most user-visible prose in
-the repo.** If 1062 has not landed when you start, **do not hand-write the name
-into new manual pages, screenshots or onboarding copy** — every literal you add
-is a file 1062 has to sweep, and its audit (`git grep -i pxrd`) is exact only
-because the token appears nowhere as ordinary vocabulary. Where you need the
-name in code, import it from `_about.py` (`DIST_NAME`) rather than writing a
-literal; the CLI, the `.pxrd` suffix and the `.pxt` header are all changing too,
-and the format tokens are being decoupled from the brand, so they will *not*
-simply become `.anatase`.
+**From [1062](1062-rename-to-anatase.md), landed 2026-08-12 — the rename is
+done, and this WP writes the most user-visible prose in the repo.** The
+distribution, the import and the CLI are all `anatase`; the **format tokens are
+deliberately not** — a project directory is `.rex`, the text document `.rxt`
+(header `rxt N`), and an instrument profile is tagged plain
+`instrument_profile`, because those are versioned contracts and a contract must
+not move when a brand does. So do not write `.anatase` anywhere, and where you
+need the name in code import it from `_about.py` (`DIST_NAME`,
+`PROJECT_SUFFIX`, `TEXTDOC_MAGIC`) rather than spelling a literal.
+`tests/test_no_stale_name.py` fails on a reintroduction of the old name, but it
+greps the **old** token only — it cannot tell you that a *new* literal should
+have been an import.
 
 One thing that lands on this WP permanently: **anatase is also a phase this
 software analyses** (0 occurrences today, but `rutile` — the other TiO₂
 polymorph — appears 168 times in the QPA test data, and anatase/rutile is the
 canonical QPA pair). The manual and onboarding copy need a disambiguation
 convention from the first public page: the phase as `anatase (TiO₂)`, the
-package in code formatting. Screenshots are the expensive half — take them
-after 1062, not before.
+package in code formatting. Screenshots are the expensive half, and 1062 has
+landed, so they can be taken now — every panel, title bar and wizard hint
+already reads the new name.
 
 **From [1051](1051-sequential-escalation.md), closed 2026-08-09 — the Series
 tab's status column has four chips now, and two of them are new words.** A
@@ -209,7 +212,7 @@ one is not this WP's to state:
 
 - **Right-click removes a line**, refit is the peak table's `↻`, and the
   component-count prompt is gone from the app entirely (the count survives only
-  through the `.pxt` peaks block). The plot now prints the four gestures
+  through the `.rxt` peaks block). The plot now prints the four gestures
   whenever the Peaks tab is up, each naming its non-pointer route — so the
   manual's job there is to *not* repeat that line, and to explain the one thing
   the screen cannot: why every pointer verb has a typed twin.
@@ -259,7 +262,7 @@ opening two sentences, and one thing the screen cannot say:
   described the values the model no longer holds — so the workflow to teach is
   *edit → Run → compare*, not *edit → watch*. The manual is the only place this
   can be said; the app can only show the empty state's own "Press Run".
-- **Two widths are worth quoting once** (measured, 1034 task 1): the `.pxt`
+- **Two widths are worth quoting once** (measured, 1034 task 1): the `.rxt`
   document's editable columns need 546 px and its comments 756, and the atom
   table needs 472 — which is why the Text and Model tabs get a wider column, or
   `Full`, when a rectangular selection or an eight-column table is the job.
@@ -274,7 +277,7 @@ write the panel-by-panel chapter until those land.** All four change controls
 this chapter documents, and one of them ([1034](1034-panel-layout.md)) moves
 Model and Text out of full-window modes and into right-panel tabs — which
 rewrites the paragraph the WP-1029 note below asks for, and with it the
-"[ Plot | Model | Text ]" sentence. The quickstart and the `.pxt` spec chapter
+"[ Plot | Model | Text ]" sentence. The quickstart and the `.rxt` spec chapter
 are unaffected and can be written now. Three things those WPs will hand over
 that a manual must state: the peak picker's **right-click will remove** a line
 rather than refit its group (refit moves to the table's `↻`), the plot gains
@@ -302,7 +305,7 @@ indexing surface, and it is gesture-driven — the manual must name the
 gestures.** The Peaks tab plus four plot interactions (click empty = add a
 peak, drag a marker = move, shift-click = exclude/overrule, right-click = refit
 the group), each with a non-pointer route that the docs should surface for
-accessibility: a typed add-at-2θ box in the panel, and the `.pxt` peaks block
+accessibility: a typed add-at-2θ box in the panel, and the `.rxt` peaks block
 whose only editable columns are `2theta` and `flags` (everything else derived
 and refused). Three reading rules worth a paragraph each: `not_separable` lines
 render distinct rather than hidden (the fitter's own explanation of a strong
@@ -419,7 +422,7 @@ From **WP-1013** (landed 2026-07-30): the **text pane** is the surface this manu
 has the most to explain, and three of its facts are not discoverable from the UI.
 It is a *mode*, not a tab — the header's `Text` button and the palette's `t` — so a
 chapter that walks the tabs will miss it entirely. `⌥`-drag is a **rectangular
-selection**, which is the entire reason the `.pxt` format aligns its columns, and
+selection**, which is the entire reason the `.rxt` format aligns its columns, and
 the pane's footer says so in one line that a manual should expand rather than
 repeat. And **a re-render discards the user's own comments**: the pane warns when
 the buffer has gained comment lines, but the flow ("apply, then re-read") wants
@@ -427,7 +430,7 @@ stating once, properly.
 
 `textdoc.FORMAT_VERSION` is still owed to this WP as a **fenced constant**
 (WP-1009's own note says a bump that misses the manual must fail the docs build),
-and the `.pxt` grammar chapter should quote `gui/src/lib/pxt.ts`'s token
+and the `.rxt` grammar chapter should quote `gui/src/lib/rxt.ts`'s token
 vocabulary rather than restating it — that array is already pinned to
 `textdoc._KEYWORDS` by `test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`,
 so a manual that quotes it inherits the guard.
@@ -486,7 +489,7 @@ Testing (load → the parameter table's first row), so "it feels instant" is a c
 this chapter may make.
 
 From the **v1.0 GUI plan** (2026-07-29): `gui-power.md` is where the
-provisional status of the HTTP routes and `.pxt` format is stated
+provisional status of the HTTP routes and `.rxt` format is stated
 user-facing (schemas frozen at v1.0, wire/text surfaces provisional) —
 WP-1003 states it in the release notes; this chapter is the other half.
 
@@ -501,7 +504,7 @@ distinguish these" is sayable, and a user who reads that as a bug will go
 looking for a setting to force an answer.
 
 From **WP-1009** (text document, landed 2026-07-30): `gui.textdoc.FORMAT_VERSION`
-is the fenced constant this WP was asked to inject into the manual (the `pxt 1`
+is the fenced constant this WP was asked to inject into the manual (the `rxt 1`
 header line), and `gui.textdoc.VALUE_DIGITS` is worth injecting beside it — the
 manual has to state that the text view renders **12 significant digits and is
 lossy**, and why that is safe (a typed number is compared against the rendered
@@ -532,7 +535,7 @@ and plotly is served from the installed package rather than bundled, which is wh
 
 - [ ] `gui-quickstart.md` + toctree wiring; builds `-W`-clean.
 - [ ] `gui-guide.md` — panel by panel, when-to-branch workflow section.
-- [ ] `gui-power.md` — normative `.pxt` spec with `FORMAT_VERSION` as a
+- [ ] `gui-power.md` — normative `.rxt` spec with `FORMAT_VERSION` as a
       fenced constant (conf.py line + chapter use), keyboard/palette table,
       console-to-script story.
 - [ ] `static/help.json` + tooltip wiring + "learn more" anchors;

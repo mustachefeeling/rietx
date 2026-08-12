@@ -11,8 +11,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, MultiHistogramRefinement, Refinement, refine
-from pxrdref.optimize.least_squares import SOLVERS
+from anatase import Instrument, MultiHistogramRefinement, Refinement, refine
+from anatase.optimize.least_squares import SOLVERS
 from tests.test_refine_synthetic import (
     TRUE_A,
     TRUE_ZERO,
@@ -103,7 +103,7 @@ def test_multi_histogram_entry_point_takes_the_solver(pattern):
 def test_sequential_takes_the_solver(pattern):
     """The series runner builds one Refinement per pattern; the solver must
     survive that construction or a series silently reverts to scipy."""
-    from pxrdref import SequentialRefinement, refine_sequential
+    from anatase import SequentialRefinement, refine_sequential
 
     structure, ins = perturbed_models()
     with pytest.raises(ValueError, match="unknown solver"):
@@ -124,7 +124,7 @@ def test_constraint_active_diagnostic_units():
     """
     from types import SimpleNamespace
 
-    from pxrdref.refine import _constraint_diagnostics
+    from anatase.refine import _constraint_diagnostics
 
     quiet = _constraint_diagnostics("sample_profile", SimpleNamespace(
         n_constraint_truncations=0))
@@ -142,9 +142,9 @@ def test_constraint_active_diagnostic_units():
 
 def test_outcome_records_which_driver_ran(pattern):
     """``LSQOutcome.solver`` is what a benchmark or a record field reads."""
-    from pxrdref.model.forward import compile_model
-    from pxrdref.optimize.least_squares import run_least_squares
-    from pxrdref.params.vector import ParameterTable
+    from anatase.model.forward import compile_model
+    from anatase.optimize.least_squares import run_least_squares
+    from anatase.params.vector import ParameterTable
 
     structure, ins = perturbed_models()
     model = compile_model(structure, ins, pattern, mode="rietveld")

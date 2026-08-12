@@ -5,7 +5,7 @@ Depends on: WP-1004, WP-1005
 
 ## Goal
 
-A line-oriented text rendering of the project (`.pxt`) with a single
+A line-oriented text rendering of the project (`.rxt`) with a single
 server-side parser: `render(session state) → text` and `parse(text) → delta +
 errors`, deltas applied as the same public verbs the forms use. The format
 lands **before** the editor pane (WP-1013) so it is settled independently of
@@ -19,7 +19,7 @@ CodeMirror.
   fixed; blocks scope dot-path prefixes; `#` comments round-trip. Example:
 
   ```
-  pxt 1
+  rxt 1
   project "NAC 11-BM"
   pattern "11BM_NAC.fxye"            # sha256 9f3ac2…  45,001 pts  3.0–155.0°
   mode rietveld
@@ -49,7 +49,7 @@ CodeMirror.
   verb, plan PUT), so a text apply shows up in the console as API calls and
   in history as nodes — identical to a form edit. All-or-nothing: any error
   in the delta applies none of it.
-- `src/pxrdref/gui/textdoc.py` carries `FORMAT_VERSION` (the `pxt 1` line);
+- `src/anatase/gui/textdoc.py` carries `FORMAT_VERSION` (the `rxt 1` line);
   WP-1017 injects it into the manual as a fenced constant, so a format bump
   that misses the manual fails the build.
 - **The parser lives only in Python.** The frontend gets a regex highlighter
@@ -129,12 +129,12 @@ methods to `GuiSession` — no routing work. Three things that shape the format:
 
 - No editor, no CodeMirror, no sync engine (WP-1013).
 - No three-way merge — CAS conflict is a 409, full stop.
-- No reading `.pxt` as a project interchange format (the project *is* the
-  `.pxrd/` dir; the text pane is a view).
+- No reading `.rxt` as a project interchange format (the project *is* the
+  `.rex/` dir; the text pane is a view).
 
 ## Tasks
 
-- [x] `src/pxrdref/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
+- [x] `src/anatase/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
       `parse → (delta, errors)` with 1-based line numbers on every error.
 - [x] Delta application through the WP-1004 verbs, all-or-nothing;
       locked/tied refused with the verb's own message + line number.

@@ -19,9 +19,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pxrdref import Instrument, PatternData, Refinement
-from pxrdref.crystallography.lattice import d_spacings
-from pxrdref.crystallography.stephens import (
+from anatase import Instrument, PatternData, Refinement
+from anatase.crystallography.lattice import d_spacings
+from anatase.crystallography.stephens import (
     S_EXPONENTS,
     S_NAMES,
     isotropic_coefficients,
@@ -31,24 +31,24 @@ from pxrdref.crystallography.stephens import (
     strain_basis,
     strain_width_deg,
 )
-from pxrdref.crystallography.symmetry import (
+from anatase.crystallography.symmetry import (
     generate_reflections,
     get_spacegroup,
     rotation_matrices,
 )
-from pxrdref.model.forward import compile_model
-from pxrdref.optimize.least_squares import _make_jacobian, _make_residual
-from pxrdref.params.vector import ParameterTable
-from pxrdref.schemas.common import Parameter
-from pxrdref.schemas.structure import (
+from anatase.model.forward import compile_model
+from anatase.optimize.least_squares import _make_jacobian, _make_residual
+from anatase.params.vector import ParameterTable
+from anatase.schemas.common import Parameter
+from anatase.schemas.structure import (
     Atom,
     Cell,
     Phase,
     StephensStrain,
     Structure,
 )
-from pxrdref.strategy.staged import RefinementPlan, Stage
-from pxrdref.viz.plots import plot_result
+from anatase.strategy.staged import RefinementPlan, Stage
+from anatase.viz.plots import plot_result
 
 OUT = Path(__file__).parent / "output"
 
@@ -436,8 +436,8 @@ def test_seed_never_overwrites_a_deliberate_starting_model():
 
 
 def test_guard_flags_coefficients_outside_the_physical_cone():
-    from pxrdref.refine import _guard_diagnostics
-    from pxrdref.strategy.staged import GuardReport, check_stephens_positive
+    from anatase.refine import _guard_diagnostics
+    from anatase.strategy.staged import GuardReport, check_stephens_positive
 
     good = _brucite_coef(600.0)
     model, table = _compiled(_strain_from_coef(good, vary=False))

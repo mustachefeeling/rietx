@@ -31,7 +31,7 @@ restated here or it is lost.
 
 - **Import the fp32 bars, do not restate them.** WP-0403 exports
   `COLUMN_REL_L2_MAX = 2e-2` and `COLUMN_COSINE_MIN = 0.999` from
-  `pxrdref.backend.linalg64`, together with
+  `anatase.backend.linalg64`, together with
   `column_agreement(J_ref, J_test) -> (worst rel-L2, worst cosine)`, which
   already skips transform-floor-dead columns. Re-declaring those numbers in
   `tests/test_cross_backend.py` would be the exact drift this WP exists to

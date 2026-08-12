@@ -18,7 +18,7 @@ planning (2026-07-24) found the mismatch has a single mechanical cause, and
 that cause additionally breaks a guard. **Both findings were verified
 numerically**, not just read.
 
-`covariance_estimates` ([`optimize/least_squares.py`](../../src/pxrdref/optimize/least_squares.py),
+`covariance_estimates` ([`optimize/least_squares.py`](../../src/anatase/optimize/least_squares.py),
 end of file) does:
 
 ```python
@@ -35,7 +35,7 @@ Measured on a synthetic collinear case with BL = 5.18: correlation diagonal
 Two consequences follow:
 
 1. **Reported physical esds are effectively RAW.** `stderr_physical`
-   ([`params/vector.py`](../../src/pxrdref/params/vector.py)) rebuilds
+   ([`params/vector.py`](../../src/anatase/params/vector.py)) rebuilds
    `cov_phys = correlation · outer(s, s)` with `s = chain · stderr_internal`
    and `stderr_internal` already ×BL. The `1/BL²` inside `correlation`
    cancels the `BL²` in `outer(s, s)` **exactly** (verified: physical esd ≡
@@ -49,7 +49,7 @@ Two consequences follow:
    today the same parameter gets a different esd depending on whether a
    correlation matrix was available.
 2. **The high-correlation guard is dead.** `check_guards`
-   ([`strategy/staged.py`](../../src/pxrdref/strategy/staged.py)) thresholds
+   ([`strategy/staged.py`](../../src/anatase/strategy/staged.py)) thresholds
    `|corr[i,j]| > 0.98`, but every entry is ÷BL² (÷12 at BL ≈ 3.4, ÷27 at
    5.2), so a genuinely degenerate ρ = 0.99 pair reports ≈ 0.08 and never
    trips. Masked because the only guard tests assert it does *not* fire
@@ -64,7 +64,7 @@ From **WP-0306** (Pawley, landed): **there is a second esd path.**
 `run_least_squares` computes the covariance over the *augmented* vector
 [table θ | per-hkl intensities], then splits it — table esds to
 `LSQOutcome.stderr_internal`, intensity esds to `model.pawley.stderr`
-([`optimize/least_squares.py`](../../src/pxrdref/optimize/least_squares.py),
+([`optimize/least_squares.py`](../../src/anatase/optimize/least_squares.py),
 the `n_aux` tail). That tail never passes through `stderr_physical`, so it does
 **not** get the `1/BL²`-cancellation described above — it is raw for a
 different reason. Whatever this WP decides, decide it for both paths and say

@@ -14,8 +14,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref.crystallography.symmetry import get_spacegroup
-from pxrdref.crystallography.wyckoff import (
+from anatase.crystallography.symmetry import get_spacegroup
+from anatase.crystallography.wyckoff import (
     adp_basis,
     coordinate_basis,
     site_constraints,
@@ -175,7 +175,7 @@ def test_cell_constraints_reproduce_the_operators_for_every_gemmi_setting():
     """
     import gemmi
 
-    from pxrdref.crystallography.symmetry import cell_constraints
+    from anatase.crystallography.symmetry import cell_constraints
 
     lengths, angles = ("a", "b", "c"), ("alpha", "beta", "gamma")
     checked = 0

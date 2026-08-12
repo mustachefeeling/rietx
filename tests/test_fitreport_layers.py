@@ -12,17 +12,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.model.forward import compile_model
-from pxrdref.params.vector import ParameterTable
-from pxrdref.report import (
+import anatase as pr
+from anatase.model.forward import compile_model
+from anatase.params.vector import ParameterTable
+from anatase.report import (
     apply_strategy_veto,
     build_report,
     delta_bic,
     hamilton_justified,
     predict_then_verify,
 )
-from pxrdref.report.schemas import LEBAIL_GAP_NOTABLE, VALIDITY_RADIUS_FWHM
+from anatase.report.schemas import LEBAIL_GAP_NOTABLE, VALIDITY_RADIUS_FWHM
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 1.5405929
@@ -46,7 +46,7 @@ def _truth(lo=18.0, hi=125.0, step=0.02, seed=17):
     on top of the pattern, so that the unperturbed model reproduces the data
     to within counting noise and Layer 1 has a mature fit to work from.
     """
-    from pxrdref.schemas.instrument import BackgroundChebyshev
+    from anatase.schemas.instrument import BackgroundChebyshev
 
     structure = make_lab6()
     structure.phases[0].scale.value = 4e-4
@@ -78,9 +78,9 @@ def _result_for(structure, ins, data):
     model = compile_model(structure, ins, data, mode="rietveld")
     values = table.decode(table.x0())
     y_calc = model.evaluate(values)
-    from pxrdref.optimize.statistics import compute_statistics
-    from pxrdref.schemas.common import Provenance
-    from pxrdref.schemas.results import RefinementResult
+    from anatase.optimize.statistics import compute_statistics
+    from anatase.schemas.common import Provenance
+    from anatase.schemas.results import RefinementResult
 
     stats = compute_statistics(model.y_obs, y_calc, model.sigma, n_free=0,
                                y_background=model.background(values))
@@ -447,7 +447,7 @@ def test_veto_helper_is_pure_annotation():
 # texture → typed action (the WP-0307 orphan, claimed by WP-0602)
 # ----------------------------------------------------------------------
 def _texture(detected=True, r2=0.82, runner_r2=0.1, **kw):
-    from pxrdref.report import TextureAnalysis
+    from anatase.report import TextureAnalysis
 
     # best_axis is always populated since WP-1054 (evidence, not a verdict);
     # ``detected`` alone decides whether an action is emitted
@@ -460,7 +460,7 @@ def _texture(detected=True, r2=0.82, runner_r2=0.1, **kw):
 
 
 def test_texture_action_emitted_only_when_detected():
-    from pxrdref.report import texture_actions
+    from anatase.report import texture_actions
 
     assert texture_actions([]) == []
     assert texture_actions([_texture(detected=False)]) == []
@@ -475,7 +475,7 @@ def test_texture_action_emitted_only_when_detected():
 
 
 def test_texture_action_ambiguous_axis_caps_confidence():
-    from pxrdref.report import texture_actions
+    from anatase.report import texture_actions
 
     (action,) = texture_actions([_texture(runner_r2=0.75)])
     assert action.confidence <= 0.4
@@ -484,7 +484,7 @@ def test_texture_action_ambiguous_axis_caps_confidence():
 
 
 def test_texture_action_is_vetoed_by_a_plan_that_frees_r():
-    from pxrdref.report import texture_actions
+    from anatase.report import texture_actions
 
     actions = texture_actions([_texture()])
     out = apply_strategy_veto(actions, pr.RefinementPlan.mccusker_structural())
@@ -520,7 +520,7 @@ def test_plot_for_vlm_writes_png_only(tmp_path, truth):
     report = _report_for(structure, perturbed, data)
 
     # rebuild the bare result for plotting
-    from pxrdref.viz.plots import plot_for_vlm
+    from anatase.viz.plots import plot_for_vlm
     ref = pr.Refinement(structure, perturbed, history=False)
     result = ref.fit(data, plan=pr.RefinementPlan(stages=[
         pr.Stage("bkg", ["instrument.background.*"])]))
@@ -549,7 +549,7 @@ _OUT = Path(__file__).parent / "output"
 def _plot_state(structure, ins, data, stem):
     """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
     low-angle zoom — house convention: Rwp hides locally-bad fits."""
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
 
     result, _, _ = _result_for(structure, ins, data)
     _OUT.mkdir(exist_ok=True)
@@ -561,8 +561,8 @@ def _plot_state(structure, ins, data, stem):
 def _broad_truth(lor_size, seed=17):
     """The `_truth` recipe with Lorentzian size broadening in the *data*, so
     the unperturbed model matches the broad peaks exactly."""
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
 
     structure, ins, _ = _truth(seed=seed)
     structure = structure.model_copy(deep=True)
@@ -596,7 +596,7 @@ def test_wrong_cell_abstained_leads_with_reindex(truth):
     invitation an on-haiku consumer quoted verbatim in WP-1053's pilot.  Now
     the abstained branch leads with the position-family pointer and the
     impurity call is capped, evidence intact on both."""
-    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+    from anatase.report.schemas import IMPURITY_SHIFT_CAP
 
     structure, ins, data = truth
     perturbed = structure.model_copy(deep=True)
@@ -639,7 +639,7 @@ def test_broad_peak_lobes_cap_impurity_without_reindex():
     validity failures here are saturated-fit artefacts (4 of 12 misfitting
     regions, below the widespread-failure fraction; the true shift is inside
     the validity radius of these broad peaks)."""
-    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+    from anatase.report.schemas import IMPURITY_SHIFT_CAP
 
     structure, ins, data = _broad_truth(0.6)
     perturbed = ins.model_copy(deep=True)
@@ -885,7 +885,7 @@ def test_lebail_gap_mechanics(truth):
     are flipped and must come back bit-exact (the model keeps serving the
     session).  In Le Bail mode the gap is absent for cause — None, never a
     fabricated 1.0."""
-    from pxrdref.report import lebail_gap
+    from anatase.report import lebail_gap
 
     structure, ins, data = truth
     result, model, values = _result_for(structure, ins, data)
@@ -906,7 +906,7 @@ def test_lebail_gap_mechanics(truth):
 def _fit_and_report(structure, start_ins, data, stem, plan="mccusker_default",
                     zoom=(18.0, 45.0)):
     """One staged fit to convergence, its report, and the house PNGs."""
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
 
     ref = pr.Refinement(structure, start_ins)
     result = ref.fit(data, plan=plan)
@@ -930,7 +930,7 @@ def test_exchange_candidate_families_are_pinned():
     """The scan's family list and null table are protocol, not tuning: a
     session that widens them changes what every report can say, so both are
     pinned here (WP-1056 'family list documented and pinned by test')."""
-    from pxrdref.optimize.identifiability import EXCHANGE_CANDIDATE_GLOBS, NULL_IDENTITY
+    from anatase.optimize.identifiability import EXCHANGE_CANDIDATE_GLOBS, NULL_IDENTITY
 
     assert EXCHANGE_CANDIDATE_GLOBS == [
         "instrument.zero_shift",
@@ -961,7 +961,7 @@ def test_final_jacobian_is_undamped(truth):
     the accepted solution — asserted against a fresh evaluation at
     ``outcome.theta``, which a Marquardt-damped or stale-iterate matrix would
     not reproduce."""
-    from pxrdref.optimize.least_squares import _make_jacobian, run_least_squares
+    from anatase.optimize.least_squares import _make_jacobian, run_least_squares
 
     structure, ins, data = _truth()
     structure = structure.model_copy(deep=True)
@@ -984,8 +984,8 @@ def test_e2_converged_report_names_the_exchange(truth):
     table in the WP handover) and before this WP the *converged* report
     carried no trace of it.  Now the summary names the pair and the row
     carries the evidence: R² = 0.9999 with the partner 128σ from its null."""
-    from pxrdref.report import is_exchangeable
-    from pxrdref.report.schemas import EXCHANGE_PARTNER_MIN_SIGNIFICANCE, EXCHANGEABLE_MIN_R2
+    from anatase.report import is_exchangeable
+    from anatase.report.schemas import EXCHANGE_PARTNER_MIN_SIGNIFICANCE, EXCHANGEABLE_MIN_R2
 
     structure, ins, data = truth
     start = ins.model_copy(deep=True)
@@ -1042,7 +1042,7 @@ def test_e8_short_window_reports_the_collinear_triangle():
     null but exchangeable with the held zero (R² = 1.0000), the
     displacement↔cell soft mode, and the u/v/w combination below comment
     threshold — the evidence for ``ambiguous`` in a *converged* report."""
-    from pxrdref.strategy.staged import RefinementPlan, Stage
+    from anatase.strategy.staged import RefinementPlan, Stage
 
     structure, ins, data = _truth(lo=20.0, hi=56.0, seed=23)
     start = ins.model_copy(deep=True)
@@ -1083,7 +1083,7 @@ def test_identifiability_carrier_is_additive(truth):
     """A pre-1056 carrier (background table only) still validates, and the
     new fields round-trip through JSON — the additive-field rule the class
     docstring pins to SCHEMA_VERSION staying put."""
-    from pxrdref.schemas.results import CorrelationPair, ExchangeRow, Identifiability, SoftMode
+    from anatase.schemas.results import CorrelationPair, ExchangeRow, Identifiability, SoftMode
 
     old = Identifiability(background_absorption={"phases.0.scale": 0.1})
     assert old.top_correlations == [] and old.exchangeability == []

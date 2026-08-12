@@ -20,7 +20,7 @@ where an edit most obviously wants a before/after.
 
 **This re-opens a decision that was taken twice, on grounds that were sound.**
 WP-1013 made the text pane a mode over the whole window because five tabs
-already filled the sidebar and its content is line-oriented — the `.pxt` columns
+already filled the sidebar and its content is line-oriented — the `.rxt` columns
 are aligned precisely so a rectangular selection can hit one field, which a
 340-560 px sidebar undoes. WP-1014 made the model pane a mode for two further
 reasons: an atom table is eight columns wide, and it is the only pane that must
@@ -48,7 +48,7 @@ behind it, and to say so if they contradict it:
   readable, on NAC (four species, aniso) rather than on a two-atom cell.
 - Whether the atom table fits at **560 px**, the current `clamp` ceiling, and at
   the 72 % `max-width`.
-- The `.pxt` document's natural column width — the format is column-aligned by
+- The `.rxt` document's natural column width — the format is column-aligned by
   design, so the number is the longest rendered line on a real project, not a
   guess.
 
@@ -86,7 +86,7 @@ clamp ceiling leaves 88 px spare, and the 72 % `max-width` is 1080 / 864 / 720 /
 619 px at the four windows — all above 472. What the *default* cannot do is
 reach 472 below a ~1245 px window (38 % of the window ≥ 472).
 
-**3 · The `.pxt` document has two widths, and only the larger one is the
+**3 · The `.rxt` document has two widths, and only the larger one is the
 comments'**: 165 lines, 12 px `ui-monospace` at 7.3 px/char, 47 px gutter. The
 **editable columns** — everything left of the trailing `#`, which is what a
 rectangular selection has to hit — are at most 69 chars, **546 px with the
@@ -96,7 +96,7 @@ their comment; at 456 px, 60 lines lose an editable column; at 340 px, 85 do.
 Comments stop scrolling only past 720 px.
 
 **Verdict: the tabs decision stands, and it acquires a condition.** WP-1013's
-argument was that a 340–560 px sidebar undoes the `.pxt` alignment; measured,
+argument was that a 340–560 px sidebar undoes the `.rxt` alignment; measured,
 that is true at the 340 px floor and **false at the 560 px ceiling**, where every
 field a rectangular selection needs is on screen. Both panes therefore work as
 tabs *at the ceiling and above*, and neither works at the floor — which is what
@@ -175,7 +175,7 @@ windows, and what the Model pane's reflow is for.
 - [x] **Recon**: the three measurements above, on NAC, at 1500/1200/1000/860 px.
       Write the numbers into this file. If they contradict the tabs decision,
       stop and report rather than shipping a cramped tab. — § "The recon,
-      measured": 472 px for the Model tab, 546/756 px for the `.pxt` document's
+      measured": 472 px for the Model tab, 546/756 px for the `.rxt` document's
       two widths, and the decision stands with a condition.
 - [x] **Tab-strip overflow** settled first — scroll, wrap, or a grouped
       overflow control — with a mount test that a hidden tab is still reachable.
@@ -273,7 +273,7 @@ the thing this package refuses everywhere else.
 
   **Done.** Task 1's three measurements are in § "The recon, measured" and they
   *narrowed* the user's decision rather than contradicting it — 472 px for the
-  Model tab, 546 px for the `.pxt` document's editable columns and 756 for its
+  Model tab, 546 px for the `.rxt` document's editable columns and 756 for its
   comments, against a sidebar that clamps at 340–560 and drags to 72 %. Then:
   eight tabs with a wrapping strip; Model and Text as always-mounted tabs; the
   full-window mode generalised from *two private modes* to *the column
@@ -324,6 +324,6 @@ the thing this package refuses everywhere else.
   **The strongest argument for the change is not aesthetic.** Every other panel
   is beside the plot; the two that are not are the two where an edit most wants
   a before/after. The strongest argument against is still WP-1013's and it has
-  not been refuted, only made measurable: the `.pxt` format's columns are
+  not been refuted, only made measurable: the `.rxt` format's columns are
   aligned so a rectangular selection can hit one field, and a narrow pane undoes
   that. Both of those sentences should survive into the manual.

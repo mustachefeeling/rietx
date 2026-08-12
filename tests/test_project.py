@@ -15,8 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.project import PROJECT_JSON
+import anatase as pr
+from anatase.project import PROJECT_JSON
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 OUT = Path(__file__).parent / "output"
@@ -72,7 +72,7 @@ def _create(root: Path, pattern_file: Path, **kw) -> pr.Project:
 @pytest.fixture(scope="module")
 def fitted_project(tmp_path_factory, pattern_file):
     """One real refinement inside a project, shared by the resume tests."""
-    project = _create(tmp_path_factory.mktemp("fitted") / "sample.pxrd", pattern_file)
+    project = _create(tmp_path_factory.mktemp("fitted") / "sample.rex", pattern_file)
     result = project.fit(plan=SHORT)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / "project_container.png"))
@@ -81,7 +81,7 @@ def fitted_project(tmp_path_factory, pattern_file):
 
 # ------------------------------------------------------------------ layout
 def test_create_writes_the_documented_layout(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file, ui={"disclosure": "simple"})
+    project = _create(tmp_path / "s.rex", pattern_file, ui={"disclosure": "simple"})
 
     assert sorted(p.name for p in project.path.iterdir()) == [
         "exports", "history.jsonl", "live", "project.json", "synth.xye"]
@@ -95,15 +95,15 @@ def test_create_writes_the_documented_layout(tmp_path, pattern_file):
 
 
 def test_create_refuses_to_write_over_a_project(tmp_path, pattern_file):
-    _create(tmp_path / "s.pxrd", pattern_file)
+    _create(tmp_path / "s.rex", pattern_file)
     with pytest.raises(FileExistsError, match="open it instead"):
-        _create(tmp_path / "s.pxrd", pattern_file)
+        _create(tmp_path / "s.rex", pattern_file)
 
 
 def test_missing_pattern_file_is_named(tmp_path):
     structure, ins = perturbed_models()
     with pytest.raises(FileNotFoundError, match="pattern file not found"):
-        pr.Project.create(tmp_path / "s.pxrd", pattern=tmp_path / "nope.xy",
+        pr.Project.create(tmp_path / "s.rex", pattern=tmp_path / "nope.xy",
                           structure=structure, instrument=ins)
 
 
@@ -114,7 +114,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     The bounds live in the history node here, not in ``project.json`` — which is
     the point of the split — so this exercises both files in one open.
     """
-    project = _create(tmp_path / "s.pxrd", pattern_file, plan="mccusker_default",
+    project = _create(tmp_path / "s.rex", pattern_file, plan="mccusker_default",
                       mode="rietveld", two_theta_limits=(4.0, 22.0),
                       excluded_regions=[(7.5, 8.0)], ui={"panels": ["plot", "params"]})
     project.save()
@@ -142,12 +142,12 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
 
 
 def test_open_accepts_the_document_path(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     assert pr.Project.open(project.path / PROJECT_JSON).path == project.path
 
 
 def test_save_never_rewrites_the_pattern_or_the_log(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     before = {p.name: p.read_bytes() for p in project.path.iterdir() if p.is_file()}
     project.doc.ui["zoom"] = [10.0, 20.0]
     project.save()
@@ -167,7 +167,7 @@ def test_esd_column_survives_the_copy(tmp_path, pattern, pattern_file):
     original file's — the reason the pattern is copied verbatim rather than
     re-serialised (CLAUDE.md, Weights).
     """
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     original = pr.read_pattern(pattern_file)
     copied = project.data
 
@@ -182,13 +182,13 @@ def test_esd_column_survives_the_copy(tmp_path, pattern, pattern_file):
 def test_a_pattern_without_esds_says_so(tmp_path, tmp_path_factory, pattern):
     plain = _write_xye(tmp_path_factory.mktemp("plain") / "noesd.xy", pattern,
                        with_sigma=False)
-    project = _create(tmp_path / "s.pxrd", plain)
+    project = _create(tmp_path / "s.rex", plain)
     assert project.data_ref.has_sigma is False
     assert project.data.sigma is None
 
 
 def test_edited_pattern_file_is_refused(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     copied = project.path / project.data_ref.filename
     copied.write_text(copied.read_text(encoding="utf-8") + "99.0 1.0 1.0\n",
                       encoding="utf-8")
@@ -204,7 +204,7 @@ def test_same_bytes_parsed_differently_is_reported_as_a_reader_change(
     the state a reader change would produce: the bytes are what they always
     were, the numbers are not.
     """
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     doc_path = project.path / PROJECT_JSON
     raw = json.loads(doc_path.read_text(encoding="utf-8"))
     raw["patterns"][0]["fingerprint"] = "0" * 32
@@ -224,8 +224,8 @@ def test_history_recorded_against_another_pattern_is_refused(
     mine = _write_xye(tmp_path_factory.mktemp("mine") / "a.xye", pattern)
     other = _write_xye(tmp_path_factory.mktemp("other") / "b.xye",
                        synthesize(noise_seed=99))
-    project = _create(tmp_path / "s.pxrd", mine)
-    stranger = _create(tmp_path / "t.pxrd", other)
+    project = _create(tmp_path / "s.rex", mine)
+    stranger = _create(tmp_path / "t.rex", other)
 
     (project.path / "history.jsonl").write_bytes(
         (stranger.path / "history.jsonl").read_bytes())
@@ -234,25 +234,25 @@ def test_history_recorded_against_another_pattern_is_refused(
 
 
 def test_missing_history_log_is_refused(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     (project.path / "history.jsonl").unlink()
     with pytest.raises(FileNotFoundError, match="holds the model state"):
         pr.Project.open(project.path)
 
 
 def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     doc_path = project.path / PROJECT_JSON
     raw = json.loads(doc_path.read_text(encoding="utf-8"))
     raw["format_version"] = "2"
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="another version of pxrd-refine"):
+    with pytest.raises(ValueError, match="another version of anatase"):
         pr.Project.open(project.path)
 
 
 def test_multi_pattern_projects_are_refused_not_truncated(tmp_path, pattern_file):
     """The ``patterns`` list is the multi-histogram seam, not a feature yet."""
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     doc_path = project.path / PROJECT_JSON
     raw = json.loads(doc_path.read_text(encoding="utf-8"))
     raw["patterns"].append(dict(raw["patterns"][0]))
@@ -274,7 +274,7 @@ def test_the_pdcif_block_is_recorded_and_replayed(tmp_path):
     """
     cif = DATA / "nist_srm660c_100a.cif"
     structure, ins = perturbed_models()
-    project = pr.Project.create(tmp_path / "cert.pxrd", pattern=cif,
+    project = pr.Project.create(tmp_path / "cert.rex", pattern=cif,
                                 structure=structure, instrument=ins,
                                 reader_options={"block": "_calc"})
 
@@ -294,7 +294,7 @@ def test_settings_drive_the_convenience_verbs(tmp_path, pattern_file):
     one = pr.RefinementPlan(stages=[
         pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                  max_iter=5)])
-    project = _create(tmp_path / "s.pxrd", pattern_file, plan=one,
+    project = _create(tmp_path / "s.rex", pattern_file, plan=one,
                       two_theta_limits=(4.0, 20.0))
     result = project.fit()
 
@@ -309,7 +309,7 @@ def test_run_stage_uses_the_documents_mode_before_any_fit(tmp_path, pattern_file
     before the first run is the ``"rietveld"`` default — so the mode a project
     selected has to be passed explicitly, and this is the test that says so.
     """
-    project = _create(tmp_path / "s.pxrd", pattern_file, mode="lebail")
+    project = _create(tmp_path / "s.rex", pattern_file, mode="lebail")
     result = project.run_stage(
         pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                  max_iter=5))
@@ -318,7 +318,7 @@ def test_run_stage_uses_the_documents_mode_before_any_fit(tmp_path, pattern_file
 
 
 def test_set_excluded_regions_updates_document_and_data(tmp_path, pattern_file):
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     project.set_excluded_regions([(6.0, 6.5)])
     assert project.doc.excluded_regions == [(6.0, 6.5)]
     assert project.data.excluded_regions == [(6.0, 6.5)]
@@ -333,7 +333,7 @@ def test_an_unrun_edit_is_in_the_log_before_any_save(tmp_path, pattern_file):
     immediately — which is what settles the WP-1004 question of whether a project
     edited without running anything has state no history node describes.
     """
-    project = _create(tmp_path / "s.pxrd", pattern_file)
+    project = _create(tmp_path / "s.rex", pattern_file)
     project.refinement.set_vary("instrument.zero_shift", True)
     project.refinement.set_values({"phases.0.cell.a": 4.16})
 
@@ -388,7 +388,7 @@ def test_a_project_reopens_on_the_scan_it_was_created_from(tmp_path):
     replays.
     """
     structure, ins = perturbed_models()
-    proj = pr.Project.create(tmp_path / "high.pxrd",
+    proj = pr.Project.create(tmp_path / "high.rex",
                              pattern=DATA / "rigaku_multiscan.ras",
                              structure=structure, instrument=ins,
                              reader_options={"scan": 1})
@@ -398,6 +398,6 @@ def test_a_project_reopens_on_the_scan_it_was_created_from(tmp_path):
     assert ref.options == {"scan": "1"}                # dict[str, str] on disk
     assert proj.data.two_theta == [20.0, 20.5, 21.0]
 
-    reopened = pr.Project.open(tmp_path / "high.pxrd")
+    reopened = pr.Project.open(tmp_path / "high.rex")
     assert reopened.data.two_theta == [20.0, 20.5, 21.0]
     assert reopened.doc.patterns[0].fingerprint == ref.fingerprint

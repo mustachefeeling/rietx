@@ -24,7 +24,7 @@ const state = (over: Partial<RunState["run"]> = {}, s: RunState["state"] = "runn
     error: null,
     ...over,
   },
-  project: "/tmp/x.pxrd",
+  project: "/tmp/x.rex",
   head: "n0003",
 });
 

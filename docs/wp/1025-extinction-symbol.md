@@ -129,7 +129,7 @@ no centring factor the envelope *excluded* corundum's true volume, 125 Å³ agai
       check answers a different question from the one the plan gave it** — see
       the handover log.
 - [x] `ExtinctionCandidate`, `ExtinctionScreen` in `schemas/indexing.py`;
-      `determine_extinction_symbol` public entry + `pxrdref/__init__.py`
+      `determine_extinction_symbol` public entry + `anatase/__init__.py`
       export.
 - [x] Diagnostics: `EXTINCTION_GROUPS_NOT_SEPARABLE` (always, when >1 group),
       `EXTINCTION_SYMBOL_AMBIGUOUS`, `EXTINCTION_FORBIDDEN_INTENSITY` (plus
@@ -187,7 +187,7 @@ powder data cannot support one.
 
 - **2026-07-29** — created from the indexing plan.
 - **2026-07-30** — **landed.** `determine_extinction_symbol(data, candidate,
-  instrument) → ExtinctionScreen` is exported from `pxrdref`, tested in
+  instrument) → ExtinctionScreen` is exported from `anatase`, tested in
   `tests/test_extinction_symbol.py` (27 tests, 8.6 s, 4 of them `slow`), and
   documented in AGENT_PROTOCOL §7e. Done / in flight / next / gotchas:
 

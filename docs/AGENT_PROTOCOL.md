@@ -1,6 +1,6 @@
 # Refinement protocol for agents
 
-**Audience: an LLM agent driving `pxrdref` to refine real powder diffraction
+**Audience: an LLM agent driving `anatase` to refine real powder diffraction
 data.** Not a tutorial and not an API reference — a *protocol*: what to do, in
 what order, what to check before believing a number, and where this package
 will tell you that your answer is wrong even though it looks right.
@@ -486,8 +486,8 @@ afterwards as fractions of the crystalline content you did model.
 ### 7b. Peak picking and indexing (`PeakList.diagnostics`,
 `DataQualityReport.diagnostics`)
 
-These arrive from `pxrdref.pick_peaks` and
-`pxrdref.indexing.assess_peak_list`, *before* any refinement exists — so they
+These arrive from `anatase.pick_peaks` and
+`anatase.indexing.assess_peak_list`, *before* any refinement exists — so they
 are read on the peak list, not on a `RefinementResult`.
 
 | Code | What it means you must not do |
@@ -516,7 +516,7 @@ are read on the peak list, not on a `RefinementResult`.
 ### 7c. The answer's own diagnostics (`IndexingResult.diagnostics`, and each
 candidate's)
 
-These arrive from `pxrdref.index_pattern`. **Statements about one candidate live
+These arrive from `anatase.index_pattern`. **Statements about one candidate live
 on that candidate** (`result.candidates[i].diagnostics`); statements about the
 result live on the result. `INDEX_ABSTAINED` names the top candidate's caveats,
 which is the pointer from one level to the other — so read both, and start at the
@@ -537,7 +537,7 @@ result.
 
 ### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
 
-These arrive from `pxrdref.determine_extinction_symbol`, which runs *after* a cell
+These arrive from `anatase.determine_extinction_symbol`, which runs *after* a cell
 is in hand and answers the next question — which systematic absences the pattern
 shows. Same split as §7c: a refutation lives on the class it refutes.
 
@@ -577,7 +577,7 @@ for d in result.diagnostics:
         a, b = d.where          # the degenerate pair, as dot-paths
 ```
 
-And ask the package what it can do rather than assuming: `pxrdref.capabilities()`
+And ask the package what it can do rather than assuming: `anatase.capabilities()`
 returns the live registries — backends (with whether each optional dependency is
 importable *on this machine*), solvers, plan presets with their `when_to_use`
 text, modes, anodes, the pattern formats `read_pattern` opens, and the four
@@ -607,7 +607,7 @@ stream on the event ladder as the run goes (`events=`), so the useful answer
 usually arrives seconds in, long before the run ends. `preset="full"` is the
 unbounded pre-1.0 behaviour — reach for it when a quick run reports truncated
 or not-reached systems and the answer may live there. For the arithmetic, ask
-`pxrdref.indexing.engines.estimate_ceiling(spec)` (CLI: `pxrdref index
+`anatase.indexing.engines.estimate_ceiling(spec)` (CLI: `anatase index
 --ceiling`): `budget_seconds` (default 30) is per **(engine × system)**, the
 worst case is that arithmetic plus the probe plus per-fit validation (measured
 0.6–44 s each), against measured typicals an order of magnitude lower, because
@@ -634,9 +634,9 @@ worked example — you suspect the specimen is isostructural with calcite
 (R -3 c, a = 4.99 Å, c = 17.06 Å):
 
 ```python
-idx = pxrdref.index_pattern(
+idx = anatase.index_pattern(
     peaks, data=data, instrument=instrument,
-    spec=pxrdref.indexing.SearchSpec(
+    spec=anatase.indexing.SearchSpec(
         prior_cells=((4.99, 4.99, 17.06, 90.0, 90.0, 120.0),),
         prior_spacegroups=("R -3 c",)))   # trigonal jumps the queue; the
                                           # centring steers the prior's check
@@ -652,25 +652,25 @@ final list is the one you would have had anyway, plus the record that the
 prior was tried.
 
 ```python
-peaks  = pxrdref.pick_peaks(data, instrument)           # fitted positions + σ
-report = pxrdref.indexing.assess_peak_list(peaks)       # fit to index at all?
+peaks  = anatase.pick_peaks(data, instrument)           # fitted positions + σ
+report = anatase.indexing.assess_peak_list(peaks)       # fit to index at all?
 if not report.supports_indexing:
     ...                        # abstention. Do not spend a budget (§6)
 
-idx  = pxrdref.index_pattern(peaks, data=data, instrument=instrument)
+idx  = anatase.index_pattern(peaks, data=data, instrument=instrument)
 cell = idx.best_or_none()
 if cell is None:
     ...                        # read confidence_caveats; do NOT take candidates[0]
 
-phase = pxrdref.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
-result = pxrdref.refine(data, phase, instrument, mode="lebail",
+phase = anatase.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
+result = anatase.refine(data, phase, instrument, mode="lebail",
                         plan="profile_only")
 
-screen = pxrdref.determine_extinction_symbol(data, cell, instrument)
+screen = anatase.determine_extinction_symbol(data, cell, instrument)
 klass  = screen.best_or_none()          # an extinction *class*, never one group
 if klass is not None:
     # any member fits the data equally well — that is what the class means
-    phase = pxrdref.indexing.structure_from_candidate(
+    phase = anatase.indexing.structure_from_candidate(
         cell, space_group=klass.space_groups[0])
 ```
 
@@ -738,7 +738,7 @@ it measurably does on magnetite's rival, whose fit buys a negative background
 — §7c's row), and never a thing to score on. Result-wide: what the search
 covered (`systems_searched` + `search_complete`) against what the list
 supports (`systems_supported`). The visual check is part of the answer, not
-documentation of it: `pxrdref.viz.plot_indexing(result, peaks, data=...,
+documentation of it: `anatase.viz.plot_indexing(result, peaks, data=...,
 instrument=...)` draws the ranked tick rows and the Le Bail panel from the
 result alone.
 
@@ -1112,8 +1112,8 @@ there than excluding the scales.
 
 ## 9c. One JSON call from a tool loop
 
-`pxrdref.agent.refine_json(dict) → dict` wraps the four entry points for a
-tool-calling agent, and `pxrdref.agent.tool_definition()` returns a
+`anatase.agent.refine_json(dict) → dict` wraps the four entry points for a
+tool-calling agent, and `anatase.agent.tool_definition()` returns a
 ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
 vocabularies from the live registries.  Four tasks: `"refine"` (one pattern →
 `result` + the FitReport), `"refine_multi"` (one joint residual — its
@@ -1151,7 +1151,7 @@ If you have a lab pattern, a CIF and no other information, this is the sequence
 to run and the checks to make. Adapt, do not skip the checks.
 
 ```python
-import pxrdref as pr
+import anatase as pr
 
 data       = pr.read_pattern("sample.xy")
 structure  = pr.Structure.from_cif("phase.cif")
@@ -1212,8 +1212,8 @@ its protocol is not a measurement.
   "Outputs & fit assessment" section is the agent-native design record)
 - [`ROADMAP.md`](ROADMAP.md) — what is implemented, what is fenced
 - `tests/data/README.md` — provenance and reference values for every dataset
-- `pxrdref compare` — browser UI comparing refinement settings side by side on
-  the bundled standards (`src/pxrdref/viz/compare.py` is its registry, and a
+- `anatase compare` — browser UI comparing refinement settings side by side on
+  the bundled standards (`src/anatase/viz/compare.py` is its registry, and a
   usable API on its own: `compare.run("zincite", "dispersion")`). Its
   cumulative-Δχ² panel is the machine-readable form of §8.1's rule — it shows
   *where* a correction acted, not just whether Rwp moved

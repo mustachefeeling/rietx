@@ -843,7 +843,7 @@
           <label class="inline">
             <span class="muted tiny">directory</span>
             <input class="mono wide" bind:value={wiz.path}
-              placeholder="/path/to/my_sample.pxrd" />
+              placeholder="/path/to/my_sample.rex" />
           </label>
           <div class="grid">
             <label class="cell"><span class="muted">mode</span>

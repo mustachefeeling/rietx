@@ -17,9 +17,9 @@ The relation (Hill & Howard 1987): for phase p with Rietveld scale S_p,
 
 where Z = formula units per cell, M = formula mass, V = cell volume. All three
 are already derivable from the refined model: V from
-[`crystallography/lattice.py`](../../src/pxrdref/crystallography/lattice.py),
+[`crystallography/lattice.py`](../../src/anatase/crystallography/lattice.py),
 M and Z from the phase's atom list + site multiplicities
-([`crystallography/symmetry.py`](../../src/pxrdref/crystallography/symmetry.py))
+([`crystallography/symmetry.py`](../../src/anatase/crystallography/symmetry.py))
 — **do not ask the user to type Z·M·V by hand**; that is the GUI-era ritual
 this package exists to remove. Occupancies enter M (a partially occupied site
 weighs less), so compute M from the *refined* occupancies, not the formula
@@ -32,14 +32,14 @@ fenced to v2; say so in the docstring and in the report field.
 
 Uncertainty propagation: W_p is a ratio of correlated refined scales, so
 σ(W_p) must come from the scale block of the covariance matrix (the full
-Cov is available in [`optimize/least_squares.py`](../../src/pxrdref/optimize/least_squares.py)),
+Cov is available in [`optimize/least_squares.py`](../../src/anatase/optimize/least_squares.py)),
 not from σ(S_p) treated as independent. Carry the Bérar-Lelann inflation
 through — the reported esds elsewhere in the package do, and a QPA number with
 a differently-conditioned uncertainty would be inconsistent.
 
 Result surface: a typed pydantic object (JSON round-trip, `extra="forbid"`)
 hanging off `RefinementResult` in
-[`schemas/results.py`](../../src/pxrdref/schemas/results.py) — one row per
+[`schemas/results.py`](../../src/anatase/schemas/results.py) — one row per
 phase with W, σ(W), Z, M, V, S. WP-0309 exports it as a table; WP-0305 adds
 the Brindley correction as an adjustment to the same object.
 
@@ -90,7 +90,7 @@ independent-scale propagation (assert the correlated path is being used).
      cell mass Z·M from orbit multiplicities via `expand_positions`), and
      `weight_fractions` (Hill-Howard ratio + correlated/independent σ).
   2. `PhaseQuantity`/`QuantitativePhaseAnalysis` schema (re-exported from
-     `pxrdref.schemas`) + optional `RefinementResult.qpa`.
+     `anatase.schemas`) + optional `RefinementResult.qpa`.
   3. `ParameterTable.physical_covariance` + `_cov_free`/`_phys_sigma_free`
      (factored out of `stderr_physical`); `compute_qpa`; wired into
      `_build_result` (Rietveld only — Le Bail scales are degenerate).

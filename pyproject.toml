@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pxrd-refine"
+name = "anatase"
 # Tracks the ROADMAP milestone in flight, not the last one shipped: v0.6 is
 # recorded in docs/milestones/v0.6.md and v1.0 is open.  This string is stamped
 # into every RefinementResult's Provenance and every history node, so a stale
@@ -13,7 +13,7 @@ description = "API-first, differentiable Rietveld refinement of powder X-ray dif
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "pxrd-refine developers" }]
+authors = [{ name = "anatase developers" }]
 keywords = ["rietveld", "powder-diffraction", "xrd", "crystallography", "refinement"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -33,7 +33,7 @@ dependencies = [
 [project.optional-dependencies]
 viz = ["matplotlib>=3.8", "plotly>=5.20"]
 # the GUI server (WP-1008+) serves plotly.js out of this package; the built
-# frontend assets are committed under src/pxrdref/gui/static, so installing
+# frontend assets are committed under src/anatase/gui/static, so installing
 # the extra never needs node
 gui = ["plotly>=5.20"]
 baselines = ["pybaselines>=1.1"]
@@ -54,7 +54,7 @@ docs = [
 dev = [
     # the docs extra rides along so tests/test_manual.py actually builds the
     # theory manual in the standard suite instead of importorskip-ing out
-    "pxrd-refine[docs]",
+    "anatase[docs]",
     "pytest>=8",
     "pytest-cov",
     # `-n auto --dist loadgroup` is how the suite is meant to be run; the
@@ -68,13 +68,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yue-here/pxrd-refine"
+Homepage = "https://github.com/yue-here/anatase"
 
 [project.scripts]
-pxrdref = "pxrdref.cli:main"
+anatase = "anatase.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pxrdref"]
+packages = ["src/anatase"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

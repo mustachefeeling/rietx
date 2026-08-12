@@ -22,10 +22,10 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-import pxrdref as pr
-from pxrdref.gui import GuiSession
-from pxrdref.gui import textdoc as td
-from pxrdref.schemas.plan import StageSpec
+import anatase as pr
+from anatase.gui import GuiSession
+from anatase.gui import textdoc as td
+from anatase.schemas.plan import StageSpec
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -37,7 +37,7 @@ pytestmark = pytest.mark.xdist_group("textdoc")
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def pattern_file(tmp_path_factory):
-    return _write_xye(tmp_path_factory.mktemp("pxt-data") / "synth.xye", synthesize())
+    return _write_xye(tmp_path_factory.mktemp("rxt-data") / "synth.xye", synthesize())
 
 
 def _project(root: Path, pattern_file: Path, **kw) -> pr.Project:
@@ -49,7 +49,7 @@ def _project(root: Path, pattern_file: Path, **kw) -> pr.Project:
 
 @pytest.fixture
 def project(tmp_path, pattern_file):
-    return _project(tmp_path / "doc.pxrd", pattern_file)
+    return _project(tmp_path / "doc.rex", pattern_file)
 
 
 def _edit(text: str, path: str, replacement: str, *, which: int | None = None) -> str:
@@ -104,7 +104,7 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     bounds swallowed them, because ``= 0.1993 + 1·…`` contains spaces and has to
     run to the end of the line.
     """
-    project = _project(tmp_path / "shapes.pxrd", pattern_file,
+    project = _project(tmp_path / "shapes.rex", pattern_file,
                        mode="lebail", two_theta_limits=(4.0, 22.0),
                        excluded_regions=[(7.5, 8.0), (19.0, 19.5)])
     text = td.render(project)
@@ -128,7 +128,7 @@ def test_the_phase_header_states_its_symmetry_and_stays_read_only(project):
     """WP-1035: the symbol the document could not say, as a rendered comment.
 
     A comment, not a field, and that is the rule rather than an omission — the
-    ``.pxt`` editable surface is parameters and settings, a symbol change is a
+    ``.rxt`` editable surface is parameters and settings, a symbol change is a
     whole-model edit behind a preview gate, and a second authority on a phase's
     symmetry is what this module forbids.  Through the same mechanism the atom
     rows already use, so the format version does not move.
@@ -387,8 +387,8 @@ def test_every_error_carries_a_line_number_and_a_path(project):
 
 def test_a_wrong_format_version_and_the_emptied_reservations_say_so(project):
     text = td.render(project)
-    _, errors = _changes(_edit(text, "pxt", "pxt 99"), project)
-    assert "reads pxt 1" in errors[0].message and errors[0].line == 1
+    _, errors = _changes(_edit(text, "rxt", "rxt 99"), project)
+    assert "reads rxt 1" in errors[0].message and errors[0].line == 1
 
     # WP-1027 filled in `peaks`, the last reserved block; the block now parses,
     # and on a project with no stored list it is a semantic error naming the
@@ -416,7 +416,7 @@ def test_read_only_identity_lines_are_errors_only_when_they_differ(project):
 
 
 def test_an_indented_line_outside_a_block_is_an_error(project):
-    _, errors = _changes("pxt 1\n  cell.a @ 4.1\n", project)
+    _, errors = _changes("rxt 1\n  cell.a @ 4.1\n", project)
     assert "before any 'phase' or 'instrument' block" in errors[0].message
     assert errors[0].line == 2
 
@@ -535,8 +535,8 @@ def test_textdoc_is_refused_while_a_run_is_in_flight(session, project,
 
 
 def test_the_routes_are_live_and_no_longer_reserved():
-    from pxrdref.gui import ROUTES
-    from pxrdref.gui.session import RESERVED_ROUTES
+    from anatase.gui import ROUTES
+    from anatase.gui.session import RESERVED_ROUTES
 
     assert ("GET", "/api/textdoc") in ROUTES
     assert ("PUT", "/api/textdoc") in ROUTES
@@ -588,7 +588,7 @@ def test_the_highlighter_quotes_the_parsers_words():
     in Python.
     """
     source = (Path(__file__).resolve().parent.parent / "gui" / "src" / "lib"
-              / "pxt.ts")
+              / "rxt.ts")
     if not source.is_file():
         pytest.skip(f"{source} is missing — the gui workspace is not in this checkout")
     text = source.read_text(encoding="utf-8")
@@ -602,7 +602,7 @@ def test_the_highlighter_quotes_the_parsers_words():
     assert set(words("FLAGS")) == set(td._FLAG_WORDS)
     assert set(words("PAIRS")) == set(td._PAIR_WORDS)
     # the peaks block's flag column quotes the schema's closed vocabulary
-    # (WP-1027); a new PeakFlag member fails here until pxt.ts restates it
+    # (WP-1027); a new PeakFlag member fails here until rxt.ts restates it
     assert set(words("PEAK_FLAGS")) == set(td._PEAK_FLAG_WORDS)
     # a stage line's keys are `StageSpec`'s own fields, minus the two that are
     # positional (`stage <name>  free <globs>`), plus the `free` that introduces them

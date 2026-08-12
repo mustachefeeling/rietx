@@ -31,29 +31,29 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref import IndexingResult, index_pattern
-from pxrdref.crystallography.symmetry import generate_reflections
-from pxrdref.indexing.consensus import (
+from anatase import IndexingResult, index_pattern
+from anatase.crystallography.symmetry import generate_reflections
+from anatase.indexing.consensus import (
     CONSENSUS_CHECK_TOP,
     caveats_for,
     checked_indices,
     consensus,
     grade,
 )
-from pxrdref.indexing.engines import (
+from anatase.indexing.engines import (
     SearchSpec,
     agreement,
     corroborated,
     engine_names,
     rank_candidates,
 )
-from pxrdref.indexing.workflow import (
+from anatase.indexing.workflow import (
     _restrict_to_supported,
     absent_reflections,
     structure_from_candidate,
     validate_by_lebail,
 )
-from pxrdref.schemas.indexing import (
+from anatase.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
     PEAK_MIN_USABLE_LINES,
     BravaisOpinion,
@@ -101,9 +101,9 @@ def lab6_pattern():
     this would cost more than the sharing saved (CLAUDE.md, the ``--durations``
     rule).
     """
-    from pxrdref.model.forward import compile_model
-    from pxrdref.params.vector import ParameterTable
-    from pxrdref.schemas.pattern import PatternData
+    from anatase.model.forward import compile_model
+    from anatase.params.vector import ParameterTable
+    from anatase.schemas.pattern import PatternData
 
     structure, instrument = _true_models()
     tt = np.arange(15.0, TT_MAX, 0.02)
@@ -117,8 +117,8 @@ def lab6_pattern():
 
 
 def _true_models():
-    from pxrdref.schemas.instrument import BackgroundChebyshev, Instrument
-    from pxrdref.schemas.structure import (
+    from anatase.schemas.instrument import BackgroundChebyshev, Instrument
+    from anatase.schemas.structure import (
         Atom,
         Cell,
         Parameter,
@@ -222,7 +222,7 @@ def test_best_or_none_is_none_under_every_gate_failure(break_it, expect):
 
 
 def _result(candidates) -> IndexingResult:
-    from pxrdref.schemas.common import Provenance
+    from anatase.schemas.common import Provenance
 
     return IndexingResult(candidates=candidates, engines_run=sorted(engine_names()),
                           systems_searched=["cubic"], search_complete={"cubic": True},
@@ -237,7 +237,7 @@ def test_two_high_candidates_are_not_a_singleton():
         cand.confidence = "high"
     result = _result([a, b])
     assert result.best_or_none() is None
-    from pxrdref.indexing.diagnostics import index_diagnostics
+    from anatase.indexing.diagnostics import index_diagnostics
 
     codes = {d.code for d in index_diagnostics(result)}
     assert "INDEX_MULTIPLE_SOLUTIONS" in codes
@@ -251,7 +251,7 @@ def test_an_ambiguous_winner_is_not_a_singleton():
     *guaranteed*, so it does not delegate the guarantee to whoever filled the
     field.
     """
-    from pxrdref.schemas.indexing import AmbiguityPartner
+    from anatase.schemas.indexing import AmbiguityPartner
 
     cand = _candidate(TRUE_A)
     cand.confidence = "high"
@@ -331,7 +331,7 @@ def test_a_single_engine_is_never_agreement():
 def _cubic_search(peaks, **overrides):
     """One dichotomy pass over the synthetic cubic list — several lattices, one
     engine, cheap enough to run inside a fast test."""
-    from pxrdref.indexing.dichotomy import search_dichotomy
+    from anatase.indexing.dichotomy import search_dichotomy
 
     spec = SearchSpec(systems=("cubic",), min_d_axis=2.0, max_d_axis=12.0,
                       max_volume=1500.0, shift_allowance_deg=1e-9,
@@ -385,7 +385,7 @@ def test_a_prior_is_not_a_finder_for_the_ranking_key():
     lattice two engines reached, so :func:`agreement` counts **engines**."""
     from types import SimpleNamespace
 
-    from pxrdref.indexing.priors import PRIOR_FINDER
+    from anatase.indexing.priors import PRIOR_FINDER
 
     assert agreement(SimpleNamespace(found_by=["svd", PRIOR_FINDER])) == 1
     assert agreement(SimpleNamespace(found_by=["svd", "trial_error"])) == 2
@@ -512,12 +512,12 @@ def test_layer0_unmatched_calc_cannot_serve_as_the_absent_detector(lab6_pattern)
     excursions near a tick.  It fires on the majority of the *certified* cell's
     reflections, which is the whole content of this test.
     """
-    from pxrdref.refine import Refinement
-    from pxrdref.report.layer0 import build_layer0
+    from anatase.refine import Refinement
+    from anatase.report.layer0 import build_layer0
 
     cand = _candidate(TRUE_A)
     ref = Refinement(structure_from_candidate(cand), _instrument(), history=False)
-    from pxrdref.indexing.workflow import validation_plan
+    from anatase.indexing.workflow import validation_plan
 
     result = ref.fit(lab6_pattern, mode="lebail",
                      plan=validation_plan(cand, _instrument()))
@@ -671,9 +671,9 @@ def test_the_evidence_view_is_a_projection_with_caveat_kinds():
     fields on each call, so the two representations cannot disagree."""
     from typing import get_args
 
-    from pxrdref.refine import _VERSION
-    from pxrdref.schemas.common import Provenance
-    from pxrdref.schemas.indexing import IndexingEvidence
+    from anatase.refine import _VERSION
+    from anatase.schemas.common import Provenance
+    from anatase.schemas.indexing import IndexingEvidence
 
     refuted = _candidate(
         TRUE_A, confidence="low",

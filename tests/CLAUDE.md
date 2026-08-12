@@ -93,7 +93,7 @@ and never a silent cap.
   most skips into passes, so a bare "N tests" figure means nothing without
   the venv it was measured in.
 - **A worktree needs its own venv, and quote which one you used.** The main
-  checkout's `.venv` resolves `pxrdref` to the *main checkout's* `src`, so a
+  checkout's `.venv` resolves `anatase` to the *main checkout's* `src`, so a
   worktree session running it measures the wrong tree — green, and about code
   it did not change. Build one per worktree (`uv venv --python 3.12 && uv pip
   install -e ".[dev]"`), and say `[dev]` vs `[dev,jax,torch]` with every figure.

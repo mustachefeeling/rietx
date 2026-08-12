@@ -13,7 +13,7 @@ an affine constraint block
 p_{\mathrm{phys}} \;=\; C\, p_{\mathrm{free}} + d,
 ```
 
-*Source:* `pxrdref.params.vector`
+*Source:* `anatase.params.vector`
 
 with sparse $C$ rebuilt at every stage boundary and constant during a
 least-squares run — a constant matmul stays exact under the autodiff
@@ -45,7 +45,7 @@ the cell is **refused** if it disagrees by more than
 orthorhombic symbol over a cell carrying $\beta = 93.2°$ would otherwise
 compute every $d$-spacing from that angle in silence.
 
-*Source:* `pxrdref.crystallography.symmetry.cell_constraints`
+*Source:* `anatase.crystallography.symmetry.cell_constraints`
 
 Strictly positive quantities (widths, scales) refine through the softplus
 transform,
@@ -56,7 +56,7 @@ transform,
 p \;=\; \log(1 + e^{u}),
 ```
 
-*Source:* `pxrdref.params.transforms`
+*Source:* `anatase.params.transforms`
 
 smooth, monotonic and $p > 0$ for all finite $u$, so the optimiser works in
 an unconstrained variable instead of pressing a hard zero bound; bounded
@@ -78,7 +78,7 @@ satisfy $R\,\delta = \delta$, so the coordinate basis spans
 \bigcap_R \ker(R - I)
 ```
 
-*Source:* `pxrdref.crystallography.wyckoff`
+*Source:* `anatase.crystallography.wyckoff`
 
 ({cite}`itc-a` sect. 8.3.2). The $U^{ij}$ tensor transforms as $U \to R\,U
 R^\top$ under a rotation acting on fractional coordinates, so the allowed
@@ -93,7 +93,7 @@ U \;=\; \sum_k \theta_k\, B_k,
 \qquad R\, B_k\, R^\top \in \operatorname{span}\{B_j\} \ \forall R.
 ```
 
-*Source:* `pxrdref.crystallography.wyckoff`
+*Source:* `anatase.crystallography.wyckoff`
 
 Both bases come back as smallest-integer row vectors in a deterministic
 RREF-derived form — an $x,x,z$ site gives $[[1,1,0],[0,0,1]]$; a hexagonal
@@ -116,7 +116,7 @@ r_{\mathrm{restr}} \;=\; \sqrt{w}\,
 \frac{\mathrm{computed}(\theta) - \mathrm{target}}{\sigma},
 ```
 
-*Source:* `pxrdref.model.restraints`
+*Source:* `anatase.model.restraints`
 
 appended after the data rows, so restraints land in the covariance
 $J^\top J$ but are excluded from Rwp, Durbin-Watson and the Bérar-Lelann

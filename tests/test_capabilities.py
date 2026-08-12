@@ -22,16 +22,16 @@ from typing import get_args
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.backend.api import BACKEND_NAMES, EXPERIMENTAL_BACKENDS
-from pxrdref.background.diagnostics import _KBETA
-from pxrdref.capabilities import capabilities
-from pxrdref.io.readers import PATTERN_FORMATS
-from pxrdref.optimize.least_squares import SOLVERS
-from pxrdref.refine import _guard_diagnostics
-from pxrdref.schemas.common import Mode
-from pxrdref.schemas.instrument import _RADIATIONS
-from pxrdref.strategy.staged import PLAN_INFO, PLAN_PRESETS, GuardFinding, GuardReport
+import anatase as pr
+from anatase.backend.api import BACKEND_NAMES, EXPERIMENTAL_BACKENDS
+from anatase.background.diagnostics import _KBETA
+from anatase.capabilities import capabilities
+from anatase.io.readers import PATTERN_FORMATS
+from anatase.optimize.least_squares import SOLVERS
+from anatase.refine import _guard_diagnostics
+from anatase.schemas.common import Mode
+from anatase.schemas.instrument import _RADIATIONS
+from anatase.strategy.staged import PLAN_INFO, PLAN_PRESETS, GuardFinding, GuardReport
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +73,7 @@ def test_every_solver_mode_and_plan_appears(caps):
 def test_every_search_preset_appears_with_its_ceiling(caps):
     """WP-1042: the search_presets arm quotes the live registry, never a
     restatement — same meta-test as plans, one registry over."""
-    from pxrdref.indexing.engines import (
+    from anatase.indexing.engines import (
         DEFAULT_SEARCH_PRESET,
         SEARCH_PRESET_INFO,
         SEARCH_PRESETS,
@@ -96,12 +96,12 @@ def test_the_indexing_control_vocabularies_quote_the_live_registries(caps):
     registered engine (or system, centring, template) missing from them is an
     engine a human cannot ask for — the same meta-test as plans and presets,
     over the four vocabularies the control surface renders."""
-    from pxrdref.indexing.engines import (
+    from anatase.indexing.engines import (
         CENTRINGS,
         SYSTEM_ORDER,
         engine_descriptions,
     )
-    from pxrdref.schemas.indexing import SHIFT_TEMPLATES
+    from anatase.schemas.indexing import SHIFT_TEMPLATES
 
     assert {e.name for e in caps.indexing_engines} == \
         set(engine_descriptions())
@@ -155,7 +155,7 @@ def test_the_reader_option_allowlist_is_exactly_what_the_formats_take(caps):
     file, so it is dropped and reported).  That distinction is only sound while
     the two halves agree, and nothing else would notice if one grew alone.
     """
-    from pxrdref.io.readers import READER_OPTIONS
+    from anatase.io.readers import READER_OPTIONS
 
     union = {o for fmt in PATTERN_FORMATS for o in fmt.options}
     assert set(READER_OPTIONS) == union
@@ -172,11 +172,11 @@ def test_every_versioned_contract_is_a_live_value(caps):
     claims to quote, and the field list below is checked against the model, so a
     sixth contract cannot arrive unnoticed either.
     """
-    from pxrdref.gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
-    from pxrdref.history.events import EVENT_SCHEMA_VERSION
-    from pxrdref.report.schemas import THRESHOLDS_VERSION
-    from pxrdref.schemas.common import SCHEMA_VERSION
-    from pxrdref.schemas.project import PROJECT_FORMAT_VERSION
+    from anatase.gui.textdoc import FORMAT_VERSION as TEXTDOC_FORMAT_VERSION
+    from anatase.history.events import EVENT_SCHEMA_VERSION
+    from anatase.report.schemas import THRESHOLDS_VERSION
+    from anatase.schemas.common import SCHEMA_VERSION
+    from anatase.schemas.project import PROJECT_FORMAT_VERSION
 
     live = {
         "schema_version": SCHEMA_VERSION,
@@ -205,8 +205,8 @@ def test_the_installed_distribution_resolves_under_the_name_we_ask_for(caps):
     an audit for a stale name cannot catch it either, because nothing stale is
     left behind (WP-1062).
     """
-    from pxrdref._about import DIST_NAME
-    from pxrdref.refine import _DEV_VERSION, _VERSION
+    from anatase._about import DIST_NAME
+    from anatase.refine import _DEV_VERSION, _VERSION
 
     assert version(DIST_NAME), f"no installed distribution named {DIST_NAME!r}"
     assert _VERSION != _DEV_VERSION
@@ -254,7 +254,7 @@ def test_every_surface_flag_names_a_real_export(caps):
     it: a name in the table but absent from ``__all__`` fails here whether or
     not ``hasattr`` happens to find it.
     """
-    from pxrdref.capabilities import _SURFACE_FLAGS
+    from anatase.capabilities import _SURFACE_FLAGS
 
     missing = set(_SURFACE_FLAGS.values()) - set(pr.__all__)
     assert not missing, f"surface flags name exports not in __all__: {missing}"

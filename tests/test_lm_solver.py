@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 from scipy.optimize import least_squares as scipy_lsq
 
-from pxrdref.optimize import lm
+from anatase.optimize import lm
 
 
 # ----------------------------------------------------------------------

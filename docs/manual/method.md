@@ -21,7 +21,7 @@ the maximum error over the whole domain is 0.0035 — exactly the bound the
 paper claims for its fit. Never validate an absorption expression on a
 constant-θ slice.
 
-*Source:* `pxrdref.model.absorption`
+*Source:* `anatase.model.absorption`
 
 The same discipline is structural for the flat-plate cases: they are
 closed-form integrals rather than fits, so the tests check them against an
@@ -37,7 +37,7 @@ neither reading helps once parameter removal shrinks $N_k$ (the printed Max
 form then actively degrades the step), and the shipped factor is 1, kept as
 a selectable option because it was measured rather than argued.
 
-*Source:* `pxrdref.optimize.bccg`
+*Source:* `anatase.optimize.bccg`
 
 **Coelho (2018), eq. (9)** {cite}`coelho2018` defines the predicted cost
 change as $\Delta S_t = \Delta p^\top b$. Taken literally with the paper's
@@ -53,7 +53,7 @@ self-consistent reading is
 \Delta S_t \;=\; -\Delta\theta^\top b,
 ```
 
-*Source:* `pxrdref.optimize.lm`
+*Source:* `anatase.optimize.lm`
 
 pinned by an identity: on an exactly linear model the Gauss-Newton step
 gives $r_u \equiv 1$, which is the calibration test — and the only way to
@@ -77,7 +77,7 @@ drivers "disagree" like this, the finding is not that one solver is better
 — it is that the parameterisation owns a corner nobody's step can see
 across.
 
-*Source:* `pxrdref.model.profiles.fcj.fcj_offsets_weights`
+*Source:* `anatase.model.profiles.fcj.fcj_offsets_weights`
 
 ## µR, µt, and why ΔRwp judges none of this
 
@@ -100,4 +100,4 @@ That is why every correction ships with a record field or diagnostic
 stating what it changed — and why this manual quotes those fields rather
 than Rwp comparisons as evidence.
 
-*Source:* `pxrdref.model.absorption.equivalent_delta_biso_from_transmission`
+*Source:* `anatase.model.absorption.equivalent_delta_biso_from_transmission`

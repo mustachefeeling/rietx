@@ -1,4 +1,4 @@
-# pxrd-refine — Design record
+# anatase — Design record
 
 Stable design rationale behind the architecture. Produced from a researched,
 adversarially-reviewed plan (two review passes: a design critique and a
@@ -19,7 +19,7 @@ bound-constrained conjugate-gradient normal-equation solver (Coelho 2005,
 ~84× faster than LU), and **exact analytic derivatives via computer algebra**
 (Coelho 2018) — the closed-source analog of autodiff. As of mid-2026 no
 differentiable/GPU-native, API-first open-source Rietveld engine existed.
-pxrd-refine fills that gap: typed schemas, JSON round-trip, staged strategies,
+anatase fills that gap: typed schemas, JSON round-trip, staged strategies,
 and machine-readable diagnostics, with the forward model written to stay
 differentiable from day one.
 
@@ -333,15 +333,15 @@ Images are secondary evidence: `plot_for_vlm()` renders what VLMs *can* read
 
 Human GUI (bumps/refnx precedent, never Qt/wx in base): plotly Scattergl
 self-contained HTML default; live monitoring by rewriting HTML/JSON per stage
-+ a stdlib-http auto-refresh page (`pxrdref watch`) with a **console pane**
++ a stdlib-http auto-refresh page (`anatase watch`) with a **console pane**
 tailing the structured event stream — every line paired with its equivalent
 API call, so the log doubles as a reproducible session script. Zero viz deps
 in the base install; the FitReport itself is pure numpy.
 
 *Amendment (2026-07-29, v1.0 GUI — stack decision).* The full human GUI is
 un-fenced into v1.0 (WP-1004…1017; grounds under Locked decisions → scope
-discipline). Stack: a **local web app** — `pip install pxrd-refine[gui]`,
-`pxrdref gui` opens the browser. Server stays stdlib `http.server`
+discipline). Stack: a **local web app** — `pip install anatase[gui]`,
+`anatase gui` opens the browser. Server stays stdlib `http.server`
 (the `compare_app.py`/`watch.py` precedent twice over: zero new deps, offline
 and air-gap safe, and a single-user localhost app with ~25 routes gains
 nothing from FastAPI/uvicorn); SSE on `ThreadingHTTPServer`; every verb a
@@ -351,8 +351,8 @@ fine-grained-reactivity fit for a table of hundreds of independently-updating
 parameter cells), but **built assets are committed and ship in the wheel** —
 users never need node; `[gui]` = plotly only, served from the installed
 package as compare already does. "Never Qt/wx in base" stands. The power-user
-surface is a Profex-lineage synced text pane (`.pxt`, single server-side
-parser, explicit apply). The `pxrdref watch` design above is unchanged — GUI
+surface is a Profex-lineage synced text pane (`.rxt`, single server-side
+parser, explicit apply). The `anatase watch` design above is unchanged — GUI
 run events are teed to the same `live/` stream, so watch and the GUI are two
 views of one stream.
 

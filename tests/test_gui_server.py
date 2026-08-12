@@ -27,11 +27,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import pxrdref as pr
-from pxrdref.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
-from pxrdref.gui.imports import UPLOAD_DIR_PREFIX
-from pxrdref.gui.session import RESERVED_ROUTES, GuiError
-from pxrdref.history.events import read_events
+import anatase as pr
+from anatase.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
+from anatase.gui.imports import UPLOAD_DIR_PREFIX
+from anatase.gui.session import RESERVED_ROUTES, GuiError
+from anatase.history.events import read_events
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -177,7 +177,7 @@ def blank(state_dir):
 @pytest.fixture(scope="module")
 def fitted(tmp_path_factory, pattern_file, state_dir):
     """One real refinement driven end-to-end over HTTP, shared by the readers."""
-    project = _project(tmp_path_factory.mktemp("gui-fit") / "sample.pxrd", pattern_file)
+    project = _project(tmp_path_factory.mktemp("gui-fit") / "sample.rex", pattern_file)
     session = GuiSession(project, state_dir=state_dir)
     httpd = _start(session)
     client = Client(httpd.server_address[1])
@@ -213,7 +213,7 @@ def _wait_idle(client: Client, timeout: float = 120.0) -> dict:
 # the surface itself
 # ----------------------------------------------------------------------
 def test_capabilities_is_the_package_answer_verbatim(blank):
-    """One authority: the route must not paraphrase ``pxrdref.capabilities()``."""
+    """One authority: the route must not paraphrase ``anatase.capabilities()``."""
     _, client = blank
     status, payload = client.get("/api/capabilities")
     assert status == 200
@@ -273,9 +273,9 @@ def test_app_settings_are_the_persons_and_outlive_the_project(app_settings, tmp_
 
     # …and it is the *store* that holds it, not this session: opening a project
     # in a fresh session over the same state directory still answers dark
-    _project(tmp_path / "settings.pxrd", pattern_file)
+    _project(tmp_path / "settings.rex", pattern_file)
     other = GuiSession(state_dir=session.state_dir)
-    other.project_open({"path": str(tmp_path / "settings.pxrd")})
+    other.project_open({"path": str(tmp_path / "settings.rex")})
     assert other.settings() == {"ui": {"theme": "dark"}}
     assert other.project_doc()["doc"]["ui"] == {}       # and the project has no say
     other.close()
@@ -312,7 +312,7 @@ def test_host_header_is_checked(blank):
     """A page on another origin must not be able to drive this server."""
     _, client = blank
     status, payload = client.get("/api/version",
-                                 headers={"Host": "pxrdref.example.com"})
+                                 headers={"Host": "anatase.example.com"})
     assert status == 403
     assert payload["error"]["code"] == "FORBIDDEN_HOST"
     # …and the rebinding case, where Host *is* loopback but the page is not
@@ -366,12 +366,12 @@ def test_the_built_app_is_served_and_so_is_plotly(blank):
 def test_the_placeholder_explains_itself_when_the_dist_is_absent(blank, tmp_path,
                                                                 monkeypatch):
     """A checkout without the built assets must still say what is going on."""
-    from pxrdref.gui import server as server_module
+    from anatase.gui import server as server_module
 
     _, client = blank
     monkeypatch.setattr(server_module, "STATIC_DIR", tmp_path / "nothing-here")
     status, payload = client.get("/")
-    assert status == 200 and "pxrdref gui" in payload["raw"]
+    assert status == 200 and "anatase gui" in payload["raw"]
     assert "WP-1010" in payload["raw"]
 
 
@@ -387,7 +387,7 @@ def test_asset_paths_cannot_escape_the_static_directory(blank):
 def test_new_open_and_recent_round_trip(blank, tmp_path, pattern_file):
     session, client = blank
     structure, ins = perturbed_models()
-    root = tmp_path / "made_over_http.pxrd"
+    root = tmp_path / "made_over_http.rex"
     status, payload = client.post("/api/project/new", {
         "path": str(root), "pattern": str(pattern_file),
         "structure": structure.model_dump(mode="json"),
@@ -413,7 +413,7 @@ def test_new_refuses_an_instrument_it_would_have_to_guess(blank, tmp_path,
     _, client = blank
     structure, _ = perturbed_models()
     status, payload = client.post("/api/project/new", {
-        "path": str(tmp_path / "no_instrument.pxrd"),
+        "path": str(tmp_path / "no_instrument.rex"),
         "pattern": str(pattern_file),
         "structure": structure.model_dump(mode="json")})
     assert status == 400
@@ -424,7 +424,7 @@ def test_open_surfaces_the_binding_message_it_refused_on(blank, tmp_path,
                                                           pattern_file):
     """Seven refusals, seven remedies — the GUI is where one gets read."""
     _, client = blank
-    root = tmp_path / "edited.pxrd"
+    root = tmp_path / "edited.rex"
     _project(root, pattern_file)
     copied = root / pattern_file.name
     copied.write_text(copied.read_text(encoding="utf-8") + "90.0 1.0 1.0\n",
@@ -571,7 +571,7 @@ def test_an_uploaded_pattern_and_cif_commit_into_a_project(blank, tmp_path):
     cif = client.upload("cif", (DATA / "cod_1000055.cif").read_bytes(),
                         filename="lab6.cif")[1]
 
-    root = tmp_path / "imported.pxrd"
+    root = tmp_path / "imported.rex"
     status, payload = client.post("/api/project/new", {
         "path": str(root),
         "pattern": {"upload": pat["upload"]},
@@ -637,7 +637,7 @@ def test_an_instrument_profile_uploads_frozen_and_patches_in(blank, tmp_path,
                                                              pattern_file):
     """`load_instrument_profile`'s contract, unchanged by crossing the wire."""
     session, client = blank
-    _open(session, tmp_path / "profile.pxrd", pattern_file)
+    _open(session, tmp_path / "profile.rex", pattern_file)
 
     calibrated = session.project.refinement.instrument.model_copy(deep=True)
     calibrated.profile.u.value = 0.0123
@@ -665,7 +665,7 @@ def test_an_instrument_profile_uploads_frozen_and_patches_in(blank, tmp_path,
 
 
 def test_an_instrument_preset_supplies_the_wavelengths_it_is_not_given(blank):
-    from pxrdref.gui.imports import instrument_from_preset
+    from anatase.gui.imports import instrument_from_preset
 
     _, client = blank
     anodes = {a["name"] for a in client.get("/api/capabilities")[1]["anodes"]}
@@ -702,8 +702,8 @@ def test_every_instrument_preset_argument_is_the_constructors_own():
     """
     import inspect
 
-    from pxrdref.gui.imports import INSTRUMENT_PRESETS
-    from pxrdref.schemas.instrument import Instrument
+    from anatase.gui.imports import INSTRUMENT_PRESETS
+    from anatase.schemas.instrument import Instrument
 
     for name, declared in INSTRUMENT_PRESETS.items():
         signature = inspect.signature(getattr(Instrument, name))
@@ -726,7 +726,7 @@ def test_an_unknown_scattering_species_is_refused_where_it_is_typed(blank, tmp_p
                                                                     pattern_file):
     """It would otherwise fail at stage compile, far from the field it was typed in."""
     session, client = blank
-    _open(session, tmp_path / "species.pxrd", pattern_file)
+    _open(session, tmp_path / "species.rex", pattern_file)
     structure = client.get("/api/structure")[1]["structure"]
     structure["phases"][0]["atoms"][0]["species"] = "Xx"
     status, payload = client.patch("/api/structure", {"structure": structure})
@@ -743,7 +743,7 @@ def test_structure_says_what_site_symmetry_allows_each_atom(blank, tmp_path,
                                                             pattern_file):
     """The arm an editor renders read-only from, derived where θ derives it."""
     session, client = blank
-    _open(session, tmp_path / "sites.pxrd", pattern_file)
+    _open(session, tmp_path / "sites.rex", pattern_file)
     status, payload = client.get("/api/structure")
     assert status == 200
     sites = {row["path"]: row for row in payload["sites"]}
@@ -773,7 +773,7 @@ def test_structure3d_serves_geometry_the_model_dump_cannot(blank, tmp_path,
     The geometry itself is ``tests/test_structure3d.py``'s ground.
     """
     session, client = blank
-    _open(session, tmp_path / "viewer.pxrd", pattern_file)
+    _open(session, tmp_path / "viewer.rex", pattern_file)
     status, payload = client.get("/api/structure3d")
     assert status == 200, payload
     assert [s["path"] for s in payload["sites"]] == ["phases.0.atoms.0",
@@ -801,7 +801,7 @@ def test_the_aniso_toggle_seeds_and_unseeds_through_the_metric(blank, tmp_path,
     import math
 
     session, client = blank
-    _open(session, tmp_path / "aniso.pxrd", pattern_file)
+    _open(session, tmp_path / "aniso.rex", pattern_file)
     before = client.get("/api/params")[1]["parameters"]
     assert not [r for r in before if r["path"].startswith("phases.0.atoms.0.adp")]
 
@@ -851,7 +851,7 @@ def test_symmetry_rides_free_on_the_structure_route_and_names_its_effects(
     served wrong on before WP-1036 while every degrees-of-freedom count was right.
     """
     session, client = blank
-    _open(session, tmp_path / "sym.pxrd", pattern_file)
+    _open(session, tmp_path / "sym.rex", pattern_file)
     payload = client.get("/api/structure")[1]
     facts = payload["symmetry"][0]
     assert facts["xhm"] == "P m -3 m" and facts["number"] == 221
@@ -899,7 +899,7 @@ def test_the_wyckoff_letter_is_bought_on_a_route_that_was_opened_for_it(
     causes it serves are strictly better sentences than the free tier's.
     """
     session, client = blank
-    _open(session, tmp_path / "wyckoff.pxrd", pattern_file)
+    _open(session, tmp_path / "wyckoff.rex", pattern_file)
     assert "letters" not in client.get("/api/structure")[1]     # not on that route
 
     status, payload = client.get("/api/structure/symmetry?phase=0")
@@ -924,7 +924,7 @@ def test_a_symmetry_change_is_previewed_out_of_the_rules_that_would_refuse_it(
     it had already computed.
     """
     session, client = blank
-    _open(session, tmp_path / "preview.pxrd", pattern_file)
+    _open(session, tmp_path / "preview.rex", pattern_file)
 
     # cubic → tetragonal: c stops following a, and nothing else moves
     status, out = client.post("/api/structure/symmetry/preview",
@@ -974,7 +974,7 @@ def test_the_preview_reports_every_bad_atom_not_only_the_first(blank, tmp_path,
     time is not being told what is wrong.  The per-atom probe is a *real* table
     each time, which is why the message carries the nearest allowed tensor."""
     session, client = blank
-    _open(session, tmp_path / "everybad.pxrd", pattern_file)
+    _open(session, tmp_path / "everybad.rex", pattern_file)
     for path in ("phases.0.atoms.0", "phases.0.atoms.1"):
         assert client.post("/api/structure/aniso", {"path": path, "on": True})[0] == 200
     structure = client.get("/api/structure")[1]["structure"]
@@ -1001,7 +1001,7 @@ def test_the_three_silent_failures_are_previewed_rather_than_discovered(
         blank, tmp_path, pattern_file):
     """None of these raises today, and the table diff cannot see any of them."""
     session, client = blank
-    project = _open(session, tmp_path / "silent.pxrd", pattern_file)
+    project = _open(session, tmp_path / "silent.rex", pattern_file)
 
     # (1) a setting change: same group, other axes, every coordinate reinterpreted
     project.refinement.structure.phases[0].space_group = "P 1 21/c 1"
@@ -1035,10 +1035,10 @@ def test_a_supergroup_that_moves_no_parameter_still_says_the_cell_doubled(
     8→16, 24→48), the cell holds twice as many atoms, and the phase scale means
     something else.  The multiplicity is the only thing that says so.
     """
-    from pxrdref.crystallography.cif import structure_from_cif
+    from anatase.crystallography.cif import structure_from_cif
 
     session, client = blank
-    project = _open(session, tmp_path / "supergroup.pxrd", pattern_file)
+    project = _open(session, tmp_path / "supergroup.rex", pattern_file)
     nac = structure_from_cif(str(Path(__file__).parent / "data" / "cod_1000236.cif"))
     project.refinement.structure = nac
     assert nac.phases[0].space_group == "I 21 3"
@@ -1064,10 +1064,10 @@ def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
     asymmetric-unit atoms a higher symmetry maps together are counted twice — and
     nothing in the package checks it.  A *mixed* site is the same geometry and is
     not a bug, so the criterion is the shared occupancy rather than a guess."""
-    from pxrdref.schemas.structure import Atom
+    from anatase.schemas.structure import Atom
 
     session, client = blank
-    project = _open(session, tmp_path / "orbit.pxrd", pattern_file)
+    project = _open(session, tmp_path / "orbit.rex", pattern_file)
     phase = project.refinement.structure.phases[0]
     # distinct under P 4/m m m (z is the unique axis); one orbit under P m -3 m
     phase.space_group = "P 4/m m m"
@@ -1109,10 +1109,10 @@ def test_a_shared_site_is_judged_as_a_group_and_never_as_pairs(blank, tmp_path,
     a coarser answer but a wrong one.  It also decides the wording: "keep one
     atom of the 3" is advice a pairwise message cannot give.
     """
-    from pxrdref.schemas.structure import Atom
+    from anatase.schemas.structure import Atom
 
     session, client = blank
-    project = _open(session, tmp_path / "triple.pxrd", pattern_file)
+    project = _open(session, tmp_path / "triple.rex", pattern_file)
     phase = project.refinement.structure.phases[0]
     phase.space_group = "P 4/m m m"
     # three points a 4-fold about z leaves distinct and P m -3 m's 3-folds merge
@@ -1156,7 +1156,7 @@ def test_an_incompatible_model_is_refused_before_any_history_node_is_written(
     broken head still passes.
     """
     session, client = blank
-    project = _open(session, tmp_path / "gate.pxrd", pattern_file)
+    project = _open(session, tmp_path / "gate.rex", pattern_file)
     client.post("/api/structure/aniso", {"path": "phases.0.atoms.0", "on": True})
     head = client.get("/api/history")[1]["head"]
 
@@ -1188,7 +1188,7 @@ def test_the_symmetry_verb_commits_one_node_and_says_what_it_did(blank, tmp_path
                                                                  pattern_file):
     """One ``edit_model`` node, through the same path every model edit takes."""
     session, client = blank
-    _open(session, tmp_path / "apply.pxrd", pattern_file)
+    _open(session, tmp_path / "apply.rex", pattern_file)
     before = client.get("/api/params")[1]["parameters"]
     assert {r["path"] for r in before if r["path"] == "phases.0.cell.c"}
 
@@ -1215,7 +1215,7 @@ def test_settings_persist_without_anyone_pressing_save(blank, tmp_path,
                                                        pattern_file):
     """The close dialog has nothing to confirm, so a settings verb must save."""
     session, client = blank
-    root = tmp_path / "settings.pxrd"
+    root = tmp_path / "settings.rex"
     _open(session, root, pattern_file)
 
     status, payload = client.post("/api/project", {
@@ -1241,14 +1241,14 @@ def test_the_masked_channels_have_one_authority_and_three_readers(blank, tmp_pat
                                                                   pattern_file):
     """WP-1033: what is drawn, what is documented and what is fitted agree.
 
-    The three readers are the project document's ``n_fitted``, the ``.pxt``
+    The three readers are the project document's ``n_fitted``, the ``.rxt``
     document's ``limits``/``excluded`` lines, and the plot's payloads — and the
     thing they must agree about is a *set of channels*, which is why the
     assertion is a count against ``Project.fitted_mask`` rather than a
     re-derivation of the intersection here.
     """
     session, client = blank
-    root = tmp_path / "masked.pxrd"
+    root = tmp_path / "masked.rex"
     project = _open(session, root, pattern_file)
     n_points = project.data_ref.n_points
     assert client.get("/api/project")[1]["data"]["n_fitted"] == n_points
@@ -1281,7 +1281,7 @@ def test_an_inverted_range_is_refused_in_one_sentence_by_every_surface(
     from pydantic import ValidationError
 
     session, client = blank
-    root = tmp_path / "inverted.pxrd"
+    root = tmp_path / "inverted.rex"
     project = _open(session, root, pattern_file)
 
     status, payload = client.post("/api/project", {"two_theta_limits": [60.0, 20.0]})
@@ -1361,7 +1361,7 @@ def test_a_refit_makes_the_channel_count_the_fit_agree_with_the_document(
     worse than no band at all.
     """
     session, client = blank
-    project = _open(session, tmp_path / "channels.pxrd", pattern_file)
+    project = _open(session, tmp_path / "channels.rex", pattern_file)
     assert client.post("/api/project", {"two_theta_limits": [8.0, 19.0],
                                         "excluded_regions": [[13.0, 16.0]]})[0] == 200
     status, run = client.post("/api/run", {"kind": "stage", "stage": {
@@ -1376,7 +1376,7 @@ def test_a_refit_makes_the_channel_count_the_fit_agree_with_the_document(
 
 def test_plan_selection_and_the_preset_it_matches(blank, tmp_path, pattern_file):
     session, client = blank
-    _open(session, tmp_path / "plan.pxrd", pattern_file)
+    _open(session, tmp_path / "plan.rex", pattern_file)
     status, payload = client.get("/api/plan")
     assert status == 200
     assert payload["preset"] == "mccusker_default"   # derived, not stored
@@ -1469,7 +1469,7 @@ def test_editing_a_tied_path_is_refused_by_naming_its_sources(fitted):
 def test_values_and_vary_commit_their_own_history_nodes(blank, tmp_path,
                                                         pattern_file):
     session, client = blank
-    project = _open(session, tmp_path / "edits.pxrd", pattern_file)
+    project = _open(session, tmp_path / "edits.rex", pattern_file)
     before = len(project.history)
 
     status, payload = client.patch("/api/params", {
@@ -1502,7 +1502,7 @@ def test_a_bulk_glob_is_one_round_trip_and_one_history_node(blank, tmp_path,
     preview: this call is where the matching that counts happens.
     """
     session, client = blank
-    project = _open(session, tmp_path / "bulk.pxrd", pattern_file)
+    project = _open(session, tmp_path / "bulk.rex", pattern_file)
     before = len(project.history)
 
     status, payload = client.patch("/api/params", {"vary": {"instrument.profile.*": True}})
@@ -1535,7 +1535,7 @@ def test_a_bulk_glob_is_one_round_trip_and_one_history_node(blank, tmp_path,
 
 def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file):
     session, client = blank
-    project = _open(session, tmp_path / "edit_model.pxrd", pattern_file)
+    project = _open(session, tmp_path / "edit_model.rex", pattern_file)
     instrument = client.get("/api/instrument")[1]["instrument"]
     instrument["zero_shift"]["value"] = 0.02
     status, payload = client.patch("/api/instrument", {"instrument": instrument,
@@ -1553,7 +1553,7 @@ def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file)
 # running
 # ----------------------------------------------------------------------
 def test_a_real_run_streams_its_events_to_disk_and_to_followers(fitted):
-    """The GUI and ``pxrdref watch`` are two views of one stream."""
+    """The GUI and ``anatase watch`` are two views of one stream."""
     session, client, project = fitted
     log = project.live_dir / "events.jsonl"
     assert log.is_file()
@@ -1608,7 +1608,7 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
 
 def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):
     """WP-1029 item (c): one honest signal, in the report's own vocabulary."""
-    from pxrdref.report.schemas import MATURITY_MAX_RWP
+    from anatase.report.schemas import MATURITY_MAX_RWP
 
     session, client, project = fitted
     maturity = client.get("/api/result")[1]["result"]["maturity"]
@@ -1693,7 +1693,7 @@ def test_the_weighted_residual_has_exactly_one_authority(fitted):
     np.testing.assert_array_equal(np.asarray(window["delta"]), drawn[idx])
 
     # and the third drawer, the plotly export, divides by the same σ
-    from pxrdref.viz.html import figure_from_arrays
+    from anatase.viz.html import figure_from_arrays
     figure = figure_from_arrays(
         np.asarray(result.two_theta), np.asarray(result.y_obs),
         np.asarray(result.y_calc), None, result.ticks, sigma=result.sig(),
@@ -1712,7 +1712,7 @@ def test_a_poisson_project_still_gets_a_weighted_residual(
     a Poisson fit got the axis of a measured one.
     """
     session, client = blank
-    project = _open(session, tmp_path / "poisson.pxrd", poisson_pattern_file)
+    project = _open(session, tmp_path / "poisson.rex", poisson_pattern_file)
     assert project.data_ref.has_sigma is False
     client.post("/api/run", {"kind": "stage",
                              "stage": {"name": "s", "turn_on": ["phases.*.scale"]}})
@@ -1769,7 +1769,7 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
     mid-edit as the same event, because they are: the buffer descends from a
     rendering the project has moved past. What the session tests could not show is
     the case that actually produces it — two clients holding the same revision,
-    which is one browser tab and one `pxrdref` REPL, or two tabs. The second writer
+    which is one browser tab and one `anatase` REPL, or two tabs. The second writer
     must be refused **whole**: not a merge, not a partial apply, and not a refusal
     that leaves half the delta in.
 
@@ -1777,7 +1777,7 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
     recovery is asserted here too: re-read, re-apply, and the second edit lands.
     """
     session, client = blank
-    project = _open(session, tmp_path / "race.pxrd", pattern_file)
+    project = _open(session, tmp_path / "race.rex", pattern_file)
 
     status, doc = client.get("/api/textdoc")
     assert status == 200
@@ -1831,7 +1831,7 @@ def test_checkout_moves_the_working_state_and_branch_names_the_fork(
         blank, tmp_path, pattern_file):
     """Its own project, because a checkout discards the result — see below."""
     session, client = blank
-    project = _open(session, tmp_path / "checkout.pxrd", pattern_file)
+    project = _open(session, tmp_path / "checkout.rex", pattern_file)
     for turn_on in (["phases.*.scale", "instrument.background.*"],
                     ["instrument.zero_shift"]):
         client.post("/api/run", {"kind": "stage",
@@ -1894,7 +1894,7 @@ def test_exports_land_in_the_project_and_cannot_escape_it(fitted, tmp_path):
 def blocked(blank, tmp_path, pattern_file, monkeypatch):
     """A session whose "fit" blocks until the test releases it."""
     session, client = blank
-    _open(session, tmp_path / "blocked.pxrd", pattern_file)
+    _open(session, tmp_path / "blocked.rex", pattern_file)
     started, release = threading.Event(), threading.Event()
     seen: dict = {}
 
@@ -2047,7 +2047,7 @@ def test_sse_delivers_events_then_the_terminal_state(blocked):
 def test_a_single_stage_run_goes_through_the_same_machinery(blank, tmp_path,
                                                             pattern_file):
     session, client = blank
-    project = _open(session, tmp_path / "one_stage.pxrd", pattern_file)
+    project = _open(session, tmp_path / "one_stage.rex", pattern_file)
     status, payload = client.post("/api/run", {
         "kind": "stage",
         "stage": {"name": "scale_bkg",
@@ -2127,7 +2127,7 @@ def series(tmp_path_factory, series_files, state_dir):
     The project's own pattern is the ramp's first, so the series' protocol and
     the project's are demonstrably the same one.
     """
-    project = _project(tmp_path_factory.mktemp("gui-series-proj") / "ramp.pxrd",
+    project = _project(tmp_path_factory.mktemp("gui-series-proj") / "ramp.rex",
                        series_files[0])
     session = GuiSession(project, state_dir=state_dir)
     httpd = _start(session)
@@ -2163,14 +2163,14 @@ def test_the_series_setup_answers_before_anything_is_staged(blank, tmp_path,
                                                             pattern_file, state_dir):
     """An empty list plus the defaults *is* the empty state."""
     session, client = blank
-    _open(session, tmp_path / "empty.pxrd", pattern_file)
+    _open(session, tmp_path / "empty.rex", pattern_file)
     status, setup = client.get("/api/series")
     assert status == 200, setup
     assert setup["patterns"] == [] and setup["n_patterns"] == 0
     # the defaults are WP-0505's measured results, and the choices come from
     # ``sequential``'s own tuples — a menu that could offer a value the chain
     # refuses would be a second authority
-    from pxrdref.sequential import DIRECTIONS, REFIT_MODES
+    from anatase.sequential import DIRECTIONS, REFIT_MODES
 
     assert setup["settings"] == setup["defaults"]
     assert setup["settings"]["refit"] == "single"
@@ -2189,7 +2189,7 @@ def test_a_series_of_one_pattern_is_refused_as_a_fit(blank, tmp_path,
                                                       pattern_file, state_dir):
     """One pattern is a fit, and every fence a series has needs a neighbour."""
     session, client = blank
-    _open(session, tmp_path / "one.pxrd", pattern_file)
+    _open(session, tmp_path / "one.rex", pattern_file)
     status, staged = client.upload("pattern", pattern_file.read_bytes(),
                                    filename=pattern_file.name)
     assert status == 200, staged
@@ -2205,7 +2205,7 @@ def test_the_series_refuses_a_setting_the_chain_would(blank, tmp_path,
                                                        pattern_file, state_dir):
     """Same words, because ``REFIT_MODES``/``DIRECTIONS`` are one list."""
     session, client = blank
-    _open(session, tmp_path / "settings.pxrd", pattern_file)
+    _open(session, tmp_path / "settings.rex", pattern_file)
     # …and the refusal names the *field*, because a form highlights what to
     # retype: a bad `refit` reported as `patterns` sends the user to the wrong
     # control
@@ -2236,7 +2236,7 @@ def test_a_staged_series_is_described_by_reading_it(blank, tmp_path,
     a name that names nothing.
     """
     session, client = blank
-    _open(session, tmp_path / "described.pxrd", series_files[0])
+    _open(session, tmp_path / "described.rex", series_files[0])
     tokens = []
     for path in series_files[:2]:
         tokens.append(client.upload("pattern", path.read_bytes(),
@@ -2273,7 +2273,7 @@ def test_a_coordinate_is_all_or_nothing_and_the_axis_says_which(blank, tmp_path,
     mean something other than what the label says.
     """
     session, client = blank
-    _open(session, tmp_path / "axis.pxrd", series_files[0])
+    _open(session, tmp_path / "axis.rex", series_files[0])
     tokens = [client.upload("pattern", path.read_bytes(),
                             filename=path.name)[1]["upload"]
               for path in series_files[:2]]
@@ -2329,7 +2329,7 @@ def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
     session, client, _ = series
     payload = client.get("/api/series/result")[1]
     assert payload["has_backward"] is True
-    from pxrdref.sequential import PATH_DEPENDENCE_SIGMA
+    from anatase.sequential import PATH_DEPENDENCE_SIGMA
 
     assert payload["path_dependence_sigma"] == PATH_DEPENDENCE_SIGMA
     served = {t["path"]: t for t in payload["trajectories"]}
@@ -2355,7 +2355,7 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
     through the *existing* three fields, which is the same reuse an indexing run
     makes of ``stage_start``.
     """
-    from pxrdref.history.events import EVENT_SCHEMA_VERSION
+    from anatase.history.events import EVENT_SCHEMA_VERSION
 
     session, client, _ = series
     events = client.get("/api/events?poll=1&since=0")[1]["events"]
@@ -2373,7 +2373,7 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
                                             "stage_end", "fit_end"}
     # …so the schema version did not move for any of it
     assert {e["v"] for e in events} == {EVENT_SCHEMA_VERSION}
-    # and the same stream landed in the log `pxrdref watch` tails
+    # and the same stream landed in the log `anatase watch` tails
     logged = read_events(session.project.live_dir / "events.jsonl")
     assert sum(1 for e in logged if e.kind == "fit_start"
                and "series_index" in e.data) == 6
@@ -2393,7 +2393,7 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
     **restart** only — so a pattern's first attempt is unsuffixed, the first
     pattern of a chain included, even though the rung it runs *is* the cold one.
     """
-    from pxrdref.gui.session import _series_stage_name
+    from anatase.gui.session import _series_stage_name
 
     assert _series_stage_name({"series_label": "T300"}, 0) == "T300"
     assert _series_stage_name({"series_label": "T300",
@@ -2410,7 +2410,7 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
 
 def test_a_series_window_is_the_project_plot_arithmetic(series):
     """``curve_window`` is shared, so the two panels cannot draw two σ policies."""
-    from pxrdref.gui.session import curve_window
+    from anatase.gui.session import curve_window
 
     session, client, _ = series
     status, payload = client.get("/api/series/window?index=1")
@@ -2432,7 +2432,7 @@ def test_a_series_window_is_the_project_plot_arithmetic(series):
     # WP-1033's `len(result.two_theta)` assertion one rank down: the mask is
     # rebuilt from the limits *this run* used, through the same function
     # `Project.fitted_mask` calls, so it cannot drift from the curves beside it
-    from pxrdref.project import fitted_mask
+    from anatase.project import fitted_mask
 
     entry = session._series_run
     keep = fitted_mask(entry["data"][1], entry["limits"])
@@ -2458,7 +2458,7 @@ def test_a_series_window_is_the_project_plot_arithmetic(series):
 
 def test_a_series_member_history_is_its_own_tree_and_read_only(series):
     """One tree per pattern, pinned to its data — so its nodes are not checkouts."""
-    from pxrdref.gui.session import tree_payload
+    from anatase.gui.session import tree_payload
 
     session, client, _ = series
     status, payload = client.get("/api/series/history?index=2")
@@ -2516,8 +2516,8 @@ def _series_pair(forward_a, backward_a, esd=1e-4):
     flagged branch unexercised.  A hand-built pair is the only way to pin the
     served magnitude against the fence that fires on it.
     """
-    from pxrdref.schemas.results import RefinedParameter, Statistics
-    from pxrdref.schemas.sequential import SeriesEntry, SeriesResult
+    from anatase.schemas.results import RefinedParameter, Statistics
+    from anatase.schemas.sequential import SeriesEntry, SeriesResult
 
     def chain(values):
         return SeriesResult(x_label="T", direction="forward", entries=[
@@ -2541,8 +2541,8 @@ def test_the_served_disagreement_is_the_fences_own_arithmetic():
     chains' trajectories are in hand, so the answer is to recompute the distance
     rather than to grow the schema.
     """
-    from pxrdref.gui import series as series_mod
-    from pxrdref.sequential import (
+    from anatase.gui import series as series_mod
+    from anatase.sequential import (
         PATH_DEPENDENCE_SIGMA,
         _path_dependence_diagnostics,
     )
@@ -2573,7 +2573,7 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
     reporting 0 would read as agreement it has not earned — which is exactly
     where a panel ranking by disagreement would file it.
     """
-    from pxrdref.gui import series as series_mod
+    from anatase.gui import series as series_mod
 
     forward, backward = _series_pair([4.156, 4.158, 4.160],
                                      [4.156, 4.158, 4.171], esd=None)
@@ -2612,7 +2612,7 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
      {"preset": "debye_scherrer", "wavelength": 0.413909}),
 ])
 def test_the_instrument_hint_reads_the_file_rather_than_asking(metadata, expected):
-    from pxrdref.gui.imports import suggest_instrument
+    from anatase.gui.imports import suggest_instrument
 
     hint = suggest_instrument(metadata)
     assert hint is not None and {k: hint.get(k) for k in expected} == expected
@@ -2630,7 +2630,7 @@ def test_a_header_that_contradicts_itself_gets_no_hint_rather_than_a_guess(metad
     The contradiction is judged *after* the weighted mean is a candidate, so a
     convention difference is never mistaken for one.
     """
-    from pxrdref.gui.imports import suggest_instrument
+    from anatase.gui.imports import suggest_instrument
 
     assert suggest_instrument(metadata) is None
 

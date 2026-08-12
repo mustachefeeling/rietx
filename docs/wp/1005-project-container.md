@@ -5,7 +5,7 @@ Depends on: WP-1004
 
 ## Goal
 
-A `.pxrd/` project directory that holds everything a refinement session is —
+A `.rex/` project directory that holds everything a refinement session is —
 model, pattern bytes, history, UI state — creatable, openable and savable
 through `Project.create/open/save`, so the GUI (and anyone else) has one
 durable thing to point at instead of four loose files.
@@ -24,7 +24,7 @@ durable thing to point at instead of four loose files.
   multi-histogram seam — `history_file`, `ui: dict`). Schema conventions
   apply: `extra="forbid"`, `ser_json_inf_nan="strings"` — ±inf bounds must
   survive the JSON round-trip and are tested.
-- `src/pxrdref/project.py`: `Project.create/open/save`. `open()` re-reads the
+- `src/anatase/project.py`: `Project.create/open/save`. `open()` re-reads the
   pattern via `io.readers.read_pattern` (`io/readers.py:21`), checks the file
   sha256 against `DataRef.sha256`, and cross-checks
   `TreeHeader.data_fingerprint` (`schemas/history.py:213` — sha256 over
@@ -65,7 +65,7 @@ pure function of the history head.
 
 - [x] `schemas/project.py`: `DataRef` + `ProjectDoc`, with the ±inf
       round-trip test alongside the existing schema tests.
-- [x] `src/pxrdref/project.py`: `Project.create` (copies pattern bytes,
+- [x] `src/anatase/project.py`: `Project.create` (copies pattern bytes,
       computes sha256, writes `project.json`, initialises `history.jsonl`,
       `live/`, `exports/`).
 - [x] `Project.open`: re-read via `read_pattern`, sha256 check,
@@ -105,7 +105,7 @@ green, so nothing in the reader or history change moved a computed number.
 ## Handover log
 
 - **2026-07-29** — created from the v1.0 GUI plan.
-- **2026-07-30** — **complete.** `Project.create/open/save` over a `.pxrd/`
+- **2026-07-30** — **complete.** `Project.create/open/save` over a `.rex/`
   directory, `schemas/project.py`, 21 tests, and two things the charter did not
   ask for but the charter's own third task needed.
 

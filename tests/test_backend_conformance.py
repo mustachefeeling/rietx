@@ -24,8 +24,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pxrdref.backend import traced
-from pxrdref.backend.api import (
+from anatase.backend import traced
+from anatase.backend.api import (
     _OP_NAMES,
     BACKEND_NAMES,
     BACKEND_REQUIRES,
@@ -34,11 +34,11 @@ from pxrdref.backend.api import (
     backend_dtype_note,
     resolve_backend,
 )
-from pxrdref.backend.linalg64 import COLUMN_REL_L2_MAX, to_host_fp64
-from pxrdref.backend.traced import make_traced_decode, make_traced_residual
-from pxrdref.model import rows as row_layout
-from pxrdref.optimize.least_squares import _make_residual
-from pxrdref.params.transforms import to_physical
+from anatase.backend.linalg64 import COLUMN_REL_L2_MAX, to_host_fp64
+from anatase.backend.traced import make_traced_decode, make_traced_residual
+from anatase.model import rows as row_layout
+from anatase.optimize.least_squares import _make_residual
+from anatase.params.transforms import to_physical
 from tests.test_backend_shim import STATES
 
 #: every op the shim promises, plus the non-``_OP_NAMES`` primitives

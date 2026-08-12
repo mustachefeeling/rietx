@@ -24,16 +24,16 @@ from pathlib import Path
 
 import pytest
 
-import pxrdref as pr
-from pxrdref.io.formats import (
+import anatase as pr
+from anatase.io.formats import (
     METADATA_KEYS,
     PATTERN_FORMATS,
     head,
     metadata,
     multiscan_default,
 )
-from pxrdref.io.formats.base import PatternFormat, ascending, reader_options_for
-from pxrdref.io.readers import identify_format, list_scans
+from anatase.io.formats.base import PatternFormat, ascending, reader_options_for
+from anatase.io.readers import identify_format, list_scans
 
 
 def write_xy(path, tt, y, sig=None):
@@ -136,7 +136,7 @@ def test_every_registered_reader_passes_through_the_same_policy():
     is the one that quietly sorts instead of refusing."""
     import inspect
 
-    from pxrdref.io.formats import chi, gsas, pdcif, ras, xy
+    from anatase.io.formats import chi, gsas, pdcif, ras, xy
 
     for module in (chi, gsas, pdcif, ras, xy):
         body = inspect.getsource(module)
@@ -156,7 +156,7 @@ def test_the_axis_policy_is_one_function_and_one_code():
     import inspect
     import re
 
-    from pxrdref.io.formats import base, chi, ras, uxd
+    from anatase.io.formats import base, chi, ras, uxd
 
     emits = re.compile(r'code\s*=\s*"[A-Z_]*X_AXIS_ASSUMED"')
     for module in (chi, ras, uxd):
@@ -197,7 +197,7 @@ def test_none_means_unspecified_rather_than_a_value():
 def test_an_int_option_arrives_as_an_int_however_it_was_stored():
     """``DataRef.options`` is dict[str, str], so a scan round-trips through a
     project as "2" and has to reach the reader as the integer 2."""
-    from pxrdref.io.formats.base import ReaderOption
+    from anatase.io.formats.base import ReaderOption
 
     assert ReaderOption(name="scan", kind="int", help="").coerce("2") == 2
     with pytest.raises(ValueError, match="scan= takes an integer"):
@@ -247,7 +247,7 @@ def test_the_chi_point_count_line_is_no_longer_read_as_a_data_point(tmp_path):
     assert 3.0 not in data.two_theta         # the count line is not a datum
 
     # and the fallback really would have taken it: the same bytes, read as xy
-    from pxrdref.io.formats.xy import read_xy
+    from anatase.io.formats.xy import read_xy
     assert len(read_xy(p).two_theta) == len(tt) + 1
 
 
@@ -426,11 +426,11 @@ def test_a_project_keeps_the_repairs_in_memory_and_out_of_project_json(tmp_path)
 
     p = write_xy(tmp_path / "down.xy", [30.0, 20.0, 10.0], [3.0, 2.0, 1.0])
     structure, ins = perturbed_models()
-    project = pr.Project.create(tmp_path / "rev.pxrd", pattern=p,
+    project = pr.Project.create(tmp_path / "rev.rex", pattern=p,
                                 structure=structure, instrument=ins)
 
     assert [d.code for d in project.data_diagnostics] == ["PATTERN_SCAN_REVERSED"]
-    stored = (tmp_path / "rev.pxrd" / "project.json").read_text(encoding="utf-8")
+    stored = (tmp_path / "rev.rex" / "project.json").read_text(encoding="utf-8")
     assert "PATTERN_SCAN_REVERSED" not in stored
     # …and re-reading reproduces them, because the bytes and the reader did
     assert [d.code for d in pr.Project.open(project.path).data_diagnostics] == [
@@ -1230,7 +1230,7 @@ def test_a_member_past_the_cap_is_refused_rather_than_materialised(tmp_path,
     """``ZipInfo.file_size`` is a number in the archive's own header, so it is
     the one a bomb lies about — hence ``read(cap + 1)`` and a length test rather
     than a size check before reading."""
-    from pxrdref.io.formats import rasx
+    from anatase.io.formats import rasx
 
     p = write_rasx(tmp_path / "big.rasx",
                    [dict(rows=[(10.0 + 0.01 * i, 5.0) for i in range(200)])])

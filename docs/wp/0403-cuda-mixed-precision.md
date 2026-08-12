@@ -123,7 +123,7 @@ mode. WP-0408 (torch-MPS) supplies the device-numerics evidence.
   configuration is *unspellable* rather than merely discouraged),
   `to_host_fp64` as the single explicit cast, `require_fp64` as the check, and
   `column_agreement` supplying the rel-L2/cosine metric. Exported from
-  `pxrdref.backend`. Scoped via `with precision_policy(FP32_JACOBIAN)`,
+  `anatase.backend`. Scoped via `with precision_policy(FP32_JACOBIAN)`,
   mirroring `set_backend`'s existing global-with-scope shape.
 
   **Where the hook went, and why there.** `cast_columns` is applied in

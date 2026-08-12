@@ -104,7 +104,7 @@ the old caps stay green throughout.
   (303 written vs ≈495). Same treatment in `tests/CLAUDE.md` § CI and
   `docs/DESIGN.md` ~504.
 - [x] 7. CLAUDE.md indexing block (~497-692) → ~25-line digest at root + new
-  subsystem rulebook `src/pxrdref/indexing/CLAUDE.md`. The dossier's *rules*
+  subsystem rulebook `src/anatase/indexing/CLAUDE.md`. The dossier's *rules*
   (compressed, one-clause evidence + pointer each) move to the new rulebook,
   which auto-loads exactly when a session works under `indexing/` (the
   repo's own mechanism — `gui/`, `tests/`); the *stories* stay in the v1.0
@@ -118,7 +118,7 @@ the old caps stay green throughout.
   failing differently; the panel ranks, never scores); (e) run
   `tests/test_acceptance_indexing.py` before closing anything touching an
   engine; (f) pointer to the rulebook + appendix, with the admission rule "a
-  new indexing rule lands in `src/pxrdref/indexing/CLAUDE.md`; it earns a
+  new indexing rule lands in `src/anatase/indexing/CLAUDE.md`; it earns a
   clause at root only if it changes behavior outside `indexing/`". Add the
   new path to `_planning_docs()` so its links are checked. Safety rule (the
   cap test's own message — "move narrative, never delete facts"): for each
@@ -155,7 +155,7 @@ the old caps stay green throughout.
   (expect ~580), ROADMAP 650 → landed+~60 (expect ~400); NEW caps for the
   so-far-uncapped always-loaded rulebooks at landed+headroom —
   `gui/CLAUDE.md` (494 today), `tests/CLAUDE.md` (145),
-  `src/pxrdref/indexing/CLAUDE.md`. Rewrite the SIZE_CAPS comment block
+  `src/anatase/indexing/CLAUDE.md`. Rewrite the SIZE_CAPS comment block
   (test_docs_consistency.py:43-60) to record this pass and the admission
   rule, per its own instruction ("make it in a commit that says so").
 
@@ -197,7 +197,7 @@ they name (CLAUDE.md invariants, `docs/wp/1030`, `1036`, `1037`, `1040`,
   same +4; per the new § Numbers recipe the next weekly `full` log is the
   measurement. Sizes at close: CLAUDE.md 720 → **553** (cap 600), ROADMAP
   594 → **337** (cap 400, Current focus 44/60), new rulebook
-  `src/pxrdref/indexing/CLAUDE.md` **212** (cap 250), gui 528 (cap 580),
+  `src/anatase/indexing/CLAUDE.md` **212** (cap 250), gui 528 (cap 580),
   tests 150 (cap 180). Frontend counts inherited unmeasured — no `gui/`
   source file changed (`gui.yml` only). CI: the merged-PR double run skipped
   by job-level `if` (accepted risks in ci.yml's header; squash merges fail

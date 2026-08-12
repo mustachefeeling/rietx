@@ -63,7 +63,7 @@
    * are now one glance, which is what every other panel already had.  WP-1013
    * and WP-1014 had made both of them modes over the whole window on grounds
    * that were sound and are now **measured**: the atom table needs 472 px and
-   * the `.pxt` document's editable columns 546 px, against a sidebar that
+   * the `.rxt` document's editable columns 546 px, against a sidebar that
    * clamps at 560 and drags to 72 % of the window.  So they fit at the ceiling,
    * they do not fit at the 340 px floor, and the full-window layout below is
    * what covers the difference.
@@ -536,7 +536,7 @@
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
       disabled: !project, run: () => (tab = "history") },
     { id: "text", label: "Edit the project as text",
-      echo: "print(pxrdref.gui.textdoc.render(project))", key: "t", disabled: !project,
+      echo: "print(anatase.gui.textdoc.render(project))", key: "t", disabled: !project,
       run: () => (tab = "text") },
     { id: "model", label: "Edit the structure and instrument",
       echo: "ref.edit(structure=…, instrument=…)", key: "m", disabled: !project,
@@ -671,7 +671,7 @@
 
 <header>
   <div class="title">
-    <strong>pxrdref</strong>
+    <strong>anatase</strong>
     <span class="muted mono">{version?.package_version ?? "…"}</span>
   </div>
 
@@ -800,7 +800,7 @@
         </div>
         <!-- the model pane and the text pane are tabs (WP-1034) and stay
              mounted like every other one: a typed species, a half-filled wizard
-             and a typed `.pxt` buffer all have to survive a look at the plot.
+             and a typed `.rxt` buffer all have to survive a look at the plot.
              `active` is what keeps each from refetching on a head move it is
              not showing, and what builds the CodeMirror editor on first entry. -->
         <div class="panel" class:hidden={!modelTab}>

@@ -10,7 +10,7 @@ Depends on: **1032** (strictly — both edit `Plot.svelte`; see below) · 1005,
 A user can see which part of the pattern is being fitted and change it from the
 plot: the fit range and every excluded region shaded where they act, selectable
 by pointer, with the typed route the text document already has — and one
-authority, so the GUI, the `.pxt` document and the exported figures cannot
+authority, so the GUI, the `.rxt` document and the exported figures cannot
 disagree about what was masked.
 
 ## Context
@@ -98,7 +98,7 @@ region selection lives on its own modal state (a "select range" toggle, the way
 `dragmode: "select"` is turned on while the control is armed. Whatever is
 chosen, the rule that survived WP-1027 must survive here: **an ambiguous drag
 must do the harmless thing**, and every pointer verb keeps a non-pointer route —
-which for this one already exists as the `.pxt` `limits`/`excluded` lines, plus
+which for this one already exists as the `.rxt` `limits`/`excluded` lines, plus
 typed bounds in the panel.
 
 ### The `viz/` question, which is a decision and not a task
@@ -141,7 +141,7 @@ the arrays. A gap is what an exclusion leaves; the exclusion itself is read from
 - **Not the repairs** in [1032](1032-gui-repairs.md), which lands first.
 - **Not multi-pattern.** `Project.open` refuses a project holding more than one
   pattern (`project.py:196-201`); a per-histogram range is a later milestone's.
-- **No `.pxt` format change.** `limits` and `excluded` are already in the
+- **No `.rxt` format change.** `limits` and `excluded` are already in the
   grammar; if this WP finds it needs a new line, that is a format-version
   question and it stops here.
 - **Not a new masking semantics.** Excluded points are dropped, not
@@ -173,7 +173,7 @@ the arrays. A gap is what an exclusion leaves; the exclusion itself is read from
       *compiled* model was built from, so it is a mutating verb in the strict
       sense. Nothing about `ui`-only patches was decided here.
 - [x] **The two surfaces agree**, asserted: a region set on the plot renders in
-      the `.pxt` document, and one typed into the document shades on the plot.
+      the `.rxt` document, and one typed into the document shades on the plot.
 - [x] **Decide the `viz/` question** and record the answer either way (above).
 - [x] Tests: vitest for the shape-building and range-arithmetic pure functions,
       a jsdom mount test for the controls, a `tests/test_gui_server.py` case for
@@ -190,7 +190,7 @@ npm --prefix gui run build && .venv/bin/python -m pytest tests/test_gui_dist.py 
 ```
 
 Plus, in a real browser on the NAC project (COD 1000236 + `11BM_NAC.fxye`):
-exclude a region by pointer, confirm it shades, confirm the `.pxt` document
+exclude a region by pointer, confirm it shades, confirm the `.rxt` document
 shows it, re-run, and confirm the fit's channel count dropped by the number of
 points in the region. **The channel count is the check that the shading is
 telling the truth** — a band drawn over points still in the residual is worse
@@ -253,7 +253,7 @@ than no band at all.
   [1003](1003-api-freeze-pypi.md) has the new public surface and the `ui`-only
   question, which this WP deliberately did **not** settle.
 
-  **Gotchas.** The `.pxt` document renders 12 significant digits, so a
+  **Gotchas.** The `.rxt` document renders 12 significant digits, so a
   pointer-drawn region reads as `excluded 15.2668475177 34.6747042553` — correct
   and ugly; rounding it would be a second authority on the number, so it stands.
   `formatRegion` rounds the *chip* only. And the region chips are keyed by their
@@ -275,7 +275,7 @@ than no band at all.
   the reason is not politeness: both edit `Plot.svelte`, and the repo already
   carries the scar of concurrent sessions in one working directory — WP-1018's
   files are committed inside WP-1004's and WP-1006's commits, whose messages
-  name the wrong WP, and `git log -- src/pxrdref/indexing/` misleads because of
+  name the wrong WP, and `git log -- src/anatase/indexing/` misleads because of
   it. One worktree per session, or one session at a time on this file.
 
   **The one thing to get right** is the second rule above: an excluded region

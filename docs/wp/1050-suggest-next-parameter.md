@@ -132,7 +132,7 @@ move); agent task; manual.
       (`test_agent_surface.py:375` pins `len(schema["oneOf"]) ==
       len(ag._TASK_TAGS) == 4` since the `index` task — this WP moves it to 5).
 - [x] Manual: `docs/manual/estimation.md` subsection (gain equation with
-      *Source:* `pxrdref.optimize.statistics.one_parameter_gains`), `toby2024`
+      *Source:* `anatase.optimize.statistics.one_parameter_gains`), `toby2024`
       bib entry — owed since the 2026-07-30 review session (`732535d`): the
       weighted Δ/σ docstrings in `viz/` cite Toby 2024 deliberately without a
       bib entry because `tests/test_manual.py` fails an *uncited* entry, so the

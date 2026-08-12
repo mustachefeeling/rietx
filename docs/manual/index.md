@@ -1,4 +1,4 @@
-# pxrd-refine — theory manual
+# anatase — theory manual
 
 Release {{ release }}. The equations behind the package, numbered and
 cross-referenced, with the conventions that make them transferable — or not
@@ -6,7 +6,7 @@ cross-referenced, with the conventions that make them transferable — or not
 
 ## How to read this manual
 
-**The code is authoritative.** Every physics function in `pxrdref` cites
+**The code is authoritative.** Every physics function in `anatase` cites
 its reference (author, year, journal) in its docstring, and the heavyweight
 derivations live in the module docstrings. This manual organises that
 material into numbered equations; it does not replace it. Each displayed

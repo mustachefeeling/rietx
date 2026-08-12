@@ -114,7 +114,7 @@ def run_episode(episode_dir: Path) -> dict:
                         if k in overlay})
         # the condition, never the agent, decides whether a report exists
         request["include_report"] = condition["include_report"]
-        import pxrdref.agent as agent_mod
+        import anatase.agent as agent_mod
 
         response = agent_mod.refine_json(request)
         if not condition["include_report"]:

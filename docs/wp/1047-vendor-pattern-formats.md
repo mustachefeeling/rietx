@@ -518,7 +518,7 @@ exactly; a `.uxd` quoting `Cu` and `1.5418` still yields the CuKa doublet
 suggestion (the weighted-mean case); a binary file and a `.dif` peak list are
 each refused **by name**, not by traceback; every truncation of every fixture
 fails as `ValueError`/`OSError`; opening a multi-scan file without `scan=`
-carries `PATTERN_MULTISCAN_DEFAULTED`; and a `.pxrd` project created from a
+carries `PATTERN_MULTISCAN_DEFAULTED`; and a `.rex` project created from a
 multi-scan file reopens on the scan it was created from.
 
 ## Risks, in the order to retire them
@@ -551,8 +551,8 @@ multi-scan file reopens on the scan it was created from.
   `garrekstemo/RigakuFiles.jl` (MIT) — spec / fixtures.
 - GSAS-II source (Argonne licence, grant-back) — **spec only**; xylib
   (LGPL), xrayutilities (GPL) — concepts only.
-- `src/pxrdref/io/readers.py`, `src/pxrdref/project.py`,
-  `src/pxrdref/gui/imports.py`, `src/pxrdref/capabilities.py` — the seams.
+- `src/anatase/io/readers.py`, `src/anatase/project.py`,
+  `src/anatase/gui/imports.py`, `src/anatase/capabilities.py` — the seams.
 
 ## Handover log
 
@@ -707,7 +707,7 @@ multi-scan file reopens on the scan it was created from.
 
   **Two factorings, both at triggers a previous session named.** The axis policy
   became `base.check_axis()` with one code `PATTERN_X_AXIS_ASSUMED`, because
-  `.xrdml` was the fourth consumer and `src/pxrdref/io/CLAUDE.md` said the fourth
+  `.xrdml` was the fourth consumer and `src/anatase/io/CLAUDE.md` said the fourth
   is when — which settles point 6 of WP-1003's `### Inherited` rather than
   passing it on. What is deliberately *not* shared is the classifying: four
   formats state their axis in four shapes. And `sigma_from_scaled` /
@@ -779,7 +779,7 @@ multi-scan file reopens on the scan it was created from.
     to one; README's reader row and the root/`io` CLAUDE.md rules are current.
     What task 17 still owes: the `.raw` rows, `cli.py`'s help (already
     registry-built, so check rather than edit), and the capabilities spot-checks.
-  - **`src/pxrdref/io/CLAUDE.md`'s cap went 200 → 250** with three formats still
+  - **`src/anatase/io/CLAUDE.md`'s cap went 200 → 250** with three formats still
     to land; root CLAUDE.md is back at **exactly 600** after the reader bullet
     was compressed to carry a fifth consequence. Budget for that again.
   - **`tests/test_portability.py` now skips a receiver containing `zip`** —
@@ -823,7 +823,7 @@ multi-scan file reopens on the scan it was created from.
   `test_readers_robust.py` one fixture row × 3 parametrized tests); task 9
   **+9** (8 tests + one parametrized synthetic-fuzz row); and **+1 that is not a
   test anyone wrote** — `test_always_loaded_docs_stay_under_their_pinned_caps`
-  is parametrized over `SIZE_CAPS`, so adding `src/pxrdref/io/CLAUDE.md` to it
+  is parametrized over `SIZE_CAPS`, so adding `src/anatase/io/CLAUDE.md` to it
   added a row. Worth stating rather than absorbing: a count can move for a
   documentation-structure reason. Full selection measured mid-session at
   **2229 passed, 6 skipped + 1 failed** (the failure was the CLAUDE.md cap
@@ -853,7 +853,7 @@ multi-scan file reopens on the scan it was created from.
 
   **Structural change, decided with the user**: root CLAUDE.md was at exactly
   its 600-line cap with four vendor formats still to land, so the reader detail
-  moved to **`src/pxrdref/io/CLAUDE.md`** (179 lines, capped at 200, loads under
+  moved to **`src/anatase/io/CLAUDE.md`** (179 lines, capped at 200, loads under
   `io/`) and root kept only the four consequences a caller outside `io/` sees.
   Same move WP-1060 made for indexing. `SIZE_CAPS` and the link-check doc list
   in `tests/test_docs_consistency.py` both know about it.

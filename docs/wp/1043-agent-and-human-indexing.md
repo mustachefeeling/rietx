@@ -451,7 +451,7 @@ cost choice — no extra θ block per candidate — not a claim about discrimina
   1028's 1924 + 5 — +8, exactly this session's +9 new tests (core 1, quality
   1, consensus 4, plots 2, agent 1) minus the fluorite row moving fast → slow
   now that it really searches. No new skip. Ruff clean. GUI: 390 vitest,
-  svelte-check 0 errors, dist rebuilt (pxt.ts gained the two PeakFlag words).
+  svelte-check 0 errors, dist rebuilt (rxt.ts gained the two PeakFlag words).
   The full suite would not run as one background job here (the environment
   killed it twice before start), so the close is measured as 1028's was:
   fast selection + `test_acceptance_indexing.py` **41 passed in 18:05**

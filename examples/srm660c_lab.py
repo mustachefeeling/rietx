@@ -13,8 +13,8 @@ specimen displacement refines instead.
 
 from pathlib import Path
 
-import pxrdref as pr
-from pxrdref.background import auto_background, diagnose
+import anatase as pr
+from anatase.background import auto_background, diagnose
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 OUT = Path(__file__).resolve().parent
@@ -135,11 +135,11 @@ def main() -> None:
 
     # --- outputs
     try:
-        from pxrdref.viz.plots import plot_for_vlm
+        from anatase.viz.plots import plot_for_vlm
         result.plot(path=str(OUT / "srm660c_fit.png"))
         plot_for_vlm(result, report, path=str(OUT / "srm660c_vlm.png"))
         print("\nwrote examples/srm660c_fit.png and srm660c_vlm.png")
-        from pxrdref.viz import write_html
+        from anatase.viz import write_html
         write_html(result, str(OUT / "srm660c_fit.html"))
         print("wrote examples/srm660c_fit.html (interactive, self-contained)")
     except ImportError:

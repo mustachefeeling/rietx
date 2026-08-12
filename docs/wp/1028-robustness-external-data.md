@@ -12,7 +12,7 @@ reading the code.
 
 ## Goal
 
-`pxrdref` survives a stranger's CIF and a stranger's pattern: it either
+`anatase` survives a stranger's CIF and a stranger's pattern: it either
 refines, or it fails with a diagnostic that names the cause. No crash on a
 2.35 PiB allocation, no `status="converged"` at Rwp = 7 225 %, no silent
 fifteen-minute stall, no `KeyError` on a species string that half the world's
@@ -272,7 +272,7 @@ fires on exactly two lines: brucite's 5.179° survivor and one corundum line at
 nobody had looked for. Both stay in `usable()`.
 
 Two knock-ons for whoever touches this next. A new `PeakFlag` member is a
-failing parity test until `gui/src/lib/pxt.ts` restates it and the committed
+failing parity test until `gui/src/lib/rxt.ts` restates it and the committed
 dist is rebuilt (`test_textdoc.py::test_the_highlighter_quotes_the_parsers_words`
 caught it, which is the meta-test working). And `REAL_DATA_N_UNINDEXED = 3` in
 `tests/test_acceptance_indexing.py` is sized on a comment that names the
@@ -382,7 +382,7 @@ The gate/grade redesign those bounds were filed beside had already moved to
   `Wat`, `OH` and worse, so how often that fires on external files is a
   measurement this WP can make; if it fires on files that ought to work, the
   fix is a species-mapping step at import, not removing the check.
-- `PreferredOrientation` is exported from `pxrdref.__init__` and
+- `PreferredOrientation` is exported from `anatase.__init__` and
   `capabilities().features["preferred_orientation"]` derives itself from
   `Phase.model_fields` — §(e)'s remaining work is only the `r` floor.
 
@@ -519,7 +519,7 @@ this WP is self-contained.
   losses and says three patterns lost lines.
 
   **Gotchas for the next session.** A new `PeakFlag` is a failing parity test
-  until `gui/src/lib/pxt.ts` restates it *and* the committed dist is rebuilt
+  until `gui/src/lib/rxt.ts` restates it *and* the committed dist is rebuilt
   (`npm --prefix gui ci` first — the workspace ships without `node_modules`).
   `REAL_DATA_N_UNINDEXED = 3` in `tests/test_acceptance_indexing.py` is
   justified by a comment naming corundum's 5.17° edge artifact as one of its

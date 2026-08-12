@@ -49,7 +49,7 @@ from pathlib import Path
 
 import pytest
 
-import pxrdref as pr
+import anatase as pr
 
 from .test_acceptance_qpa_roundrobin import (
     DATA,
@@ -115,7 +115,7 @@ def test_srm676a_corundum_cell_anchor():
     assert result.qpa is not None and len(result.qpa.phases) == 1
     assert result.qpa.phases[0].weight_fraction == pytest.approx(1.0, abs=1e-12)
 
-    from pxrdref.viz.plots import plot_for_vlm, plot_result
+    from anatase.viz.plots import plot_for_vlm, plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "srm676a_fit.png"))
@@ -172,7 +172,7 @@ def _lattice_only_plan():
     the comparison.  Stage order follows ``validation_plan``: ``w`` before the
     other width terms, because it is the only one non-zero at 2θ = 0.
     """
-    from pxrdref.strategy.staged import RefinementPlan, Stage
+    from anatase.strategy.staged import RefinementPlan, Stage
 
     return RefinementPlan(stages=[
         Stage("bkg", ["instrument.background.*"]),
@@ -250,7 +250,7 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     assert res_r.statistics.rwp == pytest.approx(res_h.statistics.rwp, abs=1e-4)
 
     # 4. V_H = 3·V_R, the volume relation between the two descriptions
-    from pxrdref.crystallography.lattice import cell_volume
+    from anatase.crystallography.lattice import cell_volume
     v_r = cell_volume(*[getattr(cell_r, n).value
                         for n in ("a", "b", "c", "alpha", "beta", "gamma")])
     assert float(cell_volume(a_h, a_h, c_h, 90.0, 90.0, 120.0)) == \
@@ -262,7 +262,7 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     assert abs(a_h / A_CERT - 1.0) < 1e-3 and abs(c_h / C_CERT - 1.0) < 1e-3
     assert (c_h / a_h) / (C_CERT / A_CERT) - 1.0 == pytest.approx(0.0, abs=5e-4)
 
-    from pxrdref.viz.plots import plot_result
+    from anatase.viz.plots import plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(res_r, path=str(out / "srm676a_rhombohedral_fit.png"))

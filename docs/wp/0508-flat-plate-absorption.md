@@ -278,7 +278,7 @@ From **WP-0504** (anomalous f′/f″, landed 2026-07-27):
       capillary estimator
 - [x] `CompiledModel.mu_t` + `_absorption` dispatch, applied in all three
       intensity assemblies, guarded analytic-vs-FD as `test_absorption.py` does
-- [x] `AbsorptionCorrection` record + diagnostics; `pxrdref compare` row +
+- [x] `AbsorptionCorrection` record + diagnostics; `anatase compare` row +
       the `lab6_capillary` standard; AGENT_PROTOCOL §8.12 and two diagnostic rows
 - [x] Handover log + ROADMAP sync
 

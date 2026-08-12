@@ -1,5 +1,5 @@
 /* Theming by CSS custom properties, light and dark — the same approach
-   `pxrdref compare` uses, so the three browser surfaces this package ships look
+   `anatase compare` uses, so the three browser surfaces this package ships look
    like one program.
 
    Since WP-1029 the *choice* is three-way (system / light / dark, in
@@ -197,10 +197,10 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 
-/* The `.pxt` highlighter (WP-1013).  Global rather than scoped to the panel
+/* The `.rxt` highlighter (WP-1013).  Global rather than scoped to the panel
    because CodeMirror renders its document outside Svelte's component tree, so a
    `<style>` block's scoping hash never reaches these spans.  The names are
-   `lib/pxt.ts`'s token names, bound to lezer tags in `lib/editor.ts`; the colours
+   `lib/rxt.ts`'s token names, bound to lezer tags in `lib/editor.ts`; the colours
    are the same custom properties every other surface uses, so the pane follows
    the system theme with everything else. */
 .tok-keyword {

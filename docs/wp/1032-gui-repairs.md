@@ -92,7 +92,7 @@ a fix** — task 3 is written as a reproduction, not a repair.
   The curve toggles are the same kind of thing. What *is* persisted goes to
   `ProjectDoc.ui` **on the verb**, never on save.
 - **Every pointer verb has a non-pointer route** (WP-1027). The typed-2θ box
-  (`Peaks.svelte:153-157`) and the `.pxt` peaks block are the existing ones;
+  (`Peaks.svelte:153-157`) and the `.rxt` peaks block are the existing ones;
   changing what right-click means must not orphan a verb.
 - **A style sampled synchronously inside an effect races the shell's
   `applyTheme`** — `paint()` awaits one microtask before `getComputedStyle`
@@ -178,7 +178,7 @@ is not installed, so `playwright-core` is installed in the job scratchpad,
 - `gui/CLAUDE.md` — the GUI rulebook; WP-1029's and WP-1027's paragraphs bind
   most of the items here.
 - `docs/milestones/v1.0.md` — WP-1027's and WP-1029's measured browser passes.
-- `src/pxrdref/schemas/instrument.py:374-386` — the `packing_fraction` docstring
+- `src/anatase/schemas/instrument.py:374-386` — the `packing_fraction` docstring
   the tooltip quotes.
 
 ## Handover log
