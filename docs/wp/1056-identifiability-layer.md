@@ -106,56 +106,40 @@ transparency, cell; scale, biso; the instrument-profile terms), plus anything
 `mode_fixed`-held that a `ParameterRow` marks refinable-in-principle. Needs the
 final Jacobian *plus* columns for held candidates (one extra derivative-column
 evaluation per candidate at the converged values — bounded, and frozen-per-stage
-discreteness is untouched because nothing is refined). Carrier seam is shared
-with WP-1055 (whichever lands first builds the additive defaulted result field;
-the other imports — coordinate via `### Inherited`).
+discreteness is untouched because nothing is refined).
+
+**The carrier exists (WP-1055, closed 2026-08-12) — extend it, do not build
+one.** `RefinementResult.identifiability: Identifiability | None`
+(`schemas/results.py`) is additive and defaulted, holding today one field,
+`background_absorption: dict[path, R²]`; its class docstring states the shared
+reason it exists (J is an N×P array that is never serialized, so anything read
+off it is screened at fit time or lost) and names this WP. Put the
+correlation/soft-mode summary there as further fields rather than opening a
+second result section. Three mechanics to reuse rather than re-derive: it is
+filled from `GuardReport.measured_background_absorption`, a
+deliberately-not-findings field set inside `check_guards` — **measure once**,
+let the threshold decide only which rows become `GuardFinding`s, so the
+report's number and the guard's fired bit cannot disagree, the same discipline
+a correlation section wants against `HIGH_CORRELATION`; `_run_plan` returns
+the **last stage's** guard (the answer-producing one) and `_build_result`
+takes it as `guard=`; and `replay` plus joint multi-histogram fits leave the
+field `None`, read as "not measured here", never as a clean bill of health.
+If a `FitReport` section follows, `report/background.py` is the shape
+precedent: a small module whose assessor returns the section, measured
+separations in its docstring, and the *predicates* the summary clause and the
+Layer-2 emitter share extracted so a sentence and an action cannot disagree.
+`THRESHOLDS_VERSION` is now **0.6**, so a further bump is a fresh decision.
+
+**Protocol home (WP-1057, closed 2026-08-12).** AGENT_PROTOCOL §4b ("Declare
+the deliverable") exists; its *structure* profile's deciding rows are the
+intended home for this WP's exchangeability/soft-mode row — add it there
+rather than opening a new section. `FitReport.abstained_kind` is a closed
+Literal (a new kind is a minor version).
 
 **Interaction with WP-1003.** The vary-or-tie serialisation question (a held
 parameter is *absent* from `result.parameters`) is 1003's freeze decision and is
 not decided here; this section reports *about* held parameters by path, which is
 legal either way.
-
-### Inherited
-
-**From [1055](1055-background-evidence.md), closed 2026-08-12 — the shared
-carrier exists; extend it, do not build one.** The seam both WPs needed is
-`RefinementResult.identifiability: Identifiability | None`
-(`schemas/results.py`), additive and defaulted, holding today one field:
-`background_absorption: dict[path, R²]`. Put the correlation/soft-mode summary
-there as further fields rather than opening a second result section — the
-class docstring already states the shared reason it exists (the Jacobian is an
-N×P array that is never serialized, so anything read off it is screened at fit
-time or lost) and names this WP.
-
-Three mechanics to reuse rather than re-derive. It is filled from
-`GuardReport.measured_background_absorption`, a deliberately-not-findings field
-set inside `check_guards`: **measure once**, let the threshold decide only which
-rows become `GuardFinding`s, so the report's number and the guard's fired bit
-cannot disagree — the same discipline a correlation section wants against
-`HIGH_CORRELATION`. `_run_plan` returns the **last stage's** guard (the
-answer-producing one, the rule `_constraint_diagnostics` already followed) and
-`_build_result` takes it as `guard=`. And `replay` plus joint multi-histogram
-fits leave the field `None`, which the schema says to read as "not measured
-here", never as a clean bill of health.
-
-Two shape precedents from the report side, if a `FitReport` section follows:
-`report/background.py` is a small module whose assessor returns the section and
-whose measured separations live in its docstring, with the *predicates* the
-summary clause and the Layer-2 emitter share (`too_flexible`/`too_stiff` in
-`layer0.py`) extracted so a sentence and an action cannot disagree about what
-the evidence says. And `THRESHOLDS_VERSION` is now **0.6**, so a further bump is
-a fresh decision.
-
-
-**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — where the
-exchangeability row lands in the protocol.** AGENT_PROTOCOL §4b ("Declare
-the deliverable") now exists; its *structure* profile lists the
-intensity-model rows and closes with §10's ladder, and it is the intended
-home for this WP's exchangeability/soft-mode row — add it to that profile's
-deciding rows when it lands, rather than opening a new section. Two report
-facts to build against: `FitReport.abstained_kind` is a closed Literal (a
-new kind is a minor version), and `THRESHOLDS_VERSION` is 0.5, so a further
-bump is a fresh decision.
 
 ## Non-goals
 
@@ -182,10 +166,11 @@ bump is a fresh decision.
 - [ ] Held-parameter exchangeability scan: projection R² of each held candidate's
       column onto the free span, reported as "fitted X exchangeable with held Y
       (R²=…)"; family list documented and pinned by test.
-- [ ] `docs/AGENT_PROTOCOL.md`: a §4/§6 extension — how to read exchangeability
-      (an E2-shaped answer is "converged, but the zero is exchangeable with a
-      held displacement — the data cannot tell you which"), and that `ambiguous`
-      is the verdict it licenses.
+- [ ] `docs/AGENT_PROTOCOL.md`: how to read exchangeability (an E2-shaped
+      answer is "converged, but the zero is exchangeable with a held
+      displacement — the data cannot tell you which"), that `ambiguous` is the
+      verdict it licenses, and the row added to §4b's structure-profile
+      deciding rows (its intended home, per 1057).
 - [ ] Tests: E2-shaped fixture (converged, held displacement) produces the
       exchangeability statement naming the pair; E8-shaped short-window fixture
       reports the zero↔cell↔displacement soft mode at convergence; clean
@@ -235,3 +220,12 @@ confident-wrong-singleton rule applied to uncertainty statements).
   cited to Watkin §3.8 (Prince 3rd ed. carries no Marquardt treatment), and
   note the constrained-vs-unconstrained F ratio as the classical form of the
   discriminator's significance half. Still not started.
+- **2026-08-12** — session start on branch `wp1056-identifiability-layer`.
+  `### Inherited` pruned on arrival: the 1055 entry folded into Context
+  verbatim in substance (carrier + the measure-once / last-stage-guard /
+  `None`-means-unmeasured mechanics + the `report/background.py` shape
+  precedent — carrier class and `THRESHOLDS_VERSION` 0.6 verified in the
+  tree); the 1057 entry folded into Context and into the AGENT_PROTOCOL task
+  (§4b structure-profile deciding rows as the row's home, `abstained_kind`
+  closed Literal), minus its "`THRESHOLDS_VERSION` is 0.5", stale since 1055
+  bumped it to 0.6.
