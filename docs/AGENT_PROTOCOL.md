@@ -179,8 +179,34 @@ Judge a fit in this order:
 5. **The esds, with their inflation.** `statistics.esd_inflation` is the
    Bérar-Lelann factor for serial correlation. Note it has an expected value of
    ≈1.51 even for perfectly white residuals — treat it as an upper bound on the
-   damage, not a measurement of it.
-6. **What the background is doing** — `report.background`, and it belongs
+   damage, not a measurement of it. `report.identifiability` quotes the
+   qualifying trio side by side — raw χ²_red, the inflation (already in every
+   quoted esd, dividable back out), Durbin-Watson — plus the δR line
+   (`delta_r_slope`/`delta_r_intercept`: sorted Δ/σ against normal quantiles;
+   slope ≈ 1, intercept ≈ 0 on honest σ, slope > 1 when σ is underestimated).
+   Report the ingredients with any esd you quote onward; scaling variances by
+   GoF² alone is the practice Schwarzenbach et al. (1989) call "highly
+   questionable".
+6. **Whether the converged answer is the only one** —
+   `report.identifiability.exchanges` and `.soft_modes`, and this outranks
+   the statistics because it is about what "converged" *means*. `converged`
+   is a statement about the free set; an exchange row with
+   `exchangeable=True` says a **held** parameter's signature is reproducible
+   inside the fitted span (`r2` → 1) *and* a fitted partner stands many σ
+   from its null — an E2-shaped answer reads "converged, but the fitted
+   zero_shift is exchangeable with the held sample_displacement — the data
+   cannot tell you which is physical". **The verdict that licenses is
+   `ambiguous`, not `converged`** — measured, the fit carrying a planted
+   displacement inside a compensating zero and its clean reference differ in
+   *nothing* but this row (χ²_red 1.012 vs 1.010, R² identical to six
+   decimals; only the partner's 128σ-vs-1.6σ separates them). Do not "fix"
+   it by freeing the held parameter and refitting: both free lands on the
+   degenerate ridge of §3. The resolution is protocol — a calibrant-fixed
+   zero, a wider angular window — or declaring the ambiguity. A `soft_modes`
+   entry quoted in the summary is the same statement about a fitted
+   *combination*: the named parameters trade freely and their individual
+   esds are not independent.
+7. **What the background is doing** — `report.background`, and it belongs
    *above* Rwp because it decides how to read Rwp. Two rows:
    `worst_absorption` (with `worst_absorption_path`) is how much of a
    structural parameter the background column span can reproduce, and
@@ -188,7 +214,7 @@ Judge a fit in this order:
    residual *between* the peak regions is systematic. Layer 0's regions are
    peak clusters, so that second failure lands in no `report.regions` entry
    and step 2 cannot see it at all.
-7. **Only then Rwp and GoF** — as a pair with
+8. **Only then Rwp and GoF** — as a pair with
    `background.rwp_background_subtracted`, never alone. Measured: a sharp
    LaB₆ fit and one under 0.6° of broadening both report Rwp **0.0137**, and
    background-subtracted they read 0.0490 and 0.0766. Raw Rwp is flattered by
@@ -270,11 +296,18 @@ points the wrong way.
 **Structure — "where are the atoms?"** Everything above, plus the
 intensity-model rows themselves: per-region intensity coefficients and their
 angular trends (ADP vs scale vs texture), `report.texture` / `report.strain`
-with their caveats, restraint tension, ADP positive-definiteness. Here a
+with their caveats, restraint tension, ADP positive-definiteness — and
+`report.identifiability.exchanges` with `.soft_modes` (§4 step 6), because a
+structural claim rests on the parameters *meaning* what they say: an
+`exchangeable=True` row is a converged fit whose fitted partner and a held
+parameter the data cannot separate, and the deliverable it supports is
+`ambiguous`, not a structure. Here a
 notable Le Bail gap is a *blocker*, not a comfort — the intensity model
 carries the structural claim, and the gap says it does not carry the pattern.
 Stopping criterion: §10's full ladder (diagnostics resolved, no attributable
-region, ΔBIC refuses the next parameter).
+region, ΔBIC refuses the next parameter), with no `exchangeable` row
+unaddressed — resolved by protocol (a calibrant-fixed aberration, a wider
+window), never by freeing the rival into the same fit (§3's ridge).
 
 **The capability floor.** Whatever is reading this report, the floor is:
 verify before acting (`predict_then_verify`, or a history branch), treat a
