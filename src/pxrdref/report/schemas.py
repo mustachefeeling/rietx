@@ -33,7 +33,16 @@ from ..schemas.results import RestraintReport
 #   (cross-talk); ``TextureAnalysis`` gains ``caveat`` and its ``best_axis``
 #   becomes always-populated evidence.  No ActionKind changed meaning, but the
 #   emission conditions moved on measured states, which a consumer sees.
-THRESHOLDS_VERSION = "0.4"
+# 0.5 (WP-1057): purpose-grade evidence.  ``FitReport.lebail_gap`` lands (the
+#   structural-vs-profile triage statistic, evaluate-only partition at the
+#   converged state; None outside Rietveld mode — absent-for-cause) and the
+#   summary quotes it when the ratio is notable.  ``abstained_kind``
+#   classifies every abstention (immature / resolution_limited / unreadable)
+#   and the resolution-limited flavour appends its sentence to
+#   ``abstained_reason``.  The contents-type clause names sign-alternating,
+#   angular-trend-free intensity misfit in the summary (CONTENTS_*).  No
+#   gate or emission condition moved.
+THRESHOLDS_VERSION = "0.5"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -128,6 +137,62 @@ IMPURITY_SHIFT_CAP = 0.3
 #: call at 0.40), so the detection must never outrank its likely cause.
 TEXTURE_IMPURITY_MARGIN = 0.05
 
+#: Le Bail gap (WP-1057) — the structural-vs-profile triage statistic.
+#: ``LEBAIL_GAP_CYCLES`` partition cycles at the frozen converged state: the
+#: fixed point is reached by cycle 2-3 on the LaB₆ pore-proxy fixture
+#: (Rwp_lebail 0.01713 after one cycle, 0.01700 from two onward, 2026-08-12),
+#: so 5 is margin, not tuning.  ``LEBAIL_GAP_NOTABLE`` is the ratio above
+#: which the summary quotes the gap; measured separation on the same fixtures:
+#: 2.38 on the pore proxy (guest scatterer in truth only — intensity model
+#: wrong) against ≤ 1.00 on every position/profile control (+0.4 % cell 1.00,
+#: broad+0.05° zero 1.00, broad clean 1.00, sharp+0.008° zero 0.96) and 0.79
+#: on the converged clean fit — the partition is *not* a noise-floor
+#: estimator (its net = max(y_obs − bkg, 0) clip and profile-share weighting
+#: put its own floor above a converged least-squares fit), which is why the
+#: notable test is on the ratio, never on rwp_lebail alone.
+LEBAIL_GAP_CYCLES = 5
+LEBAIL_GAP_NOTABLE = 1.5
+
+#: Resolution-limited abstention flavour (WP-1057) — classification of an
+#: abstention *already decided* by the maturity gate; nothing here moves any
+#: threshold that decides one.  The classifier defers to the position-family
+#: evidence first: when validity failures are widespread (the same counts the
+#: reindex action fires on, ``REINDEX_MIN_FAR_*``), the abstention reads as
+#: model error however collinear the rest — necessary, because a wrong cell
+#: fails the Gram gate widely too (measured: the +0.4 % cell state fails gram
+#: in 8 of its 10 failing regions).  Past that, resolution-limited requires
+#: the failures to be collinearity and nothing else: gram failures in at least
+#: ``RESOLUTION_LIMITED_MIN_FRACTION`` of the failing regions, at least
+#: ``RESOLUTION_LIMITED_MIN_REGIONS`` regions failing *only* gram, and those
+#: carrying median local R² ≥ ``RESOLUTION_LIMITED_MIN_R2`` — the basis
+#: *explains* the misfit; its edit directions are indistinguishable on merged
+#: peaks.  Measured (LaB₆ fixtures, 2026-08-12): broad peaks + 0.05° zero —
+#: gram 12 of 12 failing, 5 gram-only at median R² 0.957 → resolution-limited;
+#: the +0.4 % cell control abstains on the immature-Rwp arm (0.72) and past it
+#: would offer 1 gram-only region, failing both floors.
+RESOLUTION_LIMITED_MIN_FRACTION = 0.5
+RESOLUTION_LIMITED_MIN_REGIONS = 3
+RESOLUTION_LIMITED_MIN_R2 = 0.9
+
+#: Contents-type intensity signature (WP-1057) — the summary clause naming
+#: incoherent intensity misfit.  Fires when intensity carries at least
+#: ``CONTENTS_MIN_INTENSITY_SHARE`` of the misfit, *no* angular template
+#: explains it (best template R² < ``CONTENTS_MAX_TEMPLATE_R2`` — scale and
+#: ADP errors are angular trends, this is their negation), and the per-region
+#: relative intensity errors alternate in sign (at least
+#: ``CONTENTS_MIN_REGIONS`` significant coefficients with the minority sign
+#: at least ``CONTENTS_MIN_SIGN_MINORITY`` of them) — structure-factor
+#: interference, the signature of an un-modelled scatterer, which a scale or
+#: displacement error cannot produce.  Measured (LaB₆ pore proxy — guest O at
+#: the 1b site in truth only, 2026-08-12): share 0.83, best template R²
+#: 0.011, 8 significant coefficients split 5+/3−; every position/profile
+#: control measures share 0.00, and the +0.4 % cell state's 4 significant
+#: coefficients are single-sign.
+CONTENTS_MIN_INTENSITY_SHARE = 0.5
+CONTENTS_MAX_TEMPLATE_R2 = 0.3
+CONTENTS_MIN_REGIONS = 4
+CONTENTS_MIN_SIGN_MINORITY = 0.25
+
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
 MATURITY_MAX_RWP = 0.35
@@ -156,6 +221,42 @@ class UnmatchedPeak(Base):
     two_theta: float
     height_over_sigma: float
     kind: str  # "unmatched_obs" (no calc tick nearby) | "unmatched_calc"
+
+
+class LeBailGap(Base):
+    """Structural-vs-profile triage: the Rietveld Rwp against an evaluate-only
+    Le Bail partition of the *same* converged state (WP-1057; the Layer-0
+    inventory item of DESIGN.md § Outputs).
+
+    **Convention.**  ``rwp_lebail`` is measured by running
+    :meth:`~pxrdref.model.forward.CompiledModel.lebail_update` for
+    ``n_cycles`` with θ frozen at the converged values — background, cell,
+    zero, profile all held; only the per-hkl intensities move, seeded flat.
+    No refinement runs, so this is the cheapest description the *positions
+    and profile* alone support, not a Le Bail fit (a fit would also relax
+    the background and cell).  The partition is not a noise-floor estimator
+    either: its ``max(y_obs − bkg, 0)`` clip and profile-share weighting
+    leave it above a converged least-squares fit (measured 0.0172 against a
+    converged Rwp of 0.0137 on clean LaB₆ data), which is why ``ratio`` — not
+    ``rwp_lebail`` — is the statistic.
+
+    **Reading it.**  ``ratio`` ≫ 1 means the partition, free to reassign
+    every intensity, removes most of the misfit: every line is indexed and
+    the profile is right — the *intensity model* (structure, contents,
+    occupancies) is what is wrong, and phase ID is safe at any absolute Rwp.
+    Measured on the LaB₆ pore-proxy fixture (guest scatterer in the data
+    only): 2.38, against ≤ 1.00 on every position/profile control — a wrong
+    cell or zero displaces the partition's peaks identically, so the gap
+    stays flat and cannot be confused with position error.  ``ratio`` ≲ 1
+    says intensities are not where the remaining misfit lives — it never
+    says the fit is good (both Rwp may be terrible together).
+    """
+
+    rwp_rietveld: float
+    rwp_lebail: float
+    #: rwp_rietveld / rwp_lebail — the triage number (see class docstring)
+    ratio: float
+    n_cycles: int
 
 
 # ----------------------------------------------------------------------
@@ -408,6 +509,11 @@ class FitReport(Base):
     regions: list[Region] = Field(default_factory=list)
     n_regions_total: int = 0
     unmatched: list[UnmatchedPeak] = Field(default_factory=list)
+    #: structural-vs-profile triage (Layer-0 in trustworthiness, though it
+    #: needs the compiled model to run).  Absent for cause: None when the fit
+    #: is already Le Bail/Pawley (the mode *is* an intensity-free description,
+    #: so there is no intensity model to triage) and on model-free reports.
+    lebail_gap: LeBailGap | None = None
     summary: str = ""
 
     # -- Layer 1
@@ -429,6 +535,18 @@ class FitReport(Base):
     layer1_available: bool = False
     #: set when the global maturity gate refused Layer 1 (the report abstains)
     abstained_reason: str | None = None
+    #: which *kind* of abstention (WP-1057), for a consumer that branches:
+    #: ``"immature"`` — the Rwp arm, fix the model/starting values first;
+    #: ``"resolution_limited"`` — the shape basis explains the misfit but its
+    #: edit directions are indistinguishable on merged peaks, so the misfit is
+    #: readable in aggregate (Rwp, the Le Bail gap) and not attributable per
+    #: kind — **not** evidence the model is wrong, and often a legitimate
+    #: stopping point on broad data; ``"unreadable"`` — real misfit the local
+    #: gates refuse to read, including widespread validity failure (the
+    #: position-family evidence the reindex action carries).  None whenever
+    #: Layer 1 spoke.
+    abstained_kind: Literal["immature", "resolution_limited",
+                            "unreadable"] | None = None
 
     # -- Layer 2
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)

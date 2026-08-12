@@ -11,8 +11,14 @@ from __future__ import annotations
 
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
-from .layer0 import build_layer0
-from .layer1 import analyse_trends, attribute_regions, maturity_gate
+from .layer0 import build_layer0, lebail_gap
+from .layer1 import (
+    abstention_flavour,
+    analyse_trends,
+    attribute_regions,
+    contents_signature,
+    maturity_gate,
+)
 from .layer2 import (
     apply_strategy_veto,
     cap_texture_crosstalk,
@@ -26,9 +32,11 @@ from .layer2 import (
     texture_actions,
 )
 from .schemas import (
+    LEBAIL_GAP_NOTABLE,
     THRESHOLDS_VERSION,
     BasisCoefficient,
     FitReport,
+    LeBailGap,
     Region,
     RegionAttribution,
     StrainAnalysis,
@@ -47,6 +55,7 @@ __all__ = [
     "THRESHOLDS_VERSION",
     "BasisCoefficient",
     "FitReport",
+    "LeBailGap",
     "Recipe",
     "Region",
     "RegionAttribution",
@@ -57,6 +66,7 @@ __all__ = [
     "TrendTemplate",
     "UnmatchedPeak",
     "VerificationOutcome",
+    "abstention_flavour",
     "analyse_strain",
     "analyse_texture",
     "analyse_trends",
@@ -65,11 +75,13 @@ __all__ = [
     "build_layer0",
     "build_report",
     "cap_texture_crosstalk",
+    "contents_signature",
     "delta_bic",
     "describe_action",
     "estimate_delta_chi2",
     "hamilton_justified",
     "layer0_actions",
+    "lebail_gap",
     "maturity_gate",
     "predict_then_verify",
     "recipe",
@@ -116,6 +128,20 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     # of Layer 1 abstains.
     report.texture = analyse_texture(model, values)
     report.strain = analyse_strain(model, values)
+    # The Le Bail gap is measured, never linearised, so it too speaks on both
+    # branches (None outside Rietveld mode — absent for cause).  The summary
+    # quotes it only when notable: a converged fit reads ratio ≲ 1 and saying
+    # so every time would be noise.
+    report.lebail_gap = lebail_gap(model, values,
+                                   rwp_rietveld=result.statistics.rwp)
+    gap = report.lebail_gap
+    if gap is not None and gap.ratio >= LEBAIL_GAP_NOTABLE:
+        report.summary += (
+            f"; a Le Bail partition at the frozen converged state reaches "
+            f"Rwp={gap.rwp_lebail:.4f} against the Rietveld "
+            f"Rwp={gap.rwp_rietveld:.4f} (×{gap.ratio:.1f}): positions and "
+            f"profile account for the pattern — the intensity model carries "
+            f"the misfit, and phase ID does not rest on it")
 
     ticks = [t for positions in result.ticks.values() for t in positions]
     reason = maturity_gate(result.statistics.rwp, attributions)
@@ -128,7 +154,11 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # are exactly the evidence abstention rests on, and before it the one
         # state that most needed reindex_or_recheck_cell was the one state
         # that could not receive it.
+        kind, extra = abstention_flavour(result.statistics.rwp, attributions)
+        if extra is not None:
+            reason += " — " + extra
         report.abstained_reason = reason
+        report.abstained_kind = kind
         actions = layer0_actions(report.unmatched, attributions, ticks=ticks)
         reindex = reindex_action(attributions)
         if reindex is not None:
@@ -145,6 +175,18 @@ def build_report(result: RefinementResult, *, model=None, values=None,
 
     report.layer1_available = True
     report.trends = analyse_trends(attributions, model.wavelength)
+    # The contents-type clause (WP-1057): sign-alternating intensity misfit
+    # with no angular trend is the one signature the trend templates are
+    # structurally blind to, and the honest zero-action report it produces
+    # left the expert inference unstated.  Evidence stays in attribution and
+    # trends; this names what they support, and points at the gap that
+    # decides it.
+    clause = contents_signature(report.trends, attributions)
+    if clause is not None:
+        if report.lebail_gap is not None:
+            clause += (f"; the Le Bail gap (×{report.lebail_gap.ratio:.1f}) "
+                       f"is the deciding statistic")
+        report.summary += "; " + clause
     actions = suggest_actions(attributions, report.trends, report.unmatched,
                               rwp=result.statistics.rwp, ticks=ticks)
     predicted = estimate_delta_chi2(result, attributions)

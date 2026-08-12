@@ -61,20 +61,25 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The FitReport evidence campaign, [1055](wp/1055-background-evidence.md)–
-[1058](wp/1058-report-delivery.md), then the re-A/B
+**The FitReport evidence campaign remainder —
+[1055](wp/1055-background-evidence.md),
+[1056](wp/1056-identifiability-layer.md),
+[1058](wp/1058-report-delivery.md) — then the re-A/B
 ([1059](wp/1059-eval-round-two.md)) and the freeze
 ([1003](wp/1003-api-freeze-pypi.md)).**
-[1054](wp/1054-abstained-branch-honesty.md) closed 2026-08-12 — the campaign's
-recommended first lander; its story is in the milestone narrative, its surface
-changes (THRESHOLDS_VERSION 0.4, `TextureAnalysis.caveat`/`best_axis`
-semantics) in 1003's `### Inherited`, and its collision handoff in 1057's.
-Remaining order is free except: **1057 lands on the abstained arm 1054 just
-restructured** (read its `### Inherited` first), 1056 has its reading done
-(Prince ch. 6–8) and a spike gating its schema fields, and **1059 runs only
-after 1054 + 1056 + 1057 + 1058** — it re-A/Bs the fixed content on the 1053
-harness with pre-registered hypotheses, including whether 1054 flipped the one
-row where the report sat on the wrong side (E7's phantom-phase quote).
+[1057](wp/1057-purpose-grade-evidence.md) closed 2026-08-12: the report now
+answers "good enough *for what I need*" — `lebail_gap` (structural-vs-profile
+triage), `abstained_kind` (resolution-limited vs model error), the
+contents-type clause, and AGENT_PROTOCOL §4b mapping deliverable → rows →
+stopping criterion. Its surface changes (THRESHOLDS_VERSION 0.5, two new
+`FitReport` fields, four new exports) are in 1003's `### Inherited`, the
+re-A/B deltas in 1059's, and the §4b hook points for the background and
+identifiability sections in 1055's/1056's. Remaining order is free except:
+1056 has its reading done (Prince ch. 6–8) and a spike gating its schema
+fields, and **1059 runs only after 1056 + 1058** (1054 and 1057 are closed) —
+it re-A/Bs the fixed content on the 1053 harness with pre-registered
+hypotheses, including whether 1054 flipped the one row where the report sat
+on the wrong side (E7's phantom-phase quote).
 Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 
@@ -262,7 +267,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ✅ 2026-08-12 | — |
 | [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ⬜ | — |
 | [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ⬜ | — |
-| [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ⬜ | — |
+| [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
 

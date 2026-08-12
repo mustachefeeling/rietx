@@ -24,7 +24,13 @@ import numpy as np
 from scipy.signal import find_peaks
 
 from ..schemas.results import RefinementResult
-from .schemas import FitReport, Region, UnmatchedPeak
+from .schemas import (
+    LEBAIL_GAP_CYCLES,
+    FitReport,
+    LeBailGap,
+    Region,
+    UnmatchedPeak,
+)
 
 
 def _segment_regions(tt: np.ndarray, positions: np.ndarray, gap_deg: float) -> list[tuple[float, float]]:
@@ -42,6 +48,48 @@ def _segment_regions(tt: np.ndarray, positions: np.ndarray, gap_deg: float) -> l
             lo = hi = p
     regions.append((lo - gap_deg / 2, hi + gap_deg / 2))
     return regions
+
+
+def lebail_gap(model, values: dict[str, float], *, rwp_rietveld: float,
+               n_cycles: int = LEBAIL_GAP_CYCLES) -> LeBailGap | None:
+    """Evaluate-only Le Bail partition at the converged state → the gap.
+
+    The one Layer-0 inventory item that takes the compiled model: like the
+    rest of the layer it is a measured whole-profile statistic, never a
+    linearisation, so it stays trustworthy on an abstained report.  The
+    convention (and how to read the ratio) is the
+    :class:`~pxrdref.report.schemas.LeBailGap` docstring.
+
+    ``None`` outside Rietveld mode — a Le Bail/Pawley fit already *is* the
+    intensity-free description, so the gap has nothing to triage there
+    (absent for cause, not a failure).
+
+    The model's mode and per-hkl buffers are flipped for the partition and
+    restored before returning; θ is never touched, no least-squares runs, and
+    every frozen structure (windows, reflection lists, FCJ node counts) is
+    reused as compiled, so frozen-per-stage discreteness is untouched.
+    """
+    if model.mode != "rietveld":
+        return None
+    saved = [cp.hkl_intensity for cp in model.phases]
+    try:
+        model.mode = "lebail"
+        seed = max(float(np.median(model.y_obs)), 1.0)
+        for cp in model.phases:
+            cp.hkl_intensity = np.full(len(cp.reflections), seed)
+        model.lebail_update(values, n_cycles=n_cycles)
+        y_calc = model.evaluate(values)
+    finally:
+        model.mode = "rietveld"
+        for cp, buf in zip(model.phases, saved, strict=True):
+            cp.hkl_intensity = buf
+    w = 1.0 / model.sigma**2
+    delta = model.y_obs - y_calc
+    denom = float((w * model.y_obs**2).sum())
+    rwp_lb = float(np.sqrt((w * delta * delta).sum() / denom)) if denom > 0 else 0.0
+    return LeBailGap(
+        rwp_rietveld=rwp_rietveld, rwp_lebail=rwp_lb,
+        ratio=float(rwp_rietveld / max(rwp_lb, 1e-12)), n_cycles=n_cycles)
 
 
 def build_layer0(result: RefinementResult, *, top_n: int = 15,

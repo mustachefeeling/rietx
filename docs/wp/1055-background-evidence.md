@@ -59,6 +59,22 @@ off-region channels only — low d off-peak is the wavy/stiff-background signatu
 "grossly in error"; Hill & Flack 1987 is the powder citation, already in
 `optimize/statistics.py`).
 
+### Inherited
+
+**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
+protocol home for this WP's rows already exists.** AGENT_PROTOCOL now has
+§4b ("Declare the deliverable"), whose QPA profile names the
+background-family evidence — the scale↔Biso↔background degeneracy, the
+measured block-absorption R² ≈ 46 %, `background_absorption` — as the rows
+that decide a QPA deliverable. This WP's protocol task ("extend §4's judging
+order and the §7 diagnostics") should hang its section off §4b's QPA
+profile and replace that paragraph's prose pointers with the new rows,
+rather than opening a second home. Also available if useful here:
+`FitReport.lebail_gap` (a large ratio means the intensity model is wrong,
+and wrong intensities are wrong fractions — §4b already states this reading
+for QPA), and `THRESHOLDS_VERSION` is now 0.5, so a further bump is again a
+fresh decision.
+
 ## Non-goals
 
 - No change to background *models* or their defaults; no auto-tuning of Chebyshev

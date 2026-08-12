@@ -41,6 +41,10 @@ import numpy as np
 
 from ..model.forward import CompiledModel, DerivativeBases
 from .schemas import (
+    CONTENTS_MAX_TEMPLATE_R2,
+    CONTENTS_MIN_INTENSITY_SHARE,
+    CONTENTS_MIN_REGIONS,
+    CONTENTS_MIN_SIGN_MINORITY,
     MATURITY_MAX_RWP,
     MATURITY_MIN_EXPLAINED_FRACTION,
     MATURITY_MIN_MISFIT_SHARE,
@@ -48,6 +52,11 @@ from .schemas import (
     MIN_COEF_SIGNIFICANCE,
     MIN_REGION_CHI2_RED,
     MIN_REGION_R2,
+    REINDEX_MIN_FAR_FRACTION,
+    REINDEX_MIN_FAR_REGIONS,
+    RESOLUTION_LIMITED_MIN_FRACTION,
+    RESOLUTION_LIMITED_MIN_R2,
+    RESOLUTION_LIMITED_MIN_REGIONS,
     SEPARABILITY_MIN_SS_RATIO,
     VALIDITY_RADIUS_FWHM,
     BasisCoefficient,
@@ -233,6 +242,100 @@ def maturity_gate(rwp: float, attributions: list[RegionAttribution]
                 f"the local gates accept (need "
                 f"{MATURITY_MIN_EXPLAINED_FRACTION:.0%}); Layer 1 abstains")
     return None
+
+
+def abstention_flavour(rwp: float, attributions: list[RegionAttribution]
+                       ) -> tuple[str, str | None]:
+    """Classify an abstention :func:`maturity_gate` has already decided.
+
+    Returns ``(kind, extra)``: ``kind`` is the
+    :attr:`~pxrdref.report.schemas.FitReport.abstained_kind` value and
+    ``extra``, when set, is the resolution-limited sentence appended to the
+    reason.  Purely a *reading* of the per-region gate evidence — no
+    threshold that decides abstention is consulted, so the abstain/speak
+    boundary cannot move here (WP-1057).
+
+    The order of the arms is the argument (measured grounds on the schema
+    constants): widespread validity failure is position-family model error
+    and must win even though a wrong cell fails the Gram gate widely too;
+    only past it can Gram-dominance with high local R² be read as "the data's
+    resolution limits attribution", the state broad-peak specimens
+    (nanoparticles, MOFs) live in permanently.
+    """
+    if rwp > MATURITY_MAX_RWP:
+        return "immature", None
+    misfitting = [a for a in attributions if a.has_significant_misfit]
+    failing = [a for a in misfitting if not a.gates_passed]
+    far = [a for a in failing
+           if any("validity_radius" in f for f in a.gate_failures)]
+    if (len(far) >= REINDEX_MIN_FAR_REGIONS
+            and len(far) >= REINDEX_MIN_FAR_FRACTION * len(misfitting)):
+        return "unreadable", None    # reindex_action carries this story
+    gram = [a for a in failing
+            if any("gram_condition" in f for f in a.gate_failures)]
+    gram_only = [a for a in failing if a.gate_failures
+                 and all("gram_condition" in f for f in a.gate_failures)]
+    if (failing and len(gram) >= RESOLUTION_LIMITED_MIN_FRACTION * len(failing)
+            and len(gram_only) >= RESOLUTION_LIMITED_MIN_REGIONS):
+        median_r2 = float(np.median([a.r2 for a in gram_only]))
+        if median_r2 >= RESOLUTION_LIMITED_MIN_R2:
+            extra = (
+                f"the failures are collinearity on merged peaks, not "
+                f"unexplained misfit ({len(gram)} of {len(failing)} "
+                f"gate-failing region(s) fail the Gram condition; the "
+                f"{len(gram_only)} failing nothing else carry median local "
+                f"R²={median_r2:.2f}, so the shape basis explains the misfit "
+                f"but its edit directions are indistinguishable at this "
+                f"resolution).  Resolution-limited, not evidence the model "
+                f"is wrong: the misfit is readable in aggregate (Rwp, the "
+                f"Le Bail gap), not attributable per kind — on broad-peak "
+                f"data this can be a legitimate stopping point")
+            return "resolution_limited", extra
+    return "unreadable", None
+
+
+def contents_signature(trends: list[TrendAnalysis],
+                       attributions: list[RegionAttribution]) -> str | None:
+    """The incoherent-intensity summary clause, or None (WP-1057).
+
+    Names the pattern the pore-proxy scenario measured and every angular
+    analysis is structurally blind to: per-region intensity errors that are
+    individually large, collectively dominant, and *alternating in sign* with
+    no angular trend.  A scale error is single-sign, an ADP error trends with
+    sin²θ/λ², texture follows an axis — sign alternation across reflections
+    is structure-factor interference, which only a wrong scattering *content*
+    (guest species, pore contents, wrong occupancy, missing/excess atom)
+    produces.  The evidence stays where it already is — per-region
+    coefficients in ``attribution``, template scores in ``trends`` — this
+    merely states the inference those numbers support; thresholds and their
+    measured grounds are pinned in :mod:`.schemas`.
+    """
+    intensity = next((t for t in trends if t.observable == "intensity"), None)
+    if intensity is None or not intensity.templates:
+        return None
+    if intensity.misfit_share < CONTENTS_MIN_INTENSITY_SHARE:
+        return None
+    best_r2 = max(t.r2 for t in intensity.templates)
+    if best_r2 >= CONTENTS_MAX_TEMPLATE_R2:
+        return None
+    sig = [c.value for a in attributions if a.gates_passed
+           for c in a.coefficients if c.kind == "intensity" and c.significant]
+    if len(sig) < CONTENTS_MIN_REGIONS:
+        return None
+    n_weak = sum(1 for v in sig if v > 0)     # calc too weak there
+    n_strong = len(sig) - n_weak
+    if min(n_weak, n_strong) < CONTENTS_MIN_SIGN_MINORITY * len(sig):
+        return None
+    lo = min(abs(v) for v in sig)
+    hi = max(abs(v) for v in sig)
+    return (f"intensity misfit is incoherent: {intensity.misfit_share:.0%} of "
+            f"χ² in {len(sig)} region(s) whose relative intensity errors "
+            f"alternate in sign (calculated too weak in {n_weak}, too strong "
+            f"in {n_strong}, |error| {lo:.0%}–{hi:.0%}) with no angular trend "
+            f"(best template R²={best_r2:.2f}) — structure-factor "
+            f"interference, the signature of un-modelled scattering contents "
+            f"(guest/pore species, wrong occupancy), not of scale, ADP or "
+            f"texture")
 
 
 # ----------------------------------------------------------------------

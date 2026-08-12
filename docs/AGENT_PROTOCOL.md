@@ -197,6 +197,85 @@ channels.
 
 ---
 
+## 4b. Declare the deliverable — "good enough" is a question about purpose
+
+Much real work is non-ideal by construction: nanoparticle broadening erases
+the fine detail a sharp-line protocol assumes, and porous frameworks (MOFs,
+zeolites) carry intensity error from unknown pore contents that no profile
+correction touches. **No bar moves for such data** — the gates auto-scale to
+information content (measured: a zero error read at confidence 0.997 on sharp
+data produces silence, GoF 1.02, on the same error under 0.6° broadening),
+and "good enough" is a different question answered exactly, not a relaxed
+standard. What changes is *which report rows decide your deliverable*.
+Declare the deliverable, then read its rows — the report itself is
+purpose-neutral, and it will not infer your purpose for you.
+
+**Phase ID — "which phases are present?"** The rows that decide:
+`report.unmatched` (`kind="unmatched_obs"`: strong entries are lines your
+phase set does not produce) and `report.lebail_gap`, the structural-vs-profile
+triage. The gap re-partitions the per-hkl intensities at the frozen converged
+state (an evaluate-only Le Bail — θ never moves) and reports both Rwp: a
+`ratio` ≫ 1 means positions and profile alone account for the pattern, so
+every line is indexed and identification is safe **at any absolute Rwp** —
+the misfit lives in intensities, which phase ID does not rest on. Stopping
+criterion: no strong unmatched observed peaks, gap readable — done, whatever
+Rwp says. An abstention with `abstained_kind="resolution_limited"` does not
+block this deliverable (see below).
+
+**QPA — "how much of each?"** Fractions ride on scales, so the deciding rows
+are the ones that bias scales silently: the scale↔Biso↔background degeneracy
+(§3), a background flexible enough to imitate peaks (measured: block
+absorption R² ≈ 46 % while every pairwise ρ read ~0.2 —
+`optimize.statistics.background_absorption`), absorption geometry (µR is
+*exactly* a scale/Biso reparameterisation; µt is not, and its ΔBiso is larger
+and negative), and physically-impossible refined values (§4.4: a negative
+Biso is a background error laundered through a scale). The Le Bail gap must
+be read the other way here: a large ratio means the intensity model is wrong,
+and wrong intensities *are* wrong fractions. Stopping criterion: fractions
+stable under a background-flexibility change and no unresolved scale-family
+diagnostic — never "Rwp stopped falling".
+
+**Structure — "where are the atoms?"** Everything above, plus the
+intensity-model rows themselves: per-region intensity coefficients and their
+angular trends (ADP vs scale vs texture), `report.texture` / `report.strain`
+with their caveats, restraint tension, ADP positive-definiteness. Here a
+notable Le Bail gap is a *blocker*, not a comfort — the intensity model
+carries the structural claim, and the gap says it does not carry the pattern.
+Stopping criterion: §10's full ladder (diagnostics resolved, no attributable
+region, ΔBIC refuses the next parameter).
+
+**The capability floor.** Whatever is reading this report, the floor is:
+verify before acting (`predict_then_verify`, or a history branch), treat a
+*capped* confidence (an `add_impurity_phase` at 0.3, a texture call capped
+below its likely cause) as an **unresolved question**, never as a
+low-priority instruction, and never execute a vetoed action. There is no
+ceiling: a consumer able to reason past the floor may — the report supplies
+evidence, judgment stays with the reader.
+
+**The worked example, measured (LaB₆ pore proxy: a guest scatterer at the 1b
+site in the data only, host model refined to convergence, 2026-08-12).**
+Rietveld Rwp 0.0405, GoF 2.97 — a "bad fit" by GoF. The report: zero
+suggested actions; intensity carries 83 % of the misfit in per-region errors
+of 9–18 % with **alternating sign** ((100) low, (110) high, (111) low —
+structure-factor interference, which scale, ADP and texture cannot produce;
+the summary names it as un-modelled scattering contents); and
+`lebail_gap.rwp_lebail` 0.0170 against 0.0405, ratio ×2.4. Read by
+deliverable: phase ID is **done** — stop, at GoF 2.97. A structure
+determination is **not** — and its next move is chemistry (what occupies the
+pores), never finer profile corrections, which this evidence says cannot
+help.
+
+**Resolution-limited is a stopping point, not a failure.** On broad-peak
+data a real aggregate misfit can be unattributable per kind: the abstention
+then carries `abstained_kind="resolution_limited"` (the shape basis explains
+the failing regions at median R² ≳ 0.9 — the edit directions are merely
+indistinguishable on merged peaks). For phase-ID-grade work that is a
+legitimate end state; for structure-grade work it means *collect better
+data* — pushing finer corrections into a fit whose attribution is
+resolution-limited changes numbers it cannot justify.
+
+---
+
 ## 5. Read numbers, not pixels
 
 This is the design premise of the package and the first thing that changes when
@@ -238,7 +317,7 @@ propagate it, do not paper over it.
 
 | Signal | Meaning | Correct agent response |
 |---|---|---|
-| `report.abstained_reason` is set | The global maturity gate refused Layer 1: the model is too far from converged for linearisation to mean anything | Fix the fit using Layer 0; do not read `attribution`. The actions that survive abstention (WP-1054) are the model-free ones **plus the position-family pointer**: when most misfitting regions have offsets beyond the linearisation radius, `reindex_or_recheck_cell` leads the list with the calibration candidates in `alternatives` — the same signature comes from a wrong cell and a gross zero/displacement error, and the data has not chosen. An `add_impurity_phase` at its capped 0.3 with `reindex_or_recheck_cell` first among alternatives means every "unmatched" peak matches the position-error evidence (displaced pairs / residual lobes) — do not add a phase on it |
+| `report.abstained_reason` is set | The global maturity gate refused Layer 1: the model is too far from converged for linearisation to mean anything | **Branch on `abstained_kind` first (WP-1057).** `"immature"` / `"unreadable"`: fix the fit using Layer 0; do not read `attribution`. `"resolution_limited"`: the basis *explains* the failing regions (median local R² ≳ 0.9) but its edit directions are indistinguishable on merged peaks — this is a statement about the data's resolution, **not evidence the model is wrong**, and for phase-ID-grade work a legitimate stopping point (§4b). Either way the actions that survive abstention (WP-1054) are the model-free ones **plus the position-family pointer**: when most misfitting regions have offsets beyond the linearisation radius, `reindex_or_recheck_cell` leads the list with the calibration candidates in `alternatives` — the same signature comes from a wrong cell and a gross zero/displacement error, and the data has not chosen. An `add_impurity_phase` at its capped 0.3 with `reindex_or_recheck_cell` first among alternatives means every "unmatched" peak matches the position-error evidence (displaced pairs / residual lobes) — do not add a phase on it |
 | `TextureAnalysis.caveat` is set | Strong unmatched observed peaks coexist with the texture detection, and the per-reflection extraction partitions un-modelled intensity onto its calculated neighbours — an impurity can manufacture exactly this signature | The detection measures the residual, not necessarily the specimen. Resolve the unmatched peaks first; the `refine_preferred_orientation` action is already capped below `add_impurity_phase`, and the axis/r/R² stay readable as evidence |
 | `region.gates_passed is False` | This region's coefficients failed resolvability / validity-radius / significance | Read `region.gate_failures`; the coefficients are present for transparency only and must **not** be read as causes |
 | A trend is reported non-separable | Two angular templates (e.g. size vs strain) are collinear over this range | Do not pick one. Extend the range or report both |
@@ -1031,7 +1110,9 @@ print(result.statistics.rwp, result.statistics.gof,
 either resolved or reported as a caveat, (b) Layer 1 attributes no remaining
 region above the significance gate, and (c) adding the next parameter group
 fails a ΔBIC test or trips a guard. Do **not** stop merely because Rwp stopped
-falling, and do not continue merely because it is still falling.
+falling, and do not continue merely because it is still falling. These are the
+*structure-grade* conditions — §4b maps the earlier stopping points a declared
+phase-ID or QPA deliverable is entitled to.
 
 **What to report.** The refined values with their (inflated) esds, the
 diagnostics you could not resolve named as systematics, the protocol you
