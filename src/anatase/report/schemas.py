@@ -725,6 +725,88 @@ class VerificationOutcome(Base):
     reason: str
 
 
+#: which *kind* of abstention, for a consumer that branches (WP-1057).  One
+#: alias, two users — :class:`FitReport` and its :class:`StageReport`
+#: projection — because a second copy of a closed vocabulary is how the two
+#: drift apart.
+AbstentionKind = Literal["immature", "resolution_limited", "unreadable"]
+
+#: active suggestions carried per trajectory rung.  A cap, not a filter: what
+#: it drops is counted in ``n_actions_omitted``, because a silent cap reads as
+#: "that was everything".  Five is above every count measured on the WP-1052
+#: episode states (max 4 active) and on real 11-BM data (2).
+TRAJECTORY_MAX_ACTIONS = 5
+
+
+class StageReport(Base):
+    """The report at one stage boundary, projected for delivery (WP-1058).
+
+    :class:`FitReport` is what a *consumer that reads one state* needs; this is
+    what a consumer reading **five** needs, and the difference is not detail —
+    it is payload.  Measured on the WP-1053 episode fixtures and real 11-BM
+    data, a full FitReport serializes to 26–40 kB, so a five-stage trajectory
+    of them is 130–190 kB against the 26 kB single report it accompanies.  This
+    projection measures 0.9–2.6 kB a rung — 6.6 kB for the whole five-rung E2
+    trajectory, +26 % on the report it ships beside — and carries the numbers
+    AGENT_PROTOCOL §4 judges a fit on, the summary sentence every section's
+    headline clause already lands in (by construction — see
+    :func:`~anatase.report.build_report`), and the active suggestions
+    themselves.
+
+    Three things it deliberately does **not** do.  It does not re-type an
+    action: ``actions`` holds :class:`SuggestedAction` verbatim, so there is
+    one authority for what a suggestion is and the trajectory cannot describe
+    one differently from the final report.  It does not carry curves, regions
+    or per-region attribution — those are the *evidence* for statements the
+    summary and the actions already make, and a rung is a pointer to a state
+    worth asking about, not a substitute for asking.  And it does not drop
+    anything silently: the two counts say what the cap and the strategy veto
+    removed.
+
+    ``actions`` is **active only**.  A vetoed suggestion at a stage boundary is
+    the plan's own next stage answering it — the least informative thing a
+    trajectory can repeat five times — while ``n_actions_vetoed`` still says
+    how many there were.
+    """
+
+    #: the stage whose *end* this describes, by name (``StageResult.name``)
+    stage: str
+    rwp: float
+    gof: float
+    #: the FitReport's own summary, verbatim: the one string every section's
+    #: headline clause lands in (identifiability exchange, Le Bail gap,
+    #: contents signature, background comment, abstention reason)
+    summary: str = ""
+    abstained_reason: str | None = None
+    abstained_kind: AbstentionKind | None = None
+    #: active suggestions, ranked as the report ranked them, capped at
+    #: :data:`TRAJECTORY_MAX_ACTIONS`
+    actions: list[SuggestedAction] = Field(default_factory=list)
+    #: active suggestions past the cap (0 whenever nothing was dropped)
+    n_actions_omitted: int = 0
+    #: suggestions the strategy veto marked inactive — what the plan you are
+    #: running already covers
+    n_actions_vetoed: int = 0
+    #: Layer-0 peak accounting: observed peaks no tick explains (the impurity
+    #: signature) and predicted ticks with no intensity under them.  Counts,
+    #: not positions — ``actions[].two_theta_range`` carries the where
+    n_unmatched_obs: int = 0
+    n_unmatched_calc: int = 0
+    #: ``lebail_gap.ratio`` — structural-vs-profile triage (None outside
+    #: Rietveld mode, absent for cause)
+    lebail_gap_ratio: float | None = None
+    #: the two background triggers (WP-1055), and only those two: the
+    #: too-stiff detector and the too-flexible one.  The Rwp /
+    #: Rwp-background-subtracted pair is deliberately absent — measured, every
+    #: background-dominated pattern crosses any useful threshold on it,
+    #: converged ones included, so per rung it would be a sentence on every
+    #: lab fit.  It is published unconditionally on the final FitReport, where
+    #: a consumer reads it beside the raw Rwp it qualifies.
+    off_region_chi2_reduced: float | None = None
+    worst_absorption: float | None = None
+    worst_absorption_path: str | None = None
+
+
 # ----------------------------------------------------------------------
 class FitReport(Base):
     """All three layers.  Layer 1/2 fields stay empty when not computed."""
@@ -786,8 +868,7 @@ class FitReport(Base):
     #: gates refuse to read, including widespread validity failure (the
     #: position-family evidence the reindex action carries).  None whenever
     #: Layer 1 spoke.
-    abstained_kind: Literal["immature", "resolution_limited",
-                            "unreadable"] | None = None
+    abstained_kind: AbstentionKind | None = None
 
     # -- Layer 2
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
@@ -797,3 +878,37 @@ class FitReport(Base):
             if a.kind == kind:
                 return a
         raise KeyError(kind)
+
+    def for_stage(self, stage: str, *,
+                  max_actions: int = TRAJECTORY_MAX_ACTIONS) -> StageReport:
+        """Project this report onto one trajectory rung (WP-1058).
+
+        A projection computed *from* the report, never beside it — the
+        :meth:`~anatase.schemas.indexing.IndexingResult.evidence` pattern one
+        contract over — so the rung and the report it came from cannot
+        disagree about what the fit said at that state.
+        """
+        active = [a for a in self.suggested_actions if a.active]
+        bg = self.background
+        return StageReport(
+            stage=stage,
+            rwp=self.rwp,
+            gof=self.gof,
+            summary=self.summary,
+            abstained_reason=self.abstained_reason,
+            abstained_kind=self.abstained_kind,
+            actions=active[:max_actions],
+            n_actions_omitted=max(0, len(active) - max_actions),
+            n_actions_vetoed=len(self.suggested_actions) - len(active),
+            n_unmatched_obs=sum(1 for u in self.unmatched
+                                if u.kind == "unmatched_obs"),
+            n_unmatched_calc=sum(1 for u in self.unmatched
+                                 if u.kind == "unmatched_calc"),
+            lebail_gap_ratio=None if self.lebail_gap is None
+            else self.lebail_gap.ratio,
+            off_region_chi2_reduced=None if bg is None
+            else bg.off_region_chi2_reduced,
+            worst_absorption=None if bg is None else bg.worst_absorption,
+            worst_absorption_path=None if bg is None
+            else bg.worst_absorption_path,
+        )
