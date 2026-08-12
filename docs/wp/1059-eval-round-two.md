@@ -75,6 +75,22 @@ the prompt; fixtures built fresh per run from `_truth()`; ground truth in the
 scorer-side tree; `calls.jsonl` is the record; no LLM dependency anywhere in the
 repo; runs execute in the Claude Code harness.
 
+### Inherited
+
+**From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — the
+content fix for the row this WP pre-registered is in, with the concrete
+deltas a re-A/B will see.** On E6/E7-shaped abstained states the report now
+leads with `reindex_or_recheck_cell` (0.4, calibration candidates in
+`alternatives`) and `add_impurity_phase` is capped at 0.3 with reindex first
+among its alternatives whenever every strong unmatched peak matches the
+position-error evidence — so the E7 quote-the-invitation failure mode
+(haiku citing `add_impurity_phase` 0.9) now has the opposite sign available:
+the hypothesis to pre-register is that the weak model quotes the *reindex*
+rationale instead. Texture false positives no longer outrank the impurity
+call (capped below it, `TextureAnalysis.caveat` set), which touches E5's
+incidental-rejection round. Reports now carry `thresholds_version: "0.4"` —
+round-1 traces say "0.3", a clean condition marker in the grids.
+
 ## Non-goals
 
 - No CI assertion on agent outcomes; no significance claims at pilot N.

@@ -318,7 +318,7 @@ const HISTORY = {
  *  applicability: a button, a veto, and advice. */
 const REPORT = {
   report: {
-    thresholds_version: "0.3",
+    thresholds_version: "0.4",
     rwp: 0.216, gof: 1.41,
     summary: "Rwp 21.6 %, 15 misfitting regions; Layer 1 on 15/15 regions",
     regions: [

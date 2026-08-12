@@ -61,32 +61,22 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**[1003](wp/1003-api-freeze-pypi.md) — API freeze + PyPI release.** Five WPs
-closed 2026-08-09…11 and all five are surface the freeze covers: 1047 (ten
-vendor formats), 1046 (the indexing candidate cap and ranking key), 1051 (the
-series escalation ladder), 1052 (the §9 loop as executable consumer) and 1053
-(below). Every decision the freeze should *confirm rather than re-derive* is
-written into 1003's `### Inherited` — read that section first; closing
-sessions leave their surface changes there rather than here, and their
+**The FitReport evidence campaign, [1055](wp/1055-background-evidence.md)–
+[1058](wp/1058-report-delivery.md), then the re-A/B
+([1059](wp/1059-eval-round-two.md)) and the freeze
+([1003](wp/1003-api-freeze-pypi.md)).**
+[1054](wp/1054-abstained-branch-honesty.md) closed 2026-08-12 — the campaign's
+recommended first lander; its story is in the milestone narrative, its surface
+changes (THRESHOLDS_VERSION 0.4, `TextureAnalysis.caveat`/`best_axis`
+semantics) in 1003's `### Inherited`, and its collision handoff in 1057's.
+Remaining order is free except: **1057 lands on the abstained arm 1054 just
+restructured** (read its `### Inherited` first), 1056 has its reading done
+(Prince ch. 6–8) and a spike gating its schema fields, and **1059 runs only
+after 1054 + 1056 + 1057 + 1058** — it re-A/Bs the fixed content on the 1053
+harness with pre-registered hypotheses, including whether 1054 flipped the one
+row where the report sat on the wrong side (E7's phantom-phase quote).
+Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
-
-**What 1053 closed (2026-08-11), because the freeze covers consumed
-surface**: the first real-model A/B on `refine_json` — 48 runs, two models ×
-{report on, off} over WP-1052's eight planted-cause episodes; harness in
-`tests/eval_report_agent/` (shim-enforced conditions, deterministic scorer),
-dated grid in the WP file and the v1.0 appendix — came back **null on
-outcomes in both models, and the measured reason is process, not content**:
-every agent's first move was the untouched request, whose default-plan fit
-lands at a state where the report has nothing left to say, so the
-discriminating content WP-1052 proved exists at bootstrap-grade states was
-never generated. Where the report did speak it cut the strong model's work
-(E5: one call, citing Layer 2, vs three calls of hand-rolled crystallography)
-and fed the weak model its wrong E7 verdict verbatim (`add_impurity_phase`
-at 0.9 on the abstained branch — 1052's finding, now with a measured
-real-model cost on each side). For 1003 specifically: the vary-or-tie
-`RefinementResult.parameters` filter is now a contract question in its
-`### Inherited` — a held-wrong parameter is invisible to a `refine_json`
-consumer, measured 16/16 behind χ²_red ≈ 1.01.
 
 ## Milestones
 
@@ -269,7 +259,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1051](wp/1051-sequential-escalation.md) | Sequential escalation ladder + chain hygiene | ✅ 2026-08-09 — three rungs, keep-best; a diverged pattern seeds nothing and joins no median | — |
 | [1052](wp/1052-report-loop-eval.md) | Closed-loop FitReport usefulness eval (mechanical) | ✅ 2026-08-11 — the §9 loop runs closed in CI; recovers what separates, refuses what does not, `src/` untouched | — |
 | [1053](wp/1053-agent-in-the-loop-eval.md) | Agent-in-the-loop report eval (refine_json) | ✅ 2026-08-11 — 48/48-run pilot: A/B null on outcomes; the bottleneck is when the report is read, not what it says | 1052 |
-| [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ⬜ | — |
+| [1054](wp/1054-abstained-branch-honesty.md) | Layer-2 honesty on the abstained branch (phantom-phase invitation) | ✅ 2026-08-12 | — |
 | [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ⬜ | — |
 | [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ⬜ | — |
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ⬜ | — |

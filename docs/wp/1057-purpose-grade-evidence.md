@@ -80,6 +80,23 @@ the user directive: a floor for weaker agents ("verify before acting; treat
 capped confidence as unresolved") without a ceiling for stronger ones. The
 report itself stays purpose-neutral — purpose lives where judgment lives.
 
+### Inherited
+
+**From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — you are
+the second lander on the abstained arm; here is what it looks like now.**
+`build_report`'s abstain arm assembles `layer0_actions` (ticks threaded
+through) + `reindex_action` (the shared emitter — fires on a *count fraction*
+of misfitting regions beyond the validity radius) + `texture_actions`, runs
+`cap_texture_crosstalk`, applies the veto, and **sorts by confidence** — your
+wording edits land on that structure. The abstention *reason strings*
+(`maturity_gate`) are untouched, so your resolution-limited wording starts
+clean. Tests now asserting on the abstained action set, which your changes
+must expect: `test_report_loop.py::test_e6_wrong_cell_applies_no_position_action`
+(reindex tops the list, `top_blocked_nonstage` names it) and the four
+WP-1054 tests at the end of `test_fitreport_layers.py` (cell-wrong, broad
+lobes, texture inversion, double injection). `THRESHOLDS_VERSION` is already
+0.4 this milestone — a further 1057 bump is a fresh decision, not implied.
+
 ## Non-goals
 
 - No lowering of any gate or threshold; "good enough" is a different question

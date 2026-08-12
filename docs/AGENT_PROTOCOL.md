@@ -238,7 +238,8 @@ propagate it, do not paper over it.
 
 | Signal | Meaning | Correct agent response |
 |---|---|---|
-| `report.abstained_reason` is set | The global maturity gate refused Layer 1: the model is too far from converged for linearisation to mean anything | Fix the fit using Layer 0; do not read `attribution` |
+| `report.abstained_reason` is set | The global maturity gate refused Layer 1: the model is too far from converged for linearisation to mean anything | Fix the fit using Layer 0; do not read `attribution`. The actions that survive abstention (WP-1054) are the model-free ones **plus the position-family pointer**: when most misfitting regions have offsets beyond the linearisation radius, `reindex_or_recheck_cell` leads the list with the calibration candidates in `alternatives` — the same signature comes from a wrong cell and a gross zero/displacement error, and the data has not chosen. An `add_impurity_phase` at its capped 0.3 with `reindex_or_recheck_cell` first among alternatives means every "unmatched" peak matches the position-error evidence (displaced pairs / residual lobes) — do not add a phase on it |
+| `TextureAnalysis.caveat` is set | Strong unmatched observed peaks coexist with the texture detection, and the per-reflection extraction partitions un-modelled intensity onto its calculated neighbours — an impurity can manufacture exactly this signature | The detection measures the residual, not necessarily the specimen. Resolve the unmatched peaks first; the `refine_preferred_orientation` action is already capped below `add_impurity_phase`, and the axis/r/R² stay readable as evidence |
 | `region.gates_passed is False` | This region's coefficients failed resolvability / validity-radius / significance | Read `region.gate_failures`; the coefficients are present for transparency only and must **not** be read as causes |
 | A trend is reported non-separable | Two angular templates (e.g. size vs strain) are collinear over this range | Do not pick one. Extend the range or report both |
 | `PAWLEY_OVERLAP_UNRESOLVED` | A group's summed intensity is determined; the split is not | Treat the group sum as the datum |
@@ -540,9 +541,17 @@ Five things about that sequence are load-bearing:
    solution works in.
 
 The reverse direction closes too. When a refinement's Layer 2 emits
-`reindex_or_recheck_cell` — peak offsets beyond the linearisation radius, i.e. the
-cell is wrong rather than slightly off — that action now has something to call:
-pick peaks and run `index_pattern` on the same data.
+`reindex_or_recheck_cell` — peak offsets beyond the linearisation radius in most
+of the misfitting regions, i.e. the cell is wrong (or the calibration grossly
+off) rather than slightly off — that action has something to call: pick peaks
+and run `index_pattern` on the same data. Since WP-1054 it survives abstention,
+which is where it matters most: the wrong-cell state abstains, and before the
+fix it surfaced only a confident `add_impurity_phase` built from its own
+displaced peaks. The action carries `refine_zero_shift` /
+`refine_sample_displacement` in `alternatives` because the validity-radius
+signature cannot choose between a wrong cell and a gross calibration error —
+re-indexing is still the safe first move, because `index_pattern` searches
+under its own shift allowance.
 
 ---
 

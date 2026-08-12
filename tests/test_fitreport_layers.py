@@ -7,6 +7,8 @@ cause — and, just as importantly, that deliberately-collinear setups are
 reported as *unresolved* rather than as a confident wrong singleton.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -447,7 +449,9 @@ def test_veto_helper_is_pure_annotation():
 def _texture(detected=True, r2=0.82, runner_r2=0.1, **kw):
     from pxrdref.report import TextureAnalysis
 
-    base = dict(phase_index=0, best_axis=(0, 0, 1) if detected else None,
+    # best_axis is always populated since WP-1054 (evidence, not a verdict);
+    # ``detected`` alone decides whether an action is emitted
+    base = dict(phase_index=0, best_axis=(0, 0, 1),
                 march_coefficient=0.71, r2=r2, n_reflections_used=17,
                 detected=detected, runner_up_axis=(1, 1, 0),
                 runner_up_r2=runner_r2)
@@ -534,3 +538,176 @@ def test_hamilton_rejects_degenerate_inputs():
                                   n_free_restricted=9, n_added=5)
     assert not hamilton_justified(100.0, 0.0, n_points=500,
                                   n_free_restricted=5, n_added=1)
+
+
+# ----------------------------------------------------------------------
+# WP-1054 — Layer-2 honesty on the abstained branch
+# ----------------------------------------------------------------------
+_OUT = Path(__file__).parent / "output"
+
+
+def _plot_state(structure, ins, data, stem):
+    """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
+    low-angle zoom — house convention: Rwp hides locally-bad fits."""
+    from pxrdref.viz.plots import plot_result
+
+    result, _, _ = _result_for(structure, ins, data)
+    _OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(_OUT / f"{stem}.png"))
+    plot_result(result, path=str(_OUT / f"{stem}_zoom.png"),
+                two_theta_range=(18.0, 45.0))
+
+
+def _broad_truth(lor_size, seed=17):
+    """The `_truth` recipe with Lorentzian size broadening in the *data*, so
+    the unperturbed model matches the broad peaks exactly."""
+    from pxrdref.model.forward import compile_model
+    from pxrdref.params.vector import ParameterTable
+
+    structure, ins, _ = _truth(seed=seed)
+    structure = structure.model_copy(deep=True)
+    structure.phases[0].lor_size.value = lor_size
+    tt = np.arange(18.0, 125.0, 0.02)
+    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    model = compile_model(structure, ins, grid, mode="rietveld")
+    table = ParameterTable(structure, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    rng = np.random.default_rng(seed)
+    y_noisy = rng.poisson(np.maximum(y, 1.0) * _COUNT_SCALE) / _COUNT_SCALE
+    data = pr.PatternData(
+        two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
+        sigma=np.sqrt(np.maximum(y, 1.0) / _COUNT_SCALE).tolist())
+    return structure, ins, data
+
+
+def _doped(data, two_theta=29.35, height=900.0, width=0.06):
+    """The impurity doping recipe: one foreign Gaussian on top of the data."""
+    tt = np.asarray(data.two_theta)
+    y = np.asarray(data.intensity, dtype=float)
+    y = y + height * np.exp(-0.5 * ((tt - two_theta) / width) ** 2)
+    return pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+                          sigma=data.sigma)
+
+
+def test_wrong_cell_abstained_leads_with_reindex(truth):
+    """The WP-1054 headline state: a +0.4 % cell error abstains (correctly)
+    and its displaced peaks read as 32 unmatched lines — before the WP the
+    only surviving action was ``add_impurity_phase`` at 0.9, the phantom-phase
+    invitation an on-haiku consumer quoted verbatim in WP-1053's pilot.  Now
+    the abstained branch leads with the position-family pointer and the
+    impurity call is capped, evidence intact on both."""
+    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+
+    structure, ins, data = truth
+    perturbed = structure.model_copy(deep=True)
+    perturbed.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+
+    report = _report_for(perturbed, ins, data)
+    assert report.abstained_reason, "a 0.4 % cell error must abstain"
+
+    # Layer-0 evidence is untouched: those peaks *are* unmatched
+    strong = [u for u in report.unmatched
+              if u.kind == "unmatched_obs" and u.height_over_sigma > 8.0]
+    assert len(strong) >= 20, len(strong)
+
+    # the verdict layer: reindex tops the active set, carrying the whole
+    # position family — never a confident reindex singleton
+    active = [a for a in report.suggested_actions if a.active]
+    assert active and active[0].kind == "reindex_or_recheck_cell", (
+        [a.kind for a in active])
+    assert active[0].confidence <= 0.5, active[0]
+    assert set(active[0].alternatives) == {"refine_zero_shift",
+                                           "refine_sample_displacement"}
+    assert "have not chosen" in active[0].rationale
+    assert "lower bound" in active[0].rationale     # saturated-fit honesty
+
+    impurity = report.action("add_impurity_phase")
+    assert impurity.confidence <= IMPURITY_SHIFT_CAP, impurity
+    assert impurity.alternatives[0] == "reindex_or_recheck_cell", impurity
+    assert f"all {len(strong)} unmatched" in impurity.rationale
+    assert "re-check the cell" in impurity.rationale
+
+    _plot_state(perturbed, ins, data, "wp1054_cell_wrong_abstained")
+
+
+def test_broad_peak_lobes_cap_impurity_without_reindex():
+    """The broad-peak variant: residual lobes of 0.66°-wide peaks under a
+    0.05° zero error read as unmatched (the 0.08° matching tolerance is tiny
+    against the peak), and pre-WP they bought ``add_impurity_phase`` at 0.7.
+    They all sit within a fraction of a FWHM of a calculated position, so the
+    call is capped — and *no* reindex pointer is emitted, because the
+    validity failures here are saturated-fit artefacts (4 of 12 misfitting
+    regions, below the widespread-failure fraction; the true shift is inside
+    the validity radius of these broad peaks)."""
+    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+
+    structure, ins, data = _broad_truth(0.6)
+    perturbed = ins.model_copy(deep=True)
+    perturbed.zero_shift.value = 0.05
+
+    report = _report_for(structure, perturbed, data)
+    assert report.abstained_reason, "the lobes must abstain the report"
+    strong = [u for u in report.unmatched
+              if u.kind == "unmatched_obs" and u.height_over_sigma > 8.0]
+    assert strong, "the residual lobes must still appear as unmatched"
+
+    impurity = report.action("add_impurity_phase")
+    assert impurity.confidence <= IMPURITY_SHIFT_CAP, impurity
+    assert impurity.alternatives[0] == "reindex_or_recheck_cell", impurity
+    assert "reindex_or_recheck_cell" not in [a.kind
+                                             for a in report.suggested_actions]
+
+    _plot_state(structure, perturbed, data, "wp1054_broad_zero_lobes")
+
+
+def test_impurity_no_longer_outranked_by_manufactured_texture(truth):
+    """The pinned inversion: a pure impurity injection leaks into the
+    per-reflection extraction and manufactures a (1,0,1) texture detection at
+    R²=0.66 that outranked the impurity call 0.66 vs 0.40 (measured
+    2026-08-11).  The detection stays — it is a true measurement of the
+    residual — but is capped below the impurity action that likely feeds it,
+    annotated with the mechanism, and its evidence survives untouched."""
+    structure, ins, data = truth
+    doped = _doped(data)
+
+    report = _report_for(structure, ins, doped)
+    impurity = report.action("add_impurity_phase")
+    po = report.action("refine_preferred_orientation")
+    assert impurity.confidence > po.confidence, (impurity, po)
+    assert po.alternatives[0] == "add_impurity_phase", po
+    assert "manufacture" in po.rationale
+
+    tex = report.texture[0]
+    assert tex.detected                      # the residual measurement stands
+    assert tex.best_axis is not None and tex.r2 > 0.5   # evidence preserved
+    assert tex.caveat and "manufacture" in tex.caveat
+    assert tex.march_coefficient != 1.0
+
+    _plot_state(structure, ins, doped, "wp1054_impurity_texture")
+
+
+def test_double_injection_keeps_the_impurity_call(truth):
+    """The regression control: a 0.05° zero error *and* a genuine foreign
+    line at 29.34°.  The report abstains and the position evidence is
+    widespread (10 of 14 misfitting regions beyond the radius), yet the
+    foreign line pairs with nothing — nearest missing calculated line 1.18°
+    away, outside the 1.0° pairing window — so the impurity call keeps its
+    full strength beside the reindex pointer instead of drowning in it."""
+    structure, ins, data = truth
+    perturbed = ins.model_copy(deep=True)
+    perturbed.zero_shift.value = 0.05
+    doped = _doped(data)
+
+    report = _report_for(structure, perturbed, doped)
+    assert report.abstained_reason
+
+    impurity = report.action("add_impurity_phase")
+    assert impurity.confidence == pytest.approx(0.4, abs=1e-6), impurity
+    assert "29.34" in impurity.rationale     # the genuine line, named
+    kinds = [a.kind for a in report.suggested_actions]
+    assert "reindex_or_recheck_cell" in kinds
+    # the manufactured texture is capped below the genuine impurity here too
+    po = report.action("refine_preferred_orientation")
+    assert po.confidence < impurity.confidence
+
+    _plot_state(structure, perturbed, doped, "wp1054_double_injection")

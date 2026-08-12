@@ -33,7 +33,14 @@ import numpy as np
 
 from ..schemas.results import RefinementResult
 from .schemas import (
+    IMPURITY_SHIFT_CAP,
     MIN_COEF_SIGNIFICANCE,
+    REINDEX_MIN_FAR_FRACTION,
+    REINDEX_MIN_FAR_REGIONS,
+    SHIFT_PAIR_WINDOW_DEG,
+    SHIFT_TICK_PROXIMITY_FWHM,
+    TEXTURE_IMPURITY_MARGIN,
+    VALIDITY_RADIUS_FWHM,
     ActionKind,
     RegionAttribution,
     SuggestedAction,
@@ -147,7 +154,8 @@ def _trend_actions(trend: TrendAnalysis,
 
 
 def layer0_actions(unmatched: list[UnmatchedPeak],
-                   attributions: list[RegionAttribution] | None = None
+                   attributions: list[RegionAttribution] | None = None,
+                   *, ticks: list[float] | None = None
                    ) -> list[SuggestedAction]:
     """Actions justified by **model-free** evidence alone.
 
@@ -155,16 +163,46 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
     peak whether or not the rest of the model is mature enough to linearise
     — indeed a missing phase is a common *reason* for immaturity.
 
-    One correction: a peak-position error also produces residual peaks with
-    no tick on top of them (the model's peak sits beside the observed one),
-    which would masquerade as an impurity.  Unmatched peaks falling inside a
-    region whose fitted position offset is significant are therefore
-    attributed to the shift, not to a new phase.
+    One correction, in three regimes (WP-1054): a peak-position error also
+    produces residual peaks with no tick on top of them (the model's peak sits
+    beside the observed one), which masquerade as an impurity — and a real
+    model consumed exactly that invitation (WP-1053, E7).  A strong unmatched
+    observed peak is therefore attributed to the *shift* rather than to a new
+    phase when
+
+    * it falls inside a region whose fitted position offset is significant,
+      padded by ~1 FWHM (small shifts, the pre-1054 test — these are dropped
+      silently, as ever: the position trend actions already name the cause);
+    * it lies within :data:`SHIFT_TICK_PROXIMITY_FWHM` pattern-median FWHM of
+      a calculated position (broad peaks, where the 0.08° matching tolerance
+      is far smaller than the peak itself and every shape-misfit lobe reads
+      as "unmatched"); or
+    * validity-radius failures exist and an ``unmatched_calc`` partner sits
+      within :data:`SHIFT_PAIR_WINDOW_DEG` — a *displaced pair*: the observed
+      line and the calculated line it walked away from (large shifts, where
+      the saturated linear fit cannot measure the offset but the pairing is
+      plain in the model-free lists).
+
+    When such shift-matched peaks exist alongside genuinely foreign ones, the
+    call is made on the foreign count and both counts are reported.  When
+    *every* strong peak matches the shift evidence the action is still
+    emitted — the evidence stays visible — but capped at
+    :data:`IMPURITY_SHIFT_CAP` with ``reindex_or_recheck_cell`` first among
+    the alternatives: on that evidence a phantom phase is the less likely
+    reading (the confident-wrong-singleton rule applied to impurity calls).
     """
+    atts = attributions or []
     shifted_regions = [
-        a for a in (attributions or [])
+        a for a in atts
         if any(c.kind == "position" and c.significant for c in a.coefficients)
     ]
+    far_regions = [a for a in atts
+                   if any("validity_radius" in f for f in a.gate_failures)]
+    fwhms = [a.mean_fwhm for a in atts if a.mean_fwhm > 0]
+    fwhm_ref = float(np.median(fwhms)) if fwhms else 0.0
+    tick_arr = np.sort(np.asarray(ticks, dtype=float)) if ticks else None
+    ucalc = np.sort([u.two_theta for u in unmatched
+                     if u.kind == "unmatched_calc"])
 
     def explained_by_shift(u: UnmatchedPeak) -> bool:
         # a mispositioned peak leaves a derivative-shaped residual whose lobes
@@ -176,25 +214,65 @@ def layer0_actions(unmatched: list[UnmatchedPeak],
                 return True
         return False
 
+    def matches_shift_evidence(u: UnmatchedPeak) -> bool:
+        if tick_arr is not None and fwhm_ref > 0 and (
+                np.min(np.abs(tick_arr - u.two_theta))
+                <= SHIFT_TICK_PROXIMITY_FWHM * fwhm_ref):
+            return True
+        return bool(far_regions and len(ucalc) and (
+            np.min(np.abs(ucalc - u.two_theta)) <= SHIFT_PAIR_WINDOW_DEG))
+
     strong = [u for u in unmatched
               if u.kind == "unmatched_obs"
               and u.height_over_sigma > IMPURITY_SIGMA
               and not explained_by_shift(u)]
     if not strong:
         return []
+    foreign = [u for u in strong if not matches_shift_evidence(u)]
+    n_matched = len(strong) - len(foreign)
+
+    if foreign:
+        worst = max(foreign, key=lambda u: u.height_over_sigma)
+        rationale = (f"{len(foreign)} observed peak(s) have no calculated "
+                     f"reflection nearby and are not accounted for by the "
+                     f"peak-position evidence, the strongest at "
+                     f"{worst.two_theta:.3f}° at {worst.height_over_sigma:.0f}σ.")
+        if n_matched:
+            rationale += (f"  ({n_matched} further unmatched peak(s) lie where "
+                          f"the position-error evidence puts them and are "
+                          f"attributed to the shift, not counted here.)")
+        rationale += (
+            "  If the extra lines are an unknown phase rather than a wrong "
+            "cell, index_pattern finds its lattice — but one phase at a time: "
+            "subtract or model the solved phase first (WP-1028 measured that "
+            "a Le Bail partition of two phases inflates both without bound)")
+        return [SuggestedAction(
+            kind="add_impurity_phase",
+            confidence=min(0.9, 0.3 + 0.1 * len(foreign)),
+            rationale=rationale,
+            alternatives=["reindex_or_recheck_cell"],
+            two_theta_range=(worst.two_theta, worst.two_theta))]
+
     worst = max(strong, key=lambda u: u.height_over_sigma)
+    n_paired = sum(
+        1 for u in strong
+        if far_regions and len(ucalc)
+        and np.min(np.abs(ucalc - u.two_theta)) <= SHIFT_PAIR_WINDOW_DEG)
     return [SuggestedAction(
         kind="add_impurity_phase",
-        confidence=min(0.9, 0.3 + 0.1 * len(strong)),
-        rationale=(f"{len(strong)} observed peak(s) have no calculated "
-                   f"reflection nearby and are not accounted for by a peak-"
-                   f"position error, the strongest at {worst.two_theta:.3f}° "
-                   f"at {worst.height_over_sigma:.0f}σ.  If the extra lines are "
-                   f"an unknown phase rather than a wrong cell, index_pattern "
-                   f"finds its lattice — but one phase at a time: subtract or "
-                   f"model the solved phase first (WP-1028 measured that a Le "
-                   f"Bail partition of two phases inflates both without bound)"),
-        alternatives=["reindex_or_recheck_cell"],
+        confidence=IMPURITY_SHIFT_CAP,
+        rationale=(f"all {len(strong)} unmatched observed peak(s), 0 apart "
+                   f"from the position-error evidence: {n_paired} are paired "
+                   f"with a missing calculated line within "
+                   f"{SHIFT_PAIR_WINDOW_DEG:g}°, the rest sit within "
+                   f"~{SHIFT_TICK_PROXIMITY_FWHM:g} FWHM of a calculated "
+                   f"position (strongest at {worst.two_theta:.3f}° at "
+                   f"{worst.height_over_sigma:.0f}σ).  A wrong cell or a gross "
+                   f"zero/displacement error displaces every line and "
+                   f"manufactures exactly this signature, so re-check the "
+                   f"cell before adding a phase"),
+        alternatives=["reindex_or_recheck_cell", "refine_zero_shift",
+                      "refine_sample_displacement"],
         two_theta_range=(worst.two_theta, worst.two_theta))]
 
 
@@ -248,10 +326,117 @@ def texture_actions(texture) -> list[SuggestedAction]:
     return out
 
 
+def reindex_action(attributions: list[RegionAttribution]
+                   ) -> SuggestedAction | None:
+    """The position-family pointer, emitted on widespread validity failure.
+
+    One emitter for both branches (WP-1054): before it, the condition lived in
+    :func:`suggest_actions` as ``far and rwp > 0.2``, which made the action
+    structurally unreachable exactly when the cell is most wrong — an abstained
+    report never ran that code, so the one state that most needs the indexing
+    pointer surfaced only ``add_impurity_phase`` (and a real model quoted it as
+    grounds for a phantom phase, WP-1053 E7).  The condition is now that the
+    validity failures are *widespread* — a count fraction of the misfitting
+    regions (:data:`REINDEX_MIN_FAR_FRACTION`, floored by
+    :data:`REINDEX_MIN_FAR_REGIONS`; the schema comment holds the measured
+    separation, including why a χ² share was rejected) — which also reaches
+    mature fits the old Rwp arm missed (measured: Rwp 0.14 on broad-peak data
+    with 60 % of misfitting regions beyond the radius).
+
+    Two rules from the WP bound what this emitter may say.  The evidence
+    consulted is the *gate failure* — its kind, its |Δ2θ|-vs-FWHM magnitude,
+    its χ² share — never the failed coefficients as causes; and the offset is
+    quoted as a lower bound, because a linearisation pushed past its radius
+    saturates (measured: 0.03° fitted where the true displacement is 0.18°).
+    And the same signature is produced by a wrong cell *and* by a gross
+    zero/displacement error, so the action carries the whole family — the
+    calibration candidates ride in ``alternatives`` and the rationale says the
+    data has not chosen.  Re-indexing is still the safe *first* member:
+    ``index_pattern`` searches under its own shift allowance
+    (``INDEX_SHIFT_ALLOWANCE``), so a calibration offset does not poison it.
+    """
+    far = [a for a in attributions
+           if any("validity_radius" in f for f in a.gate_failures)]
+    misfitting = [a for a in attributions if a.has_significant_misfit]
+    if (len(far) < REINDEX_MIN_FAR_REGIONS
+            or len(far) < REINDEX_MIN_FAR_FRACTION * len(misfitting)):
+        return None
+    share = sum(a.chi2_share for a in far)
+    ratios = [abs(next((c.value for c in a.coefficients
+                        if c.kind == "position"), 0.0)) / a.mean_fwhm
+              for a in far if a.mean_fwhm > 0]
+    worst_ratio = max(ratios, default=0.0)
+    return SuggestedAction(
+        kind="reindex_or_recheck_cell", confidence=0.4,
+        rationale=(
+            f"{len(far)} of {len(misfitting)} misfitting region(s), carrying "
+            f"{share:.0%} of χ², have peak offsets beyond the linearisation "
+            f"radius "
+            f"({VALIDITY_RADIUS_FWHM:g}·FWHM; the worst measures "
+            f"≥{worst_ratio:.1f}×FWHM — a lower bound, the saturated linear "
+            f"fit cannot see further), so shift-based corrections do not "
+            f"apply.  A wrong cell and a grossly wrong zero/displacement "
+            f"calibration both produce this signature and these data have "
+            f"not chosen between them; re-indexing is the safe first move "
+            f"(index_pattern searches under its own shift allowance, so a "
+            f"calibration offset does not poison it).  Re-determine the cell "
+            f"from the data: pick_peaks(data, instrument) then "
+            f"index_pattern(peaks, data=data, instrument=instrument), and "
+            f"read best_or_none() — it returns None rather than a cell "
+            f"whenever the evidence does not choose one (AGENT_PROTOCOL §7d)"),
+        parameter_paths=["phases.*.cell.*"],
+        alternatives=["refine_zero_shift", "refine_sample_displacement"])
+
+
+def cap_texture_crosstalk(actions: list[SuggestedAction],
+                          texture, unmatched: list[UnmatchedPeak]
+                          ) -> list[SuggestedAction]:
+    """Impurity ↔ texture cross-talk (WP-1054, third sighting).
+
+    The per-reflection extraction behind :func:`.texture.analyse_texture`
+    partitions ``y_obs − background`` by *calculated* share, so a peak the
+    model does not predict is partitioned onto its calculated neighbours — a
+    pure impurity injection measurably manufactured a (1,0,1) detection at
+    R²=0.66 that outranked the impurity call at 0.40.  When strong unmatched
+    observed peaks coexist with a texture detection, the detection therefore
+    cannot outrank the impurity action that likely feeds it: its confidence is
+    capped :data:`TEXTURE_IMPURITY_MARGIN` below the impurity call, the
+    mechanism is stated in the rationale, and the analysis itself is annotated
+    (``TextureAnalysis.caveat``).  The evidence — axis, r, R² — is preserved
+    untouched; only the verdict layer moves.
+    """
+    strong = [u for u in unmatched
+              if u.kind == "unmatched_obs"
+              and u.height_over_sigma > IMPURITY_SIGMA]
+    impurity = next((a for a in actions if a.kind == "add_impurity_phase"),
+                    None)
+    detected = [t for t in (texture or []) if t.detected]
+    if not strong or impurity is None or not detected:
+        return actions
+    worst = max(strong, key=lambda u: u.height_over_sigma)
+    note = (f"{len(strong)} unmatched observed peak(s) (strongest "
+            f"{worst.height_over_sigma:.0f}σ at {worst.two_theta:.3f}°) are "
+            f"un-modelled intensity, and the per-reflection extraction "
+            f"partitions a foreign peak onto its calculated neighbours — an "
+            f"impurity can manufacture exactly this texture signature")
+    for t in detected:
+        t.caveat = note
+    cap = round(max(impurity.confidence - TEXTURE_IMPURITY_MARGIN, 0.0), 3)
+    for action in actions:
+        if action.kind == "refine_preferred_orientation" and action.confidence > cap:
+            action.confidence = cap
+            action.rationale += ("; capped below add_impurity_phase — " + note)
+            if "add_impurity_phase" not in action.alternatives:
+                action.alternatives = (["add_impurity_phase"]
+                                       + list(action.alternatives))
+    return actions
+
+
 def suggest_actions(attributions: list[RegionAttribution],
                     trends: list[TrendAnalysis],
                     unmatched: list[UnmatchedPeak],
-                    *, rwp: float) -> list[SuggestedAction]:
+                    *, rwp: float,
+                    ticks: list[float] | None = None) -> list[SuggestedAction]:
     """Build the typed action list from Layers 0-1."""
     actions: list[SuggestedAction] = []
     by_obs = {t.observable: t for t in trends}
@@ -307,27 +492,15 @@ def suggest_actions(attributions: list[RegionAttribution],
             two_theta_range=(min(a.two_theta_lo for a in low),
                              max(a.two_theta_hi for a in low))))
 
-    actions += layer0_actions(unmatched, attributions)
+    actions += layer0_actions(unmatched, attributions, ticks=ticks)
 
     # regions that failed the validity radius: the model is far enough off that
-    # linearising is wrong — say so instead of proposing a small correction
-    far = [a for a in attributions
-           if any("validity_radius" in f for f in a.gate_failures)]
-    if far and rwp > 0.2:
-        # The action kind has existed since v0.2 with nothing behind it; WP-1024
-        # gave it something to call, so only the rationale changes — no new
-        # ``ActionKind``, and therefore **no THRESHOLDS_VERSION bump**.
-        actions.append(SuggestedAction(
-            kind="reindex_or_recheck_cell", confidence=0.4,
-            rationale=(f"{len(far)} region(s) have peak offsets beyond the "
-                       "linearisation radius — the cell or indexing is wrong "
-                       "enough that shift-based corrections do not apply.  "
-                       "Re-determine the cell from the data: pick_peaks(data, "
-                       "instrument) then index_pattern(peaks, data=data, "
-                       "instrument=instrument), and read best_or_none() — it "
-                       "returns None rather than a cell whenever the evidence "
-                       "does not choose one (AGENT_PROTOCOL §7d)"),
-            parameter_paths=["phases.*.cell.*"]))
+    # linearising is wrong — say so instead of proposing a small correction.
+    # One emitter with the abstained branch (WP-1054; the shared condition and
+    # its history are in reindex_action's docstring).
+    reindex = reindex_action(attributions)
+    if reindex is not None:
+        actions.append(reindex)
 
     actions.sort(key=lambda a: -a.confidence)
     return actions
