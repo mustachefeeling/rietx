@@ -269,6 +269,15 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
+| [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ⬜ | — (blocks 1003) |
+
+**1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
+because the freeze covers names that embed the current one, but the ordering
+argument runs the other way too: the name surface grew ~40 % in eleven days, so
+every WP that lands after the rename is born in the new name, and the audit test
+1062 adds makes a reintroduction fail CI rather than depend on a mailbox note.
+The "in-flight branches will conflict" worry was **measured and refuted** — both
+unmerged branches are archived by tag and confined to `studies/`.
 
 **1054–1059 (2026-08-11) are the successor plan to 1053's pilot + the FitReport
 design review** (evidence over verdicts; non-ideal-data regimes; background and

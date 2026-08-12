@@ -77,6 +77,17 @@ repo; runs execute in the Claude Code harness.
 
 ### Inherited
 
+**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — a rename is
+pending, and it can silently invalidate an A/B comparison.** The package becomes
+`anatase`; the `refine_json` surface this WP measures through is renamed with it,
+including the agent tool name (`pxrdref_refine` → an `_about.py` constant). Two
+consequences. First, **do not straddle the rename with a single A/B**: prompts,
+transcripts and episode fixtures that name the package are inputs to the model,
+so a round measured half before and half after is comparing two prompt sets, not
+two protocols. Land 1062 first or finish the round first — say which in the
+handover either way. Second, if you write new episode fixtures before 1062 lands,
+take the name from `_about.py` rather than a literal.
+
 **From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the
 content change aimed squarely at round 1's two 0/8 rows, and the
 pre-registration nuance that matters.** Deltas a re-A/B will see: every

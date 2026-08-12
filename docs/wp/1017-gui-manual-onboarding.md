@@ -39,6 +39,25 @@ real UI.
 
 ### Inherited
 
+**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the package is
+being renamed to `anatase`, and this WP writes the most user-visible prose in
+the repo.** If 1062 has not landed when you start, **do not hand-write the name
+into new manual pages, screenshots or onboarding copy** — every literal you add
+is a file 1062 has to sweep, and its audit (`git grep -i pxrd`) is exact only
+because the token appears nowhere as ordinary vocabulary. Where you need the
+name in code, import it from `_about.py` (`DIST_NAME`) rather than writing a
+literal; the CLI, the `.pxrd` suffix and the `.pxt` header are all changing too,
+and the format tokens are being decoupled from the brand, so they will *not*
+simply become `.anatase`.
+
+One thing that lands on this WP permanently: **anatase is also a phase this
+software analyses** (0 occurrences today, but `rutile` — the other TiO₂
+polymorph — appears 168 times in the QPA test data, and anatase/rutile is the
+canonical QPA pair). The manual and onboarding copy need a disambiguation
+convention from the first public page: the phase as `anatase (TiO₂)`, the
+package in code formatting. Screenshots are the expensive half — take them
+after 1062, not before.
+
 **From [1051](1051-sequential-escalation.md), closed 2026-08-09 — the Series
 tab's status column has four chips now, and two of them are new words.** A
 rejected warm fit escalates a rung at a time instead of jumping to a cold refit,

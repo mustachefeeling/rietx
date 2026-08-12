@@ -3,13 +3,42 @@
 Milestone: v1.0 · Status: ⬜ — stub, expand before starting
 Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
 the milestone's last row, so the freeze covers a surface the GUI exercised),
-WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
+WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
+**WP-1062 (the rename — must land first, see Inherited)**
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
 - API freeze, PyPI release (name `pxrd-refine` verified available)
 
 ### Inherited
+
+**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the scope line
+above is superseded, and the ordering is not negotiable.** The project is being
+renamed to **`anatase`** (PyPI, GitHub, import, CLI — one string; availability
+verified 2026-08-12). The parenthetical "name `pxrd-refine` verified available"
+is dead: it recorded an availability check with no date, for a name that is
+being retired.
+
+**Why 1062 must land before this WP, not inside or after it.** The freeze covers
+names that embed the current one — `pxrdref.agent`, `pxrdref.gui.textdoc`,
+`pxrdref.report.apply`, the CLI `pxrdref index` / `pxrdref gui`, and the env var
+`PXRDREF_STATE_DIR`. Renaming after the freeze breaks exactly what the freeze
+promised. 1062 is scheduled early rather than immediately-before for an
+independent reason: the name surface grew ~40 % in eleven days, so every WP that
+lands after it is born in the new name.
+
+**Three things already parked here that 1062 does *not* take.** They stay this
+WP's, and all three embed the name, so do them *after* the rename: the sdist and
+wheel metadata (which "currently names only pxrd-refine's own licences"), the
+`classifiers` block, and the `tests/data/qarr/` licence blocker. Add two more to
+the list: there is **no `CITATION.cff`** and **no `@software` entry** in
+`docs/manual/references.bib` — a first public release wants both, and both embed
+the name.
+
+**One decision 1062 leaves to this WP.** `PXRDREF_STATE_DIR` and `~/.pxrdref`
+become `_about.py` constants under the new name; whether the state dir should be
+XDG-aware before it is frozen is still open, and is noted below in the entry
+that raised it.
 
 **From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the fourth
 lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now

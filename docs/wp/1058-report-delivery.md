@@ -70,6 +70,16 @@ request.** This WP is items 1 and 3 of that campaign's ranked follow-ups.
 
 ### Inherited
 
+**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the package is
+being renamed to `anatase`; keep the name out of new literals.** A `diagnose`
+task adds surface to `agent.py`, whose tool name is already a name literal
+(`tool_definition(name="pxrdref_refine")`, pinned by
+`tests/test_agent_surface.py`). If 1062 has not landed when you start, take the
+tool name and any `pip install` hint from `_about.py` (`AGENT_TOOL_NAME`,
+`DIST_NAME`) rather than writing the string — that file is 1062's Phase 1 and is
+designed to land before the rename itself. Every new literal is a file 1062 has
+to sweep, and after it lands the audit test fails CI on a reintroduction.
+
 **From [1055](1055-background-evidence.md), closed 2026-08-12 — a new report
 section to deliver, and one ranking question left open on purpose.**
 `FitReport.background` is a fifth thing a delivery surface must place: it is
