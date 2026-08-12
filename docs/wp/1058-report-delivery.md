@@ -68,6 +68,23 @@ request.** This WP is items 1 and 3 of that campaign's ranked follow-ups.
   with WP-1059's prompt-condition experiment (the eval measures *this* WP's
   effect).
 
+### Inherited
+
+**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — two
+report facts a delivery loop must respect.** An abstention with
+`abstained_kind="resolution_limited"` is a *terminal* state for a declared
+phase-ID deliverable (AGENT_PROTOCOL §4b: a legitimate stopping point, "not
+evidence the model is wrong") — a diagnose ladder that keeps escalating on
+it is exactly the push-finer-corrections behaviour the WP-1057 regime
+directive forbids, so the ladder should branch on the kind, not just on the
+presence of a reason. And §4b's per-deliverable stopping criteria are
+decision-point content: the 1053 pilot's bottleneck was *when the report is
+read*, and §4b is the first content that licenses stopping early — worth
+surfacing at whatever delivery point this WP builds, and a coordinate for
+the §9 wording task above. (Rietveld-mode reports also now run a 5-cycle
+Le Bail partition per build — un-timed in isolation, suite wall unchanged;
+relevant only if this WP makes report builds per-stage-frequent.)
+
 ## Non-goals
 
 - No stateful agent-surface iteration (history_path continuation as a

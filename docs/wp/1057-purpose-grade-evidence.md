@@ -1,6 +1,8 @@
 # WP-1057 — Purpose-grade evidence: the Le Bail gap, resolution-limited abstention, and stopping criteria
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-12 — closed; the report answers "good
+enough for what I need": `lebail_gap`, `abstained_kind`, the contents-type
+clause, AGENT_PROTOCOL §4b
 Depends on: —
 
 ## Goal
@@ -101,21 +103,22 @@ report itself stays purpose-neutral — purpose lives where judgment lives.
 
 ## Tasks
 
-- [ ] Le Bail gap field: evaluate-only partition at the converged state,
+- [x] Le Bail gap field: evaluate-only partition at the converged state,
       additive Layer-0/report field with both numbers and the mode caveat;
       absent-for-cause in Le Bail/Pawley mode.
-- [ ] Resolution-limited abstention flavour: when `gram_condition` dominates the
+- [x] Resolution-limited abstention flavour: when `gram_condition` dominates the
       gate-failure tally with high per-region R², the abstained summary says so
       in those terms (aggregate misfit readable, per-kind attribution not) —
       wording change + a structured reason field, no threshold semantics change.
-- [ ] Contents-type intensity summary: intensity share high + no angular
+- [x] Contents-type intensity summary: intensity share high + no angular
       template fits + sign-alternating per-region intensity coefficients →
       one summary clause naming the pattern and pointing at the Le Bail gap;
       evidence stays in `attribution` as today.
-- [ ] `docs/AGENT_PROTOCOL.md` § "Declare the deliverable": the three goal
+- [x] `docs/AGENT_PROTOCOL.md` § "Declare the deliverable": the three goal
       profiles with their rows and stopping criteria, the capability-tier floor,
-      and the measured 2.1× worked example.
-- [ ] Tests: pore-proxy fixture (gap ≈ 2× reported, contents clause present),
+      and the measured 2.1× worked example (re-measured ×2.4 with the shipped
+      evaluate-only mechanism, per this file's protocol-honesty note).
+- [x] Tests: pore-proxy fixture (gap ≈ 2× reported, contents clause present),
       broad-peak fixture (resolution-limited wording), sharp converged reference
       (no gap clause, no noise) + obs/calc/diff PNGs to `tests/output/`.
 
@@ -139,11 +142,48 @@ names resolution, not model error.
 
 ## Handover log
 
+- **2026-08-12** — **closed.** One session, five tasks as five commits on
+  `wp1057-purpose-grade-evidence` (plus the session-start prune: the 1054
+  `### Inherited` verified entry-by-entry against the tree and folded into
+  Context's collision note; nothing was stale, and the section stays deleted
+  now the WP closes).
+  - **Mechanism decisions the file left open, decided and measured.**  The
+    gap ships as the *evaluate-only partition on the caller's own model*
+    (mode + per-hkl buffers flipped under try/finally; restore is bit-exact —
+    pinned by `test_lebail_gap_mechanics`), not a branch fit or a recompile.
+    Fixed point by cycle 2-3, so `LEBAIL_GAP_CYCLES = 5` is margin.
+    Re-measured with this mechanism per the protocol-honesty note: **×2.38**
+    (Rietveld 0.0405 / partition 0.0170) on the pore proxy — the planning
+    session's short-fit 2.1× is superseded in every doc that quotes a number.
+    Controls: ≤ 1.00 on all four position/profile states, 0.79 on the
+    converged clean fit (the partition's `max(y_obs − bkg, 0)` clip keeps it
+    above a converged LS fit — it is not a noise-floor estimator, which is
+    why `LEBAIL_GAP_NOTABLE` tests the ratio).
+  - **The classifier's shape is the finding**: gram-dominance alone cannot
+    separate resolution-limited from a wrong cell — the +0.4 % cell state
+    fails gram in 8 of its 10 failing regions too. Hence the defer order
+    (immature-Rwp arm → widespread-validity arm → gram-only + median R²),
+    measured: broad+0.05° zero → `resolution_limited` (12/12 gram, 5
+    gram-only at median R² 0.957), +0.4 % cell → `immature` (Rwp 0.72),
+    +0.1 % cell → `unreadable` with reindex leading (Rwp 0.33, far=10).
+  - **Contents clause margins** (pore proxy vs controls): share 0.83 vs 0.00
+    everywhere; best template R² 0.011; signs 5+/3− (minority 0.375) vs
+    single-sign (4−) on the wrong-cell state. The honest zero-action state is
+    preserved and asserted.
+  - **Counts** (main checkout `.venv`, `[dev,jax,torch]`, darwin/arm64):
+    fast suite `-n auto --dist loadgroup -m "not slow"` **2282 passed + 5
+    skipped** (~2:51 this run) — +5 passed over 1054's closing 2277+5,
+    exactly the five tests added (`def test_` in the layers file 26 → 31),
+    no new skip; the full selection moves by the same +5 (none slow-marked).
+    WP acceptance command verbatim: exit 0, ruff clean; docs-consistency 14
+    passed. PNGs inspected: alternating-sign intensity lobes on the proxy,
+    antisymmetric position lobes on broad, pure noise on the reference.
+  - **Gotchas.** `build_report` now runs the 5-cycle partition on every
+    Rietveld-mode report (suite wall unchanged; not timed in isolation).
+    `Refinement.fitted_structure`/`fitted_instrument` are *properties*.
+    The §4b QPA/structure profiles deliberately stop at rows that exist
+    today — 1055/1056 hook points are in those WPs' `### Inherited`.
+  - **Next**: nothing on this WP. Successor work: 1055/1056/1058, then 1059
+    (see ROADMAP Current focus; forward references pushed).
 - **2026-08-11** — created, from the non-ideal-data design discussion
   (nanoparticle + MOF regimes). Not started.
-- **2026-08-12** — session start on `wp1057-purpose-grade-evidence` (from
-  up-to-date main, `[dev,jax,torch]` venv). `### Inherited` pruned: every
-  entry verified still true against the tree (`THRESHOLDS_VERSION` 0.4 at
-  `report/schemas.py`, the e6 loop test and the four WP-1054 layer tests all
-  present), so the whole section folded into Context's collision note — which
-  it resolves (1054 landed first) — and nothing deleted as stale.

@@ -11,6 +11,21 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
+second lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is
+now **0.5**. `FitReport` gained two defaulted fields: `lebail_gap:
+LeBailGap | None` (a new four-field model — `rwp_rietveld`, `rwp_lebail`,
+`ratio`, `n_cycles`; None is *absent-for-cause* outside Rietveld mode and on
+model-free reports, a semantics worth a freeze-time doc sentence) and
+`abstained_kind: Literal["immature", "resolution_limited", "unreadable"] |
+None` — a **closed** vocabulary, so adding a kind is a minor version and
+renaming one is breaking. `pxrdref.report.__all__` gained `LeBailGap`,
+`lebail_gap`, `abstention_flavour` and `contents_signature`; nine pinned
+constants joined `report.schemas` (`LEBAIL_GAP_*`, `RESOLUTION_LIMITED_*`,
+`CONTENTS_*`). The summary string now carries up to two extra clauses (gap +
+contents) and the abstained reason a flavour sentence — anything freezing
+summary *wording* freezes these too. All additive; no `ActionKind` changed.
+
 **From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — the
 first of the queued six landed; its surface changes for the freeze.**
 `THRESHOLDS_VERSION` is now **0.4** (the planning session's "may bump" below

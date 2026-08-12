@@ -77,9 +77,21 @@ repo; runs execute in the Claude Code harness.
 
 ### Inherited
 
-**From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — the
-content fix for the row this WP pre-registered is in, with the concrete
-deltas a re-A/B will see.** On E6/E7-shaped abstained states the report now
+**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
+second content change round 2 measures, and one new condition axis worth
+pre-registering.** Deltas a re-A/B will see: Rietveld-mode reports now carry
+`lebail_gap` and up to two new summary clauses (the gap clause above ratio
+1.5, the contents-type clause on sign-alternating trend-free intensity
+misfit), abstained reports carry `abstained_kind` with the
+resolution-limited flavour appending "not evidence the model is wrong" to
+the reason, and `thresholds_version` reads "0.5" (round-1 traces "0.3",
+1054-era "0.4" — three clean condition markers). AGENT_PROTOCOL grew §4b
+("Declare the deliverable"): the deliverable an episode *declares* (phase ID
+vs structure) is now a protocol-side variable the prompt can set, and the
+hypothesis worth pre-registering is that a declared phase-ID deliverable
+plus the gap clause changes when the weak model *stops* — the 1053 pilot's
+bottleneck was when the report is read, and §4b is the first content that
+licenses stopping early. On E6/E7-shaped abstained states the report now
 leads with `reindex_or_recheck_cell` (0.4, calibration candidates in
 `alternatives`) and `add_impurity_phase` is capped at 0.3 with reindex first
 among its alternatives whenever every strong unmatched peak matches the

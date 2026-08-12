@@ -115,6 +115,18 @@ parameter is *absent* from `result.parameters`) is 1003's freeze decision and is
 not decided here; this section reports *about* held parameters by path, which is
 legal either way.
 
+### Inherited
+
+**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — where the
+exchangeability row lands in the protocol.** AGENT_PROTOCOL §4b ("Declare
+the deliverable") now exists; its *structure* profile lists the
+intensity-model rows and closes with §10's ladder, and it is the intended
+home for this WP's exchangeability/soft-mode row — add it to that profile's
+deciding rows when it lands, rather than opening a new section. Two report
+facts to build against: `FitReport.abstained_kind` is a closed Literal (a
+new kind is a minor version), and `THRESHOLDS_VERSION` is 0.5, so a further
+bump is a fresh decision.
+
 ## Non-goals
 
 - No autopilot: the section informs; freeing anything stays the caller's move
