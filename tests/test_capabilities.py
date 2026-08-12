@@ -16,6 +16,7 @@ Two kinds of test here, and the second is the interesting one:
 from __future__ import annotations
 
 import json
+from importlib.metadata import version
 from typing import get_args
 
 import numpy as np
@@ -190,6 +191,26 @@ def test_every_versioned_contract_is_a_live_value(caps):
     for name, constant in live.items():
         assert getattr(caps, name) == constant
     assert caps.package_version and caps.package_version[0].isdigit()
+
+
+def test_the_installed_distribution_resolves_under_the_name_we_ask_for(caps):
+    """The one failure mode `caps.package_version[0].isdigit()` cannot see.
+
+    Asking ``importlib.metadata.version`` for a name no distribution carries —
+    a rename that missed ``pyproject.toml``, or a package directory renamed
+    ahead of its reinstall — is a *successful* lookup of nothing: it raises
+    ``PackageNotFoundError``, ``refine`` falls back, and ``0.0.0+dev`` is
+    stamped into every result's provenance, every history header and every
+    project.  The assertion above passes on it, because ``"0"`` is a digit, and
+    an audit for a stale name cannot catch it either, because nothing stale is
+    left behind (WP-1062).
+    """
+    from pxrdref._about import DIST_NAME
+    from pxrdref.refine import _DEV_VERSION, _VERSION
+
+    assert version(DIST_NAME), f"no installed distribution named {DIST_NAME!r}"
+    assert _VERSION != _DEV_VERSION
+    assert caps.package_version == _VERSION
 
 
 def test_capabilities_survives_json(caps):

@@ -61,10 +61,27 @@ from .strategy.staged import (
     resolve_plan,
 )
 
+#: What gets stamped when the distribution cannot be found.  It is not a
+#: cosmetic string: ``_VERSION`` reaches every ``RefinementResult.provenance``,
+#: every ``TreeHeader`` in every ``history.jsonl``, every ``project.json`` and
+#: ``/api/capabilities``, so a silent fallback mislabels the provenance of real
+#: results rather than merely reading oddly.
+_DEV_VERSION = "0.0.0+dev"
+
 try:
     _VERSION = version(DIST_NAME)
-except PackageNotFoundError:  # editable/dev fallback
-    _VERSION = "0.0.0+dev"
+except PackageNotFoundError:  # a source tree on sys.path, or a stale install
+    # loud on purpose (WP-1062).  Asking for the *wrong* name is a successful
+    # lookup of nothing: nothing raises, and no audit for a stale name can
+    # catch it either, because nothing stale is left behind.  The rename's own
+    # reinstall window is exactly this — the package directory moves and
+    # ``import`` keeps working while the dist-info still holds the old name.
+    warnings.warn(
+        f"no installed distribution named {DIST_NAME!r}: results will be "
+        f"stamped {_DEV_VERSION!r} instead of a real version.  Reinstall "
+        f'(uv pip install -e ".[dev]") if this is a checkout.',
+        RuntimeWarning, stacklevel=2)
+    _VERSION = _DEV_VERSION
 
 def _utcnow() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
