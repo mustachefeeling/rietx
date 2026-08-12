@@ -151,7 +151,7 @@ legal either way.
 
 ## Tasks
 
-- [ ] **De-risk spike, before any schema work** (user decision 2026-08-11): on
+- [x] **De-risk spike, before any schema work** (user decision 2026-08-11): on
       the E2-shaped fixture at convergence, compute the held-displacement
       column (evaluate-only compile with the candidate freed; FD fallback) and
       its projection R² onto the free span; same on the clean converged
@@ -229,3 +229,30 @@ confident-wrong-singleton rule applied to uncertainty statements).
   (§4b structure-profile deciding rows as the row's home, `abstained_kind`
   closed Literal), minus its "`THRESHOLDS_VERSION` is 0.5", stale since 1055
   bumped it to 0.6.
+- **2026-08-12** — **de-risk spike: GO.** Protocol: the E2 baseline byte for
+  byte (`test_e2_sample_displacement_baseline` — displacement planted at
+  −0.02 mm, `mccusker_default`, displacement in no stage) and the clean
+  reference (same plan from `_truth()`), then at each converged state an
+  **evaluate-only** rebuild — final-stage table with the held displacement
+  *also* freed, `compile_model` at the converged values (vary flags do not
+  enter compilation), analytic Jacobian evaluated once; the candidate's
+  peak-chain column agrees with central FD to ~1e-8 rel. Measured (this
+  branch's `[dev]` venv, darwin/arm64):
+
+  | | χ²_red | R²(disp \| free span) | fitted zero (B-L esd) | \|z−0\|/esd |
+  |---|---|---|---|---|
+  | E2 | 1.012 | 0.999945 | −0.010991 ± 8.6e-05 | **127.7** |
+  | clean | 1.010 | 0.999945 | +0.000136 ± 8.6e-05 | 1.6 |
+
+  R² is **identical to six decimals on both fits** — the planning review's
+  prediction measured: projection R² is a design-matrix property over the
+  sampled range and alone would fire on every clean report. The fitted
+  partner's significance against its null is the discriminating half:
+  127.7σ vs 1.6σ, a margin of ~80×. Partner loadings (lstsq of the held
+  column on the free columns, scale-normalised) name the partners:
+  zero_shift 1.17, cell.a 0.21, everything else ≈ 0 — so the rendered
+  sentence can name *which* fitted parameters ride the exchange. Go for the
+  two-condition discriminator (R² high **and** partner significant);
+  thresholds are an implementation decision, made with both margins in view.
+  Spike PNGs: `tests/output/wp1056_spike_{e2,clean}.png` — both visually at
+  the noise floor, indistinguishable from each other, which is E2's point.
