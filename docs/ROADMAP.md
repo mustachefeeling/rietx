@@ -271,7 +271,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1055](wp/1055-background-evidence.md) | Background evidence in the FitReport | ✅ 2026-08-12 — both failure modes in `FitReport.background`; the over-flexible fixture wins on Rwp and GoF and lands 2.6× further from truth | — |
 | [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ✅ 2026-08-12 — a converged report names the zero↔displacement exchange; R² is design-matrix-identical on the clean control, the partner's 128σ-vs-1.6σ discriminates | — |
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
-| [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
+| [1058](wp/1058-report-delivery.md) | Report delivery: the per-stage report trajectory | ✅ 2026-08-13 | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 

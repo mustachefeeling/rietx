@@ -1,6 +1,6 @@
-# WP-1058 — Deliver the report where it speaks: diagnose task and per-stage trajectory
+# WP-1058 — Deliver the report where it speaks: the per-stage trajectory
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13
 Depends on: —
 
 ## Goal
@@ -10,6 +10,10 @@ a `diagnose` task (and/or per-stage report trajectory) that generates the
 bootstrap-grade states where the report actually has something to say, so an
 agent no longer has to *know* to create them. This is the direct fix for
 WP-1053's measured bottleneck.
+
+**Shipped as the trajectory alone**, because the premise turned out to be
+half-wrong in a useful way: nobody had to *generate* those states — every plan
+already passes through them, and only the last one was ever delivered.
 
 ## Context
 
@@ -119,20 +123,27 @@ them.
 
 ## Tasks
 
-- [ ] Decide diagnose-vs-trajectory (or both) with a measured payload budget;
+- [x] Decide diagnose-vs-trajectory (or both) with a measured payload budget;
       record the decision and the SCHEMA_VERSION reasoning in `agent.py`'s
-      docstring and the schema.
-- [ ] Implement the chosen surface in `agent.refine_json` + `tool_definition()`
-      (registry-quoted, meta-test extended — a new task arm must appear in the
-      exported schema).
-- [ ] `docs/AGENT_PROTOCOL.md` §9: the bootstrap-then-read loop rewritten
-      around the new surface (one call where three hand-rolled ones were);
-      §9c JSON example.
-- [ ] Tests: diagnose on the E2-shaped fixture returns a report that names the
-      displacement family at a bootstrap state (the content 1052 proved
-      exists, now reachable in one call); report-off condition still strips
-      everything; payload stays within the documented budget + obs/calc/diff
-      PNGs to `tests/output/`.
+      docstring and the schema. **Decided: trajectory only** — the ladder is
+      redundant with every shipped preset (measurement in the handover), and a
+      ladder that added states would change the fit being compared. Neither
+      version moves; the reasoning is in `agent.py`'s docstring.
+- [x] Implement the chosen surface in `agent.refine_json` + `tool_definition()`
+      (registry-quoted, meta-test extended — the trajectory's type must appear
+      in the exported response schema, beside the four arms and `evidence`).
+      Library half: `fit(stage_reports=True)` → `Refinement.stage_reports_`;
+      `FitReport.for_stage()` is the projection; `capabilities().features`
+      gains the derived `report_trajectory` flag.
+- [x] `docs/AGENT_PROTOCOL.md` §9: the read-the-run rule as §9a, the DAG loop
+      after it, §9c JSON example checked field for field against a real call
+      (and §9c's "four tasks" corrected to five). §5 gains the rule itself, so
+      the report-on prompt's live excerpt teaches it.
+- [x] Tests: one `refine_json` call on the E2 fixture, asserted in both halves
+      (empty converged action list + the 1056 exchange finding; the first
+      rung's named displacement); report-off strips both halves, two ways;
+      the answer is bit-identical with and without; payload budget; PNG to
+      `tests/output/`.
 
 ## Acceptance
 
