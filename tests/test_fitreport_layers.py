@@ -22,7 +22,7 @@ from pxrdref.report import (
     hamilton_justified,
     predict_then_verify,
 )
-from pxrdref.report.schemas import VALIDITY_RADIUS_FWHM
+from pxrdref.report.schemas import LEBAIL_GAP_NOTABLE, VALIDITY_RADIUS_FWHM
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 1.5405929
@@ -711,3 +711,159 @@ def test_double_injection_keeps_the_impurity_call(truth):
     assert po.confidence < impurity.confidence
 
     _plot_state(structure, perturbed, doped, "wp1054_double_injection")
+
+
+# ----------------------------------------------------------------------
+# WP-1057: purpose-grade evidence — the Le Bail gap, the resolution-limited
+# abstention flavour, and the contents-type intensity clause
+# ----------------------------------------------------------------------
+def _pore_proxy_data(seed=17):
+    """Data from LaB₆ + a guest scatterer (O at the 1b site, occ 0.6,
+    Biso 2.0) — the WP-1057 pore-content proxy.  The returned host model
+    never contains the guest, so its intensity model is wrong in the
+    interference-coupled way real pore contents are: at (½,½,½) the guest's
+    phase factor is (−1)^(h+k+l), so per-reflection errors alternate in sign
+    by parity — never a scale, ADP or texture signature."""
+    structure, ins, _ = _truth(seed=seed)
+    doped = structure.model_copy(deep=True)
+    doped.phases[0].atoms.append(pr.Atom(
+        label="Oguest", species="O",
+        x=pr.Parameter(value=0.5), y=pr.Parameter(value=0.5),
+        z=pr.Parameter(value=0.5),
+        occ=pr.Parameter(value=0.6), biso=pr.Parameter(value=2.0)))
+    tt = np.arange(18.0, 125.0, 0.02)
+    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    model = compile_model(doped, ins, grid, mode="rietveld")
+    table = ParameterTable(doped, ins)
+    y = model.evaluate(table.decode(table.x0()))
+    rng = np.random.default_rng(seed)
+    y_noisy = rng.poisson(np.maximum(y, 1.0) * _COUNT_SCALE) / _COUNT_SCALE
+    data = pr.PatternData(
+        two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
+        sigma=np.sqrt(np.maximum(y, 1.0) / _COUNT_SCALE).tolist())
+    return structure, ins, data
+
+
+def test_pore_proxy_gap_and_contents_clause():
+    """The WP-1057 headline scenario: a converged host fit over data whose
+    scattering contents it lacks.  Measured (2026-08-12): Rwp 0.0405,
+    GoF 2.97, partition Rwp 0.0170 → ratio 2.38; intensity carries 83 % of
+    the misfit in 8 gated regions split 5+/3−, best angular template
+    R² = 0.011.  The report must carry the gap and name the contents
+    signature — and still invent no action, because none applies."""
+    structure, ins, data = _pore_proxy_data()
+    ref = pr.Refinement(structure, ins)
+    result = ref.fit(data, plan="mccusker_default")
+    report = ref.report()
+
+    assert report.layer1_available, report.abstained_reason
+    gap = report.lebail_gap
+    assert gap is not None
+    assert gap.rwp_rietveld == pytest.approx(result.statistics.rwp, rel=1e-6)
+    assert gap.rwp_lebail < gap.rwp_rietveld
+    assert gap.ratio > 2.0, gap                    # measured 2.38
+    assert "Le Bail partition" in report.summary
+    assert "intensity model carries the misfit" in report.summary
+
+    # the contents-type clause names the pattern; the evidence stays where
+    # it always was, in the gated per-region coefficients
+    assert "alternate in sign" in report.summary
+    assert "un-modelled scattering contents" in report.summary
+    sig = [c.value for a in report.attribution if a.gates_passed
+           for c in a.coefficients if c.kind == "intensity" and c.significant]
+    assert sum(1 for v in sig if v > 0) >= 2, sig
+    assert sum(1 for v in sig if v < 0) >= 2, sig
+
+    # honest silence preserved: naming the inference must not manufacture
+    # actions the closed vocabulary cannot express
+    assert not [a for a in report.suggested_actions if a.active]
+
+    _plot_state(ref.fitted_structure, ref.fitted_instrument, data,
+                "wp1057_pore_proxy")
+
+
+def test_broad_abstention_is_resolution_limited():
+    """The broad-peak abstention names the data's resolution, not model
+    error: gram failures dominate the tally (measured 12 of 12 failing
+    regions, 5 failing nothing else at median local R² 0.957) and the gap
+    stays flat (measured ratio 1.00 — the partition's peaks are displaced
+    identically, so position misfit can never masquerade as an intensity
+    story)."""
+    structure, ins, data = _broad_truth(0.6)
+    perturbed = ins.model_copy(deep=True)
+    perturbed.zero_shift.value = 0.05
+
+    report = _report_for(structure, perturbed, data)
+    assert report.abstained_reason
+    assert report.abstained_kind == "resolution_limited"
+    assert "Resolution-limited" in report.abstained_reason
+    assert "not evidence the model is wrong" in report.abstained_reason
+    assert "indistinguishable" in report.abstained_reason
+
+    assert report.lebail_gap is not None
+    assert report.lebail_gap.ratio < LEBAIL_GAP_NOTABLE, report.lebail_gap
+    assert "Le Bail partition" not in report.summary
+
+    _plot_state(structure, perturbed, data, "wp1057_broad_resolution_limited")
+
+
+def test_sharp_converged_reference_stays_silent(truth):
+    """The no-noise control: a converged correct model gets the gap field
+    (measured ratio 1.00 — the partition is not a noise-floor estimator, so
+    ≲ 1 is the healthy reading) and neither summary clause, and no
+    abstention kind."""
+    structure, ins, data = truth
+    report = _report_for(structure, ins, data)
+
+    assert report.layer1_available and report.abstained_kind is None
+    gap = report.lebail_gap
+    assert gap is not None
+    assert gap.ratio < LEBAIL_GAP_NOTABLE, gap
+    assert "Le Bail partition" not in report.summary
+    assert "alternate in sign" not in report.summary
+
+    _plot_state(structure, ins, data, "wp1057_sharp_reference")
+
+
+def test_wrong_cell_abstentions_classify_as_model_error(truth):
+    """The classifier must never read a wrong cell as resolution-limited.
+    The +0.4 % state fails the Gram gate in 8 of its 10 failing regions too
+    — which is why gram dominance alone cannot separate the flavours — and
+    classifies "immature" on the Rwp arm (0.72); a milder +0.1 % state
+    (Rwp 0.33) abstains via the explained-fraction clause with widespread
+    validity failures and defers to the position family: "unreadable", the
+    reindex pointer leading, no resolution wording."""
+    structure, ins, data = truth
+
+    p = structure.model_copy(deep=True)
+    p.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+    report = _report_for(p, ins, data)
+    assert report.abstained_kind == "immature"
+
+    p2 = structure.model_copy(deep=True)
+    p2.phases[0].cell = pr.Cell.cubic(4.1568 * 1.001)
+    report2 = _report_for(p2, ins, data)
+    assert report2.abstained_kind == "unreadable"
+    assert "Resolution-limited" not in (report2.abstained_reason or "")
+    assert any(a.kind == "reindex_or_recheck_cell"
+               for a in report2.suggested_actions)
+
+
+def test_lebail_gap_mechanics(truth):
+    """The partition borrows the caller's model: mode and per-hkl buffers
+    are flipped and must come back bit-exact (the model keeps serving the
+    session).  In Le Bail mode the gap is absent for cause — None, never a
+    fabricated 1.0."""
+    from pxrdref.report import lebail_gap
+
+    structure, ins, data = truth
+    result, model, values = _result_for(structure, ins, data)
+    y_before = model.evaluate(values)
+    gap = lebail_gap(model, values, rwp_rietveld=result.statistics.rwp)
+    assert gap is not None and gap.rwp_lebail > 0
+    assert model.mode == "rietveld"
+    assert all(cp.hkl_intensity is None for cp in model.phases)
+    assert np.array_equal(model.evaluate(values), y_before)
+
+    lb = compile_model(structure, ins, data, mode="lebail")
+    assert lebail_gap(lb, values, rwp_rietveld=0.1) is None
