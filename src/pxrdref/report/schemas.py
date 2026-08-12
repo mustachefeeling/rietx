@@ -24,7 +24,16 @@ from ..schemas.common import Base
 from ..schemas.results import RestraintReport
 
 # 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
-THRESHOLDS_VERSION = "0.3"
+# 0.4 (WP-1054): abstained-branch honesty.  ``reindex_or_recheck_cell`` is
+#   emitted on validity-failure χ² share (REINDEX_MIN_MISFIT_SHARE — replacing
+#   the mature-branch-only ``rwp > 0.2`` arm, so it now survives abstention);
+#   ``add_impurity_phase`` is capped at IMPURITY_SHIFT_CAP when every strong
+#   unmatched peak matches the position-error evidence;
+#   ``refine_preferred_orientation`` is capped below a coexisting impurity call
+#   (cross-talk); ``TextureAnalysis`` gains ``caveat`` and its ``best_axis``
+#   becomes always-populated evidence.  No ActionKind changed meaning, but the
+#   emission conditions moved on measured states, which a consumer sees.
+THRESHOLDS_VERSION = "0.4"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -76,6 +85,48 @@ STRAIN_MIN_R2 = 0.5
 STRAIN_MIN_ANISOTROPY = 1.3
 STRAIN_MIN_REFLECTIONS = 6
 STRAIN_MAX_GRAM_CONDITION = 1e3
+
+#: Abstained-branch honesty (WP-1054) — all four measured on the LaB₆ misfit-
+#: injection fixtures (tests/test_fitreport_layers.py), 2026-08-12.
+#:
+#: ``reindex_or_recheck_cell`` is emitted when at least
+#: ``REINDEX_MIN_FAR_FRACTION`` of the *misfitting* regions (with an absolute
+#: floor of ``REINDEX_MIN_FAR_REGIONS``) fail the validity radius — the
+#: position failure must be *widespread*, which is what separates a wrong
+#: cell/gross calibration from a couple of locally-bad regions.  A count
+#: fraction, deliberately not a χ² share: shares proved unstable under a
+#: background refit (the +0.4 % cell state measures far-region share 0.192
+#: unrefined but 0.049 after one background stage — indistinguishable from
+#: the 0.043 of a state whose failures are saturated-fit artefacts), while
+#: the count fraction reads 0.60/0.73 on those same two wrong-cell states,
+#: 0.60 on a mature broad-peak gross zero (Rwp 0.14 — the old ``rwp > 0.2``
+#: arm missed it), 0.71 on a gross zero beside a real impurity, against 0.33
+#: on the artefact state and 0.00 on every control (all 2026-08-12, the LaB₆
+#: misfit-injection fixtures).
+REINDEX_MIN_FAR_FRACTION = 0.5
+REINDEX_MIN_FAR_REGIONS = 3
+#: A strong unmatched observed peak with an ``unmatched_calc`` partner within
+#: this window is a *displaced pair* (the model's line beside the observed one),
+#: not an impurity candidate — consulted only when validity-radius failures
+#: exist.  Measured pair distances on the +0.4 % cell state: 0.12–0.82°;
+#: a genuinely foreign line sat 1.05–1.18° from any partner.
+SHIFT_PAIR_WINDOW_DEG = 1.0
+#: An unmatched observed peak within this many (pattern-median) FWHM of a
+#: calculated position is shape/position misfit of that reflection, not a new
+#: line — the broad-peak regime, where the fixed 0.08° matching tolerance is
+#: far smaller than the peak itself.  Measured: residual lobes at 0.1–0.5 FWHM
+#: from their tick on broad data; a genuine impurity at 12–14 FWHM.
+SHIFT_TICK_PROXIMITY_FWHM = 1.0
+#: ``add_impurity_phase`` confidence when *every* strong unmatched peak matches
+#: the position-error evidence — deliberately below the reindex action's 0.4,
+#: because on that evidence the phase is the less likely explanation.
+IMPURITY_SHIFT_CAP = 0.3
+#: how far below a coexisting ``add_impurity_phase`` call the texture action is
+#: capped: an un-modelled foreign peak leaks into the per-reflection extraction
+#: and can manufacture the texture signature (measured: a pure impurity
+#: injection scored a phantom (1,0,1) axis at R²=0.66, outranking the impurity
+#: call at 0.40), so the detection must never outrank its likely cause.
+TEXTURE_IMPURITY_MARGIN = 0.05
 
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
@@ -207,14 +258,21 @@ class TrendAnalysis(Base):
 class TextureAnalysis(Base):
     """Single-axis March-Dollase preferred-orientation diagnostic, per phase.
 
-    ``detected`` is the field to branch on: when True, ``best_axis`` is the
-    crystallographic direction (integer hkl) whose March-Dollase model best
-    reproduces the per-reflection intensity misfit and ``march_coefficient`` the
-    fitted r (< 1 or > 1 → platy or needle, the sense depending on geometry —
-    see :mod:`pxrdref.model.preferred_orientation`).  ``r2`` is the fraction of
+    ``detected`` is the *only* field to branch on.  ``best_axis`` is evidence,
+    not a verdict (WP-1054): it always carries the best-scoring crystallographic
+    direction (integer hkl) whenever enough reflections informed the fit, so a
+    consumer reading a sub-threshold ``r2`` can still see *which* axis got that
+    score.  ``march_coefficient`` is the fitted r on that axis (< 1 or > 1 →
+    platy or needle, the sense depending on geometry — see
+    :mod:`pxrdref.model.preferred_orientation`).  ``r2`` is the fraction of
     the intensity misfit that model explains.  ``runner_up_axis`` is the best
     *non-equivalent* alternative — when its ``runner_up_r2`` is close to ``r2``
     the axis is not cleanly resolved (distinct habits happen to fit similarly).
+    ``caveat``, when set, names evidence elsewhere in the report that can
+    manufacture this signature (currently: strong unmatched observed peaks —
+    un-modelled intensity leaks into the per-reflection extraction, so an
+    impurity can read as texture); a detection carrying a caveat is still a
+    measurement of the residual, but not of the specimen.
     """
 
     phase_index: int
@@ -225,6 +283,7 @@ class TextureAnalysis(Base):
     detected: bool = False
     runner_up_axis: tuple[int, int, int] | None = None
     runner_up_r2: float = 0.0
+    caveat: str | None = None
 
 
 class StrainAnalysis(Base):

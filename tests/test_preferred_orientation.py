@@ -426,13 +426,15 @@ def test_layer1_texture_identifies_the_injected_axis():
 
 def test_layer1_texture_quiet_on_an_untextured_pattern():
     """A texture-free rutile pattern reports detected = False with r ≈ 1 — no
-    axis is manufactured from noise."""
+    *detection* is manufactured from noise.  Since WP-1054 ``best_axis`` stays
+    populated as evidence (the axis the failed detection scored highest), so
+    the quiet answer is ``detected=False`` at r ≈ 1, never a nulled axis."""
     pattern = _synthesize_textured_rutile((0, 0, 1), 1.0)  # r=1 ⇒ no texture
     texture = _detect_texture(pattern)
     assert len(texture) == 1
     tx = texture[0]
     assert not tx.detected
-    assert tx.best_axis is None
+    assert tx.best_axis is not None      # evidence, not a verdict (WP-1054)
     assert tx.march_coefficient == pytest.approx(1.0, abs=0.1)
 
 

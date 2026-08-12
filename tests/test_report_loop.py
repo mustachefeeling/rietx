@@ -573,24 +573,24 @@ def test_e5_impurity_stops_the_loop(truth):
 # ----------------------------------------------------------------------
 def test_e6_wrong_cell_applies_no_position_action(truth):
     """A 0.4 % cell error moves peaks many FWHM: the loop must never apply a
-    shift-based position correction to a wrong cell, and it doesn't — but for
-    a *stronger* reason than the WP table anticipated, and with a recorded
-    gap.
+    shift-based position correction to a wrong cell, and it doesn't.
 
     Measured (2026-08-11): after the background bootstrap the whole report
     **abstains** (Rwp 0.716 > 0.35) — 11 of 15 regions trip the validity
-    radius, and abstention outranks per-region gating.  The abstained branch
-    emits only the model-free actions (``add_impurity_phase`` at 0.9: the
-    displaced peaks read as unindexed lines), so the loop stops at round 0
-    with nothing selectable.  **The recorded finding**: the WP expected
-    ``reindex_or_recheck_cell`` present-but-skipped, but that kind is emitted
-    only by the mature branch (``far and rwp > 0.2`` in
-    ``layer2.suggest_actions``) — an abstained report never carries it, so
-    the one state that most needs the indexing pointer gets it only via the
-    impurity action's ``alternatives`` and rationale, not as an action.  The
-    assertion below pins the measured absence; if the abstained branch ever
-    learns to emit it, this pin should flip *and be recorded as the fix of
-    this finding*, not silenced.
+    radius, and abstention outranks per-region gating.  WP-1052 recorded a
+    finding here: ``reindex_or_recheck_cell`` was emitted only by the mature
+    branch (``far and rwp > 0.2``), so the abstained report surfaced
+    ``add_impurity_phase`` at 0.9 alone — the phantom-phase invitation a real
+    model consumed in WP-1053's pilot.  **WP-1054 is the fix of that
+    finding**, and this test now pins the fixed behaviour: the shared emitter
+    (``layer2.reindex_action``, on widespread validity failure — measured
+    here 11 of 15 misfitting regions, count fraction 0.73) emits the reindex
+    pointer on the abstained branch, top-ranked at 0.4, carrying the whole
+    position family in ``alternatives``; the impurity call is capped at 0.3
+    because every strong unmatched peak pairs with a missing calculated line
+    (32 displaced pairs measured at 0.12–0.82°).  Both are non-stage kinds
+    (``index``/``advice``), so the loop still selects nothing and stops — but
+    the hand-back now points a caller at re-indexing, not at a phantom phase.
 
     Baseline (recorded, not asserted — the contrast is the point): the blunt
     ``mccusker_default`` cell stage *rescues* this start — a → 4.156604
@@ -600,6 +600,8 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
     statement about this start being inside the cell stage's basin, not about
     the refusal being wrong.
     """
+    from pxrdref.report.schemas import IMPURITY_SHIFT_CAP
+
     structure, ins, data = truth
     start = structure.model_copy(deep=True)
     start.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
@@ -617,10 +619,18 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
         assert r.selected not in POSITION_FAMILY, r.selected
         assert not (set(_actions_in_order(r.report)) & POSITION_FAMILY), (
             "an abstained report emitted a position action")
-    assert episode.stop_reason, "stop reason must be recorded"
-    # the recorded finding (see docstring): no reindex pointer when abstained
-    assert "reindex_or_recheck_cell" not in _actions_in_order(
-        episode.final_report)
+    assert episode.stop_reason == "no_action", episode.stop_reason
+
+    # the WP-1052 finding, fixed by WP-1054: the abstained report leads with
+    # the reindex pointer, and the loop's hand-back names it
+    final = episode.final_report
+    assert _actions_in_order(final)[0] == "reindex_or_recheck_cell", (
+        _actions_in_order(final))
+    assert episode.top_blocked_nonstage() == "reindex_or_recheck_cell", (
+        episode.rounds[-1].blocked)
+    impurity = final.action("add_impurity_phase")
+    assert impurity.confidence <= IMPURITY_SHIFT_CAP, impurity
+    assert impurity.alternatives[0] == "reindex_or_recheck_cell", impurity
 
     _assert_dag_hygiene(episode)
     _plot(episode, "report_loop_e6")

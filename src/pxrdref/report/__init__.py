@@ -15,11 +15,13 @@ from .layer0 import build_layer0
 from .layer1 import analyse_trends, attribute_regions, maturity_gate
 from .layer2 import (
     apply_strategy_veto,
+    cap_texture_crosstalk,
     delta_bic,
     estimate_delta_chi2,
     hamilton_justified,
     layer0_actions,
     predict_then_verify,
+    reindex_action,
     suggest_actions,
     texture_actions,
 )
@@ -62,6 +64,7 @@ __all__ = [
     "attribute_regions",
     "build_layer0",
     "build_report",
+    "cap_texture_crosstalk",
     "delta_bic",
     "describe_action",
     "estimate_delta_chi2",
@@ -70,6 +73,7 @@ __all__ = [
     "maturity_gate",
     "predict_then_verify",
     "recipe",
+    "reindex_action",
     "stage_for",
     "suggest_actions",
     "texture_actions",
@@ -113,17 +117,28 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     report.texture = analyse_texture(model, values)
     report.strain = analyse_strain(model, values)
 
+    ticks = [t for positions in result.ticks.values() for t in positions]
     reason = maturity_gate(result.statistics.rwp, attributions)
     if reason is not None:
         # Abstain from *parameter-level* statements: keep the per-region
         # evidence, publish no trends.  Model-free actions (an unindexed peak
         # is unindexed regardless of maturity — and is a common reason for it)
-        # still stand, and the veto still applies to them.
+        # still stand, and the veto still applies to them.  Since WP-1054 the
+        # position-family pointer stands here too: validity-radius failures
+        # are exactly the evidence abstention rests on, and before it the one
+        # state that most needed reindex_or_recheck_cell was the one state
+        # that could not receive it.
         report.abstained_reason = reason
-        actions = (layer0_actions(report.unmatched, attributions)
-                   + texture_actions(report.texture))
+        actions = layer0_actions(report.unmatched, attributions, ticks=ticks)
+        reindex = reindex_action(attributions)
+        if reindex is not None:
+            actions.append(reindex)
+        actions += texture_actions(report.texture)
+        actions = cap_texture_crosstalk(actions, report.texture,
+                                        report.unmatched)
         if plan is not None or free_paths is not None:
             actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
+        actions.sort(key=lambda a: -a.confidence)
         report.suggested_actions = actions
         report.summary += f"; Layer 1 abstained — {reason}"
         return report
@@ -131,13 +146,14 @@ def build_report(result: RefinementResult, *, model=None, values=None,
     report.layer1_available = True
     report.trends = analyse_trends(attributions, model.wavelength)
     actions = suggest_actions(attributions, report.trends, report.unmatched,
-                              rwp=result.statistics.rwp)
+                              rwp=result.statistics.rwp, ticks=ticks)
     predicted = estimate_delta_chi2(result, attributions)
     for action in actions:
         action.expected_delta_chi2 = predicted
     # texture actions join after the Δχ² stamp: their evidence is
     # per-reflection, not the gated region attribution the estimate covers
     actions += texture_actions(report.texture)
+    actions = cap_texture_crosstalk(actions, report.texture, report.unmatched)
     if plan is not None or free_paths is not None:
         actions = apply_strategy_veto(actions, plan, free_paths=free_paths)
     actions.sort(key=lambda a: -a.confidence)

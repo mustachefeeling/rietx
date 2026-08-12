@@ -163,7 +163,8 @@ def analyse_texture(model: CompiledModel, values: dict[str, float], *,
     every candidate axis (up to ``max_index``) at its best-fit r; the axis
     explaining the most intensity misfit wins.  ``detected`` requires the score,
     the departure of r from 1, and the reflection count all to clear the pinned
-    thresholds — so a texture-free phase reports ``detected=False`` with r≈1.
+    thresholds — so a texture-free phase reports ``detected=False`` with r≈1
+    (the best-scoring axis stays named as evidence, WP-1054).
     Rietveld mode only (Le Bail / Pawley intensities are empirical, so there is
     no calculated pattern to compare against): returns ``[]`` otherwise.
     """
@@ -206,9 +207,12 @@ def analyse_texture(model: CompiledModel, values: dict[str, float], *,
         detected = (best_r2 >= TEXTURE_MIN_R2
                     and abs(best_r - 1.0) >= TEXTURE_MIN_STRENGTH
                     and n_used >= TEXTURE_MIN_REFLECTIONS)
+        # best_axis is evidence, not a verdict (WP-1054): it stays populated
+        # when detection fails, so a consumer reading the sub-threshold r2 can
+        # see which axis carried it.  ``detected`` is the branch field.
         results.append(TextureAnalysis(
             phase_index=ip,
-            best_axis=best_axis if detected else None,
+            best_axis=best_axis,
             march_coefficient=best_r,
             r2=best_r2,
             n_reflections_used=n_used,
