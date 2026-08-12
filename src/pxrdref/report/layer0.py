@@ -24,8 +24,13 @@ import numpy as np
 from scipy.signal import find_peaks
 
 from ..schemas.results import RefinementResult
+from .background import assess_background
 from .schemas import (
+    BACKGROUND_ABSORPTION_NOTABLE,
     LEBAIL_GAP_CYCLES,
+    OFF_REGION_CHI2_RED_HIGH,
+    OFF_REGION_DW_LOW,
+    BackgroundEvidence,
     FitReport,
     LeBailGap,
     Region,
@@ -90,6 +95,54 @@ def lebail_gap(model, values: dict[str, float], *, rwp_rietveld: float,
     return LeBailGap(
         rwp_rietveld=rwp_rietveld, rwp_lebail=rwp_lb,
         ratio=float(rwp_rietveld / max(rwp_lb, 1e-12)), n_cycles=n_cycles)
+
+
+def too_flexible(bg: BackgroundEvidence) -> bool:
+    """The background can imitate a structural parameter (WP-1055).
+
+    One predicate, consulted by the summary clause here and by the Layer-2
+    emitter, so the sentence and the action cannot disagree about what the
+    evidence says.
+    """
+    return bg.worst_absorption >= BACKGROUND_ABSORPTION_NOTABLE
+
+
+def too_stiff(bg: BackgroundEvidence) -> bool:
+    """Systematic misfit between the peak regions — magnitude **and** shape.
+
+    Both halves are required and the schema comment says why: the magnitude is
+    σ-scaled and the Durbin-Watson d is not, so a pattern whose esds are
+    merely mis-scaled cannot fire this on its own.
+    """
+    return (bg.off_region_chi2_reduced >= OFF_REGION_CHI2_RED_HIGH
+            and bg.off_region_durbin_watson is not None
+            and bg.off_region_durbin_watson < OFF_REGION_DW_LOW)
+
+
+def background_clause(bg: BackgroundEvidence) -> str | None:
+    """The one summary sentence, or None when neither failure mode fires.
+
+    A threshold here decides whether the summary *comments*, never whether the
+    section publishes: :class:`~pxrdref.report.schemas.BackgroundEvidence` is
+    on the report either way, and the Rwp pair — which no threshold can make
+    newsworthy without firing on every lab pattern — is published and never
+    quoted here (the schema docstring has the measurement).
+    """
+    parts: list[str] = []
+    if too_flexible(bg):
+        parts.append(
+            f"the background can reproduce {bg.worst_absorption:.0%} of "
+            f"{bg.worst_absorption_path} (block projection R², which a "
+            f"pairwise ρ cannot see) — ADPs, scales and any QPA fractions "
+            f"from this fit are biased, in the one direction Rwp improves in")
+    if too_stiff(bg):
+        parts.append(
+            f"between the peak regions the residual is systematic, not noise "
+            f"— χ²_red={bg.off_region_chi2_reduced:.1f} over "
+            f"{bg.off_region_points} channels at Durbin-Watson "
+            f"d={bg.off_region_durbin_watson:.2f} (2 = uncorrelated), misfit "
+            f"no region entry covers")
+    return "; ".join(parts) if parts else None
 
 
 def build_layer0(result: RefinementResult, *, top_n: int = 15,
@@ -166,9 +219,18 @@ def build_layer0(result: RefinementResult, *, top_n: int = 15,
         summary += (f"; remaining {len(rest)} regions carry "
                     f"{sum(r.chi2_share for r in rest):.0%} of χ²")
 
+    # The background section takes the *full* segmentation, not the top-N kept
+    # above: a channel outside the fifteen largest regions is in a small one,
+    # not off-region, and the off-region share is the whole point.
+    background = assess_background(result, regions_bounds)
+    if background is not None:
+        clause = background_clause(background)
+        if clause is not None:
+            summary += "; " + clause
+
     return FitReport(
         rwp=stats.rwp, gof=stats.gof,
         cumulative_chi2_breakpoints=breakpoints,
         regions=kept, n_regions_total=n_total,
-        unmatched=unmatched, summary=summary,
+        unmatched=unmatched, background=background, summary=summary,
     )

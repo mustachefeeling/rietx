@@ -22,6 +22,7 @@ from pydantic import Field
 
 from ..schemas.common import Base
 from ..schemas.results import RestraintReport
+from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 
 # 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
 # 0.4 (WP-1054): abstained-branch honesty.  ``reindex_or_recheck_cell`` is
@@ -42,7 +43,18 @@ from ..schemas.results import RestraintReport
 #   ``abstained_reason``.  The contents-type clause names sign-alternating,
 #   angular-trend-free intensity misfit in the summary (CONTENTS_*).  No
 #   gate or emission condition moved.
-THRESHOLDS_VERSION = "0.5"
+# 0.6 (WP-1055): background evidence.  ``FitReport.background`` lands (the
+#   Rwp/Rwp-background-subtracted pair, the background share, the off-region
+#   χ² share and Durbin-Watson, and the block-absorption table carried from
+#   fit time on ``RefinementResult.identifiability``), and the summary quotes
+#   one clause when a component crosses its comment threshold.  Two members of
+#   the action vocabulary that had never been emitted anywhere now are:
+#   ``decrease_background_flexibility`` on absorption evidence and
+#   ``increase_background_flexibility`` on off-region misfit with a low
+#   off-region d — both ``how="advice"``, both on either side of the maturity
+#   gate.  No existing emission condition moved, but a consumer enumerating
+#   the kinds it can actually receive sees two more.
+THRESHOLDS_VERSION = "0.6"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -193,6 +205,38 @@ CONTENTS_MAX_TEMPLATE_R2 = 0.3
 CONTENTS_MIN_REGIONS = 4
 CONTENTS_MIN_SIGN_MINORITY = 0.25
 
+#: Background evidence (WP-1055) — the comment thresholds of
+#: :class:`BackgroundEvidence`.  They decide where the *summary* starts
+#: talking and where an action may be emitted; the section publishes every
+#: number either way, because a threshold here is context and not a
+#: publish/withhold switch.  The two failure modes are measurably orthogonal
+#: (LaB₆ fixtures, `tests/test_background_auto.py`, 2026-08-12): a 1°-knot
+#: unpenalized spline absorbs R² 0.46 at off-region d 2.03, a hump fitted with
+#: a 2-term Chebyshev leaves off-region χ²_red 12.6 at d 0.19 and absorbs
+#: 0.02, and a converged clean fit reads 0.02 / 0.97 / 2.00 — so neither gate
+#: can fire on the other's failure and the clean control fires neither.
+#:
+#: ``BACKGROUND_ABSORPTION_NOTABLE`` is deliberately
+#: :data:`~pxrdref.strategy.staged.BACKGROUND_ABSORPTION_GUARD` itself rather
+#: than a second number: the report and the ``BACKGROUND_ABSORPTION``
+#: diagnostic describe one measurement, and a report recommending a stiffer
+#: background while the guard stays silent would be two verdicts on it.
+#:
+#: The stiff/wavy direction needs **both** of the other two, and the pairing
+#: is the point.  ``OFF_REGION_CHI2_RED_HIGH`` says there is misfit between
+#: the peaks at all — the same number and the same question as
+#: :data:`MIN_REGION_CHI2_RED` one region-type over — but it is a σ-scaled
+#: quantity, so a file with pessimistic esds would sit under it and one with
+#: optimistic esds over it for no physical reason.  ``OFF_REGION_DW_LOW``
+#: is scale-free (a ratio of sums of the same residuals), so it cannot be
+#: moved by mis-scaled esds, and requiring it too is what stops the magnitude
+#: gate from reading a weighting error as a background error.  Measured
+#: d: 0.18-0.44 across three under-flexible backgrounds against 1.99-2.04 on
+#: every converged control.
+BACKGROUND_ABSORPTION_NOTABLE = BACKGROUND_ABSORPTION_GUARD
+OFF_REGION_CHI2_RED_HIGH = 1.5
+OFF_REGION_DW_LOW = 1.0
+
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
 MATURITY_MAX_RWP = 0.35
@@ -221,6 +265,80 @@ class UnmatchedPeak(Base):
     two_theta: float
     height_over_sigma: float
     kind: str  # "unmatched_obs" (no calc tick nearby) | "unmatched_calc"
+
+
+class BackgroundEvidence(Base):
+    """What the background is doing to the numbers a consumer reads (WP-1055).
+
+    Model-free Layer-0 evidence, with one number carried from fit time.  The
+    section exists because the two background failure modes are both invisible
+    in everything else the report says, and they fail in *opposite* directions:
+
+    **Too flexible** — the background imitates the peaks, biasing ADPs up and
+    scales (hence QPA fractions) down **while Rwp improves**.  The one failure
+    mode that makes every statistic an agent reads look better.
+    ``absorption`` is the detecting statistic: per structural parameter, the
+    block projection R² of its Jacobian column onto the background column span
+    (:class:`~pxrdref.schemas.results.Identifiability`).  Pairwise ρ cannot see
+    it — measured ~0.2 per coefficient while the block absorbed ~46 %.  Every
+    screened pair is reported, not just the ones over
+    :data:`BACKGROUND_ABSORPTION_NOTABLE`, because the number is the evidence
+    and the threshold is only where the comment starts.  ``None`` (rather than
+    empty) when the result carried no Jacobian-time measurement at all.
+
+    **Too stiff** — smooth between-peak misfit, which Layer 0 is *structurally*
+    blind to: its regions are peak clusters cut from ticks ∪ residual peaks, so
+    misfit that lands between them lands in no region.  ``off_region_chi2_share``
+    makes that remainder explicit and ``off_region_durbin_watson`` says whether
+    it is systematic: d ≈ 2 is uncorrelated noise, d ≪ 2 is a run of same-sign
+    residuals — the background shape fighting the data (Hill & Flack, 1987,
+    J. Appl. Cryst. 20, 356).  It is pooled over the *contiguous* runs of
+    off-region channels, never across the peak regions cut out between them: a
+    difference taken over a gap is not a serial difference.
+
+    **The pair, which is context and never a finding.**  ``rwp`` against
+    ``rwp_background_subtracted`` (Toby, 2006, Powder Diffr. 21, 67 — his
+    recommended variant) is how much of the headline number is background
+    rather than fit; ``background_share`` is Σy_bkg/Σy_obs.  Measured, the
+    honest number is the one that carries the information: a sharp LaB₆ fit
+    and one under 0.6° of broadening both report Rwp **0.0137**, while
+    background-subtracted they read 0.0490 and 0.0766 (background share 0.89
+    in both, 2026-08-12).  The pair is therefore published unconditionally and
+    is deliberately **not** a summary trigger — every background-dominated
+    pattern crosses any useful threshold on it (ratio 3.6 and 5.6 on those two
+    *converged* controls), so a trigger would be a sentence on every lab fit.
+    Read it wherever a raw Rwp is about to be quoted; AGENT_PROTOCOL §4 says
+    where in the order.
+    """
+
+    rwp: float
+    #: Toby's background-subtracted variant; None when the result carried no
+    #: background curve to subtract
+    rwp_background_subtracted: float | None = None
+    #: Σ y_background / Σ y_obs over the fitted channels
+    background_share: float = 0.0
+    #: share of total χ² sitting in channels no Layer-0 region covers.
+    #: Published because the WP asked for the remainder to be explicit, and
+    #: **not** a detector: measured, it tracks the off-region *channel count*
+    #: rather than the misfit (0.89 on a converged clean fit, 0.24 on the
+    #: worst too-stiff background, where the peaks are misfitted too).  The
+    #: magnitude question is ``off_region_chi2_reduced``.
+    off_region_chi2_share: float = 0.0
+    #: mean (Δ/σ)² over those channels — ≈1 when they are fitted to the noise.
+    #: Measured 0.97/1.02 on converged controls against 4.6-12.6 on
+    #: under-flexible backgrounds
+    off_region_chi2_reduced: float = 0.0
+    #: Durbin-Watson d over those channels, pooled within contiguous runs;
+    #: None when too few of them are adjacent to difference
+    off_region_durbin_watson: float | None = None
+    off_region_points: int = 0
+    #: path → block-projection R² for every screened structural parameter;
+    #: None when nothing measured it (see the class docstring)
+    absorption: dict[str, float] | None = None
+    #: the largest ``absorption`` entry and whose it is — the headline, so a
+    #: consumer need not sort the table to branch on it
+    worst_absorption: float = 0.0
+    worst_absorption_path: str | None = None
 
 
 class LeBailGap(Base):
@@ -514,6 +632,12 @@ class FitReport(Base):
     #: is already Le Bail/Pawley (the mode *is* an intensity-free description,
     #: so there is no intensity model to triage) and on model-free reports.
     lebail_gap: LeBailGap | None = None
+    #: what the background is doing to the numbers above (WP-1055) — the two
+    #: failure modes nothing else in the report can show.  Absent for cause:
+    #: None when the result carries no background curve (a pre-v0.2 result,
+    #: or an evaluate-only view built without one), never as "the background
+    #: is fine".
+    background: BackgroundEvidence | None = None
     summary: str = ""
 
     # -- Layer 1

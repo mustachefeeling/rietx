@@ -11,7 +11,14 @@ from __future__ import annotations
 
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
-from .layer0 import build_layer0, lebail_gap
+from .background import assess_background
+from .layer0 import (
+    background_clause,
+    build_layer0,
+    lebail_gap,
+    too_flexible,
+    too_stiff,
+)
 from .layer1 import (
     abstention_flavour,
     analyse_trends,
@@ -34,6 +41,7 @@ from .layer2 import (
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
     THRESHOLDS_VERSION,
+    BackgroundEvidence,
     BasisCoefficient,
     FitReport,
     LeBailGap,
@@ -53,6 +61,7 @@ from .texture import analyse_texture
 __all__ = [
     "RECIPES",
     "THRESHOLDS_VERSION",
+    "BackgroundEvidence",
     "BasisCoefficient",
     "FitReport",
     "LeBailGap",
@@ -71,7 +80,9 @@ __all__ = [
     "analyse_texture",
     "analyse_trends",
     "apply_strategy_veto",
+    "assess_background",
     "attribute_regions",
+    "background_clause",
     "build_layer0",
     "build_report",
     "cap_texture_crosstalk",
@@ -89,6 +100,8 @@ __all__ = [
     "stage_for",
     "suggest_actions",
     "texture_actions",
+    "too_flexible",
+    "too_stiff",
 ]
 
 
