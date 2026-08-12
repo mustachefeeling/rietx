@@ -70,6 +70,32 @@ request.** This WP is items 1 and 3 of that campaign's ranked follow-ups.
 
 ### Inherited
 
+**From [1055](1055-background-evidence.md), closed 2026-08-12 — a new report
+section to deliver, and one ranking question left open on purpose.**
+`FitReport.background` is a fifth thing a delivery surface must place: it is
+Layer-0-grade (it speaks on an abstained report too), it always publishes its
+numbers, and exactly two of them are summary triggers. The Rwp /
+Rwp-background-subtracted pair is **deliberately not** one — measured, every
+background-dominated pattern crosses any useful threshold on it, including
+converged ones at ratio 3.6 and 5.6 — so a delivery loop that re-promotes it
+into a headline would be undoing a measured decision. AGENT_PROTOCOL §4's
+judging order is where it now sits, at step 7, paired with raw Rwp.
+
+**The open question, with its measurement.** On the too-stiff fixture (a
+Gaussian hump under a 2-term Chebyshev) the residual runs 12σ over hundreds of
+channels, noise on top of it clears the 5σ peak-detection floor in **146**
+places, and `add_impurity_phase` is emitted at **0.90** on a specimen with no
+impurity — above `increase_background_flexibility` at 0.60. WP-1055 added
+`note_background_crosstalk`, which makes each action name the other, but
+deliberately did **not** cap: unlike `cap_texture_crosstalk` (where the impurity
+was the plausible cause of the texture signature on the same reflections), these
+two findings are about disjoint channels by construction — Layer 0 segments a
+region around every residual peak, so an unmatched peak is never off-region —
+and both statements are true. Whether the top-ranked *action* should still be
+the phantom phase is a delivery/ranking question this WP had no measurement to
+settle; a diagnose task that orders hypotheses is where it can be answered.
+
+
 **From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — two
 report facts a delivery loop must respect.** An abstention with
 `abstained_kind="resolution_limited"` is a *terminal* state for a declared

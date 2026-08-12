@@ -1,6 +1,8 @@
 # WP-1055 — Background evidence in the FitReport
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-12 — `FitReport.background` carries both
+failure modes; the two flexibility actions finally have an emitter; the
+over-flexible fixture wins on Rwp *and* GoF and lands 2.6× further from truth
 Depends on: —
 
 ## Goal
@@ -81,15 +83,15 @@ already states that reading for QPA), and `THRESHOLDS_VERSION` is 0.5 as of
 
 ## Tasks
 
-- [ ] Carrier: persist the screened `background_absorption` values (path → R²)
+- [x] Carrier: persist the screened `background_absorption` values (path → R²)
       from fit time onto the result as an additive defaulted field; document the
       SCHEMA_VERSION reasoning in the schema docstring.
-- [ ] `FitReport.background` (additive, defaulted): rwp / rwp_background_subtracted
+- [x] `FitReport.background` (additive, defaulted): rwp / rwp_background_subtracted
       pair, background share of total intensity, off-region χ² share, off-region
       Durbin–Watson, and the absorption table. Rendered into `summary` as one
       clause when any component crosses its comment-threshold (thresholds as
       *context*, not publish/withhold switches).
-- [ ] Emit `decrease_background_flexibility` when absorption evidence is strong,
+- [x] Emit `decrease_background_flexibility` when absorption evidence is strong,
       `increase_background_flexibility` when off-region misfit + low off-region d
       say the background shape is fighting the data — both as hypotheses carrying
       the numbers, confidence built the Layer-2 way (importance × quality), veto
@@ -98,10 +100,10 @@ already states that reading for QPA), and `THRESHOLDS_VERSION` is 0.5 as of
       stays `how="advice"`. New emitters for existing kinds are the same
       `THRESHOLDS_VERSION` question WP-1054 carries: decide it once, coordinated
       (whichever WP lands second inherits the decision via `### Inherited`).
-- [ ] `docs/AGENT_PROTOCOL.md`: extend §4's judging order and the §7 diagnostics
+- [x] `docs/AGENT_PROTOCOL.md`: extend §4's judging order and the §7 diagnostics
       table with the background section's rows; note the Rwp-flattering measured
       fact.
-- [ ] Tests: over-flexible fixture (high absorption R², report says so;
+- [x] Tests: over-flexible fixture (high absorption R², report says so;
       Rwp *improves* while the section flags it — the pinned inversion),
       too-stiff fixture (off-region d), converged clean fixture stays quiet +
       obs/calc/diff PNGs to `tests/output/`.
@@ -129,6 +131,95 @@ correction's evidence is never an Rwp comparison.
   emitter to).
 
 ## Handover log
+
+- **2026-08-12** — **closed.** All five checklist items landed in six commits.
+  What a successor needs:
+
+  **The carrier is general, and WP-1056 should extend it rather than add one.**
+  `RefinementResult.identifiability: Identifiability | None` exists because the
+  Jacobian is never serialized, so a statistic read off it is screened at fit
+  time or lost. Today it holds one field (`background_absorption: dict[path,
+  R²]`); 1056's correlation/soft-mode summary belongs beside it. It is filled
+  from `GuardReport.measured_background_absorption`, a deliberately-not-findings
+  seventh field on `GuardReport` — `check_guards` measures **once**, the
+  threshold decides only which rows become `GuardFinding`s, and both the report
+  and the `BACKGROUND_ABSORPTION` diagnostic quote that one table. `_run_plan`
+  now returns the **last stage's** guard (the answer-producing one, the rule
+  `_constraint_diagnostics` already followed); `replay` and joint multi-histogram
+  fits leave it `None`, which the schema says to read as "not measured here",
+  never "no absorption".
+
+  **Three measurements shaped the design, and two of them contradicted the WP's
+  own plan.** (i) The off-region χ² *share* is not a detector — it tracks the
+  off-region channel count (0.89 on a converged clean fit, 0.24 on the worst
+  too-stiff background, where the peaks are misfitted too). It is published as
+  the WP asked, and `off_region_chi2_reduced` was added beside it as the
+  magnitude question. (ii) The Rwp pair cannot be a summary trigger: a sharp
+  LaB₆ fit and one under 0.6° of broadening both report Rwp 0.0137 and read
+  0.0490/0.0766 background-subtracted (so the subtracted number is the
+  informative one — the WP's premise held), but both *converged* controls sit at
+  ratio 3.6 and 5.6, and every background-dominated pattern crosses any useful
+  threshold. Published, never quoted in `summary`, and AGENT_PROTOCOL §4 step 7
+  is where a consumer is told to read it. (iii) The stiff gate needs magnitude
+  **and** Durbin-Watson, because χ²_red is σ-scaled and d is not — mis-scaled
+  esds alone must not fire it.
+
+  **Measured separations** (LaB₆, `tests/test_background_auto.py`, 2026-08-12) —
+  worst block-R² / off-region χ²_red / off-region d: 1°-knot spline λ=0 →
+  0.46/1.02/2.03; Chebyshev-6 correct → 0.01/0.97/2.00; Chebyshev-2 over a hump
+  → 0.02/12.55/0.19; -3 → 0.02/12.16/0.18; -8 → 0.02/4.56/0.44. Neither gate can
+  fire on the other's failure and the clean control fires neither.
+
+  **The acceptance inversion, measured** (same data, 15-70°, broad peaks; truth
+  Biso 0.5/0.5): the 1°-knot unpenalized spline gives Rwp 0.08852 / GoF 1.022 and
+  Biso 0.958/0.000 (one on its bound), the correct Chebyshev-6 gives 0.08969 /
+  1.025 and 0.691/0.327 — the wrong background wins every agreement index and is
+  2.6× further from truth. `tests/output/wp1055_over_flexible_zoom.png` is the
+  argument for the whole section: white-noise residuals inside ±3σ, peaks tracked
+  exactly, only a faint waviness in the background curve. Nothing a human or a
+  VLM would flag.
+
+  **Gotchas.**
+  - `THRESHOLDS_VERSION` is **0.6**. Two kinds that had never been emitted
+    anywhere now are, so a consumer enumerating what it can receive sees more.
+  - Both emitters carry **empty `parameter_paths`** on purpose. The obvious glob
+    `instrument.background.*` would read as "free the background", which every
+    plan already does, so `apply_strategy_veto` would grey the suggestion out
+    for entirely the wrong reason.
+  - `report/apply.py`'s notes argued advice-kind from "a button whose own report
+    cannot see what it did". That reason **expired** with this WP and the note
+    saying "not in this report" had become false. The kinds stay advice on the
+    structural reason that was always the real one: a Chebyshev term is a
+    property of the model, not a member of `turn_on`. A test now pins the
+    retired sentence out.
+  - `increase_background_flexibility` is capped at 0.60 (`BACKGROUND_INCREASE_CAP`
+    in `layer2.py`) — a stiff background, an amorphous hump and an un-modelled
+    broad phase share the signature, and bending the background over either of
+    the last two hides it.
+  - **Left undone, deliberately.** On the too-stiff fixture the residual runs 12σ
+    over hundreds of channels and noise on top clears the 5σ peak floor in **146**
+    places, so `add_impurity_phase` is emitted at 0.90 on a specimen with no
+    impurity — outranking the background call. `note_background_crosstalk` makes
+    each action name the other but does **not** cap, because the two findings are
+    about disjoint channels by construction (Layer 0 segments a region around
+    every residual peak, so an unmatched peak is never off-region) and both can
+    be true. Whether the *ranking* is right is a WP-1054-family question this WP
+    had no measurement to settle; it is in 1058's and 1059's `### Inherited`.
+  - `multi.py` screens per histogram with `hist.h.` path prefixes and was left
+    alone: a pooled `Identifiability` would reach `for_histogram(h)` with paths
+    that do not match that histogram's own.
+
+  **Counts** (`[dev,jax,torch]`, darwin/arm64, this checkout's `.venv`): fast
+  selection **2288 passed, 5 skipped**, from 2282+5 at WP-1057's close — exactly
+  the six tests added, no new skip. Per file: `test_background_auto` 24 → 29,
+  `test_fitreport_layers` 31 → 32. Wall clock 3:06 and 3:13 on two runs of the
+  same tree. Full suite not run this session (nothing here touches an acceptance
+  protocol or an indexing engine).
+
+  **CLAUDE.md** sat one line under its 600-line cap, so the background invariant's
+  new clause was paid for by re-wrapping the `sig()` bullet beside it and folding
+  its WP-1029 narrative into the parenthetical that already points at that WP's
+  file (protocol rule 4). No rule or fact dropped — the diff is a re-wrap.
 
 - **2026-08-11** — created, from the FitReport design review (background named
   the important agentic failure mode). Not started.
