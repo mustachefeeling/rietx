@@ -514,6 +514,10 @@ def test_response_schema_covers_every_answer_arm():
     for arm in ("SeriesResult", "RefinementResult", "IndexingResult",
                 "SuggestionResult"):
         assert arm in text, arm
+    # the companions that ride beside an arm rather than being one (WP-1043,
+    # WP-1058): a consumer that cannot see their shape cannot read them
+    for companion in ("IndexingEvidence", "FitReport", "StageReport"):
+        assert companion in text, companion
 
 
 def test_tool_definition_shape():
