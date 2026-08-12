@@ -30,6 +30,8 @@ from collections.abc import Sequence
 
 import numpy as np
 
+from .._about import DIST_NAME
+
 #: Observed data, calculated model, and the recessive marks — the tokens
 #: ``viz.plots`` already uses, restated here rather than imported so the two
 #: modules stay independently readable.
@@ -58,7 +60,7 @@ def _pyplot():
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
         raise ImportError("plotting needs matplotlib: "
-                          "pip install 'pxrd-refine[viz]'") from exc
+                          f"pip install '{DIST_NAME}[viz]'") from exc
     return plt
 
 

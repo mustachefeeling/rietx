@@ -52,6 +52,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from .. import _about
 from ..capabilities import capabilities as _capabilities
 from ..history.events import EventStream
 from ..optimize.cancel import CancelToken, RefinementCancelled
@@ -89,8 +90,9 @@ RunState = Literal["idle", "running", "cancelling"]
 EVENT_RING = 4096
 
 #: Where ``/api/recent`` is remembered.  Overridable so tests (and a sandboxed
-#: build) never touch a real home directory.
-STATE_DIR_ENV = "PXRDREF_STATE_DIR"
+#: build) never touch a real home directory.  Both spellings live in
+#: :mod:`.._about` with the other name-bearing literals (WP-1062).
+STATE_DIR_ENV = _about.STATE_DIR_ENV
 
 _MAX_RECENT = 12
 
@@ -158,7 +160,7 @@ class GuiSession:
         self.backend = backend
         self.solver = solver
         self.state_dir = Path(state_dir) if state_dir is not None else Path(
-            os.environ.get(STATE_DIR_ENV) or Path.home() / ".pxrdref")
+            os.environ.get(STATE_DIR_ENV) or Path.home() / _about.STATE_DIR_NAME)
         #: staged uploads (WP-1014).  Session-scoped on purpose: a token is only
         #: meaningful to the process that issued it, and the directory goes away
         #: with :meth:`close` rather than accumulating in a temp dir.
@@ -1160,7 +1162,7 @@ class GuiSession:
                          "node_id": None, "completed_stages": [], "error": None}
             self._worker = threading.Thread(
                 target=self._work, args=(call, stream, summarize),
-                name="pxrdref-gui-run", daemon=True)
+                name=f"{_about.SERVER_TOKEN}-gui-run", daemon=True)
             self._worker.start()
             self._cond.notify_all()
         return self.state_frame()

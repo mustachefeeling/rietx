@@ -9,6 +9,7 @@
 
 from importlib.metadata import version as _dist_version
 
+from pxrdref._about import DIST_NAME
 from pxrdref.crystallography.dispersion import NEAR_EDGE_EV
 from pxrdref.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
 from pxrdref.indexing.ambiguity import MAX_AMBIGUITY_INDEX
@@ -30,7 +31,7 @@ from pxrdref.schemas.suggest import SUGGEST_MIN_GAIN
 
 project = "pxrd-refine theory manual"
 author = "pxrd-refine developers"
-release = _dist_version("pxrd-refine")
+release = _dist_version(DIST_NAME)
 version = release
 
 extensions = ["myst_parser", "sphinxcontrib.bibtex"]

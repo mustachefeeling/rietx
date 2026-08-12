@@ -44,6 +44,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# the one package import at module level: every other one here is deferred into
+# its function, and ``_about`` imports nothing itself, so it cannot cost what
+# those defer
+from .._about import PROJECT_SUFFIX, SERVER_TOKEN
+
 #: A refusal, not a limit anyone will meet: the largest patterns here are a few
 #: MB and a CIF is smaller.  It exists because ``Content-Length`` is a number the
 #: client chose, and reading it into memory before checking it is how a localhost
@@ -52,6 +57,12 @@ MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 
 #: The three things a project is made of, and the three upload routes.
 UPLOAD_KINDS = ("pattern", "cif", "instrument")
+
+#: Prefix of this session's staging directory.  A named constant so the test
+#: asserting a staged path never reaches a client pins *this* string rather
+#: than a copy of it — a copy goes quiet, not red, when the prefix changes
+#: (WP-1062).
+UPLOAD_DIR_PREFIX = f"{SERVER_TOKEN}-upload-"
 
 #: Points in a preview curve.  Enough to see the peaks and the background of a
 #: 40 000-point pattern in a wizard step; the real plot fetches its own windows.
@@ -132,7 +143,7 @@ class UploadStore:
     @property
     def root(self) -> Path:
         if self._root is None:
-            self._root = Path(tempfile.mkdtemp(prefix="pxrdref-upload-"))
+            self._root = Path(tempfile.mkdtemp(prefix=UPLOAD_DIR_PREFIX))
         self._root.mkdir(parents=True, exist_ok=True)
         return self._root
 
@@ -283,7 +294,7 @@ def preview_pattern(upload: Upload, *, reader_options: dict[str, Any] | None = N
         # started, which is the only place a user has already pointed at
         "suggested_project": str(
             (Path(suggest_in) if suggest_in is not None else Path.cwd())
-            / f"{Path(upload.filename).stem}.pxrd"),
+            / f"{Path(upload.filename).stem}{PROJECT_SUFFIX}"),
     }
 
 

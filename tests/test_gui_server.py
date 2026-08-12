@@ -29,6 +29,7 @@ import pytest
 
 import pxrdref as pr
 from pxrdref.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
+from pxrdref.gui.imports import UPLOAD_DIR_PREFIX
 from pxrdref.gui.session import RESERVED_ROUTES, GuiError
 from pxrdref.history.events import read_events
 from tests.test_project import _write_xye
@@ -599,7 +600,9 @@ def test_a_file_that_does_not_parse_leaves_nothing_behind(blank, tmp_path):
     assert "expected block header" in payload["error"]["message"]
     # …and the staging path replaced by the name the client sent
     assert "notes.cif" in payload["error"]["message"]
-    assert "/pxrdref-upload-" not in payload["error"]["message"]
+    # the real prefix, imported rather than spelled: a copy of it here would go
+    # quiet — not red — the day the prefix changes (WP-1062)
+    assert f"/{UPLOAD_DIR_PREFIX}" not in payload["error"]["message"]
 
     status, payload = client.upload("pattern", b"\x00\x01\x02\x03", filename="x.xye")
     assert status == 400 and payload["error"]["code"] == "UPLOAD_INVALID"

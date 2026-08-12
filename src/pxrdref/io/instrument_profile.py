@@ -28,9 +28,12 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+from .._about import PROFILE_FORMAT_KEY
 from ..schemas.instrument import BackgroundChebyshev, Instrument
 
-FORMAT_KEY = "pxrdref_instrument_profile"
+#: Tag a profile file is recognised by.  A format contract, so the token lives
+#: in :mod:`.._about` free of the brand (WP-1062).
+FORMAT_KEY = PROFILE_FORMAT_KEY
 FORMAT_VERSION = "1"
 
 

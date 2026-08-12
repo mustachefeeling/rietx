@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .io.exporters import ReflectionRow
     from .schemas.suggest import SuggestionResult
 
+from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
 from .history.events import as_event_stream
 from .history.store import fingerprint
@@ -61,7 +62,7 @@ from .strategy.staged import (
 )
 
 try:
-    _VERSION = version("pxrd-refine")
+    _VERSION = version(DIST_NAME)
 except PackageNotFoundError:  # editable/dev fallback
     _VERSION = "0.0.0+dev"
 

@@ -25,9 +25,9 @@ from importlib import resources
 
 import numpy as np
 
+from .._about import DATA_PACKAGE as _DATA_PACKAGE
 from ..backend import get_backend
 
-_DATA_PACKAGE = "pxrdref.data"
 _DATA_FILE = "f0_WaasKirf.dat"
 
 

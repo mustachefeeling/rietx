@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from .._about import DIST_NAME, SERVER_TOKEN
 from ..project import Project
 from .imports import MAX_UPLOAD_BYTES, UPLOAD_KINDS
 from .session import RESERVED_ROUTES, GuiError, GuiSession
@@ -316,9 +317,9 @@ def _plotly_js() -> str:
     try:
         from plotly.offline import get_plotlyjs
     except ImportError:  # pragma: no cover - exercised by the missing-dep path
-        return ("window.__PXRDREF_NO_PLOTLY__ = true;\n"
-                "console.error('pxrdref gui: plotly is not installed — "
-                "pip install \\'pxrd-refine[gui]\\'');")
+        return (f"window.__{SERVER_TOKEN.upper()}_NO_PLOTLY__ = true;\n"
+                f"console.error('{SERVER_TOKEN} gui: plotly is not installed — "
+                f"pip install \\'{DIST_NAME}[gui]\\'');")
     return get_plotlyjs()
 
 

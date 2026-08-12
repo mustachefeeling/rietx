@@ -77,13 +77,17 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from typing import Any, get_args
 
+from .._about import TEXTDOC_MAGIC
 from ..schemas.common import Mode
 from ..schemas.indexing import PeakFlag
 from ..schemas.plan import PlanSpec, StageSpec
 from ..schemas.project import ProjectDoc, check_interval
 from ..strategy.staged import PLAN_PRESETS
 
-#: The ``pxt N`` header.  Bumped when a line's *meaning* changes, not when a
+#: The ``<magic> N`` header, where the magic is :data:`.._about.TEXTDOC_MAGIC`
+#: — the token is a format contract and lives with the other name-bearing
+#: literals, deliberately free of the brand (WP-1062).  Bumped when a line's
+#: *meaning* changes, not when a
 #: block is added — WP-1017 injects this into the manual as a fenced constant, so
 #: a bump that misses the manual fails the docs build.
 FORMAT_VERSION = "1"
@@ -118,7 +122,7 @@ RESERVED_BLOCKS: dict[str, str] = {}
 #: vocabularies.
 _PEAK_FLAG_WORDS: tuple[str, ...] = get_args(PeakFlag)
 
-_KEYWORDS = ("pxt", "project", "pattern", "mode", "limits", "excluded", "plan",
+_KEYWORDS = (TEXTDOC_MAGIC, "project", "pattern", "mode", "limits", "excluded", "plan",
              "guard", "stage", "phase", "instrument", "peaks",
              *RESERVED_BLOCKS)
 
@@ -304,7 +308,8 @@ def render(project) -> str:
     doc: ProjectDoc = project.doc
     ref = project.refinement
     data_ref = project.data_ref
-    lines: list[str] = [f"pxt {FORMAT_VERSION}", f'project "{project.path.stem}"']
+    lines: list[str] = [f"{TEXTDOC_MAGIC} {FORMAT_VERSION}",
+                        f'project "{project.path.stem}"']
 
     sigma = "σ from file" if data_ref.has_sigma else "σ = √max(y,1) fallback"
     # every recorded reader keyword, not just ``block``: this is inside a ``#``
@@ -550,11 +555,12 @@ def parse(text: str) -> ParsedDocument:
             continue
         doc.lines.setdefault(keyword, n)
 
-        if keyword == "pxt":
+        if keyword == TEXTDOC_MAGIC:
             doc.version = rest[0] if rest else ""
             if doc.version != FORMAT_VERSION:
-                fail(n, f"this build reads pxt {FORMAT_VERSION}, the document "
-                        f"says {doc.version or '(nothing)'!r}", raw, "pxt")
+                fail(n, f"this build reads {TEXTDOC_MAGIC} {FORMAT_VERSION}, the "
+                        f"document says {doc.version or '(nothing)'!r}", raw,
+                     TEXTDOC_MAGIC)
         elif keyword in ("project", "pattern"):
             value = _quoted(body.partition(keyword)[2])
             if value is None:
@@ -731,8 +737,9 @@ def changes(parsed: ParsedDocument, project) -> tuple[Delta, list[TextError]]:
         errors.append(TextError(line=line, message=message, where=where, text=text))
 
     if parsed.version != FORMAT_VERSION and not any(
-            e.where == "pxt" for e in errors):
-        fail(1, f"the document must start with 'pxt {FORMAT_VERSION}'", "pxt")
+            e.where == TEXTDOC_MAGIC for e in errors):
+        fail(1, f"the document must start with '{TEXTDOC_MAGIC} {FORMAT_VERSION}'",
+             TEXTDOC_MAGIC)
 
     if parsed.project is not None and parsed.project != project.path.stem:
         fail(_line_of(parsed, "project"),

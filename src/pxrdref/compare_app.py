@@ -27,6 +27,7 @@ import webbrowser
 from dataclasses import asdict
 from pathlib import Path
 
+from ._about import DIST_NAME
 from .viz import compare as cmp
 
 DEFAULT_PORT = 8730
@@ -105,7 +106,7 @@ def _plotly_js() -> str:
     except ImportError:  # pragma: no cover - exercised by the missing-dep path
         return ("document.body.innerHTML = '<p style=\"font:14px sans-serif;"
                 "padding:2rem\">This page needs plotly: "
-                "<code>pip install \\'pxrd-refine[viz]\\'</code></p>';")
+                f"<code>pip install \\'{DIST_NAME}[viz]\\'</code></p>';")
     return get_plotlyjs()
 
 

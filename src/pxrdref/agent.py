@@ -59,6 +59,7 @@ from typing import Annotated, Literal, Union
 
 from pydantic import Field, TypeAdapter, ValidationError, field_validator, model_validator
 
+from ._about import AGENT_TOOL_NAME, DIST_NAME
 from .backend.api import BACKEND_NAMES
 
 # importing the package (not ``.indexing.engines``) is what registers the engines,
@@ -573,7 +574,7 @@ def refine_json(request: dict) -> dict:
         # constructors fail fast with the install hint, which we pass along
         return _failure("BACKEND_UNAVAILABLE", str(exc),
                         suggestion="install the optional dependency "
-                                   "(pip install 'pxrd-refine[jax]' or "
+                                   f"(pip install '{DIST_NAME}[jax]' or "
                                    "'[torch]') or use backend='numpy'")
     except Exception as exc:  # noqa: BLE001 — the envelope IS the error channel
         return _failure(
@@ -624,7 +625,7 @@ def response_schema() -> dict:
     return _RESPONSE.json_schema()
 
 
-def tool_definition(name: str = "pxrdref_refine") -> dict:
+def tool_definition(name: str = AGENT_TOOL_NAME) -> dict:
     """A ready-to-register LLM tool definition wrapping :func:`refine_json`."""
     return {"name": name, "description": _TOOL_DESCRIPTION,
             "input_schema": request_schema()}

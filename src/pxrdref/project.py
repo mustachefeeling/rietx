@@ -37,6 +37,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from . import _about
 from .history.store import fingerprint
 from .history.tree import RefinementTree
 from .io.readers import identify_format, read_pattern, reader_options_for
@@ -52,7 +53,9 @@ from .schemas.structure import Structure
 #: Conventional directory suffix, so a file picker can recognise a project.
 #: Not enforced — ``create`` writes wherever it is told — because silently
 #: renaming a path the caller chose is worse than an unconventional name.
-PROJECT_SUFFIX = ".pxrd"
+#: The token itself is a format contract, so it lives in :mod:`._about` with
+#: the other name-bearing literals rather than being spelled here (WP-1062).
+PROJECT_SUFFIX = _about.PROJECT_SUFFIX
 
 PROJECT_JSON = "project.json"
 HISTORY_FILE = "history.jsonl"

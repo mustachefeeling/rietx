@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .._about import DIST_NAME
 from ..schemas.results import RefinementResult
 
 
@@ -31,7 +32,7 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
         matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
-        raise ImportError("plotting needs matplotlib: pip install 'pxrd-refine[viz]'") from exc
+        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
 
     tt = np.asarray(result.two_theta)
     y_obs = np.asarray(result.y_obs)
@@ -112,7 +113,7 @@ def plot_for_vlm(result: RefinementResult, report=None, *,
         matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
-        raise ImportError("plotting needs matplotlib: pip install 'pxrd-refine[viz]'") from exc
+        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
 
     if report is None:
         from ..report import build_layer0
@@ -203,7 +204,7 @@ def plot_trajectory(series, paths, *, path: str | None = None,
         matplotlib.use("Agg", force=False)
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover
-        raise ImportError("plotting needs matplotlib: pip install 'pxrd-refine[viz]'") from exc
+        raise ImportError(f"plotting needs matplotlib: pip install '{DIST_NAME}[viz]'") from exc
 
     if isinstance(paths, str):
         paths = [paths]

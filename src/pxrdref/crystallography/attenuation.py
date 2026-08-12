@@ -33,7 +33,8 @@ from importlib import resources
 
 import numpy as np
 
-_DATA_PACKAGE = "pxrdref.data"
+from .._about import DATA_PACKAGE as _DATA_PACKAGE
+
 _DATA_FILE = "mu_McMaster.dat"
 
 #: hc in eV*Angstrom (CODATA); E[eV] = _HC_EV_ANGSTROM / wavelength[A].

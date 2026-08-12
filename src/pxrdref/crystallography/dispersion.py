@@ -62,9 +62,9 @@ from importlib import resources
 
 import numpy as np
 
+from .._about import DATA_PACKAGE as _DATA_PACKAGE
 from .attenuation import _HC_EV_ANGSTROM
 
-_DATA_PACKAGE = "pxrdref.data"
 _DATA_FILE = "f1f2_CromerLiberman.dat"
 
 #: Z = 1, 2 are absent from the Cromer-Liberman tabulation.  Hydrogen and

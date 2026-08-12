@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .._about import DIST_NAME
 from ..schemas.results import RefinementResult
 
 
@@ -55,7 +56,7 @@ def figure_from_arrays(tt: np.ndarray, y_obs: np.ndarray, y_calc: np.ndarray,
         import plotly.graph_objects as go
     except ImportError as exc:  # pragma: no cover
         raise ImportError(
-            "the HTML viewer needs plotly: pip install 'pxrd-refine[viz]'") from exc
+            f"the HTML viewer needs plotly: pip install '{DIST_NAME}[viz]'") from exc
 
     weighted = sigma is not None
     diff = (y_obs - y_calc) / sigma if weighted else y_obs - y_calc

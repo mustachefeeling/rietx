@@ -63,6 +63,8 @@ from typing import Any, Protocol
 import numpy as np
 from scipy.special import expit
 
+from .._about import DIST_NAME
+
 
 class Backend(Protocol):
     """Structural type of a backend namespace (attributes are array ops)."""
@@ -659,7 +661,7 @@ def resolve_backend(name: str) -> Backend:
                 raise ImportError(
                     'backend "jax" needs the optional jax dependency: '
                     'install with  uv pip install -e ".[dev,jax]"  '
-                    "(or  pip install pxrd-refine[jax])") from exc
+                    f"(or  pip install {DIST_NAME}[jax])") from exc
         return _JAX_BACKEND
     if name in TORCH_DEVICES:
         if name not in _TORCH_BACKENDS:
@@ -669,7 +671,7 @@ def resolve_backend(name: str) -> Backend:
                 raise ImportError(
                     f'backend {name!r} is experimental and needs the optional '
                     'torch dependency: install with  uv pip install -e '
-                    '".[dev,torch]"  (or  pip install pxrd-refine[torch]).  It '
+                    f'".[dev,torch]"  (or  pip install {DIST_NAME}[torch]).  It '
                     "is not installed by default and is not the faster path — "
                     "see docs/milestones/v0.4.md") from exc
         return _TORCH_BACKENDS[name]
