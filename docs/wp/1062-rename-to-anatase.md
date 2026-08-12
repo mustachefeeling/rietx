@@ -264,8 +264,22 @@ read the new tokens. Save and reload an instrument profile.
   fast suite **2162 → 2166 passed, 108 skipped**, wall clock 2:49–4:26 across
   three runs. The +4 is one version test and **three** audit tests, not the
   one the WP predicted: contents, tracked *paths*, and allowlist hygiene are
-  three different invariants and a failure should name which. vitest 408 in 19
-  files, svelte-check 0 errors, ruff and `sphinx -W` clean.
+  three different invariants and a failure should name which. Full suite
+  **2264 passed, 117 skipped** in 28:01. vitest 408 in 19 files, svelte-check
+  0 errors, ruff and `sphinx -W` clean; `examples/nac_11bm.py` lands
+  a = 10.251216(46) Å at Rwp 0.0932 and stamps a real version.
+
+  **One acceptance row is load-sensitive, measured.** The *first* full run was
+  contended (a killed run's workers, plus a stray watcher polling) and gave
+  2263 passed / 1 failed:
+  `test_a_short_clean_list_is_searched_ranked_and_reported_unscored`, on
+  `assert all(res.search_complete[s] …)`. Alone and serial it passes in 3:28,
+  and on a quiet machine the full suite is green. That is the category
+  `tests/CLAUDE.md` already names — "some system did not finish" is a statement
+  about machine load — so it is quoted here as its measurement rather than
+  re-litigated: **this row needs a quiet machine, or the assertion needs
+  restating as "every system reports whether its domain was exhausted".**
+  Nothing in this WP touches search, budgets or physics.
 
   **Gotchas for whoever is next.**
   1. **The WP's Phase-2 ordering cannot work as written.** "`git mv` then
