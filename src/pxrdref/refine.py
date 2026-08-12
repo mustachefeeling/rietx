@@ -798,7 +798,8 @@ class Refinement:
         if mode == "lebail":
             model.lebail_update(table.decode(outcome.theta), n_cycles=stage.lebail_cycles)
 
-        guard = check_guards(table, outcome, correlation_guard, model=model)
+        guard = check_guards(table, outcome, correlation_guard, model=model,
+                             scan_exchangeability=stage_index == n_stages)
         if events is not None:
             events.emit("stage_end", stage=stage.name, status=outcome.status,
                         n_iterations=outcome.n_iterations,
@@ -1478,13 +1479,20 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                    + _max_iter_diagnostics(stage_results))
 
     # Degeneracy evidence off the answer-producing stage's Jacobian, which is
-    # not serialized and so cannot be recovered later (WP-1055).  The same
-    # numbers the background guard screened, carried whole rather than as the
-    # fired subset — the FitReport's background section quotes them.
+    # not serialized and so cannot be recovered later (WP-1055/-1056).  The
+    # same numbers the guards screened, carried whole rather than as the
+    # fired subset — the FitReport's background and identifiability sections
+    # quote them.
     identifiability = None
-    if guard is not None and guard.measured_background_absorption:
+    if guard is not None and (guard.measured_background_absorption
+                              or guard.measured_top_correlations
+                              or guard.measured_soft_modes
+                              or guard.measured_exchangeability):
         identifiability = Identifiability(
-            background_absorption=dict(guard.measured_background_absorption))
+            background_absorption=dict(guard.measured_background_absorption),
+            top_correlations=list(guard.measured_top_correlations),
+            soft_modes=list(guard.measured_soft_modes),
+            exchangeability=list(guard.measured_exchangeability))
 
     return RefinementResult(
         status=status, mode=mode,
