@@ -12,7 +12,12 @@ from __future__ import annotations
 from ..schemas.results import RefinementResult
 from .apply import RECIPES, Recipe, describe_action, recipe, stage_for
 from .layer0 import build_layer0, lebail_gap
-from .layer1 import analyse_trends, attribute_regions, maturity_gate
+from .layer1 import (
+    abstention_flavour,
+    analyse_trends,
+    attribute_regions,
+    maturity_gate,
+)
 from .layer2 import (
     apply_strategy_veto,
     cap_texture_crosstalk,
@@ -60,6 +65,7 @@ __all__ = [
     "TrendTemplate",
     "UnmatchedPeak",
     "VerificationOutcome",
+    "abstention_flavour",
     "analyse_strain",
     "analyse_texture",
     "analyse_trends",
@@ -146,7 +152,11 @@ def build_report(result: RefinementResult, *, model=None, values=None,
         # are exactly the evidence abstention rests on, and before it the one
         # state that most needed reindex_or_recheck_cell was the one state
         # that could not receive it.
+        kind, extra = abstention_flavour(result.statistics.rwp, attributions)
+        if extra is not None:
+            reason += " — " + extra
         report.abstained_reason = reason
+        report.abstained_kind = kind
         actions = layer0_actions(report.unmatched, attributions, ticks=ticks)
         reindex = reindex_action(attributions)
         if reindex is not None:

@@ -48,6 +48,11 @@ from .schemas import (
     MIN_COEF_SIGNIFICANCE,
     MIN_REGION_CHI2_RED,
     MIN_REGION_R2,
+    REINDEX_MIN_FAR_FRACTION,
+    REINDEX_MIN_FAR_REGIONS,
+    RESOLUTION_LIMITED_MIN_FRACTION,
+    RESOLUTION_LIMITED_MIN_R2,
+    RESOLUTION_LIMITED_MIN_REGIONS,
     SEPARABILITY_MIN_SS_RATIO,
     VALIDITY_RADIUS_FWHM,
     BasisCoefficient,
@@ -233,6 +238,56 @@ def maturity_gate(rwp: float, attributions: list[RegionAttribution]
                 f"the local gates accept (need "
                 f"{MATURITY_MIN_EXPLAINED_FRACTION:.0%}); Layer 1 abstains")
     return None
+
+
+def abstention_flavour(rwp: float, attributions: list[RegionAttribution]
+                       ) -> tuple[str, str | None]:
+    """Classify an abstention :func:`maturity_gate` has already decided.
+
+    Returns ``(kind, extra)``: ``kind`` is the
+    :attr:`~pxrdref.report.schemas.FitReport.abstained_kind` value and
+    ``extra``, when set, is the resolution-limited sentence appended to the
+    reason.  Purely a *reading* of the per-region gate evidence — no
+    threshold that decides abstention is consulted, so the abstain/speak
+    boundary cannot move here (WP-1057).
+
+    The order of the arms is the argument (measured grounds on the schema
+    constants): widespread validity failure is position-family model error
+    and must win even though a wrong cell fails the Gram gate widely too;
+    only past it can Gram-dominance with high local R² be read as "the data's
+    resolution limits attribution", the state broad-peak specimens
+    (nanoparticles, MOFs) live in permanently.
+    """
+    if rwp > MATURITY_MAX_RWP:
+        return "immature", None
+    misfitting = [a for a in attributions if a.has_significant_misfit]
+    failing = [a for a in misfitting if not a.gates_passed]
+    far = [a for a in failing
+           if any("validity_radius" in f for f in a.gate_failures)]
+    if (len(far) >= REINDEX_MIN_FAR_REGIONS
+            and len(far) >= REINDEX_MIN_FAR_FRACTION * len(misfitting)):
+        return "unreadable", None    # reindex_action carries this story
+    gram = [a for a in failing
+            if any("gram_condition" in f for f in a.gate_failures)]
+    gram_only = [a for a in failing if a.gate_failures
+                 and all("gram_condition" in f for f in a.gate_failures)]
+    if (failing and len(gram) >= RESOLUTION_LIMITED_MIN_FRACTION * len(failing)
+            and len(gram_only) >= RESOLUTION_LIMITED_MIN_REGIONS):
+        median_r2 = float(np.median([a.r2 for a in gram_only]))
+        if median_r2 >= RESOLUTION_LIMITED_MIN_R2:
+            extra = (
+                f"the failures are collinearity on merged peaks, not "
+                f"unexplained misfit ({len(gram)} of {len(failing)} "
+                f"gate-failing region(s) fail the Gram condition; the "
+                f"{len(gram_only)} failing nothing else carry median local "
+                f"R²={median_r2:.2f}, so the shape basis explains the misfit "
+                f"but its edit directions are indistinguishable at this "
+                f"resolution).  Resolution-limited, not evidence the model "
+                f"is wrong: the misfit is readable in aggregate (Rwp, the "
+                f"Le Bail gap), not attributable per kind — on broad-peak "
+                f"data this can be a legitimate stopping point")
+            return "resolution_limited", extra
+    return "unreadable", None
 
 
 # ----------------------------------------------------------------------

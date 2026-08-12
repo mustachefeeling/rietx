@@ -36,8 +36,10 @@ from ..schemas.results import RestraintReport
 # 0.5 (WP-1057): purpose-grade evidence.  ``FitReport.lebail_gap`` lands (the
 #   structural-vs-profile triage statistic, evaluate-only partition at the
 #   converged state; None outside Rietveld mode — absent-for-cause) and the
-#   summary quotes it when the ratio is notable.  No gate or emission
-#   condition moved.
+#   summary quotes it when the ratio is notable.  ``abstained_kind``
+#   classifies every abstention (immature / resolution_limited / unreadable)
+#   and the resolution-limited flavour appends its sentence to
+#   ``abstained_reason``.  No gate or emission condition moved.
 THRESHOLDS_VERSION = "0.5"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
@@ -148,6 +150,27 @@ TEXTURE_IMPURITY_MARGIN = 0.05
 #: notable test is on the ratio, never on rwp_lebail alone.
 LEBAIL_GAP_CYCLES = 5
 LEBAIL_GAP_NOTABLE = 1.5
+
+#: Resolution-limited abstention flavour (WP-1057) — classification of an
+#: abstention *already decided* by the maturity gate; nothing here moves any
+#: threshold that decides one.  The classifier defers to the position-family
+#: evidence first: when validity failures are widespread (the same counts the
+#: reindex action fires on, ``REINDEX_MIN_FAR_*``), the abstention reads as
+#: model error however collinear the rest — necessary, because a wrong cell
+#: fails the Gram gate widely too (measured: the +0.4 % cell state fails gram
+#: in 8 of its 10 failing regions).  Past that, resolution-limited requires
+#: the failures to be collinearity and nothing else: gram failures in at least
+#: ``RESOLUTION_LIMITED_MIN_FRACTION`` of the failing regions, at least
+#: ``RESOLUTION_LIMITED_MIN_REGIONS`` regions failing *only* gram, and those
+#: carrying median local R² ≥ ``RESOLUTION_LIMITED_MIN_R2`` — the basis
+#: *explains* the misfit; its edit directions are indistinguishable on merged
+#: peaks.  Measured (LaB₆ fixtures, 2026-08-12): broad peaks + 0.05° zero —
+#: gram 12 of 12 failing, 5 gram-only at median R² 0.957 → resolution-limited;
+#: the +0.4 % cell control abstains on the immature-Rwp arm (0.72) and past it
+#: would offer 1 gram-only region, failing both floors.
+RESOLUTION_LIMITED_MIN_FRACTION = 0.5
+RESOLUTION_LIMITED_MIN_REGIONS = 3
+RESOLUTION_LIMITED_MIN_R2 = 0.9
 
 #: a fit worse than this is "immature": Layer 1 abstains from parameter-level
 #: statements entirely
@@ -491,6 +514,18 @@ class FitReport(Base):
     layer1_available: bool = False
     #: set when the global maturity gate refused Layer 1 (the report abstains)
     abstained_reason: str | None = None
+    #: which *kind* of abstention (WP-1057), for a consumer that branches:
+    #: ``"immature"`` — the Rwp arm, fix the model/starting values first;
+    #: ``"resolution_limited"`` — the shape basis explains the misfit but its
+    #: edit directions are indistinguishable on merged peaks, so the misfit is
+    #: readable in aggregate (Rwp, the Le Bail gap) and not attributable per
+    #: kind — **not** evidence the model is wrong, and often a legitimate
+    #: stopping point on broad data; ``"unreadable"`` — real misfit the local
+    #: gates refuse to read, including widespread validity failure (the
+    #: position-family evidence the reindex action carries).  None whenever
+    #: Layer 1 spoke.
+    abstained_kind: Literal["immature", "resolution_limited",
+                            "unreadable"] | None = None
 
     # -- Layer 2
     suggested_actions: list[SuggestedAction] = Field(default_factory=list)
