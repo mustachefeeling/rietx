@@ -19,6 +19,14 @@ Two rules the values below follow, and they point in opposite directions:
   because a brand did.  Keeping them free of the brand is what stops a future
   rename from being a format break, and stops a format inheriting whatever
   ambiguity the brand acquires.
+
+**Import these; never spell them.** ``tests/test_no_stale_name.py`` fails on a
+reintroduction of the *old* name, but it is written against the old token on
+purpose — ``anatase`` is a phase this software analyses, so an audit against the
+new name would start failing on correct code the first time a fixture gains that
+phase.  The consequence is that a freshly hardcoded ``"anatase"``, ``".rex"`` or
+``"rxt"`` is **invisible to every test in the suite**.  Nothing but the rule
+catches it.
 """
 
 #: The distribution name — ``importlib.metadata.version`` argument, the

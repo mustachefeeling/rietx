@@ -64,21 +64,25 @@ size caps on this file and CLAUDE.md.
 **Report delivery ([1058](wp/1058-report-delivery.md)) — the last content WP —
 then the re-A/B ([1059](wp/1059-eval-round-two.md)) and the freeze
 ([1003](wp/1003-api-freeze-pypi.md)).**
+[1062](wp/1062-rename-to-anatase.md) closed 2026-08-12, and **everything from
+here is written in the new name**: package, import, CLI and state dir are
+`anatase`, while the on-disk tokens are deliberately brand-free — a project
+directory is `.rex`, the text document `.rxt` (header `rxt N`), a profile is
+tagged `instrument_profile`. Never spell one: import from `_about.py`, because
+`test_no_stale_name.py` greps the **old** token and is blind to a hardcoded new
+one. The repo is now `yue-here/anatase`.
+
 [1056](wp/1056-identifiability-layer.md) closed 2026-08-12: a *converged*
 report now carries the parameter-space evidence WP-1053's E2 (0/8) and E8
 (0/8) rows failed for want of — "fitted zero_shift stands 128σ from 0 but is
 exchangeable with the held sample_displacement — the data cannot tell which"
 — plus soft modes as named combinations, the esd-qualifying trio quoted
-together, and δR. The design was forced by one measurement: projection R² is
-a property of the design matrix over the window (0.999945 on the planted fit
-*and* its clean reference, identical to six decimals), so the discriminator
-is two conditions, and only the partner's 128σ-vs-1.6σ separates the states.
-**1059 runs only after 1058** — it re-A/Bs the fixed content on the 1053
-harness with pre-registered hypotheses; 1056's entry in its `### Inherited`
-includes a re-scoring caveat for E8 (the default-plan path now measures
-bit-identical to the clean control and is *correctly* quiet).
-Surface changes (THRESHOLDS_VERSION 0.7, `FitReport.identifiability`, three
-carrier models, `optimize/identifiability.py`) are in 1003's `### Inherited`.
+together, and δR. The discriminator is two conditions, because projection R² is
+a property of the design matrix over the window (identical to six decimals on
+the planted fit and its clean control); only the partner's 128σ-vs-1.6σ
+separates the states. **1059 runs only after 1058** — it re-A/Bs the fixed
+content on the 1053 harness with pre-registered hypotheses; 1056's entry in its
+`### Inherited` carries a re-scoring caveat for E8.
 Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 
@@ -269,7 +273,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: diagnose task / per-stage trajectory | ⬜ | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
-| [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ⬜ | — (blocks 1003) |
+| [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering

@@ -1,7 +1,11 @@
 # WP-1062 — Rename the project to `anatase`
 
-Milestone: v1.0 · Status: ⬜
-Depends on: — (blocks [1003](1003-api-freeze-pypi.md))
+Milestone: v1.0 · Status: ✅ 2026-08-12 — `anatase` everywhere (~300 files),
+with the on-disk formats deliberately decoupled from the brand (`.rex`, `.rxt`
+/ `rxt N`, plain `instrument_profile`) and `tests/test_no_stale_name.py`
+auditing against the **old** token. Counts moved 2162 → 2166 passed / 108
+skipped, exactly the four tests added.
+Depends on: — (blocked [1003](1003-api-freeze-pypi.md))
 
 <!--
 Run this BEFORE the remaining v1.0 work, not after: the name surface grew ~40 %
@@ -72,12 +76,6 @@ three checks before starting** — this paragraph is a measurement with a shelf
 life, and if a branch does appear, note that its name-bearing files will fail the
 new audit on merge, loudly, which is the intended behaviour rather than a problem.
 
-### Inherited
-
-*Mailbox — empty at creation. A WP landing before this one that adds a new
-literal spelling of the distribution name, a format token, or the state dir
-should say so here.*
-
 ## Non-goals
 
 - **The API freeze itself** — [1003](1003-api-freeze-pypi.md). This WP renames a
@@ -94,11 +92,11 @@ should say so here.*
 
 ### Phase 1 — centralize (lands first; correct on its own merits)
 
-- [ ] Add `src/pxrdref/_about.py`: `DIST_NAME`, `PROJECT_SUFFIX`,
+- [x] Add `src/pxrdref/_about.py`: `DIST_NAME`, `PROJECT_SUFFIX`,
       `TEXTDOC_MAGIC`, `PROFILE_FORMAT_KEY`, `STATE_DIR_NAME`, `STATE_DIR_ENV`,
       `AGENT_TOOL_NAME`, `DATA_PACKAGE`, `SERVER_TOKEN`. It imports nothing from
       the package, so anything may import it.
-- [ ] Point the scattered literals at it: `refine.py` `version("pxrd-refine")`,
+- [x] Point the scattered literals at it: `refine.py` `version("pxrd-refine")`,
       `docs/manual/conf.py` `_dist_version(...)`, `project.py` `PROJECT_SUFFIX`
       (**a dead constant today — its definition is its only occurrence**; the
       suffix is actually enforced in `gui/src/lib/wizard.ts`),
@@ -107,7 +105,7 @@ should say so here.*
       `tool_definition(name=...)`, the three `_DATA_PACKAGE = "pxrdref.data"` in
       `crystallography/`, and the `pip install 'pxrd-refine[…]'` hint strings in
       `viz/`, `backend/api.py`, `agent.py`, `gui/server.py`, `compare_app.py`.
-- [ ] **Make `refine.py`'s version fallback loud**, and test that the installed
+- [x] **Make `refine.py`'s version fallback loud**, and test that the installed
       distribution resolves. Today `version("pxrd-refine")` is wrapped in
       `except PackageNotFoundError: _VERSION = "0.0.0+dev"` — a rename makes that
       a *successful lookup of the wrong name*: nothing raises, and `0.0.0+dev` is
@@ -116,46 +114,46 @@ should say so here.*
       existing test catches it (`test_capabilities` asserts only that the first
       character is a digit, and `"0"` is), and a zero-occurrence audit cannot
       either, because nothing stale is left behind.
-- [ ] Fix `pyproject.toml` `Homepage` — it names `github.com/pxrd-refine/pxrd-refine`,
+- [x] Fix `pyproject.toml` `Homepage` — it names `github.com/pxrd-refine/pxrd-refine`,
       an org that does not own this repo. Wrong today, independent of the rename.
 
 ### Phase 2 — the rename (one session, start to finish)
 
-- [ ] `git mv src/pxrdref src/anatase`, then **`uv pip install -e ".[dev]"` as the
+- [x] `git mv src/pxrdref src/anatase`, then **`uv pip install -e ".[dev]"` as the
       very next command** — see the ordering hazard below. Rename
       `gui/src/lib/pxt.ts` to the new format token.
-- [ ] `pyproject.toml`: `name`, `authors`, the `[dev]` self-referential extra
+- [x] `pyproject.toml`: `name`, `authors`, the `[dev]` self-referential extra
       (`"pxrd-refine[docs]"` — stale ⇒ `pip install -e ".[dev]"` fails to
       resolve), `[project.urls]`, `[project.scripts]` (both sides),
       `[tool.hatch.build.targets.wheel] packages`.
-- [ ] The five path references, in one commit: `.gitignore` (the
+- [x] The five path references, in one commit: `.gitignore` (the
       `!src/pxrdref/gui/static/**` negation — stale ⇒ the committed dist silently
       drops out of the repo *and the wheel*), `.github/workflows/gui.yml` (path
       filter + the `git diff --exit-code` gate), `.github/workflows/docs.yml`,
       `gui/vite.config.ts` `outDir`, `gui/scripts/build_info.py` `DIST_RELATIVE`.
-- [ ] `.claude/`: `hooks/session_start.py` and `commands/wp-handover.md`. The hook
+- [x] `.claude/`: `hooks/session_start.py` and `commands/wp-handover.md`. The hook
       iterates `.pth` files and does `if "pxrd" not in pth.name: continue`; after
       the rename the file is `_editable_impl_anatase.pth`, so it is skipped and the
       hook reports **"no editable pxrdref pointer in .venv" at every session
       start**, on a healthy venv. It also globs `__editable__*pxrd*.py` and names
       `_editable_impl_pxrd_refine.pth` — the only place the PEP-503 underscore
       spelling appears.
-- [ ] Mechanical substitution over `src/`, `tests/`, `examples/`, `docs/`,
+- [x] Mechanical substitution over `src/`, `tests/`, `examples/`, `docs/`,
       `README.md`, `ATTRIBUTION.md`, `LICENSE` (the copyright holder — a
       deliberate legal edit, not a sed hit), and **all six `CLAUDE.md` files**:
       root, `gui/`, `tests/`, `src/anatase/gui/`, `src/anatase/indexing/`,
       `src/anatase/io/`.
-- [ ] `docs/manual/`: `conf.py` (`project`, `author`, `html_title`, `release`, the
+- [x] `docs/manual/`: `conf.py` (`project`, `author`, `html_title`, `release`, the
       constant imports) and every `*Source:* \`pxrdref.…\`` line — each is
       `importlib.import_module`'d by `test_manual.py::test_every_source_symbol_imports`.
       `docs/VALIDATION.md` is **generated** by `tests/validation_matrix.py`: change
       the generator, not the file.
-- [ ] Rebuild and commit the frontend dist (`npm --prefix gui ci && npm --prefix
+- [x] Rebuild and commit the frontend dist (`npm --prefix gui ci && npm --prefix
       gui run build`); regenerate `uv.lock` and `gui/package-lock.json`.
-- [ ] Rename the GitHub repo in place (`gh repo rename anatase`) and
+- [x] Rename the GitHub repo in place (`gh repo rename anatase`) and
       `git remote set-url origin`. Keeps stars, issues and the PR numbers commit
       messages reference; GitHub redirects the old URL.
-- [ ] `tests/test_no_stale_name.py`: the audit returns only the allowlist. Written
+- [x] `tests/test_no_stale_name.py`: the audit returns only the allowlist. Written
       against **`pxrd`**, the old token — deliberately, per the phase-name caveat
       in Context. Plus the acceptance run's obs/calc/diff PNGs to `tests/output/`
       (unchanged from baseline — this WP carries no physics).
@@ -247,6 +245,57 @@ read the new tokens. Save and reload an instrument profile.
   `tests/test_docs_consistency.py`.
 
 ## Handover log
+
+- **2026-08-12** — **closed.** Both phases landed in five commits.
+
+  **Done.** Phase 1: `_about.py` with the nine literals, every scattered site
+  pointed at it, the version lookup made loud (verified by hand against the real
+  failure — `DIST_NAME="anatase"` on the old install warns and stamps
+  `0.0.0+dev`), `Homepage` fixed to the account that owns the repo. Phase 2:
+  `git mv`, an ordered substitution over ~300 files, both locks regenerated, the
+  dist rebuilt (and *fresh* — a second build reproduces it byte for byte), the
+  GitHub repo renamed with its star and redirect intact, origin re-pointed.
+  Format tokens landed as `.rex` / `.rxt` + `rxt N` / plain `instrument_profile`
+  — chosen with the user, from prior art in `exp`/`inp`/`pcr`; every "powder"
+  or "xrd" candidate was rejected because neutron/TOF is on the v2 fence and
+  would date them exactly as `pxrd` dated.
+
+  **Counts** (`[dev]` only — no jax/torch — darwin/arm64, this worktree's venv):
+  fast suite **2162 → 2166 passed, 108 skipped**, wall clock 2:49–4:26 across
+  three runs. The +4 is one version test and **three** audit tests, not the
+  one the WP predicted: contents, tracked *paths*, and allowlist hygiene are
+  three different invariants and a failure should name which. vitest 408 in 19
+  files, svelte-check 0 errors, ruff and `sphinx -W` clean.
+
+  **Gotchas for whoever is next.**
+  1. **The WP's Phase-2 ordering cannot work as written.** "`git mv` then
+     `uv pip install` as the very next command" fails: the install reads a
+     `pyproject.toml` still naming `src/pxrdref`. It is mv → sweep → reinstall,
+     and nothing may run in that window.
+  2. **`uv pip install -e .` under a new name leaves the old distribution
+     installed.** Both dist-infos coexisted, so `version("pxrd-refine")` still
+     resolved — an "old name is gone" check would have passed on a dirty venv.
+     `uv pip uninstall pxrd-refine` was needed. Anyone with an older venv has
+     this.
+  3. **`git check-ignore` consults the index**, so the dist's gitignore guard
+     was green *without reading `.gitignore` at all* — every file it checks is
+     tracked. Unrelated to the rename, months old, fixed with `--no-index`; the
+     rule is now in `tests/CLAUDE.md`.
+  4. **`pxt` has no audit backstop.** The old textdoc magic contains no `pxrd`,
+     so `test_no_stale_name.py` greps it as a **second** token. A future token
+     change needs the same treatment or nothing will notice.
+  5. **Old `.pxrd` projects still open**, verified on a real one from before the
+     rename (`format_version` 1.1 read, pattern and phases intact, text pane
+     rendering `rxt 1`). The suffix was always conventional, never enforced.
+     But `~/.pxrdref` is *not* migrated: an existing user's recent list and
+     theme look lost until that directory is copied to `~/.anatase`.
+  6. **A judgment call worth revisiting:** textdoc `FORMAT_VERSION` stayed `"1"`
+     although its magic word changed, on the grounds that the document is
+     rendered afresh and never persisted, so no stored file can carry the old
+     header. If a `.rxt` ever lands on disk, that reasoning expires.
+
+  **Next.** 1058 → 1059 → 1003, unchanged. 1003's `### Inherited` has the
+  freeze-facing surface; 1017's has the naming rules for its manual pages.
 
 - **2026-08-12** — created. Name chosen and namespace verified; the
   three-worktree blocker an earlier draft carried was **measured and refuted**

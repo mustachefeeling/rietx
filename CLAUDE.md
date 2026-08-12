@@ -49,13 +49,13 @@ up to 7 days stale). Quote any count with its venv **and** platform
 (`tests/CLAUDE.md` § Quoting numbers); a session's own counts go in its WP
 handover entry, and the dated history is the v1.0 appendix diary.
 
-`anatase compare` is the fastest way to answer "does this new correction actually
-help?": pick a standard, tick variants, and read the **cumulative Δχ² vs
-reference** panel, which localises *where* a change acted rather than only
-whether Rwp moved. Registry + runner in `viz/compare.py` (also headless:
-`compare.run(standard, variant)`), server/page in `compare_app.py`; its standards
-are the acceptance suites' protocols and `tests/test_compare_ui.py` asserts that
-field by field, so **add a row there whenever a new correction lands.**
+`anatase compare` answers "does this new correction actually help?": pick a
+standard, tick variants, read the **cumulative Δχ² vs reference** panel — it
+localises *where* a change acted, not just whether Rwp moved. Registry + runner
+in `viz/compare.py` (headless: `compare.run(standard, variant)`), server/page in
+`compare_app.py`; its standards are the acceptance suites' protocols and
+`tests/test_compare_ui.py` asserts them field by field, so **add a row there
+whenever a new correction lands.**
 
 ## Data flow
 
@@ -189,19 +189,18 @@ union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
 traceback), and `agent.tool_definition()` exporting the JSON Schema with the
 backend/solver/plan/**engine** names quoted from the live registries — a meta-test
 fails if a registry member is missing from the schema. The four answers live in
-separate arms (`result` / `series` / `indexing` — the last with its `evidence`
-companion, the same answer projected for a reasoning consumer with caveat kinds and
-absent-for-cause figures, WP-1043) because they are different
-*shapes*, and for indexing the shape is the rule: the serialized answer carries no
-`cell` key either.
+separate arms (`result` / `series` / `indexing`, the last with its `evidence`
+companion — the same answer projected for a reasoning consumer, WP-1043) because
+they are different *shapes*, and for indexing the shape is the rule: the
+serialized answer carries no `cell` key either.
 
 ### GUI
 
-The **GUI** (WP-1008…1016, 1029, 1032-1035, 1044) is `anatase gui [PROJECT.rex]`
-— stdlib `http.server` on 127.0.0.1 serving a committed Svelte 5 dist. Its rulebook
-— the session/wire split, the server contract, the `.rxt` document, the editors,
-the nine panels, the 3D viewer, theming — is `gui/CLAUDE.md`, which loads under
-`gui/`. Three rules matter outside the GUI too: mutating verbs return **409 while
+The **GUI** is `anatase gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1
+serving a committed Svelte 5 dist. Its rulebook — the session/wire split, the
+server contract, the `.rxt` document, the editors, the nine panels, the 3D
+viewer, theming — is `gui/CLAUDE.md`, which loads under `gui/`. Three rules
+matter outside the GUI too: mutating verbs return **409 while
 a run is in flight** (frozen-per-stage discreteness enforced structurally); the
 **run state is not an event** — `EventKind` is closed, and `live/events.jsonl`
 stays the one stream `watch` tails; and a **project setting is one that is about
@@ -252,15 +251,13 @@ recent list, and is therefore not behind the 409 (WP-1044).
   panel's) — a peer of `PatternData.sig()`, where the esd-column/Poisson choice
   was already made: `CompiledModel` stores `pattern.sig()` and `refine` copies
   it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a
-  re-derivation (five call sites, three policies, before WP-1029 (s), whose file
-  has the story — including how the bug hid beside the fallback and not in it:
-  `weighted` meant `bool(result.sigma)`, constant-true, so a Poisson fit was
-  labelled `(obs−calc)/σ` as though its σ had been measured). **`weighted` is
-  `DataRef.has_sigma`** (σ *measured*, not σ *present* — the fact `textdoc`
-  renders as "σ from file"), `delta` is always Δ/σ because Δ/σ is what the fit
-  minimised either way, and the flag changes only the axis title. A test that
-  recomputes a residual cannot catch this class of bug: the pin compares what
-  each renderer **drew** against what the route **sent**.
+  re-derivation (five call sites, three policies before WP-1029, whose file has
+  the story). **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ
+  *present* — the fact `textdoc` renders as "σ from file"), `delta` is always
+  Δ/σ because Δ/σ is what the fit minimised either way, and the flag changes
+  only the axis title. A test that recomputes a residual cannot catch this class
+  of bug: the pin compares what each renderer **drew** against what the route
+  **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.** A
   background able to imitate the peaks biases ADPs up and scales (hence QPA
   fractions) down while Rwp *improves*. Measure it as the block projection R²
@@ -339,6 +336,9 @@ recent list, and is therefore not behind the 409 (WP-1044).
 
 ## Conventions
 
+- **Never spell the distribution name, a format token or the state dir — import
+  it from `_about.py`** (WP-1062): its docstring says which tokens track the
+  brand, which deliberately do not, and why no test can enforce this for you.
 - Parameter paths are dot-separated, glob-matched with fnmatch in stage plans
   (`"phases.*.cell.*"`). No brackets in paths (fnmatch treats `[..]` as class).
 - Schemas: `extra="forbid"`, `ser_json_inf_nan="strings"` (±inf bounds must
@@ -524,8 +524,8 @@ them all:
 to carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a
 CLAUDE.md takes **rules, not findings**.
 
-Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/` (the milestone table
-in ROADMAP carries the acceptance one-liners — neither is restated here).
+Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/`; ROADMAP's
+milestone table carries the acceptance one-liners, restated in neither place.
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the last one

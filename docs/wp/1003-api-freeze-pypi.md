@@ -12,20 +12,34 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
-**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — the scope line
-above is superseded, and the ordering is not negotiable.** The project is being
-renamed to **`anatase`** (PyPI, GitHub, import, CLI — one string; availability
-verified 2026-08-12). The parenthetical "name `anatase` verified available"
-is dead: it recorded an availability check with no date, for a name that is
-being retired.
+**From [1062](1062-rename-to-anatase.md), closed 2026-08-12 — the rename has
+landed, so this is the surface you are freezing.** The distribution, import and
+CLI are all `anatase`; PyPI `anatase` was free as of 2026-08-12 but **nothing
+has been uploaded**, so re-check before the release rather than trusting that
+date. GitHub is `yue-here/anatase` (renamed in place; the old URL redirects).
 
-**Why 1062 must land before this WP, not inside or after it.** The freeze covers
-names that embed the current one — `anatase.agent`, `anatase.gui.textdoc`,
-`anatase.report.apply`, the CLI `anatase index` / `anatase gui`, and the env var
-`ANATASE_STATE_DIR`. Renaming after the freeze breaks exactly what the freeze
-promised. 1062 is scheduled early rather than immediately-before for an
-independent reason: the name surface grew ~40 % in eleven days, so every WP that
-lands after it is born in the new name.
+**What the freeze now covers, and the one asymmetry in it.** Brand tokens —
+`DIST_NAME`, `STATE_DIR_NAME`/`STATE_DIR_ENV`, `AGENT_TOOL_NAME`
+(`anatase_refine`), `DATA_PACKAGE`, `SERVER_TOKEN` — all live in
+`src/anatase/_about.py` and move together. The **format** tokens live there too
+but are deliberately brand-free and are *separately* versioned: `.rex`
+(`PROJECT_FORMAT_VERSION` 1.1), `.rxt` with header `rxt N`
+(textdoc `FORMAT_VERSION` 1), and the profile tag `instrument_profile`
+(`FORMAT_VERSION` 1). Freezing a brand and freezing a format are two promises,
+and they were split on purpose so a later rename cannot be a format break —
+the freeze should say so rather than quietly re-coupling them.
+
+**One live question the split raises for you.** The textdoc's magic word changed
+to `rxt` while its `FORMAT_VERSION` stayed `"1"`, on the argument that
+the document is rendered afresh and never persisted, so no stored file can carry
+the old header. That holds today. If the freeze promises `.rxt` as a *file* — an
+export, a diff artefact, anything a user can save — the argument expires and the
+version should have moved.
+
+**Also new since this WP was written:** `tests/test_no_stale_name.py` audits the
+old name out of the tree, written against the **old** token because `anatase` is
+a phase this software analyses. It cannot catch a hardcoded *new* literal, so
+any name-bearing string the freeze adds must be an `_about.py` import.
 
 **Three things already parked here that 1062 does *not* take.** They stay this
 WP's, and all three embed the name, so do them *after* the rename: the sdist and

@@ -40,6 +40,10 @@ STALE = re.compile(r"pxrd|pxt", re.IGNORECASE)
 
 #: The only files allowed to carry the old name, and why.
 ALLOWED = {
+    # this file: it *is* the audit, so it necessarily spells what it forbids.
+    # Not discoverable by reading — the first run passed because the file was
+    # still untracked and `git grep` cannot see an untracked file.
+    "tests/test_no_stale_name.py",
     # documents the rename, so it names both sides throughout and cannot be
     # swept without destroying its own subject
     "docs/wp/1062-rename-to-anatase.md",
