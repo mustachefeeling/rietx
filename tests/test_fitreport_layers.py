@@ -898,3 +898,201 @@ def test_lebail_gap_mechanics(truth):
 
     lb = compile_model(structure, ins, data, mode="lebail")
     assert lebail_gap(lb, values, rwp_rietveld=0.1) is None
+
+
+# ----------------------------------------------------------------------
+# WP-1056 — identifiability: is the converged answer the only one?
+# ----------------------------------------------------------------------
+def _fit_and_report(structure, start_ins, data, stem, plan="mccusker_default",
+                    zoom=(18.0, 45.0)):
+    """One staged fit to convergence, its report, and the house PNGs."""
+    from pxrdref.viz.plots import plot_result
+
+    ref = pr.Refinement(structure, start_ins)
+    result = ref.fit(data, plan=plan)
+    report = ref.report()
+    _OUT.mkdir(exist_ok=True)
+    plot_result(result, path=str(_OUT / f"{stem}.png"))
+    plot_result(result, path=str(_OUT / f"{stem}_zoom.png"),
+                two_theta_range=zoom)
+    return ref, result, report
+
+
+def _exchange(report, held):
+    for row in report.identifiability.exchanges or []:
+        if row.held == held:
+            return row
+    raise AssertionError(f"no exchange row for {held}: "
+                         f"{report.identifiability.exchanges}")
+
+
+def test_exchange_candidate_families_are_pinned():
+    """The scan's family list and null table are protocol, not tuning: a
+    session that widens them changes what every report can say, so both are
+    pinned here (WP-1056 'family list documented and pinned by test')."""
+    from pxrdref.optimize.identifiability import EXCHANGE_CANDIDATE_GLOBS, NULL_IDENTITY
+
+    assert EXCHANGE_CANDIDATE_GLOBS == [
+        "instrument.zero_shift",
+        "instrument.geometry.sample_displacement",
+        "instrument.geometry.sample_transparency",
+        "phases.*.cell.*",
+        "phases.*.scale",
+        "phases.*.atoms.*.biso",
+        "instrument.profile.u",
+        "instrument.profile.v",
+        "instrument.profile.w",
+        "instrument.profile.x",
+        "instrument.profile.y",
+    ]
+    # nulls exist exactly for the aberration corrections (identity at zero);
+    # a cell edge or a scale has no null, so no exchange sentence can rest
+    # on one — the report-side half of the two-condition discriminator
+    assert NULL_IDENTITY == {
+        "instrument.zero_shift": 0.0,
+        "instrument.geometry.sample_displacement": 0.0,
+        "instrument.geometry.sample_transparency": 0.0,
+    }
+
+
+def test_final_jacobian_is_undamped(truth):
+    """Watkin (2008) §3.8: correlations are honest only if the final-cycle
+    normal matrix is undamped.  Both drivers return the Jacobian evaluated at
+    the accepted solution — asserted against a fresh evaluation at
+    ``outcome.theta``, which a Marquardt-damped or stale-iterate matrix would
+    not reproduce."""
+    from pxrdref.optimize.least_squares import _make_jacobian, run_least_squares
+
+    structure, ins, data = _truth()
+    structure = structure.model_copy(deep=True)
+    ins = ins.model_copy(deep=True)
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_vary(["instrument.zero_shift", "phases.*.cell.*",
+                    "phases.*.scale"], True)
+    model = compile_model(structure, ins, data, mode="rietveld")
+    outcome = run_least_squares(model, table)
+    fresh = np.asarray(_make_jacobian(model, table)(outcome.theta))
+    assert outcome.jac is not None
+    assert np.allclose(outcome.jac, fresh, rtol=1e-12, atol=0.0), (
+        np.max(np.abs(outcome.jac - fresh)))
+
+
+def test_e2_converged_report_names_the_exchange(truth):
+    """The WP-1053 E2 miss, closed: the baseline preset absorbs a planted
+    −0.02 mm displacement into a compensating zero (χ²_red ≈ 1.01, spike
+    table in the WP handover) and before this WP the *converged* report
+    carried no trace of it.  Now the summary names the pair and the row
+    carries the evidence: R² = 0.9999 with the partner 128σ from its null."""
+    from pxrdref.report import is_exchangeable
+    from pxrdref.report.schemas import EXCHANGE_PARTNER_MIN_SIGNIFICANCE, EXCHANGEABLE_MIN_R2
+
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.geometry.sample_displacement.value = -0.02
+    ref, result, report = _fit_and_report(structure, start, data, "wp1056_e2")
+    assert ref.fitted_instrument.geometry.sample_displacement.value == -0.02
+
+    row = _exchange(report, "instrument.geometry.sample_displacement")
+    assert row.r2 > EXCHANGEABLE_MIN_R2                    # measured 0.9999
+    assert row.partner == "instrument.zero_shift"
+    assert row.partner_significance > 20 * EXCHANGE_PARTNER_MIN_SIGNIFICANCE
+    assert row.exchangeable and is_exchangeable(row.r2, row.partner_significance)
+    # the loadings name the compensators: zero first, then the cell edge
+    assert abs(row.partners["instrument.zero_shift"]) > 1.0
+    assert "exchangeable with the held instrument.geometry.sample_displacement" \
+        in report.summary
+    assert "ambiguous" not in report.summary  # the verdict is the reader's
+    # transparency rides the same fitted zero — honest multiplicity, in the
+    # table (measured R² 0.97) while the summary names only the worst row
+    assert _exchange(report, "instrument.geometry.sample_transparency").exchangeable
+
+
+def test_clean_reference_stays_quiet_and_delta_r_calibrates(truth):
+    """The acceptance's negative control *and* the reason the discriminator
+    has two conditions: the clean fit measures the same R² = 0.9999 as E2
+    (a design-matrix property of the window), and only the partner's 1.6σ
+    keeps it quiet.  δR on Gaussian noise: slope ≈ 1, intercept ≈ 0
+    (measured 1.004 / −0.0004)."""
+    structure, ins, data = truth
+    ref, result, report = _fit_and_report(structure, ins.model_copy(deep=True),
+                                          data, "wp1056_clean")
+    ev = report.identifiability
+    assert ev is not None
+    row = _exchange(report, "instrument.geometry.sample_displacement")
+    assert row.r2 > 0.99                     # same design matrix as E2 …
+    assert row.partner_significance < 5.0    # … nothing riding it (1.6σ)
+    assert not any(e.exchangeable for e in ev.exchanges)
+    assert "exchangeable" not in report.summary
+    assert "unconstrained" not in report.summary   # softest mode 1.2e-02
+    assert min(m.eigenvalue for m in ev.soft_modes) > 3e-3
+    # the esd-qualifying trio is quoted together, raw
+    assert ev.chi2_reduced == pytest.approx(result.statistics.chi2)
+    assert ev.esd_inflation == pytest.approx(result.statistics.esd_inflation)
+    assert ev.durbin_watson == pytest.approx(result.statistics.durbin_watson)
+    assert ev.delta_r_slope == pytest.approx(1.0, abs=0.05)
+    assert ev.delta_r_intercept == pytest.approx(0.0, abs=0.02)
+
+
+def test_e8_short_window_reports_the_collinear_triangle():
+    """The WP-1053 E8 miss, closed at the state that produced it: on 20–56°
+    a plan that frees displacement instead of the planted zero converges
+    (χ²_red 0.95, Rwp 0.0127) with displacement +0.037 against a truth of 0.
+    The report now carries the whole triangle: fitted displacement 119σ from
+    null but exchangeable with the held zero (R² = 1.0000), the
+    displacement↔cell soft mode, and the u/v/w combination below comment
+    threshold — the evidence for ``ambiguous`` in a *converged* report."""
+    from pxrdref.strategy.staged import RefinementPlan, Stage
+
+    structure, ins, data = _truth(lo=20.0, hi=56.0, seed=23)
+    start = ins.model_copy(deep=True)
+    start.zero_shift.value = 0.02          # planted cause, held by this plan
+    plan = RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("disp", ["instrument.geometry.sample_displacement"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("profile_w", ["instrument.profile.w"]),
+        Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+                          "instrument.profile.x", "instrument.profile.y"]),
+    ])
+    ref, result, report = _fit_and_report(structure, start, data,
+                                          "wp1056_e8_short", plan=plan,
+                                          zoom=(20.0, 35.0))
+    assert ref.fitted_instrument.zero_shift.value == 0.02
+    assert abs(ref.fitted_instrument.geometry.sample_displacement.value) > 0.02
+
+    row = _exchange(report, "instrument.zero_shift")
+    assert row.r2 > 0.999                                  # measured 0.99999
+    assert row.partner == "instrument.geometry.sample_displacement"
+    assert row.exchangeable
+    assert "exchangeable with the held instrument.zero_shift" in report.summary
+
+    ev = report.identifiability
+    triangle = [m for m in ev.soft_modes
+                if {"instrument.geometry.sample_displacement",
+                    "phases.0.cell.a"} <= set(m.loadings)]
+    assert triangle and triangle[0].eigenvalue < 0.1       # measured 5.8e-02
+    # the u/v/w family combination is below comment level on this window
+    # (measured 6.7e-04 against 1.2e-02 full-range) and earns the sentence
+    assert min(m.eigenvalue for m in ev.soft_modes) < 3e-3
+    assert "unconstrained at" in report.summary
+    assert any(abs(c.rho) > 0.99 for c in ev.top_correlations)
+
+
+def test_identifiability_carrier_is_additive(truth):
+    """A pre-1056 carrier (background table only) still validates, and the
+    new fields round-trip through JSON — the additive-field rule the class
+    docstring pins to SCHEMA_VERSION staying put."""
+    from pxrdref.schemas.results import CorrelationPair, ExchangeRow, Identifiability, SoftMode
+
+    old = Identifiability(background_absorption={"phases.0.scale": 0.1})
+    assert old.top_correlations == [] and old.exchangeability == []
+
+    full = Identifiability(
+        background_absorption={},
+        top_correlations=[CorrelationPair(path_a="a", path_b="b", rho=-0.97)],
+        soft_modes=[SoftMode(eigenvalue=1e-3, loadings={"a": 0.8, "b": -0.6})],
+        exchangeability=[ExchangeRow(held="h", r2=0.995,
+                                     partners={"a": -1.1})])
+    again = Identifiability.model_validate_json(full.model_dump_json())
+    assert again == full
