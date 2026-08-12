@@ -77,6 +77,30 @@ repo; runs execute in the Claude Code harness.
 
 ### Inherited
 
+**From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the
+content change aimed squarely at round 1's two 0/8 rows, and the
+pre-registration nuance that matters.** Deltas a re-A/B will see: every
+report carries `FitReport.identifiability` (trio + δR unconditionally;
+`exchanges`/`soft_modes` whenever the fit measured them), AGENT_PROTOCOL §4
+gained step 6 (the §5/§6 excerpts the report-on prompt ships are untouched —
+the new reading is *not* in the round-1 prompt's excerpt, only in the
+report itself and §4), and the summary gains at most two clauses.  On the
+E2 baseline state the summary now reads "fitted instrument.zero_shift =
+−0.0109913 stands 128σ from 0 but is exchangeable with the held
+instrument.geometry.sample_displacement (R² = 0.9999) … a confident verdict
+is not supported" — the ambiguity evidence at the converged state that
+round 1's E2 (0/8) and E8 (0/8) failed for want of.  `THRESHOLDS_VERSION`
+is **0.7**.  The nuance to pre-register: on E8's window the *default-plan*
+path frees the planted zero and converges to truth — that state is
+correctly quiet (partner 1.2σ; measured bit-identical to the clean-short
+control), so an agent that runs the preset and reads the quiet report is
+*right* to answer converged there, and E8's expected verdict may need
+re-scoring against the state actually reached; the exchange sentence fires
+on the wrong-family-freed state (displacement freed, zero held: 119σ,
+R² 1.0000), which is the state a round-1-style lazy path lands on only if
+it frees displacement.  Also: the clean full-window control is pinned quiet
+on *both* clauses, so any summary-noise hypothesis has a control.
+
 **From [1055](1055-background-evidence.md), closed 2026-08-12 — the third
 content change round 2 measures.** Deltas a re-A/B will see: every report now
 carries `FitReport.background` (published unconditionally, so it is in the
