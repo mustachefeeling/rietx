@@ -11,6 +11,19 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session)
 
 ### Inherited
 
+**From [1054](1054-abstained-branch-honesty.md), closed 2026-08-12 — the
+first of the queued six landed; its surface changes for the freeze.**
+`THRESHOLDS_VERSION` is now **0.4** (the planning session's "may bump" below
+is decided: emission conditions moved on measured states — reindex on the
+abstained branch, capped impurity/texture confidences — and WP-1024's
+no-bump precedent was rationale-only). Schema surface: `TextureAnalysis`
+gained `caveat: str | None` (set when strong unmatched peaks coexist with a
+detection), and `best_axis` is now **always populated** evidence with
+`detected` the only branch field — a consumer that treated `best_axis is
+not None` as detection would silently change meaning, which is worth a
+freeze-time doc sentence. `pxrdref.report.__all__` gained `reindex_action`
+and `cap_texture_crosstalk`. All additive; no `ActionKind` changed meaning.
+
 **From the 2026-08-11 planning session (FitReport design review + 1053
 follow-ups) — six queued WPs touch surface this freeze covers; sequencing is
 this WP's call.** [1054](1054-abstained-branch-honesty.md)…[1058](1058-report-delivery.md)

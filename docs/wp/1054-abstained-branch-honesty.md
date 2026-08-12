@@ -1,6 +1,6 @@
 # WP-1054 — Layer-2 honesty on the abstained branch: the phantom-phase invitation
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-12 — shipped: reindex survives abstention, impurity and texture verdicts capped to their evidence, `best_axis` always populated; THRESHOLDS_VERSION 0.4
 Depends on: —
 
 ## Goal
@@ -104,29 +104,31 @@ Precedent: WP-1024 changed only a rationale and explicitly did not bump.
 
 ## Tasks
 
-- [ ] Emit `reindex_or_recheck_cell` from the abstained branch when
+- [x] Emit `reindex_or_recheck_cell` from the abstained branch when
       validity-radius failures carry substantial χ² share (the mature-branch
       emitter's condition, evaluated on the attribution list the abstained branch
       already has). Rationale quotes the measured shifts vs FWHM.
-- [ ] Make the impurity emitter position-aware in the large-shift regime:
+      *(Landed with one measured deviation: the condition is a **count
+      fraction**, not a χ² share — see the handover entry.)*
+- [x] Make the impurity emitter position-aware in the large-shift regime:
       unmatched peaks consistent with the validity-radius/shift evidence cap
       `add_impurity_phase` confidence and put `reindex_or_recheck_cell` first in
       `alternatives`, with the count of shift-consistent vs shift-inconsistent
       peaks in the rationale (a genuinely foreign line — E5's 29.34° — must keep
       its strong call: the zero-shift-plus-impurity double injection is the
       regression case).
-- [ ] Texture cross-talk: when strong `unmatched_obs` evidence coexists with a
+- [x] Texture cross-talk: when strong `unmatched_obs` evidence coexists with a
       texture detection, annotate the `TextureAnalysis` (caveat field or
       documented rationale clause) and cap `refine_preferred_orientation`
       confidence below the impurity action's — the 0.66-outranks-0.40 inversion is
       the pinned regression. Keep axis/r/R² populated (evidence preserved).
-- [ ] `TextureAnalysis.best_axis` becomes always-populated evidence (`detected`
+- [x] `TextureAnalysis.best_axis` becomes always-populated evidence (`detected`
       unchanged as the branch field); docstring updated, GUI/agent consumers
       re-checked (the GUI's `detected` filter is verified above).
-- [ ] Decide and document the `THRESHOLDS_VERSION` question for the emission
+- [x] Decide and document the `THRESHOLDS_VERSION` question for the emission
       changes; update `docs/AGENT_PROTOCOL.md` §6/§7 rows that describe the
       abstained branch's action inventory.
-- [ ] Tests: cell-wrong abstained state (top active action set), broad-peak
+- [x] Tests: cell-wrong abstained state (top active action set), broad-peak
       variant, impurity/texture inversion, double-injection control + obs/calc/diff
       PNGs to `tests/output/`.
 
@@ -154,5 +156,71 @@ still passes (E5's genuine impurity keeps its call).
 
 ## Handover log
 
+- **2026-08-12** — **closed.** All six items landed on
+  `wp1054-abstained-branch-honesty` (no `### Inherited` existed to prune).
+  The mechanism, measured before design on the fixture family plus a broad
+  `_broad_truth` variant:
+  - **Deviation from the planned condition, with the numbers that forced
+    it.** The reindex emitter's condition is a **count fraction** (≥ 1/2 of
+    misfitting regions beyond the validity radius, floor 3 —
+    `REINDEX_MIN_FAR_FRACTION`/`REINDEX_MIN_FAR_REGIONS`), not the χ² share
+    the checklist assumed: the far-region share proved unstable under a
+    background refit — the +0.4 % cell state reads 0.192 unrefined but
+    **0.049 after one background stage**, indistinguishable from the 0.043
+    of the broad-data artefact state — while the count fraction separates
+    0.60/0.73/0.71 (emit) from 0.33 (don't) with controls at 0.00. The
+    share survives in the *rationale* as evidence. The old `rwp > 0.2`
+    mature-branch arm is replaced by the same condition (one emitter, both
+    branches); a mature broad-peak state at Rwp 0.138 with fraction 0.60
+    now correctly emits where the Rwp arm missed it.
+  - **Shift-consistency is two model-free tests**, measured margins:
+    a displaced pair (`unmatched_calc` partner within
+    `SHIFT_PAIR_WINDOW_DEG` = 1.0°; consistent peaks pair at 0.12–0.82°,
+    the genuine foreign line at 1.05–1.18°) and tick proximity
+    (`SHIFT_TICK_PROXIMITY_FWHM` = 1× pattern-median FWHM; lobes at
+    0.1–0.5 FWHM vs 12–14 for the foreign line). The gate-failed |Δ2θ|
+    was rejected as a matching envelope — it *underestimates* (0.034°
+    fitted where the true displacement is 0.18°), so rationales quote it
+    only as a "≥ … lower bound".
+  - **Outcomes on the four scenarios** (all pinned in
+    `test_fitreport_layers.py` § WP-1054, PNGs `wp1054_*`): cell-wrong
+    abstained → reindex 0.4 tops the active set, impurity capped 0.3 with
+    reindex first in alternatives; broad lobes → impurity 0.7 → 0.3, **no**
+    reindex (fraction 0.33 — artefact failures); pure impurity → impurity
+    0.4 > texture capped 0.35 (was 0.66 vs 0.40 inverted), caveat set,
+    axis/r/R² intact; double injection → impurity keeps 0.4 and names
+    29.34°, reindex joins at 0.4.
+  - **E6's recorded finding is fixed and its pin flipped** (as its
+    docstring demanded): the loop's hand-back on a wrong cell is now
+    `reindex_or_recheck_cell`, not `add_impurity_phase`. E5/E7/E8 and both
+    SRM 660c episodes unchanged.
+  - **`THRESHOLDS_VERSION` 0.3 → 0.4** — decided *bump*: emission
+    conditions moved on measured states and a consumer branches on the
+    action list (WP-1024's no-bump precedent was rationale-only). Schema
+    additions: `TextureAnalysis.caveat`; `best_axis` now always populated
+    (the user-directed evidence change; quiet-texture pin flipped to
+    "detected=False with the axis still named"). All version quoters read
+    the constant (capabilities meta-test), GUI mock updated.
+  - Commits: emitters+schemas (items 1–4 — one measured mechanism whose
+    hunks interleave in `layer2.py`/`schemas.py`, hence one commit), the
+    four scenario tests, AGENT_PROTOCOL §6/§7 (+ new `TextureAnalysis.caveat`
+    row).
+  - Measured this session (main checkout `.venv`, `[dev,jax,torch]`,
+    darwin/arm64): the acceptance command passes including the slow SRM 660c
+    pair; full fast suite `-n auto --dist loadgroup -m "not slow"` lands
+    **2277 passed + 5 skipped** — the session added exactly 4 tests (the
+    layers file's `def test_` count 22 → 26, all passes, no new skip), so
+    passed+skipped moved 2278 → 2282 in the fast selection, and the full
+    selection moves by the same +4 since none is slow-marked (the weekly CI
+    log will show it on `[dev,jax]`/Linux). GUI vitest 408 passed; ruff
+    clean; docs-consistency 14 passed. One incidental: `gui/src/App.test.ts`
+    is in the dist guard's hashed source set, so the mock-version edit
+    needed a `build-info.json` refresh (bundle unchanged).
+  - **For WP-1057 (collision note):** the abstained arm of `build_report`
+    now assembles reindex + capped-impurity + texture with a crosstalk pass
+    and a confidence sort — 1057's wording edits land on top of that
+    structure; the abstention *reason strings* are untouched. New tests
+    asserting on the abstained action set: `test_report_loop.py::test_e6_*`
+    and the four `test_fitreport_layers.py` WP-1054 tests.
 - **2026-08-11** — created, from the FitReport design review (evidence-over-
   verdicts directive) + WP-1053's pilot findings. Not started.
