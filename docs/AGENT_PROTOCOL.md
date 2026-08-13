@@ -208,9 +208,20 @@ Judge a fit in this order:
    statement about column overlap and cannot say whether the counts in hand
    separate the pair: on real SRM 660c an R² of 0.9977 pair comes apart
    decisively, χ² 4.0752 (zero only) against 3.4890 (displacement only) on
-   5332 points, with the zero-only model biasing *a* by +100 ppm. If the swap
-   does *not* separate them, the resolution is protocol — a calibrant-fixed
-   zero, a wider angular window — or declaring the ambiguity.
+   5332 points, with the zero-only model biasing *a* by +100 ppm.
+
+   **Read the outcome by the decision band, and follow through.** The grade
+   is `RIVAL_DECISIVE_MIN_CHI2_RATIO` (= 1.10, `anatase.report`), read on
+   the losing rival's χ² over the winning rival's. At or above it **the data
+   has chosen: the winning rival's fit is the answer, and you quote it
+   without caveat.** Hedging a won swap is a measured failure, not caution —
+   on the round-3 eval's solvable control (rivals decisive at 1.1679, the
+   SRM 660c pair above) the agents that ran the swap recovered the true
+   displacement and still declined or hedged the answer; the control went
+   0/7 valid. Below the band the pair is genuinely unresolved — the two real
+   tie states measure 1.0075 and 1.0001 — and the resolution is protocol (a
+   calibrant-fixed zero, a wider angular window) or declaring the ambiguity;
+   no sentence converts a tie into an answer.
 
    What you must **not** do is free the held parameter alongside its partner
    and refit: both free lands on the degenerate ridge of §3, and it reports
@@ -323,9 +334,13 @@ Stopping criterion: §10's full ladder (diagnostics resolved, no attributable
 region, ΔBIC refuses the next parameter), with no `exchangeable` row
 unaddressed — addressed by running the swap (each rival **alone**, the other
 at its null: `compare_rivals`, §4 step 6), and where that ties, by protocol (a
-calibrant-fixed aberration, a wider window). Never by freeing the rival into
-the same fit (§3's ridge), which is the two-parameters-**together** move the
-swap exists to replace.
+calibrant-fixed aberration, a wider window). Where it does **not** tie,
+addressed means adopted: a decisive swap (≥ `RIVAL_DECISIVE_MIN_CHI2_RATIO`)
+is an answered question, and the winning rival's fit is the structure's
+answer, quoted without caveat — re-declaring it ambiguous after winning the
+measurement is the mirror image of the ridge, and as wrong. Never by freeing
+the rival into the same fit (§3's ridge), which is the
+two-parameters-**together** move the swap exists to replace.
 
 **The capability floor.** Whatever is reading this report, the floor is:
 verify before acting (`predict_then_verify`, or a history branch), treat a
@@ -1149,11 +1164,17 @@ with the other held at its **null** — never both together, which is the ridge
 (§3), and never with the rival at its last fitted value, which is neither
 rival. The free set is otherwise unchanged, so `n_free` matches across the two
 and raw χ² is comparable without an information criterion. And there is **no
-`decisive` field**: whether a ratio of 0.86 on 5332 points settles the
-question is yours to judge, the same fence `predict_then_verify` respects by
-reporting `observed_delta_chi2` beside its own threshold. A pair with no null
-(a cell edge, a scale) is refused by name — that one is resolved by protocol,
-not by measurement.
+`decisive` field**: the package states the reading rule and never applies it,
+the same fence `predict_then_verify` respects by reporting
+`observed_delta_chi2` beside its own threshold. The reading rule is §4 step
+6's band, orientation-neutral because `chi2_ratio` is directional: take **the
+winning rival**'s side whichever index it is — the losing χ² over the winning
+χ², i.e. max(ratio, 1/ratio) — and compare that against
+`RIVAL_DECISIVE_MIN_CHI2_RATIO`. At or above it, the winner's fit is the
+answer, quoted without caveat (the 0.86 above is 1/0.86 = 1.17, decisive);
+below it the pair has tied and the resolution is protocol. A pair with no
+null (a cell edge, a scale) is refused by name — that one is resolved by
+protocol, not by measurement.
 
 Two properties worth relying on:
 
