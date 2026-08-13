@@ -926,3 +926,69 @@ def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
     assert "| surface | sonnet | pass | 1/1 |" in table
     assert "pass,!" in table            # the off cell is marked, not dropped
     assert "%" not in table             # counts, never percentages
+
+
+def test_grid_renders_two_group_tables_and_the_python_arm(tmp_path):
+    """The epistemic and solvable groups are separate count tables, always
+    (pooling them is how round 1's null was misread); a python cell has no
+    marker and its payload audit is N/A, never a `!`."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "N1.json").write_text(json.dumps({
+        "episode": "N1", "expected_verdict": "ambiguous",
+        "next_action": ["extend_range_or_calibrate"],
+        "planted": None, "family": None}), encoding="utf-8")
+    (truth / "C1.json").write_text(json.dumps({
+        "episode": "C1", "expected_verdict": "converged",
+        "next_action": ["none"], "planted": None, "family": None}),
+        encoding="utf-8")
+    runs = tmp_path / "runs"
+    # a JSON cell on the epistemic row: verdict right, action out of the set
+    _cell(runs, "report", "sonnet", "N1",
+          [_call(report={"summary": "s"})],
+          {"verdict": "ambiguous", "next_action": "none", "summary": ""})
+    # a python cell on the solvable row: no marker, final_result.json,
+    # underclaiming — the flag the solvable table exists to show
+    pdir = runs / "python__sonnet" / "C1"
+    pdir.mkdir(parents=True)
+    (pdir / "final_result.json").write_text(
+        json.dumps(_final_result_payload()), encoding="utf-8")
+    (pdir / "answer.json").write_text(json.dumps(
+        {"verdict": "abstain", "next_action": "collect_better_data",
+         "summary": ""}), encoding="utf-8")
+
+    rows = grid.collect(runs, truth)
+    by = {(r["condition"], r["episode"]): r for r in rows}
+    assert by[("python", "C1")]["arm"] == "python"
+    assert by[("python", "C1")]["payload_ok"] is None
+    assert by[("python", "C1")]["group"] == "solvable"
+    assert by[("report", "N1")]["group"] == "epistemic"
+    text = grid.render(rows)
+    assert "## Epistemic rows" in text and "## Solvable rows" in text
+    assert "ambiguous,na" in text       # verdict right, action missed
+    assert "abstain,uc,na" in text      # the underclaim, flagged as such
+    assert "%" not in text
+
+
+def test_a_json_cell_without_its_marker_is_invalid(tmp_path):
+    """The marker is the payload audit's authority; a shim cell that lost it
+    is unauditable, and unauditable is invalid (`!`), never quietly N/A —
+    only the markerless-by-design python arm gets N/A."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "N1.json").write_text(json.dumps({
+        "episode": "N1", "expected_verdict": "converged",
+        "planted": None, "family": None}), encoding="utf-8")
+    edir = tmp_path / "runs" / "off__haiku" / "N1"
+    edir.mkdir(parents=True)
+    (edir / "calls.jsonl").write_text(json.dumps(_call()) + "\n",
+                                      encoding="utf-8")
+    (edir / "answer.json").write_text(json.dumps(
+        {"verdict": "converged", "summary": ""}), encoding="utf-8")
+    rows = grid.collect(tmp_path / "runs", truth)
+    assert rows[0]["payload_ok"] is False
+    assert "pass,!" in grid.render(rows)
