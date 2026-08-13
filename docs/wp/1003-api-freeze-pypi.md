@@ -12,6 +12,29 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
+**From [1063](1063-exchange-clause-and-rivals.md), closed 2026-08-13 — the
+clause question above is settled, and one arm was declined on the record.**
+`THRESHOLDS_VERSION` is **0.8**: the exchange clause now claims about *this
+fit* and names the swap ("fit each of the pair alone with the other held at
+its null and compare χ²"), and `report.compare_rivals(refinement, data,
+finding) → RivalComparison` ships that experiment as a pull — module-level in
+`report/layer2.py`, `predict_then_verify`'s peer, exported from
+`anatase.report`. New public names to freeze: `compare_rivals`,
+`RivalComparison`, `RivalFit`. `EXCHANGEABLE_MIN_R2` was deliberately **not**
+retuned (grounds in the 0.8 changelog: no threshold on a geometric quantity
+can make "the data cannot tell" true), so no gate moved.
+
+**The declined arm, for the freeze to ratify or take up.** `refine_json` got
+**no** `compare_rivals` arm: the JSON call is stateless and the experiment
+needs a converged `Refinement` in hand. If [1064](1064-eval-round-three.md)'s
+python arm shows the swap is the winning move, the measured follow-up is
+`compare_exchanges: bool = False` on `RefineRequest` (post-fit, response arm
+`rival_comparisons`) — additive, defaulted off, and it belongs to this freeze
+rather than to a later minor. If 1064 shows the swap is *not* what wins, the
+honest freeze records the pull surface as python-only. Either way the decision
+wants stating out loud, because "the agent surface covers everything the
+library does" is currently untrue by one call.
+
 **From [1059](1059-eval-round-two.md), closed 2026-08-13 — one measured
 content gap in the shipped report, worth deciding before the freeze.** The
 WP-1056 exchange clause names a degeneracy without naming the action, and
