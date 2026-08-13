@@ -6,8 +6,10 @@ prompt; it cannot un-strip a response:
 - the request is always ``episode.json`` (fixed) plus ``overlay.json``
   restricted to ``plan`` / ``mode`` / ``two_theta_limits`` — the agent
   structurally cannot touch the pattern or the starting parameter values;
-- ``include_report`` comes from ``condition.json``, never from the agent, and
-  a report-off response additionally has any ``report`` stripped;
+- ``include_report`` and ``include_trajectory`` come from ``condition.json``,
+  never from the agent: they are set on the request (so the package never
+  builds what this condition withholds) **and** popped from the response (so a
+  package default can never leak one back in);
 - every call is appended to ``calls.jsonl`` (the record the scorer and the
   call count come from, never the agent's self-report), with the bulk curve
   arrays elided — the fit is deterministic from episode + overlay, so the
@@ -112,23 +114,28 @@ def run_episode(episode_dir: Path) -> dict:
         request = json.loads(episode_bytes)
         request.update({k: overlay[k] for k in ALLOWED_OVERLAY_KEYS
                         if k in overlay})
-        # the condition, never the agent, decides whether a report exists
-        request["include_report"] = condition["include_report"]
+        # the condition, never the agent, decides which halves of the report
+        # surface exist.  A 1.0 condition file predates the split, where the
+        # trajectory did not exist and the report implied nothing else
+        include_report = condition["include_report"]
+        include_trajectory = condition.get("include_trajectory", include_report)
+        request["include_report"] = include_report
+        request["report_trajectory"] = include_trajectory
         import anatase.agent as agent_mod
 
         response = agent_mod.refine_json(request)
-        if not condition["include_report"]:
-            # both halves of the report surface: the final report and the
-            # per-stage trajectory (WP-1058).  The package already ties the
-            # trajectory to include_report; this stays because the shim's
-            # guarantee is that *the condition* decides, not a package default
+        # asked for on the request, popped again here: the shim's guarantee is
+        # that *the condition* decides, not a package default that could move
+        if not include_report:
             response.pop("report", None)
+        if not include_trajectory:
             response.pop("trajectory", None)
         record = {
             "refused": False,
             "episode_sha256": hashlib.sha256(episode_bytes).hexdigest(),
             "condition": condition["condition"],
-            "include_report": condition["include_report"],
+            "include_report": include_report,
+            "include_trajectory": include_trajectory,
             "overlay": overlay,
             "response": trim_response(response),
         }
