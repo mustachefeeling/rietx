@@ -12,6 +12,26 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
+**From [1059](1059-eval-round-two.md), closed 2026-08-13 — one measured
+content gap in the shipped report, worth deciding before the freeze.** The
+WP-1056 exchange clause names a degeneracy without naming the action, and
+30 real agent runs measured what that costs: **7 of 20 position-episode cells
+freed *both* parameters and landed on the ridge** the manual explicitly
+forbids (§4b "resolved by protocol … never by freeing the rival into the same
+fit"), at the best Rwp in the round — E2 displacement +0.014 against truth
+0.000, R1 −0.120/−0.128 against −0.0801. Every cell that reached truth got
+there by **swapping** which parameter is free. So the fix is one clause in the
+sentence an agent actually reads: *re-fit with the rival free and the fitted
+one held, and compare χ²* — the summary currently ends at "the data cannot
+tell which is physical", and a consumer reads that as an invitation to free
+both. Two things make this a freeze question rather than a bug: the clause is
+public report *text* many callers will match on, and a related measurement in
+that WP shows the R² gate itself is geometric — on real SRM 660c data an
+R² 0.9977 "exchangeable" pair is resolved decisively by χ² (4.0752 vs 3.4890
+over 5332 points), so "exchangeable" over-refuses at high N. Changing either
+is a `THRESHOLDS_VERSION` bump and, for the eval harness, a protocol version
+bump; 1059 deliberately did not make it mid-round.
+
 **From [1058](1058-report-delivery.md), closed 2026-08-13 — six names joined
 the surface, and one version *deliberately did not move*.** New public API:
 `report.StageReport` and `FitReport.for_stage()` (the projection);

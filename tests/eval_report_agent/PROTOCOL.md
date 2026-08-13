@@ -110,6 +110,35 @@ below are registered against:
   because it acts only on separable attributions, and an agent driving plans
   is not the loop.
 
+## Episode validity — read before running either row again
+
+Measured **after** the 2026-08-13 round (post-hoc, and recorded here rather
+than folded into the episodes, because changing a truth record on sight of the
+results is the thing pre-registration exists to prevent).  Both must be
+resolved before E8 or R1 is run again; neither is a scoring nuance.
+
+- **E8 cannot be passed as written.**  All ten round-2 cells answered
+  `converged`.  Under WP-1056 the default-plan path frees the planted zero and
+  converges to truth, and *that* state is correctly quiet — so `converged` is
+  what the reached state supports, and the row's expected `ambiguous` grades a
+  state no competent agent lands on.  Round 1 read its 0/8 as a null; it was a
+  scoring artefact.  Fix by planting where the default plan cannot free it
+  (E2's shape on E8's short window), not by re-scoring.
+- **R1's expected `ambiguous` is not what the data supports.**  The fair rival
+  test — each position parameter freed alone, the other held at its null —
+  gives zero-only Rwp 0.09361 / χ² 4.0752 against disp-only 0.08661 / 3.4890
+  on 5332 points, and the zero-only model biases *a* by +100 ppm (4.157310 vs
+  4.156895).  The exchange R² of 0.9977 is a **geometric** measure of column
+  overlap; at these counting statistics the 0.23 % it leaves unexplained is
+  decisive.  Score R1 `converged` (verdict only — the planted displacement
+  still carries no tolerance, since reaching it by freeing *both* parameters
+  is the ridge, not a recovery).
+- **A synthetic episode cannot answer the rival question at all.**  E2 and E8
+  plant their aberration in the *starting model*, never in the data
+  (`_truth()` has zero = disp = 0), so their one-parameter rivals tie exactly
+  (χ² ratio 1.0000 on both).  Only a real specimen is genuinely displaced —
+  which is the argument for more real-data episodes, not fewer.
+
 ## Pre-registered hypotheses
 
 Written before any run of the round.

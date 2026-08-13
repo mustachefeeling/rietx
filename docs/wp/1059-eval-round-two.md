@@ -1,6 +1,6 @@
 # WP-1059 — Agent eval round 2: protocol v1.1 and the post-fix re-A/B
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13
 Depends on: WP-1054, WP-1056, WP-1057, WP-1058
 
 ## Goal
@@ -138,7 +138,7 @@ repo; runs execute in the Claude Code harness.
       the verdict with the planted value recorded and not graded), the E3
       sign-inversion watch, and three more descriptive flags —
       `overclaimed`, `bootstrap_calls`/`plans_used`, the payload audit.
-- [ ] Run the matrix; record the dated grid (model IDs, efforts, per-episode
+- [x] Run the matrix; record the dated grid (model IDs, efforts, per-episode
       scorecards, caveats attached) in this handover log and the v1.0 appendix.
 - [x] Tests: scorer/shim/fixture extensions unit-tested (17 → 46, of which two
       slow: the real pair's construction and R1's landing state) + the
@@ -165,6 +165,122 @@ dependency.
 - `docs/AGENT_PROTOCOL.md` §9 (as rewritten by WP-1058).
 
 ## Handover log
+
+- **2026-08-13** — **round 2 ran; the harness is sound and two of its three
+  rows are not.** Protocol 1.1, five conditions, 30/30 runs returned with 0
+  errors (656 tool uses, 1.688 M subagent tokens, 9 m 55 s wall), models
+  `claude-sonnet-5` and `claude-haiku-4-5-20251001` at effort `medium`, N=1,
+  `[dev]` venv on darwin/arm64, `THRESHOLDS_VERSION` 0.7, package 1.0.0.dev0.
+
+  **Grid, pre-registered scoring** (E2 → converged + displacement within
+  0.005 mm; E8 → ambiguous; R1 → ambiguous):
+
+  | condition | model | E2 | E8 | R1 | passed |
+  |---|---|---|---|---|---|
+  | off | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | off | sonnet | converged | converged,oc | converged,oc | 0/3 |
+  | report | haiku | converged,b2 | converged,oc | **pass** | 1/3 |
+  | report | sonnet | ambiguous,b1 | converged,oc | **pass**,b2 | 1/3 |
+  | prompt | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | prompt | sonnet | ambiguous | converged,oc | **pass** | 1/3 |
+  | surface | haiku | ambiguous | converged,oc | impurity_suspected | 0/3 |
+  | surface | sonnet | ambiguous | converged,oc | impurity_suspected | 0/3 |
+  | both | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | both | sonnet | ambiguous | converged,oc | converged,oc | 0/3 |
+
+  `oc` = overclaimed, `bN` = N bootstrap calls. Per arm (6 runs each): off
+  0 passed / 13 calls / 0 bootstraps, report 2 / 20 / 5, prompt 1 / 13 / 0,
+  surface 0 / 23 / 0, both 0 / 29 / 0.
+
+  **Audit: clean.** No cell carried a payload disagreeing with its condition
+  (`report_present`/`trajectory_rungs` matched all 30), and no transcript
+  referenced `docs/`, `src/` or any path outside its run tree — nobody gave
+  itself the withheld manual. One leak to fix: `condition.json` lives *in* the
+  agent's workspace and several agents read it, so the arm name is visible
+  (no manual content is). Move it out of the episode dir next round.
+
+  **What the round measured** — mechanism, not outcome:
+
+  1. **The exchange clause moves agents onto the ridge.** 7 of the 20
+     position-episode cells freed *both* zero and displacement: E2 lands at
+     +0.0141…+0.0147 (truth 0.000, tol 0.005), R1 at −0.1202/−0.1277 (truth
+     −0.0801) — at the best Rwp in the round (E2 0.01369, R1 0.08555). The
+     manual forbids exactly this (§4b: "resolved by protocol … never by
+     freeing the rival into the same fit"), but the sentence an agent
+     actually reads — the WP-1056 summary clause — names the degeneracy
+     without naming the action, and the natural action is to free the rival.
+     All four cells that reached truth did it by **swapping** which parameter
+     is free, never by freeing both (E2: both/sonnet, prompt/sonnet at
+     −0.000243; R1: off/sonnet −0.080098, report/sonnet −0.080100).
+  2. **`ambiguous` becomes available only with a report**: 8 of 16
+     report-bearing position cells against 0 of 4 in `off`. The report does
+     convert confident-wrong into declined — the package's stated goal — but
+     on E2 that verdict is scored wrong and on R1 the data actually chooses
+     (below), so the conversion cost passes in both directions.
+  3. **Hypothesis (c) refuted.** `prompt` (1/6) did not under-perform
+     `surface` (0/6); the two trajectory arms did *worse* than report-only
+     (2/6). And instruction produced no bootstrapping at all: every one of
+     the round's 5 bootstrap calls came from `report`, the arm carrying
+     neither §9 nor the trajectory, while `prompt` — which quotes §9's "read
+     the report at every stage it passed through" — produced zero.
+  4. **Hypothesis (d) supported, and its cure is not a fix.** `surface`
+     answered `impurity_suspected` on R1 2/2 (the first rung serves
+     `add_impurity_phase` 0.9 on a displaced pattern); `both`, which quotes
+     §9's climbing-confidence rule, did so 0/2 — and answered a confident
+     `converged` from the ridge instead.
+  5. **Delivery costs work**: median calls per cell off 2.0, report 3.0,
+     prompt 2.0, surface 3.5, both 4.5. Round 1 measured the report *saving*
+     a call on E5; here it adds them.
+
+  **Two episode-validity findings, both post-hoc, both blocking a re-run:**
+
+  - **E8 is a broken row, not a null.** 10/10 cells answered `converged`.
+    Under WP-1056 the default-plan path frees the planted zero and converges
+    to truth with a correctly *quiet* report, so `converged` is what the
+    reached state supports and no competent agent can pass the row as
+    written. Round 1's 0/8 was read as a null; it was a scoring artefact.
+  - **R1's pre-registered `ambiguous` is not supported by the data.** The fair
+    rival test — each position parameter freed alone with the other at its
+    null — gives zero-only Rwp 0.09361 / χ² 4.0752 against disp-only 0.08661 /
+    3.4890 on 5332 points, and the zero-only model also biases *a* by +100 ppm
+    (4.157310 vs 4.156895). The exchange R² of 0.9977 is a **geometric**
+    measure; at these counting statistics the 0.23 % of the column it leaves
+    unexplained is decisive. Scored with R1 → `converged` the ranking
+    **inverts**: off 2, report 0, prompt 1, surface 0, both 2. Both grids are
+    published; neither supports a claim about delivery.
+  - Related, and the reason only R1 could answer that question: E2 and E8
+    plant their aberration in the **starting model**, never in the data
+    (`_truth()` has zero = disp = 0), so their one-parameter rivals tie
+    exactly (χ² ratio 1.0000). Only a real specimen is genuinely displaced.
+
+  **Verdict on the round**: at N=1 per cell, with two of three rows' expected
+  verdicts in doubt, the grid does not support a claim about delivery in
+  either direction — and saying otherwise from these 30 runs would be the
+  same error the package refuses in its own reports. What it does support is
+  the ridge mechanism, the two episode defects, and a manual gap.
+
+  **Landed**: PROTOCOL v1.1 (5 conditions, §9 excerpt policy, 5 pre-registered
+  hypotheses, budgeted cells, episode-validity section); both condition
+  switches enforced on the request and popped from the response; R1/R2 real
+  episodes off the SRM 660c converged state; scorer gains `overclaimed`,
+  `watch`, `bootstrap_calls`/`plans_used`, the payload audit; `grid.py`;
+  tests 17 → 46 (+29; 27 fast, 2 slow — the real pair's construction and R1's
+  landing state), fast suite for this directory 0.9 s, full 5.8 s.
+
+  **Next, in this order** — none of it is a re-run:
+  1. Redesign E8 (plant where the default plan cannot free it) and re-score
+     R1 to `converged`; both are in PROTOCOL.md § Episode validity.
+  2. The manual gap is the one finding with a consumer-facing fix: the
+     exchange clause should name the **swap** (re-fit with the rival free and
+     the fitted one held, compare χ²), because "the data cannot tell which is
+     physical" is read as an invitation to free both. Pushed to WP-1003's
+     `### Inherited`; it is a content change, so it is a protocol version
+     bump and must not be made mid-round.
+  3. Only then the deferred cells (E7 for hypothesis (b), the controls, the
+     effort tier, R2).
+
+  **Gotcha**: the round cost 1.69 M subagent tokens for 30 runs (~56 k/run).
+  Budget the deferred pass from that figure, not from round 1's.
 
 - **2026-08-11** — created, from the 1053 campaign's ranked items 2 and 6 plus
   the design-review fixes it should measure. Blocked until enough of
