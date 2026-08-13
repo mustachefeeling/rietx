@@ -166,7 +166,7 @@ round; the decisions land in 1003's `### Inherited` at close):
   test pins the verifying measurement; build_fixtures grows the deliverable
   axis for J1's sub-rows; verify at build that W1's **converged** report
   carries actions (the Layer-2 row's decidability precondition, from 1063)
-- [ ] Scorer v2 + `test_scorer.py` extensions: `assumption_wrong`,
+- [x] Scorer v2 + `test_scorer.py` extensions: `assumption_wrong`,
   next_action set membership, `underclaimed`, the deliverable axis, the
   python-arm `final_result.json` adapter
 - [ ] Python-arm harness: workspace builder (non-editable install to a venv

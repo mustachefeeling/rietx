@@ -1,45 +1,40 @@
-"""Deterministic scorer for the eval episodes.
+"""Deterministic scorer for the eval episodes (v2, PROTOCOL.md 2.0).
 
-Grades one episode dir from its ``calls.jsonl`` (the shim's record — never
-the agent's self-report) plus the mandated ``answer.json``, against the
-scorer-side truth record ``build_fixtures`` wrote.  Rules, from the WP:
+Grades one episode dir against the scorer-side truth record
+``build_fixtures`` wrote.  Two arms, one grading logic:
 
-- recovery episodes (a ``planted`` entry with a ``tol``): pass iff the
-  verdict is the expected one **and** the planted parameter is at truth
-  within tolerance in the *last* non-refused successful call — recovery is by
-  the planted parameter, never by delta-chi2 (WP-1052 finding 2);
-- the ``AgentSuccess`` surface serialises only vary-or-tie entries
-  (refine.py:1397), so a planted path absent from that call's ``parameters``
-  was never freed and still holds the planted start: absence scores
-  not-recovered, deterministically;
-- trap episodes (E5/E7/E8) and the real-data refusal row (R1): pass iff the
-  verdict matches.  R1 plants a parameter *without* a tolerance on purpose —
-  its displacement is recorded and never graded, because on that pattern
-  recovering it is not what the data licenses (WP-1059);
-- an episode with no successful call, or no ``answer.json``, fails —
-  an answer with no refinement behind it scores zero;
-- wrong-frees (recovery episodes only): stage-``freed`` paths outside the
-  planted family + ``ALWAYS_LEGIT``, unioned over the answer call's stages.
-  A descriptive localisation metric, never a pass/fail input — the lazy
-  default plan solves E1/E4 while freeing plenty outside the family.
+- **JSON arm**: the answer state is the **last successful** call in
+  ``calls.jsonl`` (the shim's record — never the agent's self-report);
+- **python arm**: the answer state is ``final_result.json`` — the agent's
+  chosen final ``RefinementResult.model_dump_json()``.  The planted-path /
+  tolerance / watch logic reads off it unchanged, because the result model
+  itself serialises **vary-or-tie entries only** (refine.py), so absence
+  still means never-freed.  ``report_present``/``trajectory_rungs`` record
+  null — the condition audit is N/A by design in this arm — and the call
+  counts are the transcript audit's to make, not this file's.
 
-Four descriptive measurements ride beside the grade (WP-1059) — none of them
-touches ``passed``:
+Rules, from PROTOCOL.md 2.0 § Scoring rules:
 
-- ``overclaimed``: the answer says ``converged`` where the episode's supported
-  verdict is a non-committal one.  The failure mode this whole package exists
-  to avoid, and a bare ``verdict_ok=False`` does not distinguish it from
-  abstaining on a solvable row;
-- ``watch``: truth-declared glob groups reported against what was freed — how
-  the E3 sign inversion, and R1's cause-vs-absorber choice, are read off a
-  grid rather than out of a transcript;
-- ``bootstrap_calls`` / ``plans_used``: how often the agent asked for a
-  deliberately short plan.  Round 1's measured mechanism was that agents never
-  generate the states where the report speaks, so this is the dependent
-  variable of the prompt-vs-surface contrast;
-- ``report_present`` / ``trajectory_rungs``: what the graded call actually
-  carried.  The condition is enforced by the shim, but a grid that cannot show
-  the enforcement held is a grid nobody can check.
+- ``passed`` = verdict match ∧ tolerance-recovery *where a tolerance is
+  registered* ∧ ``next_action`` ∈ the truth row's registered set *where a
+  set is registered*.  The single grade; everything else is descriptive.
+- recovery is by the planted parameter, never delta-chi2 (WP-1052); a
+  planted path absent from the answer state's ``parameters`` was never
+  freed and scores not-recovered, deterministically;
+- ``next_action`` is graded by **set membership** — near-equivalents are a
+  registration question, never a wording one; an off-vocabulary token is
+  noted and can never be in a registered set;
+- no answer state (no successful call / no parseable final result), or no
+  valid ``answer.json`` → failed;
+- ``overclaimed``: expected non-committal, answered ``converged``.
+  ``underclaimed`` (new): expected ``converged``, answered non-committal —
+  what separates "declined correctly" from "declines everything".  Both
+  descriptive; neither touches ``passed``;
+- wrong-frees and ``watch`` groups: descriptive localisation evidence,
+  never pass/fail inputs;
+- the condition comes from the **sibling marker** (PROTOCOL.md 2.0: no
+  condition bit in the workspace); ``deliverable`` rides through from the
+  truth row (J1's sub-rows share one state and differ only there).
 
 Usage::
 
@@ -71,7 +66,8 @@ NEXT_ACTIONS = ("none", "extend_range_or_calibrate", "add_phase",
                 "chemistry_or_contents", "report_with_caveat")
 
 #: verdicts that decline to name one confident cause; answering ``converged``
-#: where one of these is expected is an overclaim, not merely a miss.
+#: where one of these is expected is an overclaim, and answering one of these
+#: where ``converged`` is expected is an underclaim.
 #: ``impurity_suspected``/``assumption_wrong`` are committal claims, so they
 #: are misses, never overclaims or underclaims
 NON_COMMITTAL = ("abstain", "ambiguous")
@@ -124,7 +120,9 @@ def _is_bootstrap(label: str) -> bool:
 def _condition(episode_dir: Path) -> str | None:
     """The condition, from the sibling marker (PROTOCOL.md 2.0: the marker —
     and with it every condition bit — lives outside the workspace, so neither
-    the agent's ``ls`` nor its own call log can reveal it)."""
+    the agent's ``ls`` nor its own call log can reveal it).  A python-arm
+    workspace has no marker and reports ``None``: its condition audit is N/A
+    by design."""
     path = episode_dir.resolve()
     marker = path.parent / f"{path.name}.condition.json"
     if not marker.exists():
@@ -148,38 +146,102 @@ def _answer(episode_dir: Path) -> tuple[dict | None, str | None]:
     return answer, None
 
 
+def _final_result(episode_dir: Path) -> tuple[dict | None, str | None]:
+    """(result, problem) for the python arm's ``final_result.json``.
+
+    Minimal shape check only — ``parameters`` and ``stages`` lists — because
+    the grading below reads nothing else; a full schema validation would
+    couple the scorer to the package version the *agent's* venv carried.
+    """
+    path = episode_dir / "final_result.json"
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        return None, f"final_result.json is not valid JSON: {exc}"
+    if (not isinstance(result, dict)
+            or not isinstance(result.get("parameters"), list)
+            or not isinstance(result.get("stages"), list)):
+        return None, ("final_result.json must be a RefinementResult dump "
+                      "with parameters and stages lists")
+    return result, None
+
+
 def score_episode(episode_dir: Path, truth_file: Path) -> dict:
     """The per-episode scorecard, graded from the record alone."""
     truth = json.loads(truth_file.read_text(encoding="utf-8"))
-    calls = _load_calls(episode_dir)
-    ok_calls = [c for c in calls if not c.get("refused", False)
-                and c["response"].get("ok", False)]
+    python_arm = (episode_dir / "final_result.json").exists()
     answer, answer_problem = _answer(episode_dir)
 
     card = {
         "episode": truth["episode"],
+        "arm": "python" if python_arm else "json",
         "condition": _condition(episode_dir),
-        "n_calls": len([c for c in calls if not c.get("refused", False)]),
-        "n_refused": len([c for c in calls if c.get("refused", False)]),
-        "n_failed_calls": len([c for c in calls
-                               if not c.get("refused", False)
-                               and not c["response"].get("ok", False)]),
+        "deliverable": truth.get("deliverable"),
         "verdict": answer.get("verdict") if answer else None,
         "expected_verdict": truth["expected_verdict"],
+        "next_action": answer.get("next_action") if answer else None,
+        "registered_next_actions": truth.get("next_action"),
         "summary": answer.get("summary", "") if answer else "",
-        "excluded_regions": [c["overlay"]["two_theta_limits"]
-                             for c in ok_calls
-                             if c["overlay"].get("two_theta_limits")],
         "notes": [],
     }
     if answer_problem:
         card["notes"].append(answer_problem)
+    if (card["next_action"] is not None
+            and card["next_action"] not in NEXT_ACTIONS):
+        card["notes"].append(
+            f"next_action {card['next_action']!r} is not in the closed "
+            "vocabulary")
 
-    plans = [_plan_label(c["overlay"]) for c in calls
-             if not c.get("refused", False)]
-    card["plans_used"] = plans
-    card["bootstrap_calls"] = sum(1 for label in plans if _is_bootstrap(label))
+    # ---- the answer state, per arm -----------------------------------
+    if python_arm:
+        state, state_problem = _final_result(episode_dir)
+        card.update({"n_calls": None, "n_refused": None,
+                     "n_failed_calls": None, "plans_used": None,
+                     "bootstrap_calls": None, "excluded_regions": None})
+        # the condition audit is N/A in this arm, by design: there is no
+        # shim, so there is nothing whose delivery could disagree
+        card["report_present"] = None
+        card["trajectory_rungs"] = None
+        if state_problem:
+            card["notes"].append(state_problem)
+    else:
+        calls = _load_calls(episode_dir)
+        ok_calls = [c for c in calls if not c.get("refused", False)
+                    and c["response"].get("ok", False)]
+        final = ok_calls[-1] if ok_calls else None
+        state = final["response"]["result"] if final is not None else None
+        card["n_calls"] = len([c for c in calls
+                               if not c.get("refused", False)])
+        card["n_refused"] = len([c for c in calls if c.get("refused", False)])
+        card["n_failed_calls"] = len([c for c in calls
+                                      if not c.get("refused", False)
+                                      and not c["response"].get("ok", False)])
+        card["excluded_regions"] = [c["overlay"]["two_theta_limits"]
+                                    for c in ok_calls
+                                    if c["overlay"].get("two_theta_limits")]
+        plans = [_plan_label(c["overlay"]) for c in calls
+                 if not c.get("refused", False)]
+        card["plans_used"] = plans
+        card["bootstrap_calls"] = sum(1 for label in plans
+                                      if _is_bootstrap(label))
+        if state is None:
+            card["notes"].append("no successful refinement call")
+        # what the graded call actually carried — the condition's own audit
+        card["report_present"] = None
+        card["trajectory_rungs"] = None
+        if final is not None:
+            response = final["response"]
+            card["report_present"] = "report" in response
+            if isinstance(response.get("trajectory"), list):
+                card["trajectory_rungs"] = len(response["trajectory"])
 
+    card["statistics"] = None
+    if state is not None:
+        stats = state.get("statistics") or {}
+        card["statistics"] = {k: stats[k] for k in ("rwp", "gof")
+                              if k in stats}
+
+    # ---- the grade and its descriptive companions --------------------
     verdict_ok = (answer is not None
                   and answer["verdict"] == truth["expected_verdict"])
     card["verdict_ok"] = verdict_ok
@@ -187,39 +249,29 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
         answer is not None
         and truth["expected_verdict"] in NON_COMMITTAL
         and answer["verdict"] == "converged")
+    card["underclaimed"] = bool(
+        answer is not None
+        and truth["expected_verdict"] == "converged"
+        and answer["verdict"] in NON_COMMITTAL)
+
+    registered = truth.get("next_action")
+    card["next_action_ok"] = (None if not registered
+                              else card["next_action"] in registered)
 
     planted = truth.get("planted")
     card["planted_path"] = planted["path"] if planted else None
     card["recovered"] = None
     card["planted_final_value"] = None
-
-    final = ok_calls[-1] if ok_calls else None
-    if final is None:
-        card["notes"].append("no successful refinement call")
-
-    # what the graded call actually carried — the condition's own audit
-    card["report_present"] = None
-    card["trajectory_rungs"] = None
-    card["statistics"] = None
-    if final is not None:
-        response = final["response"]
-        card["report_present"] = "report" in response
-        if isinstance(response.get("trajectory"), list):
-            card["trajectory_rungs"] = len(response["trajectory"])
-        stats = response["result"].get("statistics") or {}
-        card["statistics"] = {k: stats[k] for k in ("rwp", "gof")
-                              if k in stats}
-
-    if planted and final is not None:
-        rows = {p["path"]: p for p in final["response"]["result"]["parameters"]}
+    if planted and state is not None:
+        rows = {p["path"]: p for p in state["parameters"]}
         row = rows.get(planted["path"])
         if row is not None:
             card["planted_final_value"] = row["value"]
         tol = planted.get("tol")
         if tol is not None:
             if row is None:
-                # never freed => still the planted start (the shim fixes the
-                # start; the surface omits fixed entries — see module docstring)
+                # never freed => still the planted start (the start is fixed;
+                # the result serialises vary-or-tie entries only — docstring)
                 card["recovered"] = False
                 card["notes"].append(
                     f"{planted['path']} absent from parameters: never freed, "
@@ -235,9 +287,9 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
     family = truth.get("family")
     card["freed"] = []
     card["wrong_frees"] = None
-    if final is not None:
+    if state is not None:
         freed: set[str] = set()
-        for stage in final["response"]["result"]["stages"]:
+        for stage in state["stages"]:
             freed.update(stage["freed"])
         card["freed"] = sorted(freed)
         if family:
@@ -246,8 +298,8 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
                 p for p in freed if not _matches_any(p, legit))
 
     # truth-declared watch groups: which named set of paths the agent freed.
-    # Data, not code — E3's report-path-vs-default-path inversion and R1's
-    # cause-vs-absorber choice are the same question asked of two episodes
+    # Data, not code — the cause-vs-absorber choice is the same question
+    # asked of every position episode
     card["watch"] = {}
     for name, globs in (truth.get("watch") or {}).items():
         card["watch"][name] = sorted(p for p in card["freed"]
@@ -255,8 +307,9 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
 
     needs_recovery = bool(planted and planted.get("tol"))
     card["passed"] = bool(
-        final is not None and verdict_ok
-        and (card["recovered"] if needs_recovery else True))
+        state is not None and verdict_ok
+        and (card["recovered"] if needs_recovery else True)
+        and (card["next_action_ok"] if registered else True))
     return card
 
 

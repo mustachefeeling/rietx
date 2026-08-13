@@ -355,6 +355,202 @@ def test_refusal_row_grades_the_verdict_and_records_the_parameter(tmp_path):
 
 
 # ----------------------------------------------------------------------
+# scorer v2: next_action membership, underclaimed, the deliverable axis
+# ----------------------------------------------------------------------
+
+
+def test_next_action_membership_gates_where_registered(tmp_path):
+    """The registered *set* is the grade: a member passes, a non-member or a
+    missing key fails — near-equivalents are a registration question, never
+    a wording one (PROTOCOL.md 2.0)."""
+    truth = _write_truth(tmp_path, expected_verdict="impurity_suspected",
+                         planted=None, family=None,
+                         next_action=["add_phase"])
+    calls = [_call(freed=["instrument.background.c0"])]
+    member = _write_episode_dir(tmp_path, calls, {
+        "verdict": "impurity_suspected", "next_action": "add_phase",
+        "summary": ""})
+    card = score_episode(member, truth)
+    assert card["next_action_ok"] is True and card["passed"]
+
+    non_member = _write_episode_dir(tmp_path, calls, {
+        "verdict": "impurity_suspected", "next_action": "none",
+        "summary": ""})
+    card = score_episode(non_member, truth)
+    assert card["next_action_ok"] is False and not card["passed"]
+    assert card["verdict_ok"]          # the verdict alone no longer passes
+
+    missing = _write_episode_dir(tmp_path, calls, {
+        "verdict": "impurity_suspected", "summary": ""})
+    card = score_episode(missing, truth)
+    assert card["next_action_ok"] is False and not card["passed"]
+
+
+def test_next_action_is_unscored_where_no_set_is_registered(tmp_path):
+    """A row without a registered set grades the verdict (and recovery)
+    alone; the answered action is recorded, and an off-vocabulary token is
+    noted, never a pass/fail input."""
+    truth = _write_truth(tmp_path)     # E1's shape: no next_action key
+    edir = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"])],
+        {"verdict": "converged", "next_action": "recalibrate_the_vibes",
+         "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["next_action_ok"] is None
+    assert card["passed"]
+    assert card["next_action"] == "recalibrate_the_vibes"
+    assert any("closed vocabulary" in n for n in card["notes"])
+
+
+@pytest.mark.parametrize("expected,verdict,flagged", [
+    ("converged", "abstain", True),        # declines a solvable row
+    ("converged", "ambiguous", True),      # same, the other token
+    ("converged", "impurity_suspected", False),  # a committal miss
+    ("ambiguous", "abstain", False),       # not a solvable row
+    ("converged", "converged", False),     # the ordinary right answer
+])
+def test_underclaim_is_flagged_only_on_solvable_rows(
+        tmp_path, expected, verdict, flagged):
+    """The mirror of ``overclaimed``: what separates "declined correctly"
+    (verdict match on the epistemic rows) from "declines everything"
+    (non-committal on the solvable controls).  Descriptive — the grade stays
+    the verdict match."""
+    truth = _write_truth(tmp_path, expected_verdict=expected, planted=None,
+                         family=None)
+    edir = _write_episode_dir(tmp_path, [_call()],
+                              {"verdict": verdict, "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["underclaimed"] is flagged
+    assert card["passed"] is (expected == verdict)
+
+
+def test_assumption_wrong_grades_and_committal_misses_carry_no_flag(tmp_path):
+    """W2's shape: ``assumption_wrong`` + ``fix_instrument_model`` passes;
+    the designed-trap answer (``impurity_suspected``) is a plain miss —
+    neither an overclaim nor an underclaim, because it *is* committal."""
+    truth = _write_truth(tmp_path, expected_verdict="assumption_wrong",
+                         planted=None, family=None,
+                         next_action=["fix_instrument_model"])
+    calls = [_call(freed=["instrument.background.c0"])]
+    right = score_episode(_write_episode_dir(tmp_path, calls, {
+        "verdict": "assumption_wrong", "next_action": "fix_instrument_model",
+        "summary": ""}), truth)
+    assert right["passed"]
+    trapped = score_episode(_write_episode_dir(tmp_path, calls, {
+        "verdict": "impurity_suspected", "next_action": "add_phase",
+        "summary": ""}), truth)
+    assert not trapped["passed"]
+    assert not trapped["overclaimed"] and not trapped["underclaimed"]
+
+
+def test_deliverable_rides_through_from_the_truth_row(tmp_path):
+    """J1's sub-rows share one state and differ only in the truth record —
+    the scorecard carries the axis so the grid can show it."""
+    truth = _write_truth(tmp_path, expected_verdict="ambiguous", planted=None,
+                         family=None, deliverable="structure",
+                         next_action=["chemistry_or_contents"])
+    edir = _write_episode_dir(tmp_path, [_call()], {
+        "verdict": "ambiguous", "next_action": "chemistry_or_contents",
+        "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["deliverable"] == "structure" and card["passed"]
+    assert score_episode(edir, _write_truth(tmp_path, expected_verdict="ambiguous",
+                                            planted=None, family=None,
+                                            next_action=["chemistry_or_contents"])
+                         )["deliverable"] is None
+
+
+# ----------------------------------------------------------------------
+# scorer v2: the python-arm final_result.json adapter
+# ----------------------------------------------------------------------
+
+
+def _final_result_payload(parameters=(), freed=()):
+    """The relevant shape of a ``RefinementResult.model_dump_json()`` — the
+    fields the adapter reads and nothing else, because the scorer must not
+    couple to the package version the agent's venv carried."""
+    return {"status": "converged", "mode": "rietveld",
+            "parameters": list(parameters),
+            "stages": [{"name": "s", "freed": list(freed)}],
+            "statistics": {"rwp": 0.02, "gof": 1.5}}
+
+
+def _write_python_episode(tmp_path: Path, final_result, answer) -> Path:
+    edir = tmp_path / "PT"
+    edir.mkdir(exist_ok=True)
+    (edir / "final_result.json").write_text(
+        final_result if isinstance(final_result, str)
+        else json.dumps(final_result), encoding="utf-8")
+    if answer is not None:
+        (edir / "answer.json").write_text(json.dumps(answer),
+                                          encoding="utf-8")
+    return edir
+
+
+def test_python_arm_grades_the_final_result(tmp_path):
+    """Same planted-path/tolerance logic, read off the agent's chosen final
+    ``RefinementResult`` dump; the shim-only measurements record null — the
+    condition audit is N/A by design in this arm."""
+    truth = _write_truth(tmp_path)
+    edir = _write_python_episode(tmp_path, _final_result_payload(
+        parameters=[_param("instrument.zero_shift", 0.001)],
+        freed=["instrument.zero_shift", "instrument.background.c0"]),
+        {"verdict": "converged", "next_action": "none", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["arm"] == "python"
+    assert card["passed"] and card["recovered"] is True
+    assert card["statistics"] == {"rwp": 0.02, "gof": 1.5}
+    assert card["wrong_frees"] == []
+    assert card["report_present"] is None
+    assert card["trajectory_rungs"] is None
+    assert card["n_calls"] is None and card["plans_used"] is None
+    assert card["condition"] is None   # no sibling marker in this arm
+
+
+def test_python_arm_absence_still_means_never_freed(tmp_path):
+    """The result model serialises vary-or-tie entries only (refine.py), so
+    the JSON arm's absence rule carries over unchanged."""
+    truth = _write_truth(tmp_path)
+    edir = _write_python_episode(tmp_path, _final_result_payload(
+        parameters=[_param("phases.0.scale", 4e-4)],
+        freed=["phases.0.scale"]),
+        {"verdict": "converged", "next_action": "none", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["recovered"] is False and not card["passed"]
+    assert any("never freed" in n for n in card["notes"])
+
+
+def test_python_arm_unparseable_final_result_fails_with_a_note(tmp_path):
+    truth = _write_truth(tmp_path, expected_verdict="abstain", planted=None,
+                         family=None)
+    for payload in ("not json {", {"parameters": "nope"}):
+        edir = _write_python_episode(tmp_path, payload,
+                                     {"verdict": "abstain", "summary": ""})
+        card = score_episode(edir, truth)
+        assert card["arm"] == "python" and not card["passed"]
+        assert any("final_result.json" in n for n in card["notes"])
+
+
+def test_python_arm_watch_reads_off_the_dump(tmp_path):
+    truth = _write_truth(tmp_path, expected_verdict="ambiguous", planted={
+        "path": "instrument.geometry.sample_displacement", "start": -0.02,
+        "truth": -0.08, "tol": None}, family=None, watch={
+            "cause": ["instrument.geometry.sample_displacement"],
+            "absorber": ["instrument.zero_shift"]})
+    edir = _write_python_episode(tmp_path, _final_result_payload(
+        parameters=[_param("instrument.geometry.sample_displacement", -0.079)],
+        freed=["instrument.geometry.sample_displacement"]),
+        {"verdict": "ambiguous", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["watch"] == {
+        "cause": ["instrument.geometry.sample_displacement"], "absorber": []}
+    assert card["planted_final_value"] == -0.079
+    assert card["recovered"] is None       # tol: null — recorded, not graded
+    assert card["passed"]
+
+
+# ----------------------------------------------------------------------
 # shim: enforcement, with refine_json stubbed
 # ----------------------------------------------------------------------
 
