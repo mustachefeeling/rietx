@@ -1,10 +1,12 @@
 # Runner protocol — agent-in-the-loop FitReport eval
 
-**Protocol version: 2.0** (`build_fixtures.PROTOCOL_VERSION`; stamped into
-every condition marker and quoted by every run record).  **Registered
-2026-08-13, before any 2.0 run** (WP-1064).  Bump it on any change that
-alters comparability: the prompt text, the overlay contract, the answer
-schema, the scoring rules, the excerpt policy.
+**Protocol version: 2.1** (`build_fixtures.PROTOCOL_VERSION`; stamped into
+every condition marker and quoted by every run record).  **2.1 registered
+2026-08-13, before any 2.1 run** (WP-1065; § The 2.1 targeted round — prompt
+content only; everything else in this file is the 2.0 registration and
+stands).  **2.0 registered 2026-08-13, before any 2.0 run** (WP-1064).  Bump
+the version on any change that alters comparability: the prompt text, the
+overlay contract, the answer schema, the scoring rules, the excerpt policy.
 
 **2.0 (WP-1064)** is justified four ways at once — the episode set, the
 answer schema, the scoring rules and the condition axis all move — so a 2.0
@@ -17,6 +19,74 @@ per-stage `trajectory`, split delivery from instruction on the condition
 axis, and added the real pair R1/R2 — 30 runs, invalidated as a delivery
 measurement by its own truth rows (§ Episode validity) but productive of
 every mechanism 2.0 is registered against.
+
+## The 2.1 targeted round (WP-1065) — registered 2026-08-13, before any 2.1 run
+
+One question, one guard, twelve cells.  Round 3 measured C1 — the solvable
+control whose rivals are decisive (χ² ratio 1.1679) — at **0/7 valid**, and
+the mined decomposition localised the defect to sentences rather than to the
+round: the three C1 sonnet cells ran the swap and recovered the displacement
+to −0.080, and still `report__sonnet` declined (`ambiguous` +
+`extend_range_or_calibrate`), `off__sonnet` misfiled the recovery
+(`assumption_wrong`, invited by "the geometry" in the glossary), and
+`python__sonnet` hedged a solved fit (`converged` + `report_with_caveat` ∉
+{none}).  Nothing in the clause or the manual said what winning the
+comparison licenses.  2.1 changes prompt content only, in two places:
+
+- **The glossary fix** (`VERDICT_MEANINGS["assumption_wrong"]`): names only
+  non-refinable declarations (the source's emission lines, the geometry
+  *type*, the radiation) and adds the explicit exclusion — a refinable
+  parameter at a wrong starting value is never `assumption_wrong`; converge
+  it or say the data cannot.  The defect was recorded post-hoc in round 3
+  (scoring untouched); fixed here per the standing discipline.
+- **The package under test carries the license sentence**
+  (`THRESHOLDS_VERSION` 0.9, WP-1065): the exchange clause now states what a
+  decisive swap outcome licenses (the winning rival's fit is the answer,
+  quoted without caveat, at ≥ `RIVAL_DECISIVE_MIN_CHI2_RATIO` = 1.10) and
+  what a tie licenses (protocol, or the declared stand-off).  The python
+  arm's manual copy carries the matching §4 step 6 / §4b / §9 updates.
+
+Episode fixtures are **unchanged** — the package content changes, not the
+landing states, so the slow landing-state tests keep their bands; python
+workspaces rebuild (fresh wheel, 2.1 prompt and manual copy).  Scorer v2
+unchanged, asserted before the run.  Prompts changed, so a 2.1 cell pools
+with nothing at 2.0.
+
+**The matrix**: {off, report, python} × {C1, N1} × {sonnet, haiku}, N=1,
+effort `medium`, expected answers unchanged from the 2.0 registration (C1:
+`converged` + tol {abs: 0.005} + {none}; N1: `ambiguous` +
+{extend_range_or_calibrate}).  The conditions decompose the fix: `off`
+receives neither report nor manual, so it isolates the glossary fix (its 2.1
+prompt is the only thing that changed for it); `report` adds the clause with
+the license sentence; `python` adds the pulls (its manual carries the
+§4b/§9 updates).  **N1 is the guard**: its swap ties (1.0075) and its
+expected answer is the decline — a license sentence that converts a genuine
+tie into a confident answer is worse than no sentence, and N1 is the
+real-data row that would show it.
+
+**Pre-registered read-outs**:
+
+- **(a)** C1 produces valid passes where round 3 had 0/7 — specifically the
+  swap-running cells (`report__sonnet`, `python__sonnet`) flip to
+  `converged` + `none`, and `off__sonnet` stops answering
+  `assumption_wrong` (the glossary fix in isolation).
+- **(b)** N1 does not degrade: the round-3 JSON passes (`off__sonnet`,
+  `report__sonnet`) stay passes, and no arm that received the sentence newly
+  overclaims `converged` on the tie.  A new N1 overclaim means the wording
+  overcorrects — revise before any wider claim, and add the E8′ cells (the
+  synthetic exact tie) to the revision's guard set.
+- **(c)** The both-free overlay counts (round 3: N1 4 cells, C1 2) do not
+  grow.
+
+A null on (a) is a finding too: it says the 0/7 was not the sentence, and
+the follow-through question moves from wording to delivery — recorded, not
+re-run.
+
+**Budget** from round 3's measured figure (1.833 M tokens / 28 cells):
+~0.8 M.  Audits per the round-3 pattern: payload enforcement, forbidden
+reads, the 8-fit-run cap (which invalidated `python__haiku` C1 at 16 last
+round).  Counts, never percentages; dated grid, no CI; the record to
+`eval-runs/` per its README contract.
 
 One authority per fact: the prompt *text* lives in `build_fixtures._PROMPT`
 (rendered by `render_prompt`), the conditions in `build_fixtures.CONDITIONS`,
