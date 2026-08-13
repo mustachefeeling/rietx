@@ -199,6 +199,21 @@ def test_cells_are_named_and_agree_with_their_meta(mined):
     assert mined["notes"] == []
 
 
+def test_thinking_is_measured_never_asserted(mined, tmp_path):
+    """Whether ``voiced`` is a floor (round 2: 0 thinking characters) or has
+    the reasoning kept beside it (round 3) is a property of the record; the
+    header must say which was measured, not repeat round 2's."""
+    assert mined["thinking_text_chars"] == 0
+    assert "no thinking blocks kept" in mt.render(mined)
+    t = tmp_path / "agent-x.jsonl"
+    t.write_text(json.dumps({"message": {"role": "assistant", "content": [
+        {"type": "thinking", "thinking": "abcde"},
+        {"type": "text", "text": "prose"}]}}) + "\n", encoding="utf-8")
+    assert mt._thinking_chars(t) == 5
+    kept = dict(mined, thinking_text_chars=5)
+    assert "5 of thinking" in mt.render(kept)
+
+
 def test_two_cells_naming_one_workspace_is_reported():
     """A transcript that names two cells is a record problem to say out loud,
     never a tie to break."""

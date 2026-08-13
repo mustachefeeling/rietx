@@ -177,7 +177,7 @@ round; the decisions land in 1003's `### Inherited` at close):
   clause phrase is the one deliberate exception, because the record cannot
   change and the live sentence did)
 - [x] `grid.py`: the two group tables (epistemic / solvable)
-- [ ] Run the core 28 runs in the Claude Code harness; audit per the
+- [x] Run the core 28 runs in the Claude Code harness; audit per the
   round-2 pattern; grids from `scorecards.json`; raw record to `eval-runs/`
 - [ ] Close-out: findings + kill/keep outcomes restated into 1003's
   `### Inherited` (trajectory default, Layer-2 posture, refine_json arm);

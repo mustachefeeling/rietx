@@ -19,12 +19,15 @@ here and belong in any sentence quoting them:
 
 - **quoting is reading, not benefiting** (round 1: E7 quoted the report
   verbatim and was wrong with it) — no surface here measures usefulness;
-- round 2's kept transcripts carry **no thinking blocks** (measured: 0
-  characters across all 30), so ``voiced`` is a floor on what was read rather
-  than a measure of it.  A round that wants the reasoning surface has to keep
-  it.
+- whether ``voiced`` is a floor or a measure depends on whether the record
+  keeps thinking blocks, so that is **measured per record**
+  (``thinking_text_chars``), never asserted: round 2's transcripts carried 0
+  characters across all 30 (a floor); round 3 keeps them.  Thinking is not a
+  ``voiced`` surface — it is the agent reasoning, not saying — so the counts
+  do not change with it; only the caveat does.
 
-Counts, never percentages — N = 30 across 15 condition×model cells.
+Counts, never percentages — round 2 was N = 30 across 15 condition×model
+cells; round 3 is N = 28 across 8.
 
 The token vocabulary is quoted from the live schemas (``FIELD_TOKENS``,
 ``ActionKind``), never invented here: a renamed field must break this module
@@ -237,6 +240,23 @@ def read_events(path: Path) -> list[Event]:
                                     _result_text(block), {},
                                     block.get("tool_use_id")))
     return events
+
+
+def _thinking_chars(path: Path) -> int:
+    """Characters of thinking carried by one transcript — measured, because
+    whether ``voiced`` is a floor (round 2: 0 across all 30) or has the
+    reasoning beside it (round 3 keeps thinking) is a property of the record,
+    not of this module."""
+    if not path.exists():
+        return 0
+    total = 0
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        _role, blocks = _blocks(json.loads(raw))
+        total += sum(len(b.get("thinking", "")) for b in blocks
+                     if isinstance(b, dict) and b.get("type") == "thinking")
+    return total
 
 
 def cell_of(text: str) -> tuple[str, str, str] | None:
@@ -622,6 +642,7 @@ def mine(root: Path) -> dict:
                 if row["episode"] in WP1059_POSITION_EPISODES]
     voiced_chars = sum(len(e.text) for cell in cells for e in cell.events
                        if e.surface == "voiced" and e.kind == "text")
+    thinking_chars = sum(_thinking_chars(cell.transcript) for cell in cells)
     by_episode: dict[str, int] = {}
     for row in named:
         by_episode.setdefault(row["episode"], 0)
@@ -631,6 +652,7 @@ def mine(root: Path) -> dict:
         "n_transcripts": len(rows),
         "n_cells_named": len({row["cell"] for row in named}),
         "voiced_text_chars": voiced_chars,
+        "thinking_text_chars": thinking_chars,
         "position_cells": len(position),
         "position_cells_both_free": sum(1 for row in position
                                         if row["ridge"]["both_free"]),
@@ -653,11 +675,15 @@ def _table(header: list[str], body: list[list[str]]) -> str:
 def render(mined: dict) -> str:
     """The counts tables, as markdown for a handover entry."""
     rows = [row for row in mined["rows"] if row["episode"] != "?"]
+    thinking = mined["thinking_text_chars"]
+    thinking_note = (f"{thinking} of thinking"
+                     if thinking else
+                     "no thinking blocks kept — `voiced` is a floor")
     out = [f"# Mined: {mined['record']}", "",
            f"{mined['n_transcripts']} transcripts, "
            f"{mined['n_cells_named']} named cells, "
            f"{mined['voiced_text_chars']} characters of assistant text "
-           f"(no thinking blocks are kept).", "",
+           f"({thinking_note}).", "",
            "## Citations — cells (of "
            f"{len(rows)}) with at least one occurrence", ""]
     body = []
