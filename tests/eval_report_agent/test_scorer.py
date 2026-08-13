@@ -669,3 +669,42 @@ def test_real_pair_is_built_from_the_fitted_state(tmp_path):
             == episodes["R2"]["core"]["pattern"])
     assert (episodes["R1"]["core"]["instrument"]["geometry"]
             ["sample_displacement"]["value"] == -0.02)
+
+
+@pytest.mark.slow
+def test_r1_lazy_path_absorbs_the_displacement_and_the_report_says_so(tmp_path):
+    """R1's whole design in one assertion: the default plan cannot free the
+    planted displacement, absorbs it into ``zero_shift``, converges with an
+    empty action list — and the WP-1056 exchange clause names the pair at the
+    converged state, which is what makes ``ambiguous`` the supported verdict.
+
+    Pinned because the episode's expected verdict depends on it: if the clause
+    ever stops firing here, R1 is no longer a refusal row and must be
+    redesigned rather than quietly re-scored.
+    """
+    import anatase as pr
+    from anatase import agent as agent_mod
+    from anatase.viz.plots import plot_result
+
+    core = bf.build_real_episodes()["R1"]["core"]
+    response = agent_mod.refine_json(dict(core, include_report=True))
+    assert response["ok"], response.get("error")
+    values = {p["path"]: p["value"] for p in response["result"]["parameters"]}
+    # never freed: the surface serialises vary-or-tie entries only
+    assert "instrument.geometry.sample_displacement" not in values
+    assert abs(values["instrument.zero_shift"]) > 0.02   # absorbed, ~+0.0317
+    assert response["report"]["suggested_actions"] == []
+    summary = response["report"]["summary"]
+    assert "exchangeable" in summary
+    assert "instrument.geometry.sample_displacement" in summary
+
+    # house convention: every test refinement leaves obs/calc/diff PNGs
+    out = Path(__file__).resolve().parents[1] / "output"
+    out.mkdir(exist_ok=True)
+    ref = pr.Refinement(pr.Structure.model_validate(core["structure"]),
+                        pr.Instrument.model_validate(core["instrument"]))
+    data = pr.PatternData.model_validate(core["pattern"])
+    result = ref.fit(data, plan="mccusker_default")
+    plot_result(result, path=str(out / "eval_r1_lazy_path.png"))
+    plot_result(result, two_theta_range=(20.0, 45.0),
+                path=str(out / "eval_r1_lazy_path_zoom.png"))
