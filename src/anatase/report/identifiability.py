@@ -41,6 +41,7 @@ from ..schemas.results import ExchangeRow, RefinementResult
 from .schemas import (
     EXCHANGE_PARTNER_MIN_SIGNIFICANCE,
     EXCHANGEABLE_MIN_R2,
+    RIVAL_DECISIVE_MIN_CHI2_RATIO,
     SOFT_MODE_NOTABLE_EIGENVALUE,
     ExchangeFinding,
     IdentifiabilityEvidence,
@@ -173,6 +174,23 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
       seven ever quoted it — a reader acts on this sentence without echoing
       it, which is why the fix is the sentence and not its prominence.
 
+    - *the license* (WP-1065).  Naming the experiment without saying what
+      its outcome licenses reproduces the same failure one step later:
+      round 3 of the report eval measured a real decisive state (SRM 660c,
+      knocked displacement, rivals separated at χ² ratio 1.1679) going 0/7
+      valid — cells ran the swap, won it, and had nowhere to read that
+      winning it is an answer, so they declined or hedged a solved fit.  The
+      continuation states **both** branches — decisive (the data has chosen;
+      the winning rival's fit is the answer, quoted without caveat) and tie
+      (protocol, or the declared stand-off) — because round 2 measured the
+      cost of naming the degeneracy without the action and round 3 the cost
+      of naming the experiment without the license, and stating only the
+      decisive branch would recreate the asymmetry a third time, on ties.
+      The strength grade is :data:`~anatase.report.schemas
+      .RIVAL_DECISIVE_MIN_CHI2_RATIO`, quoted live rather than restated; no
+      verdict token enters the summary — the license is stated, the verdict
+      stays the reader's.
+
     It names the experiment, never the API: :func:`~anatase.report.layer2
     .compare_rivals` runs exactly this and AGENT_PROTOCOL §9 names it, but a
     summary string that named a function would be advice a non-python
@@ -193,7 +211,12 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
             f"(R² = {worst.r2:.4f}){others} — this fit cannot tell which is "
             f"physical; resolve it by measurement, never by freeing both into "
             f"one fit (that is a ridge): fit each of the pair alone with the "
-            f"other held at its null and compare χ²")
+            f"other held at its null and compare χ²; a χ² gap of "
+            f"≥ {RIVAL_DECISIVE_MIN_CHI2_RATIO - 1:.0%} means the data has "
+            f"chosen — the winning rival's fit is the answer, quoted without "
+            f"caveat; a smaller gap means the pair is genuinely unresolved: "
+            f"fix it by protocol (a calibrant-fixed zero, a wider window) or "
+            f"say the data has not chosen")
     softest = min((m for m in (evidence.soft_modes or [])
                    if m.eigenvalue < SOFT_MODE_NOTABLE_EIGENVALUE),
                   key=lambda m: m.eigenvalue, default=None)

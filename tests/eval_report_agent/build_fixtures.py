@@ -52,8 +52,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: axis all move at once — measured epistemic rows, ``next_action`` +
 #: ``assumption_wrong``, the python arm, the condition marker out of the
 #: workspace — so a 2.0 run is poolable with nothing earlier, ``off``
-#: included (the v2 answer contract is in every prompt)
-PROTOCOL_VERSION = "2.0"
+#: included (the v2 answer contract is in every prompt).
+#: 2.1 (WP-1065): prompt content only — ``assumption_wrong`` stops naming
+#: refinable geometry (round 3's ``off__sonnet``/C1 recovered the knocked
+#: displacement and then answered ``assumption_wrong``, invited by "the
+#: geometry" in the glossary) and gains the explicit exclusion; the package
+#: under test carries THRESHOLDS_VERSION 0.9's license sentence.  Episode
+#: fixtures, answer schema and scorer v2 are unchanged, so landing-state
+#: bands hold — but prompts changed, so a 2.1 cell pools with nothing at 2.0
+PROTOCOL_VERSION = "2.1"
 
 #: shim-enforced hard stop on refinement calls per episode — a runaway guard
 #: (tests/CLAUDE.md), never a timer; the prompt advertises 6
@@ -528,11 +535,14 @@ VERDICT_MEANINGS = {
         "account for (an impurity / extra phase); say so rather than "
         "fitting through it."),
     "assumption_wrong": (
-        "a **declared input** — the source's emission lines, the geometry, "
-        "the instrument description — disagrees with the data; fixing that "
-        "declaration, not refining more parameters, is the answer.  (This "
-        "is about the instrument/measurement description; a missing phase "
-        "is `impurity_suspected`.)"),
+        "a **declared, non-refinable input** — the source's emission lines, "
+        "the geometry *type* (capillary vs flat plate), the radiation — "
+        "disagrees with the data; fixing that declaration, not refining "
+        "more parameters, is the answer.  (This is about the "
+        "instrument/measurement description; a missing phase is "
+        "`impurity_suspected`, and a **refinable parameter at a wrong "
+        "starting value** — a zero, a displacement — is never this: "
+        "converge it, or say the data cannot.)"),
     "abstain": (
         "the starting model is too far from the data for any refinement "
         "reachable from here to be trustworthy; no answer."),

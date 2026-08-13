@@ -85,7 +85,27 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   With the claim at fit level the same gate honestly says "run the swap" at
 #   any N, and a retune would need its own calibration campaign to buy what
 #   the wording buys for nothing.
-THRESHOLDS_VERSION = "0.8"
+# 0.9 (WP-1065): the exchange clause's follow-through.  Round 3 of the report
+#   eval (28 runs, 2026-08-13) measured that 0.8's sentence produces the
+#   experiment and not the verdict: on a real decisive state (SRM 660c,
+#   knocked displacement, rivals separated at χ² ratio 1.1679) the solvable
+#   control went 0/7 valid — cells ran the swap, recovered the displacement,
+#   and still declined or hedged, because the sentence ends at "compare χ²"
+#   and nowhere says that winning the comparison is an answer.  The clause now
+#   states what each outcome licenses, both branches: a gap of
+#   ≥ RIVAL_DECISIVE_MIN_CHI2_RATIO − 1 means the data has chosen (the
+#   winning rival's fit is the answer, quoted without caveat); a smaller gap
+#   means the pair is genuinely unresolved (fix it by protocol or say the
+#   data has not chosen).  Both branches, because round 2 measured the cost
+#   of naming the degeneracy without the action and round 3 the cost of
+#   naming the experiment without the license — stating only the decisive
+#   branch would recreate the asymmetry a third time, on ties.  The strength
+#   grade is the named constant above, measured on both sides of its band;
+#   no verdict token enters the summary — the license is stated, the verdict
+#   stays the reader's.  **No gate moved**: EXCHANGEABLE_MIN_R2 stands on
+#   0.8's geometric argument, and the new constant gates nothing —
+#   ``RivalComparison`` still carries no ``decisive`` field.
+THRESHOLDS_VERSION = "0.9"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -290,6 +310,21 @@ OFF_REGION_DW_LOW = 1.0
 #: makes the ratio conservative.
 EXCHANGEABLE_MIN_R2 = 0.90
 EXCHANGE_PARTNER_MIN_SIGNIFICANCE = 5.0
+#: What a swap outcome *licenses* — a reading aid the exchange clause quotes,
+#: gating nothing (the :data:`TRAJECTORY_MAX_ACTIONS` precedent).  Read
+#: against :class:`RivalComparison`.chi2_ratio orientation-neutrally — the
+#: losing rival's χ² over the winning rival's, i.e. max(r, 1/r): at or above
+#: this the data has chosen and the winning rival's fit is the answer, quoted
+#: without caveat; below it the pair is genuinely unresolved and the honest
+#: moves are protocol (a calibrant-fixed zero, a wider window) or the declared
+#: stand-off.  The value is the report eval's registered decision band
+#: (tests/eval_report_agent/PROTOCOL.md § Decision bands), measured on both
+#: sides: real SRM 660c with a knocked displacement separates at 1.1679
+#: (decisive), while the two tie states measure 1.0075 and 1.0001 (inside the
+#: [0.99, 1.01] tie band).  Deliberately not a field on
+#: :class:`RivalComparison` — the package states the reading rule and never
+#: applies it (WP-1063's no-``decisive`` fence).
+RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10
 #: A soft mode earns a summary sentence only below this eigenvalue of the
 #: unit-column Gram (for a pair, 1 − |ρ|).  Prince's |ρ| > 0.95 (eigenvalue
 #: 0.05) is the citable "worthwhile" line, but it cannot be the *comment*
