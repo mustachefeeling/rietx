@@ -154,24 +154,24 @@ removal at N=8.
 
 ## Tasks
 
-- [ ] `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py`
+- [x] `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py`
   (exported from `anatase.report`), the clause continuation in
   `identifiability_clause()`, `THRESHOLDS_VERSION = "0.9"` + changelog
   entry (the C1 0/7 evidence, the four fixed properties, why no gate
   moved); `test_fitreport_layers.py` shape pins extended, the
   no-verdict-token pin kept, and the quiet-guard check run (a deliberate
   wording edit fails with the expected message, then passes restored)
-- [ ] `docs/AGENT_PROTOCOL.md`: §4 step 6 gains the license rule with the
+- [x] `docs/AGENT_PROTOCOL.md`: §4 step 6 gains the license rule with the
   measured ratios (1.1679 decisive; 1.0075/1.0001 ties) quoting the
   constant; §4b's swap paragraph gains the follow-through sentence; §9's
   `compare_rivals` paragraph states the reading orientation-neutrally
   ("the winning rival"), beside the existing `chi2_ratio` comment
-- [ ] PROTOCOL.md 2.1: the `assumption_wrong` glossary fix in
+- [x] PROTOCOL.md 2.1: the `assumption_wrong` glossary fix in
   `VERDICT_MEANINGS` + `PROTOCOL_VERSION` bump in `build_fixtures.py`, the
   12-cell matrix, read-outs (a)–(c), the budget — dated before any run;
   scorer v2 asserted unchanged; python workspace builder picks up the
   fresh wheel and the updated manual copy
-- [ ] Run the 12 cells in the Claude Code harness; audit per the round-3
+- [x] Run the 12 cells in the Claude Code harness; audit per the round-3
   pattern; grid (both group tables) from `scorecards.json`; mined
   clause-delivery/overlay/pull counts; raw record to `eval-runs/` per the
   README contract
