@@ -158,7 +158,8 @@ built, measured and pinned now, run only as extensions (§ The matrix).
   until the tie measurement holds; the band is the registration.
   `collect_better_data` is deliberately **not** in the set: the counting
   statistics are fine; the window is what is missing.
-- **E8′ — synthetic ambiguous** (replaces E8) `[registered]`.  LaB₆
+- **E8′ — synthetic ambiguous** (replaces E8; fixture id `E8p`)
+  `[registered]`.  LaB₆
   `_truth(lo=20, hi=56, seed=23)`; plant **displacement** −0.02 in the start
   — E2's shape on E8's window; no default stage frees displacement (1059's
   own prescription).  Expected: `ambiguous`, no next_action registered, no

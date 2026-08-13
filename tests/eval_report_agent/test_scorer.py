@@ -1,11 +1,12 @@
 """Deterministic unit tests for the eval scorer, shim and fixtures.
 
 Everything here is synthetic JSON in ``tmp_path`` — no refinement runs, no
-network, no LLM — with one exception marked ``slow``: the real-data pair costs
-its baseline fit.  The shim's enforcement is tested with ``refine_json``
+network, no LLM.  The shim's enforcement is tested with ``refine_json``
 monkeypatched, because what these tests pin is the *harness contract*
-(overlay restriction, report and trajectory stripping, budget, logging), not
-the solver.
+(overlay restriction, report and trajectory stripping, budget, logging, the
+sibling condition marker), not the solver.  The episodes' physics — every
+registered landing state and decision band — is pinned by the slow
+``test_landing_states.py`` next door.
 """
 
 import json
@@ -38,7 +39,10 @@ def _write_truth(tmp_path: Path, **overrides) -> Path:
 
 
 def _call(parameters=(), freed=(), overlay=None, ok=True, refused=False,
-          condition="surface", report=None, trajectory=None):
+          report=None, trajectory=None):
+    """One 2.0 ``calls.jsonl`` record: no condition echo — the log lives in
+    the workspace, so the response shape is the only condition-shaped thing
+    on it (PROTOCOL.md 2.0)."""
     if refused:
         return {"refused": True, "overlay": overlay or {},
                 "response": {"ok": False,
@@ -46,7 +50,6 @@ def _call(parameters=(), freed=(), overlay=None, ok=True, refused=False,
                                        "message": ""}}}
     if not ok:
         return {"refused": False, "overlay": overlay or {},
-                "condition": condition,
                 "response": {"ok": False,
                              "error": {"code": "REFINEMENT_FAILED",
                                        "message": ""}}}
@@ -62,8 +65,6 @@ def _call(parameters=(), freed=(), overlay=None, ok=True, refused=False,
         response["trajectory"] = list(trajectory)
     return {
         "refused": False,
-        "condition": condition,
-        "include_report": condition != "off",
         "overlay": overlay or {},
         "response": response,
     }
@@ -326,7 +327,7 @@ def test_graded_call_audit_shows_what_the_condition_delivered(tmp_path):
     off.mkdir()
     (off / "calls.jsonl").write_text(json.dumps(
         _call(parameters=[_param("instrument.zero_shift", 0.0)],
-              freed=["instrument.zero_shift"], condition="off")) + "\n",
+              freed=["instrument.zero_shift"])) + "\n",
         encoding="utf-8")
     (off / "answer.json").write_text(json.dumps(
         {"verdict": "converged", "summary": ""}), encoding="utf-8")
@@ -359,8 +360,14 @@ def test_refusal_row_grades_the_verdict_and_records_the_parameter(tmp_path):
 
 
 def _write_shim_episode(tmp_path: Path, *, include_report: bool,
-                        include_trajectory=None, max_calls: int = 8,
+                        include_trajectory: bool | None = False,
+                        max_calls: int = 8,
                         condition: str | None = None) -> Path:
+    """An episode dir plus its **sibling** marker (PROTOCOL.md 2.0: the
+    workspace carries no condition bit).  ``include_trajectory=None`` omits
+    the key — the malformed-marker case, which the shim must refuse rather
+    than guess (the 1.0 single-switch compatibility read died with the
+    relocation)."""
     edir = tmp_path / "ES"
     edir.mkdir(exist_ok=True)
     (edir / "episode.json").write_text(json.dumps({
@@ -376,7 +383,8 @@ def _write_shim_episode(tmp_path: Path, *, include_report: bool,
     }
     if include_trajectory is not None:
         marker["include_trajectory"] = include_trajectory
-    (edir / "condition.json").write_text(json.dumps(marker), encoding="utf-8")
+    (tmp_path / "ES.condition.json").write_text(json.dumps(marker),
+                                                encoding="utf-8")
     return edir
 
 
@@ -417,6 +425,11 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
     assert "report" not in logged["response"]
     assert logged["overlay"] == {"plan": "profile_only",
                                  "two_theta_limits": [20.0, 100.0]}
+    # and no condition echo: the log lives in the workspace, so a record that
+    # repeated include_report would be the round-2 leak reopened
+    assert "condition" not in logged
+    assert "include_report" not in logged
+    assert "include_trajectory" not in logged
 
 
 def test_shim_report_on_keeps_report_and_elides_bulk(tmp_path, monkeypatch):
@@ -502,17 +515,20 @@ def test_shim_delivers_exactly_what_the_condition_declares(
         (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
     assert ("report" in logged["response"]) is spec.report
     assert ("trajectory" in logged["response"]) is spec.trajectory
-    assert logged["include_trajectory"] is spec.trajectory
+    assert "include_trajectory" not in logged     # no echo (PROTOCOL.md 2.0)
 
 
-def test_shim_reads_a_1_0_condition_file_without_a_trajectory_key(
-        tmp_path, monkeypatch):
-    """A marker written before the split says nothing about the trajectory;
-    the report flag is what it meant, so that is what it gets."""
-    edir = _write_shim_episode(tmp_path, include_report=True)  # no key
+def test_shim_requires_both_switches_in_the_marker(tmp_path, monkeypatch):
+    """The 1.0 single-switch compatibility read died with the relocation —
+    an old marker is in the wrong place to be read at all, so a marker
+    missing a switch is a malformed build to refuse loudly, never a default
+    to guess."""
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               include_trajectory=None)  # key omitted
     monkeypatch.setattr("anatase.agent.refine_json",
                         lambda request: _stub_response())
-    assert "trajectory" in run_episode(edir)
+    with pytest.raises(KeyError):
+        run_episode(edir)
 
 
 # ----------------------------------------------------------------------
@@ -520,20 +536,20 @@ def test_shim_reads_a_1_0_condition_file_without_a_trajectory_key(
 # ----------------------------------------------------------------------
 
 
-def _prompt(condition: str, tmp_path: Path) -> str:
-    return bf.render_prompt("E2", tmp_path, condition=condition)
+def _prompt(condition: str, tmp_path: Path, **kw) -> str:
+    return bf.render_prompt("E1", tmp_path, condition=condition, **kw)
 
 
-def test_conditions_are_a_two_by_two_plus_the_baseline():
-    """Delivery (the trajectory) and instruction (§9) vary independently —
-    that separation is the whole design of the round, so it is pinned."""
-    axes = {(c.report, c.trajectory, "9." in c.sections)
-            for c in bf.CONDITIONS.values()}
-    assert axes == {(False, False, False),   # off
-                    (True, False, False),    # report
-                    (True, False, True),     # prompt
-                    (True, True, False),     # surface
-                    (True, True, True)}      # both
+def test_conditions_are_delivery_only_plus_the_baseline():
+    """The 2.0 axis is delivery alone: the 1.1 instruction arms
+    (``prompt``/``both``) are retired — round 2 measured zero bootstrap
+    calls under §9 — so no condition quotes anything beyond §5/§6."""
+    axes = {(c.report, c.trajectory) for c in bf.CONDITIONS.values()}
+    assert axes == {(False, False),   # off
+                    (True, False),    # report
+                    (True, True)}     # surface
+    assert all(set(c.sections) <= {"5.", "6."}
+               for c in bf.CONDITIONS.values())
 
 
 @pytest.mark.parametrize("condition", sorted(bf.CONDITIONS))
@@ -542,54 +558,104 @@ def test_prompt_quotes_the_manual_its_condition_declares(condition, tmp_path):
     text = _prompt(condition, tmp_path)
     assert ("## 5. Read numbers, not pixels" in text) is spec.report
     assert ("## 6. Abstention is a result" in text) is spec.report
-    assert (f"### {bf.SECTION_9_SUBSECTION}" in text) is ("9." in spec.sections)
     # a report arm without the surface must say so, or it hunts for a key §5
     # promises; an arm that has the trajectory must not be told it is absent
     assert ("stripped by the harness" in text) is (spec.report
                                                    and not spec.trajectory)
-    # the excerpt is the *subsection*, never the DAG half of §9 — that half
-    # describes a python surface the shim does not sanction.  Its forward
-    # reference to predict_then_verify therefore dangles, deliberately: the
-    # treatment is "read the run", not "run the DAG loop" (PROTOCOL.md)
+    # the instruction axis is retired: no 2.0 prompt quotes §9 in any form
+    assert "Read the run, not just its last state" not in text
     assert "### The DAG:" not in text
 
 
-def test_off_renders_the_round_one_report_off_prompt(tmp_path):
-    """The one cell readable against the 1.0 grid: an arm that never sees a
-    report cannot see the content that changed under it."""
+@pytest.mark.parametrize("condition", sorted(bf.CONDITIONS))
+def test_prompt_glossaries_cover_the_closed_vocabularies(condition, tmp_path):
+    """Every verdict and next-action token appears backticked in every
+    prompt, ``off`` included — the closed vocabulary only protects anyone if
+    the agent was shown all of it."""
+    from tests.eval_report_agent.scorer import NEXT_ACTIONS, VERDICTS
+
+    text = _prompt(condition, tmp_path)
+    for token in VERDICTS + NEXT_ACTIONS:
+        assert f"`{token}`" in text, token
+
+
+def test_glossary_and_vocabulary_must_agree():
+    """A token without a meaning (or a meaning without a token) fails the
+    build, never confuses an agent."""
+    with pytest.raises(ValueError, match="glossary/vocabulary mismatch"):
+        bf._glossary({"converged": "x"}, ("converged", "abstain"))
+
+
+def test_deliverable_section_renders_only_where_declared(tmp_path):
+    """J1's sub-rows declare their purpose (§4b as an episode); every other
+    episode's prompt carries no deliverable section at all."""
+    plain = _prompt("off", tmp_path)
+    assert "## Deliverable" not in plain
+    phase = _prompt("off", tmp_path, deliverable="phase_id")
+    struct = _prompt("off", tmp_path, deliverable="structure")
+    assert "## Deliverable" in phase and "## Deliverable" in struct
+    assert "phase identification" in phase
+    assert "structure quality" in struct
+    assert phase != struct
+
+
+def test_off_carries_the_v2_contract_but_no_report_wording(tmp_path):
+    """``off`` is not the 1.x report-off prompt: the v2 answer contract is
+    in every arm — which is exactly why no 2.0 cell pools with any earlier
+    grid — while report wording stays absent."""
     text = _prompt("off", tmp_path)
     assert "## Reading the FitReport" not in text
     assert "FitReport" not in text
     assert "run_refine" in text and "answer.json" in text
+    assert '"next_action"' in text
+    assert "`assumption_wrong`" in text
 
 
-def test_condition_marker_carries_both_switches(tmp_path):
+def test_condition_marker_is_a_sibling_and_carries_both_switches(tmp_path):
+    """The marker lives beside the episode dir, never in it — the workspace
+    must carry no condition bit (the round-2 leak, PROTOCOL.md 2.0)."""
     bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
-                      condition="prompt", only=["E2"])
-    marker = json.loads((tmp_path / "runs" / "E2" / "condition.json")
+                      condition="surface", only=["E1"])
+    edir = tmp_path / "runs" / "E1"
+    assert not (edir / "condition.json").exists()
+    marker = json.loads((tmp_path / "runs" / "E1.condition.json")
                         .read_text(encoding="utf-8"))
     assert marker["protocol_version"] == bf.PROTOCOL_VERSION
     assert marker["include_report"] is True
-    assert marker["include_trajectory"] is False
-    assert marker["prompt_sections"] == ["5.", "6.", "9."]
+    assert marker["include_trajectory"] is True
+    assert marker["prompt_sections"] == ["5.", "6."]
+    # nothing else in the workspace names the condition either
+    workspace = {p.name for p in edir.iterdir()}
+    assert workspace == {"episode.json", "prompt.md"}
 
 
 def test_unknown_condition_is_refused(tmp_path):
     with pytest.raises(ValueError, match="condition must be one of"):
         bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
-                          condition="report-on", only=["E2"])
+                          condition="report-on", only=["E1"])
 
 
-def test_synthetic_selection_never_pays_for_the_real_pair(tmp_path, monkeypatch):
-    """R1/R2 cost a baseline fit; a synthetic-only build must stay as cheap
-    as it was at 1.0."""
+def test_unknown_episode_id_is_refused(tmp_path):
+    """Retired 1.1 ids (E2, R1, ...) must fail by name, not KeyError."""
+    with pytest.raises(ValueError, match="unknown episode id"):
+        bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
+                          condition="off", only=["E2"])
+
+
+def test_synthetic_selection_never_pays_for_a_real_dataset(tmp_path,
+                                                           monkeypatch):
+    """The SRM trio costs a baseline fit and W1/W2 cost real-file I/O; a
+    synthetic-only build must stay as cheap as it was at 1.0."""
     def refuse():  # pragma: no cover - must not be reached
-        raise AssertionError("the real pair was built for a synthetic run")
+        raise AssertionError("a real-data group was built for a synthetic run")
 
     monkeypatch.setattr(bf, "build_real_episodes", refuse)
+    monkeypatch.setattr(bf, "build_nac_episode", refuse)
+    monkeypatch.setattr(bf, "build_qarr_episode", refuse)
     bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
-                      condition="surface", only=["E1", "E2"])
-    assert sorted(p.name for p in (tmp_path / "runs").iterdir()) == ["E1", "E2"]
+                      condition="surface", only=["E1", "E8p"])
+    dirs = sorted(p.name for p in (tmp_path / "runs").iterdir() if p.is_dir())
+    assert dirs == ["E1", "E8p"]
 
 
 # ----------------------------------------------------------------------
@@ -605,7 +671,7 @@ def _cell(runs: Path, condition: str, model: str, eid: str, card_calls,
         "".join(json.dumps(c) + "\n" for c in card_calls), encoding="utf-8")
     (edir / "answer.json").write_text(json.dumps(answer), encoding="utf-8")
     spec = bf.CONDITIONS[marker_condition or condition]
-    (edir / "condition.json").write_text(json.dumps({
+    (edir.parent / f"{eid}.condition.json").write_text(json.dumps({
         "protocol_version": bf.PROTOCOL_VERSION,
         "condition": marker_condition or condition,
         "include_report": spec.report,
@@ -616,6 +682,25 @@ def _cell(runs: Path, condition: str, model: str, eid: str, card_calls,
     return edir
 
 
+def test_scorecard_condition_comes_from_the_sibling_marker(tmp_path):
+    """With the echo gone from ``calls.jsonl``, the marker is the one
+    authority; an episode dir without one (these tests' default) reports
+    ``None`` rather than guessing."""
+    truth = _write_truth(tmp_path)
+    edir = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"])],
+        {"verdict": "converged", "summary": ""})
+    assert score_episode(edir, truth)["condition"] is None
+    spec = bf.CONDITIONS["report"]
+    (tmp_path / f"{edir.name}.condition.json").write_text(json.dumps({
+        "protocol_version": bf.PROTOCOL_VERSION, "condition": "report",
+        "include_report": spec.report,
+        "include_trajectory": spec.trajectory,
+        "max_calls": bf.MAX_CALLS}), encoding="utf-8")
+    assert score_episode(edir, truth)["condition"] == "report"
+
+
 def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
     """The manipulation failure the shim cannot catch from inside one call:
     an arm that was supposed to withhold a half and did not.  It is marked,
@@ -624,16 +709,16 @@ def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
 
     truth = tmp_path / "truth"
     truth.mkdir()
-    (truth / "E2.json").write_text(json.dumps({
-        "episode": "E2", "expected_verdict": "converged",
+    (truth / "N1.json").write_text(json.dumps({
+        "episode": "N1", "expected_verdict": "converged",
         "planted": None, "family": None}), encoding="utf-8")
     runs = tmp_path / "runs"
     # honest surface cell: report + trajectory, as declared
-    _cell(runs, "surface", "sonnet", "E2",
+    _cell(runs, "surface", "sonnet", "N1",
           [_call(report={"summary": "s"}, trajectory=[{"stage": "a"}])],
           {"verdict": "converged", "summary": ""})
     # a cell that says "off" but was handed a report anyway
-    _cell(runs, "off", "haiku", "E2",
+    _cell(runs, "off", "haiku", "N1",
           [_call(report={"summary": "s"})],
           {"verdict": "converged", "summary": ""})
 
@@ -645,66 +730,3 @@ def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
     assert "| surface | sonnet | pass | 1/1 |" in table
     assert "pass,!" in table            # the off cell is marked, not dropped
     assert "%" not in table             # counts, never percentages
-
-
-@pytest.mark.slow
-def test_real_pair_is_built_from_the_fitted_state(tmp_path):
-    """R1/R2 truth values are read off the SRM 660c baseline fit, never
-    hard-coded, and R1 declares no tolerance — the refusal row is graded on
-    its verdict alone."""
-    pytest.importorskip("gemmi")
-    episodes = bf.build_real_episodes()
-    r1, r2 = episodes["R1"]["truth"], episodes["R2"]["truth"]
-    assert r1["expected_verdict"] == "ambiguous" and r1["planted"]["tol"] is None
-    assert r1["planted"]["path"] == "instrument.geometry.sample_displacement"
-    assert r1["planted"]["start"] == -0.02
-    assert r1["planted"]["truth"] == pytest.approx(-0.0801, abs=5e-4)
-    assert r1["watch"]["absorber"] == ["instrument.zero_shift"]
-    assert r2["expected_verdict"] == "converged"
-    assert r2["planted"]["start"] == pytest.approx(
-        0.90 * r2["planted"]["truth"], rel=1e-12)
-    # the starts are the fitted state with one thing moved, so the pattern is
-    # the same object in both and the structures differ only in scale
-    assert (episodes["R1"]["core"]["pattern"]
-            == episodes["R2"]["core"]["pattern"])
-    assert (episodes["R1"]["core"]["instrument"]["geometry"]
-            ["sample_displacement"]["value"] == -0.02)
-
-
-@pytest.mark.slow
-def test_r1_lazy_path_absorbs_the_displacement_and_the_report_says_so(tmp_path):
-    """R1's whole design in one assertion: the default plan cannot free the
-    planted displacement, absorbs it into ``zero_shift``, converges with an
-    empty action list — and the WP-1056 exchange clause names the pair at the
-    converged state, which is what makes ``ambiguous`` the supported verdict.
-
-    Pinned because the episode's expected verdict depends on it: if the clause
-    ever stops firing here, R1 is no longer a refusal row and must be
-    redesigned rather than quietly re-scored.
-    """
-    import anatase as pr
-    from anatase import agent as agent_mod
-    from anatase.viz.plots import plot_result
-
-    core = bf.build_real_episodes()["R1"]["core"]
-    response = agent_mod.refine_json(dict(core, include_report=True))
-    assert response["ok"], response.get("error")
-    values = {p["path"]: p["value"] for p in response["result"]["parameters"]}
-    # never freed: the surface serialises vary-or-tie entries only
-    assert "instrument.geometry.sample_displacement" not in values
-    assert abs(values["instrument.zero_shift"]) > 0.02   # absorbed, ~+0.0317
-    assert response["report"]["suggested_actions"] == []
-    summary = response["report"]["summary"]
-    assert "exchangeable" in summary
-    assert "instrument.geometry.sample_displacement" in summary
-
-    # house convention: every test refinement leaves obs/calc/diff PNGs
-    out = Path(__file__).resolve().parents[1] / "output"
-    out.mkdir(exist_ok=True)
-    ref = pr.Refinement(pr.Structure.model_validate(core["structure"]),
-                        pr.Instrument.model_validate(core["instrument"]))
-    data = pr.PatternData.model_validate(core["pattern"])
-    result = ref.fit(data, plan="mccusker_default")
-    plot_result(result, path=str(out / "eval_r1_lazy_path.png"))
-    plot_result(result, two_theta_range=(20.0, 45.0),
-                path=str(out / "eval_r1_lazy_path_zoom.png"))

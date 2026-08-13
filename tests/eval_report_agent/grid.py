@@ -2,7 +2,8 @@
 
 One run directory per cell, named ``<condition>__<model>`` and holding one
 subdirectory per episode; the truth tree is the one ``build_fixtures`` wrote.
-The condition is read from each episode's own ``condition.json`` — the
+The condition is read from each episode's **sibling** marker
+(``<eid>.condition.json``, outside the workspace — PROTOCOL.md 2.0) — the
 authority — and only the model comes from the directory name, because nothing
 else in the record carries it.
 
@@ -54,7 +55,8 @@ def collect(runs_dir: Path, truth_dir: Path) -> list[dict]:
                 continue
             card = score_episode(edir, truth_file)
             marker = json.loads(
-                (edir / "condition.json").read_text(encoding="utf-8"))
+                (edir.parent / f"{edir.name}.condition.json")
+                .read_text(encoding="utf-8"))
             condition = marker["condition"]
             want_report, want_trajectory = _expected_payload(condition)
             got_trajectory = (card["trajectory_rungs"] or 0) > 0

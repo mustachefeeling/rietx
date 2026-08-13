@@ -54,10 +54,26 @@ import sys
 from fnmatch import fnmatch
 from pathlib import Path
 
-VERDICTS = ("converged", "impurity_suspected", "abstain", "ambiguous")
+#: the answer's closed verdict vocabulary (v2, PROTOCOL.md 2.0).
+#: ``assumption_wrong`` is the W2 verdict — a *declared input* (source lines,
+#: geometry) disagreeing with the data — kept distinct from
+#: ``impurity_suspected`` (the *specimen's phase content*): the prompt
+#: glossary draws that line, and ``build_fixtures`` renders both glossaries
+#: from these tuples so a token cannot exist without a meaning
+VERDICTS = ("converged", "impurity_suspected", "assumption_wrong",
+            "abstain", "ambiguous")
+
+#: the answer's closed next-action vocabulary (v2) — graded by membership in
+#: the truth row's registered *set*, so near-equivalents are a registration
+#: question, never a wording one
+NEXT_ACTIONS = ("none", "extend_range_or_calibrate", "add_phase",
+                "fix_instrument_model", "collect_better_data",
+                "chemistry_or_contents", "report_with_caveat")
 
 #: verdicts that decline to name one confident cause; answering ``converged``
-#: where one of these is expected is an overclaim, not merely a miss
+#: where one of these is expected is an overclaim, not merely a miss.
+#: ``impurity_suspected``/``assumption_wrong`` are committal claims, so they
+#: are misses, never overclaims or underclaims
 NON_COMMITTAL = ("abstain", "ambiguous")
 
 #: an explicit stage list no longer than this is a *bootstrap* plan — a state
@@ -105,6 +121,17 @@ def _is_bootstrap(label: str) -> bool:
             and int(count) <= BOOTSTRAP_MAX_STAGES)
 
 
+def _condition(episode_dir: Path) -> str | None:
+    """The condition, from the sibling marker (PROTOCOL.md 2.0: the marker —
+    and with it every condition bit — lives outside the workspace, so neither
+    the agent's ``ls`` nor its own call log can reveal it)."""
+    path = episode_dir.resolve()
+    marker = path.parent / f"{path.name}.condition.json"
+    if not marker.exists():
+        return None
+    return json.loads(marker.read_text(encoding="utf-8")).get("condition")
+
+
 def _answer(episode_dir: Path) -> tuple[dict | None, str | None]:
     """(answer, problem) — an unreadable or invalid answer.json is a scored
     failure with a note, never a scorer crash."""
@@ -131,7 +158,7 @@ def score_episode(episode_dir: Path, truth_file: Path) -> dict:
 
     card = {
         "episode": truth["episode"],
-        "condition": ok_calls[-1]["condition"] if ok_calls else None,
+        "condition": _condition(episode_dir),
         "n_calls": len([c for c in calls if not c.get("refused", False)]),
         "n_refused": len([c for c in calls if c.get("refused", False)]),
         "n_failed_calls": len([c for c in calls

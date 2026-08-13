@@ -161,7 +161,7 @@ round; the decisions land in 1003's `### Inherited` at close):
   measurements and tie bands, hypotheses (a)–(e) with named cells, the
   kill/keep table, scoring rules, the `condition.json` relocation — dated
   before any run
-- [ ] Episode fixtures + slow landing-state tests: N1, E8′ (E8 retired, its
+- [x] Episode fixtures + slow landing-state tests: N1, E8′ (E8 retired, its
   record kept), C1 (R1 retired likewise, tol restored), W1, W2, J1 — each
   test pins the verifying measurement; build_fixtures grows the deliverable
   axis for J1's sub-rows; verify at build that W1's **converged** report
