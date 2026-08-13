@@ -167,6 +167,13 @@ per-run `model` and `effort`.  Each agent receives exactly the episode's
 `prompt.md` (plus the path to its episode dir) and nothing else; it drives
 `run_refine.py` itself and writes `answer.json` when done.
 
+The runner instruction that carries the agent to `prompt.md` is identical in
+every cell, and **it must forbid reading the rest of the repository**.  An
+agent free to open `docs/AGENT_PROTOCOL.md` can give itself the excerpt its
+condition withholds — the one manipulation failure the shim cannot catch,
+because the manipulation is in the prompt, not in the response.  Verify it in
+the audit: a transcript that read a repo doc invalidates its cell.
+
 Score each run with:
 
 ```sh
