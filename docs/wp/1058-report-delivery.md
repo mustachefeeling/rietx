@@ -234,10 +234,12 @@ generated — with no LLM dependency added and the task-union meta-test green.
   impurity coexists with a fit that does improve.
 
   **Counts** (`[dev]` only — no jax/torch — darwin/arm64, this checkout's
-  venv): fast suite **2166 → 2171 passed, 108 skipped** in 2:44; +5 is four
-  tests in `test_agent_surface.py` and one in `test_report_loop.py`, all
-  passes, no new skip. Full suite **2264 → 2269 passed, 117 skipped** in
-  25:56. `ruff` clean.
+  venv): fast suite **2166 → 2171 passed, 108 skipped**; full suite
+  **2264 → 2269 passed, 117 skipped**. The +5 is four tests in
+  `test_agent_surface.py` and one in `test_report_loop.py` — all passes, no new
+  skip, and it moves both selections by the same 5 because none is slow-marked.
+  Wall clock, one run each and not a range, on a machine also running this
+  session: fast 2:44, full 27:07. `ruff` clean.
 
   **Gotchas for whoever is next.**
   1. **`include_report=false` is the master switch and must stay one.** It
