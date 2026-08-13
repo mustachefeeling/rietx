@@ -4,9 +4,10 @@
 serialized result or a structured error out, never a raw traceback.  The
 envelope is deliberate:
 
-- success: ``{"ok": true, "result": …, "series": …, "report": …}`` — exactly
-  one of ``result``/``series``/``indexing``/``suggestion`` is set, so a
-  consumer branches on which, and the top-level result types (a refinement, a
+- success: ``{"ok": true, "result": …, "series": …, "report": …,
+  "trajectory": […]}`` — exactly one of
+  ``result``/``series``/``indexing``/``suggestion`` is set, so a consumer
+  branches on which, and the top-level result types (a refinement, a
   warm-started series, an indexing answer, a ranked suggestion) stay
   structurally distinct instead of being coerced into one.
 - failure: ``{"ok": false, "error": {code, message, suggestion, details}}`` —
@@ -38,6 +39,41 @@ predicted Δχ², gated so a tie of collinear candidates is one unresolved group
 It answers with a ``suggestion`` arm, extends the backend-only base (a task
 with no solver and no plan refuses those fields loudly), and is read-only —
 no history, no mutation, which is why it is safe to call between fits.
+
+``task="refine"`` answers with a **trajectory** as well as a report (WP-1058):
+the FitReport at every stage boundary, projected to a
+:class:`~anatase.report.StageReport` each, on by default.  This is delivery,
+not content — every statement in it was already computable before — and it
+exists because WP-1053 measured *when* a report is read as the bottleneck, not
+what it says: a default-plan fit lands at a converged-looking state whose
+action list is empty (E2: Rwp 0.0137 behind a compensating zero shift,
+measured ``actions: []``), while the same plan's **first stage** names the
+cause at confidence 0.997.  The information was always there; only the last
+state was ever delivered.
+
+Three decisions behind the shape, each measured rather than argued:
+
+- **No ``task="diagnose"``.**  The WP proposed a declared ladder of
+  bootstrap-grade states an agent would otherwise have to know to create.
+  Measured, the states already exist: every shipped rietveld preset opens on a
+  background+scale stage — the McCusker turn-on order *is* that ladder — and
+  prepending WP-1052's background-only rung to each of the seven reproduces
+  stage 1's report to three decimals (0.997 against 0.997; 0.305 against 0.306
+  on ``lab_calibrate``).  A ladder would also have to *change the fit* to add
+  states, which would make a report-on/report-off comparison compare two
+  different refinements.  So the rungs are read off the states the plan
+  already passes through, and no new verb ships.
+- **A new field, not a new arm.**  The WP-1043 rule sends a differently
+  *shaped* answer to its own arm; this is the same FitReport contract
+  projected onto the run's states, riding beside ``report`` the way
+  ``evidence`` rides beside ``indexing``.
+- **No version moves.**  Nothing in ``schemas/`` gains or changes a field, so
+  ``SCHEMA_VERSION`` stands; ``FitReport`` itself is untouched — no threshold,
+  gate, emission condition or ``ActionKind`` moved — so ``THRESHOLDS_VERSION``
+  stands too, and stamping a bump onto rungs produced by unchanged thresholds
+  would claim a change that did not happen.  ``trajectory`` is a defaulted
+  field on the envelope, which is additive by the same reasoning WP-1043
+  recorded for ``evidence``.
 
 ``request_schema()`` / ``response_schema()`` / ``tool_definition()`` export
 the JSON Schemas an LLM tool-calling loop needs.  The backend, solver,
@@ -73,7 +109,7 @@ from .indexing import (
 )
 from .optimize.least_squares import SOLVERS
 from .params.multi import SharingMap
-from .report.schemas import FitReport
+from .report.schemas import FitReport, StageReport
 from .schemas.common import Base, Mode
 from .schemas.indexing import (  # noqa: F401 — re-exports (WP-1045)
     IndexingControls,
@@ -214,6 +250,18 @@ class RefineRequest(_RequestBase):
     include_report: bool = Field(True, description=(
         "attach the three-layer FitReport (numbers, not pixels — "
         "AGENT_PROTOCOL §5); Layers 1-2 still gate themselves"))
+    report_trajectory: bool = Field(True, description=(
+        "attach `trajectory`: the report at every stage boundary, projected "
+        "to a StageReport each (WP-1058). ON by default because the converged "
+        "report is usually the least informative one in the run — a "
+        "compensated fit reads Rwp 0.0137 with an EMPTY action list while the "
+        "same plan's first stage names the cause at confidence 0.997. Costs "
+        "~2.5x the fit's wall clock (measured 1.06 s -> 2.70 s on 59.5k "
+        "channels) and ~26 % of the report's payload; it changes no number "
+        "the fit produces. Turn it off for a fit you are not going to read. "
+        "include_report=false overrides it: that flag means no report content "
+        "at all, so a caller who declines the report is never handed one a "
+        "rung at a time"))
 
 
 class MultiRefineRequest(_RequestBase):
@@ -431,6 +479,13 @@ class AgentSuccess(Base):
     indexing: IndexingResult | None = None
     suggestion: SuggestionResult | None = None
     report: FitReport | None = None
+    #: the report at every stage boundary of a ``task="refine"`` run (WP-1058),
+    #: one :class:`~anatase.report.StageReport` per completed stage, in the
+    #: order they ran.  Empty when the request declined it; **not** a fourth
+    #: answer arm and not a different shape — the same FitReport contract
+    #: projected onto the states the run passed through, which is why it rides
+    #: beside ``report`` instead of replacing it.
+    trajectory: list[StageReport] = Field(default_factory=list)
     #: the indexing arm's companion (WP-1043), present exactly when
     #: ``indexing`` is: the same answer projected for a consumer that reasons —
     #: each caveat with its refuting/capping kind (a split that otherwise
@@ -526,10 +581,16 @@ def _dispatch(req: AgentRequest) -> AgentSuccess:
 
         ref = Refinement(req.structure, req.instrument, backend=req.backend,
                          solver=req.solver, history=req.history_path or False)
+        # include_report is the master switch for report *content*: declining
+        # the report and being handed one a rung at a time would make the
+        # report-off arm of an A/B (WP-1053, WP-1059) not a report-off arm
+        trajectory = req.report_trajectory and req.include_report
         result = ref.fit(req.pattern, mode=req.mode, plan=plan,
-                         two_theta_limits=req.two_theta_limits)
+                         two_theta_limits=req.two_theta_limits,
+                         stage_reports=trajectory)
         report = ref.report(plan=plan) if req.include_report else None
-        return AgentSuccess(result=result, report=report)
+        return AgentSuccess(result=result, report=report,
+                            trajectory=list(ref.stage_reports_))
 
     if isinstance(req, MultiRefineRequest):
         from .multi import MultiHistogramRefinement
@@ -593,7 +654,8 @@ def refine_json(request: dict) -> dict:
 _TOOL_DESCRIPTION = (
     "Rietveld/Le Bail/Pawley refinement and unit-cell indexing of powder X-ray "
     "diffraction data (anatase). task='refine' fits one pattern and returns the "
-    "result plus a three-layer FitReport; task='refine_multi' jointly fits N "
+    "result, a three-layer FitReport, and a trajectory of that report at every "
+    "stage boundary; task='refine_multi' jointly fits N "
     "patterns sharing a structure; task='refine_sequential' chains N patterns by "
     "warm start and returns per-pattern summaries with trajectories; "
     "task='index' determines the unit cell of an unknown phase from a peak list "
@@ -605,13 +667,21 @@ _TOOL_DESCRIPTION = (
     "decide what to free next, and read an unresolved group as 'the data "
     "cannot separate these'. Read diagnostics before any "
     "statistic — a warning there outranks Rwp (docs/AGENT_PROTOCOL.md is the "
-    "operating protocol). An indexing answer has NO single cell: read the "
+    "operating protocol). READ THE TRAJECTORY, NOT ONLY THE FINAL REPORT: the "
+    "converged report is routinely the least informative one in the run, "
+    "because a staged fit can absorb a real error into a compensating "
+    "parameter and arrive somewhere that looks converged and suggests nothing. "
+    "Each trajectory[] rung is that report at one stage's end — its actions "
+    "are the ones the plan you ran will NOT fix, so a rung naming a cause at "
+    "high confidence is evidence about the specimen even when the final report "
+    "is silent. An indexing answer has NO single cell: read the "
     "evidence arm first (every candidate with each caveat's refuting/capping "
     "kind, the figures that ranked beside the ones absent for cause, and the "
     "Le Bail Rwp with both detector counts), then indexing.candidates for the "
     "full record, and expect best_or_none() to be null unless every engine "
     "agreed and nothing refuted or capped them. Returns "
-    "{ok: true, result|series|indexing|suggestion, evidence, report} or "
+    "{ok: true, result|series|indexing|suggestion, evidence, report, "
+    "trajectory} or "
     "{ok: false, error} with error.code in " + "/".join(ERROR_CODES) + ".")
 
 

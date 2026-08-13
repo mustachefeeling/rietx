@@ -35,6 +35,7 @@ import numpy as np
 import pytest
 
 import anatase as pr
+from anatase.agent import refine_json
 from anatase.report import predict_then_verify
 from anatase.report.apply import recipe
 from anatase.report.schemas import FitReport, VerificationOutcome
@@ -422,6 +423,68 @@ def test_e2_sample_displacement_baseline(truth):
     assert ref.fitted_instrument.geometry.sample_displacement.value == -0.02
     # the compensation is real: zero was dragged off truth to cover for it
     assert abs(ref.fitted_instrument.zero_shift.value) > 0.005
+
+
+def test_e2_one_json_call_names_the_cause(truth):
+    """WP-1058's acceptance: one ``refine_json`` call on the untouched E2
+    request — the exact request every agent in the 1053 pilot made first —
+    comes back naming the displacement family.
+
+    The two halves are what the answer is made of, and neither is the other:
+
+    * the **converged** report's action list is empty, and the fitted
+      parameter that carries the error is not even in ``result.parameters``
+      (the vary-or-tie filter: ``sample_displacement`` was never freed).  What
+      it *does* say is WP-1056's: ``zero_shift`` stands ~128σ from zero and is
+      exchangeable with the held displacement — a stated ambiguity, not a
+      cause;
+    * the **first rung** of the same call's trajectory resolves it: over
+      18–125° the cosθ template fits at R² ≈ 1.00 and ``refine_sample_``
+      ``displacement`` comes back at ~0.997, because at that state the two are
+      still separable.
+
+    In the pilot the second half existed and reached nobody — no agent ever
+    generated a state where the report could say it.  Now the plain request
+    carries it.
+    """
+    structure, ins, data = truth
+    start = ins.model_copy(deep=True)
+    start.geometry.sample_displacement.value = -0.02
+
+    out = refine_json({"task": "refine",
+                       "structure": structure.model_dump(mode="json"),
+                       "instrument": start.model_dump(mode="json"),
+                       "pattern": data.model_dump(mode="json")})
+    assert out["ok"], out.get("error")
+
+    # half one: converged-looking, no action, and the culprit not even listed
+    assert out["result"]["statistics"]["rwp"] < 0.02
+    assert out["report"]["suggested_actions"] == []
+    assert "instrument.geometry.sample_displacement" not in [
+        p["path"] for p in out["result"]["parameters"]]
+    exchange = next(e for e in out["report"]["identifiability"]["exchanges"]
+                    if e["held"] == "instrument.geometry.sample_displacement")
+    assert exchange["exchangeable"] is True
+    assert exchange["partner"] == "instrument.zero_shift"
+    assert exchange["partner_significance"] > 100.0
+
+    # half two: the same call's first rung, where the two are still separable
+    rung = out["trajectory"][0]
+    assert rung["stage"] == "scale_bkg"
+    kinds = [a["kind"] for a in rung["actions"]]
+    assert kinds[0] in POSITION_FAMILY, kinds
+    assert "refine_sample_displacement" in kinds, kinds
+    top = rung["actions"][0]
+    assert top["confidence"] > CONFIDENCE_FLOOR, top
+    assert top["parameter_paths"] == ["instrument.geometry.sample_displacement"]
+
+    # the answer is still an ordinary result: it round-trips and it plots
+    _OUT.mkdir(exist_ok=True)
+    from anatase.schemas.results import RefinementResult
+    from anatase.viz.plots import plot_result
+
+    plot_result(RefinementResult.model_validate(out["result"]),
+                path=str(_OUT / "report_loop_e2_json_call.png"))
 
 
 # ----------------------------------------------------------------------

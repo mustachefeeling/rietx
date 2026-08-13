@@ -23,21 +23,20 @@ npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fn
 ```
 
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
-serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional either — it
-is what honours the `xdist_group` marks that keep a shared fixture on one worker
-(see `tests/CLAUDE.md`); plain `--dist load` ignores them and silently refits.
+serial, so `-s` and pdb keep working. `--dist loadgroup` is not optional either —
+it honours the `xdist_group` marks that keep a shared fixture on one worker
+(`tests/CLAUDE.md`); plain `--dist load` ignores them and silently refits.
 
 Headline testing rules — operating detail and evidence (xdist group ordering,
 budget narrowing, quoting counts) in `tests/CLAUDE.md`; the dated measurement
 diary is `docs/milestones/v1.0.md` § Appendix:
 
-- **Quote wall clock as a range, never as a figure** — machine state moves it further
-  than most changes do; compare runs, not records. And **quote the extras with any
-  count**: a bare "N tests" means nothing without the venv it was measured in.
-- **A wall-clock budget in a test is a runaway guard, never a timer** — and the
-  budget may live one rank down, in the library.
-- **Say which numbers moved**: after adding N tests, passed+skipped moves by exactly
-  N in both selections, and a new skip is not a new pass.
+- **Quote wall clock as a range, never as a figure** — machine state moves it
+  further than most changes do; compare runs, not records.
+- **A wall-clock budget in a test is a runaway guard, never a timer** — and it
+  may live one rank down, in the library.
+- **Say which numbers moved**: after adding N tests, passed+skipped moves by
+  exactly N in both selections, and a new skip is not a new pass.
 
 ### Numbers
 
@@ -46,16 +45,15 @@ verbatim — never add `-q` (`addopts` has one; `-qq` prints no summary at all).
 Full-suite counts and `--durations`: the latest weekly `full` job log
 (`gh run list --workflow weekly.yml`; `[dev,jax]`, Linux, ~90-day retention,
 up to 7 days stale). Quote any count with its venv **and** platform
-(`tests/CLAUDE.md` § Quoting numbers); a session's own counts go in its WP
-handover entry, and the dated history is the v1.0 appendix diary.
+(`tests/CLAUDE.md` § Quoting numbers); a session's own go in its WP handover.
 
 `anatase compare` answers "does this new correction actually help?": pick a
 standard, tick variants, read the **cumulative Δχ² vs reference** panel — it
-localises *where* a change acted, not just whether Rwp moved. Registry + runner
-in `viz/compare.py` (headless: `compare.run(standard, variant)`), server/page in
-`compare_app.py`; its standards are the acceptance suites' protocols and
-`tests/test_compare_ui.py` asserts them field by field, so **add a row there
-whenever a new correction lands.**
+localises *where* a change acted, not just whether Rwp moved. Registry + runner in
+`viz/compare.py` (headless: `compare.run(standard, variant)`), server/page in
+`compare_app.py`; its standards are the acceptance suites' protocols, asserted
+field by field by `tests/test_compare_ui.py` — so **add a row there whenever a new
+correction lands.**
 
 ## Data flow
 
@@ -102,16 +100,16 @@ per-pattern summaries plus parameter *trajectories*, one history tree per patter
 `multi.py`, which stacks patterns into **one joint residual**. A chained fit is
 worth ≈3× in iterations and nothing in accuracy, and its trajectory is
 path-dependent by construction, so `direction="both"` runs the chain each way and
-flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only check
-that separates a measured trajectory from an ordering artefact. A rejected warm fit
-**escalates a rung at a time**, keeping the best attempt (`entry.rung`), and one
+flags parameters the two disagree on (`SEQUENTIAL_PATH_DEPENDENT`) — the only
+check separating a measured trajectory from an ordering artefact. A rejected warm
+fit **escalates a rung at a time**, keeping the best attempt (`entry.rung`), and one
 still diverged after the last rung is **quarantined** (WP-1051): reported with
 `SEQUENTIAL_UNRECOVERED`, but seeding no successor and joining no median.
 `events=`/`cancel=` are **per pattern** (WP-1016): every event carries
 `series_index`/`…_label`/`…_n`/`…_pass` (+`…_rung`/`…_cold` on a *restart*) in
-`data`, so no `EventKind` is new, and a cancelled series **returns** what completed
-with `SEQUENTIAL_CANCELLED` — WP-1006's rule one rank up, not an exception to it
-(`sequential.py`'s docstring has why).
+`data`, so no `EventKind` is new, and a cancelled series **returns** what
+completed with `SEQUENTIAL_CANCELLED` — WP-1006's rule one rank up, not an
+exception (`sequential.py`'s docstring has why).
 
 The **parameter surface** (WP-1004) is how a client works the table without
 running a fit: `Refinement.parameters() → list[ParameterRow]` lists *every*
@@ -184,15 +182,23 @@ Entry points: `Refinement.fit()` / `refine()` in `refine.py`; modes `"rietveld"`
 appended in `run_least_squares`; overlapped groups get equal-split restraints and
 come back flagged `PAWLEY_OVERLAP_UNRESOLVED` rather than confidently split). For
 tool-calling there is `agent.refine_json(dict) → dict` (`agent.py`, WP-0602): one
-call covering refine/refine_multi/refine_sequential/**index** behind a strict task
-union, errors as a structured `{ok:false, error:{code,…}}` envelope (never a
-traceback), and `agent.tool_definition()` exporting the JSON Schema with the
-backend/solver/plan/**engine** names quoted from the live registries — a meta-test
-fails if a registry member is missing from the schema. The four answers live in
-separate arms (`result` / `series` / `indexing`, the last with its `evidence`
-companion — the same answer projected for a reasoning consumer, WP-1043) because
-they are different *shapes*, and for indexing the shape is the rule: the
-serialized answer carries no `cell` key either.
+call covering refine/refine_multi/refine_sequential/**index**/suggest behind a
+strict task union, errors as a structured `{ok:false, error:{code,…}}` envelope
+(never a traceback), and `agent.tool_definition()` exporting the JSON Schema with
+the backend/solver/plan/**engine** names quoted from the live registries — a
+meta-test fails if a registry member is missing from the schema. The four answers
+live in separate arms (`result`/`series`/`indexing`/`suggestion`) because they are
+different *shapes*, and for indexing the shape is the rule: the serialized answer
+carries no `cell` key either. Two **companions** ride beside an arm rather than
+being one, additive as defaulted fields: `evidence` (WP-1043, the answer
+projected for a reasoning consumer) and `trajectory` (WP-1058) — **the report at
+every stage boundary, because a run's last state is routinely its least
+informative**: a plan absorbs an error it cannot free into whatever it can and
+converges suggesting nothing, while its own first stage named the cause.
+Default-on there, off in the library half (`fit(stage_reports=True)` →
+`stage_reports_`) which is called in loops; rungs are read off states the plan
+already visits, so the answer is bit-identical; and a report is derived from a
+result, so it rides *beside* one, never inside.
 
 ### GUI
 
@@ -246,13 +252,11 @@ recent list, and is therefore not behind the 409 (WP-1044).
   a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs,
   options and how to add a format are `src/anatase/io/CLAUDE.md`, under `io/`.
 - **Every weighted residual in the package divides by `RefinementResult.sig()`**
-  — the matplotlib panel, the plotly export, the VLM montage, Layer 0 and both
-  GUI windows (`session.curve_window` is shared by the fit plot and the series
-  panel's) — a peer of `PatternData.sig()`, where the esd-column/Poisson choice
-  was already made: `CompiledModel` stores `pattern.sig()` and `refine` copies
-  it to `result.sigma` verbatim, so a result's σ is a *lookup*, never a
-  re-derivation (five call sites, three policies before WP-1029, whose file has
-  the story). **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ
+  — every renderer and both GUI windows — a peer of `PatternData.sig()`, where
+  the esd-column/Poisson choice was already made: `CompiledModel` stores
+  `pattern.sig()` and `refine` copies it to `result.sigma` verbatim, so a
+  result's σ is a *lookup*, never a re-derivation (five call sites, three
+  policies before WP-1029, whose file has the story). **`weighted` is `DataRef.has_sigma`** (σ *measured*, not σ
   *present* — the fact `textdoc` renders as "σ from file"), `delta` is always
   Δ/σ because Δ/σ is what the fit minimised either way, and the flag changes
   only the axis title. A test that recomputes a residual cannot catch this class
@@ -260,12 +264,11 @@ recent list, and is therefore not behind the 409 (WP-1044).
   **sent**.
 - **Background flexibility is a correctness question, not a cosmetic one.** A
   background able to imitate the peaks biases ADPs up and scales (hence QPA
-  fractions) down while Rwp *improves*. Measure it as the block projection R²
-  of a structural Jacobian column onto the background column span
-  (`optimize.statistics.background_absorption`; pairwise ρ misses it, ~0.2 per
-  coefficient against ~46 % for the block), **once**, and carry the whole table
-  to `FitReport.background` — whose other half, a too-stiff background, Layer
-  0's peak-cluster regions are blind to (WP-1055).
+  fractions) down while Rwp *improves*. Measure it **once**, as the block
+  projection R² of a structural Jacobian column onto the background column span
+  (`optimize.statistics.background_absorption`; pairwise ρ misses it), and carry
+  the whole table to `FitReport.background` — whose other half, a too-stiff
+  background, Layer 0's peak-cluster regions are blind to (WP-1055).
 - **Reciprocal-space symmetry action is Rᵀ** (transposed rotation) — matters
   for non-cubic orbit/multiplicity counting (see symmetry.py comment). **This is
   about hkl, and applying it to a *tensor* is the opposite mistake**: a quantity
@@ -319,12 +322,12 @@ recent list, and is therefore not behind the 409 (WP-1044).
 - **Every physics function cites its reference** (author, year, journal) in
   the docstring, and documents conventions by physics not letters (e.g.
   size↔1/cosθ, strain↔tanθ; GSAS and FullProf swap X/Y labels).
-- **The FitReport must never return a confident wrong singleton.** Every
-  Layer-1 statement passes four gates (resolvability on the *scale-normalised*
-  Gram, 0.4·FWHM validity radius, local-χ²_red significance, share-based
-  global maturity); collinear angular templates are compared as *nested single
-  fits* and reported non-separable rather than resolved. Confidence weights
-  importance (share of χ²), not just statistical significance.
+- **The FitReport must never return a confident wrong singleton.** Every Layer-1
+  statement passes four gates (resolvability on the *scale-normalised* Gram,
+  0.4·FWHM validity radius, local-χ²_red significance, share-based global
+  maturity); collinear angular templates are compared as *nested single fits* and
+  reported non-separable. Confidence weights importance (share of χ²), not just
+  statistical significance.
 - **A new correction ships with a record field or a diagnostic that states
   what it changed — never an Rwp comparison as its evidence.** v0.5's
   measured method result: of eight corrections, two provably cannot move
@@ -373,8 +376,8 @@ recent list, and is therefore not behind the 409 (WP-1044).
   disagree** (`model/absorption.py`, `CompiledModel._absorption`). Capillary:
   `Geometry.mu_r`, Rouse (1970), off at µR = 0, and *exactly* a
   reparameterisation of {scale, Biso} — Rwp provably cannot move, the whole
-  content is ΔB = c(µR)·λ²/2 (measured on real 11-BM SRM 660a data:
-  ΔRwp 3e-8, every Biso +0.0166542 Å² against a predicted 0.0166542). Flat plate:
+  content is ΔB = c(µR)·λ²/2 (measured on real 11-BM SRM 660a data to the
+  predicted digit; ROADMAP's v0.5 row and its record). Flat plate:
   `Geometry.mu_t`, ITC Table 6.3.3.1 case (2) under `bragg_brentano` and case
   (3a) under `flat_plate_transmission`, **off at µt = ∞** (thick specimen, ITC
   (1a), the assumption every flat-plate fit here made before v0.5) — so `mu_t`
@@ -438,9 +441,8 @@ recent list, and is therefore not behind the 409 (WP-1044).
   coefficients are not quotable", never as evidence *of* anisotropy. **Zero is
   on the cone, not outside it** — the guard's test is one-sided; the ≤ 0 form
   before v0.6 flagged the inert all-zero block as unphysical (the source of a
-  since-withdrawn claim — v0.6's record has it). Re-measured: brucite leaves
-  the cone on 12 of 43 reflections unconstrained and 0 of 43 under
-  `solver="lm"`; corundum never leaves it at all.
+  since-withdrawn claim — v0.6's record has it, with the re-measured brucite
+  and corundum cone counts).
 - **Anomalous scattering is ON by default since v1.0** (`Source.dispersion`, f = f₀ +
   f′ + i·f″ from bundled Cromer-Liberman `data/f1f2_CromerLiberman.dat`), and
   the load-bearing part is *not* that f goes complex — F always was. It is that
@@ -448,11 +450,10 @@ recent list, and is therefore not behind the 409 (WP-1044).
   representative, which is exact only while f is real: with f″ ≠ 0 in a
   non-centrosymmetric group |F(h)|² ≠ |F(−h)|², and both land in the *same*
   powder peak. So `structure_factors_squared` returns the **Friedel average**,
-  in the exact closed form ⟨|F|²⟩ = |A|² + |B|² with A carrying f₀+f′ and B
-  carrying f″ over the *same* orbit sums — no second orbit pass, no
-  centro/non-centro case split, and B ≡ 0 recovers |F|² bit-identically (which
-  constrains the fp *association order* in `_orbit_terms`, not just the
-  algebra). f′/f″ are frozen at stage compile onto `PhaseSites.f_anom`: they
+  in the closed form ⟨|F|²⟩ = |A|² + |B|² over the *same* orbit sums (A: f₀+f′,
+  B: f″) — no second orbit pass, no centro/non-centro case split, and B ≡ 0
+  recovers |F|² bit-identically, which constrains the fp *association order* in
+  `_orbit_terms`. f′/f″ are frozen at stage compile onto `PhaseSites.f_anom`: they
   depend only on species and λ, and `EmissionLine.wavelength` is a plain float,
   so they can never be a function of θ. One |F|² is shared across emission
   lines, *guarded* rather than smeared — `dispersion.resolve` raises when a line
@@ -467,14 +468,14 @@ recent list, and is therefore not behind the 409 (WP-1044).
   default moves is not pinning a protocol, and `tests/test_validation_matrix.py`
   enforces it for the acceptance suites. Ions resolve to the element (core-level
   effect), unlike ionic f₀.
-- History nodes store **state, not curves** (a node is ~10 kB; embedding
-  y_calc would make it ~1.24 MB). Their cached metrics are *as-optimised* —
-  measured on a model frozen at the values each stage *started* from — so
-  `refine.replay`, which recompiles at the values the stage *ended* on, can
-  differ marginally. That gap is a staleness signal, not a bug. Le Bail
-  extracted intensities live outside θ and are path-dependent, so they are
-  serialized per node (`ReflectionState`); Pawley will reuse that container
-  rather than adding one dot-path per reflection to `free_paths`.
+- History nodes store **state, not curves** (a node is ~10 kB; embedding y_calc
+  would make it ~1.24 MB). Their cached metrics are *as-optimised* — measured on
+  a model frozen at the values each stage *started* from — so `refine.replay`,
+  which recompiles at the values the stage *ended* on, can differ marginally:
+  a staleness signal, not a bug. Le Bail extracted intensities live outside θ
+  and are path-dependent, so they are serialized per node (`ReflectionState`);
+  Pawley will reuse that container rather than adding one dot-path per
+  reflection to `free_paths`.
 - Emission-line weights are relative to line 0, which is structurally locked
   at 1 (degenerate with phase scales); `set_vary` globs can never free locked
   entries (also protects symmetry-fixed cell angles).
@@ -515,17 +516,16 @@ them all:
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
 - `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/anatase/io/CLAUDE.md`,
-  `src/anatase/indexing/CLAUDE.md` —
-  subsystem rulebooks; they load with their subtrees, so nothing here
-  restates them.
+  `src/anatase/indexing/CLAUDE.md` — subsystem rulebooks; they load with their
+  subtrees, so nothing here restates them.
 
 **Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority
-(`tests/test_docs_consistency.py` enforces the mechanical parts). Two clauses
-to carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a
-CLAUDE.md takes **rules, not findings**.
+(`tests/test_docs_consistency.py` enforces the mechanical parts). Two clauses to
+carry everywhere: commit per checklist item prefixed `WP-NNNN:`, and a CLAUDE.md
+takes **rules, not findings**.
 
-Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/`; ROADMAP's
-milestone table carries the acceptance one-liners, restated in neither place.
+Shipped: **v0.1 … v0.6**, one record each in `docs/milestones/`; ROADMAP's table
+carries the acceptance one-liners, restated in neither place.
 
 **In flight: v1.0 — hardening, human GUI, indexing, API freeze, PyPI.**
 `pyproject.version` tracks the milestone *in flight* (1.0.0.dev0), not the last one
@@ -572,16 +572,16 @@ there), measured stories in the v1.0 record's appendix:
   clause here only if it changes behavior outside `indexing/`.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only one
-anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) / `"torch-mps"`
-(Apple GPU, necessarily fp32) — never installed by default, kept as an independent
-opinion in the agreement matrix. Every backend is held to per-column agreement with
-the analytic Jacobian in `tests/test_cross_backend.py` — **whose configs must grow
-whenever a new derivative path does**, or no backend row covers it. Apple-GPU
-execution is *slower* than numpy (46-182×, launch-latency-bound): `torch-mps` buys
-precision validation, not speed (break-even and ceiling: the v0.4 record). Also
-since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default), soft restraints,
-the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF, spherical-harmonics
-texture, MCP server.
+anyone needs), `"jax"`, or the **experimental** `"torch"` (CPU fp64) /
+`"torch-mps"` (Apple GPU, necessarily fp32) — never installed by default, kept as
+an independent opinion in the agreement matrix. Every backend is held to
+per-column agreement with the analytic Jacobian in `tests/test_cross_backend.py`
+— **whose configs must grow whenever a new derivative path does**, or no backend
+row covers it. Apple-GPU execution is *slower* than numpy (46-182×,
+launch-latency-bound): `torch-mps` buys precision validation, not speed (the v0.4
+record). Also since v0.4: true Voigt (`shape="voigt"`, TCHZ still the default),
+soft restraints, the Bérar-Lelann esd inflation. v2 fence: FPA, neutron/TOF,
+spherical-harmonics texture, MCP server.
 
 Key test data (provenance + every reference value in `tests/data/README.md`):
 - `11BM_NAC.fxye` — APS 11-BM synchrotron, λ=0.4139090 from the .prm; NAC +
@@ -593,8 +593,8 @@ Key test data (provenance + every reference value in `tests/data/README.md`):
   GSAS's converged fit and supplies both the reference values and the protocol
   the test mirrors. **Cross-code consistency** check (±300 ppm), not truth.
 - `qarr/*.prn` — IUCr CPD QPA round-robin patterns (samples 1a-1h, 2, 4 + six
-  pure phases; plain 2-column ASCII, Cu Kα doublet, graphite diffracted-beam
-  mono). QPA truth is the **weighed composition**; tolerances referenced to
-  the published participant spread, never to σ(W). `corundum.prn` doubles as
-  the SRM 676a cell-anchor specimen (c/a is the certificate-grade assertion;
+  pure phases; 2-column ASCII, Cu Kα doublet, graphite diffracted-beam mono).
+  QPA truth is the **weighed composition**; tolerances referenced to the
+  published participant spread, never to σ(W). `corundum.prn` doubles as the
+  SRM 676a cell-anchor specimen (c/a is the certificate-grade assertion;
   absolute axes carry lab d-scale systematics).

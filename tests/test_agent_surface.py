@@ -17,6 +17,7 @@ from anatase import Instrument
 from anatase.backend.api import BACKEND_NAMES
 from anatase.indexing import SYSTEM_ORDER, engine_descriptions, engine_names
 from anatase.optimize.least_squares import SOLVERS
+from anatase.report.schemas import TRAJECTORY_MAX_ACTIONS
 from anatase.strategy.staged import PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -70,6 +71,77 @@ def test_report_attached_and_gated(refined):
                                           rel=1e-6)
     # a converged synthetic fit is mature; the layers speak
     assert report["layer1_available"] is True
+
+
+def test_trajectory_is_one_rung_per_stage_and_on_by_default(refined):
+    """WP-1058: the untouched request carries the report at every stage.
+
+    The 1053 pilot's measured bottleneck was *when* the report is read — every
+    agent's first move was this request, and it answered with the converged
+    state only.  So the default is the fix; a caller who wants the cheap path
+    asks for it.
+    """
+    trajectory = refined["trajectory"]
+    plan = PLAN_PRESETS["mccusker_default"]()
+    assert [r["stage"] for r in trajectory] == [s.name for s in plan.stages]
+    # every rung is a state of the same run, ending where the result ended
+    assert trajectory[-1]["rwp"] == pytest.approx(
+        refined["result"]["statistics"]["rwp"], rel=1e-6)
+    assert trajectory[0]["rwp"] > trajectory[-1]["rwp"]
+
+
+def test_trajectory_declined_two_ways(request_parts):
+    """``report_trajectory=False`` drops the rungs; ``include_report=False``
+    drops both halves — a caller who declines the report must not be handed
+    one a rung at a time (it is what keeps a report-off A/B arm one)."""
+    structure, instrument, pattern = request_parts
+    core = dict(task="refine", structure=structure, instrument=instrument,
+                pattern=pattern)
+
+    rungs_only_off = ag.refine_json(dict(core, report_trajectory=False))
+    assert rungs_only_off["ok"], rungs_only_off.get("error")
+    assert rungs_only_off["trajectory"] == []
+    assert rungs_only_off["report"] is not None
+
+    for request in (dict(core, include_report=False),
+                    dict(core, include_report=False, report_trajectory=True)):
+        out = ag.refine_json(request)
+        assert out["ok"], out.get("error")
+        assert out["report"] is None
+        assert out["trajectory"] == [], "include_report=False is the master switch"
+
+
+def test_trajectory_does_not_move_the_answer(refined, request_parts):
+    """Asking for rungs must not refine anything extra: the states are the
+    ones the plan already passes through, so the fit lands in the same place.
+
+    Bit-for-bit, not to a tolerance — a trajectory that perturbed the answer
+    would make every report-on/report-off comparison compare two refinements
+    instead of two deliveries.
+    """
+    structure, instrument, pattern = request_parts
+    without = ag.refine_json(dict(task="refine", structure=structure,
+                                  instrument=instrument, pattern=pattern,
+                                  report_trajectory=False))
+    assert without["ok"], without.get("error")
+    assert (without["result"]["statistics"]["rwp"]
+            == refined["result"]["statistics"]["rwp"])
+    assert without["result"]["parameters"] == refined["result"]["parameters"]
+
+
+def test_trajectory_payload_is_a_projection_not_five_reports(refined):
+    """The documented budget (WP-1058): a rung is the statements, not the
+    evidence — so the trajectory is a fraction of the report it ships beside,
+    where five full FitReports would be several times it."""
+    report_bytes = len(json.dumps(refined["report"]))
+    rung_bytes = [len(json.dumps(r)) for r in refined["trajectory"]]
+    assert max(rung_bytes) < 4000, rung_bytes
+    assert sum(rung_bytes) < report_bytes, (sum(rung_bytes), report_bytes)
+    # nothing is dropped silently: a capped rung says how many it left out
+    for rung, size in zip(refined["trajectory"], rung_bytes, strict=True):
+        assert len(rung["actions"]) <= TRAJECTORY_MAX_ACTIONS
+        if rung["n_actions_omitted"]:
+            assert len(rung["actions"]) == TRAJECTORY_MAX_ACTIONS, size
 
 
 def test_history_off_by_default_and_on_by_path(refined, request_parts, tmp_path):
@@ -442,6 +514,10 @@ def test_response_schema_covers_every_answer_arm():
     for arm in ("SeriesResult", "RefinementResult", "IndexingResult",
                 "SuggestionResult"):
         assert arm in text, arm
+    # the companions that ride beside an arm rather than being one (WP-1043,
+    # WP-1058): a consumer that cannot see their shape cannot read them
+    for companion in ("IndexingEvidence", "FitReport", "StageReport"):
+        assert companion in text, companion
 
 
 def test_tool_definition_shape():

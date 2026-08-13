@@ -271,7 +271,7 @@ def test_the_documented_feature_keys_are_present(caps):
         "anomalous_dispersion_default_on", "multi_histogram",
         "sequential_series", "project_container", "background_estimation",
         "pattern_diagnostics", "peak_picking", "indexing", "agent_json",
-        "cancellation",
+        "cancellation", "report_trajectory",
     }
     assert set(caps.features) == expected
 

@@ -39,7 +39,7 @@ from .optimize.qpa import (
 )
 from .optimize.statistics import compute_statistics
 from .params.vector import ParameterTable
-from .report.schemas import THRESHOLDS_VERSION
+from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
 from .schemas.history import NodeAction, NodeMetrics, RefinementState, ReflectionState
 from .schemas.instrument import Instrument
@@ -146,6 +146,13 @@ class Refinement:
         self._mu_r_source, self._mu_r_skipped = _resolve_specimen_absorption(
             self.structure, self.instrument)
         self.result_: RefinementResult | None = None
+        #: the last ``fit(stage_reports=True)`` run's trajectory, one
+        #: :class:`~anatase.report.StageReport` per completed stage (WP-1058).
+        #: Empty after a fit that was not asked for one — a report is *derived*
+        #: from a result, so it is carried beside ``result_`` rather than
+        #: inside it (the arrow's direction is why ``schemas/results.py``
+        #: cannot import the report contract at all).
+        self.stage_reports_: list[StageReport] = []
         self._model: CompiledModel | None = None
 
         # history state
@@ -180,6 +187,18 @@ class Refinement:
                 parents=[], action=NodeAction(kind="root"), state=self.snapshot())
             self._head_id = root.id
         return self.history
+
+    def _invalidate_fit(self) -> None:
+        """Drop everything that described the previous values.
+
+        One place rather than four, because the set grows: the fitted curve and
+        statistics went stale together long before the trajectory joined them
+        (WP-1058), and a rung is a statement *about a state* — it goes stale
+        exactly when ``result_`` does.
+        """
+        self._model = None
+        self.result_ = None
+        self.stage_reports_ = []
 
     def _require_history(self) -> RefinementTree:
         if self.history is None:
@@ -239,8 +258,7 @@ class Refinement:
         self._free_paths = list(node.state.free_paths)
         self._pending_reflections = [r.model_copy(deep=True) for r in node.state.reflections]
         self._head_id = node.id
-        self._model = None
-        self.result_ = None
+        self._invalidate_fit()
         tree.set_head(node.id)
         return self
 
@@ -299,8 +317,7 @@ class Refinement:
             self.structure = structure.model_copy(deep=True)
         if instrument is not None:
             self.instrument = instrument.model_copy(deep=True)
-        self._model = None
-        self.result_ = None
+        self._invalidate_fit()
         if self.history is None:
             return None
         node = self.history.add(
@@ -434,8 +451,7 @@ class Refinement:
         table.refresh_ties()  # dependents follow their sources (b←a, x←dof)
         table.apply_to_models(self.structure, self.instrument)
         # the fitted curve and statistics described the *old* values
-        self._model = None
-        self.result_ = None
+        self._invalidate_fit()
         if self.history is None:
             return
         node = self.history.add(
@@ -653,8 +669,7 @@ class Refinement:
             if e.path in merged:
                 e.value = merged[e.path]
         table.apply_to_models(self.structure, self.instrument)
-        self._model = None
-        self.result_ = None
+        self._invalidate_fit()
 
         node = tree.add(
             parents=[ours_id, theirs_id],
@@ -828,7 +843,8 @@ class Refinement:
     def fit(self, data: PatternData, *, mode: Mode = "rietveld",
             plan: RefinementPlan | str = "mccusker_default",
             two_theta_limits: tuple[float, float] | None = None,
-            events=None, cancel=None) -> RefinementResult:
+            events=None, cancel=None,
+            stage_reports: bool = False) -> RefinementResult:
         """Run a staged refinement.
 
         ``events`` — optional per-iteration telemetry: a path (JSONL appended),
@@ -841,6 +857,21 @@ class Refinement:
         the models restored to their pre-stage values) and
         :class:`~anatase.optimize.cancel.RefinementCancelled` is raised carrying
         the stages that *did* complete and the node the working state stands at.
+
+        ``stage_reports`` — build the report at every stage boundary and leave
+        the rungs on :attr:`stage_reports_` (WP-1058).  **Off by default here
+        and on at the agent surface**, and the asymmetry is the measurement:
+        a report build is ~0.33 s on 59.5k channels against a ~1.0 s five-stage
+        fit, so a trajectory costs ≈2.5× the fit — nothing to a consumer that
+        calls once and reads, a tax on a library primitive that suites and
+        series call in loops.  It changes **no** number the fit produces: the
+        rungs are read off states the plan already passes through, never
+        states it is made to visit, so a fit run with them lands exactly where
+        the same fit run without them does.  (That is also why this is not the
+        "declared ladder" WP-1058 set out to build: measured, every shipped
+        rietveld preset already opens on a background+scale stage — the
+        McCusker turn-on order *is* the bootstrap ladder — so prepending one
+        reproduced stage 1's report to three decimals.)
         """
         plan = resolve_plan(plan, mode)
 
@@ -861,13 +892,15 @@ class Refinement:
         diagnostics: list[Diagnostic] = _dispersion_diagnostics(
             self.structure, self.instrument)
         stage_results: list[StageResult] = []
+        self.stage_reports_ = []
         outcome = None
         model = None
 
         try:
             model, outcome, guard, stage_results, diagnostics = self._run_plan(
                 plan, data, mode, table, two_theta_limits, tree, stream, cancel,
-                stage_results, diagnostics)
+                stage_results, diagnostics,
+                stage_reports=stage_reports)
         except RefinementCancelled as exc:
             if stream is not None:
                 stream.emit("fit_end", status="cancelled", stage=exc.stage,
@@ -906,7 +939,8 @@ class Refinement:
         return self.result_
 
     def _run_plan(self, plan, data, mode, table, two_theta_limits, tree, stream,
-                  cancel, stage_results, diagnostics):
+                  cancel, stage_results, diagnostics, *,
+                  stage_reports: bool = False):
         """The stage loop of :meth:`fit`, split out so cancellation has one exit.
 
         Returns ``(model, outcome, guard, stage_results, diagnostics)``; raises
@@ -915,6 +949,12 @@ class Refinement:
         :func:`_constraint_diagnostics` reads only that stage: earlier stages
         measured an intermediate state, and it is the answer-producing one
         whose Jacobian the result's identifiability evidence describes.
+
+        ``stage_reports`` appends one :class:`~anatase.report.StageReport` per
+        completed stage to :attr:`stage_reports_`.  A cancelled run keeps the
+        rungs of the stages that *did* complete, for the same reason
+        :class:`~anatase.optimize.cancel.RefinementCancelled` carries them:
+        the in-flight stage is abandoned, the ones before it happened.
         """
         model = outcome = guard = None
         for k, stage in enumerate(plan.stages, start=1):
@@ -931,6 +971,10 @@ class Refinement:
                 freed=freed,
                 n_constraint_truncations=outcome.n_constraint_truncations,
             ))
+            if stage_reports:
+                self.stage_reports_.append(self._stage_report(
+                    stage.name, plan, data, mode, table, model, outcome, guard,
+                    stage_diagnostics))
             if stream is not None and hasattr(stream, "write_snapshot"):
                 # live monitoring (viz.live.LiveSession): rewrite the HTML view
                 stream.write_snapshot(model, table, outcome, stage.name)
@@ -943,6 +987,39 @@ class Refinement:
                     seed=stage.seed, strain_seed=stage.strain_seed,
                 ), model, table, outcome, stage_diagnostics)
         return model, outcome, guard, stage_results, diagnostics
+
+    def _stage_report(self, name, plan, data, mode, table, model, outcome,
+                      guard, stage_diagnostics) -> StageReport:
+        """One trajectory rung: the report at this stage's end (WP-1058).
+
+        The result it reads is transient — built here from the state the stage
+        landed on and thrown away — because a rung delivers *statements*, not
+        the curves and per-parameter blocks a result carries.  Two choices in
+        the arguments are load-bearing:
+
+        **The veto sees the whole plan**, not the stages run so far, so a rung
+        answers "what will this plan still not fix?" rather than "what is not
+        free yet".  That is what leaves ``refine_sample_displacement`` standing
+        at 0.997 on the WP-1053 E2 fixture while the zero and cell suggestions
+        beside it are marked as the plan's own later stages.
+
+        **The diagnostics are this stage's**, not the run's accumulated list:
+        a rung describes a state, and a guard that fired two stages ago is
+        already carried on the result the caller gets back.
+        """
+        from .report import build_report
+
+        result = _build_result(
+            model, table, outcome.theta, mode=mode, status=outcome.status,
+            stage_results=[], diagnostics=list(stage_diagnostics),
+            structure=self.structure, stderr_internal=outcome.stderr_internal,
+            correlation=outcome.correlation, backend=self._backend,
+            solver=self._solver, mu_r_source=self._mu_r_source,
+            mu_r_skipped=self._mu_r_skipped, guard=guard)
+        report = build_report(result, model=model,
+                              values=table.decode(outcome.theta), plan=plan,
+                              free_paths=list(table.free_paths))
+        return report.for_stage(name)
 
     def run_stage(self, data: PatternData, stage: Stage, *,
                   mode: Mode | None = None,
@@ -964,6 +1041,9 @@ class Refinement:
         ttl = two_theta_limits if two_theta_limits is not None else self._two_theta_limits
         self._mode = mode
         self._two_theta_limits = ttl
+        # the trajectory belongs to the last *fit*: one stage on top of it
+        # leaves rungs that describe states this one no longer stands on
+        self.stage_reports_ = []
         tree = self._ensure_history(data)
         stream = as_event_stream(events)
 

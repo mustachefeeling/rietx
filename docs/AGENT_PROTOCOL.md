@@ -367,6 +367,18 @@ report = ref.report(plan="lab_bragg_brentano")   # the plan supplies the Layer-2
 - **Layer 2** — typed suggested actions from a closed enum, each with a
   confidence, a rationale, `alternatives`, and `vetoed_by`.
 
+**And read it at more than one state.** A report describes the state it was
+built at, and the state a staged plan finishes in is routinely the least
+informative one in the run: a compensated fit arrives somewhere that looks
+converged and suggests nothing, because a real error has been absorbed into
+whatever parameter the plan did free. Measured on the WP-1053 fixtures — a
+−0.02 mm sample displacement, which no `mccusker_default` stage frees — the
+final report reads Rwp 0.0137 with an **empty** action list, while the same
+plan's *first* stage names `refine_sample_displacement` at confidence 0.997.
+Nothing was hidden; only the last state was ever delivered. So take the
+trajectory (§9), and treat a rung's high-confidence action as evidence about
+the specimen even when the final report is silent.
+
 Images are secondary evidence. `plot_for_vlm()` exists and renders what VLMs
 *can* read (annotated multi-panel montage, worst regions auto-zoomed, Δ/σ panel,
 high contrast, never JPEG) — use it to sanity-check a conclusion you already
@@ -1003,7 +1015,62 @@ the true answer.
 
 ---
 
-## 9. Using the history DAG as a search structure
+## 9. The trajectory, and the history DAG as a search structure
+
+### Read the run, not just its last state
+
+**The first thing to do with a fit is read the report at every stage it passed
+through, and that costs you one flag.** `task="refine"` returns `trajectory[]`
+by default, and in python:
+
+```python
+ref.fit(data, plan="mccusker_default", stage_reports=True)
+for rung in ref.stage_reports_:
+    print(rung.stage, rung.rwp, [(a.kind, a.confidence) for a in rung.actions])
+```
+
+Each rung is the same three-layer report, projected (`FitReport.for_stage`) to
+the numbers §4 judges a fit on, the summary sentence, and the **active**
+suggestions — those the plan you ran will *not* fix, since the strategy veto is
+applied against the whole plan. Two properties make it safe to rely on:
+
+- **It changes no number.** The rungs are read off states the plan already
+  passes through; a fit run with the trajectory lands bit-for-bit where the
+  same fit runs without it (measured: identical Rwp to full float precision on
+  the synthetic fixtures, 0.140249 on 11-BM NAC). Nothing is refined to
+  produce a rung.
+- **It costs ≈2.5× the fit's wall clock** (1.06 s → 2.70 s on 59.5k channels;
+  0.28 s → 0.87 s on a 1000-channel fixture) and ~26 % of the report's
+  payload — 0.9–2.6 kB a rung. The cost is flat *per stage*, not per
+  iteration, so on a hard or diverging fit it disappears into the noise. Turn
+  it off for a fit you are not going to read.
+
+What to look for, in order:
+
+1. **A rung that names a cause the final report does not.** That is the
+   compensation signature of §5: the plan absorbed a real error. The named
+   parameter is the hypothesis; `predict_then_verify` below is how you test
+   it rather than believing it.
+2. **A confidence that climbs across rungs.** On real 11-BM data with an
+   unmodelled CaF₂ impurity, `add_impurity_phase` reads 0.3 → 0.6 → 0.9 as the
+   host phase fits: a hypothesis getting *stronger* as the model improves is
+   about the specimen, not about the starting values.
+3. **`abstained_kind` changing.** `immature` early is ordinary. Ending at
+   `resolution_limited` is a legitimate stopping point for a phase-ID
+   deliverable (§4b) — not a licence to escalate corrections.
+4. **`n_actions_vetoed`.** These are the suggestions your own plan already
+   answers; a rung whose actions are *all* vetoed is telling you the plan is
+   already the right one.
+
+The rungs deliberately carry no regions, curves or per-region attribution: a
+rung is a pointer to a state worth asking about, and `ref.report()` (or the
+`report` arm) is where you ask. There is **no `task="diagnose"`** and no
+declared bootstrap ladder to invoke, because the states are already there —
+every preset opens on a background+scale stage, which is that ladder's first
+rung (WP-1058). A hand-rolled one-stage plan is the one case with nothing to
+report but its end: the turn-on order is what makes a trajectory informative.
+
+### The DAG: branch, verify, roll back
 
 This is the part of the API that exists because the operator might be a search
 process rather than a person. Every stage auto-commits an immutable, restorable
@@ -1112,15 +1179,47 @@ there than excluding the scales.
 
 ## 9c. One JSON call from a tool loop
 
-`anatase.agent.refine_json(dict) → dict` wraps the four entry points for a
+`anatase.agent.refine_json(dict) → dict` wraps the entry points for a
 tool-calling agent, and `anatase.agent.tool_definition()` returns a
 ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
-vocabularies from the live registries.  Four tasks: `"refine"` (one pattern →
-`result` + the FitReport), `"refine_multi"` (one joint residual — its
-`node_id`/`tree_id` are null **by design**, a joint fit keeps no history DAG),
-`"refine_sequential"` (a warm-started series → `series` of per-pattern
-summaries; history ids live per entry, never per run), and `"index"` (a peak list
-or a pattern → `indexing`, an `IndexingResult`).
+vocabularies from the live registries.  Five tasks: `"refine"` (one pattern →
+`result` + the FitReport + the per-stage `trajectory`), `"refine_multi"` (one
+joint residual — its `node_id`/`tree_id` are null **by design**, a joint fit
+keeps no history DAG), `"refine_sequential"` (a warm-started series → `series`
+of per-pattern summaries; history ids live per entry, never per run), `"index"`
+(a peak list or a pattern → `indexing`, an `IndexingResult`), and `"suggest"`
+(a model → `suggestion`, one Jacobian evaluation ranking the held parameters by
+predicted Δχ² — no fit, no mutation, safe between fits).
+
+The whole of §9a arrives on the plain request, with no extra call and no flag
+to know about:
+
+```json
+{"task": "refine", "structure": {…}, "instrument": {…}, "pattern": {…}}
+```
+
+```json
+{"ok": true,
+ "result": {"statistics": {"rwp": 0.0137, …}, …},
+ "report":     {"rwp": 0.0137, "suggested_actions": []},
+ "trajectory": [
+   {"stage": "scale_bkg", "rwp": 0.0575, "n_actions_vetoed": 3,
+    "actions": [{"kind": "refine_sample_displacement", "confidence": 0.997,
+                 "rationale": "position error follows the cos_theta template
+                               (-0.01003 ± 0.00022 deg, R²=1.00, 69% of χ²,
+                               8 regions)",
+                 "parameter_paths": ["instrument.geometry.sample_displacement"]}]},
+   {"stage": "zero",      "rwp": 0.0150, "actions": [],
+    "abstained_kind": "unreadable"},
+   {"stage": "cell",      "rwp": 0.0137, "actions": []},
+   {"stage": "profile_w", "rwp": 0.0137, "actions": []},
+   {"stage": "profile",   "rwp": 0.0137, "actions": []}]}
+```
+
+That is the shape to expect from a compensated fit: an empty final action list
+over a first rung that names the cause.  `report_trajectory: false` declines
+the rungs; `include_report: false` declines **both** — a caller who says it
+does not want the report is never handed one a rung at a time.
 
 `"index"` answers in its own arm because its answer is a different *shape*: there
 is no cell in it.  Read the `evidence` arm first (WP-1043, §7f) — every
@@ -1132,8 +1231,8 @@ mirrors the one option surface every engine reads — set `max_volume` and
 `n_unindexed` once and every engine means the same thing, which is what makes
 their agreement evidence.
 
-The envelope never raises: `{"ok": true, "result"|"series"|"indexing": …,
-"evidence": …, "report": …}`
+The envelope never raises: `{"ok": true, "result"|"series"|"indexing"|"suggestion": …,
+"evidence": …, "report": …, "trajectory": […]}`
 on success, else `{"ok": false, "error": {code, message, suggestion,
 details}}` with `error.code` one of `INVALID_REQUEST` (per-field dot-paths in
 `details[]` — the schemas are strict, unknown keys are errors),

@@ -48,6 +48,7 @@ from .layer2 import (
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
     THRESHOLDS_VERSION,
+    TRAJECTORY_MAX_ACTIONS,
     BackgroundEvidence,
     BasisCoefficient,
     ExchangeFinding,
@@ -56,6 +57,7 @@ from .schemas import (
     LeBailGap,
     Region,
     RegionAttribution,
+    StageReport,
     StrainAnalysis,
     SuggestedAction,
     TextureAnalysis,
@@ -70,6 +72,7 @@ from .texture import analyse_texture
 __all__ = [
     "RECIPES",
     "THRESHOLDS_VERSION",
+    "TRAJECTORY_MAX_ACTIONS",
     "BackgroundEvidence",
     "BasisCoefficient",
     "ExchangeFinding",
@@ -79,6 +82,7 @@ __all__ = [
     "Recipe",
     "Region",
     "RegionAttribution",
+    "StageReport",
     "StrainAnalysis",
     "SuggestedAction",
     "TextureAnalysis",
