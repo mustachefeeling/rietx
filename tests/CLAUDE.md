@@ -66,17 +66,14 @@ failure message is the one you expected.
 
 ## An eval's expected answer is a measurement, not a definition
 
-A scored row asserts what the *data* supports, and that assertion needs
-checking as much as any guard does — **before** the grid is read, because
-afterwards a correction is indistinguishable from moving the goalposts. Two of
-WP-1059's three rows failed it: one expected `ambiguous` where the default plan
-converges to truth with a correctly quiet report (so no competent agent could
-fail it), the other expected `ambiguous` where the two one-parameter rivals
-differ by χ² 4.075 against 3.489 over 5332 points (so the data does choose, and
-the R² 0.9977 that said otherwise is geometric). The check is mechanical — fit
-each rival alone with the other held at its null, compare — and it costs
-seconds against a round that cost 1.7 M tokens.
-`tests/eval_report_agent/PROTOCOL.md` § Episode validity has both.
+A scored row asserts what the *data* supports, and that needs checking as much
+as any guard does — **before** the grid is read, since afterwards a correction
+cannot be told from moving the goalposts. Two of WP-1059's three rows failed
+it, both expecting `ambiguous` where the data in fact chose: one converges to
+truth under the default plan, the other's one-parameter rivals differ by χ²
+4.075 against 3.489 (5332 points; the R² 0.9977 saying otherwise is geometric).
+Fitting each rival alone costs seconds; that round cost 1.7 M tokens. Both:
+`tests/eval_report_agent/PROTOCOL.md` § Episode validity.
 
 ## Budgets in tests
 
