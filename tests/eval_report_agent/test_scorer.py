@@ -1,9 +1,11 @@
-"""Deterministic unit tests for the WP-1053 scorer and shim (fast suite).
+"""Deterministic unit tests for the eval scorer, shim and fixtures.
 
 Everything here is synthetic JSON in ``tmp_path`` — no refinement runs, no
-network, no LLM.  The shim's enforcement is tested with ``refine_json``
+network, no LLM — with one exception marked ``slow``: the real-data pair costs
+its baseline fit.  The shim's enforcement is tested with ``refine_json``
 monkeypatched, because what these tests pin is the *harness contract*
-(overlay restriction, report stripping, budget, logging), not the solver.
+(overlay restriction, report and trajectory stripping, budget, logging), not
+the solver.
 """
 
 import json
@@ -11,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.eval_report_agent import build_fixtures as bf
 from tests.eval_report_agent.run_refine import run_episode, trim_response
 from tests.eval_report_agent.scorer import score_episode
 
@@ -35,7 +38,7 @@ def _write_truth(tmp_path: Path, **overrides) -> Path:
 
 
 def _call(parameters=(), freed=(), overlay=None, ok=True, refused=False,
-          condition="report-on"):
+          condition="surface", report=None, trajectory=None):
     if refused:
         return {"refused": True, "overlay": overlay or {},
                 "response": {"ok": False,
@@ -47,17 +50,22 @@ def _call(parameters=(), freed=(), overlay=None, ok=True, refused=False,
                 "response": {"ok": False,
                              "error": {"code": "REFINEMENT_FAILED",
                                        "message": ""}}}
+    response = {"ok": True, "result": {
+        "status": "converged",
+        "parameters": list(parameters),
+        "stages": [{"name": "s", "freed": list(freed)}],
+        "statistics": {"rwp": 0.01, "gof": 1.02},
+    }}
+    if report is not None:
+        response["report"] = report
+    if trajectory is not None:
+        response["trajectory"] = list(trajectory)
     return {
         "refused": False,
         "condition": condition,
-        "include_report": condition == "report-on",
+        "include_report": condition != "off",
         "overlay": overlay or {},
-        "response": {"ok": True, "result": {
-            "status": "converged",
-            "parameters": list(parameters),
-            "stages": [{"name": "s", "freed": list(freed)}],
-            "statistics": {"rwp": 0.01},
-        }},
+        "response": response,
     }
 
 
@@ -230,12 +238,129 @@ def test_refused_calls_are_counted_separately(tmp_path):
 
 
 # ----------------------------------------------------------------------
+# scorer: the WP-1059 descriptive measurements
+# ----------------------------------------------------------------------
+
+
+def test_watch_groups_report_which_family_was_freed(tmp_path):
+    """E3's sign-inversion watch and R1's cause-vs-absorber choice are the
+    same mechanism: truth-declared globs, reported against ``freed``."""
+    truth = _write_truth(tmp_path, watch={
+        "report_widths": ["phases.*.lor_size", "phases.*.lor_strain"],
+        "default_width": ["instrument.profile.w"]})
+    edir = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.profile.w", "phases.0.lor_size",
+                     "instrument.background.c0"])],
+        {"verdict": "converged", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["watch"] == {"report_widths": ["phases.0.lor_size"],
+                             "default_width": ["instrument.profile.w"]}
+
+
+def test_watch_is_empty_when_the_truth_record_declares_none(tmp_path):
+    truth = _write_truth(tmp_path)
+    edir = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"])],
+        {"verdict": "converged", "summary": ""})
+    assert score_episode(edir, truth)["watch"] == {}
+
+
+@pytest.mark.parametrize("expected,verdict,flagged", [
+    ("ambiguous", "converged", True),      # R1/E8: the overclaim
+    ("abstain", "converged", True),        # E7: the overclaim
+    ("ambiguous", "abstain", False),       # a miss, not an overclaim
+    ("converged", "converged", False),     # the ordinary right answer
+    ("converged", "abstain", False),       # under-claiming is not this flag
+])
+def test_overclaim_is_flagged_only_where_a_verdict_was_declined(
+        tmp_path, expected, verdict, flagged):
+    """The package's own hardest rule, scored on the agent: a confident
+    ``converged`` where the data supports no single cause."""
+    truth = _write_truth(tmp_path, expected_verdict=expected, planted=None,
+                         family=None)
+    edir = _write_episode_dir(tmp_path, [_call()],
+                              {"verdict": verdict, "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["overclaimed"] is flagged
+    # and it never touches the grade, which stays the verdict match
+    assert card["passed"] is (expected == verdict)
+
+
+def test_bootstrap_calls_count_short_explicit_plans(tmp_path):
+    """Round 1's measured mechanism — agents never generate the states where
+    the report speaks — read straight off the overlay log."""
+    truth = _write_truth(tmp_path)
+    edir = _write_episode_dir(tmp_path, [
+        _call(overlay={"plan": {"stages": [{"name": "scale_bkg",
+                                            "turn_on": ["phases.*.scale"]}]}}),
+        _call(overlay={"plan": {"stages": [{"name": "a"}, {"name": "b"},
+                                           {"name": "c"}]}}),
+        _call(overlay={"plan": "mccusker_default"}),
+        _call(refused=True, overlay={"plan": {"stages": [{"name": "x"}]}}),
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"]),
+    ], {"verdict": "converged", "summary": ""})
+    card = score_episode(edir, truth)
+    assert card["plans_used"] == ["stages:1", "stages:3", "mccusker_default",
+                                  "default"]
+    assert card["bootstrap_calls"] == 1  # the refused call is not a call
+    assert card["passed"]
+
+
+def test_graded_call_audit_shows_what_the_condition_delivered(tmp_path):
+    """The condition is enforced by the shim; the scorecard has to be able to
+    *show* that it was, or a grid cannot be checked by anyone else."""
+    truth = _write_truth(tmp_path)
+    on = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"], report={"summary": "s"},
+              trajectory=[{"stage": "scale_bkg"}, {"stage": "zero"}])],
+        {"verdict": "converged", "summary": ""})
+    card = score_episode(on, truth)
+    assert card["report_present"] is True and card["trajectory_rungs"] == 2
+    assert card["statistics"] == {"rwp": 0.01, "gof": 1.02}
+
+    off = tmp_path / "off"
+    off.mkdir()
+    (off / "calls.jsonl").write_text(json.dumps(
+        _call(parameters=[_param("instrument.zero_shift", 0.0)],
+              freed=["instrument.zero_shift"], condition="off")) + "\n",
+        encoding="utf-8")
+    (off / "answer.json").write_text(json.dumps(
+        {"verdict": "converged", "summary": ""}), encoding="utf-8")
+    card_off = score_episode(off, truth)
+    assert card_off["report_present"] is False
+    assert card_off["trajectory_rungs"] is None
+
+
+def test_refusal_row_grades_the_verdict_and_records_the_parameter(tmp_path):
+    """R1's shape: a planted path with ``tol: null``.  Freeing the true cause
+    is recorded, and does not turn a declined verdict into a pass — on that
+    pattern the data does not license the choice (WP-1059)."""
+    truth = _write_truth(tmp_path, expected_verdict="ambiguous", planted={
+        "path": "instrument.geometry.sample_displacement", "start": -0.02,
+        "truth": -0.0801, "tol": None}, family=None)
+    recovered_but_confident = _write_episode_dir(tmp_path, [
+        _call(parameters=[_param("instrument.geometry.sample_displacement",
+                                 -0.0801)],
+              freed=["instrument.geometry.sample_displacement"])],
+        {"verdict": "converged", "summary": "displacement refined"})
+    card = score_episode(recovered_but_confident, truth)
+    assert card["planted_final_value"] == -0.0801
+    assert card["recovered"] is None      # never graded on this row
+    assert card["overclaimed"] and not card["passed"]
+
+
+# ----------------------------------------------------------------------
 # shim: enforcement, with refine_json stubbed
 # ----------------------------------------------------------------------
 
 
 def _write_shim_episode(tmp_path: Path, *, include_report: bool,
-                        max_calls: int = 8) -> Path:
+                        include_trajectory=None, max_calls: int = 8,
+                        condition: str | None = None) -> Path:
     edir = tmp_path / "ES"
     edir.mkdir(exist_ok=True)
     (edir / "episode.json").write_text(json.dumps({
@@ -243,12 +368,15 @@ def _write_shim_episode(tmp_path: Path, *, include_report: bool,
         "pattern": {"two_theta": [1.0], "intensity": [1.0]},
         "mode": "rietveld",
     }), encoding="utf-8")
-    (edir / "condition.json").write_text(json.dumps({
-        "protocol_version": "1.0",
-        "condition": "report-on" if include_report else "report-off",
+    marker = {
+        "protocol_version": bf.PROTOCOL_VERSION,
+        "condition": condition or ("surface" if include_report else "off"),
         "include_report": include_report,
         "max_calls": max_calls,
-    }), encoding="utf-8")
+    }
+    if include_trajectory is not None:
+        marker["include_trajectory"] = include_trajectory
+    (edir / "condition.json").write_text(json.dumps(marker), encoding="utf-8")
     return edir
 
 
@@ -261,7 +389,8 @@ def _stub_response():
                        "sigma": [1.0, 1.0], "ticks": {"LaB6": [1.5]},
                        "history": [{"stage": "s", "iteration": 0,
                                     "cost": 1.0}]},
-            "report": {"layer1_available": True}}
+            "report": {"layer1_available": True},
+            "trajectory": [{"stage": "scale_bkg", "rwp": 0.2}]}
 
 
 def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
@@ -291,7 +420,8 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
 
 
 def test_shim_report_on_keeps_report_and_elides_bulk(tmp_path, monkeypatch):
-    edir = _write_shim_episode(tmp_path, include_report=True)
+    edir = _write_shim_episode(tmp_path, include_report=True,
+                               include_trajectory=True)
     monkeypatch.setattr("anatase.agent.refine_json",
                         lambda request: _stub_response())
     response = run_episode(edir)
@@ -343,3 +473,238 @@ def test_trim_response_leaves_failures_alone():
     failure = {"ok": False, "error": {"code": "INVALID_REQUEST",
                                       "message": "m"}}
     assert trim_response(failure) == failure
+
+
+@pytest.mark.parametrize("condition", sorted(bf.CONDITIONS))
+def test_shim_delivers_exactly_what_the_condition_declares(
+        tmp_path, monkeypatch, condition):
+    """The round-2 failure mode that would silently make a withheld arm a
+    delivered one: the condition sets both halves on the *request* (so the
+    package never builds one it withholds) and pops both from the response
+    (so a package default cannot put one back)."""
+    spec = bf.CONDITIONS[condition]
+    edir = _write_shim_episode(tmp_path, include_report=spec.report,
+                               include_trajectory=spec.trajectory,
+                               condition=condition)
+    seen = {}
+
+    def stub(request):
+        seen.update(request)
+        return _stub_response()          # always offers both halves
+
+    monkeypatch.setattr("anatase.agent.refine_json", stub)
+    response = run_episode(edir)
+    assert seen["include_report"] is spec.report
+    assert seen["report_trajectory"] is spec.trajectory
+    assert ("report" in response) is spec.report
+    assert ("trajectory" in response) is spec.trajectory
+    logged = json.loads(
+        (edir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert ("report" in logged["response"]) is spec.report
+    assert ("trajectory" in logged["response"]) is spec.trajectory
+    assert logged["include_trajectory"] is spec.trajectory
+
+
+def test_shim_reads_a_1_0_condition_file_without_a_trajectory_key(
+        tmp_path, monkeypatch):
+    """A marker written before the split says nothing about the trajectory;
+    the report flag is what it meant, so that is what it gets."""
+    edir = _write_shim_episode(tmp_path, include_report=True)  # no key
+    monkeypatch.setattr("anatase.agent.refine_json",
+                        lambda request: _stub_response())
+    assert "trajectory" in run_episode(edir)
+
+
+# ----------------------------------------------------------------------
+# fixtures: the condition axis, rendered
+# ----------------------------------------------------------------------
+
+
+def _prompt(condition: str, tmp_path: Path) -> str:
+    return bf.render_prompt("E2", tmp_path, condition=condition)
+
+
+def test_conditions_are_a_two_by_two_plus_the_baseline():
+    """Delivery (the trajectory) and instruction (§9) vary independently —
+    that separation is the whole design of the round, so it is pinned."""
+    axes = {(c.report, c.trajectory, "9." in c.sections)
+            for c in bf.CONDITIONS.values()}
+    assert axes == {(False, False, False),   # off
+                    (True, False, False),    # report
+                    (True, False, True),     # prompt
+                    (True, True, False),     # surface
+                    (True, True, True)}      # both
+
+
+@pytest.mark.parametrize("condition", sorted(bf.CONDITIONS))
+def test_prompt_quotes_the_manual_its_condition_declares(condition, tmp_path):
+    spec = bf.CONDITIONS[condition]
+    text = _prompt(condition, tmp_path)
+    assert ("## 5. Read numbers, not pixels" in text) is spec.report
+    assert ("## 6. Abstention is a result" in text) is spec.report
+    assert (f"### {bf.SECTION_9_SUBSECTION}" in text) is ("9." in spec.sections)
+    # a report arm without the surface must say so, or it hunts for a key §5
+    # promises; an arm that has the trajectory must not be told it is absent
+    assert ("stripped by the harness" in text) is (spec.report
+                                                   and not spec.trajectory)
+    # the excerpt is the *subsection*, never the DAG half of §9 — that half
+    # describes a python surface the shim does not sanction.  Its forward
+    # reference to predict_then_verify therefore dangles, deliberately: the
+    # treatment is "read the run", not "run the DAG loop" (PROTOCOL.md)
+    assert "### The DAG:" not in text
+
+
+def test_off_renders_the_round_one_report_off_prompt(tmp_path):
+    """The one cell readable against the 1.0 grid: an arm that never sees a
+    report cannot see the content that changed under it."""
+    text = _prompt("off", tmp_path)
+    assert "## Reading the FitReport" not in text
+    assert "FitReport" not in text
+    assert "run_refine" in text and "answer.json" in text
+
+
+def test_condition_marker_carries_both_switches(tmp_path):
+    bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
+                      condition="prompt", only=["E2"])
+    marker = json.loads((tmp_path / "runs" / "E2" / "condition.json")
+                        .read_text(encoding="utf-8"))
+    assert marker["protocol_version"] == bf.PROTOCOL_VERSION
+    assert marker["include_report"] is True
+    assert marker["include_trajectory"] is False
+    assert marker["prompt_sections"] == ["5.", "6.", "9."]
+
+
+def test_unknown_condition_is_refused(tmp_path):
+    with pytest.raises(ValueError, match="condition must be one of"):
+        bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
+                          condition="report-on", only=["E2"])
+
+
+def test_synthetic_selection_never_pays_for_the_real_pair(tmp_path, monkeypatch):
+    """R1/R2 cost a baseline fit; a synthetic-only build must stay as cheap
+    as it was at 1.0."""
+    def refuse():  # pragma: no cover - must not be reached
+        raise AssertionError("the real pair was built for a synthetic run")
+
+    monkeypatch.setattr(bf, "build_real_episodes", refuse)
+    bf.write_fixtures(tmp_path / "runs", tmp_path / "truth",
+                      condition="surface", only=["E1", "E2"])
+    assert sorted(p.name for p in (tmp_path / "runs").iterdir()) == ["E1", "E2"]
+
+
+# ----------------------------------------------------------------------
+# grid: the assembled round
+# ----------------------------------------------------------------------
+
+
+def _cell(runs: Path, condition: str, model: str, eid: str, card_calls,
+          answer, *, marker_condition=None):
+    edir = runs / f"{condition}__{model}" / eid
+    edir.mkdir(parents=True)
+    (edir / "calls.jsonl").write_text(
+        "".join(json.dumps(c) + "\n" for c in card_calls), encoding="utf-8")
+    (edir / "answer.json").write_text(json.dumps(answer), encoding="utf-8")
+    spec = bf.CONDITIONS[marker_condition or condition]
+    (edir / "condition.json").write_text(json.dumps({
+        "protocol_version": bf.PROTOCOL_VERSION,
+        "condition": marker_condition or condition,
+        "include_report": spec.report,
+        "include_trajectory": spec.trajectory,
+        "prompt_sections": list(spec.sections),
+        "max_calls": bf.MAX_CALLS,
+    }), encoding="utf-8")
+    return edir
+
+
+def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
+    """The manipulation failure the shim cannot catch from inside one call:
+    an arm that was supposed to withhold a half and did not.  It is marked,
+    never explained away — the grid's own audit."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "E2.json").write_text(json.dumps({
+        "episode": "E2", "expected_verdict": "converged",
+        "planted": None, "family": None}), encoding="utf-8")
+    runs = tmp_path / "runs"
+    # honest surface cell: report + trajectory, as declared
+    _cell(runs, "surface", "sonnet", "E2",
+          [_call(report={"summary": "s"}, trajectory=[{"stage": "a"}])],
+          {"verdict": "converged", "summary": ""})
+    # a cell that says "off" but was handed a report anyway
+    _cell(runs, "off", "haiku", "E2",
+          [_call(report={"summary": "s"})],
+          {"verdict": "converged", "summary": ""})
+
+    rows = {(r["condition"], r["model"]): r
+            for r in grid.collect(runs, truth)}
+    assert rows[("surface", "sonnet")]["payload_ok"] is True
+    assert rows[("off", "haiku")]["payload_ok"] is False
+    table = grid.render(list(rows.values()))
+    assert "| surface | sonnet | pass | 1/1 |" in table
+    assert "pass,!" in table            # the off cell is marked, not dropped
+    assert "%" not in table             # counts, never percentages
+
+
+@pytest.mark.slow
+def test_real_pair_is_built_from_the_fitted_state(tmp_path):
+    """R1/R2 truth values are read off the SRM 660c baseline fit, never
+    hard-coded, and R1 declares no tolerance — the refusal row is graded on
+    its verdict alone."""
+    pytest.importorskip("gemmi")
+    episodes = bf.build_real_episodes()
+    r1, r2 = episodes["R1"]["truth"], episodes["R2"]["truth"]
+    assert r1["expected_verdict"] == "ambiguous" and r1["planted"]["tol"] is None
+    assert r1["planted"]["path"] == "instrument.geometry.sample_displacement"
+    assert r1["planted"]["start"] == -0.02
+    assert r1["planted"]["truth"] == pytest.approx(-0.0801, abs=5e-4)
+    assert r1["watch"]["absorber"] == ["instrument.zero_shift"]
+    assert r2["expected_verdict"] == "converged"
+    assert r2["planted"]["start"] == pytest.approx(
+        0.90 * r2["planted"]["truth"], rel=1e-12)
+    # the starts are the fitted state with one thing moved, so the pattern is
+    # the same object in both and the structures differ only in scale
+    assert (episodes["R1"]["core"]["pattern"]
+            == episodes["R2"]["core"]["pattern"])
+    assert (episodes["R1"]["core"]["instrument"]["geometry"]
+            ["sample_displacement"]["value"] == -0.02)
+
+
+@pytest.mark.slow
+def test_r1_lazy_path_absorbs_the_displacement_and_the_report_says_so(tmp_path):
+    """R1's whole design in one assertion: the default plan cannot free the
+    planted displacement, absorbs it into ``zero_shift``, converges with an
+    empty action list — and the WP-1056 exchange clause names the pair at the
+    converged state, which is what makes ``ambiguous`` the supported verdict.
+
+    Pinned because the episode's expected verdict depends on it: if the clause
+    ever stops firing here, R1 is no longer a refusal row and must be
+    redesigned rather than quietly re-scored.
+    """
+    import anatase as pr
+    from anatase import agent as agent_mod
+    from anatase.viz.plots import plot_result
+
+    core = bf.build_real_episodes()["R1"]["core"]
+    response = agent_mod.refine_json(dict(core, include_report=True))
+    assert response["ok"], response.get("error")
+    values = {p["path"]: p["value"] for p in response["result"]["parameters"]}
+    # never freed: the surface serialises vary-or-tie entries only
+    assert "instrument.geometry.sample_displacement" not in values
+    assert abs(values["instrument.zero_shift"]) > 0.02   # absorbed, ~+0.0317
+    assert response["report"]["suggested_actions"] == []
+    summary = response["report"]["summary"]
+    assert "exchangeable" in summary
+    assert "instrument.geometry.sample_displacement" in summary
+
+    # house convention: every test refinement leaves obs/calc/diff PNGs
+    out = Path(__file__).resolve().parents[1] / "output"
+    out.mkdir(exist_ok=True)
+    ref = pr.Refinement(pr.Structure.model_validate(core["structure"]),
+                        pr.Instrument.model_validate(core["instrument"]))
+    data = pr.PatternData.model_validate(core["pattern"])
+    result = ref.fit(data, plan="mccusker_default")
+    plot_result(result, path=str(out / "eval_r1_lazy_path.png"))
+    plot_result(result, two_theta_range=(20.0, 45.0),
+                path=str(out / "eval_r1_lazy_path_zoom.png"))

@@ -1,6 +1,6 @@
 # WP-1059 — Agent eval round 2: protocol v1.1 and the post-fix re-A/B
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13
 Depends on: WP-1054, WP-1056, WP-1057, WP-1058
 
 ## Goal
@@ -44,17 +44,60 @@ record; restated because the protocol forbids reading other WP files):
    excerpt (rewritten by WP-1058) to the shared prompt. This was 1053's
    deliberately-deferred experiment — a prompt change is a protocol version
    bump, never a mid-pilot edit.
-2. **Package-side delivery**: episodes run against the WP-1058 surface (diagnose
-   or trajectory), so "the report where it speaks" arrives without operator
-   skill. Conditions should separate prompt-only from surface-only if budget
-   allows — that is the cleanest reading of *which* intervention moved E2/E8.
+2. **Package-side delivery**: episodes run against the WP-1058 surface (the
+   per-stage `trajectory`; the `task="diagnose"` ladder was *declined* on
+   measurement), so "the report where it speaks" arrives without operator
+   skill. Conditions separate prompt-only from surface-only — that is the
+   cleanest reading of *which* intervention moved E2/E8.
 3. **Content fixes live**: WP-1054 (E7's invitation), WP-1056 (converged-state
    exchangeability — the E2/E8 evidence), WP-1057 (stopping criteria — bears on
    verdict quality for the non-ideal rows).
 4. **Wider matrix per 1053's item 6**: a second effort tier (round 1 pinned
    `medium`), a third model if available, more repeats on discriminating rows,
-   and one real-data episode pair (WP-1052's SRM 660c pair, ready — where
-   *refusal* is the correct report behaviour and must be scored as such).
+   and one real-data episode pair (SRM 660c — where *refusal* is the correct
+   behaviour and must be scored as such).
+
+**The content the round measures, as it stands after 1054-1058** (folded in
+from the `### Inherited` mailbox on arrival, 2026-08-13; the WPs are closed and
+the protocol forbids reading their files):
+
+- **The treatment is now delivery, not content.** `build_fixtures.PROTOCOL_VERSION`
+  is **1.1**: a report-on response carries `trajectory` (the report at every
+  stage boundary, default-on) and the §5 excerpt the prompt quotes now says to
+  read it. A 1.1 run cannot be pooled with the 1.0 pilot's grid — the treatment
+  is different, which is the point. The pre-registered question is therefore
+  sharper than "does the report help": it is *does naming the cause at a state
+  the agent did not have to ask for change what the agent does*.
+- **The report-off arm is clean two ways** — `include_report=false` strips the
+  trajectory package-side, and the shim pops both. Verify before the round: it
+  is the one failure mode that would silently make report-off a report-on.
+- **E2 and E8 have the most to gain** (both converge to silent reports over
+  compensated parameters); E5/E7 already spoke at the final state, so a null
+  there is not evidence against delivery. Score the two groups separately.
+- **Content deltas since round 1**: `FitReport.identifiability` (trio + δR
+  unconditionally, `exchanges`/`soft_modes` when measured — WP-1056),
+  `FitReport.background` (unconditional, plus two never-before-emitted
+  `ActionKind` members — WP-1055), `lebail_gap` and `abstained_kind` with the
+  resolution-limited flavour (WP-1057), and the abstained-branch action set led
+  by `reindex_or_recheck_cell` with `add_impurity_phase` capped at 0.3
+  (WP-1054). `THRESHOLDS_VERSION` is **0.7** (round-1 traces read "0.3" — a
+  clean condition marker in the grids).
+- **The E8 re-scoring nuance (WP-1056)**: on E8's window the *default-plan* path
+  frees the planted zero and converges to truth, and that state is correctly
+  quiet (partner 1.2σ, bit-identical to the clean-short control). An agent that
+  runs the preset and reads the quiet report is *right* to answer converged
+  there; the exchange sentence fires on the wrong-family-freed state
+  (displacement freed, zero held: 119σ, R² 1.0000).
+- **The background trap as a condition axis (WP-1055)**: on the 1055 fixture the
+  over-flexible background wins Rwp (0.08852 vs 0.08969) and GoF (1.022 vs
+  1.025) while landing 2.6× further from the true Biso — every statistic an
+  agent reads improves. Also, `add_impurity_phase` (0.90) still outranks
+  `increase_background_flexibility` (0.60) on the too-stiff state with each
+  naming the other in `alternatives`: following the ranking blindly buys a
+  phantom phase, reading the alternatives does not.
+- **The §4b axis (WP-1057)**: the deliverable an episode *declares* (phase ID vs
+  structure) is a protocol-side variable, and the hypothesis is that a declared
+  phase-ID deliverable plus the gap clause changes when the weak model *stops*.
 
 **Pre-registered hypotheses** (write them into PROTOCOL.md v1.1 before any run):
 (a) E2/E8 move off 0/8 only in conditions where the converged-state evidence
@@ -75,127 +118,6 @@ the prompt; fixtures built fresh per run from `_truth()`; ground truth in the
 scorer-side tree; `calls.jsonl` is the record; no LLM dependency anywhere in the
 repo; runs execute in the Claude Code harness.
 
-### Inherited
-
-**From [1058](1058-report-delivery.md), closed 2026-08-13 — the thing you are
-re-A/B-ing changed, and the protocol version moved with it.**
-`build_fixtures.PROTOCOL_VERSION` is **1.1**: a report-on response now carries
-`trajectory` (the report at every stage boundary, projected to a `StageReport`
-per stage, default-on) and the §5 excerpt the report-on prompt quotes now tells
-the agent to read it. **A 1.1 run cannot be pooled with the 1.0 pilot's grid** —
-the treatment is different, which is the point.
-
-Four things that bear directly on the design of the round:
-
-1. **The treatment is now delivery, not content.** The 1053 pilot measured
-   agents who only ever saw the converged report; under 1.1 the same untouched
-   request also carries the state where the report speaks. On E2 that is
-   `refine_sample_displacement` at 0.997 at stage `scale_bkg`, against
-   `actions: []` at the end — so the pre-registered hypothesis can be sharper
-   than "does the report help": it is *does naming the cause at a state the
-   agent did not have to ask for change what the agent does*.
-2. **The report-off arm is still clean, two ways.** `include_report=false`
-   strips the trajectory as well as the report (package-side), and the shim
-   pops both (harness-side). Verify this holds before the round — it is the
-   one failure mode that would silently make report-off a report-on.
-3. **E2 and E8 are the episodes with the most to gain**, since both converge to
-   silent reports over compensated parameters. E5/E7 (impurity, hopeless start)
-   already spoke at the final state, so a null there is not evidence against
-   delivery. Consider scoring the two groups separately rather than pooling.
-4. **The wall clock per call rose ≈2.5×** (measured 1.06 → 2.70 s on 59.5k
-   channels; the episode fixtures 0.28 → 0.87 s). Nothing near the 5-minute
-   timeout the prompt advertises, but the per-episode budget arithmetic in
-   PROTOCOL.md was written against 1.0 timings.
-
-**From [1062](1062-rename-to-anatase.md), created 2026-08-12 — a rename is
-pending, and it can silently invalidate an A/B comparison.** The package becomes
-`anatase`; the `refine_json` surface this WP measures through is renamed with it,
-including the agent tool name (`anatase_refine` → an `_about.py` constant). Two
-consequences. First, **do not straddle the rename with a single A/B**: prompts,
-transcripts and episode fixtures that name the package are inputs to the model,
-so a round measured half before and half after is comparing two prompt sets, not
-two protocols. Land 1062 first or finish the round first — say which in the
-handover either way. Second, if you write new episode fixtures before 1062 lands,
-take the name from `_about.py` rather than a literal.
-
-**From [1056](1056-identifiability-layer.md), closed 2026-08-12 — the
-content change aimed squarely at round 1's two 0/8 rows, and the
-pre-registration nuance that matters.** Deltas a re-A/B will see: every
-report carries `FitReport.identifiability` (trio + δR unconditionally;
-`exchanges`/`soft_modes` whenever the fit measured them), AGENT_PROTOCOL §4
-gained step 6 (the §5/§6 excerpts the report-on prompt ships are untouched —
-the new reading is *not* in the round-1 prompt's excerpt, only in the
-report itself and §4), and the summary gains at most two clauses.  On the
-E2 baseline state the summary now reads "fitted instrument.zero_shift =
-−0.0109913 stands 128σ from 0 but is exchangeable with the held
-instrument.geometry.sample_displacement (R² = 0.9999) … a confident verdict
-is not supported" — the ambiguity evidence at the converged state that
-round 1's E2 (0/8) and E8 (0/8) failed for want of.  `THRESHOLDS_VERSION`
-is **0.7**.  The nuance to pre-register: on E8's window the *default-plan*
-path frees the planted zero and converges to truth — that state is
-correctly quiet (partner 1.2σ; measured bit-identical to the clean-short
-control), so an agent that runs the preset and reads the quiet report is
-*right* to answer converged there, and E8's expected verdict may need
-re-scoring against the state actually reached; the exchange sentence fires
-on the wrong-family-freed state (displacement freed, zero held: 119σ,
-R² 1.0000), which is the state a round-1-style lazy path lands on only if
-it frees displacement.  Also: the clean full-window control is pinned quiet
-on *both* clauses, so any summary-noise hypothesis has a control.
-
-**From [1055](1055-background-evidence.md), closed 2026-08-12 — the third
-content change round 2 measures.** Deltas a re-A/B will see: every report now
-carries `FitReport.background` (published unconditionally, so it is in the
-serialized report an agent reads whether or not anything fired); the summary
-gains **one** clause when either background failure mode fires, and none
-otherwise (the converged control is pinned silent); and two `ActionKind`
-members that had never been emitted anywhere can now appear in
-`suggested_actions` — `decrease_background_flexibility` (confidence = the
-measured block-projection R², ~0.46 on the fixture) and
-`increase_background_flexibility` (capped at 0.60). `THRESHOLDS_VERSION` is
-**0.6**.
-
-**One condition axis worth pre-registering, with the trap measured.** The
-over-flexible background is the failure mode where *every* statistic an agent
-reads improves: on the WP-1055 fixture the wrong background wins Rwp (0.08852
-vs 0.08969) and GoF (1.022 vs 1.025) while landing 2.6× further from the true
-Biso, and the plot shows white-noise residuals inside ±3σ. An episode planted
-this way tests whether a consumer can be moved off a better-looking fit by a
-single projection number — which is a sharper version of round 1's question
-(*when* the report is read) than any position-family episode, because here
-reading it later is not merely late but actively misleading. Note the report's
-own honest asymmetry when scoring: `add_impurity_phase` still outranks
-`increase_background_flexibility` on the too-stiff state (0.90 against 0.60,
-146 noise-driven unmatched peaks), with each action naming the other in
-`alternatives` — a consumer that follows the ranking blindly gets a phantom
-phase, and one that reads the alternatives does not.
-
-
-**From [1057](1057-purpose-grade-evidence.md), closed 2026-08-12 — the
-second content change round 2 measures, and one new condition axis worth
-pre-registering.** Deltas a re-A/B will see: Rietveld-mode reports now carry
-`lebail_gap` and up to two new summary clauses (the gap clause above ratio
-1.5, the contents-type clause on sign-alternating trend-free intensity
-misfit), abstained reports carry `abstained_kind` with the
-resolution-limited flavour appending "not evidence the model is wrong" to
-the reason, and `thresholds_version` reads "0.5" (round-1 traces "0.3",
-1054-era "0.4" — three clean condition markers). AGENT_PROTOCOL grew §4b
-("Declare the deliverable"): the deliverable an episode *declares* (phase ID
-vs structure) is now a protocol-side variable the prompt can set, and the
-hypothesis worth pre-registering is that a declared phase-ID deliverable
-plus the gap clause changes when the weak model *stops* — the 1053 pilot's
-bottleneck was when the report is read, and §4b is the first content that
-licenses stopping early. On E6/E7-shaped abstained states the report now
-leads with `reindex_or_recheck_cell` (0.4, calibration candidates in
-`alternatives`) and `add_impurity_phase` is capped at 0.3 with reindex first
-among its alternatives whenever every strong unmatched peak matches the
-position-error evidence — so the E7 quote-the-invitation failure mode
-(haiku citing `add_impurity_phase` 0.9) now has the opposite sign available:
-the hypothesis to pre-register is that the weak model quotes the *reindex*
-rationale instead. Texture false positives no longer outrank the impurity
-call (capped below it, `TextureAnalysis.caveat` set), which touches E5's
-incidental-rejection round. Reports now carry `thresholds_version: "0.4"` —
-round-1 traces say "0.3", a clean condition marker in the grids.
-
 ## Non-goals
 
 - No CI assertion on agent outcomes; no significance claims at pilot N.
@@ -206,18 +128,21 @@ round-1 traces say "0.3", a clean condition marker in the grids.
 
 ## Tasks
 
-- [ ] PROTOCOL.md v1.1: condition matrix (prompt-only / surface-only / both /
-      off), the §9 excerpt text, pre-registered hypotheses, effort tiers,
-      model list.
-- [ ] Extend the shim/fixtures for the WP-1058 surface (diagnose overlays are
-      sanctioned keys; report-off strips the trajectory too — condition
-      enforcement stays structural).
-- [ ] Scorer: SRM 660c real-data pair rows (refusal-is-correct scoring), and
-      the E3 sign-inversion watch (a scored flag, not a pass/fail change).
-- [ ] Run the matrix; record the dated grid (model IDs, efforts, per-episode
+- [x] PROTOCOL.md v1.1: condition matrix (five cells — a 2×2 on trajectory × §9
+      plus the report-less baseline), the §9 excerpt policy, five
+      pre-registered hypotheses, effort tier, model list, budgeted cells.
+- [x] Extend the shim/fixtures for the WP-1058 surface (the trajectory, not a
+      diagnose ladder — 1058 declined it; both halves set on the request *and*
+      popped from the response, so enforcement stays structural).
+- [x] Scorer: SRM 660c real-data pair rows (R1 refusal-is-correct, graded on
+      the verdict with the planted value recorded and not graded), the E3
+      sign-inversion watch, and three more descriptive flags —
+      `overclaimed`, `bootstrap_calls`/`plans_used`, the payload audit.
+- [x] Run the matrix; record the dated grid (model IDs, efforts, per-episode
       scorecards, caveats attached) in this handover log and the v1.0 appendix.
-- [ ] Tests: scorer extensions unit-tested (deterministic, fast suite) +
-      obs/calc/diff PNGs to `tests/output/` where fixtures render.
+- [x] Tests: scorer/shim/fixture extensions unit-tested (17 → 46, of which two
+      slow: the real pair's construction and R1's landing state) + the
+      obs/calc/diff PNGs from the one test that refines.
 
 ## Acceptance
 
@@ -240,6 +165,131 @@ dependency.
 - `docs/AGENT_PROTOCOL.md` §9 (as rewritten by WP-1058).
 
 ## Handover log
+
+- **2026-08-13** — **round 2 ran; the harness is sound and two of its three
+  rows are not.** Protocol 1.1, five conditions, 30/30 runs returned with 0
+  errors (656 tool uses, 1.688 M subagent tokens, 9 m 55 s wall), models
+  `claude-sonnet-5` and `claude-haiku-4-5-20251001` at effort `medium`, N=1,
+  `[dev]` venv on darwin/arm64, `THRESHOLDS_VERSION` 0.7, package 1.0.0.dev0.
+
+  **Grid, pre-registered scoring** (E2 → converged + displacement within
+  0.005 mm; E8 → ambiguous; R1 → ambiguous):
+
+  | condition | model | E2 | E8 | R1 | passed |
+  |---|---|---|---|---|---|
+  | off | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | off | sonnet | converged | converged,oc | converged,oc | 0/3 |
+  | report | haiku | converged,b2 | converged,oc | **pass** | 1/3 |
+  | report | sonnet | ambiguous,b1 | converged,oc | **pass**,b2 | 1/3 |
+  | prompt | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | prompt | sonnet | ambiguous | converged,oc | **pass** | 1/3 |
+  | surface | haiku | ambiguous | converged,oc | impurity_suspected | 0/3 |
+  | surface | sonnet | ambiguous | converged,oc | impurity_suspected | 0/3 |
+  | both | haiku | converged | converged,oc | converged,oc | 0/3 |
+  | both | sonnet | ambiguous | converged,oc | converged,oc | 0/3 |
+
+  `oc` = overclaimed, `bN` = N bootstrap calls. Per arm (6 runs each): off
+  0 passed / 13 calls / 0 bootstraps, report 2 / 20 / 5, prompt 1 / 13 / 0,
+  surface 0 / 23 / 0, both 0 / 29 / 0.
+
+  **Audit: clean.** No cell carried a payload disagreeing with its condition
+  (`report_present`/`trajectory_rungs` matched all 30), and no transcript
+  referenced `docs/`, `src/` or any path outside its run tree — nobody gave
+  itself the withheld manual. One leak to fix: `condition.json` lives *in* the
+  agent's workspace and several agents read it, so the arm name is visible
+  (no manual content is). Move it out of the episode dir next round.
+
+  **What the round measured** — mechanism, not outcome:
+
+  1. **The exchange clause moves agents onto the ridge.** 7 of the 20
+     position-episode cells freed *both* zero and displacement: E2 lands at
+     +0.0141…+0.0147 (truth 0.000, tol 0.005), R1 at −0.1202/−0.1277 (truth
+     −0.0801) — at the best Rwp in the round (E2 0.01369, R1 0.08555). The
+     manual forbids exactly this (§4b: "resolved by protocol … never by
+     freeing the rival into the same fit"), but the sentence an agent
+     actually reads — the WP-1056 summary clause — names the degeneracy
+     without naming the action, and the natural action is to free the rival.
+     All four cells that reached truth did it by **swapping** which parameter
+     is free, never by freeing both (E2: both/sonnet, prompt/sonnet at
+     −0.000243; R1: off/sonnet −0.080098, report/sonnet −0.080100).
+  2. **`ambiguous` becomes available only with a report**: 8 of 16
+     report-bearing position cells against 0 of 4 in `off`. The report does
+     convert confident-wrong into declined — the package's stated goal — but
+     on E2 that verdict is scored wrong and on R1 the data actually chooses
+     (below), so the conversion cost passes in both directions.
+  3. **Hypothesis (c) refuted.** `prompt` (1/6) did not under-perform
+     `surface` (0/6); the two trajectory arms did *worse* than report-only
+     (2/6). And instruction produced no bootstrapping at all: every one of
+     the round's 5 bootstrap calls came from `report`, the arm carrying
+     neither §9 nor the trajectory, while `prompt` — which quotes §9's "read
+     the report at every stage it passed through" — produced zero.
+  4. **Hypothesis (d) supported, and its cure is not a fix.** `surface`
+     answered `impurity_suspected` on R1 2/2 (the first rung serves
+     `add_impurity_phase` 0.9 on a displaced pattern); `both`, which quotes
+     §9's climbing-confidence rule, did so 0/2 — and answered a confident
+     `converged` from the ridge instead.
+  5. **Delivery costs work**: median calls per cell off 2.0, report 3.0,
+     prompt 2.0, surface 3.5, both 4.5. Round 1 measured the report *saving*
+     a call on E5; here it adds them.
+
+  **Two episode-validity findings, both post-hoc, both blocking a re-run:**
+
+  - **E8 is a broken row, not a null.** 10/10 cells answered `converged`.
+    Under WP-1056 the default-plan path frees the planted zero and converges
+    to truth with a correctly *quiet* report, so `converged` is what the
+    reached state supports and no competent agent can pass the row as
+    written. Round 1's 0/8 was read as a null; it was a scoring artefact.
+  - **R1's pre-registered `ambiguous` is not supported by the data.** The fair
+    rival test — each position parameter freed alone with the other at its
+    null — gives zero-only Rwp 0.09361 / χ² 4.0752 against disp-only 0.08661 /
+    3.4890 on 5332 points, and the zero-only model also biases *a* by +100 ppm
+    (4.157310 vs 4.156895). The exchange R² of 0.9977 is a **geometric**
+    measure; at these counting statistics the 0.23 % of the column it leaves
+    unexplained is decisive. Scored with R1 → `converged` the ranking
+    **inverts**: off 2, report 0, prompt 1, surface 0, both 2. Both grids are
+    published; neither supports a claim about delivery.
+  - Related, and the reason only R1 could answer that question: E2 and E8
+    plant their aberration in the **starting model**, never in the data
+    (`_truth()` has zero = disp = 0), so their one-parameter rivals tie
+    exactly (χ² ratio 1.0000). Only a real specimen is genuinely displaced.
+
+  **Verdict on the round**: at N=1 per cell, with two of three rows' expected
+  verdicts in doubt, the grid does not support a claim about delivery in
+  either direction — and saying otherwise from these 30 runs would be the
+  same error the package refuses in its own reports. What it does support is
+  the ridge mechanism, the two episode defects, and a manual gap.
+
+  **Landed**: PROTOCOL v1.1 (5 conditions, §9 excerpt policy, 5 pre-registered
+  hypotheses, budgeted cells, episode-validity section); both condition
+  switches enforced on the request and popped from the response; R1/R2 real
+  episodes off the SRM 660c converged state; scorer gains `overclaimed`,
+  `watch`, `bootstrap_calls`/`plans_used`, the payload audit; `grid.py`; and
+  the one rule the round paid for, in `tests/CLAUDE.md`.
+
+  **Counts** (`[dev]` venv, darwin/arm64): this directory 17 → 46 tests, of
+  which 2 are slow — the real pair's construction, and R1's landing state,
+  which pins the episode design and writes its PNGs. 0.9 s fast, 5.8 s with
+  the slow pair. Whole tree: `-m "not slow"` collection 2277 → 2304 (**+27**)
+  and total collection 2384 → 2413 (**+29**) — the 29 added, 27 of them in the
+  fast selection, no new skips. The fast run itself reports **2198 passed,
+  108 skipped** in ≈2:20 (one machine, one run — wall clock is a range), and
+  2306 against 2304 collected is the documented two-module `importorskip`
+  undercount rather than a discrepancy.
+
+  **Next, in this order** — none of it is a re-run:
+  1. Redesign E8 (plant where the default plan cannot free it) and re-score
+     R1 to `converged`; both are in PROTOCOL.md § Episode validity.
+  2. The manual gap is the one finding with a consumer-facing fix: the
+     exchange clause should name the **swap** (re-fit with the rival free and
+     the fitted one held, compare χ²), because "the data cannot tell which is
+     physical" is read as an invitation to free both. Pushed to WP-1003's
+     `### Inherited`; it is a content change, so it is a protocol version
+     bump and must not be made mid-round.
+  3. Only then the deferred cells (E7 for hypothesis (b), the controls, the
+     effort tier, R2).
+
+  **Gotcha**: the round cost 1.69 M subagent tokens for 30 runs (~56 k/run).
+  Budget the deferred pass from that figure, not from round 1's.
 
 - **2026-08-11** — created, from the 1053 campaign's ranked items 2 and 6 plus
   the design-review fixes it should measure. Blocked until enough of

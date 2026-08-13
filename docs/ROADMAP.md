@@ -61,24 +61,23 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The content is done. Next: the re-A/B ([1059](wp/1059-eval-round-two.md)),
-then the freeze ([1003](wp/1003-api-freeze-pypi.md)).**
-[1058](wp/1058-report-delivery.md) closed 2026-08-13 as the last content WP,
-and it changed what 1059 measures: `task="refine"` now answers with a
-**`trajectory`** — the FitReport at every stage boundary, default-on — because
-the state where the report speaks turned out to be one the plan already
-visits. On WP-1053's E2 the converged report is silent while the same plan's
-*first* stage names the cause at 0.997. The proposed `task="diagnose"` ladder
-was declined on measurement (every rietveld preset already opens on that rung)
-and because adding states would have made a report-on/report-off comparison a
-comparison of two refinements.
+**The content is done and the re-A/B is run. Next: the freeze
+([1003](wp/1003-api-freeze-pypi.md)).**
+[1059](wp/1059-eval-round-two.md) closed 2026-08-13 with 30 runs of protocol
+1.1 — five conditions splitting the WP-1058 `trajectory` from the §9 excerpt
+that tells an agent to seek it — and its result is not about delivery. **Two
+of the three rows' expected verdicts turned out not to be what the data
+supports**, so the outcome grid was dominated by a convention rather than by
+the treatment, and both scorings are published (`PROTOCOL.md` § Episode
+validity holds the fixes a future round must apply first).
 
-So the harness is at **protocol 1.1** and cannot pool with the 1.0 pilot grid.
-Read 1059's `### Inherited` before designing the round: the treatment is now
-*delivery* rather than content, `include_report=false` must keep stripping both
-halves for report-off to mean anything, and E2/E8 (silent reports over
-compensated parameters) have more to gain than E5/E7, which already spoke at
-the converged state.
+What the round did establish is one measured content gap, and it is in 1003's
+`### Inherited` as a freeze question: **the WP-1056 exchange clause names a
+degeneracy without naming the action, and 7 of 20 position cells answered it
+by freeing both parameters onto the ridge** the manual forbids — at the best
+Rwp in the round. Every cell that reached truth swapped which parameter was
+free instead. The clause is public report text, so changing it is a
+`THRESHOLDS_VERSION` bump, which is why 1059 measured it and left it.
 
 Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
 import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
@@ -275,7 +274,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1056](wp/1056-identifiability-layer.md) | Identifiability layer: correlations, soft modes, held-parameter exchangeability | ✅ 2026-08-12 — a converged report names the zero↔displacement exchange; R² is design-matrix-identical on the clean control, the partner's 128σ-vs-1.6σ discriminates | — |
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: the per-stage report trajectory | ✅ 2026-08-13 | — |
-| [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ⬜ | 1054, 1056, 1057, 1058 |
+| [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ✅ 2026-08-13 | 1054, 1056, 1057, 1058 |
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
@@ -290,8 +289,9 @@ unmerged branches are archived by tag and confined to `studies/`.
 design review** (evidence over verdicts; non-ideal-data regimes; background and
 correlation blind spots — measurements dated in each WP's Context). 1054–1058
 are additive to the report/agent surface; their ordering against 1003's freeze
-is 1003's call (its `### Inherited` has the note), and 1059 re-measures the A/B
-once enough of them land.
+is 1003's call (its `### Inherited` has the note). 1059 re-measured the A/B on
+2026-08-13 and its finding went back into that same mailbox: the exchange
+clause 1056 added is read as an invitation to free the rival.
 
 **1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
 and `suggest()` only *inform* a caller (the no-autopilot fence), then whether
