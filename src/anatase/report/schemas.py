@@ -65,7 +65,27 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   design-matrix property and fires on clean fits, measured 0.999945 on the
 #   E2 fixture and its clean reference alike), and a soft mode below
 #   SOFT_MODE_NOTABLE_EIGENVALUE.  No existing gate or emission moved.
-THRESHOLDS_VERSION = "0.7"
+# 0.8 (WP-1063): the exchange clause is reworded and ``compare_rivals`` lands.
+#   The sentence now claims about this *fit* rather than about the data, names
+#   the forbidden action beside the sanctioned one, and states the experiment:
+#   "fit each of the pair alone with the other held at its null and compare
+#   χ²".  Both halves are measured, not stylistic — on real SRM 660c that
+#   experiment separates an R² 0.9977 pair decisively (χ² 4.0752 against
+#   3.4890 on 5332 points, +100 ppm of bias on *a*), and over 30 real agent
+#   runs seven of twenty position cells answered the old sentence by freeing
+#   both rivals onto the ridge, six of them with the clause already in
+#   context.  ``compare_rivals`` / ``RivalComparison`` ship the experiment
+#   on demand, with no ``decisive`` field — the reasoner gets the numbers,
+#   never the conclusion.
+#   **No gate moved, and EXCHANGEABLE_MIN_R2 was deliberately not retuned.**
+#   The over-refusal at high N is real, but it is a defect of the claim's
+#   *level*, not of the threshold: R² is a geometric measure of column
+#   overlap and says nothing about whether the counting statistics can
+#   separate the pair, so no value of it makes "the data cannot tell" true.
+#   With the claim at fit level the same gate honestly says "run the swap" at
+#   any N, and a retune would need its own calibration campaign to buy what
+#   the wording buys for nothing.
+THRESHOLDS_VERSION = "0.8"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"

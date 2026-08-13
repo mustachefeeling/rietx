@@ -926,6 +926,29 @@ def _exchange(report, held):
                          f"{report.identifiability.exchanges}")
 
 
+def _assert_exchange_clause_shape(summary):
+    """The three properties the exchange clause must keep (WP-1063), asserted
+    as *shape* rather than as a second copy of the sentence.
+
+    A pin holding a duplicate of a string that lives in the source is the
+    guard that goes quiet (``tests/CLAUDE.md`` § Guards that go quiet): it
+    passes while the two drift apart.  What is load-bearing here is not the
+    wording but that the sentence (1) claims about this **fit** and not about
+    the data, (2) names the forbidden action beside the sanctioned one, since
+    naming only the degeneracy is what invited seven of twenty WP-1059 cells
+    onto the ridge, and (3) says which value the held rival takes in the
+    experiment — 1003's "held with the rival free" was underspecified, and the
+    lazy converged state is not one of the two rivals.
+    """
+    assert "this fit cannot tell" in summary          # the claim's level
+    assert "never by freeing both" in summary         # the forbidden action
+    assert "ridge" in summary
+    assert "held at its null" in summary              # which value
+    assert "compare χ²" in summary                    # the experiment
+    assert "compare_rivals" not in summary            # not the API
+    assert "the data cannot tell" not in summary      # the pre-0.8 claim
+
+
 def test_exchange_candidate_families_are_pinned():
     """The scan's family list and null table are protocol, not tuning: a
     session that widens them changes what every report can say, so both are
@@ -1002,6 +1025,7 @@ def test_e2_converged_report_names_the_exchange(truth):
     assert abs(row.partners["instrument.zero_shift"]) > 1.0
     assert "exchangeable with the held instrument.geometry.sample_displacement" \
         in report.summary
+    _assert_exchange_clause_shape(report.summary)
     assert "ambiguous" not in report.summary  # the verdict is the reader's
     # transparency rides the same fitted zero — honest multiplicity, in the
     # table (measured R² 0.97) while the summary names only the worst row
@@ -1066,6 +1090,7 @@ def test_e8_short_window_reports_the_collinear_triangle():
     assert row.partner == "instrument.geometry.sample_displacement"
     assert row.exchangeable
     assert "exchangeable with the held instrument.zero_shift" in report.summary
+    _assert_exchange_clause_shape(report.summary)
 
     ev = report.identifiability
     triangle = [m for m in ev.soft_modes
