@@ -61,23 +61,28 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The content is done and the re-A/B is run. Next: the freeze
+**The post-1059 design review is decided: content first
+([1063](wp/1063-exchange-clause-and-rivals.md)), then the re-aligned eval
+round ([1064](wp/1064-eval-round-three.md)), then the freeze
 ([1003](wp/1003-api-freeze-pypi.md)).**
-[1059](wp/1059-eval-round-two.md) closed 2026-08-13 with 30 runs of protocol
-1.1 — five conditions splitting the WP-1058 `trajectory` from the §9 excerpt
-that tells an agent to seek it — and its result is not about delivery. **Two
-of the three rows' expected verdicts turned out not to be what the data
-supports**, so the outcome grid was dominated by a convention rather than by
-the treatment, and both scorings are published (`PROTOCOL.md` § Episode
-validity holds the fixes a future round must apply first).
 
-What the round did establish is one measured content gap, and it is in 1003's
-`### Inherited` as a freeze question: **the WP-1056 exchange clause names a
-degeneracy without naming the action, and 7 of 20 position cells answered it
-by freeing both parameters onto the ridge** the manual forbids — at the best
-Rwp in the round. Every cell that reached truth swapped which parameter was
-free instead. The clause is public report text, so changing it is a
-`THRESHOLDS_VERSION` bump, which is why 1059 measured it and left it.
+The review split the question two eval rounds kept failing to answer. The
+report's *content* is measured and keeps its value with or without an agent
+effect (WP-1055's over-flexible background wins every agreement index and is
+invisible on a plot; the Jacobian-derived evidence cannot be re-derived by
+any consumer); its *delivery* has two rounds of null-or-negative pilot
+evidence and one measured defect — the WP-1056 exchange clause invited the
+both-free ridge in 7 of 20 position cells while every truth-reaching cell
+swapped. So [1063](wp/1063-exchange-clause-and-rivals.md) rewrites the clause
+at fit level, ships `compare_rivals` (the swap experiment — numbers, no
+verdict) and mines the kept round-2 transcripts; [1064](wp/1064-eval-round-three.md)
+re-runs the eval as protocol 2.0 on episodes whose expected answers are
+*measured* epistemic outcomes ("needs more information", "an assumption is
+wrong", "impossible but a janky fit still informs"), adds a python-capable
+arm to answer report-vs-tools-vs-package-sufficient empirically, and
+pre-registers kill/keep criteria per component — the trajectory default,
+Layer-2 posture and refine_json surface are decided there and ratified by
+the freeze.
 
 Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
 import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
@@ -276,6 +281,8 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1058](wp/1058-report-delivery.md) | Report delivery: the per-stage report trajectory | ✅ 2026-08-13 | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ✅ 2026-08-13 | 1054, 1056, 1057, 1058 |
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
+| [1063](wp/1063-exchange-clause-and-rivals.md) | Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment | ⬜ | 1056, 1059 (before 1003) |
+| [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ⬜ | 1063 |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering
@@ -291,7 +298,10 @@ correlation blind spots — measurements dated in each WP's Context). 1054–105
 are additive to the report/agent surface; their ordering against 1003's freeze
 is 1003's call (its `### Inherited` has the note). 1059 re-measured the A/B on
 2026-08-13 and its finding went back into that same mailbox: the exchange
-clause 1056 added is read as an invitation to free the rival.
+clause 1056 added is read as an invitation to free the rival. **1063/1064
+(2026-08-13) are the design review's output** — the clause fix with its
+pull-tool, then the re-aligned round; the assessment they act on is in the
+v1.0 record's narrative.
 
 **1052/1053 (2026-08-05) measure the other half of 1050's bargain**: if the report
 and `suggest()` only *inform* a caller (the no-autopilot fence), then whether

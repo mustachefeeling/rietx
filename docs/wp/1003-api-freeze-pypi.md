@@ -30,7 +30,11 @@ that WP shows the R² gate itself is geometric — on real SRM 660c data an
 R² 0.9977 "exchangeable" pair is resolved decisively by χ² (4.0752 vs 3.4890
 over 5332 points), so "exchangeable" over-refuses at high N. Changing either
 is a `THRESHOLDS_VERSION` bump and, for the eval harness, a protocol version
-bump; 1059 deliberately did not make it mid-round.
+bump; 1059 deliberately did not make it mid-round. *(2026-08-13: taken up —
+[1063](1063-exchange-clause-and-rivals.md) lands the fit-level clause and
+`compare_rivals`, [1064](1064-eval-round-three.md)'s round measures delivery
+and will post its default/surface decisions back into this mailbox; the
+freeze ratifies rather than decides from scratch.)*
 
 **From [1058](1058-report-delivery.md), closed 2026-08-13 — six names joined
 the surface, and one version *deliberately did not move*.** New public API:
