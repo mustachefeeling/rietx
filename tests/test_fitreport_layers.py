@@ -949,12 +949,28 @@ def _assert_exchange_clause_shape(summary):
     onto the ridge, and (3) says which value the held rival takes in the
     experiment — 1003's "held with the rival free" was underspecified, and the
     lazy converged state is not one of the two rivals.
+
+    WP-1065 adds (4): the sentence says what the experiment's outcome
+    *licenses*, on both branches, quoting the strength grade from
+    ``RIVAL_DECISIVE_MIN_CHI2_RATIO`` rather than restating it — round 3's
+    solvable control went 0/7 valid because agents ran the swap, won it, and
+    had nowhere to read that winning it is an answer — and it does so without
+    smuggling a verdict token; the verdict stays the reader's.
     """
+    from anatase.report import RIVAL_DECISIVE_MIN_CHI2_RATIO
+
     assert "this fit cannot tell" in summary          # the claim's level
     assert "never by freeing both" in summary         # the forbidden action
     assert "ridge" in summary
     assert "held at its null" in summary              # which value
     assert "compare χ²" in summary                    # the experiment
+    # the follow-through (WP-1065): what the outcome licenses, both branches,
+    # with the strength grade quoted live from the named constant
+    assert f"≥ {RIVAL_DECISIVE_MIN_CHI2_RATIO - 1:.0%}" in summary
+    assert "data has chosen" in summary               # the decisive license
+    assert "without caveat" in summary
+    assert "not chosen" in summary                    # the tie branch stated
+    assert "ambiguous" not in summary                 # no smuggled verdict
     assert "compare_rivals" not in summary            # not the API
     assert "the data cannot tell" not in summary      # the pre-0.8 claim
 

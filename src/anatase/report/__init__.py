@@ -48,6 +48,7 @@ from .layer2 import (
 )
 from .schemas import (
     LEBAIL_GAP_NOTABLE,
+    RIVAL_DECISIVE_MIN_CHI2_RATIO,
     THRESHOLDS_VERSION,
     TRAJECTORY_MAX_ACTIONS,
     BackgroundEvidence,
@@ -74,6 +75,7 @@ from .texture import analyse_texture
 
 __all__ = [
     "RECIPES",
+    "RIVAL_DECISIVE_MIN_CHI2_RATIO",
     "THRESHOLDS_VERSION",
     "TRAJECTORY_MAX_ACTIONS",
     "BackgroundEvidence",
