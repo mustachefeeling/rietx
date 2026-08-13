@@ -65,7 +65,27 @@ from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 #   design-matrix property and fires on clean fits, measured 0.999945 on the
 #   E2 fixture and its clean reference alike), and a soft mode below
 #   SOFT_MODE_NOTABLE_EIGENVALUE.  No existing gate or emission moved.
-THRESHOLDS_VERSION = "0.7"
+# 0.8 (WP-1063): the exchange clause is reworded and ``compare_rivals`` lands.
+#   The sentence now claims about this *fit* rather than about the data, names
+#   the forbidden action beside the sanctioned one, and states the experiment:
+#   "fit each of the pair alone with the other held at its null and compare
+#   χ²".  Both halves are measured, not stylistic — on real SRM 660c that
+#   experiment separates an R² 0.9977 pair decisively (χ² 4.0752 against
+#   3.4890 on 5332 points, +100 ppm of bias on *a*), and over 30 real agent
+#   runs seven of twenty position cells answered the old sentence by freeing
+#   both rivals onto the ridge, six of them with the clause already in
+#   context.  ``compare_rivals`` / ``RivalComparison`` ship the experiment
+#   on demand, with no ``decisive`` field — the reasoner gets the numbers,
+#   never the conclusion.
+#   **No gate moved, and EXCHANGEABLE_MIN_R2 was deliberately not retuned.**
+#   The over-refusal at high N is real, but it is a defect of the claim's
+#   *level*, not of the threshold: R² is a geometric measure of column
+#   overlap and says nothing about whether the counting statistics can
+#   separate the pair, so no value of it makes "the data cannot tell" true.
+#   With the claim at fit level the same gate honestly says "run the swap" at
+#   any N, and a retune would need its own calibration campaign to buy what
+#   the wording buys for nothing.
+THRESHOLDS_VERSION = "0.8"
 
 #: linearisation is only meaningful for peak shifts well inside the peak; past
 #: this fraction of FWHM the answer is "re-detect the peak", not "shift it"
@@ -723,6 +743,57 @@ class VerificationOutcome(Base):
     observed_delta_chi2: float
     accepted: bool
     reason: str
+
+
+class RivalFit(Base):
+    """One half of the swap: this parameter freed, its rival held at its null.
+
+    ``held_at`` is the null identity, not the rival's fitted or knocked value,
+    and that is the whole design.  The lazy converged state of the WP-1059 R1
+    episode — zero free, displacement sitting at the −0.02 mm it was knocked
+    to — is **neither** rival (its Rwp 0.09127 differs from the zero-only
+    0.09361), so a comparison run against it answers a question nobody asked.
+
+    ``n_free`` is here so the fairness claim can be checked rather than
+    believed: the two fits differ by which member of the pair is free, never
+    by how many parameters are, which is what lets the raw χ² be compared
+    without an information criterion.
+    """
+
+    freed_path: str
+    held_path: str
+    held_at: float
+    chi2: float
+    rwp: float
+    n_points: int
+    n_free: int
+    freed_value: float | None = None
+    freed_esd: float | None = None
+    #: the branch node this fit landed on, or None when history is disabled
+    node_id: str | None = None
+
+
+class RivalComparison(Base):
+    """The swap the exchange clause names, measured (WP-1063).
+
+    Two fits, each freeing one member of an exchangeable pair with the other
+    held at its null.  **There is deliberately no ``decisive`` field.**  The
+    numbers are the answer; whether a χ² ratio of 0.86 on 5332 points settles
+    a question is the caller's judgement, and a report that made it for them
+    would be the autopilot this package does not ship (AGENT_PROTOCOL §1 —
+    report and suggest inform, never drive).
+
+    ``rivals`` is ordered: index 0 frees the finding's **held** candidate (the
+    one the fit did *not* use), index 1 frees its fitted **partner**.
+    ``chi2_ratio`` follows that order — ``rivals[0].chi2 / rivals[1].chi2`` —
+    so a value below 1 says the parameter the fit held explains the pattern
+    better than the one it refined.  Measured on real SRM 660c: 0.856
+    (χ² 3.4890 freeing the displacement against 4.0752 freeing the zero), and
+    the zero-only model biases *a* by +100 ppm.
+    """
+
+    rivals: list[RivalFit]
+    chi2_ratio: float
 
 
 #: which *kind* of abstention, for a consumer that branches (WP-1057).  One

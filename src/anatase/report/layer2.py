@@ -43,7 +43,10 @@ from .schemas import (
     TEXTURE_IMPURITY_MARGIN,
     VALIDITY_RADIUS_FWHM,
     ActionKind,
+    ExchangeFinding,
     RegionAttribution,
+    RivalComparison,
+    RivalFit,
     SuggestedAction,
     TrendAnalysis,
     UnmatchedPeak,
@@ -710,6 +713,124 @@ def predict_then_verify(refinement, data, action: SuggestedAction, *,
         reason=(f"χ² {before:.4g} → {after:.4g} "
                 f"({observed / abs(before):+.2%}); "
                 f"{'accepted' if accepted else 'rolled back'}"))
+
+
+def _rival_trial(refinement):
+    """A private working tree for one rival fit — never the caller's own.
+
+    ``branch()`` where there is a history to branch (the default once a fit has
+    run), and a fresh :class:`~anatase.refine.Refinement` over copies of the
+    same models where the caller disabled history.  :func:`predict_then_verify`
+    can fall back to running in place because it runs *one* trial and judges it
+    by χ²; two rivals run in place would start the second from the first's
+    converged state and leave the caller standing on it.
+    """
+    from ..refine import Refinement
+
+    if refinement.history is not None:
+        return refinement.branch()
+    trial = Refinement(refinement.structure, refinement.instrument,
+                       backend=refinement._backend, solver=refinement._solver,
+                       history=False)
+    trial._mode = refinement._mode
+    trial._two_theta_limits = refinement._two_theta_limits
+    trial._free_paths = list(refinement._free_paths)
+    return trial
+
+
+def _rival_pair(finding) -> tuple[str, str]:
+    """``(held, partner)`` from a finding or a bare pair of paths."""
+    if isinstance(finding, ExchangeFinding):
+        if finding.partner is None:
+            raise ValueError(
+                f"the exchange row for {finding.held!r} names no partner with "
+                "a null identity, so there is no swap to run: its loadings "
+                f"are {sorted(finding.partners)}")
+        return finding.held, finding.partner
+    held, partner = finding
+    return str(held), str(partner)
+
+
+def compare_rivals(refinement, data, finding: "ExchangeFinding | tuple[str, str]",
+                   ) -> RivalComparison:
+    """Fit each member of an exchangeable pair alone, the other at its null.
+
+    This is the experiment the exchange clause names, run on demand — the
+    on-branch, solve-bearing peer of :func:`predict_then_verify`, and like it
+    a *pull*: nothing in :func:`~anatase.report.build_report` calls it, so
+    building a report still performs no fits.
+
+    Why it exists.  The report's exchange finding is built from an R², which is
+    a **geometric** measure of how far a held parameter's column lies inside
+    the fitted span — it says the two parameters are hard to tell apart in the
+    design matrix, and nothing whatever about whether the counting statistics
+    in hand can tell them apart.  On real SRM 660c they can: at R² = 0.9977 the
+    zero-only fit lands at Rwp 0.09361 / χ² 4.0752 against the
+    displacement-only 0.08661 / 3.4890 on 5332 points, and the zero-only model
+    biases *a* by +100 ppm (4.157310 against the certified-protocol 4.156895).
+    Two warm bounded fits cost seconds; the round that assumed the answer
+    instead cost 1.7 M tokens (``tests/CLAUDE.md`` § "An eval's expected answer
+    is a measurement").
+
+    **The rest of the free set is unchanged in both fits**, so the two differ
+    by *which* member of the pair is free and never by how many parameters are.
+    That is what makes the raw χ² comparison fair without an information
+    criterion, and ``RivalFit.n_free`` publishes it so the claim can be
+    checked.
+
+    Two refusals, both by name rather than by a quiet empty answer:
+
+    - a pair member with **no null identity** — a cell edge or a scale has no
+      value the data could be accused of failing to distinguish it from, so
+      there is no "held at its null" to run.  Such a pair is resolved by
+      protocol instead: fix the zero on a calibrant, widen the window, or
+      measure a standard;
+    - **Pawley mode**, mirroring :func:`.optimize.identifiability
+      .exchangeability_scan`'s own fence — there the fitted span includes the
+      per-hkl intensity block, and a rival measured against the wrong span is
+      worse than no rival.
+
+    The answer carries no verdict (:class:`RivalComparison`).
+    """
+    from ..optimize.identifiability import NULL_IDENTITY
+    from ..strategy.staged import Stage
+
+    if refinement.result_ is None:
+        raise RuntimeError("run a fit before comparing rivals")
+    if refinement.result_.mode == "pawley":
+        raise ValueError(
+            "compare_rivals is not defined in Pawley mode: the fitted span "
+            "includes the per-hkl intensity block, so a rival fit is measured "
+            "against a different span than the exchange it answers")
+    pair = _rival_pair(finding)
+    for path in pair:
+        if path not in NULL_IDENTITY:
+            raise ValueError(
+                f"{path!r} has no null identity, so it has no 'held at its "
+                "null' fit: this pair is resolved by protocol (fix the zero "
+                "on a calibrant, widen the window, measure a standard), not "
+                f"by a swap; nulls are defined for {sorted(NULL_IDENTITY)}")
+
+    fits = []
+    for freed, other in (pair, pair[::-1]):
+        trial = _rival_trial(refinement)
+        trial.set_vary([other], False)
+        trial.set_values({other: NULL_IDENTITY[other]})
+        trial.set_vary([freed], True)
+        result = trial.run_stage(data, Stage(f"rival:{freed}", [freed]))
+        row = next((p for p in result.parameters if p.path == freed), None)
+        fits.append(RivalFit(
+            freed_path=freed, held_path=other, held_at=NULL_IDENTITY[other],
+            chi2=result.statistics.chi2, rwp=result.statistics.rwp,
+            n_points=result.statistics.n_points,
+            # the solver's own count: ``result.parameters`` also carries tied
+            # entries, which are not free parameters
+            n_free=result.statistics.n_free_parameters,
+            freed_value=row.value if row else None,
+            freed_esd=row.stderr if row else None,
+            node_id=result.node_id))
+    return RivalComparison(rivals=fits,
+                           chi2_ratio=float(fits[0].chi2 / fits[1].chi2))
 
 
 def estimate_delta_chi2(result: RefinementResult,

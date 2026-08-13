@@ -1,6 +1,6 @@
 # WP-1063 — Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13 — clause at fit level (THRESHOLDS_VERSION 0.8), `compare_rivals` shipped, the round-2 transcripts mined
 Depends on: WP-1056, WP-1059 (both closed — their findings are restated below);
 before WP-1003 (the clause is public report text, and 1003 § Inherited carries
 it as a freeze question)
@@ -139,25 +139,25 @@ wrong with it.
 
 ## Tasks
 
-- [ ] `tests/eval_report_agent/mine_transcripts.py` + unit test on a small
+- [x] `tests/eval_report_agent/mine_transcripts.py` + unit test on a small
   committed synthetic transcript fixture; run it over the round-2 record;
   counts table into the handover entry; round-3-relevant findings restated
   into WP-1064's `### Inherited`
-- [ ] Clause rewording in `identifiability.py` + the two
+- [x] Clause rewording in `identifiability.py` + the two
   `test_fitreport_layers.py` pins updated to shape assertions (keep the
   `"ambiguous" not in summary` pin)
-- [ ] `THRESHOLDS_VERSION = "0.8"` + changelog entry in `report/schemas.py`
+- [x] `THRESHOLDS_VERSION = "0.8"` + changelog entry in `report/schemas.py`
   (clause rewording; `compare_rivals`/`RivalComparison` added; gates
   unchanged, and why — the R² geometric argument)
-- [ ] `RivalComparison` model + `compare_rivals()` in `layer2.py`, exported
+- [x] `RivalComparison` model + `compare_rivals()` in `layer2.py`, exported
   from `anatase.report`; tests: the R1-shaped happy path, equal-param-count
   fairness, both refusals by name, `chi2_ratio` orientation
-- [ ] Solve-free report-build test (spy on the solve path)
-- [ ] `docs/AGENT_PROTOCOL.md`: §4 step 6 tracks the new wording and makes
+- [x] Solve-free report-build test (spy on the solve path)
+- [x] `docs/AGENT_PROTOCOL.md`: §4 step 6 tracks the new wording and makes
   the swap the first resolution; §4b keeps the ridge fence and adds the
   sanctioned experiment beside it; §9 gains a `compare_rivals` paragraph
   beside `predict_then_verify`
-- [ ] Close-out: 1003 `### Inherited` gets the declined-arm note; "say which
+- [x] Close-out: 1003 `### Inherited` gets the declined-arm note; "say which
   numbers moved" (passed+skipped by exactly the tests added, both
   selections, venv and platform quoted)
 
@@ -181,6 +181,78 @@ clause-pin tests fail on a deliberate wording edit with the expected message
   the clause finding's narrative.
 
 ## Handover log
+
+- **2026-08-13** — **closed.** All seven items landed, in the WP's own order:
+  mining first (its output fed the wording), then the clause, then the helper.
+
+  **Done.**
+  - `tests/eval_report_agent/mine_transcripts.py` + `fixture_round/` (a
+    committed two-cell synthetic record) + 20 unit tests. Three surfaces:
+    **probed** (the agent's query names a field), **delivered** (its text came
+    back in a tool result), **voiced** (assistant prose or the `answer.json`
+    it wrote). Self-check: it reproduces 1059's 7-of-20 both-free count from
+    the record unprompted.
+  - The clause: `— this fit cannot tell which is physical; resolve it by
+    measurement, never by freeing both into one fit (that is a ridge): fit
+    each of the pair alone with the other held at its null and compare χ²`.
+    `THRESHOLDS_VERSION` 0.8, with the no-retune rationale in the changelog.
+  - `report.compare_rivals` + `RivalComparison`/`RivalFit`, exported from
+    `anatase.report`; solve-free report build pinned by spying on the solver.
+  - AGENT_PROTOCOL §4 step 6 / §4b / §9; mailbox notes into 1064 and 1003.
+
+  **The mined counts** (30 cells = 5 conditions × 2 models × {E2, E8, R1};
+  `[dev]` venv, darwin/arm64; counts, never percentages):
+
+  | measurement | count |
+  |---|---|
+  | cells the clause *sentence* reached | 13 of 30 (both 4, report 3, prompt 3, surface 3, off 0; E2 7, R1 6, **E8 0**) |
+  | cells that probed the `exchanges` table | 3 of 30 (delivered 7, voiced 12) |
+  | both-free position cells | 7 of 20 (E2 3, R1 4) — 1059's figure, reproduced |
+  | of those, clause in context **before** the both-free overlay | **6 of 7** |
+  | of those, clause *voiced* before it | 2 of 7 |
+  | E2+R1 cells that got the clause and freed both | 6 of 13 |
+  | E2+R1 cells that never got it and freed both | 1 of 7 |
+  | cells shipped a trajectory | 12 — probed by name 8, rung content in context **11**, voiced 8 |
+  | cells receiving any `ActionKind` | off 0/6, report **1/6**, prompt 1/6, surface 5/6, both 6/6 |
+
+  **Gotchas, all measured while building the miner.** (i) A token in *prompt
+  prose* is not a delivery — the §5/§6 excerpts name the whole action
+  vocabulary, and a loose match scored 24 of 30 cells on `add_impurity_phase`
+  before the package had sent anything; delivery is matched in JSON form,
+  probing and voicing loosely. (ii) An overlay written by a `Write` payload
+  is an escaped string a brace scan of the serialized input cannot reach, and
+  one ridge cell used a Bash heredoc — so overlay detection is tool-agnostic,
+  scanning the *values*. (iii) A trajectory probe is answered by
+  `tool_use_id`, not adjacency: one cell filtered rungs through
+  `jq '{stage, rwp}'`, so real content arrived with no marker field.
+  (iv) The kept transcripts carry **no thinking blocks** (0 characters over
+  all 30), so `voiced` is a floor on what was read, not a measure of it.
+
+  **Numbers moved.** Fast suite (`-n auto --dist loadgroup -m "not slow"`,
+  `[dev]` venv — jax and torch both absent — python 3.12.12, darwin/arm64):
+  main `9065d6f` **2198 passed, 108 skipped** → this branch **2228 passed,
+  108 skipped**. +30 passed, +0 skipped, exactly the 30 tests added (20 in
+  `test_mine_transcripts.py`, 10 in `test_fitreport_layers.py`); no new skip.
+  Targeted acceptance selection: 173 passed. Wall clock 2:52 on the branch
+  against 3:54 on main, same machine minutes apart — a range, not a figure,
+  and the branch has *more* tests.
+
+  **Deliberately not done, with reasons.** No `EXCHANGEABLE_MIN_R2` retune
+  (the 0.8 changelog carries the argument: R² is geometric, so no threshold
+  on it makes "the data cannot tell" true). No `refine_json` arm — declined
+  on the record into 1003's mailbox with the condition that would take it up.
+  No root-CLAUDE.md rule: "a clause naming a degeneracy must name the action
+  that resolves it" is a genuine standing rule and was drafted, but `CLAUDE.md`
+  is at exactly its 600-line cap and the only fits required dropping meaning
+  ("collinear *angular* templates", "share-based *global* maturity"), which is
+  what the cap exists to prevent. It is a candidate for the next compression
+  pass; until then it lives in `identifiability_clause`'s docstring (where a
+  clause author reads it) and AGENT_PROTOCOL §4 step 6.
+
+  **Next.** [1064](1064-eval-round-three.md) — its `### Inherited` carries the
+  four mining findings that change its design, including the two that move
+  pre-registered rows: Layer 2 never reached the JSON report arms in round 2,
+  and hypothesis (d)'s mechanism is wrong on `surface__haiku/R1`.
 
 - **2026-08-13** — created, from the post-1059 FitReport design review
   (assessment: content and delivery decompose; this WP is the content half —

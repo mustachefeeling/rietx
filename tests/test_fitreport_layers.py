@@ -39,12 +39,21 @@ WAVELENGTH = 1.5405929
 _COUNT_SCALE = 60.0
 
 
-def _truth(lo=18.0, hi=125.0, step=0.02, seed=17):
+def _truth(lo=18.0, hi=125.0, step=0.02, seed=17, disp=0.0):
     """A model and the noisy pattern it generates — i.e. a *converged* state.
 
     The background lives in the instrument (a flat Chebyshev term), not added
     on top of the pattern, so that the unperturbed model reproduces the data
     to within counting noise and Layer 1 has a mature fit to work from.
+
+    ``disp`` puts a sample displacement into the **specimen**, not into a
+    starting model: the returned pattern is genuinely displaced, which is the
+    one thing the planted-start episodes cannot do.  It is what a rival
+    comparison needs to have anything to compare — with ``disp = 0`` the
+    zero-only and displacement-only fits describe the same pattern equally
+    well and tie exactly (WP-1063; ``tests/eval_report_agent/PROTOCOL.md``
+    § Episode validity says the same thing of E2 and E8).  The default is
+    ``0.0``, so every other caller's data is unchanged.
     """
     from anatase.schemas.instrument import BackgroundChebyshev
 
@@ -56,6 +65,7 @@ def _truth(lo=18.0, hi=125.0, step=0.02, seed=17):
     ins.profile.x.value = 6e-3
     ins.geometry.axial_sl.value = 0.02
     ins.geometry.axial_hl.value = 0.02
+    ins.geometry.sample_displacement.value = disp
     ins.background = BackgroundChebyshev(coefficients=[
         pr.Parameter(value=80.0), pr.Parameter(value=0.0),
         pr.Parameter(value=0.0), pr.Parameter(value=0.0)])
@@ -926,6 +936,29 @@ def _exchange(report, held):
                          f"{report.identifiability.exchanges}")
 
 
+def _assert_exchange_clause_shape(summary):
+    """The three properties the exchange clause must keep (WP-1063), asserted
+    as *shape* rather than as a second copy of the sentence.
+
+    A pin holding a duplicate of a string that lives in the source is the
+    guard that goes quiet (``tests/CLAUDE.md`` § Guards that go quiet): it
+    passes while the two drift apart.  What is load-bearing here is not the
+    wording but that the sentence (1) claims about this **fit** and not about
+    the data, (2) names the forbidden action beside the sanctioned one, since
+    naming only the degeneracy is what invited seven of twenty WP-1059 cells
+    onto the ridge, and (3) says which value the held rival takes in the
+    experiment — 1003's "held with the rival free" was underspecified, and the
+    lazy converged state is not one of the two rivals.
+    """
+    assert "this fit cannot tell" in summary          # the claim's level
+    assert "never by freeing both" in summary         # the forbidden action
+    assert "ridge" in summary
+    assert "held at its null" in summary              # which value
+    assert "compare χ²" in summary                    # the experiment
+    assert "compare_rivals" not in summary            # not the API
+    assert "the data cannot tell" not in summary      # the pre-0.8 claim
+
+
 def test_exchange_candidate_families_are_pinned():
     """The scan's family list and null table are protocol, not tuning: a
     session that widens them changes what every report can say, so both are
@@ -1002,6 +1035,7 @@ def test_e2_converged_report_names_the_exchange(truth):
     assert abs(row.partners["instrument.zero_shift"]) > 1.0
     assert "exchangeable with the held instrument.geometry.sample_displacement" \
         in report.summary
+    _assert_exchange_clause_shape(report.summary)
     assert "ambiguous" not in report.summary  # the verdict is the reader's
     # transparency rides the same fitted zero — honest multiplicity, in the
     # table (measured R² 0.97) while the summary names only the worst row
@@ -1066,6 +1100,7 @@ def test_e8_short_window_reports_the_collinear_triangle():
     assert row.partner == "instrument.geometry.sample_displacement"
     assert row.exchangeable
     assert "exchangeable with the held instrument.zero_shift" in report.summary
+    _assert_exchange_clause_shape(report.summary)
 
     ev = report.identifiability
     triangle = [m for m in ev.soft_modes
@@ -1096,3 +1131,180 @@ def test_identifiability_carrier_is_additive(truth):
                                      partners={"a": -1.1})])
     again = Identifiability.model_validate_json(full.model_dump_json())
     assert again == full
+
+
+# ----------------------------------------------------------------------
+# WP-1063 — the swap the clause names, run on demand
+# ----------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def displaced():
+    """A genuinely displaced specimen (−0.10 mm in the *data*), fitted the
+    lazy way: zero free, displacement held at 0.  R1's shape, which no
+    planted-start episode has — E2 and E8 move the starting model and leave
+    the pattern undisplaced, so their rivals tie exactly."""
+    from anatase.strategy.staged import RefinementPlan, Stage
+
+    structure, ins, data = _truth(disp=-0.10)
+    start = ins.model_copy(deep=True)
+    start.geometry.sample_displacement.value = 0.0
+    ref = pr.Refinement(structure, start)
+    ref.fit(data, plan=RefinementPlan(stages=[
+        Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        Stage("zero", ["instrument.zero_shift"]),
+        Stage("cell", ["phases.*.cell.*"]),
+        Stage("profile_w", ["instrument.profile.w"]),
+    ]))
+    return ref, data, ref.report()
+
+
+def test_compare_rivals_answers_the_clause_it_is_named_by(displaced):
+    """The R1 shape, decided: the fit absorbed a real −0.10 mm displacement
+    into the zero and reports the pair as exchangeable at R² = 0.9999 — and
+    the swap separates them by a factor of ~3 in χ², recovering the planted
+    displacement to five digits.  Which is the point of the reworded clause:
+    'this fit cannot tell' is true, 'the data cannot tell' was not."""
+    from anatase.report import compare_rivals
+
+    ref, data, report = displaced
+    finding = _exchange(report, "instrument.geometry.sample_displacement")
+    assert finding.exchangeable and finding.partner == "instrument.zero_shift"
+
+    comparison = compare_rivals(ref, data, finding)
+    held_freed, partner_freed = comparison.rivals
+    assert held_freed.freed_path == "instrument.geometry.sample_displacement"
+    assert held_freed.held_path == "instrument.zero_shift"
+    assert held_freed.held_at == 0.0                     # the null, not −0.02
+    assert partner_freed.freed_path == "instrument.zero_shift"
+    assert partner_freed.held_at == 0.0
+    # the displaced specimen is what the data says it is (measured −0.09999)
+    assert held_freed.freed_value == pytest.approx(-0.10, abs=1e-3)
+    assert held_freed.freed_esd is not None and held_freed.freed_esd > 0
+    assert held_freed.chi2 < partner_freed.chi2          # measured 1.05 / 2.99
+    assert not hasattr(comparison, "decisive")           # numbers, no verdict
+
+
+def test_chi2_ratio_orientation_is_held_over_partner(displaced):
+    """Below 1 means the parameter the fit *held* explains the pattern better
+    than the one it refined — the direction a caller acts on, so it is pinned
+    rather than left to the field order."""
+    from anatase.report import compare_rivals
+
+    ref, data, report = displaced
+    comparison = compare_rivals(
+        ref, data, _exchange(report, "instrument.geometry.sample_displacement"))
+    assert comparison.chi2_ratio == pytest.approx(
+        comparison.rivals[0].chi2 / comparison.rivals[1].chi2)
+    assert comparison.chi2_ratio < 1.0                   # measured 0.35
+
+
+def test_both_rivals_refine_the_same_number_of_parameters(displaced):
+    """The fairness the docstring claims, published so it can be checked: the
+    two fits differ by *which* member of the pair is free, never by how many
+    parameters are — which is what lets raw χ² be compared without an
+    information criterion."""
+    from anatase.report import compare_rivals
+
+    ref, data, report = displaced
+    comparison = compare_rivals(
+        ref, data, _exchange(report, "instrument.geometry.sample_displacement"))
+    assert comparison.rivals[0].n_free == comparison.rivals[1].n_free
+    assert comparison.rivals[0].n_points == comparison.rivals[1].n_points
+
+
+def test_the_comparison_leaves_the_caller_where_it_found_it(displaced):
+    """Two branch fits: the working state still stands on the converged fit
+    that asked the question."""
+    from anatase.report import compare_rivals
+
+    ref, data, report = displaced
+    before = ref.fitted_instrument.zero_shift.value
+    compare_rivals(ref, data,
+                   _exchange(report, "instrument.geometry.sample_displacement"))
+    assert ref.fitted_instrument.zero_shift.value == before
+    assert ref.fitted_instrument.geometry.sample_displacement.value == 0.0
+
+
+def test_an_undisplaced_specimen_ties(truth):
+    """The control for the test above, and the reason a synthetic
+    planted-start episode cannot answer this question: with nothing displaced
+    in the data, both rivals describe it equally well and the ratio is 1."""
+    from anatase.report import compare_rivals
+
+    structure, ins, data = truth
+    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref.fit(data, plan="mccusker_default")
+    comparison = compare_rivals(
+        ref, data, ("instrument.geometry.sample_displacement",
+                    "instrument.zero_shift"))
+    assert comparison.chi2_ratio == pytest.approx(1.0, abs=0.02)
+
+
+def test_a_pair_member_with_no_null_is_refused_by_name(displaced):
+    """A cell edge has no value the data could be accused of failing to
+    distinguish it from, so there is no swap — and the message says what to
+    do instead rather than returning an empty answer."""
+    from anatase.report import compare_rivals
+
+    ref, data, _ = displaced
+    with pytest.raises(ValueError, match="no null identity"):
+        compare_rivals(ref, data,
+                       ("phases.0.cell.a", "instrument.zero_shift"))
+
+
+def test_pawley_mode_is_refused_by_name(truth):
+    """Mirrors ``exchangeability_scan``'s own fence: there the fitted span
+    includes the per-hkl intensity block."""
+    from anatase.report import compare_rivals
+
+    structure, ins, data = truth
+    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref.fit(data, mode="pawley", plan="mccusker_default")
+    with pytest.raises(ValueError, match="Pawley"):
+        compare_rivals(ref, data, ("instrument.zero_shift",
+                                   "instrument.geometry.sample_displacement"))
+
+
+def test_comparing_before_a_fit_is_refused(truth):
+    from anatase.report import compare_rivals
+
+    structure, ins, data = truth
+    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    with pytest.raises(RuntimeError, match="run a fit"):
+        compare_rivals(ref, data, ("instrument.zero_shift",
+                                   "instrument.geometry.sample_displacement"))
+
+
+def test_an_exchange_row_with_no_partner_is_refused_by_name():
+    """``ExchangeFinding.partner`` is None when no loading names a nulled
+    parameter; that row can never be ``exchangeable``, and it has no swap."""
+    from anatase.report.layer2 import _rival_pair
+    from anatase.report.schemas import ExchangeFinding
+
+    with pytest.raises(ValueError, match="names no partner"):
+        _rival_pair(ExchangeFinding(held="phases.0.cell.a", r2=0.99,
+                                    partners={"phases.0.scale": 1.0}))
+
+
+def test_building_a_report_performs_no_fits(monkeypatch, displaced):
+    """The pull, stated as an invariant: ``compare_rivals`` is solve-bearing
+    and nothing in the report build may reach it, or a caller that merely
+    asked what the fit says would pay for two more.
+
+    Spying on the solver rather than on ``compare_rivals`` is deliberate — it
+    catches any future section that decides to measure something, not just
+    this one.
+    """
+    import importlib
+
+    # by name: the package re-exports the ``refine`` *function* over its own
+    # module, so ``anatase.refine`` is not the module here
+    refine_mod = importlib.import_module("anatase.refine")
+
+    def refuse(*args, **kw):
+        raise AssertionError("a report build ran the solver")
+
+    monkeypatch.setattr(refine_mod, "run_least_squares", refuse)
+    ref, data, _ = displaced
+    report = ref.report()
+    assert report.identifiability is not None      # it did build the section
+    assert report.summary

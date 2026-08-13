@@ -150,6 +150,33 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
     never listed — the exchanges table has them), and the softest notable
     mode.  Thresholds decide where the *comment* starts, never what the
     section carries.
+
+    **The exchange sentence makes a claim about this *fit*, and names the
+    experiment** (WP-1063).  Both halves are corrections, each with its own
+    measurement behind it:
+
+    - *the level*.  "The data cannot tell" is false where the data can: on
+      real SRM 660c the R² 0.9977 zero↔displacement pair is separated
+      decisively by fitting each rival alone with the other at its null —
+      Rwp 0.09361 / χ² 4.0752 against 0.08661 / 3.4890 on 5332 points, and
+      the zero-only model biases *a* by +100 ppm.  R² is a **geometric**
+      measure of column overlap; at these counting statistics the 0.23 % it
+      leaves unexplained decides.  So the sentence says what is true of the
+      fit in hand, and points at the measurement that settles it.
+    - *the action*.  Naming a degeneracy without naming what to do about it
+      is read as an invitation to free the rival.  Measured over 30 real
+      agent runs (WP-1059): seven of the twenty position-episode cells
+      answered this sentence by freeing **both** parameters onto the ridge
+      the manual forbids, and in six of the seven the clause was in the
+      agent's context before it wrote that overlay
+      (``tests/eval_report_agent/mine_transcripts.py``).  Only two of the
+      seven ever quoted it — a reader acts on this sentence without echoing
+      it, which is why the fix is the sentence and not its prominence.
+
+    It names the experiment, never the API: :func:`~anatase.report.layer2
+    .compare_rivals` runs exactly this and AGENT_PROTOCOL §9 names it, but a
+    summary string that named a function would be advice a non-python
+    consumer cannot take.
     """
     if evidence is None:
         return None
@@ -163,8 +190,10 @@ def identifiability_clause(evidence: IdentifiabilityEvidence | None
             f"fitted {worst.partner} = {worst.partner_value:.6g} stands "
             f"{worst.partner_significance:.0f}σ from {worst.partner_null:g} "
             f"but is exchangeable with the held {worst.held} "
-            f"(R² = {worst.r2:.4f}){others} — the data cannot tell which is "
-            f"physical, and a confident verdict is not supported")
+            f"(R² = {worst.r2:.4f}){others} — this fit cannot tell which is "
+            f"physical; resolve it by measurement, never by freeing both into "
+            f"one fit (that is a ridge): fit each of the pair alone with the "
+            f"other held at its null and compare χ²")
     softest = min((m for m in (evidence.soft_modes or [])
                    if m.eigenvalue < SOFT_MODE_NOTABLE_EIGENVALUE),
                   key=lambda m: m.eigenvalue, default=None)

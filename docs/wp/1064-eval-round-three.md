@@ -17,6 +17,52 @@ report-vs-tools-vs-package-sufficient empirically — with kill/keep criteria
 pre-registered per component, so a null has consequences instead of a
 re-run.
 
+### Inherited
+
+**From [1063](1063-exchange-clause-and-rivals.md), closed 2026-08-13 — the
+round-2 transcripts, mined.** `tests/eval_report_agent/mine_transcripts.py`
+reads a kept record deterministically across three surfaces — **probed** (the
+agent's own query names a field), **delivered** (its text came back in a tool
+result), **voiced** (the agent's prose or its `answer.json` names it) — and
+its counts change four things here. All from the 30-cell 2026-08-13 record,
+`[dev]` venv, darwin/arm64; counts, never percentages.
+
+- **The trajectory was read, so the kill criterion is content, not cost.**
+  Of the 12 cells shipped a trajectory, rung content entered context in
+  **11** and 8 probed `.trajectory` by name. "Paid for and unread" is
+  refuted, which leaves the `report_trajectory` row of the kill/keep table
+  exactly as written — decision-quality gain on W1 — and removes the cheaper
+  alternative reading. Do not re-litigate it as a cost question.
+- **Layer 2 could not be decided by round 2, because it never arrived.**
+  Cells receiving *any* `ActionKind`: `off` 0/6, `report` **1/6**, `prompt`
+  1/6, `surface` 5/6, `both` 6/6 — the converged report's action list is
+  empty on E2/E8/R1, so the suggestions lived only in the rungs. The Layer-2
+  kill row therefore needs at least one episode whose **converged** report
+  carries actions, or it is undecidable again; W1 is the candidate and that
+  should be verified at fixture build, not assumed.
+- **Mine `delivered`/`probed`, never the summary text.** Three cells voiced
+  `exchangeable` with the clause never delivered — one of them in `off`,
+  which had no report at all. Word-matching an answer would have scored those
+  as reading the report. The same caveat bounds every citation count here:
+  round 2's kept transcripts carry **no thinking blocks** (measured: 0
+  characters over all 30), so `voiced` is a floor on what was read. If round 3
+  wants the reasoning surface, it has to keep it — the python arm's tool calls
+  are unaffected, its citations are not.
+- **Hypothesis (d)'s attributed mechanism is wrong on at least one cell.**
+  `surface__haiku/R1` answered `impurity_suspected` having never received
+  `add_impurity_phase` in any form: it read Layer 0's 32 `unmatched_obs`
+  entries at a state whose `suggested_actions_count` was 0. The phantom-phase
+  *invitation* is not what produced that answer, the unmatched list is —
+  which is exactly the discriminator W2 has to defeat, so W2's trap should be
+  registered against Layer 0's unmatched peaks, not against a rung's action.
+
+Two facts about the tool itself: it reproduces WP-1059's published 7-of-20
+both-free count from the record without being told it (its self-check), and
+its token vocabulary is quoted from the live schemas, so 1064's added
+usage-mining fields should follow that rather than adding string literals.
+The clause phrase is the one deliberately frozen constant — the record cannot
+change, and the live sentence did.
+
 ## Context
 
 **Why the redesign.** Two rounds have produced no interpretable delivery
