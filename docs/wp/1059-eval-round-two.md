@@ -263,9 +263,18 @@ dependency.
   hypotheses, budgeted cells, episode-validity section); both condition
   switches enforced on the request and popped from the response; R1/R2 real
   episodes off the SRM 660c converged state; scorer gains `overclaimed`,
-  `watch`, `bootstrap_calls`/`plans_used`, the payload audit; `grid.py`;
-  tests 17 → 46 (+29; 27 fast, 2 slow — the real pair's construction and R1's
-  landing state), fast suite for this directory 0.9 s, full 5.8 s.
+  `watch`, `bootstrap_calls`/`plans_used`, the payload audit; `grid.py`; and
+  the one rule the round paid for, in `tests/CLAUDE.md`.
+
+  **Counts** (`[dev]` venv, darwin/arm64): this directory 17 → 46 tests, of
+  which 2 are slow — the real pair's construction, and R1's landing state,
+  which pins the episode design and writes its PNGs. 0.9 s fast, 5.8 s with
+  the slow pair. Whole tree: `-m "not slow"` collection 2277 → 2304 (**+27**)
+  and total collection 2384 → 2413 (**+29**) — the 29 added, 27 of them in the
+  fast selection, no new skips. The fast run itself reports **2198 passed,
+  108 skipped** in ≈2:20 (one machine, one run — wall clock is a range), and
+  2306 against 2304 collected is the documented two-module `importorskip`
+  undercount rather than a discrepancy.
 
   **Next, in this order** — none of it is a re-run:
   1. Redesign E8 (plant where the default plan cannot free it) and re-score
