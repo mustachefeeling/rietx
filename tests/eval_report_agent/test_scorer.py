@@ -592,6 +592,61 @@ def test_synthetic_selection_never_pays_for_the_real_pair(tmp_path, monkeypatch)
     assert sorted(p.name for p in (tmp_path / "runs").iterdir()) == ["E1", "E2"]
 
 
+# ----------------------------------------------------------------------
+# grid: the assembled round
+# ----------------------------------------------------------------------
+
+
+def _cell(runs: Path, condition: str, model: str, eid: str, card_calls,
+          answer, *, marker_condition=None):
+    edir = runs / f"{condition}__{model}" / eid
+    edir.mkdir(parents=True)
+    (edir / "calls.jsonl").write_text(
+        "".join(json.dumps(c) + "\n" for c in card_calls), encoding="utf-8")
+    (edir / "answer.json").write_text(json.dumps(answer), encoding="utf-8")
+    spec = bf.CONDITIONS[marker_condition or condition]
+    (edir / "condition.json").write_text(json.dumps({
+        "protocol_version": bf.PROTOCOL_VERSION,
+        "condition": marker_condition or condition,
+        "include_report": spec.report,
+        "include_trajectory": spec.trajectory,
+        "prompt_sections": list(spec.sections),
+        "max_calls": bf.MAX_CALLS,
+    }), encoding="utf-8")
+    return edir
+
+
+def test_grid_flags_a_cell_whose_payload_disagrees_with_its_condition(tmp_path):
+    """The manipulation failure the shim cannot catch from inside one call:
+    an arm that was supposed to withhold a half and did not.  It is marked,
+    never explained away — the grid's own audit."""
+    from tests.eval_report_agent import grid
+
+    truth = tmp_path / "truth"
+    truth.mkdir()
+    (truth / "E2.json").write_text(json.dumps({
+        "episode": "E2", "expected_verdict": "converged",
+        "planted": None, "family": None}), encoding="utf-8")
+    runs = tmp_path / "runs"
+    # honest surface cell: report + trajectory, as declared
+    _cell(runs, "surface", "sonnet", "E2",
+          [_call(report={"summary": "s"}, trajectory=[{"stage": "a"}])],
+          {"verdict": "converged", "summary": ""})
+    # a cell that says "off" but was handed a report anyway
+    _cell(runs, "off", "haiku", "E2",
+          [_call(report={"summary": "s"})],
+          {"verdict": "converged", "summary": ""})
+
+    rows = {(r["condition"], r["model"]): r
+            for r in grid.collect(runs, truth)}
+    assert rows[("surface", "sonnet")]["payload_ok"] is True
+    assert rows[("off", "haiku")]["payload_ok"] is False
+    table = grid.render(list(rows.values()))
+    assert "| surface | sonnet | pass | 1/1 |" in table
+    assert "pass,!" in table            # the off cell is marked, not dropped
+    assert "%" not in table             # counts, never percentages
+
+
 @pytest.mark.slow
 def test_real_pair_is_built_from_the_fitted_state(tmp_path):
     """R1/R2 truth values are read off the SRM 660c baseline fit, never
