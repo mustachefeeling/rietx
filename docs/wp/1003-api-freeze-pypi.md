@@ -12,6 +12,48 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
+**From [1064](1064-eval-round-three.md), closed 2026-08-13 — round 3's
+pre-registered decisions, measured.**  The dated grid and its mechanisms are
+the v1.0 record's round-3 appendix; the raw record is
+`eval-runs/2026-08-13-round3` (gitignored).  Three decisions land here:
+
+- **`RefineRequest.report_trajectory` flips to `False` at the freeze.**  The
+  pre-registered kill criterion fired on its one real-signal row: W1
+  `surface` 2/2 = `report` 2/2 on decision quality at more calls (8 against
+  5 on haiku), with the rungs demonstrably read (round-3 mining) — consumed
+  content that bought nothing, twice measured (round 2: worse at ~2× the
+  calls; round 3: equal at best).  Flipping resolves the library/agent
+  asymmetry this freeze flags; `fit(stage_reports=...)` stays off in the
+  library half as it is today.
+- **No `compare_exchanges` arm on `RefineRequest`.**  The declined arm below
+  stays declined, now on evidence: **no python cell passed where the JSON
+  report arms failed** (python sonnet 2/3 against report sonnet 3/3 on the
+  epistemic rows; both python N1 cells overclaimed `converged` with
+  `compare_rivals` run and the clause read).  The freeze documents
+  `refine_json` as the constrained one-call surface that held up, with the
+  python surface primary for pull experiments — `compare_rivals` was pulled
+  in 3 of 8 python cells, so the pull is real, it just did not win rows.
+- **Layer 2 keeps its posture** — the demotion criterion did not fire.  Its
+  decidability precondition finally held (W1's *converged* report carries
+  `add_impurity_phase` at 0.9, verified on the wire at fixture build), and
+  the round's one delivery-shaped flip — `report__haiku` passing W1 where
+  `off__haiku` answered `converged` — coincides with that delivered action
+  list.  N=1 and not isolable from Layer 0's unmatched list arriving in the
+  same report, but the causal record is no longer purely negative.
+
+One successor-shaped content finding the freeze should know about: the 0.8
+clause **produces the experiment and not the verdict**.  On C1 (real SRM
+660c, displacement knocked, rivals decisive at χ² ratio 1.17) three sonnet
+cells ran the swap and recovered the displacement to −0.0801 — and two still
+declined (`ambiguous`) or misnamed the cause; the solvable control went 0/7
+valid.  Nothing in the clause or AGENT_PROTOCOL §4b says what a *decisive*
+swap licenses — that follow-through sentence is a WP of its own, not a
+freeze blocker.  A related glossary defect is recorded post-hoc in the
+round: `assumption_wrong`'s meaning names "the geometry" among declared
+inputs, and displacement is *refinable* geometry, which invited exactly the
+confusion it caused (`off__sonnet`/C1 recovered the displacement, then
+answered `assumption_wrong`).
+
 **From [1063](1063-exchange-clause-and-rivals.md), closed 2026-08-13 — the
 clause question above is settled, and one arm was declined on the record.**
 `THRESHOLDS_VERSION` is **0.8**: the exchange clause now claims about *this

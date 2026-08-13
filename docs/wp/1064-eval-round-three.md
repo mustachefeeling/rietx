@@ -1,6 +1,8 @@
 # WP-1064 — Agent eval round 3: measured epistemic truth, decision-grade scorer, python-capable arm
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13 — protocol 2.0 registered and run
+(28/28, two cells audit-invalidated), the three kill/keep decisions in
+1003's Inherited, the dated grid in the v1.0 record
 Depends on: WP-1063 (the 0.8 clause must be the one measured; a mid-round
 content change is forbidden by the round's own rules); feeds WP-1003 (the
 trajectory default, the Layer-2 posture and the refine_json pull surface are
@@ -179,7 +181,7 @@ round; the decisions land in 1003's `### Inherited` at close):
 - [x] `grid.py`: the two group tables (epistemic / solvable)
 - [x] Run the core 28 runs in the Claude Code harness; audit per the
   round-2 pattern; grids from `scorecards.json`; raw record to `eval-runs/`
-- [ ] Close-out: findings + kill/keep outcomes restated into 1003's
+- [x] Close-out: findings + kill/keep outcomes restated into 1003's
   `### Inherited` (trajectory default, Layer-2 posture, refine_json arm);
   narrative to `docs/milestones/v1.0.md`; "say which numbers moved"
 
@@ -223,3 +225,85 @@ contract; venv and platform quoted with every count.
   rule into the harness task. Deleted as already incorporated: the W2-trap
   registration against Layer 0's unmatched peaks — the W2 episode row and
   hypothesis (e) were written from that finding.
+- **2026-08-13 (close)** — the whole WP ran in one session; all counts
+  `[dev]` venv, darwin/arm64.
+
+  **Built** (commits `f000bac`…`f3785e0`): PROTOCOL.md 2.0 registered
+  before any run; `build_fixtures` 2.0 (nine episodes, four lazy dataset
+  groups, v2 prompt with scorer-quoted glossaries, the condition marker
+  moved to a sibling path and the `calls.jsonl` condition echoes dropped);
+  `test_landing_states.py` pinning every registered band — **no fixture
+  needed redesign**: N1 tie 1.0075 ∈ [0.99, 1.01] with the clause firing at
+  all three reachable states; C1 decisive 1.1679 ≥ 1.10 with the 0.005 tol
+  passing the swap (1.4e-07) and failing the ridge (off by 0.0401, at
+  *better* Rwp); W1 `add_impurity_phase` 0.9 in the converged report
+  (Layer-2 decidability, verified on the wire), 5/6 CaF₂ lines unmatched
+  (three ~110σ), trajectory 0.3→0.6→0.9, with-CaF₂ decisive 2.2702; W2
+  31 Kα2-position unmatched → 0 after the doublet fix, decisive 2.5450,
+  the Layer-0 trap live at 0.9; E8p tie 1.0001; J1 Rwp 0.04048 / GoF 2.970
+  / gap 2.381 re-measured.  Scorer v2 (next_action set membership,
+  `underclaimed`, deliverable axis, python-arm `final_result.json` adapter
+  — sound because `RefinementResult.parameters` serialises vary-or-tie
+  only, refine.py:1503); `python_arm.py` (workspace + venv builders, both
+  placement rules structural — the dev venv itself is the refusal test);
+  mining extensions (PULL_TOKENS pinned to live callables, fit-run counter,
+  audit candidates — pointers, never verdicts); grid 2.0 (two group
+  tables, `uc`/`na` flags, python cells N/A on payload).
+
+  **Run** (2026-08-13): 28/28 cells, 0 errors, 1.833 M subagent tokens,
+  17 m 26 s, effort `medium`, models as the harness reports them (`sonnet`,
+  `haiku`).  Record: `eval-runs/2026-08-13-round3` per the README contract
+  (RUNS incl. the python workspaces, TRUTH, transcripts+metas,
+  `scorecards.json`, `grid-2026-08-13.md`, `mined-2026-08-13.md`).
+  **Audit**: payload enforcement held in every JSON cell; zero
+  forbidden-read/network flags over all 28 transcripts; `python__haiku`
+  C1 (16 fit-bearing runs) and W2 (13) **invalidated** by the
+  pre-registered cap of 8 — both had failed anyway.  Post-hoc, recorded
+  not fixed: the harness strips thinking text from subagent transcripts
+  (668 blocks, all empty), so `voiced` stays a floor — the miner now
+  *measures* this per record instead of asserting round 2's; and the
+  `assumption_wrong` glossary's "the geometry" invited the displacement
+  confusion on C1 (displacement is refinable geometry) — successor
+  material, scoring untouched.
+
+  **The dated grid** (counts, never percentages; *inv* = audit-invalid):
+
+  Epistemic (N1/W1/W2): off haiku 0/3, off sonnet 3/3, report haiku 1/3,
+  report sonnet 3/3, surface haiku 1/1 (W1), surface sonnet 1/1 (W1),
+  python haiku 0/2+inv, python sonnet 2/3.  Solvable (C1): 0/7 valid —
+  off: impurity_suspected / assumption_wrong; report both `ambiguous,uc`
+  (sonnet **after recovering −0.080098 by the swap**; haiku on the ridge
+  −0.1202); surface haiku `converged` zero-absorbed (caught by the tol),
+  surface sonnet `ambiguous,uc`; python sonnet converged + recovered
+  −0.08011, failed on `report_with_caveat` ∉ {none}; python haiku inv.
+
+  **Hypotheses**: (a) half — swap states appeared (three sonnet cells;
+  `compare_rivals` pulled in 3 python cells) but both-free ≠ 0 (N1 4,
+  C1 2; the haiku ridges never had the clause delivered). (b) refuted —
+  `ambiguous` sayable in `off` (off__sonnet/N1 passed). (c) python matched
+  at best, won nothing JSON lost. (d) no — surface = report on W1 (2/2 both)
+  at more calls (8 vs 5 haiku) → **the trajectory default flips**. (e) by
+  model, not delivery — the trap took both haiku JSON cells; sonnet
+  separated everywhere incl. `off`.
+
+  **Kill/keep outcomes → 1003's Inherited**: `report_trajectory` → False
+  at the freeze; no `compare_exchanges` arm (refine_json held up); Layer 2
+  keeps its posture (precondition held; W1 haiku flip coincides with the
+  delivered action list; not isolable from Layer 0). The delivery-eval
+  programme is not killed by its own criterion — the round produced
+  interpretable signals, the sharpest being that **the 0.8 clause produces
+  the experiment and not the verdict** (the C1 0/7): what a decisive swap
+  *licenses* is written nowhere, and that follow-through sentence is a
+  successor WP, not a freeze blocker.
+
+  **Numbers moved** (`[dev]`, darwin/arm64): eval fast 64 → 93 passed;
+  eval slow 2 → 9 (two real-pair tests retired into nine landing tests);
+  full fast suite 2231 passed / 108 skipped (2:43) at the episodes commit
+  → 2257 / 108 (3:26) at close, the +26 being scorer v2 (+13), python
+  arm + mining (+11), grid (+2).  The close run first failed
+  `test_roadmap_glyph_mirrors_the_wp_status_line` — the guard firing on
+  the just-flipped WP status before ROADMAP's index row followed — fixed
+  by flipping the row; ruff clean throughout.  Acceptance:
+  `pytest tests/eval_report_agent` 102 passed in 17.7 s (93 fast + 9
+  slow); PROTOCOL.md 2.0 dated before the round; the grid above; the
+  record per `eval-runs/README.md`.
