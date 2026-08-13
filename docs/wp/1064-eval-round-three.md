@@ -17,52 +17,6 @@ report-vs-tools-vs-package-sufficient empirically — with kill/keep criteria
 pre-registered per component, so a null has consequences instead of a
 re-run.
 
-### Inherited
-
-**From [1063](1063-exchange-clause-and-rivals.md), closed 2026-08-13 — the
-round-2 transcripts, mined.** `tests/eval_report_agent/mine_transcripts.py`
-reads a kept record deterministically across three surfaces — **probed** (the
-agent's own query names a field), **delivered** (its text came back in a tool
-result), **voiced** (the agent's prose or its `answer.json` names it) — and
-its counts change four things here. All from the 30-cell 2026-08-13 record,
-`[dev]` venv, darwin/arm64; counts, never percentages.
-
-- **The trajectory was read, so the kill criterion is content, not cost.**
-  Of the 12 cells shipped a trajectory, rung content entered context in
-  **11** and 8 probed `.trajectory` by name. "Paid for and unread" is
-  refuted, which leaves the `report_trajectory` row of the kill/keep table
-  exactly as written — decision-quality gain on W1 — and removes the cheaper
-  alternative reading. Do not re-litigate it as a cost question.
-- **Layer 2 could not be decided by round 2, because it never arrived.**
-  Cells receiving *any* `ActionKind`: `off` 0/6, `report` **1/6**, `prompt`
-  1/6, `surface` 5/6, `both` 6/6 — the converged report's action list is
-  empty on E2/E8/R1, so the suggestions lived only in the rungs. The Layer-2
-  kill row therefore needs at least one episode whose **converged** report
-  carries actions, or it is undecidable again; W1 is the candidate and that
-  should be verified at fixture build, not assumed.
-- **Mine `delivered`/`probed`, never the summary text.** Three cells voiced
-  `exchangeable` with the clause never delivered — one of them in `off`,
-  which had no report at all. Word-matching an answer would have scored those
-  as reading the report. The same caveat bounds every citation count here:
-  round 2's kept transcripts carry **no thinking blocks** (measured: 0
-  characters over all 30), so `voiced` is a floor on what was read. If round 3
-  wants the reasoning surface, it has to keep it — the python arm's tool calls
-  are unaffected, its citations are not.
-- **Hypothesis (d)'s attributed mechanism is wrong on at least one cell.**
-  `surface__haiku/R1` answered `impurity_suspected` having never received
-  `add_impurity_phase` in any form: it read Layer 0's 32 `unmatched_obs`
-  entries at a state whose `suggested_actions_count` was 0. The phantom-phase
-  *invitation* is not what produced that answer, the unmatched list is —
-  which is exactly the discriminator W2 has to defeat, so W2's trap should be
-  registered against Layer 0's unmatched peaks, not against a rung's action.
-
-Two facts about the tool itself: it reproduces WP-1059's published 7-of-20
-both-free count from the record without being told it (its self-check), and
-its token vocabulary is quoted from the live schemas, so 1064's added
-usage-mining fields should follow that rather than adding string literals.
-The clause phrase is the one deliberately frozen constant — the record cannot
-change, and the live sentence did.
-
 ## Context
 
 **Why the redesign.** Two rounds have produced no interpretable delivery
@@ -121,7 +75,14 @@ extend_range_or_calibrate, add_phase, fix_instrument_model,
 collect_better_data, chemistry_or_contents, report_with_caveat}, graded by
 membership in a per-row registered *set* (near-equivalents must not fail on
 wording); `summary` free text, unscored (mining counts its citations
-descriptively). `passed` = verdict match ∧ tol-recovery where registered ∧
+descriptively) — and mining reads the `delivered`/`probed` surfaces, never
+word-matches the summary: in round 2 three cells voiced `exchangeable` with
+the clause never delivered, one of them in `off` (1063's mining). Round 2's
+kept transcripts carried no thinking blocks (measured: 0 characters over all
+30), so `voiced` was only a floor on what was read — round 3 keeps thinking
+blocks in its kept transcripts; the python arm's tool calls are unaffected
+either way, its citations are not. `passed` = verdict match ∧ tol-recovery
+where registered ∧
 next_action in the registered set where registered. New flag
 **`underclaimed`** — the mirror of `overclaimed`: expected `converged`,
 answered non-committal. It is what distinguishes "declined correctly"
@@ -178,8 +139,8 @@ round; the decisions land in 1003's `### Inherited` at close):
 | Component | Killed/demoted if | Action on kill |
 |---|---|---|
 | Report contract (Layer 0 + background/identifiability/lebail_gap evidence) | **not on trial** — content value is measured (WP-1055/1056/1057; Jacobian-derived evidence cannot be re-derived by any consumer) with three consumers; an eval null cannot outweigh that | n/a; removal would be a 1003 decision needing new grounds |
-| Layer 2 prose/actions | cells that read Layer 2 do no better than cells reading the evidence tables (mining decides which was read), and the causal record stays negative (E7 round 1, R1 first rung round 2) | demote in AGENT_PROTOCOL to "hypotheses to verify"; soften confidence language; no schema removal pre-freeze |
-| `RefineRequest.report_trajectory=True` default | surface cells again cost more calls with no decision-quality gain on W1 — its one real-signal row | flip to False; record in 1003, resolving the library/agent asymmetry the freeze flags |
+| Layer 2 prose/actions | cells that read Layer 2 do no better than cells reading the evidence tables (mining decides which was read), and the causal record stays negative (E7 round 1, R1 first rung round 2). Decidability precondition (1063's mining): round 2's converged reports carried empty action lists (`report` cells received any `ActionKind` in 1/6 — actions lived only in the rungs), so at least one episode's **converged** report must carry actions or this row is undecidable again; W1 is the candidate, verified at fixture build | demote in AGENT_PROTOCOL to "hypotheses to verify"; soften confidence language; no schema removal pre-freeze |
+| `RefineRequest.report_trajectory=True` default | surface cells again cost more calls with no decision-quality gain on W1 — its one real-signal row. The criterion is content, not cost: 1063's mining refuted "paid for and unread" (rung content entered context in 11 of the 12 trajectory-bearing cells, 8 probed `.trajectory` by name) — do not re-litigate this as a cost question | flip to False; record in 1003, resolving the library/agent asymmetry the freeze flags |
 | refine_json pull surface | python wins route through pulls JSON lacks and JSON arms fail those same rows | add the `compare_exchanges` arm pre-freeze for 1003 to ratify, or document refine_json as the constrained one-call surface with python primary |
 | The delivery-eval programme | round 3, with measured rows and clean audits, still yields no interpretable signal at budgeted N | stop A/B rounds; the injection suite remains the report's evidence base; 1003 records delivery claims as unmeasured — the honest sunk-cost exit |
 
@@ -203,14 +164,18 @@ round; the decisions land in 1003's `### Inherited` at close):
 - [ ] Episode fixtures + slow landing-state tests: N1, E8′ (E8 retired, its
   record kept), C1 (R1 retired likewise, tol restored), W1, W2, J1 — each
   test pins the verifying measurement; build_fixtures grows the deliverable
-  axis for J1's sub-rows
+  axis for J1's sub-rows; verify at build that W1's **converged** report
+  carries actions (the Layer-2 row's decidability precondition, from 1063)
 - [ ] Scorer v2 + `test_scorer.py` extensions: `assumption_wrong`,
   next_action set membership, `underclaimed`, the deliverable axis, the
   python-arm `final_result.json` adapter
 - [ ] Python-arm harness: workspace builder (non-editable install to a venv
   outside the tree, manual copy, prompt), audit extensions (repo-path /
   truth / network reads), usage-mining fields added to
-  `mine_transcripts.py` (from WP-1063)
+  `mine_transcripts.py` (from WP-1063) — quoting their token vocabulary
+  from the live schemas, never string literals (1063's rule; the frozen
+  clause phrase is the one deliberate exception, because the record cannot
+  change and the live sentence did)
 - [ ] `grid.py`: the two group tables (epistemic / solvable)
 - [ ] Run the core 28 runs in the Claude Code harness; audit per the
   round-2 pattern; grids from `scorecards.json`; raw record to `eval-runs/`
@@ -247,3 +212,14 @@ contract; venv and platform quoted with every count.
   round's design decisions confirmed with the maintainer: full round 3
   including the python-capable arm; the `report_trajectory` default is
   decided from this round's W1 cells, not flipped pre-emptively.
+- **2026-08-13 (session start)** — branch `wp1064-eval-round-three`;
+  `### Inherited` (1063's mined counts) pruned. Folded: the
+  trajectory-was-read counts into the `report_trajectory` kill row (the
+  criterion is decision quality, not cost); the Layer-2 decidability
+  precondition (a converged report must carry actions — W1 verified at
+  build) into that kill row and the fixtures task; the
+  mine-`delivered`/`probed`-never-summary rule and the keep-thinking-blocks
+  requirement into the scorer paragraph; the live-schema token-vocabulary
+  rule into the harness task. Deleted as already incorporated: the W2-trap
+  registration against Layer 0's unmatched peaks — the W2 episode row and
+  hypothesis (e) were written from that finding.
