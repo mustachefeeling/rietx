@@ -1,269 +1,511 @@
 # Runner protocol — agent-in-the-loop FitReport eval
 
-**Protocol version: 1.1** (`build_fixtures.PROTOCOL_VERSION`; stamped into
-every `condition.json` and quoted by every run record).  Bump it on any
-change that alters comparability: the prompt text, the overlay contract, the
-answer schema, the scoring rules, the excerpt policy.
+**Protocol version: 2.0** (`build_fixtures.PROTOCOL_VERSION`; stamped into
+every condition marker and quoted by every run record).  **Registered
+2026-08-13, before any 2.0 run** (WP-1064).  Bump it on any change that
+alters comparability: the prompt text, the overlay contract, the answer
+schema, the scoring rules, the excerpt policy.
 
-**1.1 (WP-1058, WP-1059)** moved four things at once, deliberately: a
-report-on response can carry `trajectory` — the report at every stage
-boundary, not only at the converged state — the §5 excerpt says to read it,
-the condition axis splits that delivery from the *instruction* to seek it, and
-the real-data pair R1/R2 joins the eight synthetic episodes.  A 1.1 run
-therefore cannot be pooled with the 1.0 pilot's grid; it is the *new* delivery
-that WP-1059 measures, against the same episodes and the same scorer.
+**2.0 (WP-1064)** is justified four ways at once — the episode set, the
+answer schema, the scoring rules and the condition axis all move — so a 2.0
+run is poolable with nothing earlier, **including `off`**: the v2 answer
+contract is in every prompt, so even the report-less cell is not the 1.x
+report-less cell.  Version history: **1.0** (WP-1053) was the 48-run pilot —
+null on outcomes, with the mechanism measured (agents never generate the
+states where the report speaks).  **1.1** (WP-1058/1059) delivered the
+per-stage `trajectory`, split delivery from instruction on the condition
+axis, and added the real pair R1/R2 — 30 runs, invalidated as a delivery
+measurement by its own truth rows (§ Episode validity) but productive of
+every mechanism 2.0 is registered against.
 
 One authority per fact: the prompt *text* lives in `build_fixtures._PROMPT`
 (rendered by `render_prompt`), the conditions in `build_fixtures.CONDITIONS`,
-the enforcement in `run_refine.py`, the grading in `scorer.py`.  This file is
-the protocol *around* them: what runs, under which conditions, and how the
-outcome grid must be read.
+the JSON-arm enforcement in `run_refine.py`, the python-arm workspace in
+`python_arm.py`, the grading in `scorer.py`, the tables in `grid.py`, the
+transcript mining in `mine_transcripts.py`.  This file is the protocol
+*around* them: what runs, under which conditions, and how the outcome grid
+must be read.
 
 ## The question
 
-Round 1 answered "does the FitReport help a real LLM agent" with a **null on
-outcomes** and a measured mechanism: agents never generate the states where
-the report speaks.  Round 2 asks the sharper question that mechanism implies —
-**does naming the cause at a state the agent did not have to ask for change
-what the agent does?** — and separates the two ways of getting there:
-*delivery* (the package hands over every stage's report) and *instruction*
-(the manual tells the agent to go and look).
+Round 3 asks the questions the package's design thesis is actually about,
+with expected answers that are **measured before registration** and are the
+epistemic outcomes the package exists for:
+
+1. **Do agents reach the right epistemic outcome** — "needs more
+   information", "an assumption is wrong", "a good refinement is impossible
+   but a janky one still informs" — and does delivery of the report change
+   that?  Rounds 1–2 could not answer this because their outcome measure
+   (parameter recovery on mostly-solvable planted rows) was structurally
+   unable to credit those outcomes: two round-2 E2 cells recovered the
+   planted truth *and* answered `ambiguous`, and scored fail.
+2. **Report vs tools vs package-sufficient**: given the whole python surface
+   and the manual, does an agent *pull* what push-delivery was built to hand
+   over — and do its wins route through the report at all?  Answered
+   empirically by the python-capable arm plus usage mining, not by argument.
+
+## What two rounds established
+
+The record this design builds on; the deep records are the WP-1053/WP-1059
+handovers, `docs/milestones/v1.0.md` § Appendix, and `eval-runs/`.
+
+- **Round 1** (48 runs): null on outcomes, measured mechanism — agents never
+  generate the states where the report speaks.
+- **Round 2** (30 runs, 2026-08-13): `ambiguous` becomes *sayable* only with
+  a report (8/16 report-bearing position cells vs 0/4 in `off`); the
+  trajectory arms did worse than report-only (0/6 vs 2/6) at ~2× the calls
+  (median 2.0 `off` → 4.5 `both`; 23/24 budget exhaustions were haiku in
+  trajectory arms); the §9 *instruction* produced zero bootstrap calls.
+- **Round-2 transcripts, mined** (WP-1063; `mine_transcripts.py`, three
+  surfaces — *probed*: the agent's own query names a field; *delivered*: it
+  came back in a tool result; *voiced*: the agent's prose or `answer.json`
+  names it):
+  - The trajectory **was read**: rung content entered context in 11 of the
+    12 trajectory-bearing cells, 8 probed `.trajectory` by name.  Trajectory
+    questions are content questions, not cost questions.
+  - **Layer 2 never arrived at a converged state**: cells receiving any
+    `ActionKind` — `off` 0/6, `report` 1/6, `prompt` 1/6, `surface` 5/6,
+    `both` 6/6; the converged report's action list was empty on all three
+    episodes, so the suggestions lived only in the rungs.  A Layer-2 verdict
+    needs an episode whose **converged** report carries actions.
+  - Word-matching answers lies: three cells voiced `exchangeable` with the
+    clause never delivered, one of them in `off`.  Mining reads
+    `delivered`/`probed`, never the summary text.
+  - The round-2 `impurity_suspected` answer on R1 `surface`/haiku was
+    produced by **Layer 0's `unmatched_obs`** (32 entries) at a state whose
+    `suggested_actions_count` was 0 — the trap is the unmatched list, not a
+    rung's `add_impurity_phase` invitation.  W2 is registered against that.
+- **The ridge count** (WP-1063's motivating measurement): 7 of 20 position
+  cells answered the 0.7 exchange clause by freeing **both** rivals onto the
+  degenerate ridge (E2 displacement +0.014 against truth 0.000; R1
+  −0.120/−0.128 against −0.0801); every cell that reached truth got there by
+  *swapping* which parameter was free.  The **0.8 clause**
+  (`THRESHOLDS_VERSION = "0.8"`) makes the fit-level claim and names the
+  swap experiment ("fit each of the pair alone with the other held at its
+  null and compare χ²"); `compare_rivals()` is its on-demand form.  That
+  wording is what this round measures and is **frozen for the round** — a
+  mid-round content change is forbidden (WP-1064 depends on WP-1063 for
+  exactly this).
+
+## Episode validity — the rule, and the 1.1 defects it comes from
+
+**An eval's expected answer is a measurement, not a definition**
+(`tests/CLAUDE.md`).  Round 2's two invalid rows were measured *after* its
+grid and recorded post-hoc rather than re-scored — changing a truth record on
+sight of the results is the thing pre-registration exists to prevent.  Both
+are resolved in 2.0 by redesign and re-registration, never by re-scoring:
+
+- **E8 could not be passed as written**: the default plan frees the planted
+  zero and converges to truth, and *that* state is correctly quiet — its
+  expected `ambiguous` graded a state no competent agent lands on (all ten
+  round-2 E8 cells answered `converged`).  Retired, record kept; **E8′**
+  plants *displacement* — which no default stage frees — on the same window.
+- **R1's expected `ambiguous` was refuted by the rival measurement**: each
+  position parameter freed alone with the other held at its null gives
+  zero-only χ² 4.0752 against disp-only 3.4890 on 5332 points, and the
+  zero-only model biases *a* by +100 ppm.  The R² 0.9977 saying otherwise is
+  geometric.  Retired, record kept; **C1** registers `converged` with the
+  tolerance restored, and **N1** moves the genuine inability to a window
+  that measurably cannot tell.
+- **A synthetic episode cannot answer the rival question at all** — E2 and
+  E8 planted their aberration in the *starting model*, never in the data
+  (`_truth()` has zero = disp = 0), so their one-parameter rivals tie
+  exactly (χ² ratio 1.0000 on both, measured).  Carried forward: E8′ can
+  only ever answer "tie", which is exactly its job; the rival question
+  belongs to real rows.
+
+**The ordering rule for 2.0: measure → register → run.**  Every expected
+answer is verified by a measurement at fixture build, landed as a slow test
+pinning the landing state (`tests/eval_report_agent/test_landing_states.py`).
+Where a measurement refuses the intended design, the fixture is redesigned
+and this file re-registered (re-dated) until the measurement supports the
+row — before the round, never after.  **No mid-round content or protocol
+change**: defects found mid-round are recorded post-hoc (the round-2
+discipline) and fixed for a successor.
+
+## Decision bands
+
+Registered once, quoted per row:
+
+- **Tie**: rival χ² ratio within **[0.99, 1.01]**.
+- **Decisive**: the correct model's χ² lower by **≥ 10 %** (ratio ≥ 1.10) at
+  matched window and weights.  Not tuned to pass anything unmeasured: C1's
+  already-measured ratio is 1.168.
+- **Vanishing** (W2's set criterion): the wrong-assumption landing state's
+  `unmatched_obs` contains entries at the Kα2 positions; the corrected
+  model's `unmatched_obs` contains **none** of those positions — an
+  emptiness criterion, no magic count.
+
+## Episodes 2.0
+
+Every row: data, design, expected `verdict` (+ registered `next_action` set
+and tolerance where registered), and the verifying measurement its landing
+test pins.  `[core]` rows run in the core matrix; `[registered]` rows are
+built, measured and pinned now, run only as extensions (§ The matrix).
+
+- **N1 — needs more information** `[core]`.  Real SRM 660c **truncated to
+  20.3–56° in `episode.json` itself** (nothing to widen into; the overlay's
+  `two_theta_limits` can only narrow), displacement knocked −0.0801 → −0.02.
+  Expected: `ambiguous`, next_action **{extend_range_or_calibrate}**, no
+  tolerance (the planted value is recorded, never graded).
+  *Verifying measurement*: the two rivals, each freed alone with the other
+  held at its null, tie within **[0.99, 1.01]** on this window; and no
+  reachable state is correctly quiet — the exchange clause fires at the
+  default-plan landing state and at both single-rival states.  The
+  aberration is in the *data* (the specimen is genuinely displaced), so E8's
+  failure mode — a default stage freeing the plant and landing quiet —
+  cannot recur.  The upper window edge is the fixture's to tune at build
+  until the tie measurement holds; the band is the registration.
+  `collect_better_data` is deliberately **not** in the set: the counting
+  statistics are fine; the window is what is missing.
+- **E8′ — synthetic ambiguous** (replaces E8) `[registered]`.  LaB₆
+  `_truth(lo=20, hi=56, seed=23)`; plant **displacement** −0.02 in the start
+  — E2's shape on E8's window; no default stage frees displacement (1059's
+  own prescription).  Expected: `ambiguous`, no next_action registered, no
+  tolerance.  *Verifying measurement*: rival tie exact by construction
+  (χ² ratio 1.0000, already measured — a synthetic row can pose the rival
+  question but can only ever answer "tie"); the wrong-family state's clause
+  firing is pinned in `test_fitreport_layers.py` (the E8-short block).
+- **C1 — declining is wrong** (R1's successor) `[core]`.  Real SRM 660c,
+  full window, displacement knocked to −0.02.  Expected: `converged` **with
+  the tolerance restored** — `instrument.geometry.sample_displacement` at
+  truth (the baseline's fitted −0.0801) within **{abs: 0.005}** — and
+  next_action **{none}**.  *Verifying measurement*: the 1059 rival numbers
+  (disp-only χ² 3.4890 against zero-only 4.0752, decisive at ≥ 1.10;
+  zero-only biases *a* +100 ppm), re-measured at build; and the tolerance
+  discriminates the three landing states — the swap (−0.0801) passes, the
+  ridge (disp ≈ −0.120) fails, the zero-absorber state (disp never freed,
+  zero +0.0317 at 63σ) fails.  Verdict-only scoring would recreate the
+  round-2 tension in mirror — a zero-absorbed `converged` would pass — so
+  the tolerance is what makes the row honest.  The direct test of the 0.8
+  clause: its registered reading is the swap, not the ridge.
+- **W1 — wrong assumption: phase list** `[core]`.  `tests/data/11BM_NAC.fxye`
+  (59.5k channels — a multi-MB `episode.json` and ~1.5 s fits; the fixture
+  docstring says so), model = NAC only; the CaF₂ impurity is real and
+  unmodelled.  Expected: `impurity_suspected`, next_action **{add_phase}**,
+  no planted parameter.  *Verifying measurements*: with/without-CaF₂ fits
+  differ decisively (≥ 1.10); the NAC-only landing state carries strong
+  `unmatched_obs` at the CaF₂ line positions; **and the converged report
+  carries a non-empty action list** — the Layer-2 decidability precondition
+  (round 2's converged reports were all empty; if no core episode clears
+  this, the Layer-2 kill row is recorded undecidable-by-design *before* the
+  round).  The one row with a real climbing-confidence trajectory signal
+  (0.3 → 0.6 → 0.9, WP-1058): **the `report_trajectory` default is decided
+  here or nowhere.**
+- **W2 — wrong assumption: instrument** `[core]`.  One single-phase
+  `qarr/*.prn` (Cu Kα doublet in the data; candidate `corundum.prn`, final
+  choice pinned at build), with the source **declared single-line** in the
+  episode.  The Kα2 satellites read impurity-shaped; the correct reading is
+  the instrument model.  Expected: `assumption_wrong`, next_action
+  **{fix_instrument_model}**.  *Verifying measurements*: refitting with the
+  doublet declared is decisive (≥ 1.10) **and** the Kα2 `unmatched_obs`
+  vanish (the Vanishing criterion) — the discriminator against
+  `impurity_suspected`, because an impurity's peaks survive a source fix.
+  The designed trap is **Layer 0's unmatched list** (registered per the
+  round-2 mining, which re-attributed the phantom-impurity answer to it).
+  Note the arm asymmetry, by design: JSON arms cannot edit the instrument
+  (the overlay admits `plan`/`mode`/`two_theta_limits` only) and must
+  *reason* to the answer from the satellites' shape — systematically
+  high-angle-side, spacing growing with tan θ; the python arm can run the
+  experiment.  Part of what hypothesis (c) measures.
+- **J1 — impossible but janky** `[registered]`, two sub-rows.  The WP-1057
+  LaB₆ pore proxy (guest scatterer in the data only), one episode core, the
+  **deliverable declared per sub-row** in the prompt — §4b run as an
+  episode: one state, two correct answers, decided by declared purpose.
+  **J1P** (deliverable: phase identification): `converged`, next_action
+  {none}.  **J1S** (deliverable: structure quality): `ambiguous`,
+  next_action {chemistry_or_contents}.  *Verifying measurement*: the pinned
+  2026-08-12 numbers — converges Rwp 0.0405, GoF 2.97, `lebail_gap` ×2.4,
+  the alternating-sign contents clause — re-measured at build.
+- **E1, R2 — solvable controls** `[registered]`, unchanged from 1.1 (E1:
+  0.008° zero, tol {abs: 0.002}; R2: real scale ×0.90, tol {rel: 0.02});
+  next_action {none} added to both truth rows.  Expected `converged`.  Kept
+  so `underclaimed` means something: they are what separates "declined
+  correctly" from "declines everything".
+
+**Second tier** — built only if the core shows an effect: **J2** (qarr
+sample 4, the designed Brindley failure, deliverable = QPA: `converged` +
+{report_with_caveat} — the µR fence firing is the measurement, from the v0.3
+acceptance); **E7** for 1.1's deferred hypothesis (the E7-haiku flip under
+the capped abstained set); the second effort tier.  Tier-2 runs extend only
+cells that showed an effect, and may also extend the `[registered]` rows:
+E8′ as N1's synthetic control, J1P/J1S for the deliverable axis, E1/R2 if
+the core shows underclaiming that needs disambiguating.
+
+**Disposition of the 1.1 set**: E1 kept (control); E2 retired — its shape
+lives on in E8′ and its record in the 1.1 grids; E3/E4/E5/E6 retired (E5's
+impurity question is asked properly by W1, with a real impurity; E6's
+phantom-phase invitation was re-attributed by the mining to Layer 0, which
+W2 now tests); E7 second tier; E8 retired, replaced by E8′; R1 retired,
+succeeded by C1 and N1; R2 kept (control).
+
+## The answer contract (v2)
+
+`answer.json`, written by the agent in its workspace:
+
+```json
+{"verdict": "<one of the five>",
+ "next_action": "<one of the seven>",
+ "summary": "<a few sentences: what you concluded and why>"}
+```
+
+**`verdict`** ∈ `converged` | `impurity_suspected` | `assumption_wrong` |
+`abstain` | `ambiguous`.  The glossary the prompt carries (one authority:
+`build_fixtures` renders it) must draw the W1/W2 line explicitly —
+`impurity_suspected` is about the **specimen's phase content** (intensity
+the given phase list cannot account for); `assumption_wrong` (new in v2) is
+about a **declared input** — source lines, geometry, instrument — that
+disagrees with the data, where fixing the declaration, not refining more
+parameters, is the answer.  Without that line two tokens are defensible on
+one row and the closed vocabulary stops protecting anyone.
+
+**`next_action`** ∈ `none` | `extend_range_or_calibrate` | `add_phase` |
+`fix_instrument_model` | `collect_better_data` | `chemistry_or_contents` |
+`report_with_caveat` — graded by **membership in the row's registered set**
+(near-equivalents must not fail on wording; the sets are in § Episodes).
+The glossary distinguishes `extend_range_or_calibrate` (the measured window,
+or a calibration on it, limits the answer) from `collect_better_data`
+(counting statistics or resolution insufficient).
+
+**`summary`** is free text and **unscored** — mining counts its citations
+descriptively, and mining reads the `delivered`/`probed` surfaces, never
+word-matches the summary (round 2: three cells voiced `exchangeable` with
+the clause never delivered).
+
+## Scoring rules v2
+
+Grading stays deterministic — closed vocabularies make an LLM judge
+unnecessary.  Unit-tested in `test_scorer.py`.
+
+- **`passed`** = verdict match ∧ tolerance-recovery *where a tolerance is
+  registered* ∧ next_action ∈ the registered set *where a set is
+  registered*.  The single grade; everything else is descriptive.
+- Recovery is by the planted parameter, never Δχ²; the last successful call
+  is the answer state (JSON arms); a planted path absent from `parameters`
+  was never freed and scores not-recovered (the surface serialises
+  vary-or-tie entries only).  No successful call, or no valid
+  `answer.json` → failed.
+- **`overclaimed`** (kept): expected verdict is non-committal
+  (`abstain`/`ambiguous`), answered `converged`.
+- **`underclaimed`** (new, the mirror): expected `converged`, answered
+  non-committal.  `impurity_suspected`/`assumption_wrong` are committal
+  misses, not underclaims.  Both flags descriptive; neither touches
+  `passed`.
+- **The deliverable axis**: a truth row may carry `deliverable`; J1's two
+  sub-rows share one episode core and differ only in the prompt's declared
+  deliverable and the truth row.  Same scorer, different registration.
+- **The python-arm adapter**: where JSON arms grade the last ok call in
+  `calls.jsonl`, the python arm grades `final_result.json` (the agent's
+  chosen final `RefinementResult.model_dump_json()`) with the same
+  planted-path/tolerance/watch logic; `report_present`/`trajectory_rungs`
+  record null — the condition audit is N/A by design in this arm.
+- Wrong-frees and `watch` groups: unchanged from 1.1 — descriptive
+  localisation evidence, never pass/fail inputs.
 
 ## Conditions
 
-Two independent switches, plus the baseline: a 2×2 on (trajectory × §9) and
-the arm that sees no report at all.
+| condition | surface | report | trajectory | manual |
+|---|---|---|---|---|
+| `off` | JSON shim | — | — | none |
+| `report` | JSON shim | ✓ | — | §5, §6 |
+| `surface` | JSON shim | ✓ | ✓ | §5, §6 |
+| `python` | the whole package | agent's to pull | agent's to pull | `AGENT_PROTOCOL.md`, verbatim copy |
 
-| condition | `report` | `trajectory` | manual excerpts |
-|---|---|---|---|
-| `off` | — | — | none |
-| `report` | ✓ | — | §5, §6 |
-| `prompt` | ✓ | — | §5, §6, **§9** |
-| `surface` | ✓ | ✓ | §5, §6 |
-| `both` | ✓ | ✓ | §5, §6, **§9** |
+**Dropped from 1.1**: `prompt` and `both` — round 2 answered the §9
+instruction question (zero bootstrap calls in either arm), so the
+instruction axis is retired and §9 excerpts appear in no 2.0 prompt.
 
-- **The shim, not the prompt, enforces it.**  An agent can ignore a prompt; it
-  cannot un-strip a response.  Both switches are set on the *request* (so the
-  package never builds a half this condition withholds — measured 1.22 s
-  against 1.93 s per call on R1) **and** popped from the response, because the
-  guarantee is that the condition decides, not a package default that could
-  move.  `test_shim_delivers_exactly_what_the_condition_declares` runs this
-  over every condition against a stub that always offers both halves.
-- **The agent structurally cannot** touch the pattern, the starting parameter
-  values, `include_report` or `report_trajectory` — `overlay.json` admits
-  `plan` / `mode` / `two_theta_limits` only.
+Carried from 1.1, unchanged:
+
+- **The shim, not the prompt, enforces the JSON conditions.**  Both switches
+  are set on the request (the package never builds what the condition
+  withholds) **and** popped from the response (a package default can never
+  leak one back in); `test_shim_delivers_exactly_what_the_condition_declares`
+  pins it.
+- **The agent structurally cannot** touch the pattern, the starting values,
+  `include_report` or `report_trajectory` — `overlay.json` admits
+  `plan`/`mode`/`two_theta_limits` only.
 - **One shared prompt per condition, no per-model tuning.**  §5/§6 ship with
-  the report (round 1's rule, unchanged).  §9 is quoted as its **"Read the
-  run, not just its last state"** subsection only: the DAG half teaches
-  `pr.Refinement`/`predict_then_verify`, a python surface the shim does not
-  sanction.  Its forward reference to `predict_then_verify` therefore dangles
-  by design — the treatment is *read the run*, not *run the DAG loop*.
-- **The two trajectory-less report arms are told the key is absent**, in one
-  factual sentence about the response shape.  Without it they hunt for a key
-  §5 promises.  It does **not** say how to reach an earlier state another way:
-  that inference is exactly the operator skill `prompt` is testing.
-- **`off` renders round 1's report-off prompt verbatim.**  An arm that never
-  sees a report cannot see the content that changed under it, so `off` is the
-  one cell that may be read against the 1.0 grid — with the caveat that the
-  models and their dates differ, which at these N is not a small caveat.
-- Every call runs from the same fixed perturbed start; iteration is **on the
-  plan, not the state**.  The report from call N informs the overlay for call
-  N+1.
+  the report.  The trajectory-less `report` arm is told, in one factual
+  sentence about the response shape, that the per-stage `trajectory` will
+  not appear.
+- Every call runs from the same fixed perturbed start; iteration is on the
+  plan, not the state.  `MAX_CALLS = 8` shim-enforced; the prompt advertises
+  6.
 
-## Episodes
+**The condition marker leaves the workspace** (the round-2 leak, fixed).  In
+1.1 `condition.json` sat inside the episode dir, where an `ls` reveals it
+and its `include_report: false` tells an `off` agent it is in a withholding
+experiment.  In 2.0:
 
-E1–E8 are WP-1052's planted-cause synthetic starts, unchanged from 1.0.
-**R1/R2 are new** (WP-1059): the real SRM 660c pattern (5332 channels,
-20.3–150.9°, CuKα doublet, the file's own esd column), started from the NIST
-protocol's own converged state with one thing moved.
+- `build_fixtures` writes the marker to a **sibling path the prompt never
+  names**: `<episodes_dir>/<eid>.condition.json`, beside the episode dir
+  `<episodes_dir>/<eid>/` that is the agent's workspace.  `run_refine.py`
+  derives it from the episode dir it was handed; `scorer.py`/`grid.py` read
+  it from the same place.
+- The per-call record **drops the `condition`/`include_report`/
+  `include_trajectory` echoes** `calls.jsonl` carried in 1.1 — the log lives
+  in the workspace, so the echo was the same leak; one authority per fact
+  (the sibling marker), and the delivered response shape is itself the
+  auditable evidence (`report_present`/`trajectory_rungs` are read off the
+  graded call).  `episode_sha256` stays.
 
-Measured 2026-08-13, `[dev]` venv, darwin/arm64 — the facts the hypotheses
-below are registered against:
+## The python-capable arm
 
-- **E2** (synthetic, −0.02 mm displacement).  Converged report: Rwp 0.013708,
-  **empty** action list.  First rung `scale_bkg`: Rwp 0.05751,
-  `refine_sample_displacement` at **0.997**.  Five rungs.
-- **R1** (real, displacement −0.0801 → −0.02 mm).  No `mccusker_default` stage
-  frees displacement, so the lazy path absorbs it into `zero_shift`: Rwp
-  0.09127 against the baseline's 0.08661, zero at +0.031686 (63σ), empty
-  action list — but the WP-1056 clause fires *at that converged state*:
-  "exchangeable with the held `instrument.geometry.sample_displacement`
-  (R² = 0.9977) … a confident verdict is not supported".  Freeing displacement
-  instead recovers −0.0800984 (truth −0.0800986) at Rwp 0.08661 and fires the
-  same clause the other way (88σ).  Freeing **both** lands on the ridge
-  (zero −0.0214, disp −0.1202) at a *better* Rwp 0.08569 and reports the
-  unconstrained combination.  Expected verdict **`ambiguous`**; the planted
-  displacement is recorded and never graded (`tol: null`).
-- **R1's first rung is a trap.**  At `scale_bkg` the top action is
-  `add_impurity_phase` at **0.9** (the displaced peaks read as unindexed
-  lines), falling to nothing by the `cell` rung.  So on this episode delivery
-  hands over a confidently *wrong* early state, and §9's own reading rule —
-  "a confidence that **climbs** across rungs is about the specimen" — is what
-  discriminates.  That is a contrast between `surface` and `both`, not between
-  report-on and report-off.
-- **R2** (real, scale ×0.90).  Separable; the default plan recovers the scale
-  to ≈6 ppm.  Expected `converged`.  The control that stops R1's refusal from
-  being read as "real data is just hard".
-- WP-1052's own zero-knock episode is deliberately **not** R1: measured, the
-  default plan's zero stage fixes it (Rwp back to 0.08661, zero → −0.0001).
-  At the agent surface it is a competence control; the *loop* refuses there
-  because it acts only on separable attributions, and an agent driving plans
-  is not the loop.
+One arm, plus usage mining — it answers all three branches of the delivery
+question at once, which is why there is **no report-off python arm**: a
+crippled package tests a package nobody ships, and it is deferred unless the
+single arm is ambiguous.
 
-## Episode validity — read before running either row again
+**Workspace** (built by `python_arm.py`): `episode.json` — the identical
+fixed request core the JSON arms get (pydantic JSON round-trip *is* the
+library-native form; the agent loads it through the schemas and drives the
+package directly, no shim); a **verbatim copy of `docs/AGENT_PROTOCOL.md`**
+— present in *all* python cells, because the manual ships with the package
+and is part of the surface being tested, not a treatment; and `prompt.md` —
+the v2 answer contract plus `final_result.json`, the workspace rules, and
+the budget.
 
-Measured **after** the 2026-08-13 round (post-hoc, and recorded here rather
-than folded into the episodes, because changing a truth record on sight of the
-results is the thing pre-registration exists to prevent).  Both must be
-resolved before E8 or R1 is run again; neither is a scoring nuance.
+**Environment**: anatase installed **non-editable into a venv outside the
+repo tree**; no repo checkout reachable from the workspace; the truth tree
+stays scorer-side.
 
-- **E8 cannot be passed as written.**  All ten round-2 cells answered
-  `converged`.  Under WP-1056 the default-plan path frees the planted zero and
-  converges to truth, and *that* state is correctly quiet — so `converged` is
-  what the reached state supports, and the row's expected `ambiguous` grades a
-  state no competent agent lands on.  Round 1 read its 0/8 as a null; it was a
-  scoring artefact.  Fix by planting where the default plan cannot free it
-  (E2's shape on E8's short window), not by re-scoring.
-- **R1's expected `ambiguous` is not what the data supports.**  The fair rival
-  test — each position parameter freed alone, the other held at its null —
-  gives zero-only Rwp 0.09361 / χ² 4.0752 against disp-only 0.08661 / 3.4890
-  on 5332 points, and the zero-only model biases *a* by +100 ppm (4.157310 vs
-  4.156895).  The exchange R² of 0.9977 is a **geometric** measure of column
-  overlap; at these counting statistics the 0.23 % it leaves unexplained is
-  decisive.  Score R1 `converged` (verdict only — the planted displacement
-  still carries no tolerance, since reaching it by freeing *both* parameters
-  is the ridge, not a recovery).
-- **A synthetic episode cannot answer the rival question at all.**  E2 and E8
-  plant their aberration in the *starting model*, never in the data
-  (`_truth()` has zero = disp = 0), so their one-parameter rivals tie exactly
-  (χ² ratio 1.0000 on both).  Only a real specimen is genuinely displaced —
-  which is the argument for more real-data episodes, not fewer.
+**Budget**: the prompt advertises ~6 fit-bearing script runs; hard cap 8,
+enforced by transcript audit (there is no shim to refuse).  A *fit-bearing
+script run* is one python process that performed at least one solve — a
+script that fits five times is one run; the budget paces the loop, not the
+solver.  A transcript exceeding the cap invalidates its cell.
+
+**Required artifacts**: `answer.json` (v2) and `final_result.json` — the
+agent's chosen final `RefinementResult.model_dump_json()`.  The scorer
+adapter grades the latter (§ Scoring rules).
+
+**Forbidden and audited** (the round-2 pattern, extended): reading any repo
+path, the truth tree, the eval docs, or the network.  A violating
+transcript invalidates its cell.
+
+**Mined per cell** (fields added to `mine_transcripts.py`; their token
+vocabulary is quoted from the live schemas, never string literals — the
+frozen clause phrase is the one deliberate exception, because the record
+cannot change and the live sentence did): called `ref.report()`?  read the
+identifiability / background evidence tables?  called `suggest()`?
+`branch`/`compare`?  `predict_then_verify`?  `compare_rivals`?
+
+**The arbitration** this usage record settles: pass-without-reading ⇒ the
+report is a convenience; pass-by-reading ⇒ the report is the load-bearing
+pull bundle; fail-where-JSON-report-arms-pass ⇒ push delivery matters.
+
+## The matrix, and what it costs
+
+Core, pre-registered: **{off, report, python} × {N1, C1, W1, W2} ×
+{Sonnet, Haiku} = 24 runs**, plus **{surface} × {C1, W1} × 2 models = 4**
+for the trajectory decision — **28 runs**, N=1 per cell, effort `medium`
+pinned per run and recorded, model IDs recorded as the harness reports
+them, never as requested.
+
+Budget, from 1059's measured figure: ~56 k tokens per JSON run, ~100–150 k
+estimated per python run ⇒ ~2.3 M core (20 JSON + 8 python).  The second
+tier extends only cells that showed an effect.
 
 ## Pre-registered hypotheses
 
-Written before any run of the round.
+Written before any run; each names its cells.
 
-- **(a) Delivery, not content.**  E2/E8 move off 0/8 only where the state that
-  names the cause is reachable — i.e. in `surface`/`both`, and in `prompt`
-  only if the agent bootstraps a short plan itself.  `report` (the 1.0-shaped
-  arm with 1.1 content) is the control that says whether WP-1054/1055/1056/1057
-  moved anything on their own.
-- **(b) E7-haiku flips** with WP-1054's capped `add_impurity_phase` and
-  `reindex_or_recheck_cell`-led abstained set, regardless of delivery.  (Not
-  in this session's cells — see the budget below.)
-- **(c) Placement beats instruction**: `prompt` under-performs `surface`.  The
-  falsifier is `bootstrap_calls` — if `prompt` agents do generate short plans
-  and still do not move, the pilot's mechanism claim is wrong.
-- **(d) Delivery is not uniformly good.**  On R1 the first rung invites a
-  phantom phase at 0.9; `surface` may therefore *raise* `impurity_suspected`
-  answers on R1 where `both` (which quotes the climbing-confidence rule) does
-  not.  A `surface` R1 answer of `impurity_suspected` is following the
-  trajectory, exactly as an E6 phantom phase was following the report in
-  round 1 — score it and say so, it is not a scorer surprise.
-- **(e) The overclaim, not the miss, is the interesting failure.**  On R1 the
-  cheapest wrong answer is `converged` with a good Rwp and a compensated zero.
-  `overclaimed` is pre-registered as the primary R1 statistic; `passed` is the
-  verdict match.
+- **(a) The 0.8 clause ends the ridge.**  On C1 and N1 (every report-bearing
+  JSON cell and every python cell), both-free ridge states drop to 0 (round
+  2 under the 0.7 wording: 7/20) and swap states — a single rival freed with
+  the other held — appear.  Mined from `calls.jsonl` plans (JSON) and
+  transcripts (python).
+- **(b) `ambiguous`-only-with-report replicates on N1**: `report`/`surface`
+  cells say it where `off` cells cannot (round 2: 8/16 vs 0/4).
+- **(c) Python matches or beats JSON `report` cells on decision quality**
+  (passed on the epistemic group), and its wins cite pulled evidence — the
+  report-vs-tools-vs-package answer, read with the § python-arm arbitration.
+- **(d) W1 `surface` cells beat W1 `report` cells outright, or the
+  trajectory default flips.**  Cells: {surface} × W1 × 2 models against
+  {report} × W1 × 2 models — W1 is the one row with a real
+  climbing-confidence signal, so the `report_trajectory` decision is made
+  here or nowhere.
+- **(e) W2 separates `assumption_wrong` from `impurity_suspected`.**  The
+  designed trap is Layer 0's unmatched list (per the round-2 mining), and
+  the discriminator is that a source fix kills the satellites while an
+  impurity's peaks would survive it.
 
-## The round-2 matrix, and what it costs
+## Kill/keep
 
-The full cross (5 conditions × 10 episodes × ≥2 models × 2 efforts) is ~200
-runs against round 1's 48.  It is **not** run flat.  Pre-registered priority:
+Pre-registered; the decisions land in WP-1003's `### Inherited` at close.
 
-1. **Core — the delivery/instruction split on the rows that discriminate.**
-   5 conditions × {E2, E8, R1} × {Sonnet 5, Haiku 4.5} × N=1, effort
-   `medium` = **30 runs**.  Answers (a), (c), (d), (e).
-2. Deferred to a follow-up pass: E7 rows for (b) at N=2; the competence
-   controls and traps (E1, E3, E4, E5, E6, R2) on `off`/`surface`; the second
-   effort tier and a third model, which per the WP extend only the cells that
-   showed an effect.
-
-Effort is pinned per run and recorded.  Model IDs are recorded as the harness
-reports them, never as they were requested.
+| Component | Killed/demoted if | Action on kill |
+|---|---|---|
+| Report contract (Layer 0 + background/identifiability/lebail_gap evidence) | **not on trial** — content value is measured (WP-1055/1056/1057; Jacobian-derived evidence cannot be re-derived by any consumer) with three consumers; an eval null cannot outweigh that | n/a; removal would be a 1003 decision needing new grounds |
+| Layer 2 prose/actions | cells that read Layer 2 do no better than cells reading the evidence tables (mining decides which was read), and the causal record stays negative (E7 round 1, R1 first rung round 2).  Decidability precondition: at least one core episode's **converged** report carries actions (W1, verified at build) — else this row is recorded undecidable-by-design before the round | demote in AGENT_PROTOCOL to "hypotheses to verify"; soften confidence language; no schema removal pre-freeze |
+| `RefineRequest.report_trajectory=True` default | `surface` cells again cost more calls with no decision-quality gain on W1 — its one real-signal row.  The criterion is content, not cost: the mining refuted "paid for and unread" (11/12 cells read rung content) — do not re-litigate cost | flip to False; record in 1003, resolving the library/agent asymmetry the freeze flags |
+| refine_json pull surface | python wins route through pulls JSON lacks and JSON arms fail those same rows | add the `compare_exchanges` arm pre-freeze for 1003 to ratify, or document refine_json as the constrained one-call surface with python primary |
+| The delivery-eval programme | round 3, with measured rows and clean audits, still yields no interpretable signal at budgeted N | stop A/B rounds; the injection suite remains the report's evidence base; 1003 records delivery claims as unmeasured — the honest sunk-cost exit |
 
 ## Running
 
-Each run gets a fresh episode dir (its `calls.jsonl` is the run's record)
-and the scorer-side truth tree stays outside the agent's workspace:
+Each run gets a fresh episode dir; the truth tree stays outside every
+agent's reach:
 
 ```sh
 .venv/bin/python -m tests.eval_report_agent.build_fixtures \
-    --episodes RUNS/<run-id> --truth TRUTH --condition surface --only E2
+    --episodes RUNS/<condition>__<model> --truth TRUTH \
+    --condition report --only N1 C1 W1 W2
+.venv/bin/python -m tests.eval_report_agent.python_arm \
+    --workspace RUNS/python__<model> --truth TRUTH --only N1 C1 W1 W2
 ```
 
 Runs execute in the Claude Code harness — the Workflow `agent()` call takes
-per-run `model` and `effort`.  Each agent receives exactly the episode's
-`prompt.md` (plus the path to its episode dir) and nothing else; it drives
-`run_refine.py` itself and writes `answer.json` when done.
+per-run `model` and `effort`.  Each agent receives exactly its episode's
+`prompt.md` (plus the path to its workspace) and nothing else.  The runner
+instruction carrying the agent to `prompt.md` is identical in every cell and
+**must forbid reading anything outside the workspace** — repository, docs,
+sibling files.  An agent free to open `docs/AGENT_PROTOCOL.md` gives itself
+the excerpt its condition withholds; a JSON-arm agent free to read the
+sibling marker learns its condition.  Verified in the audit; a violating
+transcript invalidates its cell.
 
-The runner instruction that carries the agent to `prompt.md` is identical in
-every cell, and **it must forbid reading the rest of the repository**.  An
-agent free to open `docs/AGENT_PROTOCOL.md` can give itself the excerpt its
-condition withholds — the one manipulation failure the shim cannot catch,
-because the manipulation is in the prompt, not in the response.  Verify it in
-the audit: a transcript that read a repo doc invalidates its cell.
-
-Score each run with:
+Score and grid:
 
 ```sh
-.venv/bin/python -m tests.eval_report_agent.scorer RUNS/<run-id>/E2 TRUTH/E2.json
+.venv/bin/python -m tests.eval_report_agent.scorer RUNS/<cell>/<eid> TRUTH/<eid>.json
+.venv/bin/python -m tests.eval_report_agent.grid RUNS TRUTH [--json]
 ```
-
-Grading rules the scorer pins (unit-tested in `test_scorer.py`):
-
-- the **last successful** call is the answer state; recovery is the planted
-  parameter at truth within the WP-1052 tolerance, never Δχ²;
-- a planted path absent from `parameters` was never freed (the surface
-  serialises vary-or-tie entries only) and scores not-recovered;
-- traps grade on the verdict alone: E5 → `impurity_suspected`,
-  E7 → `abstain`, E8 → `ambiguous`, **R1 → `ambiguous`** (its planted
-  displacement carries no tolerance: recovering it is not what the data
-  licenses, so it is recorded, not graded);
-- no successful call, or no valid `answer.json` → failed;
-- wrong-frees are descriptive localisation evidence, never pass/fail.
-
-Four measurements ride beside the grade and touch none of it: `overclaimed`,
-`bootstrap_calls`/`plans_used`, `watch` (truth-declared glob groups against
-what was freed), `report_present`/`trajectory_rungs`.
 
 ## Audit
 
-`calls.jsonl` is the record — the call trace and count come from the shim's
-log, never from the agent's self-report.  `report_present` and
-`trajectory_rungs` on each scorecard must match the condition; a mismatch
-invalidates the cell rather than being explained.  Spot-check at least one
-transcript per condition × model cell for prompt-compliance (did the agent
-read the response rather than invent numbers; did it write `answer.json`
-itself), but grade only from the shim log + `answer.json`.
+- `calls.jsonl` (JSON arms) is the record — call trace and count from the
+  shim's log, never the agent's self-report.  Delivered payload
+  (`report_present`/`trajectory_rungs` off the graded call) must match the
+  condition's declaration; a mismatch invalidates the cell rather than being
+  explained (grid marks it `!`).
+- Python-arm audit: fit-bearing run count against the cap; the forbidden
+  reads (repo, truth, eval docs, network); the usage-mining fields.
+- **Transcripts keep thinking blocks.**  Round 2's kept transcripts carried
+  none (measured: 0 characters over all 30), so `voiced` was only a floor on
+  what was read; round 3 keeps the reasoning surface.  Tool calls are
+  unaffected either way; citations are not.
+- Spot-check at least one transcript per condition × model cell for
+  prompt-compliance, but grade only from the record + `answer.json`.
 
 ## Reading the grid
 
-- Report the **dated raw outcome grid**: counts, never percentages from tiny
-  N, never rounded up (the indexing-scoreboard rule).  Model IDs and efforts
-  in the header.  It is a pilot establishing protocol soundness and effect
-  direction, not a benchmark, and never a CI assertion — outcomes move with
-  the models.
-- **Score the two episode groups separately.**  E2/E8/R1 converge to silent or
-  compensated states and are where delivery can act; E5/E7 already spoke at
-  the final state, so a null there is not evidence against delivery.
-- The lazy default-plan path solves E1/E3/E4/E6 — those are competence
-  controls, and a flat "the report didn't help" reading of them is the
-  designed misread.
-- **E3 can invert the sign**: the report's width emitters name only
-  `lor_size`/`lor_strain` (proxy plateau χ²_red ≈ 4.3) while the lazy default
-  frees `w` itself and reaches the ≈ 1.01 floor — on E3, following the report
-  can lose to ignoring it.  `watch` reports which path was taken; state it
-  beside the E3 row.
-- **E6 invites a phantom phase** (`add_impurity_phase` 0.9 on the abstained
-  branch pre-WP-1054; capped at 0.3 with `reindex_or_recheck_cell` first
-  since).  **R1's first rung invites one too**, at 0.9, in every arm that
-  delivers the trajectory.  An agent taking either invitation is following
-  what it was given; score what it does and say so in the row.
-- E1/E4 rows are competence controls; failures there are harness or
-  competence problems, not report signal.
-- **E8's expected verdict has a known nuance** (WP-1056): the default-plan path
-  frees the planted zero and converges to truth, and *that* state is correctly
-  quiet (partner 1.2σ).  An agent that runs the preset and reads the quiet
-  report has a defensible `converged`; the exchange sentence fires on the
-  wrong-family-freed state.  The row still grades `ambiguous`, and any
-  `converged` answer on E8 must be read against which state it reached.
+- **Two count tables, always**: the epistemic group (expected verdict ∈
+  {ambiguous, impurity_suspected, assumption_wrong, abstain} — N1, W1, W2
+  in the core) and the solvable group (expected `converged` — C1 in the
+  core; E1/R2/J1P when run).  Generalises round 2's rule: the groups answer
+  different questions, and pooling them is how round 1's null was misread.
+- **Counts, never percentages** (the indexing-scoreboard rule; Bergmann,
+  Le Bail, Shirley & Zlokazov 2004), dated, never a CI assertion — a pilot
+  establishing protocol soundness and effect direction, not a benchmark.
+  Model IDs and efforts in the header; venv and platform with every count.
+- `underclaimed` on the solvable table is what separates "declined
+  correctly" (verdict match on the epistemic table) from "declines
+  everything".
+- Per-row notes that must ride with the tables: W2's arm asymmetry (JSON
+  arms reason from Layer 0; the python arm can run the source experiment);
+  N1's overlay can only narrow (an agent asking for a wider window is
+  reading the right limit — that is the registered next_action, not a
+  harness gap); C1's tolerance is what fails the ridge and the
+  zero-absorber, so a C1 fail is read against *which* state it reached.

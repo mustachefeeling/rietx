@@ -157,7 +157,7 @@ round; the decisions land in 1003's `### Inherited` at close):
 
 ## Tasks
 
-- [ ] PROTOCOL.md 2.0: conditions, episodes with their verifying
+- [x] PROTOCOL.md 2.0: conditions, episodes with their verifying
   measurements and tie bands, hypotheses (a)–(e) with named cells, the
   kill/keep table, scoring rules, the `condition.json` relocation — dated
   before any run
