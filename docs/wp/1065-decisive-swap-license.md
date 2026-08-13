@@ -209,6 +209,86 @@ in the handover; the round record per `eval-runs/README.md`.
 
 ## Handover log
 
+- **2026-08-13 (close)** — the whole WP ran in one session; all counts
+  `[dev]` venv, darwin/arm64.  Nothing in flight; the successor is 1003,
+  whose `### Inherited` carries everything it needs.
+
+  **Landed** (commits `5aa1f88`…`121939b`):
+  `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py` (exported
+  from `anatase.report`, docstring carrying both sides of the band), the
+  clause continuation stating both branches with the constant quoted live
+  and no verdict token, `THRESHOLDS_VERSION = "0.9"` + changelog; shape
+  pins extended and the quiet-guard check run — a deliberate "quoted with
+  full confidence" edit failed on exactly `assert "without caveat" in
+  summary`, then 48/48 restored.  AGENT_PROTOCOL: the decision band in §4
+  step 6, the follow-through in §4b, the orientation-neutral max(r, 1/r)
+  reading in §9.  PROTOCOL.md 2.1 registered and dated before any run —
+  the `assumption_wrong` glossary fix (non-refinable declarations only +
+  the explicit exclusion), the 12-cell matrix, read-outs (a)–(c), the
+  budget; scorer v2 asserted unchanged (last touched WP-1064).
+
+  **Run** (2026-08-13): 12/12 cells, 0 errors, 847 k subagent tokens
+  against the ~0.8 M budget, ~12 min wall, effort `medium`, models as the
+  harness reports them (`sonnet`, `haiku`).  Record
+  `eval-runs/2026-08-13-round3p1` per the README contract.  **Audit**:
+  payload enforcement held in every JSON cell; `python__haiku` N1
+  **invalidated** on the forbidden-read rule (it sys.path-inserted the
+  repo `src` into every script) and `python__haiku` C1 on the 8-run cap
+  (16 fit-bearing runs — same cell, same count as round 3);
+  `python__sonnet` N1 staged its scripts in a sibling scratch dir (they
+  survive in its transcript; no forbidden path touched).  Transcripts
+  carry no thinking text (harness-stripped, as round 3): `voiced` stays a
+  floor.
+
+  **The dated grid** (counts, never percentages; both tables in the v1.0
+  record's 2.1 appendix): solvable C1 **1/5 valid** — `report__sonnet`
+  pass (converged + none, displacement recovered −0.0801 by the swap,
+  quoted without caveat); off haiku/sonnet and python sonnet
+  `converged,na` (all `report_with_caveat`); report haiku
+  `impurity_suspected,na`.  Epistemic N1 **0/5 valid** — off both and
+  python sonnet `converged,oc,na`; report haiku `impurity_suspected,na`;
+  report sonnet `ambiguous,na` (`report_with_caveat` ∉
+  {extend_range_or_calibrate}).
+
+  **Read-outs against their registrations**: (a) partially confirmed and
+  the mechanism reassigned — the license sentence reached agent *context*
+  in 2 of 12 cells (it was delivered in every clause-firing JSON response,
+  `calls.jsonl`; agents pipe stdout to files and grep statistics back,
+  and the summary string is what the greps drop — the passing cell never
+  read it), so C1's 0/7 → 1/5 is attributable to the glossary fix (no
+  cell in any arm answered `assumption_wrong`) and the follow-through
+  question moves from wording to **placement**, recorded for a successor
+  per the null-branch clause, not re-run.  (b) the overcorrection trigger
+  did not fire — the one in-context N1 cell (`python__sonnet`) overclaimed
+  identically in round 3 without the sentence — but the guard row
+  degraded anyway: both round-3 N1 passes gone, sentence in neither
+  context; the N=1 suspect is the glossary exclusion's "converge it, or
+  say the data cannot".  Any wording revision adds the E8′ cells.
+  (c) both-free N1 4 → 2, C1 2 → 3 raw — one of C1's three invalidated,
+  one the sanctioned `lab_calibrate` cell-fixed pairing the watch counter
+  cannot distinguish from the ridge; valid ridge-shaped C1 1 → 1.
+
+  **Numbers moved**: none, by design — this WP added no test.  Fast suite
+  2257 passed / 108 skipped (3:09, `-n auto --dist loadgroup`), identical
+  to the WP-1064 close; `tests/test_fitreport_layers.py` +
+  `tests/eval_report_agent` 150 passed serial (28 s); ruff clean;
+  docs-consistency 14 passed once the Status line took the TEMPLATE
+  format (glyph, then date — no word between).
+
+  **Gotchas for a successor**: (i) the runner instruction must name the
+  repo root only where prompt.md needs it — naming it in all twelve cells
+  is what invited the repo-`src` import; (ii)
+  `NEXT_ACTION_MEANINGS["fix_instrument_model"]` still says "(emission
+  lines, geometry)" — the refinable-geometry trap wording one field over
+  from the one this WP fixed; observed post-run, outside the registered
+  scope, deliberately untouched; (iii) `report_with_caveat` is the new
+  hedge — next_action in 7 of 10 valid cells (round 3: 4 of 13 valid
+  N1/C1): the verdict moved to `converged` and the caveat migrated into
+  the action field, the exact shape the license sentence exists to close
+  and could not, unread; (iv) the staged workspaces and the eval venv
+  lived in the session scratchpad and die with it — the record copy is
+  the durable one.
+
 - **2026-08-13** — created, from the post-1064 assessment (the report's
   content keeps its measured value; the delivery claim stays honest; the
   sharpest measured defect is one missing sentence, and its fix is
