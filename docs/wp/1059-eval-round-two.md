@@ -128,18 +128,21 @@ repo; runs execute in the Claude Code harness.
 
 ## Tasks
 
-- [ ] PROTOCOL.md v1.1: condition matrix (prompt-only / surface-only / both /
-      off), the §9 excerpt text, pre-registered hypotheses, effort tiers,
-      model list.
-- [ ] Extend the shim/fixtures for the WP-1058 surface (diagnose overlays are
-      sanctioned keys; report-off strips the trajectory too — condition
-      enforcement stays structural).
-- [ ] Scorer: SRM 660c real-data pair rows (refusal-is-correct scoring), and
-      the E3 sign-inversion watch (a scored flag, not a pass/fail change).
+- [x] PROTOCOL.md v1.1: condition matrix (five cells — a 2×2 on trajectory × §9
+      plus the report-less baseline), the §9 excerpt policy, five
+      pre-registered hypotheses, effort tier, model list, budgeted cells.
+- [x] Extend the shim/fixtures for the WP-1058 surface (the trajectory, not a
+      diagnose ladder — 1058 declined it; both halves set on the request *and*
+      popped from the response, so enforcement stays structural).
+- [x] Scorer: SRM 660c real-data pair rows (R1 refusal-is-correct, graded on
+      the verdict with the planted value recorded and not graded), the E3
+      sign-inversion watch, and three more descriptive flags —
+      `overclaimed`, `bootstrap_calls`/`plans_used`, the payload audit.
 - [ ] Run the matrix; record the dated grid (model IDs, efforts, per-episode
       scorecards, caveats attached) in this handover log and the v1.0 appendix.
-- [ ] Tests: scorer extensions unit-tested (deterministic, fast suite) +
-      obs/calc/diff PNGs to `tests/output/` where fixtures render.
+- [x] Tests: scorer/shim/fixture extensions unit-tested (17 → 46, of which two
+      slow: the real pair's construction and R1's landing state) + the
+      obs/calc/diff PNGs from the one test that refines.
 
 ## Acceptance
 
