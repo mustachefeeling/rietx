@@ -194,18 +194,33 @@ Judge a fit in this order:
    `exchangeable=True` says a **held** parameter's signature is reproducible
    inside the fitted span (`r2` → 1) *and* a fitted partner stands many σ
    from its null — an E2-shaped answer reads "converged, but the fitted
-   zero_shift is exchangeable with the held sample_displacement — the data
-   cannot tell you which is physical". **The verdict that licenses is
+   zero_shift is exchangeable with the held sample_displacement — **this
+   fit** cannot tell you which is physical". **The verdict that licenses is
    `ambiguous`, not `converged`** — measured, the fit carrying a planted
    displacement inside a compensating zero and its clean reference differ in
    *nothing* but this row (χ²_red 1.012 vs 1.010, R² identical to six
-   decimals; only the partner's 128σ-vs-1.6σ separates them). Do not "fix"
-   it by freeing the held parameter and refitting: both free lands on the
-   degenerate ridge of §3. The resolution is protocol — a calibrant-fixed
-   zero, a wider angular window — or declaring the ambiguity. A `soft_modes`
-   entry quoted in the summary is the same statement about a fitted
-   *combination*: the named parameters trade freely and their individual
-   esds are not independent.
+   decimals; only the partner's 128σ-vs-1.6σ separates them).
+
+   **The first resolution is the swap, and it is a measurement.** Fit each
+   member of the pair *alone* with the other held at its **null** (0 for
+   zero, displacement and transparency) and compare χ² — two warm fits,
+   seconds. `compare_rivals` (§9) does exactly this. R² is a **geometric**
+   statement about column overlap and cannot say whether the counts in hand
+   separate the pair: on real SRM 660c an R² of 0.9977 pair comes apart
+   decisively, χ² 4.0752 (zero only) against 3.4890 (displacement only) on
+   5332 points, with the zero-only model biasing *a* by +100 ppm. If the swap
+   does *not* separate them, the resolution is protocol — a calibrant-fixed
+   zero, a wider angular window — or declaring the ambiguity.
+
+   What you must **not** do is free the held parameter alongside its partner
+   and refit: both free lands on the degenerate ridge of §3, and it reports
+   the unconstrained combination at a *better* Rwp, which is the trap. This
+   is the single most common misreading of the clause — measured over 30
+   agent runs, seven of twenty position cells took it (WP-1059). Note the
+   difference between the two moves: the swap runs each rival **alone**, the
+   ridge runs them **together**. A `soft_modes` entry quoted in the summary
+   is the same statement about a fitted *combination*: the named parameters
+   trade freely and their individual esds are not independent.
 7. **What the background is doing** — `report.background`, and it belongs
    *above* Rwp because it decides how to read Rwp. Two rows:
    `worst_absorption` (with `worst_absorption_path`) is how much of a
@@ -306,8 +321,11 @@ notable Le Bail gap is a *blocker*, not a comfort — the intensity model
 carries the structural claim, and the gap says it does not carry the pattern.
 Stopping criterion: §10's full ladder (diagnostics resolved, no attributable
 region, ΔBIC refuses the next parameter), with no `exchangeable` row
-unaddressed — resolved by protocol (a calibrant-fixed aberration, a wider
-window), never by freeing the rival into the same fit (§3's ridge).
+unaddressed — addressed by running the swap (each rival **alone**, the other
+at its null: `compare_rivals`, §4 step 6), and where that ties, by protocol (a
+calibrant-fixed aberration, a wider window). Never by freeing the rival into
+the same fit (§3's ridge), which is the two-parameters-**together** move the
+swap exists to replace.
 
 **The capability floor.** Whatever is reading this report, the floor is:
 verify before acting (`predict_then_verify`, or a history branch), treat a
@@ -1114,6 +1132,28 @@ closed — report → top surviving suggestion → verify → checkout/rollback 
 re-report — from eight planted-cause starts and measures planted-parameter
 recovery, stopping behaviour and rollback hygiene against the
 `mccusker_default` preset (WP-1052).
+
+The same shape answers the other question the report asks and does not
+settle — **which of an exchangeable pair is physical** (§4 step 6):
+
+```python
+finding = next(e for e in report.identifiability.exchanges if e.exchangeable)
+swap = pr.report.compare_rivals(ref, data, finding)   # two branch fits
+for r in swap.rivals:                # [0] frees the held one, [1] the partner
+    print(r.freed_path, r.chi2, r.rwp, r.freed_value, r.freed_esd, r.n_free)
+print(swap.chi2_ratio)               # < 1 ⇒ the parameter the fit HELD wins
+```
+
+Three things about it, and each is deliberate. It runs each rival **alone**
+with the other held at its **null** — never both together, which is the ridge
+(§3), and never with the rival at its last fitted value, which is neither
+rival. The free set is otherwise unchanged, so `n_free` matches across the two
+and raw χ² is comparable without an information criterion. And there is **no
+`decisive` field**: whether a ratio of 0.86 on 5332 points settles the
+question is yours to judge, the same fence `predict_then_verify` respects by
+reporting `observed_delta_chi2` beside its own threshold. A pair with no null
+(a cell edge, a scale) is refused by name — that one is resolved by protocol,
+not by measurement.
 
 Two properties worth relying on:
 
