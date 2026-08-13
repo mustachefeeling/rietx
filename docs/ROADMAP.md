@@ -61,29 +61,30 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The content half is done ([1063](wp/1063-exchange-clause-and-rivals.md) ✅):
-next is the re-aligned eval round ([1064](wp/1064-eval-round-three.md)), then
-the freeze ([1003](wp/1003-api-freeze-pypi.md)).**
+**The eval programme has answered ([1064](wp/1064-eval-round-three.md) ✅):
+next is the freeze ([1003](wp/1003-api-freeze-pypi.md)).**
 
-1063 put the exchange clause at *fit* level and named the swap it had been
-missing, shipped `compare_rivals` (each rival alone, the other at its null —
-numbers, no verdict), and mined the 30 kept round-2 transcripts across three
-surfaces: what an agent **probed**, what was **delivered** into its context,
-what it **voiced**. That record now constrains 1064 rather than 1064 guessing
-at it — the trajectory was *read* (rung content reached 11 of the 12 cells
-that shipped one), Layer 2 was **not** (any suggested action reached 1 of 6
-JSON `report` cells, because those episodes' converged action list is empty),
-and the clause sat in context before the forbidden both-free overlay in 6 of
-the 7 ridge cells.
+1064 ran round 3 as protocol 2.0 — every expected answer *measured* before
+registration (no fixture needed redesign; the landing states are pinned as
+slow tests), a deterministic decision-grade scorer, and a python-capable
+arm — 28/28 cells, clean payload and forbidden-reads audits, two cells
+invalidated by the pre-registered run cap. The three decisions the round
+existed to make are in 1003's `### Inherited`, measured:
+`report_trajectory` flips to **False** at the freeze (equal decision
+quality at more calls on W1, the one real-signal row, with the rungs
+demonstrably read); **no** `compare_exchanges` arm (no python cell passed
+where the JSON report arms failed — `refine_json` held up as the
+constrained one-call surface); Layer 2 **keeps its posture** (its
+decidability precondition finally held on W1, and the round's one
+delivery-shaped flip coincides with a delivered action list). The dated
+grid and its mechanisms are the v1.0 record's round-3 appendix; the raw
+record is `eval-runs/2026-08-13-round3`.
 
-[1064](wp/1064-eval-round-three.md) runs the eval as protocol 2.0 on episodes
-whose expected answers are *measured* epistemic outcomes ("needs more
-information", "an assumption is wrong", "impossible but a janky fit still
-informs"), adds a python-capable arm to answer
-report-vs-tools-vs-package-sufficient empirically, and pre-registers
-kill/keep criteria per component — the trajectory default, Layer-2 posture
-and `refine_json` pull surface are decided there and ratified by the freeze,
-which already carries 0.8's three new public names in its mailbox.
+The sharpest content finding is a successor WP, not a freeze blocker: the
+0.8 clause **produces the experiment and not the verdict** — three sonnet
+cells ran the swap on C1 and recovered the displacement to −0.0801, and two
+still declined; the solvable control went 0/7 valid, because nothing in the
+clause or §4b says what a *decisive* swap licenses.
 
 Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
 import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
@@ -283,7 +284,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ✅ 2026-08-13 | 1054, 1056, 1057, 1058 |
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 | [1063](wp/1063-exchange-clause-and-rivals.md) | Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment | ✅ 2026-08-13 — THRESHOLDS_VERSION 0.8; the miner puts the clause in context before the ridge in 6 of the 7 cells | 1056, 1059 (before 1003) |
-| [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ⬜ | 1063 |
+| [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ✅ | 1063 |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering

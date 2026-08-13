@@ -19,12 +19,15 @@ here and belong in any sentence quoting them:
 
 - **quoting is reading, not benefiting** (round 1: E7 quoted the report
   verbatim and was wrong with it) — no surface here measures usefulness;
-- round 2's kept transcripts carry **no thinking blocks** (measured: 0
-  characters across all 30), so ``voiced`` is a floor on what was read rather
-  than a measure of it.  A round that wants the reasoning surface has to keep
-  it.
+- whether ``voiced`` is a floor or a measure depends on whether the record
+  keeps thinking blocks, so that is **measured per record**
+  (``thinking_text_chars``), never asserted: round 2's transcripts carried 0
+  characters across all 30 (a floor); round 3 keeps them.  Thinking is not a
+  ``voiced`` surface — it is the agent reasoning, not saying — so the counts
+  do not change with it; only the caveat does.
 
-Counts, never percentages — N = 30 across 15 condition×model cells.
+Counts, never percentages — round 2 was N = 30 across 15 condition×model
+cells; round 3 is N = 28 across 8.
 
 The token vocabulary is quoted from the live schemas (``FIELD_TOKENS``,
 ``ActionKind``), never invented here: a renamed field must break this module
@@ -71,10 +74,13 @@ SURFACES = ("probed", "delivered", "voiced")
 
 #: report/evidence tokens we count, each pinned to the live model field it
 #: names.  Pairs, not bare strings, so ``test_mine_transcripts`` can fail on a
-#: rename instead of the miner silently counting zero
+#: rename instead of the miner silently counting zero.  ``background`` joined
+#: for round 3 (WP-1064): the python arm's "read the evidence tables?"
+#: question needs both halves of the WP-1055/1056 evidence counted
 FIELD_TOKENS: dict[str, tuple[type[pydantic.BaseModel], str]] = {
     "exchangeable": (ExchangeFinding, "exchangeable"),
     "identifiability": (FitReport, "identifiability"),
+    "background": (FitReport, "background"),
     "lebail_gap": (FitReport, "lebail_gap"),
     "soft_modes": (IdentifiabilityEvidence, "soft_modes"),
     "worst_absorption": (StageReport, "worst_absorption"),
@@ -83,6 +89,30 @@ FIELD_TOKENS: dict[str, tuple[type[pydantic.BaseModel], str]] = {
 
 #: every citation token: the fields above plus the whole action vocabulary
 TOKENS: tuple[str, ...] = tuple(FIELD_TOKENS) + tuple(get_args(ActionKind))
+
+def _pull_tokens() -> dict[str, tuple[object, str, str]]:
+    """The python arm's sanctioned pulls (WP-1064), each pinned to the live
+    attribute it names — the FIELD_TOKENS rule for callables, so a renamed
+    surface breaks the miner loudly.  ``method`` tokens are matched as
+    attribute calls (``.report(``) because the bare words are everyday
+    prose; ``function`` tokens are distinctive enough to match by name,
+    which also catches the ``import`` that precedes a call."""
+    import anatase.report as report_pkg
+    from anatase.history.tree import RefinementTree
+    from anatase.refine import Refinement
+
+    return {
+        "report": (Refinement, "report", "method"),
+        "suggest": (Refinement, "suggest", "method"),
+        "branch": (Refinement, "branch", "method"),
+        "compare": (RefinementTree, "compare", "method"),
+        "predict_then_verify": (report_pkg, "predict_then_verify",
+                                "function"),
+        "compare_rivals": (report_pkg, "compare_rivals", "function"),
+    }
+
+
+PULL_TOKENS = _pull_tokens()
 
 #: the pair of paths whose ridge WP-1059 measured, as the *episode* declares
 #: them (``TRUTH/<ep>.json`` ``watch``), never as this module assumes them
@@ -95,8 +125,12 @@ RIVAL_GROUPS = ("cause", "absorber")
 #: event.  Reproducing the published 7/20 is this module's self-check
 WP1059_POSITION_EPISODES = ("E2", "R1")
 
+#: the episode id admits a trailing letter since 2.0 (``E8p``, ``J1P``,
+#: ``J1S``); ``python`` is a condition like any other here — the arm's cells
+#: are named the same way
 _CELL_RE = re.compile(
-    r"RUNS/(?P<condition>[a-z]+)__(?P<model>[A-Za-z0-9.\-]+)/(?P<episode>[A-Z]\d+)")
+    r"RUNS/(?P<condition>[a-z]+)__(?P<model>[A-Za-z0-9.\-]+)"
+    r"/(?P<episode>[A-Z]\d+[A-Za-z]?)")
 
 #: an agent asking for the trajectory, or a rung's text arriving: the response
 #: key itself, plus the word a prompt and an agent would use for one rung
@@ -208,6 +242,23 @@ def read_events(path: Path) -> list[Event]:
     return events
 
 
+def _thinking_chars(path: Path) -> int:
+    """Characters of thinking carried by one transcript — measured, because
+    whether ``voiced`` is a floor (round 2: 0 across all 30) or has the
+    reasoning beside it (round 3 keeps thinking) is a property of the record,
+    not of this module."""
+    if not path.exists():
+        return 0
+    total = 0
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        _role, blocks = _blocks(json.loads(raw))
+        total += sum(len(b.get("thinking", "")) for b in blocks
+                     if isinstance(b, dict) and b.get("type") == "thinking")
+    return total
+
+
 def cell_of(text: str) -> tuple[str, str, str] | None:
     """``(condition, model, episode)`` from the workspace path the runner put
     in the prompt — or None when the transcript names no cell, and None when
@@ -248,6 +299,33 @@ _PROBE_RES = {token: _loose(token) for token in TOKENS}
 _DELIVERED_RES = {token: _as_json(token) for token in TOKENS}
 _RUNG_RES = {marker: _as_json(marker) for marker in RUNG_MARKERS}
 _CLAUSE_RE = re.compile(re.escape(CLAUSE_PHRASE))
+
+#: a pull as the agent's own code would spell it: methods as attribute calls,
+#: module functions by their (distinctive) names — which also catches the
+#: import that precedes a call
+_PULL_RES = {
+    token: re.compile(rf"\.{re.escape(token)}\s*\(" if kind == "method"
+                      else rf"\b{re.escape(token)}\b")
+    for token, (_owner, _name, kind) in PULL_TOKENS.items()}
+
+#: one *fit-bearing* script run: a probed event whose payload performs a
+#: solve.  Counted per event (a script that fits five times is one run) —
+#: the python arm's budget counter, PROTOCOL.md 2.0 § The python-capable arm
+_FIT_RE = re.compile(r"\.fit\s*\(|\.run_stage\s*\(|refine_json\s*\(")
+
+#: audit candidates (PROTOCOL.md 2.0 § Audit): deterministic pointers for
+#: the human audit, never verdicts — matched over *probed* payloads only
+#: (the agent's own commands; delivered text legitimately contains any of
+#: these words).  ``eval_harness`` exempts ``run_refine``, the one sanctioned
+#: entry point; the sibling ``.condition.json`` is its own pattern because
+#: reading it is exactly the leak the 2.0 relocation exists to close
+AUDIT_PATTERNS: dict[str, re.Pattern[str]] = {
+    "condition_marker": re.compile(r"\.condition\.json"),
+    "truth_tree": re.compile(r"\bTRUTH/"),
+    "eval_harness": re.compile(r"eval_report_agent[/.](?!run_refine)"),
+    "repo_docs": re.compile(r"\bdocs/"),
+    "network": re.compile(r"\bhttps?://|\bcurl\b|\bwget\b"),
+}
 
 
 def _res_for(surface: str) -> dict[str, re.Pattern[str]]:
@@ -505,6 +583,39 @@ def rung_row(cell: Cell) -> dict:
     }
 
 
+def usage_row(cell: Cell) -> dict:
+    """The pull record (WP-1064): which sanctioned surfaces the agent's own
+    code reached for, as first-probed transcript indices (None = never), plus
+    the fit-bearing script-run count the python arm's budget is audited
+    against.  Mined for every cell — a JSON cell scores zero everywhere,
+    which is itself the control."""
+    row = {token: first_index(cell.events, "probed", rx)
+           for token, rx in _PULL_RES.items()}
+    row["fit_bearing_runs"] = sum(
+        1 for event in cell.events
+        if event.surface == "probed"
+        and any(_FIT_RE.search(payload) for payload in _payloads(event)))
+    return row
+
+
+def audit_row(cell: Cell) -> list[dict]:
+    """Audit candidates: probed events matching a forbidden-surface pattern.
+
+    Pointers for the human audit, never verdicts — the python arm reads its
+    *own* ``AGENT_PROTOCOL.md`` legitimately, and a flagged event may quote a
+    path without opening it.  What a flag buys is that nobody has to re-read
+    thirty transcripts to find the three worth reading.
+    """
+    flags = []
+    for event in cell.events:
+        if event.surface != "probed":
+            continue
+        for name, rx in AUDIT_PATTERNS.items():
+            if any(rx.search(payload) for payload in _payloads(event)):
+                flags.append({"pattern": name, "index": event.index})
+    return flags
+
+
 def mine(root: Path) -> dict:
     """Every per-cell row plus the record-level self-checks."""
     cells = read_record(root)
@@ -520,6 +631,8 @@ def mine(root: Path) -> dict:
             "citations": citations(cell.events),
             "ridge": ridge_row(cell),
             "rungs": rung_row(cell),
+            "usage": usage_row(cell),
+            "audit_flags": audit_row(cell),
             "verdict": (cell.card or {}).get("verdict"),
             "passed": (cell.card or {}).get("passed"),
             "notes": cell.notes,
@@ -529,6 +642,7 @@ def mine(root: Path) -> dict:
                 if row["episode"] in WP1059_POSITION_EPISODES]
     voiced_chars = sum(len(e.text) for cell in cells for e in cell.events
                        if e.surface == "voiced" and e.kind == "text")
+    thinking_chars = sum(_thinking_chars(cell.transcript) for cell in cells)
     by_episode: dict[str, int] = {}
     for row in named:
         by_episode.setdefault(row["episode"], 0)
@@ -538,6 +652,7 @@ def mine(root: Path) -> dict:
         "n_transcripts": len(rows),
         "n_cells_named": len({row["cell"] for row in named}),
         "voiced_text_chars": voiced_chars,
+        "thinking_text_chars": thinking_chars,
         "position_cells": len(position),
         "position_cells_both_free": sum(1 for row in position
                                         if row["ridge"]["both_free"]),
@@ -560,11 +675,15 @@ def _table(header: list[str], body: list[list[str]]) -> str:
 def render(mined: dict) -> str:
     """The counts tables, as markdown for a handover entry."""
     rows = [row for row in mined["rows"] if row["episode"] != "?"]
+    thinking = mined["thinking_text_chars"]
+    thinking_note = (f"{thinking} of thinking"
+                     if thinking else
+                     "no thinking blocks kept — `voiced` is a floor")
     out = [f"# Mined: {mined['record']}", "",
            f"{mined['n_transcripts']} transcripts, "
            f"{mined['n_cells_named']} named cells, "
            f"{mined['voiced_text_chars']} characters of assistant text "
-           f"(no thinking blocks are kept).", "",
+           f"({thinking_note}).", "",
            "## Citations — cells (of "
            f"{len(rows)}) with at least one occurrence", ""]
     body = []
@@ -627,6 +746,24 @@ def render(mined: dict) -> str:
         ])
     out += [_table(["cell", "rungs shipped", "probed", "answered",
                     "rung content", "voiced"], body), ""]
+    python_rows = [row for row in rows if row["condition"] == "python"]
+    if python_rows:
+        out += ["## Python-arm pulls — first probed index (— = never)", ""]
+        body = []
+        for row in sorted(python_rows, key=lambda r: r["cell"]):
+            usage = row["usage"]
+            body.append([row["cell"]]
+                        + [str(usage[t]) if usage[t] is not None else "—"
+                           for t in PULL_TOKENS]
+                        + [str(usage["fit_bearing_runs"])])
+        out += [_table(["cell", *PULL_TOKENS, "fit runs"], body), ""]
+    flagged = [(row["cell"], flag) for row in rows
+               for flag in row["audit_flags"]]
+    if flagged:
+        out += ["## Audit candidates — probed events to spot-check "
+                "(pointers, not verdicts)", ""]
+        out += [f"- {cell}: `{flag['pattern']}` at event {flag['index']}"
+                for cell, flag in flagged] + [""]
     if mined["notes"]:
         out += ["## Record notes", ""] + [f"- {n}" for n in mined["notes"]] + [""]
     return "\n".join(out)

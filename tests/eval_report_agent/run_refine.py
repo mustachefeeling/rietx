@@ -6,14 +6,19 @@ prompt; it cannot un-strip a response:
 - the request is always ``episode.json`` (fixed) plus ``overlay.json``
   restricted to ``plan`` / ``mode`` / ``two_theta_limits`` — the agent
   structurally cannot touch the pattern or the starting parameter values;
-- ``include_report`` and ``include_trajectory`` come from ``condition.json``,
-  never from the agent: they are set on the request (so the package never
-  builds what this condition withholds) **and** popped from the response (so a
-  package default can never leak one back in);
+- ``include_report`` and ``include_trajectory`` come from the **sibling**
+  condition marker (``<episode_dir>.condition.json`` — outside the
+  workspace, PROTOCOL.md 2.0), never from the agent: they are set on the
+  request (so the package never builds what this condition withholds) **and**
+  popped from the response (so a package default can never leak one back in);
 - every call is appended to ``calls.jsonl`` (the record the scorer and the
   call count come from, never the agent's self-report), with the bulk curve
   arrays elided — the fit is deterministic from episode + overlay, so the
-  curves are reproducible, and what the agent saw is exactly what was logged;
+  curves are reproducible, and what the agent saw is exactly what was logged.
+  The log lives in the workspace, so it carries **no condition echo** — in
+  1.1 each record repeated ``condition``/``include_report``/
+  ``include_trajectory``, which was the same leak as the in-dir marker; the
+  delivered response shape is itself the auditable evidence;
 - calls beyond ``max_calls`` are refused (a runaway guard, never a timer),
   and a refused call is logged but does not count against the budget.
 
@@ -77,10 +82,18 @@ def _count_prior_calls(log_path: Path) -> int:
     return n
 
 
+def _condition_path(episode_dir: Path) -> Path:
+    """The sibling marker (``build_fixtures.condition_marker_path`` writes
+    it): derived from the episode dir, never named in the prompt."""
+    path = episode_dir.resolve()
+    return path.parent / f"{path.name}.condition.json"
+
+
 def run_episode(episode_dir: Path) -> dict:
     """One shim call: merge, enforce, run, log.  Returns what it printed."""
     episode_bytes = (episode_dir / "episode.json").read_bytes()
-    condition = json.loads((episode_dir / "condition.json").read_text(encoding="utf-8"))
+    condition = json.loads(
+        _condition_path(episode_dir).read_text(encoding="utf-8"))
     log_path = episode_dir / "calls.jsonl"
 
     overlay_path = episode_dir / "overlay.json"
@@ -115,10 +128,11 @@ def run_episode(episode_dir: Path) -> dict:
         request.update({k: overlay[k] for k in ALLOWED_OVERLAY_KEYS
                         if k in overlay})
         # the condition, never the agent, decides which halves of the report
-        # surface exist.  A 1.0 condition file predates the split, where the
-        # trajectory did not exist and the report implied nothing else
+        # surface exist.  Every 2.0 marker carries both keys (the 1.0
+        # single-switch compatibility read died with the relocation: an old
+        # marker is in the wrong place to be read at all)
         include_report = condition["include_report"]
-        include_trajectory = condition.get("include_trajectory", include_report)
+        include_trajectory = condition["include_trajectory"]
         request["include_report"] = include_report
         request["report_trajectory"] = include_trajectory
         import anatase.agent as agent_mod
@@ -130,12 +144,10 @@ def run_episode(episode_dir: Path) -> dict:
             response.pop("report", None)
         if not include_trajectory:
             response.pop("trajectory", None)
+        # no condition echo: the log lives in the workspace (module docstring)
         record = {
             "refused": False,
             "episode_sha256": hashlib.sha256(episode_bytes).hexdigest(),
-            "condition": condition["condition"],
-            "include_report": include_report,
-            "include_trajectory": include_trajectory,
             "overlay": overlay,
             "response": trim_response(response),
         }
