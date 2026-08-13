@@ -1,6 +1,8 @@
 # WP-1058 — Deliver the report where it speaks: the per-stage trajectory
 
-Milestone: v1.0 · Status: ✅ 2026-08-13
+Milestone: v1.0 · Status: ✅ 2026-08-13 — the per-stage trajectory ships,
+default-on at the agent surface; the diagnose ladder was declined on
+measurement (every preset already opens on the rung it would have added)
 Depends on: —
 
 ## Goal
@@ -164,6 +166,100 @@ generated — with no LLM dependency added and the task-union meta-test green.
 - `docs/AGENT_PROTOCOL.md` §9 (the loop this makes one call).
 
 ## Handover log
+
+- **2026-08-13** — **shipped, as half of what the WP proposed, because the
+  other half turned out to be already there.** Done: `StageReport` +
+  `FitReport.for_stage()` (report/schemas.py), `fit(stage_reports=True)` →
+  `Refinement.stage_reports_` built inside the existing stage loop
+  (`_run_plan`), `report_trajectory` + the `trajectory` envelope field on
+  `task="refine"` (**default-on**), `capabilities().features
+  ["report_trajectory"]`, AGENT_PROTOCOL §5 + §9a + §9c, eval protocol 1.0 →
+  1.1, five tests. In flight: nothing. Next: 1059, then 1003.
+
+  **The decision, and the measurement that made it.** The WP offered a
+  `task="diagnose"` ladder and/or a per-stage trajectory. Only the trajectory
+  shipped, on three findings:
+
+  1. **The state where the report speaks is one the plan already visits.** On
+     the E2 fixture (−0.02 mm displacement, which no `mccusker_default` stage
+     frees) the *converged* report reads Rwp 0.0137 with `actions: []`, while
+     the same plan's **first** stage, `scale_bkg`, names
+     `refine_sample_displacement` at **0.997** ("follows the cos_theta
+     template, −0.01003 ± 0.00022°, R²=1.00, 69 % of χ², 8 regions"). The next
+     stage, `zero`, absorbs it and the report goes `abstained_kind=unreadable`
+     with nothing to say. E8 is the same shape one rank down: zero and
+     displacement both pinned at the 0.3 collinearity cap at stage 1, silent at
+     the end. Nobody ever had to *generate* these states — the fit passes
+     through them and only the last one was delivered.
+  2. **A declared bootstrap ladder is redundant with every shipped preset.**
+     Prepending WP-1052's background-only rung to each of the seven rietveld
+     presets reproduces stage 1's report to three decimals (0.997 vs 0.997;
+     `lab_calibrate` 0.305 vs 0.306) — because the McCusker turn-on order *is*
+     that ladder: all seven open on `scale_bkg`/`bkg`.
+  3. **A ladder would also have had to change the fit.** Extra states mean a
+     different refinement, so report-on and report-off would no longer compare
+     two deliveries of one fit — which is exactly what 1059 needs to measure.
+     Reading rungs off states the plan already visits keeps the answer
+     bit-identical (asserted, and measured at 0.140249 on 11-BM NAC).
+
+  **Cost and payload, measured** (`[dev]`, darwin/arm64). Report build 0.332 s
+  at one phase and 0.417 s at two, on 59 498 channels — dominated by
+  `analyse_texture` (0.195 s, 49 axis scores) and `analyse_strain` (0.135 s),
+  *not* by Layer 1 (0.008 s) or the Le Bail gap (0.017 s). End-to-end a
+  trajectory costs ≈2.5× the fit (NAC 1.06 → 2.70 s; E2 fixture 0.28 → 0.87 s,
+  3.1× on a 1000-channel pattern), and the ratio is stable in phase count
+  because both sides scale. It is flat *per stage*, so against 1053's ~113 s
+  diverging call it is noise — which is why default-on is defensible at the
+  agent surface and wrong in the library, where suites and series call `fit`
+  in loops. Payload: a full FitReport is 25.6 kB (E2) to 40 kB (NAC), so five
+  of them would be 130–190 kB; the projection is 0.9–2.6 kB a rung, 5.6 kB for
+  the E2 trajectory — **+26 % on the report it accompanies and ~1 % of the
+  envelope**, which is ~524 kB of result curves either way.
+
+  **What the trajectory shows on real data.** On 11-BM NAC with the CaF₂
+  impurity unmodelled, `add_impurity_phase` climbs 0.3 → 0.6 → 0.9 across the
+  plan's stages as the host phase fits. A hypothesis *strengthening* while the
+  model improves is a different statement from the same 0.9 read once.
+
+  **WP-1055's open ranking question: measured, still open.** On the too-stiff
+  fixture the phantom `add_impurity_phase` sits flat at **0.90** (with
+  `increase_background_flexibility` at 0.60) at *every* rung, while Rwp barely
+  moves (0.4660 → 0.4652). The real impurity's climbed while Rwp fell
+  0.80 → 0.14. Tempting as a phantom/real discriminator — and not one on this
+  evidence: both are equally consistent with "confidence tracks how well the
+  host is fitted", and the phantom fixture's fit *cannot* improve (a 2-term
+  Chebyshev under a Gaussian hump), so shape and improvement are confounded at
+  n=2. The trajectory neither reorders these two hypotheses nor makes them
+  worse; whoever picks the question up needs a fixture where a phantom
+  impurity coexists with a fit that does improve.
+
+  **Counts** (`[dev]` only — no jax/torch — darwin/arm64, this checkout's
+  venv): fast suite **2166 → 2171 passed, 108 skipped** in 2:44; +5 is four
+  tests in `test_agent_surface.py` and one in `test_report_loop.py`, all
+  passes, no new skip. Full suite **2264 → 2269 passed, 117 skipped** in
+  25:56. `ruff` clean.
+
+  **Gotchas for whoever is next.**
+  1. **`include_report=false` is the master switch and must stay one.** It
+     strips the trajectory too — otherwise a report-off A/B arm quietly stops
+     being one, which would have silently invalidated 1059. The eval shim pops
+     both halves as well, because *the condition* decides, not a package
+     default. Any future report-shaped envelope field inherits this rule.
+  2. **The eval protocol is 1.1**; a run under it cannot be pooled with the
+     1.0 pilot grid — the response and the §5 excerpt both changed.
+  3. **The veto on a rung sees the whole plan**, not the free set so far, which
+     is what makes E2's 0.997 stand out from the zero/cell suggestions the plan
+     answers itself (`n_actions_vetoed` counts those). Changing it to the
+     stages-run-so-far would fill every rung with the plan's own later work.
+  4. **`stage_reports_` goes stale exactly when `result_` does** — both are
+     cleared by `_invalidate_fit()` (the four checkout/edit/set-value/merge
+     sites) and by `run_stage`. A new state-dependent cache belongs there too.
+  5. **Root CLAUDE.md is back at exactly its 600-line cap.** The rule this WP
+     added was paid for by compressing evidence duplicated in milestone
+     records — the next WP needing room should consider the consolidation the
+     io/ and indexing/ rulebooks are precedent for: a
+     `src/anatase/report/CLAUDE.md` loading under `report/`, which is where
+     five WPs' worth of report detail now wants to live.
 
 - **2026-08-11** — created, from the 1053 campaign's ranked follow-ups (the
   when-the-report-is-read bottleneck). Not started.

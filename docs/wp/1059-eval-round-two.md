@@ -77,6 +77,36 @@ repo; runs execute in the Claude Code harness.
 
 ### Inherited
 
+**From [1058](1058-report-delivery.md), closed 2026-08-13 — the thing you are
+re-A/B-ing changed, and the protocol version moved with it.**
+`build_fixtures.PROTOCOL_VERSION` is **1.1**: a report-on response now carries
+`trajectory` (the report at every stage boundary, projected to a `StageReport`
+per stage, default-on) and the §5 excerpt the report-on prompt quotes now tells
+the agent to read it. **A 1.1 run cannot be pooled with the 1.0 pilot's grid** —
+the treatment is different, which is the point.
+
+Four things that bear directly on the design of the round:
+
+1. **The treatment is now delivery, not content.** The 1053 pilot measured
+   agents who only ever saw the converged report; under 1.1 the same untouched
+   request also carries the state where the report speaks. On E2 that is
+   `refine_sample_displacement` at 0.997 at stage `scale_bkg`, against
+   `actions: []` at the end — so the pre-registered hypothesis can be sharper
+   than "does the report help": it is *does naming the cause at a state the
+   agent did not have to ask for change what the agent does*.
+2. **The report-off arm is still clean, two ways.** `include_report=false`
+   strips the trajectory as well as the report (package-side), and the shim
+   pops both (harness-side). Verify this holds before the round — it is the
+   one failure mode that would silently make report-off a report-on.
+3. **E2 and E8 are the episodes with the most to gain**, since both converge to
+   silent reports over compensated parameters. E5/E7 (impurity, hopeless start)
+   already spoke at the final state, so a null there is not evidence against
+   delivery. Consider scoring the two groups separately rather than pooling.
+4. **The wall clock per call rose ≈2.5×** (measured 1.06 → 2.70 s on 59.5k
+   channels; the episode fixtures 0.28 → 0.87 s). Nothing near the 5-minute
+   timeout the prompt advertises, but the per-episode budget arithmetic in
+   PROTOCOL.md was written against 1.0 timings.
+
 **From [1062](1062-rename-to-anatase.md), created 2026-08-12 — a rename is
 pending, and it can silently invalidate an A/B comparison.** The package becomes
 `anatase`; the `refine_json` surface this WP measures through is renamed with it,

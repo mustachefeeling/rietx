@@ -12,6 +12,32 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
+**From [1058](1058-report-delivery.md), closed 2026-08-13 — six names joined
+the surface, and one version *deliberately did not move*.** New public API:
+`report.StageReport` and `FitReport.for_stage()` (the projection);
+`Refinement.fit(stage_reports=bool)` and `Refinement.stage_reports_`;
+`RefineRequest.report_trajectory` (default **True**) and `AgentSuccess.
+trajectory` on the agent envelope; `capabilities().features
+["report_trajectory"]`. `report.TRAJECTORY_MAX_ACTIONS` is exported as the
+documented cap.
+
+**The version reasoning is yours to bless or reject.** Nothing in `schemas/`
+gained a field, so `SCHEMA_VERSION` stands; `FitReport` itself is unchanged —
+no threshold, gate, emission condition or `ActionKind` moved — so
+`THRESHOLDS_VERSION` stands too, on the argument that stamping a bump onto
+rungs produced by *unchanged* thresholds would claim a change that did not
+happen. `trajectory` is a defaulted envelope field, additive by the same
+reasoning WP-1043 recorded for `evidence`. If the freeze wants "the answer
+shape changed" to be visible in a version regardless of which contract moved,
+this is the case to decide it on — and the decision belongs to the freeze, not
+to a delivery WP.
+
+**One default is now load-bearing for a consumer's wall clock**: the agent
+surface builds a report per stage (≈2.5× the fit, measured), the library does
+not. Freezing that asymmetry means freezing "a library primitive is cheap, a
+delivery surface is complete" as a stated principle — worth saying out loud in
+the freeze rather than leaving as two flags with different defaults.
+
 **From [1062](1062-rename-to-anatase.md), closed 2026-08-12 — the rename has
 landed, so this is the surface you are freezing.** The distribution, import and
 CLI are all `anatase`; PyPI `anatase` was free as of 2026-08-12 but **nothing
