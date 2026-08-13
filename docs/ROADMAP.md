@@ -80,11 +80,15 @@ delivery-shaped flip coincides with a delivered action list). The dated
 grid and its mechanisms are the v1.0 record's round-3 appendix; the raw
 record is `eval-runs/2026-08-13-round3`.
 
-The sharpest content finding is a successor WP, not a freeze blocker: the
+The sharpest content finding is a successor WP
+([1065](wp/1065-decisive-swap-license.md)), not a freeze blocker: the
 0.8 clause **produces the experiment and not the verdict** — three sonnet
 cells ran the swap on C1 and recovered the displacement to −0.0801, and two
 still declined; the solvable control went 0/7 valid, because nothing in the
-clause or §4b says what a *decisive* swap licenses.
+clause or §4b says what a *decisive* swap licenses. 1065 lands the
+follow-through sentence (THRESHOLDS 0.9), fixes the eval glossary, and
+re-runs the targeted 12 cells — before 1003, so the freeze freezes the
+follow-through wording.
 
 Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
 import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
@@ -285,6 +289,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 | [1063](wp/1063-exchange-clause-and-rivals.md) | Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment | ✅ 2026-08-13 — THRESHOLDS_VERSION 0.8; the miner puts the clause in context before the ridge in 6 of the 7 cells | 1056, 1059 (before 1003) |
 | [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ✅ | 1063 |
+| [1065](wp/1065-decisive-swap-license.md) | What a decisive swap licenses: the follow-through sentence, measured on the row it failed | ⬜ | 1063, 1064 (before 1003) |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering
