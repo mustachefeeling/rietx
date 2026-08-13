@@ -61,34 +61,32 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The eval programme has answered ([1064](wp/1064-eval-round-three.md) ✅):
+**The eval programme is done measuring ([1065](wp/1065-decisive-swap-license.md) ✅):
 next is the freeze ([1003](wp/1003-api-freeze-pypi.md)).**
 
-1064 ran round 3 as protocol 2.0 — every expected answer *measured* before
-registration (no fixture needed redesign; the landing states are pinned as
-slow tests), a deterministic decision-grade scorer, and a python-capable
-arm — 28/28 cells, clean payload and forbidden-reads audits, two cells
-invalidated by the pre-registered run cap. The three decisions the round
-existed to make are in 1003's `### Inherited`, measured:
-`report_trajectory` flips to **False** at the freeze (equal decision
-quality at more calls on W1, the one real-signal row, with the rungs
-demonstrably read); **no** `compare_exchanges` arm (no python cell passed
-where the JSON report arms failed — `refine_json` held up as the
-constrained one-call surface); Layer 2 **keeps its posture** (its
-decidability precondition finally held on W1, and the round's one
-delivery-shaped flip coincides with a delivered action list). The dated
-grid and its mechanisms are the v1.0 record's round-3 appendix; the raw
-record is `eval-runs/2026-08-13-round3`.
+1065 landed what round 3 said was missing: the exchange clause now states
+what each swap outcome *licenses* (THRESHOLDS **0.9** — decisive: the
+winning rival's fit is the answer, quoted without caveat; tie: protocol or
+the declared stand-off), with the grade a documented constant
+(`RIVAL_DECISIVE_MIN_CHI2_RATIO` = 1.10) that gates nothing, and the eval
+glossary's `assumption_wrong` no longer names refinable geometry. The
+targeted 2.1 round (12 cells) measured both fixes: C1 moved 0/7 → 1/5
+valid and `assumption_wrong` vanished from every answer — but the mining
+showed the license sentence reached agent context in only 2 of 12 cells
+(agents grep statistics out of piped responses; the summary string is what
+the grep drops), so the follow-through question is now *placement*, not
+wording — recorded for a successor per the registration, not re-run. N1,
+the tie guard, degraded without the sentence in context (N=1 suspect: the
+glossary exclusion's "converge it"); any wording revision adds the E8′
+cells per the registration.
 
-The sharpest content finding is a successor WP
-([1065](wp/1065-decisive-swap-license.md)), not a freeze blocker: the
-0.8 clause **produces the experiment and not the verdict** — three sonnet
-cells ran the swap on C1 and recovered the displacement to −0.0801, and two
-still declined; the solvable control went 0/7 valid, because nothing in the
-clause or §4b says what a *decisive* swap licenses. 1065 lands the
-follow-through sentence (THRESHOLDS 0.9), fixes the eval glossary, and
-re-runs the targeted 12 cells — before 1003, so the freeze freezes the
-follow-through wording.
+The freeze inherits: 0.9 is the wording to freeze and
+`RIVAL_DECISIVE_MIN_CHI2_RATIO` joins the public names; the 2.1 round
+outcome, the pull-usage posture notes and two harness notes are in 1003's
+`### Inherited`, above the unchanged 1064 decisions (`report_trajectory` →
+False, no `compare_exchanges` arm, Layer 2 posture). Grids and mechanisms:
+the v1.0 record's round-3 and 2.1 appendices; raw records
+`eval-runs/2026-08-13-round3` and `…-round3p1`.
 
 Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
 import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
@@ -289,7 +287,7 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 | [1063](wp/1063-exchange-clause-and-rivals.md) | Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment | ✅ 2026-08-13 — THRESHOLDS_VERSION 0.8; the miner puts the clause in context before the ridge in 6 of the 7 cells | 1056, 1059 (before 1003) |
 | [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ✅ | 1063 |
-| [1065](wp/1065-decisive-swap-license.md) | What a decisive swap licenses: the follow-through sentence, measured on the row it failed | ⬜ | 1063, 1064 (before 1003) |
+| [1065](wp/1065-decisive-swap-license.md) | What a decisive swap licenses: the follow-through sentence, measured on the row it failed | ✅ | 1063, 1064 (before 1003) |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering

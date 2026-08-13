@@ -1,6 +1,9 @@
 # WP-1065 — What a decisive swap licenses: the follow-through sentence, measured on the row it failed
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-13 — 0.9 landed and pinned, protocol
+2.1 registered and run (12/12, two cells audit-invalidated), read-outs
+(a)–(c) recorded against their registrations, the dated grid in the v1.0
+record
 Depends on: WP-1063, WP-1064 (both closed — every finding this WP acts on is
 restated below); before WP-1003 (the clause is public report text and a
 `THRESHOLDS_VERSION` bump — the freeze should freeze the follow-through
@@ -175,7 +178,7 @@ removal at N=8.
   pattern; grid (both group tables) from `scorecards.json`; mined
   clause-delivery/overlay/pull counts; raw record to `eval-runs/` per the
   README contract
-- [ ] Close-out: read-outs (a)–(c) against their registrations in the
+- [x] Close-out: read-outs (a)–(c) against their registrations in the
   handover; 1003 `### Inherited` gets the 0.9 note, the round outcome and
   the pull-usage posture note; narrative to `docs/milestones/v1.0.md` +
   the dated grid to its appendix; "say which numbers moved" (both

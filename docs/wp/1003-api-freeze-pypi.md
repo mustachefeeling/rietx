@@ -12,6 +12,56 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ### Inherited
 
+**From [1065](1065-decisive-swap-license.md), closed 2026-08-13 — the
+follow-through sentence is landed and measured; what the freeze freezes is
+0.9.**  `THRESHOLDS_VERSION` is **0.9**: the exchange clause now states what
+each swap outcome licenses (decisive — the winning rival's fit is the
+answer, quoted without caveat; tie — protocol or the declared stand-off),
+with the strength grade a documented constant that gates nothing.  New
+public name to freeze: `RIVAL_DECISIVE_MIN_CHI2_RATIO` (= 1.10, the eval
+protocol's registered decision band, measured on both sides: 1.1679
+decisive, 1.0075/1.0001 ties).  No gate moved; `RivalComparison` still
+carries no `decisive` field.  AGENT_PROTOCOL carries the reading in §4
+step 6, §4b and §9.  This supersedes the 1064 note's "successor-shaped
+content finding" paragraph below.
+
+- **The targeted 2.1 round** (12 cells, {off, report, python} × {C1, N1} ×
+  {sonnet, haiku}; the dated grid is the v1.0 record's 2.1 appendix; raw
+  record `eval-runs/2026-08-13-round3p1`): C1 moved 0/7 → 1/5 valid —
+  `report__sonnet` flipped exactly as registered (converged + none,
+  displacement recovered by the swap, quoted without caveat) and no cell
+  anywhere answered `assumption_wrong` (the glossary fix measured in
+  isolation, as designed).  But the mining reassigns the mechanism: **the
+  license sentence reached agent context in 2 of 12 cells** — agents pipe
+  the JSON response to files and grep statistics back, and the summary
+  string is what the greps drop; the passing cell never had it in context.
+  The follow-through question the freeze should record is therefore
+  *placement*, not wording (note the excerpt asymmetry: JSON-arm prompts
+  quote §5/§6, so the §4 step-6 rule reaches no JSON prompt; the summary
+  is the only JSON channel and it is skimmed).  Recorded, not re-run, per
+  the registration's null-branch clause.
+- **N1 (the tie guard) degraded, and not by the sentence**: both round-3
+  N1 passes are gone (`off__sonnet` converged a zero-only fit and
+  overclaimed; `report__sonnet` held `ambiguous` but chose
+  `report_with_caveat`), with the license sentence in neither context.
+  The registered overcorrection trigger (a *new* overclaim in an arm that
+  received the sentence) did not fire — the one in-context N1 cell,
+  `python__sonnet`, overclaimed identically in round 3 without it.  N=1
+  candidate: the 2.1 glossary exclusion's "converge it, or say the data
+  cannot" read as encouragement to converge.  Any wording revision adds
+  the E8′ cells per the registration.
+- **Pull-usage posture** (for how the freeze docs describe the surfaces):
+  round 3 measured `report()` pulled in 6 of 8 python cells,
+  `compare_rivals` in 3, `suggest`/`branch`/`predict_then_verify` in 0;
+  the 2.1 round adds `report()` 3 of 4, `compare_rivals` probed 3 of 4,
+  `branch` 1, the rest 0.  Demonstrably-pulled vs so-far-unpulled is
+  posture language, not grounds for removal at N=12.
+- Two harness notes for any future round: the runner instruction must name
+  the repo root only where prompt.md needs it (naming it in every cell
+  invited `python__haiku`/N1 to import the repo `src` — invalidated by the
+  forbidden-read rule as registered), and the 8-run cap invalidated
+  `python__haiku`/C1 again (16 fit-bearing runs, as in round 3).
+
 **From [1064](1064-eval-round-three.md), closed 2026-08-13 — round 3's
 pre-registered decisions, measured.**  The dated grid and its mechanisms are
 the v1.0 record's round-3 appendix; the raw record is
