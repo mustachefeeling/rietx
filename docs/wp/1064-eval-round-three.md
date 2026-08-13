@@ -169,7 +169,7 @@ round; the decisions land in 1003's `### Inherited` at close):
 - [x] Scorer v2 + `test_scorer.py` extensions: `assumption_wrong`,
   next_action set membership, `underclaimed`, the deliverable axis, the
   python-arm `final_result.json` adapter
-- [ ] Python-arm harness: workspace builder (non-editable install to a venv
+- [x] Python-arm harness: workspace builder (non-editable install to a venv
   outside the tree, manual copy, prompt), audit extensions (repo-path /
   truth / network reads), usage-mining fields added to
   `mine_transcripts.py` (from WP-1063) — quoting their token vocabulary

@@ -696,20 +696,12 @@ def condition_marker_path(episodes_dir: Path, eid: str) -> Path:
     return episodes_dir / f"{eid}.condition.json"
 
 
-def write_fixtures(episodes_dir: Path, truth_dir: Path, *, condition: str,
-                   python: str = ".venv/bin/python",
-                   only: list[str] | None = None) -> list[Path]:
-    """Write episode dirs + sibling markers + truth tree; returns the dirs.
-
-    Each real-data group costs I/O (and the SRM trio a baseline fit), so a
-    group is built only when the selection names one of its episodes — a
-    synthetic-only selection stays as cheap as it was at 1.0.
-    """
-    if condition not in CONDITIONS:
-        raise ValueError(f"condition must be one of "
-                         f"{'|'.join(CONDITIONS)}, got {condition!r}")
-    spec = CONDITIONS[condition]
-    wanted = tuple(only or EPISODE_IDS)
+def assemble_episodes(wanted: tuple[str, ...]) -> dict[str, dict]:
+    """The selected episodes, building each dataset group only when the
+    selection names one of its members — a synthetic-only selection stays as
+    cheap as it was at 1.0.  Shared by both workspace writers (this module's
+    JSON-arm fixtures and ``python_arm``'s), so the lazy-group rule has one
+    authority."""
     unknown = sorted(set(wanted) - set(EPISODE_IDS))
     if unknown:
         raise ValueError(f"unknown episode id(s): {', '.join(unknown)}")
@@ -720,6 +712,19 @@ def write_fixtures(episodes_dir: Path, truth_dir: Path, *, condition: str,
         episodes.update(build_nac_episode())
     if any(eid in QARR_IDS for eid in wanted):
         episodes.update(build_qarr_episode())
+    return episodes
+
+
+def write_fixtures(episodes_dir: Path, truth_dir: Path, *, condition: str,
+                   python: str = ".venv/bin/python",
+                   only: list[str] | None = None) -> list[Path]:
+    """Write episode dirs + sibling markers + truth tree; returns the dirs."""
+    if condition not in CONDITIONS:
+        raise ValueError(f"condition must be one of "
+                         f"{'|'.join(CONDITIONS)}, got {condition!r}")
+    spec = CONDITIONS[condition]
+    wanted = tuple(only or EPISODE_IDS)
+    episodes = assemble_episodes(wanted)
     episodes_dir.mkdir(parents=True, exist_ok=True)
     truth_dir.mkdir(parents=True, exist_ok=True)
     written = []
