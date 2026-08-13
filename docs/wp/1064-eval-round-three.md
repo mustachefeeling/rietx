@@ -210,21 +210,6 @@ contract; venv and platform quoted with every count.
 
 ## Handover log
 
-- **2026-08-13** — created, from the post-1059 FitReport design review. The
-  round's design decisions confirmed with the maintainer: full round 3
-  including the python-capable arm; the `report_trajectory` default is
-  decided from this round's W1 cells, not flipped pre-emptively.
-- **2026-08-13 (session start)** — branch `wp1064-eval-round-three`;
-  `### Inherited` (1063's mined counts) pruned. Folded: the
-  trajectory-was-read counts into the `report_trajectory` kill row (the
-  criterion is decision quality, not cost); the Layer-2 decidability
-  precondition (a converged report must carry actions — W1 verified at
-  build) into that kill row and the fixtures task; the
-  mine-`delivered`/`probed`-never-summary rule and the keep-thinking-blocks
-  requirement into the scorer paragraph; the live-schema token-vocabulary
-  rule into the harness task. Deleted as already incorporated: the W2-trap
-  registration against Layer 0's unmatched peaks — the W2 episode row and
-  hypothesis (e) were written from that finding.
 - **2026-08-13 (close)** — the whole WP ran in one session; all counts
   `[dev]` venv, darwin/arm64.
 
@@ -307,3 +292,18 @@ contract; venv and platform quoted with every count.
   `pytest tests/eval_report_agent` 102 passed in 17.7 s (93 fast + 9
   slow); PROTOCOL.md 2.0 dated before the round; the grid above; the
   record per `eval-runs/README.md`.
+- **2026-08-13 (session start)** — branch `wp1064-eval-round-three`;
+  `### Inherited` (1063's mined counts) pruned. Folded: the
+  trajectory-was-read counts into the `report_trajectory` kill row (the
+  criterion is decision quality, not cost); the Layer-2 decidability
+  precondition (a converged report must carry actions — W1 verified at
+  build) into that kill row and the fixtures task; the
+  mine-`delivered`/`probed`-never-summary rule and the keep-thinking-blocks
+  requirement into the scorer paragraph; the live-schema token-vocabulary
+  rule into the harness task. Deleted as already incorporated: the W2-trap
+  registration against Layer 0's unmatched peaks — the W2 episode row and
+  hypothesis (e) were written from that finding.
+- **2026-08-13** — created, from the post-1059 FitReport design review. The
+  round's design decisions confirmed with the maintainer: full round 3
+  including the python-capable arm; the `report_trajectory` default is
+  decided from this round's W1 cells, not flipped pre-emptively.
