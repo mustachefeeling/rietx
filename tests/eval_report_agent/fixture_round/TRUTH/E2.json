@@ -1,0 +1,25 @@
+{
+ "episode": "E2",
+ "expected_verdict": "converged",
+ "planted": {
+  "path": "instrument.geometry.sample_displacement",
+  "start": -0.02,
+  "truth": 0.0,
+  "tol": {
+   "abs": 0.005
+  }
+ },
+ "family": [
+  "instrument.zero_shift",
+  "instrument.geometry.sample_displacement"
+ ],
+ "watch": {
+  "cause": [
+   "instrument.geometry.sample_displacement"
+  ],
+  "absorber": [
+   "instrument.zero_shift"
+  ]
+ },
+ "notes": "synthetic fixture truth; no refinement stands behind these numbers"
+}

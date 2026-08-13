@@ -1,0 +1,44 @@
+[
+ {
+  "episode": "E2",
+  "cell": "both__sonnet",
+  "model": "sonnet",
+  "condition": "both",
+  "verdict": "ambiguous",
+  "passed": false,
+  "trajectory_rungs": 5,
+  "report_present": true,
+  "freed": [
+   "instrument.geometry.sample_displacement",
+   "instrument.zero_shift",
+   "phases.0.scale"
+  ],
+  "watch": {
+   "cause": [
+    "instrument.geometry.sample_displacement"
+   ],
+   "absorber": [
+    "instrument.zero_shift"
+   ]
+  }
+ },
+ {
+  "episode": "E2",
+  "cell": "report__haiku",
+  "model": "haiku",
+  "condition": "report",
+  "verdict": "converged",
+  "passed": true,
+  "trajectory_rungs": null,
+  "report_present": true,
+  "freed": [
+   "instrument.zero_shift"
+  ],
+  "watch": {
+   "cause": [],
+   "absorber": [
+    "instrument.zero_shift"
+   ]
+  }
+ }
+]
