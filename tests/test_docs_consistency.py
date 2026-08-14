@@ -64,7 +64,15 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # kept only the four consequences a caller outside io/ sees.  Landed at 165,
 # capped at 200 — the headroom is the remaining formats' per-format rows.
 SIZE_CAPS: dict[str, int | None] = {
-    "CLAUDE.md": 600,
+    # 600 -> 620 for WP-1067 (2026-08-14): the manual became two parts with
+    # two different guards, and the operating detail did go down a rank as
+    # this comment requires — the derivation's three rules live in
+    # tests/api_surface.py's docstring, the chapters' own rules in the WP.
+    # What could not go down a rank is the one clause a session that never
+    # opens docs/manual/ still needs: adding a public method or field fails
+    # the manual's coverage partition until it is documented or deferred.
+    # Net +11 lines after the theory-manual bullet was rewritten to cover both.
+    "CLAUDE.md": 620,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,

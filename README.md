@@ -95,7 +95,8 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Surface roughness (Suortti 1972 / Pitschke 1993), Bragg-Brentano, with identifiability fences | ✅ |
 | Secondary extinction (Sabine polycrystalline blend) | ✅ |
 | JSON tool surface for agents (`rietx.agent.refine_json`, schema from live registries) | ✅ |
-| Theory manual (Sphinx + MyST, `docs/manual/`): numbered equations transcribed from the physics docstrings, constants injected from the live package, drift guarded by tests | ✅ |
+| Manual (Sphinx + MyST, `docs/manual/`) in two parts — **Part 1** the guide to the library and its API, **Part 2** numbered equations transcribed from the physics docstrings. Both guarded against drift by tests: constants injected from the live package, every equation naming its source symbol, every name in Part 1 resolved against the package over a *derived* enumeration of the public surface, and the walkthroughs executed | ✅ |
+| Refinement **GUI** (`rietx gui`): import → edit → refine → inspect → branch → export, Svelte over a stdlib server, no cloud | **beta** |
 | Peak picking (`rietx.pick_peaks`): fitted position **and its esd** per line, Kα doublets fitted as a constrained pair and never stripped, σ pull-calibrated | ✅ |
 | Indexing data-quality gate + systematic-shift model (zero shift vs displacement vs transparency, named only when separable) | ✅ |
 | Indexing core: Q-space form, derived metric subspaces, reduction, two-opinion Bravais, figure-of-merit **panel**, geometrical ambiguity with the reflections that break each tie | ✅ |
@@ -104,13 +105,18 @@ constant-wavelength X-ray in three geometries — **capillary/synchrotron**,
 | Extinction symbol from the systematic absences: classes derived from the operators, screened by Le Bail and ΔBIC, each **listing** its space groups because a powder cannot separate them | ✅ |
 | Fundamental Parameters Approach, neutron/TOF, texture | v2 |
 
+**The manual ([docs/manual/](docs/manual/)) is in two parts.** *Part 1 — Using
+rietx* is the task-ordered guide to the library and its public API: install,
+one fit end to end, reading the report, and driving the package from a program
+or an agent loop. *Part 2 — Theory* is the numbered equations behind it. One
+Sphinx tree; build it with
+`python -m sphinx -W -b html docs/manual docs/manual/_build/html` after
+`pip install -e ".[docs]"`.
+
 Milestones are tracked in [docs/ROADMAP.md](docs/ROADMAP.md), which indexes
 per-task work packages ([docs/wp/](docs/wp/)), the design rationale
 ([docs/DESIGN.md](docs/DESIGN.md)), and the measured acceptance records of
-shipped milestones ([docs/milestones/](docs/milestones/)). The theory manual
-([docs/manual/](docs/manual/)) builds with
-`python -m sphinx -W -b html docs/manual docs/manual/_build/html` after
-`pip install -e ".[docs]"`.
+shipped milestones ([docs/milestones/](docs/milestones/)).
 
 **Driving this from an agent?** Read
 [docs/AGENT_PROTOCOL.md](docs/AGENT_PROTOCOL.md) first — the turn-on order, the
@@ -166,13 +172,21 @@ than tuned away — see [docs/milestones/v0.2.md](docs/milestones/v0.2.md).
 The FitReport's confidence numbers are calibrated by **synthetic misfit
 injection**: perturb exactly one known cause, assert the report recovers it,
 ranks it first, and reports *low* confidence when causes are deliberately
-made collinear. Run `pytest -n auto --dist loadgroup` (1197 tests, ~6-8 min,
-includes all of the above; `-m "not slow"` is 1116 tests in ~45-55 s),
+made collinear. Run `pytest -n auto --dist loadgroup` (2375 passed, 117
+skipped, ~15-30 min, includes all of the above; `-m "not slow"` is 2269
+passed, 108 skipped in ~1-3 min — both measured on a `[dev]` venv,
+darwin/arm64, and both counts move with the extras installed),
 `python examples/nac_11bm.py` (synchrotron walkthrough) or
 `python examples/srm660c_lab.py` (lab walkthrough: diagnostics → refinement →
-all three FitReport layers → plots + interactive HTML).
+all three FitReport layers → plots + interactive HTML). Wall clock is a range
+on purpose: machine state moves it further than most changes do.
 
 ## Example
+
+The runnable versions of everything below are `examples/nac_11bm.py` and
+`examples/srm660c_lab.py` — **the walkthroughs have one authority and it is
+those scripts.** The manual includes them verbatim and the test suite executes
+them, so they are code that ran rather than prose that once did.
 
 ```python
 import rietx as pr
@@ -276,6 +290,23 @@ ref.fit(data, events=LiveSession("live/"))   # rewrites live/fit.html per stage
 rietx watch live/     # stdlib http.server: auto-refreshing plot + event console
 ```
 
+### The GUI — beta
+
+```sh
+rietx gui my_sample.rex     # http://127.0.0.1:8731
+```
+
+A local refinement GUI: import a pattern and a CIF, edit the model, run a
+plan, read the report, branch the history, export. Same stdlib-http,
+offline-plotly architecture as `watch`, serving a committed Svelte build, so
+`pip install "rietx[gui]"` needs no node and nothing leaves the machine.
+
+**It ships as a beta feature and it is deliberately undocumented.** The panels
+are still moving, so the GUI manual and its in-app help are
+[deferred past the public release](docs/wp/1017-gui-manual-onboarding.md);
+`docs/manual/` covers the library only. The API is what carries the stability
+promise — the GUI is a view over it, not a second implementation.
+
 ### Comparing settings — "does this correction actually help?"
 
 ```sh
@@ -342,23 +373,26 @@ reproducible script. Pass `history=False` for a zero-overhead plain fit.
 
 ```sh
 uv venv --python 3.12 && uv pip install -e ".[dev]"
-pytest -n auto --dist loadgroup    # 1197 tests incl. nine real-data acceptance suites (~6-8 min)
-pytest -n auto --dist loadgroup -m "not slow"    # 1116 unit/property tests only (~45-55 s)
+pytest -n auto --dist loadgroup    # 2375 passed / 117 skipped, incl. nine real-data acceptance suites (~15-30 min)
+pytest -n auto --dist loadgroup -m "not slow"    # 2269 passed / 108 skipped, unit/property only (~1-3 min)
 ruff check src tests examples
 ```
 
 `--dist loadgroup` is not optional: it is what keeps a shared expensive fixture
 on one worker (`xdist_group` marks). Plain `--dist load` still passes, but
-silently refits. Wall clock is quoted as a range on purpose — the same green
-tree measured 7:37 and 5:44 minutes apart on one machine, so compare runs, not
-records.
+silently refits. Wall clock is quoted as a range on purpose: one green tree has
+measured 7:37 and 5:44 minutes apart on the same machine, so compare runs, not
+records — and quote the venv with any count, since installing `[jax,torch]`
+turns most skips into passes.
 
-Extras: `[viz]` (matplotlib, plotly), `[baselines]` (pybaselines algorithm zoo),
-`[jax]` (autodiff Jacobians) and `[torch]` (**experimental** — an independent
-check on the analytic Jacobian and a route to differentiable-layer use, not a
-faster path; never installed by default). Every backend row in the agreement
-and conformance suites self-skips when its package is absent, so a numpy-only
-checkout is fully green.
+Extras: `[viz]` (matplotlib, plotly), `[gui]` (plotly only — the frontend build
+is committed inside the package), `[jax]` (autodiff Jacobians), `[torch]`
+(**experimental** — an independent check on the analytic Jacobian and a route
+to differentiable-layer use, not a faster path; never installed by default),
+`[docs]` and `[dev]`. What each one buys is
+[docs/manual/using/install.md](docs/manual/using/install.md). Every backend row
+in the agreement and conformance suites self-skips when its package is absent,
+so a numpy-only checkout is fully green.
 
 **What CI runs**, on three cadences sized by what each costs rather than by
 what would be nice. Every push: ruff plus the fast suite on Python 3.13, Linux,

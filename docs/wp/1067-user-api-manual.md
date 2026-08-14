@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: ⬜
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-14 — floor landed (gates 1003); the 1.0.x chapters remain
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -265,42 +265,42 @@ still moving, which is why it was deferred.
 
 ### Floor — gates 1003
 
-- [ ] Split the tree: `index.md` becomes the manual's front page with two
+- [x] Split the tree: `index.md` becomes the manual's front page with two
       captioned `toctree` blocks; Part 2's chapters move under it unchanged;
       `conf.py`'s `html_title` and the H1 stop naming the whole tree "theory
       manual"; `CHAPTERS` becomes `rglob` **excluding `_build/`**. Builds
       `-W`-clean; `test_manual.py` green.
-- [ ] `tests/api_surface.py` — **derives** the public call surface (declared
+- [x] `tests/api_surface.py` — **derives** the public call surface (declared
       members of the exported types and of the rietx-defined types reachable
       from them; inherited pydantic machinery, dunders and privates filtered —
       the two derivation rules in Context) and hand-writes only the exclusions
       and chapter assignments, each with a reason, plus the `deferred-1.0.x`
       bucket. This is the surface 1003 freezes; say so in its docstring.
-- [ ] The guard, before the prose it guards: `tests/test_manual_api.py` —
+- [x] The guard, before the prose it guards: `tests/test_manual_api.py` —
       names resolve, dot-paths resolve, blocks compile, blocks execute or
       carry a reason, and the derived surface is partitioned. **Make it fail
       on purpose twice**: rename a documented symbol, and add a public method
       to an exported type without touching the manual. The second is the one
       that matters.
-- [ ] `using/install.md` — extras and what each buys, the numpy-only default,
+- [x] `using/install.md` — extras and what each buys, the numpy-only default,
       `[gui]` as a plotly-only extra over a committed dist, running the suite,
       and a link to `docs/VALIDATION.md` for what the package is known to get
       right.
-- [ ] `using/quickstart.md` — one fit end to end as a `{literalinclude}` of
+- [x] `using/quickstart.md` — one fit end to end as a `{literalinclude}` of
       `examples/nac_11bm.py`, plus `tests/test_examples.py`, which executes
       that script under `@pytest.mark.slow` with an `xdist_group`. States the
       structure-free-first order and links AGENT_PROTOCOL §2 rather than
       restating it.
-- [ ] `using/report.md` — **the object model, not the judgement** (see
+- [x] `using/report.md` — **the object model, not the judgement** (see
       Context): the three layers and their four gates, abstention as a result,
       `evidence`, the stage trajectory (a converged report is routinely the
       least informative in the run), and "did that correction help?" via
       `viz.compare.run` headless plus the cumulative-Δχ² reading.
-- [ ] `using/agents.md` — `refine_json`, `tool_definition()`, `capabilities()`
+- [x] `using/agents.md` — `refine_json`, `tool_definition()`, `capabilities()`
       and the five versioned contracts, then hand off to AGENT_PROTOCOL. Push
       the packaging constraint and the README deduplication into 1003's
       `### Inherited`.
-- [ ] README: docs pointer becomes "the manual, in two parts"; the theory-
+- [x] README: docs pointer becomes "the manual, in two parts"; the theory-
       manual capability row is restated; the **GUI is declared beta** with
       `rietx gui` named and 1017 recorded as deferred; quoted test counts
       re-measured per root CLAUDE.md § Numbers. Examples stay for now — the
@@ -362,6 +362,112 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
   the guard is name resolution and not a prose rule.
 
 ## Handover log
+
+- **2026-08-14 (execution session)** — **§ Floor landed in full; 1003 is
+  unblocked.** Eleven commits on `wp1067-user-api-manual`, all eight floor
+  items ticked. The 1.0.x chapters remain, so the WP stays 🔄 and the deferred
+  bucket is not yet empty.
+
+  **Done.** The tree is one Sphinx build in two parts; Part 2's twelve chapters
+  and all seventy-four equation numbers were verified byte-identical before and
+  after by diffing the rendered HTML, so `{eq}` cross-references and any prose
+  citing "(3.2)" survived. `tests/api_surface.py` derives the surface;
+  `tests/test_manual_api.py` guards Part 1 by name; `install`, `quickstart`,
+  `report` and `agents` are written; `tests/test_examples.py` executes both
+  `examples/` walkthroughs; README carries the two-part pointer, the beta
+  declaration and re-measured counts.
+
+  **Three predictions in this WP did not survive measurement, and the pattern
+  is worth more than the corrections.** Every one was found by *using* the
+  guard, never by reading code:
+
+  - **The surface is 1235 names, not ~147** — 127 classes, 902 fields, 151
+    methods, 27 instance attributes, 25 functions, 2 constants, 1 module. The
+    estimate appears to have counted neither the fields nor the closure.
+  - **Two derivation rules were missing from the WP's two.** The closure must
+    follow **exported functions' signatures** (`Capabilities`, the return type
+    of `capabilities()` and the whole subject of `using/agents.md`, was on no
+    list at all), and **instance attributes must be read from source with
+    `ast`** — a plain class assigns `self.history` in `__init__`, where
+    `dir()` on the class cannot see it, so `Refinement.history`, `Project.doc`
+    and `RefinementCancelled.node_id` were silently absent. Each gap surfaced
+    as the guard *rejecting a page that was correct*, which is the strongest
+    argument available that the guard works.
+  - **The examples do not need the `slow` mark.** The cost model assumed a
+    chapter running a real fit would turn the docs guard into an acceptance
+    suite; measured, `nac_11bm.py` is 3.5 s and `srm660c_lab.py` 3.3 s ([dev],
+    darwin/arm64), 4.45 s for the four tests together under `-n auto`. They run
+    in the fast suite, because a broken walkthrough should fail on the push
+    that broke it. One line adds the mark if either grows.
+
+  **One deliberate divergence.** The WP planned a hand-written chapter
+  assignment beside the exclusions. Documented-ness is **derived** instead — a
+  name counts when a chapter spells it *qualified*, in code (a span, a python
+  fence, or a `{literalinclude}`d script); prose is not scanned, because "the
+  Structure schema" in a sentence is not documentation of `Structure`. A
+  hand-written assignment is the same list-nobody-regenerates the derivation
+  exists to avoid, and it can point at a chapter that never mentions the name.
+  The cost is that a chapter writes `Statistics.rwp` rather than relying on
+  `result.statistics.rwp`, which a reference chapter wants anyway.
+
+  **Both fault injections the WP demanded, plus a third failure it did not.**
+  Adding `Refinement.polish` to `src/` and touching nothing else fails the
+  partition naming it. Renaming `BackgroundCapability.available` → `.usable`
+  fails three ways at once (stale manual token, executed block raises, new name
+  in no bucket) — and writing that injection first exposed a hole: resolution
+  walked from `rietx`, so a *correct* dotted name on a reachable-but-unexported
+  type failed for the wrong reason. Fixed before the injection was run.
+
+  **Numbers ([dev] venv, darwin/arm64 — no jax, no torch).** Fast selection
+  **2269 passed / 108 skipped in 2:57**. WP-1066 recorded 2257/108, this WP
+  adds exactly 12 tests (8 in `test_manual_api.py`, 4 in `test_examples.py`),
+  and 2257 + 12 = 2269 with **skips unchanged** — twelve passes, no new skip.
+  Full selection **2375 passed / 117 skipped / 1 failed in 29:40**; the full
+  delta could *not* be checked the same way, because the weekly log § Numbers
+  points at is dead (below). Partition: **149 documented, 1086 deferred** of
+  1235. Coverage partition, not a quality measure.
+
+  **In flight: nothing.** Working tree clean, all eleven commits landed.
+
+  **Next (1.0.x).** The seven post-release chapters in § Tasks, in any order;
+  each one shrinks `tests/api_surface_deferred.txt`, and the WP closes when
+  that file has no names left. Regenerate it with
+  `python -m tests.api_surface --write-deferred` — never hand-edit it, since
+  being generated is what makes a new public name fail the partition instead of
+  hiding in it.
+
+  **Gotchas.**
+
+  - **A cross-reference lands in the commit that creates its target.** A
+    MyST link to a page that does not exist yet is a `-W` build failure,
+    so `install.md` and `quickstart.md` shipped with prose references that
+    became links one commit later. Write the chapter, then the links back to it.
+  - **Regenerate the deferred bucket in the same commit as the chapter.** A
+    newly documented name sits in *two* buckets until you do, and the partition
+    fails on the overlap — by design, but it looks like a regression if you
+    have forgotten why.
+  - **Root CLAUDE.md was at exactly its 600-line cap.** Raised to 620 with the
+    reason recorded in `SIZE_CAPS`, after the operating detail went down a rank
+    (the three derivation rules live in `api_surface.py`'s docstring). What
+    could not go down a rank is the one clause a session that never opens
+    `docs/manual/` still needs: adding a public method or field fails the
+    manual's partition until it is documented or deferred.
+  - **The `_build/` exclusion in `CHAPTERS` is defensive, not load-bearing
+    today.** The WP predicted `rglob` would collect a stale build tree; measured,
+    sphinx's html builder writes sources as `*.md.txt`, so nothing matches. It
+    was still demonstrated (planting a `.md` under `_build/html/_sources` and
+    re-collecting still gives 13 chapters, none from `_build`) and kept, because
+    any builder that copies sources verbatim would fire it.
+  - **Two things were filed to [1003](1003-api-freeze-pypi.md) rather than
+    fixed**, both blocking a release and neither this WP's: a fifth
+    load-sensor acceptance row (fluorite `search_complete`, fails under
+    `-n auto`, passes serially in 207 s — this WP added two test modules and is
+    a plausible trigger; user decision on 2026-08-14 was to file and stop), and
+    the **weekly `full` CI job, which has not completed since 2026-08-02** —
+    cancelled at exactly 2h00m against `timeout-minutes: 120`, so § Numbers'
+    designated source for full-suite counts has been dead for twelve days and
+    nobody saw it, because a cancelled run is amber rather than red. Also filed:
+    the `baselines` extra installs `pybaselines`, which no module imports.
 
 - **2026-08-14** — created, with WP-1017 deferred past the public release on
   the same decision, then revised over two critical-review rounds. Not

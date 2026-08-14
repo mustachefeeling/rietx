@@ -65,6 +65,24 @@ point of deferring was to stop paying for that.
 
 ### Inherited
 
+**From [1067](1067-user-api-manual.md), 2026-08-14 — the beta declaration is
+landed, and this WP is now named in public.** README declares the GUI a beta
+feature, names `rietx gui` for the first time (it had never appeared there at
+all, so a reader could not have discovered the GUI, let alone its status), and
+links *this file* as the deferred manual. Two consequences. **The tree you will
+write into already exists**: `docs/manual/` is one Sphinx build in two captioned
+parts, Part 1 under `docs/manual/using/`, so GUI chapters are a third toctree
+or additions to Part 1 rather than a new doc root — and `tests/test_manual.py`'s
+`CHAPTERS` is already an `rglob`, so a new subdirectory inherits the `-W` build
+and the bib/source guards for free. **The prose-drift problem this WP's mailbox
+records eight times now has a mechanism**: `tests/test_manual_api.py` resolves
+every dotted name and parameter dot-path a Part 1 page spells and executes its
+python blocks, so a panel rename breaks the suite rather than the reader's
+trust. Whether a *GUI* chapter can be guarded that way is an open question — its
+subject is routes and panels, not importable names — and worth answering before
+writing prose, not after. Nothing of this WP's own mailbox was absorbed by
+1067, per its non-goal.
+
 **From [1062](1062-rename.md) and [1066](1066-rename.md), landed 2026-08-12 and
 renamed again 2026-08-14 — the name is settled at `rietx`, and this WP writes
 the most user-visible prose in the repo.** The

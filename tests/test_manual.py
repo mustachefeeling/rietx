@@ -20,7 +20,14 @@ import pytest
 pytest.importorskip("sphinx")
 
 MANUAL_DIR = Path(__file__).resolve().parent.parent / "docs" / "manual"
-CHAPTERS = sorted(MANUAL_DIR.glob("*.md"))
+# rglob, not glob: Part 1 lives in docs/manual/using/ (WP-1067).  A doc tree's
+# shape should not be set by a test's glob, and the guards below are what a
+# future Part 1 page inherits by being collected here.  _build/ is a local
+# sphinx output directory, not source — an rglob that walks it collects a stale
+# copy of every chapter.
+CHAPTERS = sorted(
+    p for p in MANUAL_DIR.rglob("*.md") if "_build" not in p.relative_to(MANUAL_DIR).parts
+)
 
 CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
 SOURCE_LINE = re.compile(r"\*Source:\*\s+`([A-Za-z_][\w.]*)`")
