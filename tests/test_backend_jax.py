@@ -25,7 +25,7 @@ import pytest
 
 jax = pytest.importorskip("jax")
 
-import rietx as pr  # noqa: E402
+import rietx as rx  # noqa: E402
 from rietx.backend import (  # noqa: E402
     NumpyBackend,
     get_backend,
@@ -95,19 +95,19 @@ def test_numpy_only_process_never_imports_jax_nor_sets_x64():
     code = """
 import sys
 import numpy as np
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 
-structure = pr.Structure(phases=[pr.Phase(
-    name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
-    atoms=[pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                   y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                   biso=pr.Parameter(value=0.4))],
-    scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"))])
-instrument = pr.Instrument.debye_scherrer(wavelength=1.5406)
+structure = rx.Structure(phases=[rx.Phase(
+    name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
+    atoms=[rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=0.4))],
+    scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"))])
+instrument = rx.Instrument.debye_scherrer(wavelength=1.5406)
 tt = np.arange(15.0, 60.0, 0.05)
-pattern = pr.PatternData(two_theta=tt.tolist(), intensity=[50.0] * len(tt))
+pattern = rx.PatternData(two_theta=tt.tolist(), intensity=[50.0] * len(tt))
 table = ParameterTable(structure, instrument)
 model = compile_model(structure, instrument, pattern)
 model.evaluate(table.decode(table.x0()))
@@ -143,7 +143,7 @@ def test_unknown_backend_rejected():
         resolve_backend("cupy")
     structure, ins, _ = _lab_state()
     with pytest.raises(NotImplementedError, match="unknown backend"):
-        pr.Refinement(structure, ins, backend="cupy", history=False)
+        rx.Refinement(structure, ins, backend="cupy", history=False)
 
 
 def test_jax_backend_ops_functional_contract():
@@ -305,7 +305,7 @@ def test_srm660c_end_to_end_jax_matches_numpy(srm660c_baseline):
     results = {"numpy": (ref_np, res_np)}
 
     _data, structure, instrument = build_srm_inputs()
-    ref = pr.Refinement(structure, instrument, backend="jax", history=False)
+    ref = rx.Refinement(structure, instrument, backend="jax", history=False)
     res = ref.fit(data, plan=_nist_calibrated_plan())
     assert res.status == "converged", "jax"
     results["jax"] = (ref, res)

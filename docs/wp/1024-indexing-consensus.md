@@ -136,7 +136,7 @@ turns on the moment `index()` exists, with **no edit in `report/apply.py`, in th
 session, or in the frontend**. Two consequences for this WP:
 
 - `tests/test_report_apply.py::test_indexing_is_declared_applicable_and_refused_until_an_engine_exists`
-  asserts `pr.capabilities().features["indexing"] is False` with a message saying
+  asserts `rx.capabilities().features["indexing"] is False` with a message saying
   the applicable branch is now the live one. **It will fail here, deliberately** —
   flip that assertion in this WP's commit and add the positive case.
 - `report/apply.py`'s `refusal()` is the only place indexing-availability is

@@ -53,7 +53,7 @@ builder, never an inherited default.
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     MAJOR_TOL,
@@ -92,7 +92,7 @@ def _require_data():
 
 
 def _patterns():
-    return [pr.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1]
+    return [rx.read_pattern(DATA / f"{s}.prn") for s in SAMPLE1]
 
 
 def _fractions_pct(qpa) -> dict[str, float]:
@@ -128,9 +128,9 @@ def independent(sample1_results):
 def chained():
     """The series, warm-started on everything the mixtures share."""
     _require_data()
-    structure = pr.Structure(phases=_phases())
+    structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
-    series = pr.SequentialRefinement(structure, ins, carry=CARRY)
+    series = rx.SequentialRefinement(structure, ins, carry=CARRY)
     result = series.fit(_patterns(), labels=list(SAMPLE1), plan=qpa_plan(),
                         prepare=_seed_hook)
     OUT.mkdir(exist_ok=True)
@@ -149,10 +149,10 @@ def chained():
 def chained_all():
     """The naive default: carry everything, scales included."""
     _require_data()
-    structure = pr.Structure(phases=_phases())
+    structure = rx.Structure(phases=_phases())
     ins = qarr_instrument()
-    seed_scales(structure, ins, pr.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
-    return pr.SequentialRefinement(structure, ins).fit(
+    seed_scales(structure, ins, rx.read_pattern(DATA / f"{SAMPLE1[0]}.prn"))
+    return rx.SequentialRefinement(structure, ins).fit(
         _patterns(), labels=list(SAMPLE1), plan=qpa_plan())
 
 

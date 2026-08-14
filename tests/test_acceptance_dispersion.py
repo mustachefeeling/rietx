@@ -37,7 +37,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.schemas.instrument import Dispersion
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
@@ -73,15 +73,15 @@ def _require_data():
         pytest.skip("IUCr QPA round-robin dataset not present")
 
 
-def _fit_anomalous(sample: str, phases: list[pr.Phase], *,
-                   plan: pr.RefinementPlan, tag: str):
+def _fit_anomalous(sample: str, phases: list[rx.Phase], *,
+                   plan: rx.RefinementPlan, tag: str):
     """The round-robin protocol, unchanged except for the dispersion block."""
-    data = pr.read_pattern(DATA / f"{sample}.prn")
-    structure = pr.Structure(phases=phases)
+    data = rx.read_pattern(DATA / f"{sample}.prn")
+    structure = rx.Structure(phases=phases)
     ins = qarr_instrument()
     ins.source.dispersion = Dispersion()
     seed_scales(structure, ins, data)
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / f"disp_{tag}.png"))
@@ -169,13 +169,13 @@ def zincite_pair():
     _require_data()
     out = []
     for anomalous in (False, True):
-        data = pr.read_pattern(DATA / "zincite.prn")
-        structure = pr.Structure(phases=[zincite_phase()])
+        data = rx.read_pattern(DATA / "zincite.prn")
+        structure = rx.Structure(phases=[zincite_phase()])
         ins = qarr_instrument()
         if anomalous:
             ins.source.dispersion = Dispersion()
         seed_scales(structure, ins, data)
-        ref = pr.Refinement(structure, ins)
+        ref = rx.Refinement(structure, ins)
         result = ref.fit(data, plan=qpa_plan())
         OUT.mkdir(exist_ok=True)
         result.plot(path=str(OUT / f"disp_zincite_{'on' if anomalous else 'off'}.png"))
@@ -240,7 +240,7 @@ def srm660c_pair(srm660c_baseline):
 
     _data, structure, instrument = build_srm_inputs()
     instrument.source.dispersion = Dispersion()
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     result = ref.fit(data, plan=_nist_calibrated_plan())
     out.append((ref, result))
 

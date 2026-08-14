@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 
 DATA = Path(__file__).parent / "data"
 WAVELENGTH = 0.4139090
@@ -33,9 +33,9 @@ def build_nac_inputs():
     """
     if not (DATA / "11BM_NAC.fxye").exists():
         pytest.skip("11-BM NAC dataset not present")
-    data = pr.read_pattern(DATA / "11BM_NAC.fxye")
-    structure = pr.Structure.from_cif(str(DATA / "cod_1000236.cif"))
-    instrument = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    data = rx.read_pattern(DATA / "11BM_NAC.fxye")
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
+    instrument = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     from rietx.schemas.instrument import BackgroundChebyshev
@@ -54,18 +54,18 @@ def nac_inputs():
     return build_nac_inputs()
 
 
-def _caf2_phase() -> pr.Phase:
-    return pr.Phase(
-        name="CaF2", space_group="F m -3 m", cell=pr.Cell.cubic(5.4631),
+def _caf2_phase() -> rx.Phase:
+    return rx.Phase(
+        name="CaF2", space_group="F m -3 m", cell=rx.Cell.cubic(5.4631),
         atoms=[
-            pr.Atom(label="Ca", species="Ca2+", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.6, min=0.0, max=25.0)),
-            pr.Atom(label="F", species="F1-", x=pr.Parameter(value=0.25),
-                    y=pr.Parameter(value=0.25), z=pr.Parameter(value=0.25),
-                    biso=pr.Parameter(value=0.9, min=0.0, max=25.0)),
+            rx.Atom(label="Ca", species="Ca2+", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.6, min=0.0, max=25.0)),
+            rx.Atom(label="F", species="F1-", x=rx.Parameter(value=0.25),
+                    y=rx.Parameter(value=0.25), z=rx.Parameter(value=0.25),
+                    biso=rx.Parameter(value=0.9, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-7, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-7, min=0.0, transform="softplus"),
     )
 
 
@@ -73,7 +73,7 @@ def _caf2_phase() -> pr.Phase:
 def nac_lebail(nac_inputs):
     """The single-phase Le Bail pass — the Rietveld model's starting point."""
     data, structure, instrument = nac_inputs
-    ref_lb = pr.Refinement(structure, instrument)
+    ref_lb = rx.Refinement(structure, instrument)
     return ref_lb, ref_lb.fit(data, mode="lebail", two_theta_limits=LIMITS)
 
 
@@ -89,9 +89,9 @@ def nac_rietveld(nac_inputs, nac_lebail):
     structure2.phases[0].scale.value = 1e-6
     structure2.phases.append(_caf2_phase())
 
-    plan = pr.RefinementPlan.mccusker_default()
-    plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
-    ref = pr.Refinement(structure2, instrument2)
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
+    ref = rx.Refinement(structure2, instrument2)
     return ref, ref.fit(data, plan=plan, two_theta_limits=LIMITS)
 
 
@@ -118,7 +118,7 @@ def test_nac_lebail_then_rietveld(nac_lebail, nac_rietveld):
     a_caf2 = ref.fitted_structure.phases[1].cell.a.value
     assert abs(a_caf2 - 5.4631) < 5e-3
 
-    report = pr.build_report(result)
+    report = rx.build_report(result)
     assert report.n_regions_total > 20
     assert report.summary
 
@@ -189,7 +189,7 @@ def test_nac_extinction_on_the_main_phase_is_bounded_and_unbiasing(
     # only the main phase — the recommended usage; not the CaF2 impurity
     ref = ref_base.branch()
     result = ref.run_stage(
-        data, pr.Stage("extinction", ["phases.0.extinction"], seed=1e-3))
+        data, rx.Stage("extinction", ["phases.0.extinction"], seed=1e-3))
 
     assert result.status == "converged"
     assert result.statistics.rwp < 0.12

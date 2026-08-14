@@ -4,17 +4,35 @@ Three objects go in and one comes out. A `PatternData` from `read_pattern`, a
 `Structure` from a CIF, an `Instrument` describing the diffractometer; a
 `RefinementResult` comes back.
 
+`rx` is the alias used throughout this manual, the `examples/` scripts and the
+API calls the history renders back at you. It is a convention and nothing
+depends on it.
+
 <!-- api-doc: no-exec — it reads a pattern file the reader supplies -->
 ```python
-import rietx as pr
+import rietx as rx
 
-data = pr.read_pattern("my_sample.xye")
-structure = pr.Structure.from_cif("my_phase.cif")
-instrument = pr.Instrument.debye_scherrer(wavelength=0.4139090)
+data = rx.read_pattern("my_sample.xye")
+structure = rx.Structure.from_cif("my_phase.cif")
+instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
 
-result = pr.refine(data, structure, instrument)
+result = rx.refine(data, structure, instrument)
 print(result.status, result.statistics.rwp)
 ```
+
+That last line prints two things and both are worth a look:
+
+```text
+converged 0.0932
+```
+
+`RefinementResult.status` is one of `converged`, `max_iter` or `diverged` — a
+plain string, and `max_iter` means the solver ran out of iterations rather than
+that it failed. **`Statistics.rwp` is a fraction, not a percentage**: 0.0932 is
+the Rwp = 9.3 % you would quote in a paper, and every R-factor in the package
+is stored the same way. Those two numbers are the worked example at the end of
+this chapter, measured on 11-BM data; the digits past the fourth move with the
+platform, and yours will differ anyway.
 
 `refine` is the one-shot form. It discards the session, so its history
 defaults to off — the object form below keeps one, and that is the form to
@@ -31,15 +49,15 @@ et al. (1999) set out.
 `RefinementPlan` carries the presets, named by what they are for:
 
 ```python
-import rietx as pr
+import rietx as rx
 
-pr.RefinementPlan.mccusker_default()      # scale+bkg -> zero -> cell -> W -> U,V,X,Y
-pr.RefinementPlan.mccusker_structural()   # ... then coordinates, displacement, PO
-pr.RefinementPlan.lab_bragg_brentano()    # ... with sample displacement, Ka2, FCJ axial
-pr.RefinementPlan.lab_calibrate()         # instrument calibration, certified cell HELD
-pr.RefinementPlan.lab_sample_refine()     # sample against a frozen calibrated instrument
-pr.RefinementPlan.profile_only()          # Le Bail
-pr.RefinementPlan.pawley_default()        # Pawley
+rx.RefinementPlan.mccusker_default()      # scale+bkg -> zero -> cell -> W -> U,V,X,Y
+rx.RefinementPlan.mccusker_structural()   # ... then coordinates, displacement, PO
+rx.RefinementPlan.lab_bragg_brentano()    # ... with sample displacement, Ka2, FCJ axial
+rx.RefinementPlan.lab_calibrate()         # instrument calibration, certified cell HELD
+rx.RefinementPlan.lab_sample_refine()     # sample against a frozen calibrated instrument
+rx.RefinementPlan.profile_only()          # Le Bail
+rx.RefinementPlan.pawley_default()        # Pawley
 ```
 
 `Refinement.fit` also takes a plan by name (`plan="mccusker_default"`), and
@@ -90,7 +108,7 @@ after this one:
   refinements *and* the model edit between them. `Refinement.edit` is what
   makes adding the impurity a recorded move rather than a fresh start, and
   `RefinementTree.tag` names a node to come back to.
-- **A plan is editable.** `plan.stages.append(pr.Stage("biso", [...]))` adds a
+- **A plan is editable.** `plan.stages.append(rx.Stage("biso", [...]))` adds a
   displacement stage after the preset's, and `Stage` takes fnmatch globs over
   the parameter dot-paths (`phases.*.atoms.*.biso`).
 - **`RefinementResult.parameter`** looks one parameter up by path, with its
@@ -118,4 +136,5 @@ calculated and background curves are on the result as
 **Rwp is not the answer.** It is a fit statistic, and this package can show
 you a fit whose Rwp improved while its atomic displacement parameters and
 phase fractions moved *away* from the truth. What the package hands you
-instead is [](report.md); the judgement behind it is AGENT_PROTOCOL §4.
+instead is [the report](report.md); the judgement behind it is
+AGENT_PROTOCOL §4.

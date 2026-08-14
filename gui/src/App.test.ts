@@ -287,19 +287,19 @@ const HISTORY = {
   n_nodes: 4,
   nodes: [
     { id: "n0000", parents: [], children: ["n0001"], label: "", created_utc: "2026-07-30T10:00:00Z",
-      kind: "root", name: "", action: { kind: "root" }, api_call: "pr.Refinement(structure, instrument)",
+      kind: "root", name: "", action: { kind: "root" }, api_call: "rx.Refinement(structure, instrument)",
       status: null, n_iterations: null, rwp: null, gof: null, n_free: null,
       n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {} },
     { id: "n0001", parents: ["n0000"], children: ["n0002", "n0003"], label: "",
       created_utc: "2026-07-30T10:00:01Z", kind: "stage", name: "scale+bkg",
       action: { kind: "stage", name: "scale+bkg", turn_on: ["phases.*.scale"] },
-      api_call: "ref.run_stage(data, pr.Stage('scale+bkg', ['phases.*.scale'], max_iter=100))",
+      api_call: "ref.run_stage(data, rx.Stage('scale+bkg', ['phases.*.scale'], max_iter=100))",
       status: "converged", n_iterations: 7, rwp: 0.21, gof: 1.9, n_free: 4,
       n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {} },
     { id: "n0002", parents: ["n0001"], children: [], label: "",
       created_utc: "2026-07-30T10:00:02Z", kind: "stage", name: "cell",
       action: { kind: "stage", name: "cell", turn_on: ["phases.*.cell.*"] },
-      api_call: "ref.run_stage(data, pr.Stage('cell', ['phases.*.cell.*'], max_iter=100))",
+      api_call: "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=100))",
       status: "converged", n_iterations: 5, rwp: 0.04, gof: 0.8, n_free: 5,
       n_diagnostics: 1,
       diagnostics: [{ level: "warning", code: "HIGH_CORRELATION",
@@ -372,7 +372,7 @@ const REPORT = {
       paths: ["phases.*.cell.*"],
       stage: { name: "apply:refine_cell", turn_on: ["phases.*.cell.*"], max_iter: 100,
                lebail_cycles: 3, seed: 0, strain_seed: 0 },
-      api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))" },
+      api_call: "ref.run_stage(data, rx.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))" },
     { kind: "add_impurity_phase", how: "advice",
       note: "no phase is named yet, so there is nothing to free.",
       can_apply: false,
@@ -1015,7 +1015,7 @@ describe("the history worktree", () => {
     const rows = [...host.querySelectorAll<HTMLButtonElement>(".node button.pick")];
     rows[2].click();                                        // n0002
     await flush();
-    expect(host.querySelector(".call")?.textContent).toContain("pr.Stage('cell'");
+    expect(host.querySelector(".call")?.textContent).toContain("rx.Stage('cell'");
     // WP-1007: `where` carries the pair, so no message needs parsing
     expect(host.textContent).toContain("HIGH_CORRELATION");
     expect(host.textContent).toContain("phases.0.cell.a instrument.zero_shift");
@@ -1128,7 +1128,7 @@ describe("the report panel", () => {
         applied: { kind: "refine_cell", confidence: 0.5, rationale: "…",
                    expected_delta_chi2: 16.19,
                    stage: { name: "apply:refine_cell", turn_on: ["phases.*.cell.*"] } },
-        api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
+        api_call: "ref.run_stage(data, rx.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
         undo: "n0003", chi2_before: 16.96,
         state: "running", run: { ...IDLE_RUN.run, kind: "stage" }, head: "n0003" } }),
     });
@@ -1138,7 +1138,7 @@ describe("the report panel", () => {
     const post = stub.calls.find((c) => c.path === "/api/report/apply");
     expect(post?.body).toEqual({ kind: "refine_cell", paths: ["phases.*.cell.*"] });
     // the console echoes the stage the server said it would run
-    expect(host.textContent).toContain("pr.Stage('apply:refine_cell'");
+    expect(host.textContent).toContain("rx.Stage('apply:refine_cell'");
     // mid-run the observed value is *absent*, not zero: `chi2` is still the one
     // the action was applied at, and subtracting it would print a confident
     // "observed 0.000" for a measurement nobody has made
@@ -1169,7 +1169,7 @@ describe("the report panel", () => {
         return { body: {
           applied: { kind: "refine_cell", expected_delta_chi2: 16.19,
                      stage: { name: "apply:refine_cell" } },
-          api_call: "ref.run_stage(data, pr.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
+          api_call: "ref.run_stage(data, rx.Stage('apply:refine_cell', ['phases.*.cell.*'], max_iter=100))",
           undo: "n0003", chi2_before: 16.96,
           state: "running", run: { ...IDLE_RUN.run, kind: "stage" }, head: "n0003" } };
       },

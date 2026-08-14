@@ -189,14 +189,14 @@ those scripts.** The manual includes them verbatim and the test suite executes
 them, so they are code that ran rather than prose that once did.
 
 ```python
-import rietx as pr
+import rietx as rx
 
-data = pr.read_pattern("11BM_NAC.fxye")                  # esds read from file
-structure = pr.Structure.from_cif("NAC.cif")
-instrument = pr.Instrument.debye_scherrer(wavelength=0.4139090)
+data = rx.read_pattern("11BM_NAC.fxye")                  # esds read from file
+structure = rx.Structure.from_cif("NAC.cif")
+instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
 
 # Structure-free Le Bail first: cell + profile + background
-ref = pr.Refinement(structure, instrument)
+ref = rx.Refinement(structure, instrument)
 lebail = ref.fit(data, mode="lebail", two_theta_limits=(2, 24))
 
 # Rietveld with the standard staged turn-on order (McCusker et al. 1999)
@@ -212,26 +212,26 @@ result.plot(path="fit.png")                               # obs/calc/diff/ticks
 ### Laboratory data
 
 ```python
-data = pr.read_pattern("sample.xy")   # or .xye / .chi / .ras / .uxd / GSAS raw / pdCIF
-instrument = pr.Instrument.bragg_brentano(radiation="CuKa",      # Kα1/Kα2 doublet
+data = rx.read_pattern("sample.xy")   # or .xye / .chi / .ras / .uxd / GSAS raw / pdCIF
+instrument = rx.Instrument.bragg_brentano(radiation="CuKa",      # Kα1/Kα2 doublet
                                           monochromator_two_theta=26.6)
 # also "CrKa" / "FeKa" / "CoKa" / "MoKa" / "AgKa", or any of them suffixed "1"
 # for a Kα1-only monochromated beam (2θ_m above is a Cu number — recompute it)
-instrument.background = pr.background.auto_background(data)       # diagnose → select → build
+instrument.background = rx.background.auto_background(data)       # diagnose → select → build
 
-ref = pr.Refinement(structure, instrument)
+ref = rx.Refinement(structure, instrument)
 result = ref.fit(data, plan="lab_bragg_brentano")   # + displacement, Kα2 ratio, FCJ axial
 ```
 
 Calibrate on a standard once, then reuse the instrument for every sample:
 
 ```python
-cal = pr.Refinement(lab6_certified, instrument)      # certified cell held fixed
+cal = rx.Refinement(lab6_certified, instrument)      # certified cell held fixed
 cal.fit(standard_data, plan="lab_calibrate")
-pr.save_instrument_profile(cal.fitted_instrument, "diffractometer.json")
+rx.save_instrument_profile(cal.fitted_instrument, "diffractometer.json")
 
-frozen = pr.load_instrument_profile("diffractometer.json")   # everything vary=False
-ref = pr.Refinement(unknown, frozen)
+frozen = rx.load_instrument_profile("diffractometer.json")   # everything vary=False
+ref = rx.Refinement(unknown, frozen)
 ref.fit(sample_data, plan="lab_sample_refine")   # only sample size/strain, cell, scale…
 ```
 
@@ -250,7 +250,7 @@ for action in report.suggested_actions:      # Layer 2: typed, advisory
     if action.active:                        # (the strategy engine holds the veto)
         print(action.kind, action.confidence, action.alternatives, action.rationale)
 
-outcome = pr.report.predict_then_verify(ref, data, report.suggested_actions[0])
+outcome = rx.report.predict_then_verify(ref, data, report.suggested_actions[0])
 print(outcome.accepted, outcome.reason)      # tried on a branch; rolled back if it didn't help
 ```
 
@@ -271,13 +271,13 @@ ref.write_qpa_table("qpa.csv")           # Hill-Howard weight fractions, with th
 
 # or as plain functions / typed objects
 rows = ref.reflection_table()            # list[ReflectionRow], both Kα lines present
-pr.write_refinement_cif(result, ref.fitted_structure, ref.fitted_instrument, "r.cif")
+rx.write_refinement_cif(result, ref.fitted_structure, ref.fitted_instrument, "r.cif")
 ```
 
 The refinement CIF round-trips through the package's own readers —
-`pr.read_pdcif("refinement.cif")` recovers the pattern and
-`pr.Structure.from_cif("refinement.cif")` the structure — and refined values
-carry their standard uncertainty in `4.59370(25)` notation (`pr.format_su`).
+`rx.read_pdcif("refinement.cif")` recovers the pattern and
+`rx.Structure.from_cif("refinement.cif")` the structure — and refined values
+carry their standard uncertainty in `4.59370(25)` notation (`rx.format_su`).
 
 ### Live monitoring
 
@@ -347,24 +347,24 @@ different strategy instead of re-running from scratch — and an agent can
 search over strategies the same way.
 
 ```python
-ref = pr.Refinement(structure, instrument, history="session.jsonl")
+ref = rx.Refinement(structure, instrument, history="session.jsonl")
 ref.fit(data, plan="lab_bragg_brentano")
 ref.history.tag(ref.history.head, "baseline")
 print(ref.history.summary())          # indented tree, Rwp per node
 
 ref.checkout("baseline")              # restore that exact state
-ref.run_stage(data, pr.Stage("axial", ["instrument.geometry.axial_*"]))
+ref.run_stage(data, rx.Stage("axial", ["instrument.geometry.axial_*"]))
 ref.history.compare([n.id for n in ref.history.leaves()])
 ref.checkout(ref.history.best("rwp").id)
 
 rival = ref.branch("baseline")        # a second working tree, same history
-rival.run_stage(data, pr.Stage("strain", ["phases.*.lor_strain"]))
+rival.run_stage(data, rx.Stage("strain", ["phases.*.lor_strain"]))
 ref.merge(rival.result_.node_id)      # three-way merge against the common ancestor
 ref.cherry_pick(some_node_id, data)   # replay another node's stage action here
 ```
 
 Nodes store *state*, not curves (~10 kB each, versus ~1.2 MB if the fitted
-pattern were embedded), so wide branching is cheap; `pr.replay(tree, node_id,
+pattern were embedded), so wide branching is cheap; `rx.replay(tree, node_id,
 data)` recomputes the curves on demand. The log is append-only JSONL, and each
 node carries the API call that produced it, so a session doubles as a
 reproducible script. Pass `history=False` for a zero-overhead plain fit.

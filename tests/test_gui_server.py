@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
 from rietx.gui.imports import UPLOAD_DIR_PREFIX
 from rietx.gui.session import RESERVED_ROUTES, GuiError
@@ -66,13 +66,13 @@ def state_dir(tmp_path_factory):
     return tmp_path_factory.mktemp("gui-state")
 
 
-def _project(root: Path, pattern_file: Path, **kw) -> pr.Project:
+def _project(root: Path, pattern_file: Path, **kw) -> rx.Project:
     structure, ins = perturbed_models()
-    return pr.Project.create(root, pattern=pattern_file, structure=structure,
+    return rx.Project.create(root, pattern=pattern_file, structure=structure,
                             instrument=ins, plan="mccusker_default", **kw)
 
 
-def _open(session: GuiSession, root: Path, pattern_file: Path, **kw) -> pr.Project:
+def _open(session: GuiSession, root: Path, pattern_file: Path, **kw) -> rx.Project:
     """Create a project and open it in ``session``, returning **its** object.
 
     Returning ``session.project`` rather than what ``create`` handed back is the
@@ -217,13 +217,13 @@ def test_capabilities_is_the_package_answer_verbatim(blank):
     _, client = blank
     status, payload = client.get("/api/capabilities")
     assert status == 200
-    assert payload == pr.capabilities().model_dump(mode="json")
+    assert payload == rx.capabilities().model_dump(mode="json")
 
 
 def test_version_and_recent_work_without_a_project(blank):
     _, client = blank
     status, payload = client.get("/api/version")
-    assert status == 200 and payload["package_version"] == pr.capabilities(
+    assert status == 200 and payload["package_version"] == rx.capabilities(
     ).package_version
     assert payload["project"] is None
     assert client.get("/api/recent")[0] == 200
@@ -643,7 +643,7 @@ def test_an_instrument_profile_uploads_frozen_and_patches_in(blank, tmp_path,
     calibrated.profile.u.value = 0.0123
     calibrated.profile.u.vary = True          # a calibration is data…
     path = tmp_path / "lab.instprm.json"
-    pr.save_instrument_profile(calibrated, path)
+    rx.save_instrument_profile(calibrated, path)
 
     status, payload = client.upload("instrument", path.read_bytes(),
                                     filename="lab.instprm.json")
@@ -1488,7 +1488,7 @@ def test_values_and_vary_commit_their_own_history_nodes(blank, tmp_path,
     kinds = [n.action.kind for n in project.history.nodes.values()]
     assert kinds[before:] == ["set_value", "set_vary", "set_vary"]
     # every one of them is on disk already — saving is about settings
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
     assert len(reopened.history) == len(project.history)
     assert reopened.refinement.structure.phases[0].cell.a.value == pytest.approx(4.163)
 
@@ -1905,7 +1905,7 @@ def blocked(blank, tmp_path, pattern_file, monkeypatch):
         started.set()
         while not release.wait(0.01):
             if cancel is not None and cancel.is_set():
-                raise pr.RefinementCancelled(
+                raise rx.RefinementCancelled(
                     "cancelled", stage="stub", completed_stages=[],
                     node_id=session.project.refinement._head_id)
         raise RuntimeError("stub blew up")
@@ -2253,7 +2253,7 @@ def test_a_staged_series_is_described_by_reading_it(blank, tmp_path,
     # the same files with one esd column withheld → a mixed-weighting series,
     # which is a correctness property invisible once the files are read
     no_sigma = _write_xye(tmp_path / "bare.xye",
-                          pr.read_pattern(str(series_files[1])),
+                          rx.read_pattern(str(series_files[1])),
                           with_sigma=False)
     tokens.append(client.upload("pattern", no_sigma.read_bytes(),
                                 filename=no_sigma.name)[1]["upload"])

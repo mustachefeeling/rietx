@@ -253,7 +253,7 @@ def test_gaussian_sample_terms_add_as_variances():
 
 @pytest.mark.slow
 def test_calibrate_freeze_refine_sample_workflow(tmp_path):
-    import rietx as pr
+    import rietx as rx
 
     # --- truth: one instrument, used for both measurements
     true_u, true_w, true_x = 6e-3, 3e-3, 5e-3
@@ -268,7 +268,7 @@ def test_calibrate_freeze_refine_sample_workflow(tmp_path):
         return ins
 
     # --- 1. calibrate on an unbroadened standard
-    standard = pr.Structure(phases=[make_lab6().phases[0]])
+    standard = rx.Structure(phases=[make_lab6().phases[0]])
     standard.phases[0].scale.value = 2e-4
     cal_data = _synthesize(standard, true_instrument(), hi=140.0)
 
@@ -279,7 +279,7 @@ def test_calibrate_freeze_refine_sample_workflow(tmp_path):
     start.geometry.axial_hl.value = 0.03
     # calibration holds the *certified* standard cell fixed (lab_calibrate) —
     # that pins the dispersion axis and decorrelates zero from displacement
-    cal_structure = pr.Structure(phases=[make_lab6().phases[0]])
+    cal_structure = rx.Structure(phases=[make_lab6().phases[0]])
     cal_structure.phases[0].scale.value = 1e-4
     ref = Refinement(cal_structure, start, history=False)
     cal = ref.fit(cal_data, plan="lab_calibrate")
@@ -290,8 +290,8 @@ def test_calibrate_freeze_refine_sample_workflow(tmp_path):
 
     # --- 2. freeze: export + reload
     path = tmp_path / "lab.instprof.json"
-    pr.save_instrument_profile(ref.fitted_instrument, path)
-    frozen = pr.load_instrument_profile(path)
+    rx.save_instrument_profile(ref.fitted_instrument, path)
+    frozen = rx.load_instrument_profile(path)
     assert frozen.profile.w.value == pytest.approx(
         ref.fitted_instrument.profile.w.value)
     assert not frozen.profile.w.vary
@@ -299,8 +299,8 @@ def test_calibrate_freeze_refine_sample_workflow(tmp_path):
 
     # --- 3. sample measurement: same instrument, broadened sample, new cell
     true_lor_size, true_gauss_strain = 1.2e-2, 6e-3
-    sample_truth = pr.Structure(phases=[make_lab6().phases[0]])
-    sample_truth.phases[0].cell = pr.Cell.cubic(4.1620)
+    sample_truth = rx.Structure(phases=[make_lab6().phases[0]])
+    sample_truth.phases[0].cell = rx.Cell.cubic(4.1620)
     sample_truth.phases[0].scale.value = 2e-4
     sample_truth.phases[0].lor_size.value = true_lor_size
     sample_truth.phases[0].gauss_strain.value = true_gauss_strain
@@ -308,8 +308,8 @@ def test_calibrate_freeze_refine_sample_workflow(tmp_path):
     sam_ins.geometry.sample_displacement.value = -0.06
     sam_data = _synthesize(sample_truth, sam_ins, seed=13)
 
-    sample_start = pr.Structure(phases=[make_lab6().phases[0]])
-    sample_start.phases[0].cell = pr.Cell.cubic(4.1615)
+    sample_start = rx.Structure(phases=[make_lab6().phases[0]])
+    sample_start.phases[0].cell = rx.Cell.cubic(4.1615)
     sample_start.phases[0].scale.value = 1e-4
     ref2 = Refinement(sample_start, frozen, history=False)
     res2 = ref2.fit(sam_data, plan="lab_sample_refine")

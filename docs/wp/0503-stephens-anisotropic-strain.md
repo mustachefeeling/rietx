@@ -157,7 +157,7 @@ cost a debugging session.** Softplus-transformed sample-broadening terms
 starting at exactly 0 have a dead gradient and *never move*: they refine
 silently to their start value rather than erroring. The fix is
 `Stage(..., seed=…)`, following the extinction-stage precedent
-(`pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3)`).
+(`rx.Stage("extinction", ["phases.*.extinction"], seed=1e-3)`).
 
 **How it lands here, and why the stock fix does not apply.** The S_HKL DOFs
 are *identity*-transform and unbounded (like the ADP DOFs — positivity of

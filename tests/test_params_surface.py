@@ -9,15 +9,15 @@ import dataclasses
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.params.vector import Entry
 from rietx.schemas.params import ParameterRow, TieSpec
 from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
-SHORT = pr.RefinementPlan(stages=[
-    pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=20),
-    pr.Stage("cell", ["phases.*.cell.*"], max_iter=20),
+SHORT = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=20),
+    rx.Stage("cell", ["phases.*.cell.*"], max_iter=20),
 ])
 
 #: Fields ``ParameterRow`` adds to ``Entry``'s, declared here so the anti-drift
@@ -33,7 +33,7 @@ def pattern():
 @pytest.fixture
 def ref():
     structure, ins = perturbed_models()
-    return pr.Refinement(structure, ins)
+    return rx.Refinement(structure, ins)
 
 
 # ------------------------------------------------------------------ the schema
@@ -184,10 +184,10 @@ def test_recorded_api_call_evaluates_back_to_the_same_call(ref, pattern):
 
     # eval the rendered strings against a fresh refinement: same state out
     structure, ins = perturbed_models()
-    replayed = pr.Refinement(structure, ins)
+    replayed = rx.Refinement(structure, ins)
     replayed.fit(pattern, plan=SHORT)
     for call in calls:
-        eval(call, {"ref": replayed, "pr": pr, "data": pattern})  # noqa: S307
+        eval(call, {"ref": replayed, "rx": rx, "data": pattern})  # noqa: S307
     assert replayed.structure.phases[0].cell.a.value == pytest.approx(
         ref.structure.phases[0].cell.a.value)
     assert replayed.instrument.profile.w.value == 0.02
@@ -196,7 +196,7 @@ def test_recorded_api_call_evaluates_back_to_the_same_call(ref, pattern):
 
 def test_set_vary_without_history_still_edits():
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     assert ref.set_vary(["phases.*.cell.*"]) == ["phases.0.cell.a"]
     ref.set_values({"phases.0.cell.a": 4.2})
     assert ref.history is None

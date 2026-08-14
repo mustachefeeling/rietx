@@ -49,7 +49,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 
 from .test_acceptance_qpa_roundrobin import (
     DATA,
@@ -68,12 +68,12 @@ C_CERT, C_CERT_U = 12.99231, 0.00015
 def test_srm676a_corundum_cell_anchor():
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    data = pr.read_pattern(DATA / "corundum.prn")
-    structure = pr.Structure(phases=[corundum_phase()])
+    data = rx.read_pattern(DATA / "corundum.prn")
+    structure = rx.Structure(phases=[corundum_phase()])
     ins = qarr_instrument()
     seed_scales(structure, ins, data)
 
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=qpa_plan())
 
     assert result.status == "converged"
@@ -191,18 +191,18 @@ def _lebail_corundum(symbol: str, cell: tuple[float, ...], data):
     # seeding it is what seed_widths does for an indexing validation
     ins.profile.w.value = 0.01
     a, b, c, alpha, beta, gamma = cell
-    structure = pr.Structure(phases=[pr.Phase(
+    structure = rx.Structure(phases=[rx.Phase(
         name="corundum", space_group=symbol,
-        cell=pr.Cell(a=pr.Parameter(value=a, min=1.0),
-                     b=pr.Parameter(value=b, min=1.0),
-                     c=pr.Parameter(value=c, min=1.0),
-                     alpha=pr.Parameter(value=alpha, min=20.0, max=130.0),
-                     beta=pr.Parameter(value=beta, min=20.0, max=130.0),
-                     gamma=pr.Parameter(value=gamma, min=20.0, max=130.0)),
-        atoms=[pr.Atom(label="X", species="Al", x=pr.Parameter(value=0.0),
-                       y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0))],
-        lor_size=pr.Parameter(value=0.02, min=0.0, transform="softplus"))])
-    ref = pr.Refinement(structure, ins)
+        cell=rx.Cell(a=rx.Parameter(value=a, min=1.0),
+                     b=rx.Parameter(value=b, min=1.0),
+                     c=rx.Parameter(value=c, min=1.0),
+                     alpha=rx.Parameter(value=alpha, min=20.0, max=130.0),
+                     beta=rx.Parameter(value=beta, min=20.0, max=130.0),
+                     gamma=rx.Parameter(value=gamma, min=20.0, max=130.0)),
+        atoms=[rx.Atom(label="X", species="Al", x=rx.Parameter(value=0.0),
+                       y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0))],
+        lor_size=rx.Parameter(value=0.02, min=0.0, transform="softplus"))])
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=_lattice_only_plan(), mode="lebail")
     return ref, result
 
@@ -211,7 +211,7 @@ def test_the_two_descriptions_of_the_r_lattice_refine_to_the_same_cell():
     """A refinement that WP-1036 would have mis-tied, on real certified data."""
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    data = pr.read_pattern(DATA / "corundum.prn")
+    data = rx.read_pattern(DATA / "corundum.prn")
 
     # start both arms at the SAME physical lattice, displaced from the
     # certificate so the fit has to find its way back

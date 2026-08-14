@@ -38,7 +38,7 @@ from pathlib import Path
 
 import numpy as np
 
-import rietx as pr
+import rietx as rx
 from tests.eval_report_agent.scorer import NEXT_ACTIONS, VERDICTS
 from tests.test_fitreport_layers import _pore_proxy_data, _truth
 
@@ -310,7 +310,7 @@ def build_real_episodes() -> dict[str, dict]:
             "(tests/data/README.md)")
 
     data, structure, instrument = build_srm_inputs()
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     ref.fit(data, plan=_nist_calibrated_plan())
     base_s = ref.fitted_structure.model_copy(deep=True)
     base_i = ref.fitted_instrument.model_copy(deep=True)
@@ -322,7 +322,7 @@ def build_real_episodes() -> dict[str, dict]:
 
     tt = np.asarray(data.two_theta)
     mask = tt <= N1_MAX_TWO_THETA
-    n1_data = pr.PatternData(
+    n1_data = rx.PatternData(
         two_theta=tt[mask].tolist(),
         intensity=np.asarray(data.intensity)[mask].tolist(),
         sigma=(np.asarray(data.sigma)[mask].tolist()
@@ -474,11 +474,11 @@ def build_qarr_episode() -> dict[str, dict]:
             "IUCr QPA round-robin dataset not present; W2 cannot be built "
             "(tests/data/README.md)")
 
-    data = pr.read_pattern(DATA / f"{W2_SAMPLE}.prn")
+    data = rx.read_pattern(DATA / f"{W2_SAMPLE}.prn")
     instrument = qarr_instrument()
     instrument.source.lines = [
         instrument.source.lines[0].model_copy(deep=True)]
-    structure = pr.Structure(phases=[corundum_phase()])
+    structure = rx.Structure(phases=[corundum_phase()])
     seed_scales(structure, instrument, data)
     return {
         "W2": {

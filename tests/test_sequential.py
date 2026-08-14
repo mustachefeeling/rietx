@@ -21,7 +21,7 @@ from typing import get_args
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.optimize.cancel import CancelToken
 from rietx.params.vector import ParameterTable
@@ -59,7 +59,7 @@ RAMP = 5e-4
 TEMPERATURES = [300.0, 400.0, 500.0, 600.0, 700.0, 800.0, 900.0]
 
 
-def _simulate(a: float, *, seed: int, biso: float = 0.4) -> pr.PatternData:
+def _simulate(a: float, *, seed: int, biso: float = 0.4) -> rx.PatternData:
     """One pattern of the series at cell edge ``a``, with Poisson noise."""
     structure = make_lab6()
     for name in ("a", "b", "c"):
@@ -67,21 +67,21 @@ def _simulate(a: float, *, seed: int, biso: float = 0.4) -> pr.PatternData:
     for atom in structure.phases[0].atoms:
         atom.biso.value = biso
     structure.phases[0].scale.value = TRUE_SCALE
-    ins = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     ins.zero_shift.value = TRUE_ZERO
     ins.profile.w.value = TRUE_W
     ins.background = BackgroundChebyshev(
         coefficients=[Parameter(value=v) for v in TRUE_BKG])
 
     tt = np.arange(3.0, 24.0, 0.005)
-    blank = pr.PatternData(two_theta=tt.tolist(),
+    blank = rx.PatternData(two_theta=tt.tolist(),
                            intensity=np.zeros_like(tt).tolist())
     model = compile_model(structure, ins, blank, mode="rietveld")
     table = ParameterTable(structure, ins)
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(seed)
     y = rng.poisson(np.maximum(y, 1.0)).astype(float)
-    return pr.PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+    return rx.PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
 
 
 def _start_models():
@@ -90,7 +90,7 @@ def _start_models():
     for name in ("a", "b", "c"):
         getattr(structure.phases[0].cell, name).value = A0 * 1.001
     structure.phases[0].scale.value = TRUE_SCALE * 1.5
-    ins = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     ins.zero_shift.value = 0.0
     ins.profile.w.value = TRUE_W * 1.5
     ins.background = BackgroundChebyshev.with_terms(3)
@@ -176,7 +176,7 @@ def test_series_axis_defaults_to_the_pattern_index(thermal_patterns):
 
 def test_labels_are_made_unique():
     """Labels become history file names, so duplicates cannot be tolerated."""
-    blank = [pr.PatternData(two_theta=[1.0, 2.0], intensity=[1.0, 1.0])
+    blank = [rx.PatternData(two_theta=[1.0, 2.0], intensity=[1.0, 1.0])
              for _ in range(3)]
     assert _labels_for(blank, ["a", "a", "b"]) == ["a", "a_1", "b"]
     with pytest.raises(ValueError, match="labels has 2 entries"):
@@ -209,7 +209,7 @@ def test_carry_globs_move_only_matching_paths():
 
 
 def test_collapse_unions_the_plans_turn_on_globs():
-    plan = pr.RefinementPlan.mccusker_structural()
+    plan = rx.RefinementPlan.mccusker_structural()
     single = _collapse(plan)
     assert len(single.stages) == 1
     for stage in plan.stages:
@@ -298,7 +298,7 @@ def test_the_ladder_is_the_rungs_in_order_and_never_repeats_one():
     """
     from rietx.sequential import RUNGS, _ladder
 
-    base = pr.RefinementPlan.mccusker_default()
+    base = rx.RefinementPlan.mccusker_default()
     collapsed = _collapse(base)
 
     single = _ladder(base, collapsed)
@@ -477,7 +477,7 @@ def test_every_rung_writes_its_own_history_log(thermal_patterns, tmp_path):
         assert log.exists(), name
         text = log.read_text(encoding="utf-8").replace(" ", "")
         assert text.count('"record":"header"') == 1, name
-        assert pr.RefinementTree.load(log).header.tree_id
+        assert rx.RefinementTree.load(log).header.tree_id
     # the kept fit is the cold one, and its log is the one the entry names
     assert not (tmp_path / "h" / "a.cold.jsonl").exists()
 
@@ -732,7 +732,7 @@ def test_one_tree_per_pattern_cross_linked(thermal_patterns, tmp_path):
         assert roots[k].notes["series_warm_start_node"] is not None
 
     # each entry points at its own tree, and a reloaded log agrees
-    reloaded = pr.RefinementTree.load(tmp_path / "hist" / "t1.jsonl")
+    reloaded = rx.RefinementTree.load(tmp_path / "hist" / "t1.jsonl")
     assert reloaded.header.tree_id == series.result_[1].tree_id
     assert reloaded.root.notes["series_label"] == "t1"
 
@@ -755,7 +755,7 @@ def test_the_backward_pass_writes_its_own_logs(thermal_patterns, tmp_path):
         headers = [line for line in forward.read_text(encoding="utf-8").splitlines()
                    if '"record":"header"' in line.replace(" ", "")]
         assert len(headers) == 1
-        assert pr.RefinementTree.load(forward).header.tree_id
+        assert rx.RefinementTree.load(forward).header.tree_id
 
 
 # -- Le Bail --------------------------------------------------------------

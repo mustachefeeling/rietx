@@ -49,7 +49,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.schemas.instrument import BackgroundChebyshev, Dispersion
 
 DATA = Path(__file__).parent / "data"
@@ -70,22 +70,22 @@ A_CERTIFICATE = 4.1569162
 pytestmark = [pytest.mark.slow, pytest.mark.xdist_group("capillary")]
 
 
-def _structure() -> pr.Structure:
-    structure = pr.Structure.from_cif(str(DATA / "cod_1000055.cif"))
+def _structure() -> rx.Structure:
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000055.cif"))
     phase = structure.phases[0]
-    phase.scale = pr.Parameter(value=1e-4, min=0.0, transform="softplus")
+    phase.scale = rx.Parameter(value=1e-4, min=0.0, transform="softplus")
     for atom in phase.atoms:
-        atom.biso = pr.Parameter(value=0.3, min=0.0, max=5.0)
+        atom.biso = rx.Parameter(value=0.3, min=0.0, max=5.0)
     return structure
 
 
-def _instrument(*, capillary: bool, dispersion: bool = False) -> pr.Instrument:
+def _instrument(*, capillary: bool, dispersion: bool = False) -> rx.Instrument:
     """The 11-BM preset, with the capillary declared or not.
 
     ``capillary=True`` goes through the *estimator* (composition → µ → µR)
     rather than setting µR directly, so the acceptance covers that path too.
     """
-    instrument = pr.Instrument.debye_scherrer(
+    instrument = rx.Instrument.debye_scherrer(
         wavelength=WAVELENGTH,
         capillary_radius_mm=CAPILLARY_RADIUS_MM if capillary else None,
         packing_fraction=PACKING_FRACTION,
@@ -101,17 +101,17 @@ def _instrument(*, capillary: bool, dispersion: bool = False) -> pr.Instrument:
     return instrument
 
 
-def _plan() -> pr.RefinementPlan:
-    plan = pr.RefinementPlan.mccusker_default()
-    plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
+def _plan() -> rx.RefinementPlan:
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
     return plan
 
 
 def _fit(*, capillary: bool, dispersion: bool = False):
     if not (DATA / "11BM_LaB6_660a.fxye").exists():
         pytest.skip("11-BM SRM 660a dataset not present")
-    data = pr.read_pattern(DATA / "11BM_LaB6_660a.fxye")
-    ref = pr.Refinement(_structure(), _instrument(capillary=capillary,
+    data = rx.read_pattern(DATA / "11BM_LaB6_660a.fxye")
+    ref = rx.Refinement(_structure(), _instrument(capillary=capillary,
                                                   dispersion=dispersion))
     result = ref.fit(data, plan=_plan(), two_theta_limits=LIMITS)
     return ref, result
@@ -145,7 +145,7 @@ def test_estimated_mu_r_matches_the_documented_capillary(corrected):
     assert record.wavelength == pytest.approx(WAVELENGTH)
 
     # the public helper must agree with what the refinement resolved internally
-    standalone = pr.estimate_mu_r(_structure(), _instrument(capillary=True))
+    standalone = rx.estimate_mu_r(_structure(), _instrument(capillary=True))
     assert standalone == pytest.approx(record.mu_r, rel=1e-9)
 
 
@@ -209,7 +209,7 @@ def test_fit_quality_and_the_circular_cell(corrected):
     # wavelength scale have not silently diverged (see the module docstring).
     assert abs(a - A_CERTIFICATE) / A_CERTIFICATE < 1e-4
 
-    report = pr.build_report(result)
+    report = rx.build_report(result)
     assert report.summary
     assert report.n_regions_total > 10
 

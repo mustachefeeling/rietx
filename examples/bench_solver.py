@@ -40,7 +40,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
-import rietx as pr  # noqa: E402
+import rietx as rx  # noqa: E402
 from rietx.report.layer2 import delta_bic  # noqa: E402
 
 SOLVERS = ("trf", "lm")
@@ -64,16 +64,16 @@ def _nac_11bm():
     """
     from test_acceptance_nac import DATA, LIMITS, WAVELENGTH
 
-    data = pr.read_pattern(DATA / "11BM_NAC.fxye")
-    structure = pr.Structure.from_cif(str(DATA / "cod_1000236.cif"))
-    instrument = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    data = rx.read_pattern(DATA / "11BM_NAC.fxye")
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
+    instrument = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     from rietx.schemas.instrument import BackgroundChebyshev
 
     instrument.background = BackgroundChebyshev.with_terms(6)
     return ("11-BM NAC (synchrotron)", data, structure, instrument,
-            pr.RefinementPlan.mccusker_default(), LIMITS)
+            rx.RefinementPlan.mccusker_default(), LIMITS)
 
 
 def _corundum():
@@ -85,8 +85,8 @@ def _corundum():
     )
     from test_acceptance_stephens import _plan
 
-    data = pr.read_pattern(DATA / "corundum.prn")
-    structure = pr.Structure(phases=[corundum_phase()])
+    data = rx.read_pattern(DATA / "corundum.prn")
+    structure = rx.Structure(phases=[corundum_phase()])
     instrument = qarr_instrument()
     seed_scales(structure, instrument, data)
     return ("corundum (round robin, lab)", data, structure, instrument,
@@ -106,7 +106,7 @@ def run(case) -> None:
     out = {}
     for solver in SOLVERS:
         t0 = time.perf_counter()
-        ref = pr.Refinement(structure.model_copy(deep=True),
+        ref = rx.Refinement(structure.model_copy(deep=True),
                             instrument.model_copy(deep=True),
                             solver=solver, history=False)
         result = ref.fit(data, plan=plan, two_theta_limits=limits)

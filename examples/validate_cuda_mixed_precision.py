@@ -39,7 +39,7 @@ from pathlib import Path
 
 import numpy as np
 
-import rietx as pr
+import rietx as rx
 from rietx.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
@@ -87,20 +87,20 @@ def build_inputs():
     path = DATA / "nist_srm660c_100a.cif"
     if not path.exists():
         raise SystemExit(f"SRM 660c dataset not present at {path}")
-    data = pr.read_pdcif(path, block="_meas")
-    structure = pr.Structure(phases=[pr.Phase(
-        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
+    data = rx.read_pdcif(path, block="_meas")
+    structure = rx.Structure(phases=[rx.Phase(
+        name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
         atoms=[
-            pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.355, min=0.0, max=25.0)),
-            pr.Atom(label="B", species="B", x=pr.Parameter(value=0.198),
-                    y=pr.Parameter(value=0.5), z=pr.Parameter(value=0.5),
-                    biso=pr.Parameter(value=0.276, min=0.0, max=25.0)),
+            rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.355, min=0.0, max=25.0)),
+            rx.Atom(label="B", species="B", x=rx.Parameter(value=0.198),
+                    y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5),
+                    biso=rx.Parameter(value=0.276, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"),
     )])
-    instrument = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     instrument.profile.w.value = 2e-3
     instrument.profile.x.value = 5e-3
     instrument.geometry.axial_sl.value = 0.025
@@ -110,19 +110,19 @@ def build_inputs():
     return data, structure, instrument
 
 
-def nist_plan() -> pr.RefinementPlan:
+def nist_plan() -> rx.RefinementPlan:
     """lab_bragg_brentano minus the zero error (the DBD is angle-calibrated)."""
-    return pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl",
                                  "instrument.geometry.axial_hl"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
 
@@ -156,11 +156,11 @@ def main() -> int:
 
     data, structure, instrument = build_inputs()
 
-    ref64 = pr.Refinement(structure, instrument, backend=backend, history=False)
+    ref64 = rx.Refinement(structure, instrument, backend=backend, history=False)
     result64 = ref64.fit(data, plan=nist_plan())
     a64 = ref64.fitted_structure.phases[0].cell.a.value
 
-    ref32 = pr.Refinement(structure, instrument, backend=backend, history=False)
+    ref32 = rx.Refinement(structure, instrument, backend=backend, history=False)
     with precision_policy(FP32_JACOBIAN):
         result32 = ref32.fit(data, plan=nist_plan())
     a32 = ref32.fitted_structure.phases[0].cell.a.value

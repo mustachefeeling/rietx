@@ -472,21 +472,21 @@ def _by_symbol(screen, symbol: str):
 def fap_screen():
     """Fluorapatite, GSAS-II's LabData tutorial pattern — a real lab specimen
     whose space group (P 6₃/m) is known from the tutorial's own refinement."""
-    import rietx as pr
+    import rietx as rx
     from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
     path = DATA / "FAP.XRA"
     if not path.exists():
         pytest.skip("GSAS-II LabData tutorial dataset not present")
-    raw = pr.read_pattern(path)
-    data = pr.PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
+    raw = rx.read_pattern(path)
+    data = rx.PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
                           sigma=raw.sigma, metadata=raw.metadata)
-    instrument = pr.Instrument.bragg_brentano()
+    instrument = rx.Instrument.bragg_brentano()
     instrument.source = Source(
         lines=[EmissionLine(wavelength=1.5405),
                EmissionLine(wavelength=1.5443,
-                            weight=pr.Parameter(value=0.5, min=0.0, max=1.0))],
-        polarization=pr.Parameter(value=0.5, min=0.0, max=1.0),
+                            weight=rx.Parameter(value=0.5, min=0.0, max=1.0))],
+        polarization=rx.Parameter(value=0.5, min=0.0, max=1.0),
         # the cross-code protocol this dataset is pinned to declines dispersion
         # (tests/test_acceptance_fap.py); a screen is not the place to change it
         dispersion=None)
@@ -588,14 +588,14 @@ def nac_screen():
     """11-BM synchrotron NAC (Na₂Ca₃Al₂F₁₄, I 2₁3) with its CaF₂ impurity, over
     the acceptance suite's own 2-24° 2θ window and its declined dispersion —
     adopting a protocol means adopting what it did *not* model too."""
-    import rietx as pr
+    import rietx as rx
     from rietx.schemas.instrument import BackgroundChebyshev
 
     path = DATA / "11BM_NAC.fxye"
     if not path.exists():
         pytest.skip("11-BM NAC dataset not present")
-    data = pr.read_pattern(path)
-    instrument = pr.Instrument.debye_scherrer(wavelength=0.4139090)
+    data = rx.read_pattern(path)
+    instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     instrument.background = BackgroundChebyshev.with_terms(6)
@@ -634,18 +634,18 @@ def test_nac_returns_the_centred_class_and_claims_nothing_more(nac_screen):
 
 
 def _fap_inputs():
-    import rietx as pr
+    import rietx as rx
     from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
-    raw = pr.read_pattern(DATA / "FAP.XRA")
-    data = pr.PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
+    raw = rx.read_pattern(DATA / "FAP.XRA")
+    data = rx.PatternData(two_theta=raw.two_theta, intensity=raw.intensity,
                           sigma=raw.sigma, metadata=raw.metadata)
-    instrument = pr.Instrument.bragg_brentano()
+    instrument = rx.Instrument.bragg_brentano()
     instrument.source = Source(
         lines=[EmissionLine(wavelength=1.5405),
                EmissionLine(wavelength=1.5443,
-                            weight=pr.Parameter(value=0.5, min=0.0, max=1.0))],
-        polarization=pr.Parameter(value=0.5, min=0.0, max=1.0), dispersion=None)
+                            weight=rx.Parameter(value=0.5, min=0.0, max=1.0))],
+        polarization=rx.Parameter(value=0.5, min=0.0, max=1.0), dispersion=None)
     instrument.profile.u.value = 2e-4
     instrument.profile.v.value = -2e-4
     instrument.profile.w.value = 5e-4

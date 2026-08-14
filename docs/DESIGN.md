@@ -283,7 +283,10 @@ esd-propagating, and physically unable to absorb broad Bragg intensity (the
 documented nanocrystalline/QPA failure mode). Precedent: GSAS-II's 2024-25
 auto-background wraps pybaselines' Whittaker methods into fixed points; we
 make the penalized spline first-class in the least squares. pybaselines
-(BSD-3) stays an optional extra for its full algorithm zoo.
+(BSD-3) was carried as an optional `baselines` extra for its full algorithm
+zoo; **that extra was deleted in v1.0** because nothing ever imported it —
+arPLS and SNIP are implemented here from the papers, and an extra that no code
+path reaches is a dependency a user installs for nothing.
 
 ## Outputs & fit assessment (the agent-native design)
 

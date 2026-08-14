@@ -13,7 +13,7 @@ specimen displacement refines instead.
 
 from pathlib import Path
 
-import rietx as pr
+import rietx as rx
 from rietx.background import auto_background, diagnose
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
@@ -24,17 +24,17 @@ _ATOMS = [("La", "La", 0.0, 0.0, 0.0, 0.355), ("B", "B", 0.198, 0.5, 0.5, 0.276)
 
 
 def build_model():
-    structure = pr.Structure(phases=[pr.Phase(
-        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
-        atoms=[pr.Atom(label=lab, species=sp,
-                       x=pr.Parameter(value=x), y=pr.Parameter(value=y),
-                       z=pr.Parameter(value=z),
-                       biso=pr.Parameter(value=b, min=0.0, max=25.0))
+    structure = rx.Structure(phases=[rx.Phase(
+        name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
+        atoms=[rx.Atom(label=lab, species=sp,
+                       x=rx.Parameter(value=x), y=rx.Parameter(value=y),
+                       z=rx.Parameter(value=z),
+                       biso=rx.Parameter(value=b, min=0.0, max=25.0))
                for lab, sp, x, y, z, b in _ATOMS],
-        scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"))])
+        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"))])
 
     # graphite (002) post-monochromator at 2θ_m ≈ 26.6° sets the polarization
-    instrument = pr.Instrument.bragg_brentano(radiation="CuKa",
+    instrument = rx.Instrument.bragg_brentano(radiation="CuKa",
                                               monochromator_two_theta=26.6)
     instrument.profile.w.value = 2e-3
     instrument.profile.x.value = 5e-3
@@ -43,24 +43,24 @@ def build_model():
     return structure, instrument
 
 
-def nist_protocol_plan() -> pr.RefinementPlan:
+def nist_protocol_plan() -> rx.RefinementPlan:
     """lab_bragg_brentano minus the zero point (calibrated goniometer)."""
-    return pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl",
                                  "instrument.geometry.axial_hl"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
 
 def main() -> None:
-    data = pr.read_pdcif(DATA / "nist_srm660c_100a.cif", block="_meas")
+    data = rx.read_pdcif(DATA / "nist_srm660c_100a.cif", block="_meas")
     print(f"pattern: {len(data.two_theta)} points, "
           f"{data.two_theta[0]:.2f}-{data.two_theta[-1]:.2f} deg, "
           f"sigma from file: {data.sigma is not None}")
@@ -79,7 +79,7 @@ def main() -> None:
     print(f"background: auto-selected Chebyshev order "
           f"{len(instrument.background.coefficients)}")
 
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     result = ref.fit(data, plan=nist_protocol_plan())
 
     phase = ref.fitted_structure.phases[0]

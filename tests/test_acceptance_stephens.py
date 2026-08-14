@@ -98,7 +98,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.report.layer2 import delta_bic, hamilton_justified
 from rietx.schemas.structure import StephensStrain
 from tests.test_acceptance_qpa_roundrobin import (
@@ -114,18 +114,18 @@ OUT = Path(__file__).parent / "output"
 #: brucite is strongly platy, so March-Dollase on (001) has to be in the model
 #: before any width question can be asked — without it Rwp is 54 % and the
 #: residual is one enormous 001 peak.
-def _plan(*, texture: bool, stephens: bool) -> pr.RefinementPlan:
+def _plan(*, texture: bool, stephens: bool) -> rx.RefinementPlan:
     stages = [
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("zero_disp", ["instrument.zero_shift",
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("zero_disp", ["instrument.zero_shift",
                                "instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
     ]
     if texture:
-        stages.append(pr.Stage("po", ["phases.*.preferred_orientation.r"]))
+        stages.append(rx.Stage("po", ["phases.*.preferred_orientation.r"]))
     # the Stephens patterns are freed *in* the sample-broadening stage, since a
     # block locks lor_strain and would otherwise leave the isotropic width
     # unrefined until the moment four correlated patterns turn on at once
@@ -134,24 +134,24 @@ def _plan(*, texture: bool, stephens: bool) -> pr.RefinementPlan:
                   "phases.*.gauss_size", "phases.*.gauss_strain"]
     if stephens:
         broadening.append("phases.*.microstrain.dof.*")
-    stages.append(pr.Stage("sample_broadening", broadening,
+    stages.append(rx.Stage("sample_broadening", broadening,
                            seed=1e-4, strain_seed=800.0))
     stages += [
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl"]),
-        pr.Stage("biso", ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]),
+        rx.Stage("biso", ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]),
     ]
-    return pr.RefinementPlan(stages=stages)
+    return rx.RefinementPlan(stages=stages)
 
 
-def _fit(name: str, phase: pr.Phase, plan: pr.RefinementPlan, tag: str):
+def _fit(name: str, phase: rx.Phase, plan: rx.RefinementPlan, tag: str):
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    data = pr.read_pattern(DATA / f"{name}.prn")
-    structure = pr.Structure(phases=[phase])
+    data = rx.read_pattern(DATA / f"{name}.prn")
+    structure = rx.Structure(phases=[phase])
     ins = qarr_instrument()
     seed_scales(structure, ins, data)
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / f"stephens_{tag}.png"))
@@ -163,16 +163,16 @@ def _fit(name: str, phase: pr.Phase, plan: pr.RefinementPlan, tag: str):
     return ref, result
 
 
-def _fit_with_solver(name: str, phase: pr.Phase, plan: pr.RefinementPlan,
+def _fit_with_solver(name: str, phase: rx.Phase, plan: rx.RefinementPlan,
                      tag: str, *, solver: str):
     """:func:`_fit` with the driver selectable (WP-0601)."""
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    data = pr.read_pattern(DATA / f"{name}.prn")
-    structure = pr.Structure(phases=[phase])
+    data = rx.read_pattern(DATA / f"{name}.prn")
+    structure = rx.Structure(phases=[phase])
     ins = qarr_instrument()
     seed_scales(structure, ins, data)
-    ref = pr.Refinement(structure, ins, solver=solver, history=False)
+    ref = rx.Refinement(structure, ins, solver=solver, history=False)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / f"stephens_{tag}.png"))
@@ -193,7 +193,7 @@ def _sigma2_of(ref) -> np.ndarray:
     return np.asarray(sigma2_m(ref._model.phases[0].strain_monomials, s))
 
 
-def _with_block(phase: pr.Phase) -> pr.Phase:
+def _with_block(phase: rx.Phase) -> rx.Phase:
     """An all-zero block: legal (it is the exact identity) and seeded by the
     stage, which is the path a user who has not chosen a starting strain takes."""
     phase.microstrain = StephensStrain.from_values([0.0] * 15)

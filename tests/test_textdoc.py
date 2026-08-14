@@ -22,7 +22,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-import rietx as pr
+import rietx as rx
 from rietx.gui import GuiSession
 from rietx.gui import textdoc as td
 from rietx.schemas.plan import StageSpec
@@ -40,10 +40,10 @@ def pattern_file(tmp_path_factory):
     return _write_xye(tmp_path_factory.mktemp("rxt-data") / "synth.xye", synthesize())
 
 
-def _project(root: Path, pattern_file: Path, **kw) -> pr.Project:
+def _project(root: Path, pattern_file: Path, **kw) -> rx.Project:
     structure, ins = perturbed_models()
     kw.setdefault("plan", "mccusker_default")
-    return pr.Project.create(root, pattern=pattern_file, structure=structure,
+    return rx.Project.create(root, pattern=pattern_file, structure=structure,
                              instrument=ins, **kw)
 
 
@@ -306,7 +306,7 @@ def test_settings_round_trip_through_their_own_verbs(project):
     # the mask reached the pattern, not just the document (one verb, by design)
     assert project.data.excluded_regions == [(7.5, 8.0), (19.0, 19.5)]
     # …and it is on disk without anyone pressing Save
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
     assert reopened.doc.mode == "lebail"
     assert reopened.doc.two_theta_limits == (4.0, 22.0)
     assert _changes(td.render(project), project)[0].is_empty()
@@ -467,7 +467,7 @@ def test_the_session_verbs_carry_the_revision_and_apply_the_delta(session,
 def test_a_stale_base_revision_is_a_conflict_not_a_merge(session, project):
     doc = session.textdoc()
     project.refinement.set_values({"phases.0.cell.a": 4.17})  # someone else moved
-    with pytest.raises(pr.gui.GuiError) as excinfo:
+    with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": doc["text"], "base_revision": doc["revision"]})
     assert excinfo.value.code == "STALE_REVISION"
     assert excinfo.value.status == 409
@@ -479,7 +479,7 @@ def test_a_document_with_errors_applies_none_of_itself(session, project):
     doc = session.textdoc()
     edited = _edit(doc["text"], "cell.a", "  cell.a        @ 4.15678")
     edited = _edit(edited, "cell.b", "  cell.b   9.9  min 0.1  = 1·phases.0.cell.a")
-    with pytest.raises(pr.gui.GuiError) as excinfo:
+    with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": edited})
     error = excinfo.value
     assert error.code == "TEXTDOC_INVALID" and error.status == 400
@@ -500,7 +500,7 @@ def test_a_refusal_raised_by_the_verb_still_gets_a_line_number(session, project)
     """
     doc = session.textdoc()
     bad = _edit(doc["text"], "atoms.0.biso", "  atoms.0.biso   @ 999  min 0  max 25")
-    with pytest.raises(pr.gui.GuiError) as excinfo:
+    with pytest.raises(rx.gui.GuiError) as excinfo:
         session.textdoc_put({"text": bad})
     detail = excinfo.value.details[0]
     assert "lies outside its bounds" in detail["message"]
@@ -527,7 +527,7 @@ def test_textdoc_is_refused_while_a_run_is_in_flight(session, project,
     assert started.wait(5)
     try:
         assert session.textdoc()["text"]          # reads stay open
-        with pytest.raises(pr.gui.GuiError) as excinfo:
+        with pytest.raises(rx.gui.GuiError) as excinfo:
             session.textdoc_put({"text": session.textdoc()["text"]})
         assert excinfo.value.code == "RUN_IN_FLIGHT"
     finally:

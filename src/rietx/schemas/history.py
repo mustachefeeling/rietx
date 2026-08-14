@@ -70,12 +70,12 @@ class NodeAction(Base):
         with the structured fields it describes.
         """
         if self.kind == "root":
-            return "pr.Refinement(structure, instrument)"
+            return "rx.Refinement(structure, instrument)"
         if self.kind == "stage":
             seeds = "".join(f", {n}={v!r}" for n, v in
                             (("seed", self.seed), ("strain_seed", self.strain_seed))
                             if v)
-            return (f"ref.run_stage(data, pr.Stage({self.name!r}, {self.turn_on!r}, "
+            return (f"ref.run_stage(data, rx.Stage({self.name!r}, {self.turn_on!r}, "
                     f"max_iter={self.max_iter}{seeds}))")
         if self.kind == "set_vary":
             parts = []

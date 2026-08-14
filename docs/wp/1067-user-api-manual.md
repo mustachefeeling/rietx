@@ -363,6 +363,69 @@ ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
 
 ## Handover log
 
+- **2026-08-14 (review follow-up)** — nine review items on the landed floor,
+  five commits on `wp1067-manual-followup`. **2269 passed / 108 skipped in
+  4:07** (`[dev]` venv, darwin/arm64), identical to the entry below: this
+  session added no test, and the two `test_gui_dist.py` failures it did cause
+  were a stale dist stamp, not a regression. `npm --prefix gui test` 408/408.
+  None of the 1.0.x chapters moved, so the WP stays 🔄.
+
+  **The three that were more than editing:**
+
+  - **`baselines` deleted**, closing 1003's item rather than deferring it
+    again. Nothing named the extra but the manual paragraph apologising for
+    it. `DESIGN.md` records the reversal beside the decision it reverses,
+    because a design record that still promises an extra the build does not
+    have is worse than one that never mentioned it.
+  - **`pr` → `rx` across 63 files.** Mechanical except in three places, and
+    all three are the reason a sweep like this is not "just tests":
+    `NodeAction.api_call()` renders `pr.Refinement(...)` as *text a user reads
+    back* in the GUI history panel, the GUI's vitest fixtures quote those
+    strings, and `capabilities()` imports the package under the alias — where
+    the pattern `\bpr\.` misses the bare `pr` in `hasattr(pr, name)` and leaves
+    a `NameError` behind. `api_call()` is computed and never persisted, so no
+    on-disk format moved and no contract version bumped. The committed dist's
+    `build-info.json` did have to be rebuilt: vitest fixtures are hashed
+    sources, so editing one stales the stamp while the built assets stay
+    byte-identical. `test_gui_dist.py` caught it, which is the gate working.
+  - **"Which document does an agent read first?" has two answers and one of
+    them was unrouted.** For an agent *in the repo* it is `CLAUDE.md` — a
+    contributor rulebook that, until this session, never said so, so an agent
+    that arrived to *use* rietx read 600 lines of rules for a different job
+    before finding out. Four-line router added at the top. For an agent
+    *calling* the package it is `agent._TOOL_DESCRIPTION`, which is already
+    written for that reader and already points at `AGENT_PROTOCOL.md` by a
+    repository-relative path that does not resolve after `pip install`. That
+    one stays 1003's (hosting is release scope); `using/agents.md` now names
+    the description as the first thing a calling agent ever reads, rather than
+    burying the dangling pointer in a note.
+
+  **Editing, but load-bearing:** the manual now states who it is for and
+  which surfaces are machine-first (the `FitReport`, the JSON envelope,
+  `capabilities()`, the event ladder, the codes) with both halves said out
+  loud — documented for humans because you cannot trust what you cannot read,
+  but not shaped for human-first consumption; the naming rule (case is
+  Python's convention; `RefinementResult.plot` is written under its class
+  because that is what the guard resolves); the extras-install syntax, quoted
+  for zsh; the measured `converged 0.0932` and the fact that **Rwp is a
+  fraction, not a percentage**, which Part 1 had never said; and the
+  empty-text cross-reference to the report chapter, which MyST renders as the
+  target's *title*, so the sentence read "what the package hands you instead is
+  Reading the report".
+
+  **An Orwell-rules rewrite of `using/quickstart.md` was produced for review
+  and deliberately not committed** — Orwell's six rules plus ASD-STE100, minus
+  rule 9 (American spelling), which the house style overrides. It was measured
+  by swapping it in: it passes `test_manual_api.py` and `test_manual.py`
+  unchanged, which is the useful result, because the guards constrain *names*,
+  not sentences. Prose style is a free variable here and a rewrite cannot
+  silently drop coverage — every surface name the chapter documents has to
+  survive the rewrite or the partition fails, and it did. Whoever picks
+  this up decides one thing first — the manual's voice today spends em-dashes
+  and appositives to carry a second clause per sentence, and the rewrite trades
+  that for shorter sentences and a named actor. It is a whole-manual decision,
+  not a per-chapter one.
+
 - **2026-08-14 (execution session)** — **§ Floor landed in full; 1003 is
   unblocked.** Eleven commits on `wp1067-user-api-manual`, all eight floor
   items ticked. The 1.0.x chapters remain, so the WP stays 🔄 and the deferred

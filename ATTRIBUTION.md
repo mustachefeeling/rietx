@@ -207,7 +207,7 @@ used. Sources under GPL were **studied only**; no GPL code has been ported.
 | pymatgen | MIT | Cross-check for structure factors/multiplicities in tests. |
 | cctbx | BSD-style | Cross-check for symmetry constraints in tests. |
 | EasyDiffraction | BSD-3 | Architecture reference (schema-driven design). No code ported. |
-| pybaselines (derb12) | BSD-3 | **Algorithm reference** for arPLS/SNIP implementations (reimplemented from the papers with the pybaselines documentation as a guide); optional dependency for extended baseline algorithms. |
+| pybaselines (derb12) | BSD-3 | **Algorithm reference** for arPLS/SNIP implementations (reimplemented from the papers with the pybaselines documentation as a guide). Not a dependency: the implementations are ours, and the `baselines` extra that used to install it was removed in v1.0 because no module imported it. |
 | gemmi | MPL-2.0 | **Dependency** — CIF parsing, space-group operations, hkl utilities. |
 | matplotlib | PSF-based (matplotlib license) | **Optional dependency** (`[viz]`) — static fit plots and the VLM montage. |
 | plotly | MIT | **Optional dependency** (`[viz]`) — self-contained interactive HTML viewer (plotly.js embedded in generated files). |

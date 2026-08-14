@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-import rietx as pr
+import rietx as rx
 from rietx.optimize.statistics import block_projection_r2, one_parameter_gains
 from rietx.schemas.suggest import (
     SUGGEST_MIN_GAIN,
@@ -343,7 +343,7 @@ def truth():
 def _refinement(truth, free=("phases.*.scale", "instrument.background.*")):
     """A Refinement at the truth state (deep-copied by __init__) + the data."""
     structure, ins, data = truth
-    r = pr.Refinement(structure, ins)
+    r = rx.Refinement(structure, ins)
     r.set_vary(["*"], False)
     for glob in free:
         r.set_vary([glob])

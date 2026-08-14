@@ -115,12 +115,12 @@ and a transcript that reaches outside invalidates the run.
   read it whole; load it through the schemas:
 
       import json
-      import rietx as pr
+      import rietx as rx
 
       ep = json.load(open("episode.json"))
-      structure = pr.Structure.model_validate(ep["structure"])
-      instrument = pr.Instrument.model_validate(ep["instrument"])
-      data = pr.PatternData.model_validate(ep["pattern"])
+      structure = rx.Structure.model_validate(ep["structure"])
+      instrument = rx.Instrument.model_validate(ep["instrument"])
+      data = rx.PatternData.model_validate(ep["pattern"])
 
   `ep["mode"]` is the refinement mode; if `ep` carries `"two_theta_limits"`,
   pass it to `fit`.  These inputs are the episode: the pattern is fixed, and

@@ -28,7 +28,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.gui import ROUTES, GuiSession, build_server
 from rietx.gui.session import RESERVED_ROUTES
 from rietx.report.apply import (
@@ -120,7 +120,7 @@ def test_an_applicable_action_is_one_stage_named_after_its_kind():
     assert stage.seed == 0.0 and stage.strain_seed == 0.0
 
     line = api_call(stage)
-    assert line.startswith("ref.run_stage(data, pr.Stage('apply:refine_cell'")
+    assert line.startswith("ref.run_stage(data, rx.Stage('apply:refine_cell'")
     from rietx.schemas.history import NodeAction
 
     assert line == NodeAction(kind="stage", name=stage.name,
@@ -170,9 +170,9 @@ def test_indexing_is_applicable_now_that_the_engine_exists():
     why = refusal(action, held=held, indexing=False)
     assert "features['indexing']" in why
     # …and the live flag now takes the applicable branch
-    assert pr.capabilities().features["indexing"] is True
+    assert rx.capabilities().features["indexing"] is True
     assert refusal(action, held=held,
-                   indexing=pr.capabilities().features["indexing"]) == ""
+                   indexing=rx.capabilities().features["indexing"]) == ""
 
 
 def test_the_veto_outranks_every_other_reason():
@@ -231,11 +231,11 @@ def _models(delta_a: float = 0.0005):
     for axis in ("a", "b", "c"):
         getattr(structure.phases[0].cell, axis).value = TRUE_A + delta_a
     structure.phases[0].scale.value = TRUE_SCALE * 1.3
-    ins = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    ins = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     ins.zero_shift.value = TRUE_ZERO
     ins.profile.w.value = TRUE_W * 1.4
     ins.background = BackgroundChebyshev(
-        coefficients=[pr.Parameter(value=v) for v in TRUE_BKG])
+        coefficients=[rx.Parameter(value=v) for v in TRUE_BKG])
     return structure, ins
 
 
@@ -285,9 +285,9 @@ def _serve(root: Path, state_dir: Path, plot: str = ""):
     """Create the project, fit the narrow plan, and serve it on a free port."""
     pattern = _write_xye(root.parent / "synth.xye", synthesize())
     structure, ins = _models()
-    project = pr.Project.create(root, pattern=pattern, structure=structure,
+    project = rx.Project.create(root, pattern=pattern, structure=structure,
                                 instrument=ins,
-                                plan=pr.PlanSpec.model_validate(
+                                plan=rx.PlanSpec.model_validate(
                                     {"stages": NARROW}).to_plan())
     session = GuiSession(project, state_dir=state_dir)
     httpd = build_server(session, port=0)
@@ -364,7 +364,7 @@ def test_the_report_says_what_applies_beside_what_it_suggests(narrow):
     cell = by_kind["refine_cell"]
     assert cell["can_apply"] is True and cell["how"] == "stage"
     assert cell["stage"]["turn_on"] == ["phases.*.cell.*"]
-    assert cell["api_call"].startswith("ref.run_stage(data, pr.Stage('apply:refine_cell'")
+    assert cell["api_call"].startswith("ref.run_stage(data, rx.Stage('apply:refine_cell'")
 
     # the plan refines the scale, so the engine vetoes the suggestion to
     assert by_kind["refine_scale"]["can_apply"] is False
@@ -496,7 +496,7 @@ def test_two_suggestions_of_one_kind_are_not_resolved_by_position(narrow):
     """
     from rietx.gui.session import GuiError, _pick_action
 
-    report = pr.FitReport(rwp=0.1, gof=1.0, suggested_actions=[
+    report = rx.FitReport(rwp=0.1, gof=1.0, suggested_actions=[
         _action("refine_preferred_orientation", ["phases.0.preferred_orientation.r"]),
         _action("refine_preferred_orientation", ["phases.1.preferred_orientation.r"]),
     ])
