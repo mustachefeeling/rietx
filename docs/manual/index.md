@@ -90,6 +90,7 @@ using/install
 using/quickstart
 using/concepts
 using/report
+using/files
 using/agents
 ```
 
