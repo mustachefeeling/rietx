@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import pytest
 
-import anatase as pr
-from anatase.history.events import (
+import rietx as pr
+from rietx.history.events import (
     EVENT_SCHEMA_VERSION,
     EventKind,
     read_events,
 )
-from anatase.optimize.cancel import CancelToken, RefinementCancelled
+from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 PLAN = pr.RefinementPlan(stages=[
@@ -124,7 +124,7 @@ def test_readers_validate_the_envelope_not_the_payload(tmp_path):
     future run kind — reads back on an older reader instead of failing
     validation.  That is what makes an added field a non-event.
     """
-    from anatase.history.events import EventStream
+    from rietx.history.events import EventStream
 
     path = tmp_path / "events.jsonl"
     with EventStream(path=path) as stream:
@@ -273,7 +273,7 @@ def test_a_deadline_serves_as_a_fit_cancel_token(ref, pattern):
     no solver changes.  An expired one cancels the fit; an unexpired one costs
     nothing (the same claim ``test_an_unset_token_costs_nothing`` makes for
     the real token)."""
-    from anatase.indexing.engines import Deadline
+    from rietx.indexing.engines import Deadline
 
     with pytest.raises(RefinementCancelled):
         ref.fit(pattern, plan=PLAN, cancel=Deadline(1e-9))

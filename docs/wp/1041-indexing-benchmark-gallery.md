@@ -56,7 +56,7 @@ obs/calc/diff PNGs to `tests/output/` for visual inspection; Rwp hides locally-b
 fits"* — and `tests/output/` holds ~120 files from the refinement suites.
 **`tests/test_acceptance_indexing.py` writes zero.** So does every other indexing
 test module. `grep -n "plot\|matplotlib\|savefig"` across all of
-`src/anatase/indexing/` returns only the phrase "figure of merit".
+`src/rietx/indexing/` returns only the phrase "figure of merit".
 
 The only picked-peak overlay anywhere is
 `tests/test_peak_picking.py::test_pull_calibration_writes_overlays`, which draws
@@ -397,7 +397,7 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
 - **2026-08-05** — **four of nine** tasks landed (the checklist gained one: the three
   acceptance rows the dedup fix turned over, which was not foreseen work), and **the
   dedup fix was much bigger than the WP inherited it as**. Branch
-  `wp1041-indexing-benchmark-gallery`, [draft PR #34](https://github.com/yue-here/anatase/pull/34).
+  `wp1041-indexing-benchmark-gallery`, [draft PR #34](https://github.com/yue-here/rietx/pull/34).
 
   **Done.**
   1. *One shared `engines.solution_key`* replacing `trial_error._solution_key` and
@@ -406,7 +406,7 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
   2. *`validate_by_lebail(..., with_result=True)`* returns the `RefinementResult`
      it already builds. Default return shape unchanged and pinned.
   3. *`viz/indexing.py`* — `plot_peak_list`, `plot_candidates`, `plot_validation`,
-     exported from `anatase.viz`, with `tests/test_indexing_plots.py` (4 rows)
+     exported from `rietx.viz`, with `tests/test_indexing_plots.py` (4 rows)
      asserting what each renderer **drew** rather than recomputing it.
 
   **The defect was three defects, and the third is the dangerous one.** The WP
@@ -494,7 +494,7 @@ curve, not an anecdote; the scoreboard is re-measured and internally consistent.
 
   **These counts are pre-merge, and `main` has moved.** The branch is based on
   `1185c7f` and `origin/main` gained **10 commits** of concurrent GUI work while this
-  session ran; nothing here touches `gui/` or `src/anatase/gui/` (zero files), so
+  session ran; nothing here touches `gui/` or `src/rietx/gui/` (zero files), so
   there is no conflict to expect, but `tests/CLAUDE.md`'s rule applies — the two
   parents' additions cannot be summed, so **re-measure after the merge** rather than
   adding this WP's +5/+6 to whatever the GUI branch reports.

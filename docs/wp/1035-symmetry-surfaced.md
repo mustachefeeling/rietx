@@ -303,7 +303,7 @@ multiplicity gap — see the handover.
   act). Four commits: the server, its tests, the panel, and what the browser
   found.
 
-  **Where things are.** `src/anatase/gui/symmetry.py` (new) — phase facts, the
+  **Where things are.** `src/rietx/gui/symmetry.py` (new) — phase facts, the
   cause map, the letters, the preview; `gui/src/lib/symmetry.ts` (new) — the
   formatters, nothing else. Three routes: `GET /api/structure/symmetry?phase=N`,
   `POST /api/structure/symmetry/preview`, `POST /api/structure/symmetry`.

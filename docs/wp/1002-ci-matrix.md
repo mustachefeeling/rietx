@@ -116,7 +116,7 @@ From **WP-0604** (theory manual, landed 2026-07-29) — the docs build is
 already inside the test suite, so CI gets it for free *if* the install is
 right:
 
-- **`[docs]` rides inside `[dev]` by self-reference** (`anatase[docs]` in
+- **`[docs]` rides inside `[dev]` by self-reference** (`rietx[docs]` in
   the dev extra), so any job that installs `.[dev]` gets sphinx/myst/bibtex
   and `tests/test_manual.py` runs its five guards, including a subprocess
   `sphinx -W` build (≈4 s). A job that installs a leaner set will

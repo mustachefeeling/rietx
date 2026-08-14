@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.params.vector import ParameterTable
-from anatase.refine import replay
-from anatase.schemas.instrument import BackgroundChebyshev
+import rietx as pr
+from rietx.params.vector import ParameterTable
+from rietx.refine import replay
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 OUT = Path(__file__).parent / "output"

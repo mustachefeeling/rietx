@@ -1,4 +1,4 @@
-# anatase — Roadmap
+# rietx — Roadmap
 
 Canonical milestone **index**. The content that used to live here is split so
 a work session loads only what it needs:
@@ -41,7 +41,7 @@ a work session loads only what it needs:
    detected at the next session start (`.claude/hooks/session_start.py`) and
    repaired before new work.
 4. **A CLAUDE.md takes rules, not findings.** A line enters a CLAUDE.md
-   (root, `gui/`, `tests/`, `src/anatase/indexing/`) only as a standing rule
+   (root, `gui/`, `tests/`, `src/rietx/indexing/`) only as a standing rule
    a stranger needs in six months — a few lines, evidence compressed to one
    clause plus a pointer to the WP or milestone record that holds the
    measurement. Counts and timings a session measures go in its WP handover
@@ -61,8 +61,21 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The eval programme is done measuring ([1065](wp/1065-decisive-swap-license.md) ✅):
-next is the freeze ([1003](wp/1003-api-freeze-pypi.md)).**
+**The package is `rietx` ([1066](wp/1066-rename.md) ✅) and the eval programme
+is done measuring ([1065](wp/1065-decisive-swap-license.md) ✅): next is the
+freeze ([1003](wp/1003-api-freeze-pypi.md)).**
+
+1066 renamed the brand a second time in two days — `anatase` read as a sample,
+not a program — and cost a sweep rather than a design because 1062's `_about.py`
+already held every name-bearing literal: six brand values moved, the three
+format tokens did not, and 363 files moved with zero numbers moving (fast suite
+2257/108 either side). Two findings: a **WP filename may not carry a brand
+token** (a markdown link spells the filename, so `1062-rename-to-anatase.md`
+failed the audit on its own path *and* on everything linking to it — both rename
+WPs are now `NNNN-rename.md`), and the audit's hazard inverted rather than
+recurring — `rietx` cannot become domain vocabulary, while `anatase`, which the
+audit now greps, already is, so that grep expires the day a fixture gains an
+anatase phase.
 
 1065 landed what round 3 said was missing: the exchange clause now states
 what each swap outcome *licenses* (THRESHOLDS **0.9** — decisive: the
@@ -88,11 +101,12 @@ False, no `compare_exchanges` arm, Layer 2 posture). Grids and mechanisms:
 the v1.0 record's round-3 and 2.1 appendices; raw records
 `eval-runs/2026-08-13-round3` and `…-round3p1`.
 
-Naming rule, still standing from [1062](wp/1062-rename-to-anatase.md): package,
-import, CLI and state dir are `anatase`; the on-disk tokens are deliberately
-brand-free (`.rex`, `.rxt` with header `rxt N`, `instrument_profile`). Never
-spell one — import from `_about.py`, because `test_no_stale_name.py` greps the
-**old** token and is blind to a hardcoded new one.
+Naming rule, from [1062](wp/1062-rename.md) and paid out by
+[1066](wp/1066-rename.md): package, import, CLI and state dir are `rietx`; the
+on-disk tokens are brand-free (`.rex`, `.rxt` with header `rxt N`,
+`instrument_profile`) and survived both renames unchanged. Never spell either
+kind — import from `_about.py`, because `test_no_stale_name.py` greps the **old**
+tokens and is blind to a hardcoded new one.
 
 Closing sessions leave surface changes in 1003's `### Inherited` and their
 narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
@@ -107,7 +121,7 @@ narratives in `docs/milestones/v1.0.md` § "How v1.0 is getting here".
 | v0.4 | Differentiable backends: JAX jacfwd, mixed precision, torch-MPS; true Voigt; restraints | ✅ **shipped 2026-07-27** ([record](milestones/v0.4.md)) | Cross-backend Jacobian agreement (analytic/FD/jax/torch × 8 configs + multi-histogram + stage boundaries) inside the 5e-3 rel-L2 fp64 bar; an all-fp32 Apple-GPU refinement of SRM 676a lands Δa = −3.5e-8 Å from numpy fp64 (bar 3e-5); wall-clock reported, not gated — and it is a *finding*: MPS is 46-182× slower (launch-latency-bound) and jit'd jacfwd is within 2.1× of the analytic assembly at best, so the batched peak loop is a numpy-path win (WP-0605), not GPU enablement |
 | v0.5 | Corrections & microstructure (absorption, Stephens, f′f″) | ✅ **shipped 2026-07-28** ([record](milestones/v0.5.md)) | capillary absorption validated at **both** levels: the Rouse (1970) cylinder factor against a quadrature of the exact ITC eq. (6.3.3.4) integral across 0 ≤ µR ≤ 1 *and* 0 ≤ sin²θ ≤ 1 (0.0035, the paper's own bound), and on real 11-BM SRM 660a LaB₆ data in a documented 0.81 mm bore — Rwp moves 3e-8, the cell 8e-12 Å, and *both* Biso move by the predicted 0.0166542 Å². Plus the two accuracy wins no fit statistic shows: dispersion takes the round-robin QPA error from RMS 2.26 → 0.69 wt %, and a mis-declared flat-plate thickness biases Biso by up to −1.5 Å² |
 | v0.6 | TOPAS-style bounded LM, agent surface, batched peak loop, theory manual | ✅ **shipped 2026-07-29** ([record](milestones/v0.6.md)) | bounded LM 0.74–1.04× vs scipy TRF (CPU — the expected Amdahl tie), identical minima on 2/3 protocols, ΔBIC −13 on the third, and the Stephens cone enforced as a linear inequality (brucite 12/43 → 0/43 outside, at higher Rwp); FCJ node memo 1.23× bit-identical; agent schema generated from live registries with a registry-membership meta-test; theory manual builds `-W`-clean with every fenced constant injected from the live package and five anti-divergence guards in the fast suite |
-| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `anatase gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing is graded against the individual program globals of the published bethanechol benchmark** (Bergmann et al. 2004 Table 5: ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6 — the former "≥ +9" was that table's `first_4` oracle over four programs, which no single entry reaches; restated by WP-1026) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
+| v1.0 | Hardening, human GUI, indexing, API freeze, PyPI | ⬜ | full validation matrix green; GUI end-to-end: `rietx gui` covers import → edit → refine → inspect → branch → export on 11-BM NAC, with Rwp matching the API-driven acceptance for the same protocol (the GUI is a view, not a second implementation); **indexing is graded against the individual program globals of the published bethanechol benchmark** (Bergmann et al. 2004 Table 5: ITO13 −14, DICVOL91 −8, TREOR90 −4, McMaille +5, Crysfire +6 — the former "≥ +9" was that table's `first_4` oracle over four programs, which no single entry reaches; restated by WP-1026) and abstains rather than ranking a cell on the mixture and unidentified-pattern fixtures |
 | v2+ | FPA, neutron/TOF, texture, MCP server | ⬜ fenced | — |
 
 ## Work packages
@@ -180,7 +194,7 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1005](wp/1005-project-container.md) | Project container (`.rex/`) | ✅ 2026-07-30 | 1004 |
 | [1006](wp/1006-run-control.md) | Run control: streaming, progress, cancellation | ✅ 2026-07-30 | — |
 | [1007](wp/1007-capabilities-guards.md) | Capabilities, structured guards, background export | ✅ 2026-07-30 | 1004 |
-| [1008](wp/1008-gui-server.md) | GUI server, session model, `anatase gui` | ✅ 2026-07-30 | 1004–1007 |
+| [1008](wp/1008-gui-server.md) | GUI server, session model, `rietx gui` | ✅ 2026-07-30 | 1004–1007 |
 | [1009](wp/1009-textdoc-format.md) | Project text document (`.rxt`): format + parser | ✅ 2026-07-30 | 1004, 1005 |
 | [1010](wp/1010-frontend-scaffold.md) | Frontend scaffold: build, committed dist, shell, plot, console | ✅ 2026-07-30 | 1008 |
 | [1011](wp/1011-parameter-plan-editors.md) | Parameter editor, plan editor, run controls, disclosure | ✅ 2026-07-30 | 1010 |
@@ -284,10 +298,11 @@ The tag is what guarantees that stays true if the branch is ever pruned.
 | [1057](wp/1057-purpose-grade-evidence.md) | Purpose-grade evidence: Le Bail gap + protocol stopping criteria | ✅ 2026-08-12 | — |
 | [1058](wp/1058-report-delivery.md) | Report delivery: the per-stage report trajectory | ✅ 2026-08-13 | — |
 | [1059](wp/1059-eval-round-two.md) | Agent eval round 2: protocol v1.1 re-A/B | ✅ 2026-08-13 | 1054, 1056, 1057, 1058 |
-| [1062](wp/1062-rename-to-anatase.md) | Rename the project to `anatase` | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
+| [1062](wp/1062-rename.md) | Rename the project to `anatase` (superseded by 1066) | ✅ 2026-08-12 — ~300 files; formats decoupled from the brand (`.rex`/`.rxt`), audit test greps the old token | — (blocked 1003) |
 | [1063](wp/1063-exchange-clause-and-rivals.md) | Fit-level exchange clause + `compare_rivals`: name the swap, ship the experiment | ✅ 2026-08-13 — THRESHOLDS_VERSION 0.8; the miner puts the clause in context before the ridge in 6 of the 7 cells | 1056, 1059 (before 1003) |
 | [1064](wp/1064-eval-round-three.md) | Agent eval round 3: measured epistemic truth, decision-grade scorer, python arm | ✅ | 1063 |
 | [1065](wp/1065-decisive-swap-license.md) | What a decisive swap licenses: the follow-through sentence, measured on the row it failed | ✅ | 1063, 1064 (before 1003) |
+| [1066](wp/1066-rename.md) | Rename the project to `rietx` | ✅ 2026-08-14 — 363 files, zero numbers moved; format tokens survived a second rename; no WP filename may carry a brand token | 1062 (blocked 1003) |
 
 **1062 (2026-08-12) runs EARLY, not last.** It blocks [1003](wp/1003-api-freeze-pypi.md)
 because the freeze covers names that embed the current one, but the ordering

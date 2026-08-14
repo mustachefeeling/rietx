@@ -7,16 +7,16 @@ Fast unit/property tests; the SRM 660c real-data acceptance lives in
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.model.corrections import displacement_shift_deg, transparency_shift_deg
-from anatase.model.forward import compile_model
-from anatase.model.profiles.fcj import (
+import rietx as pr
+from rietx.model.corrections import displacement_shift_deg, transparency_shift_deg
+from rietx.model.forward import compile_model
+from rietx.model.profiles.fcj import (
     fcj_extent_deg,
     fcj_node_count,
     fcj_offsets_weights,
 )
-from anatase.model.profiles.pseudovoigt import pseudo_voigt
-from anatase.params.vector import ParameterTable
+from rietx.model.profiles.pseudovoigt import pseudo_voigt
+from rietx.params.vector import ParameterTable
 
 CU_KA1, CU_KA2 = 1.5405929, 1.5444274
 

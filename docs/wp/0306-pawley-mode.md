@@ -13,16 +13,16 @@ already reserved for them.
 ## Context
 
 The seam exists. `ReflectionState` in
-[`schemas/history.py:117`](../../src/anatase/schemas/history.py#L117) was
+[`schemas/history.py:117`](../../src/rietx/schemas/history.py#L117) was
 built with `kind: Literal["lebail_extracted", "pawley_refined"]`,
 `stderr: list[float] | None` ("Pawley has esds; Le Bail does not") and
 `varied: bool` — its docstring states outright that this exists so Pawley mode
 never has to push one dot-path per reflection into
 `RefinementState.free_paths`. **Honour that**: per-hkl intensities go in the
 reflection container, not into the named dot-path table in
-[`params/vector.py`](../../src/anatase/params/vector.py). The mode seam is
+[`params/vector.py`](../../src/rietx/params/vector.py). The mode seam is
 `IntensityModel` (`rietveld`/`lebail`, see
-[`model/forward.py`](../../src/anatase/model/forward.py) and
+[`model/forward.py`](../../src/rietx/model/forward.py) and
 `CompiledModel.lebail_update`).
 
 The hard part is conditioning, not bookkeeping. Overlapping reflections make

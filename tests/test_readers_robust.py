@@ -25,8 +25,8 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.io.readers import identify_format
+import rietx as pr
+from rietx.io.readers import identify_format
 
 DATA = Path(__file__).parent / "data"
 

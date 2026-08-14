@@ -38,22 +38,22 @@ Two things follow immediately and shape the whole design:
 
 ### Source files to touch
 
-- **New** `src/anatase/sequential.py` — the `SequentialRefinement` class +
+- **New** `src/rietx/sequential.py` — the `SequentialRefinement` class +
   `refine_sequential` one-shot, mirroring `multi.py`'s shape (which is the
   closest existing sibling: a class wrapping repeated compile/solve, a
   functional one-shot, both exported from `__init__.py`).
-- **New** `src/anatase/schemas/sequential.py` — `SeriesEntry`, `SeriesResult`,
+- **New** `src/rietx/schemas/sequential.py` — `SeriesEntry`, `SeriesResult`,
   `Trajectory`. Pydantic, `extra="forbid"`, JSON round-trip like every other
   schema.
-- `src/anatase/refine.py` — reuse, do not fork: `Refinement.fit` already runs a
+- `src/rietx/refine.py` — reuse, do not fork: `Refinement.fit` already runs a
   plan from whatever the working state holds, so the warm start is "construct
   the next `Refinement` from the previous fitted models". `cherry_pick` (already
   written, and its docstring already names this WP) replays a recorded stage
   *action* on the current state — that is the mechanism when the caller wants
   pattern 0's *actual* stage sequence, including any hand-added stages, rather
   than a plan object.
-- `src/anatase/viz/plots.py` — `plot_trajectory`.
-- `src/anatase/__init__.py`, `docs/AGENT_PROTOCOL.md`, `README.md`.
+- `src/rietx/viz/plots.py` — `plot_trajectory`.
+- `src/rietx/__init__.py`, `docs/AGENT_PROTOCOL.md`, `README.md`.
 
 ### Invariants and existing machinery that constrain the design
 

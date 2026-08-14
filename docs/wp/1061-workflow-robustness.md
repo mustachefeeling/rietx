@@ -24,7 +24,7 @@ against stale state. Session start is equally manual: right worktree, fresh
 branch off main, and a venv that resolves to *this* tree —
 `settings.local.json`'s permission history shows the user hand-running exactly
 that check, and `tests/CLAUDE.md` documents the trap (the main checkout's
-`.venv` resolves `anatase` to the main checkout's `src`).
+`.venv` resolves `rietx` to the main checkout's `src`).
 
 **The design inverts the dependency**: a ritual cannot be forced at the end of
 a session that has already ended, so the miss is detected and repaired
@@ -64,7 +64,7 @@ missing or wrong-tree venv is precisely a condition it must survive to report.
   import, no network. Prints: worktree root, current branch, ahead/behind
   local `main` (`git rev-list --count`), uncommitted-change count
   (`git status --porcelain`); **venv resolution without importing** — read
-  the editable-install pointer in `.venv` (the `__editable__*anatase*`
+  the editable-install pointer in `.venv` (the `__editable__*rietx*`
   .pth/finder file in site-packages), compare its target to this tree's
   root, and on mismatch or missing venv print the fix verbatim
   (`uv venv --python 3.12 && uv pip install -e ".[dev]"`); **missed-handover
@@ -143,8 +143,8 @@ automates); the user's protocol description, 2026-08-06.
   full selection not run (the acceptance names the fast one, and the file
   carries no slow marks, so the full delta is the same +6). Gotchas for a
   successor: (1) the editable pointer on this repo is **uv's**
-  `_editable_impl_anatase.pth` carrying the bare src path — the task's
-  `__editable__*anatase*` name is the setuptools form; the hook reads both.
+  `_editable_impl_rietx.pth` carrying the bare src path — the task's
+  `__editable__*rietx*` name is the setuptools form; the hook reads both.
   (2) The Context fixtures had drifted exactly as the created entry warned:
   WP-1041's fourth-session entry (2026-08-06) is same-day with its post-close
   commits, so the promised soft note now sits inside the documented blind spot

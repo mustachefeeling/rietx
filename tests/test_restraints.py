@@ -14,25 +14,25 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import Instrument, PatternData, Refinement
-from anatase.crystallography.structure_factor import compile_phase_sites
-from anatase.model.forward import compile_model
-from anatase.model.restraints import (
+from rietx import Instrument, PatternData, Refinement
+from rietx.crystallography.structure_factor import compile_phase_sites
+from rietx.model.forward import compile_model
+from rietx.model.restraints import (
     _atom_xyz,
     _metric_g,
     _resolve_image,
     summarise_restraints,
 )
-from anatase.optimize.least_squares import (
+from rietx.optimize.least_squares import (
     _make_jacobian,
     _make_residual,
     run_multi_least_squares,
 )
-from anatase.optimize.statistics import compute_statistics
-from anatase.params.multi import MultiParameterTable
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.structure import (
+from rietx.optimize.statistics import compute_statistics
+from rietx.params.multi import MultiParameterTable
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.structure import (
     AngleRestraint,
     Atom,
     BondRestraint,
@@ -50,7 +50,7 @@ LAB = Instrument.debye_scherrer(wavelength=1.5406)
 def _save(result, name: str) -> None:
     pytest.importorskip("matplotlib")
     OUT.mkdir(exist_ok=True)
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
 
     plot_result(result, path=str(OUT / name))
 

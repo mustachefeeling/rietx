@@ -275,7 +275,7 @@ than no band at all.
   the reason is not politeness: both edit `Plot.svelte`, and the repo already
   carries the scar of concurrent sessions in one working directory — WP-1018's
   files are committed inside WP-1004's and WP-1006's commits, whose messages
-  name the wrong WP, and `git log -- src/anatase/indexing/` misleads because of
+  name the wrong WP, and `git log -- src/rietx/indexing/` misleads because of
   it. One worktree per session, or one session at a time on this file.
 
   **The one thing to get right** is the second rule above: an excluded region

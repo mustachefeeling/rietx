@@ -2,7 +2,7 @@ name: GUI frontend
 
 # The only workflow that needs node, and the only one that can go stale in a way
 # the Python suite cannot see: the built frontend under
-# `src/anatase/gui/static/` is **committed** (so installing the wheel never needs
+# `src/rietx/gui/static/` is **committed** (so installing the wheel never needs
 # node), which means a source edit that nobody rebuilt is a real defect.
 #
 # Priced, per the WP-1002 rule — GitHub Free gives a private repo 2000 Actions
@@ -32,7 +32,7 @@ on:
     branches: [main]
     paths: &gui_paths
       - 'gui/**'
-      - 'src/anatase/gui/**'
+      - 'src/rietx/gui/**'
       - '.github/workflows/gui.yml'
   pull_request:
     paths: *gui_paths
@@ -67,7 +67,7 @@ jobs:
       # narrow the comparison to build-info.json and record the measurement.
       - name: The committed dist is current
         run: |
-          git diff --exit-code --stat src/anatase/gui/static \
+          git diff --exit-code --stat src/rietx/gui/static \
             || { echo "::error::the committed dist does not match a fresh build"; exit 1; }
 
       - name: Unit tests (vitest)

@@ -21,28 +21,28 @@ import gemmi
 import numpy as np
 import pytest
 
-from anatase import Instrument, PatternData, Refinement
-from anatase.crystallography import adp
-from anatase.crystallography.cif import structure_from_cif
-from anatase.crystallography.lattice import d_spacings
-from anatase.crystallography.structure_factor import (
+from rietx import Instrument, PatternData, Refinement
+from rietx.crystallography import adp
+from rietx.crystallography.cif import structure_from_cif
+from rietx.crystallography.lattice import d_spacings
+from rietx.crystallography.structure_factor import (
     compile_phase_sites,
     structure_factors_squared,
 )
-from anatase.crystallography.symmetry import get_spacegroup
-from anatase.model.forward import compile_model
-from anatase.optimize.least_squares import run_least_squares
-from anatase.optimize.statistics import background_absorption
-from anatase.params.vector import ParameterTable
-from anatase.refine import _guard_diagnostics
-from anatase.schemas.common import Parameter
-from anatase.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
-from anatase.strategy.staged import (
+from rietx.crystallography.symmetry import get_spacegroup
+from rietx.model.forward import compile_model
+from rietx.optimize.least_squares import run_least_squares
+from rietx.optimize.statistics import background_absorption
+from rietx.params.vector import ParameterTable
+from rietx.refine import _guard_diagnostics
+from rietx.schemas.common import Parameter
+from rietx.schemas.structure import AnisoU, Atom, Cell, Phase, Structure
+from rietx.strategy.staged import (
     BACKGROUND_ABSORPTION_GUARD,
     GuardReport,
     check_adp_positive_definite,
 )
-from anatase.viz.plots import plot_result
+from rietx.viz.plots import plot_result
 from tests.test_coordinates import make_rutile
 
 DATA = Path(__file__).parent / "data"

@@ -26,7 +26,7 @@ The evidence is one screenshot of the Model pane at a 1000 px window, which
 shows nine of the fifteen items at once. Reproduce it with:
 
 ```sh
-.venv/bin/anatase gui <project>.rex --port 8760 --no-open
+.venv/bin/rietx gui <project>.rex --port 8760 --no-open
 # then Model, at a ~1000 px wide window
 ```
 
@@ -58,7 +58,7 @@ ball. Judge by screenshot, on NAC, at a 1000 px column.
 
 **(b) The element colours are not distinguishable inside a phase.** Measured
 from the live table (`_CPK` and the golden-angle fallback in
-`src/anatase/gui/structure3d.py`):
+`src/rietx/gui/structure3d.py`):
 
 | | | |
 |---|---|---|
@@ -247,7 +247,7 @@ server-side with a test pinning it above the stick radius for hydrogen — item
 (a) should move the constants, not fork them.
 
 From **WP-1010** (frontend scaffold): the built dist under
-`src/anatase/gui/static` is **committed**, so every commit that touches `gui/`
+`src/rietx/gui/static` is **committed**, so every commit that touches `gui/`
 must end with `npm --prefix gui run build`; `tests/test_gui_dist.py` recomputes
 the digest over `gui/src/**/*` (test files included) and fails on a stale dist.
 The client does **not** decimate, and plotly is **not** vendored.

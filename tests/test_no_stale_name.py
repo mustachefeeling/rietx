@@ -1,25 +1,39 @@
-"""WP-1062 — the old name is gone, and stays gone.
+"""WP-1062, retargeted by WP-1066 — an old name is gone, and stays gone.
 
-The rename to ``anatase`` touched ~300 files, and the thing that makes it
-*finished* rather than merely done is this test: a reintroduction fails CI
-instead of depending on a note in someone's mailbox.
+Two renames now: ``pxrd-refine``/``pxrdref`` → ``anatase`` (WP-1062, ~300
+files) → ``rietx`` (WP-1066).  What makes each *finished* rather than merely
+done is this test: a reintroduction fails CI instead of depending on a note in
+someone's mailbox.
 
-Three things about how it is written are deliberate.
+Four things about how it is written are deliberate.
 
-**It greps the old token, never the new one.** ``anatase`` is a phase this
-software analyses — it appears zero times as vocabulary today, but ``rutile``,
-the other TiO₂ polymorph, appears ~168 times in the QPA test data, and
-anatase/rutile is the canonical quantitative-phase-analysis pair.  So the day a
-tutorial or a test fixture gains an anatase phase, an audit written against the
-*new* name starts failing on correct code.  An audit written against ``pxrd``
-never does: it is not domain vocabulary, and never was — the prose consistently
-writes "powder X-ray diffraction".
+**It greps old tokens, never the current one.**  Not for the reason WP-1062
+gave — that reason was about ``anatase`` being ambiguous — but for a plainer
+one that holds for any name: the current name is *supposed* to appear, in the
+README, in ``_about.py``, in every ``prog=`` string and every
+``:func:`~rietx.…``` cross reference, so an audit against it could only ever be
+a per-path allowlist of the whole tree.  The price, stated in ``_about.py`` and
+unfixable here, is that a freshly hardcoded ``"rietx"`` is invisible to this
+test; only the import-it-from-``_about`` rule catches that.
+
+**One of the tokens it greps is domain vocabulary, and that is a dated
+liability.**  ``anatase`` is a phase this software analyses.  It appears zero
+times as vocabulary today, but ``rutile`` — the other TiO₂ polymorph — appears
+~168 times in the QPA test data, and anatase/rutile is the canonical
+quantitative-phase-analysis pair.  So the day a fixture or tutorial gains an
+anatase phase, that path joins :data:`ALLOWED` with the reason "the TiO₂ phase,
+not the old package".  Make that judgement once, deliberately; do not reach for
+it to silence a failure that is really a stale reference.  ``pxrd`` never had
+this problem — the prose consistently writes "powder X-ray diffraction" — and
+``rietx`` cannot acquire it, since the nearest domain word, *Rietveld*, does not
+contain the token.
 
 **It greps ``pxt`` too.** The project suffix ``.pxrd`` contains ``pxrd`` and the
 first token catches it, but the textdoc magic ``pxt`` does not contain it and
-nothing else would ever notice a stale one.  Both were format tokens of the old
-name, and both were replaced (``.rex``, ``rxt``) rather than rebranded, because
-a versioned contract must not move when a brand does.
+nothing else would ever notice a stale one.  Both were format tokens of the
+oldest name, and both were replaced (``.rex``, ``rxt``) rather than rebranded,
+because a versioned contract must not move when a brand does — which is why the
+second rename left all three format tokens alone and touched only the brand.
 
 **The allowlist is paths, with a reason each.** An allowlist of *lines* would
 drift against its own files; an allowlist of paths states which files are
@@ -34,26 +48,31 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
-#: The old distribution/import name and the old textdoc magic.  Case-insensitive
-#: — ``PXRDREF_STATE_DIR`` and ``__PXRDREF_NO_PLOTLY__`` were both real.
-STALE = re.compile(r"pxrd|pxt", re.IGNORECASE)
+#: Both old distribution/import names and the old textdoc magic.  Case-
+#: insensitive — ``PXRDREF_STATE_DIR``, ``__PXRDREF_NO_PLOTLY__`` and
+#: ``ANATASE_STATE_DIR`` were all real.
+STALE = re.compile(r"pxrd|pxt|anatase", re.IGNORECASE)
 
-#: The only files allowed to carry the old name, and why.
+#: The only files allowed to carry an old name, and why.
 ALLOWED = {
     # this file: it *is* the audit, so it necessarily spells what it forbids.
     # Not discoverable by reading — the first run passed because the file was
     # still untracked and `git grep` cannot see an untracked file.
     "tests/test_no_stale_name.py",
-    # documents the rename, so it names both sides throughout and cannot be
+    # each documents a rename, so each names every side of it and cannot be
     # swept without destroying its own subject
-    "docs/wp/1062-rename-to-anatase.md",
+    "docs/wp/1062-rename.md",
+    "docs/wp/1066-rename.md",
     # vendored third-party tables whose provenance header records the
     # modification under the name it was made with.  Parsed byte-sensitively by
     # crystallography/{attenuation,dispersion}.py; historical, not current.
-    "src/anatase/data/mu_McMaster.dat",
-    "src/anatase/data/f1f2_CromerLiberman.dat",
-    # the milestone record's one line recording that the rename happened
+    "src/rietx/data/mu_McMaster.dat",
+    "src/rietx/data/f1f2_CromerLiberman.dat",
+    # the milestone record's paragraph on each rename, whose subject is the
+    # name that was left behind
     "docs/milestones/v1.0.md",
+    # the roadmap's index row and prose for WP-1062, whose title is its subject
+    "docs/ROADMAP.md",
 }
 
 
@@ -78,7 +97,7 @@ def test_no_file_outside_the_allowlist_carries_the_old_name():
     offenders = {p: v for p, v in _tracked_hits().items() if p not in ALLOWED}
     assert not offenders, (
         "the old name is back in " + ", ".join(sorted(offenders)) + " — import "
-        "the token from anatase._about instead of spelling it")
+        "the token from rietx._about instead of spelling it")
 
 
 def test_no_tracked_path_carries_the_old_name():
@@ -86,6 +105,13 @@ def test_no_tracked_path_carries_the_old_name():
 
     ``src/pxrdref/`` and ``gui/src/lib/pxt.ts`` were both real, and a path is
     invisible to a content grep.
+
+    A brand token in a path costs twice, which is why **no filename here may
+    carry one — a WP's least of all.**  ``docs/wp/1062-rename-to-anatase.md``
+    failed this test on its own name *and* dragged in every file that linked to
+    it, because a markdown link spells the filename; WP-1066 renamed it (and
+    itself) to a bare ``NNNN-rename.md``.  The title line inside says which name
+    the WP was about, and says it in a place the allowlist can exempt.
     """
     out = subprocess.run(["git", "ls-files"], cwd=ROOT,
                          capture_output=True, text=True, check=False).stdout

@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.report import compare_rivals
+import rietx as pr
+from rietx.report import compare_rivals
 from tests.eval_report_agent import build_fixtures as bf
 
 pytestmark = pytest.mark.slow
@@ -358,7 +358,7 @@ def test_e8p_through_the_agent_surface_carries_the_clause():
     ``refine_json`` itself — the surface the shim drives — converges with
     the planted path never freed (the vary-or-tie serialisation) and the
     clause in the delivered report's summary."""
-    from anatase import agent as agent_mod
+    from rietx import agent as agent_mod
 
     core = bf.build_episodes()["E8p"]["core"]
     response = agent_mod.refine_json(dict(core, include_report=True))

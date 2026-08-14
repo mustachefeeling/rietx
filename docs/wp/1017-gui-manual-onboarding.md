@@ -15,7 +15,7 @@ real UI.
   guards (`tests/test_manual.py`); a separate doc root would need its own
   guard set for no benefit. Three layered chapters matching the audience
   gradient:
-  - `gui-quickstart.md` — install (`pip install anatase[gui]`) → open →
+  - `gui-quickstart.md` — install (`pip install rietx[gui]`) → open →
     fit → read the report.
   - `gui-guide.md` — panel by panel, including *when to branch* (the
     history worktree is the differentiator; teach the workflow, not just
@@ -39,24 +39,25 @@ real UI.
 
 ### Inherited
 
-**From [1062](1062-rename-to-anatase.md), landed 2026-08-12 — the rename is
-done, and this WP writes the most user-visible prose in the repo.** The
-distribution, the import and the CLI are all `anatase`; the **format tokens are
+**From [1062](1062-rename.md) and [1066](1066-rename.md), landed 2026-08-12 and
+renamed again 2026-08-14 — the name is settled at `rietx`, and this WP writes
+the most user-visible prose in the repo.** The
+distribution, the import and the CLI are all `rietx`; the **format tokens are
 deliberately not** — a project directory is `.rex`, the text document `.rxt`
 (header `rxt N`), and an instrument profile is tagged plain
 `instrument_profile`, because those are versioned contracts and a contract must
-not move when a brand does. So do not write `.anatase` anywhere, and where you
+not move when a brand does. So do not write `.rietx` anywhere, and where you
 need the name in code import it from `_about.py` (`DIST_NAME`,
 `PROJECT_SUFFIX`, `TEXTDOC_MAGIC`) rather than spelling a literal.
 `tests/test_no_stale_name.py` fails on a reintroduction of the old name, but it
 greps the **old** token only — it cannot tell you that a *new* literal should
 have been an import.
 
-One thing that lands on this WP permanently: **anatase is also a phase this
+One thing that lands on this WP permanently: **rietx is also a phase this
 software analyses** (0 occurrences today, but `rutile` — the other TiO₂
-polymorph — appears 168 times in the QPA test data, and anatase/rutile is the
+polymorph — appears 168 times in the QPA test data, and rietx/rutile is the
 canonical QPA pair). The manual and onboarding copy need a disambiguation
-convention from the first public page: the phase as `anatase (TiO₂)`, the
+convention from the first public page: the phase as `rietx (TiO₂)`, the
 package in code formatting. Screenshots are the expensive half, and 1062 has
 landed, so they can be taken now — every panel, title bar and wizard hint
 already reads the new name.

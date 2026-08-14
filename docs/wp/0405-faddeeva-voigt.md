@@ -31,7 +31,7 @@ From **WP-0401** (op shim, landed 2026-07-24):
 - **The op inventory, verified 2026-07-24 rather than quoted.** 0401's own
   handover says "37 named ops"; the shipped vocabulary is **32** entries in
   `_OP_NAMES` plus `window_add` / `segment_sum` (34 total), plus `pi` and
-  `linalg` (`.inv`/`.det`). Read `src/anatase/backend/api.py::_OP_NAMES` for
+  `linalg` (`.inv`/`.det`). Read `src/rietx/backend/api.py::_OP_NAMES` for
   the live list — do not trust either number in prose.
 - **Complex is first-class but minimal:** `exp` (complex-capable), `conj`,
   `real`, `imag`. There is no complex `erfc` and no complex division op, which

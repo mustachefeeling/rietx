@@ -19,7 +19,7 @@ Q \;\equiv\; \frac{1}{d^2} \;=\; A h^2 + B k^2 + C l^2 + D k l + E h l
 + F h k,
 ```
 
-*Source:* `anatase.crystallography.lattice.inv_d_squared`
+*Source:* `rietx.crystallography.lattice.inv_d_squared`
 
 where the six coefficients are the reciprocal metric tensor's components
 
@@ -30,7 +30,7 @@ where the six coefficients are the reciprocal metric tensor's components
 2G^*_{23},\, 2G^*_{13},\, 2G^*_{12}\bigr).
 ```
 
-*Source:* `anatase.indexing.qspace.design_matrix`
+*Source:* `rietx.indexing.qspace.design_matrix`
 
 $Q$ is **linear** in $(A \ldots F)$ {cite}`itc-h-indexing`, and that is
 load-bearing three times over: fitting a cell to assigned lines is a
@@ -52,7 +52,7 @@ exact derivative
 \frac{\lvert \sin 2\theta \rvert}{\lambda^2}\, \sigma(2\theta),
 ```
 
-*Source:* `anatase.schemas.indexing.q_esd_of_two_theta`
+*Source:* `rietx.schemas.indexing.q_esd_of_two_theta`
 
 whose constant is worth reading twice: differentiating $Q = 4\sin^2\theta /
 \lambda^2$ with respect to $2\theta$ **in degrees** picks up both the
@@ -72,7 +72,7 @@ invariants of the lattice point group acting as $A(R)[U] = R\,U\,R^\top$,
 I\bigr),
 ```
 
-*Source:* `anatase.indexing.qspace.metric_basis`
+*Source:* `rietx.indexing.qspace.metric_basis`
 
 which is the *same* exact-rational nullspace the anisotropic-ADP basis uses
 one rank down, called with the **transposed** rotations because the
@@ -162,7 +162,7 @@ lattice it is:
 m \sin\theta_B \;=\; \sin\theta'_B .
 ```
 
-*Source:* `anatase.indexing.pairs.pair_shift`
+*Source:* `rietx.indexing.pairs.pair_shift`
 
 Writing $2\theta_B = 2\theta_\mathrm{obs} + 2\theta_z$ for a constant shift and
 solving {cite}`dong1999`:
@@ -174,7 +174,7 @@ solving {cite}`dong1999`:
   \frac{\sin\theta' - m\sin\theta}{m\cos\theta - \cos\theta'} \right].
 ```
 
-*Source:* `anatase.indexing.pairs.pair_shift`
+*Source:* `rietx.indexing.pairs.pair_shift`
 
 Each pair is thus one equation in the shift and none in the cell. Substituting
 a general $2\theta_B = 2\theta_\mathrm{obs} - c\,T(2\theta_\mathrm{obs})$
@@ -202,7 +202,7 @@ lines a lattice of that volume can show above a given $d$
 V \;\approx\; \frac{0.6\, d_N^3}{1/N - 0.0052},
 ```
 
-*Source:* `anatase.indexing.quality.volume_envelope`
+*Source:* `rietx.indexing.quality.volume_envelope`
 
 which at $N = 20$ is $V \approx 13.39\, d_{20}^3$ for a **primitive
 triclinic** lattice. Two scalings are needed before it can bound a search
@@ -237,7 +237,7 @@ M_{20} \;=\; \frac{Q_{20}}{2\,\overline{\lvert \Delta Q \rvert}\,
 N_{\mathrm{poss}}},
 ```
 
-*Source:* `anatase.indexing.fom.m20`
+*Source:* `rietx.indexing.fom.m20`
 
 and Smith & Snyder's {cite}`smithsnyder1979`
 
@@ -248,7 +248,7 @@ F_N \;=\; \frac{1}{\overline{\lvert \Delta 2\theta \rvert}} \cdot
 \frac{N_{\mathrm{obs}}}{N_{\mathrm{poss}}},
 ```
 
-*Source:* `anatase.indexing.fom.f_n`
+*Source:* `rietx.indexing.fom.f_n`
 
 where $N_{\mathrm{poss}}$ counts the lines the *lattice* allows up to the
 $N$-th observed one, and both means run over every one of those $N$ lines
@@ -303,7 +303,7 @@ H \;=\; \begin{pmatrix} a & b & c \\ 0 & d & e \\ 0 & 0 & f
 \end{pmatrix}, \qquad a d f = n, \quad 0 \le b < d, \quad 0 \le c,e < f,
 ```
 
-*Source:* `anatase.indexing.ambiguity.hnf_matrices`
+*Source:* `rietx.indexing.ambiguity.hnf_matrices`
 
 whose closed sets have 7, 13 and 35 members at $n = 2, 3, 4$ — a count the
 implementation is checked against. Each partner's metric follows from

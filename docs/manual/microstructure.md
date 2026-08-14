@@ -36,7 +36,7 @@ homogeneous **quartic** in $(h, k, l)$:
 \sigma^2(M) \;=\; 10^{-12} \sum_{H+K+L=4} S_{HKL}\; h^H k^K l^L,
 ```
 
-*Source:* `anatase.crystallography.stephens`
+*Source:* `rietx.crystallography.stephens`
 
 fifteen monomials, hence at most fifteen coefficients. Since $2\theta =
 2\arcsin(\lambda\sqrt{M}/2)$ gives $d(2\theta)/dM = \tan\theta / M$, the
@@ -50,7 +50,7 @@ uses is
 \cdot \sqrt{\textstyle\sum_{HKL} S_{HKL}\, h^H k^K l^L} \quad [\deg],
 ```
 
-*Source:* `anatase.crystallography.stephens`
+*Source:* `rietx.crystallography.stephens`
 
 added to the Lorentzian FWHM as $\Lambda(hkl)\cdot\tan\theta$ — the first
 width in the model that depends on $hkl$ rather than only on θ.

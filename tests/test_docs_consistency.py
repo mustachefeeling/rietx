@@ -8,7 +8,7 @@ it, in the same spirit as test_manual.py (the manual cannot drift from the
 code) and test_compare_ui.py (the compare registry cannot drift from the
 acceptance protocols).
 
-Everything here reads documentation files only — no anatase import, no data.
+Everything here reads documentation files only — no rietx import, no data.
 
 Size caps: SIZE_CAPS pins each always-loaded document to its measured size
 plus headroom.  A cap of None means "not yet pinned" (the consolidation pass
@@ -50,7 +50,7 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # 2026-08-05 raised 700 -> 720 with the written warning that it bought twelve
 # lines, not a habit, and that the next WP needing room should consolidate.
 # WP-1060 (2026-08-06) was that consolidation: the indexing dossier moved to
-# src/anatase/indexing/CLAUDE.md (auto-loads with its subtree), ROADMAP's
+# src/rietx/indexing/CLAUDE.md (auto-loads with its subtree), ROADMAP's
 # closed-WP narratives moved to the milestone record, Current numbers became
 # a measurement recipe — CLAUDE.md landed at 553, ROADMAP at 337 — and every
 # always-loaded rulebook is now capped at landed + headroom.  The admission
@@ -60,7 +60,7 @@ _INHERITED_PRUNE_EPOCH = "2026-07-31"
 # rulebook and earns a root clause only if it changes behavior outside
 # indexing/.  WP-1047 (2026-08-09) is the same move for the readers: root
 # CLAUDE.md was at exactly 600 with four vendor formats still to land, so the
-# reader detail went to src/anatase/io/CLAUDE.md (loads under io/) and root
+# reader detail went to src/rietx/io/CLAUDE.md (loads under io/) and root
 # kept only the four consequences a caller outside io/ sees.  Landed at 165,
 # capped at 200 — the headroom is the remaining formats' per-format rows.
 SIZE_CAPS: dict[str, int | None] = {
@@ -71,10 +71,10 @@ SIZE_CAPS: dict[str, int | None] = {
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix
-    "src/anatase/indexing/CLAUDE.md": 280,
+    "src/rietx/indexing/CLAUDE.md": 280,
     # 200 at the .ras/.uxd consolidation; raised once with three container
     # formats still to land, each of which is a row in its per-format table
-    "src/anatase/io/CLAUDE.md": 250,
+    "src/rietx/io/CLAUDE.md": 250,
 }
 CURRENT_FOCUS_CAP: int | None = 60  # lines within ROADMAP's Current focus (WP-1031 landed at 33; the 1060 rewrite at 44)
 
@@ -177,8 +177,8 @@ _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
 def _planning_docs() -> list[Path]:
     docs = [ROOT / "CLAUDE.md"]
-    for extra in ("gui/CLAUDE.md", "tests/CLAUDE.md", "src/anatase/gui/CLAUDE.md",
-                  "src/anatase/io/CLAUDE.md", "src/anatase/indexing/CLAUDE.md"):
+    for extra in ("gui/CLAUDE.md", "tests/CLAUDE.md", "src/rietx/gui/CLAUDE.md",
+                  "src/rietx/io/CLAUDE.md", "src/rietx/indexing/CLAUDE.md"):
         if (ROOT / extra).is_file():
             docs.append(ROOT / extra)
     docs += sorted((ROOT / "docs").glob("*.md"))

@@ -96,7 +96,7 @@ def srm660c_baseline():
 
     **Consumers must carry** ``@pytest.mark.xdist_group("srm660c")``.
     """
-    import anatase as pr
+    import rietx as pr
     from tests.test_acceptance_srm660c import (
         _nist_calibrated_plan,
         build_srm_inputs,

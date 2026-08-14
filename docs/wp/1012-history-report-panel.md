@@ -94,7 +94,7 @@ message for the number.
 From the **indexing plan** (WP-1018…1027, added 2026-07-29): one of those
 kinds stops being advice. **`reindex_or_recheck_cell` becomes automatable** —
 `report/layer2.layer0_actions` has emitted it as an `alternatives` member since
-v0.2 with nothing behind it, and WP-1024 gives it `anatase.pick_peaks(...)` /
+v0.2 with nothing behind it, and WP-1024 gives it `rietx.pick_peaks(...)` /
 `index_pattern(...)`. Put it on the applicable side of the split and wire its
 button to launch an indexing run through the WP-1006 run state machine (it is
 long-running, unlike every other applicable action). No `ActionKind` change is

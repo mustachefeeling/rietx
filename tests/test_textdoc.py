@@ -22,10 +22,10 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-import anatase as pr
-from anatase.gui import GuiSession
-from anatase.gui import textdoc as td
-from anatase.schemas.plan import StageSpec
+import rietx as pr
+from rietx.gui import GuiSession
+from rietx.gui import textdoc as td
+from rietx.schemas.plan import StageSpec
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -535,8 +535,8 @@ def test_textdoc_is_refused_while_a_run_is_in_flight(session, project,
 
 
 def test_the_routes_are_live_and_no_longer_reserved():
-    from anatase.gui import ROUTES
-    from anatase.gui.session import RESERVED_ROUTES
+    from rietx.gui import ROUTES
+    from rietx.gui.session import RESERVED_ROUTES
 
     assert ("GET", "/api/textdoc") in ROUTES
     assert ("PUT", "/api/textdoc") in ROUTES

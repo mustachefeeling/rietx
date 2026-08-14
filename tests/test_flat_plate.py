@@ -13,7 +13,7 @@ check with no shared constants at all.
 import numpy as np
 import pytest
 
-from anatase.model.absorption import (
+from rietx.model.absorption import (
     cylinder_absorption,
     equivalent_delta_biso,
     equivalent_delta_biso_from_transmission,
@@ -183,12 +183,12 @@ def test_mu_t_identifiability_is_small_but_not_zero():
         assert 0.01 < mu_t_identifiable_fraction(tt, mu_t, "bragg_brentano") < 0.4
 
     # and the µR comparison that motivates the whole distinction
-    from anatase.model.absorption import mu_r_identifiable_fraction
+    from rietx.model.absorption import mu_r_identifiable_fraction
     assert mu_r_identifiable_fraction(tt, 0.5) < 1e-12
 
 
 def test_intensity_fraction_peaks_at_one_absorption_length():
-    from anatase.model.absorption import transmission_intensity_fraction
+    from rietx.model.absorption import transmission_intensity_fraction
 
     assert transmission_intensity_fraction(1.0) == pytest.approx(1.0)
     for mu_t in (0.05, 0.4, 2.0, 5.0):
@@ -216,7 +216,7 @@ def test_intensity_fraction_peaks_at_one_absorption_length():
 def test_geometry_validators(kwargs, match):
     from pydantic import ValidationError
 
-    from anatase.schemas.instrument import Geometry
+    from rietx.schemas.instrument import Geometry
     with pytest.raises(ValidationError, match=match):
         Geometry(**kwargs)
 
@@ -228,14 +228,14 @@ def test_zero_mu_t_is_legal_in_transmission_and_is_pure_footprint():
     a sec θ footprint) and a contradiction under reflection (no specimen at
     all), so the two cannot share the "0 means off" convention.
     """
-    from anatase.schemas.instrument import Geometry
+    from rietx.schemas.instrument import Geometry
 
     geom = Geometry(kind="flat_plate_transmission", mu_t=0.0)
     assert geom.mu_t == 0.0
 
 
 def test_geometry_round_trips_through_json():
-    from anatase.schemas.instrument import Geometry
+    from rietx.schemas.instrument import Geometry
 
     geom = Geometry(kind="flat_plate_transmission", mu_t=0.42, thickness_mm=0.15,
                     packing_fraction=0.45)
@@ -249,8 +249,8 @@ def test_specimen_absorption_is_stripped_from_an_instrument_profile(tmp_path):
     every later sample measured on that instrument — the exact bias the
     correction exists to remove.  Same rule as surface roughness (WP-0502).
     """
-    from anatase import Instrument
-    from anatase.io.instrument_profile import (
+    from rietx import Instrument
+    from rietx.io.instrument_profile import (
         load_instrument_profile,
         save_instrument_profile,
     )
@@ -265,7 +265,7 @@ def test_specimen_absorption_is_stripped_from_an_instrument_profile(tmp_path):
 
 
 def test_transmission_preset_defaults_to_a_monochromated_beam():
-    from anatase import Instrument
+    from rietx import Instrument
 
     ins = Instrument.flat_plate_transmission(mu_t=0.3)
     assert ins.geometry.kind == "flat_plate_transmission"
@@ -284,9 +284,9 @@ def _flat_plate_model(mu_t: float, kind: str):
     Mirrors ``test_absorption._capillary_model`` deliberately: the guard below
     is the same guard, and the two must not drift apart.
     """
-    from anatase import Instrument, PatternData
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -326,7 +326,7 @@ def test_every_analytic_column_carries_the_flat_plate_factor(kind, mu_t):
     more than half across the pattern — the pre-assert below is what stops this
     passing vacuously, exactly as in ``test_absorption.py``.
     """
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
 
     model, table = _flat_plate_model(mu_t, kind)
     a = np.asarray(model._absorption(model.tt))
@@ -381,7 +381,7 @@ def test_transmission_applies_its_factor_even_with_no_declared_thickness():
     the opt-in, and the record says so by reporting µt = 0 rather than staying
     silent.
     """
-    import anatase as pr
+    import rietx as pr
 
     model, _ = _flat_plate_model(0.0, "flat_plate_transmission")
     object.__setattr__(model, "mu_t", None)
@@ -401,7 +401,7 @@ def test_debye_scherrer_ignores_mu_t_and_flat_plate_ignores_mu_r():
     assert model.mu_r == 0.0
     assert not np.isscalar(model._absorption(model.tt))
 
-    from anatase import Instrument
+    from rietx import Instrument
     ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=0.5)
     assert ins.geometry.mu_t is None
 
@@ -411,7 +411,7 @@ def test_debye_scherrer_ignores_mu_t_and_flat_plate_ignores_mu_r():
 
 def _fit_flat_plate(kind: str, **geometry):
     """A tiny end-to-end Rietveld fit against a self-generated pattern."""
-    import anatase as pr
+    import rietx as pr
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -422,8 +422,8 @@ def _fit_flat_plate(kind: str, **geometry):
         ins = pr.Instrument.bragg_brentano(radiation="CuKa1", **geometry)
     ins.profile.w.value = 1e-2
     grid = np.arange(15.0, 90.0, 0.05)
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
     table = ParameterTable(structure, ins)
     model = compile_model(structure, ins,
                           pr.PatternData(two_theta=grid.tolist(),
@@ -465,7 +465,7 @@ def test_the_thickness_diagnostic_is_gated_on_the_bias_not_the_residue():
     WP-0502 established is worthless, so this one is gated on the size of the
     Biso shift instead.
     """
-    from anatase.refine import FLAT_PLATE_BIAS_MIN
+    from rietx.refine import FLAT_PLATE_BIAS_MIN
 
     inert = _fit_flat_plate("bragg_brentano", mu_t=4.0)
     assert abs(inert.absorption.equivalent_delta_biso) < FLAT_PLATE_BIAS_MIN
@@ -522,9 +522,9 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
        predicted shift is exact to seven decimals on real data
        (``test_acceptance_capillary``). That contrast is the whole point.
     """
-    import anatase as pr
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    import rietx as pr
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
     from tests.test_aniso_adp import make_aniso_rutile
 
     b_true = 0.8
@@ -597,7 +597,7 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
     # is left in the difference curve
     from pathlib import Path
 
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(fits[None][1], path=str(out / "flat_plate_thickness_omitted.png"))

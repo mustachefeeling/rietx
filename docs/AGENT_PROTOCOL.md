@@ -1,6 +1,6 @@
 # Refinement protocol for agents
 
-**Audience: an LLM agent driving `anatase` to refine real powder diffraction
+**Audience: an LLM agent driving `rietx` to refine real powder diffraction
 data.** Not a tutorial and not an API reference — a *protocol*: what to do, in
 what order, what to check before believing a number, and where this package
 will tell you that your answer is wrong even though it looks right.
@@ -211,7 +211,7 @@ Judge a fit in this order:
    5332 points, with the zero-only model biasing *a* by +100 ppm.
 
    **Read the outcome by the decision band, and follow through.** The grade
-   is `RIVAL_DECISIVE_MIN_CHI2_RATIO` (= 1.10, `anatase.report`), read on
+   is `RIVAL_DECISIVE_MIN_CHI2_RATIO` (= 1.10, `rietx.report`), read on
    the losing rival's χ² over the winning rival's. At or above it **the data
    has chosen: the winning rival's fit is the answer, and you quote it
    without caveat.** Hedging a won swap is a measured failure, not caution —
@@ -531,8 +531,8 @@ afterwards as fractions of the crystalline content you did model.
 ### 7b. Peak picking and indexing (`PeakList.diagnostics`,
 `DataQualityReport.diagnostics`)
 
-These arrive from `anatase.pick_peaks` and
-`anatase.indexing.assess_peak_list`, *before* any refinement exists — so they
+These arrive from `rietx.pick_peaks` and
+`rietx.indexing.assess_peak_list`, *before* any refinement exists — so they
 are read on the peak list, not on a `RefinementResult`.
 
 | Code | What it means you must not do |
@@ -561,7 +561,7 @@ are read on the peak list, not on a `RefinementResult`.
 ### 7c. The answer's own diagnostics (`IndexingResult.diagnostics`, and each
 candidate's)
 
-These arrive from `anatase.index_pattern`. **Statements about one candidate live
+These arrive from `rietx.index_pattern`. **Statements about one candidate live
 on that candidate** (`result.candidates[i].diagnostics`); statements about the
 result live on the result. `INDEX_ABSTAINED` names the top candidate's caveats,
 which is the pointer from one level to the other — so read both, and start at the
@@ -582,7 +582,7 @@ result.
 
 ### 7e. The extinction screen (`ExtinctionScreen.diagnostics`, and each class's)
 
-These arrive from `anatase.determine_extinction_symbol`, which runs *after* a cell
+These arrive from `rietx.determine_extinction_symbol`, which runs *after* a cell
 is in hand and answers the next question — which systematic absences the pattern
 shows. Same split as §7c: a refutation lives on the class it refutes.
 
@@ -622,7 +622,7 @@ for d in result.diagnostics:
         a, b = d.where          # the degenerate pair, as dot-paths
 ```
 
-And ask the package what it can do rather than assuming: `anatase.capabilities()`
+And ask the package what it can do rather than assuming: `rietx.capabilities()`
 returns the live registries — backends (with whether each optional dependency is
 importable *on this machine*), solvers, plan presets with their `when_to_use`
 text, modes, anodes, the pattern formats `read_pattern` opens, and the four
@@ -652,7 +652,7 @@ stream on the event ladder as the run goes (`events=`), so the useful answer
 usually arrives seconds in, long before the run ends. `preset="full"` is the
 unbounded pre-1.0 behaviour — reach for it when a quick run reports truncated
 or not-reached systems and the answer may live there. For the arithmetic, ask
-`anatase.indexing.engines.estimate_ceiling(spec)` (CLI: `anatase index
+`rietx.indexing.engines.estimate_ceiling(spec)` (CLI: `rietx index
 --ceiling`): `budget_seconds` (default 30) is per **(engine × system)**, the
 worst case is that arithmetic plus the probe plus per-fit validation (measured
 0.6–44 s each), against measured typicals an order of magnitude lower, because
@@ -679,9 +679,9 @@ worked example — you suspect the specimen is isostructural with calcite
 (R -3 c, a = 4.99 Å, c = 17.06 Å):
 
 ```python
-idx = anatase.index_pattern(
+idx = rietx.index_pattern(
     peaks, data=data, instrument=instrument,
-    spec=anatase.indexing.SearchSpec(
+    spec=rietx.indexing.SearchSpec(
         prior_cells=((4.99, 4.99, 17.06, 90.0, 90.0, 120.0),),
         prior_spacegroups=("R -3 c",)))   # trigonal jumps the queue; the
                                           # centring steers the prior's check
@@ -697,25 +697,25 @@ final list is the one you would have had anyway, plus the record that the
 prior was tried.
 
 ```python
-peaks  = anatase.pick_peaks(data, instrument)           # fitted positions + σ
-report = anatase.indexing.assess_peak_list(peaks)       # fit to index at all?
+peaks  = rietx.pick_peaks(data, instrument)           # fitted positions + σ
+report = rietx.indexing.assess_peak_list(peaks)       # fit to index at all?
 if not report.supports_indexing:
     ...                        # abstention. Do not spend a budget (§6)
 
-idx  = anatase.index_pattern(peaks, data=data, instrument=instrument)
+idx  = rietx.index_pattern(peaks, data=data, instrument=instrument)
 cell = idx.best_or_none()
 if cell is None:
     ...                        # read confidence_caveats; do NOT take candidates[0]
 
-phase = anatase.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
-result = anatase.refine(data, phase, instrument, mode="lebail",
+phase = rietx.indexing.structure_from_candidate(cell)  # dummy atom, lattice group
+result = rietx.refine(data, phase, instrument, mode="lebail",
                         plan="profile_only")
 
-screen = anatase.determine_extinction_symbol(data, cell, instrument)
+screen = rietx.determine_extinction_symbol(data, cell, instrument)
 klass  = screen.best_or_none()          # an extinction *class*, never one group
 if klass is not None:
     # any member fits the data equally well — that is what the class means
-    phase = anatase.indexing.structure_from_candidate(
+    phase = rietx.indexing.structure_from_candidate(
         cell, space_group=klass.space_groups[0])
 ```
 
@@ -783,7 +783,7 @@ it measurably does on magnetite's rival, whose fit buys a negative background
 — §7c's row), and never a thing to score on. Result-wide: what the search
 covered (`systems_searched` + `search_complete`) against what the list
 supports (`systems_supported`). The visual check is part of the answer, not
-documentation of it: `anatase.viz.plot_indexing(result, peaks, data=...,
+documentation of it: `rietx.viz.plot_indexing(result, peaks, data=...,
 instrument=...)` draws the ranked tick rows and the Le Bail panel from the
 result alone.
 
@@ -1240,8 +1240,8 @@ there than excluding the scales.
 
 ## 9c. One JSON call from a tool loop
 
-`anatase.agent.refine_json(dict) → dict` wraps the entry points for a
-tool-calling agent, and `anatase.agent.tool_definition()` returns a
+`rietx.agent.refine_json(dict) → dict` wraps the entry points for a
+tool-calling agent, and `rietx.agent.tool_definition()` returns a
 ready-to-register tool whose schema quotes the backend/solver/plan/**engine**
 vocabularies from the live registries.  Five tasks: `"refine"` (one pattern →
 `result` + the FitReport + the per-stage `trajectory`), `"refine_multi"` (one
@@ -1311,7 +1311,7 @@ If you have a lab pattern, a CIF and no other information, this is the sequence
 to run and the checks to make. Adapt, do not skip the checks.
 
 ```python
-import anatase as pr
+import rietx as pr
 
 data       = pr.read_pattern("sample.xy")
 structure  = pr.Structure.from_cif("phase.cif")
@@ -1372,8 +1372,8 @@ its protocol is not a measurement.
   "Outputs & fit assessment" section is the agent-native design record)
 - [`ROADMAP.md`](ROADMAP.md) — what is implemented, what is fenced
 - `tests/data/README.md` — provenance and reference values for every dataset
-- `anatase compare` — browser UI comparing refinement settings side by side on
-  the bundled standards (`src/anatase/viz/compare.py` is its registry, and a
+- `rietx compare` — browser UI comparing refinement settings side by side on
+  the bundled standards (`src/rietx/viz/compare.py` is its registry, and a
   usable API on its own: `compare.run("zincite", "dispersion")`). Its
   cumulative-Δχ² panel is the machine-readable form of §8.1's rule — it shows
   *where* a correction acted, not just whether Rwp moved

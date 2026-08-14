@@ -3,7 +3,7 @@
  *
  * There is deliberately no crystallography to test here — the orbit, the
  * metric, the eigen-decomposition and the bond rule are all in
- * `src/anatase/gui/structure3d.py` and asserted in `tests/test_structure3d.py`.
+ * `src/rietx/gui/structure3d.py` and asserted in `tests/test_structure3d.py`.
  * What *is* here is the part that can silently draw the right numbers wrongly:
  * the matrix-vector convention (the payload's 3×3 has the principal axes as
  * **columns**, so transposing it would rotate every ellipsoid to a plausible

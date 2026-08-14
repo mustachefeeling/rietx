@@ -8,7 +8,7 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 
 ## Scope (carried verbatim from the pre-split roadmap)
 
-- API freeze, PyPI release (name `anatase` verified available)
+- API freeze, PyPI release (name `rietx` verified available)
 
 ### Inherited
 
@@ -111,7 +111,7 @@ fit* and names the swap ("fit each of the pair alone with the other held at
 its null and compare χ²"), and `report.compare_rivals(refinement, data,
 finding) → RivalComparison` ships that experiment as a pull — module-level in
 `report/layer2.py`, `predict_then_verify`'s peer, exported from
-`anatase.report`. New public names to freeze: `compare_rivals`,
+`rietx.report`. New public names to freeze: `compare_rivals`,
 `RivalComparison`, `RivalFit`. `EXCHANGEABLE_MIN_R2` was deliberately **not**
 retuned (grounds in the 0.8 changelog: no threshold on a geometric quantity
 can make "the data cannot tell" true), so no gate moved.
@@ -177,16 +177,35 @@ not. Freezing that asymmetry means freezing "a library primitive is cheap, a
 delivery surface is complete" as a stated principle — worth saying out loud in
 the freeze rather than leaving as two flags with different defaults.
 
-**From [1062](1062-rename-to-anatase.md), closed 2026-08-12 — the rename has
-landed, so this is the surface you are freezing.** The distribution, import and
-CLI are all `anatase`; PyPI `anatase` was free as of 2026-08-12 but **nothing
-has been uploaded**, so re-check before the release rather than trusting that
-date. GitHub is `yue-here/anatase` (renamed in place; the old URL redirects).
+**From [1066](1066-rename.md), closed 2026-08-14 — the name moved a second
+time, and one thing you were told is no longer true.** The distribution, import,
+CLI and state dir are `rietx`; the previous name lasted two days (it read as a
+sample, not a program — 1066 names it, this file deliberately does not). Three
+facts the freeze needs:
+
+- **PyPI `rietx` is not free — it is *yours*, and already published.** A
+  **0.0.0 placeholder** (wheel + sdist, MIT, author "Yue Wu") was uploaded
+  2026-08-14 to reserve the name. That supersedes the "nothing has been
+  uploaded" line below. Two consequences: the first real release must be a
+  version above `0.0.0` (1.0.0 is), and the placeholder declares
+  `requires-python >=3.10` while `pyproject.toml` says `>=3.11` — a metadata
+  disagreement to resolve deliberately at upload, not to discover then.
+- **GitHub is `yue-here/rietx`**, renamed in place (star, issues and PR numbers
+  intact) after deleting the placeholder repo that held the name; both earlier
+  URLs still redirect. Still **private** — publishing remains this WP's call.
+- **The brand/format split held under a real test.** The three format tokens
+  came through a second rename as the same bytes, which is the paragraph below
+  earning its keep rather than merely asserting itself.
+
+**From [1062](1062-rename.md), closed 2026-08-12 — the first rename, and the
+design the second one inherited.** ~300 files, with `_about.py` centralizing
+every name-bearing literal; that centralization is why the second rename was a
+sweep. Its PyPI and GitHub facts are superseded by the entry above.
 
 **What the freeze now covers, and the one asymmetry in it.** Brand tokens —
 `DIST_NAME`, `STATE_DIR_NAME`/`STATE_DIR_ENV`, `AGENT_TOOL_NAME`
-(`anatase_refine`), `DATA_PACKAGE`, `SERVER_TOKEN` — all live in
-`src/anatase/_about.py` and move together. The **format** tokens live there too
+(`rietx_refine`), `DATA_PACKAGE`, `SERVER_TOKEN` — all live in
+`src/rietx/_about.py` and move together. The **format** tokens live there too
 but are deliberately brand-free and are *separately* versioned: `.rex`
 (`PROJECT_FORMAT_VERSION` 1.1), `.rxt` with header `rxt N`
 (textdoc `FORMAT_VERSION` 1), and the profile tag `instrument_profile`
@@ -204,24 +223,24 @@ version should have moved.
 **One inconsistency left for you deliberately.** The LICENSE now names the
 copyright holder as **Yue Wu** (an actual legal person; the old
 "⟨project⟩ developers" form named none), while `pyproject.toml` still has
-`authors = [{ name = "anatase developers" }]`. Release metadata is this WP's,
+`authors = [{ name = "rietx developers" }]`. Release metadata is this WP's,
 so the two should be reconciled here — with an email, which `authors` wants and
 the LICENSE does not.
 
 **Also new since this WP was written:** `tests/test_no_stale_name.py` audits the
-old name out of the tree, written against the **old** token because `anatase` is
+old name out of the tree, written against the **old** token because `rietx` is
 a phase this software analyses. It cannot catch a hardcoded *new* literal, so
 any name-bearing string the freeze adds must be an `_about.py` import.
 
 **Three things already parked here that 1062 does *not* take.** They stay this
 WP's, and all three embed the name, so do them *after* the rename: the sdist and
-wheel metadata (which "currently names only anatase's own licences"), the
+wheel metadata (which "currently names only rietx's own licences"), the
 `classifiers` block, and the `tests/data/qarr/` licence blocker. Add two more to
 the list: there is **no `CITATION.cff`** and **no `@software` entry** in
 `docs/manual/references.bib` — a first public release wants both, and both embed
 the name.
 
-**One decision 1062 left to this WP.** `ANATASE_STATE_DIR` and `~/.anatase` are
+**One decision 1062 left to this WP.** `RIETX_STATE_DIR` and `~/.rietx` are
 now `_about.py` constants (`STATE_DIR_ENV`, `STATE_DIR_NAME`); whether the state
 dir should be XDG-aware before it is frozen is still open, and is noted below in
 the entry that raised it.
@@ -231,14 +250,14 @@ lander's surface changes for the freeze.** `THRESHOLDS_VERSION` is now
 **0.7**. `RefinementResult.identifiability` gained three additive defaulted
 fields — `top_correlations: list[CorrelationPair]`, `soft_modes:
 list[SoftMode]`, `exchangeability: list[ExchangeRow]` — three new models on
-`anatase.schemas.results`, same never-recomputable character 1055's entry
+`rietx.schemas.results`, same never-recomputable character 1055's entry
 below names (read off the final Jacobian), `SCHEMA_VERSION` unmoved.
 `FitReport` gained `identifiability: IdentifiabilityEvidence | None`
 (absent-for-cause only when the result has no channels; its carrier-derived
 fields are individually None when unmeasured — a replay). New exports on
-`anatase.report`: `IdentifiabilityEvidence`, `ExchangeFinding`,
+`rietx.report`: `IdentifiabilityEvidence`, `ExchangeFinding`,
 `assess_identifiability`, `identifiability_clause`, `is_exchangeable`. New
-module `anatase.optimize.identifiability` whose `EXCHANGE_CANDIDATE_GLOBS`
+module `rietx.optimize.identifiability` whose `EXCHANGE_CANDIDATE_GLOBS`
 and `NULL_IDENTITY` are protocol pinned by test — a freeze decision about
 them is a decision about what every report can say. `check_guards` gained a
 keyword (`scan_exchangeability`, default False — existing callers
@@ -258,9 +277,9 @@ first field on the result whose value cannot be recomputed from the result
 decision about it is a decision about *what a stored result promises*, not
 just about a shape. Both are additive and defaulted, so `SCHEMA_VERSION`
 stays at 0.1 on the WP-1043 events precedent. New exports on
-`anatase.report`: `BackgroundEvidence`, `assess_background`,
+`rietx.report`: `BackgroundEvidence`, `assess_background`,
 `background_actions`, `background_clause`, `note_background_crosstalk`,
-`too_flexible`, `too_stiff`; new on `anatase.schemas.results`:
+`too_flexible`, `too_stiff`; new on `rietx.schemas.results`:
 `Identifiability`. `GuardReport` gained a seventh field,
 `measured_background_absorption`, which is **not** findings — worth naming in
 the freeze because the six-findings-fields sentence has been the documented
@@ -278,7 +297,7 @@ LeBailGap | None` (a new four-field model — `rwp_rietveld`, `rwp_lebail`,
 model-free reports, a semantics worth a freeze-time doc sentence) and
 `abstained_kind: Literal["immature", "resolution_limited", "unreadable"] |
 None` — a **closed** vocabulary, so adding a kind is a minor version and
-renaming one is breaking. `anatase.report.__all__` gained `LeBailGap`,
+renaming one is breaking. `rietx.report.__all__` gained `LeBailGap`,
 `lebail_gap`, `abstention_flavour` and `contents_signature`; nine pinned
 constants joined `report.schemas` (`LEBAIL_GAP_*`, `RESOLUTION_LIMITED_*`,
 `CONTENTS_*`). The summary string now carries up to two extra clauses (gap +
@@ -295,7 +314,7 @@ gained `caveat: str | None` (set when strong unmatched peaks coexist with a
 detection), and `best_axis` is now **always populated** evidence with
 `detected` the only branch field — a consumer that treated `best_axis is
 not None` as detection would silently change meaning, which is worth a
-freeze-time doc sentence. `anatase.report.__all__` gained `reindex_action`
+freeze-time doc sentence. `rietx.report.__all__` gained `reindex_action`
 and `cap_texture_crosstalk`. All additive; no `ActionKind` changed meaning.
 
 **From the 2026-08-11 planning session (FitReport design review + 1053
@@ -598,7 +617,7 @@ un-frozen.
 **From [1041](1041-indexing-benchmark-gallery.md) closing, 2026-08-05 — two more
 surface changes, and unlike `log_sum_scores` below both are wired and load-bearing.**
 
-- **`anatase.indexing.engines.match_window(peaks, spec=None, quality=None)`** is a
+- **`rietx.indexing.engines.match_window(peaks, spec=None, quality=None)`** is a
   new public export: the σ(Q) the *search* matched with, which is `q_esd` widened
   by the shift allowance. It exists because `consensus` and `viz.indexing` were
   deriving it two ways and the second was wrong. Freeze it as the **one authority**
@@ -616,7 +635,7 @@ surface, despite being the thing that generates the scoreboard.
 
 **From [1041](1041-indexing-benchmark-gallery.md), 2026-08-05 — one new public
 export that is deliberately unwired, and the freeze has to decide about it.**
-`anatase.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,
+`rietx.indexing.fom.log_sum_scores` (plus `AGGREGATE_EXCLUDES`,
 `AGGREGATE_FLOOR_RTOL`) is exported from `fom.__all__` and `indexing/__init__`,
 is tested, and **nothing in the package calls it**: `rank_candidates` still
 aggregates with `borda_scores`. It ships because it is the instrument that
@@ -708,7 +727,7 @@ usability WP, closed — and the stale number would have read as "already
 satisfied".)
 
 **From WP-1025 (landed 2026-07-30) — new frozen surface, and one decision left
-open on purpose.** `determine_extinction_symbol` is exported from `anatase` as a
+open on purpose.** `determine_extinction_symbol` is exported from `rietx` as a
 peer of `index_pattern`, with `ExtinctionCandidate`/`ExtinctionScreen` in
 `schemas/indexing.py`; `ExtinctionScreen.best_or_none()` is the singleton
 accessor and the freeze should cover the *absence* of a `.symbol`/`.space_group`
@@ -733,8 +752,8 @@ exactly the kind of thing a freeze should make a decision about rather than
 inherit: either the schema validates and the two agree, or the difference is
 documented as deliberate.
 
-The surface, all new here and all inside `anatase.gui`: the module
-`anatase.gui.imports` (`UploadStore`, `MAX_UPLOAD_BYTES`, `UPLOAD_KINDS`,
+The surface, all new here and all inside `rietx.gui`: the module
+`rietx.gui.imports` (`UploadStore`, `MAX_UPLOAD_BYTES`, `UPLOAD_KINDS`,
 `INSTRUMENT_PRESETS`, the `preview_*` functions), `UPLOAD_ROUTES` in `server.py`,
 `GuiSession.upload`, `GuiSession.structure_aniso`, and two additive route
 changes — `GET /api/structure` gained a `sites` arm, and `POST
@@ -751,9 +770,9 @@ it. Both are MIT and unmodified; `ATTRIBUTION.md` now has a *Bundled frontend
 code* section stating it, with `gui/package-lock.json` as the version statement.
 What this WP owes at publication is the packaging half rather than the prose: a
 wheel that redistributes MIT code should carry those licenses, and the sdist/wheel
-metadata currently names only anatase's own. Worth deciding at the same time
+metadata currently names only rietx's own. Worth deciding at the same time
 whether the `[gui]` extra's description should mention the bundle size, since
-`pip install anatase[gui]` now pulls ~460 kB of committed assets whether or
+`pip install rietx[gui]` now pulls ~460 kB of committed assets whether or
 not anyone opens the text pane. `tests/test_gui_dist.py` already asserts every
 chunk is *in* the wheel and that none of them names a remote host.
 
@@ -866,8 +885,8 @@ decisions and one new surface:
   Delete or fill; **recommend delete** — the GUI reads the event stream, and
   per-iteration curves in every result would violate the state-not-curves
   rule the history nodes follow.
-- **`[gui]` extra + committed-static wheel audit**: `src/anatase/gui/static/`
-  ships in the wheel (hatchling packages `src/anatase` wholesale) — audit
+- **`[gui]` extra + committed-static wheel audit**: `src/rietx/gui/static/`
+  ships in the wheel (hatchling packages `src/rietx` wholesale) — audit
   wheel *and* sdist contents for the static assets, `help.json`, and
   `build-info.json`, and decide whether the `gui/` TS workspace is excluded
   from the sdist the same way the tests question above is decided.
@@ -981,7 +1000,7 @@ freeze:
   it is a new document with its own failure modes — budget it here, don't
   bolt it onto `docs/manual/`.
 
-From **WP-0602** (agent JSON surface, landed 2026-07-29): **`anatase.agent` is
+From **WP-0602** (agent JSON surface, landed 2026-07-29): **`rietx.agent` is
 deliberate public API to freeze** — `refine_json`, `request_schema`,
 `response_schema`, `tool_definition`, the request/response envelope models and
 `ERROR_CODES`.  Two contracts inside it are load-bearing for external
@@ -1022,7 +1041,7 @@ intact:
   `LeBailValidation`, `IndexingResult`, `ExtinctionCandidate`,
   `ExtinctionScreen`, plus `INDEXING_THRESHOLDS_VERSION` and its pinned
   constants); the `PEAK_*` / `INDEX_*` / `EXTINCTION_*` diagnostic codes; the
-  `agent.py` `index` task; and `anatase index` in the CLI.
+  `agent.py` `index` task; and `rietx index` in the CLI.
 - **`IndexingResult` must keep having no unconditional singleton accessor.**
   There is deliberately no `.cell`, `.best` or `.solution`; `candidates` is
   always a list and `best_or_none()` is gated. This is the same species of
@@ -1078,7 +1097,7 @@ API states about CIF round-tripping has to say that, or narrow the claim.
 From **WP-1008** (GUI server, landed 2026-07-30): three additions to the public
 surface, and one thing that is explicitly *not* frozen.
 
-- New top-level module `anatase.gui` exporting `GuiSession`, `GuiError`,
+- New top-level module `rietx.gui` exporting `GuiSession`, `GuiError`,
   `serve`, `build_server`, `main`, `ROUTES`, `RESERVED_ROUTES`, `DEFAULT_PORT`,
   `EVENT_RING`, `RunState`. `GuiSession`'s **methods** are the surface a Tauri or
   notebook driver would use, so they are worth freezing; `gui.server` is
@@ -1091,15 +1110,15 @@ surface, and one thing that is explicitly *not* frozen.
 - **The HTTP wire surface stays provisional at v1.0**, as the note above from the
   GUI plan already says. The freeze covers the schemas the routes carry (all
   existing pydantic models) and `GuiSession`'s method names, not the paths.
-- New CLI subcommand `anatase gui`, and a new env var `ANATASE_STATE_DIR`
-  (recent-projects store, default `~/.anatase`) — the first user-level state this
+- New CLI subcommand `rietx gui`, and a new env var `RIETX_STATE_DIR`
+  (recent-projects store, default `~/.rietx`) — the first user-level state this
   package has ever written outside a project directory. Worth a README line and a
   decision on whether it should be XDG-aware before it is frozen.
 
 From **WP-1009** (text document, landed 2026-07-30): more surface to weigh, and
 one signature change.
 
-- `anatase.gui.textdoc` — `FORMAT_VERSION` (`rxt 1`, its own versioned contract,
+- `rietx.gui.textdoc` — `FORMAT_VERSION` (`rxt 1`, its own versioned contract,
   making **five** in the build rather than the four `capabilities()` reports),
   `VALUE_DIGITS`, `RESERVED_BLOCKS`, `render`, `parse`, `changes`, `apply`,
   `revision`, and the `TextError`/`Row`/`ParsedDocument`/`Delta` dataclasses.
@@ -1114,7 +1133,7 @@ one signature change.
 From **WP-1010** (frontend scaffold, landed 2026-07-30) — packaging facts the
 freeze has to decide about, all measured:
 
-- **The built frontend ships in the wheel** (`anatase/gui/static/{index.html,
+- **The built frontend ships in the wheel** (`rietx/gui/static/{index.html,
   build-info.json,assets/app.js,assets/app.css}`, verified by `uv build --wheel`
   in `tests/test_gui_dist.py`). Hatchling includes it because it is a non-ignored
   file under the package — and the repo-wide `*.html` ignore rule matched
@@ -1134,10 +1153,10 @@ From **WP-1012** (history/report panels, landed 2026-07-30) — one new module t
 freeze and **three additive-field decisions** that only exist because something
 finally consumed the report mechanically:
 
-- **`anatase.report.apply` is new public surface**: `RECIPES` (a
+- **`rietx.report.apply` is new public surface**: `RECIPES` (a
   `dict[ActionKind, Recipe]` classifying every member of the closed vocabulary as
   `stage` / `index` / `advice`), `recipe`, `stage_for`, `api_call`, `unreachable`,
-  `refusal`, `describe_action`, `missing_kinds`. Re-exported from `anatase.report`.
+  `refusal`, `describe_action`, `missing_kinds`. Re-exported from `rietx.report`.
   Freeze question: is the *classification* part of the contract, or an
   implementation detail of the GUI? It is the second half of `ActionKind` — a
   vocabulary member whose `how` nobody can read is not actionable — so it probably

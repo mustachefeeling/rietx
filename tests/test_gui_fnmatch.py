@@ -27,10 +27,10 @@ import json
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.instrument import Instrument
-from anatase.schemas.structure import (
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import Instrument
+from rietx.schemas.structure import (
     AnisoU,
     Atom,
     Cell,
@@ -38,7 +38,7 @@ from anatase.schemas.structure import (
     StephensStrain,
     Structure,
 )
-from anatase.strategy.staged import PLAN_PRESETS
+from rietx.strategy.staged import PLAN_PRESETS
 
 FIXTURE = Path(__file__).parent / "data" / "gui" / "fnmatch_cases.json"
 

@@ -16,13 +16,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import Instrument, PatternData, Refinement
-from anatase.model.forward import compile_model
-from anatase.optimize.least_squares import _make_jacobian, _make_residual
-from anatase.params.vector import ParameterTable
-from anatase.refine import replay
-from anatase.schemas.common import Parameter
-from anatase.schemas.instrument import BackgroundChebyshev
+from rietx import Instrument, PatternData, Refinement
+from rietx.model.forward import compile_model
+from rietx.optimize.least_squares import _make_jacobian, _make_residual
+from rietx.params.vector import ParameterTable
+from rietx.refine import replay
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_refine_synthetic import perturbed_models, synthesize
 from tests.test_schemas import make_lab6
 
@@ -35,7 +35,7 @@ def _save(result, name: str) -> None:
     """Write an obs/calc/diff PNG (skipped if matplotlib is unavailable)."""
     pytest.importorskip("matplotlib")
     OUT.mkdir(exist_ok=True)
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
 
     plot_result(result, path=str(OUT / name))
 

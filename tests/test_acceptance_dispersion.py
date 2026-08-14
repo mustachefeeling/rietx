@@ -37,8 +37,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.schemas.instrument import Dispersion
+import rietx as pr
+from rietx.schemas.instrument import Dispersion
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     OUT,

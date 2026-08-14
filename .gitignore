@@ -16,7 +16,7 @@ htmlcov/
 # needs node — and `*.html` above would have quietly dropped its entry point,
 # leaving a dist whose freshness test passes on this machine while a fresh clone
 # serves the placeholder page instead of the app.
-!src/anatase/gui/static/**
+!src/rietx/gui/static/**
 # ...and the same rule swallowed the *source* entry too, which is worse: the
 # dist above is committed, so a fresh clone still serves the app — but without
 # `gui/index.html` vite has no entry module and the frontend cannot be rebuilt

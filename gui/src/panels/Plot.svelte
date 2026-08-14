@@ -3,7 +3,7 @@
    * Observed, calculated, difference and reflection ticks.
    *
    * **The window comes from the server.** `/api/result/window` decimates with
-   * the same min/max index set `anatase compare` uses, so this plot and that one
+   * the same min/max index set `rietx compare` uses, so this plot and that one
    * cannot disagree about which points survive; a client-side decimator would be
    * a second answer to the one question a plot must not have two answers to. On
    * zoom we refetch the visible range at full budget, which is what makes
@@ -790,7 +790,7 @@
   {:else if !result && peaksActive}
     <p class="note muted">Raw pattern — no fit yet, which is when peaks are picked.</p>
   {:else if loadError}
-    <p class="note bad">{loadError} — install the plot extra: <code>pip install 'anatase[gui]'</code></p>
+    <p class="note bad">{loadError} — install the plot extra: <code>pip install 'rietx[gui]'</code></p>
   {/if}
   <!-- The gestures, stated whenever the tab that owns them is showing — fit or
        no fit (WP-1032).  This line used to render only in the *raw* state, so

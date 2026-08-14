@@ -24,7 +24,7 @@ durable thing to point at instead of four loose files.
   multi-histogram seam — `history_file`, `ui: dict`). Schema conventions
   apply: `extra="forbid"`, `ser_json_inf_nan="strings"` — ±inf bounds must
   survive the JSON round-trip and are tested.
-- `src/anatase/project.py`: `Project.create/open/save`. `open()` re-reads the
+- `src/rietx/project.py`: `Project.create/open/save`. `open()` re-reads the
   pattern via `io.readers.read_pattern` (`io/readers.py:21`), checks the file
   sha256 against `DataRef.sha256`, and cross-checks
   `TreeHeader.data_fingerprint` (`schemas/history.py:213` — sha256 over
@@ -65,7 +65,7 @@ pure function of the history head.
 
 - [x] `schemas/project.py`: `DataRef` + `ProjectDoc`, with the ±inf
       round-trip test alongside the existing schema tests.
-- [x] `src/anatase/project.py`: `Project.create` (copies pattern bytes,
+- [x] `src/rietx/project.py`: `Project.create` (copies pattern bytes,
       computes sha256, writes `project.json`, initialises `history.jsonl`,
       `live/`, `exports/`).
 - [x] `Project.open`: re-read via `read_pattern`, sha256 check,

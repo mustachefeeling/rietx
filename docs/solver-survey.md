@@ -538,7 +538,7 @@ sets "are in general not 1−α-confidence sets … may over- or under-cover …
 extreme amounts**." The two coincide **iff the model is correctly specified.**
 
 The uncomfortable corollary for this package: **plain MCMC over the Rietveld
-likelihood would be *worse* than what anatase does today**, because current
+likelihood would be *worse* than what rietx does today**, because current
 practice multiplies by √χ²_red and a straight posterior does not. At
 χ²_red = 2–10, naive credible intervals come out **1.4–3.2× too narrow before
 serial correlation is even counted.**

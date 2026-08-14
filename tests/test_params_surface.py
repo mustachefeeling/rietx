@@ -9,10 +9,10 @@ import dataclasses
 
 import pytest
 
-import anatase as pr
-from anatase.params.vector import Entry
-from anatase.schemas.params import ParameterRow, TieSpec
-from anatase.strategy.staged import PLAN_INFO, PLAN_PRESETS
+import rietx as pr
+from rietx.params.vector import Entry
+from rietx.schemas.params import ParameterRow, TieSpec
+from rietx.strategy.staged import PLAN_INFO, PLAN_PRESETS
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 SHORT = pr.RefinementPlan(stages=[

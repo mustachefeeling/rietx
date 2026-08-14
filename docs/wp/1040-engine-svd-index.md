@@ -304,7 +304,7 @@ dataset regresses.
      pre-freeze public function is worse than a named record.
 
 - **2026-08-05** — **task 0 measured, the engine built, and it is a go.**
-  `src/anatase/indexing/svd.py`, registered as `"svd"`, 10 new tests
+  `src/rietx/indexing/svd.py`, registered as `"svd"`, 10 new tests
   (`tests/test_indexing_engines.py`, one `slow`).  Branch
   `wp1040-engine-svd-index`.
 

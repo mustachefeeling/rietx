@@ -35,8 +35,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.backend.linalg64 import (
+import rietx as pr
+from rietx.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
     FP32_JACOBIAN,
@@ -48,7 +48,7 @@ from anatase.backend.linalg64 import (
     require_fp64,
     to_host_fp64,
 )
-from anatase.optimize.least_squares import (
+from rietx.optimize.least_squares import (
     _jacobian_for,
     _make_jacobian,
     _make_residual,
@@ -293,7 +293,7 @@ def test_srm660c_fp32_columns_refine_to_the_same_answer():
 
     # obs/calc/diff for visual inspection (tests/output/, gitignored) — Rwp
     # equality would hide a locally-bad fit
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     OUT.mkdir(exist_ok=True)
     plot_result(result32, path=str(OUT / "mixed_precision_srm660c_fp32.png"))
     plot_result(result32, path=str(OUT / "mixed_precision_srm660c_fp32_lowangle.png"),

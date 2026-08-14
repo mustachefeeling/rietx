@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import (
+from rietx import (
     Atom,
     Cell,
     Instrument,
@@ -19,23 +19,23 @@ from anatase import (
     Phase,
     Refinement,
 )
-from anatase.crystallography.attenuation import (
+from rietx.crystallography.attenuation import (
     linear_attenuation,
     mass_attenuation,
     total_cross_section,
 )
-from anatase.model.forward import compile_model
-from anatase.optimize.qpa import (
+from rietx.model.forward import compile_model
+from rietx.optimize.qpa import (
     atomic_weight,
     brindley_correction,
     brindley_tau,
     phase_zmv,
     weight_fractions,
 )
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Provenance
-from anatase.schemas.instrument import BackgroundChebyshev
-from anatase.schemas.results import (
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Provenance
+from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.results import (
     PhaseQuantity,
     QuantitativePhaseAnalysis,
     RefinementResult,
@@ -138,8 +138,8 @@ def test_weight_fractions_correlated_differs_from_independent():
 
 
 def test_physical_covariance_block_diagonal_matches_stderr():
-    from anatase import Instrument
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument
+    from rietx.params.vector import ParameterTable
 
     structure = make_lab6()
     structure.phases.append(_caf2_phase())
@@ -163,7 +163,7 @@ def test_physical_covariance_block_diagonal_matches_stderr():
 
 
 def _qpa_fixture() -> QuantitativePhaseAnalysis:
-    from anatase.schemas.results import MicroabsorptionCorrection
+    from rietx.schemas.results import MicroabsorptionCorrection
 
     return QuantitativePhaseAnalysis(phases=[
         PhaseQuantity(name="LaB6", weight_fraction=0.6, weight_fraction_stderr=0.01,
@@ -188,7 +188,7 @@ def test_qpa_json_round_trip():
 # -- compute_qpa microabsorption wiring -----------------------------------
 
 def _two_phase_decoded(radii):
-    from anatase.optimize.qpa import compute_qpa
+    from rietx.optimize.qpa import compute_qpa
 
     structure = make_lab6()
     structure.phases.append(_caf2_phase())
@@ -250,7 +250,7 @@ def test_compute_qpa_no_radii_stays_silent():
 # -- µR fence diagnostics --------------------------------------------------
 
 def test_mu_r_fence_fires_exactly_when_it_should():
-    from anatase.optimize.qpa import BRINDLEY_MU_R_FENCE, microabsorption_diagnostics
+    from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE, microabsorption_diagnostics
 
     # In regime: LaB6 µ≈1136/cm, R=0.4 µm → µR≈0.045 < 0.05 — no diagnostic.
     structure, values, compute_qpa = _two_phase_decoded([0.4, 0.4])
@@ -273,7 +273,7 @@ def test_mu_r_fence_fires_exactly_when_it_should():
 
 
 def test_skipped_correction_surfaces_as_diagnostic():
-    from anatase.optimize.qpa import microabsorption_diagnostics
+    from rietx.optimize.qpa import microabsorption_diagnostics
 
     structure, values, compute_qpa = _two_phase_decoded([0.4, None])
     qpa = compute_qpa(structure, values, wavelength=1.5406)
@@ -399,7 +399,7 @@ def test_phase_particle_radius_field():
     phase = _caf2_phase()
     assert phase.particle_radius_um is None    # default: no correction
     phase.particle_radius_um = 0.75
-    from anatase import Structure
+    from rietx import Structure
     s = Structure(phases=[phase])
     assert Structure.model_validate_json(s.model_dump_json()) == s
     with pytest.raises(Exception):
@@ -491,9 +491,9 @@ def test_two_phase_synthetic_brindley_correction():
     corrected fractions must land back on the truth.  Radii differ per phase
     (0.4 / 1.5 µm) and keep both µR inside the 0.05 fence.
     """
-    from anatase import Stage
-    from anatase.crystallography.attenuation import linear_attenuation
-    from anatase.optimize.qpa import BRINDLEY_MU_R_FENCE
+    from rietx import Stage
+    from rietx.crystallography.attenuation import linear_attenuation
+    from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 
     radii = {"LaB6": 0.4, "CaF2": 1.5}
     truth, ins = _two_phase_truth(la_scale=6e-4, caf2_scale=4e-4)

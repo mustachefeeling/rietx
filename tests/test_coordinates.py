@@ -13,12 +13,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import Instrument, PatternData, Refinement
-from anatase.crystallography.structure_factor import compile_phase_sites
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.structure import Atom, Cell, Phase, Structure
+from rietx import Instrument, PatternData, Refinement
+from rietx.crystallography.structure_factor import compile_phase_sites
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.structure import Atom, Cell, Phase, Structure
 from tests.test_schemas import make_lab6
 
 RUTILE_OX = 0.3053
@@ -161,7 +161,7 @@ def test_round_trip_rutile_coordinate(tmp_path):
     assert o.x.value == pytest.approx(RUTILE_OX, abs=max(5 * x_par.stderr, 5e-4))
     assert o.y.value == o.x.value  # constraint held through the whole run
 
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "coordinates_rutile_fit.png"))

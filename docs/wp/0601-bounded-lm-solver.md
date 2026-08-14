@@ -416,7 +416,7 @@ supplied by the user, set recorded in DESIGN.md's FPA fence note):
       ΔBIC, on three acceptance protocols
 - [x] Tests (unit/property; acceptance if this WP carries it) + obs/calc/diff PNGs to `tests/output/`
 - [x] DESIGN.md minimizer-strategy amendment + handover log + ROADMAP sync
-- [ ] *Not done, deliberately:* a `anatase compare` row. The registry's
+- [ ] *Not done, deliberately:* a `rietx compare` row. The registry's
       standards are the acceptance protocols and **none of them carries a
       Stephens block**, so a `solver="lm"` variant would show a near-identical
       fit on every one of them — true, and not the thing worth showing. The

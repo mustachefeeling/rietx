@@ -437,7 +437,7 @@ and is part of the surface being tested, not a treatment; and `prompt.md` —
 the v2 answer contract plus `final_result.json`, the workspace rules, and
 the budget.
 
-**Environment**: anatase installed **non-editable into a venv outside the
+**Environment**: rietx installed **non-editable into a venv outside the
 repo tree**; no repo checkout reachable from the workspace; the truth tree
 stays scorer-side.
 

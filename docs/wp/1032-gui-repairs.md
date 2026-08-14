@@ -178,7 +178,7 @@ is not installed, so `playwright-core` is installed in the job scratchpad,
 - `gui/CLAUDE.md` — the GUI rulebook; WP-1029's and WP-1027's paragraphs bind
   most of the items here.
 - `docs/milestones/v1.0.md` — WP-1027's and WP-1029's measured browser passes.
-- `src/anatase/schemas/instrument.py:374-386` — the `packing_fraction` docstring
+- `src/rietx/schemas/instrument.py:374-386` — the `packing_fraction` docstring
   the tooltip quotes.
 
 ## Handover log

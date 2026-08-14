@@ -15,9 +15,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import Instrument, Parameter, PatternData
-from anatase.model.forward import compile_model
-from anatase.model.preferred_orientation import (
+from rietx import Instrument, Parameter, PatternData
+from rietx.model.forward import compile_model
+from rietx.model.preferred_orientation import (
     cos2_alpha,
     march_dollase_and_dr,
     march_dollase_factors,
@@ -25,8 +25,8 @@ from anatase.model.preferred_orientation import (
     march_term_and_dr,
     orbit_layout,
 )
-from anatase.params.vector import ParameterTable
-from anatase.schemas.structure import MARCH_R_MAX, MARCH_R_MIN, PreferredOrientation
+from rietx.params.vector import ParameterTable
+from rietx.schemas.structure import MARCH_R_MAX, MARCH_R_MIN, PreferredOrientation
 from tests.test_coordinates import make_rutile
 
 OUT = Path(__file__).parent / "output"
@@ -41,7 +41,7 @@ def _po(axis, r, *, vary=False):
 
 
 def test_po_defaults_off_and_round_trips():
-    from anatase.schemas.structure import Phase
+    from rietx.schemas.structure import Phase
 
     phase = make_rutile().phases[0]
     assert phase.preferred_orientation is None  # opt-in
@@ -74,7 +74,7 @@ def test_po_param_wiring_and_routing():
     """r enters θ under ``phases.*.preferred_orientation.r``, decodes back, is
     *not* claimed by the structural (dof/adp) analytic-column regex, but *is*
     claimed by the dedicated March-Dollase column regex."""
-    from anatase.optimize.least_squares import _PO_PATH, _STRUCTURAL_PATH
+    from rietx.optimize.least_squares import _PO_PATH, _STRUCTURAL_PATH
 
     s = make_rutile()
     s.phases[0].preferred_orientation = _po((0, 0, 1), 0.8)
@@ -95,7 +95,7 @@ def test_po_param_wiring_and_routing():
 
 
 def _rutile_orbits():
-    from anatase.crystallography.symmetry import reflection_orbits
+    from rietx.crystallography.symmetry import reflection_orbits
 
     s = make_rutile()
     ins = Instrument.debye_scherrer(wavelength=1.5406)
@@ -212,7 +212,7 @@ def test_forward_po_changes_axial_and_equatorial_intensities():
 
 
 def test_mccusker_structural_frees_po_after_displacement_before_extinction():
-    from anatase.strategy.staged import RefinementPlan
+    from rietx.strategy.staged import RefinementPlan
 
     names = [s.name for s in RefinementPlan.mccusker_structural().stages]
     assert "preferred_orientation" in names
@@ -227,7 +227,7 @@ def test_mccusker_structural_frees_po_after_displacement_before_extinction():
 
 
 def test_jacobian_po_column_matches_fd():
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
 
     s = make_rutile()
     s.phases[0].scale.value = 8e-3
@@ -259,7 +259,7 @@ def test_jacobian_structural_columns_carry_the_po_factor():
     columns must be multiplied by P (they miss by ~25 % at r = 0.75 otherwise).
     Checked together with extinction on, against a full-model finite
     difference."""
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
     from tests.test_aniso_adp import make_aniso_rutile
 
     s = make_aniso_rutile()
@@ -314,7 +314,7 @@ def _synthesize_textured_rutile(axis, r_true, *, seed=7, scale=3e-2, bkg=20.0):
 
 
 def _po_plan(with_po: bool):
-    from anatase.strategy.staged import RefinementPlan, Stage
+    from rietx.strategy.staged import RefinementPlan, Stage
 
     stages = [
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
@@ -328,8 +328,8 @@ def _po_plan(with_po: bool):
 
 
 def test_injected_po_is_recovered_within_esds():
-    from anatase import Refinement
-    from anatase.viz.plots import plot_result
+    from rietx import Refinement
+    from rietx.viz.plots import plot_result
 
     axis, r_true = (0, 0, 1), 0.5   # strong platy texture
     pattern = _synthesize_textured_rutile(axis, r_true)
@@ -357,8 +357,8 @@ def test_po_is_identifiable_from_scale_and_biso():
     """r, scale and Biso all rescale intensity, but r carries an axis-angle
     signature the other two lack, so on a well-sampled pattern it stays
     identifiable and the pairwise guard does not flag it spuriously."""
-    from anatase.optimize.least_squares import run_least_squares
-    from anatase.strategy.staged import check_guards
+    from rietx.optimize.least_squares import run_least_squares
+    from rietx.strategy.staged import check_guards
 
     pattern = _synthesize_textured_rutile((0, 0, 1), 0.6)
     s = make_rutile()
@@ -388,7 +388,7 @@ def test_po_is_identifiable_from_scale_and_biso():
 
 
 def _detect_texture(pattern):
-    from anatase import Refinement
+    from rietx import Refinement
 
     s = make_rutile()
     s.phases[0].scale.value = 3e-2
@@ -404,8 +404,8 @@ def test_layer1_texture_identifies_the_injected_axis():
     the Layer-1 diagnostic points at the injected [001] axis with the right r —
     even though the uncorrected fit is immature (texture is why), so the rest of
     Layer 1 abstains."""
-    from anatase.crystallography.lattice import reciprocal_metric_tensor
-    from anatase.report.texture import _equivalent
+    from rietx.crystallography.lattice import reciprocal_metric_tensor
+    from rietx.report.texture import _equivalent
 
     pattern = _synthesize_textured_rutile((0, 0, 1), 0.5)
     texture = _detect_texture(pattern)
@@ -444,7 +444,7 @@ def test_layer1_texture_quiet_on_an_untextured_pattern():
 def test_texture_diagnostic_is_rietveld_only():
     """Le Bail intensities are empirical, so there is nothing to compare against
     — the diagnostic returns nothing rather than a spurious axis."""
-    from anatase.report.texture import analyse_texture
+    from rietx.report.texture import analyse_texture
 
     s = make_rutile()
     ins = Instrument.debye_scherrer(wavelength=1.5406)

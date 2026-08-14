@@ -140,7 +140,7 @@ will be wrong on lab data by an order of magnitude.
 - [x] Factor the esd helper (`Cov = χ²_red·pinv(JᵀJ)`) out of
       `optimize/least_squares.py` into one shared function so the two surfaces
       cannot disagree about pinv guarding.
-- [x] `pick_peaks` public entry + `anatase/__init__.py` export; ghost flagging;
+- [x] `pick_peaks` public entry + `rietx/__init__.py` export; ghost flagging;
       `PEAK_*` diagnostics (`PEAK_LIST_TOO_SHORT`, `PEAK_SIGMA_ASSUMED`,
       `PEAK_UNRESOLVED_SHOULDER`, `PEAK_CONTAMINATION_LINE`,
       `PEAK_ASYMMETRY_UNMODELLED`) via a translator in `indexing/diagnostics.py`
@@ -298,7 +298,7 @@ The σ pull calibration must pass, and the darwin/arm64 goldens must be
   `contamination_flags_from_peaks`; `schemas/indexing.py` complete;
   `indexing/{peaks,peakfit,pick,diagnostics}.py` complete;
   `statistics.normal_covariance` factored out and shared with
-  `covariance_estimates`; `anatase.pick_peaks` exported. Fast suite
+  `covariance_estimates`; `rietx.pick_peaks` exported. Fast suite
   **1158 passed / 4 skipped in 64 s**, ruff clean.
 
   *In flight / next.* `tests/test_peak_picking.py` does not exist yet. The
@@ -379,7 +379,7 @@ The σ pull calibration must pass, and the darwin/arm64 goldens must be
   `diagnostics.py` and most of `schemas/indexing.py` were committed inside
   `f63556c`, `e46ead2` and `62d6a76`, whose messages say WP-1004 / WP-1006.
   Content is intact and the tree is green; only the attribution is wrong.
-  `git log -- src/anatase/indexing/` will mislead you — start from `068149e`.
+  `git log -- src/rietx/indexing/` will mislead you — start from `068149e`.
 
 - **2026-07-29** — created from the indexing plan. Prototype prior art is
   pinned at the tag `guillemot-study`, **read without merging** (see

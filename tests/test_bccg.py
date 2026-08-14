@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase.optimize import bccg
+from rietx.optimize import bccg
 
 
 def _spd(n: int, cond: float, seed: int = 0) -> np.ndarray:

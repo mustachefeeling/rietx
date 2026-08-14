@@ -135,7 +135,7 @@ def run_episode(episode_dir: Path) -> dict:
         include_trajectory = condition["include_trajectory"]
         request["include_report"] = include_report
         request["report_trajectory"] = include_trajectory
-        import anatase.agent as agent_mod
+        import rietx.agent as agent_mod
 
         response = agent_mod.refine_json(request)
         # asked for on the request, popped again here: the shim's guarantee is

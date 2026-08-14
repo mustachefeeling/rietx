@@ -49,8 +49,8 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.schemas.instrument import BackgroundChebyshev, Dispersion
+import rietx as pr
+from rietx.schemas.instrument import BackgroundChebyshev, Dispersion
 
 DATA = Path(__file__).parent / "data"
 WAVELENGTH = 0.4131280           # .prm ICONS, the beamline's own calibration
@@ -188,7 +188,7 @@ def test_capillary_absorption_is_an_exact_reparameterisation(plain, corrected):
     #    absorption biases Biso *low*, so correcting it raises them
     assert all(c > p for p, c in zip(_bisos(ref_a), _bisos(ref_b)))
 
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(res_b, path=str(out / "capillary_lab6_660a_fit.png"))

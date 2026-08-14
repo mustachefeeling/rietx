@@ -1,11 +1,11 @@
-# WP-1008 — GUI server, session model, `anatase gui`
+# WP-1008 — GUI server, session model, `rietx gui`
 
 Milestone: v1.0 · Status: ✅ 2026-07-30
 Depends on: WP-1004, WP-1005, WP-1006, WP-1007
 
 ## Goal
 
-`anatase gui [PROJECT.rex]` serves a localhost web app whose HTTP surface
+`rietx gui [PROJECT.rex]` serves a localhost web app whose HTTP surface
 covers the full loop — project, params, plan, run/cancel, events, result,
 report, history, export — with every verb a plain method on a `GuiSession`
 so the transport layer stays swappable (the Tauri seam).
@@ -19,8 +19,8 @@ so the transport layer stays swappable (the Tauri seam).
   offline/CSP/air-gap safe; a single-user localhost app with ~25 routes
   gains nothing from FastAPI/uvicorn (+15 MB and async ceremony). SSE works
   fine on `ThreadingHTTPServer`. Snappiness lives in payload design and the
-  frontend — `anatase compare` already proves the loop feels instant.
-- `src/anatase/gui/session.py` — `GuiSession` holds the `Project`,
+  frontend — `rietx compare` already proves the loop feels instant.
+- `src/rietx/gui/session.py` — `GuiSession` holds the `Project`,
   `Refinement`, a lock, the run state machine (`idle | running |
   cancelling`), the `CancelToken` (WP-1006), and a seq-numbered event ring
   buffer with a `threading.Condition` for SSE followers; one worker thread
@@ -51,13 +51,13 @@ so the transport layer stays swappable (the Tauri seam).
 - History verbs live on `Refinement` (`checkout` `refine.py:182`, `branch`
   `:202`, `merge` `:250`, `cherry_pick` `:309`), tree read-side on
   `RefinementTree` (`compare` `history/tree.py:231`, `diff` `:249`).
-- Boot: `anatase gui [PROJECT.rex] [--port 8731] [--no-open] [--machine]`.
+- Boot: `rietx gui [PROJECT.rex] [--port 8731] [--no-open] [--machine]`.
   Compare owns 8730 (`compare_app.py:32` `DEFAULT_PORT`); fall back to
   port 0 if busy. `--machine` prints a JSON boot line (port, project path,
   pid) — the Tauri seam. One project per process. CLI dispatch is
   hand-rolled in `cli.py:13` (`watch` `:26`, `compare` `:31`, `html` `:35`)
   — add `gui` there, argparse inside `gui/server.py:main` like the siblings.
-- Run events are teed to `<project>/live/events.jsonl` so `anatase watch`
+- Run events are teed to `<project>/live/events.jsonl` so `rietx watch`
   and the GUI stay two views of one stream.
 
 ### Inherited
@@ -68,7 +68,7 @@ WP-1003's `### Inherited`). Don't burn effort on wire-level backcompat here.
 
 From **WP-1006** (landed 2026-07-30): the run machinery is `CancelToken` (dumb:
 `cancel()` / `is_set()` / `reset()`, reusable) and `RefinementCancelled`, both
-exported from `anatase`. `fit`, `run_stage` and `refine` all take
+exported from `rietx`. `fit`, `run_stage` and `refine` all take
 `events=`/`cancel=`. Three things the session model should encode rather than
 rediscover: (a) a cancelled run **raises**, it does not return a partial result
 — the response is built from `exc.completed_stages` and `exc.node_id`, and that
@@ -127,9 +127,9 @@ same machinery as a refinement run even though it is not one.
 
 ## Tasks
 
-- [x] `src/anatase/gui/{__init__,session}.py`: `GuiSession` — verbs, lock,
+- [x] `src/rietx/gui/{__init__,session}.py`: `GuiSession` — verbs, lock,
       state machine, ring buffer + `Condition`, worker thread, 409 rule.
-- [x] `src/anatase/gui/server.py`: route table → session verbs; SSE with
+- [x] `src/rietx/gui/server.py`: route table → session verbs; SSE with
       `?since=` replay and `?poll=1` fallback; Host-header check;
       `/plotly.js` from the installed package; `POST /api/shutdown`.
 - [x] `cli.py`: `gui` subcommand (`--port/--no-open/--machine`, port-0
@@ -156,7 +156,7 @@ same machinery as a refinement run even though it is not one.
 
 - **2026-07-30 — complete.** 30 tests in `tests/test_gui_server.py` (2.6 s
   serial), fast suite 1097 passed / 107 skipped in 30 s on a numpy-only
-  `[dev]` venv, ruff clean, and the real CLI exercised by hand: `anatase gui
+  `[dev]` venv, ruff clean, and the real CLI exercised by hand: `rietx gui
   --machine --no-open` prints `{"url": …, "port": 8731, "project": null, "pid":
   …}`, `/` serves the placeholder, `/plotly.js` 4.85 MB out of the installed
   package, `/api/peaks` 404s naming WP-1027, `Host: evil.test` 403s, and
@@ -176,7 +176,7 @@ same machinery as a refinement run even though it is not one.
      declined to add a kind for a guess, so the state travels beside the events:
      SSE frame type `state` vs `event`, a `state`/`run` key in the poll payload,
      and nothing extra written to `live/events.jsonl`. That keeps "the GUI and
-     `anatase watch` are two views of one stream" literally true.
+     `rietx watch` are two views of one stream" literally true.
   2. **Settings persist on the verb, not on Save.** WP-1005 made "there is
      nothing to warn about on close" true for the model; a settings route that
      deferred to `Project.save` would have made it false again for the plan and

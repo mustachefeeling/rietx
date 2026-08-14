@@ -82,7 +82,7 @@ Design rules that bound the work:
       appendices.
 - [x] Create `tests/CLAUDE.md`; shrink root `## Commands` (headline rules +
       `### Current numbers`, replace-only).
-- [x] Create `gui/CLAUDE.md` + `src/anatase/gui/CLAUDE.md` pointer stub;
+- [x] Create `gui/CLAUDE.md` + `src/rietx/gui/CLAUDE.md` pointer stub;
       shrink root `## Data flow`; promote `sig()` to Invariants.
 - [x] Root CLAUDE.md final pass (Roadmap section → pointer, indexing dossier
       distilled, recaps deleted, `###` headings); measure; enable size caps.

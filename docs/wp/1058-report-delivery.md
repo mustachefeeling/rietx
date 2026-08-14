@@ -260,7 +260,7 @@ generated — with no LLM dependency added and the task-union meta-test green.
      added was paid for by compressing evidence duplicated in milestone
      records — the next WP needing room should consider the consolidation the
      io/ and indexing/ rulebooks are precedent for: a
-     `src/anatase/report/CLAUDE.md` loading under `report/`, which is where
+     `src/rietx/report/CLAUDE.md` loading under `report/`, which is where
      five WPs' worth of report detail now wants to live.
 
 - **2026-08-11** — created, from the 1053 campaign's ranked follow-ups (the

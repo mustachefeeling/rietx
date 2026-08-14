@@ -12,7 +12,7 @@ reading the code.
 
 ## Goal
 
-`anatase` survives a stranger's CIF and a stranger's pattern: it either
+`rietx` survives a stranger's CIF and a stranger's pattern: it either
 refines, or it fails with a diagnostic that names the cause. No crash on a
 2.35 PiB allocation, no `status="converged"` at Rwp = 7 225 %, no silent
 fifteen-minute stall, no `KeyError` on a species string that half the world's
@@ -382,7 +382,7 @@ The gate/grade redesign those bounds were filed beside had already moved to
   `Wat`, `OH` and worse, so how often that fires on external files is a
   measurement this WP can make; if it fires on files that ought to work, the
   fix is a species-mapping step at import, not removing the check.
-- `PreferredOrientation` is exported from `anatase.__init__` and
+- `PreferredOrientation` is exported from `rietx.__init__` and
   `capabilities().features["preferred_orientation"]` derives itself from
   `Phase.model_fields` — §(e)'s remaining work is only the `r` floor.
 

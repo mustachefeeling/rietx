@@ -35,7 +35,7 @@ from tests.validation_matrix import (
 TESTS = pathlib.Path(__file__).resolve().parent
 ROOT = TESTS.parent
 DATA = TESTS / "data"
-SRC = ROOT / "src" / "anatase"
+SRC = ROOT / "src" / "rietx"
 
 
 def _collected() -> dict[str, list[str]]:
@@ -177,7 +177,7 @@ def test_named_diagnostic_codes_exist(claim) -> None:
         bare = code[1:] if code.startswith("!") else code
         assert f'"{bare}"' in sources, (
             f"{claim.test} names diagnostic {bare!r}, which no module in "
-            "src/anatase emits")
+            "src/rietx emits")
 
 
 def test_every_acceptance_suite_declares_its_dispersion_setting() -> None:
@@ -216,7 +216,7 @@ def test_the_recorded_dispersion_decision_matches_the_live_schema() -> None:
     decision and the code cannot drift apart silently, which is the same
     contract the generated doc has.
     """
-    from anatase.schemas.instrument import EmissionLine, Source
+    from rietx.schemas.instrument import EmissionLine, Source
 
     live = Source(lines=[EmissionLine(wavelength=1.5406)]).dispersion is not None
     assert live == DISPERSION_DEFAULT_ON, (

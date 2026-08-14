@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from anatase.report.schemas import StageReport
+from rietx.report.schemas import StageReport
 from tests.eval_report_agent import mine_transcripts as mt
 
 FIXTURE = Path(__file__).parent / "fixture_round"
@@ -55,7 +55,7 @@ def test_every_field_token_names_a_live_field():
 def test_action_vocabulary_is_the_live_one():
     from typing import get_args
 
-    from anatase.report.schemas import ActionKind
+    from rietx.report.schemas import ActionKind
 
     assert set(get_args(ActionKind)) <= set(mt.TOKENS)
 
@@ -79,7 +79,7 @@ def test_pull_matching_is_call_shaped_for_methods():
     assert not rx.search("the report says")
     assert not rx.search("build_report(result)")
     assert mt._PULL_RES["compare_rivals"].search(
-        "from anatase.report import compare_rivals")
+        "from rietx.report import compare_rivals")
 
 
 def test_rung_markers_are_rung_only_and_non_empty():
@@ -243,7 +243,7 @@ def test_usage_row_counts_pulls_and_fit_bearing_runs():
     events = [
         _probe(0, "python - <<'EOF'\nrep = ref.report()\n"
                   "for _ in range(5):\n    ref.fit(data)\nEOF"),
-        _probe(1, "python - <<'EOF'\nfrom anatase.report import "
+        _probe(1, "python - <<'EOF'\nfrom rietx.report import "
                   "compare_rivals\ncompare_rivals(ref, data, f)\nEOF"),
         _probe(2, "cat prompt.md"),
         mt.Event(3, "delivered", "tool_result",

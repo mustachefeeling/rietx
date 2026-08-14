@@ -19,8 +19,8 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from anatase.crystallography.lattice import cell_volume
-from anatase.indexing.ambiguity import (
+from rietx.crystallography.lattice import cell_volume
+from rietx.indexing.ambiguity import (
     AMBIGUITY_EXTEND_FACTOR,
     MAX_AMBIGUITY_INDEX,
     ambiguity_partners,
@@ -28,8 +28,8 @@ from anatase.indexing.ambiguity import (
     hnf_matrices,
     transform_cell,
 )
-from anatase.indexing.qspace import af_from_cell
-from anatase.indexing.reduce import (
+from rietx.indexing.qspace import af_from_cell
+from rietx.indexing.reduce import (
     BRAVAIS_OBLIQUITIES,
     CELL_EQUALITY_CHI2,
     SYSTEM_RANK,
@@ -40,7 +40,7 @@ from anatase.indexing.reduce import (
     reduce_cell,
     same_lattice,
 )
-from anatase.schemas.indexing import q_esd_of_two_theta
+from rietx.schemas.indexing import q_esd_of_two_theta
 
 LAM = 1.5405929
 
@@ -279,7 +279,7 @@ def _lines(cell, system="cubic", centring="P", two_theta_max=90.0,
     (a derivative of a cubic cell is tetragonal or worse), and the symbol-based
     generator returns NaN d-spacings for a cell its symmetry forbids.
     """
-    from anatase.indexing.fom import predicted_lines
+    from rietx.indexing.fom import predicted_lines
 
     _hkl, q = predicted_lines(cell, system, centring, LAM, two_theta_max)
     tt = np.degrees(2.0 * np.arcsin(LAM * np.sqrt(q) / 2.0))

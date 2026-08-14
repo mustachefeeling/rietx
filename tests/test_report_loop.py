@@ -14,7 +14,7 @@ executable version of AGENT_PROTOCOL §9's canonical agent loop.
 ``_run_report_loop`` is a measurement instrument, not product: WP-1050's fence
 holds verbatim — *"No automatic stage insertion: the staged runner stays
 preset; suggest() informs a caller (human, GUI, or the agent loop), it does
-not drive."*  Nothing importable from ``anatase`` may become an autopilot.
+not drive."*  Nothing importable from ``rietx`` may become an autopilot.
 
 Honest framing for every baseline comparison here: on a synthetic single-cause
 start every other parameter is already at truth, so "the loop freed fewer
@@ -34,12 +34,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.agent import refine_json
-from anatase.report import predict_then_verify
-from anatase.report.apply import recipe
-from anatase.report.schemas import FitReport, VerificationOutcome
-from anatase.strategy.staged import RefinementPlan, Stage
+import rietx as pr
+from rietx.agent import refine_json
+from rietx.report import predict_then_verify
+from rietx.report.apply import recipe
+from rietx.report.schemas import FitReport, VerificationOutcome
+from rietx.strategy.staged import RefinementPlan, Stage
 from tests.test_fitreport_layers import _result_for, _truth
 
 _OUT = Path(__file__).parent / "output"
@@ -290,7 +290,7 @@ def _assert_prediction_band(episode: EpisodeResult) -> None:
 def _plot(episode: EpisodeResult, stem: str) -> None:
     """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
     low-angle zoom — Rwp hides locally-bad fits (house convention)."""
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
 
     _OUT.mkdir(exist_ok=True)
     result = episode.ref.result_
@@ -480,8 +480,8 @@ def test_e2_one_json_call_names_the_cause(truth):
 
     # the answer is still an ordinary result: it round-trips and it plots
     _OUT.mkdir(exist_ok=True)
-    from anatase.schemas.results import RefinementResult
-    from anatase.viz.plots import plot_result
+    from rietx.schemas.results import RefinementResult
+    from rietx.viz.plots import plot_result
 
     plot_result(RefinementResult.model_validate(out["result"]),
                 path=str(_OUT / "report_loop_e2_json_call.png"))
@@ -663,7 +663,7 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
     statement about this start being inside the cell stage's basin, not about
     the refusal being wrong.
     """
-    from anatase.report.schemas import IMPURITY_SHIFT_CAP
+    from rietx.report.schemas import IMPURITY_SHIFT_CAP
 
     structure, ins, data = truth
     start = structure.model_copy(deep=True)
