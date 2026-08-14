@@ -39,8 +39,9 @@ real UI.
 
 ### Inherited
 
-**From [1062](1062-rename.md), landed 2026-08-12 — the rename is
-done, and this WP writes the most user-visible prose in the repo.** The
+**From [1062](1062-rename.md) and [1066](1066-rename.md), landed 2026-08-12 and
+renamed again 2026-08-14 — the name is settled at `rietx`, and this WP writes
+the most user-visible prose in the repo.** The
 distribution, the import and the CLI are all `rietx`; the **format tokens are
 deliberately not** — a project directory is `.rex`, the text document `.rxt`
 (header `rxt N`), and an instrument profile is tagged plain

@@ -1,6 +1,9 @@
 # WP-1066 — Rename the project to `rietx`
 
-Milestone: v1.0 · Status: 🔄 2026-08-14 — in flight.
+Milestone: v1.0 · Status: ✅ 2026-08-14 — `rietx` everywhere (363 files), the
+three format tokens unmoved through a second rename, the audit retargeted, and
+counts identical either side (2257 passed / 108 skipped). The brand token is out
+of the WP *filenames* too, which is what the audit found.
 Depends on: [1062](1062-rename.md) (blocked [1003](1003-api-freeze-pypi.md))
 
 <!--
@@ -116,6 +119,11 @@ coincidence and neither a reason to touch them nor a reason to re-couple them.
       `gh repo rename rietx` and `git remote set-url origin`.
 - [x] `tests/test_no_stale_name.py` retargeted: `STALE` gains `anatase`, keeps
       `pxrd|pxt`, allowlist and docstring rewritten around the inverted trap.
+- [x] **Unplanned, and the audit's own finding:** both rename WPs renamed to a
+      bare `NNNN-rename.md`. A brand token in a *filename* fails the path test
+      on its own name and the content test on every file that links to it,
+      because a markdown link spells the filename. Rule recorded in the path
+      test, where the failure appears.
 - [x] `~/.anatase` → `~/.rietx` on this machine (untracked, operational: the
       recent list and theme, which otherwise look lost).
 
@@ -199,6 +207,56 @@ the new name while the text-pane chip still reads `rxt 1`.
   [../ROADMAP.md](../ROADMAP.md) § Session protocol; `tests/test_docs_consistency.py`.
 
 ## Handover log
+
+- **2026-08-14** — **closed.** Three commits: created, the rename, the audit.
+
+  **Done.** Every checklist item. `src/anatase` → `src/rietx` across 363 files
+  in one sweep (mv → pyproject → sweep → `uv pip uninstall` → reinstall, nothing
+  run in the window); six brand values in `_about.py`, three format tokens
+  untouched; the five path references, the session-start hook, both locks, the
+  dist rebuilt *fresh* (a second build reproduces it byte for byte); GitHub
+  placeholder deleted (backed up first) and the real repo renamed in place with
+  its star and redirect intact, still private; `~/.anatase` → `~/.rietx`; the
+  audit retargeted and made to fail on purpose first.
+
+  **Counts** (`[dev]` only — no jax/torch — darwin/arm64, the main checkout's
+  venv): fast suite **2257 passed, 108 skipped** before *and after*, 2:41 and
+  3:21. vitest 408 in 19 files, svelte-check 0 errors, ruff and `sphinx -W`
+  clean. `examples/nac_11bm.py` lands a = 10.251216(46) Å at Rwp 0.0932 — the
+  digits 1062 recorded, so the physics is provably untouched. All five
+  `*_version` contracts unmoved. Full suite run at close; see the entry below
+  it if a successor needs the figure.
+
+  **The finding, and it cost the WP an unplanned item.** A brand token in a
+  **filename** is worse than one in a line: `docs/wp/1062-rename-to-anatase.md`
+  failed the path test on its own name *and* the content test on all five files
+  that linked to it, because a markdown link spells the filename. Both rename
+  WPs are now bare `NNNN-rename.md`. The same trap caught this session twice
+  more, which is why it is a rule and not an anecdote: writing the 1003 mailbox
+  entry, prose *about* the rename spelled the retired names in a live WP file —
+  reworded rather than allowlisted, because allowlisting the freeze WP would
+  blind the audit on the file that most needs it.
+
+  **Gotchas for whoever is next.**
+  1. **The audit's `anatase` token has an expiry.** It is a phase this software
+     analyses. The first fixture or tutorial with an anatase phase allowlists
+     *that path* with the reason "the TiO₂ phase, not the old package" — a
+     judgement made once, never a reflex for silencing a red test.
+  2. **`gh` needs the `delete_repo` scope** and will not have it by default:
+     `gh auth refresh -h github.com -s delete_repo`, which is interactive.
+  3. **`npm ci` does not rewrite `package-lock.json`'s `name` field** — it
+     installs *from* the lock. `npm install --package-lock-only` is what
+     regenerates it, and the audit is what noticed.
+  4. **The checkout directory is still `~/Code/anatase`.** Renaming it breaks
+     the editable `.pth` (absolute path ⇒ reinstall) and orphans the Claude
+     Code session state keyed on the old path. Left deliberately; cosmetic.
+  5. **1003's mailbox gained a correction, not just an entry**: its inherited
+     line saying nothing was uploaded to PyPI is false — a 0.0.0 placeholder is
+     published, and it declares `requires-python >=3.10` against pyproject's
+     `>=3.11`.
+
+  **Next.** 1003, unchanged — the freeze now covers a surface whose brand/format
+  split has been tested by a real rename rather than merely asserted.
 
 - **2026-08-14** — created. Name already reserved by the user on both indexes
   (PyPI 0.0.0 placeholder, public placeholder repo, both dated today), so the

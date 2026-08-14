@@ -177,11 +177,30 @@ not. Freezing that asymmetry means freezing "a library primitive is cheap, a
 delivery surface is complete" as a stated principle — worth saying out loud in
 the freeze rather than leaving as two flags with different defaults.
 
-**From [1062](1062-rename.md), closed 2026-08-12 — the rename has
-landed, so this is the surface you are freezing.** The distribution, import and
-CLI are all `rietx`; PyPI `rietx` was free as of 2026-08-12 but **nothing
-has been uploaded**, so re-check before the release rather than trusting that
-date. GitHub is `yue-here/rietx` (renamed in place; the old URL redirects).
+**From [1066](1066-rename.md), closed 2026-08-14 — the name moved a second
+time, and one thing you were told is no longer true.** The distribution, import,
+CLI and state dir are `rietx`; the previous name lasted two days (it read as a
+sample, not a program — 1066 names it, this file deliberately does not). Three
+facts the freeze needs:
+
+- **PyPI `rietx` is not free — it is *yours*, and already published.** A
+  **0.0.0 placeholder** (wheel + sdist, MIT, author "Yue Wu") was uploaded
+  2026-08-14 to reserve the name. That supersedes the "nothing has been
+  uploaded" line below. Two consequences: the first real release must be a
+  version above `0.0.0` (1.0.0 is), and the placeholder declares
+  `requires-python >=3.10` while `pyproject.toml` says `>=3.11` — a metadata
+  disagreement to resolve deliberately at upload, not to discover then.
+- **GitHub is `yue-here/rietx`**, renamed in place (star, issues and PR numbers
+  intact) after deleting the placeholder repo that held the name; both earlier
+  URLs still redirect. Still **private** — publishing remains this WP's call.
+- **The brand/format split held under a real test.** The three format tokens
+  came through a second rename as the same bytes, which is the paragraph below
+  earning its keep rather than merely asserting itself.
+
+**From [1062](1062-rename.md), closed 2026-08-12 — the first rename, and the
+design the second one inherited.** ~300 files, with `_about.py` centralizing
+every name-bearing literal; that centralization is why the second rename was a
+sweep. Its PyPI and GitHub facts are superseded by the entry above.
 
 **What the freeze now covers, and the one asymmetry in it.** Brand tokens —
 `DIST_NAME`, `STATE_DIR_NAME`/`STATE_DIR_ENV`, `AGENT_TOOL_NAME`

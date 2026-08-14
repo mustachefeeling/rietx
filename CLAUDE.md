@@ -340,8 +340,8 @@ recent list, and is therefore not behind the 409 (WP-1044).
 ## Conventions
 
 - **Never spell the distribution name, a format token or the state dir — import
-  it from `_about.py`** (WP-1062): its docstring says which tokens track the
-  brand, which deliberately do not, and why no test can enforce this for you.
+  it from `_about.py`** (WP-1062; 1066 renamed the brand again, format tokens
+  unmoved): its docstring says which is which, and why no test can enforce it.
 - Parameter paths are dot-separated, glob-matched with fnmatch in stage plans
   (`"phases.*.cell.*"`). No brackets in paths (fnmatch treats `[..]` as class).
 - Schemas: `extra="forbid"`, `ser_json_inf_nan="strings"` (±inf bounds must
