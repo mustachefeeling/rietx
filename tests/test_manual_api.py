@@ -43,8 +43,11 @@ from pathlib import Path
 
 import pytest
 
-from rietx import Instrument
+from rietx import Instrument, PreferredOrientation
 from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import RoughnessSuortti
+from rietx.schemas.structure import AnisoU, StephensStrain
 from tests.api_surface import (
     EXCLUDED_TYPES,
     EXCLUSIONS,
@@ -145,15 +148,43 @@ def documented_names() -> set[str]:
     return found
 
 
-def _parameter_paths() -> set[str]:
-    """Every dot-path two representative models put on the table.
+def _fully_declared() -> tuple[object, object]:
+    """LaB6 with every *optional* block declared, and an instrument to match.
 
-    LaB6 (cubic, tied cell, locked special positions) and rutile with free
-    coordinates, which is what puts `…atoms.*.dof.*` paths in reach.
+    Preferred orientation, Stephens strain and surface roughness contribute no
+    dot-paths at all unless the model declares the block, so a manual naming
+    `phases.*.preferred_orientation.r` would fail the check below against a
+    plain model — for the right reason, on a real path.  Declaring them here is
+    what lets Part 1 name the parameters those corrections actually refine.
     """
-    paths: set[str] = set()
+    structure = make_lab6()
+    phase = structure.phases[0]
+    aniso = AnisoU(u11=Parameter(value=0.006, unit="A^2"),
+                   u22=Parameter(value=0.006, unit="A^2"),
+                   u33=Parameter(value=0.006, unit="A^2"))
+    atoms = [phase.atoms[0].model_copy(update={"aniso": aniso}), *phase.atoms[1:]]
+    structure = structure.model_copy(update={"phases": [phase.model_copy(update={
+        "atoms": atoms,
+        "preferred_orientation": PreferredOrientation(axis=(0, 0, 1), r=Parameter(value=1.0)),
+        "microstrain": StephensStrain.isotropic(1e-3, phase.cell),
+    })]})
     instrument = Instrument.debye_scherrer(wavelength=0.4139)
-    for structure in (make_lab6(), make_rutile(vary_coords=True)):
+    geometry = instrument.geometry.model_copy(
+        update={"surface_roughness": RoughnessSuortti(b=Parameter(value=0.2))})
+    return structure, instrument.model_copy(update={"geometry": geometry})
+
+
+def _parameter_paths() -> set[str]:
+    """Every dot-path three representative models put on the table.
+
+    LaB6 (cubic, tied cell, locked special positions), rutile with free
+    coordinates — which is what puts `…atoms.*.dof.*` paths in reach — and the
+    fully-declared LaB6 above for the optional correction blocks.
+    """
+    plain = Instrument.debye_scherrer(wavelength=0.4139)
+    models = [(make_lab6(), plain), (make_rutile(vary_coords=True), plain), _fully_declared()]
+    paths: set[str] = set()
+    for structure, instrument in models:
         paths.update(entry.path for entry in ParameterTable(structure, instrument).entries)
     return paths
 

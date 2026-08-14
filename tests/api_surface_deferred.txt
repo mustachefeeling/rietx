@@ -225,11 +225,6 @@ DataRef.options
 DataRef.reader
 DataRef.sha256
 DataRef.two_theta_range
-Diagnostic.code
-Diagnostic.level
-Diagnostic.message
-Diagnostic.suggestion
-Diagnostic.where
 Dispersion
 Dispersion.overrides
 Dispersion.table
@@ -304,8 +299,6 @@ Geometry.axial_sl
 Geometry.capillary_radius_mm
 Geometry.goniometer_radius_mm
 Geometry.kind
-Geometry.mu_r
-Geometry.mu_t
 Geometry.packing_fraction
 Geometry.sample_displacement
 Geometry.sample_transparency
@@ -966,12 +959,6 @@ StageSpec.seed
 StageSpec.strain_seed
 StageSpec.to_stage
 StageSpec.turn_on
-Statistics
-Statistics.chi2
-Statistics.durbin_watson
-Statistics.rexp
-Statistics.rp
-Statistics.rwp_background_subtracted
 StephensStrain
 StephensStrain.from_values
 StephensStrain.isotropic

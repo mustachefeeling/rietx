@@ -88,6 +88,7 @@ out what is on disk, then wire it into something.
 
 using/install
 using/quickstart
+using/concepts
 using/report
 using/agents
 ```
