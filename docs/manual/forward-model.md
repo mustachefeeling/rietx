@@ -85,10 +85,10 @@ r \;=\; \bigl[\; \text{data} \;\big|\; \text{background penalty}
 
 is defined once, in `rietx.model.rows`, and every builder — the numpy
 residual, the numpy Jacobian's row offsets, and the traced jax/torch
-residuals — consumes it. The data rows are $\sqrt{w_i}\,(y_{\mathrm{obs},i}
-- y_{\mathrm{calc},i})$; the remaining blocks are described with the
-background models ({ref}`ch-background`) and restraints
-({ref}`ch-parameterisation`).
+residuals — consumes it. The data rows are
+$\sqrt{w_i}\,(y_{\mathrm{obs},i} - y_{\mathrm{calc},i})$; the remaining
+blocks are described with the background models ({ref}`ch-background`) and
+restraints ({ref}`ch-parameterisation`).
 
 ## Discreteness is frozen per stage
 
