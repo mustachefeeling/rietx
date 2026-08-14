@@ -61,21 +61,19 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**The package is `rietx` ([1066](wp/1066-rename.md) ✅) and the eval programme
-is done measuring ([1065](wp/1065-decisive-swap-license.md) ✅): next is the
-freeze ([1003](wp/1003-api-freeze-pypi.md)).**
+**The package is `rietx` ([1066](wp/1066-rename.md) ✅), the eval programme is
+done measuring ([1065](wp/1065-decisive-swap-license.md) ✅), and the manual's
+release-gating half is landed ([1067](wp/1067-user-api-manual.md) § Floor, 🔄
+for its 1.0.x chapters): next is the freeze
+([1003](wp/1003-api-freeze-pypi.md)), which now has no blockers.** 1067 hands
+it the enumeration it must freeze anyway — **derived**, 1235 names, because a
+curated list cannot notice a new public method — and filed two release
+blockers it did not fix into 1003's mailbox: a fifth load-sensor acceptance
+row, and the weekly `full` CI job, dead since 2026-08-02.
 
-1066 renamed the brand a second time in two days — `anatase` read as a sample,
-not a program — and cost a sweep rather than a design because 1062's `_about.py`
-already held every name-bearing literal: six brand values moved, the three
-format tokens did not, and 363 files moved with zero numbers moving (fast suite
-2257/108 either side). Two findings: a **WP filename may not carry a brand
-token** (a markdown link spells the filename, so `1062-rename-to-anatase.md`
-failed the audit on its own path *and* on everything linking to it — both rename
-WPs are now `NNNN-rename.md`), and the audit's hazard inverted rather than
-recurring — `rietx` cannot become domain vocabulary, while `anatase`, which the
-audit now greps, already is, so that grep expires the day a fixture gains an
-anatase phase.
+1066's narrative — the second rename in two days, 363 files, zero numbers
+moved, and its two unpredicted findings — is in the v1.0 record, which is where
+a closed WP's story lives; the standing rule it left is below.
 
 1065 landed what round 3 said was missing: the exchange clause now states
 what each swap outcome *licenses* (THRESHOLDS **0.9** — decisive: the
