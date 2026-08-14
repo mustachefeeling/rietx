@@ -28,10 +28,10 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.gui import ROUTES, GuiSession, build_server
-from anatase.gui.session import RESERVED_ROUTES
-from anatase.report.apply import (
+import rietx as pr
+from rietx.gui import ROUTES, GuiSession, build_server
+from rietx.gui.session import RESERVED_ROUTES
+from rietx.report.apply import (
     RECIPES,
     api_call,
     describe_action,
@@ -41,8 +41,8 @@ from anatase.report.apply import (
     stage_for,
     unreachable,
 )
-from anatase.report.schemas import ActionKind, SuggestedAction
-from anatase.schemas.instrument import BackgroundChebyshev
+from rietx.report.schemas import ActionKind, SuggestedAction
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import (
     TRUE_A,
@@ -121,7 +121,7 @@ def test_an_applicable_action_is_one_stage_named_after_its_kind():
 
     line = api_call(stage)
     assert line.startswith("ref.run_stage(data, pr.Stage('apply:refine_cell'")
-    from anatase.schemas.history import NodeAction
+    from rietx.schemas.history import NodeAction
 
     assert line == NodeAction(kind="stage", name=stage.name,
                               turn_on=stage.turn_on).api_call()
@@ -494,7 +494,7 @@ def test_two_suggestions_of_one_kind_are_not_resolved_by_position(narrow):
     report, because making a real two-phase textured fit would test the texture
     diagnostic rather than this rule.
     """
-    from anatase.gui.session import GuiError, _pick_action
+    from rietx.gui.session import GuiError, _pick_action
 
     report = pr.FitReport(rwp=0.1, gof=1.0, suggested_actions=[
         _action("refine_preferred_orientation", ["phases.0.preferred_orientation.r"]),

@@ -13,7 +13,7 @@ tensor $G^*$ {cite}`itc-b`:
 \qquad G^* = G^{-1},
 ```
 
-*Source:* `anatase.crystallography.lattice`
+*Source:* `rietx.crystallography.lattice`
 
 where $G$ is the direct metric tensor built from $(a, b, c, \alpha, \beta,
 \gamma)$. Peak positions then follow Bragg's law,
@@ -24,7 +24,7 @@ where $G$ is the direct metric tensor built from $(a, b, c, \alpha, \beta,
 2\theta \;=\; 2 \arcsin\!\left(\frac{\lambda}{2d}\right).
 ```
 
-*Source:* `anatase.crystallography.lattice`
+*Source:* `rietx.crystallography.lattice`
 
 Every emission line diffracts at its own Bragg angle. Differentiating
 {eq}`pos-bragg` at fixed $d$ gives the doublet-splitting law
@@ -35,7 +35,7 @@ Every emission line diffracts at its own Bragg angle. Differentiating
 \Delta 2\theta \;=\; 2 \tan\theta \cdot \frac{\Delta\lambda}{\lambda},
 ```
 
-*Source:* `anatase.schemas.instrument`
+*Source:* `rietx.schemas.instrument`
 
 which grows with $\tan\theta$ — a Kα₂ line is never a fixed offset from Kα₁.
 
@@ -56,7 +56,7 @@ $s$ off the goniometer axis with goniometer radius $R$
 \Delta 2\theta \;=\; -\frac{2 s}{R} \cos\theta \quad [\mathrm{rad}].
 ```
 
-*Source:* `anatase.model.corrections.displacement_shift_deg`
+*Source:* `rietx.model.corrections.displacement_shift_deg`
 
 The $\cos\theta$ dependence is what separates it from the zero-point error.
 **Sample transparency** — finite beam penetration puts the effective
@@ -70,7 +70,7 @@ diffracting surface below the physical one (thick-sample limit
 \qquad t = \frac{1}{2 \mu_{\mathrm{eff}} R},
 ```
 
-*Source:* `anatase.model.corrections.transparency_shift_deg`
+*Source:* `rietx.model.corrections.transparency_shift_deg`
 
 with $t \ge 0$ dimensionless; for strongly absorbing samples $t \to 0$ and
 the correction vanishes.
@@ -95,4 +95,4 @@ cell-parameter error. Bearden's compilation {cite}`bearden1967` is a
 *different* scale (Mo Kα₂ differs by 24 ppm); individual rows must not be
 "corrected" toward it.
 
-*Source:* `anatase.schemas.instrument`
+*Source:* `rietx.schemas.instrument`

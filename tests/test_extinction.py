@@ -14,7 +14,7 @@ import math
 import numpy as np
 import pytest
 
-from anatase.model.extinction import (
+from rietx.model.extinction import (
     _laue_and_deriv,
     sabine_extinction,
     sabine_extinction_and_dx,
@@ -73,7 +73,7 @@ def _x_of(ext: float) -> np.ndarray:
 
 
 def test_phase_extinction_defaults_off_and_round_trips():
-    from anatase.schemas.structure import Phase
+    from rietx.schemas.structure import Phase
     from tests.test_schemas import make_lab6
 
     phase = make_lab6().phases[0]
@@ -95,9 +95,9 @@ def test_extinction_param_wiring_and_routing():
     """It enters θ under the ``phases.*.extinction`` glob, decodes back, and is
     *not* matched by the structural (dof/adp) analytic-column regex — so it
     rides the ordinary peak-chain FD column, not the structural one."""
-    from anatase import Instrument
-    from anatase.optimize.least_squares import _STRUCTURAL_PATH
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument
+    from rietx.optimize.least_squares import _STRUCTURAL_PATH
+    from rietx.params.vector import ParameterTable
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -114,7 +114,7 @@ def test_extinction_param_wiring_and_routing():
 
 
 def test_mccusker_structural_frees_extinction_after_displacement():
-    from anatase.strategy.staged import RefinementPlan
+    from rietx.strategy.staged import RefinementPlan
 
     plan = RefinementPlan.mccusker_structural()
     names = [s.name for s in plan.stages]
@@ -130,9 +130,9 @@ def test_mccusker_structural_frees_extinction_after_displacement():
 
 
 def test_seed_softplus_lifts_a_zero_coefficient_into_a_live_gradient():
-    from anatase import Instrument
-    from anatase.params.transforms import dphys_dinternal, to_internal
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument
+    from rietx.params.transforms import dphys_dinternal, to_internal
+    from rietx.params.vector import ParameterTable
     from tests.test_schemas import make_lab6
 
     table = ParameterTable(make_lab6(), Instrument.debye_scherrer(wavelength=1.5406))
@@ -152,8 +152,8 @@ def test_seed_softplus_lifts_a_zero_coefficient_into_a_live_gradient():
 
 
 def test_stagespec_round_trips_the_seed():
-    from anatase.schemas.history import StageSpec
-    from anatase.strategy.staged import Stage
+    from rietx.schemas.history import StageSpec
+    from rietx.strategy.staged import Stage
 
     spec = StageSpec.from_stage(Stage("extinction", ["phases.*.extinction"], seed=1e-3))
     assert spec.seed == 1e-3
@@ -166,9 +166,9 @@ def test_stagespec_round_trips_the_seed():
 
 def _lab6_model(ext: float):
     """A compiled LaB6 model (heavy La ⇒ strong |F|², detectable extinction)."""
-    from anatase import Instrument, PatternData
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -186,9 +186,9 @@ def _lab6_model(ext: float):
 def test_forward_ext_zero_is_the_extinction_free_formula():
     """ext = 0 skips the multiply: the intensity is exactly scale·m·|F|²·w·Lp,
     bit-identical to the pre-extinction model."""
-    from anatase.crystallography.lattice import d_spacings, two_theta_deg
-    from anatase.crystallography.structure_factor import structure_factors_squared
-    from anatase.model.corrections import lorentz_polarization
+    from rietx.crystallography.lattice import d_spacings, two_theta_deg
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.model.corrections import lorentz_polarization
 
     model, values = _lab6_model(ext=0.0)
     cp = model.phases[0]
@@ -233,12 +233,12 @@ def test_jacobian_dof_adp_extinction_columns_match_fd_with_extinction_on():
     difference.  ext is large here so G departs from 1 by ~10-30% — without
     the factor the dof/adp columns would miss by far more than the tolerance
     (that is the hidden-Jacobian bug this test exists to catch)."""
-    from anatase import Instrument, PatternData
-    from anatase.crystallography.lattice import cell_volume, d_spacings
-    from anatase.crystallography.structure_factor import structure_factors_squared
-    from anatase.model.forward import compile_model
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument, PatternData
+    from rietx.crystallography.lattice import cell_volume, d_spacings
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.params.vector import ParameterTable
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -414,9 +414,9 @@ OUT = Path(__file__).parent / "output"
 
 def _synthesize_extinct_lab6(ext_true: float, *, noise_seed: int = 5):
     """A LaB6 pattern carrying a known extinction coefficient + Poisson noise."""
-    from anatase import Instrument, PatternData
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -439,9 +439,9 @@ def test_injected_extinction_is_recovered_within_esds():
     and recover it within a few esds.  Biso is held at its (correct) value so
     the recovery isolates extinction from the Biso it correlates with — the
     does-no-harm side is checked separately against real data."""
-    from anatase import Instrument, Refinement
-    from anatase.strategy.staged import RefinementPlan, Stage
-    from anatase.viz.plots import plot_result
+    from rietx import Instrument, Refinement
+    from rietx.strategy.staged import RefinementPlan, Stage
+    from rietx.viz.plots import plot_result
     from tests.test_schemas import make_lab6
 
     ext_true = 2.5
@@ -488,11 +488,11 @@ def test_extinction_correlates_with_scale_and_biso_and_the_guard_fires():
     correlation matrix was deflated by BL² (the placement bug), so this
     genuinely-collinear pair reported ρ ≈ +0.4 and the guard never fired.  On
     the true Pearson matrix (unit diagonal) it does."""
-    from anatase import Instrument
-    from anatase.model.forward import compile_model
-    from anatase.optimize.least_squares import run_least_squares
-    from anatase.params.vector import ParameterTable
-    from anatase.strategy.staged import check_guards
+    from rietx import Instrument
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import run_least_squares
+    from rietx.params.vector import ParameterTable
+    from rietx.strategy.staged import check_guards
     from tests.test_schemas import make_lab6
 
     pattern = _synthesize_extinct_lab6(2.5)

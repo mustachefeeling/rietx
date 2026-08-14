@@ -33,16 +33,16 @@ import gemmi
 import numpy as np
 import pytest
 
-from anatase import determine_extinction_symbol
-from anatase.indexing.extinction import (
+from rietx import determine_extinction_symbol
+from rietx.indexing.extinction import (
     DECISIVE_DELTA_BIC,
     absence_classes,
     compatible_groups,
     extinction_symbol,
     reflection_conditions,
 )
-from anatase.indexing.fom import lattice_group
-from anatase.schemas.indexing import CellCandidate
+from rietx.indexing.fom import lattice_group
+from rietx.schemas.indexing import CellCandidate
 
 pytestmark = pytest.mark.xdist_group("extinction-symbol")
 
@@ -254,8 +254,8 @@ def compatible_groups_for(sg):
 # the screen, on a specimen that has the symmetry
 # ----------------------------------------------------------------------
 def _mono_models(space_group: str = "P 1 21/c 1"):
-    from anatase.schemas.instrument import BackgroundChebyshev, Instrument
-    from anatase.schemas.structure import Atom, Cell, Parameter, Phase, Structure
+    from rietx.schemas.instrument import BackgroundChebyshev, Instrument
+    from rietx.schemas.structure import Atom, Cell, Parameter, Phase, Structure
 
     a, b, c, alpha, beta, gamma = MONO_CELL
     structure = Structure(phases=[Phase(
@@ -277,9 +277,9 @@ def _mono_models(space_group: str = "P 1 21/c 1"):
 
 
 def _pattern(structure, instrument, *, seed: int = 7):
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
-    from anatase.schemas.pattern import PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.pattern import PatternData
 
     tt = np.arange(MONO_RANGE[0], MONO_RANGE[1], 0.02)
     blank = PatternData(two_theta=tt.tolist(),
@@ -334,7 +334,7 @@ def test_the_answer_is_a_class_and_a_class_is_a_list(mono_screen):
     leading class happens to contain exactly one group, and even then it arrives
     as a one-element list rather than as a symbol.
     """
-    from anatase.schemas.indexing import ExtinctionScreen
+    from rietx.schemas.indexing import ExtinctionScreen
 
     for forbidden in ("space_group", "symbol", "best", "solution"):
         assert forbidden not in ExtinctionScreen.model_fields
@@ -370,7 +370,7 @@ def test_a_cancelled_screen_abstains_and_says_which_classes_it_reached():
     class whose physics failed, and a cancelled run would come back looking like
     a refutation. Each class fit is ~0.1 s, so between-class is granular enough.
     """
-    from anatase.optimize.cancel import CancelToken
+    from rietx.optimize.cancel import CancelToken
 
     structure, instrument = _mono_models()
     data = _pattern(structure, instrument)
@@ -390,8 +390,8 @@ def test_a_screen_that_cannot_run_reports_rather_than_raises():
     """A cell with no reflections in range fails *every* class identically, so it
     is a statement about the input — reported as a failed screen with a reason,
     never as a traceback that would abandon the caller mid-workflow."""
-    from anatase.schemas.instrument import Instrument
-    from anatase.schemas.pattern import PatternData
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.pattern import PatternData
 
     tt = np.arange(5.0, 8.0, 0.02)
     data = PatternData(two_theta=tt.tolist(),
@@ -432,7 +432,7 @@ def test_intensity_at_a_forbidden_position_refutes_the_class():
     the same specimen, and the class that was ranked first without it must come
     back refuted **naming that reflection** rather than merely scoring worse.
     """
-    from anatase.schemas.pattern import PatternData
+    from rietx.schemas.pattern import PatternData
 
     structure, instrument = _mono_models()
     data = _pattern(structure, instrument)
@@ -472,8 +472,8 @@ def _by_symbol(screen, symbol: str):
 def fap_screen():
     """Fluorapatite, GSAS-II's LabData tutorial pattern — a real lab specimen
     whose space group (P 6₃/m) is known from the tutorial's own refinement."""
-    import anatase as pr
-    from anatase.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
+    import rietx as pr
+    from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
     path = DATA / "FAP.XRA"
     if not path.exists():
@@ -541,10 +541,10 @@ def test_fap_would_be_refuted_by_the_background_null_model(fap_screen):
     contains that neighbour, the same window reads about −4 σ.  The test asserts
     both halves, because the first is the reason the second is not obvious.
     """
-    from anatase.indexing.extinction import _fit_class
-    from anatase.indexing.peaks import predicted_fwhm
-    from anatase.indexing.workflow import structure_from_candidate, validation_plan
-    from anatase.refine import Refinement
+    from rietx.indexing.extinction import _fit_class
+    from rietx.indexing.peaks import predicted_fwhm
+    from rietx.indexing.workflow import structure_from_candidate, validation_plan
+    from rietx.refine import Refinement
 
     data, cand, instrument = _fap_inputs()
     pre = Refinement(structure_from_candidate(cand), instrument, history=False)
@@ -588,8 +588,8 @@ def nac_screen():
     """11-BM synchrotron NAC (Na₂Ca₃Al₂F₁₄, I 2₁3) with its CaF₂ impurity, over
     the acceptance suite's own 2-24° 2θ window and its declined dispersion —
     adopting a protocol means adopting what it did *not* model too."""
-    import anatase as pr
-    from anatase.schemas.instrument import BackgroundChebyshev
+    import rietx as pr
+    from rietx.schemas.instrument import BackgroundChebyshev
 
     path = DATA / "11BM_NAC.fxye"
     if not path.exists():
@@ -634,8 +634,8 @@ def test_nac_returns_the_centred_class_and_claims_nothing_more(nac_screen):
 
 
 def _fap_inputs():
-    import anatase as pr
-    from anatase.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
+    import rietx as pr
+    from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
     raw = pr.read_pattern(DATA / "FAP.XRA")
     data = pr.PatternData(two_theta=raw.two_theta, intensity=raw.intensity,

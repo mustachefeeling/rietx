@@ -19,7 +19,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase.indexing.pairs import (
+from rietx.indexing.pairs import (
     concentration,
     enumerate_pairs,
     estimate_shift_from_pairs,
@@ -30,7 +30,7 @@ from anatase.indexing.pairs import (
     pair_shift_template,
     shift_template,
 )
-from anatase.schemas.indexing import PAIR_MAX_P, PAIR_MIN_Z, PeakList
+from rietx.schemas.indexing import PAIR_MAX_P, PAIR_MIN_Z, PeakList
 
 # Dong, Wu & Chen (1999) Table 2 — La-doped Bi-2201, 00l only.
 # (2θ, 2θ', m, 2θ_z as *printed*).  The paper quotes an average of −0.0334°.
@@ -341,7 +341,7 @@ def test_shift_from_pairs_is_an_escape_hatch_that_restores_the_prior_contract():
     be *tested* rather than assumed — a caller reproducing a published number
     needs the switch to mean what it says.
     """
-    from anatase.indexing.quality import assess_peak_list
+    from rietx.indexing.quality import assess_peak_list
 
     rng = np.random.default_rng(5)
     a, lam = 5.6402, 1.5406
@@ -382,7 +382,7 @@ def test_the_screen_declines_to_name_a_cause_it_cannot_separate():
     must be False on a normal list, and a caller who reads ``best`` as the cause
     is reading past the flag that says not to.
     """
-    from anatase.indexing.quality import screen_shift_from_pairs
+    from rietx.indexing.quality import screen_shift_from_pairs
 
     a, lam = 5.6402, 1.5406
     q = np.unique([(h * h + k * k + ll * ll) / a**2

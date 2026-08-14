@@ -61,7 +61,7 @@ def commit_wp(root: Path, num: str, date: str) -> None:
 def make_venv(root: Path, target: Path) -> None:
     sp = root / ".venv" / "lib" / "python3.12" / "site-packages"
     sp.mkdir(parents=True)
-    (sp / "_editable_impl_anatase.pth").write_text(f"{target}\n", encoding="utf-8")
+    (sp / "_editable_impl_rietx.pth").write_text(f"{target}\n", encoding="utf-8")
 
 
 def test_healthy_state_renders_one_line(repo: Path) -> None:
@@ -124,6 +124,6 @@ def test_venv_pointer_resolution(repo: Path, tmp_path: Path) -> None:
     assert hook.VENV_FIX in flag  # the fix is printed verbatim
     (
         repo / ".venv" / "lib" / "python3.12" / "site-packages"
-        / "_editable_impl_anatase.pth"
+        / "_editable_impl_rietx.pth"
     ).write_text(f"{repo / 'src'}\n", encoding="utf-8")
     assert hook.venv_flag(repo) is None

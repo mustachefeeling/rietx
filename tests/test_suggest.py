@@ -5,15 +5,15 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-import anatase as pr
-from anatase.optimize.statistics import block_projection_r2, one_parameter_gains
-from anatase.schemas.suggest import (
+import rietx as pr
+from rietx.optimize.statistics import block_projection_r2, one_parameter_gains
+from rietx.schemas.suggest import (
     SUGGEST_MIN_GAIN,
     CandidateGroup,
     ParameterCandidate,
     SuggestionResult,
 )
-from anatase.strategy.suggest import SUGGEST_SEED_SOFTPLUS
+from rietx.strategy.suggest import SUGGEST_SEED_SOFTPLUS
 from tests.test_fitreport_layers import _report_for, _result_for, _truth
 
 
@@ -125,7 +125,7 @@ def test_gain_at_linear_minimum_is_zero():
 # build_suggestion — synthetic matrices with planted structure
 # ----------------------------------------------------------------------
 def _build(jac, r, free, cands, chi2_red=1.0, **kw):
-    from anatase.strategy.suggest import Candidate, build_suggestion
+    from rietx.strategy.suggest import Candidate, build_suggestion
     return build_suggestion(
         jac, r, free,
         [Candidate(path=p, index=i, dp_du=d, **extra)
@@ -389,7 +389,7 @@ def test_zero_shift_layer2_agreement_recorded(truth):
     (``typing.get_args(ActionKind)``) is what pins it."""
     from typing import get_args
 
-    from anatase.report.schemas import ActionKind
+    from rietx.report.schemas import ActionKind
 
     structure, ins, data = truth
     r, _ = _refinement(truth)
@@ -492,7 +492,7 @@ def test_injected_states_render_for_inspection(truth):
     full range + a low-angle zoom — a summary number hides locally-bad fits."""
     from pathlib import Path
 
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
 
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)

@@ -116,7 +116,7 @@ reading is the designed trap).
 form; a verbatim copy of `docs/AGENT_PROTOCOL.md` (the manual ships with the
 package — present in **all** python cells; it is part of the surface being
 tested, not a treatment); `prompt.md` (answer contract, budget ~6
-fit-bearing script runs, hard cap by transcript audit). anatase installed
+fit-bearing script runs, hard cap by transcript audit). rietx installed
 **non-editable into a venv outside the repo tree**; no repo checkout
 reachable; the truth tree stays scorer-side. Required artifacts:
 `answer.json` v2 + `final_result.json` (the agent's chosen final

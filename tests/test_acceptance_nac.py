@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
+import rietx as pr
 
 DATA = Path(__file__).parent / "data"
 WAVELENGTH = 0.4139090
@@ -38,7 +38,7 @@ def build_nac_inputs():
     instrument = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
-    from anatase.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.instrument import BackgroundChebyshev
     instrument.background = BackgroundChebyshev.with_terms(6)
     # Dispersion DECLINED explicitly (WP-1001 made it the package default) so
     # the v0.1 milestone numbers keep meaning what they said.  It is nearly
@@ -123,7 +123,7 @@ def test_nac_lebail_then_rietveld(nac_lebail, nac_rietveld):
     assert report.summary
 
     # fit plot for visual inspection (tests/output/, gitignored)
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "nac_fit.png"))
@@ -135,15 +135,15 @@ def _min_extinction_factor(structure, instrument, data, ip: int) -> float:
     raw ``ext`` coefficient)."""
     import numpy as np
 
-    from anatase.crystallography.lattice import (
+    from rietx.crystallography.lattice import (
         cell_volume,
         d_spacings,
         two_theta_deg,
     )
-    from anatase.crystallography.structure_factor import structure_factors_squared
-    from anatase.model.extinction import sabine_extinction
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx.crystallography.structure_factor import structure_factors_squared
+    from rietx.model.extinction import sabine_extinction
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
 
     model = compile_model(structure, instrument, data, mode="rietveld",
                           two_theta_limits=LIMITS)

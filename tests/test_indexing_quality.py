@@ -21,9 +21,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase.crystallography.symmetry import generate_reflections
-from anatase.indexing.diagnostics import quality_diagnostics
-from anatase.indexing.quality import (
+from rietx.crystallography.symmetry import generate_reflections
+from rietx.indexing.diagnostics import quality_diagnostics
+from rietx.indexing.quality import (
     _LAUE_ORBIT_FACTOR,
     _MAX_CENTRING,
     VOLUME_ENVELOPE_SLACK,
@@ -33,8 +33,8 @@ from anatase.indexing.quality import (
     template_collinearity,
     volume_envelope,
 )
-from anatase.report.schemas import SEPARABILITY_MIN_SS_RATIO
-from anatase.schemas.indexing import (
+from rietx.report.schemas import SEPARABILITY_MIN_SS_RATIO
+from rietx.schemas.indexing import (
     MAX_RELATIVE_SIGMA_Q,
     METRIC_DOF,
     MIN_LINES_PER_DOF,
@@ -361,7 +361,7 @@ def test_volume_envelope_contains_the_true_volume(sg, cell, system):
     d₂₀ comes from the package's own reflection generator, so the test measures
     the envelope against the same line list an engine would see.
     """
-    from anatase.crystallography.lattice import cell_volume
+    from rietx.crystallography.lattice import cell_volume
 
     refl = generate_reflections(sg, cell, LAM, 160.0)
     d = np.sort(refl.d)[::-1]
@@ -393,8 +393,8 @@ def test_the_search_ceiling_survives_an_incomplete_line_list(sg, cell, system):
     """
     from types import SimpleNamespace
 
-    from anatase.crystallography.lattice import cell_volume
-    from anatase.indexing.engines import (
+    from rietx.crystallography.lattice import cell_volume
+    from rietx.indexing.engines import (
         DEFAULT_VOLUME_CEILING,
         SearchSpec,
         search_volume_ceiling,
@@ -493,7 +493,7 @@ def test_dominant_zone_is_not_claimed_from_a_census():
 def test_gate_on_a_picked_lab_pattern():
     """The whole path: forward model → ``pick_peaks`` → the gate, with a known
     specimen displacement injected so the screen has something to attribute."""
-    from anatase import pick_peaks
+    from rietx import pick_peaks
     from tests.test_peak_picking import _forward, _instrument, _noisy
 
     instrument = _instrument()

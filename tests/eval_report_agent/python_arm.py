@@ -27,17 +27,17 @@ rather than assumed:
 
 - the **workspace lives outside the repo tree** — "no repo checkout
   reachable" starts with not building the workspace inside one;
-- anatase is installed **non-editable into a venv outside the repo tree**,
+- rietx is installed **non-editable into a venv outside the repo tree**,
   and the check is where imports *resolve*, not how the install was spelled
   — the worktree-venv lesson (tests/CLAUDE.md § Quoting numbers): a venv
-  whose ``anatase`` resolves into a checkout measures the tree, not the
+  whose ``rietx`` resolves into a checkout measures the tree, not the
   package.
 
 Usage::
 
     python -m tests.eval_report_agent.python_arm \\
         --workspace ~/eval-ws/python__sonnet --truth TRUTH \\
-        --venv ~/eval-venvs/anatase-eval --only N1 C1 W1 W2
+        --venv ~/eval-venvs/rietx-eval --only N1 C1 W1 W2
 """
 
 from __future__ import annotations
@@ -66,16 +66,16 @@ def _inside_repo(path: Path) -> bool:
 
 
 def verify_interpreter(python: Path) -> Path:
-    """Where ``import anatase`` resolves under this interpreter — refused if
+    """Where ``import rietx`` resolves under this interpreter — refused if
     inside the repo tree (an editable install, or a venv built in a
     checkout).  Returns the resolved package path."""
     out = subprocess.run(
-        [str(python), "-c", "import anatase; print(anatase.__file__)"],
+        [str(python), "-c", "import rietx; print(rietx.__file__)"],
         capture_output=True, text=True, check=True)
     resolved = Path(out.stdout.strip()).resolve()
     if _inside_repo(resolved):
         raise ValueError(
-            f"anatase resolves inside the repo tree ({resolved}); the arm "
+            f"rietx resolves inside the repo tree ({resolved}); the arm "
             "requires a non-editable install into a venv outside it — the "
             "agent must be handed the package, never the checkout")
     return resolved
@@ -101,7 +101,7 @@ def ensure_venv(venv: Path) -> Path:
 _PROMPT = """\
 # Episode {eid} — powder XRD refinement (python)
 
-You are operating the `anatase` Rietveld refinement package directly, as an
+You are operating the `rietx` Rietveld refinement package directly, as an
 installed python library, through this interpreter:
 
     {python}
@@ -115,7 +115,7 @@ and a transcript that reaches outside invalidates the run.
   read it whole; load it through the schemas:
 
       import json
-      import anatase as pr
+      import rietx as pr
 
       ep = json.load(open("episode.json"))
       structure = pr.Structure.model_validate(ep["structure"])

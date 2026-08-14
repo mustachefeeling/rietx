@@ -23,11 +23,11 @@ from http.client import HTTPConnection
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.gui import GuiSession, build_server
-from anatase.refine import _VERSION
-from anatase.schemas.common import Provenance
-from anatase.schemas.indexing import (
+import rietx as pr
+from rietx.gui import GuiSession, build_server
+from rietx.refine import _VERSION
+from rietx.schemas.common import Provenance
+from rietx.schemas.indexing import (
     INDEX_REFUTING_CAVEATS,
     PEAK_UNUSABLE_FLAGS,
     CellCandidate,

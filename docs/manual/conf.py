@@ -1,4 +1,4 @@
-# Sphinx configuration for the anatase theory manual.
+# Sphinx configuration for the rietx theory manual.
 #
 # Anti-divergence rule (WP-0604): a threshold or fenced constant is never
 # typed into a chapter.  It is imported here from the live package and exposed
@@ -9,28 +9,28 @@
 
 from importlib.metadata import version as _dist_version
 
-from anatase._about import DIST_NAME
-from anatase.crystallography.dispersion import NEAR_EDGE_EV
-from anatase.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
-from anatase.indexing.ambiguity import MAX_AMBIGUITY_INDEX
-from anatase.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
-from anatase.indexing.engines import (
+from rietx._about import DIST_NAME
+from rietx.crystallography.dispersion import NEAR_EDGE_EV
+from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG
+from rietx.indexing.ambiguity import MAX_AMBIGUITY_INDEX
+from rietx.indexing.dichotomy import ANGLE_STEP_DEG, AXIS_STEP
+from rietx.indexing.engines import (
     DEFAULT_N_UNINDEXED,
     DEFAULT_SEARCH_LINES,
     SEARCH_POOL_MULTIPLE,
 )
-from anatase.indexing.reduce import NIGGLI_EPS_RELATIVE
-from anatase.model.absorption import CYLINDER_MU_R_MAX
-from anatase.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
-from anatase.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
-from anatase.optimize.qpa import BRINDLEY_MU_R_FENCE
-from anatase.report.layer2 import IMPURITY_SIGMA
-from anatase.report.schemas import THRESHOLDS_VERSION
-from anatase.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
-from anatase.schemas.suggest import SUGGEST_MIN_GAIN
+from rietx.indexing.reduce import NIGGLI_EPS_RELATIVE
+from rietx.model.absorption import CYLINDER_MU_R_MAX
+from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
+from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
+from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
+from rietx.report.layer2 import IMPURITY_SIGMA
+from rietx.report.schemas import THRESHOLDS_VERSION
+from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
+from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 
-project = "anatase theory manual"
-author = "anatase developers"
+project = "rietx theory manual"
+author = "rietx developers"
 release = _dist_version(DIST_NAME)
 version = release
 
@@ -71,4 +71,4 @@ math_numfig = True
 exclude_patterns = ["_build"]
 
 html_theme = "furo"
-html_title = f"anatase {release} — theory manual"
+html_title = f"rietx {release} — theory manual"

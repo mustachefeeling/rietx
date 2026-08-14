@@ -27,11 +27,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
-from anatase.gui.imports import UPLOAD_DIR_PREFIX
-from anatase.gui.session import RESERVED_ROUTES, GuiError
-from anatase.history.events import read_events
+import rietx as pr
+from rietx.gui import ROUTES, UPLOAD_ROUTES, GuiSession, build_server
+from rietx.gui.imports import UPLOAD_DIR_PREFIX
+from rietx.gui.session import RESERVED_ROUTES, GuiError
+from rietx.history.events import read_events
 from tests.test_project import _write_xye
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -213,7 +213,7 @@ def _wait_idle(client: Client, timeout: float = 120.0) -> dict:
 # the surface itself
 # ----------------------------------------------------------------------
 def test_capabilities_is_the_package_answer_verbatim(blank):
-    """One authority: the route must not paraphrase ``anatase.capabilities()``."""
+    """One authority: the route must not paraphrase ``rietx.capabilities()``."""
     _, client = blank
     status, payload = client.get("/api/capabilities")
     assert status == 200
@@ -312,7 +312,7 @@ def test_host_header_is_checked(blank):
     """A page on another origin must not be able to drive this server."""
     _, client = blank
     status, payload = client.get("/api/version",
-                                 headers={"Host": "anatase.example.com"})
+                                 headers={"Host": "rietx.example.com"})
     assert status == 403
     assert payload["error"]["code"] == "FORBIDDEN_HOST"
     # …and the rebinding case, where Host *is* loopback but the page is not
@@ -366,12 +366,12 @@ def test_the_built_app_is_served_and_so_is_plotly(blank):
 def test_the_placeholder_explains_itself_when_the_dist_is_absent(blank, tmp_path,
                                                                 monkeypatch):
     """A checkout without the built assets must still say what is going on."""
-    from anatase.gui import server as server_module
+    from rietx.gui import server as server_module
 
     _, client = blank
     monkeypatch.setattr(server_module, "STATIC_DIR", tmp_path / "nothing-here")
     status, payload = client.get("/")
-    assert status == 200 and "anatase gui" in payload["raw"]
+    assert status == 200 and "rietx gui" in payload["raw"]
     assert "WP-1010" in payload["raw"]
 
 
@@ -665,7 +665,7 @@ def test_an_instrument_profile_uploads_frozen_and_patches_in(blank, tmp_path,
 
 
 def test_an_instrument_preset_supplies_the_wavelengths_it_is_not_given(blank):
-    from anatase.gui.imports import instrument_from_preset
+    from rietx.gui.imports import instrument_from_preset
 
     _, client = blank
     anodes = {a["name"] for a in client.get("/api/capabilities")[1]["anodes"]}
@@ -702,8 +702,8 @@ def test_every_instrument_preset_argument_is_the_constructors_own():
     """
     import inspect
 
-    from anatase.gui.imports import INSTRUMENT_PRESETS
-    from anatase.schemas.instrument import Instrument
+    from rietx.gui.imports import INSTRUMENT_PRESETS
+    from rietx.schemas.instrument import Instrument
 
     for name, declared in INSTRUMENT_PRESETS.items():
         signature = inspect.signature(getattr(Instrument, name))
@@ -1035,7 +1035,7 @@ def test_a_supergroup_that_moves_no_parameter_still_says_the_cell_doubled(
     8→16, 24→48), the cell holds twice as many atoms, and the phase scale means
     something else.  The multiplicity is the only thing that says so.
     """
-    from anatase.crystallography.cif import structure_from_cif
+    from rietx.crystallography.cif import structure_from_cif
 
     session, client = blank
     project = _open(session, tmp_path / "supergroup.rex", pattern_file)
@@ -1064,7 +1064,7 @@ def test_an_orbit_collision_blocks_only_when_the_occupancies_say_it_is_one(
     asymmetric-unit atoms a higher symmetry maps together are counted twice — and
     nothing in the package checks it.  A *mixed* site is the same geometry and is
     not a bug, so the criterion is the shared occupancy rather than a guess."""
-    from anatase.schemas.structure import Atom
+    from rietx.schemas.structure import Atom
 
     session, client = blank
     project = _open(session, tmp_path / "orbit.rex", pattern_file)
@@ -1109,7 +1109,7 @@ def test_a_shared_site_is_judged_as_a_group_and_never_as_pairs(blank, tmp_path,
     a coarser answer but a wrong one.  It also decides the wording: "keep one
     atom of the 3" is advice a pairwise message cannot give.
     """
-    from anatase.schemas.structure import Atom
+    from rietx.schemas.structure import Atom
 
     session, client = blank
     project = _open(session, tmp_path / "triple.rex", pattern_file)
@@ -1553,7 +1553,7 @@ def test_a_whole_model_patch_records_an_edit_node(blank, tmp_path, pattern_file)
 # running
 # ----------------------------------------------------------------------
 def test_a_real_run_streams_its_events_to_disk_and_to_followers(fitted):
-    """The GUI and ``anatase watch`` are two views of one stream."""
+    """The GUI and ``rietx watch`` are two views of one stream."""
     session, client, project = fitted
     log = project.live_dir / "events.jsonl"
     assert log.is_file()
@@ -1608,7 +1608,7 @@ def test_result_carries_no_curves_and_the_window_serves_them(fitted):
 
 def test_the_result_says_when_a_fit_is_past_the_point_of_being_a_fit(fitted):
     """WP-1029 item (c): one honest signal, in the report's own vocabulary."""
-    from anatase.report.schemas import MATURITY_MAX_RWP
+    from rietx.report.schemas import MATURITY_MAX_RWP
 
     session, client, project = fitted
     maturity = client.get("/api/result")[1]["result"]["maturity"]
@@ -1693,7 +1693,7 @@ def test_the_weighted_residual_has_exactly_one_authority(fitted):
     np.testing.assert_array_equal(np.asarray(window["delta"]), drawn[idx])
 
     # and the third drawer, the plotly export, divides by the same σ
-    from anatase.viz.html import figure_from_arrays
+    from rietx.viz.html import figure_from_arrays
     figure = figure_from_arrays(
         np.asarray(result.two_theta), np.asarray(result.y_obs),
         np.asarray(result.y_calc), None, result.ticks, sigma=result.sig(),
@@ -1769,7 +1769,7 @@ def test_two_text_writers_race_and_the_second_is_refused_whole(
     mid-edit as the same event, because they are: the buffer descends from a
     rendering the project has moved past. What the session tests could not show is
     the case that actually produces it — two clients holding the same revision,
-    which is one browser tab and one `anatase` REPL, or two tabs. The second writer
+    which is one browser tab and one `rietx` REPL, or two tabs. The second writer
     must be refused **whole**: not a merge, not a partial apply, and not a refusal
     that leaves half the delta in.
 
@@ -2170,7 +2170,7 @@ def test_the_series_setup_answers_before_anything_is_staged(blank, tmp_path,
     # the defaults are WP-0505's measured results, and the choices come from
     # ``sequential``'s own tuples — a menu that could offer a value the chain
     # refuses would be a second authority
-    from anatase.sequential import DIRECTIONS, REFIT_MODES
+    from rietx.sequential import DIRECTIONS, REFIT_MODES
 
     assert setup["settings"] == setup["defaults"]
     assert setup["settings"]["refit"] == "single"
@@ -2329,7 +2329,7 @@ def test_the_backward_chain_travels_as_a_number_not_a_footnote(series):
     session, client, _ = series
     payload = client.get("/api/series/result")[1]
     assert payload["has_backward"] is True
-    from anatase.sequential import PATH_DEPENDENCE_SIGMA
+    from rietx.sequential import PATH_DEPENDENCE_SIGMA
 
     assert payload["path_dependence_sigma"] == PATH_DEPENDENCE_SIGMA
     served = {t["path"]: t for t in payload["trajectories"]}
@@ -2355,7 +2355,7 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
     through the *existing* three fields, which is the same reuse an indexing run
     makes of ``stage_start``.
     """
-    from anatase.history.events import EVENT_SCHEMA_VERSION
+    from rietx.history.events import EVENT_SCHEMA_VERSION
 
     session, client, _ = series
     events = client.get("/api/events?poll=1&since=0")[1]["events"]
@@ -2373,7 +2373,7 @@ def test_the_series_events_say_which_pattern_they_came_from(series):
                                             "stage_end", "fit_end"}
     # …so the schema version did not move for any of it
     assert {e["v"] for e in events} == {EVENT_SCHEMA_VERSION}
-    # and the same stream landed in the log `anatase watch` tails
+    # and the same stream landed in the log `rietx watch` tails
     logged = read_events(session.project.live_dir / "events.jsonl")
     assert sum(1 for e in logged if e.kind == "fit_start"
                and "series_index" in e.data) == 6
@@ -2393,7 +2393,7 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
     **restart** only — so a pattern's first attempt is unsuffixed, the first
     pattern of a chain included, even though the rung it runs *is* the cold one.
     """
-    from anatase.gui.session import _series_stage_name
+    from rietx.gui.session import _series_stage_name
 
     assert _series_stage_name({"series_label": "T300"}, 0) == "T300"
     assert _series_stage_name({"series_label": "T300",
@@ -2410,7 +2410,7 @@ def test_the_progress_pill_names_the_pass_and_the_rung():
 
 def test_a_series_window_is_the_project_plot_arithmetic(series):
     """``curve_window`` is shared, so the two panels cannot draw two σ policies."""
-    from anatase.gui.session import curve_window
+    from rietx.gui.session import curve_window
 
     session, client, _ = series
     status, payload = client.get("/api/series/window?index=1")
@@ -2432,7 +2432,7 @@ def test_a_series_window_is_the_project_plot_arithmetic(series):
     # WP-1033's `len(result.two_theta)` assertion one rank down: the mask is
     # rebuilt from the limits *this run* used, through the same function
     # `Project.fitted_mask` calls, so it cannot drift from the curves beside it
-    from anatase.project import fitted_mask
+    from rietx.project import fitted_mask
 
     entry = session._series_run
     keep = fitted_mask(entry["data"][1], entry["limits"])
@@ -2458,7 +2458,7 @@ def test_a_series_window_is_the_project_plot_arithmetic(series):
 
 def test_a_series_member_history_is_its_own_tree_and_read_only(series):
     """One tree per pattern, pinned to its data — so its nodes are not checkouts."""
-    from anatase.gui.session import tree_payload
+    from rietx.gui.session import tree_payload
 
     session, client, _ = series
     status, payload = client.get("/api/series/history?index=2")
@@ -2516,8 +2516,8 @@ def _series_pair(forward_a, backward_a, esd=1e-4):
     flagged branch unexercised.  A hand-built pair is the only way to pin the
     served magnitude against the fence that fires on it.
     """
-    from anatase.schemas.results import RefinedParameter, Statistics
-    from anatase.schemas.sequential import SeriesEntry, SeriesResult
+    from rietx.schemas.results import RefinedParameter, Statistics
+    from rietx.schemas.sequential import SeriesEntry, SeriesResult
 
     def chain(values):
         return SeriesResult(x_label="T", direction="forward", entries=[
@@ -2541,8 +2541,8 @@ def test_the_served_disagreement_is_the_fences_own_arithmetic():
     chains' trajectories are in hand, so the answer is to recompute the distance
     rather than to grow the schema.
     """
-    from anatase.gui import series as series_mod
-    from anatase.sequential import (
+    from rietx.gui import series as series_mod
+    from rietx.sequential import (
         PATH_DEPENDENCE_SIGMA,
         _path_dependence_diagnostics,
     )
@@ -2573,7 +2573,7 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
     reporting 0 would read as agreement it has not earned — which is exactly
     where a panel ranking by disagreement would file it.
     """
-    from anatase.gui import series as series_mod
+    from rietx.gui import series as series_mod
 
     forward, backward = _series_pair([4.156, 4.158, 4.160],
                                      [4.156, 4.158, 4.171], esd=None)
@@ -2612,7 +2612,7 @@ def test_an_unjudgeable_parameter_gets_no_disagreement_rather_than_zero():
      {"preset": "debye_scherrer", "wavelength": 0.413909}),
 ])
 def test_the_instrument_hint_reads_the_file_rather_than_asking(metadata, expected):
-    from anatase.gui.imports import suggest_instrument
+    from rietx.gui.imports import suggest_instrument
 
     hint = suggest_instrument(metadata)
     assert hint is not None and {k: hint.get(k) for k in expected} == expected
@@ -2630,7 +2630,7 @@ def test_a_header_that_contradicts_itself_gets_no_hint_rather_than_a_guess(metad
     The contradiction is judged *after* the weighted mean is a candidate, so a
     convention difference is never mistaken for one.
     """
-    from anatase.gui.imports import suggest_instrument
+    from rietx.gui.imports import suggest_instrument
 
     assert suggest_instrument(metadata) is None
 

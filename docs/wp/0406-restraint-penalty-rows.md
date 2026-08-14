@@ -16,7 +16,7 @@ Bérar-Lelann, with an analytic row-Jacobian and a restraint-summary report.
 - **The penalty-row seam is already proven twice — reuse it, don't invent.**
   `BackgroundPSpline` appends `√λ·D₂·c` rows and Pawley appends
   `√λ/s·(δ − 1/n)·I` rows, both concatenated *after* the data rows in
-  `_make_residual` ([`optimize/least_squares.py`](../../src/anatase/optimize/least_squares.py)),
+  `_make_residual` ([`optimize/least_squares.py`](../../src/rietx/optimize/least_squares.py)),
   with `covariance_estimates(..., n_data=N_data)` keeping them in JᵀJ but
   slicing `fun[:n_data]` for χ²/Rwp/DW/Bérar-Lelann (statistics on data rows
   only). The three touchpoints: (1) compile a `√w`-scaled row block; (2)

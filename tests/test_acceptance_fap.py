@@ -43,8 +43,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
+import rietx as pr
+from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
 DATA = Path(__file__).parent / "data"
 pytestmark = pytest.mark.slow
@@ -192,7 +192,7 @@ def test_fap_lab_rietveld_matches_gsas(fap_inputs):
     report = ref.report(plan=_gsas_protocol_plan())
     assert report.summary and report.n_regions_total > 10
 
-    from anatase.viz.plots import plot_for_vlm, plot_result
+    from rietx.viz.plots import plot_for_vlm, plot_result
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
     plot_result(result, path=str(out / "fap_fit.png"))

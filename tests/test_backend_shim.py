@@ -68,18 +68,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.model.forward import compile_model
-from anatase.optimize.least_squares import _make_jacobian, _make_residual
-from anatase.params.vector import ParameterTable
-from anatase.schemas.instrument import (
+import rietx as pr
+from rietx.model.forward import compile_model
+from rietx.optimize.least_squares import _make_jacobian, _make_residual
+from rietx.params.vector import ParameterTable
+from rietx.schemas.instrument import (
     BackgroundChebyshev,
     BackgroundPSpline,
     Instrument,
     RoughnessSuortti,
 )
-from anatase.schemas.pattern import PatternData
-from anatase.schemas.structure import PreferredOrientation
+from rietx.schemas.pattern import PatternData
+from rietx.schemas.structure import PreferredOrientation
 
 DATA = Path(__file__).parent / "data"
 GOLDEN_DIR = DATA / "backend_goldens"
@@ -307,7 +307,7 @@ def _state_toy_restraints():
     names explicit orbit ops so the two O neighbours of Ti form a non-degenerate
     angle (auto min-image would pick the same image for both).
     """
-    from anatase.schemas.structure import (
+    from rietx.schemas.structure import (
         AngleRestraint,
         BondRestraint,
         ValueRestraint,
@@ -390,8 +390,8 @@ def _state_toy_stephens():
     start is deliberately *off* the isotropic ray so the anisotropic patterns
     carry a nonzero derivative.
     """
-    from anatase.crystallography.stephens import stephens_basis
-    from anatase.schemas.structure import StephensStrain
+    from rietx.crystallography.stephens import stephens_basis
+    from rietx.schemas.structure import StephensStrain
 
     structure, instrument, pattern = _toy_base()
     phase = structure.phases[0]
@@ -424,8 +424,8 @@ def _state_toy_anomalous():
     free polar-axis z run the correction through *both* structural derivative
     kernels.
     """
-    from anatase.schemas.instrument import Dispersion
-    from anatase.schemas.structure import AnisoU, Structure
+    from rietx.schemas.instrument import Dispersion
+    from rietx.schemas.structure import AnisoU, Structure
     from tests.test_dispersion import zincite
 
     phase = zincite()
@@ -544,7 +544,7 @@ def _capture(name: str) -> dict[str, np.ndarray] | None:
 def test_numpy_backend_attributes_are_numpy_functions():
     """Zero-overhead claim: the numpy backend's ops ARE the numpy callables
     (plain-function attributes must not have bound as methods)."""
-    from anatase.backend import NumpyBackend, get_backend
+    from rietx.backend import NumpyBackend, get_backend
 
     xp = get_backend()
     assert isinstance(xp, NumpyBackend)
@@ -556,7 +556,7 @@ def test_numpy_backend_attributes_are_numpy_functions():
 
 
 def test_window_add_functional_contract():
-    from anatase.backend import get_backend
+    from rietx.backend import get_backend
 
     xp = get_backend()
     y = np.zeros(6)
@@ -569,7 +569,7 @@ def test_window_add_functional_contract():
 
 
 def test_segment_sum_matches_bincount():
-    from anatase.backend import get_backend
+    from rietx.backend import get_backend
 
     xp = get_backend()
     vals = np.array([1.0, 2.0, 4.0, 8.0, 16.0])
@@ -580,7 +580,7 @@ def test_segment_sum_matches_bincount():
 
 
 def test_set_backend_roundtrip():
-    from anatase.backend import NumpyBackend, get_backend, set_backend
+    from rietx.backend import NumpyBackend, get_backend, set_backend
 
     original = get_backend()
 

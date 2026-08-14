@@ -24,16 +24,16 @@ from pathlib import Path
 
 import pytest
 
-import anatase as pr
-from anatase.io.formats import (
+import rietx as pr
+from rietx.io.formats import (
     METADATA_KEYS,
     PATTERN_FORMATS,
     head,
     metadata,
     multiscan_default,
 )
-from anatase.io.formats.base import PatternFormat, ascending, reader_options_for
-from anatase.io.readers import identify_format, list_scans
+from rietx.io.formats.base import PatternFormat, ascending, reader_options_for
+from rietx.io.readers import identify_format, list_scans
 
 
 def write_xy(path, tt, y, sig=None):
@@ -136,7 +136,7 @@ def test_every_registered_reader_passes_through_the_same_policy():
     is the one that quietly sorts instead of refusing."""
     import inspect
 
-    from anatase.io.formats import chi, gsas, pdcif, ras, xy
+    from rietx.io.formats import chi, gsas, pdcif, ras, xy
 
     for module in (chi, gsas, pdcif, ras, xy):
         body = inspect.getsource(module)
@@ -156,7 +156,7 @@ def test_the_axis_policy_is_one_function_and_one_code():
     import inspect
     import re
 
-    from anatase.io.formats import base, chi, ras, uxd
+    from rietx.io.formats import base, chi, ras, uxd
 
     emits = re.compile(r'code\s*=\s*"[A-Z_]*X_AXIS_ASSUMED"')
     for module in (chi, ras, uxd):
@@ -197,7 +197,7 @@ def test_none_means_unspecified_rather_than_a_value():
 def test_an_int_option_arrives_as_an_int_however_it_was_stored():
     """``DataRef.options`` is dict[str, str], so a scan round-trips through a
     project as "2" and has to reach the reader as the integer 2."""
-    from anatase.io.formats.base import ReaderOption
+    from rietx.io.formats.base import ReaderOption
 
     assert ReaderOption(name="scan", kind="int", help="").coerce("2") == 2
     with pytest.raises(ValueError, match="scan= takes an integer"):
@@ -247,7 +247,7 @@ def test_the_chi_point_count_line_is_no_longer_read_as_a_data_point(tmp_path):
     assert 3.0 not in data.two_theta         # the count line is not a datum
 
     # and the fallback really would have taken it: the same bytes, read as xy
-    from anatase.io.formats.xy import read_xy
+    from rietx.io.formats.xy import read_xy
     assert len(read_xy(p).two_theta) == len(tt) + 1
 
 
@@ -1230,7 +1230,7 @@ def test_a_member_past_the_cap_is_refused_rather_than_materialised(tmp_path,
     """``ZipInfo.file_size`` is a number in the archive's own header, so it is
     the one a bomb lies about — hence ``read(cap + 1)`` and a length test rather
     than a size check before reading."""
-    from anatase.io.formats import rasx
+    from rietx.io.formats import rasx
 
     p = write_rasx(tmp_path / "big.rasx",
                    [dict(rows=[(10.0 + 0.01 * i, 5.0) for i in range(200)])])

@@ -86,7 +86,7 @@ are in.
 
 ```sh
 npm --prefix gui test && npm --prefix gui run check
-npm --prefix gui run build && git diff --exit-code src/anatase/gui/static
+npm --prefix gui run build && git diff --exit-code src/rietx/gui/static
 .venv/bin/python -m pytest tests/test_gui_server.py tests/test_gui_dist.py
 .venv/bin/python -m ruff check src tests examples
 ```

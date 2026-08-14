@@ -2,7 +2,7 @@
 
 Everything here needs jax (``pytest.importorskip``) except the claim the
 subprocess test proves: a numpy-only *process* never imports jax and never
-sees the global x64 flag — anatase's fp64 comes from the *scoped*
+sees the global x64 flag — rietx's fp64 comes from the *scoped*
 ``enable_x64`` at the jacfwd/jit call sites only.
 
 Column agreement uses the WP-0402 acceptance bars (<5e-3 rel-L2, cosine
@@ -25,22 +25,22 @@ import pytest
 
 jax = pytest.importorskip("jax")
 
-import anatase as pr  # noqa: E402
-from anatase.backend import (  # noqa: E402
+import rietx as pr  # noqa: E402
+from rietx.backend import (  # noqa: E402
     NumpyBackend,
     get_backend,
     resolve_backend,
 )
-from anatase.backend.jax_backend import (  # noqa: E402
+from rietx.backend.jax_backend import (  # noqa: E402
     make_jax_jacobian,
     make_traced_residual,
 )
-from anatase.model.forward import compile_model  # noqa: E402
-from anatase.optimize.least_squares import (  # noqa: E402
+from rietx.model.forward import compile_model  # noqa: E402
+from rietx.optimize.least_squares import (  # noqa: E402
     _make_jacobian,
     _make_residual,
 )
-from anatase.params.vector import ParameterTable  # noqa: E402
+from rietx.params.vector import ParameterTable  # noqa: E402
 from tests.test_backend_shim import STATES  # noqa: E402
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state  # noqa: E402
 
@@ -90,14 +90,14 @@ def _column_agreement(J_ref, J_test, labels, *, rel=5e-3, cos_min=0.99999,
 # ----------------------------------------------------------------------
 def test_numpy_only_process_never_imports_jax_nor_sets_x64():
     """The strongest form of the WP claim, in a fresh subprocess: importing
-    anatase and running the numpy path never imports jax, and when the user
+    rietx and running the numpy path never imports jax, and when the user
     then imports jax themselves its world is untouched (x64 off, fp32)."""
     code = """
 import sys
 import numpy as np
-import anatase as pr
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
+import rietx as pr
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
 
 structure = pr.Structure(phases=[pr.Phase(
     name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
@@ -219,10 +219,10 @@ def test_jacfwd_matches_analytic_on_state(name):
 
     # the traced residual is the numpy residual, row for row
     r_np = _make_residual(model, table)(theta)
-    from anatase.backend import set_backend
+    from rietx.backend import set_backend
     set_backend("jax")
     try:
-        from anatase.backend.jax_backend import _enable_x64
+        from rietx.backend.jax_backend import _enable_x64
         with _enable_x64():
             r_jax = np.asarray(make_traced_residual(model, table)(theta))
     finally:
@@ -319,7 +319,7 @@ def test_srm660c_end_to_end_jax_matches_numpy(srm660c_baseline):
     assert abs(rwp_jax - rwp_np) < 1e-4
 
     # obs/calc/diff PNGs for visual inspection (tests/output/, gitignored)
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     OUT.mkdir(exist_ok=True)
     plot_result(results["jax"][1], path=str(OUT / "srm660c_jax_fit.png"))
     plot_result(results["jax"][1], path=str(OUT / "srm660c_jax_fit_lowangle.png"),

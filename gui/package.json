@@ -1,9 +1,9 @@
 {
-  "name": "anatase-gui",
+  "name": "rietx-gui",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Frontend workspace for `anatase gui`. Never ships in the wheel — the build output under src/anatase/gui/static is committed, so installing anatase[gui] needs no node.",
+  "description": "Frontend workspace for `rietx gui`. Never ships in the wheel — the build output under src/rietx/gui/static is committed, so installing rietx[gui] needs no node.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && python3 scripts/build_info.py",

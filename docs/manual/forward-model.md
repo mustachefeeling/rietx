@@ -11,7 +11,7 @@ y_{\mathrm{calc}}(2\theta_i) \;=\; y_{\mathrm{bkg}}(2\theta_i)
 \;+\; \sum_p \sum_l \sum_k I_{pk}\, w_l\, \Omega_{lk}(2\theta_i).
 ```
 
-*Source:* `anatase.model.forward`
+*Source:* `rietx.model.forward`
 
 Each emission line (Kα₁/Kα₂, …) diffracts at its own Bragg angle, so the
 doublet splitting grows with $\tan\theta$ — it is never a fixed $2\theta$
@@ -32,7 +32,7 @@ purely as an area.
 I_{pk} \;=\; S_p \cdot m_{pk} \cdot |F_{pk}|^2 \cdot \mathrm{Lp}(2\theta_{lk}),
 ```
 
-*Source:* `anatase.model.forward`
+*Source:* `rietx.model.forward`
 
 with phase scale $S_p$, multiplicity $m_{pk}$ (chapter {ref}`ch-intensities`),
 structure factor $|F|^2$ and the Lorentz-polarisation factor Lp (chapter
@@ -52,7 +52,7 @@ I_k \;\leftarrow\;
      {\sum_l w_l \sum_i \Omega_{lk,i}},
 ```
 
-*Source:* `anatase.model.forward.CompiledModel.lebail_update`
+*Source:* `rietx.model.forward.CompiledModel.lebail_update`
 
 which is a fixed point when $y_{\mathrm{obs}} = y_{\mathrm{calc}}$. The
 extracted intensities live outside the parameter vector and are
@@ -81,9 +81,9 @@ r \;=\; \bigl[\; \text{data} \;\big|\; \text{background penalty}
 \;\big|\; \text{Pawley restraint} \;\big|\; \text{soft restraint} \;\bigr],
 ```
 
-*Source:* `anatase.model.rows`
+*Source:* `rietx.model.rows`
 
-is defined once, in `anatase.model.rows`, and every builder — the numpy
+is defined once, in `rietx.model.rows`, and every builder — the numpy
 residual, the numpy Jacobian's row offsets, and the traced jax/torch
 residuals — consumes it. The data rows are $\sqrt{w_i}\,(y_{\mathrm{obs},i}
 - y_{\mathrm{calc},i})$; the remaining blocks are described with the

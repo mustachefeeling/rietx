@@ -23,14 +23,14 @@ from pathlib import Path
 
 import pytest
 
-from anatase.indexing.engines import (
+from rietx.indexing.engines import (
     CENTRINGS,
     SEARCH_PRESETS,
     SYSTEM_ORDER,
     SearchSpec,
     engine_names,
 )
-from anatase.schemas.indexing import (
+from rietx.schemas.indexing import (
     SHIFT_TEMPLATES,
     IndexingControls,
     SearchSpecSpec,
@@ -129,7 +129,7 @@ CONTROL_TO_KWARG = {
 
 
 def test_indexing_controls_cover_index_pattern():
-    from anatase.indexing.workflow import index_pattern
+    from rietx.indexing.workflow import index_pattern
 
     params = set(inspect.signature(index_pattern).parameters)
     assert params == CALL_TIME_INPUTS | VIA_SEARCH | set(
@@ -144,7 +144,7 @@ def test_indexing_controls_cover_index_pattern():
 # the bijection: the agent request
 # ----------------------------------------------------------------------
 def test_the_agent_re_exports_the_one_model():
-    import anatase.agent as ag
+    import rietx.agent as ag
 
     assert ag.SearchSpecSpec is SearchSpecSpec
     assert ag.IndexingControls is IndexingControls
@@ -152,7 +152,7 @@ def test_the_agent_re_exports_the_one_model():
 
 def test_the_agent_request_carries_every_control():
     """Flat on the request (agent ergonomics), same names, same model."""
-    import anatase.agent as ag
+    import rietx.agent as ag
 
     fields = ag.IndexRequest.model_fields
     assert fields["search"].annotation is SearchSpecSpec
@@ -164,7 +164,7 @@ def test_the_agent_request_carries_every_control():
 # the project document
 # ----------------------------------------------------------------------
 def test_the_project_document_round_trips_the_controls():
-    from anatase.schemas.project import ProjectDoc
+    from rietx.schemas.project import ProjectDoc
 
     doc = ProjectDoc(indexing=IndexingControls(
         search=SearchSpecSpec(**_ROUND_TRIP), engines=["svd"],
@@ -242,9 +242,9 @@ def test_gui_and_agent_runs_produce_identical_spec_notes(tmp_path):
     ``SearchSpec`` field — are byte-identical."""
     import time
 
-    import anatase as pr
-    import anatase.agent as ag
-    from anatase.gui import GuiSession
+    import rietx as pr
+    import rietx.agent as ag
+    from rietx.gui import GuiSession
     from tests.test_project import _write_xye
     from tests.test_refine_synthetic import perturbed_models, synthesize
 

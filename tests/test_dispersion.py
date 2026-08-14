@@ -22,22 +22,22 @@ import math
 import numpy as np
 import pytest
 
-from anatase.crystallography.dispersion import dispersion
-from anatase.crystallography.lattice import d_spacings
-from anatase.crystallography.scattering import f0
-from anatase.crystallography.structure_factor import (
+from rietx.crystallography.dispersion import dispersion
+from rietx.crystallography.lattice import d_spacings
+from rietx.crystallography.scattering import f0
+from rietx.crystallography.structure_factor import (
     compile_phase_sites,
     d_f2_d_uaniso,
     d_f2_d_xyz,
     structure_factors_squared,
 )
-from anatase.crystallography.symmetry import (
+from rietx.crystallography.symmetry import (
     generate_reflections,
     get_spacegroup,
     reflection_orbits,
 )
-from anatase.schemas.common import Parameter
-from anatase.schemas.structure import AnisoU, Atom, Cell, Phase
+from rietx.schemas.common import Parameter
+from rietx.schemas.structure import AnisoU, Atom, Cell, Phase
 
 #: f′, f″ at Cu Kα1 (International Tables for Crystallography Vol. C,
 #: §4.2.6).  Hard-coded here so the structure-factor algebra is tested
@@ -269,7 +269,7 @@ def _fd_f2(phase, cell6, hkl, f_anom, poke, *, step=1e-7):
     sites = compile_phase_sites(phase, f_anom)
     xyz, occ, biso, uan = _site_arrays(phase)
     d = d_spacings(hkl, *cell6)
-    from anatase.crystallography.adp import reciprocal_axis_lengths
+    from rietx.crystallography.adp import reciprocal_axis_lengths
     astar = reciprocal_axis_lengths(*cell6)
 
     def value(sign):
@@ -286,7 +286,7 @@ def test_analytic_xyz_gradient_matches_fd_with_dispersion():
                     [1, 0, 3], [2, 0, 0], [2, -1, 2]])
     sites = compile_phase_sites(phase, CU_KA1)
     xyz, occ, biso, uan = _site_arrays(phase)
-    from anatase.crystallography.adp import reciprocal_axis_lengths
+    from rietx.crystallography.adp import reciprocal_axis_lengths
     astar = reciprocal_axis_lengths(*ZINCITE_CELL)
     d = d_spacings(hkl, *ZINCITE_CELL)
     for j in (0, 1):
@@ -310,7 +310,7 @@ def test_analytic_adp_gradient_matches_fd_with_dispersion():
     hkl = np.array([[1, 0, 0], [0, 0, 2], [1, 0, 1], [2, -1, 3], [1, 0, 3]])
     sites = compile_phase_sites(phase, CU_KA1)
     xyz, occ, biso, uan = _site_arrays(phase)
-    from anatase.crystallography.adp import reciprocal_axis_lengths
+    from rietx.crystallography.adp import reciprocal_axis_lengths
     astar = reciprocal_axis_lengths(*ZINCITE_CELL)
     d = d_spacings(hkl, *ZINCITE_CELL)
     got = d_f2_d_uaniso(hkl, d, sites, xyz, occ, biso, 0, uan, astar)
@@ -327,7 +327,7 @@ def test_dispersion_actually_changes_the_gradient():
     phase = zincite()
     hkl = np.array([[1, 0, 0], [0, 0, 2], [1, 0, 1], [2, -1, 3]])
     xyz, occ, biso, uan = _site_arrays(phase)
-    from anatase.crystallography.adp import reciprocal_axis_lengths
+    from rietx.crystallography.adp import reciprocal_axis_lengths
     astar = reciprocal_axis_lengths(*ZINCITE_CELL)
     d = d_spacings(hkl, *ZINCITE_CELL)
     on = d_f2_d_xyz(hkl, d, compile_phase_sites(phase, CU_KA1),
@@ -338,7 +338,7 @@ def test_dispersion_actually_changes_the_gradient():
 
 
 def test_f_anom_length_is_validated():
-    from anatase.crystallography.structure_factor import PhaseSites
+    from rietx.crystallography.structure_factor import PhaseSites
 
     with pytest.raises(ValueError, match="one entry per asymmetric-unit atom"):
         PhaseSites(ops=[], species=["Zn", "O"], f_anom=np.array([1 + 1j]))
@@ -390,7 +390,7 @@ def test_matches_gemmi_independently():
     """
     import gemmi
 
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
 
     for lam in (CU_KA1_LAMBDA, MO_KA1_LAMBDA, 0.4139090):
         for el in ("O", "Mg", "Al", "Si", "Ca", "Ti", "Fe", "Zn", "Sr", "Zr",
@@ -414,7 +414,7 @@ def test_the_table_carries_the_kissel_pratt_correction():
     """
     import gemmi
 
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
 
     fp, _ = dispersion("U", CU_KA1_LAMBDA)
     g_fp, _ = gemmi.cromer_liberman(92, _HC_EV_ANGSTROM / CU_KA1_LAMBDA)
@@ -432,8 +432,8 @@ def test_f_double_prime_reproduces_the_mcmaster_photoabsorption():
     disagreement between the two tabulations, not a bug, which is why µ is not
     re-sourced from f″.
     """
-    from anatase.crystallography.attenuation import photoelectric_cross_section
-    from anatase.crystallography.dispersion import photoabsorption_barn
+    from rietx.crystallography.attenuation import photoelectric_cross_section
+    from rietx.crystallography.dispersion import photoabsorption_barn
 
     for el in ("O", "F", "Mg", "Al", "Si", "Ca", "Fe", "Zn", "Zr", "La"):
         _fp, fpp = dispersion(el, CU_KA1_LAMBDA)
@@ -450,7 +450,7 @@ def test_scattering_share_of_the_total_is_small_but_real():
     which is exactly where the McMaster table was already known to be weakest
     — so re-sourcing µ from f″ would trade one small error for another.
     """
-    from anatase.crystallography.attenuation import (
+    from rietx.crystallography.attenuation import (
         photoelectric_cross_section,
         total_cross_section,
     )
@@ -466,8 +466,8 @@ def test_scattering_share_of_the_total_is_small_but_real():
 
 def test_edges_are_detected_and_refused_not_smeared():
     """f″ jumps ~8× across one grid interval; interpolating it is nonsense."""
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
-    from anatase.crystallography.dispersion import edges
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.dispersion import edges
 
     zn_k = edges("Zn")
     assert len(zn_k) == 1
@@ -479,8 +479,8 @@ def test_edges_are_detected_and_refused_not_smeared():
 
 
 def test_near_edge_flags_the_xanes_region():
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
-    from anatase.crystallography.dispersion import edges, near_edge
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.dispersion import edges, near_edge
 
     zn_k = edges("Zn")[0]
     assert near_edge("Zn", _HC_EV_ANGSTROM / (zn_k + 30.0)) == pytest.approx(zn_k)
@@ -490,7 +490,7 @@ def test_near_edge_flags_the_xanes_region():
 
 def test_ions_resolve_to_the_element():
     """f′/f″ are core-level effects, so the charge is dropped — unlike f₀."""
-    from anatase.crystallography.dispersion import normalize_element
+    from rietx.crystallography.dispersion import normalize_element
 
     assert normalize_element("Zn2+") == "Zn"
     assert normalize_element("O2-") == "O"
@@ -522,7 +522,7 @@ def test_unknown_element_is_refused():
 
 
 def test_dispersion_map_is_keyed_by_the_raw_species_label():
-    from anatase.crystallography.dispersion import dispersion_map
+    from rietx.crystallography.dispersion import dispersion_map
 
     m = dispersion_map(["Zn2+", "O2-", "Zn2+"], CU_KA1_LAMBDA)
     assert set(m) == {"Zn2+", "O2-"}
@@ -541,7 +541,7 @@ def test_table_covers_every_element_the_test_data_uses():
 # the schema block and the compiled model
 # ----------------------------------------------------------------------
 def _zincite_structure():
-    from anatase.schemas.structure import Structure
+    from rietx.schemas.structure import Structure
 
     ph = zincite()
     ph.scale.value = 5e-3
@@ -550,9 +550,9 @@ def _zincite_structure():
 
 def _compiled(dispersion_block=None, *, lines=None):
     """A compiled ZnO model with and without the source dispersion block."""
-    from anatase import Instrument, PatternData
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx import Instrument, PatternData
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
 
     ins = Instrument.bragg_brentano(radiation="CuKa")
     if lines is not None:
@@ -569,7 +569,7 @@ def _compiled(dispersion_block=None, *, lines=None):
 
 
 def test_dispersion_block_json_round_trip():
-    from anatase.schemas.instrument import Dispersion
+    from rietx.schemas.instrument import Dispersion
 
     d = Dispersion(overrides={"Zn": (-3.1, 0.52)})
     back = Dispersion.model_validate_json(d.model_dump_json())
@@ -578,7 +578,7 @@ def test_dispersion_block_json_round_trip():
 
 
 def test_override_key_must_be_a_bare_element():
-    from anatase.schemas.instrument import Dispersion
+    from rietx.schemas.instrument import Dispersion
 
     with pytest.raises(ValueError, match="bare element symbol"):
         Dispersion(overrides={"Zn2+": (-3.1, 0.52)})
@@ -592,7 +592,7 @@ def test_absent_block_leaves_the_compiled_pattern_bit_identical():
 
 
 def test_enabling_dispersion_moves_the_pattern_the_expected_way():
-    from anatase.schemas.instrument import Dispersion
+    from rietx.schemas.instrument import Dispersion
 
     m_off, v_off = _compiled(None)
     m_on, v_on = _compiled(Dispersion())
@@ -605,7 +605,7 @@ def test_enabling_dispersion_moves_the_pattern_the_expected_way():
 def test_line_guard_refuses_when_an_edge_falls_between_the_lines():
     """Ni's K edge (8.333 keV) sits between Cu Kα and Kβ — that is why Ni is
     the Cu Kβ filter — so one |F|² cannot serve both lines."""
-    from anatase.crystallography.dispersion import resolve
+    from rietx.crystallography.dispersion import resolve
 
     with pytest.raises(ValueError, match="an absorption edge lies between them"):
         resolve(["Ni"], (1.5405929, 1.39222))
@@ -613,7 +613,7 @@ def test_line_guard_refuses_when_an_edge_falls_between_the_lines():
 
 def test_line_guard_passes_the_ka_doublet():
     """20 eV apart: nothing moves, which is what lets |F|² be shared."""
-    from anatase.crystallography.dispersion import resolve
+    from rietx.crystallography.dispersion import resolve
 
     for el in ("Zn", "Fe", "Ca", "La", "Zr", "O"):
         got = resolve([el], (1.5405929, 1.5444274))
@@ -624,7 +624,7 @@ def test_line_guard_passes_the_ka_doublet():
 # the anode table meets the dispersion table (WP-0507)
 # ----------------------------------------------------------------------
 def _anodes():
-    from anatase.schemas.instrument import _KA_DOUBLETS
+    from rietx.schemas.instrument import _KA_DOUBLETS
 
     return _KA_DOUBLETS
 
@@ -633,7 +633,7 @@ def test_every_anode_is_inside_the_tabulated_band():
     """The bundled Cromer-Liberman extract spans 3-70 keV and *refuses*
     out-of-band rather than extrapolating, so every shipped anode has to be
     asserted inside it, not assumed."""
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
 
     energies = {}
     for name, lines in _anodes().items():
@@ -654,7 +654,7 @@ def test_resolve_serves_the_doublet_at_every_anode():
     """One |F|² per source requires f′/f″ to be common to both lines.  The
     doublet gap grows with the anode — 20 eV at Cu, 173 eV at Ag — so this is a
     weaker assumption off Cu and has to be measured, not inherited."""
-    from anatase.crystallography.dispersion import resolve
+    from rietx.crystallography.dispersion import resolve
 
     common = ("O", "Na", "Mg", "Al", "Si", "P", "Ca", "Fe", "Zn", "Zr", "La", "B")
     for name, lines in _anodes().items():
@@ -675,7 +675,7 @@ def test_the_doublet_assumption_has_real_exceptions_off_cu():
     """
     import gemmi
 
-    from anatase.crystallography.dispersion import resolve
+    from rietx.crystallography.dispersion import resolve
 
     refused = {}
     for name, lines in _anodes().items():
@@ -699,16 +699,16 @@ def test_the_neglected_dispersion_message_is_anode_dependent():
     """Choosing the anode *is* choosing the size of the correction being
     skipped: Co Kα sits 180 eV below the Fe K edge, where f′ = −3.3 e, and the
     same specimen on Mo Kα is 10 keV above it, where f′ = +0.3 e."""
-    import anatase as pr
-    from anatase.refine import _dispersion_diagnostics
-    from anatase.schemas.instrument import _KA_DOUBLETS
+    import rietx as pr
+    from rietx.refine import _dispersion_diagnostics
+    from rietx.schemas.instrument import _KA_DOUBLETS
 
     fp_co, _ = dispersion("Fe", _KA_DOUBLETS["CoKa"][0])
     fp_mo, _ = dispersion("Fe", _KA_DOUBLETS["MoKa"][0])
     assert fp_co < -3.0 < 0.0 < fp_mo < 1.0
     # 180 eV out is well beyond the 50 eV XANES window, so the table is fine
     # here — the correction is merely large, which is a different thing
-    from anatase.crystallography.dispersion import near_edge
+    from rietx.crystallography.dispersion import near_edge
     assert near_edge("Fe", _KA_DOUBLETS["CoKa"][0]) is None
 
     hematite = pr.Structure(phases=[pr.Phase(
@@ -745,8 +745,8 @@ def test_override_supplies_a_value_the_table_cannot():
     fluorescence scan; the table there is not merely coarse but wrong in
     principle, so refusing them would be the unhelpful answer.
     """
-    from anatase.crystallography.attenuation import _HC_EV_ANGSTROM
-    from anatase.crystallography.dispersion import edges, resolve
+    from rietx.crystallography.attenuation import _HC_EV_ANGSTROM
+    from rietx.crystallography.dispersion import edges, resolve
 
     at_edge = _HC_EV_ANGSTROM / edges("Zn")[0]
     with pytest.raises(ValueError, match="contains an absorption edge"):
@@ -756,7 +756,7 @@ def test_override_supplies_a_value_the_table_cannot():
 
 
 def test_override_is_keyed_by_element_but_applies_to_the_ion():
-    from anatase.crystallography.dispersion import resolve
+    from rietx.crystallography.dispersion import resolve
 
     got = resolve(["Zn2+", "O2-"], (1.5405929,), {"Zn": (-3.1, 0.52)})
     assert got["Zn2+"] == complex(-3.1, 0.52)
@@ -767,7 +767,7 @@ def test_override_is_keyed_by_element_but_applies_to_the_ion():
 # "off" must not be a silent wrong answer
 # ----------------------------------------------------------------------
 def _fit_zincite(dispersion_block=None):
-    import anatase as pr
+    import rietx as pr
 
     ins = pr.Instrument.bragg_brentano(radiation="CuKa")
     ins.source.dispersion = dispersion_block
@@ -780,7 +780,7 @@ def _fit_zincite(dispersion_block=None):
 
 
 def test_neglected_dispersion_is_reported():
-    from anatase.refine import _dispersion_diagnostics
+    from rietx.refine import _dispersion_diagnostics
 
     ref, _ = _fit_zincite(None)
     diags = _dispersion_diagnostics(ref.structure, ref.instrument)
@@ -791,8 +791,8 @@ def test_neglected_dispersion_is_reported():
 
 
 def test_no_report_when_the_block_is_present():
-    from anatase.refine import _dispersion_diagnostics
-    from anatase.schemas.instrument import Dispersion
+    from rietx.refine import _dispersion_diagnostics
+    from rietx.schemas.instrument import Dispersion
 
     ref, _ = _fit_zincite(Dispersion())
     assert _dispersion_diagnostics(ref.structure, ref.instrument) == []
@@ -802,9 +802,9 @@ def test_no_report_for_a_light_structure_at_short_wavelength():
     """11-BM at 0.414 Å: nothing in NAC moves 2 %, so stay quiet."""
     from pathlib import Path
 
-    import anatase as pr
-    from anatase.crystallography.cif import structure_from_cif
-    from anatase.refine import _dispersion_diagnostics
+    import rietx as pr
+    from rietx.crystallography.cif import structure_from_cif
+    from rietx.refine import _dispersion_diagnostics
     cif = Path(__file__).parent / "data" / "cod_1000236.cif"
     structure = structure_from_cif(str(cif))
     ins = pr.Instrument.debye_scherrer(wavelength=0.4139090)
@@ -814,8 +814,8 @@ def test_no_report_for_a_light_structure_at_short_wavelength():
 def test_lookup_failure_never_blocks_a_refinement():
     """An untabulated element is skipped, not raised: describing the omission
     must not be able to break a fit that would otherwise run."""
-    import anatase as pr
-    from anatase.refine import _dispersion_diagnostics
+    import rietx as pr
+    from rietx.refine import _dispersion_diagnostics
 
     structure = _zincite_structure()
     structure.phases[0].atoms[1].species = "He"      # absent from the table

@@ -605,7 +605,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
         seen.update(request)
         return _stub_response()
 
-    monkeypatch.setattr("anatase.agent.refine_json", stub)
+    monkeypatch.setattr("rietx.agent.refine_json", stub)
     (edir / "overlay.json").write_text(json.dumps(
         {"plan": "profile_only", "two_theta_limits": [20.0, 100.0]}), encoding="utf-8")
     response = run_episode(edir)
@@ -631,7 +631,7 @@ def test_shim_merges_overlay_and_forces_condition(tmp_path, monkeypatch):
 def test_shim_report_on_keeps_report_and_elides_bulk(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True,
                                include_trajectory=True)
-    monkeypatch.setattr("anatase.agent.refine_json",
+    monkeypatch.setattr("rietx.agent.refine_json",
                         lambda request: _stub_response())
     response = run_episode(edir)
     assert response["report"] == {"layer1_available": True}
@@ -648,7 +648,7 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
     def stub(request):  # pragma: no cover - must not be reached
         raise AssertionError("refine_json called on a refused overlay")
 
-    monkeypatch.setattr("anatase.agent.refine_json", stub)
+    monkeypatch.setattr("rietx.agent.refine_json", stub)
     (edir / "overlay.json").write_text(json.dumps(
         {"plan": "profile_only", "include_report": False,
          "pattern": {"two_theta": []}}), encoding="utf-8")
@@ -662,7 +662,7 @@ def test_shim_refuses_unsanctioned_overlay_keys(tmp_path, monkeypatch):
 
 def test_shim_call_budget_is_a_runaway_guard(tmp_path, monkeypatch):
     edir = _write_shim_episode(tmp_path, include_report=True, max_calls=2)
-    monkeypatch.setattr("anatase.agent.refine_json",
+    monkeypatch.setattr("rietx.agent.refine_json",
                         lambda request: _stub_response())
     (edir / "overlay.json").write_text("{}", encoding="utf-8")
     assert run_episode(edir)["ok"]
@@ -701,7 +701,7 @@ def test_shim_delivers_exactly_what_the_condition_declares(
         seen.update(request)
         return _stub_response()          # always offers both halves
 
-    monkeypatch.setattr("anatase.agent.refine_json", stub)
+    monkeypatch.setattr("rietx.agent.refine_json", stub)
     response = run_episode(edir)
     assert seen["include_report"] is spec.report
     assert seen["report_trajectory"] is spec.trajectory
@@ -721,7 +721,7 @@ def test_shim_requires_both_switches_in_the_marker(tmp_path, monkeypatch):
     to guess."""
     edir = _write_shim_episode(tmp_path, include_report=True,
                                include_trajectory=None)  # key omitted
-    monkeypatch.setattr("anatase.agent.refine_json",
+    monkeypatch.setattr("rietx.agent.refine_json",
                         lambda request: _stub_response())
     with pytest.raises(KeyError):
         run_episode(edir)

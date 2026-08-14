@@ -17,7 +17,7 @@ actually read, before the wording is finalised.
 
 **The measured defect (WP-1059, 30 real agent runs, 2026-08-13).** The
 WP-1056 exchange clause ends "— the data cannot tell which is physical, and a
-confident verdict is not supported" (`src/anatase/report/identifiability.py`,
+confident verdict is not supported" (`src/rietx/report/identifiability.py`,
 `identifiability_clause()`, the firing-exchange branch). Seven of the twenty
 position-episode cells answered that sentence by freeing **both** rivals onto
 the degenerate ridge the manual forbids (AGENT_PROTOCOL §4b: "resolved by
@@ -76,9 +76,9 @@ the new sentence's *shape* (`"held at its null"`, `"compare χ²"`), never a
 second full copy of the string (`tests/CLAUDE.md` § Guards that go quiet).
 `docs/AGENT_PROTOCOL.md` §4 step 6 quotes the reading and must track it.
 
-**`compare_rivals` design.** Module-level in `src/anatase/report/layer2.py`
+**`compare_rivals` design.** Module-level in `src/rietx/report/layer2.py`
 beside `predict_then_verify` (the exact precedent: branch-based,
-solve-bearing, on-demand, exported from `anatase.report`):
+solve-bearing, on-demand, exported from `rietx.report`):
 
 ```python
 def compare_rivals(refinement, data,
@@ -150,7 +150,7 @@ wrong with it.
   (clause rewording; `compare_rivals`/`RivalComparison` added; gates
   unchanged, and why — the R² geometric argument)
 - [x] `RivalComparison` model + `compare_rivals()` in `layer2.py`, exported
-  from `anatase.report`; tests: the R1-shaped happy path, equal-param-count
+  from `rietx.report`; tests: the R1-shaped happy path, equal-param-count
   fairness, both refusals by name, `chi2_ratio` orientation
 - [x] Solve-free report-build test (spy on the solve path)
 - [x] `docs/AGENT_PROTOCOL.md`: §4 step 6 tracks the new wording and makes
@@ -197,7 +197,7 @@ clause-pin tests fail on a deliberate wording edit with the expected message
     each of the pair alone with the other held at its null and compare χ²`.
     `THRESHOLDS_VERSION` 0.8, with the no-retune rationale in the changelog.
   - `report.compare_rivals` + `RivalComparison`/`RivalFit`, exported from
-    `anatase.report`; solve-free report build pinned by spying on the solver.
+    `rietx.report`; solve-free report build pinned by spying on the solver.
   - AGENT_PROTOCOL §4 step 6 / §4b / §9; mailbox notes into 1064 and 1003.
 
   **The mined counts** (30 cells = 5 conditions × 2 models × {E2, E8, R1};

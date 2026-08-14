@@ -171,7 +171,7 @@ npm --prefix gui test
 - `tests/test_gui_fnmatch.py` writes the committed
   `tests/data/gui/fnmatch_cases.json`; `tests/test_gui_server.py` gained the
   bulk-glob row and the strict-JSON row.
-- `src/anatase/gui/server.py` — `_finite`/`_dumps`, the defect below.
+- `src/rietx/gui/server.py` — `_finite`/`_dumps`, the defect below.
 - `gui/src/test-setup.ts` — a `ResizeObserver` stub, with the rule for what
   may go in it. Every future component test inherits it.
 
@@ -286,5 +286,5 @@ instead`; `set_values` on `a` carrying `c` with it; one stage run through
   catch is layout — a sidebar too narrow for the table's five columns, a
   virtualized list whose row height disagrees with the CSS (`ROW_HEIGHT = 22`
   must equal the `.row`/`.group` height, or the scroll drifts), or a palette
-  that opens off-screen. Run `anatase gui` on any `.rex` and look before
+  that opens off-screen. Run `rietx gui` on any `.rex` and look before
   building anything on top.

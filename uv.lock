@@ -29,88 +29,6 @@ wheels = [
 ]
 
 [[package]]
-name = "anatase"
-version = "1.0.0.dev0"
-source = { editable = "." }
-dependencies = [
-    { name = "gemmi" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pydantic" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "spglib" },
-]
-
-[package.optional-dependencies]
-baselines = [
-    { name = "pybaselines" },
-]
-dev = [
-    { name = "furo" },
-    { name = "hypothesis" },
-    { name = "matplotlib" },
-    { name = "myst-parser" },
-    { name = "plotly" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinxcontrib-bibtex" },
-]
-docs = [
-    { name = "furo" },
-    { name = "myst-parser" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinxcontrib-bibtex" },
-]
-gui = [
-    { name = "plotly" },
-]
-jax = [
-    { name = "jax", version = "0.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "jax", version = "0.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-]
-torch = [
-    { name = "torch" },
-]
-viz = [
-    { name = "matplotlib" },
-    { name = "plotly" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anatase", extras = ["docs"], marker = "extra == 'dev'" },
-    { name = "furo", marker = "extra == 'docs'", specifier = ">=2024.1" },
-    { name = "gemmi", specifier = ">=0.6.5" },
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6" },
-    { name = "jax", marker = "extra == 'jax'", specifier = ">=0.4.30" },
-    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.8" },
-    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
-    { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=3" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "plotly", marker = "extra == 'dev'", specifier = ">=5.20" },
-    { name = "plotly", marker = "extra == 'gui'", specifier = ">=5.20" },
-    { name = "plotly", marker = "extra == 'viz'", specifier = ">=5.20" },
-    { name = "pybaselines", marker = "extra == 'baselines'", specifier = ">=1.1" },
-    { name = "pydantic", specifier = ">=2.6" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.6" },
-    { name = "ruff", marker = "extra == 'dev'" },
-    { name = "scipy", specifier = ">=1.11" },
-    { name = "spglib", specifier = ">=2.4" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.4" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'", specifier = ">=2.6" },
-    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.2" },
-]
-provides-extras = ["viz", "gui", "baselines", "jax", "torch", "docs", "dev"]
-
-[[package]]
 name = "annotated-types"
 version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2008,6 +1926,88 @@ sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179a
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
+
+[[package]]
+name = "rietx"
+version = "1.0.0.dev0"
+source = { editable = "." }
+dependencies = [
+    { name = "gemmi" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pydantic" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "spglib" },
+]
+
+[package.optional-dependencies]
+baselines = [
+    { name = "pybaselines" },
+]
+dev = [
+    { name = "furo" },
+    { name = "hypothesis" },
+    { name = "matplotlib" },
+    { name = "myst-parser" },
+    { name = "plotly" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sphinxcontrib-bibtex" },
+]
+docs = [
+    { name = "furo" },
+    { name = "myst-parser" },
+    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sphinxcontrib-bibtex" },
+]
+gui = [
+    { name = "plotly" },
+]
+jax = [
+    { name = "jax", version = "0.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "jax", version = "0.11.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+torch = [
+    { name = "torch" },
+]
+viz = [
+    { name = "matplotlib" },
+    { name = "plotly" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "furo", marker = "extra == 'docs'", specifier = ">=2024.1" },
+    { name = "gemmi", specifier = ">=0.6.5" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6" },
+    { name = "jax", marker = "extra == 'jax'", specifier = ">=0.4.30" },
+    { name = "matplotlib", marker = "extra == 'dev'", specifier = ">=3.8" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.8" },
+    { name = "myst-parser", marker = "extra == 'docs'", specifier = ">=3" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "plotly", marker = "extra == 'dev'", specifier = ">=5.20" },
+    { name = "plotly", marker = "extra == 'gui'", specifier = ">=5.20" },
+    { name = "plotly", marker = "extra == 'viz'", specifier = ">=5.20" },
+    { name = "pybaselines", marker = "extra == 'baselines'", specifier = ">=1.1" },
+    { name = "pydantic", specifier = ">=2.6" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.6" },
+    { name = "rietx", extras = ["docs"], marker = "extra == 'dev'" },
+    { name = "ruff", marker = "extra == 'dev'" },
+    { name = "scipy", specifier = ">=1.11" },
+    { name = "spglib", specifier = ">=2.4" },
+    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.4" },
+    { name = "sphinxcontrib-bibtex", marker = "extra == 'docs'", specifier = ">=2.6" },
+    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.2" },
+]
+provides-extras = ["viz", "gui", "baselines", "jax", "torch", "docs", "dev"]
 
 [[package]]
 name = "roman-numerals"

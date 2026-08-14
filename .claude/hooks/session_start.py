@@ -10,7 +10,7 @@ session, never a gate* (WP-1061).
 What it prints: one line of repo state (worktree root, branch, ahead/behind
 the local ``main``, uncommitted-change count, venv resolution), then one line
 per flag — a missed ``/wp-handover`` (two severities, see below), a venv
-whose editable ``anatase`` pointer resolves to a different tree, any WP whose
+whose editable ``rietx`` pointer resolves to a different tree, any WP whose
 Status glyph is in flight.  Healthy output is one or two lines.
 
 Known limitation, by design: handover entries are day-dated
@@ -73,9 +73,9 @@ def repo_line(root: Path) -> str:
 
 
 def venv_flag(root: Path) -> Optional[str]:
-    """Check that .venv's editable anatase pointer resolves to *this* tree.
+    """Check that .venv's editable rietx pointer resolves to *this* tree.
 
-    Without importing anything: uv writes ``_editable_impl_anatase.pth``
+    Without importing anything: uv writes ``_editable_impl_rietx.pth``
     containing the bare src path; setuptools writes ``__editable__*.pth`` plus
     a ``__editable__*finder.py`` holding quoted paths.  Either way the target
     must live under this worktree's root, or the venv measures another tree.
@@ -86,17 +86,17 @@ def venv_flag(root: Path) -> Optional[str]:
     targets: list[str] = []
     for sp in venv.glob("lib/python*/site-packages"):
         for pth in sp.glob("*.pth"):
-            if "anatase" not in pth.name:
+            if "rietx" not in pth.name:
                 continue
             for line in pth.read_text(encoding="utf-8", errors="replace").splitlines():
                 line = line.strip()
                 if line and not line.startswith("import"):
                     targets.append(line)
-        for finder in sp.glob("__editable__*anatase*.py"):
+        for finder in sp.glob("__editable__*rietx*.py"):
             text = finder.read_text(encoding="utf-8", errors="replace")
             targets.extend(m.group(1) for m in re.finditer(r"['\"](/[^'\"]+)['\"]", text))
     if not targets:
-        return f"no editable anatase pointer in .venv — fix: {VENV_FIX}"
+        return f"no editable rietx pointer in .venv — fix: {VENV_FIX}"
     resolved_root = root.resolve()
     for target in targets:
         try:
@@ -104,7 +104,7 @@ def venv_flag(root: Path) -> Optional[str]:
                 return None
         except OSError:
             continue
-    return f"venv resolves anatase to {targets[0]}, not this tree — fix: {VENV_FIX}"
+    return f"venv resolves rietx to {targets[0]}, not this tree — fix: {VENV_FIX}"
 
 
 def wp_commits(root: Path, limit: int = 50) -> dict[str, str]:

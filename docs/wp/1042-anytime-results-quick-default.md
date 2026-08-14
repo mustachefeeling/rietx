@@ -351,7 +351,7 @@ corpus expansion is post-v1 — see WP-1043 § corpus and the ROADMAP fence.)
   overrides a declared `spec.total_budget_seconds` (the result then records
   `preset="custom"`); snapshot grades are deliberately conservative (no
   ambiguity, no validation — both capping) so a streamed grade can only
-  rise; and both the GUI console and `anatase watch` collapse array payloads
+  rise; and both the GUI console and `rietx watch` collapse array payloads
   to `[N]`, so the streamed `candidates`/`provisional` fields do not flood a
   transcript.
 

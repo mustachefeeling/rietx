@@ -40,8 +40,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
 
-import anatase as pr  # noqa: E402
-from anatase.report.layer2 import delta_bic  # noqa: E402
+import rietx as pr  # noqa: E402
+from rietx.report.layer2 import delta_bic  # noqa: E402
 
 SOLVERS = ("trf", "lm")
 
@@ -69,7 +69,7 @@ def _nac_11bm():
     instrument = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
-    from anatase.schemas.instrument import BackgroundChebyshev
+    from rietx.schemas.instrument import BackgroundChebyshev
 
     instrument.background = BackgroundChebyshev.with_terms(6)
     return ("11-BM NAC (synchrotron)", data, structure, instrument,

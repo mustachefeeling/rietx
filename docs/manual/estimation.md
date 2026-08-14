@@ -11,7 +11,7 @@ S(\theta) \;=\; \sum_i w_i \bigl(y_{\mathrm{obs},i}
 \qquad w_i = 1/\sigma_i^2,
 ```
 
-*Source:* `anatase.optimize.least_squares`
+*Source:* `rietx.optimize.least_squares`
 
 minimised over the residual rows of {eq}`fm-rows` {cite}`rietveld1969`.
 Weights come from the data file's esd column whenever it is present;
@@ -40,7 +40,7 @@ R_{\exp} = \sqrt{\frac{N - P}{\sum w y_o^2}}, \qquad
 \chi^2_{\mathrm{red}} = \frac{\sum w (y_o - y_c)^2}{N - P},
 ```
 
-*Source:* `anatase.optimize.statistics`
+*Source:* `rietx.optimize.statistics`
 
 with $\mathrm{GoF} = \sqrt{\chi^2_{\mathrm{red}}} = R_{wp}/R_{\exp}$, plus
 the background-subtracted $R_{wp}$ variant Toby recommends when the
@@ -62,7 +62,7 @@ what these indices measure is agreement, not correctness.
 \sqrt{\chi'^2 / \chi^2},
 ```
 
-*Source:* `anatase.optimize.least_squares.covariance_estimates`
+*Source:* `rietx.optimize.least_squares.covariance_estimates`
 
 where the second factor is the Bérar-Lelann serial-correlation inflation
 {cite}`berar1991`: consecutive same-sign weighted residuals are summed
@@ -134,7 +134,7 @@ covariance, are always fp64 on host; a GPU backend may compute Jacobian
 \operatorname{cond}(J^\top J) \;=\; \operatorname{cond}(J)^2,
 ```
 
-*Source:* `anatase.backend.linalg64`
+*Source:* `rietx.backend.linalg64`
 
   so a routine Rietveld $\operatorname{cond}(J) \sim 10^4$ leaves
   $\operatorname{cond}(J^\top J) \sim 10^8$, which fp32 cannot invert at
@@ -178,7 +178,7 @@ residual and $J_j$ a held parameter's column,
                           {\tilde{\jmath}^{\top} \tilde{\jmath}},
 ```
 
-*Source:* `anatase.optimize.statistics.one_parameter_gains`
+*Source:* `rietx.optimize.statistics.one_parameter_gains`
 
 which is Rao's score statistic {cite}`rao1948` applied to the linearised
 model, computed through the Frisch-Waugh-Lovell projection identity

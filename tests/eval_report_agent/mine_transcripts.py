@@ -57,8 +57,8 @@ from typing import get_args
 
 import pydantic
 
-from anatase.report import schemas as report_schemas
-from anatase.report.schemas import (
+from rietx.report import schemas as report_schemas
+from rietx.report.schemas import (
     ActionKind,
     ExchangeFinding,
     FitReport,
@@ -66,7 +66,7 @@ from anatase.report.schemas import (
     StageReport,
     SuggestedAction,
 )
-from anatase.schemas import results as result_schemas
+from rietx.schemas import results as result_schemas
 from tests.eval_report_agent.run_refine import ALLOWED_OVERLAY_KEYS
 
 #: the three surfaces, in the order a fact travels through a transcript
@@ -97,9 +97,9 @@ def _pull_tokens() -> dict[str, tuple[object, str, str]]:
     attribute calls (``.report(``) because the bare words are everyday
     prose; ``function`` tokens are distinctive enough to match by name,
     which also catches the ``import`` that precedes a call."""
-    import anatase.report as report_pkg
-    from anatase.history.tree import RefinementTree
-    from anatase.refine import Refinement
+    import rietx.report as report_pkg
+    from rietx.history.tree import RefinementTree
+    from rietx.refine import Refinement
 
     return {
         "report": (Refinement, "report", "method"),

@@ -27,11 +27,11 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from anatase import Instrument, PatternData, pick_peaks
-from anatase.crystallography.lattice import d_spacings
-from anatase.indexing.diagnostics import peak_diagnostics
-from anatase.indexing.peakfit import GroupFit, _fit_at, _GroupModel, fit_group
-from anatase.indexing.peaks import (
+from rietx import Instrument, PatternData, pick_peaks
+from rietx.crystallography.lattice import d_spacings
+from rietx.indexing.diagnostics import peak_diagnostics
+from rietx.indexing.peakfit import GroupFit, _fit_at, _GroupModel, fit_group
+from rietx.indexing.peaks import (
     Detection,
     PeakGroup,
     _debiased_envelope,
@@ -39,12 +39,12 @@ from anatase.indexing.peaks import (
     detect_peaks,
     predicted_fwhm,
 )
-from anatase.indexing.pick import _not_separable
-from anatase.model.corrections import lorentz_polarization
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.indexing import (
+from rietx.indexing.pick import _not_separable
+from rietx.model.corrections import lorentz_polarization
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.indexing import (
     PEAK_ASSUMED_ESD_DEG,
     PEAK_MIN_USABLE_LINES,
     PEAK_UNUSABLE_FLAGS,
@@ -53,7 +53,7 @@ from anatase.schemas.indexing import (
     q_esd_of_two_theta,
     q_of_two_theta,
 )
-from anatase.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 OUT = __import__("pathlib").Path(__file__).parent / "output"
@@ -463,7 +463,7 @@ def test_background_envelope_debias_is_unbiased_on_flat_counts():
     level = 400.0
     y = rng.poisson(np.full_like(tt, level)).astype(float)
 
-    from anatase.background import background_envelope
+    from rietx.background import background_envelope
     raw = background_envelope(tt, y)
     fixed = _debiased_envelope(tt, y)
     sigma = np.sqrt(level)

@@ -83,8 +83,8 @@ from bench_torch_mps import (  # noqa: E402
     nac_state,
 )
 
-from anatase.model.profiles.fcj import _gauss_legendre_01  # noqa: E402
-from anatase.model.profiles.pseudovoigt import pseudo_voigt  # noqa: E402
+from rietx.model.profiles.fcj import _gauss_legendre_01  # noqa: E402
+from rietx.model.profiles.pseudovoigt import pseudo_voigt  # noqa: E402
 
 # ----------------------------------------------------------------------
 # frozen batched layout (the stage-compile part)

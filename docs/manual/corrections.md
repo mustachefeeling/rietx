@@ -20,7 +20,7 @@ diagnostic; see {ref}`ch-method`.
 \frac{K + (1 - K)\cos^2 2\theta}{\sin^2\theta\, \cos\theta}.
 ```
 
-*Source:* `anatase.model.corrections.lorentz_polarization`
+*Source:* `rietx.model.corrections.lorentz_polarization`
 
 The $1/(\sin^2\theta \cos\theta)$ Lorentz part is the standard
 constant-wavelength powder factor (single-crystal rotation Lorentz × powder
@@ -45,7 +45,7 @@ and the McMaster total cross sections {cite}`mcmaster1969`:
 \frac{\sigma_{\mathrm{tot}}\ [\mathrm{barn}]}{V\ [\text{Å}^3]}
 ```
 
-*Source:* `anatase.crystallography.attenuation`
+*Source:* `rietx.crystallography.attenuation`
 
 (1 barn = 10⁻²⁴ cm² and 1 Å³ = 10⁻²⁴ cm³, so the exponents cancel).
 Attenuation means beam *removal*, so the total cross section including
@@ -67,7 +67,7 @@ The transmission coefficient is the volume average of the attenuation
 A \;=\; \frac{1}{V} \int_V e^{-\mu T}\, dV,
 ```
 
-*Source:* `anatase.model.absorption`
+*Source:* `rietx.model.absorption`
 
 with $T$ the total (incident + diffracted) path length. For a cylinder it
 depends only on $\mu R$ and $\theta$; Rouse et al. {cite}`rouse1970` fit
@@ -88,7 +88,7 @@ A(\mu R, \theta) \;=\;
 a_1 = 1.7133, \quad b_1 = -0.0368, \quad a_2 = -0.0927, \quad b_2 = -0.3750.
 ```
 
-*Source:* `anatase.model.absorption`
+*Source:* `rietx.model.absorption`
 
 ```{warning}
 $A$ here is the **transmission** coefficient, ≤ 1, which the forward model
@@ -114,7 +114,7 @@ Biso shift
 \Delta B \;=\; \frac{c(\mu R)\, \lambda^2}{2},
 ```
 
-*Source:* `anatase.model.absorption.equivalent_delta_biso`
+*Source:* `rietx.model.absorption.equivalent_delta_biso`
 
 0.13 Å² at $\mu R = 0.5$ and 0.49 Å² at $\mu R = 1.0$ for Cu Kα —
 neglecting capillary absorption biases Biso *low* by that much. This is
@@ -141,7 +141,7 @@ A = 1 - e^{-2\mu t / \sin\theta} \;\longrightarrow\; 1
 \text{ as } \mu t \to \infty,
 ```
 
-*Source:* `anatase.model.absorption.flat_plate_reflection_absorption`
+*Source:* `rietx.model.absorption.flat_plate_reflection_absorption`
 
 ```{math}
 :label: corr-fp3a
@@ -150,7 +150,7 @@ A = 1 - e^{-2\mu t / \sin\theta} \;\longrightarrow\; 1
 A = \sec\theta\, e^{-\mu t(\sec\theta - 1)}.
 ```
 
-*Source:* `anatase.model.absorption.flat_plate_transmission_absorption`
+*Source:* `rietx.model.absorption.flat_plate_transmission_absorption`
 
 ```{warning}
 The two cases take **opposite** answers about what "off" means. For
@@ -186,7 +186,7 @@ R(\theta) \;=\;
 \frac{a + (1 - a)\, e^{-b/\sin\theta}}{a + (1 - a)\, e^{-b}},
 ```
 
-*Source:* `anatase.model.corrections.surface_roughness_suortti`
+*Source:* `rietx.model.corrections.surface_roughness_suortti`
 
 normalised so $R(90°) = 1$. Physics, not letters: $a$ is the intensity
 fraction surviving at grazing incidence, so $1 - a$ *bounds the
@@ -203,7 +203,7 @@ The Pitschke et al. form {cite}`pitschke1993`:
 R(\theta) \;=\; 1 - c\, u (1 - u), \qquad u = \tau / \sin\theta.
 ```
 
-*Source:* `anatase.model.corrections.surface_roughness_pitschke`
+*Source:* `rietx.model.corrections.surface_roughness_pitschke`
 
 The paper's angle-independent term is factored out because it is exactly
 degenerate with the phase scale, leaving the identifiable strength $c$ and
@@ -240,7 +240,7 @@ x \;=\; \mathrm{ext} \cdot |F|^2 \cdot \left(\frac{\lambda}{V}\right)^2
 \qquad X_{\mathrm{pol}} = 0.079411\cdot\frac{1 + \cos^2 2\theta}{2},
 ```
 
-*Source:* `anatase.model.extinction`
+*Source:* `rietx.model.extinction`
 
 with $E_L$ a six-term series in $x$ for $0 < x \le 1$ and a two-term
 asymptote above, $E_L = 1$ at $x \le 0$, and $|F|^2$ entering *without*
@@ -272,7 +272,7 @@ P_{hkl} \;=\; \frac{1}{M} \sum_{m \in \mathrm{orbit}}
 \left[ r^2 \cos^2\alpha_m + \frac{\sin^2\alpha_m}{r} \right]^{-3/2},
 ```
 
-*Source:* `anatase.model.preferred_orientation`
+*Source:* `rietx.model.preferred_orientation`
 
 where $\alpha_m$ is the angle between the preferred-orientation axis and
 the scattering vector of equivalent $m$. Both are reciprocal-lattice
@@ -287,7 +287,7 @@ directions (integer $hkl$), so the angle uses the reciprocal metric:
             (\mathbf{a} \cdot G^* \cdot \mathbf{a})}}.
 ```
 
-*Source:* `anatase.model.preferred_orientation`
+*Source:* `rietx.model.preferred_orientation`
 
 At $r = 1$ every bracket is 1, so $P \equiv 1$ exactly — the identity when
 off, for every reflection and cell. Friedel mates give identical brackets,
@@ -316,7 +316,7 @@ Weight fractions follow the Hill-Howard scale-factor relation
 W_p \;=\; \frac{S_p\, (Z M V)_p}{\sum_q S_q\, (Z M V)_q},
 ```
 
-*Source:* `anatase.optimize.qpa`
+*Source:* `rietx.optimize.qpa`
 
 with $Z$ formula units per cell, $M$ the formula mass and $V$ the cell
 volume — all derived from the refined model. Occupancies enter the mass, so
@@ -337,7 +337,7 @@ radius $R$:
 \qquad u = 2x, \quad x = (\mu_p - \bar\mu)\, R,
 ```
 
-*Source:* `anatase.optimize.qpa.brindley_tau`
+*Source:* `rietx.optimize.qpa.brindley_tau`
 
 exact at $\tau(0) = 1$ and $\tau > 1$ for a phase less absorbing than the
 matrix. Inside the validity domain this agrees to <1 % with Brindley's own

@@ -1613,7 +1613,7 @@ def render_markdown() -> str:
     out: list[str] = []
     w = out.append
 
-    w("# anatase — validation matrix\n")
+    w("# rietx — validation matrix\n")
     w("<!-- GENERATED FILE — do not edit by hand.\n"
       "     Source: tests/validation_matrix.py\n"
       "     Regenerate: .venv/bin/python -m tests.validation_matrix\n"

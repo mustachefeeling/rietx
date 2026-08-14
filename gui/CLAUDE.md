@@ -1,13 +1,13 @@
-# CLAUDE.md — the GUI: gui/ (frontend) and src/anatase/gui/ (server)
+# CLAUDE.md — the GUI: gui/ (frontend) and src/rietx/gui/ (server)
 
 Scope: the refinement GUI's rulebook — server contract, `.rxt` text document,
 editors, panels, 3D viewer, theming. Loads when a session works under `gui/`;
-`src/anatase/gui/CLAUDE.md` is a pointer here. The root CLAUDE.md holds the
+`src/rietx/gui/CLAUDE.md` is a pointer here. The root CLAUDE.md holds the
 pipeline and package-wide invariants; `docs/milestones/v1.0.md` holds the
 narrative of how these panels landed; the WP files (1008…1015, 1029) hold the
 measured detail behind each rule below.
 
-The **GUI** (WP-1008, `gui/`) is `anatase gui [PROJECT.rex]` — stdlib
+The **GUI** (WP-1008, `gui/`) is `rietx gui [PROJECT.rex]` — stdlib
 `http.server` on 127.0.0.1, the third such app here after `watch` and `compare`.
 `gui/session.py` holds `GuiSession`, where **every verb is a plain method and
 nothing knows about HTTP**; `gui/server.py` parses a path, calls one, serialises
@@ -44,14 +44,14 @@ widths are **per block** (a fixed width made the renderer emit
 survive a re-render, on purpose: storing one would be a second authority.
 
 The **frontend** (WP-1010) is a Svelte 5 + Vite + TS workspace in `gui/` whose
-build output is **committed** under `src/anatase/gui/static`, so installing the
+build output is **committed** under `src/rietx/gui/static`, so installing the
 wheel never needs node — and `tests/test_gui_dist.py` is what keeps that honest:
 the dist's digest is recomputed in the ordinary (node-free) suite, nothing may
 gitignore the dist (the repo-wide `*.html` rule matched its `index.html` once),
 the built files must be *in* the wheel, and no built file may name a remote host.
 The digest itself lives once, in `gui/scripts/build_info.py`, called by both the
 build and the test; `build-info.json` deliberately carries no timestamp, because
-`git diff --exit-code src/anatase/gui/static` has to mean "stale", not "rebuilt".
+`git diff --exit-code src/rietx/gui/static` has to mean "stale", not "rebuilt".
 Two duplications were refused: the client does **not** decimate (`/api/result/window`
 does, through `viz.compare.decimation_index`, and zoom refetches the window) and
 plotly is **not** vendored (injected at runtime from `/plotly.js`, so the app boots
@@ -152,7 +152,7 @@ inline the library and no byte count would say so. The editor's document and its
 over the sync state, never pushed — pushing let a head move wipe a squiggle while
 the problem list still named the line.
 
-**Import and model editing** (WP-1014, `src/anatase/gui/imports.py`,
+**Import and model editing** (WP-1014, `src/rietx/gui/imports.py`,
 `gui/src/panels/Model.svelte`, `gui/src/lib/{model,wizard}.ts`) is how data gets
 *in* from a browser and how the model is edited once it is. Its founding rule is a
 split: **if the parameter table has the path, the parameter table owns it** — a
@@ -190,7 +190,7 @@ one field** (the reload after a failed apply wiped it), and `axialWarning` stays
 silent on the S/L = H/L pair that is 0-and-held, because that is the shipped
 default and a warning on every fresh lab instrument is a warning nobody reads.
 
-The **structure viewer** (WP-1015, `src/anatase/gui/structure3d.py`,
+The **structure viewer** (WP-1015, `src/rietx/gui/structure3d.py`,
 `gui/src/panels/Structure3D.svelte`, `gui/src/lib/structure3d.ts`) is the model as
 drawable geometry, served by `GET /api/structure3d` and rendered by the plotly
 already on the page — **zero new dependencies**, and a third column of the model
@@ -368,7 +368,7 @@ project replaces the session's** with no prompt and no dialog: settings persist
 on the verb and the log is on disk, so there is nothing unsaved, and a run in
 flight is already refused by `project_open`'s 409.
 
-**Symmetry, surfaced and editable** (WP-1035, `src/anatase/gui/symmetry.py`,
+**Symmetry, surfaced and editable** (WP-1035, `src/rietx/gui/symmetry.py`,
 `gui/src/lib/symmetry.ts`) is the phase's space group stopping being one
 read-only string quoted in three places while everything it *does* — a tied `b`,
 a locked angle, two DOFs instead of three — showed in the parameter table as an
@@ -409,7 +409,7 @@ occupancies continuously during *structure solution* rather than refusing an edi
 which is the objection that made `check_cell_angles` refuse rather than
 normalise.
 
-The **series panel** (WP-1016, `src/anatase/gui/series.py`,
+The **series panel** (WP-1016, `src/rietx/gui/series.py`,
 `panels/Series.svelte`, `lib/series.ts`) is the ninth tab and the only one whose
 subject is a *method* rather than a model: N separate refinements chained by a
 warm start, so **a smooth curve is exactly what a poisoned chain produces** and
@@ -515,7 +515,7 @@ run so the anytime answer stays readable beside the final one) and render
 with the conservative-grade caveat in the tooltip — a streamed grade can
 rise, never fall.
 
-The **peak picker and indexing panel** (WP-1027, `src/anatase/gui/peaks.py`,
+The **peak picker and indexing panel** (WP-1027, `src/rietx/gui/peaks.py`,
 `panels/Peaks.svelte`, `lib/peaks.ts`, the plot's peak layer) is where the
 indexing line meets the GUI line. Peak lists are a **project artifact**
 (`peaks.json`, keyed by `data_fingerprint` and refused against the wrong

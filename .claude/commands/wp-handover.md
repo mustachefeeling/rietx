@@ -30,7 +30,7 @@ steps below run unchanged.
    that is not closed and not this one goes into *that* WP's `### Inherited`
    section, naming this WP as the source.
 6. **Audit this session's CLAUDE.md edits** (root, `gui/`, `tests/`,
-   `src/anatase/indexing/`): every added line must be a standing rule
+   `src/rietx/indexing/`): every added line must be a standing rule
    (protocol rule 4 — evidence compressed to a clause plus a pointer), never
    a dated finding. Counts and timings this session measured go **in the
    handover entry** (root CLAUDE.md § Numbers is a recipe, not a ledger),

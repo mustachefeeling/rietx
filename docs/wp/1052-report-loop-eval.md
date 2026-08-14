@@ -30,10 +30,10 @@ reuses this WP's episodes and metrics.
 the test module — a measurement instrument, not product. WP-1050's fence holds
 verbatim: *"No automatic stage insertion: the staged runner stays preset; suggest()
 informs a caller (human, GUI, or the agent loop), it does not drive."* Nothing
-importable from `anatase` may become an autopilot. Reuse `_truth()` from
+importable from `rietx` may become an autopilot. Reuse `_truth()` from
 `tests/test_fitreport_layers.py` (cross-module test imports are house pattern —
 `test_report_apply.py` imports from three sibling modules); import
-`Stage`/`RefinementPlan` from `anatase.strategy.staged` as `layer2.py` does.
+`Stage`/`RefinementPlan` from `rietx.strategy.staged` as `layer2.py` does.
 
 **Loop mechanics, verified against the code (2026-08-04):**
 

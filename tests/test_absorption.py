@@ -24,18 +24,18 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from anatase.crystallography.attenuation import linear_attenuation, packed_mu_r
-from anatase.model.absorption import (
+from rietx.crystallography.attenuation import linear_attenuation, packed_mu_r
+from rietx.model.absorption import (
     cylinder_absorption,
     cylinder_absorption_and_dmur,
     equivalent_delta_biso,
     mu_r_identifiable_fraction,
 )
-from anatase.optimize.qpa import estimate_capillary_mu_r
-from anatase.params.vector import ParameterTable
-from anatase.refine import estimate_mu_r
-from anatase.schemas.common import Parameter
-from anatase.schemas.instrument import Geometry, Instrument
+from rietx.optimize.qpa import estimate_capillary_mu_r
+from rietx.params.vector import ParameterTable
+from rietx.refine import estimate_mu_r
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import Geometry, Instrument
 
 DATA = Path(__file__).parent / "data" / "absorption_cylinder_rouse.dat"
 
@@ -400,8 +400,8 @@ def test_estimator_degrades_to_a_reason_rather_than_raising():
 
 def _capillary_model(mu_r: float, *, kind: str = "debye_scherrer"):
     """A compiled aniso-rutile model with every analytic-column path live."""
-    from anatase import PatternData
-    from anatase.model.forward import compile_model
+    from rietx import PatternData
+    from rietx.model.forward import compile_model
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -448,8 +448,8 @@ def test_forward_model_leaves_intensities_untouched_at_mu_r_zero():
     ones (which would be bit-identical too, but would cost a traced op on every
     backend for every reflection).
     """
-    from anatase import PatternData
-    from anatase.model.forward import compile_model
+    from rietx import PatternData
+    from rietx.model.forward import compile_model
     from tests.test_aniso_adp import make_aniso_rutile
 
     zero, table = _capillary_model(0.0)
@@ -506,7 +506,7 @@ def test_every_analytic_column_carries_the_absorption_factor():
     roughly 0.20-0.29 across the pattern, i.e. |A − 1| ≫ the 5e-3 tolerance —
     the pre-assert below is what stops this test passing vacuously.
     """
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
 
     model, table = _capillary_model(1.0)
     theta = table.x0()
@@ -530,10 +530,10 @@ def test_every_analytic_column_carries_the_absorption_factor():
 
 def test_preferred_orientation_column_carries_the_absorption_factor():
     """Same guard for ``po_intensity_grad``, which has its own analytic column."""
-    from anatase import PatternData
-    from anatase.model.forward import compile_model
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
-    from anatase.schemas.structure import PreferredOrientation
+    from rietx import PatternData
+    from rietx.model.forward import compile_model
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.schemas.structure import PreferredOrientation
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
@@ -571,7 +571,7 @@ def test_preferred_orientation_column_carries_the_absorption_factor():
 
 def _capillary_refinement(**geom_kw):
     """A Refinement over a synthetic capillary pattern (fit not run)."""
-    from anatase import PatternData, Refinement
+    from rietx import PatternData, Refinement
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -652,7 +652,7 @@ def test_an_unestimable_mu_r_is_reported_rather_than_silently_ignored():
     A wavelength sitting on a La absorption edge makes µ uninterpolatable, so
     the correction cannot run — that has to be loud.
     """
-    from anatase import PatternData, Refinement
+    from rietx import PatternData, Refinement
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -682,7 +682,7 @@ def test_an_unestimable_mu_r_is_reported_rather_than_silently_ignored():
 
 
 def _scale_only_plan():
-    import anatase as pr
+    import rietx as pr
 
     return pr.RefinementPlan(stages=[pr.Stage("scale", ["phases.*.scale",
                                                        "instrument.background.*"],
@@ -695,8 +695,8 @@ def _scale_only_plan():
 def _synthesize_absorbing_lab6(mu_r_true: float, biso_true: float,
                                *, noise_seed: int = 5):
     """A LaB6 capillary pattern carrying a known µR and Biso + Poisson noise."""
-    from anatase import PatternData
-    from anatase.model.forward import compile_model
+    from rietx import PatternData
+    from rietx.model.forward import compile_model
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -716,7 +716,7 @@ def _synthesize_absorbing_lab6(mu_r_true: float, biso_true: float,
 
 
 def _biso_plan():
-    import anatase as pr
+    import rietx as pr
 
     return pr.RefinementPlan(stages=[
         pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
@@ -741,8 +741,8 @@ def test_neglecting_capillary_absorption_biases_biso_low_by_the_predicted_amount
     itself, which is why this is a correctness question rather than a cosmetic
     one.
     """
-    import anatase as pr
-    from anatase.viz.plots import plot_result
+    import rietx as pr
+    from rietx.viz.plots import plot_result
     from tests.test_schemas import make_lab6
 
     mu_r_true, biso_true = 1.0, 0.60
@@ -795,7 +795,7 @@ def test_multi_histogram_resolves_mu_r_per_instrument():
     per-instrument because histograms may sit at different wavelengths — the
     same specimen absorbs very differently at Cu Kα and at 0.414 Å.
     """
-    from anatase import MultiHistogramRefinement
+    from rietx import MultiHistogramRefinement
     from tests.test_schemas import make_lab6
 
     structure = make_lab6()
@@ -810,7 +810,7 @@ def test_multi_histogram_resolves_mu_r_per_instrument():
 
 
 def test_multi_histogram_leaves_absorption_off_without_a_radius():
-    from anatase import MultiHistogramRefinement
+    from rietx import MultiHistogramRefinement
     from tests.test_schemas import make_lab6
 
     ins = [Instrument.debye_scherrer(wavelength=1.5406) for _ in range(2)]

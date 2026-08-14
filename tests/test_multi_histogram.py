@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from anatase import (
+from rietx import (
     Instrument,
     MultiHistogramRefinement,
     Parameter,
@@ -20,9 +20,9 @@ from anatase import (
     Refinement,
     refine_multi,
 )
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.instrument import BackgroundChebyshev
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 TRUE_A = 4.15660

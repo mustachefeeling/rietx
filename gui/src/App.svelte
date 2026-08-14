@@ -536,7 +536,7 @@
     { id: "history", label: "Show the history", echo: "ref.history.summary()", key: "h",
       disabled: !project, run: () => (tab = "history") },
     { id: "text", label: "Edit the project as text",
-      echo: "print(anatase.gui.textdoc.render(project))", key: "t", disabled: !project,
+      echo: "print(rietx.gui.textdoc.render(project))", key: "t", disabled: !project,
       run: () => (tab = "text") },
     { id: "model", label: "Edit the structure and instrument",
       echo: "ref.edit(structure=…, instrument=…)", key: "m", disabled: !project,
@@ -671,7 +671,7 @@
 
 <header>
   <div class="title">
-    <strong>anatase</strong>
+    <strong>rietx</strong>
     <span class="muted mono">{version?.package_version ?? "…"}</span>
   </div>
 

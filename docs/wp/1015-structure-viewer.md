@@ -21,7 +21,7 @@ from code that already exists, and plotly (already on the page) renders it.
     the isotropic spheres.
   - gemmi (a core dep) supplies element radii/colours and neighbour search
     for bonds.
-- `src/anatase/gui/structure3d.py` computes a JSON payload: expanded atom
+- `src/rietx/gui/structure3d.py` computes a JSON payload: expanded atom
   positions in Cartesian coordinates, cell-edge polyline, bond segments by
   radius-sum cutoff, and per-atom ellipsoid transforms. Frontend renders
   with plotly `Scatter3d` (atoms, bonds, cell edges) + `Mesh3d` (a unit
@@ -93,7 +93,7 @@ bytes in a dist that is reviewed as a diff.
 
 ## Tasks
 
-- [x] `src/anatase/gui/structure3d.py`: payload builder (expanded
+- [x] `src/rietx/gui/structure3d.py`: payload builder (expanded
       positions, cell edges, bonds by radius-sum cutoff, ellipsoid
       transforms at a probability level; NPD tensors flagged).
 - [x] `GET /api/structure3d` on the session (current model state, so edits
@@ -148,7 +148,7 @@ npm --prefix gui test && npm --prefix gui run check
   (1164 → 1192 fast-suite passes, skips unchanged at 107) and vitest 184 → 206;
   ruff and `svelte-check` clean; `app.js` 151.6 → 161.5 kB (55.1 kB gzip).
 
-  **Done.** `src/anatase/gui/structure3d.py` builds the payload — the symmetry
+  **Done.** `src/rietx/gui/structure3d.py` builds the payload — the symmetry
   orbit *with each image's rotation*, bonds over the 27 nearest lattice
   translations, eight cell corners and twelve index pairs, per-atom ellipsoid
   transforms, NPD flagged. `gui/src/lib/structure3d.ts` turns it into plotly

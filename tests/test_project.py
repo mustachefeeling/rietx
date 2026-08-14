@@ -15,8 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.project import PROJECT_JSON
+import rietx as pr
+from rietx.project import PROJECT_JSON
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
 OUT = Path(__file__).parent / "output"
@@ -246,7 +246,7 @@ def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
     raw = json.loads(doc_path.read_text(encoding="utf-8"))
     raw["format_version"] = "2"
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
-    with pytest.raises(ValueError, match="another version of anatase"):
+    with pytest.raises(ValueError, match="another version of rietx"):
         pr.Project.open(project.path)
 
 

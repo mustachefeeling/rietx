@@ -3,7 +3,7 @@
 Synthetic-only builds (the real-data groups are the landing-state suite's to
 exercise); no venv is created here — what is tested live is the *refusal*
 half of the placement rules, including the one real interpreter always to
-hand: the dev venv itself, which resolves anatase into the checkout and must
+hand: the dev venv itself, which resolves rietx into the checkout and must
 therefore be refused.
 """
 
@@ -34,7 +34,7 @@ def test_venv_inside_the_repo_tree_is_refused():
 
 def test_the_dev_venv_itself_would_be_refused():
     """The worktree-venv lesson (tests/CLAUDE.md § Quoting numbers) as a live
-    check: this suite's own interpreter resolves anatase into the checkout —
+    check: this suite's own interpreter resolves rietx into the checkout —
     editable — which is exactly what the arm must never hand an agent."""
     with pytest.raises(ValueError, match="resolves inside the repo tree"):
         pa.verify_interpreter(Path(sys.executable))

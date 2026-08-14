@@ -63,9 +63,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.schemas.instrument import BackgroundChebyshev
-from anatase.schemas.structure import PreferredOrientation
+import rietx as pr
+from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.structure import PreferredOrientation
 
 DATA = Path(__file__).parent / "data" / "qarr"
 OUT = Path(__file__).parent / "output"
@@ -194,8 +194,8 @@ def seed_scales(structure: pr.Structure, ins: pr.Instrument,
     """Scale the phases so the summed calculated intensity matches the data
     (equal split between phases; stage 1 apportions).  Deterministic, and
     keeps TRF's first stage within the softplus transform's live range."""
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
 
     model = compile_model(structure, ins, data, mode="rietveld")
     table = ParameterTable(structure, ins)
@@ -389,7 +389,7 @@ def test_sample4_microabsorption_characterised_not_hidden():
     Particle radii are order-of-magnitude estimates for the coarse fractions
     (no d50s are published with the dataset); the fence fires for any
     plausible choice — µR(magnetite) ≈ 0.06 already at R = 0.5 µm."""
-    from anatase.optimize.qpa import BRINDLEY_MU_R_FENCE
+    from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 
     _require_data()
     phases = [corundum_phase(), magnetite_phase(), zircon_phase()]

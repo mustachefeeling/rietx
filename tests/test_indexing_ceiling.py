@@ -21,9 +21,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase.history.events import EVENT_SCHEMA_VERSION, EventRecord
-from anatase.indexing import index_pattern
-from anatase.indexing.engines import (
+from rietx.history.events import EVENT_SCHEMA_VERSION, EventRecord
+from rietx.indexing import index_pattern
+from rietx.indexing.engines import (
     MODELLED_ENGINES,
     Budget,
     Deadline,
@@ -32,7 +32,7 @@ from anatase.indexing.engines import (
     engine_names,
     estimate_ceiling,
 )
-from anatase.optimize.cancel import CancelToken, RefinementCancelled
+from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_indexing_engines import LAM, synthetic_peaks
 
 pytestmark = pytest.mark.xdist_group("indexing-ceiling")
@@ -158,8 +158,8 @@ def test_a_cancelled_validation_raises_rather_than_refuting(tiny_pattern):
     generic handler.  Swallowed, it becomes ``status="failed"`` — which the
     gate reads as ``validation_failed``, a **refuting** caveat — for a cell the
     run merely ran out of time on."""
-    from anatase.indexing.workflow import validate_by_lebail
-    from anatase.schemas.indexing import CellCandidate
+    from rietx.indexing.workflow import validate_by_lebail
+    from rietx.schemas.indexing import CellCandidate
 
     data, instrument, a = tiny_pattern
     cand = CellCandidate(cell=(a, a, a, 90.0, 90.0, 90.0),
@@ -175,7 +175,7 @@ def test_a_validation_stopped_mid_loop_caps_and_never_refutes(
     """The loop half of trap 1: the token fires after the first validation, the
     run still returns, and the unreached candidates read ``not_validated``
     (capping) — ``validation_failed`` (refuting) appears nowhere."""
-    import anatase.indexing.workflow as workflow
+    import rietx.indexing.workflow as workflow
 
     peaks, _cell = cubic_peaks
     data, instrument, _a = tiny_pattern
@@ -205,11 +205,11 @@ def test_a_validation_stopped_mid_loop_caps_and_never_refutes(
 def tiny_pattern():
     """A small forward-modelled cubic pattern — just enough for a Le Bail
     validation to have something to fit."""
-    from anatase.model.forward import compile_model
-    from anatase.params.vector import ParameterTable
-    from anatase.schemas.instrument import Instrument
-    from anatase.schemas.pattern import PatternData
-    from anatase.schemas.structure import (
+    from rietx.model.forward import compile_model
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.pattern import PatternData
+    from rietx.schemas.structure import (
         Atom,
         Cell,
         Parameter,
@@ -340,6 +340,6 @@ def test_progress_with_no_stream_is_a_working_no_op(cubic_peaks):
     assert (p.done, p.total) == (1, 3)
 
     peaks, _cell = cubic_peaks
-    from anatase.indexing.dichotomy import search_dichotomy
+    from rietx.indexing.dichotomy import search_dichotomy
     res = search_dichotomy(peaks, spec=SearchSpec(systems=("cubic",)))
     assert res.systems_searched == ("cubic",)

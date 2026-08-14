@@ -1,7 +1,7 @@
-# CLAUDE.md — anatase
+# CLAUDE.md — rietx
 
 API-first Rietveld refinement package (powder XRD). MIT. numpy/scipy fp64
-core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `anatase`.
+core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `rietx`.
 
 ## Commands
 
@@ -15,11 +15,11 @@ uv pip install -e ".[dev,jax,torch]"                   # + optional jax/torch ba
 .venv/bin/python -m ruff check src tests examples      # lint (must be clean)
 .venv/bin/python examples/nac_11bm.py                  # end-to-end demo + plot
 .venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html  # theory manual
-.venv/bin/anatase gui my_sample.rex                   # the refinement GUI (localhost:8731)
+.venv/bin/rietx gui my_sample.rex                   # the refinement GUI (localhost:8731)
 npm --prefix gui ci && npm --prefix gui run build      # rebuild the GUI's committed dist
 npm --prefix gui test && npm --prefix gui run check    # vitest (jsdom mount, fnmatch parity, panel/text-sync/model-edit/3D-trace/splitter/theme/plot/peaks logic; count: § Numbers) + svelte-check
-.venv/bin/anatase watch <live-dir>                     # live viewer for a LiveSession run
-.venv/bin/anatase compare --open                       # settings-comparison UI on the standards
+.venv/bin/rietx watch <live-dir>                     # live viewer for a LiveSession run
+.venv/bin/rietx compare --open                       # settings-comparison UI on the standards
 ```
 
 `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y` stays
@@ -47,7 +47,7 @@ Full-suite counts and `--durations`: the latest weekly `full` job log
 up to 7 days stale). Quote any count with its venv **and** platform
 (`tests/CLAUDE.md` § Quoting numbers); a session's own go in its WP handover.
 
-`anatase compare` answers "does this new correction actually help?": pick a
+`rietx compare` answers "does this new correction actually help?": pick a
 standard, tick variants, read the **cumulative Δχ² vs reference** panel — it
 localises *where* a change acted, not just whether Rwp moved. Registry + runner in
 `viz/compare.py` (headless: `compare.run(standard, variant)`), server/page in
@@ -202,7 +202,7 @@ result, so it rides *beside* one, never inside.
 
 ### GUI
 
-The **GUI** is `anatase gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1
+The **GUI** is `rietx gui [PROJECT.rex]` — stdlib `http.server` on 127.0.0.1
 serving a committed Svelte 5 dist. Its rulebook — the session/wire split, the
 server contract, the `.rxt` document, the editors, the nine panels, the 3D
 viewer, theming — is `gui/CLAUDE.md`, which loads under `gui/`. Three rules
@@ -250,7 +250,7 @@ recent list, and is therefore not behind the 409 (WP-1044).
   (`PATTERN_INTENSITY_SCALED`; the fallback is wrong by √t on a rate); and the
   scanned **axis** is never trusted — most vendor files are not powder scans, so
   a non-2θ one is refused by name and an unknown one says so. Dispatch, repairs,
-  options and how to add a format are `src/anatase/io/CLAUDE.md`, under `io/`.
+  options and how to add a format are `src/rietx/io/CLAUDE.md`, under `io/`.
 - **Every weighted residual in the package divides by `RefinementResult.sig()`**
   — every renderer and both GUI windows — a peer of `PatternData.sig()`, where
   the esd-column/Poisson choice was already made: `CompiledModel` stores
@@ -515,8 +515,8 @@ them all:
   columns `title`/`md_path`); the lesson that pinned this rule is in that file.
 - `docs/AGENT_PROTOCOL.md` — consumer-facing operator guide; a WP that adds
   a diagnostic code or a correction adds its row there.
-- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/anatase/io/CLAUDE.md`,
-  `src/anatase/indexing/CLAUDE.md` — subsystem rulebooks; they load with their
+- `gui/CLAUDE.md`, `tests/CLAUDE.md`, `src/rietx/io/CLAUDE.md`,
+  `src/rietx/indexing/CLAUDE.md` — subsystem rulebooks; they load with their
   subtrees, so nothing here restates them.
 
 **Protocol**: `docs/ROADMAP.md` § Session protocol is the one authority
@@ -535,7 +535,7 @@ and history node. The GUI (WP-1004…1017) and **indexing** (WP-1018…1027) bot
 v1.0 record.
 
 **Indexing — the rules that govern behavior outside `indexing/`.** The full
-dossier is `src/anatase/indexing/CLAUDE.md` (auto-loads when a session works
+dossier is `src/rietx/indexing/CLAUDE.md` (auto-loads when a session works
 there), measured stories in the v1.0 record's appendix:
 
 - **The tolerance an engine searches with is not the per-line σ.** A fitted
@@ -568,7 +568,7 @@ there), measured stories in the v1.0 record's appendix:
 - **Run `tests/test_acceptance_indexing.py` before closing anything that
   touches an engine** — a real ranking regression once sat under 115 green
   fast indexing tests (WP-1030).
-- A new indexing rule lands in `src/anatase/indexing/CLAUDE.md`; it earns a
+- A new indexing rule lands in `src/rietx/indexing/CLAUDE.md`; it earns a
   clause here only if it changes behavior outside `indexing/`.
 
 **Backends (v0.4).** `backend=` takes `"numpy"` (the default and the only one

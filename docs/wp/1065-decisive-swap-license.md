@@ -39,7 +39,7 @@ recovered-and-still-declined tension, reproduced in mirror on the row built
 to catch it.
 
 **The sentence to extend.** `identifiability_clause()`
-(`src/anatase/report/identifiability.py`, the firing-exchange branch)
+(`src/rietx/report/identifiability.py`, the firing-exchange branch)
 currently ends:
 
 ```
@@ -64,7 +64,7 @@ experiment without the license costs (the 0/7). Stating only the decisive
 branch would recreate the same asymmetry a third time, on ties. (ii) **The
 strength grade is a named constant, not prose** —
 `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py`, exported from
-`anatase.report` (the `TRAJECTORY_MAX_ACTIONS` precedent: a documented
+`rietx.report` (the `TRAJECTORY_MAX_ACTIONS` precedent: a documented
 reading aid that gates nothing). The value is the round's registered
 decision band, and it is measured on both sides: C1's real ratio is 1.1679
 (decisive), N1's is 1.0075 and E8′'s 1.0001 (ties, inside [0.99, 1.01]).
@@ -158,7 +158,7 @@ removal at N=8.
 ## Tasks
 
 - [x] `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py`
-  (exported from `anatase.report`), the clause continuation in
+  (exported from `rietx.report`), the clause continuation in
   `identifiability_clause()`, `THRESHOLDS_VERSION = "0.9"` + changelog
   entry (the C1 0/7 evidence, the four fixed properties, why no gate
   moved); `test_fitreport_layers.py` shape pins extended, the
@@ -215,7 +215,7 @@ in the handover; the round record per `eval-runs/README.md`.
 
   **Landed** (commits `5aa1f88`…`121939b`):
   `RIVAL_DECISIVE_MIN_CHI2_RATIO = 1.10` in `report/schemas.py` (exported
-  from `anatase.report`, docstring carrying both sides of the band), the
+  from `rietx.report`, docstring carrying both sides of the band), the
   clause continuation stating both branches with the constant quoted live
   and no verdict token, `THRESHOLDS_VERSION = "0.9"` + changelog; shape
   pins extended and the quiet-guard check run — a deliberate "quoted with

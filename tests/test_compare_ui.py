@@ -1,4 +1,4 @@
-"""``anatase compare`` — the settings-comparison UI.
+"""``rietx compare`` — the settings-comparison UI.
 
 The load-bearing test here is the **anti-drift** one: the UI's standards must
 be the acceptance suites' protocols, not merely similar to them, or every
@@ -18,8 +18,8 @@ from dataclasses import asdict
 import numpy as np
 import pytest
 
-from anatase import compare_app
-from anatase.viz import compare as cmp
+from rietx import compare_app
+from rietx.viz import compare as cmp
 
 from .test_acceptance_qpa_roundrobin import DATA as QARR_DATA
 from .test_acceptance_qpa_roundrobin import (
@@ -259,7 +259,7 @@ def _post_json(url: str, payload: dict):
 def test_server_serves_the_page_and_the_catalog(server):
     base, _ = server
     page = _get(base + "/").decode()
-    assert "<title>anatase" in page and "plot-cum" in page
+    assert "<title>rietx" in page and "plot-cum" in page
     catalog = json.loads(_get(base + "/api/catalog"))
     assert {s["key"] for s in catalog["standards"]} == {s.key for s in cmp.STANDARDS}
 

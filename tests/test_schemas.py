@@ -3,9 +3,9 @@ import math
 import pytest
 from pydantic import ValidationError
 
-import anatase as pr
-from anatase import Instrument, Parameter, PatternData, Structure
-from anatase.schemas import Atom, Cell, Phase
+import rietx as pr
+from rietx import Instrument, Parameter, PatternData, Structure
+from rietx.schemas import Atom, Cell, Phase
 
 
 def make_lab6() -> Structure:
@@ -74,13 +74,13 @@ def test_stage_spec_mirrors_every_stage_field():
     """
     import dataclasses
 
-    from anatase.schemas.plan import StageSpec
+    from rietx.schemas.plan import StageSpec
 
     assert set(StageSpec.model_fields) == {f.name for f in dataclasses.fields(pr.Stage)}
 
 
 def test_stage_spec_round_trips_strain_seed():
-    from anatase.schemas.plan import StageSpec
+    from rietx.schemas.plan import StageSpec
 
     stage = pr.Stage("sample_broadening", ["phases.*.microstrain.dof.*"],
                      seed=1e-3, strain_seed=1000.0)
@@ -91,8 +91,8 @@ def test_stage_spec_round_trips_strain_seed():
 
 def test_plan_spec_is_one_class_everywhere():
     """History and the agent surface must not re-acquire private copies."""
-    from anatase import agent
-    from anatase.schemas import history, plan
+    from rietx import agent
+    from rietx.schemas import history, plan
 
     assert history.StageSpec is plan.StageSpec is agent.StageSpec
     assert history.PlanSpec is plan.PlanSpec is agent.PlanSpec
@@ -104,7 +104,7 @@ def test_plan_spec_reads_a_pre_v1_history_header():
     Vendored header line from a v0.6 history JSONL (schema_version 0.1), whose
     stage specs have no ``strain_seed`` key at all.
     """
-    from anatase.schemas.history import HistoryRecord
+    from rietx.schemas.history import HistoryRecord
 
     line = (
         '{"record":"header","header":{"tree_id":"t0","created_utc":'

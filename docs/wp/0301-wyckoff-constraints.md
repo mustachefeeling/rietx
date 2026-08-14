@@ -14,7 +14,7 @@ no new physics of its own.
 
 ## Context
 
-Current state in [`src/anatase/params/vector.py`](../../src/anatase/params/vector.py):
+Current state in [`src/rietx/params/vector.py`](../../src/rietx/params/vector.py):
 
 - `Entry` (line ~41) carries `tied_to: str | None` — an **identity** tie only
   (dependent path copies a source path's value) plus a `locked: bool` that

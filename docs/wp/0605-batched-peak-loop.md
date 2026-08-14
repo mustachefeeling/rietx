@@ -113,7 +113,7 @@ costed — see task 0 and design question 4 below.
 From **WP-0505** (sequential series, landed 2026-07-28): **the "batch many
 patterns" case now has an API to live behind.** WP-0408 measured that a device
 only pays at ≈10 synchrotron / ≈60 lab patterns batched together and fenced the
-`vmap`-batched series to v2; `anatase.sequential.SequentialRefinement` is now
+`vmap`-batched series to v2; `rietx.sequential.SequentialRefinement` is now
 where such a series is expressed, and it walks patterns strictly one at a time
 (`_chain`). So if the batched-loop spike here ever grows a multi-pattern form,
 `_chain` is the single call site to change, and its warm-start chain is the

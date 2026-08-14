@@ -49,7 +49,7 @@ CodeMirror.
   verb, plan PUT), so a text apply shows up in the console as API calls and
   in history as nodes — identical to a form edit. All-or-nothing: any error
   in the delta applies none of it.
-- `src/anatase/gui/textdoc.py` carries `FORMAT_VERSION` (the `rxt 1` line);
+- `src/rietx/gui/textdoc.py` carries `FORMAT_VERSION` (the `rxt 1` line);
   WP-1017 injects it into the manual as a fenced constant, so a format bump
   that misses the manual fails the build.
 - **The parser lives only in Python.** The frontend gets a regex highlighter
@@ -134,7 +134,7 @@ methods to `GuiSession` — no routing work. Three things that shape the format:
 
 ## Tasks
 
-- [x] `src/anatase/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
+- [x] `src/rietx/gui/textdoc.py`: `FORMAT_VERSION`, `render`,
       `parse → (delta, errors)` with 1-based line numbers on every error.
 - [x] Delta application through the WP-1004 verbs, all-or-nothing;
       locked/tied refused with the verb's own message + line number.

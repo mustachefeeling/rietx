@@ -20,7 +20,7 @@ get it from the pattern — do not pretend otherwise). µ_p comes from the
 refined composition and cell volume via mass attenuation coefficients at the
 instrument wavelength; the same tabulated-scattering infrastructure that
 serves form factors lives in
-[`crystallography/scattering.py`](../../src/anatase/crystallography/scattering.py).
+[`crystallography/scattering.py`](../../src/rietx/crystallography/scattering.py).
 Note that WP-0504 later brings **xraydb** in for f′/f″; if µ is easier and more
 accurate from xraydb, coordinate — but do **not** pull in periodictable's
 Henke tables, which cap at 30 keV and are the wrong tool (design record,

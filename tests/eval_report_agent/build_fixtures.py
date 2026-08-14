@@ -38,7 +38,7 @@ from pathlib import Path
 
 import numpy as np
 
-import anatase as pr
+import rietx as pr
 from tests.eval_report_agent.scorer import NEXT_ACTIONS, VERDICTS
 from tests.test_fitreport_layers import _pore_proxy_data, _truth
 
@@ -585,7 +585,7 @@ def _glossary(meanings: dict[str, str], vocabulary: tuple[str, ...]) -> str:
 _PROMPT = """\
 # Episode {eid} — powder XRD refinement
 
-You are operating the `anatase` Rietveld refinement package through its one
+You are operating the `rietx` Rietveld refinement package through its one
 JSON tool call, `agent.refine_json`.  This directory is your workspace:
 
 - `episode.json` — the fixed request core (structure, instrument, pattern).

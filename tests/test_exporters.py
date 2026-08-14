@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase import (
+from rietx import (
     Instrument,
     PatternData,
     Refinement,
@@ -21,12 +21,12 @@ from anatase import (
     write_qpa_table,
     write_reflection_table,
 )
-from anatase.io.exporters import ReflectionRow, qpa_table_csv
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.instrument import BackgroundChebyshev
-from anatase.schemas.results import (
+from rietx.io.exporters import ReflectionRow, qpa_table_csv
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import BackgroundChebyshev
+from rietx.schemas.results import (
     MicroabsorptionCorrection,
     PhaseQuantity,
     QuantitativePhaseAnalysis,

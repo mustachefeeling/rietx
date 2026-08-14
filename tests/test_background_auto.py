@@ -7,18 +7,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.background import (
+import rietx as pr
+from rietx.background import (
     auto_background,
     diagnose,
     peak_mask,
     select_arpls_lambda,
     select_chebyshev_order,
 )
-from anatase.background.models import bspline_design_matrix, second_difference_matrix
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.instrument import BackgroundChebyshev, BackgroundPSpline
+from rietx.background.models import bspline_design_matrix, second_difference_matrix
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.instrument import BackgroundChebyshev, BackgroundPSpline
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 1.5405929
@@ -116,7 +116,7 @@ def test_kbeta_check_follows_the_anode(anode):
     Before WP-0507 this returned [] for anything but Cu — an empty list that
     reads as "clean".
     """
-    from anatase.background.diagnostics import _KBETA
+    from rietx.background.diagnostics import _KBETA
 
     ins = pr.Instrument.bragg_brentano(radiation=anode)
     lam = ins.source.lines[0].wavelength
@@ -135,7 +135,7 @@ def test_kbeta_check_follows_the_anode(anode):
 def test_tungsten_contamination_is_checked_off_cu():
     """W Lα1 comes off the filament, not the target, so it is anode-independent
     — unlike Kβ, which is why the two are looked up differently."""
-    from anatase.background.diagnostics import _W_LA1
+    from rietx.background.diagnostics import _W_LA1
 
     ins = pr.Instrument.bragg_brentano(radiation="CoKa")
     lam = ins.source.lines[0].wavelength
@@ -148,7 +148,7 @@ def test_tungsten_contamination_is_checked_off_cu():
 
 
 def test_unknown_wavelength_is_not_checked_rather_than_clean():
-    from anatase.background import identify_anode
+    from rietx.background import identify_anode
 
     assert identify_anode(1.5405929) == "CuKa"
     assert identify_anode(1.788996) == "CoKa"
@@ -260,7 +260,7 @@ def test_penalty_rows_enter_the_residual():
     pen = model.penalty_residual(curved)
     np.testing.assert_allclose(pen, np.sqrt(4.0) * 2.0)  # D₂ of n² is 2
 
-    from anatase.optimize.least_squares import _make_jacobian, _make_residual
+    from rietx.optimize.least_squares import _make_jacobian, _make_residual
     table.set_vary(["*"], False)
     table.set_vary(["instrument.background.*"], True)
     residual = _make_residual(model, table)
@@ -370,8 +370,8 @@ def test_penalty_rows_suppress_absorption():
     """The smoothness penalty is what makes the spline unable to eat peaks —
     the whole reason it rides in the least squares rather than being a
     pre-subtracted curve.  Same knots, λ=0 vs λ=1e4."""
-    from anatase.optimize.least_squares import run_least_squares
-    from anatase.optimize.statistics import background_absorption
+    from rietx.optimize.least_squares import run_least_squares
+    from rietx.optimize.statistics import background_absorption
 
     def max_r2(lam):
         structure = make_lab6()
@@ -411,7 +411,7 @@ _SLACK = BackgroundPSpline.for_range(15.0, 70.0, knot_step_deg=1.0,
 def _plot(result, stem):
     """obs/calc/diff PNGs to tests/output/ (gitignored), full range + a
     low-angle zoom — house convention: Rwp hides locally-bad fits."""
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
 
     _OUT.mkdir(exist_ok=True)
     plot_result(result, path=str(_OUT / f"{stem}.png"))
@@ -436,7 +436,7 @@ def test_over_flexible_background_is_flagged_while_rwp_improves():
     one; only the projection says otherwise, which is the v0.5 rule that a
     correction's evidence is never an Rwp comparison.
     """
-    from anatase.report.schemas import BACKGROUND_ABSORPTION_NOTABLE
+    from rietx.report.schemas import BACKGROUND_ABSORPTION_NOTABLE
 
     slack_ref, slack = _absorption_fit(_SLACK, broad=0.15)
     ref_ref, reference = _absorption_fit(BackgroundChebyshev.with_terms(6),
@@ -489,7 +489,7 @@ def test_stiff_background_reports_the_misfit_between_the_peaks():
     the block absorption reads 0.02, i.e. the two failure modes do not
     contaminate each other's statistic.
     """
-    from anatase.report.schemas import OFF_REGION_CHI2_RED_HIGH, OFF_REGION_DW_LOW
+    from rietx.report.schemas import OFF_REGION_CHI2_RED_HIGH, OFF_REGION_DW_LOW
 
     structure = make_lab6()
     structure.phases[0].scale.value = 3e-4
@@ -563,7 +563,7 @@ def test_off_region_durbin_watson_is_pooled_within_runs():
     one jump to the numerator and report the residual as far less correlated
     than it is; pooling within runs sees only the ramp.
     """
-    from anatase.report.background import _pooled_durbin_watson
+    from rietx.report.background import _pooled_durbin_watson
 
     delta = np.concatenate([np.arange(1.0, 6.0), np.full(4, 0.0),
                             np.arange(101.0, 106.0)])
@@ -591,7 +591,7 @@ def test_identifiability_carries_the_quiet_measurements_too():
     "measured and fine" from "never measured", which is exactly the
     distinction ``Identifiability = None`` is reserved for.
     """
-    from anatase.strategy.staged import BACKGROUND_ABSORPTION_GUARD
+    from rietx.strategy.staged import BACKGROUND_ABSORPTION_GUARD
 
     result = _absorption_setup(BackgroundChebyshev.with_terms(6))
     assert "BACKGROUND_ABSORPTION" not in {d.code for d in result.diagnostics}
@@ -603,7 +603,7 @@ def test_identifiability_carries_the_quiet_measurements_too():
     assert any(p.endswith(".scale") for p in ident.background_absorption)
 
     # and it survives the JSON round trip the agent surface takes
-    from anatase.schemas.results import RefinementResult
+    from rietx.schemas.results import RefinementResult
     back = RefinementResult.model_validate_json(result.model_dump_json())
     assert back.identifiability.background_absorption == \
         ident.background_absorption

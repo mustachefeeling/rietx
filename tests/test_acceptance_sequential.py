@@ -53,7 +53,7 @@ builder, never an inherited default.
 import numpy as np
 import pytest
 
-import anatase as pr
+import rietx as pr
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     MAJOR_TOL,
@@ -251,7 +251,7 @@ def test_the_hostile_series_exercises_the_reseed_fence(chained_all):
     refit it never climbed to, and the kept rung has to be one of the rungs
     actually tried.
     """
-    from anatase.sequential import RUNGS
+    from rietx.sequential import RUNGS
 
     for entry in chained_all:
         # the first pattern has nothing to warm from, so its ladder is one rung

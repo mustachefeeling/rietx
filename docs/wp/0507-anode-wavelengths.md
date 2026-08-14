@@ -13,7 +13,7 @@ Kβ / W Lα contamination) working off Cu too.
 
 ## Context
 
-Today `_RADIATIONS` (`src/anatase/schemas/instrument.py`) carries only `CuKa`;
+Today `_RADIATIONS` (`src/rietx/schemas/instrument.py`) carries only `CuKa`;
 the code comment immediately above it already anticipates the others:
 
 > Other anodes (Co, Mo, …) will be added once their values are transcribed
@@ -184,7 +184,7 @@ value to its cited source, and the Cu pair is asserted byte-for-byte unchanged.
   trustworthy there — but 180 eV is outside the 50 eV XANES window, so nothing
   flags it as near-edge.
 
-  **Not done, deliberately.** No row was added to `anatase compare`: its
+  **Not done, deliberately.** No row was added to `rietx compare`: its
   registry is one of *corrections* to toggle against a standard, and an
   emission-line table is not one — there is no variant whose Δχ² would mean
   anything. No acceptance dataset: see the note pushed to 1001.

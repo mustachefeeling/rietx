@@ -12,7 +12,7 @@ analytic-quality Jacobian columns and esds.
 ## Context
 
 The block is explicit in
-[`src/anatase/params/vector.py:113`](../../src/anatase/params/vector.py#L113) —
+[`src/rietx/params/vector.py:113`](../../src/rietx/params/vector.py#L113) —
 `_collect` raises when any `atom.{x,y,z}` has `vary=True`, telling the user
 Wyckoff-aware constraints are planned for v0.3. Two things must change here:
 
@@ -27,7 +27,7 @@ Wyckoff-aware constraints are planned for v0.3. Two things must change here:
 Jacobian: coordinates enter through the structure factor, not the peak shape,
 so they do **not** go through the per-point profile-derivative bases. The
 cheapest correct route is the existing per-reflection scalar chain in
-[`model/forward.py`](../../src/anatase/model/forward.py): |F_hkl|² depends on
+[`model/forward.py`](../../src/rietx/model/forward.py): |F_hkl|² depends on
 coordinates, and ∂|F|²/∂x has a closed form
 (F = Σ_j f_j·occ_j·exp(2πi h·r_j)·T_j summed over the frozen per-atom
 symmetry-op subsets, so ∂F/∂x_j = Σ_ops 2πi·(Rᵀh)_x·f_j·occ_j·exp(...)).
@@ -41,7 +41,7 @@ regenerated inside the least-squares run. Reciprocal-space symmetry action is
 is silent on cubic and wrong on everything else.
 
 Staging: coordinates come late in the McCusker turn-on order. Extend the
-staged plans in [`strategy/staged.py`](../../src/anatase/strategy/staged.py)
+staged plans in [`strategy/staged.py`](../../src/rietx/strategy/staged.py)
 rather than inventing a new plan.
 
 ## Non-goals

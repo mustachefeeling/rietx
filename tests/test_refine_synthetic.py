@@ -4,11 +4,11 @@ model, refine, and check the truth is recovered."""
 import numpy as np
 import pytest
 
-from anatase import Instrument, PatternData, Refinement, build_report
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
-from anatase.schemas.common import Parameter
-from anatase.schemas.instrument import BackgroundChebyshev
+from rietx import Instrument, PatternData, Refinement, build_report
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
+from rietx.schemas.common import Parameter
+from rietx.schemas.instrument import BackgroundChebyshev
 from tests.test_schemas import make_lab6
 
 WAVELENGTH = 0.4139

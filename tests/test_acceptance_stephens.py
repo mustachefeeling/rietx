@@ -98,9 +98,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import anatase as pr
-from anatase.report.layer2 import delta_bic, hamilton_justified
-from anatase.schemas.structure import StephensStrain
+import rietx as pr
+from rietx.report.layer2 import delta_bic, hamilton_justified
+from rietx.schemas.structure import StephensStrain
 from tests.test_acceptance_qpa_roundrobin import (
     DATA,
     brucite_phase,
@@ -186,7 +186,7 @@ def _fit_with_solver(name: str, phase: pr.Phase, plan: pr.RefinementPlan,
 
 def _sigma2_of(ref) -> np.ndarray:
     """σ²(M) on the last stage's frozen reflection list."""
-    from anatase.crystallography.stephens import S_NAMES, sigma2_m
+    from rietx.crystallography.stephens import S_NAMES, sigma2_m
 
     block = ref.fitted_structure.phases[0].microstrain
     s = np.array([getattr(block, n).value for n in S_NAMES])

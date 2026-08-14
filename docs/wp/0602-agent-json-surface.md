@@ -5,7 +5,7 @@ Depends on: —
 
 ## Goal
 
-`anatase.agent.refine_json(dict) → dict`: one call that takes a fully-typed
+`rietx.agent.refine_json(dict) → dict`: one call that takes a fully-typed
 JSON request (single-pattern, multi-histogram, or sequential series), runs the
 refinement, and returns either a serialized result + FitReport or a
 structured, actionable error — never a raw traceback.  Beside it,
@@ -27,9 +27,9 @@ vocabularies drawn from the live registries rather than restated literals.
 
 ## Decisions (made 2026-07-29, expanding the stub)
 
-- **One module, `src/anatase/agent.py`** — request/response envelope models and
+- **One module, `src/rietx/agent.py`** — request/response envelope models and
   the dispatch live together; the surface is one file to read.  Consumers use
-  `anatase.agent.refine_json`; no new top-level re-exports.
+  `rietx.agent.refine_json`; no new top-level re-exports.
 - **Envelope**: success is `{"ok": true, "result": …, "series": …, "report": …}`
   (exactly one of `result`/`series` set — a JSON consumer branches on which,
   answering the 0505 two-result-types asymmetry structurally); failure is
@@ -243,9 +243,9 @@ Plus, by hand once: `refine_json` on an intentionally broken request returns
   at 939 tests (`-n auto --dist loadgroup -m "not slow"`, exit 0), ruff clean.
   Forward-references written into 0604 / 1001 / 1003 `### Inherited`.
   Gotchas for anyone touching this surface:
-  - `anatase.refine` the *module* is shadowed by `anatase.refine` the
+  - `rietx.refine` the *module* is shadowed by `rietx.refine` the
     *function* on the package object — patch/import via
-    `sys.modules["anatase.refine"]`, not attribute access (bit the
+    `sys.modules["rietx.refine"]`, not attribute access (bit the
     BACKEND_UNAVAILABLE test twice).
   - The request union is discriminated on `task`; pydantic prefixes every
     validation loc with the branch tag, and `_validation_failure` strips it.

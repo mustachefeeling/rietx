@@ -10,7 +10,7 @@ f(k, \lambda) \;=\; f_0(k) + f'(\lambda) + i\, f''(\lambda),
 \qquad k = \frac{\sin\theta}{\lambda}\ [\text{Å}^{-1}].
 ```
 
-*Source:* `anatase.crystallography.dispersion`
+*Source:* `rietx.crystallography.dispersion`
 
 $f_0$ is the angle-dependent, wavelength-independent elastic form factor;
 $f'$ and $f''$ are the angle-independent, wavelength-dependent dispersion
@@ -29,7 +29,7 @@ f_0(k) \;=\; \sum_{i=1}^{5} a_i\, e^{-b_i k^2} + c,
 \qquad \text{valid for } k \le 6\ \text{Å}^{-1}.
 ```
 
-*Source:* `anatase.crystallography.scattering`
+*Source:* `rietx.crystallography.scattering`
 
 $f'/f''$ come from the Cromer-Liberman tabulation
 {cite}`cromer1970,cromer1981` — the crystallographic *reference* calculation
@@ -58,7 +58,7 @@ F(hkl) \;=\; \sum_j \mathrm{occ}_j\, f_j(k)
 e^{2\pi i\, \mathbf{h}\cdot(R_m \mathbf{x}_j + \mathbf{t}_m)},
 ```
 
-*Source:* `anatase.crystallography.structure_factor`
+*Source:* `rietx.crystallography.structure_factor`
 
 where the inner sum runs over a per-atom *subset* of symmetry operations,
 chosen once per stage so special-position images are not double counted
@@ -83,7 +83,7 @@ T_{jm}(\mathbf{h}) \;=\;
 \qquad U^*_{ij} = U^{ij} a^*_i a^*_j.
 ```
 
-*Source:* `anatase.crystallography.structure_factor`
+*Source:* `rietx.crystallography.structure_factor`
 
 Three representations of the same tensor appear in the literature, named
 explicitly here per the IUCr nomenclature report {cite}`trueblood1996`:
@@ -140,7 +140,7 @@ gives $F = A + iB$, and since $T$ is real, $F(-\mathbf{h}) =
 \;=\; |A|^2 + |B|^2
 ```
 
-*Source:* `anatase.crystallography.structure_factor`
+*Source:* `rietx.crystallography.structure_factor`
 
 *exactly*, over the same orbit sums — no second orbit pass and no
 centro/non-centro case split (in a centrosymmetric group $A$ and $B$ share

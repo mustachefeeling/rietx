@@ -19,9 +19,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anatase.crystallography.lattice import cell_volume
-from anatase.crystallography.symmetry import cell_constraints, generate_reflections, get_spacegroup
-from anatase.indexing.fom import (
+from rietx.crystallography.lattice import cell_volume
+from rietx.crystallography.symmetry import cell_constraints, generate_reflections, get_spacegroup
+from rietx.indexing.fom import (
     FOM_N,
     borda_scores,
     f_n,
@@ -34,7 +34,7 @@ from anatase.indexing.fom import (
     predicted_lines,
     predicted_seen_fraction,
 )
-from anatase.indexing.qspace import (
+from rietx.indexing.qspace import (
     af_from_cell,
     cell_esds,
     cell_from_af,
@@ -44,7 +44,7 @@ from anatase.indexing.qspace import (
     refine_candidate,
     sigma_effective,
 )
-from anatase.schemas.indexing import (
+from rietx.schemas.indexing import (
     METRIC_DOF,
     PEAK_MIN_USABLE_LINES,
     FigureOfMerit,
@@ -226,7 +226,7 @@ def test_shift_column_recovers_an_injected_aberration(template, amplitude):
     is ignored.  That is why WP-1019's template choice is carried into the
     candidate refinement rather than left as a report field.
     """
-    from anatase.indexing.quality import shift_template_basis
+    from rietx.indexing.quality import shift_template_basis
 
     hkl, q, tt, cell = _lines("monoclinic", two_theta_max=110.0)
     shifted = tt + amplitude * shift_template_basis(tt)[template]
@@ -282,7 +282,7 @@ def test_m20_is_finite_and_large_for_a_perfect_cell():
 def test_m20_is_invariant_under_a_unimodular_setting_change():
     """A setting change is not a different lattice, so no figure of merit may
     move.  M₂₀ lives in Q and the Q set is identical, so this is exact."""
-    from anatase.indexing.ambiguity import transform_cell
+    from rietx.indexing.ambiguity import transform_cell
 
     q, q_esd, tt, esd_tt, cell = _panel_inputs("triclinic")
     t = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 1]], dtype=np.int64)
@@ -417,7 +417,7 @@ def test_below_twenty_lines_the_panel_shrinks_by_the_same_members_uniformly():
     and the members that remain are the same for every candidate, which is
     what lets Borda still rank.
     """
-    from anatase.indexing.fom import panel_undefined
+    from rietx.indexing.fom import panel_undefined
 
     q, q_esd, tt, esd_tt, cell = _panel_inputs()          # 14 lines at 90°
     assert len(q) < PEAK_MIN_USABLE_LINES
@@ -446,9 +446,9 @@ def test_the_laue_multiplicity_is_the_orbit_it_claims_to_count():
     of them silently halves or doubles ``N^cal``, which both new figures divide
     by.
     """
-    from anatase.crystallography.symmetry import reflection_orbits
-    from anatase.indexing.fom import laue_multiplicity
-    from anatase.indexing.qspace import trial_hkl
+    from rietx.crystallography.symmetry import reflection_orbits
+    from rietx.indexing.fom import laue_multiplicity
+    from rietx.indexing.qspace import trial_hkl
 
     rng = np.random.default_rng(1030)
     for system, centring in (("cubic", "P"), ("cubic", "F"), ("hexagonal", "P"),
@@ -472,7 +472,7 @@ def test_n_cal_counts_orbits_and_is_not_rounded():
     in hkl and a hexagonal orbit does not preserve max|h| ((110) → (-120)), so a
     box can cut an orbit and a fraction is then the honest answer.
     """
-    from anatase.indexing.fom import lattice_reflections, n_cal
+    from rietx.indexing.fom import lattice_reflections, n_cal
 
     cell = (8.875, 16.408, 7.137, 90.0, 93.84, 90.0)
     _hkl, q, m = lattice_reflections(cell, "monoclinic", "P", LAM, 40.0,
@@ -588,7 +588,7 @@ def test_the_log_sum_reads_the_margin_where_borda_reads_only_the_winner():
     point on a win of any size, so four hairlines outvote a rout.  These are
     those margins, not the NAC values — the acceptance row owns those.
     """
-    from anatase.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import log_sum_scores
 
     names = ["a", "b", "c", "d", "e"]
     near_wins = [_member(n, v) for n, v in
@@ -618,7 +618,7 @@ def test_a_raw_log_sum_weights_each_member_by_its_dynamic_range():
     remember is that the fix is not "use magnitudes": it is that a margin is
     comparable **within** a member and not across members.
     """
-    from anatase.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import log_sum_scores
 
     names = ["m20", "f_n", "indexed_fraction", "indexed_intensity_fraction",
              "m_rev"]
@@ -645,7 +645,7 @@ def test_the_log_sum_does_not_depend_on_any_members_units():
     quantity and three fractions, and there is no data on which to set weights.
     A log-sum keeps unit-invariance and, unlike a rank, keeps the margin too.
     """
-    from anatase.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import log_sum_scores
 
     rng = np.random.default_rng(1041)
     names = ["m20", "f_n", "indexed_fraction"]
@@ -676,7 +676,7 @@ def test_the_aggregate_drops_the_member_that_is_a_product_of_two_others():
     fixture the two happen to coincide; on real data they do not (11-BM NAC:
     ``m_sym / m_rev`` = 1.15 against an ``m20`` of 1.43).
     """
-    from anatase.indexing.fom import (
+    from rietx.indexing.fom import (
         AGGREGATE_EXCLUDES,
         lattice_reflections,
         log_sum_scores,
@@ -722,7 +722,7 @@ def test_a_silent_member_does_not_collapse_every_score_to_minus_infinity():
     other members had already decided, so it is skipped.  A zero on a member
     where *someone* scored still floors, and still ranks worst.
     """
-    from anatase.indexing.fom import log_sum_scores
+    from rietx.indexing.fom import log_sum_scores
 
     silent = [[_member("a", 0.0), _member("b", 2.0)],
               [_member("a", 0.0), _member("b", 1.0)]]
@@ -747,7 +747,7 @@ def test_predicted_lines_counts_distinct_lines_not_orbits():
     coincidences to merge, and that asymmetry is what identifies the difference as
     coincidence rather than a different counting rule.
     """
-    from anatase.crystallography.symmetry import generate_reflections
+    from rietx.crystallography.symmetry import generate_reflections
 
     for system, expect_fewer in (("cubic", True), ("triclinic", False)):
         sg, cell = CELLS[system]
@@ -802,7 +802,7 @@ def test_a_derived_candidate_cell_never_trips_the_symmetry_angle_check():
     tolerance chosen anywhere near the conversion noise would turn every
     hexagonal candidate into a validation crash.
     """
-    from anatase.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG, check_cell_angles
+    from rietx.crystallography.symmetry import SYMMETRY_ANGLE_TOL_DEG, check_cell_angles
 
     worst = 0.0
     for system, (symbol, cell) in CELLS.items():

@@ -1,6 +1,6 @@
 # Attribution
 
-anatase is an independent implementation, but its design and mathematics
+rietx is an independent implementation, but its design and mathematics
 draw on published literature and on existing open-source software. This file
 records every source of inspiration or data, its license, and exactly what was
 used. Sources under GPL were **studied only**; no GPL code has been ported.
@@ -247,7 +247,7 @@ idioms. No line of any reader below is transcribed.
 
 Every other row above is either studied or installed by the user's own package
 manager. These are different in kind: the GUI's build output is **committed**
-under `src/anatase/gui/static` and ships inside the wheel, so this package
+under `src/rietx/gui/static` and ships inside the wheel, so this package
 redistributes their compiled bytes. All are MIT, and none is modified — the
 lockfile `gui/package-lock.json` is the version statement, and
 `tests/test_gui_dist.py` is what keeps the shipped bytes tied to the sources
@@ -261,16 +261,16 @@ they were built from.
 
 ## Data tables
 
-- `src/anatase/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
+- `src/rietx/data/f0_WaasKirf.dat` — Waasmaier & Kirfel (1995) 5-Gaussian f0
   coefficients, obtained from the ESRF DABAX collection (public scientific data,
   redistributed by silx (MIT) among others). Cite Waasmaier & Kirfel (1995).
-- `src/anatase/data/mu_McMaster.dat` — photon-atom cross sections from the
+- `src/rietx/data/mu_McMaster.dat` — photon-atom cross sections from the
   McMaster et al. (1969) compilation (UCRL-50174, a U.S. Government report),
   extracted from the ESRF DABAX file `CrossSec_McMaster.dat` (itself generated
   with P. Bandyopadhyay's mucal). Modified for bundling: energy-trimmed to
   2–120 keV and reduced to the PhotonEnergy/Photoelectric/Total columns (the
   file header documents the same). Cite McMaster et al. (1969).
-- `src/anatase/data/f1f2_CromerLiberman.dat` — anomalous scattering factors
+- `src/rietx/data/f1f2_CromerLiberman.dat` — anomalous scattering factors
   f′, f″, extracted from the DABAX file `f1f2_CromerLiberman.dat` obtained from
   [oasys-kit/DabaxFiles](https://github.com/oasys-kit/DabaxFiles) (MIT,
   © 2022 Manuel Sanchez del Rio), itself generated with D. T. Cromer's FPRIME
@@ -286,7 +286,7 @@ they were built from.
   gemmi is already a dependency — its f″ is sound (and is used as a test
   oracle) but its f′ disagrees with every published tabulation for several
   lanthanides and actinides.
-- Element **colours** in `src/anatase/gui/structure3d.py` (`_CPK`) — the
+- Element **colours** in `src/rietx/gui/structure3d.py` (`_CPK`) — the
   *assignments* are the CPK convention (Corey & Pauling, 1953, Rev. Sci. Instrum.
   24, 621; Koltun, 1965, US Patent 3,170,246): hydrogen white, carbon black,
   nitrogen blue, oxygen red, sulfur yellow, halogens green, and so on. The hex

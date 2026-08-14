@@ -17,7 +17,7 @@ to the residual ({eq}`fm-rows`):
 r_{\mathrm{pen}} \;=\; \sqrt{\lambda}\, (D_2\, c),
 ```
 
-*Source:* `anatase.background.models`
+*Source:* `rietx.background.models`
 
 with $D_2$ the $(n-2) \times n$ second-difference matrix. The rows land in
 $J^\top J$ (so the covariance is regularised) but are excluded from Rwp and
@@ -35,7 +35,7 @@ pipeline. The Whittaker smoother {cite}`eilers2003` solves the banded
 (W + \lambda D_2^\top D_2)\, z \;=\; W y,
 ```
 
-*Source:* `anatase.background.estimators`
+*Source:* `rietx.background.estimators`
 
 and arPLS {cite}`baek2015` iterates it with asymmetric reweighting so
 peaks are progressively excluded from the baseline. SNIP {cite}`ryan1988`
@@ -57,7 +57,7 @@ are selected with the same two ingredients:
   are treated as contiguous, which makes the test slightly conservative —
   the safe direction.
 
-*Source:* `anatase.background.select`
+*Source:* `rietx.background.select`
 
 ## Flexibility is a correctness question
 
@@ -72,7 +72,7 @@ background columns:
 R^2_i \;=\; 1 - \frac{\lVert j_i - P_B\, j_i \rVert^2}{\lVert j_i \rVert^2},
 ```
 
-*Source:* `anatase.optimize.statistics.background_absorption`
+*Source:* `rietx.optimize.statistics.background_absorption`
 
 the fraction of the parameter's effect the background can reproduce.
 Pairwise correlation is the wrong statistic here: with ~100 spline

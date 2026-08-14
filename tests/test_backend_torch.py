@@ -24,9 +24,9 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-import anatase as pr  # noqa: E402
-from anatase.backend import get_backend, resolve_backend, set_backend  # noqa: E402
-from anatase.backend.api import _OP_NAMES, NumpyBackend  # noqa: E402
+import rietx as pr  # noqa: E402
+from rietx.backend import get_backend, resolve_backend, set_backend  # noqa: E402
+from rietx.backend.api import _OP_NAMES, NumpyBackend  # noqa: E402
 
 OUT = Path(__file__).parent / "output"
 
@@ -159,9 +159,9 @@ def test_numpy_only_process_never_imports_torch():
     code = """
 import sys
 import numpy as np
-import anatase as pr
-from anatase.model.forward import compile_model
-from anatase.params.vector import ParameterTable
+import rietx as pr
+from rietx.model.forward import compile_model
+from rietx.params.vector import ParameterTable
 
 structure = pr.Structure(phases=[pr.Phase(
     name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
@@ -186,7 +186,7 @@ assert "torch" not in sys.modules, "numpy-only path imported torch"
 def test_global_backend_never_leaks():
     """The Jacobian call flips the global backend to torch and must restore it —
     otherwise a later numpy residual evaluation would silently run on tensors."""
-    from anatase.backend.torch_backend import make_torch_jacobian
+    from rietx.backend.torch_backend import make_torch_jacobian
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES["toy_lebail"]()
@@ -197,7 +197,7 @@ def test_global_backend_never_leaks():
 def test_frozen_state_stays_host_numpy():
     """WP-0401 gotcha (1), sharpened for a device backend: leaking tensors into
     the compiled model would put non-fp64 arrays into frozen state."""
-    from anatase.backend.torch_backend import make_torch_jacobian
+    from rietx.backend.torch_backend import make_torch_jacobian
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES["toy_rich"]()
@@ -224,8 +224,8 @@ def test_traced_residual_matches_numpy_residual(name):
     """The torch residual is the numpy residual, row for row — the premise the
     column agreement rests on.  A row-layout drift here would show up in the
     matrix as a shape error or a wholesale column mismatch; this localises it."""
-    from anatase.backend.torch_backend import make_traced_residual
-    from anatase.optimize.least_squares import _make_residual
+    from rietx.backend.torch_backend import make_traced_residual
+    from rietx.optimize.least_squares import _make_residual
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES[name]()
@@ -246,7 +246,7 @@ def test_traced_residual_matches_numpy_residual(name):
 
 def test_chunk_size_invariance():
     """Padding/trimming of the trailing one-hot seed block must not move a value."""
-    from anatase.backend.torch_backend import make_torch_jacobian
+    from rietx.backend.torch_backend import make_torch_jacobian
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES["toy_lebail"]()
@@ -259,7 +259,7 @@ def test_chunk_size_invariance():
 def test_jacobian_is_fp64_on_cpu():
     """CPU torch is an *independent fp64 row* of the agreement matrix, not a
     reduced-precision one — so its columns must arrive at full width."""
-    from anatase.backend.torch_backend import make_torch_jacobian
+    from rietx.backend.torch_backend import make_torch_jacobian
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES["toy_rich"]()
@@ -276,7 +276,7 @@ def test_backend_kwarg_refines_and_is_recorded(backend):
     """``backend=`` on ``Refinement`` reaches the solver, converges to the same
     answer as numpy, and lands in the result's provenance — a refinement whose
     columns were computed in fp32 has to *say* so to be reproducible."""
-    from anatase.strategy.staged import RefinementPlan, Stage
+    from rietx.strategy.staged import RefinementPlan, Stage
     from tests.test_backend_shim import _toy_base
 
     if backend == "torch-mps" and not _MPS:
@@ -305,7 +305,7 @@ def test_backend_kwarg_refines_and_is_recorded(backend):
 def test_multi_histogram_backend_kwarg():
     """The same kwarg on the multi-histogram entry point (the stacked Jacobian's
     column agreement is WP-0404's matrix; this is the plumbing)."""
-    from anatase.multi import MultiHistogramRefinement
+    from rietx.multi import MultiHistogramRefinement
     from tests.test_multi_histogram import perturbed_inputs, synthesize
 
     data = [synthesize(0.41390, 3.0, 24.0, scale=5e-4, zero=0.006,
@@ -339,12 +339,12 @@ def test_mps_columns_are_fp32_on_device_and_fp64_on_host():
     fp64), and ``linalg64.to_host_fp64`` is the single place that widens it back
     — so what reaches JᵀJ is an fp64 array holding fp32-accurate columns.
     """
-    from anatase.backend.linalg64 import (
+    from rietx.backend.linalg64 import (
         COLUMN_COSINE_MIN,
         COLUMN_REL_L2_MAX,
         column_agreement,
     )
-    from anatase.backend.torch_backend import make_torch_jacobian
+    from rietx.backend.torch_backend import make_torch_jacobian
     from tests.test_backend_shim import STATES
 
     model, table, _ = STATES["toy_rich"]()
@@ -396,7 +396,7 @@ def test_mps_refine_matches_numpy_cell():
     assert abs(c_mps - c_np) <= 3e-5, f"Δc = {c_mps - c_np:.2e} Å"
     assert abs(res_mps.statistics.rwp - res_np.statistics.rwp) < 1e-3
 
-    from anatase.viz.plots import plot_result
+    from rietx.viz.plots import plot_result
     OUT.mkdir(exist_ok=True)
     plot_result(res_mps, path=str(OUT / "srm676a_torch_mps_fit.png"))
     plot_result(res_mps, path=str(OUT / "srm676a_torch_mps_fit_lowangle.png"),
