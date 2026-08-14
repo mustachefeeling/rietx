@@ -224,8 +224,14 @@ the new name while the text-pane chip still reads `rxt 1`.
   3:21. vitest 408 in 19 files, svelte-check 0 errors, ruff and `sphinx -W`
   clean. `examples/nac_11bm.py` lands a = 10.251216(46) Å at Rwp 0.0932 — the
   digits 1062 recorded, so the physics is provably untouched. All five
-  `*_version` contracts unmoved. Full suite run at close; see the entry below
-  it if a successor needs the figure.
+  `*_version` contracts unmoved. Full suite **2364 passed, 117 skipped** in
+  29:08, green including the real-data acceptance and the indexing row 1062
+  measured as load-sensitive. Read that last figure as a fresh measurement, not
+  a comparison: **the identical-count proof is the fast suite**, measured either
+  side of the sweep in this session (and 2257/108 is also what 1065 recorded, so
+  it was the tree's figure before this session touched it). No pre-rename
+  full-suite count was taken, and the most recent one on record is ~300 tests
+  old, so the two are not a pair.
 
   **The finding, and it cost the WP an unplanned item.** A brand token in a
   **filename** is worse than one in a line: `docs/wp/1062-rename-to-anatase.md`
