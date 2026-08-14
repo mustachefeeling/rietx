@@ -89,8 +89,11 @@ section.**
 - [x] `sphinxcontrib-mermaid` and four diagrams.
 - [x] Three figures, `make_figures.py`, `plot_result(style=)`, the
       `examples/nac_11bm.py` refactor.
+- [x] A pass over every built page in both themes: headings, image switching,
+      no sideways scroll, no unrendered diagram, no text the colour of its own
+      background. Driven with playwright-core out of the scratchpad against the
+      chromium in the playwright cache (never installed into `gui/`).
 - [ ] The McCusker section, once the paper is to hand.
-- [ ] A pass over the built pages in both themes with fresh eyes.
 
 ## Acceptance
 

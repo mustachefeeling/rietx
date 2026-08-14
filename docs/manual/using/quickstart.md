@@ -7,6 +7,8 @@ diffractometer. The package returns a `RefinementResult`.
 Throughout this manual, the `examples/` scripts, and the API calls the history
 prints back at you, `rietx` is imported as `rx`.
 
+## The minimal call
+
 <!-- api-doc: no-exec — it reads a pattern file the reader supplies -->
 ```python
 import rietx as rx
@@ -25,9 +27,13 @@ The print line writes two values:
 converged 0.0932
 ```
 
-`RefinementResult.status` is a plain string: `converged`, `max_iter` or
-`diverged`. `max_iter` means the solver ran out of iterations. It does not mean
-the fit failed.
+`RefinementResult.status` is a plain string, one of `converged`, `max_iter` and
+`diverged`. The second of those means the solver ran out of iterations. It does
+not mean the fit failed.
+
+**`Statistics.rwp` is a fraction, not a percentage.** 0.0932 is the Rwp of 9.3 %
+you would quote in a paper. Every R-factor in the package is stored this way.
+[](concepts.md) says what each statistic measures.
 
 One more line draws the fit:
 
@@ -53,10 +59,6 @@ deviation on a strong peak as a large error. Δ/σ has expectation 1 under a
 correct model, so the ±3 band is an absolute scale rather than a relative one.
 Pass `weighted=False` for the classic offset raw difference, and `style="dark"`
 for a figure going onto a dark page.
-
-**`Statistics.rwp` is a fraction, not a percentage.** 0.0932 is the Rwp of 9.3 %
-you would quote in a paper. Every R-factor in the package is stored this way.
-[](concepts.md) says what each statistic measures.
 
 ## `refine` or a `Refinement` session
 

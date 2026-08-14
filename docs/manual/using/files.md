@@ -48,10 +48,11 @@ number you quote.
 
 **A multi-range file holds scans, and the reader selects one.** Pass `scan=` to
 choose. The ranges are never concatenated, because two ranges are usually two
-weighting regimes, and joining them silently mixes them. A pdCIF holds blocks
-rather than scans, so `read_pdcif` (and `read_pattern` on the same file) takes
-`block=`: a file with a `_meas` and a `_calc` block is a different pattern
-depending on which you ask for.
+weighting regimes, and joining them silently mixes them.
+
+A pdCIF holds blocks rather than scans, and takes `block=` instead. A file with
+a `_meas` block and a `_calc` block is a different pattern depending on which
+you ask for. `read_pdcif` reads one directly.
 
 **A reader may repair a file, but only where it can say that it did.** Pass a
 list as `diagnostics=` and the repairs come back in it:
