@@ -82,13 +82,13 @@ Three things land on the freeze:
   fix makes something slow, narrowing what is searched is the lever. Whoever
   takes this reads `--durations` from a local full run, since the log that
   would have answered it is the thing that is missing.
-- **Delete the `baselines` extra, or give it a consumer.** It installs
-  `pybaselines`, and **no module imports it** (measured 2026-08-14; the only
-  occurrence in the tree is an attribution comment in
-  `background/estimators.py`). The penalized spline is implemented here as
-  penalty rows inside the least squares. `using/install.md` currently has to
-  spend a paragraph saying the extra buys nothing, which is not a sentence a
-  released manual should carry.
+- ~~**Delete the `baselines` extra, or give it a consumer.**~~ **Done
+  2026-08-14** (1067 follow-up): deleted. It installed `pybaselines` and **no
+  module imported it** — the penalized spline, arPLS and SNIP are all
+  implemented here, the spline as penalty rows inside the least squares.
+  `ATTRIBUTION.md` keeps the algorithm-reference row and now says the extra is
+  gone; `using/install.md` no longer spends a paragraph on an extra that buys
+  nothing. Nothing else in the tree named it (no workflow, no test, no doc).
 - **The README deduplication is sequenced behind hosting, and it is this WP's
   to finish.** README is the GitHub landing page *and* the PyPI long
   description, so until the manual is reachable a reader has nowhere else to

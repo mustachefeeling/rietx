@@ -16,6 +16,15 @@ the Jacobian (the differentiable backends), or the development toolchain.
 
 ## Extras
 
+An extra is installed by naming it in brackets. Quote the argument — `zsh`
+treats bare brackets as a glob:
+
+```sh
+pip install "rietx[viz]"           # one extra
+pip install "rietx[viz,jax]"       # several, comma-separated, no spaces
+uv pip install -e ".[dev]"         # from a source checkout
+```
+
 | Extra | Installs | What it buys |
 |---|---|---|
 | `viz` | matplotlib, plotly | Plots. `RefinementResult.plot` and the report figures need matplotlib; `viz.html.write_html` writes the interactive plotly page. |
@@ -25,9 +34,9 @@ the Jacobian (the differentiable backends), or the development toolchain.
 | `docs` | sphinx, myst-parser, sphinxcontrib-bibtex, furo | Builds this manual. |
 | `dev` | the above `docs` extra, pytest, pytest-xdist, hypothesis, matplotlib, plotly, ruff | The test suite. |
 
-`baselines` also exists and currently buys nothing: no module imports
-`pybaselines`. The penalized-spline background is implemented in the package
-itself, as penalty rows inside the least squares rather than as a
+That is the whole list. Background estimation in particular needs nothing
+installed: arPLS, SNIP and the penalized spline are implemented here, the
+spline as penalty rows inside the least squares rather than as a
 pre-subtraction — see `auto_background`.
 
 **The numpy path is the default and the one to use.** `backend="numpy"` is
