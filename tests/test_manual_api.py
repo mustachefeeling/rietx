@@ -187,6 +187,23 @@ def _step(obj: object, attr: str) -> tuple[bool, object]:
     return value is not None, value
 
 
+def _resolve_absolute(page: Path, dotted: str) -> None:
+    """Resolve a fully-spelled `rietx.…` name, module path included."""
+    parts = dotted.split(".")
+    for cut in range(len(parts), 0, -1):
+        try:
+            obj: object = importlib.import_module(".".join(parts[:cut]))
+        except ImportError:
+            continue
+        for attr in parts[cut:]:
+            ok, obj = _step(obj, attr)
+            assert ok, f"{page.name}: `{dotted}` — no {attr!r}"
+            if obj is None:
+                return
+        return
+    raise AssertionError(f"{page.name}: `{dotted}` — nothing importable in it")
+
+
 def test_every_dotted_name_resolves():
     """A dotted rietx name in Part 1 imports and attributes out.  This is the
     WP-1037 bug's shape: the manual says `index`, the package exports
@@ -203,6 +220,13 @@ def test_every_dotted_name_resolves():
     rietx = importlib.import_module("rietx")
     for page, text in _pages():
         for token in DOTTED.findall(_code_text(page, text)):
+            if token.startswith("rietx.") and token not in surface:
+                # A fully-spelled name is always checkable, module path and
+                # all: `rietx.viz.compare.run` reaches past `__all__`, and
+                # `rietx.viz` is not even an attribute until something imports
+                # it, so resolution walks the longest importable prefix first.
+                _resolve_absolute(page, token)
+                continue
             dotted = token.removeprefix("rietx.")
             if "." not in dotted or dotted.startswith(PATH_ROOTS) or dotted in surface:
                 continue

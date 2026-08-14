@@ -52,6 +52,7 @@ paraphrasing it.
 
 using/install
 using/quickstart
+using/report
 ```
 
 ## Part 2 — Theory
