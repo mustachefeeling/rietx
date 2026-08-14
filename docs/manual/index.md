@@ -51,6 +51,7 @@ paraphrasing it.
 :maxdepth: 2
 
 using/install
+using/quickstart
 ```
 
 ## Part 2 — Theory

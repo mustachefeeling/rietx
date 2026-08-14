@@ -33,8 +33,14 @@ Two derivation rules carry the weight, both measured 2026-08-14:
    not exported, so one level of attributes never reaches
    ``result.statistics.rwp`` — the manual's own motivating example.  The
    closure follows fields and public-method annotations of types already on
-   the surface.  Exporting those types instead would be new public API, which
-   WP-1067 forbids itself.
+   the surface, and the signatures of exported functions: ``capabilities()``
+   returns a ``Capabilities``, which is exported nowhere.  Exporting those
+   types instead would be new public API, which WP-1067 forbids itself.
+3. **A plain class's members are assigned, not declared.**  ``dir()`` on the
+   *class* cannot see ``self.history = …`` in ``__init__``, so
+   ``Refinement.history``, ``Project.doc`` and 25 others were missing until
+   the manual's own guard rejected the first of them as a name that does not
+   resolve.  Instance attributes are read off the class's source with ``ast``.
 
 Run ``python -m tests.api_surface`` for a summary of the surface, or
 ``python -m tests.api_surface --write-deferred`` to regenerate
@@ -44,7 +50,9 @@ file is and why it is generated rather than typed).
 
 from __future__ import annotations
 
+import ast
 import inspect
+import textwrap
 import types
 import typing
 from dataclasses import dataclass
@@ -121,6 +129,40 @@ def _defining_class(cls: type, name: str) -> type | None:
 _PYDANTIC_CLASS_ATTRS = frozenset({"model_config", "model_fields", "model_computed_fields"})
 
 
+def _instance_attributes(cls: type) -> set[str]:
+    """Public ``self.x = ...`` attributes assigned in the class's own body.
+
+    `Refinement.history` is one of these: a plain class assigns its attributes
+    in `__init__`, so `dir()` on the *class* cannot see them and a surface
+    derived from `dir()` alone silently omits a member the manual documents by
+    name.  Found by the manual's own guard rejecting `Refinement.history`.
+    """
+    try:
+        source = inspect.getsource(cls)
+    except (OSError, TypeError):
+        return set()
+    try:
+        tree = ast.parse(textwrap.dedent(source))
+    except SyntaxError:  # pragma: no cover - a class body that parses nowhere else either
+        return set()
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        for target in targets:
+            if (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+                and _public(target.attr)
+            ):
+                found.add(target.attr)
+    return found
+
+
 def declared_members(cls: type) -> dict[str, Entry]:
     """The class's own public members, keyed by qualified name.
 
@@ -141,6 +183,9 @@ def declared_members(cls: type) -> dict[str, Entry]:
             continue
         qualified = f"{owner.__name__}.{name}"
         out.setdefault(qualified, Entry(qualified, "member", owner.__name__))
+    for name in sorted(_instance_attributes(cls)):
+        qualified = f"{cls.__name__}.{name}"
+        out.setdefault(qualified, Entry(qualified, "attribute", cls.__name__))
     return out
 
 

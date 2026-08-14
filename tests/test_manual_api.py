@@ -243,8 +243,10 @@ def test_parameter_dot_paths_resolve():
     character class rather than an index (root CLAUDE.md § Conventions)."""
     paths = _parameter_paths()
     for page, text in _pages():
-        for span in CODE_SPAN.findall(text):
-            token = span.strip()
+        # tokens *inside* a span, not whole spans: a path is usually quoted in
+        # a call — `result.parameter("phases.0.cell.a")` — and checking only
+        # spans that are paths outright would skip exactly those.
+        for token in DOTTED.findall("\n".join(CODE_SPAN.findall(text))):
             if not token.startswith(PATH_ROOTS):
                 continue
             assert "[" not in token and "]" not in token, (
