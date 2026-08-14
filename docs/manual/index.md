@@ -14,6 +14,30 @@ cross-referenced, with the conventions that make them transferable — or not
 Read Part 1 to use the package. Part 2 is where Part 1 sends you when a
 number has to be defended, rather than a prerequisite for either.
 
+## Who this is written for
+
+**A human reader.** Both parts are written to be read by a person, in order,
+at the speed prose is read.
+
+Some of what they describe is not. `rietx` is built for automated and agentic
+workflows, and several of its surfaces are designed for a program to consume
+first: the `FitReport` and its three layers, `agent.refine_json` and its JSON
+envelope, `capabilities()`, the streaming event ladder, and the diagnostic
+codes. These are documented here because a person has to understand them to
+trust, debug or extend what a machine does with them, and they repay reading —
+`FitReport` answers "where is my model wrong, and how much of that will the
+package stand behind", which is a question a human at a plot also has. But
+they are not shaped for human-first consumption, and a chapter that describes
+one says so.
+
+**If you are an agent reading this manual, read
+[`docs/AGENT_PROTOCOL.md`](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md)
+instead, and come back here for the object model.** The protocol is written
+for you: what to do in what order, what to check before believing a number,
+and the measured findings that should change what you do. This manual is the
+surface; the protocol is the operating discipline, and nothing here restates
+it.
+
 ## How to read this manual
 
 **The code is authoritative.** Every physics function in `rietx` cites
@@ -32,6 +56,23 @@ a moved function fails the suite. In Part 1, every dotted name and every
 parameter dot-path resolves against the live package, every fenced example
 either runs or says why it does not, and the walkthroughs are scripts from
 `examples/` included verbatim and executed by the test suite.
+
+**Names follow Python's own convention, so their case tells you what they
+are.** `Refinement`, `RefinementResult` and `FitReport` are capitalised
+because they are *classes*; `refine`, `read_pattern` and `capabilities` are
+functions; `rietx.viz.compare` is a module; `PLAN_INFO` is a module-level
+constant. Nothing about a name being capitalised means it is more important
+or a bigger thing.
+
+One consequence is worth stating, because it changes what you type: a method
+or field is written under the class that defines it, not under the variable
+you would have. `RefinementResult.plot` is the manual's way of saying "the
+`plot` method of a `RefinementResult`", and in your own code that line is
+`result.plot(...)`. Written this way the name resolves — which is what lets
+the test suite check every one of them against the live package. Parameter
+dot-paths are the other dotted thing here and are never capitalised:
+`phases.0.cell.a` and `instrument.profile.w` are *data*, addresses into the
+parameter table, not attributes of a class.
 
 ## Part 1 — Using rietx
 

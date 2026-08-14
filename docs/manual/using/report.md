@@ -5,6 +5,13 @@ data disagree, *what kind* of error would explain it, and — separately — how
 much of that it is willing to stand behind.
 
 :::{important}
+**The `FitReport` is designed to be read by a program**, and this chapter
+describes it as one: numbers, not pixels, so an agent can close a refinement
+loop without a plot image. That is not a warning to stay away. It is the most
+useful thing in the package for a human too, and `FitReport.summary` is a
+paragraph of prose for exactly that reader. But the field list below is the
+shape a consumer sees, not a narrative, and it reads like one.
+
 This chapter is the **object model**: what a `FitReport` carries, field by
 field, and how to reach it. The **judgement** — what to believe, in what
 order, when to disbelieve Rwp, and how to act on an abstention — is

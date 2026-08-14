@@ -3,6 +3,12 @@
 Two calls carry the whole integration surface. `capabilities()` says what this
 build can do; `agent.refine_json` does it.
 
+Everything in this chapter is designed for a program to consume first — a JSON
+envelope, a generated schema, a capability object. A human can read all of it,
+and `capabilities()` in particular is the fastest way to answer "did my `jax`
+extra take?" from a REPL. But the shapes here are chosen for a caller that
+branches on a field, not for one that reads a sentence.
+
 ## One call, five tasks
 
 `agent.refine_json` takes a dict and returns a dict. It never raises and never
@@ -69,10 +75,16 @@ same tuples the package dispatches on, and a meta-test fails when a registered
 member is missing from the exported schema. A third engine cannot ship
 invisible.
 
+**That description is the first thing a calling agent ever reads about this
+package** — before any schema, any result and any part of this manual — so it
+carries the two rules an agent gets wrong most often: read the diagnostics
+before the statistics, and read the whole trajectory rather than only the final
+report.
+
 :::{note}
-The tool description points a calling agent at `docs/AGENT_PROTOCOL.md` by
-repository-relative path, and a `pip install` gets the package without the
-`docs/` tree. Until that is resolved at release, point your agent at
+It also points at `docs/AGENT_PROTOCOL.md` by repository-relative path, and a
+`pip install` gets the package without the `docs/` tree. Until that is resolved
+at release, put the protocol in your agent's context yourself, from
 [the copy in the repository](https://github.com/yue-here/rietx/blob/main/docs/AGENT_PROTOCOL.md).
 :::
 

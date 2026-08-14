@@ -1,7 +1,12 @@
 # CLAUDE.md — rietx
 
 API-first Rietveld refinement package (powder XRD). MIT. numpy/scipy fp64
-core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `rietx`.
+core, pydantic v2 schemas, gemmi for CIF/symmetry. Import name: `rietx`,
+aliased `rx` throughout (`import rietx as rx`).
+
+**This file is for changing the package.** To *use* it — refine someone's data
+— read `docs/AGENT_PROTOCOL.md` (the operating protocol) and `docs/manual/`
+Part 1 instead; nothing here is a substitute for either.
 
 ## Commands
 
