@@ -29,6 +29,31 @@ converged 0.0932
 `diverged`. `max_iter` means the solver ran out of iterations. It does not mean
 the fit failed.
 
+One more line draws the fit:
+
+<!-- api-doc: no-exec — it needs a result from the reader's own data -->
+```python
+result.plot(path="my_sample.png", two_theta_range=(2.0, 12.0))
+```
+
+```{image} figures/nac-fit-light.png
+:class: only-light
+:alt: Observed, calculated and difference curves for the NAC fit, with a delta over sigma panel below
+```
+
+```{image} figures/nac-fit-dark.png
+:class: only-dark
+:alt: Observed, calculated and difference curves for the NAC fit, with a delta over sigma panel below
+```
+
+Observed points, the calculated line, one row of reflection ticks per phase,
+and Δ/σ in the lower panel. The difference is *weighted* by default, because a
+raw difference shares the intensity axis and the eye then reads a small
+deviation on a strong peak as a large error. Δ/σ has expectation 1 under a
+correct model, so the ±3 band is an absolute scale rather than a relative one.
+Pass `weighted=False` for the classic offset raw difference, and `style="dark"`
+for a figure going onto a dark page.
+
 **`Statistics.rwp` is a fraction, not a percentage.** 0.0932 is the Rwp of 9.3 %
 you would quote in a paper. Every R-factor in the package is stored this way.
 [](concepts.md) says what each statistic measures.
@@ -78,6 +103,20 @@ It pays a second time. A Le Bail report flags observed peaks the model does not
 account for, so an impurity phase shows up as unmatched peaks at positions you
 can identify — before it can distort a structural refinement by being absorbed
 into a background or a width.
+
+```{image} figures/impurity-peak-light.png
+:class: only-light
+:alt: Two zoomed panels near 7.5 degrees; the left has an observed peak with no calculated intensity, the right fits it
+```
+
+```{image} figures/impurity-peak-dark.png
+:class: only-dark
+:alt: Two zoomed panels near 7.5 degrees; the left has an observed peak with no calculated intensity, the right fits it
+```
+
+That is the mechanism in one picture, from the worked example below. The Le Bail
+fit knows nothing about CaF₂, so the line at 7.52° is observed intensity the
+model cannot place, and the report says so. Adding the phase accounts for it.
 
 ## Worked example: NAC on 11-BM
 

@@ -12,7 +12,10 @@ DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 WAVELENGTH = 0.4139090  # from 11bm_gsas.prm (INS 1 ICONS)
 
 
-def main() -> None:
+def run() -> tuple[rx.PatternData, rx.Refinement, rx.RefinementResult, rx.RefinementResult]:
+    """The refinement itself, so that anything else needing these results —
+    `docs/manual/make_figures.py` draws the manual's figures from them — reuses
+    this script rather than keeping a second copy of the walkthrough."""
     data = rx.read_pattern(DATA / "11BM_NAC.fxye")
     print(f"pattern: {len(data.two_theta)} points, "
           f"{data.two_theta[0]:.2f}-{data.two_theta[-1]:.2f} deg, "
@@ -77,6 +80,12 @@ def main() -> None:
           f"(COD reference 10.257(1); high-accuracy powder ~10.2497-10.2506)")
     for d in result.diagnostics:
         print(f"          [{d.level}] {d.code}: {d.message}")
+
+    return data, ref, lebail, result
+
+
+def main() -> None:
+    _, ref, _, result = run()
 
     report = rx.build_report(result)
     print("\nFitReport:", report.summary)

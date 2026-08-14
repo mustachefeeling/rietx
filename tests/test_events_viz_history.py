@@ -136,6 +136,31 @@ def test_plot_result_weighted_panels(synthetic_pattern):
     assert len(fig_raw.get_axes()) == 1
 
 
+def test_plot_style_dark_flips_the_ground_and_leaves_light_alone(synthetic_pattern):
+    """`style="dark"` exists because the difference curve and the background
+    line are chosen dark (WP-1068, for the manual's dark-mode figures), so a
+    plain `dark_background` context around the call would flip the axes and
+    leave those two invisible.  What matters is that the ground flips, the
+    series colours change with it, and the default path is untouched."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins, history=False)
+    result = ref.fit(synthetic_pattern)
+
+    OUT.mkdir(exist_ok=True)
+    light = result.plot(path=str(OUT / "viz_style_light.png"))
+    dark = result.plot(path=str(OUT / "viz_style_dark.png"), style="dark")
+
+    assert light.get_facecolor()[:3] == (1.0, 1.0, 1.0)
+    assert sum(dark.get_facecolor()[:3]) < 0.3, "dark style did not darken the figure"
+    # the difference curve is the one the plain style context would have lost
+    light_diff = light.get_axes()[1].get_lines()[0].get_color()
+    dark_diff = dark.get_axes()[1].get_lines()[0].get_color()
+    assert light_diff == "#4a4a4a" and dark_diff != light_diff
+
+    with pytest.raises(ValueError, match="style must be one of"):
+        result.plot(style="solarized")
+
+
 def test_minmax_decimation_keeps_peaks():
     from rietx.viz.html import _minmax_decimate
     tt = np.linspace(0, 100, 50_001)

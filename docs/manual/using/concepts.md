@@ -48,6 +48,23 @@ Two parameters are hard to separate when their effects on the pattern have the
 same shape in 2θ. Over the whole range of a good dataset the shapes differ. Over
 a short range they do not, and that is where the trouble is.
 
+```{image} figures/angular-signatures-light.png
+:class: only-light
+:alt: Four angular signatures over 110 degrees, where they separate, and over 20 degrees, where they nearly coincide
+```
+
+```{image} figures/angular-signatures-dark.png
+:class: only-dark
+:alt: Four angular signatures over 110 degrees, where they separate, and over 20 degrees, where they nearly coincide
+```
+
+Each curve is normalised to 1 at the middle of its range, because separability
+is a question about *shape* and not about scale: two effects that differ only by
+a constant factor are one parameter, whatever their sizes. On the left, over
+110° of data, the four are plainly different functions. On the right, over 20°,
+three of them are within a few per cent of each other and of a straight line.
+A refinement over that range reports four numbers and measures rather fewer.
+
 | Correlated group | Signatures | What goes wrong |
 |---|---|---|
 | zero shift · sample displacement · cell | constant · cos θ · tan θ | over a narrow 2θ range these three are collinear. A cell refined against a free zero shift on 20° of data is not measured. |

@@ -12,6 +12,11 @@ htmlcov/
 *.png
 *.html
 !docs/**/*.html
+# Part 1's figures are COMMITTED, not built (docs/manual/make_figures.py says
+# why): the sphinx build stays seconds and stays offline, at the cost of a
+# figure that can go stale.  `*.png` above would have dropped them silently,
+# leaving a manual whose images are broken everywhere except this machine.
+!docs/manual/using/figures/*.png
 # The GUI's built frontend is COMMITTED (WP-1010) so installing the wheel never
 # needs node — and `*.html` above would have quietly dropped its entry point,
 # leaving a dist whose freshness test passes on this machine while a fresh clone
