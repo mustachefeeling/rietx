@@ -96,8 +96,8 @@ after this one:
 - **`RefinementResult.parameter`** looks one parameter up by path, with its
   esd: `result.parameter("phases.0.cell.a").stderr`.
 - **`RefinementResult.diagnostics`** is the channel for "your answer is wrong
-  although Rwp is fine". Read it every time; the next chapter says what the
-  codes mean and what they do not.
+  although Rwp is fine". Read it every time; [](report.md) says what the codes
+  mean and what they do not.
 - **`build_report`** turns the result into a `FitReport` — where the misfit
   is, what would fix it, and whether it is confident enough to say so.
 
@@ -118,4 +118,4 @@ calculated and background curves are on the result as
 **Rwp is not the answer.** It is a fit statistic, and this package can show
 you a fit whose Rwp improved while its atomic displacement parameters and
 phase fractions moved *away* from the truth. What the package hands you
-instead is the next chapter; the judgement behind it is AGENT_PROTOCOL §4.
+instead is [](report.md); the judgement behind it is AGENT_PROTOCOL §4.

@@ -58,8 +58,8 @@ caps.package_version
 — each `BackendCapability` carries `BackendCapability.available` (does it
 import *here*), `BackendCapability.requires` (the distribution to install) and
 `BackendCapability.experimental`. The rest of the object, and the five
-versioned contracts it reports, are in the chapter on driving the package
-from a program.
+versioned contracts it reports, are in
+[](agents.md).
 
 ## From source
 

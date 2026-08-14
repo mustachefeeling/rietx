@@ -53,6 +53,7 @@ paraphrasing it.
 using/install
 using/quickstart
 using/report
+using/agents
 ```
 
 ## Part 2 — Theory
