@@ -149,7 +149,9 @@ because a fit statistic is blind to it.
   structural-versus-profile triage statistic: how much of the remaining misfit a
   free-intensity fit could remove. A large gap says the problem is the structure,
   not the profile. It is `None` outside Rietveld mode, which is absence for
-  cause.
+  cause. This is the IUCr guidelines' rule that a structure-free fit's Rwp is the
+  best profile fit the data allow, and a Rietveld Rwp should approach it
+  {cite}`mccusker1999` — measured rather than left to the reader.
 - **`FitReport.restraints`** — what each soft restraint is contributing.
 
 ## Layer 2: suggested actions
