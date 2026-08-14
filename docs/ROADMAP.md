@@ -347,7 +347,7 @@ start.
 | WP | Title | Status | Depends on |
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
-| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | ⬜ | 0604, 1004–1007, 1047 |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-14 — § Floor landed, so 1003 is unblocked; the 1.0.x chapters remain | 0604, 1004–1007, 1047 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once
 the panels settle. 1067 declares that beta status; its **§ Floor gates

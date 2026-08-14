@@ -487,13 +487,24 @@ recent list, and is therefore not behind the 409 (WP-1044).
 - Comparing against another code means **adopting its protocol**, not just
   its numbers: mirror its refine flags, held parameters and excluded regions,
   then check the channel count matches before believing any Rwp comparison.
-- The **theory manual** (`docs/manual/`) is guarded against drift by
-  `tests/test_manual.py`: the build runs `-W` in the fast suite, fenced
-  constants are MyST substitutions injected from the live package in
-  `docs/manual/conf.py`, every displayed equation carries a `*Source:*` line
-  whose symbol must import, and every bib entry must be cited. Renaming a
-  physics symbol or retuning a fenced constant means touching the manual in
-  the same change.
+- The **manual** (`docs/manual/`) is one `-W` Sphinx tree in two parts, each
+  guarded differently because each fails differently. **Part 2 — Theory**
+  (`tests/test_manual.py`): fenced constants are MyST substitutions injected
+  from the live package in `conf.py`, every displayed equation carries a
+  `*Source:*` line whose symbol must import, every bib entry is cited — so
+  renaming a physics symbol or retuning a fenced constant means touching the
+  manual in the same change. **Part 1 — Using rietx** (`docs/manual/using/`,
+  `tests/test_manual_api.py`): a reference manual's failure is a *name*, so
+  every dotted name and dot-path must resolve, every python block parses and
+  either executes or carries a written reason, and the public call surface is
+  partitioned into documented / excluded-with-a-reason / a generated deferred
+  bucket. That surface is **derived** (`tests/api_surface.py`, whose docstring
+  has the three rules), never listed — a curated list cannot notice a new
+  public method, `_SURFACE_FLAGS` one rank up — so **adding a public method or
+  field fails that partition until it is documented or deferred.**
+- **A walkthrough has one authority, and it is `examples/`.** The manual
+  `{literalinclude}`s those scripts and `tests/test_examples.py` runs them, so
+  a worked example is code that ran. Never write a third copy.
 
 ## Roadmap & how to work on it
 

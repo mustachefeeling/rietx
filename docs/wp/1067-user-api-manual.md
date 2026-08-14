@@ -1,6 +1,6 @@
 # WP-1067 — User & API manual (Part 1)
 
-Milestone: v1.0 § Floor, then 1.0.x · Status: ⬜
+Milestone: v1.0 § Floor, then 1.0.x · Status: 🔄 2026-08-14 — floor landed (gates 1003); the 1.0.x chapters remain
 Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
 (the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
 the rest ships after the release, so this WP stays open past the milestone and
@@ -265,42 +265,42 @@ still moving, which is why it was deferred.
 
 ### Floor — gates 1003
 
-- [ ] Split the tree: `index.md` becomes the manual's front page with two
+- [x] Split the tree: `index.md` becomes the manual's front page with two
       captioned `toctree` blocks; Part 2's chapters move under it unchanged;
       `conf.py`'s `html_title` and the H1 stop naming the whole tree "theory
       manual"; `CHAPTERS` becomes `rglob` **excluding `_build/`**. Builds
       `-W`-clean; `test_manual.py` green.
-- [ ] `tests/api_surface.py` — **derives** the public call surface (declared
+- [x] `tests/api_surface.py` — **derives** the public call surface (declared
       members of the exported types and of the rietx-defined types reachable
       from them; inherited pydantic machinery, dunders and privates filtered —
       the two derivation rules in Context) and hand-writes only the exclusions
       and chapter assignments, each with a reason, plus the `deferred-1.0.x`
       bucket. This is the surface 1003 freezes; say so in its docstring.
-- [ ] The guard, before the prose it guards: `tests/test_manual_api.py` —
+- [x] The guard, before the prose it guards: `tests/test_manual_api.py` —
       names resolve, dot-paths resolve, blocks compile, blocks execute or
       carry a reason, and the derived surface is partitioned. **Make it fail
       on purpose twice**: rename a documented symbol, and add a public method
       to an exported type without touching the manual. The second is the one
       that matters.
-- [ ] `using/install.md` — extras and what each buys, the numpy-only default,
+- [x] `using/install.md` — extras and what each buys, the numpy-only default,
       `[gui]` as a plotly-only extra over a committed dist, running the suite,
       and a link to `docs/VALIDATION.md` for what the package is known to get
       right.
-- [ ] `using/quickstart.md` — one fit end to end as a `{literalinclude}` of
+- [x] `using/quickstart.md` — one fit end to end as a `{literalinclude}` of
       `examples/nac_11bm.py`, plus `tests/test_examples.py`, which executes
       that script under `@pytest.mark.slow` with an `xdist_group`. States the
       structure-free-first order and links AGENT_PROTOCOL §2 rather than
       restating it.
-- [ ] `using/report.md` — **the object model, not the judgement** (see
+- [x] `using/report.md` — **the object model, not the judgement** (see
       Context): the three layers and their four gates, abstention as a result,
       `evidence`, the stage trajectory (a converged report is routinely the
       least informative in the run), and "did that correction help?" via
       `viz.compare.run` headless plus the cumulative-Δχ² reading.
-- [ ] `using/agents.md` — `refine_json`, `tool_definition()`, `capabilities()`
+- [x] `using/agents.md` — `refine_json`, `tool_definition()`, `capabilities()`
       and the five versioned contracts, then hand off to AGENT_PROTOCOL. Push
       the packaging constraint and the README deduplication into 1003's
       `### Inherited`.
-- [ ] README: docs pointer becomes "the manual, in two parts"; the theory-
+- [x] README: docs pointer becomes "the manual, in two parts"; the theory-
       manual capability row is restated; the **GUI is declared beta** with
       `rietx gui` named and 1017 recorded as deferred; quoted test counts
       re-measured per root CLAUDE.md § Numbers. Examples stay for now — the
