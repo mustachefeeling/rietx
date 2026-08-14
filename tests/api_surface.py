@@ -188,13 +188,38 @@ def _module_members(module: types.ModuleType) -> list[tuple[str, object]]:
     ]
 
 
+def _annotated_types_of(func: object) -> set[type]:
+    """rietx classes named in a function's signature — its return type above
+    all.  `capabilities()` returns a `Capabilities`, which is exported
+    nowhere: seeding only from exported *classes* left the one type
+    `using/agents.md` documents off the surface entirely.
+    """
+    try:
+        annotations = list(typing.get_type_hints(func).values())
+    except Exception:
+        return set()
+    found: set[type] = set()
+    while annotations:
+        node = annotations.pop()
+        if inspect.isclass(node) and is_rietx(node):
+            found.add(node)
+        annotations.extend(arg for arg in typing.get_args(node) if arg is not None)
+    return found
+
+
 def _seed_types() -> list[type]:
-    """Exported classes, plus the classes an exported module defines itself."""
-    seeds = [obj for name in rietx.__all__ if inspect.isclass(obj := getattr(rietx, name))]
+    """Exported classes, the types exported functions name in their
+    signatures, and the classes an exported module defines itself."""
+    seeds: list[type] = []
     for name in rietx.__all__:
         obj = getattr(rietx, name)
-        if isinstance(obj, types.ModuleType):
-            seeds.extend(v for _, v in _module_members(obj) if inspect.isclass(v))
+        if inspect.isclass(obj):
+            seeds.append(obj)
+        elif isinstance(obj, types.ModuleType):
+            for _, value in _module_members(obj):
+                seeds.extend([value] if inspect.isclass(value) else _annotated_types_of(value))
+        elif callable(obj):
+            seeds.extend(_annotated_types_of(obj))
     return seeds
 
 
