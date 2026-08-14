@@ -72,7 +72,14 @@ SIZE_CAPS: dict[str, int | None] = {
     # opens docs/manual/ still needs: adding a public method or field fails
     # the manual's coverage partition until it is documented or deferred.
     # Net +11 lines after the theory-manual bullet was rewritten to cover both.
-    "CLAUDE.md": 620,
+    # 620 -> 625 for WP-1068 (2026-08-14): the manual bullet gains the clause a
+    # session that never opens docs/manual/ still needs — a green sphinx build
+    # is not a rendered page, and Part 1's figures are committed artefacts with
+    # a generator, so touching either means regenerating and *looking*.  The
+    # operating detail went down a rank as this comment requires: the figure
+    # recipes are in make_figures.py's docstring, the chapters' own rules in
+    # the WP.
+    "CLAUDE.md": 625,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     "tests/CLAUDE.md": 180,
