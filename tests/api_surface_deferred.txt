@@ -87,12 +87,8 @@ Atom.species
 Atom.x
 Atom.y
 Atom.z
-BackendCapability
-BackendCapability.available
 BackendCapability.dtype
-BackendCapability.experimental
 BackendCapability.name
-BackendCapability.requires
 BackgroundChebyshev
 BackgroundChebyshev.coefficients
 BackgroundChebyshev.kind
@@ -167,7 +163,6 @@ CandidateGroup.members
 CandidateGroup.resolved
 Capabilities
 Capabilities.anodes
-Capabilities.backends
 Capabilities.centrings
 Capabilities.crystal_systems
 Capabilities.event_schema_version
@@ -793,7 +788,6 @@ RefinementResult.mode
 RefinementResult.node_id
 RefinementResult.parameter
 RefinementResult.parameters
-RefinementResult.plot
 RefinementResult.provenance
 RefinementResult.qpa
 RefinementResult.restraints
@@ -1193,9 +1187,7 @@ agent.refine_json
 agent.request_schema
 agent.response_schema
 agent.tool_definition
-auto_background
 build_report
-capabilities
 determine_extinction_symbol
 diagnose
 estimate_mu_r

@@ -46,6 +46,13 @@ measured findings that change an operator's behaviour live in
 paraphrasing it.
 :::
 
+```{toctree}
+:caption: Part 1 — Using rietx
+:maxdepth: 2
+
+using/install
+```
+
 ## Part 2 — Theory
 
 **Conventions are stated by physics, never by letters.** Rietveld codes

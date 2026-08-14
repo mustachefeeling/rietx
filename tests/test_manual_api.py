@@ -37,6 +37,7 @@ from __future__ import annotations
 import ast
 import importlib
 import re
+import typing
 from fnmatch import fnmatch
 from pathlib import Path
 
@@ -49,6 +50,7 @@ from tests.api_surface import (
     EXCLUSIONS,
     derive_surface,
     load_deferred,
+    reachable_types,
 )
 from tests.test_coordinates import make_rutile
 from tests.test_schemas import make_lab6
@@ -159,11 +161,44 @@ def _parameter_paths() -> set[str]:
 # --- names ----------------------------------------------------------------
 
 
+def _rietx_class_in(annotation: object) -> type | None:
+    """The rietx class inside an annotation, past any Optional/list/dict."""
+    stack = [annotation]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, type) and (getattr(node, "__module__", "") or "").startswith("rietx"):
+            return node
+        stack.extend(arg for arg in typing.get_args(node) if arg is not None)
+    return None
+
+
+def _step(obj: object, attr: str) -> tuple[bool, object]:
+    """One attribute hop, over classes and pydantic fields alike.
+
+    A pydantic v2 model does not carry its fields as class attributes, so
+    `getattr(Capabilities, "backends")` raises: a field hop reads
+    `model_fields` and continues from the annotated type.
+    """
+    if isinstance(obj, type):
+        fields = getattr(obj, "model_fields", None) or {}
+        if attr in fields:
+            return True, _rietx_class_in(fields[attr].annotation)
+    value = getattr(obj, attr, None)
+    return value is not None, value
+
+
 def test_every_dotted_name_resolves():
     """A dotted rietx name in Part 1 imports and attributes out.  This is the
     WP-1037 bug's shape: the manual says `index`, the package exports
-    `index_pattern`, and nothing notices."""
+    `index_pattern`, and nothing notices.
+
+    Resolution starts from the derived type registry, not from `rietx`:
+    `Statistics` and `Capabilities` are reachable and documented types that
+    `__all__` does not export, and traversing from the package would refuse
+    them for the wrong reason.
+    """
     surface = derive_surface()
+    types_by_name = reachable_types()
     roots = {name.split(".")[0] for name in surface}
     rietx = importlib.import_module("rietx")
     for page, text in _pages():
@@ -174,10 +209,32 @@ def test_every_dotted_name_resolves():
             head, _, tail = dotted.partition(".")
             if head not in roots:
                 continue
-            obj = rietx
-            for attr in [head, *tail.split(".")]:
-                obj = getattr(obj, attr, None)
-                assert obj is not None, f"{page.name}: `{token}` — no attribute {attr!r}"
+            obj = types_by_name.get(head) or getattr(rietx, head, None)
+            assert obj is not None, f"{page.name}: `{token}` — nothing named {head!r}"
+            for attr in tail.split("."):
+                ok, obj = _step(obj, attr)
+                assert ok, f"{page.name}: `{token}` — {head} has no member {attr!r}"
+                if obj is None:  # a field of a non-rietx type: nothing further to walk
+                    break
+
+
+def test_imports_shown_in_part_one_exist():
+    """`from rietx import capabilities` in a chapter names something the
+    package exports.  A bare name is not dotted, so the resolver above cannot
+    see it, and an executed block would only catch it if the block runs — this
+    catches it in a block that is exempt, and in a code span."""
+    pattern = re.compile(r"from\s+(rietx[\w.]*)\s+import\s+([^\n(]+)")
+    for page, text in _pages():
+        for module_name, names in pattern.findall(_code_text(page, text)):
+            module = importlib.import_module(module_name)
+            for name in (part.strip() for part in names.split(",")):
+                if not name:
+                    continue
+                imported = name.split(" as ")[0].strip()
+                assert hasattr(module, imported), (
+                    f"{page.name}: `from {module_name} import {imported}` — "
+                    f"{module_name} exports no {imported!r}"
+                )
 
 
 def test_parameter_dot_paths_resolve():
