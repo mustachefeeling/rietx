@@ -27,7 +27,7 @@ from rietx.model.forward import PAWLEY_OVERLAP_FWHM_FRAC, WINDOW_FWHM_MULT
 from rietx.model.profiles.fcj import NODES_PER_FWHM, SKIP_EXTENT_FWHM_RATIO
 from rietx.optimize.qpa import BRINDLEY_MU_R_FENCE
 from rietx.report.layer2 import IMPURITY_SIGMA
-from rietx.report.schemas import THRESHOLDS_VERSION
+from rietx.report.schemas import THRESHOLDS_VERSION, VALIDITY_RADIUS_FWHM
 from rietx.schemas.indexing import MAX_RELATIVE_SIGMA_Q, MIN_LINES_PER_DOF
 from rietx.schemas.suggest import SUGGEST_MIN_GAIN
 
@@ -62,6 +62,7 @@ myst_substitutions = {
     "SUGGEST_MIN_GAIN": SUGGEST_MIN_GAIN,
     "SYMMETRY_ANGLE_TOL_DEG": SYMMETRY_ANGLE_TOL_DEG,
     "THRESHOLDS_VERSION": THRESHOLDS_VERSION,
+    "VALIDITY_RADIUS_FWHM": VALIDITY_RADIUS_FWHM,
     "WINDOW_FWHM_MULT": WINDOW_FWHM_MULT,
     "release": release,
 }

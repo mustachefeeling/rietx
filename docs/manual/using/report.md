@@ -66,7 +66,7 @@ not passing:
 | local significance | `RegionAttribution.chi2_reduced`, `RegionAttribution.has_significant_misfit` | a region whose "misfit" is noise |
 | explanatory power | `RegionAttribution.r2` | a residual this basis does not explain at all |
 | resolvability | `RegionAttribution.gram_condition` | columns too collinear here to be told apart |
-| validity radius | (0.4·FWHM on the position coefficient) | a peak far enough away that linearising it is meaningless — the answer must be "re-detect this peak", never a confident small offset |
+| validity radius | ({{ VALIDITY_RADIUS_FWHM }}·FWHM on the position coefficient) | a peak far enough away that linearising it is meaningless — the answer must be "re-detect this peak", never a confident small offset |
 
 `RegionAttribution.gates_passed` is the verdict and
 `RegionAttribution.gate_failures` names each failure with its numbers, so a
