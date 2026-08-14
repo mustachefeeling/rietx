@@ -381,7 +381,7 @@ def test_transmission_applies_its_factor_even_with_no_declared_thickness():
     the opt-in, and the record says so by reporting µt = 0 rather than staying
     silent.
     """
-    import rietx as pr
+    import rietx as rx
 
     model, _ = _flat_plate_model(0.0, "flat_plate_transmission")
     object.__setattr__(model, "mu_t", None)
@@ -392,7 +392,7 @@ def test_transmission_applies_its_factor_even_with_no_declared_thickness():
     assert result.absorption is not None, "an applied factor must be reported"
     assert result.absorption.mu_r == 0.0
     assert result.absorption.method == "flat_plate_transmission"
-    assert pr.Instrument.flat_plate_transmission().geometry.mu_t is None
+    assert rx.Instrument.flat_plate_transmission().geometry.mu_t is None
 
 
 def test_debye_scherrer_ignores_mu_t_and_flat_plate_ignores_mu_r():
@@ -411,30 +411,30 @@ def test_debye_scherrer_ignores_mu_t_and_flat_plate_ignores_mu_r():
 
 def _fit_flat_plate(kind: str, **geometry):
     """A tiny end-to-end Rietveld fit against a self-generated pattern."""
-    import rietx as pr
+    import rietx as rx
     from tests.test_aniso_adp import make_aniso_rutile
 
     structure = make_aniso_rutile()
     structure.phases[0].scale.value = 1e-3
     if kind == "flat_plate_transmission":
-        ins = pr.Instrument.flat_plate_transmission(radiation="CuKa1", **geometry)
+        ins = rx.Instrument.flat_plate_transmission(radiation="CuKa1", **geometry)
     else:
-        ins = pr.Instrument.bragg_brentano(radiation="CuKa1", **geometry)
+        ins = rx.Instrument.bragg_brentano(radiation="CuKa1", **geometry)
     ins.profile.w.value = 1e-2
     grid = np.arange(15.0, 90.0, 0.05)
     from rietx.model.forward import compile_model
     from rietx.params.vector import ParameterTable
     table = ParameterTable(structure, ins)
     model = compile_model(structure, ins,
-                          pr.PatternData(two_theta=grid.tolist(),
+                          rx.PatternData(two_theta=grid.tolist(),
                                          intensity=np.ones_like(grid).tolist()),
                           mode="rietveld", free_paths=set())
     y = np.asarray(model.evaluate(table.decode(table.x0())))
-    data = pr.PatternData(two_theta=grid.tolist(),
+    data = rx.PatternData(two_theta=grid.tolist(),
                           intensity=(y + 1.0).tolist())
-    ref = pr.Refinement(structure, ins, history=False)
-    return ref.fit(data, plan=pr.RefinementPlan(
-        stages=[pr.Stage("scale", ["phases.*.scale"])]))
+    ref = rx.Refinement(structure, ins, history=False)
+    return ref.fit(data, plan=rx.RefinementPlan(
+        stages=[rx.Stage("scale", ["phases.*.scale"])]))
 
 
 def test_record_reports_the_bias_and_the_part_that_is_not_a_reparameterisation():
@@ -522,16 +522,16 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
        predicted shift is exact to seven decimals on real data
        (``test_acceptance_capillary``). That contrast is the whole point.
     """
-    import rietx as pr
+    import rietx as rx
     from rietx.model.forward import compile_model
     from rietx.params.vector import ParameterTable
     from tests.test_aniso_adp import make_aniso_rutile
 
     b_true = 0.8
     grid = np.arange(15.0, 130.0, 0.02)
-    plan = pr.RefinementPlan(stages=[
-        pr.Stage("scale", ["phases.*.scale"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale", ["phases.*.scale"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
     def build(mu_t):
@@ -540,8 +540,8 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
         phase.scale.value = 1e-3
         for atom in phase.atoms:      # isotropic, so Biso is the only sink
             atom.aniso = None
-            atom.biso = pr.Parameter(value=b_true, min=0.0, max=5.0)
-        ins = pr.Instrument.bragg_brentano(radiation="CuKa1", mu_t=mu_t)
+            atom.biso = rx.Parameter(value=b_true, min=0.0, max=5.0)
+        ins = rx.Instrument.bragg_brentano(radiation="CuKa1", mu_t=mu_t)
         ins.profile.w.value = 1e-2
         return structure, ins
 
@@ -550,13 +550,13 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
         truth, ins_true = build(mu_t)
         table = ParameterTable(truth, ins_true)
         model = compile_model(truth, ins_true,
-                              pr.PatternData(two_theta=grid.tolist(),
+                              rx.PatternData(two_theta=grid.tolist(),
                                              intensity=np.ones_like(grid).tolist()),
                               mode="rietveld", free_paths=set())
         y = np.asarray(model.evaluate(table.decode(table.x0())))
         # no background offset: the plan frees only the scale and Biso, so an
         # unmodelled constant would be absorbed by the parameters under test
-        data = pr.PatternData(two_theta=grid.tolist(), intensity=y.tolist(),
+        data = rx.PatternData(two_theta=grid.tolist(), intensity=y.tolist(),
                               sigma=np.sqrt(np.maximum(y, 1.0)).tolist())
 
         fits = {}
@@ -564,7 +564,7 @@ def test_a_neglected_thickness_lands_in_biso_and_the_prediction_is_a_lower_bound
             structure, ins = build(declared)
             for atom in structure.phases[0].atoms:
                 atom.biso.value = 0.5      # start away from the truth either way
-            ref = pr.Refinement(structure, ins, history=False)
+            ref = rx.Refinement(structure, ins, history=False)
             result = ref.fit(data, plan=plan)
             assert result.status == "converged"
             fits[declared] = (ref, result)

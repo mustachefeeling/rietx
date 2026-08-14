@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.model.profiles.faddeeva import WEIDEMAN_N, faddeeva_w
 from rietx.model.profiles.pseudovoigt import pseudo_voigt
@@ -144,8 +144,8 @@ def test_shape_defaults_to_tchz_and_threads_to_compiled_model():
     from tests.test_lab_instrument import _lab6_phase, _lab_instrument
     ins = _lab_instrument()
     assert ins.profile.shape == "tchz_pv"        # default
-    structure = pr.Structure(phases=[_lab6_phase()])
-    pattern = pr.PatternData(two_theta=np.arange(20.0, 90.0, 0.05).tolist(),
+    structure = rx.Structure(phases=[_lab6_phase()])
+    pattern = rx.PatternData(two_theta=np.arange(20.0, 90.0, 0.05).tolist(),
                              intensity=[50.0] * len(np.arange(20.0, 90.0, 0.05)))
     assert compile_model(structure, ins, pattern).shape == "tchz_pv"
     ins.profile.shape = "voigt"
@@ -250,26 +250,26 @@ def test_voigt_end_to_end_refines_and_plots():
 
     rng = np.random.default_rng(5)
     true_a = 4.1568
-    structure = pr.Structure(phases=[_lab6_phase(true_a)])
+    structure = rx.Structure(phases=[_lab6_phase(true_a)])
     ins = _lab_instrument()
     ins.profile.shape = "voigt"
     ins.geometry.axial_sl.value = 0.03
     ins.geometry.axial_hl.value = 0.03
     tt = np.arange(18.0, 130.0, 0.02)
-    pattern0 = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    pattern0 = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
     model = compile_model(structure, ins, pattern0)
     table = ParameterTable(structure, ins)
     y = model.evaluate(table.decode(table.x0())) + 50.0
     y_noisy = rng.poisson(np.maximum(y, 1.0) * 20.0) / 20.0
-    data = pr.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
+    data = rx.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
                           sigma=np.sqrt(np.maximum(y, 1.0) / 20.0).tolist())
 
-    start_structure = pr.Structure(phases=[_lab6_phase(true_a + 0.002)])
+    start_structure = rx.Structure(phases=[_lab6_phase(true_a + 0.002)])
     start = _lab_instrument()
     start.profile.shape = "voigt"
     start.geometry.axial_sl.value = 0.03
     start.geometry.axial_hl.value = 0.03
-    ref = pr.Refinement(start_structure, start)
+    ref = rx.Refinement(start_structure, start)
     result = ref.fit(data, plan="lab_bragg_brentano")
 
     assert result.status == "converged"

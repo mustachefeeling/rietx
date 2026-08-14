@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.agent import refine_json
 from rietx.report import predict_then_verify
 from rietx.report.apply import recipe
@@ -85,7 +85,7 @@ class RoundRecord:
 
 @dataclass
 class EpisodeResult:
-    ref: pr.Refinement
+    ref: rx.Refinement
     rounds: list[RoundRecord] = field(default_factory=list)
     stop_reason: str = ""
     bootstrap_chi2: float = 0.0
@@ -168,7 +168,7 @@ def _run_report_loop(structure, instrument, data, *,
     (``set_vary([], True)`` frees nothing; ``_prepare_table(restore=True)``
     restores the node's free set).
     """
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     ref.fit(data, plan=RefinementPlan(stages=[
         Stage("bootstrap", ["instrument.background.*"])]))
     episode = EpisodeResult(ref=ref, bootstrap_chi2=ref.result_.statistics.chi2)
@@ -367,7 +367,7 @@ def test_e1_zero_shift_baseline(truth):
     start = ins.model_copy(deep=True)
     start.zero_shift.value = 0.008
 
-    ref = pr.Refinement(structure, start)
+    ref = rx.Refinement(structure, start)
     ref.fit(data, plan="mccusker_default")
     assert ref.fitted_instrument.zero_shift.value == pytest.approx(0.0, abs=0.002)
 
@@ -418,7 +418,7 @@ def test_e2_sample_displacement_baseline(truth):
     start = ins.model_copy(deep=True)
     start.geometry.sample_displacement.value = -0.02
 
-    ref = pr.Refinement(structure, start)
+    ref = rx.Refinement(structure, start)
     ref.fit(data, plan="mccusker_default")
     assert ref.fitted_instrument.geometry.sample_displacement.value == -0.02
     # the compensation is real: zero was dragged off truth to cover for it
@@ -545,7 +545,7 @@ def test_e3_width_error_baseline(truth):
     start = ins.model_copy(deep=True)
     start.profile.w.value = 2.0e-3
 
-    ref = pr.Refinement(structure, start)
+    ref = rx.Refinement(structure, start)
     ref.fit(data, plan="mccusker_default")
     w = ref.fitted_instrument.profile.w.value
     assert w == pytest.approx(4.0e-3, rel=0.20), w
@@ -586,7 +586,7 @@ def test_e4_scale_error_baseline(truth):
     start = structure.model_copy(deep=True)
     start.phases[0].scale.value = 4e-4 * 0.90
 
-    ref = pr.Refinement(start, ins)
+    ref = rx.Refinement(start, ins)
     ref.fit(data, plan="mccusker_default")
     assert ref.fitted_structure.phases[0].scale.value == pytest.approx(
         4e-4, rel=0.02)
@@ -610,7 +610,7 @@ def test_e5_impurity_stops_the_loop(truth):
     tt = np.asarray(data.two_theta)
     y = np.asarray(data.intensity, dtype=float)
     y = y + 900.0 * np.exp(-0.5 * ((tt - 29.35) / 0.06) ** 2)
-    doped = pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+    doped = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
                            sigma=data.sigma)
 
     episode = _run_report_loop(structure, ins, doped)
@@ -667,7 +667,7 @@ def test_e6_wrong_cell_applies_no_position_action(truth):
 
     structure, ins, data = truth
     start = structure.model_copy(deep=True)
-    start.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+    start.phases[0].cell = rx.Cell.cubic(4.1568 * 1.004)
 
     episode = _run_report_loop(start, ins, data)
 
@@ -711,7 +711,7 @@ def test_e7_hopeless_start_abstains_and_stops(truth):
     ``abstained_reason`` is set, which is what the loop keys off."""
     structure, ins, data = truth
     start = structure.model_copy(deep=True)
-    start.phases[0].cell = pr.Cell.cubic(4.60)
+    start.phases[0].cell = rx.Cell.cubic(4.60)
     start.phases[0].scale.value = 4e-5
 
     episode = _run_report_loop(start, ins, data)

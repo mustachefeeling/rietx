@@ -3,7 +3,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
-import rietx as pr
+import rietx as rx
 from rietx import Instrument, Parameter, PatternData, Structure
 from rietx.schemas import Atom, Cell, Phase
 
@@ -76,13 +76,13 @@ def test_stage_spec_mirrors_every_stage_field():
 
     from rietx.schemas.plan import StageSpec
 
-    assert set(StageSpec.model_fields) == {f.name for f in dataclasses.fields(pr.Stage)}
+    assert set(StageSpec.model_fields) == {f.name for f in dataclasses.fields(rx.Stage)}
 
 
 def test_stage_spec_round_trips_strain_seed():
     from rietx.schemas.plan import StageSpec
 
-    stage = pr.Stage("sample_broadening", ["phases.*.microstrain.dof.*"],
+    stage = rx.Stage("sample_broadening", ["phases.*.microstrain.dof.*"],
                      seed=1e-3, strain_seed=1000.0)
     back = StageSpec.model_validate_json(
         StageSpec.from_stage(stage).model_dump_json()).to_stage()

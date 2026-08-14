@@ -177,10 +177,10 @@ def _qarr(name: str):
     from tests.test_acceptance_qpa_roundrobin import qarr_instrument
     if not (QARR / name).exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    import rietx as pr
+    import rietx as rx
     ins = qarr_instrument()
     assert ins.source.dispersion is None
-    return pr.read_pattern(QARR / name), ins
+    return rx.read_pattern(QARR / name), ins
 
 
 @pytest.fixture(scope="module")

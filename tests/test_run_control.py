@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.history.events import (
     EVENT_SCHEMA_VERSION,
     EventKind,
@@ -17,10 +17,10 @@ from rietx.history.events import (
 from rietx.optimize.cancel import CancelToken, RefinementCancelled
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
-PLAN = pr.RefinementPlan(stages=[
-    pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=30),
-    pr.Stage("zero", ["instrument.zero_shift"], max_iter=30),
-    pr.Stage("cell", ["phases.*.cell.*"], max_iter=30),
+PLAN = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=30),
+    rx.Stage("zero", ["instrument.zero_shift"], max_iter=30),
+    rx.Stage("cell", ["phases.*.cell.*"], max_iter=30),
 ])
 
 
@@ -32,7 +32,7 @@ def pattern():
 @pytest.fixture
 def ref():
     structure, ins = perturbed_models()
-    return pr.Refinement(structure, ins)
+    return rx.Refinement(structure, ins)
 
 
 def collect(events: list) -> dict[str, list[dict]]:
@@ -166,7 +166,7 @@ def test_cancel_stops_within_two_further_evals(ref, pattern):
 def test_cancel_reports_what_completed(pattern, solver):
     """The caller must learn where the working state stands, on both drivers."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins, solver=solver)
+    ref = rx.Refinement(structure, ins, solver=solver)
     token = CancelToken()
     # let the first stage finish, then cancel inside the second
     state = {"stage": None}
@@ -194,7 +194,7 @@ def test_cancelled_stage_leaves_no_node_and_no_commit(ref, pattern):
         if event["kind"] == "eval":
             token.cancel()
 
-    ref.fit(pattern, plan=pr.RefinementPlan(stages=PLAN.stages[:1]))
+    ref.fit(pattern, plan=rx.RefinementPlan(stages=PLAN.stages[:1]))
     n_nodes, head = len(ref.history), ref.history.head
     before = ref.structure.phases[0].cell.a.value
 
@@ -222,7 +222,7 @@ def test_cancelled_stage_does_not_leave_its_seed_behind(ref, pattern):
     assert ref.structure.phases[0].extinction.value == 0.0
     with pytest.raises(RefinementCancelled):
         ref.run_stage(pattern,
-                      pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3),
+                      rx.Stage("extinction", ["phases.*.extinction"], seed=1e-3),
                       events=watch, cancel=token)
     assert ref.structure.phases[0].extinction.value == 0.0
 
@@ -249,7 +249,7 @@ def test_an_unset_token_costs_nothing_semantically(ref, pattern):
     """Passing a token that is never set must not change the answer."""
     result = ref.fit(pattern, plan=PLAN, cancel=CancelToken())
     structure, ins = perturbed_models()
-    plain = pr.Refinement(structure, ins).fit(pattern, plan=PLAN)
+    plain = rx.Refinement(structure, ins).fit(pattern, plan=PLAN)
     assert result.statistics.rwp == plain.statistics.rwp
     assert (result.parameters[0].value, result.parameters[0].path) == (
         plain.parameters[0].value, plain.parameters[0].path)

@@ -68,7 +68,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import _make_jacobian, _make_residual
 from rietx.params.vector import ParameterTable
@@ -98,20 +98,20 @@ def _state_srm660c():
     path = DATA / "nist_srm660c_100a.cif"
     if not path.exists():
         return None
-    data = pr.read_pdcif(path, block="_meas")
-    structure = pr.Structure(phases=[pr.Phase(
-        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
+    data = rx.read_pdcif(path, block="_meas")
+    structure = rx.Structure(phases=[rx.Phase(
+        name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
         atoms=[
-            pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.355, min=0.0, max=25.0)),
-            pr.Atom(label="B", species="B", x=pr.Parameter(value=0.198),
-                    y=pr.Parameter(value=0.5), z=pr.Parameter(value=0.5),
-                    biso=pr.Parameter(value=0.276, min=0.0, max=25.0)),
+            rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.355, min=0.0, max=25.0)),
+            rx.Atom(label="B", species="B", x=rx.Parameter(value=0.198),
+                    y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5),
+                    biso=rx.Parameter(value=0.276, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"),
     )])
-    instrument = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     instrument.source.dispersion = None   # declined, not inherited — see _toy_base
     instrument.profile.w.value = 2e-3
     instrument.profile.x.value = 5e-3
@@ -138,26 +138,26 @@ def _state_srm660c():
     return model, table, {}
 
 
-def _caf2_phase() -> pr.Phase:
-    return pr.Phase(
-        name="CaF2", space_group="F m -3 m", cell=pr.Cell.cubic(5.4631),
+def _caf2_phase() -> rx.Phase:
+    return rx.Phase(
+        name="CaF2", space_group="F m -3 m", cell=rx.Cell.cubic(5.4631),
         atoms=[
-            pr.Atom(label="Ca", species="Ca2+", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.6, min=0.0, max=25.0)),
-            pr.Atom(label="F", species="F1-", x=pr.Parameter(value=0.25),
-                    y=pr.Parameter(value=0.25), z=pr.Parameter(value=0.25),
-                    biso=pr.Parameter(value=0.9, min=0.0, max=25.0)),
+            rx.Atom(label="Ca", species="Ca2+", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.6, min=0.0, max=25.0)),
+            rx.Atom(label="F", species="F1-", x=rx.Parameter(value=0.25),
+                    y=rx.Parameter(value=0.25), z=rx.Parameter(value=0.25),
+                    biso=rx.Parameter(value=0.9, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-7, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-7, min=0.0, transform="softplus"),
     )
 
 
 def _state_nac():
     if not (DATA / "11BM_NAC.fxye").exists():
         return None
-    data = pr.read_pattern(DATA / "11BM_NAC.fxye")
-    structure = pr.Structure.from_cif(str(DATA / "cod_1000236.cif"))
+    data = rx.read_pattern(DATA / "11BM_NAC.fxye")
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
     structure.phases[0].scale.value = 1e-6
     structure.phases.append(_caf2_phase())
     instrument = Instrument.debye_scherrer(wavelength=0.4139090)
@@ -180,7 +180,7 @@ def _state_nac():
     return model, table, {}
 
 
-def _toy_base(*, c_near_a: bool = False) -> tuple[pr.Structure, Instrument, PatternData]:
+def _toy_base(*, c_near_a: bool = False) -> tuple[rx.Structure, Instrument, PatternData]:
     """Deterministic rutile toy: y_obs from a perturbed copy of the model.
 
     ``c_near_a`` squeezes the tetragonal cell pseudo-cubic so (hkl)/(lkh)
@@ -483,8 +483,8 @@ def _state_toy_roughness():
     instrument.profile.w.value = 8e-3
     instrument.background = BackgroundChebyshev.with_terms(4)
     instrument.geometry.surface_roughness = RoughnessSuortti(
-        a=pr.Parameter(value=0.45, min=0.0, max=1.0),
-        b=pr.Parameter(value=0.32, min=0.0, max=5.0, transform="softplus"))
+        a=rx.Parameter(value=0.45, min=0.0, max=1.0),
+        b=rx.Parameter(value=0.32, min=0.0, max=5.0, transform="softplus"))
     grid = np.arange(12.0, 80.0, 0.02)
     empty = PatternData(two_theta=grid.tolist(),
                         intensity=np.zeros_like(grid).tolist())

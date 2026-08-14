@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.io.formats import (
     METADATA_KEYS,
     PATTERN_FORMATS,
@@ -53,13 +53,13 @@ def test_a_scan_stored_high_to_low_is_reversed_and_says_so(tmp_path):
     """
     p = write_xy(tmp_path / "down.xy", [30.0, 20.0, 10.0], [3.0, 2.0, 1.0])
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.two_theta == [10.0, 20.0, 30.0]
     assert data.intensity == [1.0, 2.0, 3.0]     # carried with its own 2θ
     assert [d.code for d in notes] == ["PATTERN_SCAN_REVERSED"]
     # and with no list to report into it still reads: the channel is optional
-    assert pr.read_pattern(p).two_theta == [10.0, 20.0, 30.0]
+    assert rx.read_pattern(p).two_theta == [10.0, 20.0, 30.0]
 
 
 def test_the_esd_column_is_reversed_with_the_points_it_belongs_to(tmp_path):
@@ -67,7 +67,7 @@ def test_the_esd_column_is_reversed_with_the_points_it_belongs_to(tmp_path):
     re-pair every weight with the wrong channel — invisible in every plot."""
     p = write_xy(tmp_path / "down.xye", [3.0, 2.0, 1.0], [30.0, 20.0, 10.0],
                  [3.3, 2.2, 1.1])
-    data = pr.read_pattern(p)
+    data = rx.read_pattern(p)
     assert data.two_theta == [1.0, 2.0, 3.0]
     assert data.sigma == [1.1, 2.2, 3.3]
 
@@ -77,7 +77,7 @@ def test_a_repeated_point_with_the_same_intensity_is_dropped(tmp_path):
     p = write_xy(tmp_path / "dup.xy", [10.0, 20.0, 20.0, 30.0],
                  [1.0, 2.0, 2.0, 3.0])
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.two_theta == [10.0, 20.0, 30.0]
     assert [d.code for d in notes] == ["PATTERN_DUPLICATE_POINTS"]
@@ -93,7 +93,7 @@ def test_a_repeated_point_with_a_different_intensity_is_refused(tmp_path):
     p = write_xy(tmp_path / "clash.xy", [10.0, 20.0, 20.0, 30.0],
                  [1.0, 2.0, 7.0, 3.0])
     with pytest.raises(ValueError, match=r"20.*appears twice"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_stitched_ranges_are_refused_rather_than_sorted_or_concatenated(tmp_path):
@@ -103,7 +103,7 @@ def test_stitched_ranges_are_refused_rather_than_sorted_or_concatenated(tmp_path
     p = write_xy(tmp_path / "stitch.xy", [10.0, 11.0, 12.0, 10.5, 11.5],
                  [1.0, 2.0, 3.0, 4.0, 5.0])
     with pytest.raises(ValueError, match="does not run in one direction"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_the_scan_option_is_named_only_by_a_format_that_has_one(tmp_path):
@@ -127,7 +127,7 @@ def test_a_non_constant_step_is_neither_repaired_nor_refused(tmp_path):
     p = write_xy(tmp_path / "vary.xy", [10.0, 10.1, 10.3, 10.6, 11.0],
                  [1.0, 2.0, 3.0, 4.0, 5.0])
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
     assert len(data.two_theta) == 5 and notes == []
 
 
@@ -174,7 +174,7 @@ def test_an_option_this_format_does_not_take_is_dropped_but_reported(tmp_path):
     caller who passed it believed they had selected something."""
     p = write_xy(tmp_path / "plain.xy", [10.0, 20.0], [1.0, 2.0])
     notes: list = []
-    pr.read_pattern(p, block="_meas", diagnostics=notes)
+    rx.read_pattern(p, block="_meas", diagnostics=notes)
 
     assert [d.code for d in notes] == ["READER_OPTION_IGNORED"]
     assert notes[0].where == ["block"] and notes[0].level == "info"
@@ -183,7 +183,7 @@ def test_an_option_this_format_does_not_take_is_dropped_but_reported(tmp_path):
 def test_an_option_no_format_takes_is_a_typo_and_raises(tmp_path):
     p = write_xy(tmp_path / "plain.xy", [10.0, 20.0], [1.0, 2.0])
     with pytest.raises(ValueError, match="unknown reader option 'blcok'"):
-        pr.read_pattern(p, blcok="_meas")
+        rx.read_pattern(p, blcok="_meas")
 
 
 def test_none_means_unspecified_rather_than_a_value():
@@ -242,7 +242,7 @@ def test_the_chi_point_count_line_is_no_longer_read_as_a_data_point(tmp_path):
                   [1.0, 2.0, 3.0], n_datasets=1)
 
     assert identify_format(p).name == "chi"
-    data = pr.read_pattern(p)
+    data = rx.read_pattern(p)
     assert data.two_theta == tt              # three points, not four
     assert 3.0 not in data.two_theta         # the count line is not a datum
 
@@ -264,7 +264,7 @@ def test_an_axis_that_is_recognisably_not_two_theta_is_refused(tmp_path, label, 
     would be worse than declining."""
     p = write_chi(tmp_path / "int.chi", label, [1.0, 2.0], [1.0, 2.0])
     with pytest.raises(ValueError) as exc:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert repr(label) in str(exc.value) and what in str(exc.value)
 
 
@@ -274,7 +274,7 @@ def test_a_two_theta_label_wins_over_the_d_in_degrees(tmp_path):
     p = write_chi(tmp_path / "ok.chi", "2-Theta Angle (Degrees)", [1.0, 2.0],
                   [1.0, 2.0])
     notes: list = []
-    pr.read_pattern(p, diagnostics=notes)
+    rx.read_pattern(p, diagnostics=notes)
     assert notes == []
 
 
@@ -283,7 +283,7 @@ def test_an_unrecognisable_axis_is_read_as_two_theta_and_says_so(tmp_path):
     are 2θ, so this reads — but the assumption is stated, with the label."""
     p = write_chi(tmp_path / "odd.chi", "Angle", [1.0, 2.0], [1.0, 2.0])
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert [d.code for d in notes] == ["PATTERN_X_AXIS_ASSUMED"]
     assert "'Angle'" in notes[0].message
@@ -329,7 +329,7 @@ def test_a_peak_list_is_refused_by_name_rather_than_refined_against(tmp_path):
     fmt = identify_format(p)
     assert fmt.name == "dif_peaklist" and fmt.refuses
     with pytest.raises(ValueError) as exc:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "quartz.dif" in str(exc.value) and "peak list" in str(exc.value)
     assert "index_pattern" in str(exc.value)   # the tool that does take positions
 
@@ -342,7 +342,7 @@ def test_the_evidence_is_the_hkl_columns_not_the_suffix(tmp_path):
                  encoding="utf-8")
 
     assert identify_format(p).name == "xy"
-    assert len(pr.read_pattern(p).two_theta) == 60
+    assert len(rx.read_pattern(p).two_theta) == 60
 
 
 def test_a_peak_list_under_another_suffix_is_not_claimed(tmp_path):
@@ -357,7 +357,7 @@ def test_a_refusal_is_an_entry_in_capabilities_not_a_side_table():
     """``reader_formats`` would mean two things if refusals lived elsewhere; the
     field says which an entry is, so a client can tell "we can open this" from
     "we know what this is and it is the wrong kind of file"."""
-    caps = pr.capabilities()
+    caps = rx.capabilities()
     by_name = {r.name: r for r in caps.reader_formats}
     assert by_name["dif_peaklist"].refuses
     assert all(by_name[f.name].refuses is None
@@ -426,14 +426,14 @@ def test_a_project_keeps_the_repairs_in_memory_and_out_of_project_json(tmp_path)
 
     p = write_xy(tmp_path / "down.xy", [30.0, 20.0, 10.0], [3.0, 2.0, 1.0])
     structure, ins = perturbed_models()
-    project = pr.Project.create(tmp_path / "rev.rex", pattern=p,
+    project = rx.Project.create(tmp_path / "rev.rex", pattern=p,
                                 structure=structure, instrument=ins)
 
     assert [d.code for d in project.data_diagnostics] == ["PATTERN_SCAN_REVERSED"]
     stored = (tmp_path / "rev.rex" / "project.json").read_text(encoding="utf-8")
     assert "PATTERN_SCAN_REVERSED" not in stored
     # …and re-reading reproduces them, because the bytes and the reader did
-    assert [d.code for d in pr.Project.open(project.path).data_diagnostics] == [
+    assert [d.code for d in rx.Project.open(project.path).data_diagnostics] == [
         "PATTERN_SCAN_REVERSED"]
 
 
@@ -455,7 +455,7 @@ def test_a_binary_file_is_refused_by_name_rather_than_by_traceback(tmp_path):
     p.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 8)
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     message = str(refusal.value)
     assert "d8.raw" in message and "looks binary" in message
     for fmt in PATTERN_FORMATS:
@@ -471,7 +471,7 @@ def test_a_byte_order_mark_means_text_even_though_utf16_is_full_of_nuls(tmp_path
     p.write_bytes("﻿10 1\n20 2\n30 3\n".encode("utf-16-le"))
 
     assert identify_format(p).name == "xy"
-    assert pr.read_pattern(p).two_theta == [10.0, 20.0, 30.0]
+    assert rx.read_pattern(p).two_theta == [10.0, 20.0, 30.0]
 
 
 def test_the_registry_order_is_the_dispatch_order():
@@ -512,7 +512,7 @@ def test_the_real_scan_reads_and_carries_the_anode_its_header_names(tmp_path):
     """The fixture is a real SmartLab export (NIMS M-DaC_XRD, MIT), and what it
     proves that a synthetic file cannot is that these header keys are spelled
     the way an instrument actually spells them."""
-    data = pr.read_pattern(DATA / "rigaku_nims.ras")
+    data = rx.read_pattern(DATA / "rigaku_nims.ras")
 
     assert identify_format(DATA / "rigaku_nims.ras").name == "ras"
     assert len(data.two_theta) == 3501
@@ -526,7 +526,7 @@ def test_whole_counts_get_the_poisson_fallback_rather_than_an_invented_sigma():
     """``sigma is None`` is the *correct* answer here, not a missing one: the
     fallback √max(y,1) is exactly right for a raw count, and the file's
     intensities are integers to the last of 3501 points."""
-    data = pr.read_pattern(DATA / "rigaku_nims.ras")
+    data = rx.read_pattern(DATA / "rigaku_nims.ras")
 
     assert data.sigma is None
     assert all(float(v).is_integer() for v in data.intensity)
@@ -543,7 +543,7 @@ def test_a_rate_gets_a_sigma_derived_from_the_counts_it_was_a_rate_of(tmp_path):
                   unit_y="cps", step=0.03, speed=6.0, speed_unit="deg/min")
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.metadata["count_time_s"] == "0.3"
     assert data.sigma is not None
@@ -558,9 +558,9 @@ def test_the_speed_unit_is_read_because_deg_per_minute_is_not_deg_per_second(tmp
     does not state one leaves the time *unknown* rather than assumed."""
     rows = [(10.0 + 0.03 * i, round(c / 0.3, 4)) for i, c in enumerate([20, 31, 47, 53])]
 
-    per_second = pr.read_pattern(write_ras(tmp_path / "s.ras", rows, unit_y="cps",
+    per_second = rx.read_pattern(write_ras(tmp_path / "s.ras", rows, unit_y="cps",
                                            step=0.03, speed=6.0, speed_unit="deg/sec"))
-    unstated = pr.read_pattern(write_ras(tmp_path / "u.ras", rows, unit_y="cps",
+    unstated = rx.read_pattern(write_ras(tmp_path / "u.ras", rows, unit_y="cps",
                                          step=0.03, speed=6.0))
 
     # 0.005 s per step makes y·t nowhere near whole, so nothing is established
@@ -579,7 +579,7 @@ def test_the_declared_intensity_unit_is_a_claim_and_does_not_decide_sigma(tmp_pa
                   unit_y="counts", step=0.004, speed=2.0, speed_unit="deg/min")
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.sigma is None
     assert data.metadata["intensity_unit"] == "counts"          # recorded verbatim
@@ -595,7 +595,7 @@ def test_a_rocking_curve_is_refused_rather_than_refined_as_a_pattern(tmp_path):
                   axis="Omega")
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "rock.ras" in str(refusal.value) and "rocking curve" in str(refusal.value)
 
 
@@ -604,7 +604,7 @@ def test_an_unrecognised_axis_is_read_as_two_theta_and_says_so(tmp_path):
                   axis="TwoThetaChi")
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert len(data.two_theta) == 4
     assert [d.code for d in notes if d.code == "PATTERN_X_AXIS_ASSUMED"]
@@ -616,8 +616,8 @@ def test_a_scan_is_selected_never_concatenated(tmp_path):
     puts two weighting regimes in one residual. ``scan=`` picks; nothing joins."""
     path = DATA / "rigaku_multiscan.ras"
 
-    first = pr.read_pattern(path, scan=0)
-    second = pr.read_pattern(path, scan=1)
+    first = rx.read_pattern(path, scan=0)
+    second = rx.read_pattern(path, scan=1)
 
     assert first.two_theta == [10.0, 10.5, 11.0]
     assert second.two_theta == [20.0, 20.5, 21.0]
@@ -627,9 +627,9 @@ def test_a_scan_is_selected_never_concatenated(tmp_path):
 
 def test_the_defaulted_scan_says_so_on_a_real_multi_scan_file():
     notes: list = []
-    pr.read_pattern(DATA / "rigaku_multiscan.ras", diagnostics=notes)
+    rx.read_pattern(DATA / "rigaku_multiscan.ras", diagnostics=notes)
     chosen: list = []
-    pr.read_pattern(DATA / "rigaku_multiscan.ras", scan=1, diagnostics=chosen)
+    rx.read_pattern(DATA / "rigaku_multiscan.ras", scan=1, diagnostics=chosen)
 
     assert "PATTERN_MULTISCAN_DEFAULTED" in [d.code for d in notes]
     assert "PATTERN_MULTISCAN_DEFAULTED" not in [d.code for d in chosen]
@@ -637,7 +637,7 @@ def test_the_defaulted_scan_says_so_on_a_real_multi_scan_file():
 
 def test_a_scan_the_file_does_not_have_is_refused_by_number():
     with pytest.raises(ValueError, match="holds 2 scan"):
-        pr.read_pattern(DATA / "rigaku_multiscan.ras", scan=7)
+        rx.read_pattern(DATA / "rigaku_multiscan.ras", scan=7)
 
 
 def test_listing_scans_labels_them_with_what_the_file_calls_them():
@@ -662,7 +662,7 @@ def test_an_attenuator_column_is_reported_and_never_applied():
     applying it twice or not at all are both wrong — so the reader matches the
     convention the other codes use and says which points it affects."""
     notes: list = []
-    data = pr.read_pattern(DATA / "rigaku_three_column.ras", diagnostics=notes)
+    data = rx.read_pattern(DATA / "rigaku_three_column.ras", diagnostics=notes)
 
     assert data.intensity == [250.0, 310.5, 480.2, 390.7]     # column 2, untouched
     found = [d for d in notes if d.code == "RAS_ATTENUATOR_PRESENT"]
@@ -684,7 +684,7 @@ def test_every_key_a_reader_writes_is_one_the_vocabulary_declares():
     spells for itself."""
     for fixture in ("rigaku_nims.ras", "11BM_NAC.fxye", "qarr/corundum.prn",
                     "nist_srm660c_100a.cif"):
-        keys = set(pr.read_pattern(DATA / fixture).metadata)
+        keys = set(rx.read_pattern(DATA / fixture).metadata)
         assert keys <= set(METADATA_KEYS), (fixture, keys - set(METADATA_KEYS))
     assert all(prose for prose in METADATA_KEYS.values())
 
@@ -706,7 +706,7 @@ def test_the_schema_is_a_parser_boundary_like_any_other(tmp_path):
     p = write_xy(tmp_path / "onepoint.xy", [15.0], [3.0])
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     message = str(refusal.value)
     assert "onepoint.xy" in message and "at least 2 points" in message
     assert "pydantic" not in message and "validation error" not in message
@@ -744,7 +744,7 @@ def test_the_block_marker_is_read_as_two_facts_not_looked_up_as_a_name(tmp_path)
         drive="COUPLED", marker="_COUNTS", steptime=1.0, stepsize=0.02,
         start=10.0, rows=[(c,) for c in counts])])
 
-    a, b = pr.read_pattern(paired), pr.read_pattern(implied)
+    a, b = rx.read_pattern(paired), rx.read_pattern(implied)
     assert a.two_theta == pytest.approx(b.two_theta)     # start + i·step
     assert a.intensity == b.intensity == [3.0, 5.0, 8.0, 6.0]
     assert a.metadata["intensity_unit"] == "counts" and a.sigma is None
@@ -757,7 +757,7 @@ def test_a_cps_block_gets_its_sigma_from_steptime(tmp_path):
         drive="COUPLED", marker="_2THETACPS", steptime=4.0,
         rows=[(10.0 + 0.02 * i, c / 4.0) for i, c in enumerate([12, 20, 33, 41])])])
 
-    data = pr.read_pattern(p)
+    data = rx.read_pattern(p)
 
     assert data.metadata["intensity_unit"] == "cps"
     assert data.metadata["count_time_s"] == "4.0"
@@ -771,7 +771,7 @@ def test_a_cps_block_without_a_steptime_withholds_sigma_and_says_so(tmp_path):
         rows=[(10.0 + 0.02 * i, 3.5 * i + 1) for i in range(4)])])
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.sigma is None
     assert [d.code for d in notes] == ["PATTERN_INTENSITY_SCALED"]
@@ -786,7 +786,7 @@ def test_the_drive_decides_the_axis_because_the_marker_name_lies(tmp_path):
         rows=[(-1.0 + 0.04 * i, 100) for i in range(4)])])
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(rocking)
+        rx.read_pattern(rocking)
     assert "rock.uxd" in str(refusal.value) and "rocking curve" in str(refusal.value)
     assert "_2THETACOUNTS" in str(refusal.value)     # the trap, named in the refusal
 
@@ -796,7 +796,7 @@ def test_a_detector_scan_reads_because_two_theta_is_what_it_steps(tmp_path):
         drive="2THETA", marker="_2THETACOUNTS", steptime=1.0,
         rows=[(10.0 + 0.02 * i, 100 + i) for i in range(4)])], radius=350.0)
 
-    data = pr.read_pattern(p)
+    data = rx.read_pattern(p)
 
     assert data.metadata["scan_axis"] == "2THETA"
     assert data.metadata["goniometer_radius_mm"] == "350.0"
@@ -814,8 +814,8 @@ def test_ranges_of_different_counting_time_are_selected_never_joined(tmp_path):
     ])
 
     notes: list = []
-    first = pr.read_pattern(p, diagnostics=notes)
-    second = pr.read_pattern(p, scan=1)
+    first = rx.read_pattern(p, diagnostics=notes)
+    second = rx.read_pattern(p, scan=1)
 
     assert first.two_theta[0] == 10.0 and second.two_theta[0] == 20.0
     assert first.metadata["count_time_s"] == "2.0"
@@ -832,7 +832,7 @@ def test_counts_with_no_position_column_and_no_step_is_refused(tmp_path):
         rows=[(c,) for c in (3, 5, 8, 6)])])
 
     with pytest.raises(ValueError, match="no 2θ axis to read"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_an_unknown_block_marker_is_named_rather_than_skipped(tmp_path):
@@ -841,7 +841,7 @@ def test_an_unknown_block_marker_is_named_rather_than_skipped(tmp_path):
                  encoding="utf-8")
 
     with pytest.raises(ValueError, match="_INTENSITIES"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 # -------------------------------------------------------------------- xrdml
@@ -863,7 +863,7 @@ def test_the_real_powder_scan_matches_its_independent_oracle():
     check on the element paths, not a round-trip through our own understanding.
     """
     oracle = _oracle("panalytical_powder.xrdml")
-    data = pr.read_pattern(DATA / "panalytical_powder.xrdml")
+    data = rx.read_pattern(DATA / "panalytical_powder.xrdml")
 
     assert len(data.two_theta) == int(oracle["2Theta"].strip("(),"))
     assert len(data.intensity) == int(oracle["intensity"].strip("(),"))
@@ -882,7 +882,7 @@ def test_the_real_powder_scan_matches_its_independent_oracle():
 def test_raw_counts_get_no_sigma_because_the_poisson_fallback_is_right():
     """``sigma=None`` here is the *correct* answer, not a missing one — the
     stored values are the detector's own integers."""
-    data = pr.read_pattern(DATA / "panalytical_powder.xrdml")
+    data = rx.read_pattern(DATA / "panalytical_powder.xrdml")
 
     assert data.sigma is None
     assert data.metadata["intensity_unit"] == "counts"
@@ -899,7 +899,7 @@ def test_the_beam_attenuator_is_applied_and_sigma_goes_through_it():
     √counts·a rather than √y: the case GSAS-II gets wrong by weighting 1/y.
     """
     notes: list = []
-    data = pr.read_pattern(DATA / "panalytical_attenuator.xrdml", diagnostics=notes)
+    data = rx.read_pattern(DATA / "panalytical_attenuator.xrdml", diagnostics=notes)
 
     apex = max(range(len(data.intensity)), key=lambda i: data.intensity[i])
     assert data.intensity[apex] == 1877.0 * 188.0
@@ -915,12 +915,12 @@ def test_the_beam_attenuator_is_applied_and_sigma_goes_through_it():
 def test_a_reciprocal_space_map_is_scans_and_says_which_one_it_read():
     """101 scans in one file, so the default is a choice and is never silent."""
     notes: list = []
-    data = pr.read_pattern(DATA / "panalytical_mesh.xrdml", diagnostics=notes)
+    data = rx.read_pattern(DATA / "panalytical_mesh.xrdml", diagnostics=notes)
 
     assert data.metadata["scan_count"] == "101"
     assert data.metadata["scan"] == "0"
     assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
-    assert pr.read_pattern(DATA / "panalytical_mesh.xrdml",
+    assert rx.read_pattern(DATA / "panalytical_mesh.xrdml",
                            scan=100).metadata["scan"] == "100"
 
 
@@ -939,7 +939,7 @@ def test_a_stack_of_identical_ranges_is_labelled_by_what_differs():
 def test_the_position_list_form_is_read_as_written():
     """Three forms exist and the mesh uses the third: 2θ written out per point
     rather than as a start and an end."""
-    data = pr.read_pattern(DATA / "panalytical_mesh.xrdml", scan=0)
+    data = rx.read_pattern(DATA / "panalytical_mesh.xrdml", scan=0)
 
     assert len(data.two_theta) == 255
     assert data.two_theta[0] == pytest.approx(67.45053915)
@@ -993,7 +993,7 @@ def test_a_rocking_curve_is_refused_by_the_axis_it_names(tmp_path):
     p = write_xrdml(tmp_path / "rock.xrdml", scan_axis="Omega")
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "rock.xrdml" in str(refusal.value)
     assert "rocking curve" in str(refusal.value)
 
@@ -1002,7 +1002,7 @@ def test_a_rate_gets_a_derived_sigma_from_the_files_own_counting_time(tmp_path):
     p = write_xrdml(tmp_path / "rate.xrdml", element="intensities", unit="cps",
                     counts=(10.0, 20.0, 30.0, 40.0), count_time="4.0")
 
-    data = pr.read_pattern(p)
+    data = rx.read_pattern(p)
 
     assert data.sigma is not None
     assert data.sigma[0] == pytest.approx((10.0 * 4.0) ** 0.5 / 4.0)
@@ -1014,7 +1014,7 @@ def test_a_rate_with_no_counting_time_withholds_sigma_and_says_why(tmp_path):
                     count_time=None)
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.sigma is None
     assert [d.code for d in notes] == ["PATTERN_INTENSITY_SCALED"]
@@ -1038,7 +1038,7 @@ def test_a_fixed_two_theta_is_not_a_pattern_however_the_scan_axis_is_spelled(
         '</dataPoints></scan></xrdMeasurement></xrdMeasurements>', encoding="utf-8")
 
     with pytest.raises(ValueError, match="single fixed position"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_position_list_that_disagrees_with_the_data_is_refused(tmp_path):
@@ -1052,7 +1052,7 @@ def test_a_position_list_that_disagrees_with_the_data_is_refused(tmp_path):
         '</dataPoints></scan></xrdMeasurement></xrdMeasurements>', encoding="utf-8")
 
     with pytest.raises(ValueError, match="3 positions for 4"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_xml_that_is_not_an_xrdml_is_not_claimed_by_this_reader(tmp_path):
@@ -1067,7 +1067,7 @@ def test_xml_that_is_not_an_xrdml_is_not_claimed_by_this_reader(tmp_path):
 
     assert identify_format(p).name == "xy"
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "other.xrdml" in str(refusal.value)
 
 
@@ -1086,7 +1086,7 @@ def test_a_prefixed_root_element_is_still_claimed(tmp_path):
                  encoding="utf-8")
 
     assert identify_format(p).name == "xrdml"
-    assert len(pr.read_pattern(p).two_theta) == 4
+    assert len(rx.read_pattern(p).two_theta) == 4
 
 
 def test_a_comment_before_the_root_does_not_decide_the_sniff(tmp_path):
@@ -1103,7 +1103,7 @@ def test_a_comment_before_the_root_does_not_decide_the_sniff(tmp_path):
                  encoding="utf-8")
 
     assert identify_format(p).name == "xrdml"
-    assert len(pr.read_pattern(p).two_theta) == 4
+    assert len(rx.read_pattern(p).two_theta) == 4
 
 
 # --------------------------------------------------------------------- rasx
@@ -1153,7 +1153,7 @@ def write_rasx(path: Path, scans, *, manifest_only=(), omit_conditions=False,
 
 
 def test_the_real_rasx_powder_scan_reads_whole():
-    data = pr.read_pattern(DATA / "rigaku_powder.rasx")
+    data = rx.read_pattern(DATA / "rigaku_powder.rasx")
 
     assert len(data.two_theta) == 2726
     assert data.two_theta[0] == 10.0 and data.two_theta[-1] == 119.0
@@ -1174,9 +1174,9 @@ def test_the_declared_unit_is_refuted_by_arithmetic_in_this_container_too():
     — which is why both formats call one function.
     """
     lying: list = []
-    liar = pr.read_pattern(DATA / "rigaku_powder.rasx", diagnostics=lying)
+    liar = rx.read_pattern(DATA / "rigaku_powder.rasx", diagnostics=lying)
     honest: list = []
-    truth = pr.read_pattern(DATA / "rigaku_zno_counts.rasx", diagnostics=honest)
+    truth = rx.read_pattern(DATA / "rigaku_zno_counts.rasx", diagnostics=honest)
 
     assert liar.metadata["intensity_unit"] == truth.metadata["intensity_unit"]
     assert [d.code for d in lying] == ["PATTERN_INTENSITY_SCALED"]
@@ -1194,7 +1194,7 @@ def test_the_manifest_is_the_authority_not_the_name_list(tmp_path):
                    manifest_only=("Data9/Profile9.txt", "thumbnail.png"))
 
     assert [s.index for s in list_scans(p)] == [0, 1]
-    assert pr.read_pattern(p, scan=1).two_theta == [20.0, 20.02, 20.04]
+    assert rx.read_pattern(p, scan=1).two_theta == [20.0, 20.02, 20.04]
 
 
 def test_the_default_scan_of_a_rasx_is_never_silent(tmp_path):
@@ -1202,7 +1202,7 @@ def test_the_default_scan_of_a_rasx_is_never_silent(tmp_path):
                    [dict(rows=[(10.0, 5.0), (10.02, 6.0)]),
                     dict(rows=[(20.0, 1.0), (20.02, 2.0)])])
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.metadata["scan_count"] == "2"
     assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
@@ -1222,7 +1222,7 @@ def test_a_manifest_naming_a_member_the_archive_lacks_is_refused_by_name(tmp_pat
 
     assert identify_format(p).name == "rasx"
     with pytest.raises(ValueError, match="internally inconsistent"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_member_past_the_cap_is_refused_rather_than_materialised(tmp_path,
@@ -1237,7 +1237,7 @@ def test_a_member_past_the_cap_is_refused_rather_than_materialised(tmp_path,
     monkeypatch.setattr(rasx, "MAX_MEMBER_BYTES", 64)
 
     with pytest.raises(ValueError, match="larger than"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_zip_that_is_not_a_rasx_is_not_claimed(tmp_path):
@@ -1251,7 +1251,7 @@ def test_a_zip_that_is_not_a_rasx_is_not_claimed(tmp_path):
         archive.writestr("notes.txt", "not a diffraction file at all")
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "other.rasx" in str(refusal.value)
     assert "Supported" in str(refusal.value)
 
@@ -1263,7 +1263,7 @@ def test_the_attenuator_column_is_reported_here_exactly_as_in_ras(tmp_path):
         rows=[(10.0, 5.0, 1.0), (10.02, 6.0, 10.0), (10.04, 7.0, 1.0)])])
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.intensity == [5.0, 6.0, 7.0]          # never applied
     assert "RAS_ATTENUATOR_PRESENT" in [d.code for d in notes]
@@ -1274,7 +1274,7 @@ def test_a_rocking_curve_in_a_rasx_is_refused_on_the_vendors_vocabulary(tmp_path
         axis="Omega", rows=[(10.0, 5.0), (10.02, 6.0), (10.04, 7.0)])])
 
     with pytest.raises(ValueError, match="rocking curve"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_the_scan_information_block_wins_over_a_like_named_leaf_elsewhere(
@@ -1299,7 +1299,7 @@ def test_the_scan_information_block_wins_over_a_like_named_leaf_elsewhere(
             archive.writestr(name, raw)
 
     # 0.02° ÷ 1 deg/min × 60 = 1.2 s, not 99/99
-    assert pr.read_pattern(p).metadata["count_time_s"] == "1.2"
+    assert rx.read_pattern(p).metadata["count_time_s"] == "1.2"
 
 
 def test_a_group_with_no_conditions_still_yields_its_points(tmp_path):
@@ -1310,7 +1310,7 @@ def test_a_group_with_no_conditions_still_yields_its_points(tmp_path):
                    omit_conditions=True)
 
     notes: list = []
-    data = pr.read_pattern(p, diagnostics=notes)
+    data = rx.read_pattern(p, diagnostics=notes)
 
     assert data.two_theta == [10.0, 10.02, 10.04]
     assert "anode" not in data.metadata
@@ -1379,7 +1379,7 @@ def test_the_real_brml_reads_through_its_own_channel_description():
     """No index is counted: in this file 2θ is column 2 and the intensity is
     column **7**, which is why GSAS-II's fixed ``entry[2]``/``entry[4]`` is a
     coincidence of one layout rather than the format."""
-    data = pr.read_pattern(DATA / "bruker_absorber.brml")
+    data = rx.read_pattern(DATA / "bruker_absorber.brml")
 
     assert len(data.two_theta) == 2001
     assert data.two_theta[0] == 44.0 and data.two_theta[-1] == 48.0
@@ -1400,7 +1400,7 @@ def test_the_bruker_absorber_is_already_applied_so_only_sigma_goes_through_it():
     still ``y / a``, so σ = √(y/a)·a.
     """
     notes: list = []
-    data = pr.read_pattern(DATA / "bruker_absorber.brml", diagnostics=notes)
+    data = rx.read_pattern(DATA / "bruker_absorber.brml", diagnostics=notes)
 
     apex = max(range(len(data.intensity)), key=lambda i: data.intensity[i])
     assert data.intensity[apex] == 495559.8          # stored, not multiplied
@@ -1423,7 +1423,7 @@ def test_a_detector_frame_is_refused_rather_than_read_as_a_profile(tmp_path):
               for i in range(4)])])
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "psd.brml" in str(refusal.value)
     assert "position-sensitive-detector frame" in str(refusal.value)
 
@@ -1434,7 +1434,7 @@ def test_a_scan_with_no_two_theta_axis_is_refused_by_what_it_does_step(tmp_path)
         rows=[(1, 1, 18.0 + 0.01 * i, 5) for i in range(4)])])   # 2θ never moves
 
     with pytest.raises(ValueError) as refusal:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "rocking curve" in str(refusal.value)
 
 
@@ -1448,8 +1448,8 @@ def test_the_manifest_orders_the_scans_because_the_name_list_does_not(tmp_path):
                                for i in range(4)])])
     notes: list = []
 
-    first = pr.read_pattern(p, diagnostics=notes)
-    second = pr.read_pattern(p, scan=1)
+    first = rx.read_pattern(p, diagnostics=notes)
+    second = rx.read_pattern(p, scan=1)
 
     assert first.two_theta[0] == 10.0 and second.two_theta[0] == 30.0
     assert [d.code for d in notes] == ["PATTERN_MULTISCAN_DEFAULTED"]
@@ -1482,12 +1482,12 @@ def test_a_processed_route_beside_the_measured_one_is_not_what_gets_fitted(
 
     ignored = _with_extra_route(
         write_brml(tmp_path / "one.brml", [dict(rows=rows)]), "Processed")
-    assert pr.read_pattern(ignored).two_theta[0] == 10.0
+    assert rx.read_pattern(ignored).two_theta[0] == 10.0
 
     ambiguous = _with_extra_route(
         write_brml(tmp_path / "two.brml", [dict(rows=rows)]), "Measured")
     with pytest.raises(ValueError, match="not exactly one marked Measured"):
-        pr.read_pattern(ambiguous)
+        rx.read_pattern(ambiguous)
 
 
 def test_the_xsi_prefix_is_resolved_rather_than_matched_as_text(tmp_path):
@@ -1507,7 +1507,7 @@ def test_the_xsi_prefix_is_resolved_rather_than_matched_as_text(tmp_path):
         archive.writestr("Experiment0/DataContainer.xml", container)
         archive.writestr("Experiment0/RawData0.xml", renamed)
 
-    assert len(pr.read_pattern(p).two_theta) == 4
+    assert len(rx.read_pattern(p).two_theta) == 4
 
 
 def test_a_manifest_naming_a_missing_raw_data_is_refused_by_name(tmp_path):
@@ -1517,7 +1517,7 @@ def test_a_manifest_naming_a_missing_raw_data_is_refused_by_name(tmp_path):
 
     assert identify_format(p).name == "brml"
     with pytest.raises(ValueError, match="internally inconsistent"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 # --------------------------------------------------------------------------- #
@@ -1536,7 +1536,7 @@ RAW4 = DATA / "bruker_raw4_scrambled.raw"
 
 
 def test_the_real_v4_fixture_reports_the_header_its_instrument_wrote():
-    d = pr.read_pattern(RAW4)
+    d = rx.read_pattern(RAW4)
 
     assert len(d.two_theta) == 7134
     assert d.two_theta[0] == pytest.approx(10.0)
@@ -1561,7 +1561,7 @@ def test_the_real_v4_fixtures_intensities_are_not_a_diffraction_profile():
     """
     import numpy as np
 
-    y = np.asarray(pr.read_pattern(RAW4).intensity)
+    y = np.asarray(rx.read_pattern(RAW4).intensity)
 
     assert abs(np.corrcoef(y[:-1], y[1:])[0, 1]) < 0.1
     assert np.diff(y).std() / y.std() == pytest.approx(np.sqrt(2), abs=0.1)
@@ -1573,7 +1573,7 @@ def test_the_real_v4_fixture_withholds_sigma_because_no_scale_verifies():
     on this file it decides nothing, which is the third answer and not a
     missing one."""
     diagnostics = []
-    d = pr.read_pattern(RAW4, diagnostics=diagnostics)
+    d = rx.read_pattern(RAW4, diagnostics=diagnostics)
 
     assert d.sigma is None
     assert [x.code for x in diagnostics] == ["PATTERN_INTENSITY_SCALED"]
@@ -1584,7 +1584,7 @@ def test_the_range_count_is_walked_not_counted_from_the_drive_names():
     record and once as the scan-axis record — so a reader that counts the string
     to find its banks (GSAS-II does) reports two ranges where there is one."""
     assert RAW4.read_bytes().count(b"2Theta") == 2
-    assert pr.read_pattern(RAW4).metadata["scan_count"] == "1"
+    assert rx.read_pattern(RAW4).metadata["scan_count"] == "1"
     assert len(list_scans(RAW4)) == 1
 
 
@@ -1605,9 +1605,9 @@ def test_the_datum_stride_is_the_one_declared_not_a_fixed_four_or_eight(tmp_path
     twelve = write_raw4(tmp_path / "d12.raw",
                         [dict(start=10.0, step=0.02, intensity=y, datum_size=12)])
 
-    assert pr.read_pattern(narrow).intensity == y
-    assert pr.read_pattern(wide).intensity == y
-    assert pr.read_pattern(twelve).intensity == y
+    assert rx.read_pattern(narrow).intensity == y
+    assert rx.read_pattern(wide).intensity == y
+    assert rx.read_pattern(twelve).intensity == y
 
 
 def test_a_datum_that_cannot_hold_a_float32_is_refused(tmp_path):
@@ -1618,7 +1618,7 @@ def test_a_datum_that_cannot_hold_a_float32_is_refused(tmp_path):
                          datum_size=2)])
 
     with pytest.raises(ValueError, match="datum of 2 bytes"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_second_range_is_a_scan_to_choose_between_never_a_continuation(tmp_path):
@@ -1630,19 +1630,19 @@ def test_a_second_range_is_a_scan_to_choose_between_never_a_continuation(tmp_pat
     ])
 
     diagnostics = []
-    first = pr.read_pattern(p, diagnostics=diagnostics)
+    first = rx.read_pattern(p, diagnostics=diagnostics)
     assert len(first.two_theta) == 200
     assert first.two_theta[0] == pytest.approx(10.0)
     assert first.metadata["scan_count"] == "2"
     assert "PATTERN_MULTISCAN_DEFAULTED" in [x.code for x in diagnostics]
 
-    second = pr.read_pattern(p, scan=1, diagnostics=[])
+    second = rx.read_pattern(p, scan=1, diagnostics=[])
     assert len(second.two_theta) == 150
     assert second.two_theta[0] == pytest.approx(40.0)
     assert [s.n_points for s in list_scans(p)] == [200, 150]
 
     with pytest.raises(ValueError, match="scan=2 is not one of them"):
-        pr.read_pattern(p, scan=2)
+        rx.read_pattern(p, scan=2)
 
 
 def test_a_rocking_curve_is_refused_by_what_it_actually_is(tmp_path):
@@ -1655,7 +1655,7 @@ def test_a_rocking_curve_is_refused_by_what_it_actually_is(tmp_path):
         drives=(("2Theta", 34.0, 0), ("Theta", 10.0, 2)))])
 
     with pytest.raises(ValueError, match="rocking curve about θ"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_an_unfamiliar_drive_is_read_as_two_theta_and_says_so(tmp_path):
@@ -1666,7 +1666,7 @@ def test_an_unfamiliar_drive_is_read_as_two_theta_and_says_so(tmp_path):
         drives=(("Gimbal", 10.0, 2),))])
 
     diagnostics = []
-    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert len(rx.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
     assert "PATTERN_X_AXIS_ASSUMED" in [x.code for x in diagnostics]
 
 
@@ -1683,7 +1683,7 @@ def test_the_scan_type_answers_when_no_drive_record_is_flagged(tmp_path):
         drives=(("2Theta", 10.0, 0), ("Theta", 5.0, 0)))])
 
     diagnostics = []
-    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert len(rx.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
     assert [x.code for x in diagnostics] == []
 
     # and a scan type that is recognisably *not* 2θ is refused there too — a
@@ -1693,14 +1693,14 @@ def test_the_scan_type_answers_when_no_drive_record_is_flagged(tmp_path):
         start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Psi Scan",
         drives=(("2Theta", 10.0, 0),))])
     with pytest.raises(ValueError, match="ψ tilt"):
-        pr.read_pattern(tilt)
+        rx.read_pattern(tilt)
 
     # only an *unfamiliar* one is assumed, which is this reader's ignorance
     unknown = write_raw4(tmp_path / "unflagged_odd.raw", [dict(
         start=10.0, step=0.01, intensity=[500.0] * 50, scan_type="Bespoke Sweep",
         drives=(("2Theta", 10.0, 0),))])
     diagnostics = []
-    pr.read_pattern(unknown, diagnostics=diagnostics)
+    rx.read_pattern(unknown, diagnostics=diagnostics)
     assert [x.code for x in diagnostics] == ["PATTERN_X_AXIS_ASSUMED"]
 
 
@@ -1715,7 +1715,7 @@ def test_the_flagged_record_must_also_sit_at_the_ranges_start_angle(tmp_path):
         drives=(("2Theta", 10.0, 0), ("Phi", 271.0, 2)))])
 
     diagnostics = []
-    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
+    assert len(rx.read_pattern(p, diagnostics=diagnostics).two_theta) == 50
     assert [x.code for x in diagnostics] == []
 
 
@@ -1724,14 +1724,14 @@ def test_counts_take_the_poisson_fallback_and_a_rate_gets_a_derived_sigma(tmp_pa
 
     counts = write_raw4(tmp_path / "counts.raw", [dict(
         start=10.0, step=0.02, intensity=[400.0 + i % 9 for i in range(120)])])
-    assert pr.read_pattern(counts).sigma is None       # the fallback is correct
+    assert rx.read_pattern(counts).sigma is None       # the fallback is correct
 
     # odd counts over a 2 s step: the stored rate is a half-integer, so it is
     # not counts, and y·t is whole, so it is that count divided by the time
     rate = write_raw4(tmp_path / "cps.raw", [dict(
         start=10.0, step=0.02, step_time_ms=2000.0,
         intensity=[(401.0 + 2 * (i % 9)) / 2.0 for i in range(120)])])
-    d = pr.read_pattern(rate)
+    d = rx.read_pattern(rate)
     assert d.sigma is not None
     assert d.sigma[0] == pytest.approx((401.0 ** 0.5) / 2.0, rel=1e-6)
 
@@ -1748,7 +1748,7 @@ def test_a_range_header_whose_segments_overrun_its_size_is_refused(tmp_path):
 
     assert identify_format(p).name == "bruker_raw"
     with pytest.raises(ValueError, match="overrun"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_range_declaring_more_points_than_the_file_holds_is_refused(tmp_path):
@@ -1759,7 +1759,7 @@ def test_a_range_declaring_more_points_than_the_file_holds_is_refused(tmp_path):
     p.write_bytes(p.read_bytes()[:-120])
 
     with pytest.raises(ValueError, match="truncated"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 @pytest.mark.parametrize("magic,version", [(b"RAW ", 1), (b"RAW2", 2)])
@@ -1774,7 +1774,7 @@ def test_an_undescribed_raw_version_is_refused_by_its_version_not_a_traceback(
 
     assert identify_format(p).name == "bruker_raw"
     with pytest.raises(ValueError, match=f"RAW version {version}"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_the_two_raw_formats_are_disjoint_in_both_directions(tmp_path):
@@ -1803,7 +1803,7 @@ def test_a_range_stored_high_to_low_is_reversed_and_says_so(tmp_path):
         start=40.0, step=-0.02, intensity=[100.0 + i for i in range(50)])])
 
     diagnostics = []
-    d = pr.read_pattern(p, diagnostics=diagnostics)
+    d = rx.read_pattern(p, diagnostics=diagnostics)
     assert d.two_theta[0] < d.two_theta[-1]
     assert d.intensity[0] == 149.0
     assert "PATTERN_SCAN_REVERSED" in [x.code for x in diagnostics]
@@ -1817,7 +1817,7 @@ def test_the_alternate_range_marker_is_read_the_same_way(tmp_path):
                    [dict(start=10.0, step=0.02, intensity=[100.0] * 60)],
                    marker=160)
 
-    assert len(pr.read_pattern(p).two_theta) == 60
+    assert len(rx.read_pattern(p).two_theta) == 60
 
 
 # --------------------------------------------------------------------------- #
@@ -1840,7 +1840,7 @@ def test_a_v3_range_reads_its_header_and_its_counts(tmp_path):
                    sample="corundum", radius=280.0)
 
     assert identify_format(p).name == "bruker_raw"
-    d = pr.read_pattern(p)
+    d = rx.read_pattern(p)
     assert d.intensity == y
     assert d.two_theta[0] == pytest.approx(10.0)
     assert d.two_theta[-1] == pytest.approx(10.0 + 0.02 * 249)
@@ -1869,7 +1869,7 @@ def test_the_v3_data_starts_past_the_extra_records_the_header_counts(tmp_path):
                               extras=[(100, 40), (110, 32)])])
 
     assert padded.stat().st_size == plain.stat().st_size + 72
-    assert pr.read_pattern(padded).intensity == y
+    assert rx.read_pattern(padded).intensity == y
 
 
 def test_a_v3_datum_is_the_declared_record_not_four_bytes(tmp_path):
@@ -1884,7 +1884,7 @@ def test_a_v3_datum_is_the_declared_record_not_four_bytes(tmp_path):
     p = write_raw3(tmp_path / "varying.raw",
                    [dict(start=10.0, step=0.02, intensity=y, two_theta=measured)])
 
-    d = pr.read_pattern(p)
+    d = rx.read_pattern(p)
     assert d.intensity == y
     assert d.two_theta == pytest.approx(measured)
 
@@ -1900,7 +1900,7 @@ def test_a_v3_record_length_disagreeing_with_its_varying_bits_is_refused(tmp_pat
                          varying=0b101, record_length=4)])
 
     with pytest.raises(ValueError, match="wants 20"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_v3_ranges_are_scans_and_the_default_says_so(tmp_path):
@@ -1912,9 +1912,9 @@ def test_v3_ranges_are_scans_and_the_default_says_so(tmp_path):
     ])
 
     diagnostics = []
-    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 200
+    assert len(rx.read_pattern(p, diagnostics=diagnostics).two_theta) == 200
     assert "PATTERN_MULTISCAN_DEFAULTED" in [x.code for x in diagnostics]
-    assert len(pr.read_pattern(p, scan=1).two_theta) == 300
+    assert len(rx.read_pattern(p, scan=1).two_theta) == 300
     assert [s.n_points for s in list_scans(p)] == [200, 300]
 
 
@@ -1931,7 +1931,7 @@ def test_a_v3_scan_type_that_is_not_a_profile_is_refused_by_name(code, what,
                          scan_type=code)])
 
     with pytest.raises(ValueError, match=what):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_v3_scan_type_this_reader_has_no_name_for_is_assumed_and_says_so(
@@ -1945,7 +1945,7 @@ def test_a_v3_scan_type_this_reader_has_no_name_for_is_assumed_and_says_so(
                          scan_type=130)])          # a PSD fast scan: abscissa unclear
 
     diagnostics = []
-    assert len(pr.read_pattern(p, diagnostics=diagnostics).two_theta) == 40
+    assert len(rx.read_pattern(p, diagnostics=diagnostics).two_theta) == 40
     assert [x.code for x in diagnostics] == ["PATTERN_X_AXIS_ASSUMED"]
 
 
@@ -1960,7 +1960,7 @@ def test_v3_refuses_a_file_its_declared_ranges_do_not_account_for(tmp_path):
                    trailing=b"\x00" * 64)
 
     with pytest.raises(ValueError, match="unaccounted for"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)
 
 
 def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
@@ -1973,4 +1973,4 @@ def test_a_v3_range_count_that_is_not_a_count_is_refused(tmp_path):
     p.write_bytes(bytes(raw))
 
     with pytest.raises(ValueError, match="not a number of measurements"):
-        pr.read_pattern(p)
+        rx.read_pattern(p)

@@ -15,7 +15,7 @@ function node(id: string, parents: string[], over: Partial<HistoryNode> = {}): H
   return {
     id, parents, children: [], label: "", created_utc: "2026-07-30T00:00:00Z",
     kind: "stage", name: id, action: { kind: "stage", turn_on: [], turn_off: [] },
-    api_call: `ref.run_stage(data, pr.Stage('${id}', []))`,
+    api_call: `ref.run_stage(data, rx.Stage('${id}', []))`,
     status: "converged", n_iterations: 4, rwp: null, gof: null, n_free: null,
     n_diagnostics: 0, diagnostics: [], tags: [], scores: {}, notes: {},
     ...over,

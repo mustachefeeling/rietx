@@ -24,7 +24,7 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-import rietx as pr  # noqa: E402
+import rietx as rx  # noqa: E402
 from rietx.backend import get_backend, resolve_backend, set_backend  # noqa: E402
 from rietx.backend.api import _OP_NAMES, NumpyBackend  # noqa: E402
 
@@ -159,19 +159,19 @@ def test_numpy_only_process_never_imports_torch():
     code = """
 import sys
 import numpy as np
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 
-structure = pr.Structure(phases=[pr.Phase(
-    name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
-    atoms=[pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                   y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                   biso=pr.Parameter(value=0.4))],
-    scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"))])
-instrument = pr.Instrument.debye_scherrer(wavelength=1.5406)
+structure = rx.Structure(phases=[rx.Phase(
+    name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
+    atoms=[rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                   y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                   biso=rx.Parameter(value=0.4))],
+    scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"))])
+instrument = rx.Instrument.debye_scherrer(wavelength=1.5406)
 tt = np.arange(15.0, 60.0, 0.05)
-pattern = pr.PatternData(two_theta=tt.tolist(), intensity=[50.0] * len(tt))
+pattern = rx.PatternData(two_theta=tt.tolist(), intensity=[50.0] * len(tt))
 table = ParameterTable(structure, instrument)
 model = compile_model(structure, instrument, pattern)
 model.evaluate(table.decode(table.x0()))
@@ -288,7 +288,7 @@ def test_backend_kwarg_refines_and_is_recorded(backend):
     ])
     out = {}
     for name in ("numpy", backend):
-        ref = pr.Refinement(structure, ins, backend=name, history=False)
+        ref = rx.Refinement(structure, ins, backend=name, history=False)
         res = ref.fit(pattern, plan=plan)
         assert res.status == "converged", name
         out[name] = (ref.fitted_structure.phases[0].cell.a.value, res)
@@ -325,7 +325,7 @@ def test_unknown_backend_still_rejected():
 
     structure, ins, _ = _toy_base()
     with pytest.raises(NotImplementedError, match="unknown backend"):
-        pr.Refinement(structure, ins, backend="cupy", history=False)
+        rx.Refinement(structure, ins, backend="cupy", history=False)
 
 
 # ----------------------------------------------------------------------
@@ -378,13 +378,13 @@ def test_mps_refine_matches_numpy_cell():
 
     if not DATA.exists():
         pytest.skip("IUCr QPA round-robin dataset not present")
-    data = pr.read_pattern(DATA / "corundum.prn")
+    data = rx.read_pattern(DATA / "corundum.prn")
     cells = {}
     for backend in ("numpy", "torch-mps"):
-        structure = pr.Structure(phases=[corundum_phase()])
+        structure = rx.Structure(phases=[corundum_phase()])
         ins = qarr_instrument()
         seed_scales(structure, ins, data)
-        ref = pr.Refinement(structure, ins, backend=backend, history=False)
+        ref = rx.Refinement(structure, ins, backend=backend, history=False)
         res = ref.fit(data, plan=qpa_plan())
         assert res.status == "converged", backend
         cell = ref.fitted_structure.phases[0].cell

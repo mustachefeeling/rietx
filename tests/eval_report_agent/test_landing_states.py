@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.report import compare_rivals
 from tests.eval_report_agent import build_fixtures as bf
 
@@ -37,9 +37,9 @@ def _models(core):
     """The episode core, back through the schemas — the same JSON round-trip
     the agent's shim performs, so a core that stopped validating fails here
     first."""
-    return (pr.Structure.model_validate(core["structure"]),
-            pr.Instrument.model_validate(core["instrument"]),
-            pr.PatternData.model_validate(core["pattern"]))
+    return (rx.Structure.model_validate(core["structure"]),
+            rx.Instrument.model_validate(core["instrument"]),
+            rx.PatternData.model_validate(core["pattern"]))
 
 
 def _fit_default(core, **kw):
@@ -48,7 +48,7 @@ def _fit_default(core, **kw):
     structure, ins, data = _models(core)
     if "two_theta_limits" in core:
         kw.setdefault("two_theta_limits", tuple(core["two_theta_limits"]))
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     return ref, ref.fit(data, plan="mccusker_default", **kw), data
 
 
@@ -67,7 +67,7 @@ def _rival_state(ref, data, freed, held):
     trial.set_vary([held], False)
     trial.set_values({held: 0.0})
     trial.set_vary([freed], True)
-    trial.run_stage(data, pr.Stage(f"swap:{freed}", [freed]))
+    trial.run_stage(data, rx.Stage(f"swap:{freed}", [freed]))
     return trial
 
 
@@ -155,7 +155,7 @@ def test_c1_data_chooses_and_the_tolerance_discriminates(srm_trio):
     assert abs(disp_fit.freed_value - disp_truth) <= tol  # the swap passes
 
     ridge = ref.branch()
-    ridge_res = ridge.run_stage(data, pr.Stage("ridge", [DISP, ZERO]))
+    ridge_res = ridge.run_stage(data, rx.Stage("ridge", [DISP, ZERO]))
     ridge_disp = ridge.fitted_instrument.geometry.sample_displacement.value
     assert abs(ridge_disp - disp_truth) > tol             # the ridge fails
     assert ridge_res.statistics.rwp < disp_fit.rwp        # at a better Rwp
@@ -171,7 +171,7 @@ def w1_landing():
     except FileNotFoundError as exc:
         pytest.skip(str(exc))
     structure, ins, data = _models(ep["core"])
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan="mccusker_default",
                      two_theta_limits=tuple(ep["core"]["two_theta_limits"]),
                      stage_reports=True)
@@ -243,9 +243,9 @@ def test_w1_modelling_the_impurity_is_decisive(w1_landing):
     s2, i2, _ = _models(ep["core"])
     s2.phases.append(_caf2_phase())
     seed_scales(s2, i2, data)
-    plan = pr.RefinementPlan.mccusker_default()
-    plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
-    ref2 = pr.Refinement(s2, i2)
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
+    ref2 = rx.Refinement(s2, i2)
     both = ref2.fit(data, plan=plan,
                     two_theta_limits=tuple(ep["core"]["two_theta_limits"]))
     assert both.status == "converged"
@@ -297,7 +297,7 @@ def test_w2_satellites_vanish_when_the_source_is_fixed():
 
     structure, ins_single, data = _models(ep["core"])
     assert len(ins_single.source.lines) == 1      # the wrong declaration
-    ref1 = pr.Refinement(structure, ins_single)
+    ref1 = rx.Refinement(structure, ins_single)
     r1 = ref1.fit(data, plan="mccusker_default")
     rep1 = ref1.report()
     assert r1.status == "converged"
@@ -312,9 +312,9 @@ def test_w2_satellites_vanish_when_the_source_is_fixed():
               for a in rep1.suggested_actions if a.active}
     assert active.get("add_impurity_phase", 0.0) >= 0.8  # the trap, live
 
-    s2 = pr.Structure(phases=[corundum_phase()])
+    s2 = rx.Structure(phases=[corundum_phase()])
     seed_scales(s2, doublet, data)
-    ref2 = pr.Refinement(s2, doublet)
+    ref2 = rx.Refinement(s2, doublet)
     r2 = ref2.fit(data, plan="mccusker_default")
     assert r2.status == "converged"
     assert r1.statistics.chi2 / r2.statistics.chi2 >= DECISIVE_MIN
@@ -335,7 +335,7 @@ def test_e8p_lazy_path_fires_the_clause_and_the_rivals_tie():
     row can only ever answer "tie", which is its job.  The wrong-family
     state's clause firing is pinned one suite over, in
     ``test_fitreport_layers`` (the E8-short block)."""
-    plan = pr.RefinementPlan.mccusker_default()
+    plan = rx.RefinementPlan.mccusker_default()
     assert not any("displacement" in g
                    for st in plan.stages for g in st.turn_on)
 

@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.schemas.instrument import BackgroundChebyshev, EmissionLine, Source
 
 DATA = Path(__file__).parent / "data"
@@ -79,38 +79,38 @@ def build_fap_inputs():
     path = DATA / "FAP.XRA"
     if not path.exists():
         pytest.skip("GSAS-II LabData tutorial dataset not present")
-    raw = pr.read_pattern(path)
+    raw = rx.read_pattern(path)
     # GSAS's own excluded region (FAP.EXP "EXC 2  130.000 1000.000"); the file
     # runs to 130.04° and that last channel is a detector artefact
-    data = pr.PatternData(
+    data = rx.PatternData(
         two_theta=raw.two_theta, intensity=raw.intensity, sigma=raw.sigma,
         excluded_regions=[(129.99, 1000.0)], metadata=raw.metadata)
 
-    cell = pr.Cell(
-        a=pr.Parameter(value=9.3717, min=1.0), b=pr.Parameter(value=9.3717, min=1.0),
-        c=pr.Parameter(value=6.8859, min=1.0),
-        alpha=pr.Parameter(value=90.0), beta=pr.Parameter(value=90.0),
-        gamma=pr.Parameter(value=120.0))
-    structure = pr.Structure(phases=[pr.Phase(
+    cell = rx.Cell(
+        a=rx.Parameter(value=9.3717, min=1.0), b=rx.Parameter(value=9.3717, min=1.0),
+        c=rx.Parameter(value=6.8859, min=1.0),
+        alpha=rx.Parameter(value=90.0), beta=rx.Parameter(value=90.0),
+        gamma=rx.Parameter(value=120.0))
+    structure = rx.Structure(phases=[rx.Phase(
         name="fluorapatite", space_group="P 63/m", cell=cell,
-        atoms=[pr.Atom(label=lab, species=sp,
-                       x=pr.Parameter(value=x), y=pr.Parameter(value=y),
-                       z=pr.Parameter(value=z),
-                       biso=pr.Parameter(value=u * _EIGHT_PI2, min=0.0, max=25.0))
+        atoms=[rx.Atom(label=lab, species=sp,
+                       x=rx.Parameter(value=x), y=rx.Parameter(value=y),
+                       z=rx.Parameter(value=z),
+                       biso=rx.Parameter(value=u * _EIGHT_PI2, min=0.0, max=25.0))
                for lab, sp, x, y, z, u in _ATOMS],
-        scale=pr.Parameter(value=1e-3, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-3, min=0.0, transform="softplus"),
         # GSAS LX, LY starting values (centideg → deg)
-        lor_size=pr.Parameter(value=0.0335, min=0.0, transform="softplus"),
-        lor_strain=pr.Parameter(value=0.0249, min=0.0, transform="softplus"))])
+        lor_size=rx.Parameter(value=0.0335, min=0.0, transform="softplus"),
+        lor_strain=rx.Parameter(value=0.0249, min=0.0, transform="softplus"))])
 
-    instrument = pr.Instrument.bragg_brentano()
+    instrument = rx.Instrument.bragg_brentano()
     # the tutorial's own wavelengths, not our NIST/Hölzer preset: a 60 ppm
     # wavelength difference would map straight onto the cell being compared
     instrument.source = Source(
         lines=[EmissionLine(wavelength=1.5405),
                EmissionLine(wavelength=1.5443,
-                            weight=pr.Parameter(value=0.5, min=0.0, max=1.0))],
-        polarization=pr.Parameter(value=0.5, min=0.0, max=1.0),
+                            weight=rx.Parameter(value=0.5, min=0.0, max=1.0))],
+        polarization=rx.Parameter(value=0.5, min=0.0, max=1.0),
         # Dispersion DECLINED (WP-1001 made it the package default): this is
         # the cross-code row, and GSAS's converged FAP.EXP did not apply f′/f″
         # either.  Adopting another code's protocol means adopting what it did
@@ -131,15 +131,15 @@ def fap_inputs():
     return build_fap_inputs()
 
 
-def _gsas_protocol_plan() -> pr.RefinementPlan:
+def _gsas_protocol_plan() -> rx.RefinementPlan:
     """The parameter set GSAS refined for this tutorial (see module docstring)."""
-    return pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("sample_lor", ["phases.*.lor_size", "phases.*.lor_strain"]),
-        pr.Stage("axial", ["instrument.geometry.axial_sl"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("sample_lor", ["phases.*.lor_size", "phases.*.lor_strain"]),
+        rx.Stage("axial", ["instrument.geometry.axial_sl"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
 
@@ -148,7 +148,7 @@ def test_fap_lab_rietveld_matches_gsas(fap_inputs):
     assert len(data.two_theta) == 5753
     assert data.sigma is None            # counts only ⇒ Poisson fallback
 
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     result = ref.fit(data, plan=_gsas_protocol_plan())
 
     assert result.status == "converged"

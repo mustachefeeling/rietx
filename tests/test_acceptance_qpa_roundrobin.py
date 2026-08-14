@@ -63,7 +63,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.schemas.instrument import BackgroundChebyshev
 from rietx.schemas.structure import PreferredOrientation
 
@@ -92,16 +92,16 @@ TRACE_TOL = 2.0   # wt %, phases weighed below 5 wt %
 
 
 def _p(v, **kw):
-    return pr.Parameter(value=v, **kw)
+    return rx.Parameter(value=v, **kw)
 
 
 def _phase(name, sg, cell, atoms, **kw):
     a, b, c, al, be, ga = cell
-    return pr.Phase(
+    return rx.Phase(
         name=name, space_group=sg,
-        cell=pr.Cell(a=_p(a, min=1.0), b=_p(b, min=1.0), c=_p(c, min=1.0),
+        cell=rx.Cell(a=_p(a, min=1.0), b=_p(b, min=1.0), c=_p(c, min=1.0),
                      alpha=_p(al), beta=_p(be), gamma=_p(ga)),
-        atoms=[pr.Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
+        atoms=[rx.Atom(label=lab, species=sp, x=_p(x), y=_p(y), z=_p(z),
                        biso=_p(biso, min=0.0, max=25.0))
                for lab, sp, x, y, z, biso in atoms],
         scale=_p(1e-3, min=0.0, transform="softplus"),
@@ -110,7 +110,7 @@ def _phase(name, sg, cell, atoms, **kw):
         **kw)
 
 
-def corundum_phase() -> pr.Phase:
+def corundum_phase() -> rx.Phase:
     """α-Al₂O₃, R-3c (hexagonal axes); Lewis, Schwarzenbach & Flack (1982)
     Acta Cryst. A38, 733."""
     return _phase("corundum", "R -3 c", (4.7593, 4.7593, 12.9917, 90, 90, 120),
@@ -118,21 +118,21 @@ def corundum_phase() -> pr.Phase:
                    ("O", "O", 0.30624, 0.0, 0.25, 0.30)])
 
 
-def zincite_phase() -> pr.Phase:
+def zincite_phase() -> rx.Phase:
     """ZnO wurtzite, P6₃mc; Kihara & Donnay (1985) Can. Mineral. 23, 647."""
     return _phase("zincite", "P 63 m c", (3.2499, 3.2499, 5.2066, 90, 90, 120),
                   [("Zn", "Zn", 1 / 3, 2 / 3, 0.0, 0.55),
                    ("O", "O", 1 / 3, 2 / 3, 0.3826, 0.55)])
 
 
-def fluorite_phase() -> pr.Phase:
+def fluorite_phase() -> rx.Phase:
     """CaF₂, Fm-3m, a = 5.4631 Å; both sites fully fixed by symmetry."""
     return _phase("fluorite", "F m -3 m", (5.4631, 5.4631, 5.4631, 90, 90, 90),
                   [("Ca", "Ca", 0.0, 0.0, 0.0, 0.55),
                    ("F", "F", 0.25, 0.25, 0.25, 0.75)])
 
 
-def brucite_phase(*, textured: bool = False) -> pr.Phase:
+def brucite_phase(*, textured: bool = False) -> rx.Phase:
     """Mg(OH)₂, P-3m1; Zigan & Rothbauer (1967) Z. Kristallogr. 125, 425
     (neutron, D → H).  H is invisible to X-rays but carries 3.5 % of the
     molar mass — omitting it would bias the ZMV fraction by that much, so it
@@ -148,7 +148,7 @@ def brucite_phase(*, textured: bool = False) -> pr.Phase:
                    ("H", "H", 1 / 3, 2 / 3, 0.4303, 2.5)], **kw)
 
 
-def magnetite_phase() -> pr.Phase:
+def magnetite_phase() -> rx.Phase:
     """Fe₃O₄ inverse spinel, Fd-3m origin choice 2 (gemmi's bare symbol
     resolves to origin 1, so the ``:2`` is load-bearing); Fleet (1981)
     Acta Cryst. B37, 917."""
@@ -158,7 +158,7 @@ def magnetite_phase() -> pr.Phase:
                    ("O", "O", 0.2549, 0.2549, 0.2549, 0.60)])
 
 
-def zircon_phase() -> pr.Phase:
+def zircon_phase() -> rx.Phase:
     """ZrSiO₄, I4₁/amd origin choice 2; Hazen & Finger (1979) Am. Mineral.
     64, 196."""
     return _phase("zircon", "I 41/a m d:2", (6.6042, 6.6042, 5.9796, 90, 90, 90),
@@ -167,14 +167,14 @@ def zircon_phase() -> pr.Phase:
                    ("O", "O", 0.0, 0.0660, 0.1951, 0.55)])
 
 
-def qarr_instrument() -> pr.Instrument:
+def qarr_instrument() -> rx.Instrument:
     """The CPD standard-data-set instrument: Philips Bragg-Brentano, 17.3 cm
     radius, Cu Kα doublet on the NIST/Hölzer wavelength scale (what the
     ``CuKa`` preset ships and what the SRM 676a certificate uses — the
     Sietronics header's 1.54056 Å is the same line quoted at its older
     nominal value), diffracted-beam graphite monochromator (2θ_m ≈ 26.6° →
     polarization K ≈ 0.556)."""
-    ins = pr.Instrument.bragg_brentano(radiation="CuKa",
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa",
                                        goniometer_radius_mm=173.0,
                                        monochromator_two_theta=26.6)
     ins.background = BackgroundChebyshev.with_terms(6)
@@ -189,8 +189,8 @@ def qarr_instrument() -> pr.Instrument:
     return ins
 
 
-def seed_scales(structure: pr.Structure, ins: pr.Instrument,
-                data: pr.PatternData) -> None:
+def seed_scales(structure: rx.Structure, ins: rx.Instrument,
+                data: rx.PatternData) -> None:
     """Scale the phases so the summed calculated intensity matches the data
     (equal split between phases; stage 1 apportions).  Deterministic, and
     keeps TRF's first stage within the softplus transform's live range."""
@@ -207,28 +207,28 @@ def seed_scales(structure: pr.Structure, ins: pr.Instrument,
 
 
 def qpa_plan(*, biso_globs: tuple[str, ...] = ("phases.*.atoms.*.biso",),
-             texture: bool = False) -> pr.RefinementPlan:
+             texture: bool = False) -> rx.RefinementPlan:
     """The QPA protocol of this module's docstring.  The sample-broadening
     stage seeds its softplus terms off the exact-zero floor (lor_strain and
     the gauss terms start at 0, where the softplus gradient is dead)."""
     stages = [
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("zero_disp", ["instrument.zero_shift",
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("zero_disp", ["instrument.zero_shift",
                                "instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
-        pr.Stage("sample_broadening",
+        rx.Stage("sample_broadening",
                  ["phases.*.lor_size", "phases.*.lor_strain",
                   "phases.*.gauss_size", "phases.*.gauss_strain"], seed=1e-4),
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl"]),
-        pr.Stage("biso", list(biso_globs)),
+        rx.Stage("biso", list(biso_globs)),
     ]
     if texture:
-        stages.append(pr.Stage("po", ["phases.*.preferred_orientation.r"]))
-    return pr.RefinementPlan(stages=stages)
+        stages.append(rx.Stage("po", ["phases.*.preferred_orientation.r"]))
+    return rx.RefinementPlan(stages=stages)
 
 
 def _require_data():
@@ -236,12 +236,12 @@ def _require_data():
         pytest.skip("IUCr QPA round-robin dataset not present")
 
 
-def _fit(sample: str, phases: list[pr.Phase], *, plan: pr.RefinementPlan):
-    data = pr.read_pattern(DATA / f"{sample}.prn")
-    structure = pr.Structure(phases=phases)
+def _fit(sample: str, phases: list[rx.Phase], *, plan: rx.RefinementPlan):
+    data = rx.read_pattern(DATA / f"{sample}.prn")
+    structure = rx.Structure(phases=phases)
     ins = qarr_instrument()
     seed_scales(structure, ins, data)
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan=plan)
     OUT.mkdir(exist_ok=True)
     result.plot(path=str(OUT / f"qarr_{sample}.png"))
@@ -265,7 +265,7 @@ def test_read_prn_two_column_ascii():
     downstream (the weighting invariant)."""
     _require_data()
     for name in ("cpd-1g", "cpd-1e", "corundum"):   # 1e carries a trailing blank line
-        d = pr.read_pattern(DATA / f"{name}.prn")
+        d = rx.read_pattern(DATA / f"{name}.prn")
         tt = np.asarray(d.two_theta)
         assert len(tt) == 7251
         assert tt[0] == pytest.approx(5.0) and tt[-1] == pytest.approx(150.0)

@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.background import (
     auto_background,
     diagnose,
@@ -32,16 +32,16 @@ def _peaky_pattern(*, background, seed=5, lo=15.0, hi=110.0, step=0.02,
     """LaB6 pattern on a prescribed analytic background, Poisson-noised."""
     structure = structure or make_lab6()
     structure.phases[0].scale.value = 3e-4
-    ins = instrument or pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = instrument or rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 3e-3
     ins.profile.x.value = 5e-3
     tt = np.arange(lo, hi, step)
-    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
     model = compile_model(structure, ins, grid, mode="rietveld")
     table = ParameterTable(structure, ins)
     y = model.evaluate(table.decode(table.x0())) + background(model.tt)
     rng = np.random.default_rng(seed)
-    return pr.PatternData(two_theta=model.tt.tolist(),
+    return rx.PatternData(two_theta=model.tt.tolist(),
                           intensity=rng.poisson(np.maximum(y, 1.0)).astype(float).tolist())
 
 
@@ -96,7 +96,7 @@ def _dope_ghost(data, lam_parent, lam_ghost, *, height=0.12):
     s = np.sin(np.radians(parent / 2.0)) * lam_ghost / lam_parent
     ghost = 2.0 * np.degrees(np.arcsin(s))
     y = y + height * y.max() * np.exp(-0.5 * ((tt - ghost) / 0.05) ** 2)
-    return pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist()), ghost
+    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist()), ghost
 
 
 def test_diagnostics_flag_kbeta_ghost():
@@ -118,7 +118,7 @@ def test_kbeta_check_follows_the_anode(anode):
     """
     from rietx.background.diagnostics import _KBETA
 
-    ins = pr.Instrument.bragg_brentano(radiation=anode)
+    ins = rx.Instrument.bragg_brentano(radiation=anode)
     lam = ins.source.lines[0].wavelength
     data = _peaky_pattern(background=_flat_bkg, instrument=ins, lo=5.0, hi=125.0)
     doped, ghost = _dope_ghost(data, lam, _KBETA[anode])
@@ -137,7 +137,7 @@ def test_tungsten_contamination_is_checked_off_cu():
     — unlike Kβ, which is why the two are looked up differently."""
     from rietx.background.diagnostics import _W_LA1
 
-    ins = pr.Instrument.bragg_brentano(radiation="CoKa")
+    ins = rx.Instrument.bragg_brentano(radiation="CoKa")
     lam = ins.source.lines[0].wavelength
     data = _peaky_pattern(background=_flat_bkg, instrument=ins, lo=25.0, hi=125.0)
     doped, ghost = _dope_ghost(data, lam, _W_LA1, height=0.05)
@@ -223,7 +223,7 @@ def test_bspline_partition_of_unity():
 def test_pspline_schema_validates_coefficient_count():
     with pytest.raises(ValueError, match="coefficients"):
         BackgroundPSpline(breakpoints=[10.0, 20.0, 30.0],
-                          coefficients=[pr.Parameter(value=0.0)] * 3)
+                          coefficients=[rx.Parameter(value=0.0)] * 3)
 
 
 def test_second_difference_matrix():
@@ -238,11 +238,11 @@ def test_second_difference_matrix():
 def test_penalty_rows_enter_the_residual():
     data = _peaky_pattern(background=_flat_bkg)
     structure = make_lab6()
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.background = BackgroundPSpline.for_range(15.0, 110.0, knot_step_deg=10.0,
                                                  lambda_smooth=4.0)
     # a live air term, so its (softplus-transformed) column is exercised too
-    ins.background.air_scatter = pr.Parameter(value=50.0, vary=True, min=0.0,
+    ins.background.air_scatter = rx.Parameter(value=50.0, vary=True, min=0.0,
                                               transform="softplus")
     model = compile_model(structure, ins, data)
     table = ParameterTable(structure, ins)
@@ -288,12 +288,12 @@ def test_pspline_refines_a_curved_background():
     data = _peaky_pattern(background=_hump_bkg, seed=9)
     structure = make_lab6()
     structure.phases[0].scale.value = 1.5e-4
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 2e-3
     ins.profile.x.value = 4e-3
     ins.background = auto_background(data, wavelength=WAVELENGTH)
 
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(data, plan="lab_bragg_brentano")
     assert result.status == "converged"
     # Rwp bottoms out at the Poisson noise floor here (Rexp ≈ 0.078 on this
@@ -323,18 +323,18 @@ def _absorption_fit(background, *, broad=0.0):
     structure = make_lab6()
     structure.phases[0].scale.value = 3e-4
     structure.phases[0].lor_size.value = broad
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 3e-3
     ins.profile.x.value = 5e-3
     data = _peaky_pattern(background=_flat_bkg, lo=15.0, hi=70.0, seed=4,
                           structure=structure.model_copy(deep=True),
                           instrument=ins.model_copy(deep=True))
     ins.background = background
-    plan = pr.RefinementPlan(stages=[
-        pr.Stage("all", ["phases.*.scale", "instrument.background.c*",
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("all", ["phases.*.scale", "instrument.background.c*",
                          "phases.*.atoms.*.biso"]),
     ])
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     return ref, ref.fit(data, plan=plan)
 
 
@@ -377,7 +377,7 @@ def test_penalty_rows_suppress_absorption():
         structure = make_lab6()
         structure.phases[0].scale.value = 3e-4
         structure.phases[0].lor_size.value = 0.15
-        ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+        ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
         ins.profile.w.value = 3e-3
         ins.profile.x.value = 5e-3
         data = _peaky_pattern(background=_flat_bkg, lo=15.0, hi=70.0, seed=4,
@@ -493,13 +493,13 @@ def test_stiff_background_reports_the_misfit_between_the_peaks():
 
     structure = make_lab6()
     structure.phases[0].scale.value = 3e-4
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 3e-3
     ins.profile.x.value = 5e-3
     ins.background = BackgroundChebyshev.with_terms(2)
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(_peaky_pattern(background=_hump_bkg, seed=9),
-                     plan=pr.RefinementPlan(stages=[pr.Stage(
+                     plan=rx.RefinementPlan(stages=[rx.Stage(
                          "all", ["phases.*.scale", "instrument.background.c*",
                                  "phases.*.atoms.*.biso"])]))
     report = ref.report()

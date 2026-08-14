@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.backend.linalg64 import (
     COLUMN_COSINE_MIN,
     COLUMN_REL_L2_MAX,
@@ -250,24 +250,24 @@ def test_srm660c_fp32_columns_refine_to_the_same_answer():
     from tests.test_acceptance_srm660c import build_srm_inputs
 
     data, structure, instrument = build_srm_inputs()
-    plan = pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+    plan = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl",
                                  "instrument.geometry.axial_hl"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
-    ref64 = pr.Refinement(structure, instrument, history=False)
+    ref64 = rx.Refinement(structure, instrument, history=False)
     result64 = ref64.fit(data, plan=plan)
     a64 = ref64.fitted_structure.phases[0].cell.a.value
 
-    ref32 = pr.Refinement(structure, instrument, history=False)
+    ref32 = rx.Refinement(structure, instrument, history=False)
     with precision_policy(FP32_JACOBIAN):
         result32 = ref32.fit(data, plan=plan)
     a32 = ref32.fitted_structure.phases[0].cell.a.value

@@ -23,7 +23,7 @@ from http.client import HTTPConnection
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.gui import GuiSession, build_server
 from rietx.refine import _VERSION
 from rietx.schemas.common import Provenance
@@ -52,7 +52,7 @@ def pattern_file(tmp_path_factory):
 def served(tmp_path_factory, pattern_file):
     structure, instrument = perturbed_models()
     root = tmp_path_factory.mktemp("peaks-proj") / "p.rex"
-    project = pr.Project.create(root, pattern=pattern_file,
+    project = rx.Project.create(root, pattern=pattern_file,
                                 structure=structure, instrument=instrument)
     session = GuiSession(project,
                          state_dir=tmp_path_factory.mktemp("peaks-state"))
@@ -194,7 +194,7 @@ def test_a_peak_list_keyed_to_one_pattern_is_refused_against_another(
                             other)
     structure, instrument = perturbed_models()
     root = tmp_path_factory.mktemp("peaks-b-proj") / "b.rex"
-    b = pr.Project.create(root, pattern=other_file, structure=structure,
+    b = rx.Project.create(root, pattern=other_file, structure=structure,
                           instrument=instrument)
     shutil.copyfile(project.path / "peaks.json", b.path / "peaks.json")
 

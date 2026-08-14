@@ -242,7 +242,7 @@ def test_gui_and_agent_runs_produce_identical_spec_notes(tmp_path):
     ``SearchSpec`` field — are byte-identical."""
     import time
 
-    import rietx as pr
+    import rietx as rx
     import rietx.agent as ag
     from rietx.gui import GuiSession
     from tests.test_project import _write_xye
@@ -258,7 +258,7 @@ def test_gui_and_agent_runs_produce_identical_spec_notes(tmp_path):
     pattern = synthesize()
     structure, instrument = perturbed_models()
     file = _write_xye(tmp_path / "chairs.xye", pattern)
-    project = pr.Project.create(tmp_path / "chairs.rex", pattern=file,
+    project = rx.Project.create(tmp_path / "chairs.rex", pattern=file,
                                 structure=structure, instrument=instrument)
     session = GuiSession(project, state_dir=tmp_path / "state")
     try:

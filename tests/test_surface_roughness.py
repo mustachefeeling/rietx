@@ -876,7 +876,7 @@ def test_qarr_pure_phases_cannot_constrain_roughness(phase_name):
     accepts that answer rather than a number: no fit may claim a resolved
     roughness while buying nothing in Rwp.
     """
-    import rietx as pr
+    import rietx as rx
     from tests.test_acceptance_qpa_roundrobin import (
         DATA,
         _require_data,
@@ -893,18 +893,18 @@ def test_qarr_pure_phases_cannot_constrain_roughness(phase_name):
                 "zincite": zincite_phase}[phase_name]
 
     def fit(with_roughness: bool):
-        data = pr.read_pattern(DATA / f"{phase_name}.prn")
-        structure = pr.Structure(phases=[phase_fn()])
+        data = rx.read_pattern(DATA / f"{phase_name}.prn")
+        structure = rx.Structure(phases=[phase_fn()])
         ins = qarr_instrument()
         plan = qpa_plan()
         if with_roughness:
             ins.geometry.surface_roughness = RoughnessSuortti(
                 a=Parameter(value=0.5, min=0.0, max=1.0),
                 b=Parameter(value=0.0, min=0.0, max=5.0, transform="softplus"))
-            plan.stages.append(pr.Stage(
+            plan.stages.append(rx.Stage(
                 "roughness", ["instrument.geometry.surface_roughness.*"], seed=0.3))
         seed_scales(structure, ins, data)
-        return pr.Refinement(structure, ins).fit(data, plan=plan)
+        return rx.Refinement(structure, ins).fit(data, plan=plan)
 
     off, on = fit(False), fit(True)
 
@@ -968,7 +968,7 @@ def test_srm660c_is_unmoved_by_freeing_roughness():
     acceptance is that nothing happens -- the cell stays inside the WP-0310
     tolerance and the fences say why.
     """
-    import rietx as pr
+    import rietx as rx
     from tests.test_acceptance_srm660c import A_REFERENCE, DATA, build_srm_inputs
 
     if not (DATA / "nist_srm660c_100a.cif").exists():
@@ -977,10 +977,10 @@ def test_srm660c_is_unmoved_by_freeing_roughness():
     ins.geometry.surface_roughness = RoughnessSuortti(
         a=Parameter(value=0.5, min=0.0, max=1.0),
         b=Parameter(value=0.0, min=0.0, max=5.0, transform="softplus"))
-    plan = pr.RefinementPlan.lab_bragg_brentano()
+    plan = rx.RefinementPlan.lab_bragg_brentano()
     assert plan.stages[-1].name == "roughness"   # the plan already carries it
 
-    result = pr.Refinement(structure, ins).fit(data, plan=plan)
+    result = rx.Refinement(structure, ins).fit(data, plan=plan)
     a = result.parameter("phases.0.cell.a")
     assert a.value == pytest.approx(A_REFERENCE, abs=2e-3), (
         f"a = {a.value:.6f} A moved out of band with roughness free")

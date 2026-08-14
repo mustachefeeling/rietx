@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.params.vector import ParameterTable
 from rietx.report import (
@@ -59,7 +59,7 @@ def _truth(lo=18.0, hi=125.0, step=0.02, seed=17, disp=0.0):
 
     structure = make_lab6()
     structure.phases[0].scale.value = 4e-4
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     ins.profile.w.value = 4e-3
     ins.profile.u.value = 3e-3
     ins.profile.x.value = 6e-3
@@ -67,17 +67,17 @@ def _truth(lo=18.0, hi=125.0, step=0.02, seed=17, disp=0.0):
     ins.geometry.axial_hl.value = 0.02
     ins.geometry.sample_displacement.value = disp
     ins.background = BackgroundChebyshev(coefficients=[
-        pr.Parameter(value=80.0), pr.Parameter(value=0.0),
-        pr.Parameter(value=0.0), pr.Parameter(value=0.0)])
+        rx.Parameter(value=80.0), rx.Parameter(value=0.0),
+        rx.Parameter(value=0.0), rx.Parameter(value=0.0)])
 
     tt = np.arange(lo, hi, step)
-    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
     model = compile_model(structure, ins, grid, mode="rietveld")
     table = ParameterTable(structure, ins)
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(seed)
     y_noisy = rng.poisson(np.maximum(y, 1.0) * _COUNT_SCALE) / _COUNT_SCALE
-    data = pr.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
+    data = rx.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
                           sigma=np.sqrt(np.maximum(y, 1.0) / _COUNT_SCALE).tolist())
     return structure, ins, data
 
@@ -246,7 +246,7 @@ def test_injected_impurity_peak_is_suggested_as_a_phase(truth):
     tt = np.asarray(data.two_theta)
     y = np.asarray(data.intensity, dtype=float)
     y = y + 900.0 * np.exp(-0.5 * ((tt - 29.35) / 0.06) ** 2)
-    doped = pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+    doped = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
                            sigma=data.sigma)
 
     report = _report_for(structure, ins, doped)
@@ -263,7 +263,7 @@ def test_large_offset_trips_the_validity_radius_gate(truth):
     confident small shift — the gate exists precisely for this."""
     structure, ins, data = truth
     perturbed = structure.model_copy(deep=True)
-    perturbed.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)   # 0.4 % off
+    perturbed.phases[0].cell = rx.Cell.cubic(4.1568 * 1.004)   # 0.4 % off
 
     report = _report_for(perturbed, ins, data)
     tripped = [a for a in report.attribution
@@ -280,7 +280,7 @@ def test_immature_fit_makes_layer1_abstain():
     attribute the misfit to specific small parameter errors."""
     structure, ins, data = _truth()
     broken = structure.model_copy(deep=True)
-    broken.phases[0].cell = pr.Cell.cubic(4.60)      # nowhere near
+    broken.phases[0].cell = rx.Cell.cubic(4.60)      # nowhere near
     broken.phases[0].scale.value = 4e-5
 
     report = _report_for(broken, ins, data)
@@ -391,7 +391,7 @@ def test_strategy_veto_marks_planned_actions_inactive(truth):
     structure, ins, data = truth
     perturbed = ins.model_copy(deep=True)
     perturbed.zero_shift.value = 0.02
-    plan = pr.RefinementPlan.lab_bragg_brentano()
+    plan = rx.RefinementPlan.lab_bragg_brentano()
 
     report = _report_for(structure, perturbed, data, plan=plan)
     zero = report.action("refine_zero_shift")
@@ -417,12 +417,12 @@ def test_predict_then_verify_accepts_a_real_improvement(truth):
     start = ins.model_copy(deep=True)
     start.zero_shift.value = 0.02
 
-    ref = pr.Refinement(structure, start)
-    ref.fit(data, plan=pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"])]))
+    ref = rx.Refinement(structure, start)
+    ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"])]))
     chi2_before = ref.result_.statistics.chi2
 
-    action = pr.SuggestedAction(kind="refine_zero_shift", confidence=0.9,
+    action = rx.SuggestedAction(kind="refine_zero_shift", confidence=0.9,
                                 rationale="test", parameter_paths=["instrument.zero_shift"])
     outcome = predict_then_verify(ref, data, action)
     assert outcome.accepted, outcome.reason
@@ -433,10 +433,10 @@ def test_predict_then_verify_accepts_a_real_improvement(truth):
 
 def test_predict_then_verify_rejects_a_useless_action(truth):
     structure, ins, data = truth
-    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref = rx.Refinement(structure, ins.model_copy(deep=True))
     ref.fit(data, plan="lab_bragg_brentano")
 
-    useless = pr.SuggestedAction(
+    useless = rx.SuggestedAction(
         kind="refine_sample_transparency", confidence=0.2, rationale="test",
         parameter_paths=["instrument.geometry.sample_transparency"])
     outcome = predict_then_verify(ref, data, useless)
@@ -445,9 +445,9 @@ def test_predict_then_verify_rejects_a_useless_action(truth):
 
 
 def test_veto_helper_is_pure_annotation():
-    actions = [pr.SuggestedAction(kind="refine_cell", confidence=0.9,
+    actions = [rx.SuggestedAction(kind="refine_cell", confidence=0.9,
                                   rationale="x", parameter_paths=["phases.*.cell.*"])]
-    out = apply_strategy_veto(actions, pr.RefinementPlan.mccusker_default())
+    out = apply_strategy_veto(actions, rx.RefinementPlan.mccusker_default())
     assert len(out) == 1                    # never dropped, only annotated
     assert not out[0].active
     assert out[0].confidence == 0.9         # and the reasoning is preserved
@@ -497,10 +497,10 @@ def test_texture_action_is_vetoed_by_a_plan_that_frees_r():
     from rietx.report import texture_actions
 
     actions = texture_actions([_texture()])
-    out = apply_strategy_veto(actions, pr.RefinementPlan.mccusker_structural())
+    out = apply_strategy_veto(actions, rx.RefinementPlan.mccusker_structural())
     assert not out[0].active                       # plan already frees r
     out = apply_strategy_veto(texture_actions([_texture()]),
-                              pr.RefinementPlan.mccusker_default())
+                              rx.RefinementPlan.mccusker_default())
     assert out[0].active                           # profile-only plan does not
 
 
@@ -531,9 +531,9 @@ def test_plot_for_vlm_writes_png_only(tmp_path, truth):
 
     # rebuild the bare result for plotting
     from rietx.viz.plots import plot_for_vlm
-    ref = pr.Refinement(structure, perturbed, history=False)
-    result = ref.fit(data, plan=pr.RefinementPlan(stages=[
-        pr.Stage("bkg", ["instrument.background.*"])]))
+    ref = rx.Refinement(structure, perturbed, history=False)
+    result = ref.fit(data, plan=rx.RefinementPlan(stages=[
+        rx.Stage("bkg", ["instrument.background.*"])]))
 
     with pytest.raises(ValueError, match="PNG"):
         plot_for_vlm(result, report, path=str(tmp_path / "montage.jpg"))
@@ -578,13 +578,13 @@ def _broad_truth(lor_size, seed=17):
     structure = structure.model_copy(deep=True)
     structure.phases[0].lor_size.value = lor_size
     tt = np.arange(18.0, 125.0, 0.02)
-    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
     model = compile_model(structure, ins, grid, mode="rietveld")
     table = ParameterTable(structure, ins)
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(seed)
     y_noisy = rng.poisson(np.maximum(y, 1.0) * _COUNT_SCALE) / _COUNT_SCALE
-    data = pr.PatternData(
+    data = rx.PatternData(
         two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
         sigma=np.sqrt(np.maximum(y, 1.0) / _COUNT_SCALE).tolist())
     return structure, ins, data
@@ -595,7 +595,7 @@ def _doped(data, two_theta=29.35, height=900.0, width=0.06):
     tt = np.asarray(data.two_theta)
     y = np.asarray(data.intensity, dtype=float)
     y = y + height * np.exp(-0.5 * ((tt - two_theta) / width) ** 2)
-    return pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
+    return rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist(),
                           sigma=data.sigma)
 
 
@@ -610,7 +610,7 @@ def test_wrong_cell_abstained_leads_with_reindex(truth):
 
     structure, ins, data = truth
     perturbed = structure.model_copy(deep=True)
-    perturbed.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+    perturbed.phases[0].cell = rx.Cell.cubic(4.1568 * 1.004)
 
     report = _report_for(perturbed, ins, data)
     assert report.abstained_reason, "a 0.4 % cell error must abstain"
@@ -736,19 +736,19 @@ def _pore_proxy_data(seed=17):
     by parity — never a scale, ADP or texture signature."""
     structure, ins, _ = _truth(seed=seed)
     doped = structure.model_copy(deep=True)
-    doped.phases[0].atoms.append(pr.Atom(
+    doped.phases[0].atoms.append(rx.Atom(
         label="Oguest", species="O",
-        x=pr.Parameter(value=0.5), y=pr.Parameter(value=0.5),
-        z=pr.Parameter(value=0.5),
-        occ=pr.Parameter(value=0.6), biso=pr.Parameter(value=2.0)))
+        x=rx.Parameter(value=0.5), y=rx.Parameter(value=0.5),
+        z=rx.Parameter(value=0.5),
+        occ=rx.Parameter(value=0.6), biso=rx.Parameter(value=2.0)))
     tt = np.arange(18.0, 125.0, 0.02)
-    grid = pr.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
+    grid = rx.PatternData(two_theta=tt.tolist(), intensity=[0.0] * len(tt))
     model = compile_model(doped, ins, grid, mode="rietveld")
     table = ParameterTable(doped, ins)
     y = model.evaluate(table.decode(table.x0()))
     rng = np.random.default_rng(seed)
     y_noisy = rng.poisson(np.maximum(y, 1.0) * _COUNT_SCALE) / _COUNT_SCALE
-    data = pr.PatternData(
+    data = rx.PatternData(
         two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
         sigma=np.sqrt(np.maximum(y, 1.0) / _COUNT_SCALE).tolist())
     return structure, ins, data
@@ -762,7 +762,7 @@ def test_pore_proxy_gap_and_contents_clause():
     R² = 0.011.  The report must carry the gap and name the contents
     signature — and still invent no action, because none applies."""
     structure, ins, data = _pore_proxy_data()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(data, plan="mccusker_default")
     report = ref.report()
 
@@ -846,12 +846,12 @@ def test_wrong_cell_abstentions_classify_as_model_error(truth):
     structure, ins, data = truth
 
     p = structure.model_copy(deep=True)
-    p.phases[0].cell = pr.Cell.cubic(4.1568 * 1.004)
+    p.phases[0].cell = rx.Cell.cubic(4.1568 * 1.004)
     report = _report_for(p, ins, data)
     assert report.abstained_kind == "immature"
 
     p2 = structure.model_copy(deep=True)
-    p2.phases[0].cell = pr.Cell.cubic(4.1568 * 1.001)
+    p2.phases[0].cell = rx.Cell.cubic(4.1568 * 1.001)
     report2 = _report_for(p2, ins, data)
     assert report2.abstained_kind == "unreadable"
     assert "Resolution-limited" not in (report2.abstained_reason or "")
@@ -918,7 +918,7 @@ def _fit_and_report(structure, start_ins, data, stem, plan="mccusker_default",
     """One staged fit to convergence, its report, and the house PNGs."""
     from rietx.viz.plots import plot_result
 
-    ref = pr.Refinement(structure, start_ins)
+    ref = rx.Refinement(structure, start_ins)
     result = ref.fit(data, plan=plan)
     report = ref.report()
     _OUT.mkdir(exist_ok=True)
@@ -1163,7 +1163,7 @@ def displaced():
     structure, ins, data = _truth(disp=-0.10)
     start = ins.model_copy(deep=True)
     start.geometry.sample_displacement.value = 0.0
-    ref = pr.Refinement(structure, start)
+    ref = rx.Refinement(structure, start)
     ref.fit(data, plan=RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
         Stage("zero", ["instrument.zero_shift"]),
@@ -1247,7 +1247,7 @@ def test_an_undisplaced_specimen_ties(truth):
     from rietx.report import compare_rivals
 
     structure, ins, data = truth
-    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref = rx.Refinement(structure, ins.model_copy(deep=True))
     ref.fit(data, plan="mccusker_default")
     comparison = compare_rivals(
         ref, data, ("instrument.geometry.sample_displacement",
@@ -1273,7 +1273,7 @@ def test_pawley_mode_is_refused_by_name(truth):
     from rietx.report import compare_rivals
 
     structure, ins, data = truth
-    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref = rx.Refinement(structure, ins.model_copy(deep=True))
     ref.fit(data, mode="pawley", plan="mccusker_default")
     with pytest.raises(ValueError, match="Pawley"):
         compare_rivals(ref, data, ("instrument.zero_shift",
@@ -1284,7 +1284,7 @@ def test_comparing_before_a_fit_is_refused(truth):
     from rietx.report import compare_rivals
 
     structure, ins, data = truth
-    ref = pr.Refinement(structure, ins.model_copy(deep=True))
+    ref = rx.Refinement(structure, ins.model_copy(deep=True))
     with pytest.raises(RuntimeError, match="run a fit"):
         compare_rivals(ref, data, ("instrument.zero_shift",
                                    "instrument.geometry.sample_displacement"))

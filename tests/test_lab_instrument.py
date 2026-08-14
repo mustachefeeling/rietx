@@ -7,7 +7,7 @@ Fast unit/property tests; the SRM 660c real-data acceptance lives in
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.model.corrections import displacement_shift_deg, transparency_shift_deg
 from rietx.model.forward import compile_model
 from rietx.model.profiles.fcj import (
@@ -25,23 +25,23 @@ CU_KA1, CU_KA2 = 1.5405929, 1.5444274
 # fixtures
 # ---------------------------------------------------------------------------
 
-def _lab6_phase(a: float = 4.1568) -> pr.Phase:
-    return pr.Phase(
-        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(a),
+def _lab6_phase(a: float = 4.1568) -> rx.Phase:
+    return rx.Phase(
+        name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(a),
         atoms=[
-            pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.36, min=0.0, max=25.0)),
-            pr.Atom(label="B", species="B", x=pr.Parameter(value=0.198),
-                    y=pr.Parameter(value=0.5), z=pr.Parameter(value=0.5),
-                    biso=pr.Parameter(value=0.28, min=0.0, max=25.0)),
+            rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.36, min=0.0, max=25.0)),
+            rx.Atom(label="B", species="B", x=rx.Parameter(value=0.198),
+                    y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5),
+                    biso=rx.Parameter(value=0.28, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=5e-5, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=5e-5, min=0.0, transform="softplus"),
     )
 
 
-def _lab_instrument(**kw) -> pr.Instrument:
-    ins = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6, **kw)
+def _lab_instrument(**kw) -> rx.Instrument:
+    ins = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6, **kw)
     ins.profile.w.value = 2e-3
     ins.profile.x.value = 5e-3
     return ins
@@ -49,12 +49,12 @@ def _lab_instrument(**kw) -> pr.Instrument:
 
 def _flat_pattern(lo=15.0, hi=90.0, step=0.02):
     tt = np.arange(lo, hi, step)
-    return pr.PatternData(two_theta=tt.tolist(), intensity=np.full_like(tt, 10.0).tolist(),
+    return rx.PatternData(two_theta=tt.tolist(), intensity=np.full_like(tt, 10.0).tolist(),
                           sigma=np.full_like(tt, 1.0).tolist())
 
 
 def _compiled(instrument=None, pattern=None, structure=None):
-    structure = structure or pr.Structure(phases=[_lab6_phase()])
+    structure = structure or rx.Structure(phases=[_lab6_phase()])
     instrument = instrument or _lab_instrument()
     pattern = pattern or _flat_pattern()
     model = compile_model(structure, instrument, pattern)
@@ -95,7 +95,7 @@ def test_doublet_intensity_ratio_scales_ka2_only():
 
 
 def test_line0_weight_always_fixed():
-    structure = pr.Structure(phases=[_lab6_phase()])
+    structure = rx.Structure(phases=[_lab6_phase()])
     instrument = _lab_instrument()
     instrument.source.lines[0].weight.vary = True  # user error: must be ignored
     table = ParameterTable(structure, instrument)
@@ -126,7 +126,7 @@ NIST_XRTE_DIRECT = {
 
 def test_every_anode_matches_its_cited_source():
     for name, (ka1, ka2) in NIST_XRTE_DIRECT.items():
-        ins = pr.Instrument.bragg_brentano(radiation=name)
+        ins = rx.Instrument.bragg_brentano(radiation=name)
         got = [line.wavelength for line in ins.source.lines]
         assert got == [ka1, ka2], name
 
@@ -141,7 +141,7 @@ def test_cu_pair_is_unchanged_by_the_anode_extension():
     If this fails, the table was re-sourced and every cell in ``tests/data``
     moved with it.
     """
-    ins = pr.Instrument.bragg_brentano()
+    ins = rx.Instrument.bragg_brentano()
     assert [line.wavelength for line in ins.source.lines] == [CU_KA1, CU_KA2]
     # ...and specifically *not* Bearden (1967), the other scale in circulation
     assert ins.source.lines[0].wavelength != 1.540562
@@ -167,7 +167,7 @@ def test_doublet_splitting_grows_with_atomic_number():
 
 def test_ka1_only_variants_are_derived_from_the_doublets():
     for name, (ka1, _) in NIST_XRTE_DIRECT.items():
-        ins = pr.Instrument.bragg_brentano(radiation=f"{name}1")
+        ins = rx.Instrument.bragg_brentano(radiation=f"{name}1")
         assert [line.wavelength for line in ins.source.lines] == [ka1]
         # the single line is line 0, hence structurally locked at weight 1
         assert ins.source.lines[0].weight.value == 1.0
@@ -175,15 +175,15 @@ def test_ka1_only_variants_are_derived_from_the_doublets():
 
 def test_unknown_anode_lists_what_is_available():
     with pytest.raises(ValueError, match="unknown radiation 'NiKa'"):
-        pr.Instrument.bragg_brentano(radiation="NiKa")
+        rx.Instrument.bragg_brentano(radiation="NiKa")
     with pytest.raises(ValueError, match="MoKa"):
-        pr.Instrument.bragg_brentano(radiation="NiKa")
+        rx.Instrument.bragg_brentano(radiation="NiKa")
 
 
 def test_doublet_defaults_hold_off_cu():
     """``ka2_ratio`` and the polarization default are anode-independent; the
     monochromator angle is not."""
-    ins = pr.Instrument.bragg_brentano(radiation="MoKa", ka2_ratio=0.5)
+    ins = rx.Instrument.bragg_brentano(radiation="MoKa", ka2_ratio=0.5)
     assert ins.source.lines[1].weight.value == 0.5   # 2j+1 degeneracy, any Z
     assert ins.source.polarization.value == 0.5      # unpolarized, no mono
 
@@ -192,7 +192,7 @@ def test_doublet_defaults_hold_off_cu():
     for radiation, d in (("CuKa", 3.354), ("MoKa", 3.354)):
         lam = NIST_XRTE_DIRECT[radiation][0]
         tt_m = 2.0 * np.degrees(np.arcsin(lam / (2.0 * d)))
-        ins = pr.Instrument.bragg_brentano(radiation=radiation,
+        ins = rx.Instrument.bragg_brentano(radiation=radiation,
                                            monochromator_two_theta=tt_m)
         k = 1.0 / (1.0 + np.cos(np.radians(tt_m)) ** 2)
         assert ins.source.polarization.value == pytest.approx(k)
@@ -201,8 +201,8 @@ def test_doublet_defaults_hold_off_cu():
 
 
 def test_off_cu_instrument_round_trips_through_json():
-    ins = pr.Instrument.bragg_brentano(radiation="AgKa", goniometer_radius_mm=240.0)
-    back = pr.Instrument.model_validate_json(ins.model_dump_json())
+    ins = rx.Instrument.bragg_brentano(radiation="AgKa", goniometer_radius_mm=240.0)
+    back = rx.Instrument.model_validate_json(ins.model_dump_json())
     assert [line.wavelength for line in back.source.lines] == \
         list(NIST_XRTE_DIRECT["AgKa"])
     assert back.geometry.goniometer_radius_mm == 240.0
@@ -211,8 +211,8 @@ def test_off_cu_instrument_round_trips_through_json():
 def test_peaks_move_to_the_anode_wavelength():
     """The forward model uses the table, not a cached Cu number: the same phase
     on Mo Kα puts its first peak where Bragg's law says."""
-    structure = pr.Structure(phases=[_lab6_phase()])
-    ins = pr.Instrument.bragg_brentano(radiation="MoKa")
+    structure = rx.Structure(phases=[_lab6_phase()])
+    ins = rx.Instrument.bragg_brentano(radiation="MoKa")
     ins.profile.w.value = 2e-3
     model, values = _compiled(instrument=ins, pattern=_flat_pattern(5.0, 60.0),
                               structure=structure)
@@ -252,10 +252,10 @@ def test_displacement_moves_compiled_peaks():
 
 
 def test_debye_scherrer_ignores_displacement():
-    ins = pr.Instrument.debye_scherrer(wavelength=1.5405929)
+    ins = rx.Instrument.debye_scherrer(wavelength=1.5405929)
     ins.geometry.sample_displacement.value = 0.5
     model, values = _compiled(instrument=ins)
-    ins0 = pr.Instrument.debye_scherrer(wavelength=1.5405929)
+    ins0 = rx.Instrument.debye_scherrer(wavelength=1.5405929)
     model0, values0 = _compiled(instrument=ins0)
     np.testing.assert_allclose(model.phase_peaks(0, values)[0][0],
                                model0.phase_peaks(0, values0)[0][0])
@@ -351,7 +351,7 @@ def test_fcj_residual_smooth_in_axial_parameters():
 def test_fcj_windows_and_nodes_allocated_when_axial_free():
     """Starting from axial = 0, compiling with the axial paths free must still
     allocate quadrature nodes (else the FD column is exactly zero)."""
-    structure = pr.Structure(phases=[_lab6_phase()])
+    structure = rx.Structure(phases=[_lab6_phase()])
     instrument = _lab_instrument()
     pattern = _flat_pattern()
     frozen = compile_model(structure, instrument, pattern)
@@ -372,7 +372,7 @@ def test_synthetic_doublet_roundtrip():
     rng = np.random.default_rng(7)
     true_a, true_disp, true_ratio = 4.1568, -0.08, 0.47
 
-    structure = pr.Structure(phases=[_lab6_phase(true_a)])
+    structure = rx.Structure(phases=[_lab6_phase(true_a)])
     instrument = _lab_instrument(ka2_ratio=true_ratio)
     instrument.geometry.sample_displacement.value = true_disp
     instrument.geometry.axial_sl.value = 0.03
@@ -384,14 +384,14 @@ def test_synthetic_doublet_roundtrip():
     table = ParameterTable(structure, instrument)
     y = model.evaluate(table.decode(table.x0())) + 50.0
     y_noisy = rng.poisson(np.maximum(y, 1.0) * 20.0) / 20.0
-    data = pr.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
+    data = rx.PatternData(two_theta=model.tt.tolist(), intensity=y_noisy.tolist(),
                           sigma=np.sqrt(np.maximum(y, 1.0) / 20.0).tolist())
 
-    start_structure = pr.Structure(phases=[_lab6_phase(true_a + 0.002)])
+    start_structure = rx.Structure(phases=[_lab6_phase(true_a + 0.002)])
     start = _lab_instrument(ka2_ratio=0.5)
     start.geometry.axial_sl.value = 0.03
     start.geometry.axial_hl.value = 0.03
-    ref = pr.Refinement(start_structure, start)
+    ref = rx.Refinement(start_structure, start)
     result = ref.fit(data, plan="lab_bragg_brentano")
 
     assert result.status == "converged"
@@ -411,16 +411,16 @@ def test_synthetic_doublet_roundtrip():
 def test_read_pdcif_srm660c():
     from pathlib import Path
     path = Path(__file__).parent / "data" / "nist_srm660c_100a.cif"
-    data = pr.read_pdcif(path, block="_meas")
+    data = rx.read_pdcif(path, block="_meas")
     assert len(data.two_theta) == 5332
     assert np.isclose(data.two_theta[0], 20.3001)
     assert np.isclose(data.two_theta[-1], 150.9081)
     # σ from the pdCIF least-squares weight: σ = 1/√w
     assert data.sigma is not None and np.all(np.asarray(data.sigma) > 0)
     # the _calc block must be selectable too, and differ from _meas
-    calc = pr.read_pdcif(path, block="_calc")
+    calc = rx.read_pdcif(path, block="_calc")
     assert len(calc.two_theta) == 5332
     assert not np.allclose(calc.intensity, data.intensity)
     # default pick = first matching block (= _meas in this file)
-    default = pr.read_pdcif(path)
+    default = rx.read_pdcif(path)
     assert default.metadata["block"].endswith("_meas")

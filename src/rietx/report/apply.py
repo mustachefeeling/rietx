@@ -48,7 +48,7 @@ Four of the sixteen are advice, and none of them for want of effort:
 and one — ``reindex_or_recheck_cell`` — is gated on a flag a client can watch:
 ``capabilities().features["indexing"]``.  The design held up half-way: nothing
 here needed editing when the engine landed (WP-1024), but the flag it watches
-was mis-derived (``hasattr(pr, "index")`` against an export named
+was mis-derived (``hasattr(rx, "index")`` against an export named
 ``index_pattern``), so the refusal outlived the engine until WP-1037 fixed the
 name.  The gate still runs off the flag a caller passes, so a client talking to
 a build that reports no engine still gets the refusal with its reason.

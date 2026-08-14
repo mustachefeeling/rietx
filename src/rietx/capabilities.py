@@ -18,7 +18,7 @@ predicate** — a schema field's presence, a top-level export's existence — an
 a literal ``True``. A literal is a claim that cannot rot loudly; a derivation
 either keeps telling the truth or stops importing.  **But a derived flag rots
 too, and it rots silently** (WP-1037): ``features["indexing"]`` asked
-``hasattr(pr, "index")`` from the day it was written, while the export that
+``hasattr(rx, "index")`` from the day it was written, while the export that
 landed (WP-1024) is ``index_pattern`` — so the flag read ``False`` for the whole
 life of the feature, and its test asserted the same ``hasattr`` and could never
 fail.  The repair is to make the *name* data: :data:`_SURFACE_FLAGS` pairs each
@@ -321,7 +321,7 @@ def _features() -> dict[str, bool]:
     :data:`_SURFACE_FLAGS` names, so a flag flips on its own when its entry
     point lands — provided the name is right, which is the meta-test's job.
     """
-    import rietx as pr
+    import rietx as rx
 
     from .agent import AgentSuccess
     from .schemas.instrument import Geometry, Source
@@ -350,5 +350,5 @@ def _features() -> dict[str, bool]:
         "report_trajectory": "trajectory" in AgentSuccess.model_fields,
         # entry points, asked of the package through the one table the
         # meta-test also reads
-        **{flag: hasattr(pr, name) for flag, name in _SURFACE_FLAGS.items()},
+        **{flag: hasattr(rx, name) for flag, name in _SURFACE_FLAGS.items()},
     }

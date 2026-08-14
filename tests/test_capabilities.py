@@ -22,7 +22,7 @@ from typing import get_args
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.backend.api import BACKEND_NAMES, EXPERIMENTAL_BACKENDS
 from rietx.background.diagnostics import _KBETA
 from rietx.capabilities import capabilities
@@ -225,7 +225,7 @@ def test_features_are_derived_not_asserted(caps):
     """A flag must be a predicate over the tree, not a literal.
 
     And the predicate's *name* must be data, because this test's first version
-    was a tautology: it asserted ``features["indexing"] == hasattr(pr, "index")``
+    was a tautology: it asserted ``features["indexing"] == hasattr(rx, "index")``
     — the very expression the flag computes — so when the export landed as
     ``index_pattern`` (WP-1024) both sides stayed ``False`` together and the
     test kept passing.  The ``is True`` lines below are what break that
@@ -236,8 +236,8 @@ def test_features_are_derived_not_asserted(caps):
     assert caps.features["cancellation"] is True
 
     # schema-shaped flags follow the schemas
-    assert caps.features["stephens_strain"] == ("microstrain" in pr.Phase.model_fields)
-    assert caps.features["anisotropic_adp"] == ("aniso" in pr.Atom.model_fields)
+    assert caps.features["stephens_strain"] == ("microstrain" in rx.Phase.model_fields)
+    assert caps.features["anisotropic_adp"] == ("aniso" in rx.Atom.model_fields)
 
     # the one default whose position changes published numbers (WP-1001)
     assert caps.features["anomalous_dispersion_default_on"] is True
@@ -256,7 +256,7 @@ def test_every_surface_flag_names_a_real_export(caps):
     """
     from rietx.capabilities import _SURFACE_FLAGS
 
-    missing = set(_SURFACE_FLAGS.values()) - set(pr.__all__)
+    missing = set(_SURFACE_FLAGS.values()) - set(rx.__all__)
     assert not missing, f"surface flags name exports not in __all__: {missing}"
     # and the table is the source: every one of its flags is served
     assert set(_SURFACE_FLAGS) <= set(caps.features)
@@ -283,15 +283,15 @@ def test_the_pre_fit_calls_are_reachable_from_the_top_level():
     until WP-1007 — so they were the two it had to go digging for."""
     for name in ("auto_background", "diagnose", "capabilities",
                  "PreferredOrientation", "GuardFinding"):
-        assert name in pr.__all__, f"{name} missing from __all__"
-        assert hasattr(pr, name)
+        assert name in rx.__all__, f"{name} missing from __all__"
+        assert hasattr(rx, name)
 
     tt = np.arange(10.0, 60.0, 0.02)
     y = 120.0 + 40.0 * np.exp(-((tt - 30.0) / 0.1) ** 2)
-    data = pr.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
-    diag = pr.diagnose(data, wavelength=1.5405929)
+    data = rx.PatternData(two_theta=tt.tolist(), intensity=y.tolist())
+    diag = rx.diagnose(data, wavelength=1.5405929)
     assert diag.n_points == len(tt)
-    bkg = pr.auto_background(data, diagnostics=diag)
+    bkg = rx.auto_background(data, diagnostics=diag)
     # held additively or co-refined under a penalty — never subtracted
     assert bkg.kind in {"pspline", "chebyshev", "fixed+chebyshev"}
 

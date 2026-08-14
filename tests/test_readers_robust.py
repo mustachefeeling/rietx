@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.io.readers import identify_format
 
 DATA = Path(__file__).parent / "data"
@@ -118,7 +118,7 @@ def test_the_fixture_reads_whole_and_is_claimed_by_the_reader_named(fixture, rea
     would pass by asserting nothing."""
     path = DATA / fixture
     assert identify_format(path).name == reader
-    assert len(pr.read_pattern(path).two_theta) > 100
+    assert len(rx.read_pattern(path).two_theta) > 100
 
 
 @pytest.mark.parametrize("fixture,reader", REAL_FIXTURES)
@@ -136,7 +136,7 @@ def test_every_truncation_fails_as_a_value_or_os_error_naming_the_file(
         stub = tmp_path / f"{int(cut * 1e6):07d}_{name}"
         stub.write_bytes(raw[:int(len(raw) * cut)])
         try:
-            pr.read_pattern(stub)
+            rx.read_pattern(stub)
         except (ValueError, OSError) as exc:
             assert stub.name in str(exc) or name in str(exc), (
                 f"{fixture} cut at {cut}: refusal does not name the file: {exc}")
@@ -162,7 +162,7 @@ def test_a_fixture_with_a_nul_spliced_in_is_refused_rather_than_decoded(
     stub = tmp_path / Path(fixture).name
     stub.write_bytes(bytes(raw))
     try:
-        pr.read_pattern(stub)
+        rx.read_pattern(stub)
     except (ValueError, OSError) as exc:
         assert stub.name in str(exc)
     except Exception as exc:                           # noqa: BLE001 - the point
@@ -176,12 +176,12 @@ def test_a_directory_is_an_os_error_not_a_confusing_parse(tmp_path):
     its pattern was meant."""
     (tmp_path / "project.rex").mkdir()
     with pytest.raises(OSError):
-        pr.read_pattern(tmp_path / "project.rex")
+        rx.read_pattern(tmp_path / "project.rex")
 
 
 def test_a_missing_file_says_so_before_any_reader_sees_it(tmp_path):
     with pytest.raises(OSError):
-        pr.read_pattern(tmp_path / "nope.xy")
+        rx.read_pattern(tmp_path / "nope.xy")
 
 
 def test_an_empty_file_is_refused_by_name(tmp_path):
@@ -190,7 +190,7 @@ def test_an_empty_file_is_refused_by_name(tmp_path):
     p = tmp_path / "empty.xy"
     p.write_bytes(b"")
     with pytest.raises(ValueError) as exc:
-        pr.read_pattern(p)
+        rx.read_pattern(p)
     assert "empty.xy" in str(exc.value)
 
 
@@ -208,7 +208,7 @@ def test_every_truncation_of_a_synthesized_fixture_fails_the_same_way(kind, tmp_
         stub = tmp_path / f"{int(cut * 1e6):07d}.{kind}"
         stub.write_bytes(raw[:int(len(raw) * cut)])
         try:
-            pr.read_pattern(stub)
+            rx.read_pattern(stub)
         except (ValueError, OSError) as exc:
             assert stub.name in str(exc), (
                 f"{kind} cut at {cut}: refusal does not name the file: {exc}")

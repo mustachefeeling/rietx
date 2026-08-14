@@ -30,7 +30,7 @@ function arm(kind: string, over: Partial<ApplyArm> = {}): ApplyArm {
   return {
     kind, how: "stage", note: "", can_apply: true, refusal: "",
     paths: [`${kind}.path`], stage: { name: `apply:${kind}` },
-    api_call: `ref.run_stage(data, pr.Stage('apply:${kind}', []))`, ...over,
+    api_call: `ref.run_stage(data, rx.Stage('apply:${kind}', []))`, ...over,
   };
 }
 

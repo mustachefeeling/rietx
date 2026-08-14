@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.params.vector import ParameterTable
 from rietx.refine import replay
 from rietx.schemas.instrument import BackgroundChebyshev
@@ -17,9 +17,9 @@ from tests.test_refine_synthetic import perturbed_models, synthesize
 OUT = Path(__file__).parent / "output"
 
 # A short plan: enough stages to branch from, fast enough for a unit test.
-SHORT = pr.RefinementPlan(stages=[
-    pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=40),
-    pr.Stage("cell", ["phases.*.cell.*"], max_iter=40),
+SHORT = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"], max_iter=40),
+    rx.Stage("cell", ["phases.*.cell.*"], max_iter=40),
 ])
 
 
@@ -32,7 +32,7 @@ def pattern():
 def fitted(pattern):
     """A completed Rietveld fit with history, reused across read-only tests."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     result = ref.fit(pattern, plan=SHORT)
     return ref, result
 
@@ -70,7 +70,7 @@ def test_checkout_restores_every_parameter_exactly(pattern):
     comparison would be a lossy proxy for this.
     """
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     tree = ref.history
 
@@ -124,7 +124,7 @@ def test_lebail_restore_keeps_extracted_intensities(pattern):
     """Le Bail intensities live outside θ and are path-dependent, so a node
     that loses them cannot reproduce itself."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, mode="lebail", plan=SHORT)
     tree = ref.history
 
@@ -150,7 +150,7 @@ def test_replay_does_not_mutate_le_bail_state(pattern):
     """``lebail_update`` mutates intensities in place; merely inspecting a
     checkpoint must never call it."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, mode="lebail", plan=SHORT)
     tree = ref.history
     node = tree[tree.head]
@@ -167,7 +167,7 @@ def test_replay_does_not_mutate_le_bail_state(pattern):
 # --------------------------------------------------------------- branching
 def test_branching_creates_independent_leaves(pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     tree = ref.history
 
@@ -175,7 +175,7 @@ def test_branching_creates_independent_leaves(pattern):
     frozen = mid.model_dump_json()
 
     ref.checkout(mid.id)
-    alt = ref.run_stage(pattern, pr.Stage("profile_w", ["instrument.profile.w"],
+    alt = ref.run_stage(pattern, rx.Stage("profile_w", ["instrument.profile.w"],
                                           max_iter=40))
 
     leaves = tree.leaves()
@@ -189,23 +189,23 @@ def test_branching_creates_independent_leaves(pattern):
 
 def test_branch_gives_a_second_working_tree(pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     tree = ref.history
     mid = [n for n in tree.nodes.values() if n.action.name == "scale_bkg"][0]
 
     other = ref.branch(mid.id)
     assert other.history is tree
-    other.run_stage(pattern, pr.Stage("w", ["instrument.profile.w"], max_iter=30))
+    other.run_stage(pattern, rx.Stage("w", ["instrument.profile.w"], max_iter=30))
     assert len(tree.leaves()) == 2
 
 
 def test_from_node_reopens_a_checkpoint(pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     tree = ref.history
-    reopened = pr.Refinement.from_node(tree, tree.root.id)
+    reopened = rx.Refinement.from_node(tree, tree.root.id)
     assert reopened.history is tree
     assert reopened.fitted_structure.phases[0].cell.a.value == pytest.approx(
         tree.root.state.structure.phases[0].cell.a.value)
@@ -214,8 +214,8 @@ def test_from_node_reopens_a_checkpoint(pattern):
 # -------------------------------------------------------------- light mode
 def test_history_disabled_is_inert_and_identical(pattern):
     structure, ins = perturbed_models()
-    on = pr.Refinement(structure, ins, history=True).fit(pattern, plan=SHORT)
-    off_ref = pr.Refinement(structure, ins, history=False)
+    on = rx.Refinement(structure, ins, history=True).fit(pattern, plan=SHORT)
+    off_ref = rx.Refinement(structure, ins, history=False)
     off = off_ref.fit(pattern, plan=SHORT)
 
     assert off_ref.history is None
@@ -230,7 +230,7 @@ def test_history_disabled_is_inert_and_identical(pattern):
 
 def test_refine_function_defaults_to_no_history(pattern):
     structure, ins = perturbed_models()
-    result = pr.refine(pattern, structure, ins, plan=SHORT)
+    result = rx.refine(pattern, structure, ins, plan=SHORT)
     assert result.node_id is None
 
 
@@ -246,12 +246,12 @@ def test_edit_refuses_a_model_with_no_parameter_table(pattern):
     the following ``GET /api/params``, but the exposure was the library's.
     """
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     head, n_nodes = ref.history.head, len(ref.history)
 
     bad = copy.deepcopy(ref.structure)
-    bad.phases[0].atoms[0].aniso = pr.AnisoU.isotropic(0.006, bad.phases[0].cell)
+    bad.phases[0].atoms[0].aniso = rx.AnisoU.isotropic(0.006, bad.phases[0].cell)
     bad.phases[0].atoms[0].aniso.u12.value = 0.004   # no cubic site allows shear
     with pytest.raises(ValueError, match="no parameter table"):
         ref.edit(structure=bad, label="should not land")
@@ -276,11 +276,11 @@ def test_edit_refuses_a_model_with_no_parameter_table(pattern):
 def test_jsonl_round_trip(tmp_path, pattern):
     structure, ins = perturbed_models()
     path = tmp_path / "run.jsonl"
-    ref = pr.Refinement(structure, ins, history=str(path))
+    ref = rx.Refinement(structure, ins, history=str(path))
     ref.fit(pattern, plan=SHORT)
     ref.history.tag(ref.history.root.id, "start")
 
-    loaded = pr.RefinementTree.load(path)
+    loaded = rx.RefinementTree.load(path)
     assert loaded.order == ref.history.order
     for nid in ref.history.order:
         assert loaded.nodes[nid].model_dump_json() == ref.history.nodes[nid].model_dump_json()
@@ -296,7 +296,7 @@ def test_save_rewrites_an_in_memory_tree(tmp_path, fitted):
     ref, _ = fitted
     path = tmp_path / "saved.jsonl"
     ref.history.save(path)
-    loaded = pr.RefinementTree.load(path)
+    loaded = rx.RefinementTree.load(path)
     assert len(loaded) == len(ref.history)
 
 
@@ -312,22 +312,22 @@ def test_head_survives_a_reload(tmp_path, pattern):
     """
     structure, ins = perturbed_models()
     plain = tmp_path / "plain.jsonl"
-    ref = pr.Refinement(structure, ins, history=str(plain))
+    ref = rx.Refinement(structure, ins, history=str(plain))
     ref.fit(pattern, plan=SHORT)
-    assert pr.RefinementTree.load(plain).head == ref.history.head == ref.history.order[-1]
+    assert rx.RefinementTree.load(plain).head == ref.history.head == ref.history.order[-1]
 
     # checkout (which annotates HEAD) then continue: the later node must win
     branched = tmp_path / "branched.jsonl"
-    ref2 = pr.Refinement(*perturbed_models(), history=str(branched))
+    ref2 = rx.Refinement(*perturbed_models(), history=str(branched))
     ref2.fit(pattern, plan=SHORT)
     ref2.checkout(ref2.history.order[1])
-    ref2.run_stage(pattern, pr.Stage("zero", ["instrument.zero_shift"], max_iter=5))
-    loaded = pr.RefinementTree.load(branched)
+    ref2.run_stage(pattern, rx.Stage("zero", ["instrument.zero_shift"], max_iter=5))
+    loaded = rx.RefinementTree.load(branched)
     assert loaded.head == ref2.history.head == ref2.history.order[-1]
 
     # a tag names a node without moving HEAD, before or after a reload
     ref2.history.tag(ref2.history.order[1], "rival")
-    reloaded = pr.RefinementTree.load(branched)
+    reloaded = rx.RefinementTree.load(branched)
     assert reloaded.refs["rival"] == ref2.history.order[1]
     assert reloaded.head == ref2.history.order[-1]
 
@@ -386,12 +386,12 @@ def test_summary_and_mermaid_render(fitted):
 def test_restoring_dropped_paths_warns(pattern):
     """A path that no longer exists must not vanish silently."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     # shrink the background so the high-order coefficients disappear
     ref.instrument.background = BackgroundChebyshev.with_terms(2)
     with pytest.warns(UserWarning, match="no longer exist"):
-        ref.run_stage(pattern, pr.Stage("zero", ["instrument.zero_shift"], max_iter=10))
+        ref.run_stage(pattern, rx.Stage("zero", ["instrument.zero_shift"], max_iter=10))
 
 
 # -------------------------------------------------------------------- plot
@@ -402,7 +402,7 @@ def test_branch_overlay_plot(tmp_path, pattern):
     import numpy as np
 
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
+    ref = rx.Refinement(structure, ins)
     ref.fit(pattern, plan=SHORT)
     tree = ref.history
     fork = [n for n in tree.nodes.values() if n.action.name == "cell"][0]
@@ -410,8 +410,8 @@ def test_branch_overlay_plot(tmp_path, pattern):
     # two plausible continuations of the same checkpoint: widen only W, or
     # free the whole TCHZ profile
     rivals = [
-        pr.Stage("profile_w", ["instrument.profile.w"], max_iter=40),
-        pr.Stage("profile_all", ["instrument.profile.u", "instrument.profile.v",
+        rx.Stage("profile_w", ["instrument.profile.w"], max_iter=40),
+        rx.Stage("profile_all", ["instrument.profile.u", "instrument.profile.v",
                                  "instrument.profile.w", "instrument.profile.x",
                                  "instrument.profile.y"], max_iter=40),
     ]
@@ -461,8 +461,8 @@ def test_stage_node_carries_its_seeds(pattern):
     log promises is equivalent.
     """
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
-    seeded = pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+    ref = rx.Refinement(structure, ins)
+    seeded = rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                       max_iter=10, seed=1e-3, strain_seed=1000.0)
     ref.run_stage(pattern, seeded)
     action = ref.history[ref.history.order[-1]].action
@@ -470,7 +470,7 @@ def test_stage_node_carries_its_seeds(pattern):
     assert "seed=0.001" in action.api_call()
     assert "strain_seed=1000.0" in action.api_call()
     # and through JSON, the round trip a persisted tree takes
-    reloaded = pr.NodeAction.model_validate_json(action.model_dump_json())
+    reloaded = rx.NodeAction.model_validate_json(action.model_dump_json())
     assert (reloaded.seed, reloaded.strain_seed) == (1e-3, 1000.0)
 
 
@@ -479,4 +479,4 @@ def test_stage_node_without_seeds_renders_unchanged(fitted):
     ref, _ = fitted
     node = ref.history[ref.history.order[-1]]
     assert node.action.api_call() == (
-        "ref.run_stage(data, pr.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
+        "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")

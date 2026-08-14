@@ -107,7 +107,7 @@ from pathlib import Path
 
 import numpy as np
 
-import rietx as pr
+import rietx as rx
 from rietx.model.forward import compile_model
 from rietx.optimize.least_squares import _jacobian_for, _make_residual
 from rietx.params.vector import ParameterTable
@@ -150,9 +150,9 @@ def nac_state():
     cif = DATA / "cod_1000236.cif"
     if not (path.exists() and cif.exists()):
         return None
-    data = pr.read_pattern(path)
-    structure = pr.Structure.from_cif(str(cif))
-    instrument = pr.Instrument.debye_scherrer(wavelength=0.4139090)
+    data = rx.read_pattern(path)
+    structure = rx.Structure.from_cif(str(cif))
+    instrument = rx.Instrument.debye_scherrer(wavelength=0.4139090)
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
     from rietx.schemas.instrument import BackgroundChebyshev
@@ -172,23 +172,23 @@ def corundum_state():
     path = DATA / "qarr" / "corundum.prn"
     if not path.exists():
         return None
-    data = pr.read_pattern(path)
+    data = rx.read_pattern(path)
 
     def p(v, **kw):
-        return pr.Parameter(value=v, **kw)
+        return rx.Parameter(value=v, **kw)
 
-    structure = pr.Structure(phases=[pr.Phase(
+    structure = rx.Structure(phases=[rx.Phase(
         name="corundum", space_group="R -3 c",
-        cell=pr.Cell(a=p(4.7593, min=1.0), b=p(4.7593, min=1.0),
+        cell=rx.Cell(a=p(4.7593, min=1.0), b=p(4.7593, min=1.0),
                      c=p(12.9917, min=1.0), alpha=p(90.0), beta=p(90.0),
                      gamma=p(120.0)),
-        atoms=[pr.Atom(label="Al", species="Al", x=p(0.0), y=p(0.0),
+        atoms=[rx.Atom(label="Al", species="Al", x=p(0.0), y=p(0.0),
                        z=p(0.35216), biso=p(0.30, min=0.0, max=25.0)),
-               pr.Atom(label="O", species="O", x=p(0.30624), y=p(0.0),
+               rx.Atom(label="O", species="O", x=p(0.30624), y=p(0.0),
                        z=p(0.25), biso=p(0.30, min=0.0, max=25.0))],
         scale=p(1e-3, min=0.0, transform="softplus"),
         lor_size=p(0.02, min=0.0, transform="softplus"))])
-    instrument = pr.Instrument.bragg_brentano(radiation="CuKa",
+    instrument = rx.Instrument.bragg_brentano(radiation="CuKa",
                                              goniometer_radius_mm=173.0,
                                              monochromator_two_theta=26.6)
     from rietx.schemas.instrument import BackgroundChebyshev

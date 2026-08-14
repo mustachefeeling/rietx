@@ -699,7 +699,7 @@ def test_the_neglected_dispersion_message_is_anode_dependent():
     """Choosing the anode *is* choosing the size of the correction being
     skipped: Co Kα sits 180 eV below the Fe K edge, where f′ = −3.3 e, and the
     same specimen on Mo Kα is 10 keV above it, where f′ = +0.3 e."""
-    import rietx as pr
+    import rietx as rx
     from rietx.refine import _dispersion_diagnostics
     from rietx.schemas.instrument import _KA_DOUBLETS
 
@@ -711,22 +711,22 @@ def test_the_neglected_dispersion_message_is_anode_dependent():
     from rietx.crystallography.dispersion import near_edge
     assert near_edge("Fe", _KA_DOUBLETS["CoKa"][0]) is None
 
-    hematite = pr.Structure(phases=[pr.Phase(
-        name="Fe2O3", space_group="R -3 c", cell=pr.Cell(
-            a=pr.Parameter(value=5.0356), b=pr.Parameter(value=5.0356),
-            c=pr.Parameter(value=13.7489), alpha=pr.Parameter(value=90.0),
-            beta=pr.Parameter(value=90.0), gamma=pr.Parameter(value=120.0)),
+    hematite = rx.Structure(phases=[rx.Phase(
+        name="Fe2O3", space_group="R -3 c", cell=rx.Cell(
+            a=rx.Parameter(value=5.0356), b=rx.Parameter(value=5.0356),
+            c=rx.Parameter(value=13.7489), alpha=rx.Parameter(value=90.0),
+            beta=rx.Parameter(value=90.0), gamma=rx.Parameter(value=120.0)),
         atoms=[
-            pr.Atom(label="Fe", species="Fe", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.3553),
-                    biso=pr.Parameter(value=0.3)),
-            pr.Atom(label="O", species="O", x=pr.Parameter(value=0.3059),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.25),
-                    biso=pr.Parameter(value=0.5)),
+            rx.Atom(label="Fe", species="Fe", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.3553),
+                    biso=rx.Parameter(value=0.3)),
+            rx.Atom(label="O", species="O", x=rx.Parameter(value=0.3059),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.25),
+                    biso=rx.Parameter(value=0.5)),
         ])])
     levels = {}
     for name in ("CoKa", "MoKa"):
-        ins = pr.Instrument.bragg_brentano(radiation=name)
+        ins = rx.Instrument.bragg_brentano(radiation=name)
         # dispersion is the default since WP-1001, so the neglect diagnostic
         # now addresses someone who *declined* it — which is the only way to
         # neglect it, and the reason the message still has a job
@@ -767,15 +767,15 @@ def test_override_is_keyed_by_element_but_applies_to_the_ion():
 # "off" must not be a silent wrong answer
 # ----------------------------------------------------------------------
 def _fit_zincite(dispersion_block=None):
-    import rietx as pr
+    import rietx as rx
 
-    ins = pr.Instrument.bragg_brentano(radiation="CuKa")
+    ins = rx.Instrument.bragg_brentano(radiation="CuKa")
     ins.source.dispersion = dispersion_block
     ins.profile.w.value = 2e-2
     tt = np.arange(30.0, 80.0, 0.05)
-    data = pr.PatternData(two_theta=tt.tolist(),
+    data = rx.PatternData(two_theta=tt.tolist(),
                           intensity=(np.zeros_like(tt) + 10.0).tolist())
-    ref = pr.Refinement(_zincite_structure(), ins)
+    ref = rx.Refinement(_zincite_structure(), ins)
     return ref, data
 
 
@@ -802,22 +802,22 @@ def test_no_report_for_a_light_structure_at_short_wavelength():
     """11-BM at 0.414 Å: nothing in NAC moves 2 %, so stay quiet."""
     from pathlib import Path
 
-    import rietx as pr
+    import rietx as rx
     from rietx.crystallography.cif import structure_from_cif
     from rietx.refine import _dispersion_diagnostics
     cif = Path(__file__).parent / "data" / "cod_1000236.cif"
     structure = structure_from_cif(str(cif))
-    ins = pr.Instrument.debye_scherrer(wavelength=0.4139090)
+    ins = rx.Instrument.debye_scherrer(wavelength=0.4139090)
     assert _dispersion_diagnostics(structure, ins) == []
 
 
 def test_lookup_failure_never_blocks_a_refinement():
     """An untabulated element is skipped, not raised: describing the omission
     must not be able to break a fit that would otherwise run."""
-    import rietx as pr
+    import rietx as rx
     from rietx.refine import _dispersion_diagnostics
 
     structure = _zincite_structure()
     structure.phases[0].atoms[1].species = "He"      # absent from the table
-    ins = pr.Instrument.debye_scherrer(wavelength=6.0)   # outside 3-70 keV
+    ins = rx.Instrument.debye_scherrer(wavelength=6.0)   # outside 3-70 keV
     assert _dispersion_diagnostics(structure, ins) == []

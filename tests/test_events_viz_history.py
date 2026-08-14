@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.history.events import EventStream, read_events
 from rietx.strategy.staged import Stage
 from tests.test_refine_synthetic import perturbed_models, synthesize
@@ -26,7 +26,7 @@ def synthetic_pattern():
 def test_events_written_and_readable(tmp_path, synthetic_pattern):
     structure, ins = perturbed_models()
     log = tmp_path / "events.jsonl"
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     ref.fit(synthetic_pattern, events=log)
 
     events = read_events(log)
@@ -51,7 +51,7 @@ def test_events_written_and_readable(tmp_path, synthetic_pattern):
 def test_events_callback_no_file(synthetic_pattern):
     structure, ins = perturbed_models()
     seen = []
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     ref.fit(synthetic_pattern, events=seen.append)
     assert any(e["kind"] == "eval" for e in seen)
     assert seen[-1]["kind"] == "fit_end"
@@ -73,7 +73,7 @@ def test_event_stream_hot_loop_is_plain_json(tmp_path):
 # ----------------------------------------------------------------------
 def test_write_html_self_contained(tmp_path, synthetic_pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
 
     out = tmp_path / "fit.html"
@@ -123,7 +123,7 @@ def test_figure_from_arrays_weighted_and_raw():
 
 def test_plot_result_weighted_panels(synthetic_pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
 
     OUT.mkdir(exist_ok=True)
@@ -155,7 +155,7 @@ def test_live_session_and_watch_server(tmp_path, synthetic_pattern):
 
     structure, ins = perturbed_models()
     live = tmp_path / "live"
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     ref.fit(synthetic_pattern, events=LiveSession(live))
 
     assert (live / "fit.html").exists()
@@ -186,7 +186,7 @@ def test_cli_help_and_html(tmp_path, synthetic_pattern):
     assert main(["--help"]) == 0
 
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins, history=False)
+    ref = rx.Refinement(structure, ins, history=False)
     result = ref.fit(synthetic_pattern)
     src = tmp_path / "result.json"
     src.write_text(result.model_dump_json(), encoding="utf-8")
@@ -202,8 +202,8 @@ def test_merge_combines_disjoint_branches(synthetic_pattern):
     """Branch A refines zero only, branch B refines the cell only; the merge
     must carry BOTH refined values and record two parents."""
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
-    ref.fit(synthetic_pattern, plan=pr.RefinementPlan(stages=[
+    ref = rx.Refinement(structure, ins)
+    ref.fit(synthetic_pattern, plan=rx.RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"])]))
     base_id = ref.result_.node_id
 
@@ -237,8 +237,8 @@ def test_merge_combines_disjoint_branches(synthetic_pattern):
 
 def test_merge_conflict_takes_preferred_side(synthetic_pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
-    ref.fit(synthetic_pattern, plan=pr.RefinementPlan(stages=[
+    ref = rx.Refinement(structure, ins)
+    ref.fit(synthetic_pattern, plan=rx.RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"])]))
     base_id = ref.result_.node_id
 
@@ -258,8 +258,8 @@ def test_merge_conflict_takes_preferred_side(synthetic_pattern):
 
 def test_cherry_pick_replays_a_stage_action(synthetic_pattern):
     structure, ins = perturbed_models()
-    ref = pr.Refinement(structure, ins)
-    ref.fit(synthetic_pattern, plan=pr.RefinementPlan(stages=[
+    ref = rx.Refinement(structure, ins)
+    ref.fit(synthetic_pattern, plan=rx.RefinementPlan(stages=[
         Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
         Stage("zero", ["instrument.zero_shift"]),
     ]))

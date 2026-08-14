@@ -89,9 +89,9 @@ Retrospective timing already exists — `EngineResult.stats[f"{system}.seconds"]
   counter-case is that *too little* budget degrades (zircon truncated at 60 s
   reported the wrong centring). Budgets are runaway guards, not timers.
 - **`features["indexing"]` has been `False` since indexing shipped.**
-  `capabilities.py:229` reads `hasattr(pr, "index")`; the export is `index_pattern`
+  `capabilities.py:229` reads `hasattr(rx, "index")`; the export is `index_pattern`
   (`__init__.py:15,120`). `tests/test_capabilities.py:140` asserts
-  `== hasattr(pr, "index")` — a tautology that can never fail, which is why nothing
+  `== hasattr(rx, "index")` — a tautology that can never fail, which is why nothing
   caught it. `capabilities.py:19-21` uses this very flag as its showcase for
   derived predicates, so the docstring is now false too, as is `CLAUDE.md:166`.
 
@@ -118,7 +118,7 @@ are open literature and may be cited and implemented from. No code ported.
       *Instrument before ranking (WP-1030) — a plausible cost model is not a profile.*
 - [x] `features["indexing"]` names an export that exists. Fix as **data** —
       `_SURFACE_FLAGS: dict[str, str]` mapping flag → top-level name — plus the
-      meta-test `set(_SURFACE_FLAGS.values()) <= set(pr.__all__)` that would have
+      meta-test `set(_SURFACE_FLAGS.values()) <= set(rx.__all__)` that would have
       caught it. Rewrite `capabilities.py:19-21` as the lesson and fix
       `CLAUDE.md:166`'s example.
 - [x] `Deadline(Budget)` — whole-run clock shaped as a cancel token: `__bool__`,

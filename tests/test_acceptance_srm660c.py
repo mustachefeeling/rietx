@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-import rietx as pr
+import rietx as rx
 
 DATA = Path(__file__).parent / "data"
 A_REFERENCE = 4.156780       # CIF block cell at 20.85 °C
@@ -49,23 +49,23 @@ def build_srm_inputs():
     path = DATA / "nist_srm660c_100a.cif"
     if not path.exists():
         pytest.skip("SRM 660c dataset not present")
-    data = pr.read_pdcif(path, block="_meas")
+    data = rx.read_pdcif(path, block="_meas")
 
-    structure = pr.Structure(phases=[pr.Phase(
-        name="LaB6", space_group="P m -3 m", cell=pr.Cell.cubic(4.1568),
+    structure = rx.Structure(phases=[rx.Phase(
+        name="LaB6", space_group="P m -3 m", cell=rx.Cell.cubic(4.1568),
         atoms=[
             # Uiso from the CIF cell block: La 0.0045, B 0.0035 Å² (B = 8π²U)
-            pr.Atom(label="La", species="La", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.355, min=0.0, max=25.0)),
-            pr.Atom(label="B", species="B", x=pr.Parameter(value=0.198),
-                    y=pr.Parameter(value=0.5), z=pr.Parameter(value=0.5),
-                    biso=pr.Parameter(value=0.276, min=0.0, max=25.0)),
+            rx.Atom(label="La", species="La", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.355, min=0.0, max=25.0)),
+            rx.Atom(label="B", species="B", x=rx.Parameter(value=0.198),
+                    y=rx.Parameter(value=0.5), z=rx.Parameter(value=0.5),
+                    biso=rx.Parameter(value=0.276, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-4, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-4, min=0.0, transform="softplus"),
     )])
 
-    instrument = pr.Instrument.bragg_brentano(monochromator_two_theta=26.6)
+    instrument = rx.Instrument.bragg_brentano(monochromator_two_theta=26.6)
     instrument.profile.w.value = 2e-3
     instrument.profile.x.value = 5e-3
     instrument.geometry.axial_sl.value = 0.025
@@ -83,19 +83,19 @@ def build_srm_inputs():
     return data, structure, instrument
 
 
-def _nist_calibrated_plan() -> pr.RefinementPlan:
+def _nist_calibrated_plan() -> rx.RefinementPlan:
     """lab_bragg_brentano minus the zero error (calibrated goniometer)."""
-    return pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("disp", ["instrument.geometry.sample_displacement"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("disp", ["instrument.geometry.sample_displacement"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("profile", ["instrument.profile.u", "instrument.profile.v",
                              "instrument.profile.x", "instrument.profile.y"]),
-        pr.Stage("lines_axial", ["instrument.source.lines.*.weight",
+        rx.Stage("lines_axial", ["instrument.source.lines.*.weight",
                                  "instrument.geometry.axial_sl",
                                  "instrument.geometry.axial_hl"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
 
@@ -128,7 +128,7 @@ def test_srm660c_lab6_rietveld(srm660c_baseline):
     assert 0.005 < ins.geometry.axial_hl.value < 0.1
 
     # FitReport must digest stitched-region lab data
-    report = pr.build_report(result)
+    report = rx.build_report(result)
     assert report.summary
     assert report.n_regions_total > 10
 
@@ -174,7 +174,7 @@ def test_srm660c_extinction_does_no_harm(srm660c_baseline):
 
     ref = ref_base.branch()
     result = ref.run_stage(
-        data, pr.Stage("extinction", ["phases.*.extinction"], seed=1e-3))
+        data, rx.Stage("extinction", ["phases.*.extinction"], seed=1e-3))
 
     assert result.status == "converged"
     # the fit is not degraded (adding a parameter can only help Rwp, but the

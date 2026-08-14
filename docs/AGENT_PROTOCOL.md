@@ -1113,13 +1113,13 @@ experiment leaves no trace in the working state.
 The canonical agent loop:
 
 ```python
-ref = pr.Refinement(structure, instrument, history="session.jsonl")
+ref = rx.Refinement(structure, instrument, history="session.jsonl")
 ref.fit(data, plan="lab_bragg_brentano")
 ref.history.tag(ref.history.head, "baseline")
 
 # try a hypothesis on a branch — rollback is structural, not manual
 rival = ref.branch("baseline")
-rival.run_stage(data, pr.Stage("aniso_strain", ["phases.*.microstrain.dof.*"],
+rival.run_stage(data, rx.Stage("aniso_strain", ["phases.*.microstrain.dof.*"],
                                strain_seed=1000.0))
 
 ref.history.compare([n.id for n in ref.history.leaves()])
@@ -1129,7 +1129,7 @@ ref.checkout(ref.history.best("rwp").id)
 and the machine-checked version of "should I take this suggestion?":
 
 ```python
-outcome = pr.report.predict_then_verify(ref, data, report.suggested_actions[0])
+outcome = rx.report.predict_then_verify(ref, data, report.suggested_actions[0])
 # runs the action on a branch, keeps it only if χ² actually improves by ≥1 %
 print(outcome.accepted, outcome.reason, outcome.predicted_delta_chi2,
       outcome.observed_delta_chi2)
@@ -1153,7 +1153,7 @@ settle — **which of an exchangeable pair is physical** (§4 step 6):
 
 ```python
 finding = next(e for e in report.identifiability.exchanges if e.exchangeable)
-swap = pr.report.compare_rivals(ref, data, finding)   # two branch fits
+swap = rx.report.compare_rivals(ref, data, finding)   # two branch fits
 for r in swap.rivals:                # [0] frees the held one, [1] the partner
     print(r.freed_path, r.chi2, r.rwp, r.freed_value, r.freed_esd, r.n_free)
 print(swap.chi2_ratio)               # < 1 ⇒ the parameter the fit HELD wins
@@ -1179,7 +1179,7 @@ protocol, not by measurement.
 Two properties worth relying on:
 
 - **Node metrics are as-optimised**, measured on a model frozen at the values
-  each stage *started* from. `pr.replay(tree, node_id, data)` recompiles at the
+  each stage *started* from. `rx.replay(tree, node_id, data)` recompiles at the
   values the stage *ended* on, so the two can differ marginally. That gap is a
   staleness signal, not a bug.
 - **Each node carries the API call that produced it**, so a session doubles as
@@ -1191,14 +1191,14 @@ Two properties worth relying on:
 ## 9b. Series: refine a ramp as a chain, and check it both ways
 
 An in-situ ramp, a parametric sweep or a tray of related specimens is
-`pr.SequentialRefinement` / `pr.refine_sequential`: N separate refinements,
+`rx.SequentialRefinement` / `rx.refine_sequential`: N separate refinements,
 each warm-started from its predecessor.  (One *joint* residual over patterns
-that share structural parameters is the different verb `pr.refine_multi`.)
+that share structural parameters is the different verb `rx.refine_multi`.)
 What comes back is a `SeriesResult` — per-pattern summaries plus
 `trajectory(path)`, `qpa_trajectory(phase)`, `to_table()`, `write_csv()`.
 
 ```python
-series = pr.refine_sequential(patterns, structure, instrument,
+series = rx.refine_sequential(patterns, structure, instrument,
                               x=temperatures, x_label="T (K)",
                               plan="lab_sample_refine")
 a_of_T = series.trajectory("phases.0.cell.a")     # x, value, stderr
@@ -1311,15 +1311,15 @@ If you have a lab pattern, a CIF and no other information, this is the sequence
 to run and the checks to make. Adapt, do not skip the checks.
 
 ```python
-import rietx as pr
+import rietx as rx
 
-data       = pr.read_pattern("sample.xy")
-structure  = pr.Structure.from_cif("phase.cif")
-instrument = pr.Instrument.bragg_brentano(radiation="CuKa",
+data       = rx.read_pattern("sample.xy")
+structure  = rx.Structure.from_cif("phase.cif")
+instrument = rx.Instrument.bragg_brentano(radiation="CuKa",
                                           monochromator_two_theta=26.6)
-instrument.background = pr.background.auto_background(data)
+instrument.background = rx.background.auto_background(data)
 
-ref = pr.Refinement(structure, instrument, history="session.jsonl")
+ref = rx.Refinement(structure, instrument, history="session.jsonl")
 
 # 1. structure-free first: cell + profile without any structural assumption
 ref.fit(data, mode="lebail", plan="profile_only")

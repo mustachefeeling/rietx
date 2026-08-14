@@ -148,7 +148,7 @@ green, so nothing in the reader or history change moved a computed number.
   committed after it and HEAD came back **stale** (measured: n0001 where the
   live tree stood at n0003). Records now replay in file order, which is the
   in-memory semantics of an append-only log rather than a re-reading of it. Two
-  more consumers were already exposed to this — `pr.replay(tree, "head", …)` on
+  more consumers were already exposed to this — `rx.replay(tree, "head", …)` on
   a loaded tree, and anything reading `RefinementTree.load(...).head`.
 
   *Two findings for whoever touches the pattern seam:*

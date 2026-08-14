@@ -6,24 +6,24 @@ Structure: COD 1000236 (Courbion & Ferey, 1988), cubic I2₁3, a = 10.257 Å.
 
 from pathlib import Path
 
-import rietx as pr
+import rietx as rx
 
 DATA = Path(__file__).resolve().parent.parent / "tests" / "data"
 WAVELENGTH = 0.4139090  # from 11bm_gsas.prm (INS 1 ICONS)
 
 
 def main() -> None:
-    data = pr.read_pattern(DATA / "11BM_NAC.fxye")
+    data = rx.read_pattern(DATA / "11BM_NAC.fxye")
     print(f"pattern: {len(data.two_theta)} points, "
           f"{data.two_theta[0]:.2f}-{data.two_theta[-1]:.2f} deg, "
           f"sigma from file: {data.sigma is not None}")
 
-    structure = pr.Structure.from_cif(str(DATA / "cod_1000236.cif"))
+    structure = rx.Structure.from_cif(str(DATA / "cod_1000236.cif"))
     phase = structure.phases[0]
     print(f"phase: {phase.name}, {phase.space_group}, a={phase.cell.a.value} A, "
           f"{len(phase.atoms)} asymmetric atoms")
 
-    instrument = pr.Instrument.debye_scherrer(wavelength=WAVELENGTH)
+    instrument = rx.Instrument.debye_scherrer(wavelength=WAVELENGTH)
     # starting profile guesses in the right decade for 11-BM resolution
     instrument.profile.w.value = 2e-5
     instrument.profile.x.value = 2e-3
@@ -36,7 +36,7 @@ def main() -> None:
     # One Refinement carries the whole session; every stage auto-commits a
     # node, so `ref.history` ends up holding both refinements and the model
     # edit between them.  Pass history="nac.jsonl" to persist it.
-    ref = pr.Refinement(structure, instrument)
+    ref = rx.Refinement(structure, instrument)
     lebail = ref.fit(data, mode="lebail", two_theta_limits=limits)
     ref.history.tag(lebail.node_id, "lebail")
     a_lb = ref.fitted_structure.phases[0].cell.a.value
@@ -49,25 +49,25 @@ def main() -> None:
     # wavelength: the classic CaF2 impurity in NAC synthesis.  Add it.
     structure2 = ref.fitted_structure.model_copy(deep=True)
     structure2.phases[0].scale.value = 1e-6
-    structure2.phases.append(pr.Phase(
+    structure2.phases.append(rx.Phase(
         name="CaF2",
         space_group="F m -3 m",
-        cell=pr.Cell.cubic(5.4631),
+        cell=rx.Cell.cubic(5.4631),
         atoms=[
-            pr.Atom(label="Ca", species="Ca2+", x=pr.Parameter(value=0.0),
-                    y=pr.Parameter(value=0.0), z=pr.Parameter(value=0.0),
-                    biso=pr.Parameter(value=0.6, min=0.0, max=25.0)),
-            pr.Atom(label="F", species="F1-", x=pr.Parameter(value=0.25),
-                    y=pr.Parameter(value=0.25), z=pr.Parameter(value=0.25),
-                    biso=pr.Parameter(value=0.9, min=0.0, max=25.0)),
+            rx.Atom(label="Ca", species="Ca2+", x=rx.Parameter(value=0.0),
+                    y=rx.Parameter(value=0.0), z=rx.Parameter(value=0.0),
+                    biso=rx.Parameter(value=0.6, min=0.0, max=25.0)),
+            rx.Atom(label="F", species="F1-", x=rx.Parameter(value=0.25),
+                    y=rx.Parameter(value=0.25), z=rx.Parameter(value=0.25),
+                    biso=rx.Parameter(value=0.9, min=0.0, max=25.0)),
         ],
-        scale=pr.Parameter(value=1e-7, min=0.0, transform="softplus"),
+        scale=rx.Parameter(value=1e-7, min=0.0, transform="softplus"),
     ))
     # the impurity is a refinement move like any other — record it in the DAG
     ref.edit(structure=structure2, label="add CaF2 impurity phase")
 
-    plan = pr.RefinementPlan.mccusker_default()
-    plan.stages.append(pr.Stage("biso", ["phases.*.atoms.*.biso"]))
+    plan = rx.RefinementPlan.mccusker_default()
+    plan.stages.append(rx.Stage("biso", ["phases.*.atoms.*.biso"]))
     result = ref.fit(data, plan=plan, two_theta_limits=limits)
     a = ref.fitted_structure.phases[0].cell.a.value
     a_err = result.parameter("phases.0.cell.a").stderr
@@ -78,7 +78,7 @@ def main() -> None:
     for d in result.diagnostics:
         print(f"          [{d.level}] {d.code}: {d.message}")
 
-    report = pr.build_report(result)
+    report = rx.build_report(result)
     print("\nFitReport:", report.summary)
     for r in report.regions[:5]:
         print(f"  region {r.two_theta_lo:6.2f}-{r.two_theta_hi:6.2f} deg  "

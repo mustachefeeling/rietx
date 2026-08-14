@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import rietx as pr
+import rietx as rx
 from rietx.project import PROJECT_JSON
 from tests.test_refine_synthetic import perturbed_models, synthesize
 
@@ -28,12 +28,12 @@ pytestmark = pytest.mark.xdist_group("project")
 #: converges to a *bad* fit by design — dropping the zero-shift stage alone leaves
 #: a derivative-shaped residual on every peak — and a picture that always looks
 #: wrong cannot show that something is.  It costs well under a second here.
-SHORT = pr.PLAN_PRESETS["mccusker_default"]()
+SHORT = rx.PLAN_PRESETS["mccusker_default"]()
 
 DATA = Path(__file__).parent / "data"
 
 
-def _write_xye(path: Path, data: pr.PatternData, *, with_sigma: bool = True) -> Path:
+def _write_xye(path: Path, data: rx.PatternData, *, with_sigma: bool = True) -> Path:
     """The synthetic pattern as a file, since a project copies bytes not objects.
 
     ``repr`` of a float round-trips exactly, so the parsed arrays are
@@ -63,9 +63,9 @@ def pattern_file(tmp_path_factory, pattern):
     return _write_xye(tmp_path_factory.mktemp("data") / "synth.xye", pattern)
 
 
-def _create(root: Path, pattern_file: Path, **kw) -> pr.Project:
+def _create(root: Path, pattern_file: Path, **kw) -> rx.Project:
     structure, ins = perturbed_models()
-    return pr.Project.create(root, pattern=pattern_file, structure=structure,
+    return rx.Project.create(root, pattern=pattern_file, structure=structure,
                              instrument=ins, **kw)
 
 
@@ -103,7 +103,7 @@ def test_create_refuses_to_write_over_a_project(tmp_path, pattern_file):
 def test_missing_pattern_file_is_named(tmp_path):
     structure, ins = perturbed_models()
     with pytest.raises(FileNotFoundError, match="pattern file not found"):
-        pr.Project.create(tmp_path / "s.rex", pattern=tmp_path / "nope.xy",
+        rx.Project.create(tmp_path / "s.rex", pattern=tmp_path / "nope.xy",
                           structure=structure, instrument=ins)
 
 
@@ -123,7 +123,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     assert raw["format_version"] == "1.1"   # WP-1047: scan joined the vocabulary
     assert raw["patterns"][0]["reader"] == "xy"
 
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
     assert reopened.doc.model_dump() == project.doc.model_dump()
     assert reopened.doc.ui == {"panels": ["plot", "params"]}
     assert reopened.doc.two_theta_limits == (4.0, 22.0)
@@ -133,7 +133,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     assert reopened.data.in_range_mask().sum() < len(reopened.data.two_theta)
     # the plan is a PlanSpec and rebuilds the preset it names
     assert [s.name for s in reopened.doc.plan.to_plan().stages] == \
-           [s.name for s in pr.PLAN_PRESETS["mccusker_default"]().stages]
+           [s.name for s in rx.PLAN_PRESETS["mccusker_default"]().stages]
 
     x = reopened.refinement.parameters()
     unbounded = [r for r in x if math.isinf(r.hi)]
@@ -143,7 +143,7 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
 
 def test_open_accepts_the_document_path(tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file)
-    assert pr.Project.open(project.path / PROJECT_JSON).path == project.path
+    assert rx.Project.open(project.path / PROJECT_JSON).path == project.path
 
 
 def test_save_never_rewrites_the_pattern_or_the_log(tmp_path, pattern_file):
@@ -168,14 +168,14 @@ def test_esd_column_survives_the_copy(tmp_path, pattern, pattern_file):
     re-serialised (CLAUDE.md, Weights).
     """
     project = _create(tmp_path / "s.rex", pattern_file)
-    original = pr.read_pattern(pattern_file)
+    original = rx.read_pattern(pattern_file)
     copied = project.data
 
     assert project.data_ref.has_sigma is True
     assert copied.sigma is not None
     np.testing.assert_array_equal(copied.sig(), original.sig())
     # and they are not the Poisson fallback in disguise
-    poisson = pr.PatternData(two_theta=copied.two_theta, intensity=copied.intensity)
+    poisson = rx.PatternData(two_theta=copied.two_theta, intensity=copied.intensity)
     assert not np.allclose(copied.sig(), poisson.sig())
 
 
@@ -193,7 +193,7 @@ def test_edited_pattern_file_is_refused(tmp_path, pattern_file):
     copied.write_text(copied.read_text(encoding="utf-8") + "99.0 1.0 1.0\n",
                       encoding="utf-8")
     with pytest.raises(ValueError, match="file has changed"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 def test_same_bytes_parsed_differently_is_reported_as_a_reader_change(
@@ -211,7 +211,7 @@ def test_same_bytes_parsed_differently_is_reported_as_a_reader_change(
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
 
     with pytest.raises(ValueError, match="parses them differently"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 def test_history_recorded_against_another_pattern_is_refused(
@@ -230,14 +230,14 @@ def test_history_recorded_against_another_pattern_is_refused(
     (project.path / "history.jsonl").write_bytes(
         (stranger.path / "history.jsonl").read_bytes())
     with pytest.raises(ValueError, match="recorded against a different pattern"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 def test_missing_history_log_is_refused(tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file)
     (project.path / "history.jsonl").unlink()
     with pytest.raises(FileNotFoundError, match="holds the model state"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
@@ -247,7 +247,7 @@ def test_a_future_format_version_is_refused_by_name(tmp_path, pattern_file):
     raw["format_version"] = "2"
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(ValueError, match="another version of rietx"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 def test_multi_pattern_projects_are_refused_not_truncated(tmp_path, pattern_file):
@@ -258,7 +258,7 @@ def test_multi_pattern_projects_are_refused_not_truncated(tmp_path, pattern_file
     raw["patterns"].append(dict(raw["patterns"][0]))
     doc_path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(ValueError, match="single-pattern projects only"):
-        pr.Project.open(project.path)
+        rx.Project.open(project.path)
 
 
 # ------------------------------------------------------- the reader *call*
@@ -274,7 +274,7 @@ def test_the_pdcif_block_is_recorded_and_replayed(tmp_path):
     """
     cif = DATA / "nist_srm660c_100a.cif"
     structure, ins = perturbed_models()
-    project = pr.Project.create(tmp_path / "cert.rex", pattern=cif,
+    project = rx.Project.create(tmp_path / "cert.rex", pattern=cif,
                                 structure=structure, instrument=ins,
                                 reader_options={"block": "_calc"})
 
@@ -282,17 +282,17 @@ def test_the_pdcif_block_is_recorded_and_replayed(tmp_path):
     assert project.data_ref.options == {"block": "_calc"}
     assert "calc" in project.data.metadata["block"]
 
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
     assert reopened.data.metadata["block"] == project.data.metadata["block"]
     # …and the default read really does pick a different block, so this matters
-    assert pr.read_pattern(cif).metadata["block"] != project.data.metadata["block"]
+    assert rx.read_pattern(cif).metadata["block"] != project.data.metadata["block"]
 
 
 # --------------------------------------------------------------- the session
 def test_settings_drive_the_convenience_verbs(tmp_path, pattern_file):
     """``project.fit()`` runs the project's own plan, mode and limits."""
-    one = pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+    one = rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                  max_iter=5)])
     project = _create(tmp_path / "s.rex", pattern_file, plan=one,
                       two_theta_limits=(4.0, 20.0))
@@ -311,7 +311,7 @@ def test_run_stage_uses_the_documents_mode_before_any_fit(tmp_path, pattern_file
     """
     project = _create(tmp_path / "s.rex", pattern_file, mode="lebail")
     result = project.run_stage(
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"],
                  max_iter=5))
     assert result.mode == "lebail"
     assert project.history[project.history.head].state.mode == "lebail"
@@ -323,7 +323,7 @@ def test_set_excluded_regions_updates_document_and_data(tmp_path, pattern_file):
     assert project.doc.excluded_regions == [(6.0, 6.5)]
     assert project.data.excluded_regions == [(6.0, 6.5)]
     project.save()
-    assert pr.Project.open(project.path).data.excluded_regions == [(6.0, 6.5)]
+    assert rx.Project.open(project.path).data.excluded_regions == [(6.0, 6.5)]
 
 
 def test_an_unrun_edit_is_in_the_log_before_any_save(tmp_path, pattern_file):
@@ -337,7 +337,7 @@ def test_an_unrun_edit_is_in_the_log_before_any_save(tmp_path, pattern_file):
     project.refinement.set_vary("instrument.zero_shift", True)
     project.refinement.set_values({"phases.0.cell.a": 4.16})
 
-    reopened = pr.Project.open(project.path)  # no save() in between
+    reopened = rx.Project.open(project.path)  # no save() in between
     assert [n.action.kind for n in reopened.history.nodes.values()] == \
            ["root", "set_vary", "set_value"]
     assert reopened.refinement.fitted_structure.phases[0].cell.a.value == 4.16
@@ -348,7 +348,7 @@ def test_reopen_mid_history_resumes_at_head(fitted_project, pattern):
     project, result = fitted_project
     assert result.node_id == project.history.head
 
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
     assert len(reopened.history) == 1 + len(SHORT.stages)
     assert reopened.refinement._head_id == project.history.head
     # the working state is the fitted one, not the as-created one
@@ -356,7 +356,7 @@ def test_reopen_mid_history_resumes_at_head(fitted_project, pattern):
     assert reopened.refinement.fitted_structure.phases[0].cell.a.value == fitted_a
     assert reopened.refinement._free_paths == project.refinement._free_paths
     # and it can be continued: a new stage lands as a child of the head
-    reopened.run_stage(pr.Stage("zero", ["instrument.zero_shift"], max_iter=5))
+    reopened.run_stage(rx.Stage("zero", ["instrument.zero_shift"], max_iter=5))
     assert reopened.history[reopened.history.head].parents == [result.node_id]
 
 
@@ -370,9 +370,9 @@ def test_a_reopened_project_can_replay_its_head(fitted_project):
     started from (see ``NodeMetrics``).
     """
     project, _ = fitted_project
-    reopened = pr.Project.open(project.path)
+    reopened = rx.Project.open(project.path)
 
-    replayed = pr.replay(reopened.history, "head", reopened.data)
+    replayed = rx.replay(reopened.history, "head", reopened.data)
     cached = reopened.history[reopened.history.head].metrics.statistics.rwp
     assert replayed.statistics.rwp == pytest.approx(cached, rel=1e-3)
     assert len(reopened.refinement.parameters()) == \
@@ -388,7 +388,7 @@ def test_a_project_reopens_on_the_scan_it_was_created_from(tmp_path):
     replays.
     """
     structure, ins = perturbed_models()
-    proj = pr.Project.create(tmp_path / "high.rex",
+    proj = rx.Project.create(tmp_path / "high.rex",
                              pattern=DATA / "rigaku_multiscan.ras",
                              structure=structure, instrument=ins,
                              reader_options={"scan": 1})
@@ -398,6 +398,6 @@ def test_a_project_reopens_on_the_scan_it_was_created_from(tmp_path):
     assert ref.options == {"scan": "1"}                # dict[str, str] on disk
     assert proj.data.two_theta == [20.0, 20.5, 21.0]
 
-    reopened = pr.Project.open(tmp_path / "high.rex")
+    reopened = rx.Project.open(tmp_path / "high.rex")
     assert reopened.data.two_theta == [20.0, 20.5, 21.0]
     assert reopened.doc.patterns[0].fingerprint == ref.fingerprint

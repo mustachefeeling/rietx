@@ -682,9 +682,9 @@ def test_an_unestimable_mu_r_is_reported_rather_than_silently_ignored():
 
 
 def _scale_only_plan():
-    import rietx as pr
+    import rietx as rx
 
-    return pr.RefinementPlan(stages=[pr.Stage("scale", ["phases.*.scale",
+    return rx.RefinementPlan(stages=[rx.Stage("scale", ["phases.*.scale",
                                                        "instrument.background.*"],
                                               max_iter=8)])
 
@@ -716,13 +716,13 @@ def _synthesize_absorbing_lab6(mu_r_true: float, biso_true: float,
 
 
 def _biso_plan():
-    import rietx as pr
+    import rietx as rx
 
-    return pr.RefinementPlan(stages=[
-        pr.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
-        pr.Stage("cell", ["phases.*.cell.*"]),
-        pr.Stage("profile_w", ["instrument.profile.w"]),
-        pr.Stage("biso", ["phases.*.atoms.*.biso"]),
+    return rx.RefinementPlan(stages=[
+        rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+        rx.Stage("cell", ["phases.*.cell.*"]),
+        rx.Stage("profile_w", ["instrument.profile.w"]),
+        rx.Stage("biso", ["phases.*.atoms.*.biso"]),
     ])
 
 
@@ -741,7 +741,7 @@ def test_neglecting_capillary_absorption_biases_biso_low_by_the_predicted_amount
     itself, which is why this is a correctness question rather than a cosmetic
     one.
     """
-    import rietx as pr
+    import rietx as rx
     from rietx.viz.plots import plot_result
     from tests.test_schemas import make_lab6
 
@@ -757,7 +757,7 @@ def test_neglecting_capillary_absorption_biases_biso_low_by_the_predicted_amount
             atom.biso.value = 0.3          # start away from truth either way
         ins = Instrument.debye_scherrer(wavelength=1.5406, mu_r=mu_r)
         ins.profile.w.value = 8e-3
-        ref = pr.Refinement(structure, ins, history=False)
+        ref = rx.Refinement(structure, ins, history=False)
         return ref, ref.fit(pattern, plan=_biso_plan())
 
     ref_on, with_it = run(mu_r_true)
