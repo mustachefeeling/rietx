@@ -152,9 +152,38 @@ brackets: fnmatch reads `[..]` as a character class rather than an index.
 
 ### The order the presets encode
 
-The preset order is the one McCusker et al. {cite}`mccusker1999` set out in the
-IUCr Rietveld refinement guidelines. Three of its rules carry more weight than
-they look like:
+The backbone is the order McCusker et al. {cite}`mccusker1999` set out in the
+IUCr Rietveld refinement guidelines:
+
+1. **Background and scale first.** The guidelines want good starting values for
+   the background before the structure is touched, and the calculated pattern
+   scaled to the observed one before anything is read off a difference plot.
+2. **Peak positions before everything else.** The cell and the 2θ correction —
+   the zero shift, plus sample displacement where the geometry has one — refine
+   before the widths and before the structure. The guidelines put it flatly:
+   unless the observed and calculated peak positions match, a Rietveld
+   refinement cannot and will not work.
+3. **Then the widths, then the asymmetry.** `mccusker_default` stops after the
+   widths. `lab_bragg_brentano` and `lab_calibrate` continue in the guidelines'
+   order with a `lines_axial` stage — the FCJ axial-divergence ratios and the
+   Kα2 weight — after them.
+4. **Then the structure: coordinates, then displacement parameters.** The
+   guidelines note that the scale, the occupancies and the displacement
+   parameters are correlated with each other and are the parameters most
+   sensitive to a background error, so they follow the positions rather than
+   accompany them.
+5. **Everything free together at the end.** Stages are cumulative for a reason
+   the guidelines state explicitly: the esds are only correct when all
+   parameters, profile and structural, are refined simultaneously. The last
+   stage of every preset does that.
+
+One departure: the guidelines suggest refining the heavier atoms' positions
+before the lighter ones, and `mccusker_structural` frees every coordinate in one
+`coordinates` stage. Nothing here measures what the split would buy. If your
+structure has a large scattering contrast and a poor starting model, split that
+stage yourself — a plan is an ordinary object.
+
+Three further ordering rules are this package's own rather than the guidelines':
 
 - **Widths last among the profile terms, and `w` before `u`, `v`, `x`, `y`.**
   `w` is the constant term of the Gaussian width. Free the tan θ and 1/cos θ
@@ -198,6 +227,13 @@ Toby {cite}`toby2006`, and Part 2 gives them as equation
 
 **`Statistics.chi2` is the reduced χ², not Σw δ².** The two differ by a factor
 of N − P, which on a real pattern is several thousand.
+
+**The literature is not consistent about which of the two is called χ².** The
+IUCr guidelines {cite}`mccusker1999` write χ² = Rwp/Rexp and say it should
+approach 1; that quantity is `Statistics.gof` here, and `Statistics.chi2` is its
+square. Both conventions say the same thing about a fit — the naming follows
+Toby {cite}`toby2006` — but a number copied from a paper needs the convention
+copied with it.
 
 `Statistics.esd_inflation` is conservative by construction. Perfectly white
 residuals still land near 1.51, because same-sign runs happen by chance, and lab

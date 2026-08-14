@@ -99,7 +99,8 @@ with the intensities extracted per reflection instead of computed from the
 structure. It therefore converges from a much worse start, and it tells you
 whether the cell and the profile are right *independently of whether the
 structure is*. Only then does a Rietveld fit (`mode="rietveld"`, the default)
-face a fair question.
+face a fair question. This is the IUCr guidelines' own advice for a partial or
+uncertain model {cite}`mccusker1999`.
 
 It pays a second time. A Le Bail report flags observed peaks the model does not
 account for, so an impurity phase shows up as unmatched peaks at positions you

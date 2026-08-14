@@ -1,8 +1,8 @@
 # WP-1068 — Part 1 second pass: voice, figures, structure
 
-Milestone: v1.0 § Floor · Status: 🔄 2026-08-14 — voice, sectioning, two new
-chapters, four diagrams and three figures landed; the McCusker section waits on
-the paper
+Milestone: v1.0 § Floor · Status: ✅ 2026-08-15 — voice, sectioning, two new
+chapters, four diagrams, three figures; and the McCusker section, once the paper
+arrived, which also produced the compliance audit in the v1.0 record
 Depends on: WP-1067 (the chapters and their guards)
 
 ## Goal
@@ -57,15 +57,24 @@ find out what is on disk, then wire it into something.
   authority for how each was drawn, and `.gitignore` carries an explicit
   negation because `*.png` would otherwise drop all six.
 
-### Blocked: the McCusker paper
+### Resolved 2026-08-15: the McCusker paper
 
-`concepts.md` § "The order the presets encode" states the three ordering rules
-from the repository's own measured record (`AGENT_PROTOCOL.md` §2) and cites
-`mccusker1999` for the order itself. Deepening that section needs the paper, and
-it cannot be fetched here: `doi.org/10.1107/S0021889898009856` redirects to
-`journals.iucr.org`, which returns 403 to an automated fetch, and it is not in
-the local Zotero corpus. **Ask the user for the PDF before writing more of that
-section.**
+It was blocked because the paper could not be fetched here —
+`doi.org/10.1107/S0021889898009856` redirects to `journals.iucr.org`, which
+returns 403 to an automated fetch, and it was not in the local Zotero corpus.
+The user supplied it (`~/zotero-linker/derived/YWSBLSIS/`), and reading it found
+that `concepts.md` § "The order the presets encode" attributed **three rules the
+paper does not contain** to the paper: `w` before `u,v,x,y`, intensity-scaling
+corrections last, and strain freed inside the sample-broadening stage. All three
+are this repository's own findings, and `AGENT_PROTOCOL.md` §2 states them
+without attribution — the manual acquired the claim when that passage was
+compressed. The section now carries the paper's five actual ordering rules, the
+three house rules named as house rules, and the one deliberate departure.
+
+The reading also turned into a full compliance audit of the package against the
+guidelines: **docs/milestones/v1.0.md § Appendix — the McCusker 1999 compliance
+audit**. No correctness defect; nine features the guidelines ask for that this
+package lacks, listed there with the evidence.
 
 ## Non-goals
 
@@ -93,7 +102,8 @@ section.**
       no sideways scroll, no unrendered diagram, no text the colour of its own
       background. Driven with playwright-core out of the scratchpad against the
       chromium in the playwright cache (never installed into `gui/`).
-- [ ] The McCusker section, once the paper is to hand.
+- [x] The McCusker section, once the paper is to hand — and the compliance
+      audit the reading turned into (v1.0 record § Appendix).
 
 ## Acceptance
 
@@ -108,7 +118,8 @@ section.**
 
 - McCusker, Von Dreele, Cox, Louër & Scardi (1999), *J. Appl. Cryst.* **32**,
   36–50, "Rietveld refinement guidelines", `10.1107/S0021889898009856`. Open
-  access, not fetchable from here — see § Blocked.
+  access but 403 to an automated fetch; supplied by the user and now at
+  `~/zotero-linker/derived/YWSBLSIS/`. Read 2026-08-15 — see § Resolved.
 - Toby (2006), *Powder Diffraction* **21**, 67, for the agreement indices.
 - Orwell's six rules and ASD-STE100, via the skill the review named:
   `github.com/tamdogood/builder-essential-skills/blob/main/skills/orwell-writing/SKILL.md`.
@@ -127,10 +138,34 @@ section.**
   the optional blocks declared, and 50 names moved from the deferred bucket to
   documented (1094 → 1044).
   In flight: nothing.
-  Next: the McCusker section (blocked, see § Blocked), then a fresh-eyes read of
-  the built pages in both themes.
+  Next: the McCusker section (blocked at the time — see § Resolved), then a
+  fresh-eyes read of the built pages in both themes.
   Gotchas: three drawn artefacts were cut *after* looking at them — a
   degeneracy-group diagram that repeated the table above it, a
   Le-Bail-vs-Rietveld pair whose panels were indistinguishable at full scale,
   and `plot_for_vlm`'s montage, which is drawn for a vision model and has no
   dark twin. Render before deciding a figure earns its place.
+
+- **2026-08-15** — the last task, unblocked by the user supplying the paper.
+  Reading it found a false attribution in `concepts.md` (three house rules
+  presented as the paper's) and nothing else wrong in the prose; the section was
+  rewritten around what §5 and §7 actually prescribe, and two more citations
+  earned their place (Le Bail-first in `quickstart.md` §"Le Bail before
+  Rietveld"; the structure-free Rwp floor beside `lebail_gap` in `report.md`).
+  The statistics table gained the χ² naming collision — the paper's eq (12)
+  calls Rwp/Rexp "χ²", which is `gof` here.
+  The reading then became a full audit of the *package* against the guidelines,
+  filed as **v1.0 record § Appendix — the McCusker 1999 compliance audit**: no
+  correctness defect (every formula the paper writes and this package
+  implements matches, eqs 3/5/6/7/10/11 and the µR ≤ 1 fence), one measurement
+  (peak range 83 × FWHM on 11-BM NAC, 36 × on SRM 660c, against the paper's
+  10–20 typical and ≥ 40 for crystal-analyser data), and nine missing features.
+  The three worth a WP each: **R_Bragg/R_F**, a **user-facing constraint
+  mechanism** (`AffineTie` exists one rank down; `Refinement` cannot reach it),
+  and the **observation/parameter ratio** of §9.
+  In flight: nothing. This WP is done.
+  Gotchas: the audit's first pass reported the LaB6 peak windows as 16–31 ×
+  FWHM, which looked like a bug. It is not — the SRM 660c `_meas` block is a
+  set of disjoint scan segments around each reflection, so the window is clipped
+  by where the data stops. Measure window widths on interior points of a
+  *contiguous* grid, or the grid's own gaps read as narrow windows.
