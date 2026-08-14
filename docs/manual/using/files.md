@@ -3,6 +3,28 @@
 This chapter is the map of what the package reads off disk and what it writes
 back.
 
+```{mermaid}
+graph LR
+  P["pattern file<br/><i>.xye .fxye .raw .cif …</i>"] --> RP["read_pattern"]
+  C["structure<br/><i>.cif</i>"] --> SC["Structure.from_cif"]
+  I["instrument profile<br/><i>.json</i>"] --> LP["load_instrument_profile"]
+  RP --> REF(["refinement"])
+  SC --> REF
+  LP --> REF
+  subgraph rex ["my_sample.rex/"]
+    PJ["project.json<br/><i>settings</i>"]
+    PC["the pattern file<br/><i>copied byte for byte</i>"]
+    H["history.jsonl<br/><i>model state</i>"]
+    LV["live/<br/><i>event streams</i>"]
+    EX["exports/<br/><i>CIF, tables</i>"]
+  end
+  REF --> PJ
+  REF --> PC
+  REF --> H
+  REF --> LV
+  REF --> EX
+```
+
 ## Pattern files
 
 `read_pattern` opens a pattern and returns a `PatternData`. It identifies the
@@ -174,8 +196,20 @@ calculated pattern would make it 1.24 MB. Le Bail extracted intensities are the
 exception, because they live outside the parameter vector and are
 path-dependent, so they are serialized per node.
 
-`RefinementTree.to_mermaid` renders the tree as a diagram you can paste into any
-markdown that supports mermaid:
+The tree branches. A stage adds a node under the head, a model edit adds one
+too, and `Refinement.checkout` moves the head back so the next fit forks
+instead of continuing:
+
+```{mermaid}
+graph TD
+  root["root<br/>initial model"] --> n1["fit: lebail<br/>Rwp 0.113"]
+  n1 --> n2["edit: add CaF₂ phase"]
+  n2 --> n3["fit: rietveld<br/>Rwp 0.093"]
+  n1 --> n4["fit: rietveld<br/>no impurity<br/>Rwp 0.141"]
+```
+
+`RefinementTree.to_mermaid` prints that diagram for a real tree, in the same
+syntax, so you can paste it into any markdown that renders mermaid:
 
 <!-- api-doc: no-exec — it needs a refinement that has run -->
 ```python

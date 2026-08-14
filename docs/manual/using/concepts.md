@@ -98,6 +98,25 @@ rx.RefinementPlan.profile_only()          # Le Bail
 rx.RefinementPlan.pawley_default()        # Pawley
 ```
 
+The two standard presets are one chain. `mccusker_default` stops after the
+widths; `mccusker_structural` continues into the structure:
+
+```{mermaid}
+graph TD
+  subgraph a ["mccusker_default"]
+    A["scale + background"] --> B["zero shift"] --> C["cell"]
+    C --> D["W, the constant width"] --> E["U, V, X, Y"]
+  end
+  subgraph b ["mccusker_structural adds"]
+    F["coordinates"] --> G["displacement"] --> H["preferred orientation"]
+    H --> I["extinction"] --> J["surface roughness"]
+  end
+  E --> F
+```
+
+Each box is a `Stage`. Every stage runs to convergence with everything above it
+still free.
+
 `Refinement.fit` also takes a plan by name (`plan="mccusker_default"`).
 `PLAN_INFO` reports each preset's title, description, modes and when to use it,
 so a program can offer the choice without hard-coding a list.

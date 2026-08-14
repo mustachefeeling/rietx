@@ -20,6 +20,20 @@ when to disbelieve Rwp, and how to act on an abstention — is
 §4 to §6, and this chapter does not restate a line of it.
 :::
 
+The three layers answer three different questions, and each one can decline to
+answer:
+
+```{mermaid}
+graph TD
+  R["RefinementResult"] --> L0["<b>Layer 0</b><br/>Rwp, GoF, misfit regions,<br/>unmatched peaks<br/><i>independent of the model</i>"]
+  L0 --> M{"is the fit mature<br/>enough to linearise?"}
+  M -- no --> AB["<b>abstain</b><br/>FitReport.abstained_kind<br/><i>the next move is a better<br/>starting model</i>"]
+  M -- yes --> L1["<b>Layer 1</b><br/>project the residual onto the<br/>shape-derivative basis"]
+  L1 --> G{"do all four<br/>gates pass?"}
+  G -- no --> NP["<b>reported as not passing</b><br/>RegionAttribution.gate_failures<br/><i>with the numbers</i>"]
+  G -- yes --> L2["<b>Layer 2</b><br/>FitReport.suggested_actions<br/><i>advisory, never applied</i>"]
+```
+
 ## Building a report
 
 `build_report` takes a `RefinementResult`. `Refinement.report` is the same thing

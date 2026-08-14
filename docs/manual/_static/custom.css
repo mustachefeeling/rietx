@@ -42,6 +42,18 @@ body[data-theme="dark"] {
   --color-agent-accent-background: rgba(164, 140, 255, 0.14);
 }
 
+/* Mermaid's dark theme draws edge labels as light text on a light chip, which
+ * is unreadable.  Both of its themes get the page's own colours instead, which
+ * is also what makes an edge label look like part of the page rather than part
+ * of the diagram. */
+.mermaid .edgeLabel,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel rect {
+  background-color: var(--color-background-primary) !important;
+  fill: var(--color-background-primary) !important;
+  color: var(--color-content-foreground) !important;
+}
+
 /* Figures are committed as a light/dark pair and selected with Furo's own
  * `only-light` / `only-dark` classes.  Centre them and stop a wide panel from
  * scrolling the page sideways. */

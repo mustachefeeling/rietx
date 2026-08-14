@@ -36,7 +36,22 @@ author = "rietx developers"
 release = _dist_version(DIST_NAME)
 version = release
 
-extensions = ["myst_parser", "sphinxcontrib.bibtex"]
+extensions = ["myst_parser", "sphinxcontrib.bibtex", "sphinxcontrib.mermaid"]
+
+# Diagrams render in the browser (`raw` output needs no mermaid-cli at build
+# time).  The extension detects the active theme from `body[data-theme]`, which
+# is what furo writes, and re-renders on a MutationObserver when the toggle
+# moves — so these two names are the whole light/dark story.  mermaid.js itself
+# comes from a CDN when the page is *viewed*; set `mermaid_use_local` if a
+# built copy of the manual has to render diagrams offline.
+mermaid_light_theme = "default"
+mermaid_dark_theme = "dark"
+# Without the title margin, a subgraph label is drawn on the cluster border and
+# collides with the first node inside it.
+mermaid_init_config = {
+    "startOnLoad": False,
+    "flowchart": {"subGraphTitleMargin": {"top": 6, "bottom": 12}},
+}
 
 bibtex_bibfiles = ["references.bib"]
 bibtex_default_style = "alpha"
