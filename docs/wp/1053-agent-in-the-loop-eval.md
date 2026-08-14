@@ -192,6 +192,15 @@ scorecards; the scorer's unit tests pass; the repo carries no LLM dependency.
 
 ## Handover log
 
+- **2026-08-14** — record repair, no work. The pilot's **human-readable report**
+  — figures, agent quotes, per-run costs — is a published artifact, and this
+  file was its only reference-by-description: the URL itself lived nowhere in
+  the repo, only in a session memory that a triage was about to retire.
+  Recorded here so it survives that:
+  <https://claude.ai/code/artifact/4b7c3282-176d-486d-b951-6711ac9fb7ef>.
+  Raw scorecards were scratchpad-only and are gone; the grid below and
+  `docs/milestones/v1.0.md` § Appendix are the reproducible record.
+
 - **2026-08-11 (close)** — **Done**: all six checklist items, one commit each
   (`9f5cf40`…`e7e67c4`): the `AgentSuccess` verification (gap in Context),
   `tests/eval_report_agent/` (fixtures builder, shim, scorer + 17
