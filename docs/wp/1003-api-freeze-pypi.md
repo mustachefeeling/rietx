@@ -1,9 +1,11 @@
 # WP-1003 — API freeze + PyPI release
 
 Milestone: v1.0 · Status: ⬜ — stub, expand before starting
-Depends on: WP-1001, WP-1002, WP-1004…WP-1017 (the GUI expansion — this WP is
-the milestone's last row, so the freeze covers a surface the GUI exercised),
+Depends on: WP-1001, WP-1002, WP-1004…WP-1016 (the GUI expansion — this WP is
+the milestone's last row, so the freeze covers a surface the GUI exercised;
+**WP-1017 is deferred past the release**, see Inherited),
 WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
+WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 **WP-1062 (the rename — must land first, see Inherited)**
 
 ## Scope (carried verbatim from the pre-split roadmap)
@@ -11,6 +13,55 @@ WP-1018…WP-1030 (indexing), WP-1032…WP-1036 (the 2026-08-04 use session),
 - API freeze, PyPI release (name `rietx` verified available)
 
 ### Inherited
+
+**From [1017](1017-gui-manual-onboarding.md) and
+[1067](1067-user-api-manual.md), 2026-08-14 — the release ships a GUI marked
+beta and a manual that does not cover it.** User decision: the GUI keeps being
+worked on *after* the public release, so its manual (1017) is deferred and the
+feature ships as **beta**, said out loud rather than left to be discovered.
+Three things land on the freeze:
+
+- **1017 no longer blocks this WP** (the dependency range above is amended).
+  What ships instead is [1067](1067-user-api-manual.md) — Part 1 of the
+  manual, the library and its API, beside the theory manual as Part 2 — which
+  carries the README's beta declaration and names `rietx gui` in a single
+  line, no walkthrough. **Only 1067's § Floor gates this WP** (the tree split,
+  the surface list, the guard, install/quickstart/report/agents, README); the
+  remaining chapters ship in 1.0.x, so a ten-chapter manual cannot slip the
+  release.
+- **1067 hands this WP the enumeration it has to freeze anyway.**
+  `tests/api_surface.py` **derives** the public call surface — public
+  attributes of the exported types, not just `rietx.__all__`, whose 71 names
+  contain almost nothing a user actually calls — and hand-writes only the
+  exclusions. Derived on purpose: a curated list cannot notice a new public
+  method, so it would go stale green. Consume that surface rather than
+  re-deriving a second one, and
+  note that WP-0604 **deferred** a rendered API reference to this WP rather
+  than rejecting it ("belongs with the WP-1003 freeze, if anywhere") — so
+  whether the release ships autodoc is an open question here, with 1067's
+  coverage test as the evidence for what is expensive to document by hand.
+- **The README deduplication is sequenced behind hosting, and it is this WP's
+  to finish.** README is the GitHub landing page *and* the PyPI long
+  description, so until the manual is reachable a reader has nowhere else to
+  go; 1067 therefore declares the authority rule (`examples/*.py` is the
+  source, the manual `{literalinclude}`s and *executes* it) and adds pointers,
+  leaving README's seven worked examples in place. Once this WP hosts the
+  manual, README keeps one headline snippet and the rest become links —
+  otherwise the release ships three copies of one walkthrough.
+- **The release notes must state the beta posture and its blast radius.** The
+  wire routes and the `.rxt` text format were already going to be declared
+  provisional here while the schemas freeze; "the GUI is beta" is the same
+  sentence one rank up, and it is now the *only* place a user learns it
+  besides the README.
+- **The manual and the protocol do not ship, and one pointer already
+  dangles.** `[tool.hatch.build.targets.wheel] packages = ["src/rietx"]`, so a
+  `pip install rietx` user has neither `docs/manual/` nor
+  `docs/AGENT_PROTOCOL.md` — while `agent._TOOL_DESCRIPTION` names the second
+  by repo-relative path inside the tool description every tool-calling agent
+  reads. Whatever this WP picks (hosted docs and a URL, `docs/` as package
+  data, or a CLI route), **the constraint is that the string resolves for
+  someone who only ran `pip install`.** Measured 2026-08-14; 1067 records it
+  and leaves the choice here because hosting is release scope.
 
 **From [1065](1065-decisive-swap-license.md), closed 2026-08-13 — the
 follow-through sentence is landed and measured; what the freeze freezes is

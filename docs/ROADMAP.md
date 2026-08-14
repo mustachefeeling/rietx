@@ -183,8 +183,9 @@ the history stays readable.)
 ### v1.0 — hardening, human GUI & release (GUI WPs added 2026-07-29)
 
 Order: backend API first (1004–1007, each independently useful without the
-GUI), then server (1008–1009), then frontend (1010–1017); the freeze (1003)
+GUI), then server (1008–1009), then frontend (1010–1016); the freeze (1003)
 is the milestone's last row so it covers a surface the GUI has exercised.
+Both docs WPs (1017, 1067) are post-v1.0 — see that section below.
 
 | WP | Title | Status | Depends on |
 |---|---|---|---|
@@ -209,9 +210,8 @@ is the milestone's last row so it covers a surface the GUI has exercised.
 | [1034](wp/1034-panel-layout.md) | Model and Text in the right panel | ✅ 2026-08-05 | 1013, 1014, 1029 (1032 soft) |
 | [1035](wp/1035-symmetry-surfaced.md) | Symmetry, surfaced and editable | ✅ 2026-08-05 | ~~1036~~ ✅, 1014 (1004 soft) |
 | [1044](wp/1044-gui-view-cursor-theme.md) | GUI defects found by use: the view, the armed cursor, the theme | ✅ 2026-08-06 | 1029, 1032–1033, 1027 |
-| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ | 1011–1016, 1029, 1032–1035 (soft) |
 | [1031](wp/1031-docs-consolidation.md) | Planning-doc consolidation + handoff mechanization | ✅ 2026-07-31 | — |
-| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 |
+| [1003](wp/1003-api-freeze-pypi.md) | API freeze + PyPI | ⬜ | 1001, 1002, 1004–1036 **except 1017** (deferred), 1067 § Floor |
 
 ### v1.0 — indexing (added 2026-07-29)
 
@@ -341,6 +341,18 @@ start.
 |---|---|---|---|
 | [1060](wp/1060-docs-ci-consolidation.md) | Docs/CI consolidation: trim what the evidence indicts | ✅ 2026-08-06 | — |
 | [1061](wp/1061-workflow-robustness.md) | Session-workflow robustness: detect the missed handover | ✅ 2026-08-06 | — |
+
+### Post-v1.0 — the two docs WPs (1067 spans the release)
+
+| WP | Title | Status | Depends on |
+|---|---|---|---|
+| [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
+| [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | ⬜ | 0604, 1004–1007, 1047 |
+
+The GUI keeps moving, so it **ships as a beta feature** and is documented once
+the panels settle. 1067 declares that beta status; its **§ Floor gates
+[1003](wp/1003-api-freeze-pypi.md)** and the rest lands in 1.0.x, so it stays
+open past the milestone by design rather than being split.
 
 ## v2+ (seams pre-built, implementations fenced out)
 

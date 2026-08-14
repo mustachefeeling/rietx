@@ -1,0 +1,416 @@
+# WP-1067 — User & API manual (Part 1)
+
+Milestone: v1.0 § Floor, then 1.0.x · Status: ⬜
+Depends on: WP-0604 (the manual machinery), WP-1004…WP-1007, WP-1047
+(the surfaces it documents). **§ Floor gates [1003](1003-api-freeze-pypi.md);
+the rest ships after the release, so this WP stays open past the milestone and
+its ROADMAP row sits under § Post-v1.0.**
+
+## Goal
+
+`docs/manual/` becomes a two-part manual built by one Sphinx tree: **Part 1 —
+Using rietx**, a task-ordered guide to the library and its public API, and
+**Part 2 — Theory**, the existing chapters unchanged. Part 1 is written
+against a *derived* enumeration of the public call surface, which is also the
+surface [1003](1003-api-freeze-pypi.md) freezes.
+
+## Audience
+
+Two readers, and the chapter order is the gradient between them:
+
+- **someone with a pattern who wants a number they can defend** — install,
+  quickstart, report. Assumed to know powder diffraction, not this package;
+- **someone wiring the package into a program or an agent loop** — the object
+  graph, projects, history, the JSON surface.
+
+Neither is the maintainer. Neither is a GUI user (§ Non-goals).
+
+The floor serves the first reader in three chapters and the second in one:
+`using/model.md` is post-release, so at v1.0 an integrator has
+`using/agents.md` and the JSON schema. That is a decision, not an oversight —
+`refine_json` is self-describing through `tool_definition()`, and the protocol
+it points at is the half an integrator cannot derive from a schema.
+
+## Context
+
+**Why the floor runs before the freeze.** Writing the user-facing reference
+over the public surface is the best audit that surface will get, and 1003's
+job is to freeze what the audit finds. Same argument the milestone already
+made for putting the GUI ahead of the freeze (ROADMAP § v1.0). Expect the
+chapters to find gaps; § Non-goals says what to do with them.
+
+**One tree, two parts.** Part 1 lives in `docs/manual/` beside Part 2, not in
+a second doc root — WP-1017's argument, which still holds: a separate root
+needs its own guard set for no benefit. It also lets Part 1 link into Part 2's
+*numbered* equations instead of restating physics, and inherit `index.md`'s
+standing contract that **the code is authoritative** (where prose and docstring
+disagree, the docstring wins and the discrepancy is a bug).
+
+`conf.py` and `index.md` both name the whole tree "theory manual"
+(`html_title`, the H1, the lede). That is Part 2's name now, not the tree's.
+
+### Where the pages live
+
+Part 1 goes in `docs/manual/using/`, and `tests/test_manual.py`'s `CHAPTERS`
+(`MANUAL_DIR.glob("*.md")`, flat) becomes an `rglob` — a one-line edit. Doc
+structure should not be shaped by a test's glob, and the reason to stay inside
+`CHAPTERS` is *future* guards, this WP's included: today's are vacuous on Part
+1 pages either way (the source-symbol test asserts a global non-empty set, the
+labelled-equation and bib rules fire only on pages carrying equations or
+citations, and `-W` applies whatever the directory). **Gotcha: `rglob` walks
+`docs/manual/_build/`** — exclude it, or a stale build tree joins the
+collection.
+
+### The guard is name resolution, and coverage is a floor not a bar
+
+Part 2's guards work because an equation names a symbol. A reference manual's
+failure mode is different, and this repo has measured it: `features["indexing"]`
+was `False` for its entire life because the flag's `hasattr` name (`index`) and
+the real export (`index_pattern`) drifted apart while the meta-test asserted
+the flag's own expression rather than the name (WP-1037; root CLAUDE.md
+`_SURFACE_FLAGS`). A manual is a much larger surface of the same bug. So:
+
+- every dotted name Part 1 spells resolves against the live package;
+- every parameter dot-path resolves against a real `ParameterTable` (no
+  brackets — fnmatch treats `[..]` as a character class);
+- every fenced `python` block is compile-checked, and executed or exempted
+  under the cost model below;
+- every entry in the **derived call surface** is documented or excluded with a
+  reason, asserted as a partition.
+
+**`rietx.__all__` is the wrong denominator.** It is 71 top-level names
+(measured 2026-08-14 — re-measure, do not quote), but almost nothing a user
+calls lives there: `ref.fit`, `ref.report`, `ref.parameters`, `ref.set_vary`,
+`result.statistics.rwp`, `result.parameter`, `history.branch`/`merge`/
+`cherry_pick`, `Project.create`/`open`/`save` are methods and fields. A manual
+naming `Refinement` once would satisfy an `__all__` partition and document
+nothing.
+
+**And a hand-curated list of those methods would reproduce the very bug
+above.** A list nobody regenerates cannot notice a *new* public method: it
+never enters the denominator, the partition stays green, and coverage silently
+drops. So `tests/api_surface.py` **derives** the surface — public attributes of
+the exported types, dunders and privates filtered — and its hand-written half
+is only the **exclusions and the chapter assignments**, each with a reason. A
+new public method then lands in the denominator by itself and fails the
+partition until someone documents or excludes it. Same lesson as
+`_SURFACE_FLAGS`: make the name data, derive the rest.
+
+Two rules the derivation itself needs, both measured 2026-08-14 (re-measure,
+do not quote):
+
+- **"Public attributes" means declared, not inherited.** 34 of the 47 exported
+  classes are pydantic models, so a bare `dir()` denominator is 1099 names,
+  most of them `model_dump`-class BaseModel machinery. Count a member iff it is
+  in the class's `model_fields` or its defining class lives in a `rietx`
+  module; that lands near 147, the right order for a documentable surface.
+  Excluding the machinery by hand instead would be the hand-curated list again.
+- **The surface must close over reachable unexported types.** `Statistics` is
+  not in `__all__`, so one level of attributes never reaches
+  `result.statistics.rwp` — this WP's own motivating example. Recurse into
+  rietx-defined types reachable through exported types' fields and annotations;
+  exporting them instead would break § Non-goals' no-new-API rule.
+
+(`tests/validation_matrix.py` → `docs/VALIDATION.md` is *not* the precedent to
+copy here. That matrix is authoritative because its content exists nowhere
+else; an API surface's authority is the code.)
+
+**1003 freezes the same surface**, so build the derivation here and let the
+freeze consume it rather than re-deriving a second enumeration.
+
+At the floor the partition is asserted over the **whole** derived surface,
+with an explicit `deferred-1.0.x` exclusion bucket; the WP closes when that
+bucket is empty. What remains is then data the test reports, not a task list
+nobody diffs.
+
+**A coverage partition catches omission; it does not measure quality.** The
+cheapest way to turn it green is a line reading "`SharingMap` maps sharing".
+The quality bar is the executed examples and review; the partition only stops
+a name from being forgotten.
+
+### The walkthrough has one authority, and it is `examples/`
+
+Today the same walkthrough exists twice and is guarded zero times: README
+carries worked examples for quickstart, lab data, report reading, exports,
+history, live monitoring and compare, and `examples/nac_11bm.py` /
+`examples/srm660c_lab.py` carry the runnable versions. **Nothing in `tests/`
+executes either.** Ruff lints `examples`; no test runs it. Transcribing a
+third copy into the manual would be the worst available option in a repo whose
+rule is one authority per fact.
+
+Decision: **`examples/*.py` is the authority.** The manual `{literalinclude}`s
+them rather than retyping, and the guard *executes the script*, so the
+walkthrough is code that runs and the manual is a view of it.
+
+Measured 2026-08-14 on a mirrored tree with this venv's sphinx: from
+`docs/manual/using/`, `{literalinclude} ../../../examples/demo.py` builds
+`-W`-clean and the content lands in the HTML. Get the `..` count wrong and
+sphinx clamps the path into a nonexistent prefix and **warns**, which `-W`
+turns into a build failure — a good failure mode, but it means the depth is
+worth getting right the first time.
+
+README is sequenced, not shrunk here: it is the GitHub landing page **and the
+PyPI long description**, and until 1003 hosts the manual a reader has nowhere
+else to go. So this WP declares the authority rule and adds the pointers;
+**the deduplication (README keeps one headline snippet, the rest become links)
+lands with 1003's hosting.** Record it in 1003's mailbox.
+
+### Cost model for the execution guard
+
+`tests/CLAUDE.md` is explicit that a wall-clock budget inside a test is a
+runaway guard and never a timer, and that heavy work needs a `slow` mark and
+an `xdist_group`. A chapter that runs a real fit would otherwise turn the docs
+test into an acceptance suite. The policy:
+
+- **every** fenced `python` block is `ast.parse`d — free, and catches the
+  typo class immediately;
+- a block that only constructs objects or reads fields executes in the fast
+  suite against the bundled small fixtures;
+- **a block that refines does not exist as inline prose.** It is a
+  `{literalinclude}` of an `examples/` script, and the *script* is executed by
+  `tests/test_examples.py` under `@pytest.mark.slow` with an `xdist_group`,
+  priced like any other acceptance row. Separate module from the manual guard
+  on purpose: one asserts prose against the package, the other runs
+  refinements, and they belong on different cadences;
+- every non-executed block carries a reason string. A bare exemption fails the
+  test — that is how this rots.
+
+### Do not restate AGENT_PROTOCOL, and do not move it
+
+`docs/AGENT_PROTOCOL.md` is the *operating protocol*: what to do in what
+order, what to check before believing a number, the measured findings that
+change an operator's behaviour. Part 1 is the *reference and the on-ramp*.
+One authority per fact — Part 1 links to the protocol for order and judgement,
+the protocol keeps linking to Part 1 for the surface.
+
+**`using/report.md` is where that line has to be stated rather than assumed**,
+because it sits directly on top of §4–§6: the chapter is the **object model**
+(what `FitReport` carries, field by field, and how to reach it), the protocol
+is the **judgement** (what to believe, in what order, and when to disbelieve
+Rwp). Unstated, that chapter drifts into paraphrase, which is the failure this
+non-goal exists to prevent.
+
+It is **load-bearing as a file**, in two places that break silently:
+
+- `agent._TOOL_DESCRIPTION` names `docs/AGENT_PROTOCOL.md` by path, inside the
+  tool description every tool-calling agent reads (`agent.tool_definition()`);
+- `tests/eval_report_agent/python_arm.py` ships it **verbatim** into every
+  eval worktree, and `test_python_arm.py` asserts byte equality.
+
+No split, no move, no partial copy into a chapter.
+
+### The manual does not ship, and one pointer already dangles
+
+`[tool.hatch.build.targets.wheel] packages = ["src/rietx"]` — the wheel
+carries the package and nothing else. A `pip install rietx` user has **neither**
+`docs/manual/` **nor** `docs/AGENT_PROTOCOL.md`, while `agent.tool_definition()`
+points that user's agent at the second by repo-relative path. A live defect
+today, not a v1.0 nicety.
+
+The fix is a release decision (hosted docs and a URL, `docs/` as package data,
+or a CLI route) and hosting is 1003's scope. What this WP owes is the
+**constraint on the record**: whatever 1003 picks, the string in
+`_TOOL_DESCRIPTION` must resolve for someone who only ran `pip install`.
+
+### Two staleness traps, both already paid for once
+
+- **A chapter that *lists* formats, plans, backends or anodes goes stale
+  between sessions.** WP-1047 landed five vendor formats on 2026-08-08/09,
+  taking the total to ten, and 1017's mailbox records the lesson twice. Quote
+  `capabilities()` — which carries each reader's own `title`, `sniff` and
+  `sigma` prose, each plan's `title`/`description`/`when_to_use`, and each
+  engine's and search preset's description — and show the *shape* of its
+  output rather than transcribing its contents.
+- **A test count in prose rots.** Root CLAUDE.md § Numbers is the recipe
+  (measure, never quote; full-suite counts from the latest weekly `full` job
+  log, with the venv **and** the platform). README currently quotes
+  1197/1116; the README task re-measures rather than editing in place.
+  Accuracy claims belong to `docs/VALIDATION.md`, which is generated from
+  `tests/validation_matrix.py` — link it, never restate it.
+
+### The GUI is out of scope and it is beta
+
+[WP-1017](1017-gui-manual-onboarding.md) was deferred past the public release
+on 2026-08-14 (user decision): the GUI keeps being worked on and is documented
+once the panels settle. It holds the whole GUI documentation surface. Two
+things land here instead: the README **declares the GUI a beta feature**, and
+`using-cli` names `rietx gui` in one beta-marked line, no walkthrough, no
+screenshots. Do not absorb any of 1017's mailbox — it is about panels that are
+still moving, which is why it was deferred.
+
+## Non-goals
+
+- **No GUI chapters** (WP-1017). One beta-marked line is the whole of it.
+- **No autodoc in this WP, and the question stays open.** WP-0604 did not
+  reject a rendered API reference; it deferred one, saying it "belongs with
+  the WP-1003 freeze, if anywhere". 1003 is the WP beside this one, so this WP
+  neither adds autodoc nor closes the question: it hands 1003 the derived
+  surface list and whatever the coverage test shows is expensive to document
+  by hand.
+- **No hosted-docs, theme, or publishing decision** — 1003's release scope.
+  This WP records the packaging requirement and the README deduplication that
+  follows hosting.
+- **No restating theory** (link Part 2's numbered equations) and **no
+  restating the protocol** (link AGENT_PROTOCOL).
+- **No new or changed public API.** A chapter that cannot be written cleanly
+  has found a surface defect: file it into 1003's `### Inherited` and write
+  around it. **Docstring corrections are in scope, and are recorded** —
+  `index.md`'s contract makes the docstring the authority the manual is
+  transcribed against, so a wrong docstring found here is fixed here. That
+  follows 0604 rather than diverging from it: its rule was that gaps are
+  "noted in the handover log, not *silently* patched", and the operative word
+  is *silently*.
+
+## Tasks
+
+### Floor — gates 1003
+
+- [ ] Split the tree: `index.md` becomes the manual's front page with two
+      captioned `toctree` blocks; Part 2's chapters move under it unchanged;
+      `conf.py`'s `html_title` and the H1 stop naming the whole tree "theory
+      manual"; `CHAPTERS` becomes `rglob` **excluding `_build/`**. Builds
+      `-W`-clean; `test_manual.py` green.
+- [ ] `tests/api_surface.py` — **derives** the public call surface (declared
+      members of the exported types and of the rietx-defined types reachable
+      from them; inherited pydantic machinery, dunders and privates filtered —
+      the two derivation rules in Context) and hand-writes only the exclusions
+      and chapter assignments, each with a reason, plus the `deferred-1.0.x`
+      bucket. This is the surface 1003 freezes; say so in its docstring.
+- [ ] The guard, before the prose it guards: `tests/test_manual_api.py` —
+      names resolve, dot-paths resolve, blocks compile, blocks execute or
+      carry a reason, and the derived surface is partitioned. **Make it fail
+      on purpose twice**: rename a documented symbol, and add a public method
+      to an exported type without touching the manual. The second is the one
+      that matters.
+- [ ] `using/install.md` — extras and what each buys, the numpy-only default,
+      `[gui]` as a plotly-only extra over a committed dist, running the suite,
+      and a link to `docs/VALIDATION.md` for what the package is known to get
+      right.
+- [ ] `using/quickstart.md` — one fit end to end as a `{literalinclude}` of
+      `examples/nac_11bm.py`, plus `tests/test_examples.py`, which executes
+      that script under `@pytest.mark.slow` with an `xdist_group`. States the
+      structure-free-first order and links AGENT_PROTOCOL §2 rather than
+      restating it.
+- [ ] `using/report.md` — **the object model, not the judgement** (see
+      Context): the three layers and their four gates, abstention as a result,
+      `evidence`, the stage trajectory (a converged report is routinely the
+      least informative in the run), and "did that correction help?" via
+      `viz.compare.run` headless plus the cumulative-Δχ² reading.
+- [ ] `using/agents.md` — `refine_json`, `tool_definition()`, `capabilities()`
+      and the five versioned contracts, then hand off to AGENT_PROTOCOL. Push
+      the packaging constraint and the README deduplication into 1003's
+      `### Inherited`.
+- [ ] README: docs pointer becomes "the manual, in two parts"; the theory-
+      manual capability row is restated; the **GUI is declared beta** with
+      `rietx gui` named and 1017 recorded as deferred; quoted test counts
+      re-measured per root CLAUDE.md § Numbers. Examples stay for now — the
+      deduplication is 1003's, after hosting.
+
+### After the release (1.0.x)
+
+- [ ] `using/data.md` — `read_pattern` (`diagnostics=[]`, `scan=`, the
+      reader's right to repair and its four consequences), `Structure` from
+      CIF, `Instrument`, calibrate → save → load → sample.
+- [ ] `using/model.md` — schemas → `ParameterTable` → `parameters()` /
+      `set_vary` / `set_values`: dot-paths, cell ties, transforms, the three
+      reasons a row is held, the JSON round-trip.
+- [ ] `using/refining.md` — modes, plans (`PLAN_INFO`), stages, guards,
+      `solver=`, `backend=`, `events=` / `cancel=`.
+- [ ] `using/history.md` and `using/projects.md` — the DAG (branch, merge,
+      cherry-pick, replay; state not curves) and the `.rex` project (one
+      authority per fact, `fitted_mask`, `DataRef`).
+- [ ] `using/indexing.md` — `pick_peaks` → `index_pattern`, `quick` vs
+      `full`, `best_or_none()`, the extinction symbol, and reading "no
+      high-confidence entry" as a result rather than a failure.
+- [ ] `using/series.md` and `using/exports.md` — sequential vs multi and
+      `direction="both"`; CIF / reflection / QPA exports, plots,
+      `plot_for_vlm`, `write_html`.
+- [ ] `using/cli.md` — `rietx watch`, `rietx compare`, and `rietx gui` in one
+      **beta**-marked line.
+
+## Acceptance
+
+The floor is done when the **derived** surface is fully partitioned — every
+name documented in a floor chapter, excluded with a reason, or in the
+`deferred-1.0.x` bucket — and the walkthrough the manual shows is a script the
+suite ran:
+
+```sh
+.venv/bin/python -m sphinx -W -q -b html docs/manual docs/manual/_build/html
+.venv/bin/python -m pytest tests/test_manual.py tests/test_manual_api.py tests/test_docs_consistency.py
+.venv/bin/python -m pytest tests/test_examples.py -n auto --dist loadgroup   # the walkthroughs (slow)
+.venv/bin/python -m ruff check src tests examples
+```
+
+The WP closes when the post-release chapters land and the `deferred-1.0.x`
+bucket is empty. It therefore stays open past the milestone by design, and its
+ROADMAP row sits under § Post-v1.0 rather than in the v1.0 table.
+
+## References
+
+- WP-0604's manual architecture (fenced constants injected from the live
+  package, `*Source:*` lines, the cited-bib guard) — the machinery Part 1
+  extends rather than duplicates. Its non-goals also *defer* autodoc to 1003
+  rather than rejecting it.
+- `tests/validation_matrix.py` → `docs/VALIDATION.md` — the nearest existing
+  shape, and the one `tests/api_surface.py` deliberately does *not* copy: that
+  matrix is authoritative because its content lives nowhere else, whereas an
+  API surface's authority is the code, so it is derived (see Context).
+- `docs/AGENT_PROTOCOL.md` — the protocol Part 1 links to and must not
+  restate.
+- WP-1037 / root CLAUDE.md `_SURFACE_FLAGS` — the measured precedent for why
+  the guard is name resolution and not a prose rule.
+
+## Handover log
+
+- **2026-08-14** — created, with WP-1017 deferred past the public release on
+  the same decision, then revised over two critical-review rounds. Not
+  started.
+
+  Round 1 moved the acceptance denominator off `rietx.__all__` (71 names,
+  almost none of them what a user calls), split the tasks into a **floor**
+  that gates 1003 and a post-release remainder so a ten-chapter manual cannot
+  silently slip the release, made `examples/` the single authority for
+  walkthroughs (`{literalinclude}`d and *executed*, because nothing in
+  `tests/` runs those scripts today and README already holds a second
+  unguarded copy), and gave the block-execution guard a cost model under
+  `tests/CLAUDE.md`'s budget rule.
+
+  Round 2 caught that round 1's fix carried the same bug it was fixing: a
+  **hand-curated** list of methods cannot notice a new public method, so the
+  partition would stay green while coverage silently dropped —
+  `_SURFACE_FLAGS` one level up. The surface is now **derived** and only the
+  exclusions are written by hand. It also replaced a circular floor criterion
+  ("documented iff in a floor chapter") with a full partition plus a
+  `deferred-1.0.x` bucket, named the `using/report.md` ↔ AGENT_PROTOCOL split
+  (object model vs judgement) before that chapter can drift into paraphrase,
+  and split example execution into `tests/test_examples.py`.
+
+  Three factual corrections across the rounds: WP-1047 landed five vendor
+  formats on 2026-08-08/09 taking the total to ten (not "ten in three days");
+  WP-0604 *deferred* autodoc to 1003 rather than rejecting it, so that
+  question is open; and 0604's docstring rule forbids *silent* patching, not
+  patching, so this WP follows it rather than diverging.
+
+  Gotchas: the "flat filenames inherit the guards for free" argument is false
+  (they are vacuous on Part 1 pages either way — the reason to stay inside
+  `CHAPTERS` is future guards), `rglob` walks `_build/` unless excluded, and
+  `{literalinclude} ../../../examples/…` from `docs/manual/using/` was
+  measured `-W`-clean on a mirrored tree with this venv's sphinx (a wrong `..`
+  count clamps to a nonexistent prefix and fails the build, which is the good
+  failure mode).
+
+- **2026-08-14** — pre-execution check (round 3). Every load-bearing claim
+  verified against the repo: `CHAPTERS` is a flat glob; `agent.py` names
+  `docs/AGENT_PROTOCOL.md` in `_TOOL_DESCRIPTION` and `python_arm.py` ships it
+  verbatim with the byte-equality pin; nothing in `tests/` executes
+  `examples/`; README quotes 1197/1116 and is the PyPI `readme`; the wheel
+  packages only `src/rietx`; `[gui]` is plotly-only; `capabilities()` carries
+  the reader `title`/`sniff`/`sigma` and plan `when_to_use` prose; the
+  working-tree ROADMAP/1003/1017 sync passes `test_docs_consistency.py`. Two
+  derivation gaps found by measurement and folded into Context (declared-not-
+  inherited membership: 1099 → ~147 names; closure over reachable unexported
+  types: `Statistics` holds `rwp`). Noted for `tests/test_examples.py`: the
+  example scripts write their outputs next to themselves (`examples/nac_fit.png`,
+  gitignored), so the runner either accepts that or copies to a tmp cwd — say
+  which in the test's docstring.

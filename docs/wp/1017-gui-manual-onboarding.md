@@ -1,6 +1,7 @@
 # WP-1017 — GUI manual, in-app help, onboarding
 
-Milestone: v1.0 · Status: ⬜
+Milestone: post-v1.0 (deferred) · Status: ⬜ — deferred 2026-08-14 past the
+public release; the GUI ships as a **beta** feature until it lands
 Depends on: WP-1011…WP-1016 (soft — chapters can land as their panels do)
 
 ## Goal
@@ -8,6 +9,31 @@ Depends on: WP-1011…WP-1016 (soft — chapters can land as their panels do)
 The GUI is documented where the theory manual lives, helps from inside the
 app, and onboards a first-year PhD student without a wizard that hides the
 real UI.
+
+## Deferred past v1.0 (2026-08-14, user decision)
+
+**The GUI keeps moving, so documenting it now buys a rewrite.** The intent is
+to keep working on the GUI *after* the public release and document it once the
+panels settle; until then it ships **as a beta feature**, said out loud in the
+README and the release notes rather than left for a user to discover. The
+evidence for the decision is this file's own `### Inherited`: eight separate
+sessions have written "three sentences in this manual are now wrong" into it
+since 2026-07-30, and the mailbox is still growing.
+
+Two consequences that are not this WP's to carry:
+
+- **[WP-1067](1067-user-api-manual.md) is the manual that ships with v1.0** —
+  Part 1 (using the library and its API) beside the theory manual as Part 2.
+  It declares the GUI's beta status in the README and names `rietx gui` in
+  one line in its CLI chapter, with **no walkthrough**, so this WP keeps the
+  whole GUI documentation surface.
+- **1017 no longer blocks [1003](1003-api-freeze-pypi.md)**. The freeze's
+  dependency range was written when the manual was the milestone's last GUI
+  row; the note is in 1003's `### Inherited`.
+
+When this WP is picked up, prune the mailbox below against the GUI as it is
+*then* — most of it will be about panels that have moved again, and the whole
+point of deferring was to stop paying for that.
 
 ## Context
 
@@ -558,4 +584,16 @@ and plotly is served from the installed package rather than bundled, which is wh
 
 ## Handover log
 
+- **2026-08-14** — **deferred past the public release** (user decision): the
+  GUI ships as a beta feature and gets its manual once the panels settle.
+  Done: Status line, milestone field and the ROADMAP row moved to a new
+  "Post-v1.0" section (shared with 1067, whose § Floor still gates the
+  release); § Deferred added above with the grounds and the two hand-offs. Next: nothing here until post-release — the successor is
+  [1067](1067-user-api-manual.md), which carries the README's beta
+  declaration and the one-line `rietx gui` mention, and 1003, whose
+  `### Inherited` now records that this WP no longer blocks the freeze.
+  Gotcha for whoever returns: the mailbox below was accurate on 2026-08-06 and
+  has not been re-read since; treat every "this sentence is now wrong" entry as
+  itself possibly wrong, and prune against the running app rather than against
+  the notes.
 - **2026-07-29** — created from the v1.0 GUI plan.
