@@ -253,9 +253,17 @@ the new name while the text-pane chip still reads `rxt 1`.
   3. **`npm ci` does not rewrite `package-lock.json`'s `name` field** — it
      installs *from* the lock. `npm install --package-lock-only` is what
      regenerates it, and the audit is what noticed.
-  4. **The checkout directory is still `~/Code/anatase`.** Renaming it breaks
-     the editable `.pth` (absolute path ⇒ reinstall) and orphans the Claude
-     Code session state keyed on the old path. Left deliberately; cosmetic.
+  4. ~~**The checkout directory is still `~/Code/anatase`.**~~ **Overtaken
+     2026-08-14, later the same day: the directory was moved to `~/Code/rietx`.**
+     The prediction held rather than being wrong — the editable `.pth` records an
+     absolute path, so it was paid with a reinstall (`uv pip install -e`, which
+     rewrote `_editable_impl_rietx.pth` and the dist-info), and the Claude Code
+     session state keyed on the old path is orphaned as described. Two things a
+     reinstall does **not** touch, so check them after any such move:
+     `.venv/pyvenv.cfg`'s `prompt` (still the old name until the venv is
+     recreated — corrected by hand here) and `~/.rietx/recent.json`, whose entries
+     are absolute paths into the old tree. A pre-`.rex` project directory still
+     opens: the suffix is not enforced by `Project.open`, so no data migration.
   5. **1003's mailbox gained a correction, not just an entry**: its inherited
      line saying nothing was uploaded to PyPI is false — a 0.0.0 placeholder is
      published, and it declares `requires-python >=3.10` against pyproject's
