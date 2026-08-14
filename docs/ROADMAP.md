@@ -71,9 +71,13 @@ curated list cannot notice a new public method — and filed two release
 blockers it did not fix into 1003's mailbox: a fifth load-sensor acceptance
 row, and the weekly `full` CI job, dead since 2026-08-02.
 
-1066's narrative — the second rename in two days, 363 files, zero numbers
-moved, and its two unpredicted findings — is in the v1.0 record, which is where
-a closed WP's story lives; the standing rule it left is below.
+A review of those chapters opened [1068](wp/1068-manual-second-pass.md) (🔄):
+voice, reference sectioning, two chapters the floor left out, figures and
+diagrams — six of eight tasks landed the same day, and it puts one more name in
+front of the freeze (`plot_result(style=)`, in 1003's mailbox).
+
+1066's narrative — the second rename in two days, 363 files, zero numbers moved,
+two unpredicted findings — is in the v1.0 record; its standing rule is below.
 
 1065 landed what round 3 said was missing: the exchange clause now states
 what each swap outcome *licenses* (THRESHOLDS **0.9** — decisive: the
@@ -346,6 +350,7 @@ start.
 |---|---|---|---|
 | [1017](wp/1017-gui-manual-onboarding.md) | GUI manual, in-app help, onboarding | ⬜ deferred 2026-08-14 | 1011–1016, 1029, 1032–1035 (soft) |
 | [1067](wp/1067-user-api-manual.md) | User & API manual (Part 1), beside the theory manual (Part 2) | 🔄 2026-08-14 — § Floor landed, so 1003 is unblocked; the 1.0.x chapters remain | 0604, 1004–1007, 1047 |
+| [1068](wp/1068-manual-second-pass.md) | Part 1 second pass: voice, figures, structure | 🔄 2026-08-14 — six of eight tasks landed; the McCusker section waits on the paper | 1067 |
 
 The GUI keeps moving, so it **ships as a beta feature** and is documented once
 the panels settle. 1067 declares that beta status; its **§ Floor gates

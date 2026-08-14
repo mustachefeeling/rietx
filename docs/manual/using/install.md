@@ -1,23 +1,27 @@
-# Installing
+# Installation
 
 ```sh
 pip install rietx
 ```
 
-Python 3.11 or newer. The core install is deliberately small — `numpy`,
-`scipy`, `pydantic`, `gemmi`, `spglib` — and it is a complete refinement
-package: reading patterns and CIFs, every correction, the whole staged
-refinement machinery, the report, indexing, projects and history. Nothing in
-that list is optional or lazily imported.
+## Requirements
 
-Everything past that is an extra, and none of them makes a refinement more
-accurate. They add a *rendering* (plots, HTML, the GUI), a second opinion on
-the Jacobian (the differentiable backends), or the development toolchain.
+Python 3.11 or newer, and five packages: `numpy`, `scipy`, `pydantic`, `gemmi`
+and `spglib`.
 
-## Extras
+That core install is a complete refinement package. It reads patterns and CIFs,
+applies every correction, runs the whole staged refinement machinery, builds the
+report, indexes an unknown cell, and keeps projects and history. Nothing in that
+list is optional or lazily imported.
 
-An extra is installed by naming it in brackets. Quote the argument — `zsh`
-treats bare brackets as a glob:
+## Optional extras
+
+No extra makes a refinement more accurate. Each one adds a rendering (plots,
+HTML, the GUI), a second opinion on the Jacobian (the differentiable backends),
+or the development toolchain.
+
+Install an extra by naming it in brackets. Quote the argument, because `zsh`
+reads bare brackets as a glob:
 
 ```sh
 pip install "rietx[viz]"           # one extra
@@ -28,31 +32,32 @@ uv pip install -e ".[dev]"         # from a source checkout
 | Extra | Installs | What it buys |
 |---|---|---|
 | `viz` | matplotlib, plotly | Plots. `RefinementResult.plot` and the report figures need matplotlib; `viz.html.write_html` writes the interactive plotly page. |
-| `gui` | plotly | The refinement GUI, `rietx gui`. Plotly only: the built frontend is committed inside the package, so installing this never needs node. |
+| `gui` | plotly | The refinement GUI, `rietx gui`. Plotly only: the built frontend is committed inside the package, so this extra never needs node. |
 | `jax` | jax | The `backend="jax"` Jacobian (`jacfwd`, chunked). |
-| `torch` | torch | **Experimental.** `backend="torch"` (CPU fp64) and `backend="torch-mps"` (Apple GPU, necessarily fp32). ~500 MB, and *slower* than numpy on this hardware — it buys an independent opinion in the Jacobian-agreement matrix, and the forward model as a differentiable layer, not speed. |
+| `torch` | torch | **Experimental.** `backend="torch"` (CPU fp64) and `backend="torch-mps"` (Apple GPU, necessarily fp32). About 500 MB, and *slower* than numpy on this hardware. It buys an independent opinion in the Jacobian-agreement matrix, and the forward model as a differentiable layer. It does not buy speed. |
 | `docs` | sphinx, myst-parser, sphinxcontrib-bibtex, furo | Builds this manual. |
-| `dev` | the above `docs` extra, pytest, pytest-xdist, hypothesis, matplotlib, plotly, ruff | The test suite. |
+| `dev` | the `docs` extra, pytest, pytest-xdist, hypothesis, matplotlib, plotly, ruff | The test suite. |
 
-That is the whole list. Background estimation in particular needs nothing
-installed: arPLS, SNIP and the penalized spline are implemented here, the
-spline as penalty rows inside the least squares rather than as a
-pre-subtraction — see `auto_background`.
+That is the whole list. Background estimation needs nothing installed: arPLS,
+SNIP and the penalised spline are implemented in the core, the spline as penalty
+rows inside the least squares rather than as a pre-subtraction. See
+`auto_background`.
 
-**The numpy path is the default and the one to use.** `backend="numpy"` is
-the only backend anyone running refinements needs; the others exist to hold
-the analytic Jacobian to an independent account, and an Apple-GPU refinement
-is 46–182× *slower* than numpy because the work is launch-latency-bound.
-Precision is not the trade: a GPU backend may compute Jacobian columns in
-fp32, but the residual used for cost and statistics, and the solve, stay fp64
-on the host.
+**Use the numpy backend.** `backend="numpy"` is the default and the only backend
+a refinement needs. The others exist to hold the analytic Jacobian to an
+independent account. An Apple-GPU refinement runs 46 to 182 times *slower* than
+numpy, because the work is launch-latency-bound.
 
-## What this build can actually do
+Precision is not the trade. A GPU backend may compute Jacobian columns in fp32,
+but the residual used for the cost and the statistics, and the solve itself,
+stay fp64 on the host.
 
-Ask the package rather than a table that goes stale. `capabilities()` is one
-call reporting the versions, the backends **with whether each optional
-dependency imports here**, the plans, the modes, the anodes, the pattern
-formats it can open, and the feature flags:
+## Checking an install
+
+Ask the package rather than a table that goes stale. `capabilities()` reports
+the versions, the backends, the plans, the modes, the anodes, the pattern
+formats it can open, and the feature flags. For each backend it reports whether
+the optional dependency imports *here*:
 
 ```python
 from rietx import capabilities
@@ -63,14 +68,12 @@ caps.package_version
 [fmt.name for fmt in caps.reader_formats]
 ```
 
-`Capabilities.backends` is the field that answers "did my `jax` extra take?"
-— each `BackendCapability` carries `BackendCapability.available` (does it
-import *here*), `BackendCapability.requires` (the distribution to install) and
-`BackendCapability.experimental`. The rest of the object, and the five
-versioned contracts it reports, are in
-[](agents.md).
+`Capabilities.backends` is the field that answers "did my `jax` extra take?".
+Each `BackendCapability` carries `BackendCapability.available` (does it import
+here), `BackendCapability.requires` (the distribution to install) and
+`BackendCapability.experimental`. [](agents.md) covers the rest of the object.
 
-## From source
+## Installing from source
 
 ```sh
 git clone https://github.com/yue-here/rietx
@@ -78,27 +81,28 @@ cd rietx
 uv venv --python 3.12 && uv pip install -e ".[dev]"
 ```
 
-Then the suite. The fast selection is unit and property tests; the full one
-adds the real-data acceptance suites, which refine certified standards and
-take tens of minutes:
+Then run the suite. The fast selection is the unit and property tests. The full
+selection adds the real-data acceptance suites, which refine certified standards
+and take tens of minutes:
 
 ```sh
 .venv/bin/python -m pytest -n auto --dist loadgroup -m "not slow"   # fast
 .venv/bin/python -m pytest -n auto --dist loadgroup                 # everything
 ```
 
-`--dist loadgroup` is not optional: it honours the marks that keep a shared
-refinement fixture on one worker, and plain `--dist load` silently refits.
-The suite prints its own counts, which depend on the extras installed —
-`jax` and `torch` turn skips into passes.
+`--dist loadgroup` is not optional. It honours the marks that keep a shared
+refinement fixture on one worker; plain `--dist load` silently refits. The suite
+prints its own counts, and those counts depend on the extras installed: `jax` and
+`torch` turn skips into passes.
 
-## What the package is known to get right
+## Validation and accuracy claims
 
-Every real-data assertion in the repository, with what each tolerance is
-referenced to, is tabulated in
-[`docs/VALIDATION.md`](https://github.com/yue-here/rietx/blob/main/docs/VALIDATION.md).
-That file is generated from the suite, so it is the accuracy claim; nothing
-in this manual restates it. Read it with its own opening rule in mind: judge
-a correction by what it changed, never by ΔRwp — of the eight corrections in
-v0.5, two provably cannot move Rwp, one moves it the wrong way when it is
-right, and the two largest accuracy wins are invisible in it.
+[`docs/VALIDATION.md`](https://github.com/yue-here/rietx/blob/main/docs/VALIDATION.md)
+tabulates every real-data assertion in the repository and says what each
+tolerance is referenced to. It is generated from the suite, so it is the
+accuracy claim, and nothing in this manual restates it.
+
+Read it with its own opening rule in mind: judge a correction by what it
+changed, never by ΔRwp. Of the eight corrections in v0.5, two provably cannot
+move Rwp, one moves it the wrong way when it is right, and the two largest
+accuracy wins are invisible in it.

@@ -14,6 +14,16 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1068](1068-manual-second-pass.md), 2026-08-14 — one new public keyword
+to freeze.** `viz.plots.plot_result` gained `style: str = "light" | "dark"`,
+reached through `RefinementResult.plot(**kw)`. It exists because the manual's
+figures are committed in light/dark pairs and a plain matplotlib
+`dark_background` context is not enough: it flips the axes and leaves the
+difference curve and the background line at their hard-coded dark hues,
+invisible on black. The light path is unchanged, including its *empty* style
+context, so a caller's own matplotlib style still applies. `PALETTES` is public
+alongside it; `_STYLE` is not. Nothing else in `viz/` moved.
+
 **From [1017](1017-gui-manual-onboarding.md) and
 [1067](1067-user-api-manual.md), 2026-08-14 — the release ships a GUI marked
 beta and a manual that does not cover it.** User decision: the GUI keeps being

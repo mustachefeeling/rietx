@@ -13,11 +13,29 @@ import numpy as np
 from .._about import DIST_NAME
 from ..schemas.results import RefinementResult
 
+#: Series colours, per background.  The observed/calculated pair reads on
+#: either ground, but the difference curve and the background line are chosen
+#: dark for a white page, and would be all but invisible on a dark one — which
+#: is the whole reason ``style=`` exists rather than a matplotlib style context
+#: around the call (``dark_background`` flips the axes and leaves these).
+PALETTES = {
+    "light": {"obs": "#1f5fa8", "calc": "#c23b22", "bkg": "#7a7a7a",
+              "diff": "#4a4a4a", "zero": "#bbbbbb", "band": "#2a9d2a"},
+    "dark": {"obs": "#6fb1ff", "calc": "#ff8a72", "bkg": "#9a9a9a",
+             "diff": "#d0d0d0", "zero": "#666666", "band": "#4fd44f"},
+}
+
+#: The style context each palette draws inside.  ``light`` is an *empty* list
+#: rather than ``"default"``: an empty context changes no rcParam, so a caller
+#: who set their own style still gets it, and the default path is what this
+#: module drew before ``style=`` existed.
+_STYLE = {"light": [], "dark": ["dark_background"]}
+
 
 def plot_result(result: RefinementResult, *, path: str | None = None,
                 two_theta_range: tuple[float, float] | None = None,
                 show_background: bool = True, weighted: bool = True,
-                dpi: int = 150):
+                style: str = "light", dpi: int = 150):
     """Standard Rietveld panel; the difference is weighted (Δ/σ) by default.
 
     A raw difference shares the intensity axis, so deviations on strong peaks
@@ -26,7 +44,14 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     statistical scale (Toby, 2024, J. Appl. Cryst. 57, 175). It cannot share
     the intensity axis, so weighted mode draws it as a lower panel with a ±3σ
     band; ``weighted=False`` restores the classic offset raw curve.
+
+    ``style="dark"`` picks the dark-ground palette above and draws through
+    matplotlib's ``dark_background`` style, for a figure going onto a dark page.
+    The default is byte-identical to what this function drew before the
+    parameter existed.
     """
+    if style not in PALETTES:
+        raise ValueError(f"style must be one of {sorted(PALETTES)}, not {style!r}")
     try:
         import matplotlib
         matplotlib.use("Agg", force=False)
@@ -39,51 +64,53 @@ def plot_result(result: RefinementResult, *, path: str | None = None,
     y_calc = np.asarray(result.y_calc)
     y_bkg = np.asarray(result.y_background)
     diff = y_obs - y_calc
+    hue = PALETTES[style]
 
-    if weighted:
-        fig, (ax, axd) = plt.subplots(
-            2, 1, figsize=(10, 7), dpi=dpi, sharex=True,
-            gridspec_kw={"height_ratios": [3, 1]})
-    else:
-        fig, ax = plt.subplots(figsize=(10, 6), dpi=dpi)
-        axd = None
-    ax.plot(tt, y_obs, ".", ms=2.5, color="#1f5fa8", label="observed", zorder=2)
-    ax.plot(tt, y_calc, "-", lw=1.0, color="#c23b22", label="calculated", zorder=3)
-    if show_background and np.any(y_bkg):
-        ax.plot(tt, y_bkg, "--", lw=0.8, color="#7a7a7a", label="background", zorder=1)
+    with plt.style.context(_STYLE[style]):
+        if weighted:
+            fig, (ax, axd) = plt.subplots(
+                2, 1, figsize=(10, 7), dpi=dpi, sharex=True,
+                gridspec_kw={"height_ratios": [3, 1]})
+        else:
+            fig, ax = plt.subplots(figsize=(10, 6), dpi=dpi)
+            axd = None
+        ax.plot(tt, y_obs, ".", ms=2.5, color=hue["obs"], label="observed", zorder=2)
+        ax.plot(tt, y_calc, "-", lw=1.0, color=hue["calc"], label="calculated", zorder=3)
+        if show_background and np.any(y_bkg):
+            ax.plot(tt, y_bkg, "--", lw=0.8, color=hue["bkg"], label="background", zorder=1)
 
-    span = float(y_obs.max() - min(y_obs.min(), 0.0))
-    if weighted:
-        tick_base = -0.08 * span
-    else:
-        offset = -0.12 * span
-        ax.plot(tt, diff + offset, "-", lw=0.7, color="#4a4a4a", label="difference", zorder=2)
-        ax.axhline(offset, lw=0.4, color="#bbbbbb", zorder=1)
-        tick_base = offset - 0.08 * span
+        span = float(y_obs.max() - min(y_obs.min(), 0.0))
+        if weighted:
+            tick_base = -0.08 * span
+        else:
+            offset = -0.12 * span
+            ax.plot(tt, diff + offset, "-", lw=0.7, color=hue["diff"], label="difference", zorder=2)
+            ax.axhline(offset, lw=0.4, color=hue["zero"], zorder=1)
+            tick_base = offset - 0.08 * span
 
-    for row, (name, positions) in enumerate(result.ticks.items()):
-        yline = tick_base - row * 0.05 * span
-        pos = np.asarray(positions)
+        for row, (name, positions) in enumerate(result.ticks.items()):
+            yline = tick_base - row * 0.05 * span
+            pos = np.asarray(positions)
+            if two_theta_range is not None:
+                pos = pos[(pos >= two_theta_range[0]) & (pos <= two_theta_range[1])]
+            ax.vlines(pos, yline - 0.015 * span, yline + 0.015 * span,
+                      lw=0.6, color=f"C{row + 2}", label=f"hkl: {name}")
+
         if two_theta_range is not None:
-            pos = pos[(pos >= two_theta_range[0]) & (pos <= two_theta_range[1])]
-        ax.vlines(pos, yline - 0.015 * span, yline + 0.015 * span,
-                  lw=0.6, color=f"C{row + 2}", label=f"hkl: {name}")
+            ax.set_xlim(*two_theta_range)
+        ax.set_ylabel("intensity")
+        s = result.statistics
+        ax.set_title(f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}")
+        ax.legend(loc="upper right", fontsize=8, frameon=False)
 
-    if two_theta_range is not None:
-        ax.set_xlim(*two_theta_range)
-    ax.set_ylabel("intensity")
-    s = result.statistics
-    ax.set_title(f"{result.mode}  Rwp={s.rwp:.4f}  GoF={s.gof:.2f}")
-    ax.legend(loc="upper right", fontsize=8, frameon=False)
-
-    if weighted:
-        axd.plot(tt, diff / result.sig(), "-", lw=0.6, color="#4a4a4a")
-        axd.axhspan(-3, 3, color="#2a9d2a", alpha=0.15, lw=0)
-        axd.set_ylabel(r"$\Delta/\sigma$")
-        axd.set_xlabel(r"2$\theta$ (deg)")
-    else:
-        ax.set_xlabel(r"2$\theta$ (deg)")
-    fig.tight_layout()
+        if weighted:
+            axd.plot(tt, diff / result.sig(), "-", lw=0.6, color=hue["diff"])
+            axd.axhspan(-3, 3, color=hue["band"], alpha=0.15, lw=0)
+            axd.set_ylabel(r"$\Delta/\sigma$")
+            axd.set_xlabel(r"2$\theta$ (deg)")
+        else:
+            ax.set_xlabel(r"2$\theta$ (deg)")
+        fig.tight_layout()
     if path is not None:
         fig.savefig(path)
     return fig

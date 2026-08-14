@@ -1,0 +1,64 @@
+/* rietx manual — the small amount of styling Furo does not supply (WP-1068).
+ *
+ * Everything here is defined through Furo's own CSS variables rather than with
+ * literal colours, so it follows the light/dark toggle without a second rule
+ * set.  A hard-coded hex here would look right in one theme and wrong in the
+ * other, which is the failure this file exists to avoid.
+ */
+
+/* The `agent` admonition.  Part 1 is written for a person; a few of the
+ * surfaces it describes are shaped for a program to consume, and those notes
+ * carry this class so a human reader can see at a glance that the paragraph is
+ * not addressed to them.  Same machinery as Furo's built-in admonition types
+ * (`.admonition.caution` and friends), one more type. */
+.admonition.agent {
+  border-left-color: var(--color-agent-accent);
+}
+
+.admonition.agent > .admonition-title {
+  background-color: var(--color-agent-accent-background);
+}
+
+.admonition.agent > .admonition-title::before {
+  background-color: var(--color-agent-accent);
+  -webkit-mask-image: var(--icon-abstract);
+  mask-image: var(--icon-abstract);
+}
+
+:root {
+  --color-agent-accent: #6d4aff;
+  --color-agent-accent-background: rgba(109, 74, 255, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    --color-agent-accent: #a48cff;
+    --color-agent-accent-background: rgba(164, 140, 255, 0.14);
+  }
+}
+
+body[data-theme="dark"] {
+  --color-agent-accent: #a48cff;
+  --color-agent-accent-background: rgba(164, 140, 255, 0.14);
+}
+
+/* Mermaid's dark theme draws edge labels as light text on a light chip, which
+ * is unreadable.  Both of its themes get the page's own colours instead, which
+ * is also what makes an edge label look like part of the page rather than part
+ * of the diagram. */
+.mermaid .edgeLabel,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel rect {
+  background-color: var(--color-background-primary) !important;
+  fill: var(--color-background-primary) !important;
+  color: var(--color-content-foreground) !important;
+}
+
+/* Figures are committed as a light/dark pair and selected with Furo's own
+ * `only-light` / `only-dark` classes.  Centre them and stop a wide panel from
+ * scrolling the page sideways. */
+.using-figure img {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+}

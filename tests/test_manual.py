@@ -29,6 +29,12 @@ CHAPTERS = sorted(
     p for p in MANUAL_DIR.rglob("*.md") if "_build" not in p.relative_to(MANUAL_DIR).parts
 )
 
+# Everything on a built page that is *not* prose: a `$` inside a code block or
+# a script is not a rendering failure, and MathJax's own delimiters are `\(…\)`.
+MARKUP_WITHOUT_PROSE = re.compile(
+    r"<(script|style|pre)\b[^>]*>.*?</\1\s*>|<code\b[^>]*>.*?</code\s*>", re.S | re.I
+)
+
 CITE_ROLE = re.compile(r"\{cite\}`([^`]+)`")
 SOURCE_LINE = re.compile(r"\*Source:\*\s+`([A-Za-z_][\w.]*)`")
 BIB_KEY = re.compile(r"^@\w+\{([^,\s]+)\s*,", re.MULTILINE)
@@ -42,15 +48,55 @@ def _cited_keys() -> set[str]:
     return keys
 
 
-def test_manual_builds_warning_free(tmp_path):
-    """sphinx-build -W: warnings (incl. undefined substitutions, missing
-    citations, broken eq refs) are errors."""
+@pytest.fixture(scope="session")
+def built_manual(tmp_path_factory):
+    """One `-W` build, shared by every test that reads its output.
+
+    Session-scoped, and its consumers carry the matching `xdist_group` mark:
+    without it a second worker rebuilds the whole tree and the sharing costs
+    more than it saved (tests/CLAUDE.md).  Returns the output directory and the
+    completed process, so the build's own failure is reported by the test named
+    for it rather than as a fixture error.
+    """
+    out = tmp_path_factory.mktemp("manual") / "html"
     result = subprocess.run(
         [sys.executable, "-m", "sphinx", "-W", "-q", "-E", "-b", "html",
-         str(MANUAL_DIR), str(tmp_path / "html")],
+         str(MANUAL_DIR), str(out)],
         capture_output=True, text=True, timeout=300,
     )
+    return out, result
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_manual_builds_warning_free(built_manual):
+    """sphinx-build -W: warnings (incl. undefined substitutions, missing
+    citations, broken eq refs) are errors."""
+    _, result = built_manual
     assert result.returncode == 0, f"sphinx-build -W failed:\n{result.stdout}\n{result.stderr}"
+
+
+@pytest.mark.xdist_group("manual-build")
+def test_no_unrendered_math_survives_the_build(built_manual):
+    """No `$` reaches the rendered prose.  `-W` cannot see this class of bug:
+    the page builds cleanly and prints the TeX.
+
+    Both instances it was written for were live in the shipped HTML.  A
+    continuation line beginning `- ` inside inline math is read as a list
+    bullet, which dropped the delimiters *and* opened a spurious `<ul>` in
+    `forward-model.md`; and five `references.bib` titles carried raw TeX
+    (`Al$_2$O$_3$`, `$F_N$`, …) that the bibliography renders verbatim on every
+    page that cites them.  Multi-line inline math is otherwise fine — nineteen
+    other spans in Part 2 render correctly — so the rule is about the delimiters
+    surviving, not about reflowing every equation onto one line.
+    """
+    out, result = built_manual
+    assert result.returncode == 0, "manual did not build — see test_manual_builds_warning_free"
+    stray: list[str] = []
+    for page in sorted(out.rglob("*.html")):
+        text = MARKUP_WITHOUT_PROSE.sub("", page.read_text(encoding="utf-8"))
+        for match in re.finditer(r".{0,60}\$.{0,60}", text, re.S):
+            stray.append(f"{page.name}: …{match.group(0).strip()}…")
+    assert not stray, "unrendered TeX in the built prose:\n" + "\n".join(stray[:10])
 
 
 def test_every_bib_entry_is_cited():

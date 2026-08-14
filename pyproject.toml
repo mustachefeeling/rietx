@@ -48,6 +48,11 @@ docs = [
     "sphinx>=7.4",
     "myst-parser>=3",
     "sphinxcontrib-bibtex>=2.6",
+    # Part 1's diagrams.  >=2.1 because that is where the extension's own
+    # theme detection reads `body[data-theme]` and re-renders on a
+    # MutationObserver — which is exactly how furo signals its light/dark
+    # toggle, so the diagrams follow the toggle with no custom JS here.
+    "sphinxcontrib-mermaid>=2.1",
     "furo>=2024.1",
 ]
 dev = [
