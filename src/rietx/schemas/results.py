@@ -303,6 +303,41 @@ class QuantitativePhaseAnalysis(Base):
     microabsorption_skipped: str | None = None
 
 
+class PhaseAgreement(Base):
+    """One phase's structure-sensitive agreement indices (WP-1069).
+
+    R_Bragg and R_F, McCusker et al. (1999) eqs (14) and (13), from the
+    observed-intensity partition described in
+    :func:`~rietx.optimize.statistics.structure_r_factors` — which also carries
+    the definitions, the CIF tags and the bias warning.  Every published
+    Rietveld refinement is expected to quote at least one of them (Young,
+    Prince & Sparks, 1982, *J. Appl. Cryst.* **15**, 357).
+
+    **Per phase, and beside the QPA rather than inside it.**  Other codes quote
+    R_B per phase and readers of a multi-phase fit compare them, so a single
+    whole-fit number would be the wrong shape.  It is not a field of
+    :class:`PhaseQuantity` because QPA needs Z and a molar mass and is absent
+    without them, while a structure R exists for any Rietveld fit — a
+    single-phase refinement with no QPA at all still has one.
+
+    **Absent for cause outside Rietveld mode.**  In Le Bail mode the partition
+    *is* the fit and in Pawley mode the intensities are refined parameters, so
+    I(obs) would be compared against itself: circular, not merely
+    uninformative.  ``refine`` leaves ``RefinementResult.phase_agreement``
+    empty there — the ``lebail_gap`` precedent, one rank down.
+
+    ``r_bragg`` and ``r_f`` are ``None`` only for a phase with no partitionable
+    scattering power at all (see the function above); ``n_reflections`` is how
+    many reflections entered the sums, which is smaller than the phase's
+    reflection list whenever one falls off the Ewald sphere.
+    """
+
+    name: str                          # matches Phase.name / the ticks key
+    r_bragg: float | None = None       # eq (14), _refine_ls_R_I_factor
+    r_f: float | None = None           # eq (13), _refine_ls_R_factor_all
+    n_reflections: int = 0
+
+
 class RestraintRow(Base):
     """One soft restraint's computed-vs-target deviation (WP-0406).
 
@@ -390,6 +425,8 @@ class HistogramResult(Base):
     ticks: dict[str, list[float]] = Field(default_factory=dict)
     qpa: "QuantitativePhaseAnalysis | None" = None
     restraints: "RestraintReport | None" = None
+    #: this histogram's own R_Bragg/R_F — the partition is of *these* counts
+    phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
     diagnostics: list[Diagnostic] = Field(default_factory=list)
 
 
@@ -424,6 +461,11 @@ class RefinementResult(Base):
     # Quantitative phase analysis (weight fractions); computed for Rietveld
     # fits, None for Le Bail (its scales are degenerate).
     qpa: QuantitativePhaseAnalysis | None = None
+
+    # Structure-sensitive agreement indices, one row per phase (WP-1069) —
+    # see :class:`PhaseAgreement`.  Empty outside Rietveld mode, where the
+    # partition would be circular, and empty for a result not built by a fit.
+    phase_agreement: list[PhaseAgreement] = Field(default_factory=list)
 
     # Cylindrical absorption (WP-0501); None unless a capillary µR was given or
     # estimable.  Carries the equivalent Biso bias, because that — not Rwp — is

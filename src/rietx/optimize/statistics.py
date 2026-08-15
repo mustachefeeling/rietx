@@ -385,3 +385,58 @@ def compute_statistics(y_obs: np.ndarray, y_calc: np.ndarray, sigma: np.ndarray,
         esd_inflation=berar_lelann_factor(delta) if n > 2 else None,
         n_points=n, n_free_parameters=n_free,
     )
+
+
+def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
+                        multiplicity: np.ndarray
+                        ) -> tuple[float | None, float | None, int]:
+    """(R_Bragg, R_F, n) from partitioned integrated intensities.
+
+    McCusker, Von Dreele, Cox, Louër & Scardi (1999), *J. Appl. Cryst.* **32**,
+    36-50, §11:
+
+        R_B = Σ_hkl |I(obs) − I(calc)| / Σ_hkl |I(obs)|            (14)
+        R_F = Σ_hkl ||F(obs)| − |F(calc)|| / Σ_hkl |F(obs)|        (13)
+
+    with I_hkl = m·F²_hkl, m the multiplicity — so this takes the intensities
+    in exactly those units (see
+    :meth:`~rietx.model.forward.CompiledModel.structure_intensity_partition`,
+    which produces them) and recovers |F| = √(I/m) per reflection.  The two
+    tags they carry in a CIF are ``_refine_ls_R_I_factor`` (the dictionary's
+    own definition names it "R_B or R_Bragg") and ``_refine_ls_R_factor_all``.
+
+    Both indices are **biased towards the structural model** — I(obs) is the
+    observed pattern partitioned in proportion to I(calc), so a wrong model
+    both predicts and receives the intensity it expects.  The paper says so
+    where it defines them ("this is, of course, biased towards the structural
+    model, but it gives an indication of the reliability of the structure") and
+    is equally clear on what they are for: monitoring the *improvement* of a
+    structural model, never judging one in isolation.  A weighted R_B (Cox &
+    Papoular, 1996, *Mater. Sci. Forum* **228-231**, 233) exists and is not
+    computed here.
+
+    Reflections whose intensity could not be partitioned arrive as NaN and are
+    dropped; ``n`` reports how many were summed.  Both values are ``None`` when
+    no reflection survives or the denominator is zero — a fit with no
+    scattering power to compare, not a perfect one.
+    """
+    i_obs = np.asarray(i_obs, dtype=np.float64)
+    i_calc = np.asarray(i_calc, dtype=np.float64)
+    mult = np.asarray(multiplicity, dtype=np.float64)
+    keep = np.isfinite(i_obs) & np.isfinite(i_calc) & (mult > 0)
+    if not np.any(keep):
+        return None, None, 0
+    io, ic, m = i_obs[keep], i_calc[keep], mult[keep]
+    n = int(keep.sum())
+
+    den_b = float(np.abs(io).sum())
+    r_b = float(np.abs(io - ic).sum() / den_b) if den_b > 0 else None
+
+    # |F| = √(I/m).  The partition clips the net counts at zero, so I(obs) ≥ 0
+    # and the root is always real; I(calc) = m|F|² is non-negative by
+    # construction.
+    f_obs = np.sqrt(np.maximum(io, 0.0) / m)
+    f_calc = np.sqrt(np.maximum(ic, 0.0) / m)
+    den_f = float(f_obs.sum())
+    r_f = float(np.abs(f_obs - f_calc).sum() / den_f) if den_f > 0 else None
+    return r_b, r_f, n

@@ -37,7 +37,7 @@ from .optimize.qpa import (
     estimate_flat_plate_mu_t,
     microabsorption_diagnostics,
 )
-from .optimize.statistics import compute_statistics
+from .optimize.statistics import compute_statistics, structure_r_factors
 from .params.vector import ParameterTable
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
@@ -48,6 +48,7 @@ from .schemas.pattern import PatternData
 from .schemas.results import (
     AbsorptionCorrection,
     Identifiability,
+    PhaseAgreement,
     RefinedParameter,
     RefinementResult,
     StageResult,
@@ -1483,6 +1484,28 @@ def _absorption_diagnostics(record) -> list[Diagnostic]:
     return out
 
 
+def _phase_agreement(model: CompiledModel, values: dict[str, float],
+                     structure: Structure) -> list[PhaseAgreement]:
+    """R_Bragg and R_F per phase at the converged state (WP-1069).
+
+    Empty outside Rietveld mode, where the observed-intensity partition would
+    be compared against the very intensities it produced — the ``lebail_gap``
+    rule, and the reason
+    :meth:`~rietx.model.forward.CompiledModel.structure_intensity_partition`
+    refuses rather than returning a circular number.
+    """
+    if model.mode != "rietveld" or not model.phases:
+        return []
+    rows = []
+    for ip, (i_obs, i_calc) in enumerate(
+            model.structure_intensity_partition(values)):
+        r_b, r_f, n = structure_r_factors(
+            i_obs, i_calc, model.phases[ip].reflections.multiplicity)
+        rows.append(PhaseAgreement(name=structure.phases[ip].name,
+                                   r_bragg=r_b, r_f=r_f, n_reflections=n))
+    return rows
+
+
 def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray, *,
                   mode: Mode, status: str, stage_results: list[StageResult],
                   diagnostics: list[Diagnostic], structure: Structure,
@@ -1604,6 +1627,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
         ticks=ticks, qpa=qpa, restraints=restraints_report,
+        phase_agreement=_phase_agreement(model, values, structure),
         absorption=absorption, identifiability=identifiability,
     )
 
