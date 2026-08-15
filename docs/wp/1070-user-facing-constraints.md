@@ -161,10 +161,21 @@ round-trip, and visible in `parameters()`. Gap 2 of the McCusker audit
     their inverse-variance combination (0.0917) — the second comparison is the
     one worth keeping, because beating only the first is consistent with
     dividing by √N.
-  - Counts, `[dev]`, macOS, this branch: fast suite **2315 passed, 112
-    skipped** in 2:54–3:30 against main's 2285/108 — +34 = 30 passes and 4
-    skips, the skips being `families_tied`'s jax/torch rows on a numpy-only
-    venv. Full suite: see the entry's end.
+  - Counts, `[dev]`, macOS, measured at `a25f629` (the two commits after it are
+    documentation only): fast suite **2318 passed, 112 skipped** in 2:45–4:07
+    against main's 2285/108 — +37, exactly the 37 tests added to that
+    selection, as **33 passes and 4 skips**; the skips are `families_tied`'s
+    jax/torch rows on a numpy-only venv, and they are skips, not passes. Full
+    suite **2426 passed, 121 skipped** in 28:32–29:55 (38 added there: the same
+    37 plus the slow FAP row). Main's *full* baseline was not measured — 2509 is
+    a derivation, consistent with the fast delta and with a second measurement
+    of this branch three tests earlier (2544 → 2547). That is deliberate, and
+    the reason is now `tests/CLAUDE.md` § Running: measuring both ends of the
+    full suite costs an hour to answer a bookkeeping question, and the baseline
+    is CI's to produce. **CI cannot produce it right now** — the last successful
+    weekly `full` was 2026-08-02 and the 2026-08-09 run was cancelled at 2 h,
+    which is 1067's filed release blocker biting; that is why this session
+    reached for a local one at all.
 
   **Two decisions made out loud.**
 
