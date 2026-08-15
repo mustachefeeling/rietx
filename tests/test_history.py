@@ -480,3 +480,70 @@ def test_stage_node_without_seeds_renders_unchanged(fitted):
     node = ref.history[ref.history.order[-1]]
     assert node.action.api_call() == (
         "ref.run_stage(data, rx.Stage('cell', ['phases.*.cell.*'], max_iter=40))")
+
+
+# ------------------------------------------------- user constraints (WP-1070)
+def test_replay_restores_the_ties_the_node_was_recorded_under(pattern):
+    """A replay under a different parameter count is not a replay.
+
+    ``replay`` rebuilds the table from ``(structure, instrument)``, and a user
+    tie is in neither — ``ParameterTable`` rederives the *symmetry* ties from
+    the space group and knows nothing about a user's.  Without the register the
+    recomputed node would fit one parameter more than the node it claims to
+    reproduce, and the statistics it returns would be a different fit's.
+    """
+    plan = rx.RefinementPlan(stages=[
+        *SHORT.stages,
+        rx.Stage("biso", ["phases.*.atoms.*.biso"], max_iter=40)])
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.tie("phases.0.atoms.1.biso", "phases.0.atoms.0.biso", scale=2.0)
+    ref.fit(pattern, plan=plan)
+
+    node = ref.history[ref.history.order[-1]]
+    assert node.state.ties["phases.0.atoms.1.biso"].terms == [
+        ("phases.0.atoms.0.biso", 2.0)]
+    # the source carries the freedom; the dependent is not in θ
+    assert node.state.free_paths.count("phases.0.atoms.0.biso") == 1
+    assert "phases.0.atoms.1.biso" not in node.state.free_paths
+
+    again = replay(ref.history, node.id, pattern)
+    assert again.statistics.rwp == pytest.approx(
+        node.metrics.statistics.rwp, rel=1e-2)
+    assert again.statistics.n_free_parameters == \
+        node.metrics.statistics.n_free_parameters
+    # the constraint is live in the replayed model, not merely recorded
+    values = {p.path: p.value for p in again.parameters}
+    assert values["phases.0.atoms.1.biso"] == pytest.approx(
+        2.0 * values["phases.0.atoms.0.biso"])
+
+
+def test_a_branch_carries_the_ties_of_the_working_tree(pattern):
+    """A second working tree over the same history is the same refinement.
+
+    ``branch`` copies the free set for this reason; the tie register is the
+    other half of "what would this fit next", and a rival strategy that
+    silently dropped the constraints would not be a rival — it would be a
+    different problem.
+    """
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, plan=SHORT)
+    ref.tie_equal(["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"])
+
+    rival = ref.branch()
+    row = {r.path: r for r in rival.parameters()}["phases.0.atoms.1.biso"]
+    assert row.tie is not None and row.tie.user
+    # and it is a copy: releasing it on the rival leaves the original tied
+    rival.untie("phases.0.atoms.1.biso")
+    assert {r.path: r for r in ref.parameters()}["phases.0.atoms.1.biso"].tie is not None
+
+
+def test_a_set_tie_node_cannot_be_cherry_picked(pattern):
+    """The existing refusal covers the new kind, and says which kind it is."""
+    structure, ins = perturbed_models()
+    ref = rx.Refinement(structure, ins)
+    ref.fit(pattern, plan=SHORT)
+    ref.tie_equal(["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"])
+    with pytest.raises(ValueError, match="records a 'set_tie' action"):
+        ref.cherry_pick(ref.history.order[-1], pattern)
