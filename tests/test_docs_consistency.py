@@ -79,10 +79,24 @@ SIZE_CAPS: dict[str, int | None] = {
     # operating detail went down a rank as this comment requires: the figure
     # recipes are in make_figures.py's docstring, the chapters' own rules in
     # the WP.
-    "CLAUDE.md": 625,
+    # 625 -> 644 for WP-1070 (2026-08-15): the constraint verbs, and the rule
+    # underneath them.  The operating detail went down a rank as this comment
+    # requires — the refusal wording, the FAP numbers and the two open freeze
+    # asymmetries are in the WP, the narrative in the v1.0 record.  What cannot
+    # go down a rank is what a session touching the Jacobian never reads:
+    # `_make_jacobian` dispatches on a parameter's *name*, so a branch is a
+    # claim about that name's reach, and a constraint that reaches further
+    # leaves the column short instead of raising.
+    "CLAUDE.md": 648,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
-    "tests/CLAUDE.md": 180,
+    # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
+    # about *cadence*, which nothing else in this file carried — the sections
+    # below all say how to run or read one suite, none said how often the
+    # expensive one should fire.  Measured occasion: one session's ~80 min of
+    # test time against ~43 min earned, the whole difference being a full run
+    # launched mid-edit and therefore repeated.
+    "tests/CLAUDE.md": 198,
     # 250 at the WP-1060 split; raised once, for WP-1046's two standing rules
     # (which layer may apply a cap, and that agreement outranks the panel) —
     # both measured, and every number behind them is in the v1.0 appendix

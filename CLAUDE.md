@@ -41,7 +41,11 @@ diary is `docs/milestones/v1.0.md` § Appendix:
 - **A wall-clock budget in a test is a runaway guard, never a timer** — and it
   may live one rank down, in the library.
 - **Say which numbers moved**: after adding N tests, passed+skipped moves by
-  exactly N in both selections, and a new skip is not a new pass.
+  exactly N in the fast selection, and a new skip is not a new pass.
+- **The full suite fires once, on the final tree**, and only when the change
+  could move a measured number — never while still editing, and never on `main`
+  for a baseline. The ladder, and what one session's ~80 min bought, are in
+  `tests/CLAUDE.md` § Running.
 
 ### Numbers
 
@@ -127,7 +131,14 @@ are load-bearing: `ParameterRow` mirrors `params.vector.Entry` field for field
 deliberate extras), a **tied** path refuses an edit and names its sources
 instead, and `mode_fixed` — lebail/pawley force-fix every `.atoms.` path,
 `.scale` and `.source.lines.` — is *not* `locked`, which is what keeps a Le
-Bail phase's mandatory dummy atom from looking editable. There is exactly
+Bail phase's mandatory dummy atom from looking editable. **User constraints**
+(WP-1070) sit beside the derived ties: `tie`/`tie_equal`/`untie`, auto-committing
+`set_tie` nodes, with `Refinement._ties` the one authority for *which* ties are
+the user's (every `ParameterTable` build rederives the symmetry ties and knows
+nothing about a user's) and `RefinementState.ties` the reason a checkout
+restores the parameter *count*. Symmetry outranks a user tie, enforced in
+`_apply_ties` and not only in the verbs' refusals — a model edit can make an
+already-tied path symmetry-tied after the fact. There is exactly
 **one** `StageSpec`/`PlanSpec`, in `schemas/plan.py`; `schemas/history.py`
 and `agent.py` re-export it, and `PLAN_INFO` in `strategy/staged.py` carries a
 title/description/modes/when-to-use per preset, in bijection with
@@ -233,6 +244,18 @@ recent list, and is therefore not behind the 409 (WP-1044).
   re-measures each step against an fp64 cost.
 - **No pydantic in the hot loop**: `ParameterTable.decode()` returns a plain
   dict; the forward model consumes floats/arrays only.
+- **An analytic Jacobian branch is a claim about what one parameter *name*
+  reaches.** `_make_jacobian` dispatches on the free path's name and each branch
+  computes only the rows it was written for — one background design row, one
+  atom's coordinate rows, the phases the path's own prefix names. A tie makes a
+  column move rows outside that reach, and the column then comes back **short**
+  rather than raising. So `_column_extras` reads off C what each column also
+  moves, every branch declares the reach it covers, and anything beyond takes
+  the whole-model FD column, which is exact because it decodes through C like
+  the residual does. A new branch — or a new way to widen C — extends that gate,
+  and `test_cross_backend.py`'s `families_tied` row is where other backends
+  check it (WP-1070 measured an un-gated background column wrong by 49 % of its
+  own scale).
 - **Pydantic knows no crystallography, so a whole-model swap is checked by
   building its table.** Every symmetry refusal is raised in
   `ParameterTable.__init__` and the snapshot `Refinement.edit` commits performs

@@ -161,6 +161,16 @@ The one cross-code comparison. GSAS-II's converged fluorapatite tutorial, with i
 
 **Measured:** Rwp 0.0973 vs 0.1005, Rp 0.0776 vs 0.0766, cell +116/+113 ppm with the two agreeing inside 1e-4 (the uniformity claim); channel count 5750 exactly
 
+#### `test_tying_the_similar_atoms_bisos_buys_precision`
+
+`own_result` `identity` `characterisation` `ceiling` · dataset `fap`
+
+**Claims:** a user constraint on three chemically equivalent sites reduces the parameter count and tightens the esd, without moving the values the free refinement measured
+
+**Referenced to:** the same protocol's own free fit on the same 5750 channels, the only difference being the tie.  The esd bar is referenced twice: to the best of the three free esds (0.1282 A^2) and to their inverse-variance combination (0.0917), which is what the constraint has to beat to have recovered the information rather than merely divided by root-N.  The identity half is that the three tied rows carry the *same* value and esd to 1e-12, since they are one parameter.  Rwp is deliberately not a referent: it moves by 0.05 % of itself, so no bar on it could distinguish a good constraint from a bad one
+
+**Measured:** 20 -> 18 free parameters, 287.5 -> 319.4 observations per parameter; B(O) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) free against 0.4138(899) tied; every free interval contains the tied value, and the four untied Biso sites move by < 0.5 sigma
+
 ### `tests/test_acceptance_nac.py`
 
 The synchrotron vertical slice, and the FitReport's impurity claim: CaF2 is found from unmatched peaks rather than declared.

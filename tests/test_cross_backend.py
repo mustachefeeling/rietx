@@ -89,7 +89,7 @@ from rietx.optimize.least_squares import (
     _multi_closures,
     run_least_squares,
 )
-from rietx.params.vector import ParameterTable
+from rietx.params.vector import AffineTie, ParameterTable
 from rietx.strategy.staged import Stage
 from tests.test_backend_shim import STATES
 from tests.test_v02_core import ANALYTIC_FAMILIES, _lab_state
@@ -148,8 +148,43 @@ def _state_families_voigt():
     return _families_state(shape="voigt")
 
 
+def _state_families_tied():
+    """``families`` with user constraints declared (WP-1070).
+
+    A tie is a *new derivative path*, and an asymmetric one.  The traced
+    backends get it for free — ``decode`` is a constant matmul and autodiff
+    walks straight through C — while the numpy Jacobian has to *choose* a branch
+    from the rows C touches, because each analytic branch computes only what it
+    was written for.  So this row is where the choice is checked against three
+    independent opinions.
+
+    Three shapes, one per outcome of that choice: an identity tie and a general
+    affine one (scale ≠ 1 **and** a constant) on the peak-chain branch, which is
+    widened to cover them, and a background tie the gate sends to the
+    whole-model FD fallback instead — so the one column numpy finite-differences
+    is compared against exact ones.
+    """
+    structure, ins, pattern = _lab_state()
+    table = ParameterTable(structure, ins)
+    table.set_vary(["*"], False)
+    table.set_tie("phases.0.atoms.1.occ",
+                  AffineTie.identity("phases.0.atoms.0.occ"))
+    table.set_tie("phases.0.atoms.1.biso",
+                  AffineTie(terms=(("phases.0.atoms.0.biso", 2.0),), const=0.1))
+    table.set_tie("instrument.background.c1",
+                  AffineTie.identity("instrument.background.c0"))
+    table.refresh_ties()
+    for path in [*ANALYTIC_FAMILIES, "instrument.background.c0"]:
+        assert table.set_vary([path], True), path
+    table.apply_to_models(structure, ins)
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
-           "families_voigt": _state_families_voigt, **STATES}
+           "families_voigt": _state_families_voigt,
+           "families_tied": _state_families_tied, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -171,6 +206,7 @@ def _config(name: str, *marks):
 CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
+    _config("families_tied"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),

@@ -8,6 +8,21 @@ evidence. The measurement diary that taught these rules is archived in
 
 ## Running
 
+**The ladder — cheapest rung first, and the expensive one fires once.** A
+session's test bill is set by *how often* the top rung runs, not by how much is
+tested (WP-1070 spent ~80 min and earned ~43; the whole difference was one
+whole-suite run launched mid-edit and therefore repeated):
+
+1. **The files you just touched** — seconds, continuously, while writing.
+2. **The fast suite** (`-m "not slow"`, 3-5 min) — before a substantial commit,
+   and once before the handover. This is the gate.
+3. **The full suite** (~15-30 min) — **once, on the final tree**, and only when
+   the change can move a measured number. A docs-only, test-only or GUI-only
+   WP does not run it at all. Never launch it while still editing: the tree it
+   collected is the tree it reports on.
+4. **Re-measuring `main`** — don't. That is CI's job (§ CI), and a local
+   baseline costs a second full run to answer a bookkeeping question.
+
 - `-n` is deliberately **not** in `addopts`: a bare `pytest tests/x.py::y`
   stays serial, so `-s` and pdb keep working. `--dist loadgroup` is not
   optional — it honours the `xdist_group` marks that keep a shared fixture on
@@ -131,9 +146,12 @@ and never a silent cap.
   branch, that branch's counts are not the merged tree's and the two parents'
   additions cannot simply be summed — re-measure after the merge.
 - **Say which numbers moved**: after adding N tests, passed+skipped must
-  move by exactly N in both the fast and full selections, and a new skip is
-  not a new pass (WP-1029 added six: five passes and one skip, which is the
-  version of this check that earns its keep). The vitest suite is counted
+  move by exactly N **in the fast selection**, and a new skip is not a new
+  pass (WP-1029 added six: five passes and one skip, which is the
+  version of this check that earns its keep). For the **full** selection quote
+  green plus a delta consistent with the fast one; both ends of an exact check
+  there costs an hour of machine time, and the baseline it needs is CI's job
+  (§ Running, the ladder). The vitest suite is counted
   separately — its 207 was once quoted as 206 until the next session re-ran
   it, the same lesson one suite over.
 - **`--collect-only` undercounts by one per module-level `importorskip` that

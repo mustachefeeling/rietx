@@ -124,6 +124,40 @@ def test_the_fixed_point_holds_over_the_shapes_that_broke_it(tmp_path,
     assert (errors, delta.is_empty()) == ([], True)
 
 
+def test_a_user_tie_renders_as_a_tie_and_stays_read_only(project):
+    """WP-1070: the ``=`` annotation already says it, and there is no tie *line*.
+
+    A tie declaration would need an edit the delta cannot see.  Annotations are
+    regenerated from state on every render and omission means "no opinion" — a
+    deleted ``= …`` is how an untouched document reads, so "release this tie"
+    and "I did not type anything here" would be the same edit.  So a user tie is
+    rendered like the derived ones and edited through the verbs, and
+    ``FORMAT_VERSION`` does not move.
+
+    The general affine form is the shape worth pinning: ``1 + -1·…`` carries
+    both a constant and a negative coefficient, and it is the case the
+    run-to-end-of-line rule exists for.
+    """
+    ref = project.refinement
+    ref.set_values({"phases.0.atoms.0.occ": 0.6})
+    ref.tie("phases.0.atoms.1.occ", "phases.0.atoms.0.occ", scale=-1.0, offset=1.0)
+    text = td.render(project)
+    parsed = td.parse(text)
+    assert parsed.errors == []
+    row = {r.path: r for r in parsed.rows}["phases.0.atoms.1.occ"]
+    assert row.annotations["tie"] == "1 + -1·phases.0.atoms.0.occ"
+    assert row.value == pytest.approx(0.4)
+    # still a fixed point, and still refused as an edit — in the verb's words
+    delta, errors = td.changes(parsed, project)
+    assert (errors, delta.is_empty()) == ([], True)
+    edited = _edit(text, "atoms.1.occ", "  atoms.1.occ  @ 0.9")
+    _, errors = td.changes(td.parse(edited), project)
+    assert [e.message for e in errors] == [
+        "phases.0.atoms.1.occ cannot be set — tied: = 1 + -1·phases.0.atoms.0.occ"
+        "; set phases.0.atoms.0.occ instead",
+        "phases.0.atoms.1.occ cannot be freed: tied: = 1 + -1·phases.0.atoms.0.occ"]
+
+
 def test_the_phase_header_states_its_symmetry_and_stays_read_only(project):
     """WP-1035: the symbol the document could not say, as a rendered comment.
 

@@ -134,11 +134,18 @@ def _make_residual(model: CompiledModel, table: ParameterTable):
 def _peak_chain_column(model: CompiledModel, table: ParameterTable,
                        bases: DerivativeBases, theta: np.ndarray,
                        values: dict[str, float], c: int, path: str,
-                       intensities: list[np.ndarray] | None = None) -> np.ndarray:
+                       intensities: list[np.ndarray] | None = None,
+                       affected: "list[int] | range | None" = None) -> np.ndarray:
     """∂y/∂θ_c via the analytic bases + per-reflection scalar FD.
 
-    Only the phases the path touches are re-derived (``phases.2.…`` leaves
-    the others' scalars untouched; instrument paths touch all).
+    Only the phases the column touches are re-derived (``phases.2.…`` leaves
+    the others' scalars untouched; instrument paths touch all).  ``affected``
+    overrides that reading of the path, and a tie is why it has to: the
+    perturbed values come from ``table.decode``, so every dependent moves with
+    the source whatever phase it sits in, while the phases whose scalars are
+    *re-derived* here are chosen by name.  A user tie across phases would
+    otherwise drop the far phase's whole contribution from the column
+    (WP-1070); the caller passes the union C actually touches.
     ``intensities`` carries the lebail/pawley per-hkl vectors — the perturbed
     ``phase_peaks`` must see the same intensities as the expansion point.
     """
@@ -146,10 +153,9 @@ def _peak_chain_column(model: CompiledModel, table: ParameterTable,
     tp = theta.copy()
     tp[c] += h
     values_p = table.decode(tp)
-    if path.startswith("phases."):
-        affected = [int(path.split(".")[1])]
-    else:
-        affected = range(len(model.phases))
+    if affected is None:
+        affected = ([int(path.split(".")[1])] if path.startswith("phases.")
+                    else range(len(model.phases)))
 
     xp = get_backend()
     dy = xp.zeros_like(model.tt)
@@ -265,6 +271,45 @@ def _pawley_intensity_columns(model: CompiledModel, bases: DerivativeBases,
         J[n_below:n_below + n_res, n_table:] = model.pawley.restraint
 
 
+def _column_extras(table: ParameterTable) -> list[list[str]]:
+    """Per free column, the *other* physical paths it moves through C.
+
+    Empty for a column that stands for itself alone.  Non-empty wherever a tie
+    is live — the derived ones (a cubic ``b``←``a``, a Wyckoff coordinate
+    behind its DOF) as much as a user's, which is what makes this a dispatch
+    input rather than a special case: each analytic branch then declares the
+    reach it can account for, and anything further falls to the whole-model FD
+    column, which is exact because it decodes through C like the residual does.
+    """
+    C, _ = table.constraint_block()
+    free = table.free_paths
+    csc = C.tocsc()
+    paths = [e.path for e in table.entries]
+    return [[paths[r] for r in csc.indices[csc.indptr[c]:csc.indptr[c + 1]]
+             if paths[r] != free[c]]
+            for c in range(len(free))]
+
+
+def _within_atom(extra: list[str], ip: str, j: str) -> bool:
+    """Whether every path this column also moves belongs to atom ``j`` of ``ip``.
+
+    The reach ``_structural_column`` accounts for: it reads the coefficients of
+    one atom's x/y/z (or six U) rows.  The site-symmetry ties always satisfy
+    this — that is the case it was written for — while a user tie between two
+    atoms' DOFs does not, and would otherwise contribute only the near atom.
+    """
+    prefix = f"phases.{ip}.atoms.{j}."
+    return all(p.startswith(prefix) for p in extra)
+
+
+def _affected_phases(model: CompiledModel, path: str, extra: list[str]):
+    """The phases whose peak scalars a column moves — its own and its tie's."""
+    touched = [path, *extra]
+    if any(not p.startswith("phases.") for p in touched):
+        return range(len(model.phases))
+    return sorted({int(p.split(".")[1]) for p in touched})
+
+
 def _make_jacobian(model: CompiledModel, table: ParameterTable):
     """Mixed analytic/FD Jacobian of the residual w.r.t. the internal vector.
 
@@ -283,6 +328,15 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
 
     bkg_cols = {path: n for n, path in enumerate(model.bkg_paths)}
     axial_paths = {"instrument.geometry.axial_sl": 8, "instrument.geometry.axial_hl": 9}
+
+    # Which *other* physical parameters each free column moves, read off the
+    # affine block once (C is frozen for the run).  Every analytic branch below
+    # is written for one named path and computes the rows *it* knows about, so a
+    # column that reaches further than its own branch covers must not take that
+    # branch: the missing dependence would silently leave the column short
+    # rather than fail (WP-1070).  Empty for every untied column, which is why
+    # an unconstrained model dispatches exactly as it did before.
+    extras = _column_extras(table)
 
     def dpdu_of(c: int, theta: np.ndarray) -> float:
         e = table.entries[table._paths[free[c]]]
@@ -315,7 +369,8 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
             return bases
 
         for c, path in enumerate(free):
-            if path in bkg_cols:
+            extra = extras[c]
+            if path in bkg_cols and not extra:
                 # y is linear in the coefficient: ∂y/∂c_n = basis row; the
                 # penalty rows are linear too (√λ·D₂), chain-ruled through
                 # the transform for the (softplus-bounded) air term
@@ -324,25 +379,30 @@ def _make_jacobian(model: CompiledModel, table: ParameterTable):
                 J[:n_data, c] = -sqrt_w * model.bkg_design[n] * dpdu
                 if n_bkg_pen:
                     J[n_data:n_data + n_bkg_pen, c] = model.bkg_penalty[:, n] * dpdu
-            elif path in axial_paths:
+            elif path in axial_paths and not extra:
                 b = get_bases()
                 if b.axial_ok:
                     J[:n_data, c] = -sqrt_w * _axial_column(
                         model, b, axial_paths[path], dpdu_of(c, theta_t))
                 else:
                     fd_cols.append(c)
-            elif (dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld":
+            elif ((dof := _STRUCTURAL_PATH.match(path)) and model.mode == "rietveld"
+                    and _within_atom(extra, dof.group(1), dof.group(2))):
                 rows, grad = (("x", "y", "z"), model.coordinate_intensity_grad) \
                     if dof.group(3) == "dof" else (U_NAMES, model.adp_intensity_grad)
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _structural_column(
                     model, table, get_bases(), values, c,
                     int(dof.group(1)), int(dof.group(2)), rows, grad)
-            elif (po := _PO_PATH.match(path)) and model.mode == "rietveld":
+            elif ((po := _PO_PATH.match(path)) and model.mode == "rietveld"
+                    and not extra):
                 J[:n_data, c] = -sqrt_w * dpdu_of(c, theta_t) * _po_column(
                     model, get_bases(), values, int(po.group(1)))
-            elif model.scalar_chain_supported(path):
+            elif model.scalar_chain_supported(path) and all(
+                    model.scalar_chain_supported(p) and p not in bkg_cols
+                    and p not in axial_paths for p in extra):
                 J[:n_data, c] = -sqrt_w * _peak_chain_column(
-                    model, table, get_bases(), theta_t, values, c, path, intens)
+                    model, table, get_bases(), theta_t, values, c, path, intens,
+                    affected=_affected_phases(model, path, extra))
             else:
                 fd_cols.append(c)
 

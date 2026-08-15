@@ -32,12 +32,13 @@ from .instrument import Instrument
 # Stephens stage lost its seed on the way through a history tree.  One schema
 # now lives in ``schemas/plan.py``; this import keeps the historical
 # ``schemas.history.StageSpec`` path working (WP-1004).
+from .params import TieSpec
 from .plan import PlanSpec, StageSpec  # noqa: F401
 from .results import Statistics
 from .structure import Structure
 
-NodeKind = Literal["root", "stage", "set_vary", "set_value", "edit_model",
-                   "lebail_update", "merge"]
+NodeKind = Literal["root", "stage", "set_vary", "set_value", "set_tie",
+                   "edit_model", "lebail_update", "merge"]
 
 
 class NodeAction(Base):
@@ -51,6 +52,12 @@ class NodeAction(Base):
     coefficient on the dead-gradient floor, and a Stephens stage started from the
     all-zero block the seed exists to avoid.  Both are additive with a 0.0
     default, which is the no-seed behaviour, so pre-v1.0 nodes replay unchanged.
+
+    ``ties``/``untied`` (WP-1070) are the ``"set_tie"`` action's own arguments,
+    additive under the same rule.  They record what the action *did*, not the
+    state it left: the whole tie register lives on
+    :attr:`RefinementState.ties`, which is what a checkout restores — exactly as
+    ``turn_on`` describes a ``set_vary`` whose result is read off ``free_paths``.
     """
 
     kind: NodeKind
@@ -62,6 +69,8 @@ class NodeAction(Base):
     lebail_cycles: int = 3
     seed: float = 0.0
     strain_seed: float = 0.0
+    ties: dict[str, TieSpec] = Field(default_factory=dict)
+    untied: list[str] = Field(default_factory=list)
 
     def api_call(self) -> str:
         """The equivalent public-API call, so a log doubles as a session script.
@@ -86,6 +95,24 @@ class NodeAction(Base):
             return "; ".join(parts)
         if self.kind == "set_value":
             return f"ref.set_values({self.values!r})"
+        if self.kind == "set_tie":
+            parts = []
+            for path, spec in self.ties.items():
+                if len(spec.terms) != 1:
+                    # no public verb declares a multi-source tie, so the log
+                    # says so rather than rendering a call that does not exist
+                    parts.append(f"# {path} = {spec.describe()}")
+                    continue
+                src, scale = spec.terms[0]
+                args = f"{path!r}, {src!r}"
+                if scale != 1.0:
+                    args += f", scale={scale!r}"
+                if spec.const:
+                    args += f", offset={spec.const!r}"
+                parts.append(f"ref.tie({args})")
+            if self.untied:
+                parts.append(f"ref.untie({self.untied!r})")
+            return "; ".join(parts)
         if self.kind == "lebail_update":
             return f"ref.lebail_update(n_cycles={self.lebail_cycles})"
         if self.kind == "merge":
@@ -130,6 +157,13 @@ class RefinementState(Base):
     free_paths: list[str] = Field(default_factory=list)
     two_theta_limits: tuple[float, float] | None = None
     reflections: list[ReflectionState] = Field(default_factory=list)
+    # User constraints (WP-1070), path → the affine dependence declared for it.
+    # Carried for the same reason as ``free_paths``: a tie is not a property of
+    # the models — ``ParameterTable`` derives the *symmetry* ties from the space
+    # group on every build and knows nothing about a user's — so a node that did
+    # not carry them would restore a state with the constraints silently gone,
+    # and the parameter count with them.
+    ties: dict[str, TieSpec] = Field(default_factory=dict)
 
 
 class NodeMetrics(Base):

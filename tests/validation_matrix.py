@@ -288,6 +288,29 @@ CLAIMS: tuple[Claim, ...] = (
                  "ppm with the two agreeing inside 1e-4 (the uniformity "
                  "claim); channel count 5750 exactly",
     ),
+    Claim(
+        "test_acceptance_fap", "test_tying_the_similar_atoms_bisos_buys_precision",
+        "fap", ("own_result", "identity", "characterisation", "ceiling"),
+        "a user constraint on three chemically equivalent sites reduces the "
+        "parameter count and tightens the esd, without moving the values the "
+        "free refinement measured",
+        reference="the same protocol's own free fit on the same 5750 "
+                  "channels, the only difference being the tie.  The esd bar "
+                  "is referenced twice: to the best of the three free esds "
+                  "(0.1282 A^2) and to their inverse-variance combination "
+                  "(0.0917), which is what the constraint has to beat to have "
+                  "recovered the information rather than merely divided by "
+                  "root-N.  The identity half is that the three tied rows "
+                  "carry the *same* value and esd to 1e-12, since they are "
+                  "one parameter.  Rwp is deliberately not a referent: it "
+                  "moves by 0.05 % of itself, so no bar on it could "
+                  "distinguish a good constraint from a bad one",
+        measured="20 -> 18 free parameters, 287.5 -> 319.4 observations per "
+                 "parameter; B(O) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) "
+                 "free against 0.4138(899) tied; every free interval contains "
+                 "the tied value, and the four untied Biso sites move by "
+                 "< 0.5 sigma",
+    ),
     # ---- NAC: the synchrotron vertical slice ----------------------------
     Claim(
         "test_acceptance_nac", "test_nac_lebail_then_rietveld", "nac",

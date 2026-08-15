@@ -446,8 +446,10 @@ NodeAction.max_iter
 NodeAction.name
 NodeAction.seed
 NodeAction.strain_seed
+NodeAction.ties
 NodeAction.turn_off
 NodeAction.turn_on
+NodeAction.untied
 NodeAction.values
 NodeMetrics
 NodeMetrics.cost_final
@@ -709,6 +711,7 @@ RefinementState.instrument
 RefinementState.mode
 RefinementState.reflections
 RefinementState.structure
+RefinementState.ties
 RefinementState.two_theta_limits
 RefinementTree
 RefinementTree.add

@@ -141,6 +141,30 @@ def test_document_round_trip_including_infinite_bounds(tmp_path, pattern_file):
     assert all(math.isinf(r.hi) for r in unbounded)
 
 
+def test_a_user_tie_survives_the_round_trip_without_a_save(tmp_path, pattern_file):
+    """The constraint is model state, so the log carries it and ``save`` is idle.
+
+    One authority per fact: ``history.jsonl`` holds the model state and its head
+    *is* the working state, so a tie is on disk the moment it is declared —
+    exactly as ``set_vary`` is.  Reopening must come back with the same
+    parameter count, not merely the same values: a project that dropped the
+    constraint would refine one parameter more than the protocol it recorded,
+    and every esd it quoted afterwards would be the wrong one.
+    """
+    project = _create(tmp_path / "tied.rex", pattern_file)
+    bisos = ["phases.0.atoms.0.biso", "phases.0.atoms.1.biso"]
+    project.refinement.tie_equal(bisos)
+    project.refinement.set_vary(["phases.0.atoms.*.biso"])
+
+    reopened = rx.Project.open(project.path)
+    rows = {r.path: r for r in reopened.parameters()}
+    assert rows[bisos[1]].tie is not None and rows[bisos[1]].tie.user
+    assert rows[bisos[1]].tie.sources == [bisos[0]]
+    assert rows[bisos[0]].vary and not rows[bisos[1]].vary
+    # and it is still the user's to release after the round trip
+    assert reopened.refinement.untie(bisos[1]) == [bisos[1]]
+
+
 def test_open_accepts_the_document_path(tmp_path, pattern_file):
     project = _create(tmp_path / "s.rex", pattern_file)
     assert rx.Project.open(project.path / PROJECT_JSON).path == project.path

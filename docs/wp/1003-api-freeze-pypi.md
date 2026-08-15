@@ -14,6 +14,35 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1070](1070-user-facing-constraints.md), 2026-08-15 — landed pre-freeze,
+and it took the `NodeKind` slot this mailbox said was free.** `NodeKind` gains
+`"set_tie"`, which is exactly the "free before the freeze, a versioned
+history-format decision after it" argument below, spent. Three public verbs:
+`Refinement.tie(path, source, *, scale=1.0, offset=0.0) -> str`,
+`Refinement.tie_equal(paths, *, source=None) -> list[str]` and
+`Refinement.untie(paths) -> list[str]`. Four additive defaulted fields:
+`NodeAction.ties` / `.untied`, `RefinementState.ties` and `TieSpec.user` —
+`SCHEMA_VERSION` did not move, same precedent as 1069's.
+
+Two deliberate **asymmetries to ratify or close**, both stated as non-goals in
+1070 and neither an oversight:
+
+- **No `refine_json` arm.** A tie cannot be declared through
+  `agent.refine_json`; the tool-calling surface still speaks refine / multi /
+  sequential / index / suggest. If the freeze wants parity, it is a new task
+  field, not a change to an existing one.
+- **No `capabilities()` flag.** `_SURFACE_FLAGS` maps a flag to a top-level
+  export in `__all__`, and these are methods on `Refinement`, so there is no
+  *derived* predicate to add — and a literal `True` is the one thing that
+  registry forbids. A client currently discovers the verbs by having them, not
+  by asking. Widening `_SURFACE_FLAGS` to address class members would be the
+  fix, and it is a freeze-scope decision.
+
+`.rxt` and `FORMAT_VERSION` are untouched: a user tie renders through the
+existing read-only `= …` annotation, and a tie *line* was declined because
+annotation omission means "no opinion", so removing one could not be
+distinguished from not typing (the reasoning is in 1070's handover).
+
 **From [1069](1069-structure-r-factors.md), 2026-08-15 — landed pre-freeze;
 here is what it added to the surface you are freezing.** Three public schema
 names and two public fields: `PhaseAgreement` (`name`, `r_bragg`, `r_f`,
@@ -34,7 +63,8 @@ whose arms are backends/solvers/plans/modes/anodes/formats/contracts.
 
 **From the 2026-08-15 planning session — the McCusker compliance set
 (WPs 1069–1074) exists, and its ordering against this freeze is your call.**
-(1069 is now closed ✅; the ruling below stands for the remaining five.)
+(1069 and 1070 are now closed ✅; the ruling below stands for the remaining
+four.)
 WP-1068's reading of the guidelines became a full audit
 (`../milestones/v1.0.md` § Appendix): no correctness defect, nine gaps. Six
 became WPs; difference Fourier went to the v2+ fence; the
@@ -141,6 +171,15 @@ Three things land on the freeze:
   fix makes something slow, narrowing what is searched is the lever. Whoever
   takes this reads `--durations` from a local full run, since the log that
   would have answered it is the thing that is missing.
+  **Evidence from WP-1070 (2026-08-15), which narrows it**: two local full runs
+  on the branch landed at **28:32 and 29:55** (`[dev]`, macOS, `-n auto
+  --dist loadgroup`). A suite that finishes in half an hour locally does not
+  reach a 120-minute ceiling by *growing*. So the candidate is a **hang or a
+  runner-speed cliff on the CI leg specifically** — Linux, `[dev,jax]` — not
+  the general accretion the entry above assumed; and `tests/CLAUDE.md` already
+  records that jax's cost there is ~12 s warm against 107 s cold, nowhere near
+  the gap. Start by asking what the 2026-08-09 run was doing when it was
+  cancelled, not by pruning rows.
 - ~~**Delete the `baselines` extra, or give it a consumer.**~~ **Done
   2026-08-14** (1067 follow-up): deleted. It installed `pybaselines` and **no
   module imported it** — the penalized spline, arPLS and SNIP are all
