@@ -153,6 +153,12 @@ because a fit statistic is blind to it.
   best profile fit the data allow, and a Rietveld Rwp should approach it
   {cite}`mccusker1999` — measured rather than left to the reader.
 - **`FitReport.restraints`** — what each soft restraint is contributing.
+- **`FitReport.geometry`** (`GeometryTable`) — the distances and angles, carried
+  through from the result. It is the one section here that measures the
+  *structure* rather than the fit, which is why it survives an abstention
+  unchanged: "are these distances chemically sensible" is the question a reader
+  asks first when the profile evidence refuses to speak. Nothing scores it —
+  see [Concepts](concepts.md) for the fields and for what the esds mean.
 
 ## Layer 2: suggested actions
 

@@ -33,10 +33,11 @@ from pathlib import Path
 import gemmi
 import numpy as np
 
-from ..crystallography.cif import write_structure_block
+from ..crystallography.cif import format_su, write_structure_block
 from ..crystallography.lattice import d_spacings
 from ..crystallography.structure_factor import structure_factors_squared
 from ..model.forward import CompiledModel
+from ..model.geometry import symmetry_operations
 from ..schemas.instrument import (
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
@@ -44,6 +45,7 @@ from ..schemas.instrument import (
     Instrument,
 )
 from ..schemas.results import (
+    GeometryTable,
     PhaseAgreement,
     QuantitativePhaseAnalysis,
     RefinementResult,
@@ -335,6 +337,78 @@ def _write_phase_agreement(block, row: PhaseAgreement | None) -> None:
         block.set_pair("_refine_ls_number_reflns", str(row.n_reflections))
 
 
+def _write_geometry_loops(block, geometry: GeometryTable | None, ip: int,
+                          space_group: str) -> None:
+    """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle`` for one phase.
+
+    Tag names are the COMCIFS core dictionary's, checked rather than
+    remembered (as WP-1069 did for the R factors): the ``_geom_bond.*``,
+    ``_geom_contact.*`` and ``_geom_angle.*`` categories, written in the flat
+    DDL1 alias spelling the rest of this block uses.  McCusker §11 asks for
+    "both bonding and nonbonding" distances, which is exactly the split
+    between the first two categories; ``_geom_angle`` carries only the bonded
+    ones, because an angle between two contacts is not a shape anybody reads.
+
+    :class:`~rietx.schemas.results.GeometryTable` lists every atom's whole
+    environment, so a bond between two sites is in it twice, once from each
+    end.  **One direction is dropped here**: the CIF convention is that a bond
+    appears once, and a consumer summing rows per atom (bond valences, say)
+    would double-count otherwise.  Which direction survives is the atoms'
+    order in the phase, and a same-site pair keeps both rows because they are
+    two different bonds rather than one bond twice.
+
+    A ``_geom_*_site_symmetry_*`` code is an index into a **listed** operation
+    order, so this writes ``_space_group_symop_operation_xyz`` beside it.
+    Without that loop the codes would point at whatever order a reader's own
+    expansion of the Hermann-Mauguin symbol happened to produce — a silent
+    reindexing, which is worse than no code at all.  ``?`` appears where an
+    image needs a lattice shift the one-digit code cannot express; the
+    distance is unaffected (:mod:`rietx.model.geometry`).
+
+    Standard uncertainties ride in the value as ``1.8548(12)``, the notation
+    :func:`~rietx.crystallography.cif.format_su` writes for every other
+    refined number here — never a separate ``_su`` column that a reader may or
+    may not pick up.  A row whose esd is ``None`` (nothing it depends on was
+    refined) is written as a plain number rather than an invented zero.
+    """
+    if geometry is None:
+        return
+    distances = [d for d in geometry.distances
+                 if d.phase_index == ip and d.atom_index_1 <= d.atom_index_2]
+    angles = [a for a in geometry.angles if a.phase_index == ip]
+    if not distances and not angles:
+        return
+    symops = symmetry_operations(space_group)
+    loop = block.init_loop("_space_group_symop_", ["id", "operation_xyz"])
+    for idx, triplet in enumerate(symops):
+        loop.add_row([str(idx + 1), gemmi.cif.quote(triplet)])
+    for tag, rows in (("_geom_bond_", [d for d in distances if d.bonded]),
+                      ("_geom_contact_", [d for d in distances if not d.bonded])):
+        if not rows:
+            continue
+        loop = block.init_loop(tag, ["atom_site_label_1", "atom_site_label_2",
+                                     "distance", "site_symmetry_1",
+                                     "site_symmetry_2"])
+        for d in rows:
+            loop.add_row([d.atom_1, d.atom_2, format_su(d.distance, d.stderr,
+                                                        decimals=4),
+                          d.symmetry_1 or "?", d.symmetry_2 or "?"])
+    if angles:
+        # the angle *value* is the one tag here whose flat DDL1 alias is not
+        # ``<category>_<object>``: ``_geom_angle.value`` aliases to a bare
+        # ``_geom_angle``, so this loop cannot share a prefix with its columns
+        loop = block.init_loop("", [
+            "_geom_angle_atom_site_label_1", "_geom_angle_atom_site_label_2",
+            "_geom_angle_atom_site_label_3", "_geom_angle",
+            "_geom_angle_site_symmetry_1", "_geom_angle_site_symmetry_2",
+            "_geom_angle_site_symmetry_3"])
+        for a in angles:
+            loop.add_row([a.atom_1, a.atom_2, a.atom_3,
+                          format_su(a.angle, a.stderr, decimals=3),
+                          a.symmetry_1 or "?", a.symmetry_2 or "?",
+                          a.symmetry_3 or "?"])
+
+
 def _write_pattern_loop(block, result: RefinementResult) -> None:
     """The observed/calculated pattern as a pdCIF loop ``read_pdcif`` reads."""
     tt = result.two_theta
@@ -372,6 +446,11 @@ def refinement_cif_doc(result: RefinementResult, structure: Structure,
         # in the block, not the pattern.  So a multi-phase export gives each
         # phase its own pair, which is how they are read.
         _write_phase_agreement(block, agreement.get(phase.name))
+        # Bonding geometry, on the phase's own block for the same reason the R
+        # factors are: the labels a _geom_ loop names are that block's
+        # _atom_site labels, and a code is resolved against that block's symop
+        # loop.  Nothing is written when the fit produced no table.
+        _write_geometry_loops(block, result.geometry, ip, phase.space_group)
         if ip == 0:
             # refinement scalars + the pattern loop live on the first block, so
             # a single-phase export is one self-contained block that both

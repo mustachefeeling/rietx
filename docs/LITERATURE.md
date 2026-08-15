@@ -82,6 +82,16 @@ between 0.22 and 0.50 across twenty real structures: the only external check
 on an implementation without their data. OCR is clean on both; the Table 1/2
 cell contents are garbled and are not needed.
 
+**Cordero, Gómez, Platero-Prats, Revés, Echeverría, Cremades, Barragán &
+Alvarez (2008)**, *Dalton Trans.*, 2832 — "Covalent radii revisited". The
+radii `model/geometry.py` classifies a pair with (WP-1072). **Not held, not
+searched for, and deliberately not requested**: the table is gemmi's
+(`gemmi.Element.covalent_r`) and the citation is a claim about *whose numbers
+those are*, which is checkable without the paper — 30 single-valued entries of
+its Table 1 agree to < 5·10⁻³ Å. The 0.4 Å slack beside them is cited to
+nobody, because it is a listing tolerance rather than a measurement and
+travels on `GeometryTable.bond_slack` instead.
+
 ## Books — held outside the corpus
 
 **Prince, *Mathematical Techniques in Crystallography and Materials Science*

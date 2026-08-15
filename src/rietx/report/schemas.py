@@ -21,7 +21,12 @@ from typing import Literal
 from pydantic import Field
 
 from ..schemas.common import Base
-from ..schemas.results import CorrelationPair, RestraintReport, SoftMode
+from ..schemas.results import (
+    CorrelationPair,
+    GeometryTable,
+    RestraintReport,
+    SoftMode,
+)
 from ..strategy.staged import BACKGROUND_ABSORPTION_GUARD
 
 # 0.3 (WP-0602): + refine_preferred_orientation in the action vocabulary
@@ -961,6 +966,11 @@ class FitReport(Base):
     #: carried through from the result whenever restraints were declared; a
     #: deviation ≫ σ here is a restraint fighting the data (see RESTRAINT_TENSION)
     restraints: RestraintReport | None = None
+    #: bonding geometry with esds through the full covariance (WP-1072),
+    #: carried through from the result whenever a Rietveld fit produced one.
+    #: Evidence, never a verdict: McCusker §11's "chemical sense of the
+    #: structural model" is the reader's judgement, and nothing here scores it
+    geometry: GeometryTable | None = None
     layer1_available: bool = False
     #: set when the global maturity gate refused Layer 1 (the report abstains)
     abstained_reason: str | None = None

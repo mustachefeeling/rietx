@@ -14,6 +14,46 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1072](1072-geometry-table.md), 2026-08-15 — landed pre-freeze; here is
+what it added to the surface you are freezing.** Three public schemas —
+`GeometryTable` (`distances`, `angles`, `bond_slack`, `contact_max`, `notes`),
+`GeometryDistance` and `GeometryAngle` — and two fields carrying them,
+`RefinementResult.geometry` and `FitReport.geometry`. All additive with
+defaults, so `SCHEMA_VERSION` did not move (1069's precedent, now three times
+over) and **`THRESHOLDS_VERSION` did not either**: 1058's rule is that a bump
+claims a threshold, gate, emission condition or `ActionKind` moved, and none
+did. No new diagnostic code — the table judges nothing, which is its whole
+posture. No `refine_json` arm and no `capabilities()` flag, for 1070's and
+1071's reason exactly.
+
+Five asymmetries, each a freeze-scope decision:
+
+- **Every Rietveld fit computes it, and there is no way to decline.** Measured
+  at 4 ms for the single-phase 11-BM NAC table, and the search is
+  O(n²·m·shell³), so the cost is bounded by `MAX_ASYM_ATOMS = 200` — past which
+  the phase is skipped *and said in `notes`* to be. Whether the freeze wants a
+  `fit(geometry=False)` knob is the question; nothing needs one today.
+- **The API and the CIF list bonds differently, on purpose.** The table carries
+  every atom's whole environment, so the number of rows naming an atom is its
+  coordination number and a two-site bond appears twice; the exporter drops one
+  direction, because a CIF lists a bond once and a consumer summing rows per
+  atom would double-count. If the freeze wants one convention, the API side is
+  the one that would move — the CIF side is not ours to choose.
+- **`GeometryTable.bonds` / `.contacts` are properties, not fields**, so they do
+  not serialize; a JSON consumer filters `distances` on `GeometryDistance.bonded`
+  itself. Making them fields would put every row in the payload twice.
+- **`stderr = None` carries two meanings** — no covariance behind the result at
+  all (a replay, an evaluate-only pass), or a row symmetry-fixed so that it has
+  no variance to report. Both are "absence of information", which is
+  `weight_fractions`' rule and why neither is 0; telling them apart today means
+  asking whether *any* row has an esd. If the freeze wants them separated it is
+  a field on the row.
+- **One new public module function**, `model.geometry.symmetry_operations`. It
+  does not reach the derived manual surface (`model.geometry` is not exported
+  and not reachable from an exported type) — the same question 1071's
+  `CompiledModel.peak_fwhm` raised, and still open: whether the freeze covers
+  the non-exported module surface at all.
+
 **From [1071](1071-data-support-checks.md), 2026-08-15 — landed pre-freeze;
 here is what it added to the surface you are freezing.** One public schema —
 `DataSupport` (`n_unique_reflections`, `n_effective_observations`,

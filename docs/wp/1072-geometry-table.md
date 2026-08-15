@@ -1,6 +1,6 @@
 # WP-1072 — Interatomic distances and angles, with esds from the full covariance
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-15
 Depends on: — (either side of 1003: purely additive, no closed vocabulary
 touched; before it if capacity allows — the freeze sequences, see 1003's
 Inherited)
@@ -62,16 +62,17 @@ through the **full** parameter covariance, and the CIF export writes the
 
 ## Tasks
 
-- [ ] Neighbour generation (bonded + contacts, symmetry images, cutoffs
+- [x] Neighbour generation (bonded + contacts, symmetry images, cutoffs
       documented as constants) on the converged structure.
-- [ ] esds by J·Cov·Jᵀ through the restraint derivative chain, diagonal-only
+- [x] esds by J·Cov·Jᵀ through the restraint derivative chain, diagonal-only
       value carried beside the full one; computed at fit close, carrier
       semantics per the `Identifiability` precedent.
-- [ ] The symmetry-image equality pin (length and esd match the parent's).
-- [ ] CIF `_geom_` loops, tags verified against the dictionary.
-- [ ] Surfaces: result field, textdoc/report rendering where geometry is
-      already mentioned, `AGENT_PROTOCOL.md` row, manual sentence.
-- [ ] Measured story in the handover: a known structure's distances against
+- [x] The symmetry-image equality pin (length and esd match the parent's).
+- [x] CIF `_geom_` loops, tags verified against the dictionary.
+- [x] Surfaces: result field, report rendering, `AGENT_PROTOCOL.md` row,
+      manual section. (Not the `.rxt` textdoc — it is a view of the *editable*
+      project state, settings/plan/parameter rows, and carries no result.)
+- [x] Measured story in the handover: a known structure's distances against
       literature values, with full-vs-diagonal esd ratios quoted (§10's rule
       made visible). Tests + PNGs to `tests/output/`.
 
@@ -91,5 +92,93 @@ through the **full** parameter covariance, and the CIF export writes the
   full-covariance propagation precedent).
 
 ## Handover log
+
+- **2026-08-15 (close)** — all six tasks done; ✅. No `### Inherited` existed
+  on arrival, so nothing to prune.
+
+  **Done.** `src/rietx/model/geometry.py`: neighbour generation over the orbit
+  ops `PhaseSites` froze × a lattice shell sized from the cutoff, esds by
+  J·Cov·Jᵀ with the diagonal-only twin, CIF symmetry codes.
+  `RefinementResult.geometry` and `FitReport.geometry` (`GeometryTable`,
+  `GeometryDistance`, `GeometryAngle` in `schemas/results.py`).
+  `_geom_bond` / `_geom_contact` / `_geom_angle` loops plus
+  `_space_group_symop_operation_xyz` in `io/exporters.py`.
+  `tests/test_geometry_table.py` (21 tests) and one in `test_exporters.py`.
+  Manual § "The bonding geometry" in `using/concepts.md` + a `report.md`
+  bullet; the `AGENT_PROTOCOL.md` row went into §4 step 4 (physically
+  possible), where it belongs by the paper's own ranking, not at the end.
+
+  **Measured, 11-BM NAC + CaF₂ under `mccusker_structural`** (Rwp 0.08167,
+  GoF 3.098; 88 distances / 113 angles / no truncation notes; table cost 4 ms
+  single-phase):
+
+  | | min | median | max |
+  |---|---|---|---|
+  | full/diagonal esd ratio, 88 distances | 0.713 | 1.000 | 1.152 |
+  | full/diagonal esd ratio, 79 angles | 0.640 | 1.026 | 1.204 |
+
+  Against the deposited structure (`cod_1000236.cif`), every refined distance
+  within 1.3σ: Al1–F1 1.8055(159) vs 1.8244 (−1.19σ), Al1–F2 1.7788(136) vs
+  1.7833 (−0.33σ), Na1–F1 2.3512(126) vs 2.3673 (−1.27σ), Ca1–F3 2.3221(37)
+  vs 2.3243 (−0.60σ). Symmetry-equivalent bonds agree in value and esd to the
+  printed digits. Corundum evaluate-only against Lewis, Schwarzenbach & Flack
+  (1982): Al–O 1.8548/1.9712 ×3 each (published 1.8551/1.9709), O–Al–O
+  79.63/86.37/90.79/101.17/164.22°, shared octahedron edges 2.524/2.620/
+  2.725/2.866 Å.
+
+  **Counts** (this checkout's `.venv`, `[dev]` only — no jax, no torch;
+  macOS/darwin). Fast selection **2365 passed + 112 skipped**, against
+  WP-1071's 2343 + 112 on the previous tree; full suite **2473 passed + 121
+  skipped in 23:42**, against 1071's 2451 + 121 in 28:17. **+22 passed, +0
+  skipped in both** — exactly the 22 tests added, every one a new pass and no
+  new skip. Wall clock as a range across this session's runs: the fast
+  selection measured 2:39 and 2:51 on trees that differ only in comments, so
+  read the 23:42-against-28:17 as machine state too, not as a change (the
+  full suite is set by `indexing-acceptance`, whose slowest single setup was
+  842 s).
+
+  **One process slip, recorded because the counts depend on it.** The full
+  suite was launched and then four more commits landed — two comment-only,
+  one docs, and one cutting a Monte Carlo from 20 000 to 5 000 draws inside a
+  2.5× assertion margin. That is exactly the mid-edit launch `tests/CLAUDE.md`
+  warns about. The fast selection was therefore re-measured on the final tree
+  and returned the identical 2365 + 112, which is what licenses quoting the
+  23:42 run's counts for it.
+
+  **Three decisions worth knowing before touching this.**
+
+  1. **The listing rule is "every atom's whole environment", not the CIF's.**
+     A two-site bond is in the table twice, once from each end, so the row
+     count naming an atom *is* its coordination number; the exporter drops one
+     direction because a CIF lists a bond once and a per-atom sum would
+     double-count. The first attempt deduplicated same-site pairs by mapping
+     each image S to S⁻¹ — that map is only an involution when the site
+     symmetry is trivial, and it silently dropped real neighbours while every
+     distance-value test still passed. **Orbit counting is what caught it**
+     (|A_ij|·m_i = |A_ji|·m_j) and is now a parametrised test.
+  2. **Three esd cases report `None`, and they are not the same thing said
+     three ways.** No covariance at all (evaluate-only); no free source (an
+     all-zero block, `weight_fractions`' rule); a quadratic form that reaches
+     zero by cancelling across a tie, which is roundoff and is caught by a
+     *self-scaling* test — var against Σ|terms|, `VARIANCE_CANCELLATION_FLOOR`
+     — rather than an absolute floor. A fourth, the straight angle, is
+     separate: there the linearisation itself fails, and the limit is
+     **derived** from `restraints._COS_CLAMP` so the two cannot drift.
+  3. **Metal–metal pairs are demoted to contacts.** Cordero radii plus the CSD
+     0.4 Å slack make corundum's Al···Al at 2.65 and 2.79 Å "bonds" (the sum is
+     2.82), which then become arms of 30 spurious angles. The distances are
+     still reported; only the loop changes.
+
+  **Gotchas for the next session.** `format_su` will happily print
+  `90.00000000000(43)` when handed a roundoff esd — that is why the two floors
+  above exist, and any new derived quantity needs the same care.
+  `_geom_angle.value`'s flat CIF alias is a bare `_geom_angle`, not a prefixed
+  one, so that loop cannot share a prefix with its columns (checked against the
+  live COMCIFS dictionary, fetched with `gh api`; `iucr.org` 403s).
+  `THRESHOLDS_VERSION` deliberately did **not** move — WP-1058's rule is that a
+  bump claims a threshold, gate, emission condition or `ActionKind` moved, and
+  none did; `SCHEMA_VERSION` likewise, the additive-defaulted-field precedent.
+  Everything added to the frozen surface, and five asymmetries to ratify, are
+  in [1003](1003-api-freeze-pypi.md)'s `### Inherited`.
 
 - **2026-08-15** — created from the McCusker audit (WP-1068); gap 4.
