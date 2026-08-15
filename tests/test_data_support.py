@@ -35,6 +35,7 @@ from rietx.model.forward import compile_model
 from rietx.optimize.statistics import (
     STRUCTURAL_PARAMETER_GLOB,
     count_unique_reflections,
+    effective_observations,
     measured_mask,
 )
 from rietx.params.vector import ParameterTable
@@ -218,6 +219,101 @@ def test_the_raw_count_over_counts_a_coincident_pair():
     coincident = int(np.count_nonzero(np.diff(pos) < 1e-9))
     assert coincident > 0
     assert count_unique_reflections(model, values) > len(pos) - coincident
+
+
+# --------------------------------------------------------------------------
+# the effective count — Altomare et al. (1995)
+# --------------------------------------------------------------------------
+
+def test_a_coincident_pair_is_one_effective_observation():
+    """Altomare's Fig. 1, on a cubic cell that has the pair for real.
+
+    Every LaB6 reflection here is isolated except the exact coincidences, so
+    M_ind must come out at the raw count minus one per coincident pair — an
+    integer, and the arithmetic anchor for everything below.
+    """
+    structure, instrument = _lab6()
+    model, values = _compiled(structure, instrument, np.arange(3.0, 26.0, 0.005))
+    pos = np.sort(_tick_positions(model, values))
+    pos = pos[pos <= model.tt[-1]]
+    n_extra = int(np.count_nonzero(np.diff(pos) < 1e-9))
+    assert n_extra >= 2                       # (300)/(221), (411)/(330), …
+
+    raw = count_unique_reflections(model, values)
+    assert effective_observations(model, values) == pytest.approx(
+        raw - n_extra, abs=1e-9)
+
+
+def test_overlap_drives_the_effective_count_down_monotonically():
+    """A severely overlapped pattern's effective count sits well below its raw
+    one, and nothing else moved: same cell, same range, same reflections.
+
+    Lorentzian size broadening is the lever because it widens the peaks without
+    touching their positions or the reflection list, so M_ind is the only thing
+    in the table that can move.
+    """
+    structure, instrument = _lab6(radiation="CuKa")
+    tt = np.arange(15.0, 140.0, 0.01)
+    got = []
+    for lor_size in (0.0, 2.0, 5.0, 15.0):
+        s, ins = _lab6(radiation="CuKa")
+        s.phases[0].lor_size.value = lor_size
+        model, values = _compiled(s, ins, tt)
+        raw = count_unique_reflections(model, values)
+        got.append((raw, effective_observations(model, values)))
+
+    raws = {r for r, _ in got}
+    assert len(raws) == 1                     # the raw count cannot see overlap
+    eff = [e for _, e in got]
+    assert eff == sorted(eff, reverse=True)   # monotone in the broadening
+    assert eff[0] / raws.pop() > 0.8          # sharp: nearly every line counts
+    assert eff[-1] < 0.2 * eff[0]             # merged: the pattern is one hump
+    assert structure is not None
+
+
+def test_the_effective_count_never_exceeds_the_raw_one():
+    """M_ind ≤ M by construction — every contribution is a fraction of 1."""
+    for lor_size in (0.0, 1.0, 6.0):
+        structure, instrument = _lab6(radiation="CuKa")
+        structure.phases[0].lor_size.value = lor_size
+        model, values = _compiled(structure, instrument,
+                                  np.arange(15.0, 140.0, 0.01))
+        raw = count_unique_reflections(model, values)
+        eff = effective_observations(model, values)
+        assert 0.0 < eff <= raw + 1e-9
+
+
+def test_an_excluded_region_removes_effective_observations_too():
+    """The integral runs over fitted channels, so an exclusion costs both
+    counts — and the effective one cannot fall by more than the raw one."""
+    structure, instrument = _lab6()
+    tt = np.arange(3.0, 26.0, 0.005)
+    model, values = _compiled(structure, instrument, tt)
+    ticks = np.sort(_tick_positions(model, values))
+    lo, hi = float(ticks[3] - 0.1), float(ticks[5] + 0.1)
+
+    cut, cut_values = _compiled(structure, instrument, tt, excluded=[(lo, hi)])
+    assert (count_unique_reflections(cut, cut_values)
+            == count_unique_reflections(model, values) - 3)
+    assert (effective_observations(cut, cut_values)
+            == pytest.approx(effective_observations(model, values) - 3, abs=1e-9))
+
+
+def test_no_reflection_measured_gives_none_not_zero():
+    """Nothing to estimate says ``None``, never 0.0.
+
+    Zero effective observations is a claim about a pattern; no measured
+    reflection is the absence of one, and the two must not arrive as the same
+    number.  Driven through the census directly because a fit range holding no
+    reflection at all does not reach here — ``compile_model`` raises on the
+    empty reflection list first, one rank up and outside this WP.
+    """
+    from rietx.optimize.statistics import _effective_from_census
+
+    structure, instrument = _lab6()
+    model, _values = _compiled(structure, instrument,
+                               np.arange(3.0, 26.0, 0.005))
+    assert _effective_from_census(model, []) is None
 
 
 # --------------------------------------------------------------------------

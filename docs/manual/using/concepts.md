@@ -371,8 +371,10 @@ that answers this.
 | Field | Is | Reads as |
 |---|---|---|
 | `DataSupport.n_unique_reflections` | reflections this pattern measured, summed over phases | one symmetry orbit is one reflection, and a Kα doublet's second line is the same reflection measured again, not a second observation. A reflection counts when a fitted channel lies within half its own FWHM of its position, so an excluded region removes what sits under it and a peak half-measured at a range end still counts. |
+| `DataSupport.n_effective_observations` | the same count corrected for overlap | each reflection contributes the fraction of its own area on which no overlapping reflection stands higher, so an isolated line is worth 1 and an exactly coincident pair is worth 1 between the two of them. A **float**, because a partly resolved pair is worth more than one and less than two. |
 | `DataSupport.n_structural_parameters` | the free parameters the ratio is about | the atomic ones: coordinate DOFs, occupancies, Biso, ADP components. The cell, zero, profile, background, scale, preferred orientation and extinction are excluded — peak positions and shape determine those, not the intensities being counted. |
-| `DataSupport.observations_per_parameter` | the first divided by the second | the guideline is at least three and preferably five {cite}`mccusker1999`. `None` when no structural parameter is free, which is a profile-only stage, a Le Bail fit or a Pawley fit. |
+| `DataSupport.observations_per_parameter` | the raw count divided by the parameters | the upper bound on the ratio. `None` when no structural parameter is free, which is a profile-only stage, a Le Bail fit or a Pawley fit. |
+| `DataSupport.effective_observations_per_parameter` | the effective count divided by the parameters | **the number the guideline is about**: at least three and preferably five {cite}`mccusker1999`. `None` on the same terms as the row above. |
 
 The complement of `DataSupport.n_structural_parameters` is
 `Statistics.n_free_parameters` minus it — the profile, background and cell
@@ -383,6 +385,20 @@ peak *positions* pay for.
 at the same 2θ are one observation, and both are counted here. In a cubic cell
 that pair is common — (300) and (221) coincide exactly — so the raw count is an
 upper bound on the information, and the ratio built from it is optimistic.
+`DataSupport.n_effective_observations` is the corrected number, by the method of
+Altomare *et al.* {cite}`altomare1995`, and the **gap between the two is the
+pattern's overlap**. Measured on a Cu Kα LaB6 pattern over 15-140°, holding the
+cell and the reflection list fixed and widening the peaks with Lorentzian size
+broadening alone: 26 reflections throughout, and 22.0, 17.2, 10.2, 3.9 effective
+observations as the broadening goes from none to enough to merge the pattern
+into one hump. The raw count cannot see any of that.
+
+**The estimate is not a theorem.** The paper says so, and the IUCr guidelines
+repeat it: the approach "may not have a rigorous basis", and what it gives is a
+reasonable estimate of how many parameters the data will support. Two numbers a
+reader should have with it: the interval each reflection is judged over is
+±2 FWHM, and the paper's own check at ±4 FWHM lands 6.5 % lower on average, so
+the reported figure is a little generous.
 
 **Nothing here refuses anything.** The number is evidence, read beside the fit
 rather than as a gate on it, and a ratio below three is a reason to hold

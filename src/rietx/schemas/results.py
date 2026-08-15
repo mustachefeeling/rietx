@@ -89,14 +89,32 @@ class DataSupport(Base):
     ``Statistics.n_free_parameters − n_structural_parameters`` — not repeated
     as a field, because that count already has an authority.
 
-    ``observations_per_parameter`` is the raw ratio, ``None`` when no
-    structural parameter is free (a Le Bail or Pawley fit, or a profile-only
-    stage), where the ratio is not undefined so much as not about anything.
+    ``n_effective_observations`` is that count corrected for overlap —
+    Altomare, Cascarano, Giacovazzo, Guagliardi, Moliterni, Burla & Polidori
+    (1995), *J. Appl. Cryst.* **28**, 738-744, which McCusker §9 names as the
+    way to make the estimate.  Each reflection contributes the fraction of its
+    own area on which no overlapping reflection stands higher, so an isolated
+    line counts 1 and an exactly coincident pair counts 1 between them.  The
+    method and its three caveats — including the paper's own "may not have a
+    rigorous basis", which McCusker quotes — are in
+    :func:`~rietx.optimize.statistics.effective_observations`.  It is a
+    **float**, because a partly resolved pair is worth more than one
+    observation and less than two, and that is the whole content of the number.
+
+    ``observations_per_parameter`` and
+    ``effective_observations_per_parameter`` are the two ratios, both
+    ``None`` when no structural parameter is free (a Le Bail or Pawley fit,
+    or a profile-only stage), where the ratio is not undefined so much as not
+    about anything.  **The effective ratio is the one the paper's band is
+    about**; the raw one is its upper bound, and the two are reported together
+    because their *gap* is the pattern's overlap.
     """
 
     n_unique_reflections: int
+    n_effective_observations: float | None = None
     n_structural_parameters: int
     observations_per_parameter: float | None = None
+    effective_observations_per_parameter: float | None = None
 
 
 class CorrelationPair(Base):

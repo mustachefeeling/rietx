@@ -465,6 +465,20 @@ class CompiledModel:
             return voigt(x, w1, w2)
         return pseudo_voigt(x, w1, w2)
 
+    def profile_at(self, x: np.ndarray, w1: np.ndarray, w2: np.ndarray
+                   ) -> np.ndarray:
+        """Unit-area profile at offsets ``x`` — the public reader of the
+        shape dispatch, for a consumer outside this module that has a
+        :meth:`phase_peaks` width pair and wants the curve it describes.
+
+        The peak's **symmetric** shape: the FCJ axial convolution is applied by
+        :meth:`evaluate` over the frozen quadrature nodes, not here.  A caller
+        integrating one reflection's area is reading the same shape function a
+        full-pattern decomposition program reports, which is what
+        :func:`~rietx.optimize.statistics.effective_observations` needs.
+        """
+        return self._profile(x, w1, w2)
+
     def _profile_derivs(self, x: np.ndarray, w1: float, w2: float
                         ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """(Ω, ∂Ω/∂x, ∂Ω/∂w₁, ∂Ω/∂w₂) of the active shape."""
