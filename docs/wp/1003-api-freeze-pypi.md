@@ -14,6 +14,33 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1071](1071-data-support-checks.md), 2026-08-15 — landed pre-freeze;
+here is what it added to the surface you are freezing.** One public schema —
+`DataSupport` (`n_unique_reflections`, `n_effective_observations`,
+`n_structural_parameters`, `observations_per_parameter`,
+`effective_observations_per_parameter`) — one field carrying it,
+`RefinementResult.data_support`, and two fields on the existing
+`PatternDiagnostics`, `steps_per_fwhm` and `n_peaks_measured`. All additive
+with defaults, so `SCHEMA_VERSION` did not move — 1069's precedent, twice over.
+Two new **diagnostic codes**, `DATA_SUPPORT_LOW` and `PATTERN_UNDERSAMPLED`,
+which is the open vocabulary working as intended and nothing to ratify.
+
+Three asymmetries, deliberate and each a freeze-scope decision:
+
+- **No `refine_json` arm and no `capabilities()` flag**, for exactly 1070's
+  reason one rank down: the counts ride on a result a client already parses,
+  and `_SURFACE_FLAGS` maps a flag to a top-level export, which a schema field
+  is not.
+- **`data_support` is `None` on a joint multi-histogram fit**, following
+  `identifiability`. A per-histogram count is well defined and was not built;
+  if the freeze wants it, it is a field on `HistogramResult`, the shape 1069
+  already used for `phase_agreement`.
+- **One new public method each on `CompiledModel`** — `peak_fwhm` and
+  `profile_at`. Neither reaches the derived manual surface (`CompiledModel` is
+  not exported and not reachable from an exported type), so neither is in the
+  partition today. Whether the freeze covers the compiled-model surface at all
+  is the question they raise.
+
 **From [1070](1070-user-facing-constraints.md), 2026-08-15 — landed pre-freeze,
 and it took the `NodeKind` slot this mailbox said was free.** `NodeKind` gains
 `"set_tie"`, which is exactly the "free before the freeze, a versioned

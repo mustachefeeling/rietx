@@ -266,6 +266,14 @@ recent list, and is therefore not behind the 409 (WP-1044).
   √max(y,1) only as fallback. Never subtract an estimated background —
   hold it additively (`BackgroundFixedPlusChebyshev`) or co-refine it under
   a smoothness penalty (`BackgroundPSpline`).
+- **The observation count is reflections, not points — and it gates nothing**
+  (WP-1071). `n_points` is the algorithm's N; McCusker §9's warning is that
+  refining against it outruns the data in silence (measured: 22 003 points
+  against 132 reflections on 11-BM NAC). `optimize.statistics` is the one
+  authority — `count_unique_reflections`, and `effective_observations`
+  (Altomare 1995, overlap-corrected, a float). Its two bands, like
+  `background.diagnostics`' five-to-ten steps per FWHM, are **quoted from the
+  papers, never tuned**: they set a diagnostic's *level* and nothing else.
 - **A pattern reader may repair a file only where it can say that it did**
   (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
   channel one layer down; four consequences reach a caller outside `io/`. A

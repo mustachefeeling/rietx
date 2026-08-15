@@ -21,10 +21,23 @@ coherently, χ²' = Σ_runs (Σ_{i∈run} δᵢ)² ≥ χ², and multiply every 
 
 from __future__ import annotations
 
+import fnmatch
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from ..backend.linalg64 import require_fp64, to_host_fp64
-from ..schemas.results import Statistics
+from ..schemas.results import DataSupport, Statistics
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ..model.forward import CompiledModel
+
+#: Which free parameters McCusker §9's ratio is about.  fnmatch, so ``*``
+#: crosses dots — the glob reaches every atom entry (``…dof.k``, ``…occ``,
+#: ``…biso``, ``…adp.k``) and nothing else, since ``atoms.`` appears in no
+#: other path.  See :class:`~rietx.schemas.results.DataSupport` for why the
+#: cell, profile, background and scale are outside it.
+STRUCTURAL_PARAMETER_GLOB = "phases.*.atoms.*"
 
 
 def normal_covariance(jac: np.ndarray, resid: np.ndarray, n_free: int, *,
@@ -449,3 +462,262 @@ def structure_r_factors(i_obs: np.ndarray, i_calc: np.ndarray,
     den_f = float(f_obs.sum())
     r_f = float(np.abs(f_obs - f_calc).sum() / den_f) if den_f > 0 else None
     return r_b, r_f, n
+
+
+def measured_mask(tt: np.ndarray, position: np.ndarray, fwhm: np.ndarray
+                  ) -> np.ndarray:
+    """Which peaks the fitted grid actually measured (WP-1071).
+
+    True where a **fitted** channel lies within half the peak's own FWHM of
+    its centre.  One criterion answers the two questions the range ends answer
+    badly on their own: a peak whose top falls inside an excluded region was
+    not observed however far inside ``tt_min``/``tt_max`` it sits (``tt`` is
+    the fitted grid, so an excluded region is a hole in it — WP-1033's
+    fitted-mask rule one rank down), and a peak just past an edge with half
+    its area still on the detector was.
+
+    Half a FWHM is the width at which the *top* of the peak — the part §2
+    counts steps across, and the part an integrated intensity is actually
+    determined by — is still on the grid.  A non-finite position (a reflection
+    off the Ewald sphere) is False, never an error.
+    """
+    tt = np.asarray(tt, dtype=np.float64)
+    pos = np.asarray(position, dtype=np.float64)
+    width = np.abs(np.asarray(fwhm, dtype=np.float64))
+    valid = np.isfinite(pos) & np.isfinite(width)
+    if not len(tt):
+        return np.zeros(pos.shape, dtype=bool)
+    probe = np.where(valid, pos, tt[0])
+    j = np.searchsorted(tt, probe)
+    left = tt[np.clip(j - 1, 0, len(tt) - 1)]
+    right = tt[np.clip(j, 0, len(tt) - 1)]
+    nearest = np.minimum(np.abs(probe - left), np.abs(probe - right))
+    return valid & (nearest <= 0.5 * width)
+
+
+def count_unique_reflections(model: "CompiledModel",
+                             values: dict[str, float]) -> int:
+    """Unique reflections this pattern measured, summed over phases (WP-1071).
+
+    The observation count of McCusker et al. (1999) §9 — "only the integrated
+    intensities of the individual reflections can be considered unique
+    observations".  One orbit representative is one reflection
+    (``generate_reflections`` merges the Laue orbit already), and a reflection
+    counts **once** however many emission lines put a peak on the grid: the
+    Kα2 companion is the same reflection measured a second time, not a second
+    observation.  It counts if *any* line was measured
+    (:func:`measured_mask`) — the ``RefinementResult.ticks`` lesson, since a
+    reflection whose Kα1 sits below the first fitted channel can still have
+    its Kα2 on the grid.
+
+    Positions and widths come from :meth:`~rietx.model.forward.CompiledModel.phase_peaks`
+    at the values given, so this census can never disagree with the profile
+    the fit drew.  Evaluate-only: nothing is written and nothing recompiles.
+
+    This is the **raw** count and it over-counts, deliberately: two reflections
+    at one 2θ are one observation and both are counted here.
+    """
+    return len(_reflection_peaks(model, values))
+
+
+#: The observation/parameter band of McCusker, Von Dreele, Cox, Louër &
+#: Scardi (1999) §9: "the observation/parameter ratio should be at least three
+#: and preferably five".  Quoted, never tuned — these are the paper's numbers
+#: and the only thing this package does with them is say which side of them a
+#: fit landed on.
+OBS_PER_PARAMETER_MIN = 3.0
+OBS_PER_PARAMETER_PREFERRED = 5.0
+
+#: Half-width of a reflection's interval, in its own FWHMs — Altomare et al.
+#: (1995) §2(b), where α = 2 is the default and the paper's own α = 4 check
+#: lands 6.5 % lower on average (max 13.3 %), so α = 2 "provides a value of
+#: M_ind a little bit larger than the correct value".  Their reason for the
+#: smaller value was compute time; ours is that their tabulated M_ind, the only
+#: numbers anyone can compare against, were measured at it.
+EFFECTIVE_OBS_ALPHA = 2.0
+
+
+def _reflection_peaks(model: "CompiledModel", values: dict[str, float]):
+    """Per measured reflection: its interval, and the peaks inside it.
+
+    One entry per reflection over every phase — ``(lo, hi, [(pos, w1, w2,
+    intensity), …])``, the list running over emission lines.  A reflection the
+    grid did not measure (:func:`measured_mask`) is left out entirely, so this
+    census and :func:`count_unique_reflections` are the same set of
+    reflections by construction.
+
+    The interval is Altomare et al. (1995) §2(b), ``2θ_k ± α·FWHM_k``,
+    **widened to cover every line**: a Kα doublet's second lobe is part of the
+    same reflection's intensity, and an interval around the primary line alone
+    would cut it off.  With one emission line this is exactly the paper's
+    interval.
+    """
+    out = []
+    alpha = EFFECTIVE_OBS_ALPHA
+    for ip in range(len(model.phases)):
+        if not len(model.phases[ip].reflections):
+            # defensive: a phase with no reflection in the fit range never
+            # reaches here today, because ``compile_model`` computes positions
+            # for the same empty list and raises first.  Answered rather than
+            # propagated, so a census is never the thing that fails.
+            continue
+        lines = model.phase_peaks(ip, values)
+        seen: np.ndarray | None = None
+        cooked = []
+        for pos, w1, w2, intensity in lines:
+            pos = np.asarray(pos, dtype=np.float64)
+            fwhm = model.peak_fwhm(w1, w2)
+            ok = measured_mask(model.tt, pos, fwhm)
+            seen = ok if seen is None else (seen | ok)
+            cooked.append((pos, np.asarray(w1, dtype=np.float64),
+                           np.asarray(w2, dtype=np.float64),
+                           np.asarray(intensity, dtype=np.float64), fwhm))
+        if seen is None:
+            continue
+        for k in np.flatnonzero(seen):
+            peaks, edges = [], []
+            for p, a, b, i, f in cooked:
+                if not (np.isfinite(p[k]) and np.isfinite(f[k])):
+                    continue
+                peaks.append((float(p[k]), float(a[k]), float(b[k]),
+                              float(i[k])))
+                edges.append((float(p[k]) - alpha * float(f[k]),
+                              float(p[k]) + alpha * float(f[k])))
+            if not peaks:
+                continue
+            out.append((min(e[0] for e in edges), max(e[1] for e in edges),
+                        peaks))
+    return out
+
+
+def effective_observations(model: "CompiledModel", values: dict[str, float]
+                           ) -> float | None:
+    """M_ind — Altomare, Cascarano, Giacovazzo, Guagliardi, Moliterni, Burla &
+    Polidori (1995), *J. Appl. Cryst.* **28**, 738-744.
+
+    The count of §9 corrected for overlap.  Two reflections at one 2θ are one
+    observation; two that partly overlap are somewhere between one and two,
+    because the profile shape still says how to split them.  The paper turns
+    that into a number per reflection: over its own interval
+    (:data:`EFFECTIVE_OBS_ALPHA`), the **fraction of its area on which it is
+    the strongest** of the reflections overlapping it,
+
+        M_ind = Σ_k I'_k / I_k ,   I'_k = I_k − ∫_{χ_k} |F_k|²G(Δθ_k) d(2θ),
+
+    where χ_k is the part of k's interval where some overlapping reflection l
+    stands higher.  A reflection standing alone contributes 1; the weaker of an
+    exactly coincident pair contributes 0, so the pair is one observation — the
+    paper's Fig. 1.
+
+    Three things a reader has to know before quoting it:
+
+    * **The paper's own caveat, which McCusker et al. (1999) §9 repeats: this
+      "may not have a rigorous basis".**  It is an estimate of how much
+      information a pattern holds, not a theorem about it.
+    * **An exact tie contributes 2, not 1.**  The comparison is strict, so two
+      reflections whose scaled profiles agree to the last bit are each the
+      maximum and neither is dominated.  It takes identical multiplicity·|F|²
+      as well as identical 2θ, which is why the coincident pairs of a real
+      cubic cell — (300)/(221) at multiplicity 6 against 24 — do not hit it.
+    * **The integral runs over the fitted channels**, so an excluded region
+      removes area from I_k the way it removes a reflection from the count, and
+      the shape function is the **symmetric** profile
+      (:meth:`~rietx.model.forward.CompiledModel.profile_at`) — the object a
+      full-pattern decomposition program reports, and what the paper's G is.
+      The FCJ axial convolution is not applied; it moves area within roughly
+      the same interval rather than changing which reflection stands higher.
+
+    **One deviation from §2(d), taken on a measurement.**  The paper compares k
+    against every reflection whose interval intersects k's, evaluated wherever k
+    is; this compares k against the pointwise maximum of the reflections whose
+    **own** interval reaches that channel.  A competitor is then dropped in the
+    far tail past its own ±α·FWHM, where a pseudo-Voigt is a few per cent of its
+    height — so this can only run *high*, and the pairwise form is O(pairs ×
+    channels) where this is linear in the channels covered.  Measured across
+    eight configurations (LaB6/Cu Kα and a 235-reflection cubic cell, each swept
+    over Lorentzian size broadening from none to total): **+0.00 % to +0.74 %**,
+    against the estimator's own α = 2 → α = 4 spread of 6.5 % average and 13.3 %
+    maximum, which the paper reports for the same quantity.  The cost it buys is
+    923 ms → 14 ms on the worst of those eight, and quadratic → linear as the
+    pattern gets denser.  The tie semantics survive it exactly: the maximum
+    includes k itself, so ``p_k < max`` is true only where *another* reflection
+    stands strictly higher.
+
+    ``None`` when no reflection was measured at all.
+    """
+    return _effective_from_census(model, _reflection_peaks(model, values))
+
+
+def _effective_from_census(model: "CompiledModel", census) -> float | None:
+    """:func:`effective_observations` on a census already taken — so
+    :func:`data_support` pays for one pass rather than two."""
+    tt = np.asarray(model.tt, dtype=np.float64)
+    if not census or not len(tt):
+        return None
+
+    profiles: list[tuple[int, int, np.ndarray]] = []
+    top = np.full(len(tt), -np.inf)
+    for lo, hi, peaks in census:
+        i0 = int(np.searchsorted(tt, lo, side="left"))
+        i1 = int(np.searchsorted(tt, hi, side="right"))
+        if i1 - i0 < 2:
+            # fewer than two fitted channels in the interval: no area to
+            # integrate, and no basis to call it dominated either
+            profiles.append((i0, i1, np.zeros(0)))
+            continue
+        own = _peak_sum(model, tt[i0:i1], peaks)
+        profiles.append((i0, i1, own))
+        np.maximum(top[i0:i1], own, out=top[i0:i1])
+
+    total = 0.0
+    for i0, i1, own in profiles:
+        if len(own) < 2:
+            total += 1.0
+            continue
+        x = tt[i0:i1]
+        area = float(np.trapezoid(own, x))
+        if area <= 0.0:
+            total += 1.0
+            continue
+        dominated = np.where(own < top[i0:i1], own, 0.0)
+        total += 1.0 - float(np.trapezoid(dominated, x)) / area
+    return float(total)
+
+
+def _peak_sum(model: "CompiledModel", x: np.ndarray, peaks) -> np.ndarray:
+    """One reflection's own profile on ``x`` — every emission line summed.
+
+    The lines are summed because they are one reflection: the Kα2 lobe is the
+    same |F|² measured again, and it competes with a neighbour's Kα1 exactly as
+    the primary lobe does.
+    """
+    out = np.zeros(x.shape, dtype=np.float64)
+    for pos, w1, w2, intensity in peaks:
+        out = out + intensity * np.asarray(
+            model.profile_at(x - pos, w1, w2), dtype=np.float64)
+    return out
+
+
+def data_support(model: "CompiledModel", values: dict[str, float],
+                 free_paths: list[str]) -> DataSupport:
+    """Assemble :class:`~rietx.schemas.results.DataSupport` for a finished fit.
+
+    Evidence, not a gate: nothing here refuses anything, and the band it is
+    read against (three, preferably five — McCusker et al. 1999 §9) lives in
+    the report rather than in this function.
+    """
+    census = _reflection_peaks(model, values)
+    n_refl = len(census)
+    m_ind = _effective_from_census(model, census)
+    n_struct = sum(1 for p in free_paths
+                   if fnmatch.fnmatch(p, STRUCTURAL_PARAMETER_GLOB))
+    return DataSupport(
+        n_unique_reflections=n_refl,
+        n_effective_observations=m_ind,
+        n_structural_parameters=n_struct,
+        observations_per_parameter=(float(n_refl / n_struct) if n_struct
+                                    else None),
+        effective_observations_per_parameter=(
+            float(m_ind / n_struct) if (n_struct and m_ind is not None)
+            else None),
+    )

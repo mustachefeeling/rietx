@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from ._about import DIST_NAME
 from .backend.api import backend_dtype_note
+from .background.diagnostics import STEPS_PER_FWHM_MIN, sampling_steps_per_fwhm
 from .history.events import as_event_stream
 from .history.store import fingerprint
 from .history.tree import RefinementTree
@@ -37,7 +38,13 @@ from .optimize.qpa import (
     estimate_flat_plate_mu_t,
     microabsorption_diagnostics,
 )
-from .optimize.statistics import compute_statistics, structure_r_factors
+from .optimize.statistics import (
+    OBS_PER_PARAMETER_MIN,
+    OBS_PER_PARAMETER_PREFERRED,
+    compute_statistics,
+    data_support,
+    structure_r_factors,
+)
 from .params.vector import AffineTie, ParameterTable
 from .report.schemas import THRESHOLDS_VERSION, StageReport
 from .schemas.common import Diagnostic, Provenance
@@ -1874,6 +1881,12 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
                    + _far_from_data_diagnostics(model, y_calc, y_bkg, stats)
                    + _max_iter_diagnostics(stage_results))
 
+    # Does the data support it (WP-1071): the observation/parameter ratio and
+    # the step size, both reported and neither gating.  Built before the
+    # result so the diagnostic and the record quote one measurement.
+    support = data_support(model, values, list(table.free_paths))
+    diagnostics = diagnostics + _data_support_diagnostics(support, model)
+
     # Degeneracy evidence off the answer-producing stage's Jacobian, which is
     # not serialized and so cannot be recovered later (WP-1055/-1056).  The
     # same numbers the guards screened, carried whole rather than as the
@@ -1903,6 +1916,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         sigma=model.sigma.tolist(),
         ticks=ticks, qpa=qpa, restraints=restraints_report,
         phase_agreement=_phase_agreement(model, values, structure),
+        data_support=support,
         absorption=absorption, identifiability=identifiability,
     )
 
@@ -2171,6 +2185,65 @@ def _far_from_data_diagnostics(model: CompiledModel, y_calc, y_bkg,
                    "evaluation window), the wavelength, the zero shift and "
                    "the 2θ range, then re-index if the cell is the doubt",
     )]
+
+
+def _data_support_diagnostics(support, model: CompiledModel) -> list[Diagnostic]:
+    """``DATA_SUPPORT_LOW`` and ``PATTERN_UNDERSAMPLED`` (WP-1071).
+
+    The two halves of "does the data support this refinement", from
+    McCusker et al. (1999) §9 and §2.  Both **report and gate nothing**: the
+    numbers are on :class:`~rietx.schemas.results.DataSupport` either way and
+    a fit is never refused for either.
+
+    They differ in what a reader can do about them, which is why they are two
+    codes rather than one.  A low ratio is a statement about *this* refinement
+    — hold parameters, add restraints, or extend the range, and it improves.
+    Undersampling is a statement about the *measurement*, and the only remedy
+    is a finer scan: no choice made afterwards recovers an intensity that was
+    never collected. Hence the levels — the ratio is graded against the
+    paper's own two-part band ("at least three and preferably five") while the
+    sampling flag is one-sided, because more than ten steps per FWHM costs
+    beam time and nothing else.
+    """
+    out: list[Diagnostic] = []
+    ratio = None if support is None else (
+        support.effective_observations_per_parameter)
+    if ratio is not None and ratio < OBS_PER_PARAMETER_PREFERRED:
+        low = ratio < OBS_PER_PARAMETER_MIN
+        out.append(Diagnostic(
+            level="warning" if low else "info", code="DATA_SUPPORT_LOW",
+            message=(
+                f"{ratio:.1f} effective observations per structural parameter "
+                f"({support.n_effective_observations:.1f} from "
+                f"{support.n_unique_reflections} measured reflections, against "
+                f"{support.n_structural_parameters} free) — the guideline is "
+                f"at least {OBS_PER_PARAMETER_MIN:g} and preferably "
+                f"{OBS_PER_PARAMETER_PREFERRED:g}"),
+            suggestion=(
+                "the esds are the place this shows: an over-parameterised "
+                "refinement reports large ones rather than wrong values. Hold "
+                "the least determined parameters (start from the report's "
+                "identifiability section), restrain the geometry, or extend "
+                "the 2θ range — the reflection count, not the point count, is "
+                "what rises"),
+        ))
+
+    steps, n_measured = sampling_steps_per_fwhm(
+        model.tt, model.y_obs, model.sigma)
+    if steps is not None and steps < STEPS_PER_FWHM_MIN:
+        out.append(Diagnostic(
+            level="warning", code="PATTERN_UNDERSAMPLED",
+            message=(
+                f"{steps:.1f} steps across the FWHM (median over {n_measured} "
+                f"fitted peaks) — below the {STEPS_PER_FWHM_MIN:g} the "
+                "guidelines ask for"),
+            suggestion=("a data-collection limit, not a refinement one: the "
+                        "integrated intensities were not measured finely "
+                        "enough and no choice made here recovers them. "
+                        "Re-collect at a step size near FWHM/5 if the "
+                        "intensities have to be quotable"),
+        ))
+    return out
 
 
 def _qpa_unavailable_diagnostics(structure: Structure,

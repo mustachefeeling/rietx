@@ -1046,7 +1046,6 @@ ValueRestraint.sigma
 ValueRestraint.target
 ValueRestraint.weight
 determine_extinction_symbol
-diagnose
 estimate_mu_r
 format_su
 index_pattern
