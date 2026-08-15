@@ -448,6 +448,109 @@ class RestraintReport(Base):
     n_restraints: int
 
 
+class GeometryDistance(Base):
+    """One interatomic distance, bonding or nonbonding (WP-1072).
+
+    ``atom_1`` sits at its published coordinates (``symmetry_1`` is always
+    ``"."``); ``atom_2`` is the image reached by ``symmetry_2``, a CIF
+    ``n_klm`` code against the operation order
+    :func:`~rietx.model.geometry.symmetry_operations` lists and the exported
+    CIF carries.  ``None`` there means the image needs a lattice shift outside
+    the one-digit code, which changes nothing about the distance.
+
+    The rows are **every** asymmetric-unit atom's whole environment, so a bond
+    between two sites appears once from each end and the count of rows naming
+    an atom is its coordination number (see :mod:`rietx.model.geometry` for
+    why that beats the CIF's one-direction convention here, and where the
+    convention is restored).  ``atom_index_*`` index
+    ``structure.phases[phase_index].atoms``, the way ``RestraintRow.atoms``
+    does, so a consumer never has to match on a label.
+
+    ``stderr`` is McCusker §10's number — J·Cov·Jᵀ through the **whole**
+    covariance, ties and cell included.  ``stderr_diagonal`` is the same
+    propagation with the off-diagonal covariance zeroed, i.e. what a reader
+    combining the printed parameter esds in quadrature would get.  It is
+    carried so the difference §10 warns about is visible rather than asserted
+    (the ``qpa.weight_fractions`` precedent), and it is never the answer.
+    Both are ``None`` when no covariance was estimated, and also when nothing
+    the row depends on was refined — an all-zero block is absence of
+    information, not σ = 0.
+    """
+
+    phase_index: int
+    atom_1: str                       # _atom_site_label of the reference atom
+    atom_2: str
+    atom_index_1: int
+    atom_index_2: int
+    distance: float                   # Å
+    stderr: float | None = None       # full covariance
+    stderr_diagonal: float | None = None
+    symmetry_1: str = "."
+    symmetry_2: str | None = "."
+    bonded: bool = True               # covalent-radius criterion (BOND_SLACK_ANG)
+
+
+class GeometryAngle(Base):
+    """One interatomic angle at ``atom_2``, in degrees (WP-1072).
+
+    The vertex is at its published coordinates; the two arms carry their own
+    symmetry codes.  Only bonded arms are used, so a listed angle is one
+    between two members of the vertex's coordination sphere.  esd conventions
+    are :class:`GeometryDistance`'s exactly.
+    """
+
+    phase_index: int
+    atom_1: str
+    atom_2: str                       # the vertex
+    atom_3: str
+    atom_index_1: int
+    atom_index_2: int
+    atom_index_3: int
+    angle: float                      # degrees
+    stderr: float | None = None
+    stderr_diagonal: float | None = None
+    symmetry_1: str | None = "."
+    symmetry_2: str = "."
+    symmetry_3: str | None = "."
+
+
+class GeometryTable(Base):
+    """Bonding geometry of the converged model, with propagated esds (WP-1072).
+
+    The second of McCusker §11's two "most important criteria" — the chemical
+    sense of the structure — as evidence rather than as a verdict: this module
+    computes distances and angles and says nothing about whether they are
+    reasonable.  It is a **carrier** for the same reason
+    :class:`Identifiability` is: the covariance the esds come from is read off
+    the final Jacobian and never serialized, so a stored result carries what
+    was measured at fit close or ``None``.
+
+    Present for Rietveld fits with atoms; ``None`` in Le Bail and Pawley mode,
+    where the dummy atom the mode requires is not a structure.  ``notes``
+    records every place coverage was bounded — a per-atom contact cap, a phase
+    too large to search — because a table that silently stopped early reads
+    exactly like one that found nothing more.
+    """
+
+    distances: list[GeometryDistance] = Field(default_factory=list)
+    angles: list[GeometryAngle] = Field(default_factory=list)
+    #: the listing criteria actually used, so a row can be read without
+    #: knowing which version of the module produced it
+    bond_slack: float = 0.0           # Å, added to the covalent-radius sum
+    contact_max: float = 0.0          # Å, the nonbonding search radius
+    notes: list[str] = Field(default_factory=list)
+
+    @property
+    def bonds(self) -> list[GeometryDistance]:
+        """The bonded subset of :attr:`distances`."""
+        return [d for d in self.distances if d.bonded]
+
+    @property
+    def contacts(self) -> list[GeometryDistance]:
+        """The nonbonded subset of :attr:`distances`."""
+        return [d for d in self.distances if not d.bonded]
+
+
 class IterationRecord(Base):
     stage: str
     iteration: int
@@ -559,6 +662,11 @@ class RefinementResult(Base):
     # otherwise.  Deviations in units of σ surface an over-tight restraint
     # fighting the data even while Rwp looks good.
     restraints: RestraintReport | None = None
+
+    # Bonding geometry with esds propagated through the full covariance
+    # (WP-1072) — see :class:`GeometryTable`.  Rietveld-only, and None when the
+    # result did not come from a fit that had a compiled model to search.
+    geometry: GeometryTable | None = None
 
     # Degeneracy evidence measured on the final Jacobian, which is never
     # serialized — see :class:`Identifiability`.  None when the result did not

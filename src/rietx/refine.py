@@ -29,6 +29,7 @@ from .model.absorption import (
     transmission_intensity_fraction,
 )
 from .model.forward import CompiledModel, Mode, compile_model
+from .model.geometry import geometry_table
 from .model.restraints import summarise_restraints
 from .optimize.cancel import RefinementCancelled
 from .optimize.least_squares import SOLVERS, run_least_squares
@@ -1861,6 +1862,14 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         diagnostics = diagnostics + _restraint_tension_diagnostics(
             restraints_report, structure)
 
+    # Bonding geometry, with esds through the *whole* covariance (WP-1072,
+    # McCusker §10) — built here because that covariance is read off the final
+    # Jacobian and never serialized, the Identifiability carrier argument.  The
+    # table judges nothing; §11's "chemical sense" is the reader's call.
+    geometry = geometry_table(model, table, theta, structure,
+                              stderr_internal=stderr_internal,
+                              correlation=correlation)
+
     # Specimen absorption: report what was applied and, crucially, the Biso
     # bias it removed — for a capillary Rwp is provably unchanged by it, so
     # nothing else in the result would show that the correction did anything.
@@ -1914,7 +1923,7 @@ def _build_result(model: CompiledModel, table: ParameterTable, theta: np.ndarray
         two_theta=model.tt.tolist(), y_obs=model.y_obs.tolist(),
         y_calc=y_calc.tolist(), y_background=y_bkg.tolist(),
         sigma=model.sigma.tolist(),
-        ticks=ticks, qpa=qpa, restraints=restraints_report,
+        ticks=ticks, qpa=qpa, restraints=restraints_report, geometry=geometry,
         phase_agreement=_phase_agreement(model, values, structure),
         data_support=support,
         absorption=absorption, identifiability=identifiability,

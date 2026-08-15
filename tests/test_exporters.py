@@ -7,6 +7,7 @@ structure) — export then re-read is the cheapest correctness test.
 
 from __future__ import annotations
 
+import gemmi
 import numpy as np
 import pytest
 
@@ -296,6 +297,55 @@ def test_refinement_result_arrays_are_faithful(fitted_lab6, tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "_pd_calc_intensity_total" in text
     assert "_pd_proc_intensity_bkg_calc" in text
+
+
+def test_refinement_cif_carries_the_geom_loops(fitted_lab6, tmp_path):
+    """``_geom_bond`` / ``_geom_contact`` / ``_geom_angle``, resolvable as written.
+
+    Two things beyond "the tags are present".  A ``site_symmetry`` code is an
+    index into a *listed* operation order, so the block must also carry
+    ``_space_group_symop_operation_xyz`` — without it the codes point at
+    whatever order a reader's own expansion of the H-M symbol produced.  And
+    the table lists every atom's whole environment while a CIF lists a bond
+    once, so the exporter drops one direction: LaB6's B–La rows must not be in
+    the file beside its La–B ones.
+    """
+    ref, result, data = fitted_lab6
+    out = tmp_path / "geom.cif"
+    ref.write_cif(out)
+    doc = gemmi.cif.read(str(out))
+    block = doc.sole_block()
+
+    ops = list(block.find_loop("_space_group_symop_operation_xyz"))
+    assert ops and ops[0].strip("'\"") == "x,y,z"      # the code 'n' = 1
+    ids = [int(v) for v in block.find_loop("_space_group_symop_id")]
+    assert ids == list(range(1, len(ops) + 1))
+
+    bonds = list(block.find(["_geom_bond_atom_site_label_1",
+                             "_geom_bond_atom_site_label_2",
+                             "_geom_bond_distance",
+                             "_geom_bond_site_symmetry_2"]))
+    assert bonds, "LaB6 has B–B bonds"
+    # esds ride inside the value, the notation every other refined number here
+    # uses; a code names an operation the loop above lists (or is a plain '.')
+    for row in bonds:
+        assert "(" in row[2]
+        code = row[3]
+        assert code == "." or 1 <= int(code.split("_")[0]) <= len(ops)
+
+    pairs = {(row[0], row[1]) for row in bonds}
+    assert not any((b, a) in pairs for a, b in pairs if a != b)
+
+    angles = list(block.find(["_geom_angle_atom_site_label_1",
+                              "_geom_angle_atom_site_label_2",
+                              "_geom_angle_atom_site_label_3",
+                              "_geom_angle"]))
+    assert angles
+    text = out.read_text(encoding="utf-8")
+    assert "_geom_contact_distance" in text
+    # the value tag is the bare '_geom_angle' the dictionary aliases, never a
+    # '_geom_angle_value' invented by prefixing
+    assert "_geom_angle_value" not in text
 
 
 def test_refinement_helpers_smoke(fitted_lab6, tmp_path):
