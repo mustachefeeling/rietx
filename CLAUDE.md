@@ -274,6 +274,20 @@ recent list, and is therefore not behind the 409 (WP-1044).
   (Altomare 1995, overlap-corrected, a float). Its two bands, like
   `background.diagnostics`' five-to-ten steps per FWHM, are **quoted from the
   papers, never tuned**: they set a diagnostic's *level* and nothing else.
+- **A derived quantity's esd goes through the whole covariance, and one that
+  cannot be measured is absent rather than zero** (WP-1072, McCusker §10).
+  `model/geometry.py` propagates J·Cov·Jᵀ off the final Jacobian and carries
+  the diagonal-only number beside it (`qpa.weight_fractions`' precedent) —
+  measured on 11-BM NAC, dropping the correlations moves an esd by ×0.71 to
+  ×1.15, in *both* directions, so a diagonal esd is not the conservative
+  choice. `None` covers all four ways a number is unavailable: no covariance,
+  no free source, a quadratic form that reaches zero by cancelling (a
+  symmetry-fixed 90° angle), and a straight angle, where linear propagation
+  does not hold at all. Two rules for anything built on it: a geometry row
+  **is** a restraint row (σ = weight = 1), so `model/restraints.py` stays the
+  one derivative chain; and a neighbour search is proved complete by **orbit
+  counting** (|A_ij|·m_i = |A_ji|·m_j), never by the distances looking right —
+  a wrong deduplication passed every distance-value test in the file.
 - **A pattern reader may repair a file only where it can say that it did**
   (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
   channel one layer down; four consequences reach a caller outside `io/`. A

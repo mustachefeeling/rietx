@@ -96,7 +96,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # adding any support statistic will otherwise take: `n_points` is the
     # algorithm's N and not the number of observations, and the two bands set a
     # diagnostic's level rather than gating a fit.
-    "CLAUDE.md": 656,
+    # 656 -> 670 for WP-1072 (2026-08-15): the geometry table, and the two
+    # rules under it.  The operating detail went down a rank as this comment
+    # requires — the listing convention, the cutoffs, the CIF tag check and
+    # the NAC numbers are in `model/geometry.py`'s docstring and the WP, the
+    # narrative in the v1.0 record.  What cannot go down a rank is what a
+    # session adding *any* derived quantity will otherwise get wrong twice:
+    # its esd needs the whole covariance (and the diagonal number beside it is
+    # not the conservative choice, it is wrong in either direction), and an
+    # esd that cannot be measured is absent rather than zero.  The orbit-count
+    # clause rides with it because it is the only check that saw the bug.
+    "CLAUDE.md": 670,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
