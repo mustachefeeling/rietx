@@ -90,8 +90,83 @@ Two rules follow, and they are the reason plans exist:
    supplied rather than fitted.
 2. **A correlation above 0.98 means you refined one parameter and reported
    two.** The package raises `HIGH_CORRELATION` when that happens. The answer is
-   almost never to widen the bounds. Fix one of the pair, or extend the data
-   range until the signatures separate.
+   almost never to widen the bounds. Fix one of the pair, extend the data range
+   until the signatures separate, or — where chemistry says the two quantities
+   are the same quantity — constrain them to each other.
+
+## Constraining parameters to each other
+
+A **constraint** makes two parameters one: the dependent leaves the free vector
+and follows its source exactly, so the parameter count drops by one and the
+observation-to-parameter ratio rises. That is different from a restraint, which
+adds an observation (a bond length, say) with a weight and leaves the parameter
+count alone.
+
+Use one where the data cannot separate two quantities and chemistry says they
+need not be separated. The guidelines {cite}`mccusker1999` name two cases:
+equal displacement parameters across atoms in the same environment, and
+occupancies that must sum to a known total.
+
+<!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
+```python
+ref = rx.Refinement(structure, instrument)
+
+# the three oxygens of one phosphate group refine as one B
+ref.tie_equal(["phases.0.atoms.4.biso",
+               "phases.0.atoms.5.biso",
+               "phases.0.atoms.6.biso"])
+
+# a mixed site: occupancies that sum to 1
+ref.tie("phases.0.atoms.1.occ", "phases.0.atoms.0.occ", scale=-1.0, offset=1.0)
+
+ref.untie("phases.0.atoms.*.biso")     # release them again
+```
+
+`Refinement.tie_equal` takes the same fnmatch globs as `set_vary`, and the
+first match in table order carries the freedom while the rest follow it; pass
+`source` to choose a different one. `Refinement.tie` is the general affine
+form, `value = scale·source + offset`, of which `tie_equal` is the
+`scale=1, offset=0` case, and `Refinement.untie` releases them. Each verb
+records a history node, so a constrained refinement replays as one, and a
+project reopens with the constraint still in force.
+
+A tie shows up in the parameter listing as a held row: `refinable` is false,
+`held_because` names the sources, and `TieSpec.user` is true for the ones you
+declared. The ties the space group creates — `b` following `a` in a tetragonal
+cell, a coordinate following its site-symmetry direction — read the same way
+with that flag false, and they cannot be released: symmetry outranks a user tie
+everywhere the two meet.
+
+The verbs refuse rather than approximate. A locked parameter, an already-tied
+one, a source that is itself tied (which would make a chain), a target the
+current intensity mode force-fixes, and an implied value outside the target's
+own bounds are all refused with the reason and the parameter holding it.
+
+:::{admonition} What a constraint buys, and how to check it was earned
+:class: tip
+
+Fluorapatite, the lab dataset of `examples/`, refined with and without the
+three phosphate oxygens' `biso` tied together:
+
+| | free | tied |
+|---|---|---|
+| free parameters | 20 | 18 |
+| observations per parameter | 287.5 | 319.4 |
+| Rwp | 0.097307 | 0.097355 |
+| B(O5) / Å² | 0.2763(1810) | 0.4138(899) |
+| B(O6) / Å² | 0.5279(1911) | 0.4138(899) |
+| B(O7) / Å² | 0.4149(1282) | 0.4138(899) |
+
+The return is precision: the constrained esd is smaller than the best of the
+three free ones. Rwp is not the evidence and cannot be — it moved by 0.05 % of
+itself, which is what "the constraint costs no fit quality" looks like.
+
+The check to run first is in the free column. Each of the three intervals
+contains the tied value, so the free refinement does not contradict the claim
+that these are one parameter. Where the free values disagree by more than
+their esds, the atoms are telling you they are not in the same environment, and
+tying them replaces a measurement with an assumption.
+:::
 
 ## Refinement plans
 

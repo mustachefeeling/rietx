@@ -153,6 +153,35 @@ Two practical consequences:
    almost never "widen the bounds"; it is to fix one, or to extend the data
    range until the signatures separate.
 
+3. **Where chemistry says two quantities are one quantity, constrain them
+   rather than refining both.** `ref.tie_equal([paths])` makes an equality
+   group, `ref.tie(path, source, scale=, offset=)` the general affine form
+   (`occ₁ = 1 − occ₀` on a mixed site is `scale=-1, offset=1`), `ref.untie`
+   releases them. A constraint *removes* a parameter — unlike a restraint,
+   which adds a weighted observation and leaves the count alone — so it is the
+   one move that raises the observation-to-parameter ratio.
+
+   The two cases worth reaching for are the ones McCusker names: equal
+   displacement parameters across atoms in the same environment, and
+   occupancies summing to a known total. Measured on fluorapatite's three
+   phosphate oxygens: 20 → 18 free parameters, 287.5 → 319.4 observations per
+   parameter, and B(O) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) Å² free
+   against 0.4138(899) Å² tied — tighter than the best of the three.
+
+   **Check the premise before you tie, and do not check it with Rwp.** Rwp
+   moved by 0.05 % of itself there, so it can tell you neither that the
+   constraint helped nor that it hurt. The check is in the free refinement: if
+   each free value lies within its own esd of the others, the data does not
+   contradict the claim that they are one parameter. Where they disagree by
+   more than their esds, the atoms are saying they are *not* in the same
+   environment, and tying them replaces a measurement with an assumption.
+
+   Every tie is recorded as a `set_tie` history node and restored by a
+   checkout, so a constrained protocol replays as one. Symmetry always
+   outranks a user tie: a cell axis the space group already ties, a coordinate
+   behind its site-symmetry direction, and a `lebail`/`pawley` mode-fixed path
+   are refused by name rather than silently ignored.
+
 ---
 
 ## 4. Judging a fit — and what Rwp is actually for
