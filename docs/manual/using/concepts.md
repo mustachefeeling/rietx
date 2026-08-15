@@ -404,7 +404,34 @@ the reported figure is a little generous.
 rather than as a gate on it, and a ratio below three is a reason to hold
 parameters rather than a reason the fit is wrong. The sharper question — *which*
 parameter is unsupported, rather than how many the pattern can carry — is the
-identifiability evidence in [the report](report.md).
+identifiability evidence in [the report](report.md). A ratio below five raises
+the `DATA_SUPPORT_LOW` diagnostic, as a warning below three and as information
+between three and five.
+
+### How finely the peaks were sampled
+
+The other half of the question is about the experiment rather than the model.
+There should be at least five steps across the top of each peak, and generally
+not more than ten {cite}`mccusker1999`. Below five, the integrated intensity of
+that reflection was never measured, and no refinement afterwards recovers it.
+
+`PatternDiagnostics.steps_per_fwhm` is that number: the median, over the
+pattern's resolved peaks, of how many channels span the peak's half-height
+width. `PatternDiagnostics.n_peaks_measured` says how many peaks the median was
+taken over. Both come from `diagnose(data)`, which needs no model — so this is a
+question to ask of a file **before** refining it, and the answer does not change
+afterwards:
+
+<!-- api-doc: no-exec — it needs the reader's own pattern -->
+```python
+d = rx.diagnose(data)
+print(d.steps_per_fwhm, "steps per FWHM over", d.n_peaks_measured, "peaks")
+```
+
+A refinement reports the same measurement on its fitted channels, as the
+`PATTERN_UNDERSAMPLED` diagnostic, and only when it falls below five. There is
+no code for the upper end of the band: oversampling costs beam time, not
+validity.
 
 ### What the statistics cannot tell you
 

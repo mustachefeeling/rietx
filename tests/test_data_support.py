@@ -31,6 +31,7 @@ import numpy as np
 import pytest
 
 from rietx import Instrument, PatternData, Refinement
+from rietx.background.diagnostics import sampling_steps_per_fwhm
 from rietx.model.forward import compile_model
 from rietx.optimize.statistics import (
     STRUCTURAL_PARAMETER_GLOB,
@@ -97,6 +98,11 @@ def _compiled(structure, instrument, tt: np.ndarray, *,
     model = compile_model(structure, instrument, blank, mode="rietveld")
     table = ParameterTable(structure, instrument)
     return model, table.decode(table.x0())
+
+
+def _arrays(pattern: PatternData):
+    """``(2θ, y, σ)`` — what :func:`sampling_steps_per_fwhm` takes."""
+    return pattern.tt(), pattern.y(), pattern.sig()
 
 
 def _tick_positions(model, values, ip: int = 0) -> np.ndarray:
@@ -314,6 +320,171 @@ def test_no_reflection_measured_gives_none_not_zero():
     model, _values = _compiled(structure, instrument,
                                np.arange(3.0, 26.0, 0.005))
     assert _effective_from_census(model, []) is None
+
+
+# --------------------------------------------------------------------------
+# steps per FWHM — McCusker §2
+# --------------------------------------------------------------------------
+
+def _sampled(step: float, w: float, *, seed: int = 7) -> PatternData:
+    """A noisy LaB6 pattern at a chosen step size and Gaussian width, so the
+    steps-per-FWHM answer is known before it is measured."""
+    structure, instrument = _lab6()
+    instrument.profile.w.value = w
+    tt = np.arange(3.0, 24.0, step)
+    blank = PatternData(two_theta=tt.tolist(),
+                        intensity=np.zeros_like(tt).tolist())
+    model = compile_model(structure, instrument, blank, mode="rietveld")
+    table = ParameterTable(structure, instrument)
+    y = model.evaluate(table.decode(table.x0()))
+    rng = np.random.default_rng(seed)
+    return PatternData(two_theta=model.tt.tolist(),
+                       intensity=rng.poisson(np.maximum(y, 1.0))
+                       .astype(float).tolist())
+
+
+@pytest.mark.parametrize(("step", "w"), [
+    (0.005, 2.5e-4),    # 3.2 nominal steps per FWHM — undersampled
+    (0.002, 2.5e-4),    # 7.9 — inside the band
+    (0.005, 4.0e-3),    # 12.6 — oversampled
+    (0.002, 4.0e-3),    # 31.6 — heavily oversampled
+])
+def test_steps_per_fwhm_tracks_the_step_size_it_was_collected_at(step, w):
+    """The measurement is checked against a width that was *set*, not fitted.
+
+    √W is the Gaussian FWHM the pattern was generated with, so √W/step is the
+    nominal answer; the measured one runs a few per cent high because the
+    instrument's Lorentzian X and Y broaden the peak beyond the Gaussian part.
+    """
+    got, n = sampling_steps_per_fwhm(*_arrays(_sampled(step, w)))
+    nominal = np.sqrt(w) / step
+    assert n >= 10
+    assert nominal <= got <= 1.1 * nominal
+
+
+def test_the_prominence_floor_is_a_floor_and_not_a_tuning():
+    """5σ and 20σ must give the same answer, or the number is fitted to its
+    own threshold rather than measured (the guard on the guard)."""
+    from rietx.background import diagnostics as diag
+
+    pattern = _sampled(0.005, 2.5e-4)
+    at5, n5 = sampling_steps_per_fwhm(*_arrays(pattern))
+    old = diag.SAMPLING_PROMINENCE_SIGMA
+    try:
+        diag.SAMPLING_PROMINENCE_SIGMA = 20.0
+        at20, n20 = sampling_steps_per_fwhm(*_arrays(pattern))
+    finally:
+        diag.SAMPLING_PROMINENCE_SIGMA = old
+    assert (at20, n20) == (at5, n5)
+
+
+def test_without_the_prominence_floor_a_strong_peak_reads_as_undersampled():
+    """The measured failure the floor exists for: noise on a 10⁵-count peak's
+    own top puts several 5σ maxima across it, and the median width collapses
+    below one step — the *opposite* answer on a pattern that is merely noisy."""
+    from scipy.signal import find_peaks, peak_widths
+
+    from rietx.background.diagnostics import background_envelope
+
+    pattern = _sampled(0.005, 4.0e-3)     # 12.6 nominal: comfortably sampled
+    tt, y, sigma = _arrays(pattern)
+    net = y - background_envelope(tt, y)
+    z = np.where(net > 0, net, 0.0) / sigma
+    bare, _ = find_peaks(z, height=5.0, distance=3)
+    kept, _ = find_peaks(z, height=5.0, distance=3, prominence=5.0)
+    assert len(bare) > len(kept)
+
+    measured, _ = sampling_steps_per_fwhm(tt, y, sigma)
+    unfiltered = float(np.median(
+        peak_widths(np.maximum(net, 0.0), bare, rel_height=0.5)[0]))
+    assert unfiltered < measured
+    assert measured > 10.0
+
+
+def test_diagnose_reports_the_same_number_as_the_function():
+    """One authority: ``PatternDiagnostics.steps_per_fwhm`` is the shared
+    measurement, not a second one taken on the same pattern."""
+    from rietx.background.diagnostics import diagnose
+
+    pattern = _sampled(0.002, 2.5e-4)
+    got = diagnose(pattern)
+    expected, n = sampling_steps_per_fwhm(*_arrays(pattern))
+    assert got.steps_per_fwhm == expected
+    assert got.n_peaks_measured == n
+
+
+def test_a_featureless_pattern_measures_nothing_and_says_so():
+    """No resolved peak means no answer, reported as ``None`` rather than as a
+    zero that would read as catastrophic undersampling."""
+    tt = np.arange(5.0, 60.0, 0.02)
+    rng = np.random.default_rng(3)
+    flat = PatternData(two_theta=tt.tolist(),
+                       intensity=rng.poisson(np.full(tt.shape, 200.0))
+                       .astype(float).tolist())
+    got, n = sampling_steps_per_fwhm(*_arrays(flat))
+    assert got is None and n == 0
+
+
+# --------------------------------------------------------------------------
+# the two diagnostic codes
+# --------------------------------------------------------------------------
+
+def test_undersampling_is_flagged_and_good_sampling_is_not():
+    """``PATTERN_UNDERSAMPLED`` fires below five steps and stays silent above
+    it, including well above ten — the band's upper end costs beam time, not
+    validity, so it is reported and never flagged."""
+    structure, instrument = _lab6()
+    ref = Refinement(structure, instrument, history=False)
+    coarse = ref.fit(_sampled(0.005, 2.5e-4), plan="mccusker_default")
+    _save(coarse, "data_support_undersampled.png")
+
+    structure, instrument = _lab6()
+    fine = Refinement(structure, instrument, history=False).fit(
+        _sampled(0.002, 4.0e-3), plan="mccusker_default")
+    _save(fine, "data_support_oversampled.png")
+
+    assert "PATTERN_UNDERSAMPLED" in {d.code for d in coarse.diagnostics}
+    assert "PATTERN_UNDERSAMPLED" not in {d.code for d in fine.diagnostics}
+
+
+def test_the_ratio_diagnostic_grades_against_the_papers_two_part_band():
+    """``DATA_SUPPORT_LOW`` is a warning below three, information between
+    three and five, and absent above — "at least three and preferably five",
+    read off the *effective* ratio because that is the one the band is about.
+    """
+    from rietx.optimize.statistics import OBS_PER_PARAMETER_MIN, OBS_PER_PARAMETER_PREFERRED
+    from rietx.refine import _data_support_diagnostics
+    from rietx.schemas.results import DataSupport
+
+    structure, instrument = _lab6()
+    model, _values = _compiled(structure, instrument,
+                               np.arange(3.0, 26.0, 0.005))
+    seen = {}
+    for ratio in (1.5, 4.0, 8.0):
+        support = DataSupport(
+            n_unique_reflections=20, n_effective_observations=ratio * 4,
+            n_structural_parameters=4, observations_per_parameter=5.0,
+            effective_observations_per_parameter=ratio)
+        found = [d for d in _data_support_diagnostics(support, model)
+                 if d.code == "DATA_SUPPORT_LOW"]
+        seen[ratio] = found[0].level if found else None
+    assert seen == {1.5: "warning", 4.0: "info", 8.0: None}
+    assert OBS_PER_PARAMETER_MIN == 3.0
+    assert OBS_PER_PARAMETER_PREFERRED == 5.0
+
+
+def test_neither_code_gates_anything():
+    """Both are evidence: the fit that raised them converged, kept its
+    parameters, and carries the numbers on the result either way."""
+    structure, instrument = _lab6()
+    result = Refinement(structure, instrument, history=False).fit(
+        _sampled(0.005, 2.5e-4), plan="mccusker_structural")
+
+    assert result.status == "converged"
+    assert "PATTERN_UNDERSAMPLED" in {d.code for d in result.diagnostics}
+    assert result.data_support is not None
+    assert result.data_support.n_effective_observations > 0
+    assert result.statistics.rwp < 0.5
 
 
 # --------------------------------------------------------------------------

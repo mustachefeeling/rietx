@@ -520,6 +520,14 @@ def count_unique_reflections(model: "CompiledModel",
     return len(_reflection_peaks(model, values))
 
 
+#: The observation/parameter band of McCusker, Von Dreele, Cox, Louër &
+#: Scardi (1999) §9: "the observation/parameter ratio should be at least three
+#: and preferably five".  Quoted, never tuned — these are the paper's numbers
+#: and the only thing this package does with them is say which side of them a
+#: fit landed on.
+OBS_PER_PARAMETER_MIN = 3.0
+OBS_PER_PARAMETER_PREFERRED = 5.0
+
 #: Half-width of a reflection's interval, in its own FWHMs — Altomare et al.
 #: (1995) §2(b), where α = 2 is the default and the paper's own α = 4 check
 #: lands 6.5 % lower on average (max 13.3 %), so α = 2 "provides a value of

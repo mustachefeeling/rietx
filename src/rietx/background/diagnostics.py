@@ -13,9 +13,11 @@ tube) run only when the primary wavelength is supplied.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from pydantic import Field
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, peak_widths
 
 from ..schemas.common import Base
 from ..schemas.pattern import PatternData
@@ -69,6 +71,29 @@ GHOST_RATIO_RANGE = (0.005, 0.6)
 #: line is below noise by construction.
 GHOST_N_PARENTS = 8
 
+#: The sampling band of McCusker, Von Dreele, Cox, Louër & Scardi (1999) §2:
+#: "There should be at least five steps (but generally not more than ten)
+#: across the top of each peak (i.e. step size = FWHM/5)".  The two ends are
+#: **not** the same kind of statement — below the minimum the integrated
+#: intensities were never measured and no refinement can recover them, while
+#: above the maximum the experiment merely spent longer than it needed to.  So
+#: only the lower one is ever flagged; the upper is here because a reader
+#: comparing against the guideline needs both halves of the sentence.
+STEPS_PER_FWHM_MIN = 5.0
+STEPS_PER_FWHM_MAX = 10.0
+
+#: How far a maximum must rise above its flanking saddles, in σ, before the
+#: sampling measurement treats it as a *resolved* peak rather than a bump.
+#: Without it the measurement inverts on exactly the patterns it exists to
+#: judge: on an undersampled synthetic LaB6 (17 reflections, 3.2 steps per
+#: FWHM by construction) plain 5σ detection returns **49** peaks and a median
+#: width of 1.38 steps, because Poisson noise on a 10⁵-count peak puts several
+#: 5σ maxima across its own jagged top.  A spurious maximum's *prominence*
+#: above the saddle beside it is small, which is what separates the two.
+#: Measured at 5 and at 20: identical answers on all four grids of the sweep in
+#: WP-1071's handover, so the number is a floor and not a tuning.
+SAMPLING_PROMINENCE_SIGMA = 5.0
+
 
 class ContaminationFlag(Base):
     """A weak peak consistent with a known contamination line of a strong one."""
@@ -102,6 +127,12 @@ class PatternDiagnostics(Base):
       tabulated Kα1 (:func:`identify_anode`) is silently skipped.
     * ``baseline_lambda`` — the arPLS stiffness the whiteness rule selects
       for this pattern (:func:`rietx.background.select_arpls_lambda`).
+    * ``steps_per_fwhm`` / ``n_peaks_measured`` — how finely the peaks were
+      sampled, and over how many of them
+      (:func:`sampling_steps_per_fwhm`).  ``None`` when no peak was
+      measurable.  This is the one number here about the *experiment* rather
+      than the pattern: below :data:`STEPS_PER_FWHM_MIN` no refinement can
+      repair it, because the counts were never collected.
     """
 
     n_points: int
@@ -115,6 +146,8 @@ class PatternDiagnostics(Base):
     signal_to_background: float
     amorphous_hump_score: float
     air_scatter_gain: float
+    steps_per_fwhm: float | None = None
+    n_peaks_measured: int = 0
     contamination: list[ContaminationFlag] = Field(default_factory=list)
 
 
@@ -201,6 +234,74 @@ def _extrapolate_to_edges(xs: list[float], ys: list[float],
     return xs, ys
 
 
+def _median_steps_per_fwhm(net: np.ndarray, sigma: np.ndarray
+                           ) -> tuple[float | None, int]:
+    """Median channels across the half-height width of ``net``'s peaks.
+
+    ``scipy.signal.peak_widths`` returns the width in **samples**, which is
+    already the quantity §2 asks for — "steps across the top of each peak" —
+    with no conversion and no assumption that the 2θ grid is uniform.  It
+    measures at half the peak's *prominence*, so for an isolated peak on a
+    removed background this is the FWHM, and for one shoulder of an overlapped
+    pair it is the width above the saddle, which is the part of that peak the
+    steps actually resolve.
+
+    Peaks are selected here rather than taken from :func:`diagnose`'s census
+    because the two need different things: a peak *count* wants every line the
+    pattern shows, while a peak *width* wants only lines that are resolved —
+    hence :data:`SAMPLING_PROMINENCE_SIGMA`, without which the measurement
+    reads the noise on a strong peak's own top.
+
+    The median rather than the mean: one clipped width from a peak sitting on
+    a neighbour's flank should not move the answer, and the guideline is about
+    the pattern rather than about its worst line.
+    """
+    z = np.where(net > 0, net, 0.0) / sigma
+    idx, _ = find_peaks(z, height=5.0, distance=3,
+                        prominence=SAMPLING_PROMINENCE_SIGMA)
+    if not len(idx):
+        return None, 0
+    with warnings.catch_warnings():
+        # scipy warns that some peak has zero width, which is exactly the case
+        # dropped on the next line — the filter *is* the handling, so the
+        # warning is noise rather than news.  Matched on the message because
+        # ``PeakPropertyWarning`` is not exported from ``scipy.signal``
+        # (checked on 1.18): a private import would be the more fragile half.
+        warnings.filterwarnings("ignore", message="some peaks have a width of 0")
+        widths = peak_widths(np.maximum(net, 0.0), idx, rel_height=0.5)[0]
+    usable = widths[np.isfinite(widths) & (widths > 0.0)]
+    if not len(usable):
+        return None, 0
+    return float(np.median(usable)), int(len(usable))
+
+
+def sampling_steps_per_fwhm(two_theta: np.ndarray, y: np.ndarray,
+                            sigma: np.ndarray | None = None
+                            ) -> tuple[float | None, int]:
+    """``(steps per FWHM, peaks measured)`` for a pattern — the one authority.
+
+    McCusker et al. (1999) §2 leads with this because undersampling is a
+    data-collection error that no refinement can repair: at fewer than
+    :data:`STEPS_PER_FWHM_MIN` steps across a peak, the integrated intensity of
+    that reflection was never measured, whatever is done to the model
+    afterwards.
+
+    Model-free, like everything else in this module — the peaks are found on
+    the pattern's own net signal over a rolling low-quantile envelope, never
+    from a reflection list.  Two callers share it so the number cannot come
+    out twice differently: :func:`diagnose`, which reports it before any
+    refinement, and ``refine``, which reports it on the **fitted** channels and
+    raises ``PATTERN_UNDERSAMPLED`` from it.
+    """
+    tt = np.asarray(two_theta, dtype=np.float64)
+    counts = np.asarray(y, dtype=np.float64)
+    if len(tt) < 3:
+        return None, 0
+    sig = (np.sqrt(np.maximum(counts, 1.0)) if sigma is None
+           else np.asarray(sigma, dtype=np.float64))
+    return _median_steps_per_fwhm(counts - background_envelope(tt, counts), sig)
+
+
 def diagnose(data: PatternData, *, wavelength: float | None = None,
              baseline_lambda: float | None = None) -> PatternDiagnostics:
     """Compute :class:`PatternDiagnostics` for a raw pattern."""
@@ -237,6 +338,10 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
     lam = (select_arpls_lambda(data).selected if baseline_lambda is None
            else baseline_lambda)
 
+    # the same envelope and net signal this function already computed, so the
+    # sampling number is measured on exactly the pattern reported above
+    steps, n_measured = _median_steps_per_fwhm(net, sigma)
+
     return PatternDiagnostics(
         n_points=len(tt),
         two_theta_min=float(tt[0]), two_theta_max=float(tt[-1]),
@@ -248,6 +353,8 @@ def diagnose(data: PatternData, *, wavelength: float | None = None,
         signal_to_background=float(np.percentile(net, 99.9) / max(med_env, 1e-12)),
         amorphous_hump_score=hump,
         air_scatter_gain=max(air_gain, 0.0),
+        steps_per_fwhm=steps,
+        n_peaks_measured=n_measured,
         contamination=flags,
     )
 

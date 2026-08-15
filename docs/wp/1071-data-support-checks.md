@@ -63,16 +63,17 @@ nothing. Gaps 3 and 9 of the McCusker audit (`../milestones/v1.0.md`
 
 ## Tasks
 
-- [ ] Unique-reflection count over the fitted range (all phases, orbits
+- [x] Unique-reflection count over the fitted range (all phases, orbits
       merged, every emission line's windows — the `ticks` lesson) and the
       structural/total free-parameter split, on `Statistics` or beside it.
-- [ ] The Altomare effective-observation estimate (paper first — corpus,
+      → `DataSupport` beside it, on `RefinementResult.data_support`.
+- [x] The Altomare effective-observation estimate (paper first — corpus,
       then ask), shipped beside the raw count.
-- [ ] Steps per FWHM in `PatternDiagnostics`, with the five-to-ten band
+- [x] Steps per FWHM in `PatternDiagnostics`, with the five-to-ten band
       quoted from §2.
-- [ ] The two diagnostic codes + `AGENT_PROTOCOL.md` rows + manual
+- [x] The two diagnostic codes + `AGENT_PROTOCOL.md` rows + manual
       (`using/concepts.md` § Fit statistics) sentences.
-- [ ] Tests: a synthetic undersampled pattern flags; a severely overlapped
+- [x] Tests: a synthetic undersampled pattern flags; a severely overlapped
       pattern's effective count sits well below its raw count; the
       acceptance protocols' ratios quoted in the handover. PNGs to
       `tests/output/`.
