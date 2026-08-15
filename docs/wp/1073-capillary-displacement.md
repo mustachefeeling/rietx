@@ -119,9 +119,16 @@ audit (`../milestones/v1.0.md` § Appendix).
   letter. First order in |d|/R, the apparent angle at the goniometer centre
   moves by (d·t̂)/R with t̂ = (−sin2θ, cos2θ), giving
   `Δ2θ = (−a·sin2θ + b·cos2θ)/R` with a along the beam (downstream positive)
-  and b perpendicular (positive toward increasing 2θ). That is McCusker's
-  with both axes reversed. The test checks it against an exact ray-circle
-  intersection, and asserts the gap is second order *and non-zero*.
+  and b perpendicular (positive toward increasing 2θ). That equals eq (4)
+  under x = −a, y = −b, which is algebra about the two expressions and not a
+  claim about the paper's axes: **checked, the paper has no figure to
+  supply** — six figures, all profile plots (11 embedded images, exactly the
+  six once the multi-panel ones are counted), and "the respective
+  displacements of the capillary from the centre of the 2θ circle" is the
+  entire definition. Eq (3) has the same gap and survives it because one
+  component plus the Bragg-Brentano convention is unambiguous. The test
+  checks the expression against an exact ray-circle intersection, and asserts
+  the gap is second order *and non-zero*.
 
   **Two premises in the Context above did not survive measurement.**
 
@@ -172,7 +179,37 @@ audit (`../milestones/v1.0.md` § Appendix).
 
   **Numbers**, `[dev]` venv (no jax/torch — every jax/torch row in
   `test_cross_backend.py` self-skipped), darwin/arm64, Python 3.12.12,
-  numpy 2.5.2, package 1.0.0.dev0. `NUMBERS-PENDING`
+  numpy 2.5.2, package 1.0.0.dev0. Fast selection, `main` at `a189de0`:
+  **2365 passed, 112 skipped**; this tree at `153ef00`: **2383 passed, 117
+  skipped** — +18 passed, +5 skipped, +23 collected, and the +23 accounts
+  exactly:
+
+  | where | passed | skipped |
+  |---|---|---|
+  | `test_capillary_displacement.py` (new) | 14 | 0 |
+  | `test_fitreport_layers.py` (the geometry meta-test) | 1 | 0 |
+  | `test_compare_ui.py` (the variant) | 1 | 0 |
+  | `test_cross_backend.py` (`capillary_offsets`, 7 items) | 2 | 5 |
+
+  The cross-backend row's five skips are the four missing-backend ones and
+  **"no axial columns in this config"** — this state frees no FCJ parameter,
+  so the axial-agreement test declines it. Worth stating because it is
+  exactly the trap `tests/CLAUDE.md` names: reading the two runs as +19/+4
+  (the naive "my new tests all pass" count) hides a skip, and the arithmetic
+  only closes when the skip is named.
+
+  Wall clock 2:34 and 2:41 for the two runs, minutes apart on an otherwise
+  idle machine — quote as a range, not a record. vitest **408 passed**
+  (was 407: the wizard parity row now covers a sixth `debye_scherrer`
+  field), `svelte-check` 372 files / 0 errors, Sphinx `-W` clean, ruff clean.
+  The **full** suite, once on the final tree: **2491 passed, 126 skipped**
+  in 24:21, green. It had to fire, and the reason is worth keeping: the
+  offsets themselves cannot move an acceptance number (no acceptance
+  instrument declares a goniometer radius, so both are force-fixed and the
+  forward branch is skipped), but the *report vocabulary* changed on every
+  `debye_scherrer` state, and 11-BM NAC, 11-BM LaB6 and the agent-eval
+  landing states are all capillary. Nothing moved; the acceptance suites
+  read cells and Bisos, not template names.
 
   **Next.** Nothing left in this WP. For **1003**: two `ActionKind` members
   and `THRESHOLDS_VERSION` 1.0 join the frozen surface, and the

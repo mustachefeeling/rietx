@@ -137,7 +137,12 @@ def capillary_displacement_shift_deg(two_theta_deg: np.ndarray, along_mm: float,
     |d|/R the ray leaving a source point d in direction n̂ meets the detector
     circle at R·n̂ + d_⊥, so the angle read at the goniometer centre moves by
     (d·t̂)/R with t̂ = (−sin2θ, cos2θ) the tangential unit vector.  That is the
-    expression above; it is McCusker's with both axes reversed.
+    expression above, and it equals eq (4) under x = −a, y = −b.  Whether the
+    paper *meant* its axes that way is not knowable from it: the six figures
+    are all profile plots, none draws the geometry, and "the respective
+    displacements of the capillary from the centre of the 2θ circle" is the
+    whole definition given.  So the substitution is stated as algebra, and the
+    physical convention is this module's own.
 
     Sign check that needs no algebra: at 2θ = 0 a capillary displaced toward
     the detector's high-angle side (b > 0) puts the direct beam at +b/R, and
