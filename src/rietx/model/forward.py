@@ -69,6 +69,7 @@ from ..crystallography.symmetry import (
 )
 from ..schemas.common import Mode
 from ..schemas.instrument import (
+    CAPILLARY_OFFSETS,
     BackgroundChebyshev,
     BackgroundFixedPlusChebyshev,
     BackgroundPSpline,
@@ -82,6 +83,7 @@ from .absorption import (
     flat_plate_transmission_absorption,
 )
 from .corrections import (
+    capillary_displacement_shift_deg,
     displacement_shift_deg,
     lorentz_polarization,
     surface_roughness_pitschke,
@@ -303,6 +305,18 @@ class CompiledModel:
             shift = shift + displacement_shift_deg(theta, s, self.radius_mm)
             t = values["instrument.geometry.sample_transparency"]
             shift = shift + transparency_shift_deg(tt_bragg, t)
+        elif self.geometry_kind == "debye_scherrer" and self.radius_mm:
+            # McCusker eq (4).  Unconditional inside the branch for the same
+            # reason as the flat-plate pair: a = b = 0 contributes an exact ±0.
+            # The radius test *is* structural — a capillary instrument with no
+            # declared R cannot carry a non-zero offset (Geometry's validator)
+            # and cannot free one (ParameterTable), so both offsets are
+            # identically 0 here and skipping the term changes no number.
+            shift = shift + capillary_displacement_shift_deg(
+                tt_bragg,
+                values[f"instrument.geometry.{CAPILLARY_OFFSETS[0]}"],
+                values[f"instrument.geometry.{CAPILLARY_OFFSETS[1]}"],
+                self.radius_mm)
         return shift
 
     def _absorption(self, tt_bragg: np.ndarray) -> np.ndarray | float:
@@ -796,6 +810,11 @@ class CompiledModel:
         if path in ("instrument.zero_shift", "instrument.polarization"):
             return True
         if path.startswith("instrument.geometry.sample_"):
+            return True
+        # the two eq (4) offsets move the peak *position* and nothing else, so
+        # they ride the same chain.  Spelled out rather than folded into a
+        # prefix for the surface-roughness reason below.
+        if path in tuple(f"instrument.geometry.{n}" for n in CAPILLARY_OFFSETS):
             return True
         # surface roughness scales the per-peak intensity and nothing else, so
         # it rides the same chain.  Spelled out rather than left to the
@@ -1292,6 +1311,12 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
             t = geom.sample_transparency.value
             if t != 0.0:
                 shift = shift + transparency_shift_deg(tt_bragg, t)
+        elif geom.kind == "debye_scherrer" and geom.goniometer_radius_mm:
+            a = getattr(geom, CAPILLARY_OFFSETS[0]).value
+            b = getattr(geom, CAPILLARY_OFFSETS[1]).value
+            if a != 0.0 or b != 0.0:
+                shift = shift + capillary_displacement_shift_deg(
+                    tt_bragg, a, b, geom.goniometer_radius_mm)
         return shift
 
     # Anomalous scattering: f′ + i·f″ per species, frozen for the stage.  The
