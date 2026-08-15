@@ -1,6 +1,8 @@
 # WP-1070 — User-facing constraints: ties on the Refinement surface
 
-Milestone: v1.0 · Status: ⬜
+Milestone: v1.0 · Status: ✅ 2026-08-15 — `tie`/`tie_equal`/`untie` on the
+`Refinement` surface, recorded as a `set_tie` node and restored by checkout and
+`Project.open`; the analytic Jacobian gated on the reach each branch covers
 Depends on: WP-1004 (the parameter surface this extends) — recommended
 **before 1003**: recording a tie edit adds a member to the closed `NodeKind`
 literal, which is free before the freeze and a versioned history-format
@@ -70,19 +72,23 @@ round-trip, and visible in `parameters()`. Gap 2 of the McCusker audit
 
 ## Tasks
 
-- [ ] The verbs on `Refinement` (equality group, affine pair, untie), each
+- [x] The verbs on `Refinement` (equality group, affine pair, untie), each
       auto-committing its history node; the `NodeKind` member; checkout/
       replay restores tie state (round-trip test through JSONL and
       `Project.open`).
-- [ ] Refusal semantics: locked/mode_fixed/tied targets, chains, and the
+- [x] Refusal semantics: locked/mode_fixed/tied targets, chains, and the
       symmetry-outranks-user rule, each with the holder named in the
       message and a test quoting it.
-- [ ] esd propagation on tied rows, pinned against the cell-tie behaviour.
-- [ ] The measured equal-Biso story on a real protocol, in the handover and
+- [x] esd propagation on tied rows, pinned against the cell-tie behaviour.
+- [x] The measured equal-Biso story on a real protocol, in the handover and
       as an acceptance-grade test.
-- [ ] Surfaces: `parameters()` rows, `.rxt` rendering, manual
+- [x] Surfaces: `parameters()` rows, `.rxt` rendering, manual
       (`using/concepts.md` § parameter groups), `AGENT_PROTOCOL.md` row.
-- [ ] Tests + obs/calc/diff PNGs to `tests/output/`.
+- [x] Tests + obs/calc/diff PNGs to `tests/output/`.
+- [x] **Added in flight**: gate the analytic Jacobian on the reach each
+      branch covers, and a `families_tied` cross-backend row — a tie is a
+      new derivative path and the numpy assembly dispatches on the free
+      path's own *name*.
 
 ## Acceptance
 
@@ -100,6 +106,95 @@ round-trip, and visible in `parameters()`. Gap 2 of the McCusker audit
   surface contract this extends).
 
 ## Handover log
+
+- **2026-08-15** — **closed.** `Refinement.tie` / `tie_equal` / `untie` land,
+  recorded as a new `set_tie` `NodeKind` and restored by checkout, replay,
+  `branch` and `Project.open`.
+
+  **Done.** All six planned tasks, plus one the plan did not have (below).
+  `_ties` on the `Refinement` is the one authority for *which* ties are the
+  user's — the symmetry ties are rederived by every `ParameterTable` build and
+  are absent from it, which is what `untie` and the new `TieSpec.user` read.
+  `_apply_ties` re-declares them on every table build and is the one place
+  "symmetry outranks a user tie" can be violated (a tie declared while a path
+  was free, then an `edit` that makes that path symmetry-tied); it skips rather
+  than overwrites, and `edit` — the recorded verb that can create the collision
+  — prunes the register against the model it accepts, so the node carries the
+  reconciled state and the warning is said once.
+
+  **The task the plan did not have, and the reason it mattered.** The analytic
+  Jacobian dispatches on the free path's own *name* (`_make_jacobian`'s if/elif
+  chain), and each branch computes only the rows it was written for: the
+  background branch writes one design row, `_structural_column` reads one
+  atom's x/y/z off C, `_peak_chain_column` picks the phases to re-derive out of
+  the path's `phases.N.` prefix. That was exact while the only ties were the
+  derived ones, which never reach outside their own branch. A user tie does,
+  and the failure is silent — the column comes back short. So `_column_extras`
+  reads off C what each free column also moves, and each branch declares the
+  reach it covers; beyond it the column falls to the whole-model FD fallback,
+  which is exact because it decodes through C. `_peak_chain_column` is widened
+  rather than gated (it takes the union of phases C touches), so a cross-phase
+  tie keeps an analytic column. **Untied columns have empty extras, so every
+  existing model dispatches exactly as before** — the bit-identity goldens are
+  unchanged.
+
+  **Measured, `[dev]` on darwin/arm64** (fits are deterministic; only wall
+  clock is machine state):
+
+  - Jacobian: with `atoms.1.biso` tied to `atoms.0.biso` the biso column moves
+    by 111.8 against its own scale of 1366 (8 %) and still matches a
+    central-difference reference to 2.2e-7 relative. With `background.c1` tied
+    to `c0` the **un-gated** background branch would have been wrong by 0.211
+    against a column scale of 0.435 — 49 % — while the gated FD column agrees
+    to 1.5e-5. The tests assert *additivity* rather than FD agreement: an FD
+    reference cannot separate a gated column from an un-gated one where the
+    gate's answer **is** that finite difference.
+  - `families_tied` cross-backend row green on all seven methods (analytic vs
+    fd / jax / torch / numpy+fp32 / jax+fp32 / torch+fp32), 12.5 s, measured in
+    a **throwaway `[dev,jax,torch]` venv** outside the checkout — the
+    checkout's own `[dev]` venv runs three and skips four.
+  - The §7 story, FAP, GSAS protocol, 5750 channels both runs: free parameters
+    20 → 18, observations/parameter 287.5 → 319.4, Rwp 0.097307 → 0.097355,
+    B(O5/O6/O7) 0.2763(1810) / 0.5279(1911) / 0.4149(1282) free against
+    0.4138(899) tied. The tied esd beats the best free one (0.1282) **and**
+    their inverse-variance combination (0.0917) — the second comparison is the
+    one worth keeping, because beating only the first is consistent with
+    dividing by √N.
+  - Counts, `[dev]`, macOS, this branch: fast suite **2315 passed, 112
+    skipped** in 2:54–3:30 against main's 2285/108 — +34 = 30 passes and 4
+    skips, the skips being `families_tied`'s jax/torch rows on a numpy-only
+    venv. Full suite: see the entry's end.
+
+  **Two decisions made out loud.**
+
+  1. **`.rxt` gets no tie line, and `FORMAT_VERSION` does not move.** A user
+     tie already renders as the `= …` annotation the derived ones use, and it
+     is read-only there. A tie *declaration* would need an edit the delta
+     cannot see: annotations are regenerated from state on every render and
+     omission means "no opinion", so a deleted `= …` and an untouched document
+     are the same text — "release this tie" and "I did not type here" would be
+     one edit. The verbs stay the only way in.
+  2. **No `capabilities()` flag and no `refine_json` arm.** `_SURFACE_FLAGS`
+     maps a flag to a top-level export in `__all__` and these are methods, so
+     there is no honest derived predicate to add; the agent arm was already a
+     stated non-goal. Filed into 1003's mailbox as the asymmetry it is.
+
+  **Gotchas for whoever is next.**
+
+  - `documented_names()` in `tests/test_manual_api.py` scans code spans with a
+    newline-free regex, so a span broken across a line feed mispairs every
+    backtick after it and the names inside are silently **not** documented.
+    `Refinement.untie` reached the deferred file that way before the line was
+    rewrapped. Rewrap, do not fight the partition.
+  - A tie **changes the dependent's value immediately** (`refresh_ties` +
+    `apply_to_models`), so `result_` is invalidated. That is deliberate: the
+    alternative leaves the models describing a pre-tie state until the next
+    stage recompiles.
+  - An untied parameter comes back **held**, not free. Releasing a constraint
+    is not a decision to refine.
+  - `test_acceptance_fap.py` now has a module-scoped `fap_fit` fixture and an
+    `xdist_group("fap")`; a new row there must not mutate the returned
+    `Refinement`.
 
 - **2026-08-15** — created from the McCusker audit (WP-1068); gap 2, the
   largest.
