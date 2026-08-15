@@ -117,7 +117,17 @@ SIZE_CAPS: dict[str, int | None] = {
     # parameter), a parameter the forward branch skips must be force-fixed
     # rather than merely unfree, and the evidence for a position correction is
     # a stage rung rather than the converged report.
-    "CLAUDE.md": 683,
+    # 683 -> 700 for WP-1074 (2026-08-16): the restraint weight schedule.  The
+    # operating detail went down a rank as this comment requires — the c_w
+    # measurements are in the WP and the manual, the seam's own reasoning in
+    # `CompiledModel.restraint_weight_scale`'s field comment.  What cannot go
+    # down a rank is the constraint on a file a session edits for other
+    # reasons: `model/restraints.py` has a second consumer that is not a
+    # restraint, so anything weighting a restraint row belongs at the row build
+    # and not in the shared partials function — the geometry esds are built
+    # from that function's output at unit weight, and no distance-value test
+    # in the package would notice them all moving by a constant factor.
+    "CLAUDE.md": 700,
     "docs/ROADMAP.md": 400,
     "gui/CLAUDE.md": 580,
     # 180 -> 198 for WP-1070 (2026-08-15): the running ladder.  It is a rule
