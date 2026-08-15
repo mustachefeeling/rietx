@@ -35,6 +35,7 @@ Differentiability invariants honoured here (see docs/DESIGN.md):
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -270,6 +271,20 @@ class CompiledModel:
     # the data/penalty/Pawley rows in the residual, in the covariance but out
     # of Rwp/DW/Bérar-Lelann (WP-0406).
     restraints: "CompiledRestraints | None" = None
+    # c_w of McCusker eq (7) for this stage: every restraint row is multiplied
+    # by √c_w, so S_G as a whole is weighted by c_w against the diffraction
+    # data (WP-1074).  A compile-time scalar, like ``shape`` and ``mu_r`` and
+    # for the same reason — a schedule changes it *between* stages, never
+    # within one.  1.0 is the identity.
+    #
+    # It is applied where the rows are assembled — ``restraint_residual`` here
+    # and the analytic block in ``optimize.least_squares`` — and deliberately
+    # NOT on the compiled items or inside ``restraints.restraint_partials``:
+    # ``model.geometry`` calls that function with sigma = weight = 1 precisely
+    # to get unweighted ∂(distance or angle)/∂p, and every reported geometry
+    # esd is built from them.  Scaled there, all of them would come back ×√c_w
+    # with no test failing that a reader would connect to the change.
+    restraint_weight_scale: float = 1.0
     meta: dict = field(default_factory=dict)
 
     # ------------------------------------------------------------------
@@ -1176,16 +1191,28 @@ class CompiledModel:
         return get_backend().matmul(self.pawley.restraint, vec)
 
     def restraint_residual(self, values: dict) -> np.ndarray | None:
-        """√w·(computed − target)/σ soft-restraint rows appended below the data
-        (and background-penalty / Pawley) rows, or None when off (WP-0406).
+        """√(c_w·w)·(computed − target)/σ soft-restraint rows appended below the
+        data (and background-penalty / Pawley) rows, or None when off (WP-0406).
 
         Traceable in ``xp``: the bond/angle geometry is one differentiable
         function of the decoded coordinates and cell, so jacfwd differentiates
         these rows automatically alongside the data rows.
+
+        This is one of the **two** places :attr:`restraint_weight_scale` is
+        applied — the residual row build; the other is the analytic Jacobian
+        block in ``optimize.least_squares``.  Both scale the assembled rows and
+        neither touches ``restraints.restraint_partials``, which
+        ``model.geometry`` calls at unit weight to get *unweighted* ∂/∂p for the
+        reported esds (WP-1074; see the field comment).  √ because eq (7) scales
+        the sum of squares S_G, and these rows are what is squared.
         """
         if self.restraints is None:
             return None
-        return restraint_residual(self.restraints, values)
+        rows = restraint_residual(self.restraints, values)
+        if self.restraint_weight_scale == 1.0:
+            return rows
+        # scalar on the right: a python float, so no backend routing question
+        return rows * math.sqrt(self.restraint_weight_scale)
 
     def build_pawley_restraint(self, lam: float = PAWLEY_OVERLAP_LAMBDA) -> None:
         """Build the equal-split restraint rows for the current intensities.
@@ -1261,13 +1288,21 @@ class DerivativeBases:
 def compile_model(structure: Structure, instrument: Instrument, pattern: PatternData,
                   *, mode: Mode = "rietveld",
                   two_theta_limits: tuple[float, float] | None = None,
-                  free_paths: set[str] | None = None) -> CompiledModel:
+                  free_paths: set[str] | None = None,
+                  restraint_weight_scale: float = 1.0) -> CompiledModel:
     """Freeze reflection lists, orbits, windows and FCJ nodes for one stage.
 
     ``free_paths`` (the parameters the coming stage will refine) only affects
     *sizing* decisions: when the axial parameters are free, FCJ nodes are
     allocated even if their current values are still zero.
+
+    ``restraint_weight_scale`` is the coming stage's c_w (McCusker eq 7),
+    frozen onto the model like every other discrete choice; 1.0 is the identity
+    and is what every caller outside the staged runner passes.
     """
+    if restraint_weight_scale < 0.0:
+        raise ValueError(
+            f"restraint_weight_scale must be >= 0 (got {restraint_weight_scale})")
     mask = pattern.in_range_mask()
     tt_all, y_all, s_all = pattern.tt(), pattern.y(), pattern.sig()
     if two_theta_limits is not None:
@@ -1469,6 +1504,7 @@ def compile_model(structure: Structure, instrument: Instrument, pattern: Pattern
                    if geom.surface_roughness is not None and mode == "rietveld"
                    else None),
         pawley=pawley, restraints=restraints,
+        restraint_weight_scale=float(restraint_weight_scale),
     )
 
 

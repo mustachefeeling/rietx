@@ -47,6 +47,19 @@ class Stage:
     #: identity-transform, and their pathology at zero is the *exploding*
     #: gradient of √Σ rather than the softplus's dead one.  0 = no seed.
     strain_seed: float = 0.0
+    #: c_w of McCusker eq (7), S = S_y + c_w·S_G: how heavily this stage weights
+    #: the geometric 'observations' (every soft restraint the phases declare)
+    #: against the diffraction data.  The paper's prescription is a *schedule* —
+    #: "set high at the beginning of a refinement when the structure is
+    #: incomplete or only approximately correct … then reduced during the course
+    #: of the refinement as the structural model improves" — and a stage is what
+    #: this package changes a discrete quantity between, so the schedule is one
+    #: scalar per stage.  Constant within the stage, applied at its compile:
+    #: frozen-per-stage discreteness as designed, not an exception to it.
+    #: 1.0 is the identity (every pre-WP-1074 fit); 0.0 keeps the rows in the
+    #: layout at zero magnitude rather than removing them, so the row count —
+    #: and the statistics exclusion built on it — does not change mid-plan.
+    restraint_weight_scale: float = 1.0
 
 
 #: Surface roughness (WP-0502) goes **last** in every plan that carries it.

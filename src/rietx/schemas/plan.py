@@ -46,19 +46,25 @@ class StageSpec(Base):
     strain_seed: float = Field(0.0, description=(
         "microstrain (ppm) to seed an all-zero Stephens block onto the "
         "isotropic ray (exploding-gradient pathology — the opposite fix)"))
+    restraint_weight_scale: float = Field(1.0, ge=0.0, description=(
+        "c_w of McCusker eq (7), S = S_y + c_w·S_G: this stage's weight on the "
+        "geometric restraints against the diffraction data; high early, "
+        "reduced as the model improves.  1.0 = no scaling"))
 
     @classmethod
     def from_stage(cls, stage: Any) -> "StageSpec":
         return cls(name=stage.name, turn_on=list(stage.turn_on),
                    max_iter=stage.max_iter, lebail_cycles=stage.lebail_cycles,
-                   seed=stage.seed, strain_seed=stage.strain_seed)
+                   seed=stage.seed, strain_seed=stage.strain_seed,
+                   restraint_weight_scale=stage.restraint_weight_scale)
 
     def to_stage(self) -> Any:
         from ..strategy.staged import Stage
 
         return Stage(name=self.name, turn_on=list(self.turn_on),
                      max_iter=self.max_iter, lebail_cycles=self.lebail_cycles,
-                     seed=self.seed, strain_seed=self.strain_seed)
+                     seed=self.seed, strain_seed=self.strain_seed,
+                     restraint_weight_scale=self.restraint_weight_scale)
 
 
 class PlanSpec(Base):

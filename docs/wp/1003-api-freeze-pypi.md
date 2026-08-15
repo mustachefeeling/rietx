@@ -14,6 +14,26 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1074](1074-restraint-weight-schedule.md), 2026-08-16 — four additive
+fields on the frozen surface, and one derivation that removes a listing.**
+`Stage.restraint_weight_scale` (the dataclass; McCusker eq 7's c_w, default
+1.0), mirrored by `StageSpec` and `NodeAction` — additive and defaulted, so
+`SCHEMA_VERSION` stands on 1069's precedent — and `RestraintReport.weight_scale`,
+which exists because a `RefinementResult` carries no plan and `restraint_chi2`'s
+documented meaning ("the penalty the restraints add to the cost") is otherwise
+false under a schedule. `compile_model` gained a keyword of the same name.
+`THRESHOLDS_VERSION` did **not** move: no `ActionKind`, template or threshold
+changed.
+
+**The `.rxt` grammar gained a stage key without a `FORMAT_VERSION` bump**, on
+the events precedent — no line's meaning changed and every older document still
+parses. Worth a look at freeze time because it is now *derived*:
+`gui.textdoc.STAGE_KEYS` is `StageSpec.model_fields` minus the two positional
+ones, so the frozen `StageSpec` and the frozen document grammar are one
+decision, not two. Before this WP they were the same tuple written out in the
+renderer and again in the parser, and a field missing from both is a value
+dropped on every save rather than a rendering gap.
+
 **From [1073](1073-capillary-displacement.md), 2026-08-15 — a 1.0.x correction
 that nonetheless moved the frozen surface, and one asymmetry to ratify.**
 `Geometry.capillary_offset_along_beam` / `…_across_beam` (additive, defaulted,

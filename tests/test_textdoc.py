@@ -393,6 +393,32 @@ def test_a_stage_line_carries_its_seeds(project):
     assert (stage["seed"], stage["strain_seed"]) == (0.0001, 1e-06)
 
 
+def test_a_stage_line_round_trips_every_key_stage_spec_has(project):
+    """The keys are derived from ``StageSpec``, so this is the whole set at once.
+
+    A field the grammar does not know is not a rendering gap: it renders
+    nowhere, parses nowhere, and is therefore dropped by every save — which is
+    what happened to ``strain_seed`` one rank up (``schemas/plan.py``).  Pinned
+    against the *model*, so the next field added fails here until the derivation
+    is what carries it.
+    """
+    from rietx.schemas.plan import StageSpec
+
+    assert set(td.STAGE_KEYS) | {"name", "turn_on"} == set(StageSpec.model_fields)
+    non_default = {"max_iter": 40, "lebail_cycles": 5, "seed": 0.0001,
+                   "strain_seed": 1e-06, "restraint_weight_scale": 25.0}
+    assert set(non_default) == set(td.STAGE_KEYS), "a key has no value to try"
+
+    line = "stage every  free phases.*.cell.*   " + "   ".join(
+        f"{k} {non_default[k]}" for k in td.STAGE_KEYS)
+    delta, errors = _changes(_edit(td.render(project), "stage", line, which=0),
+                             project)
+    assert errors == []
+    stage = delta.plan["plan"]["stages"][0]
+    for key, value in non_default.items():
+        assert stage[key] == value, key
+
+
 # ----------------------------------------------------------------------
 # refusals, every one with a line number
 # ----------------------------------------------------------------------

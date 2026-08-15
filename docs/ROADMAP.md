@@ -61,35 +61,34 @@ size caps on this file and CLAUDE.md.
 
 ## Current focus
 
-**Every McCusker compliance WP recommended before the freeze has landed, so
-[1003](wp/1003-api-freeze-pypi.md) is next and its sequencing question is
-closed.** The set came out of [1068](wp/1068-manual-second-pass.md)'s reading
-(✅): nine gaps, no correctness defect — the six WPs of the v1.0 record's
-§ "The McCusker compliance set". Five are done:
-[1069](wp/1069-structure-r-factors.md) (R_Bragg and R_F per phase, the esd
-method stated), [1070](wp/1070-user-facing-constraints.md) (the tie verbs the
-paper asks for four times), [1071](wp/1071-data-support-checks.md) (an
-overlap-corrected observation count, steps per FWHM),
-[1072](wp/1072-geometry-table.md) (distances and angles with esds through the
-whole covariance, and the CIF `_geom_` loops), and
-[1073](wp/1073-capillary-displacement.md) (eq 4 for a capillary; templates and
-actions keyed by geometry, `THRESHOLDS_VERSION` 1.0); only
-[1074](wp/1074-restraint-weight-schedule.md) is left, and it is 1.0.x. **A
-closing session leaves what it added to the frozen surface, and each asymmetry
-left to ratify, in 1003's `### Inherited`, and its narrative in the v1.0
-record** — where 1065's and 1066's freeze consequences already are.
+**The McCusker compliance set is complete, and
+[1003](wp/1003-api-freeze-pypi.md) — API freeze and PyPI — is what is left.**
+The set came out of [1068](wp/1068-manual-second-pass.md)'s reading (✅): nine
+gaps, no correctness defect, six WPs — [1069](wp/1069-structure-r-factors.md),
+[1070](wp/1070-user-facing-constraints.md),
+[1071](wp/1071-data-support-checks.md), [1072](wp/1072-geometry-table.md),
+[1073](wp/1073-capillary-displacement.md) and
+[1074](wp/1074-restraint-weight-schedule.md), all closed. The index table
+carries what each landed; their narratives are in the v1.0 record.
 
-Four standing rules landed with them, all in CLAUDE.md § Invariants: 1070's —
-an analytic Jacobian branch is a claim about what one parameter *name* reaches;
-1071's — the observation count is reflections, not points, and it gates nothing;
-1072's — a derived quantity's esd goes through the whole covariance, and one
-that cannot be measured is absent rather than zero; 1073's — a position
-correction belongs to a geometry, as does the action naming it. 1066's naming
-rule is next: from [1062](wp/1062-rename.md), paid out by [1066](wp/1066-rename.md), package,
-import, CLI and state dir are `rietx` while the on-disk tokens are brand-free
-(`.rex`, `.rxt` with header `rxt N`, `instrument_profile`) and survived both
-renames unchanged. Never spell either kind — import from `_about.py`, because
-`test_no_stale_name.py` greps the **old** tokens, blind to a hardcoded new one.
+**What 1003 inherits is in its own `### Inherited`**, and it is now the whole
+list: every field the six added to the frozen surface, the one
+`THRESHOLDS_VERSION` move (0.9 → 1.0, from 1073), and the two asymmetries left
+to ratify — 1073's `flat_plate_transmission` position rows, and the `.rxt`
+stage grammar, which 1074 made a *derivation* of `StageSpec` rather than a
+second listing, so freezing the schema now freezes the document format with it.
+
+**Five standing rules landed with the set, one per WP from 1070 on, and they
+are in CLAUDE.md § Invariants** rather than restated here — what a Jacobian
+branch's name claims to reach, what the observation count is and does not gate,
+how a derived esd is propagated and when it is absent, which geometry owns a
+position correction, and where a restraint weight may be applied.
+
+1066's naming rule stands beside them: package, import, CLI and state dir are
+`rietx` while the on-disk tokens are brand-free (`.rex`, `.rxt` with header
+`rxt N`, `instrument_profile`) and survived both renames unchanged. Never spell
+either kind — import from `_about.py`: `test_no_stale_name.py` greps the **old**
+tokens, blind to a hardcoded new one.
 
 ## Milestones
 
@@ -350,7 +349,7 @@ the freeze decides.
 | [1071](wp/1071-data-support-checks.md) | Effective observations and steps per FWHM | ✅ | — (before 1003 recommended) |
 | [1072](wp/1072-geometry-table.md) | Interatomic geometry, esds from the full covariance | ✅ 2026-08-15 — distances and angles over the frozen orbits, J·Cov·Jᵀ with the diagonal-only twin beside it, `_geom_` CIF loops | — (landed before 1003) |
 | [1073](wp/1073-capillary-displacement.md) | Capillary sample displacement, eq (4) | ✅ 2026-08-15 — eq (4) with derived signs, position templates and actions keyed by geometry (THRESHOLDS 1.0); measured: 11-BM is where it must *not* be refined | — (1.0.x) |
-| [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ⬜ | 0406 (1.0.x) |
+| [1074](wp/1074-restraint-weight-schedule.md) | Restraint weight schedule (c_w) | ✅ 2026-08-16 — eq (7)'s c_w per stage, identity default bit-identical; measured: a flat c_w = 1 converges to a 4.834 Å bond at Rwp 0.0393, the schedule to 1.872 Å at 0.0327 | 0406 (1.0.x) |
 
 ## v2+ (seams pre-built, implementations fenced out)
 

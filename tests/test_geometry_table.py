@@ -35,7 +35,7 @@ from rietx.model.forward import compile_model
 from rietx.model.geometry import geometry_table, symmetry_operations
 from rietx.model.restraints import _metric_g
 from rietx.params.vector import ParameterTable
-from rietx.schemas.structure import Structure
+from rietx.schemas.structure import BondRestraint, Structure
 from tests.test_acceptance_qpa_roundrobin import (
     corundum_phase,
     fluorite_phase,
@@ -209,7 +209,8 @@ def test_symmetry_code_regenerates_the_image_it_names():
 # ----------------------------------------------------------------------
 # the esds (McCusker §10)
 # ----------------------------------------------------------------------
-def _rutile_with_covariance(rho: float = 0.6):
+def _rutile_with_covariance(rho: float = 0.6, *, restraints=(),
+                            restraint_weight_scale: float = 1.0):
     """Rutile with a planted correlated covariance on (a, c, O-DOF).
 
     A planted covariance rather than a fitted one, so the propagation is
@@ -217,8 +218,12 @@ def _rutile_with_covariance(rho: float = 0.6):
     transform so the internal→physical chain rule is exercised too, and the
     tetragonal ``b ← a`` tie plus the 4f site's single DOF (x and y move
     together) make the affine block non-trivial.
+
+    ``restraints``/``restraint_weight_scale`` exist for the WP-1074 seam pin
+    below: they change the compiled *model* and must change nothing here.
     """
     structure = make_rutile(vary_coords=True)
+    structure.phases[0].restraints = list(restraints)
     structure.phases[0].cell.a.transform = "softplus"
     table = ParameterTable(structure, LAB)
     table.set_vary(["*"], False)
@@ -231,7 +236,8 @@ def _rutile_with_covariance(rho: float = 0.6):
     correlation = np.array([[1.0, rho, -rho],
                             [rho, 1.0, rho / 2],
                             [-rho, rho / 2, 1.0]])
-    model = compile_model(structure, LAB, _blank(), mode="rietveld")
+    model = compile_model(structure, LAB, _blank(), mode="rietveld",
+                          restraint_weight_scale=restraint_weight_scale)
     return model, structure, table, theta, stderr_internal, correlation
 
 
@@ -264,6 +270,47 @@ def test_esd_matches_a_monte_carlo_through_decode():
     mc = samples.std(axis=0, ddof=1)
     for row, sigma in zip(rows, mc, strict=True):
         assert row.stderr == pytest.approx(sigma, rel=0.05)
+
+
+def test_a_stage_restraint_scale_never_reaches_the_geometry_esds():
+    """WP-1074's seam: a stage's c_w must not reach these esds.
+
+    The geometry table calls ``restraint_partials`` with σ = weight = 1 so its
+    ``pref`` is 1 and the partials come back unweighted — that is the whole
+    reason those numbers are ∂(distance)/∂p and not ∂(row)/∂p.  A stage c_w
+    reaching them would scale every esd by √c_w (×10 at the c_w = 100 below)
+    while leaving the distances and the ``stderr/stderr_diagonal`` ratio alone.
+
+    This and the Monte Carlo above cover different halves, which was measured
+    rather than assumed by injecting both bugs.  An **unconditional** error in
+    ``pref`` (a bare factor) fails the Monte Carlo and passes here, because
+    both sides of this comparison carry it.  A leak **conditioned on the
+    model** — c_w threaded into the partials, the case this WP creates the
+    opportunity for — passes the Monte Carlo, whose fixture declares no
+    restraints and runs at c_w = 1, and fails here.  Neither test alone is the
+    guard the WP-1072 mailbox expected.
+    """
+    def table_of(**kw):
+        model, structure, table, theta, sd, corr = _rutile_with_covariance(**kw)
+        return model, geometry_table(model, table, theta, structure,
+                                     stderr_internal=sd, correlation=corr)
+
+    _, plain = table_of()
+    model, scaled = table_of(
+        restraints=[BondRestraint(atom_i=0, atom_j=1, target=1.95, sigma=0.01)],
+        restraint_weight_scale=100.0)
+    # the model really is carrying both, or the pin is vacuous
+    assert model.restraints is not None and model.restraint_weight_scale == 100.0
+
+    for a, b in zip(plain.distances, scaled.distances, strict=True):
+        assert a.distance == b.distance
+        assert a.stderr == b.stderr
+        assert a.stderr_diagonal == b.stderr_diagonal
+    assert any(d.stderr for d in plain.distances)
+    for a, b in zip(plain.angles, scaled.angles, strict=True):
+        assert a.angle == b.angle
+        assert a.stderr == b.stderr
+        assert a.stderr_diagonal == b.stderr_diagonal
 
 
 def _distance_at(values: dict[str, float], row) -> float:

@@ -301,6 +301,20 @@ recent list, and is therefore not behind the 409 (WP-1044).
   get zero" (on 11-BM the pair is a degeneracy the fit rides to a bound while
   Rwp *improves* and the cell moves 1117 ppm); and its evidence is a **rung**,
   never the endpoint, which zero shift + cell leave with no cause named.
+- **A stage weights the restraints, and the scalar stops at the row build**
+  (WP-1074, McCusker §8 eq 7). `Stage.restraint_weight_scale` is c_w in
+  S = S_y + c_w·S_G — frozen onto `CompiledModel` at stage compile, so a
+  schedule changes it *between* stages and never inside one. √c_w multiplies the
+  **assembled** rows (`CompiledModel.restraint_residual`, which every backend
+  reaches through `rows.assemble`, and the analytic block in `least_squares`) and
+  never the compiled items or `restraint_partials`, whose *second* consumer is
+  `model/geometry.py` calling it at σ = weight = 1 for the unweighted partials
+  every reported esd is built from. Default 1.0 is the identity, measured
+  bit-identical on a restrained five-stage fit; 0.0 silences the rows without
+  removing them, so the count the statistics exclusion rests on cannot move
+  mid-plan. Two tests cover this and neither covers the other: the geometry
+  Monte Carlo catches an unconditional error in `pref`, and only a
+  restraints-plus-c_w fixture catches a leak conditioned on the model.
 - **A pattern reader may repair a file only where it can say that it did**
   (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
   channel one layer down; four consequences reach a caller outside `io/`. A

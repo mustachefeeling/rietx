@@ -40,8 +40,10 @@ export const PEAK_FLAGS = ["ghost_kbeta", "ghost_tungsten", "excluded",
 /** `name value` annotations on a parameter row. `textdoc._PAIR_WORDS`. */
 export const PAIRS = ["min", "max", "esd"];
 
-/** The words a `stage` line carries. Mirrors the keys `textdoc._render_plan` writes. */
-export const STAGE_WORDS = ["free", "max_iter", "lebail_cycles", "seed", "strain_seed"];
+/** The words a `stage` line carries: `free`, then `textdoc.STAGE_KEYS` — which
+ * is derived from `StageSpec`, so a new field lands here and nowhere else. */
+export const STAGE_WORDS = ["free", "max_iter", "lebail_cycles", "seed", "strain_seed",
+  "restraint_weight_scale"];
 
 export interface Span {
   /** column offsets into the line, `from` inclusive and `to` exclusive */

@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rietx import Instrument, PatternData, Refinement
+from rietx import Instrument, PatternData, Refinement, Stage
 from rietx.crystallography.structure_factor import compile_phase_sites
 from rietx.model.forward import compile_model
 from rietx.model.restraints import (
@@ -303,6 +303,307 @@ def test_min_image_refreezes_when_coordinates_move():
         compile_model(s_far, ins, _blank(), mode="rietveld").restraints,
         ParameterTable(s_far, ins).decode(ParameterTable(s_far, ins).x0())).rows[0].computed
     assert d_near < d_far  # different min-image frozen at each compile-time position
+
+
+# ------------------------------------------------- (e) the c_w schedule (1074)
+def _scaled_triclinic(c_w: float):
+    """The (b) fixture compiled at a given stage c_w; returns (model, table)."""
+    s, table = _triclinic([
+        BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02, op_index=0),
+        AngleRestraint(atom_i=1, atom_j=0, atom_k=2, target_deg=100.0, sigma=1.0,
+                       op_index_i=0, op_index_k=0),
+        ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
+    ])
+    model = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                          free_paths=set(table.free_paths),
+                          restraint_weight_scale=c_w)
+    return model, table
+
+
+def test_stage_scale_multiplies_every_restraint_row_by_sqrt_cw():
+    """c_w weights S_G, so each row — the thing squared — carries √c_w, and the
+    data rows above it are untouched (McCusker eq 7: S = S_y + c_w·S_G)."""
+    m1, table = _scaled_triclinic(1.0)
+    m4, _ = _scaled_triclinic(4.0)
+    theta = table.x0()
+    r1 = _make_residual(m1, table)(theta)
+    r4 = _make_residual(m4, table)(theta)
+    n_data = len(m1.tt)
+    n_restr = m1.restraints.n_rows
+
+    assert np.array_equal(r1[:n_data], r4[:n_data]), "data rows moved"
+    np.testing.assert_allclose(r4[n_data:], 2.0 * r1[n_data:], rtol=0, atol=0)
+    # the Jacobian carries the same factor, and only on those rows
+    J1 = _make_jacobian(m1, table)(theta)
+    J4 = _make_jacobian(m4, table)(theta)
+    assert np.array_equal(J1[:n_data], J4[:n_data])
+    np.testing.assert_allclose(J4[n_data:], 2.0 * J1[n_data:], rtol=0, atol=0)
+    assert len(r4) == n_data + n_restr
+
+
+def test_zero_scale_keeps_the_rows_in_the_layout():
+    """c_w = 0 silences the restraints without removing their rows: the block
+    membership the statistics exclusion is built on must not change mid-plan."""
+    m0, table = _scaled_triclinic(0.0)
+    r0 = _make_residual(m0, table)(table.x0())
+    n_data = len(m0.tt)
+    assert m0.restraints.n_rows == 3
+    assert len(r0) == n_data + 3
+    assert np.array_equal(r0[n_data:], np.zeros(3))
+
+
+def test_identity_default_is_the_pre_schedule_row():
+    """The default takes the identity path: rows are exactly √w·(computed −
+    target)/σ, the WP-0406 formula, with no √1.0 round trip in between."""
+    s, table = _triclinic([
+        BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02, op_index=0),
+        ValueRestraint(path="phases.0.atoms.1.occ", target=0.9, sigma=0.05),
+    ])
+    # compiled without the argument at all — the pre-WP-1074 call
+    m = compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                      free_paths=set(table.free_paths))
+    assert m.restraint_weight_scale == 1.0
+    rows = _make_residual(m, table)(table.x0())[len(m.tt):]
+    report = summarise_restraints(m.restraints, table.decode(table.x0()))
+    hand = np.array([np.sqrt(r.weight) * r.deviation / r.sigma for r in report.rows])
+    np.testing.assert_allclose(rows, hand, rtol=0, atol=0)
+
+
+def test_restraint_jacobian_matches_fd_under_a_scale():
+    """The analytic block and FD of the augmented residual agree at c_w ≠ 1 —
+    the two seams (row build, Jacobian block) cannot drift apart silently."""
+    model, table = _scaled_triclinic(7.5)
+    theta = table.x0()
+    J = _make_jacobian(model, table)(theta)
+    residual = _make_residual(model, table)
+    r0 = residual(theta)
+    n_data = len(model.tt)
+
+    for row in range(model.restraints.n_rows):
+        for c in range(len(theta)):
+            h = 1e-6 * max(1.0, abs(theta[c]))
+            tp = theta.copy()
+            tp[c] += h
+            fd = (residual(tp)[n_data + row] - r0[n_data + row]) / h
+            an = J[n_data + row, c]
+            denom = max(abs(fd), abs(an), 1e-8)
+            assert abs(an - fd) / denom < 5e-3, (
+                f"row {row}, col {c}: analytic {an:.3e} vs FD {fd:.3e}")
+
+
+def test_a_negative_scale_is_refused():
+    s, table = _triclinic([BondRestraint(atom_i=0, atom_j=1, target=2.0, sigma=0.02)])
+    with pytest.raises(ValueError, match="restraint_weight_scale"):
+        compile_model(s, LAB, _blank(20.0, 90.0, 0.1), mode="rietveld",
+                      restraint_weight_scale=-1.0)
+
+
+def test_the_report_records_the_scale_it_was_measured_under():
+    """A result carries no plan, so S_G's weighting is only knowable if the
+    report says it: the penalty in S is weight_scale·restraint_chi2."""
+    m, table = _scaled_triclinic(9.0)
+    report = summarise_restraints(m.restraints, table.decode(table.x0()),
+                                  m.restraint_weight_scale)
+    assert report.weight_scale == 9.0
+    # deviations stay unscaled — the geometry question, not the weighting one
+    plain = summarise_restraints(m.restraints, table.decode(table.x0()))
+    assert plain.weight_scale == 1.0
+    assert plain.restraint_chi2 == report.restraint_chi2
+
+
+def test_the_scale_is_recorded_on_the_node_and_survives_a_cherry_pick():
+    """``NodeAction`` carries the stage's own arguments, so a stiff stage
+    cherry-picked elsewhere runs stiff (the seed/strain_seed rule, WP-1004)."""
+    from rietx import Stage
+
+    pattern = synthesize_rutile()
+    s = _rutile_with_bond(RUTILE_OX + 0.008, target=_true_ti_o_bond(), sigma=0.01)
+    s.phases[0].scale.value = 6e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 1.2e-2
+
+    ref = Refinement(s, ins)
+    ref.run_stage(pattern, Stage("scale_bkg", ["phases.*.scale",
+                                               "instrument.background.*"]))
+    ref.run_stage(pattern, Stage("stiff", ["phases.*.atoms.*.dof.*"],
+                                 restraint_weight_scale=25.0))
+    node = ref.history[ref.history.order[-1]]
+    assert node.action.restraint_weight_scale == 25.0
+    assert "restraint_weight_scale=25.0" in node.action.api_call()
+    # an unscaled stage keeps its pre-WP-1074 line exactly
+    assert "restraint_weight_scale" not in ref.history[
+        ref.history.order[-2]].action.api_call()
+
+    ref.cherry_pick(node.id, pattern)
+    picked = ref.history[ref.history.order[-1]]
+    assert picked.action.restraint_weight_scale == 25.0
+
+
+def test_the_stage_spec_mirror_round_trips_the_scale():
+    from rietx import Stage
+    from rietx.schemas.plan import StageSpec
+
+    stage = Stage("stiff", ["phases.*.atoms.*.dof.*"], restraint_weight_scale=12.5)
+    spec = StageSpec.from_stage(stage)
+    assert spec.restraint_weight_scale == 12.5
+    assert spec.model_validate_json(spec.model_dump_json()).to_stage(
+        ).restraint_weight_scale == 12.5
+
+
+# ---------------------------------------- (f) the schedule on an under-
+# determined case: stiff while the model is approximate, relaxed as it improves
+#
+# P-1 rather than P1 on purpose.  In P1 the inverted structure is an *exact*
+# powder degeneracy (|F(h)|² is unchanged by x → −x) and it preserves every
+# interatomic distance, so restraints cannot tell the two apart at any c_w and
+# a wrong-basin fit is not evidence about the schedule.  A centrosymmetric
+# group is its own inverse, so that degeneracy is gone.
+#
+# The heavy atom sits on the inversion centre (0 DOFs, origin fixed); the two
+# oxygens are general positions, 6 coordinate DOFs against 35 reflections over
+# 12-34° — under-determined the way McCusker §8 opens, "powder diffraction data
+# … suffer from an inherent loss of information".
+_SCHED_TRUE = {1: (0.2600, 0.1450, 0.1200), 2: (-0.1400, 0.2300, 0.1550)}
+#: a bad start: Zr-O1 begins at 3.73 Å, an impossible bond.  A *specific* bad
+#: start, not a magnitude claim — whether one escapes the basin depends on the
+#: direction it went, and starts of this size in other directions converge fine.
+_SCHED_START = {1: (0.545729, -0.212793, 0.178534),
+                2: (-0.219488, 0.166629, 0.124816)}
+_SCHED_FREE = ["phases.0.atoms.1.dof.*", "phases.0.atoms.2.dof.*"]
+
+
+def _sched_structure(coords, restraints=()) -> Structure:
+    def P(v, **kw):
+        return Parameter(value=v, **kw)
+
+    atoms = [Atom(label="Zr", species="Zr", x=P(0.0), y=P(0.0), z=P(0.0),
+                  biso=P(0.5))]
+    for i, (x, y, z) in coords.items():
+        atoms.append(Atom(label=f"O{i}", species="O", x=P(x), y=P(y), z=P(z),
+                          biso=P(3.0)))  # weak scatterers, damped at high Q
+    return Structure(phases=[Phase(
+        name="p-1", space_group="P -1",
+        cell=Cell(a=P(6.10, min=0.1), b=P(6.55, min=0.1), c=P(7.02, min=0.1),
+                  alpha=P(88.0), beta=P(99.5), gamma=P(95.0)),
+        atoms=atoms,
+        scale=Parameter(value=8e-3, vary=True, min=0.0, transform="softplus"),
+        restraints=list(restraints))])
+
+
+def _sched_instrument() -> Instrument:
+    ins = Instrument.debye_scherrer(wavelength=1.5406)
+    ins.profile.w.value = 8e-3
+    return ins
+
+
+@pytest.fixture(scope="module")
+def schedule_case():
+    """(pattern, [true Zr-O1, true Zr-O2]) for the under-determined P-1 case."""
+    ins = _sched_instrument()
+    truth = _sched_structure(_SCHED_TRUE)
+    tt = np.arange(12.0, 34.0, 0.02)
+    blank = PatternData(two_theta=tt.tolist(), intensity=np.zeros_like(tt).tolist())
+    model = compile_model(truth, ins, blank, mode="rietveld")
+    table = ParameterTable(truth, ins)
+    y = model.evaluate(table.decode(table.x0())) + 30.0
+    y = np.random.default_rng(7).poisson(np.maximum(y, 1.0)).astype(float)
+    pattern = PatternData(two_theta=model.tt.tolist(), intensity=y.tolist())
+
+    probe = _sched_structure(_SCHED_TRUE, [
+        BondRestraint(atom_i=0, atom_j=j, target=0.0, sigma=1.0,
+                      op_index=0, translation=[0, 0, 0]) for j in (1, 2)])
+    pm = compile_model(probe, ins, blank, mode="rietveld")
+    pt = ParameterTable(probe, ins)
+    bonds = [r.computed for r in summarise_restraints(
+        pm.restraints, pt.decode(pt.x0())).rows]
+    return pattern, bonds
+
+
+def _sched_run(pattern, bonds, c_w_first, c_w_second):
+    """The three stages, run one at a time so each boundary can be read.
+
+    Both plans have the same shape and the same bad start; c_w is the only
+    variable.  Returns (result after the first coordinate stage, final result).
+    """
+    s = _sched_structure(_SCHED_START, [
+        BondRestraint(atom_i=0, atom_j=j, target=bonds[j - 1], sigma=0.02,
+                      op_index=0, translation=[0, 0, 0]) for j in (1, 2)])
+    ref = Refinement(s, _sched_instrument(), history=False)
+    ref.run_stage(pattern, Stage("scale_bkg", ["phases.*.scale",
+                                               "instrument.background.*"]))
+    first = ref.run_stage(pattern, Stage("coords_a", _SCHED_FREE,
+                                         restraint_weight_scale=c_w_first))
+    final = ref.run_stage(pattern, Stage("coords_b", _SCHED_FREE,
+                                         restraint_weight_scale=c_w_second))
+    return first, final
+
+
+def _sched_coords(result):
+    return {i: np.array([result.parameter(f"phases.0.atoms.{i}.{c}").value
+                         for c in "xyz"]) for i in _SCHED_TRUE}
+
+
+def _sched_error(result) -> float:
+    got = _sched_coords(result)
+    return float(np.sqrt(np.mean(
+        [((got[i] - np.array(v)) ** 2).sum() for i, v in _SCHED_TRUE.items()])))
+
+
+@pytest.mark.xdist_group("restraint-schedule")
+def test_a_flat_weak_weight_lets_the_geometry_go(schedule_case):
+    """The control, and McCusker §8's own failure mode: with the restraints at
+    c_w = 1 against 1100 channels they are nearly inaudible, and from this start
+    the fit converges with "unreasonably long" (§8) Zr-O — measured 4.83 Å for a
+    1.87 Å bond, the restraint 148σ in tension.
+
+    It *converges*, and the data-row statistics are the weaker signal by far:
+    Rwp 0.0393 against the scheduled fit's 0.0327, GoF 1.23 against 1.02, and a
+    difference curve inside ±3σ but for three excursions (see the saved PNG).
+    A reader watching Rwp sees a slightly worse fit; a reader watching the
+    restraint deviation sees a 4.8 Å bond.  That is why the deviation is what
+    this WP's evidence is read off."""
+    pattern, bonds = schedule_case
+    _, result = _sched_run(pattern, bonds, 1.0, 1.0)
+
+    assert result.status == "converged"
+    worst = max(abs(r.deviation_over_sigma) for r in result.restraints.rows)
+    assert worst > 50.0, "the control was supposed to leave the geometry behind"
+    assert max(r.computed for r in result.restraints.rows) > 4.0
+    assert _sched_error(result) > 0.1
+    assert [d for d in result.diagnostics if d.code == "RESTRAINT_TENSION"]
+    _save(result, "restraint_schedule_flat.png")
+
+
+@pytest.mark.xdist_group("restraint-schedule")
+def test_stiff_then_relaxed_holds_the_geometry_and_converges(schedule_case):
+    """The schedule of eq (7): c_w high while the model is approximate, reduced
+    "during the course of the refinement as the structural model improves".
+
+    Same plan shape as the control, same data, same bad start — the only
+    variable is c_w — and it recovers both oxygens to 1e-3 in fractional
+    coordinates with the bonds intact.  The stiff stage is checked at its own
+    boundary, because a schedule buys a *path*: what the first stage does is
+    move the model into the basin the second one then converges in.
+
+    The failure mode §8 warns of stays a caller's problem: "if the geometric
+    assumptions are invalid …, the refinement will not progress satisfactorily".
+    A stiff c_w makes a wrong restraint more authoritative, not less.
+    """
+    pattern, bonds = schedule_case
+    stiff, result = _sched_run(pattern, bonds, 300.0, 1.0)
+
+    assert result.status == "converged"
+    # the first coordinate stage already holds the geometry: its restraint rows
+    # come back within a σ of target, from a 3.73 Å start
+    assert max(abs(r.deviation_over_sigma) for r in stiff.restraints.rows) < 1.0
+    assert stiff.restraints.weight_scale == 300.0
+
+    worst = max(abs(r.deviation_over_sigma) for r in result.restraints.rows)
+    assert worst < 3.0, "the relaxed stage threw the geometry away again"
+    assert _sched_error(result) < 0.01
+    assert result.restraints.weight_scale == 1.0
+    assert not [d for d in result.diagnostics if d.code == "RESTRAINT_TENSION"]
+    _save(result, "restraint_schedule_stiff_then_relaxed.png")
 
 
 # ---------------------------------------------------------- diagnostics/guards

@@ -243,6 +243,47 @@ result = ref.fit(data, plan=plan)
 `Stage` takes fnmatch globs over the dot-paths, which is why paths carry no
 brackets: fnmatch reads `[..]` as a character class rather than an index.
 
+### Relaxing the restraints as the model improves
+
+Each restraint carries its own `weight`. A stage can scale all of them at once,
+which is how the guidelines {cite}`mccusker1999` ask restraints to be used: the
+refinement minimises S = S_y + c_w·S_G, and c_w "is set high at the beginning of
+a refinement when the structure is incomplete or only approximately correct" and
+is reduced "as the structural model improves". `Stage.restraint_weight_scale` is
+that c_w, one number per stage.
+
+```python
+import rietx as rx
+
+coords = ["phases.*.atoms.*.dof.*"]
+plan = rx.RefinementPlan(stages=[
+    rx.Stage("scale_bkg", ["phases.*.scale", "instrument.background.*"]),
+    rx.Stage("coords_stiff", coords, restraint_weight_scale=300.0),
+    rx.Stage("coords_free", coords),          # back to 1.0, the default
+])
+```
+
+The default is 1.0, which leaves the restraints exactly as they were declared.
+`0.0` silences them for a stage without removing their rows, so the row count
+the fit statistics exclude does not change part-way through a plan.
+
+What this buys is a *path*. On a synthetic case whose data under-determines two
+oxygen sites, starting from a Zr–O distance of 3.73 Å for a 1.87 Å bond, the
+plan above lands the bond at 1.872 Å with the coordinates 0.001 rms from truth;
+the same three stages left at c_w = 1 throughout converge with that distance at
+4.834 Å — the restraint 148σ in tension, Rwp 0.0393 against 0.0327. Read the
+restraint deviations rather than Rwp: the failed fit is a slightly worse fit,
+not an announcement that a bond is 4.8 Å.
+
+A stiff c_w makes a restraint more authoritative, not more correct. Where the
+chemistry assumed is wrong — the guidelines' example is a tetrahedral site that
+is really octahedral — "the refinement will not progress satisfactorily", and a
+higher weight makes that worse.
+
+`RestraintReport.weight_scale` records the value a report was measured under, so
+the penalty the fit minimised is `weight_scale · restraint_chi2`; the deviations
+themselves are always reported unscaled.
+
 ### The order the presets encode
 
 The backbone is the order McCusker et al. {cite}`mccusker1999` set out in the
