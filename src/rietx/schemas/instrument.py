@@ -20,6 +20,14 @@ from pydantic import Field, model_validator
 
 from .common import Base, Parameter
 
+#: The two halves of McCusker eq (4), in order (sin 2θ, cos 2θ).  One
+#: authority for the pair of names: the schema validator, ``ParameterTable``,
+#: ``CompiledModel._position_shift_deg`` and the Layer-2 action map all read
+#: it, so adding a third axis (or renaming one) is a single edit rather than
+#: four that can drift.  See :class:`Geometry`.
+CAPILLARY_OFFSETS: tuple[str, str] = ("capillary_offset_along_beam",
+                                      "capillary_offset_across_beam")
+
 
 class EmissionLine(Base):
     """One wavelength component of the incident spectrum.
@@ -248,8 +256,31 @@ SurfaceRoughness = RoughnessSuortti | RoughnessPitschke
 class Geometry(Base):
     """Diffraction geometry.
 
-    ``debye_scherrer``: spinning capillary (synchrotron or lab); only
-    ``zero_shift`` moves the peaks.  Cylindrical **absorption** is applied as an
+    ``debye_scherrer``: spinning capillary (synchrotron or lab).  Two things
+    move its peaks: ``zero_shift``, and the capillary sitting off the centre of
+    the 2θ circle (McCusker, Von Dreele, Cox, Louër & Scardi, 1999,
+    *J. Appl. Cryst.* **32**, 36-50, §5 eq 4),
+
+        Δ2θ = (−a·sin2θ + b·cos2θ)/R   [radians],  R = goniometer radius (mm)
+
+    where ``capillary_offset_along_beam`` (a) is the displacement along the
+    incident beam, positive downstream, and ``capillary_offset_across_beam``
+    (b) is the displacement perpendicular to it in the diffraction plane,
+    positive toward increasing 2θ.  Physics, not letters — the paper writes
+    (x·sin2θ − y·cos2θ)/R and other codes pair the letter x with the *other*
+    term, so only the signatures travel; the derivation that fixes both signs
+    is in :func:`rietx.model.corrections.capillary_displacement_shift_deg`.
+    Both default to 0 with ``vary=False``: a laboratory capillary or Guinier
+    camera is where the aberration bites, and at a synchrotron with a crystal
+    analyser the paper says displacement error is eliminated, so freeing them
+    is a deliberate act.  Both need ``goniometer_radius_mm``, which eq (4)
+    divides by; setting a value or freeing one without it is refused rather
+    than defaulted.  ``zero_shift`` + a + b is three positional corrections
+    over {1, sin2θ, cos2θ} — separable over a wide range and badly collinear
+    over a short low-angle one, which is what ``analyse_trends`` and the
+    identifiability layer report.
+
+    Cylindrical **absorption** is applied as an
     intensity factor when µR > 0 (Rouse, Cooper, York & Chakera, 1970, *Acta
     Cryst.* A26, 682; see :mod:`rietx.model.absorption`), µR coming either
     from ``mu_r`` directly or from ``capillary_radius_mm`` × ``packing_fraction``
@@ -308,11 +339,13 @@ class Geometry(Base):
     ``flat_plate_transmission``: a flat specimen the beam passes *through* —
     a Stoe Stadi P, or a laboratory diffractometer run in transmission with the
     powder between two foils (v0.5, WP-0508).  It models **absorption and
-    nothing else**: like ``debye_scherrer``, only ``zero_shift`` moves its
-    peaks.  A transmission goniometer has its own displacement aberration, and
-    this package does not model it rather than inventing one; if a specimen is
-    badly enough off-axis for that to matter, the peak positions are not
-    trustworthy anyway.
+    nothing else**: only ``zero_shift`` moves its peaks.  A transmission
+    goniometer has its own displacement aberration, and this package does not
+    model it rather than inventing one; if a specimen is badly enough off-axis
+    for that to matter, the peak positions are not trustworthy anyway.  That
+    argument is about *this* geometry only — for a capillary the published
+    correction exists (eq 4 above), so the same sentence stopped applying
+    there once the paper was read (WP-1073).
 
     ``mu_t`` — dimensionless µ times **specimen thickness** — turns on the
     flat-plate absorption factors for both flat geometries
@@ -359,6 +392,16 @@ class Geometry(Base):
     )
     sample_transparency: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.05)
+    )
+    #: capillary displacement along the incident beam (mm, positive
+    #: downstream) — the sin 2θ half of eq (4).  ``debye_scherrer`` only.
+    capillary_offset_along_beam: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
+    )
+    #: capillary displacement perpendicular to the beam in the diffraction
+    #: plane (mm, positive toward increasing 2θ) — the cos 2θ half of eq (4).
+    capillary_offset_across_beam: Parameter = Field(
+        default_factory=lambda: Parameter(value=0.0, min=-1.0, max=1.0, unit="mm")
     )
     axial_sl: Parameter = Field(
         default_factory=lambda: Parameter(value=0.0, min=0.0, max=0.2)
@@ -409,6 +452,28 @@ class Geometry(Base):
             raise ValueError("mu_r must be non-negative")
         if self.capillary_radius_mm is not None and self.capillary_radius_mm <= 0.0:
             raise ValueError("capillary_radius_mm must be positive")
+        return self
+
+    @model_validator(mode="after")
+    def _capillary_offsets_need_a_radius(self) -> "Geometry":
+        # eq (4) divides by R.  A default radius would be an invented
+        # instrument, and a silently-ignored offset would be a value the user
+        # set and the model did not use, so both are refused here — naming the
+        # field that is missing.  ``ParameterTable`` repeats the check for
+        # ``vary`` because a mutation after construction re-runs no validator.
+        for name in CAPILLARY_OFFSETS:
+            offset = getattr(self, name)
+            if offset.value == 0.0 and not offset.vary:
+                continue
+            if self.kind != "debye_scherrer":
+                raise ValueError(
+                    f"{name} is a capillary (debye_scherrer) correction, "
+                    f"McCusker et al. (1999) eq (4); this geometry is "
+                    f"{self.kind!r}")
+            if not self.goniometer_radius_mm:
+                raise ValueError(
+                    f"{name} needs goniometer_radius_mm: eq (4) is "
+                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
         return self
 
     @model_validator(mode="after")
@@ -589,6 +654,7 @@ class Instrument(Base):
 
     @classmethod
     def debye_scherrer(cls, wavelength: float, *, polarization: float = 0.99,
+                       goniometer_radius_mm: float | None = None,
                        capillary_radius_mm: float | None = None,
                        packing_fraction: float = 0.6,
                        mu_r: float | None = None) -> "Instrument":
@@ -598,8 +664,12 @@ class Instrument(Base):
         0.99 matches APS 11-BM instrument-parameter files.
 
         Cylindrical absorption stays **off** unless a capillary radius or an
-        explicit ``mu_r`` is given, so the preset's historical meaning ("no
-        position aberrations") is unchanged for callers that pass neither.
+        explicit ``mu_r`` is given, and the eq (4) displacement offsets stay at
+        zero and fixed whether or not ``goniometer_radius_mm`` is given — so
+        the preset's historical meaning ("no aberrations") is unchanged for a
+        caller that passes none of the three.  R is what eq (4) divides by:
+        declare it to make the offsets refinable, which is the laboratory
+        capillary case (:class:`Geometry`).
         """
         return cls(
             source=Source(
@@ -607,6 +677,7 @@ class Instrument(Base):
                 polarization=Parameter(value=polarization, min=0.0, max=1.0),
             ),
             geometry=Geometry(kind="debye_scherrer", mu_r=mu_r,
+                              goniometer_radius_mm=goniometer_radius_mm,
                               capillary_radius_mm=capillary_radius_mm,
                               packing_fraction=packing_fraction),
         )

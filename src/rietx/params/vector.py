@@ -34,7 +34,12 @@ from ..crystallography.symmetry import (
 )
 from ..crystallography.wyckoff import adp_basis, coordinate_basis, stabilizer_rotations
 from ..schemas.common import Parameter
-from ..schemas.instrument import BackgroundChebyshev, BackgroundPSpline, Instrument
+from ..schemas.instrument import (
+    CAPILLARY_OFFSETS,
+    BackgroundChebyshev,
+    BackgroundPSpline,
+    Instrument,
+)
 from ..schemas.structure import Structure
 from .transforms import dphys_dinternal, internal_bounds, to_internal, to_physical
 
@@ -330,6 +335,21 @@ class ParameterTable:
             self._add(f"instrument.geometry.{name}", getattr(geom, name),
                       force_fixed=(geom.kind != "bragg_brentano"
                                    and name.startswith("sample_")))
+        for name in CAPILLARY_OFFSETS:
+            offset = getattr(geom, name)
+            # eq (4) divides by R.  Geometry's validator refuses a *stored*
+            # free offset without one, but ``vary`` set after construction
+            # re-runs no validator, and this is the last gate before a solve —
+            # so refuse here too, naming the field rather than quietly holding
+            # the parameter (a held aberration reads as "measured zero").
+            if offset.vary and geom.kind == "debye_scherrer" \
+                    and not geom.goniometer_radius_mm:
+                raise ValueError(
+                    f"instrument.geometry.{name} cannot vary without "
+                    f"goniometer_radius_mm: eq (4) is "
+                    f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
+            self._add(f"instrument.geometry.{name}", offset,
+                      force_fixed=(geom.kind != "debye_scherrer"))
         # surface roughness is opt-in, so it is *skipped* when absent rather
         # than added locked: a table built from an instrument without the block
         # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —
@@ -677,7 +697,7 @@ class ParameterTable:
         for il, line in enumerate(instrument.source.lines):
             put(line.weight, f"instrument.source.lines.{il}.weight")
         for name in ("sample_displacement", "sample_transparency",
-                     "axial_sl", "axial_hl"):
+                     "axial_sl", "axial_hl", *CAPILLARY_OFFSETS):
             put(getattr(instrument.geometry, name), f"instrument.geometry.{name}")
         for sub, cp in roughness_parameters(instrument.geometry.surface_roughness):
             put(cp, f"instrument.geometry.surface_roughness.{sub}")
