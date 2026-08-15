@@ -103,9 +103,10 @@ adds an observation (a bond length, say) with a weight and leaves the parameter
 count alone.
 
 Use one where the data cannot separate two quantities and chemistry says they
-need not be separated. The guidelines {cite}`mccusker1999` name two cases:
-equal displacement parameters across atoms in the same environment, and
-occupancies that must sum to a known total.
+need not be separated. Two of the cases the guidelines {cite}`mccusker1999`
+recommend are available here: equal displacement parameters across atoms in the
+same environment, and occupancies that must sum to a known total. The third,
+rigid bodies, is not.
 
 <!-- api-doc: no-exec — it needs the reader's own structure and instrument -->
 ```python
@@ -145,8 +146,8 @@ own bounds are all refused with the reason and the parameter holding it.
 :::{admonition} What a constraint buys, and how to check it was earned
 :class: tip
 
-Fluorapatite, the lab dataset of `examples/`, refined with and without the
-three phosphate oxygens' `biso` tied together:
+Fluorapatite on a laboratory diffractometer, refined twice under one protocol
+— the second time with the three phosphate oxygens' `biso` tied together:
 
 | | free | tied |
 |---|---|---|
