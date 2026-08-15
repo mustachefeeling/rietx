@@ -19,7 +19,7 @@ parameter does to the pattern.
 |---|---|---|---|
 | scale | `phases.*.scale` | total intensity of each phase | flat in Q |
 | background | `instrument.background.*` | the pedestal under the peaks | smooth in 2θ |
-| position corrections | `instrument.zero_shift`, `instrument.geometry.sample_displacement` | where every peak sits | constant, cos θ |
+| position corrections | `instrument.zero_shift`, `instrument.geometry.sample_displacement`, `instrument.geometry.capillary_offset_along_beam`, `instrument.geometry.capillary_offset_across_beam` | where every peak sits | constant, cos θ, sin 2θ, cos 2θ |
 | cell | `phases.*.cell.*` | where each peak sits, through its d-spacing | tan θ |
 | instrument profile | `instrument.profile.u`, `.v`, `.w`, `.x`, `.y` | peak widths and shape | Gaussian: `w` constant, `v` tan θ, `u` tan²θ. Lorentzian: `x` tan θ, `y` 1/cos θ |
 | sample broadening | `phases.*.gauss_size`, `phases.*.lor_size`, `phases.*.gauss_strain`, `phases.*.lor_strain` | the specimen's own width contribution | size 1/cos θ, strain tan θ |
@@ -68,6 +68,7 @@ A refinement over that range reports four numbers and measures rather fewer.
 | Correlated group | Signatures | What goes wrong |
 |---|---|---|
 | zero shift · sample displacement · cell | constant · cos θ · tan θ | over a narrow 2θ range these three are collinear. A cell refined against a free zero shift on 20° of data is not measured. |
+| zero shift · the two capillary offsets (Debye-Scherrer only) | constant · sin 2θ · cos 2θ | the same problem in the transmission geometry's own shapes. Over 5-160° the three are separable; over 5-25° they are not, by a factor of about 4600 in the conditioning. |
 | crystallite size · microstrain | 1/cos θ · tan θ | the Williamson-Hall separation. Over a short range they are one parameter, not two. |
 | scale · displacement · background · absorption · surface roughness · extinction | all smooth in Q | the big one. Every member lifts or depresses intensity smoothly with angle, so any of them can absorb any other. |
 | preferred orientation · occupancy | both rescale specific hkl | an occupancy refined against uncorrected texture is a texture measurement. |
@@ -80,6 +81,22 @@ and never refined. Flat-plate absorption is 60 to 99 % absorbable, so
 `Geometry.mu_t` is also computed rather than refined; the part that is not
 absorbable does move Rwp, and a wrong thickness lands partly in the fit and
 partly in the displacement parameters.
+
+**Which position correction exists depends on the geometry.** `cos θ` is the
+flat-plate specimen-displacement shape, so `Geometry.sample_displacement` and
+`Geometry.sample_transparency` are held fixed on anything that is not
+`bragg_brentano`. A capillary off the centre of the 2θ circle has its own pair,
+McCusker eq (4): `Geometry.capillary_offset_along_beam` carries the sin 2θ half
+and `Geometry.capillary_offset_across_beam` the cos 2θ half, they exist only on
+`debye_scherrer`, and both need `Geometry.goniometer_radius_mm`, which eq (4)
+divides by. Both default to 0 and fixed. At a synchrotron with a crystal
+analyser the paper says the displacement error is eliminated, so freeing them
+there measures nothing; a laboratory capillary or Guinier camera is where they
+belong.
+
+The report knows this. Its position templates and the actions they map to are
+chosen by geometry, so a capillary fit is never told to refine a flat-plate
+aberration it cannot free.
 
 Two rules follow, and they are the reason plans exist:
 

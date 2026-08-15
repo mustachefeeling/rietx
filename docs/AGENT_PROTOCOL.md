@@ -132,7 +132,8 @@ not bugs; they are the geometry of the problem.
 
 | Degenerate group | Their angular signatures | Consequence of getting it wrong |
 |---|---|---|
-| zero shift · sample displacement · cell | const · cosθ · tanθ | Over a narrow 2θ range these are collinear. A cell "refined" against a free zero on 20° of data is not measured. |
+| zero shift · sample displacement · cell | const · cosθ · tanθ | Over a narrow 2θ range these are collinear. A cell "refined" against a free zero on 20° of data is not measured. Bragg-Brentano only — the two flat-plate aberrations are held fixed on any other geometry. |
+| zero shift · the two capillary offsets · cell | const · sin2θ · cos2θ · tanθ | The same trap in Debye-Scherrer's own shapes (McCusker eq 4, §8.18). Separable over 5–160°, not over 5–25°: the unit-column Gram's smallest eigenvalue is 5.2e-2 against 1.1e-5, a factor of ~4600. |
 | crystallite size · microstrain | 1/cosθ · tanθ | Williamson-Hall separability. Over a short range they are one parameter, not two. |
 | phase scale · Biso/ADPs · background · absorption · surface roughness · extinction | all smooth in Q | This is the big one. Every member depresses or lifts intensity as a smooth function of angle. Any of them can absorb any other. |
 | capillary µR · phase scale · Biso | exp(c·sin²θ) — *exactly* | Not "correlated": singular. µR is computed from the specimen and never refined, and the fit is identical with and without it (§8.1). |
@@ -903,7 +904,7 @@ about high-symmetry lattices until the corpus moves — post-v1 by scope call.
 
 ---
 
-## 8. Seventeen things that will surprise you, all measured
+## 8. Eighteen things that will surprise you, all measured
 
 These are the findings from building the package that change how an agent
 should behave. Each one cost a debugging pass.
@@ -1129,6 +1130,28 @@ window reads **−3.9 σ**. **Corollary for the agent: never compute your own
 "nothing is here" test from the raw pattern minus a background.** Where nothing
 else is predicted nearby the two agree; where something is, the raw test refutes
 the true answer.
+
+**8.18 A position correction belongs to a geometry, and the suggestion you get
+now says which.** `cos θ` is the *flat-plate* specimen-displacement shape, and
+`instrument.geometry.sample_displacement` is force-fixed on anything that is not
+`bragg_brentano`. A capillary off the centre of the 2θ circle has its own pair
+(McCusker eq 4): `instrument.geometry.capillary_offset_along_beam` carries sin 2θ
+and `…_across_beam` carries cos 2θ, they exist only on `debye_scherrer`, and both
+need `goniometer_radius_mm`, which eq (4) divides by — a value or a `vary` without
+one is refused by name rather than defaulted. Free them for a laboratory capillary
+or Guinier camera; at a synchrotron with a crystal analyser the paper says the
+displacement error is eliminated, and measured on 11-BM NAC the fit agrees, so
+freeing them there measures nothing.
+
+The report's position templates and actions are now chosen by geometry, so the
+two `refine_sample_*` actions no longer reach a capillary fit at all (before
+WP-1073 they did, naming parameters that could not be freed). **And this is a
+correction whose cause the endpoint hides**: measured on a synthetic capillary
+with a 0.30/−0.20 mm offset, refusing the pair puts −290 ppm into `a`, and the
+converged report names *no* position cause, because the zero shift and the cell
+between them imitate most of eq (4). The `zero` stage's own rung names
+`refine_capillary_offset_along_beam` at 0.66. **Corollary for the agent: this is
+§9's rule with a concrete case — read the trajectory, not the last state.**
 
 ---
 

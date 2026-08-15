@@ -14,6 +14,37 @@ WP-1067 § Floor (the manual's release-gating half; the rest ships in 1.0.x),
 
 ### Inherited
 
+**From [1073](1073-capillary-displacement.md), 2026-08-15 — a 1.0.x correction
+that nonetheless moved the frozen surface, and one asymmetry to ratify.**
+`Geometry.capillary_offset_along_beam` / `…_across_beam` (additive, defaulted,
+so `SCHEMA_VERSION` stands — 1069's precedent again), `CAPILLARY_OFFSETS` as
+the one authority for the pair of names, and a new keyword on a classmethod,
+`Instrument.debye_scherrer(goniometer_radius_mm=…)`, mirrored into the GUI's
+`INSTRUMENT_PRESETS` and `PRESET_FIELDS`.
+
+**`THRESHOLDS_VERSION` did move, 0.9 → 1.0**, and by 1058's own rule: two
+`ActionKind` members land (`refine_capillary_offset_along_beam` /
+`…_across_beam`), the `cos_2theta` template joins the position vocabulary, and
+the emission conditions change on `debye_scherrer` data — `cos_theta` is no
+longer offered there and `sin_2theta` now names a different parameter. No
+threshold was retuned.
+
+**The asymmetry to ratify.** Layer 1's `POSITION_TEMPLATES` and Layer 2's
+`_POSITION_ACTIONS_BY_GEOMETRY` are now keyed by geometry, and the
+`flat_plate_transmission` row was left byte-for-byte as it was. That geometry
+models no displacement either, so its `cos_theta` → `refine_sample_displacement`
+and `sin_2theta` → `refine_sample_transparency` rows still name parameters
+`ParameterTable` force-fixes there — the same defect class 1073 fixed for
+capillaries. It was left because the *diagnosis* is at least right on a flat
+plate (a flat specimen off the axis) where for a capillary neither the shape
+nor the parameter was, and because narrowing it removes actions a consumer may
+be receiving today. **Decide it before the freeze**: either those two rows go
+(and transmission reports the shape with no action), or the geometry keeps them
+and the reason is written down. The meta-test
+`test_position_templates_and_actions_agree_geometry_by_geometry` already checks
+the capillary half against a real `ParameterTable`; extending it to the other
+two geometries is the whole change.
+
 **From [1072](1072-geometry-table.md), 2026-08-15 — landed pre-freeze; here is
 what it added to the surface you are freezing.** Three public schemas —
 `GeometryTable` (`distances`, `angles`, `bond_slack`, `contact_max`, `notes`),

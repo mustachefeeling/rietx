@@ -106,6 +106,54 @@ def displacement_shift_deg(theta_deg: np.ndarray, s_mm: float,
     return xp.degrees(-2.0 * (s_mm / radius_mm) * xp.cos(th))
 
 
+def capillary_displacement_shift_deg(two_theta_deg: np.ndarray, along_mm: float,
+                                     across_mm: float, radius_mm: float
+                                     ) -> np.ndarray:
+    """Debye-Scherrer capillary-displacement peak shift, in degrees 2θ.
+
+        Δ2θ = (−a·sin2θ + b·cos2θ)/R   [radians]
+
+    for a capillary whose diffracting volume sits off the centre of the 2θ
+    circle, R = goniometer radius.  McCusker, Von Dreele, Cox, Louër & Scardi
+    (1999), *J. Appl. Cryst.* **32**, 36-50, §5 eq (4) — the transmission
+    counterpart of :func:`displacement_shift_deg`'s eq (3).
+
+    **Conventions by physics, not letters**, and here that is not pedantry:
+    the paper writes eq (4) as (x·sin2θ − y·cos2θ)/R without drawing the axes,
+    and other codes pair the *letter* x with the cos2θ term instead, so the
+    letters carry no shared meaning across sources.  The signatures do:
+
+    * ``along_mm`` (a) is the displacement **along the incident beam,
+      positive downstream**, and it carries the **sin 2θ** shape — no shift at
+      2θ = 0 (the sample slides along the beam it is on) or at 2θ = 180°,
+      largest at 90°;
+    * ``across_mm`` (b) is the displacement **perpendicular to the beam in the
+      diffraction plane, positive toward increasing 2θ**, and it carries the
+      **cos 2θ** shape — largest at 2θ = 0, where sliding the capillary
+      sideways by b moves the whole pattern by b/R, and reversing in sign past
+      2θ = 90°.
+
+    Both signs are fixed by derivation rather than quoted: to first order in
+    |d|/R the ray leaving a source point d in direction n̂ meets the detector
+    circle at R·n̂ + d_⊥, so the angle read at the goniometer centre moves by
+    (d·t̂)/R with t̂ = (−sin2θ, cos2θ) the tangential unit vector.  That is the
+    expression above, and it equals eq (4) under x = −a, y = −b.  Whether the
+    paper *meant* its axes that way is not knowable from it: the six figures
+    are all profile plots, none draws the geometry, and "the respective
+    displacements of the capillary from the centre of the 2θ circle" is the
+    whole definition given.  So the substitution is stated as algebra, and the
+    physical convention is this module's own.
+
+    Sign check that needs no algebra: at 2θ = 0 a capillary displaced toward
+    the detector's high-angle side (b > 0) puts the direct beam at +b/R, and
+    that is what this returns.
+    """
+    xp = get_backend()
+    tt = xp.radians(xp.asarray(two_theta_deg, dtype=np.float64))
+    return xp.degrees((-along_mm * xp.sin(tt) + across_mm * xp.cos(tt))
+                      / radius_mm)
+
+
 def transparency_shift_deg(two_theta_deg: np.ndarray, t_coef: float) -> np.ndarray:
     """Bragg-Brentano sample-transparency peak shift, in degrees 2θ.
 

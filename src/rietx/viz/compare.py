@@ -51,6 +51,7 @@ from pathlib import Path
 import numpy as np
 
 from ..schemas.instrument import (
+    CAPILLARY_OFFSETS,
     BackgroundChebyshev,
     BackgroundPSpline,
     Dispersion,
@@ -545,6 +546,36 @@ def _with_capillary_absorption(inputs: StandardInputs) -> None:
     inputs.instrument.geometry.mu_r = 0.5
 
 
+def _with_capillary_displacement(inputs: StandardInputs) -> None:
+    """Free McCusker eq (4)'s two offsets beside the zero shift.
+
+    A *displacement* variant, so unlike the absorption one it is meant to move
+    Rwp: the correction adds two position degrees of freedom the baseline
+    holds at zero.  What it is really for is the trio — the offsets and
+    ``zero_shift`` span {sin2θ, cos2θ, 1} over the measured range, so the
+    identifiability panel's correlations and the Δχ² curve together say
+    whether this instrument's range *can* separate them, which is the question
+    §12.3 asks and no single Rwp answers.
+
+    R = 1000 mm where none is declared: 11-BM's diffraction circle is metres,
+    and the offsets are only ever read as x/R, so an R off by a factor moves
+    the fitted millimetres by that factor and nothing else.  It is a *declared
+    assumption of the comparison*, which is why the panel shows the fitted
+    values rather than only the agreement indices.
+    """
+    geom = inputs.instrument.geometry
+    if not geom.goniometer_radius_mm:
+        geom.goniometer_radius_mm = 1000.0
+    for stage in inputs.plan.stages:
+        if "instrument.zero_shift" in stage.turn_on:
+            stage.turn_on = list(stage.turn_on) + [
+                f"instrument.geometry.{n}" for n in CAPILLARY_OFFSETS]
+            return
+    inputs.plan.stages.insert(1, Stage("capillary_displacement",
+                                       [f"instrument.geometry.{n}"
+                                        for n in CAPILLARY_OFFSETS]))
+
+
 def _with_flat_plate_absorption(inputs: StandardInputs) -> None:
     """µt = 0.5: a *finite-thickness* reflection specimen, ITC (2).
 
@@ -613,6 +644,14 @@ VARIANTS: tuple[Variant, ...] = (
             "{scale, Biso}, so **Rwp cannot change** — if it does, something is "
             "wrong. The whole effect is the Biso column of the results table.",
             _with_capillary_absorption, geometries=("debye_scherrer",)),
+    Variant("capillary_displacement", "+ capillary displacement (eq 4)",
+            "McCusker eq (4): the capillary off the centre of the 2θ circle, "
+            "sin2θ along the beam and cos2θ across it, freed beside the zero "
+            "shift. Read the correlations, not only Rwp — the three span "
+            "{sin2θ, cos2θ, 1} and a short range cannot separate them. At a "
+            "synchrotron with a crystal analyser the expected answer is "
+            "'both ≈ 0'.",
+            _with_capillary_displacement, geometries=("debye_scherrer",)),
     Variant("flat_plate", "+ finite specimen thickness (µt = 0.5)",
             "ITC (2) flat-plate absorption — declares a thin layer where the "
             "baseline assumes an infinitely thick mount. Unlike the capillary "
@@ -666,6 +705,7 @@ class RunRecord:
 _REPORT_PATHS = (
     ".cell.a", ".cell.b", ".cell.c", ".biso", ".scale",
     "instrument.zero_shift", "instrument.geometry.sample_displacement",
+    "instrument.geometry.capillary_offset",
     "instrument.geometry.surface_roughness", ".extinction",
     ".preferred_orientation.r",
 )

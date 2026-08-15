@@ -288,6 +288,19 @@ recent list, and is therefore not behind the 409 (WP-1044).
   one derivative chain; and a neighbour search is proved complete by **orbit
   counting** (|A_ij|·m_i = |A_ji|·m_j), never by the distances looking right —
   a wrong deduplication passed every distance-value test in the file.
+- **A position correction belongs to a geometry, and so does the action that
+  names it** (WP-1073, McCusker §5 eq 3/4). `sin 2θ` is flat-plate
+  transparency on a plate and the along-beam capillary offset on a capillary,
+  so `report/layer1.POSITION_TEMPLATES` and
+  `layer2._POSITION_ACTIONS_BY_GEOMETRY` are keyed by `Geometry.kind` and
+  meta-tested against each other *and a real* `ParameterTable` — geometry-blind,
+  the map suggested a force-fixed parameter and the route answered 409. Three
+  rules for a new aberration, all measured in 1073's file: a parameter the
+  forward branch skips is **force-fixed, not merely unfree** (else a free entry
+  is a dead column); "this instrument has no such error" is not "refine it and
+  get zero" (on 11-BM the pair is a degeneracy the fit rides to a bound while
+  Rwp *improves* and the cell moves 1117 ppm); and its evidence is a **rung**,
+  never the endpoint, which zero shift + cell leave with no cause named.
 - **A pattern reader may repair a file only where it can say that it did**
   (WP-1047). `read_pattern(..., diagnostics=[])` is `structure_from_cif`'s
   channel one layer down; four consequences reach a caller outside `io/`. A

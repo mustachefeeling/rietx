@@ -59,6 +59,10 @@ export const PRESET_FIELDS: Record<string, PresetField[]> = {
       title: "the one geometry with no anode to read a wavelength from" },
     { name: "polarization", label: "polarization", kind: "optnumber",
       title: "0.99 matches APS 11-BM instrument-parameter files" },
+    { name: "goniometer_radius_mm", label: "radius", kind: "optnumber", unit: "mm",
+      title: "the 2θ circle, which McCusker eq (4) divides by — declare it to "
+             + "make the two capillary displacement offsets refinable, and "
+             + "leave it empty at a synchrotron with a crystal analyser" },
     { name: "capillary_radius_mm", label: "capillary r", kind: "optnumber",
       unit: "mm",
       title: "internal radius of the bore — an estimator input for µR, never "

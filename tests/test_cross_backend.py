@@ -182,9 +182,59 @@ def _state_families_tied():
     return model, table, {}
 
 
+def _state_capillary_offsets():
+    """The eq (4) capillary displacement pair, both free (WP-1073).
+
+    A new derivative path with no row of its own until now: the two offsets
+    move the peak *position* through a shape (sin 2θ, cos 2θ) that no other
+    state carries, and the numpy Jacobian claims them on the peak-chain branch
+    via ``scalar_chain_supported``.  ``instrument.zero_shift`` is freed beside
+    them deliberately — {1, sin2θ, cos2θ} is exactly the collinear trio a
+    capillary fit has to separate, so this is also the state where three
+    backends have to agree about three near-parallel columns rather than one.
+
+    A local config rather than a ninth entry in ``test_backend_shim.STATES``:
+    that registry is guarded by bit-identity goldens, and this file needs only
+    a compiled expansion point (the ``families_voigt`` precedent above).
+    """
+    from rietx.schemas.instrument import Instrument
+    from rietx.schemas.pattern import PatternData
+    from tests.test_backend_shim import _free
+    from tests.test_coordinates import make_rutile
+
+    structure = make_rutile()
+    structure.phases[0].scale.value = 8.0e-3
+    ins = Instrument.debye_scherrer(wavelength=1.5406,
+                                    goniometer_radius_mm=200.0)
+    ins.source.dispersion = None    # declined, not inherited
+    ins.profile.w.value = 8e-3
+    ins.zero_shift.value = 0.01
+    # off the origin on both axes: at 0 the columns would still be exact, but
+    # the *state* would not carry the shift they produce inside the windows
+    ins.geometry.capillary_offset_along_beam.value = 0.15
+    ins.geometry.capillary_offset_across_beam.value = -0.10
+
+    grid = np.arange(15.0, 90.0, 0.02)
+    empty = PatternData(two_theta=grid.tolist(),
+                        intensity=np.zeros_like(grid).tolist())
+    sim = compile_model(structure, ins, empty, mode="rietveld")
+    sim_table = ParameterTable(structure, ins)
+    y = sim.evaluate(sim_table.decode(sim_table.x0())) + 20.0
+    pattern = PatternData(two_theta=sim.tt.tolist(), intensity=y.tolist())
+
+    table = ParameterTable(structure, ins)
+    _free(table, ["phases.0.scale", "phases.0.cell.a", "instrument.zero_shift",
+                  "instrument.geometry.capillary_offset_along_beam",
+                  "instrument.geometry.capillary_offset_across_beam"])
+    model = compile_model(structure, ins, pattern, mode="rietveld",
+                          free_paths=set(table.free_paths))
+    return model, table, {}
+
+
 CONFIGS = {"families": _state_families,
            "families_voigt": _state_families_voigt,
-           "families_tied": _state_families_tied, **STATES}
+           "families_tied": _state_families_tied,
+           "capillary_offsets": _state_capillary_offsets, **STATES}
 
 #: the fast configs run everywhere; the two real-data ones are `slow`.
 #: ``families_voigt`` (WP-0405's shape) and ``toy_restraints`` (WP-0406's extra
@@ -207,6 +257,7 @@ CONFIG_PARAMS = [
     _config("families"),
     _config("families_voigt"),
     _config("families_tied"),
+    _config("capillary_offsets"),
     _config("toy_lebail"),
     _config("toy_pawley"),
     _config("toy_rich"),

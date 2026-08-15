@@ -98,6 +98,10 @@ RECIPES: dict[ActionKind, Recipe] = {
     "refine_zero_shift": _stage("refine_zero_shift"),
     "refine_sample_displacement": _stage("refine_sample_displacement"),
     "refine_sample_transparency": _stage("refine_sample_transparency"),
+    "refine_capillary_offset_along_beam":
+        _stage("refine_capillary_offset_along_beam"),
+    "refine_capillary_offset_across_beam":
+        _stage("refine_capillary_offset_across_beam"),
     "refine_cell": _stage("refine_cell"),
     "refine_profile_widths": _stage("refine_profile_widths"),
     "refine_sample_size_broadening": _stage("refine_sample_size_broadening"),

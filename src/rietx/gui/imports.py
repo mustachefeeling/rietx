@@ -426,8 +426,8 @@ def unknown_species(structure) -> list[dict]:
 #: an anode name resolves against the package's NIST-scale table (WP-0507), so
 #: no client ever types a wavelength for a named anode.
 INSTRUMENT_PRESETS: dict[str, tuple[str, ...]] = {
-    "debye_scherrer": ("wavelength", "polarization", "capillary_radius_mm",
-                       "packing_fraction", "mu_r"),
+    "debye_scherrer": ("wavelength", "polarization", "goniometer_radius_mm",
+                       "capillary_radius_mm", "packing_fraction", "mu_r"),
     "bragg_brentano": ("radiation", "goniometer_radius_mm",
                        "monochromator_two_theta", "ka2_ratio", "mu_t",
                        "thickness_mm"),

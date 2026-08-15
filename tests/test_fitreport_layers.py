@@ -975,6 +975,46 @@ def _assert_exchange_clause_shape(summary):
     assert "the data cannot tell" not in summary      # the pre-0.8 claim
 
 
+def test_position_templates_and_actions_agree_geometry_by_geometry():
+    """Every offered template has an action, and every action a template.
+
+    The two tables are keyed by geometry separately (evidence in
+    ``layer1.POSITION_TEMPLATES``, actions in
+    ``layer2._POSITION_ACTIONS_BY_GEOMETRY``), and the failure they can have is
+    silent in both directions: a template with no action is a winner that
+    inflates every other action's confidence and suggests nothing, and an
+    action with no template is unreachable code that reads as coverage.  The
+    geometry keys are checked against the ``Geometry.kind`` Literal rather than
+    listed, so a fourth geometry cannot ship with no position vocabulary
+    (WP-1073).
+    """
+    import typing
+
+    from rietx.report.layer1 import POSITION_TEMPLATES
+    from rietx.report.layer2 import _POSITION_ACTIONS_BY_GEOMETRY
+    from rietx.schemas.instrument import Geometry
+
+    kinds = set(typing.get_args(Geometry.model_fields["kind"].annotation))
+    assert set(POSITION_TEMPLATES) == kinds
+    assert set(_POSITION_ACTIONS_BY_GEOMETRY) == kinds
+    for geometry, names in POSITION_TEMPLATES.items():
+        assert set(_POSITION_ACTIONS_BY_GEOMETRY[geometry]) == set(names), geometry
+    # and on a capillary every suggested path is one the table can free — the
+    # defect that motivated the keying was a capillary fit being told to
+    # refine ``sample_displacement``, which ParameterTable force-fixes there.
+    # Asked of a real table rather than of a second list, because a list would
+    # be the same claim written twice.
+    from rietx.params.vector import ParameterTable
+    from rietx.schemas.instrument import Instrument
+
+    ins = Instrument.debye_scherrer(wavelength=1.5406,
+                                    goniometer_radius_mm=200.0)
+    table = ParameterTable(make_lab6(), ins)
+    for _name, (kind, path) in _POSITION_ACTIONS_BY_GEOMETRY[
+            "debye_scherrer"].items():
+        assert table.set_vary([path], True), f"{kind} names an unfreeable {path}"
+
+
 def test_exchange_candidate_families_are_pinned():
     """The scan's family list and null table are protocol, not tuning: a
     session that widens them changes what every report can say, so both are
@@ -985,6 +1025,8 @@ def test_exchange_candidate_families_are_pinned():
         "instrument.zero_shift",
         "instrument.geometry.sample_displacement",
         "instrument.geometry.sample_transparency",
+        "instrument.geometry.capillary_offset_along_beam",
+        "instrument.geometry.capillary_offset_across_beam",
         "phases.*.cell.*",
         "phases.*.scale",
         "phases.*.atoms.*.biso",
@@ -1001,7 +1043,13 @@ def test_exchange_candidate_families_are_pinned():
         "instrument.zero_shift": 0.0,
         "instrument.geometry.sample_displacement": 0.0,
         "instrument.geometry.sample_transparency": 0.0,
+        "instrument.geometry.capillary_offset_along_beam": 0.0,
+        "instrument.geometry.capillary_offset_across_beam": 0.0,
     }
+    # every family carrying a null is an aberration, and every aberration in
+    # the model has a family: the two lists cannot drift on the half that
+    # matters, which is the one the discriminator reads
+    assert set(NULL_IDENTITY) <= set(EXCHANGE_CANDIDATE_GLOBS)
 
 
 def test_final_jacobian_is_undamped(truth):
