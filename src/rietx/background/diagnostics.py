@@ -262,12 +262,15 @@ def _median_steps_per_fwhm(net: np.ndarray, sigma: np.ndarray
     if not len(idx):
         return None, 0
     with warnings.catch_warnings():
-        # scipy warns that some peak has zero width, which is exactly the case
-        # dropped on the next line — the filter *is* the handling, so the
-        # warning is noise rather than news.  Matched on the message because
-        # ``PeakPropertyWarning`` is not exported from ``scipy.signal``
-        # (checked on 1.18): a private import would be the more fragile half.
-        warnings.filterwarnings("ignore", message="some peaks have a width of 0")
+        # scipy warns that some peak has zero width or zero prominence, which
+        # is exactly the case dropped on the next line — the filter *is* the
+        # handling, so the warning is noise rather than news.  Matched on the
+        # message because ``PeakPropertyWarning`` is not exported from
+        # ``scipy.signal`` (checked on 1.18): a private import would be the
+        # more fragile half.  Both wordings, because scipy raises the width one
+        # on a synthetic pattern and the prominence one on real 11-BM data.
+        warnings.filterwarnings(
+            "ignore", message=r"some peaks have a (width|prominence) of 0")
         widths = peak_widths(np.maximum(net, 0.0), idx, rel_height=0.5)[0]
     usable = widths[np.isfinite(widths) & (widths > 0.0)]
     if not len(usable):
