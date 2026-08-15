@@ -126,8 +126,10 @@ def test_partition_of_its_own_pattern_is_the_identity(march_r):
 def test_uniform_scale_error_gives_the_closed_form_r_values():
     """Read a pattern of scale S against a model at 1.2·S.
 
-    Every reflection's obs/calc ratio is then exactly 1/1.2, so eq (14)
-    collapses to |1 − 1.2|/1 = 0.2 and eq (13), on amplitudes, to √1.2 − 1.
+    Every reflection's obs/calc ratio is then exactly 1/1.2, so both sums
+    collapse to that ratio's distance from 1, normalised by the ratio:
+    eq (14) gives (1 − 1/1.2)·1.2 = 0.2 and eq (13), on amplitudes, gives
+    (1 − 1/√1.2)·√1.2 = √1.2 − 1.
     Two independent things are pinned: that the correction factors really do
     divide out (a leftover Lp or absorption factor would make the ratio
     angle-dependent and neither sum would close), and that R_F is the root of
