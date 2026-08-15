@@ -435,13 +435,13 @@ def geometry_table(model, table, theta: np.ndarray, structure, *,
                 symmetry_2=code, bonded=is_bond))
         for (v, a, b), item, (sig, sig_d) in zip(angle_rows, angle_items,
                                                  angle_sigma, strict=True):
-            theta = _angle_degrees(item, values)
-            if min(theta, 180.0 - theta) < ANGLE_LINEARISATION_LIMIT_DEG:
+            degrees = _angle_degrees(item, values)
+            if min(degrees, 180.0 - degrees) < ANGLE_LINEARISATION_LIMIT_DEG:
                 sig = sig_d = None
             angles.append(GeometryAngle(
                 phase_index=ip, atom_1=labels[a[0]], atom_2=labels[v],
                 atom_3=labels[b[0]], atom_index_1=a[0], atom_index_2=v,
-                atom_index_3=b[0], angle=theta,
+                atom_index_3=b[0], angle=degrees,
                 stderr=sig, stderr_diagonal=sig_d,
                 symmetry_1=a[5], symmetry_3=b[5]))
     return GeometryTable(distances=distances, angles=angles,

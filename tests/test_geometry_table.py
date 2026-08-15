@@ -385,6 +385,42 @@ def test_a_fully_fixed_row_reports_none_not_zero():
 # ----------------------------------------------------------------------
 # carrier semantics and bounds
 # ----------------------------------------------------------------------
+def test_a_multi_phase_fit_keeps_the_phases_apart():
+    """Three phases in one table, each with its own covariance block.
+
+    Not a redundant shape check.  Every other test here is single-phase, and
+    the second phase's esd path is the one nothing else reaches: a loop
+    variable shadowing ``theta`` sent the previous phase's *last bond angle*
+    into ``physical_covariance`` as the parameter vector, and only real
+    two-phase data (11-BM NAC + its CaF₂ impurity) raised on it.
+    """
+    structure = Structure(phases=[corundum_phase(), zincite_phase(),
+                                  fluorite_phase()])
+    table = ParameterTable(structure, LAB)
+    table.set_vary(["*"], False)
+    table.set_vary(["phases.*.cell.a", "phases.*.atoms.*.dof.*"], True)
+    free = list(table.free_paths)
+    assert len(free) >= 5
+    model = compile_model(structure, LAB, _blank(), mode="rietveld")
+    theta = table.x0()
+    sd = np.full(len(free), 1e-4)
+    rng = np.random.default_rng(3)
+    a = rng.normal(size=(len(free), len(free)))
+    corr = np.corrcoef(a @ a.T)
+    g = geometry_table(model, table, theta, structure,
+                       stderr_internal=sd, correlation=corr)
+
+    seen = {d.phase_index for d in g.distances}
+    assert seen == {0, 1, 2}
+    for ip, phase in enumerate(structure.phases):
+        rows = [d for d in g.distances if d.phase_index == ip]
+        labels = {a.label for a in phase.atoms}
+        assert rows and all({d.atom_1, d.atom_2} <= labels for d in rows)
+    # every phase that has a free coordinate or cell edge gets real esds
+    assert all(any(d.stderr for d in g.distances if d.phase_index == ip)
+               for ip in (0, 1, 2))
+
+
 @pytest.mark.parametrize("mode", ["lebail", "pawley"])
 def test_no_geometry_outside_rietveld(mode):
     """The dummy atom those modes require is not a structure to measure."""
