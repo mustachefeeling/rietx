@@ -1,8 +1,8 @@
 # WP-1071 — Does the data support it: effective observations and steps per FWHM
 
-Milestone: v1.0 · Status: ✅ 2026-08-15 — `DataSupport` (raw + Altomare
-effective counts, structural split, both ratios), `PatternDiagnostics.
-steps_per_fwhm`, `DATA_SUPPORT_LOW` + `PATTERN_UNDERSAMPLED`; gates nothing
+Milestone: v1.0 · Status: ✅ 2026-08-15 — `DataSupport` (raw and Altomare
+effective counts, the structural split, both ratios), the sampling number on
+`PatternDiagnostics`, and two diagnostics that report and gate nothing
 Depends on: — (recommended **before 1003**: two small additive evidence
 fields the freeze may as well cover; the grounds are in 1003's Inherited)
 
@@ -172,14 +172,22 @@ nothing. Gaps 3 and 9 of the McCusker audit (`../milestones/v1.0.md`
   and 5σ and 20σ give bit-identical answers, which is the guard that it is a
   floor and not a tuning (a test pins it).
 
-  **Counts** (`[dev]`, darwin/arm64, this checkout's own `.venv`). Fast
-  selection: 2327+112 after task 1, **2343 passed + 112 skipped** in ~3:01-3:03
-  after task 3 — +16, matching the 16 tests added between those runs, every one
-  a pass and no new skip. `tests/test_data_support.py` is 25 tests. Full suite,
-  fired **once on the final tree** (`dd89a4e`, working tree clean):
-  **2451 passed + 121 skipped in 28:17**, consistent with the fast selection's
-  +25 and with the nine acceptance tests that only the slow selection runs. The
-  wall clock is a range, not a record — this machine also served the session.
+  **Counts** (`[dev]`, darwin/arm64, this checkout's own `.venv` — no
+  jax/torch, so the backend rows skip). `tests/test_data_support.py` collects
+  **25** tests and **none is `slow`-marked**, so all 25 are in both selections.
+
+  Fast selection: 2327+112 measured after task 1, **2343 passed + 112 skipped**
+  in ~3:01-3:03 after task 3. The delta between those two runs is **+16 passed,
+  +0 skipped**, against exactly 16 tests added between them — every addition a
+  pass, no new skip. The session's own baseline on `main` was **not** measured,
+  by the ladder's rule that a local baseline is CI's job; 2343 − 25 = 2318 is
+  therefore inferred, not measured, and is the one number here nobody ran.
+
+  Full suite, fired **once on the final tree** (`dd89a4e`, working tree clean):
+  **2451 passed + 121 skipped in 28:17**. It sits +108 passed / +9 skipped over
+  the fast selection, which is the acceptance set the slow marker gates and not
+  anything this WP added. Quote the wall clock as a range — this machine served
+  the session while it ran.
 
   **One pre-existing defect found and left alone** (out of scope, no WP):
   `compile_model` raises `ValueError: einstein sum subscripts string contains

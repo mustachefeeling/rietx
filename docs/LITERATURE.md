@@ -59,6 +59,29 @@ Held locally, all read except where marked:
 | **Grosse-Kunstleve, Sauter & Adams (2004)** — reduced unit cells | `2FSRWWUB` | `indexing/reduce.py`, `NIGGLI_EPS_RELATIVE`. **Unread** |
 | **Altomare et al. (2007)** — Indexing a powder diffraction pattern | `ZZ9TPCSA` | field review. **Unread** |
 
+## Papers held outside the corpus
+
+**Altomare, Cascarano, Giacovazzo, Guagliardi, Moliterni, Burla & Polidori
+(1995)**, *J. Appl. Cryst.* **28**, 738-744 — "On the number of statistically
+independent observations in a powder diffraction pattern". The M_ind estimator
+McCusker §9 names, implemented in `optimize.statistics.effective_observations`
+(WP-1071). **Searched for and absent from the zotero corpus** — title, author
+path and full-text grep all miss it, and the only Altomare there is the 2007
+indexing review. Supplied 2026-08-15 as mineru-OCR markdown:
+
+```
+/Users/yue/Code/mineru-app/data/output/332d1f87b5fc/Altomare et al. - 1995 - On the Number of Statistically Independent Observations in a Powder Dif/auto/Altomare et al. - 1995 - On the Number of Statistically Independent Observations in a Powder Dif.md
+```
+
+What is load-bearing in it, so a re-read can go straight there: **§2** is the
+algorithm — the ±α·FWHM interval, the overlap test, and the I′_k/I_k
+contribution — and **§4** carries the α = 2 → α = 4 check (6.5 % average,
+13.3 % maximum) that is the estimator's own stated precision, which any
+re-shaping of it has to be measured against. The tables in §3 give M_ind/M
+between 0.22 and 0.50 across twenty real structures: the only external check
+on an implementation without their data. OCR is clean on both; the Table 1/2
+cell contents are garbled and are not needed.
+
 ## Books — held outside the corpus
 
 **Prince, *Mathematical Techniques in Crystallography and Materials Science*
