@@ -342,14 +342,19 @@ class ParameterTable:
             # re-runs no validator, and this is the last gate before a solve —
             # so refuse here too, naming the field rather than quietly holding
             # the parameter (a held aberration reads as "measured zero").
-            if offset.vary and geom.kind == "debye_scherrer" \
-                    and not geom.goniometer_radius_mm:
+            usable = bool(geom.kind == "debye_scherrer"
+                          and geom.goniometer_radius_mm)
+            if offset.vary and not usable:
                 raise ValueError(
                     f"instrument.geometry.{name} cannot vary without "
                     f"goniometer_radius_mm: eq (4) is "
                     f"Δ2θ = (−a·sin2θ + b·cos2θ)/R and R is unset")
+            # force-fixed rather than merely unfree when R is missing, because
+            # ``_position_shift_deg`` skips the term without one: a free entry
+            # there would be a dead column — a parameter the solver moves and
+            # the model does not read.
             self._add(f"instrument.geometry.{name}", offset,
-                      force_fixed=(geom.kind != "debye_scherrer"))
+                      force_fixed=not usable)
         # surface roughness is opt-in, so it is *skipped* when absent rather
         # than added locked: a table built from an instrument without the block
         # is byte-for-byte the pre-WP-0502 table.  No geometry gate needed —

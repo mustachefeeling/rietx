@@ -290,11 +290,8 @@ Geometry
 Geometry.axial_hl
 Geometry.axial_sl
 Geometry.capillary_radius_mm
-Geometry.goniometer_radius_mm
 Geometry.kind
 Geometry.packing_fraction
-Geometry.sample_displacement
-Geometry.sample_transparency
 Geometry.surface_roughness
 Geometry.thickness_mm
 GuardFinding

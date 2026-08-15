@@ -96,8 +96,10 @@ def test_capillary_only_variants_are_gated_by_geometry():
             assert "roughness_pitschke" not in offered
             assert "flat_plate" not in offered
             assert "absorption" in offered
+            assert "capillary_displacement" in offered
         else:
             assert "absorption" not in offered
+            assert "capillary_displacement" not in offered
             assert "roughness_suortti" in offered
             assert "flat_plate" in offered
 
@@ -174,6 +176,32 @@ def test_stephens_variant_frees_strain_inside_the_broadening_stage():
     assert "phases.*.microstrain.dof.*" in stage.turn_on
     assert stage.strain_seed > 0.0
     assert inputs.structure.phases[0].microstrain is not None
+
+
+# ----------------------------------------------------------------------
+# decimation
+# ----------------------------------------------------------------------
+def test_capillary_displacement_variant_frees_the_pair_with_the_zero_shift():
+    """Beside ``zero_shift``, not in a stage of its own (WP-1073).
+
+    The three span {1, sin2θ, cos2θ}, so freeing the offsets a stage later
+    would let the zero shift converge onto whichever of them it can imitate
+    and then hold it there — the comparison would be measuring the stage
+    order, not the correction.  The variant also has to *supply* R where the
+    standard declares none: eq (4) divides by it, so without one the two
+    parameters cannot be freed at all.
+    """
+    if not (DATA_DIR / "11BM_NAC.fxye").exists():
+        pytest.skip("11-BM NAC dataset not present")
+    inputs = cmp.STANDARD_BY_KEY["nac"].build(DATA_DIR)
+    n_before = len(inputs.plan.stages)
+    cmp.VARIANT_BY_KEY["capillary_displacement"].apply(inputs)
+    assert len(inputs.plan.stages) == n_before          # extended, not appended
+    assert inputs.instrument.geometry.goniometer_radius_mm
+    stage = next(s for s in inputs.plan.stages
+                 if "instrument.zero_shift" in s.turn_on)
+    assert "instrument.geometry.capillary_offset_along_beam" in stage.turn_on
+    assert "instrument.geometry.capillary_offset_across_beam" in stage.turn_on
 
 
 # ----------------------------------------------------------------------

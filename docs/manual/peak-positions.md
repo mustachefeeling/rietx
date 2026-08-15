@@ -41,11 +41,15 @@ which grows with $\tan\theta$ — a Kα₂ line is never a fixed offset from Kα
 
 ## Aberration shifts
 
-Three additive $2\theta$ shifts with distinct angular signatures are
-modelled; the signatures are what makes them separable, and only barely so
-(the decorrelation workflow below).
+Additive $2\theta$ shifts with distinct angular signatures are modelled; the
+signatures are what makes them separable, and only barely so (the
+decorrelation workflow below). **Which shifts exist depends on the geometry**,
+because each is derived for one specimen shape: the two below the zero-point
+error are flat-plate aberrations, and the capillary has its own pair further
+down.
 
-The **zero-point error** is a constant. **Sample displacement** in
+The **zero-point error** is a constant, and is the only one common to every
+geometry. **Sample displacement** in
 Bragg-Brentano geometry, for a flat specimen whose surface sits a distance
 $s$ off the goniometer axis with goniometer radius $R$
 {cite}`wilson1963,klug1974`:
@@ -80,6 +84,34 @@ collinear over a typical angular range, and all three trade against the cell
 parameters. The house workflow decorrelates them by *calibration*: refine
 zero and displacement on a standard whose certified cell is held fixed, save
 the instrument profile, and load it frozen for sample work.
+
+**Capillary displacement** is the Debye-Scherrer counterpart, for a capillary
+whose diffracting volume sits off the centre of the $2\theta$ circle
+{cite}`mccusker1999`:
+
+```{math}
+:label: pos-capillary
+
+\Delta 2\theta \;=\; \frac{-a \sin 2\theta + b \cos 2\theta}{R}
+\quad [\mathrm{rad}].
+```
+
+*Source:* `rietx.model.corrections.capillary_displacement_shift_deg`
+
+Here $a$ is the displacement along the incident beam, positive downstream,
+and $b$ the displacement perpendicular to it in the diffraction plane,
+positive toward increasing $2\theta$. The paper prints the same expression as
+$(x \sin 2\theta - y \cos 2\theta)/R$ and draws no axes; the signs above are
+fixed by derivation, and other codes attach the letter $x$ to the other term,
+so the *shapes* are what carries the meaning. Both are exactly zero when the
+capillary is centred, and both are held fixed unless the geometry declares
+$R$.
+
+The trio for this geometry is therefore (constant, $\sin 2\theta$,
+$\cos 2\theta$), and it is separable for the same reason and to the same
+limited degree: over $5$–$160°$ the smallest eigenvalue of the unit-column
+Gram matrix is $5.2 \times 10^{-2}$, and over $5$–$25°$ it is
+$1.1 \times 10^{-5}$.
 
 ## Wavelength scales
 
